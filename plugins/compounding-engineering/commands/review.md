@@ -57,20 +57,23 @@ This will inform which language-specific reviewers to use.
 
 Check for these indicators to determine project type:
 
-**Rails Project**:
-- `Gemfile` with `rails` gem
-- `config/application.rb`
-- `app/` directory structure
-
-**TypeScript Project**:
+**Next.js/TypeScript Project** (Stable Mischief Stack):
+- `next.config.js` or `next.config.mjs`
 - `tsconfig.json`
-- `package.json` with TypeScript dependencies
+- `package.json` with Next.js dependencies
 - `.ts` or `.tsx` files
+- `app/` directory (App Router)
 
-**Python Project**:
-- `requirements.txt` or `pyproject.toml`
+**FastAPI/Python Project** (Stable Mischief Stack):
+- `requirements.txt` with `fastapi`
+- `pyproject.toml`
 - `.py` files
-- `setup.py` or `poetry.lock`
+- `app/main.py` or similar
+
+**Supabase Integration**:
+- `.env` with `SUPABASE_URL`
+- `@supabase/supabase-js` in package.json
+- RLS policies in SQL files
 
 Based on detection, set appropriate reviewers for parallel execution.
 
@@ -84,27 +87,36 @@ Run ALL or most of these agents at the same time, adjusting language-specific re
 
 **Language-Specific Reviewers (choose based on project type)**:
 
-For Rails projects:
-1. Task kieran-rails-reviewer(PR content)
-2. Task dhh-rails-reviewer(PR title)
-3. If turbo is used: Task rails-turbo-expert(PR content)
-
-For TypeScript projects:
+For Next.js/TypeScript projects:
 1. Task kieran-typescript-reviewer(PR content)
+2. Task frontend-developer(PR content)
+3. Task typescript-pro(PR content)
 
-For Python projects:
+For FastAPI/Python projects:
 1. Task kieran-python-reviewer(PR content)
+2. Task fastapi-pro(PR content)
+
+For Supabase/Database:
+1. Task supabase-specialist(PR content)
+2. Task database-optimizer(PR content)
+3. Task sql-pro(PR content)
+4. Task pgvector-embeddings-expert(PR content) - if vector/embeddings code
+
+For Deployment/DevOps:
+1. Task coolify-deployment-expert(PR content) - if Dockerfile/docker-compose changes
+2. Task deployment-engineer(PR content)
 
 **Universal Reviewers (run for all project types)**:
-4. Task git-history-analyzer(PR content)
-5. Task dependency-detective(PR content)
-6. Task pattern-recognition-specialist(PR content)
-7. Task architecture-strategist(PR content)
-8. Task code-philosopher(PR content)
-9. Task security-sentinel(PR content)
-10. Task performance-oracle(PR content)
-11. Task devops-harmony-analyst(PR content)
-12. Task data-integrity-guardian(PR content)
+1. Task git-history-analyzer(PR content)
+2. Task dependency-detective(PR content)
+3. Task pattern-recognition-specialist(PR content)
+4. Task architecture-strategist(PR content)
+5. Task code-philosopher(PR content)
+6. Task security-sentinel(PR content)
+7. Task performance-oracle(PR content)
+8. Task devops-harmony-analyst(PR content)
+9. Task data-integrity-guardian(PR content)
+10. Task code-simplicity-reviewer(PR content)
 
 </parallel_tasks>
 
