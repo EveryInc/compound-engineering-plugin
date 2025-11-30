@@ -5,7 +5,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 ## Components
 
 - **17 Agents** - Specialized AI agents for code review, research, and analysis
-- **6 Commands** - Slash commands for common workflows
+- **7 Commands** - Slash commands for common workflows
 - **1 Skill** - Image generation with Gemini API
 
 ## Agents
@@ -41,6 +41,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 - **/plan** - Create an implementation plan
 - **/work** - Execute work items systematically
 - **/triage** - Triage issues and prioritize work
+- **/codify** - Capture learnings to make future work easier
 - **/resolve_todo_parallel** - Resolve todos in parallel
 - **/generate_command** - Generate new slash commands
 

@@ -1,7 +1,7 @@
 {
   "name": "compounding-engineering",
-  "version": "1.1.0",
-  "description": "AI-powered development tools that get smarter with every use. Make each unit of engineering work easier than the last. Includes 17 specialized agents, 6 commands, and 1 skill.",
+  "version": "1.2.0",
+  "description": "AI-powered development tools that get smarter with every use. Make each unit of engineering work easier than the last. Includes 17 specialized agents, 7 commands, and 1 skill.",
   "author": {
     "name": "Kieran Klaassen",
     "email": "kieran@every.to",

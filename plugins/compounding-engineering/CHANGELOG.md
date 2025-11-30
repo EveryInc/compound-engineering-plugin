@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.2.0] - 2024-11-30
+
+### Added
+- **/codify command** - Complete the compounding engineering loop by capturing learnings
+  - Classify learnings: project, review pattern, process improvement, or agent enhancement
+  - Auto-detect target file based on learning type
+  - Format consistently with existing entries
+  - Preview before applying
+  - Supports quick mode with inline arguments
+
+### Documentation
+- Updated component counts (now 7 commands)
+
 ## [1.1.0] - 2024-11-22
 
 ### Added
