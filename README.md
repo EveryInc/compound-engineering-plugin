@@ -69,10 +69,10 @@ graph LR
     C --> D[Codify<br/>Record<br/>learnings]
     D --> A
 
-    style A fill:#f9f,stroke:#333,stroke-width:2px
-    style B fill:#bbf,stroke:#333,stroke-width:2px
-    style C fill:#bfb,stroke:#333,stroke-width:2px
-    style D fill:#ffb,stroke:#333,stroke-width:2px
+    style A fill:#f9f,stroke:#fff,stroke-width:2px,color:#333
+    style B fill:#bbf,stroke:#fff,stroke-width:2px,color:#333
+    style C fill:#bfb,stroke:#fff,stroke-width:2px,color:#333
+    style D fill:#ffb,stroke:#fff,stroke-width:2px,color:#333
 ```
 
 ## How It Works
