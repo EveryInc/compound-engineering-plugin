@@ -1,7 +1,7 @@
 {
   "name": "compound-engineering",
-  "version": "2.10.0",
-  "description": "AI-powered development tools. 25 agents, 19 commands, 12 skills, 2 MCP servers for code review, research, design, and workflow automation.",
+  "version": "2.9.4",
+  "description": "AI-powered development tools. 24 agents, 19 commands, 11 skills, 2 MCP servers for code review, research, design, and workflow automation.",
   "author": {
     "name": "Kieran Klaassen",
     "email": "kieran@every.to",
@@ -10,6 +10,10 @@
   "homepage": "https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it",
   "repository": "https://github.com/EveryInc/every-marketplace",
   "license": "MIT",
+  "commands": [
+    "./commands/", 
+    "./commands/workflows/"
+  ],
   "keywords": [
     "ai-powered",
     "compound-engineering",
