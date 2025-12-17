@@ -56,11 +56,34 @@ This command takes a work document (plan, specification, or todo file) and execu
    - You prefer staying in the main repository
 
 3. **Create Todo List**
-   - Use TodoWrite to break plan into actionable tasks
+   - Use TodoWrite to break plan into actionable tasks (in-memory tracking)
    - Include dependencies between tasks
    - Prioritize based on what needs to be done first
    - Include testing and quality check tasks
    - Keep tasks specific and completable
+
+4. **bd Issue Tracking** (if project uses bd)
+
+   If the project has `.beads/` initialized, also track via bd:
+
+   ```bash
+   # Check if bd is initialized
+   [ -d ".beads" ] && echo "bd available"
+
+   # Create issue for the work item
+   bd create "[Feature/Fix]: [Title from plan]" \
+     -t [feature|bug|task] \
+     -p 1 \
+     --json
+
+   # Claim the issue
+   bd update <id> --status in_progress --json
+   ```
+
+   This provides:
+   - Persistent tracking across sessions
+   - Dependency management with other issues
+   - Git-synced state via `.beads/issues.jsonl`
 
 ### Phase 2: Execute
 
@@ -152,10 +175,18 @@ This command takes a work document (plan, specification, or todo file) and execu
 
 ### Phase 4: Ship It
 
-1. **Create Commit**
+1. **Close bd Issue** (if using bd)
+
+   ```bash
+   # Close the issue you were working on
+   bd close <id> --reason "Implemented and tested" --json
+   ```
+
+2. **Create Commit**
 
    ```bash
    git add .
+   git add .beads/issues.jsonl  # Include issue state changes
    git status  # Review what's being committed
    git diff --staged  # Check the changes
 

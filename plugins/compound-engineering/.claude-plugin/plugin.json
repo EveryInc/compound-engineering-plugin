@@ -1,7 +1,7 @@
 {
   "name": "compound-engineering",
-  "version": "2.13.0",
-  "description": "AI-powered development tools. 27 agents, 17 commands, 13 skills, 2 MCP servers for code review, research, design, and workflow automation.",
+  "version": "3.0.0",
+  "description": "AI-powered development tools. 28 agents, 20 commands, 14 skills, 2 MCP servers for code review, research, design, and workflow automation. Now with bd (beads) issue tracking integration.",
   "author": {
     "name": "Kieran Klaassen",
     "email": "kieran@every.to",
@@ -22,7 +22,11 @@
     "knowledge-management",
     "image-generation",
     "playwright",
-    "browser-automation"
+    "browser-automation",
+    "beads",
+    "bd",
+    "issue-tracking",
+    "tmux"
   ],
   "mcpServers": {
     "pw": {

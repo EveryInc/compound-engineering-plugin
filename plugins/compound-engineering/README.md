@@ -6,9 +6,9 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 27 |
-| Commands | 17 |
-| Skills | 12 |
+| Agents | 28 |
+| Commands | 20 |
+| Skills | 14 |
 | MCP Servers | 2 |
 
 ## Agents
@@ -51,10 +51,11 @@ Agents are organized into categories for easier discovery.
 | `design-iterator` | Iteratively refine UI through systematic design iterations |
 | `figma-design-sync` | Synchronize web implementations with Figma designs |
 
-### Workflow (5)
+### Workflow (6)
 
 | Agent | Description |
 |-------|-------------|
+| `bd-issue-resolver` | Resolve a single bd issue by implementing changes |
 | `bug-reproduction-validator` | Systematically reproduce and validate bug reports |
 | `every-style-editor` | Edit content to conform to Every's style guide |
 | `lint` | Run linting and code quality checks on Ruby and ERB files |
@@ -80,6 +81,16 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `/workflows:work` | Execute work items systematically |
 | `/workflows:compound` | Document solved problems to compound team knowledge |
 
+### bd (beads) Commands
+
+| Command | Description |
+|---------|-------------|
+| `/bd-status` | Show project status with ready work and graph insights |
+| `/bd-insights` | Deep graph analysis using bv for bottlenecks and cycles |
+| `/bd-plan` | Generate optimal execution plan with parallel tracks |
+| `/bd-triage` | Triage findings into bd issues interactively |
+| `/bd-resolve-parallel` | Resolve bd issues in parallel using graph-optimized execution |
+
 ### Utility Commands
 
 | Command | Description |
@@ -93,8 +104,6 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `/reproduce-bug` | Reproduce bugs using logs and console |
 | `/resolve_parallel` | Resolve TODO comments in parallel |
 | `/resolve_pr_parallel` | Resolve PR comments in parallel |
-| `/resolve_todo_parallel` | Resolve todos in parallel |
-| `/triage` | Triage and prioritize issues |
 
 ## Skills
 
@@ -116,12 +125,13 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `frontend-design` | Create production-grade frontend interfaces |
 | `skill-creator` | Guide for creating effective Claude Code skills |
 
-### Content & Workflow
+### Issue Tracking & Workflow
 
 | Skill | Description |
 |-------|-------------|
+| `bd-integration` | Issue tracking with bd (beads) - dependency-aware, git-friendly |
+| `tmux-control` | TUI screen control and capture using tmux |
 | `every-style-editor` | Review copy for Every's style guide compliance |
-| `file-todos` | File-based todo tracking system |
 | `git-worktree` | Manage Git worktrees for parallel development |
 
 ### Image Generation

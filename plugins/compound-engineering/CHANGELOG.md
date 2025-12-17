@@ -5,6 +5,44 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.0] - 2025-12-17
+
+### BREAKING CHANGES
+
+- **Removed `file-todos` skill** - The file-based todo system (`todos/*.md` files) has been completely replaced with bd (beads) integration. Projects using the old file-todos system should migrate to bd.
+- **Removed `/triage` command** - Replaced by `/bd-triage`
+- **Removed `/resolve_todo_parallel` command** - Replaced by `/bd-resolve-parallel`
+
+### Added
+
+- **`bd-integration` skill** - Complete integration with bd (beads) issue tracker. Includes documentation for bd CLI commands, bv (beads_viewer) graph analysis, and agent-optimized workflows.
+- **`tmux-control` skill** - TUI screen control and capture using tmux for debugging, automation, and multi-pane workflows.
+- **`/bd-status` command** - Show project status with ready work and graph insights
+- **`/bd-insights` command** - Deep graph analysis using bv for PageRank, bottlenecks, cycles
+- **`/bd-plan` command** - Generate optimal execution plan with parallel tracks
+- **`/bd-triage` command** - Triage findings into bd issues with interactive approval
+- **`/bd-resolve-parallel` command** - Resolve bd issues in parallel using graph-optimized execution
+- **`bd-issue-resolver` agent** - Resolve a single bd issue by implementing changes and reporting status
+
+### Changed
+
+- **`/workflows:review` command** - Now creates bd issues instead of file-based todos. Updated priority mapping (P0-P3) and next steps to use bd commands.
+- **`/workflows:work` command** - Added bd issue tracking integration. Optionally tracks work via bd if `.beads/` is initialized.
+
+### Migration Guide
+
+To migrate from file-todos to bd:
+
+1. Initialize bd in your project: `bd init`
+2. For existing todos, create bd issues: `bd create "Title" -t task -p 2`
+3. Use new commands:
+   - `/bd-triage` instead of `/triage`
+   - `/bd-resolve-parallel` instead of `/resolve_todo_parallel`
+   - `/bd-status` for project overview
+   - `/bd-insights` for graph analysis
+   - `/bd-plan` for execution planning
+4. Commit `.beads/issues.jsonl` with your code changes
+
 ## [2.13.0] - 2025-12-15
 
 ### Added

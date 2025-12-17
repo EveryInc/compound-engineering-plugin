@@ -193,9 +193,9 @@ Complete system context map with component interactions
 
 Run the Task code-simplicity-reviewer() to see if we can simplify the code.
 
-### 5. Findings Synthesis and Todo Creation Using file-todos Skill
+### 5. Findings Synthesis and Issue Creation Using bd
 
-<critical_requirement> ALL findings MUST be stored in the todos/ directory using the file-todos skill. Create todo files immediately after synthesis - do NOT present findings for user approval first. Use the skill for structured todo management. </critical_requirement>
+<critical_requirement> ALL findings MUST be tracked as bd issues. Create issues immediately after synthesis - do NOT present findings for user approval first. Use bd for dependency-aware, git-synced issue tracking. </critical_requirement>
 
 #### Step 1: Synthesize All Findings
 
@@ -208,164 +208,137 @@ Remove duplicates, prioritize by severity and impact.
 
 - [ ] Collect findings from all parallel agents
 - [ ] Categorize by type: security, performance, architecture, quality, etc.
-- [ ] Assign severity levels: 🔴 CRITICAL (P1), 🟡 IMPORTANT (P2), 🔵 NICE-TO-HAVE (P3)
+- [ ] Assign severity levels: P0 (CRITICAL), P1 (HIGH), P2 (MEDIUM), P3 (LOW)
 - [ ] Remove duplicate or overlapping findings
 - [ ] Estimate effort for each finding (Small/Medium/Large)
 
 </synthesis_tasks>
 
-#### Step 2: Create Todo Files Using file-todos Skill
+#### Step 2: Create bd Issues
 
-<critical_instruction> Use the file-todos skill to create todo files for ALL findings immediately. Do NOT present findings one-by-one asking for user approval. Create all todo files in parallel using the skill, then summarize results to user. </critical_instruction>
+<critical_instruction> Use bd to create issues for ALL findings immediately. Do NOT present findings one-by-one asking for user approval. Create all issues in parallel, then summarize results to user. </critical_instruction>
 
-**Implementation Options:**
+**Priority Mapping:**
 
-**Option A: Direct File Creation (Fast)**
+| Severity | bd Priority | Meaning |
+|----------|-------------|---------|
+| CRITICAL | `-p 0` | Security, data loss, blocks merge |
+| HIGH | `-p 1` | Major bugs, important features |
+| MEDIUM | `-p 2` | Should fix, performance issues |
+| LOW | `-p 3` | Nice-to-have, cleanup |
 
-- Create todo files directly using Write tool
-- All findings in parallel for speed
-- Use standard template from `.claude/skills/file-todos/assets/todo-template.md`
-- Follow naming convention: `{issue_id}-pending-{priority}-{description}.md`
+**Issue Creation Process:**
 
-**Option B: Sub-Agents in Parallel (Recommended for Scale)** For large PRs with 15+ findings, use sub-agents to create finding files in parallel:
+For each finding, create a bd issue:
 
 ```bash
-# Launch multiple finding-creator agents in parallel
-Task() - Create todos for first finding
-Task() - Create todos for second finding
-Task() - Create todos for third finding
-etc. for each finding.
+bd create "[Category]: [Brief title]" \
+  -t bug \
+  -p [0-3] \
+  --label code-review,[category] \
+  --json
 ```
 
-Sub-agents can:
+**Examples:**
 
-- Process multiple findings simultaneously
-- Write detailed todo files with all sections filled
-- Organize findings by severity
-- Create comprehensive Proposed Solutions
-- Add acceptance criteria and work logs
-- Complete much faster than sequential processing
+```bash
+# P0 Critical - Security vulnerability
+bd create "Security: SQL injection in user_params" \
+  -t bug -p 0 \
+  --label code-review,security \
+  --json
 
-**Execution Strategy:**
+# P1 High - Performance issue
+bd create "Performance: N+1 query in posts#index" \
+  -t bug -p 1 \
+  --label code-review,performance \
+  --json
 
-1. Synthesize all findings into categories (P1/P2/P3)
-2. Group findings by severity
-3. Launch 3 parallel sub-agents (one per severity level)
-4. Each sub-agent creates its batch of todos using the file-todos skill
-5. Consolidate results and present summary
+# P2 Medium - Architecture concern
+bd create "Architecture: Missing service layer abstraction" \
+  -t task -p 2 \
+  --label code-review,architecture \
+  --json
 
-**Process (Using file-todos Skill):**
-
-1. For each finding:
-
-   - Determine severity (P1/P2/P3)
-   - Write detailed Problem Statement and Findings
-   - Create 2-3 Proposed Solutions with pros/cons/effort/risk
-   - Estimate effort (Small/Medium/Large)
-   - Add acceptance criteria and work log
-
-2. Use file-todos skill for structured todo management:
-
-   ```bash
-   skill: file-todos
-   ```
-
-   The skill provides:
-
-   - Template location: `.claude/skills/file-todos/assets/todo-template.md`
-   - Naming convention: `{issue_id}-{status}-{priority}-{description}.md`
-   - YAML frontmatter structure: status, priority, issue_id, tags, dependencies
-   - All required sections: Problem Statement, Findings, Solutions, etc.
-
-3. Create todo files in parallel:
-
-   ```bash
-   {next_id}-pending-{priority}-{description}.md
-   ```
-
-4. Examples:
-
-   ```
-   001-pending-p1-path-traversal-vulnerability.md
-   002-pending-p1-api-response-validation.md
-   003-pending-p2-concurrency-limit.md
-   004-pending-p3-unused-parameter.md
-   ```
-
-5. Follow template structure from file-todos skill: `.claude/skills/file-todos/assets/todo-template.md`
-
-**Todo File Structure (from template):**
-
-Each todo must include:
-
-- **YAML frontmatter**: status, priority, issue_id, tags, dependencies
-- **Problem Statement**: What's broken/missing, why it matters
-- **Findings**: Discoveries from agents with evidence/location
-- **Proposed Solutions**: 2-3 options, each with pros/cons/effort/risk
-- **Recommended Action**: (Filled during triage, leave blank initially)
-- **Technical Details**: Affected files, components, database changes
-- **Acceptance Criteria**: Testable checklist items
-- **Work Log**: Dated record with actions and learnings
-- **Resources**: Links to PR, issues, documentation, similar patterns
-
-**File naming convention:**
-
-```
-{issue_id}-{status}-{priority}-{description}.md
-
-Examples:
-- 001-pending-p1-security-vulnerability.md
-- 002-pending-p2-performance-optimization.md
-- 003-pending-p3-code-cleanup.md
+# P3 Low - Code quality
+bd create "Quality: Unused variable in helper" \
+  -t task -p 3 \
+  --label code-review,quality \
+  --json
 ```
 
-**Status values:**
+**Parallel Creation:**
 
-- `pending` - New findings, needs triage/decision
-- `ready` - Approved by manager, ready to work
-- `complete` - Work finished
+For multiple findings, create issues in parallel batches:
 
-**Priority values:**
+```bash
+# Create all P0 issues
+bd create "Security: Issue 1" -t bug -p 0 --label code-review,security --json
+bd create "Security: Issue 2" -t bug -p 0 --label code-review,security --json
 
-- `p1` - Critical (blocks merge, security/data issues)
-- `p2` - Important (should fix, architectural/performance)
-- `p3` - Nice-to-have (enhancements, cleanup)
+# Create all P1 issues
+bd create "Performance: Issue 3" -t bug -p 1 --label code-review,performance --json
 
-**Tagging:** Always add `code-review` tag, plus: `security`, `performance`, `architecture`, `rails`, `quality`, etc.
+# etc.
+```
+
+**Issue Types:**
+
+| Finding Type | bd Type |
+|--------------|---------|
+| Security vulnerability | `bug` |
+| Performance issue | `bug` |
+| Missing feature | `feature` |
+| Code quality | `task` |
+| Refactoring | `task` |
+| Documentation | `task` |
 
 #### Step 3: Summary Report
 
-After creating all todo files, present comprehensive summary:
+After creating all issues, present comprehensive summary:
 
-````markdown
-## ✅ Code Review Complete
+```markdown
+## Code Review Complete
 
-**Review Target:** PR #XXXX - [PR Title] **Branch:** [branch-name]
+**Review Target:** PR #XXXX - [PR Title]
+**Branch:** [branch-name]
 
-### Findings Summary:
+### Findings Summary
 
 - **Total Findings:** [X]
-- **🔴 CRITICAL (P1):** [count] - BLOCKS MERGE
-- **🟡 IMPORTANT (P2):** [count] - Should Fix
-- **🔵 NICE-TO-HAVE (P3):** [count] - Enhancements
+- **P0 (CRITICAL):** [count] - BLOCKS MERGE
+- **P1 (HIGH):** [count] - Should Fix
+- **P2 (MEDIUM):** [count] - Important
+- **P3 (LOW):** [count] - Nice-to-Have
 
-### Created Todo Files:
+### Created Issues
 
-**P1 - Critical (BLOCKS MERGE):**
+**P0 - Critical (BLOCKS MERGE):**
 
-- `001-pending-p1-{finding}.md` - {description}
-- `002-pending-p1-{finding}.md` - {description}
+| ID | Title | Type |
+|----|-------|------|
+| bd-xxx | Security: SQL injection | bug |
+| bd-yyy | Data: Missing validation | bug |
 
-**P2 - Important:**
+**P1 - High:**
 
-- `003-pending-p2-{finding}.md` - {description}
-- `004-pending-p2-{finding}.md` - {description}
+| ID | Title | Type |
+|----|-------|------|
+| bd-zzz | Performance: N+1 query | bug |
 
-**P3 - Nice-to-Have:**
+**P2 - Medium:**
 
-- `005-pending-p3-{finding}.md` - {description}
+| ID | Title | Type |
+|----|-------|------|
+| bd-aaa | Architecture: Service layer | task |
 
-### Review Agents Used:
+**P3 - Low:**
+
+| ID | Title | Type |
+|----|-------|------|
+| bd-bbb | Quality: Unused variable | task |
+
+### Review Agents Used
 
 - kieran-rails-reviewer
 - security-sentinel
@@ -374,58 +347,60 @@ After creating all todo files, present comprehensive summary:
 - agent-native-reviewer
 - [other agents]
 
-### Next Steps:
+### Next Steps
 
-1. **Address P1 Findings**: CRITICAL - must be fixed before merge
-
-   - Review each P1 todo in detail
-   - Implement fixes or request exemption
-   - Verify fixes before merging PR
-
-2. **Triage All Todos**:
+1. **Address P0 Findings**: CRITICAL - must be fixed before merge
    ```bash
-   ls todos/*-pending-*.md  # View all pending todos
-   /triage                  # Use slash command for interactive triage
-   ```
-````
-
-3. **Work on Approved Todos**:
-
-   ```bash
-   /resolve_todo_parallel  # Fix all approved items efficiently
+   bd list -p 0 --label code-review --json
    ```
 
-4. **Track Progress**:
-   - Rename file when status changes: pending → ready → complete
-   - Update Work Log as you work
-   - Commit todos: `git add todos/ && git commit -m "refactor: add code review findings"`
+2. **Triage All Issues**:
+   ```bash
+   /bd-triage  # Interactive triage workflow
+   ```
 
-### Severity Breakdown:
+3. **View Execution Plan**:
+   ```bash
+   /bd-plan  # See optimal resolution order
+   ```
 
-**🔴 P1 (Critical - Blocks Merge):**
+4. **Resolve Issues in Parallel**:
+   ```bash
+   /bd-resolve-parallel  # Fix all ready issues efficiently
+   ```
 
+5. **Commit Changes** (include issue state):
+   ```bash
+   git add .beads/issues.jsonl
+   git commit -m "fix: resolve code review findings"
+   ```
+```
+
+### Severity Breakdown
+
+**P0 (Critical - Blocks Merge):**
 - Security vulnerabilities
 - Data corruption risks
 - Breaking changes
 - Critical architectural issues
 
-**🟡 P2 (Important - Should Fix):**
-
+**P1 (High - Should Fix):**
 - Performance issues
 - Significant architectural concerns
 - Major code quality problems
 - Reliability issues
 
-**🔵 P3 (Nice-to-Have):**
+**P2 (Medium - Important):**
+- Moderate improvements
+- Non-critical refactoring
+- Testing gaps
 
+**P3 (Low - Nice-to-Have):**
 - Minor improvements
 - Code cleanup
 - Optimization opportunities
 - Documentation updates
 
-```
+### Important: P0 Findings Block Merge
 
-### Important: P1 Findings Block Merge
-
-Any **🔴 P1 (CRITICAL)** findings must be addressed before merging the PR. Present these prominently and ensure they're resolved before accepting the PR.
-```
+Any **P0 (CRITICAL)** findings must be addressed before merging the PR. Present these prominently and ensure they're resolved before accepting the PR.
