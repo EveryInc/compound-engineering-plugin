@@ -21,6 +21,17 @@
       "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
       "tags": ["ai-powered", "compound-engineering", "workflow-automation", "code-review", "quality", "knowledge-management", "image-generation"],
       "source": "./plugins/compound-engineering"
+    },
+    {
+      "name": "coding-tutor",
+      "description": "Personalized coding tutorials that build on your existing knowledge and use your actual codebase for examples. Includes spaced repetition quizzes to reinforce learning. Includes 3 commands and 1 skill.",
+      "version": "1.2.1",
+      "author": {
+        "name": "Nityesh Agarwal"
+      },
+      "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
+      "tags": ["coding", "programming", "tutorial", "learning", "spaced-repetition", "education"],
+      "source": "./plugins/coding-tutor"
     }
   ]
 }
