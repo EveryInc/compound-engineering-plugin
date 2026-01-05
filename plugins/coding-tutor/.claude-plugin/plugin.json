@@ -1,9 +1,0 @@
-{
-  "name": "coding-tutor",
-  "version": "1.2.1",
-  "description": "Personalized coding tutorials that use your actual codebase for examples with spaced repetition quizzes",
-  "author": {
-    "name": "Nityesh Agarwal"
-  },
-  "keywords": ["coding", "programming", "tutorial", "learning", "spaced-repetition"]
-}
