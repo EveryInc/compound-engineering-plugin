@@ -1,15 +1,33 @@
 ---
 name: dspy-ruby
 description: This skill should be used when working with DSPy.rb, a Ruby framework for building type-safe, composable LLM applications. Use this when implementing predictable AI features, creating LLM signatures and modules, configuring language model providers (OpenAI, Anthropic, Gemini, Ollama), building agent systems with tools, optimizing prompts, or testing LLM-powered functionality in Ruby applications.
+license: MIT
+allowed-tools:
+  - Bash
+  - Read
+  - Write
+  - Edit
+metadata:
+  version: "1.1.0"
+  category: ruby
+  tags: [llm, ai, dspy, type-safe, ruby, agents]
 ---
 
 # DSPy.rb Expert
+
+## Contents
+
+- [Overview](#overview)
+- [Core Capabilities](#core-capabilities)
+- [Quick Start Workflow](#quick-start-workflow)
+- [Implementation Checklist](#implementation-checklist)
+- [References](#references)
 
 ## Overview
 
 DSPy.rb is a Ruby framework that enables developers to **program LLMs, not prompt them**. Instead of manually crafting prompts, define application requirements through type-safe, composable modules that can be tested, optimized, and version-controlled like regular code.
 
-This skill provides comprehensive guidance on:
+**Capabilities:**
 - Creating type-safe signatures for LLM operations
 - Building composable modules and workflows
 - Configuring multiple LLM providers
@@ -25,7 +43,6 @@ Create input/output contracts for LLM operations with runtime type checking.
 
 **When to use**: Defining any LLM task, from simple classification to complex analysis.
 
-**Quick reference**:
 ```ruby
 class EmailClassificationSignature < DSPy::Signature
   description "Classify customer support emails"
@@ -42,27 +59,14 @@ class EmailClassificationSignature < DSPy::Signature
 end
 ```
 
-**Templates**: See `assets/signature-template.rb` for comprehensive examples including:
-- Basic signatures with multiple field types
-- Vision signatures for multimodal tasks
-- Sentiment analysis signatures
-- Code generation signatures
+**Templates**: See [signature-template.rb](./assets/signature-template.rb) for comprehensive examples including vision signatures, sentiment analysis, and code generation.
 
-**Best practices**:
-- Always provide clear, specific descriptions
-- Use enums for constrained outputs
-- Include field descriptions with `desc:` parameter
-- Prefer specific types over generic String when possible
-
-**Full documentation**: See `references/core-concepts.md` sections on Signatures and Type Safety.
+**Full documentation**: See [core-concepts.md](./references/core-concepts.md) sections on Signatures and Type Safety.
 
 ### 2. Composable Modules
 
 Build reusable, chainable modules that encapsulate LLM operations.
 
-**When to use**: Implementing any LLM-powered feature, especially complex multi-step workflows.
-
-**Quick reference**:
 ```ruby
 class EmailProcessor < DSPy::Module
   def initialize
@@ -79,79 +83,27 @@ class EmailProcessor < DSPy::Module
 end
 ```
 
-**Templates**: See `assets/module-template.rb` for comprehensive examples including:
-- Basic modules with single predictors
-- Multi-step pipelines that chain modules
-- Modules with conditional logic
-- Error handling and retry patterns
-- Stateful modules with history
-- Caching implementations
+**Templates**: See [module-template.rb](./assets/module-template.rb) for multi-step pipelines, conditional logic, error handling, and caching patterns.
 
-**Module composition**: Chain modules together to create complex workflows:
-```ruby
-class Pipeline < DSPy::Module
-  def initialize
-    super
-    @step1 = Classifier.new
-    @step2 = Analyzer.new
-    @step3 = Responder.new
-  end
-
-  def forward(input)
-    result1 = @step1.forward(input)
-    result2 = @step2.forward(result1)
-    @step3.forward(result2)
-  end
-end
-```
-
-**Full documentation**: See `references/core-concepts.md` sections on Modules and Module Composition.
+**Full documentation**: See [core-concepts.md](./references/core-concepts.md) sections on Modules and Module Composition.
 
 ### 3. Multiple Predictor Types
 
-Choose the right predictor for your task:
+Choose the right predictor for the task:
 
-**Predict**: Basic LLM inference with type-safe inputs/outputs
-```ruby
-predictor = DSPy::Predict.new(TaskSignature)
-result = predictor.forward(input: "data")
-```
+| Predictor | Use Case | Example |
+|-----------|----------|---------|
+| **Predict** | Simple tasks, classification, extraction | `DSPy::Predict.new(Sig)` |
+| **ChainOfThought** | Complex reasoning, analysis | `DSPy::ChainOfThought.new(Sig)` |
+| **ReAct** | Tasks requiring external tools | `DSPy::ReAct.new(Sig, tools: [...])` |
+| **CodeAct** | Tasks best solved with generated code | `DSPy::CodeAct.new(Sig)` |
 
-**ChainOfThought**: Adds automatic reasoning for improved accuracy
-```ruby
-predictor = DSPy::ChainOfThought.new(TaskSignature)
-result = predictor.forward(input: "data")
-# Returns: { reasoning: "...", output: "..." }
-```
-
-**ReAct**: Tool-using agents with iterative reasoning
-```ruby
-predictor = DSPy::ReAct.new(
-  TaskSignature,
-  tools: [SearchTool.new, CalculatorTool.new],
-  max_iterations: 5
-)
-```
-
-**CodeAct**: Dynamic code generation (requires `dspy-code_act` gem)
-```ruby
-predictor = DSPy::CodeAct.new(TaskSignature)
-result = predictor.forward(task: "Calculate factorial of 5")
-```
-
-**When to use each**:
-- **Predict**: Simple tasks, classification, extraction
-- **ChainOfThought**: Complex reasoning, analysis, multi-step thinking
-- **ReAct**: Tasks requiring external tools (search, calculation, API calls)
-- **CodeAct**: Tasks best solved with generated code
-
-**Full documentation**: See `references/core-concepts.md` section on Predictors.
+**Full documentation**: See [core-concepts.md](./references/core-concepts.md) section on Predictors.
 
 ### 4. LLM Provider Configuration
 
 Support for OpenAI, Anthropic Claude, Google Gemini, Ollama, and OpenRouter.
 
-**Quick configuration examples**:
 ```ruby
 # OpenAI
 DSPy.configure do |c|
@@ -165,25 +117,11 @@ DSPy.configure do |c|
     api_key: ENV['ANTHROPIC_API_KEY'])
 end
 
-# Google Gemini
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('gemini/gemini-1.5-pro',
-    api_key: ENV['GOOGLE_API_KEY'])
-end
-
 # Local Ollama (free, private)
 DSPy.configure do |c|
   c.lm = DSPy::LM.new('ollama/llama3.1')
 end
 ```
-
-**Templates**: See `assets/config-template.rb` for comprehensive examples including:
-- Environment-based configuration
-- Multi-model setups for different tasks
-- Configuration with observability (OpenTelemetry, Langfuse)
-- Retry logic and fallback strategies
-- Budget tracking
-- Rails initializer patterns
 
 **Provider compatibility matrix**:
 
@@ -191,22 +129,16 @@ end
 |---------|--------|-----------|--------|--------|
 | Structured Output | ✅ | ✅ | ✅ | ✅ |
 | Vision (Images) | ✅ | ✅ | ✅ | ⚠️ Limited |
-| Image URLs | ✅ | ❌ | ❌ | ❌ |
 | Tool Calling | ✅ | ✅ | ✅ | Varies |
 
-**Cost optimization strategy**:
-- Development: Ollama (free) or gpt-4o-mini (cheap)
-- Testing: gpt-4o-mini with temperature=0.0
-- Production simple tasks: gpt-4o-mini, claude-3-haiku, gemini-1.5-flash
-- Production complex tasks: gpt-4o, claude-3-5-sonnet, gemini-1.5-pro
+**Templates**: See [config-template.rb](./assets/config-template.rb) for environment-based configuration, multi-model setups, and observability.
 
-**Full documentation**: See `references/providers.md` for all configuration options, provider-specific features, and troubleshooting.
+**Full documentation**: See [providers.md](./references/providers.md) for all configuration options and troubleshooting.
 
 ### 5. Multimodal & Vision Support
 
 Process images alongside text using the unified `DSPy::Image` interface.
 
-**Quick reference**:
 ```ruby
 class VisionSignature < DSPy::Signature
   description "Analyze image and answer questions"
@@ -228,30 +160,12 @@ result = predictor.forward(
 )
 ```
 
-**Image loading methods**:
-```ruby
-# From file
-DSPy::Image.from_file("path/to/image.jpg")
-
-# From URL (OpenAI only)
-DSPy::Image.from_url("https://example.com/image.jpg")
-
-# From base64
-DSPy::Image.from_base64(base64_data, mime_type: "image/jpeg")
-```
-
-**Provider support**:
-- OpenAI: Full support including URLs
-- Anthropic, Gemini: Base64 or file loading only
-- Ollama: Limited multimodal depending on model
-
-**Full documentation**: See `references/core-concepts.md` section on Multimodal Support.
+**Full documentation**: See [core-concepts.md](./references/core-concepts.md) section on Multimodal Support.
 
 ### 6. Testing LLM Applications
 
 Write standard RSpec tests for LLM logic.
 
-**Quick reference**:
 ```ruby
 RSpec.describe EmailClassifier do
   before do
@@ -269,43 +183,20 @@ RSpec.describe EmailClassifier do
     )
 
     expect(result[:category]).to eq('Technical')
-    expect(result[:priority]).to be_in(['High', 'Medium', 'Low'])
   end
 end
 ```
 
-**Testing patterns**:
-- Mock LLM responses for unit tests
-- Use VCR for deterministic API testing
-- Test type safety and validation
-- Test edge cases (empty inputs, special characters, long texts)
-- Integration test complete workflows
+**Full documentation**: See [optimization.md](./references/optimization.md) section on Testing.
 
-**Full documentation**: See `references/optimization.md` section on Testing.
+### 7. Optimization & Observability
 
-### 7. Optimization & Improvement
-
-Automatically improve prompts and modules using optimization techniques.
+Automatically improve prompts and track performance in production.
 
 **MIPROv2 optimization**:
 ```ruby
 require 'dspy/mipro'
 
-# Define evaluation metric
-def accuracy_metric(example, prediction)
-  example[:expected_output][:category] == prediction[:category] ? 1.0 : 0.0
-end
-
-# Prepare training data
-training_examples = [
-  {
-    input: { email_subject: "...", email_body: "..." },
-    expected_output: { category: 'Technical' }
-  },
-  # More examples...
-]
-
-# Run optimization
 optimizer = DSPy::MIPROv2.new(
   metric: method(:accuracy_metric),
   num_candidates: 10
@@ -317,51 +208,9 @@ optimized_module = optimizer.compile(
 )
 ```
 
-**A/B testing different approaches**:
-```ruby
-# Test ChainOfThought vs ReAct
-approach_a_score = evaluate_approach(ChainOfThoughtModule, test_set)
-approach_b_score = evaluate_approach(ReActModule, test_set)
-```
+**OpenTelemetry/Langfuse integration** for production monitoring.
 
-**Full documentation**: See `references/optimization.md` section on Optimization.
-
-### 8. Observability & Monitoring
-
-Track performance, token usage, and behavior in production.
-
-**OpenTelemetry integration**:
-```ruby
-require 'opentelemetry/sdk'
-
-OpenTelemetry::SDK.configure do |c|
-  c.service_name = 'my-dspy-app'
-  c.use_all
-end
-
-# DSPy automatically creates traces
-```
-
-**Langfuse tracing**:
-```ruby
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('openai/gpt-4o-mini',
-    api_key: ENV['OPENAI_API_KEY'])
-
-  c.langfuse = {
-    public_key: ENV['LANGFUSE_PUBLIC_KEY'],
-    secret_key: ENV['LANGFUSE_SECRET_KEY']
-  }
-end
-```
-
-**Custom monitoring**:
-- Token tracking
-- Performance monitoring
-- Error rate tracking
-- Custom logging
-
-**Full documentation**: See `references/optimization.md` section on Observability.
+**Full documentation**: See [optimization.md](./references/optimization.md) for optimization techniques and observability setup.
 
 ## Quick Start Workflow
 
@@ -372,7 +221,7 @@ end
 gem install dspy dspy-openai  # or dspy-anthropic, dspy-gemini
 ```
 
-2. **Configure LLM provider** (see `assets/config-template.rb`):
+2. **Configure LLM provider** (see [config-template.rb](./assets/config-template.rb)):
 ```ruby
 require 'dspy'
 
@@ -382,7 +231,7 @@ DSPy.configure do |c|
 end
 ```
 
-3. **Create a signature** (see `assets/signature-template.rb`):
+3. **Create a signature** (see [signature-template.rb](./assets/signature-template.rb)):
 ```ruby
 class MySignature < DSPy::Signature
   description "Clear description of task"
@@ -397,7 +246,7 @@ class MySignature < DSPy::Signature
 end
 ```
 
-4. **Create a module** (see `assets/module-template.rb`):
+4. **Create a module** (see [module-template.rb](./assets/module-template.rb)):
 ```ruby
 class MyModule < DSPy::Module
   def initialize
@@ -413,182 +262,44 @@ end
 
 5. **Use the module**:
 ```ruby
-module_instance = MyModule.new
-result = module_instance.forward(input_field: "test")
+result = MyModule.new.forward(input_field: "test")
 puts result[:output_field]
-```
-
-6. **Add tests** (see `references/optimization.md`):
-```ruby
-RSpec.describe MyModule do
-  it 'produces expected output' do
-    result = MyModule.new.forward(input_field: "test")
-    expect(result[:output_field]).to be_a(String)
-  end
-end
 ```
 
 ### For Rails Applications
 
-1. **Add to Gemfile**:
-```ruby
-gem 'dspy'
-gem 'dspy-openai'  # or other provider
-```
+1. Add to Gemfile: `gem 'dspy'` and `gem 'dspy-openai'`
+2. Create initializer at `config/initializers/dspy.rb`
+3. Create modules in `app/llm/` directory
+4. Use in controllers/services
 
-2. **Create initializer** at `config/initializers/dspy.rb` (see `assets/config-template.rb` for full example):
-```ruby
-require 'dspy'
+## Implementation Checklist
 
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('openai/gpt-4o-mini',
-    api_key: ENV['OPENAI_API_KEY'])
-end
-```
+When implementing DSPy.rb features:
 
-3. **Create modules in** `app/llm/` directory:
-```ruby
-# app/llm/email_classifier.rb
-class EmailClassifier < DSPy::Module
-  # Implementation here
-end
-```
+- [ ] **Signature defined** with clear description and typed fields
+- [ ] **Module created** extending `DSPy::Module` with `forward` method
+- [ ] **Provider configured** with appropriate API key
+- [ ] **Error handling** for LLM failures and validation errors
+- [ ] **Tests written** covering expected outputs and edge cases
+- [ ] **Cost optimization** considered (use cheaper models for development)
+- [ ] **Observability** added for production (OpenTelemetry or Langfuse)
 
-4. **Use in controllers/services**:
-```ruby
-class EmailsController < ApplicationController
-  def classify
-    classifier = EmailClassifier.new
-    result = classifier.forward(
-      email_subject: params[:subject],
-      email_body: params[:body]
-    )
-    render json: result
-  end
-end
-```
+## References
 
-## Common Patterns
+### Reference Documentation
 
-### Pattern: Multi-Step Analysis Pipeline
+| File | Purpose |
+|------|---------|
+| [core-concepts.md](./references/core-concepts.md) | Signatures, modules, predictors, multimodal support |
+| [providers.md](./references/providers.md) | LLM provider configurations, compatibility, troubleshooting |
+| [optimization.md](./references/optimization.md) | Testing patterns, optimization, observability |
+| [common-patterns.md](./references/common-patterns.md) | Multi-step pipelines, agents, routing, retry logic |
 
-```ruby
-class AnalysisPipeline < DSPy::Module
-  def initialize
-    super
-    @extract = DSPy::Predict.new(ExtractSignature)
-    @analyze = DSPy::ChainOfThought.new(AnalyzeSignature)
-    @summarize = DSPy::Predict.new(SummarizeSignature)
-  end
+### Assets (Templates)
 
-  def forward(text:)
-    extracted = @extract.forward(text: text)
-    analyzed = @analyze.forward(data: extracted[:data])
-    @summarize.forward(analysis: analyzed[:result])
-  end
-end
-```
-
-### Pattern: Agent with Tools
-
-```ruby
-class ResearchAgent < DSPy::Module
-  def initialize
-    super
-    @agent = DSPy::ReAct.new(
-      ResearchSignature,
-      tools: [
-        WebSearchTool.new,
-        DatabaseQueryTool.new,
-        SummarizerTool.new
-      ],
-      max_iterations: 10
-    )
-  end
-
-  def forward(question:)
-    @agent.forward(question: question)
-  end
-end
-
-class WebSearchTool < DSPy::Tool
-  def call(query:)
-    results = perform_search(query)
-    { results: results }
-  end
-end
-```
-
-### Pattern: Conditional Routing
-
-```ruby
-class SmartRouter < DSPy::Module
-  def initialize
-    super
-    @classifier = DSPy::Predict.new(ClassifySignature)
-    @simple_handler = SimpleModule.new
-    @complex_handler = ComplexModule.new
-  end
-
-  def forward(input:)
-    classification = @classifier.forward(text: input)
-
-    if classification[:complexity] == 'Simple'
-      @simple_handler.forward(input: input)
-    else
-      @complex_handler.forward(input: input)
-    end
-  end
-end
-```
-
-### Pattern: Retry with Fallback
-
-```ruby
-class RobustModule < DSPy::Module
-  MAX_RETRIES = 3
-
-  def forward(input, retry_count: 0)
-    begin
-      @predictor.forward(input)
-    rescue DSPy::ValidationError => e
-      if retry_count < MAX_RETRIES
-        sleep(2 ** retry_count)
-        forward(input, retry_count: retry_count + 1)
-      else
-        # Fallback to default or raise
-        raise
-      end
-    end
-  end
-end
-```
-
-## Resources
-
-This skill includes comprehensive reference materials and templates:
-
-### References (load as needed for detailed information)
-
-- [core-concepts.md](./references/core-concepts.md): Complete guide to signatures, modules, predictors, multimodal support, and best practices
-- [providers.md](./references/providers.md): All LLM provider configurations, compatibility matrix, cost optimization, and troubleshooting
-- [optimization.md](./references/optimization.md): Testing patterns, optimization techniques, observability setup, and monitoring
-
-### Assets (templates for quick starts)
-
-- [signature-template.rb](./assets/signature-template.rb): Examples of signatures including basic, vision, sentiment analysis, and code generation
-- [module-template.rb](./assets/module-template.rb): Module patterns including pipelines, agents, error handling, caching, and state management
-- [config-template.rb](./assets/config-template.rb): Configuration examples for all providers, environments, observability, and production patterns
-
-## When to Use This Skill
-
-Trigger this skill when:
-- Implementing LLM-powered features in Ruby applications
-- Creating type-safe interfaces for AI operations
-- Building agent systems with tool usage
-- Setting up or troubleshooting LLM providers
-- Optimizing prompts and improving accuracy
-- Testing LLM functionality
-- Adding observability to AI applications
-- Converting from manual prompt engineering to programmatic approach
-- Debugging DSPy.rb code or configuration issues
+| File | Purpose |
+|------|---------|
+| [signature-template.rb](./assets/signature-template.rb) | Signature examples: basic, vision, sentiment, code generation |
+| [module-template.rb](./assets/module-template.rb) | Module patterns: pipelines, agents, caching, state management |
+| [config-template.rb](./assets/config-template.rb) | Configuration for all providers, environments, production |
