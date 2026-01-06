@@ -1,9 +1,30 @@
 ---
-name: creating-agent-skills
-description: Expert guidance for creating, writing, and refining Claude Code Skills. Use when working with SKILL.md files, authoring new skills, improving existing skills, or understanding skill structure and best practices.
+name: create-agent-skills
+description: This skill should be used when creating, writing, or refining Claude Code Skills. Use when working with SKILL.md files, authoring new skills, improving existing skills, or understanding skill structure and best practices.
+license: MIT
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+metadata:
+  version: "1.1.0"
+  category: development
+  tags: [skills, claude-code, authoring, best-practices]
 ---
 
 # Creating Agent Skills
+
+## Contents
+
+- [Core Principles](#core-principles)
+- [Skill Structure](#skill-structure)
+- [Creating a New Skill](#creating-a-new-skill)
+- [Auditing Existing Skills](#auditing-existing-skills)
+- [Common Patterns](#common-patterns)
+- [Anti-Patterns](#anti-patterns-to-avoid)
+- [References](#reference-files)
+
+## Overview
 
 This skill teaches how to create effective Claude Code Skills following Anthropic's official specification.
 
