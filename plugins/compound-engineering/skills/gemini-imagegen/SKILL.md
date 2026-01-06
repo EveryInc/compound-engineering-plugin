@@ -1,6 +1,11 @@
 ---
 name: gemini-imagegen
-description: This skill should be used when generating or editing images with the Gemini API. It covers text-to-image generation, image editing, style transfer, multi-turn refinement, and multi-image composition.
+description: This skill should be used when generating or editing images with the Gemini API. Triggers on "generate image", "create image with Gemini", "edit image", "image generation", "text-to-image", "style transfer", "multi-turn image refinement", or requests to use Google's Gemini for visual content creation.
+license: MIT
+allowed-tools:
+  - Bash
+  - Read
+  - Write
 ---
 
 # Gemini Image Generation
@@ -181,6 +186,16 @@ img.save("output.png", format="PNG")
 ```bash
 file image.png  # If shows "JPEG image data" - rename to .jpg
 ```
+
+## Quality Checklist
+
+Before delivering generated images:
+
+- [ ] GEMINI_API_KEY environment variable set
+- [ ] Correct model selected (flash for speed, pro for quality)
+- [ ] Prompt includes specific details (camera, lighting, style)
+- [ ] Output uses `.jpg` extension (Gemini returns JPEG)
+- [ ] Image verified with `file` command if format matters
 
 ## Notes
 

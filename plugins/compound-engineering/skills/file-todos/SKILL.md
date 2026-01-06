@@ -1,6 +1,6 @@
 ---
 name: file-todos
-description: This skill should be used when managing file-based todos in the todos/ directory. It covers creating todos, status/dependency management, triage workflows, and integration with code review processes.
+description: This skill should be used when managing file-based todos in the todos/ directory. Triggers on "create a todo", "add todo", "triage todos", "list pending items", "manage work items", "track technical debt", or requests to create, complete, or manage development tasks using markdown-based todo files.
 license: MIT
 allowed-tools:
   - Bash

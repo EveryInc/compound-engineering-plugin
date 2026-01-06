@@ -1,6 +1,6 @@
 ---
 name: dhh-rails-style
-description: This skill should be used when writing Ruby and Rails code in DHH's distinctive 37signals style. It applies when writing Ruby code, Rails applications, creating models, controllers, or any Ruby file. Triggers on Ruby/Rails code generation, refactoring requests, code review, or when the user mentions DHH, 37signals, Basecamp, HEY, or Campfire style. Embodies REST purity, fat models, thin controllers, Current attributes, Hotwire patterns, and the "clarity over cleverness" philosophy.
+description: This skill should be used when writing Ruby and Rails code in DHH's 37signals style. Triggers on "DHH style", "37signals", "Basecamp style", "Rails conventions", "write Rails code", "Ruby code review", or requests for REST-pure controllers, fat models, thin controllers, and vanilla Rails patterns.
 license: MIT
 allowed-tools:
   - Read

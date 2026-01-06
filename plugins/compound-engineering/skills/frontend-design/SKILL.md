@@ -1,42 +1,143 @@
 ---
 name: frontend-design
-description: This skill should be used when creating distinctive, production-grade frontend interfaces with high design quality. It applies when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics.
-license: Complete terms in LICENSE.txt
+description: This skill should be used when creating distinctive, production-grade frontend interfaces. Triggers on "build a landing page", "create a component", "design a UI", "make a web page", "build frontend", "React component", "Vue component", or requests for visually striking, memorable web interfaces that avoid generic AI aesthetics.
+license: MIT
+allowed-tools:
+  - Write
+  - Edit
+  - Read
+metadata:
+  version: "1.1.0"
+  category: design
+  tags: [frontend, ui, design, css, react, vue]
 ---
 
-This skill guides creation of distinctive, production-grade frontend interfaces that avoid generic "AI slop" aesthetics. Implement real working code with exceptional attention to aesthetic details and creative choices.
+# Frontend Design
 
-The user provides frontend requirements: a component, page, application, or interface to build. They may include context about the purpose, audience, or technical constraints.
+Create distinctive, production-grade frontend interfaces that avoid generic AI aesthetics.
 
-## Design Thinking
+## Contents
 
-Before coding, understand the context and commit to a BOLD aesthetic direction:
-- **Purpose**: What problem does this interface solve? Who uses it?
-- **Tone**: Pick an extreme: brutally minimal, maximalist chaos, retro-futuristic, organic/natural, luxury/refined, playful/toy-like, editorial/magazine, brutalist/raw, art deco/geometric, soft/pastel, industrial/utilitarian, etc. There are so many flavors to choose from. Use these for inspiration but design one that is true to the aesthetic direction.
-- **Constraints**: Technical requirements (framework, performance, accessibility).
-- **Differentiation**: What makes this UNFORGETTABLE? What's the one thing someone will remember?
+- [Quick Start](#quick-start)
+- [Workflow](#workflow)
+- [Aesthetic Directions](#aesthetic-directions)
+- [Anti-Patterns](#anti-patterns)
+- [References](#references)
 
-**CRITICAL**: Choose a clear conceptual direction and execute it with precision. Bold maximalism and refined minimalism both work - the key is intentionality, not intensity.
+## Quick Start
 
-Then implement working code (HTML/CSS/JS, React, Vue, etc.) that is:
-- Production-grade and functional
-- Visually striking and memorable
-- Cohesive with a clear aesthetic point-of-view
-- Meticulously refined in every detail
+**Example: Brutally Minimal Landing Page**
 
-## Frontend Aesthetics Guidelines
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <style>
+    :root {
+      --bg: #fafafa;
+      --text: #1a1a1a;
+      --muted: #888;
+    }
+    body {
+      font-family: 'Cormorant Garamond', serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.8;
+      padding: 8rem 12rem;
+    }
+    h1 {
+      font-size: 4rem;
+      font-weight: 300;
+      letter-spacing: -0.02em;
+      animation: fadeIn 1s ease;
+    }
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  </style>
+</head>
+<body>
+  <h1>Less is more</h1>
+  <p>The power of restraint creates space for what matters.</p>
+</body>
+</html>
+```
 
-Focus on:
-- **Typography**: Choose fonts that are beautiful, unique, and interesting. Avoid generic fonts like Arial and Inter; opt instead for distinctive choices that elevate the frontend's aesthetics; unexpected, characterful font choices. Pair a distinctive display font with a refined body font.
-- **Color & Theme**: Commit to a cohesive aesthetic. Use CSS variables for consistency. Dominant colors with sharp accents outperform timid, evenly-distributed palettes.
-- **Motion**: Use animations for effects and micro-interactions. Prioritize CSS-only solutions for HTML. Use Motion library for React when available. Focus on high-impact moments: one well-orchestrated page load with staggered reveals (animation-delay) creates more delight than scattered micro-interactions. Use scroll-triggering and hover states that surprise.
-- **Spatial Composition**: Unexpected layouts. Asymmetry. Overlap. Diagonal flow. Grid-breaking elements. Generous negative space OR controlled density.
-- **Backgrounds & Visual Details**: Create atmosphere and depth rather than defaulting to solid colors. Add contextual effects and textures that match the overall aesthetic. Apply creative forms like gradient meshes, noise textures, geometric patterns, layered transparencies, dramatic shadows, decorative borders, custom cursors, and grain overlays.
+## Workflow
 
-NEVER use generic AI-generated aesthetics like overused font families (Inter, Roboto, Arial, system fonts), cliched color schemes (particularly purple gradients on white backgrounds), predictable layouts and component patterns, and cookie-cutter design that lacks context-specific character.
+### Phase 1: Context Analysis
 
-Interpret creatively and make unexpected choices that feel genuinely designed for the context. No design should be the same. Vary between light and dark themes, different fonts, different aesthetics. NEVER converge on common choices (Space Grotesk, for example) across generations.
+1. Identify purpose and audience
+2. Note technical constraints (framework, performance, accessibility)
+3. Choose ONE bold aesthetic direction from the table below
 
-**IMPORTANT**: Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects. Minimalist or refined designs need restraint, precision, and careful attention to spacing, typography, and subtle details. Elegance comes from executing the vision well.
+### Phase 2: Design Commitment
 
-Remember: Claude is capable of extraordinary creative work. Don't hold back, show what can truly be created when thinking outside the box and committing fully to a distinctive vision.
+| Direction | Character | Best For |
+|-----------|-----------|----------|
+| Brutally minimal | Sparse, purposeful restraint | Portfolios, luxury brands |
+| Maximalist chaos | Dense, layered, energetic | Creative agencies, events |
+| Retro-futuristic | Nostalgic tech meets modern | Tech products, gaming |
+| Editorial/magazine | Typography-forward, grid-based | Publications, blogs |
+| Brutalist/raw | Honest, structural, bold | Art, architecture |
+| Soft/pastel | Gentle, approachable, warm | Wellness, children |
+
+For detailed typography, color palettes, and layout patterns for each direction, see [aesthetic-guides.md](./references/aesthetic-guides.md).
+
+### Phase 3: Implementation
+
+1. Implement working code (HTML/CSS/JS, React, Vue)
+2. Ensure production-grade functionality
+3. Execute aesthetic with precision
+4. Validate against checklist below
+
+## Aesthetic Directions
+
+### Typography
+- Choose distinctive display fonts (avoid Arial, Inter, Roboto, system fonts)
+- Pair display font with refined body font
+- Use unexpected, characterful choices
+
+### Color & Theme
+- Commit to cohesive aesthetic with CSS variables
+- Use dominant colors with sharp accents
+- Avoid timid, evenly-distributed palettes
+
+### Motion
+- CSS-only solutions for HTML; Motion library for React
+- Focus on high-impact moments (page load, staggered reveals)
+- Scroll-triggering and surprising hover states
+
+### Spatial Composition
+- Unexpected layouts, asymmetry, overlap
+- Diagonal flow, grid-breaking elements
+- Generous negative space OR controlled density
+
+## Anti-Patterns
+
+**NEVER use these generic AI aesthetics:**
+
+- Overused fonts: Inter, Roboto, Arial, Space Grotesk, system fonts
+- Cliché schemes: purple gradients on white backgrounds
+- Predictable layouts: cookie-cutter component patterns
+- Context-free design: lacks specific character for the project
+
+**Key rule:** No two designs should look the same. Vary themes, fonts, aesthetics.
+
+## Quality Checklist
+
+Before delivering:
+
+- [ ] Bold aesthetic direction chosen and executed
+- [ ] Typography is distinctive (not generic system fonts)
+- [ ] Color palette is cohesive with CSS variables
+- [ ] Motion adds delight without distraction
+- [ ] Layout has intentional spatial composition
+- [ ] Production-grade and functional
+- [ ] Matches implementation complexity to vision
+
+## References
+
+| File | Purpose |
+|------|---------|
+| [aesthetic-guides.md](./references/aesthetic-guides.md) | Detailed typography, colors, layouts for each direction |
+| [brutally-minimal.html](./assets/brutally-minimal.html) | Complete example: minimal landing page |
+| [retro-futuristic.html](./assets/retro-futuristic.html) | Complete example: synthwave hero section |

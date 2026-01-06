@@ -1,6 +1,6 @@
 ---
 name: andrew-kane-gem-writer
-description: This skill should be used when writing Ruby gems following Andrew Kane's proven patterns and philosophy. It applies when creating new Ruby gems, refactoring existing gems, designing gem APIs, or when clean, minimal, production-ready Ruby library code is needed. Triggers on requests like "create a gem", "write a Ruby library", "design a gem API", or mentions of Andrew Kane's style.
+description: This skill should be used when writing Ruby gems following Andrew Kane's patterns. Triggers on "create a gem", "write a Ruby library", "Andrew Kane style", "gem API design", "minimal gem", "Searchkick patterns", or requests for clean, dependency-free, production-ready Ruby library code.
 license: MIT
 allowed-tools:
   - Read
@@ -195,6 +195,18 @@ end
 - Committing Gemfile.lock in gems
 - RSpec (use Minitest)
 - Heavy DSLs (prefer explicit Ruby)
+
+## Quality Checklist
+
+Before publishing a gem:
+
+- [ ] Entry point follows Kane's exact pattern
+- [ ] Zero or minimal runtime dependencies
+- [ ] Rails integration uses `ActiveSupport.on_load`
+- [ ] Configuration uses `class << self` accessors
+- [ ] Error classes defined with clear hierarchy
+- [ ] Tests use Minitest (not RSpec)
+- [ ] Gemfile.lock NOT committed
 
 ## Reference Files
 

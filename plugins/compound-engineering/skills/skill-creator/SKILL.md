@@ -1,7 +1,7 @@
 ---
 name: skill-creator
-description: This skill should be used when creating a new skill or updating an existing skill that extends Claude's capabilities with specialized knowledge, workflows, or tool integrations.
-license: Complete terms in LICENSE.txt
+description: This skill should be used when creating a new skill or updating an existing skill. Triggers on "create a skill", "new skill", "write a skill", "update skill", "skill template", "SKILL.md", or requests to extend Claude's capabilities with specialized knowledge, workflows, or tool integrations.
+license: MIT
 allowed-tools:
   - Bash
   - Read
@@ -152,3 +152,15 @@ After testing, implement improvements:
 | [init_skill.py](./scripts/init_skill.py) | Initialize new skill from template |
 | [package_skill.py](./scripts/package_skill.py) | Validate and package skill for distribution |
 | [quick_validate.py](./scripts/quick_validate.py) | Quick validation of skill structure |
+
+## Quality Checklist
+
+Before publishing a skill:
+
+- [ ] YAML frontmatter has valid `name` and `description`
+- [ ] Description uses third person ("This skill should be used when...")
+- [ ] Description includes trigger keywords
+- [ ] SKILL.md under 500 lines
+- [ ] References one level deep from SKILL.md
+- [ ] All bundled files linked with proper markdown links
+- [ ] Tested with real usage scenarios

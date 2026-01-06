@@ -102,6 +102,8 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 
 ## Skills
 
+For detailed skill documentation and installation into other AI coding agents, see [docs/skills.md](docs/skills.md).
+
 ### Architecture & Design
 
 | Skill | Description |

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Retro Futuristic</title>
+  <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=Space+Mono&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0a0a0a;
+      --neon-pink: #ff2a6d;
+      --neon-cyan: #00fff0;
+      --purple: #9d4edd;
+    }
+
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    body {
+      font-family: 'Space Mono', monospace;
+      background: var(--bg);
+      color: #fff;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    .grid-bg {
+      position: fixed;
+      inset: 0;
+      background:
+        linear-gradient(rgba(157, 78, 221, 0.1) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(157, 78, 221, 0.1) 1px, transparent 1px);
+      background-size: 50px 50px;
+      perspective: 500px;
+      animation: gridMove 20s linear infinite;
+    }
+
+    @keyframes gridMove {
+      to { background-position: 50px 50px; }
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 2rem;
+      text-align: center;
+    }
+
+    h1 {
+      font-family: 'Orbitron', sans-serif;
+      font-size: 5rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, var(--neon-pink), var(--neon-cyan));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-shadow: 0 0 30px rgba(255, 42, 109, 0.5);
+      animation: flicker 3s ease-in-out infinite;
+    }
+
+    @keyframes flicker {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.95; }
+      52% { opacity: 1; }
+    }
+
+    .subtitle {
+      font-size: 1rem;
+      color: var(--neon-cyan);
+      margin-top: 2rem;
+      letter-spacing: 0.5em;
+      text-transform: uppercase;
+    }
+
+    .cta {
+      margin-top: 3rem;
+      padding: 1rem 3rem;
+      background: transparent;
+      border: 2px solid var(--neon-pink);
+      color: var(--neon-pink);
+      font-family: 'Orbitron', sans-serif;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      box-shadow: 0 0 20px rgba(255, 42, 109, 0.3);
+    }
+
+    .cta:hover {
+      background: var(--neon-pink);
+      color: var(--bg);
+      box-shadow: 0 0 40px rgba(255, 42, 109, 0.6);
+    }
+
+    .scanline {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        rgba(0, 0, 0, 0.1) 2px,
+        rgba(0, 0, 0, 0.1) 4px
+      );
+    }
+  </style>
+</head>
+<body>
+  <div class="grid-bg"></div>
+  <div class="container">
+    <h1>Neon Dreams</h1>
+    <p class="subtitle">The future is now</p>
+    <button class="cta">Enter the Grid</button>
+  </div>
+  <div class="scanline"></div>
+</body>
+</html>

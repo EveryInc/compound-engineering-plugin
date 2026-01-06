@@ -1,6 +1,6 @@
 ---
 name: every-style-editor
-description: This skill should be used when reviewing or editing copy to ensure adherence to Every's style guide. Use when reviewing articles, blog posts, newsletters, or any written content for grammar, punctuation, mechanics, and style compliance.
+description: This skill should be used when reviewing or editing copy to ensure adherence to Every's style guide. Triggers on "edit for style", "review article", "check grammar", "Every style guide", "proofread", "copy edit", or requests to check written content for grammar, punctuation, mechanics, and style compliance.
 license: MIT
 allowed-tools:
   - Read
@@ -127,6 +127,16 @@ Based on Every's style guide:
 - Parallel structure in lists
 - Compound adjective hyphenation
 - Company singular ("it") vs. teams plural ("they")
+
+## Quality Checklist
+
+Before delivering edited copy:
+
+- [ ] 4-phase review process completed
+- [ ] All errors documented with specific rule references
+- [ ] Recurring issues identified and noted
+- [ ] Author's voice preserved in corrections
+- [ ] Actionable recommendations provided
 
 ## References
 

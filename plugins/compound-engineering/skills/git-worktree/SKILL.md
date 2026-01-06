@@ -1,10 +1,11 @@
 ---
 name: git-worktree
-description: This skill should be used when managing Git worktrees for isolated parallel development. Triggers include code review workflows, parallel feature development, and worktree cleanup after PR completion. It handles creating, listing, switching, and cleaning up worktrees.
+description: This skill should be used when managing Git worktrees for isolated parallel development. Triggers on "create worktree", "git worktree", "review PR in isolation", "parallel development", "work on multiple branches", "isolated code review", or requests to work on multiple features simultaneously without switching branches.
 license: MIT
 allowed-tools:
   - Bash
   - Read
+  - Write
 ---
 
 # Git Worktree Manager
@@ -147,6 +148,16 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh clean
 - **Interactive prompts** prevent accidental operations
 - **Worktrees always from main** (unless specified)
 - **Worktrees stored in .worktrees/** directory
+
+## Quality Checklist
+
+Before completing worktree operations:
+
+- [ ] Used `worktree-manager.sh` script (not raw `git worktree add`)
+- [ ] .env files copied to new worktree
+- [ ] .worktrees directory in .gitignore
+- [ ] Worktree created from updated base branch
+- [ ] Cleanup run after completing work
 
 ## References
 
