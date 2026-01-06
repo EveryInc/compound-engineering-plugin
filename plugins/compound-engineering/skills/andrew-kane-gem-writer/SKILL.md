@@ -1,9 +1,29 @@
 ---
 name: andrew-kane-gem-writer
 description: This skill should be used when writing Ruby gems following Andrew Kane's proven patterns and philosophy. It applies when creating new Ruby gems, refactoring existing gems, designing gem APIs, or when clean, minimal, production-ready Ruby library code is needed. Triggers on requests like "create a gem", "write a Ruby library", "design a gem API", or mentions of Andrew Kane's style.
+license: MIT
+allowed-tools:
+  - Read
+  - Write
+  - Edit
+  - Bash
+metadata:
+  version: "1.1.0"
+  category: ruby
+  tags: [ruby, gems, libraries, andrew-kane, rails]
 ---
 
 # Andrew Kane Gem Writer
+
+## Contents
+
+- [Overview](#overview)
+- [Core Philosophy](#core-philosophy)
+- [Key Patterns](#key-patterns)
+- [Anti-Patterns](#anti-patterns-to-avoid)
+- [References](#reference-files)
+
+## Overview
 
 Write Ruby gems following Andrew Kane's battle-tested patterns from 100+ gems with 374M+ downloads (Searchkick, PgHero, Chartkick, Strong Migrations, Lockbox, Ahoy, Blazer, Groupdate, Neighbor, Blind Index).
 
@@ -11,7 +31,9 @@ Write Ruby gems following Andrew Kane's battle-tested patterns from 100+ gems wi
 
 **Simplicity over cleverness.** Zero or minimal dependencies. Explicit code over metaprogramming. Rails integration without Rails coupling. Every pattern serves production use cases.
 
-## Entry Point Structure
+## Key Patterns
+
+### Entry Point Structure
 
 Every gem follows this exact pattern in `lib/gemname.rb`:
 
@@ -40,7 +62,7 @@ module GemName
 end
 ```
 
-## Class Macro DSL Pattern
+### Class Macro DSL Pattern
 
 The signature Kane pattern—single method call configures everything:
 
@@ -74,7 +96,7 @@ module GemName
 end
 ```
 
-## Rails Integration
+### Rails Integration
 
 **Always use `ActiveSupport.on_load`—never require Rails gems directly:**
 
@@ -94,7 +116,7 @@ ActiveSupport.on_load(:active_record) do
 end
 ```
 
-## Configuration Pattern
+### Configuration Pattern
 
 Use `class << self` with `attr_accessor`, not Configuration objects:
 
@@ -114,7 +136,7 @@ module GemName
 end
 ```
 
-## Error Handling
+### Error Handling
 
 Simple hierarchy with informative messages:
 
@@ -131,7 +153,7 @@ def initialize(key:)
 end
 ```
 
-## Testing (Minitest Only)
+### Testing (Minitest Only)
 
 ```ruby
 # test/test_helper.rb
@@ -148,7 +170,7 @@ class ModelTest < Minitest::Test
 end
 ```
 
-## Gemspec Pattern
+### Gemspec Pattern
 
 Zero runtime dependencies when possible:
 
