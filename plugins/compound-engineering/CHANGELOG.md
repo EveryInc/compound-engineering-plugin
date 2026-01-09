@@ -5,6 +5,27 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.2] - 2026-01-08
+
+### Changed
+
+- **`agent-native-architecture` skill** - Major refinement of the "Tools as Primitives" principle
+  - Added **Primitives** vocabulary section defining key terms (Pure Primitive, Guided Primitive, Domain Tool, Orchestrated Action, Sub-Agent, Harness)
+  - Replaced binary "primitives vs workflows" with spectrum-based guidance
+  - Added **Decision Framework**: "Who should own this decision?" (business rule → code, tool-specific → description, context-dependent → prompt, agent judgment → neither)
+  - Added **"What IS a Tool?"** philosophical section clarifying that tool calls are mechanisms, not design constraints
+  - Added **JIT Context Injection** pattern: tool descriptions as modular prompting that travels with tools
+  - Added **Harness Pattern** for business invariants that must always execute together
+  - Refined anti-patterns section with "when it's wrong" vs "when it's fine" guidance
+  - Applied pragmatic writing style with concrete story openings throughout
+  - Updated architecture checklist with new tool design checkboxes
+
+### Summary
+
+- 27 agents, 21 commands, 13 skills, 2 MCP servers
+
+---
+
 ## [2.23.1] - 2026-01-08
 
 ### Changed

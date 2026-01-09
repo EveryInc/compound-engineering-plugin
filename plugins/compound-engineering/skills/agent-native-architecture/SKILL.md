@@ -1,19 +1,38 @@
 ---
 name: agent-native-architecture
-description: Build applications where agents are first-class citizens. Use this skill when designing autonomous agents, creating MCP tools, implementing self-modifying systems, or building apps where features are outcomes achieved by agents operating in a loop.
+description: This skill should be used when building applications where agents are first-class citizens. It applies when designing autonomous agents, creating MCP tools, implementing self-modifying systems, or building apps where features are outcomes achieved by agents operating in a loop.
 ---
 
 <why_now>
 ## Why Now
 
-Software agents work reliably now. Claude Code demonstrated that an LLM with access to bash and file tools, operating in a loop until an objective is achieved, can accomplish complex multi-step tasks autonomously.
+Last year, Claude Code shipped. An LLM with bash and file tools, running in a loop until the job is done, refactored entire codebases. Then people started noticing something: the same architecture that refactors code can organize files, manage reading lists, or automate workflows.
 
-The surprising discovery: **a really good coding agent is actually a really good general-purpose agent.** The same architecture that lets Claude Code refactor a codebase can let an agent organize your files, manage your reading list, or automate your workflows.
+A really good coding agent is actually a really good general-purpose agent.
 
-The Claude Code SDK makes this accessible. You can build applications where features aren't code you write—they're outcomes you describe, achieved by an agent with tools, operating in a loop until the outcome is reached.
+The Claude Code SDK makes this accessible. Features stop being code you write—they become outcomes you describe, achieved by an agent with tools, operating until the outcome is reached.
 
-This opens up a new field: software that works the way Claude Code works, applied to categories far beyond coding.
+This opens a new field: software that works the way Claude Code works, applied to domains far beyond coding.
 </why_now>
+
+<primitives>
+## Primitives: A Shared Vocabulary
+
+Before diving in, establish what these terms mean:
+
+| Term | Definition |
+|------|------------|
+| **Tool** | A function the agent can call. On the wire, it's a `tool_use` message with a name and parameters. What you wire to that function determines its nature. |
+| **Pure Primitive** | A tool with no business logic—just capability. `read_file`, `write_file`, `list_directory`. Maximum flexibility. |
+| **Guided Primitive** | A pure primitive plus a rich description that teaches strategy. The description is JIT context injection. |
+| **Domain Tool** | A tool that understands your domain schema. `create_category`, `store_memory`. Still a primitive for its domain. |
+| **Orchestrated Action** | A tool that enforces business invariants by bundling operations that must happen together. Use sparingly. |
+| **Sub-Agent** | An autonomous agent spawned via tool call. Not a primitive—it makes its own decisions. |
+| **Feature** | An outcome the agent achieves. Not code you write, but a prompt you describe. |
+| **Harness** | Code that wraps agent operations with guardrails—transactions, validation, approval gates. |
+
+**The key insight:** A tool call is just a mechanism. What you wire to it—primitive, domain operation, or sub-agent—determines how much judgment you're delegating.
+</primitives>
 
 <core_principles>
 ## Core Principles
@@ -22,19 +41,18 @@ This opens up a new field: software that works the way Claude Code works, applie
 
 **Whatever the user can do through the UI, the agent should be able to achieve through tools.**
 
-This is the foundational principle. Without it, nothing else matters.
+A developer built a beautiful notes app. Folders, tags, rich text—the UI was polished. Then they added an agent.
 
-Imagine you build a notes app with a beautiful interface for creating, organizing, and tagging notes. A user asks the agent: "Create a note summarizing my meeting and tag it as urgent."
+User: "Create a note summarizing my meeting and tag it as urgent."
+Agent: "I don't have a tool to create notes."
 
-If you built UI for creating notes but no agent capability to do the same, the agent is stuck. It might apologize or ask clarifying questions, but it can't help—even though the action is trivial for a human using the interface.
+The app had buttons for everything. The agent could do nothing. Three weeks of UI work, zero agent capability.
 
-**The fix:** Ensure the agent has tools (or combinations of tools) that can accomplish anything the UI can do.
+**Parity is the foundational principle.** Without it, nothing else matters.
 
-This isn't about creating a 1:1 mapping of UI buttons to tools. It's about ensuring the agent can **achieve the same outcomes**. Sometimes that's a single tool (`create_note`). Sometimes it's composing primitives (`write_file` to a notes directory with proper formatting).
+This isn't about 1:1 mapping—UI button → tool. It's about ensuring the agent can **achieve the same outcomes**. Sometimes that's a single tool (`create_note`). Sometimes it's composing primitives (`write_file` to a notes directory with proper formatting).
 
-**The discipline:** When adding any UI capability, ask: can the agent achieve this outcome? If not, add the necessary tools or primitives.
-
-A capability map helps:
+A capability map makes this concrete:
 
 | User Action | How Agent Achieves It |
 |-------------|----------------------|
@@ -43,53 +61,92 @@ A capability map helps:
 | Search notes | `search_files` or `search_notes` tool |
 | Delete a note | `delete_file` or `delete_note` tool |
 
+**The discipline:** When adding any UI capability, ask: can the agent achieve this outcome? If not, add the necessary tools or primitives.
+
 **The test:** Pick any action a user can take in your UI. Describe it to the agent. Can it accomplish the outcome?
 
 ---
 
 ### 2. Granularity
 
-**Prefer atomic primitives. Features are outcomes achieved by an agent operating in a loop.**
+**Start with atomic primitives. Graduate to domain tools when patterns emerge. Use orchestrated actions for business invariants.**
 
-A tool is a primitive capability: read a file, write a file, run a bash command, store a record, send a notification.
+The real question isn't "primitive or not?" It's: **who should own this decision?**
 
-A **feature** is not a function you write. It's an outcome you describe in a prompt, achieved by an agent that has tools and operates in a loop until the outcome is reached.
+| Decision Owner | Implementation |
+|----------------|----------------|
+| **Business rule** (always this way) | Code in tool execution |
+| **Tool-specific strategy** (usually this way) | Tool description |
+| **Conversation-dependent** (depends on context) | System prompt |
+| **Agent judgment** (trust the model) | Neither—let it decide |
 
-**Less granular (limits the agent):**
+**The spectrum in practice:**
+
 ```
-Tool: classify_and_organize_files(files)
-→ You wrote the decision logic
-→ Agent executes your code
-→ To change behavior, you refactor
-```
+Pure Primitive          Guided Primitive         Domain Tool              Orchestrated Action
+read_file              search_emails            create_category          change_category
+                       + search strategy        + schema validation      + always create rule
+                         in description                                  + always reclassify
+                                                                         + always broadcast
 
-**More granular (empowers the agent):**
-```
-Tools: read_file, write_file, move_file, list_directory, bash
-Prompt: "Organize the user's downloads folder. Analyze each file,
-        determine appropriate locations based on content and recency,
-        and move them there."
-Agent: Operates in a loop—reads files, makes judgments, moves things,
-       checks results—until the folder is organized.
-→ Agent makes the decisions
-→ To change behavior, you edit the prompt
+← More flexibility                                                       More guarantees →
+← Agent decides everything                                               Code enforces invariants →
 ```
 
-**The key shift:** The agent is pursuing an outcome with judgment, not executing a choreographed sequence. It might encounter unexpected file types, adjust its approach, or ask clarifying questions. The loop continues until the outcome is achieved.
+**When to use each:**
 
-The more atomic your tools, the more flexibly the agent can use them. If you bundle decision logic into tools, you've moved judgment back into code.
+**Pure Primitives** (`read_file`, `write_file`, `bash`)
+- Maximum flexibility
+- Agent composes them to achieve outcomes
+- Default choice when you're unsure
 
-**The test:** To change how a feature behaves, do you edit prose or refactor code?
+**Guided Primitives** (tool + rich description)
+- Tool description teaches strategy without hard-coding it
+- Strategy travels with the tool—portable and versionable
+- Example: `SearchEmails` with 200 lines teaching "LITERAL → CONTEXTUAL → INTERPRETIVE" search philosophy
+
+**Domain Tools** (`create_category`, `store_memory`)
+- Still primitives for their domain—one operation, one entity
+- Understand your schema, enforce data integrity
+- Agent decides *when* to use them, tool ensures *how* is consistent
+
+**Orchestrated Actions** (`change_category` that always creates a sender rule)
+- Business invariant: these operations *must* happen together
+- Agent shouldn't make this decision—it's a business rule
+- Use sparingly—every one reduces agent flexibility
+
+**The test:** Ask "who should own this decision?" If the answer is "the business, always"—put it in code. If the answer is "depends on context"—put it in prompts. If the answer is "the agent can figure it out"—keep tools atomic.
+
+---
+
+**A concrete example:**
+
+You're building an email app. User changes an email's category.
+
+**Option A: Pure primitives**
+```
+Tools: update_email, create_sender_rule, reclassify_emails, broadcast_update
+Prompt: "When user changes category, also create a sender rule and reclassify similar emails."
+```
+Agent decides whether to do the extra steps. Flexible. But what if it forgets?
+
+**Option B: Orchestrated action**
+```
+Tool: change_category (internally: update + rule + reclassify + broadcast)
+```
+Business invariant: category changes ALWAYS trigger these side effects. Agent can't forget. But now it can't change a category without creating a rule.
+
+**The right answer depends on your domain.** If "category change → sender rule" is a business invariant (it always should happen), use Option B. If it's guidance (usually should happen), use Option A with clear prompting.
 
 ---
 
 ### 3. Composability
 
-**With atomic tools and parity, you can create new features just by writing new prompts.**
+**With atomic tools and parity, new features are just new prompts.**
 
-This is the payoff of the first two principles. When your tools are atomic and the agent can do anything users can do, new features are just new prompts.
+Monday morning. PM asks for a "weekly review" feature. Traditionally: write a controller, build some queries, create a view. Two days minimum.
 
-Want a "weekly review" feature that summarizes activity and suggests priorities? That's a prompt:
+With agent-native architecture: write a prompt.
 
 ```
 "Review files modified this week. Summarize key changes. Based on
@@ -97,7 +154,7 @@ incomplete items and approaching deadlines, suggest three priorities
 for next week."
 ```
 
-The agent uses `list_files`, `read_file`, and its judgment to accomplish this. You didn't write weekly-review code. You described an outcome, and the agent operates in a loop until it's achieved.
+Ship it. The agent uses `list_files`, `read_file`, and judgment. No weekly-review code exists. The outcome is achieved through composition.
 
 **This works for developers and users.** You can ship new features by adding prompts. Users can customize behavior by modifying prompts or creating their own. "When I say 'file this,' always move it to my Action folder and tag it urgent" becomes a user-level prompt that extends the application.
 
@@ -109,15 +166,17 @@ The agent uses `list_files`, `read_file`, and its judgment to accomplish this. Y
 
 ### 4. Emergent Capability
 
-**The agent can accomplish things you didn't explicitly design for.**
+**The agent accomplishes things you didn't design for.**
 
-When tools are atomic, parity is maintained, and prompts are composable, users will ask the agent for things you never anticipated. And often, the agent can figure it out.
+Week three. A user types: "Cross-reference my meeting notes with my task list and tell me what I've committed to but haven't scheduled."
 
-*"Cross-reference my meeting notes with my task list and tell me what I've committed to but haven't scheduled."*
+You didn't build a "commitment tracker" feature. You never imagined anyone would want this. But the agent can read notes, read tasks, and reason. It loops until it has an answer.
 
-You didn't build a "commitment tracker" feature. But if the agent can read notes, read tasks, and reason about them—operating in a loop until it has an answer—it can accomplish this.
+User gets their answer. You didn't write a line of code.
 
-**This reveals latent demand.** Instead of guessing what features users want, you observe what they're asking the agent to do. When patterns emerge, you can optimize them with domain-specific tools or dedicated prompts. But you didn't have to anticipate them—you discovered them.
+**This is emergent capability.** When tools are atomic and parity is maintained, users will ask for things you never anticipated—and the agent will figure them out.
+
+**This reveals latent demand.** Instead of guessing what features users want, you observe what they're asking the agent to do. When patterns emerge, optimize them with domain tools or dedicated prompts. You didn't anticipate them—you discovered them.
 
 **The flywheel:**
 1. Build with atomic tools and parity
@@ -127,7 +186,7 @@ You didn't build a "commitment tracker" feature. But if the agent can read notes
 5. Add domain tools or prompts to make common patterns efficient
 6. Repeat
 
-This changes how you build products. You're not trying to imagine every feature upfront. You're creating a capable foundation and learning from what emerges.
+You're not imagining every feature upfront. You're creating a capable foundation and learning from what emerges.
 
 **The test:** Give the agent an open-ended request relevant to your domain. Can it figure out a reasonable approach, operating in a loop until it succeeds? If it just says "I don't have a feature for that," your architecture is too constrained.
 
@@ -152,6 +211,124 @@ The improvement mechanisms are still being discovered. Context and prompt refine
 
 **The test:** Does the application work better after a month of use than on day one, even without code changes?
 </core_principles>
+
+<deeper_understanding>
+## Deeper Understanding: What IS a Tool?
+
+The five principles above give you the "what." This section gives you the "why"—the mental model that makes the principles click.
+
+### The API Doesn't Distinguish
+
+When Claude calls a tool, the API sees a `tool_use` message with a name and parameters. That's it. Whether you've wired up:
+
+- A file read (`read_file`)
+- A multi-step business operation (`change_category`)
+- An entire autonomous sub-agent (`Task` with `subagent_type: "security-sentinel"`)
+
+...the API sees the same thing: `tool_use`.
+
+**Implication:** "Tool" is an overloaded term. The technical mechanism is identical whether you're reading bytes or spawning a sub-agent that will run for five minutes and make fifty decisions.
+
+When we say "tools should be primitives," we're talking about design intent, not technical mechanism.
+
+### Sub-Agents Break the Primitive Model
+
+Consider Claude Code's `Task` tool:
+
+```typescript
+Task({
+  subagent_type: "security-sentinel",
+  prompt: "Audit this code for vulnerabilities"
+})
+```
+
+This is a tool call. But what it spawns is an autonomous agent with:
+- Its own system prompt
+- Its own tools
+- Its own judgment
+- A multi-turn execution loop
+
+Is that a "primitive"? Technically it's a function call. Conceptually, it's spawning an entity with agency.
+
+**The lesson:** Don't get dogmatic about "primitives." The real question is: how much judgment are you delegating, and to whom?
+
+### Tool Descriptions as JIT Context Injection
+
+Here's where the "primitives only" guidance breaks down in practice.
+
+Tool descriptions aren't documentation—they're **just-in-time context injection**. When the model sees a tool, it absorbs the description as working context. A 200-line tool description is 200 lines of context that:
+
+- Only loads when that tool is available
+- Can be swapped by swapping the tool
+- Disappears when the tool is removed
+
+This is **modular prompting**.
+
+```
+┌─────────────────────────────────────┐
+│         System Prompt               │  ← Core identity, always present
+│    (small, stable, universal)       │
+└─────────────────────────────────────┘
+              ↓ tool injection ↓
+┌───────────┐ ┌───────────┐ ┌───────────┐
+│ SearchTool│ │ WriteTool │ │AnalyzeTool│  ← Each carries its own context
+│ + strategy│ │ + style   │ │ + method  │
+└───────────┘ └───────────┘ └───────────┘
+```
+
+If you put all strategy in the system prompt:
+- System prompt grows with every capability
+- Removing a tool doesn't remove its guidance
+- You can't swap strategies by swapping tools
+
+If you put strategy in tool descriptions:
+- System prompt stays small and focused
+- Each tool is self-contained and portable
+- Swap `SearchEmailsLiteral` for `SearchEmailsContextual`—different behavior, no code change
+
+**Example:** CORA's `SearchEmails` tool has a 200-line description teaching a three-phase search strategy. This strategy is specific to email searching. It travels with the tool. It can be versioned independently. It doesn't bloat the main system prompt.
+
+### The Harness Pattern
+
+Sometimes you WANT code to enforce behavior:
+
+```ruby
+def change_category(email_id:, new_category:)
+  ActiveRecord::Base.transaction do
+    email.update!(category: new_category)    # Step 1
+    create_sender_rule!(email.sender)        # Step 2
+    reclassify_similar_emails!(email.sender) # Step 3
+    broadcast_refresh!                       # Step 4
+  end
+end
+```
+
+This is intentional constraint. When users change a category, we ALWAYS want a sender rule created. This is a business invariant, not an agent decision.
+
+**Principle:** Use code harnesses for business invariants. Use prompts for flexible behavior.
+
+### The Decision Framework
+
+Stop asking "is this a primitive?" Start asking:
+
+| Question | Answer | Implementation |
+|----------|--------|----------------|
+| Is this behavior **always true**? | Yes → | Code in tool execution |
+| Is this behavior **usually true for this tool**? | Yes → | Tool description |
+| Is this behavior **context-dependent**? | Yes → | System prompt |
+| Should the **agent figure this out**? | Yes → | Neither—trust judgment |
+
+**A worked example:**
+
+"Emails should be searched using literal keywords first, then contextual expansion, then interpretive reframing."
+
+- Is this always true? No—sometimes users want exact matches only.
+- Is this usually true for SearchEmails? **Yes.** Put it in the tool description.
+- Is this context-dependent? Partially—but the tool description can say "unless user specifies otherwise."
+- Should agent figure it out? It could, but teaching it makes results more consistent.
+
+**Result:** 200-line tool description that teaches the strategy. Agent absorbs it when SearchEmails is available. Strategy travels with the tool.
+</deeper_understanding>
 
 <intake>
 ## What aspect of agent-native architecture do you need help with?
@@ -205,9 +382,11 @@ When designing an agent-native system, verify these **before implementation**:
 - [ ] **Emergent Capability:** Agent can handle open-ended requests in your domain
 
 ### Tool Design
+- [ ] **Right level of granularity:** Pure primitives for flexibility, orchestrated actions for business invariants
+- [ ] **Decision ownership clear:** For each tool, you know whether logic belongs in code, description, or prompt
 - [ ] **Dynamic vs Static:** For external APIs where agent should have full access, use Dynamic Capability Discovery
 - [ ] **CRUD Completeness:** Every entity has create, read, update, AND delete
-- [ ] **Primitives not Workflows:** Tools enable capability, don't encode business logic
+- [ ] **JIT Context Injection:** Tool-specific strategy lives in tool descriptions, not bloating system prompt
 - [ ] **API as Validator:** Use `z.string()` inputs when the API validates, not `z.enum()`
 
 ### Files & Workspace
@@ -302,89 +481,129 @@ All references in `references/`:
 </reference_index>
 
 <anti_patterns>
-## Anti-Patterns
+## Anti-Patterns (and When They're Actually Fine)
 
-### Common Approaches That Aren't Fully Agent-Native
+### Architectural Patterns Worth Questioning
 
-These aren't necessarily wrong—they may be appropriate for your use case. But they're worth recognizing as different from the architecture this document describes.
+These patterns limit agent capability. Sometimes that's the right trade-off. Usually it isn't.
 
-**Agent as router** — The agent figures out what the user wants, then calls the right function. The agent's intelligence is used to route, not to act. This can work, but you're using a fraction of what agents can do.
+**Agent as router** — The agent figures out what the user wants, then calls the right function. The agent's intelligence routes, not acts.
+- *When it's wrong:* You're leaving 90% of agent capability on the table.
+- *When it's fine:* High-stakes operations where you want human-designed workflows.
 
-**Build the app, then add agent** — You build features the traditional way (as code), then expose them to an agent. The agent can only do what your features already do. You won't get emergent capability.
+**Build the app, then add agent** — You build features as code, then expose them to an agent.
+- *When it's wrong:* No emergent capability—agent can only do what you pre-built.
+- *When it's fine:* You're adding agent capabilities to an existing product incrementally.
 
-**Request/response thinking** — Agent gets input, does one thing, returns output. This misses the loop: agent gets an outcome to achieve, operates until it's done, handles unexpected situations along the way.
+**Request/response thinking** — Agent does one thing and returns.
+- *When it's wrong:* The agent can't handle unexpected situations or iterate.
+- *When it's fine:* Simple, well-defined tasks that don't benefit from a loop.
 
-**Defensive tool design** — You over-constrain tool inputs because you're used to defensive programming. Strict enums, validation at every layer. This is safe, but it prevents the agent from doing things you didn't anticipate.
-
-**Happy path in code, agent just executes** — Traditional software handles edge cases in code—you write the logic for what happens when X goes wrong. Agent-native lets the agent handle edge cases with judgment. If your code handles all the edge cases, the agent is just a caller.
+**Defensive tool design** — Strict enums, validation at every layer.
+- *When it's wrong:* Prevents the agent from doing things you didn't anticipate.
+- *When it's fine:* Truly constrained domains where invalid inputs would be dangerous.
 
 ---
 
-### Specific Anti-Patterns
+### Judgment Calls (Not Simply "Wrong")
 
-**THE CARDINAL SIN: Agent executes your code instead of figuring things out**
+The original guidance labeled these as anti-patterns. In practice, they're trade-offs.
+
+**Logic in tool implementations**
 
 ```typescript
-// WRONG - You wrote the workflow, agent just executes it
+// Previously labeled "WRONG":
 tool("process_feedback", async ({ message }) => {
-  const category = categorize(message);      // Your code decides
-  const priority = calculatePriority(message); // Your code decides
-  await store(message, category, priority);   // Your code orchestrates
-  if (priority > 3) await notify();           // Your code decides
+  const category = categorize(message);
+  const priority = calculatePriority(message);
+  await store(message, category, priority);
+  if (priority > 3) await notify();
 });
-
-// RIGHT - Agent figures out how to process feedback
-tools: store_item, send_message  // Primitives
-prompt: "Rate importance 1-5 based on actionability, store feedback, notify if >= 4"
 ```
 
-**Workflow-shaped tools** — `analyze_and_organize` bundles judgment into the tool. Break it into primitives and let the agent compose them.
+**Ask:** Who should own these decisions?
 
-**Context starvation** — Agent doesn't know what resources exist in the app.
+- If categorization and priority are *business invariants* (must always work this way): **put it in code**. The agent shouldn't be able to forget to notify on high-priority items.
+- If categorization and priority are *judgment calls* (should usually work this way): **put it in prompts**. Let the agent adapt to context.
+
+The question isn't "is there logic in the tool?" It's "should this logic be agent-decidable?"
+
+**Logic in tool descriptions**
+
+A 200-line tool description that teaches search strategy isn't an anti-pattern—it's JIT context injection. The strategy travels with the tool, keeps the system prompt small, and can be swapped by swapping tools.
+
+**When it's wrong:** You put *context-dependent* logic in the description that should be in the system prompt.
+**When it's fine:** The logic is *tool-specific* and should travel with the tool.
+
+**Orchestrated multi-step operations**
+
+```ruby
+def change_category(email_id:, new_category:)
+  ActiveRecord::Base.transaction do
+    email.update!(category: new_category)
+    create_sender_rule!(email.sender)
+    reclassify_similar_emails!(email.sender)
+  end
+end
+```
+
+**When it's wrong:** You're encoding *flexible behavior* that the agent should be able to vary.
+**When it's fine:** These operations must *always* happen together—it's a business invariant.
+
+---
+
+### Actual Anti-Patterns (These Are Always Problems)
+
+**Context starvation** — Agent doesn't know what exists in the app.
 ```
 User: "Write something about Catherine the Great in my feed"
 Agent: "What feed? I don't understand what system you're referring to."
 ```
-Fix: Inject available resources, capabilities, and vocabulary into system prompt.
+*Fix:* Inject available resources, capabilities, and vocabulary into system prompt.
 
-**Orphan UI actions** — User can do something through the UI that the agent can't achieve. Fix: maintain parity.
+**Orphan UI actions** — User can do something through UI that agent can't achieve.
+*Fix:* Maintain parity. If users can do it, agents should be able to achieve it.
 
-**Silent actions** — Agent changes state but UI doesn't update. Fix: Use shared data stores with reactive binding, or file system observation.
+**Silent actions** — Agent changes state but UI doesn't update.
+*Fix:* Shared data stores with reactive binding, or file system observation.
 
-**Heuristic completion detection** — Detecting agent completion through heuristics (consecutive iterations without tool calls, checking for expected output files). This is fragile. Fix: Require agents to explicitly signal completion through a `complete_task` tool.
+**Heuristic completion detection** — Detecting completion through heuristics (consecutive iterations without tool calls, checking for output files).
+*Fix:* Explicit `complete_task` tool. Don't guess.
 
-**Static tool mapping for dynamic APIs** — Building 50 tools for 50 API endpoints when a `discover` + `access` pattern would give more flexibility.
+**Static tool mapping for dynamic APIs** — 50 tools for 50 API endpoints.
 ```typescript
-// WRONG - Every API type needs a hardcoded tool
+// Problematic:
 tool("read_steps", ...)
 tool("read_heart_rate", ...)
-tool("read_sleep", ...)
-// When glucose tracking is added... code change required
+// Adding glucose tracking requires code change
 
-// RIGHT - Dynamic capability discovery
-tool("list_available_types", ...)  // Discover what's available
-tool("read_health_data", { dataType: z.string() }, ...)  // Access any type
+// Better:
+tool("list_available_types", ...)
+tool("read_health_data", { dataType: z.string() }, ...)
 ```
 
 **Incomplete CRUD** — Agent can create but not update or delete.
-```typescript
-// User: "Delete that journal entry"
-// Agent: "I don't have a tool for that"
-tool("create_journal_entry", ...)  // Missing: update, delete
-```
-Fix: Every entity needs full CRUD.
+*Fix:* Every entity needs full CRUD. Otherwise the agent can't fix mistakes.
 
 **Sandbox isolation** — Agent works in separate data space from user.
-```
-Documents/
-├── user_files/        ← User's space
-└── agent_output/      ← Agent's space (isolated)
-```
-Fix: Use shared workspace where both operate on same files.
+*Fix:* Shared workspace where both operate on same files.
 
-**Gates without reason** — Domain tool is the only way to do something, and you didn't intend to restrict access. The default is open. Keep primitives available unless there's a specific reason to gate.
+**Gates without reason** — Domain tool is the only way to do something, and you didn't intend to restrict access.
+*Fix:* Default to open. Keep primitives available unless there's specific reason to gate.
 
-**Artificial capability limits** — Restricting what the agent can do out of vague safety concerns rather than specific risks. Be thoughtful about restricting capabilities. The agent should generally be able to do what users can do.
+**Encoding contextual interpretation in code** — Tool returns "HIGH_VOLUME" vs "NEEDS_CLEANUP" based on counts, when interpretation depends on user context.
+```ruby
+# Problematic:
+def inbox_state(count)
+  case count
+  when 0..100 then "READY"
+  when 101..500 then "NEEDS_CLEANUP"
+  else "HIGH_VOLUME"
+  end
+end
+```
+User with 200 emails who checks daily ≠ user with 200 emails who checks weekly.
+*Fix:* Return raw data. Let agent (or prompt) interpret based on context.
 </anti_patterns>
 
 <success_criteria>
@@ -394,15 +613,15 @@ You've built an agent-native application when:
 
 ### Architecture
 - [ ] The agent can achieve anything users can achieve through the UI (parity)
-- [ ] Tools are atomic primitives; domain tools are shortcuts, not gates (granularity)
+- [ ] Tool granularity matches decision ownership—primitives for flexibility, orchestrated actions for invariants
 - [ ] New features can be added by writing new prompts (composability)
 - [ ] The agent can accomplish tasks you didn't explicitly design for (emergent capability)
-- [ ] Changing behavior means editing prompts, not refactoring code
+- [ ] For each behavior, you can answer: "who owns this decision?"
 
 ### Implementation
-- [ ] System prompt includes dynamic context about app state
-- [ ] Every UI action has a corresponding agent tool (action parity)
-- [ ] Agent tools are documented in system prompt with user vocabulary
+- [ ] System prompt includes dynamic context about app state (kept small and focused)
+- [ ] Tool-specific strategy lives in tool descriptions, not system prompt (JIT context injection)
+- [ ] Every UI action has a corresponding agent capability (action parity)
 - [ ] Agent and user work in the same data space (shared workspace)
 - [ ] Agent actions are immediately reflected in the UI
 - [ ] Every entity has full CRUD (Create, Read, Update, Delete)
