@@ -5,6 +5,24 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.23.2] - 2026-01-09
+
+### Changed
+
+- **`/reproduce-bug` command** - Enhanced with Playwright visual reproduction:
+  - Added Phase 2 for visual bug reproduction using browser automation
+  - Step-by-step guide for navigating to affected areas
+  - Screenshot capture at each reproduction step
+  - Console error checking
+  - User flow reproduction with clicks, typing, and snapshots
+  - Better documentation structure with 4 clear phases
+
+### Summary
+
+- 27 agents, 21 commands, 13 skills, 2 MCP servers
+
+---
+
 ## [2.23.1] - 2026-01-08
 
 ### Changed
