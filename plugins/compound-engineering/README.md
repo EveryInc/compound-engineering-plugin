@@ -7,9 +7,9 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 25 |
-| Commands | 13 |
+| Commands | 15 |
 | Skills | 13 |
-| MCP Servers | 2 |
+| MCP Servers | 1 |
 
 ## Agents
 
@@ -87,7 +87,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `/resolve_pr_parallel` | Resolve PR comments in parallel |
 | `/resolve_todo_parallel` | Resolve todos in parallel |
 | `/triage` | Triage and prioritize issues |
-| `/playwright-test` | Run browser tests on PR-affected pages |
+| `/browser-test` | Run browser tests on PR-affected pages |
 
 ## Skills
 
@@ -143,22 +143,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 
 | Server | Description |
 |--------|-------------|
-| `agent-browser` | Headless browser automation via Vercel's `agent-browser` |
 | `context7` | Framework documentation lookup via Context7 |
-
-### Agent Browser
-
-Fast Rust CLI with Node.js fallback for browser automation.
-
-**Key commands:**
-- `agent-browser open <url>` - Navigate to URLs
-- `agent-browser snapshot -i` - Get interactive elements with refs
-- `agent-browser click @e1` - Click elements by ref
-- `agent-browser fill @e2 "text"` - Fill form fields
-- `agent-browser screenshot` - Take screenshots
-- `agent-browser wait --load networkidle` - Wait for network idle
-
-See the `agent-browser` skill for full documentation.
 
 ### Context7
 
@@ -178,21 +163,15 @@ claude /plugin install compound-engineering
 
 ## Known Issues
 
-### MCP Servers Not Auto-Loading
+### MCP Server Not Auto-Loading
 
-**Issue:** The bundled MCP servers (Agent Browser and Context7) may not load automatically when the plugin is installed.
+**Issue:** The bundled MCP server (Context7) may not load automatically when the plugin is installed.
 
-**Workaround:** Manually add them to your project's `.claude/settings.json`:
+**Workaround:** Manually add it to your project's `.claude/settings.json`:
 
 ```json
 {
   "mcpServers": {
-    "agent-browser": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "agent-browser@latest", "mcp"],
-      "env": {}
-    },
     "context7": {
       "type": "http",
       "url": "https://mcp.context7.com/mcp"
@@ -201,7 +180,7 @@ claude /plugin install compound-engineering
 }
 ```
 
-Or add them globally in `~/.claude/settings.json` for all projects.
+Or add it globally in `~/.claude/settings.json` for all projects.
 
 ## Version History
 

@@ -1,12 +1,12 @@
 ---
-name: playwright-test
-description: Run Playwright browser tests on pages affected by current PR or branch
+name: browser-test
+description: Run browser tests on pages affected by current PR or branch using agent-browser
 argument-hint: "[PR number, branch name, or 'current' for current branch]"
 ---
 
-# Playwright Test Command
+# Browser Test Command
 
-<command_purpose>Run end-to-end browser tests on pages affected by a PR or branch changes using Playwright MCP.</command_purpose>
+<command_purpose>Run end-to-end browser tests on pages affected by a PR or branch changes using agent-browser CLI.</command_purpose>
 
 ## Introduction
 
@@ -22,7 +22,7 @@ This command tests affected pages in a real browser, catching issues that unit t
 
 <requirements>
 - Local development server running (e.g., `bin/dev`, `rails server`)
-- Playwright MCP server connected
+- agent-browser CLI installed (`npx -y agent-browser@latest --help`)
 - Git repository with changes to test
 </requirements>
 
@@ -75,11 +75,12 @@ Build a list of URLs to test based on the mapping.
 
 <check_server>
 
-Before testing, verify the local server is accessible:
+Before testing, verify the local server is accessible using Bash:
 
-```
-mcp__playwright__browser_navigate({ url: "http://localhost:3000" })
-mcp__playwright__browser_snapshot({})
+```bash
+npx -y agent-browser@latest open http://localhost:3000
+npx -y agent-browser@latest snapshot -i
+npx -y agent-browser@latest close
 ```
 
 If server is not running, inform user:
@@ -90,7 +91,7 @@ Please start your development server:
 - Rails: `bin/dev` or `rails server`
 - Node: `npm run dev`
 
-Then run `/playwright-test` again.
+Then run `/browser-test` again.
 ```
 
 </check_server>
@@ -102,14 +103,14 @@ Then run `/playwright-test` again.
 For each affected route:
 
 **Step 1: Navigate and capture snapshot**
-```
-mcp__playwright__browser_navigate({ url: "http://localhost:3000/[route]" })
-mcp__playwright__browser_snapshot({})
+```bash
+npx -y agent-browser@latest open http://localhost:3000/[route]
+npx -y agent-browser@latest snapshot -i
 ```
 
 **Step 2: Check for errors**
-```
-mcp__playwright__browser_console_messages({ level: "error" })
+```bash
+npx -y agent-browser@latest console
 ```
 
 **Step 3: Verify key elements**
@@ -119,9 +120,15 @@ mcp__playwright__browser_console_messages({ level: "error" })
 - Forms have expected fields
 
 **Step 4: Test critical interactions (if applicable)**
+```bash
+# Click element by ref (from snapshot output)
+npx -y agent-browser@latest click @e1
+npx -y agent-browser@latest snapshot -i
 ```
-mcp__playwright__browser_click({ element: "[description]", ref: "[ref]" })
-mcp__playwright__browser_snapshot({})
+
+**Step 5: Close browser after testing**
+```bash
+npx -y agent-browser@latest close
 ```
 
 </test_pages>
@@ -202,10 +209,11 @@ When a test fails:
 After all tests complete, present summary:
 
 ```markdown
-## 🎭 Playwright Test Results
+## 🌐 Browser Test Results
 
 **Test Scope:** PR #[number] / [branch name]
 **Server:** http://localhost:3000
+**Tool:** agent-browser
 
 ### Pages Tested: [count]
 
@@ -238,11 +246,11 @@ After all tests complete, present summary:
 
 ```bash
 # Test current branch changes
-/playwright-test
+/browser-test
 
 # Test specific PR
-/playwright-test 847
+/browser-test 847
 
 # Test specific branch
-/playwright-test feature/new-dashboard
+/browser-test feature/new-dashboard
 ```

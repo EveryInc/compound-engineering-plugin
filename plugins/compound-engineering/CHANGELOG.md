@@ -18,11 +18,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
-- **MCP Server: Playwright → Agent Browser** - Replaced `@playwright/mcp` with Vercel's `agent-browser` MCP server. The agent-browser CLI provides a more agent-friendly interface with:
-  - Interactive element snapshots with refs
-  - Simpler command syntax
-  - Built-in session management
-  - State save/load for authentication flows
+- **`/browser-test` command** (formerly `/playwright-test`) - Renamed and migrated from Playwright MCP to agent-browser CLI. The command now uses `agent-browser` commands via Bash for browser automation:
+  - `agent-browser open <url>` for navigation
+  - `agent-browser snapshot -i` for page state capture
+  - `agent-browser console` for error checking
+  - `agent-browser click @ref` for interactions
+
+### Removed
+
+- **Playwright MCP server** - Removed `@playwright/mcp` dependency. Browser automation now handled by agent-browser CLI (installed via npx).
 
 ---
 
