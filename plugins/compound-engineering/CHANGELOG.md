@@ -5,6 +5,31 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.24.0] - 2026-01-13
+
+### Added
+
+- **`agent-browser` skill** - Comprehensive documentation for Vercel's agent-browser CLI. Automate browser interactions for web testing, form filling, screenshots, and data extraction. Features:
+  - Fast Rust CLI with Node.js fallback
+  - Element references (`@e1`, `@e2`) for precise interactions
+  - Session state persistence for authentication
+  - Parallel browser sessions
+  - Semantic locators (find by role, text, label)
+
+### Changed
+
+- **`/browser-test` command** (formerly `/playwright-test`) - Renamed and migrated from Playwright MCP to agent-browser CLI. The command now uses `agent-browser` commands via Bash for browser automation:
+  - `agent-browser open <url>` for navigation
+  - `agent-browser snapshot -i` for page state capture
+  - `agent-browser console` for error checking
+  - `agent-browser click @ref` for interactions
+
+### Removed
+
+- **Playwright MCP server** - Removed `@playwright/mcp` dependency. Browser automation now handled by agent-browser CLI (installed via npx).
+
+---
+
 ## [2.23.0] - 2026-01-08
 
 ### Added

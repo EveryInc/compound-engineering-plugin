@@ -7,9 +7,9 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 25 |
-| Commands | 13 |
-| Skills | 12 |
-| MCP Servers | 2 |
+| Commands | 15 |
+| Skills | 13 |
+| MCP Servers | 1 |
 
 ## Agents
 
@@ -87,7 +87,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `/resolve_pr_parallel` | Resolve PR comments in parallel |
 | `/resolve_todo_parallel` | Resolve todos in parallel |
 | `/triage` | Triage and prioritize issues |
-| `/playwright-test` | Run browser tests on PR-affected pages |
+| `/browser-test` | Run browser tests on PR-affected pages |
 
 ## Skills
 
@@ -123,6 +123,12 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 |-------|-------------|
 | `gemini-imagegen` | Generate and edit images using Google's Gemini API |
 
+### Browser Automation
+
+| Skill | Description |
+|-------|-------------|
+| `agent-browser` | Automate browser interactions for web testing, form filling, screenshots, and data extraction |
+
 **gemini-imagegen features:**
 - Text-to-image generation
 - Image editing and manipulation
@@ -137,18 +143,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 
 | Server | Description |
 |--------|-------------|
-| `playwright` | Browser automation via `@playwright/mcp` |
 | `context7` | Framework documentation lookup via Context7 |
-
-### Playwright
-
-**Tools provided:**
-- `browser_navigate` - Navigate to URLs
-- `browser_take_screenshot` - Take screenshots
-- `browser_click` - Click elements
-- `browser_fill_form` - Fill form fields
-- `browser_snapshot` - Get accessibility snapshot
-- `browser_evaluate` - Execute JavaScript
 
 ### Context7
 
@@ -168,21 +163,15 @@ claude /plugin install compound-engineering
 
 ## Known Issues
 
-### MCP Servers Not Auto-Loading
+### MCP Server Not Auto-Loading
 
-**Issue:** The bundled MCP servers (Playwright and Context7) may not load automatically when the plugin is installed.
+**Issue:** The bundled MCP server (Context7) may not load automatically when the plugin is installed.
 
-**Workaround:** Manually add them to your project's `.claude/settings.json`:
+**Workaround:** Manually add it to your project's `.claude/settings.json`:
 
 ```json
 {
   "mcpServers": {
-    "playwright": {
-      "type": "stdio",
-      "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest"],
-      "env": {}
-    },
     "context7": {
       "type": "http",
       "url": "https://mcp.context7.com/mcp"
@@ -191,7 +180,7 @@ claude /plugin install compound-engineering
 }
 ```
 
-Or add them globally in `~/.claude/settings.json` for all projects.
+Or add it globally in `~/.claude/settings.json` for all projects.
 
 ## Version History
 

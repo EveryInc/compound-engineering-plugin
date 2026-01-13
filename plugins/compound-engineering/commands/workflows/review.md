@@ -432,8 +432,8 @@ After creating all todo files, present comprehensive summary:
 After presenting the Summary Report, offer browser testing:
 
 ```markdown
-**"Want to run Playwright browser tests on the affected pages?"**
-1. Yes - run `/playwright-test`
+**"Want to run browser tests on the affected pages?"**
+1. Yes - run `/browser-test`
 2. No - skip
 ```
 
@@ -441,10 +441,10 @@ After presenting the Summary Report, offer browser testing:
 
 #### If User Accepts Web Testing:
 
-Spawn a subagent to run Playwright tests (preserves main context):
+Spawn a subagent to run browser tests (preserves main context):
 
 ```
-Task general-purpose("Run /playwright-test for PR #[number]. Test all affected pages, check for console errors, handle failures by creating todos and fixing.")
+Task general-purpose("Run /browser-test for PR #[number]. Test all affected pages, check for console errors, handle failures by creating todos and fixing.")
 ```
 
 The subagent will:
@@ -456,7 +456,7 @@ The subagent will:
 6. Create P1 todos for any failures
 7. Fix and retry until all tests pass
 
-**Standalone:** `/playwright-test [PR number]`
+**Standalone:** `/browser-test [PR number]`
 
 ### Important: P1 Findings Block Merge
 
