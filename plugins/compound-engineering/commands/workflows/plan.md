@@ -1,108 +1,108 @@
 ---
 name: workflows:plan
-description: Transform feature descriptions into well-structured project plans following conventions
-argument-hint: "[feature description, bug report, or improvement idea]"
+description: 機能説明を規約に従った構造化されたプロジェクトプランに変換する
+argument-hint: "[機能説明、バグレポート、または改善アイデア]"
 ---
 
-# Create a plan for a new feature or bug fix
+# 新機能またはバグ修正のプランを作成
 
-## Introduction
+## はじめに
 
-**Note: The current year is 2026.** Use this when dating plans and searching for recent documentation.
+**注意: 現在の年は2026年です。** プランの日付付けや最新のドキュメント検索の際にこれを使用してください。
 
-Transform feature descriptions, bug reports, or improvement ideas into well-structured markdown files issues that follow project conventions and best practices. This command provides flexible detail levels to match your needs.
+機能説明、バグレポート、または改善アイデアを、プロジェクトの規約とベストプラクティスに従った構造化されたマークダウンファイルイシューに変換します。このコマンドはニーズに合わせた柔軟な詳細レベルを提供します。
 
-## Feature Description
+## 機能説明
 
 <feature_description> #$ARGUMENTS </feature_description>
 
-**If the feature description above is empty, ask the user:** "What would you like to plan? Please describe the feature, bug fix, or improvement you have in mind."
+**上記の機能説明が空の場合、ユーザーに質問：** 「何を計画しますか？お考えの機能、バグ修正、または改善を説明してください。」
 
-Do not proceed until you have a clear feature description from the user.
+ユーザーから明確な機能説明が得られるまで進めないでください。
 
-## Main Tasks
+## 主要タスク
 
-### 1. Repository Research & Context Gathering
+### 1. リポジトリリサーチ & コンテキスト収集
 
 <thinking>
-First, I need to understand the project's conventions and existing patterns, leveraging all available resources and use paralel subagents to do this.
+まず、並列サブエージェントを活用して、プロジェクトの規約と既存のパターンを理解する必要があります。
 </thinking>
 
-Runn these three agents in paralel at the same time:
+これら3つのエージェントを同時に並列で実行：
 
 - Task repo-research-analyst(feature_description)
 - Task best-practices-researcher(feature_description)
 - Task framework-docs-researcher(feature_description)
 
-**Reference Collection:**
+**リファレンス収集：**
 
-- [ ] Document all research findings with specific file paths (e.g., `app/services/example_service.rb:42`)
-- [ ] Include URLs to external documentation and best practices guides
-- [ ] Create a reference list of similar issues or PRs (e.g., `#123`, `#456`)
-- [ ] Note any team conventions discovered in `CLAUDE.md` or team documentation
+- [ ] 具体的なファイルパス（例：`app/services/example_service.rb:42`）ですべてのリサーチ結果を文書化
+- [ ] 外部ドキュメントとベストプラクティスガイドへのURLを含める
+- [ ] 類似のイシューやPRのリファレンスリストを作成（例：`#123`、`#456`）
+- [ ] `CLAUDE.md`やチームドキュメントで発見したチーム規約をメモ
 
-### 2. Issue Planning & Structure
+### 2. イシュー計画 & 構造
 
 <thinking>
-Think like a product manager - what would make this issue clear and actionable? Consider multiple perspectives
+プロダクトマネージャーのように考える - このイシューを明確で実行可能にするには？複数の視点を考慮
 </thinking>
 
-**Title & Categorization:**
+**タイトル & カテゴリ分け：**
 
-- [ ] Draft clear, searchable issue title using conventional format (e.g., `feat:`, `fix:`, `docs:`)
-- [ ] Determine issue type: enhancement, bug, refactor
+- [ ] 従来のフォーマットを使用して明確で検索可能なイシュータイトルを作成（例：`feat:`、`fix:`、`docs:`）
+- [ ] イシュータイプを決定：enhancement、bug、refactor
 
-**Stakeholder Analysis:**
+**ステークホルダー分析：**
 
-- [ ] Identify who will be affected by this issue (end users, developers, operations)
-- [ ] Consider implementation complexity and required expertise
+- [ ] このイシューの影響を受ける人を特定（エンドユーザー、開発者、運用）
+- [ ] 実装の複雑さと必要な専門知識を考慮
 
-**Content Planning:**
+**コンテンツ計画：**
 
-- [ ] Choose appropriate detail level based on issue complexity and audience
-- [ ] List all necessary sections for the chosen template
-- [ ] Gather supporting materials (error logs, screenshots, design mockups)
-- [ ] Prepare code examples or reproduction steps if applicable, name the mock filenames in the lists
+- [ ] イシューの複雑さと対象者に基づいて適切な詳細レベルを選択
+- [ ] 選択したテンプレートに必要なすべてのセクションをリスト
+- [ ] サポート資料を収集（エラーログ、スクリーンショット、デザインモックアップ）
+- [ ] コード例や再現手順を準備（該当する場合）、リスト内のモックファイル名を指定
 
-### 3. SpecFlow Analysis
+### 3. SpecFlow分析
 
-After planning the issue structure, run SpecFlow Analyzer to validate and refine the feature specification:
+イシュー構造を計画した後、SpecFlow Analyzerを実行して機能仕様を検証・改善：
 
 - Task spec-flow-analyzer(feature_description, research_findings)
 
-**SpecFlow Analyzer Output:**
+**SpecFlow Analyzer出力：**
 
-- [ ] Review SpecFlow analysis results
-- [ ] Incorporate any identified gaps or edge cases into the issue
-- [ ] Update acceptance criteria based on SpecFlow findings
+- [ ] SpecFlow分析結果をレビュー
+- [ ] 特定されたギャップやエッジケースをイシューに組み込む
+- [ ] SpecFlowの発見に基づいて受け入れ基準を更新
 
-### 4. Choose Implementation Detail Level
+### 4. 実装詳細レベルの選択
 
-Select how comprehensive you want the issue to be, simpler is mostly better.
+イシューをどの程度包括的にするか選択します。シンプルな方がほとんどの場合良いです。
 
-#### 📄 MINIMAL (Quick Issue)
+#### 📄 MINIMAL（クイックイシュー）
 
-**Best for:** Simple bugs, small improvements, clear features
+**最適な用途：** 単純なバグ、小さな改善、明確な機能
 
-**Includes:**
+**含まれるもの：**
 
-- Problem statement or feature description
-- Basic acceptance criteria
-- Essential context only
+- 問題文または機能説明
+- 基本的な受け入れ基準
+- 必要最小限のコンテキストのみ
 
-**Structure:**
+**構造：**
 
 ````markdown
-[Brief problem/feature description]
+[簡潔な問題/機能説明]
 
-## Acceptance Criteria
+## 受け入れ基準
 
-- [ ] Core requirement 1
-- [ ] Core requirement 2
+- [ ] コア要件1
+- [ ] コア要件2
 
-## Context
+## コンテキスト
 
-[Any critical information]
+[重要な情報のみ]
 
 ## MVP
 
@@ -116,316 +116,316 @@ class Test
 end
 ```
 
-## References
+## 参照
 
-- Related issue: #[issue_number]
-- Documentation: [relevant_docs_url]
+- 関連イシュー：#[issue_number]
+- ドキュメント：[relevant_docs_url]
 ````
 
-#### 📋 MORE (Standard Issue)
+#### 📋 MORE（標準イシュー）
 
-**Best for:** Most features, complex bugs, team collaboration
+**最適な用途：** ほとんどの機能、複雑なバグ、チームコラボレーション
 
-**Includes everything from MINIMAL plus:**
+**MINIMALに加えて含まれるもの：**
 
-- Detailed background and motivation
-- Technical considerations
-- Success metrics
-- Dependencies and risks
-- Basic implementation suggestions
+- 詳細な背景と動機
+- 技術的考慮事項
+- 成功メトリクス
+- 依存関係とリスク
+- 基本的な実装提案
 
-**Structure:**
-
-```markdown
-## Overview
-
-[Comprehensive description]
-
-## Problem Statement / Motivation
-
-[Why this matters]
-
-## Proposed Solution
-
-[High-level approach]
-
-## Technical Considerations
-
-- Architecture impacts
-- Performance implications
-- Security considerations
-
-## Acceptance Criteria
-
-- [ ] Detailed requirement 1
-- [ ] Detailed requirement 2
-- [ ] Testing requirements
-
-## Success Metrics
-
-[How we measure success]
-
-## Dependencies & Risks
-
-[What could block or complicate this]
-
-## References & Research
-
-- Similar implementations: [file_path:line_number]
-- Best practices: [documentation_url]
-- Related PRs: #[pr_number]
-```
-
-#### 📚 A LOT (Comprehensive Issue)
-
-**Best for:** Major features, architectural changes, complex integrations
-
-**Includes everything from MORE plus:**
-
-- Detailed implementation plan with phases
-- Alternative approaches considered
-- Extensive technical specifications
-- Resource requirements and timeline
-- Future considerations and extensibility
-- Risk mitigation strategies
-- Documentation requirements
-
-**Structure:**
+**構造：**
 
 ```markdown
-## Overview
+## 概要
 
-[Executive summary]
+[包括的な説明]
 
-## Problem Statement
+## 問題文 / 動機
 
-[Detailed problem analysis]
+[なぜこれが重要か]
 
-## Proposed Solution
+## 提案されるソリューション
 
-[Comprehensive solution design]
+[ハイレベルなアプローチ]
 
-## Technical Approach
+## 技術的考慮事項
 
-### Architecture
+- アーキテクチャへの影響
+- パフォーマンスへの影響
+- セキュリティの考慮事項
 
-[Detailed technical design]
+## 受け入れ基準
 
-### Implementation Phases
+- [ ] 詳細な要件1
+- [ ] 詳細な要件2
+- [ ] テスト要件
 
-#### Phase 1: [Foundation]
+## 成功メトリクス
 
-- Tasks and deliverables
-- Success criteria
-- Estimated effort
+[成功をどう測定するか]
 
-#### Phase 2: [Core Implementation]
+## 依存関係 & リスク
 
-- Tasks and deliverables
-- Success criteria
-- Estimated effort
+[これをブロックまたは複雑にする可能性があるもの]
 
-#### Phase 3: [Polish & Optimization]
+## 参照 & リサーチ
 
-- Tasks and deliverables
-- Success criteria
-- Estimated effort
-
-## Alternative Approaches Considered
-
-[Other solutions evaluated and why rejected]
-
-## Acceptance Criteria
-
-### Functional Requirements
-
-- [ ] Detailed functional criteria
-
-### Non-Functional Requirements
-
-- [ ] Performance targets
-- [ ] Security requirements
-- [ ] Accessibility standards
-
-### Quality Gates
-
-- [ ] Test coverage requirements
-- [ ] Documentation completeness
-- [ ] Code review approval
-
-## Success Metrics
-
-[Detailed KPIs and measurement methods]
-
-## Dependencies & Prerequisites
-
-[Detailed dependency analysis]
-
-## Risk Analysis & Mitigation
-
-[Comprehensive risk assessment]
-
-## Resource Requirements
-
-[Team, time, infrastructure needs]
-
-## Future Considerations
-
-[Extensibility and long-term vision]
-
-## Documentation Plan
-
-[What docs need updating]
-
-## References & Research
-
-### Internal References
-
-- Architecture decisions: [file_path:line_number]
-- Similar features: [file_path:line_number]
-- Configuration: [file_path:line_number]
-
-### External References
-
-- Framework documentation: [url]
-- Best practices guide: [url]
-- Industry standards: [url]
-
-### Related Work
-
-- Previous PRs: #[pr_numbers]
-- Related issues: #[issue_numbers]
-- Design documents: [links]
+- 類似実装：[file_path:line_number]
+- ベストプラクティス：[documentation_url]
+- 関連PR：#[pr_number]
 ```
 
-### 5. Issue Creation & Formatting
+#### 📚 A LOT（包括的イシュー）
+
+**最適な用途：** 主要な機能、アーキテクチャ変更、複雑な統合
+
+**MOREに加えて含まれるもの：**
+
+- フェーズ付きの詳細な実装計画
+- 検討された代替アプローチ
+- 広範な技術仕様
+- リソース要件とタイムライン
+- 将来の考慮事項と拡張性
+- リスク軽減戦略
+- ドキュメント要件
+
+**構造：**
+
+```markdown
+## 概要
+
+[エグゼクティブサマリー]
+
+## 問題文
+
+[詳細な問題分析]
+
+## 提案されるソリューション
+
+[包括的なソリューション設計]
+
+## 技術的アプローチ
+
+### アーキテクチャ
+
+[詳細な技術設計]
+
+### 実装フェーズ
+
+#### フェーズ1：[基盤]
+
+- タスクと成果物
+- 成功基準
+- 推定工数
+
+#### フェーズ2：[コア実装]
+
+- タスクと成果物
+- 成功基準
+- 推定工数
+
+#### フェーズ3：[仕上げ & 最適化]
+
+- タスクと成果物
+- 成功基準
+- 推定工数
+
+## 検討した代替アプローチ
+
+[評価した他のソリューションと却下理由]
+
+## 受け入れ基準
+
+### 機能要件
+
+- [ ] 詳細な機能基準
+
+### 非機能要件
+
+- [ ] パフォーマンス目標
+- [ ] セキュリティ要件
+- [ ] アクセシビリティ基準
+
+### 品質ゲート
+
+- [ ] テストカバレッジ要件
+- [ ] ドキュメントの完全性
+- [ ] コードレビュー承認
+
+## 成功メトリクス
+
+[詳細なKPIと測定方法]
+
+## 依存関係 & 前提条件
+
+[詳細な依存関係分析]
+
+## リスク分析 & 軽減策
+
+[包括的なリスク評価]
+
+## リソース要件
+
+[チーム、時間、インフラニーズ]
+
+## 将来の考慮事項
+
+[拡張性と長期ビジョン]
+
+## ドキュメント計画
+
+[更新が必要なドキュメント]
+
+## 参照 & リサーチ
+
+### 内部参照
+
+- アーキテクチャ決定：[file_path:line_number]
+- 類似機能：[file_path:line_number]
+- 設定：[file_path:line_number]
+
+### 外部参照
+
+- フレームワークドキュメント：[url]
+- ベストプラクティスガイド：[url]
+- 業界標準：[url]
+
+### 関連作業
+
+- 過去のPR：#[pr_numbers]
+- 関連イシュー：#[issue_numbers]
+- 設計ドキュメント：[links]
+```
+
+### 5. イシュー作成 & フォーマット
 
 <thinking>
-Apply best practices for clarity and actionability, making the issue easy to scan and understand
+明確さと実行可能性のベストプラクティスを適用し、イシューをスキャンしやすく理解しやすくする
 </thinking>
 
-**Content Formatting:**
+**コンテンツフォーマット：**
 
-- [ ] Use clear, descriptive headings with proper hierarchy (##, ###)
-- [ ] Include code examples in triple backticks with language syntax highlighting
-- [ ] Add screenshots/mockups if UI-related (drag & drop or use image hosting)
-- [ ] Use task lists (- [ ]) for trackable items that can be checked off
-- [ ] Add collapsible sections for lengthy logs or optional details using `<details>` tags
-- [ ] Apply appropriate emoji for visual scanning (🐛 bug, ✨ feature, 📚 docs, ♻️ refactor)
+- [ ] 適切な階層を持つ明確で説明的な見出しを使用（##、###）
+- [ ] 言語シンタックスハイライト付きのトリプルバッククォートでコード例を含める
+- [ ] UI関連の場合はスクリーンショット/モックアップを追加（ドラッグ&ドロップまたは画像ホスティング使用）
+- [ ] チェックオフ可能な追跡項目にはタスクリスト（- [ ]）を使用
+- [ ] 長いログやオプション詳細には`<details>`タグで折りたたみセクションを追加
+- [ ] 視覚的スキャン用に適切な絵文字を適用（🐛 bug、✨ feature、📚 docs、♻️ refactor）
 
-**Cross-Referencing:**
+**相互参照：**
 
-- [ ] Link to related issues/PRs using #number format
-- [ ] Reference specific commits with SHA hashes when relevant
-- [ ] Link to code using GitHub's permalink feature (press 'y' for permanent link)
-- [ ] Mention relevant team members with @username if needed
-- [ ] Add links to external resources with descriptive text
+- [ ] #number形式を使用して関連イシュー/PRにリンク
+- [ ] 関連する場合はSHAハッシュで特定のコミットを参照
+- [ ] GitHubのパーマリンク機能を使用してコードにリンク（永久リンクには'y'を押す）
+- [ ] 必要に応じて@usernameで関連チームメンバーにメンション
+- [ ] 説明的なテキストで外部リソースへのリンクを追加
 
-**Code & Examples:**
+**コード & 例：**
 
 ````markdown
-# Good example with syntax highlighting and line references
+# シンタックスハイライトと行参照付きの良い例
 
 
 ```ruby
 # app/services/user_service.rb:42
 def process_user(user)
 
-# Implementation here
+# ここに実装
 
 end
 ```
 
-# Collapsible error logs
+# 折りたたみエラーログ
 
 <details>
-<summary>Full error stacktrace</summary>
+<summary>完全なエラースタックトレース</summary>
 
-`Error details here...`
+`エラー詳細をここに...`
 
 </details>
 ````
 
-**AI-Era Considerations:**
+**AI時代の考慮事項：**
 
-- [ ] Account for accelerated development with AI pair programming
-- [ ] Include prompts or instructions that worked well during research
-- [ ] Note which AI tools were used for initial exploration (Claude, Copilot, etc.)
-- [ ] Emphasize comprehensive testing given rapid implementation
-- [ ] Document any AI-generated code that needs human review
+- [ ] AIペアプログラミングによる加速された開発を考慮
+- [ ] リサーチ中にうまくいったプロンプトや指示を含める
+- [ ] 初期探索に使用したAIツールをメモ（Claude、Copilotなど）
+- [ ] 迅速な実装を考慮した包括的テストを強調
+- [ ] 人間のレビューが必要なAI生成コードを文書化
 
-### 6. Final Review & Submission
+### 6. 最終レビュー & 提出
 
-**Pre-submission Checklist:**
+**提出前チェックリスト：**
 
-- [ ] Title is searchable and descriptive
-- [ ] Labels accurately categorize the issue
-- [ ] All template sections are complete
-- [ ] Links and references are working
-- [ ] Acceptance criteria are measurable
-- [ ] Add names of files in pseudo code examples and todo lists
-- [ ] Add an ERD mermaid diagram if applicable for new model changes
+- [ ] タイトルが検索可能で説明的
+- [ ] ラベルがイシューを正確にカテゴリ分け
+- [ ] すべてのテンプレートセクションが完了
+- [ ] リンクと参照が機能
+- [ ] 受け入れ基準が測定可能
+- [ ] 疑似コード例とToDoリストにファイル名を追加
+- [ ] 新しいモデル変更の場合は該当すればERD mermaidダイアグラムを追加
 
-## Output Format
+## 出力フォーマット
 
-Write the plan to `plans/<issue_title>.md`
+プランを`plans/<issue_title>.md`に書き込む
 
-## Post-Generation Options
+## 生成後のオプション
 
-After writing the plan file, use the **AskUserQuestion tool** to present these options:
+プランファイルを書き込んだ後、**AskUserQuestion tool**を使用してこれらのオプションを提示：
 
-**Question:** "Plan ready at `plans/<issue_title>.md`. What would you like to do next?"
+**質問：** "`plans/<issue_title>.md`にプランが準備できました。次に何をしますか？"
 
-**Options:**
-1. **Open plan in editor** - Open the plan file for review
-2. **Run `/deepen-plan`** - Enhance each section with parallel research agents (best practices, performance, UI)
-3. **Run `/plan_review`** - Get feedback from reviewers (DHH, Kieran, Simplicity)
-4. **Start `/workflows:work`** - Begin implementing this plan locally
-5. **Start `/workflows:work` on remote** - Begin implementing in Claude Code on the web (use `&` to run in background)
-6. **Create Issue** - Create issue in project tracker (GitHub/Linear)
-7. **Simplify** - Reduce detail level
+**オプション：**
+1. **エディタでプランを開く** - レビュー用にプランファイルを開く
+2. **`/deepen-plan`を実行** - 並列リサーチエージェントで各セクションを強化（ベストプラクティス、パフォーマンス、UI）
+3. **`/plan_review`を実行** - レビュアーからフィードバックを取得（DHH、Kieran、Simplicity）
+4. **`/workflows:work`を開始** - このプランのローカル実装を開始
+5. **リモートで`/workflows:work`を開始** - Web上のClaude Codeで実装開始（バックグラウンド実行に`&`を使用）
+6. **イシューを作成** - プロジェクトトラッカー（GitHub/Linear）にイシューを作成
+7. **簡略化** - 詳細レベルを下げる
 
-Based on selection:
-- **Open plan in editor** → Run `open plans/<issue_title>.md` to open the file in the user's default editor
-- **`/deepen-plan`** → Call the /deepen-plan command with the plan file path to enhance with research
-- **`/plan_review`** → Call the /plan_review command with the plan file path
-- **`/workflows:work`** → Call the /workflows:work command with the plan file path
-- **`/workflows:work` on remote** → Run `/workflows:work plans/<issue_title>.md &` to start work in background for Claude Code web
-- **Create Issue** → See "Issue Creation" section below
-- **Simplify** → Ask "What should I simplify?" then regenerate simpler version
-- **Other** (automatically provided) → Accept free text for rework or specific changes
+選択に基づいて：
+- **エディタでプランを開く** → `open plans/<issue_title>.md`を実行してユーザーのデフォルトエディタでファイルを開く
+- **`/deepen-plan`** → プランファイルパスで/deepen-planコマンドを呼び出してリサーチで強化
+- **`/plan_review`** → プランファイルパスで/plan_reviewコマンドを呼び出す
+- **`/workflows:work`** → プランファイルパスで/workflows:workコマンドを呼び出す
+- **リモートで`/workflows:work`** → `/workflows:work plans/<issue_title>.md &`を実行してClaude Code webでバックグラウンド作業を開始
+- **イシューを作成** → 以下の「イシュー作成」セクションを参照
+- **簡略化** → 「何を簡略化しますか？」と質問し、よりシンプルなバージョンを再生成
+- **その他**（自動提供） → 再作業や特定の変更のためのフリーテキストを受け付け
 
-**Note:** If running `/workflows:plan` with ultrathink enabled, automatically run `/deepen-plan` after plan creation for maximum depth and grounding.
+**注意：** ultrathinkが有効な状態で`/workflows:plan`を実行する場合、最大の深さと根拠のためにプラン作成後に自動的に`/deepen-plan`を実行。
 
-Loop back to options after Simplify or Other changes until user selects `/workflows:work` or `/plan_review`.
+ユーザーが`/workflows:work`または`/plan_review`を選択するまで、簡略化またはその他の変更後にオプションに戻る。
 
-## Issue Creation
+## イシュー作成
 
-When user selects "Create Issue", detect their project tracker from CLAUDE.md:
+ユーザーが「イシューを作成」を選択した場合、CLAUDE.mdからプロジェクトトラッカーを検出：
 
-1. **Check for tracker preference** in user's CLAUDE.md (global or project):
-   - Look for `project_tracker: github` or `project_tracker: linear`
-   - Or look for mentions of "GitHub Issues" or "Linear" in their workflow section
+1. **ユーザーのCLAUDE.md（グローバルまたはプロジェクト）でトラッカー設定をチェック：**
+   - `project_tracker: github` または `project_tracker: linear` を探す
+   - またはワークフローセクションで「GitHub Issues」や「Linear」の言及を探す
 
-2. **If GitHub:**
+2. **GitHubの場合：**
    ```bash
-   # Extract title from plan filename (kebab-case to Title Case)
-   # Read plan content for body
+   # プランファイル名からタイトルを抽出（kebab-caseをTitle Caseに）
+   # bodyにはプランコンテンツを読み込む
    gh issue create --title "feat: [Plan Title]" --body-file plans/<issue_title>.md
    ```
 
-3. **If Linear:**
+3. **Linearの場合：**
    ```bash
-   # Use linear CLI if available, or provide instructions
+   # 利用可能な場合はlinear CLIを使用、または手順を提供
    # linear issue create --title "[Plan Title]" --description "$(cat plans/<issue_title>.md)"
    ```
 
-4. **If no tracker configured:**
-   Ask user: "Which project tracker do you use? (GitHub/Linear/Other)"
-   - Suggest adding `project_tracker: github` or `project_tracker: linear` to their CLAUDE.md
+4. **トラッカーが設定されていない場合：**
+   ユーザーに質問：「どのプロジェクトトラッカーを使用していますか？（GitHub/Linear/Other）」
+   - CLAUDE.mdに`project_tracker: github`または`project_tracker: linear`を追加することを提案
 
-5. **After creation:**
-   - Display the issue URL
-   - Ask if they want to proceed to `/workflows:work` or `/plan_review`
+5. **作成後：**
+   - イシューURLを表示
+   - `/workflows:work`または`/plan_review`に進むか質問
 
-NEVER CODE! Just research and write the plan.
+コードは書かないでください！リサーチとプランの作成のみ。

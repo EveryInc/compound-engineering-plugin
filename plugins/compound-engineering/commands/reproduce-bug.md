@@ -1,27 +1,27 @@
 ---
 name: reproduce-bug
-description: Reproduce and investigate a bug using logs and console inspection
-argument-hint: "[GitHub issue number]"
+description: ログとコンソール検査を使用してバグを再現し調査する
+argument-hint: "[GitHubイシュー番号]"
 ---
 
-Look at github issue #$ARGUMENTS and read the issue description and comments.
+GitHubイシュー #$ARGUMENTS を確認し、イシューの説明とコメントを読みます。
 
-Then, run the following agents in parallel to reproduce the bug:
-
-1. Task rails-console-explorer(issue_description)
-2. Task appsignal-log-investigator (issue_description)
-
-Then think about the places it could go wrong looking at the codebase. Look for loggin output we can look for.
-
-Then, run the following agents in parallel again to find any logs that could help us reproduce the bug.
+その後、以下のエージェントを並列で実行してバグを再現：
 
 1. Task rails-console-explorer(issue_description)
 2. Task appsignal-log-investigator (issue_description)
 
-Keep running these agents until you have a good idea of what is going on.
+次に、コードベースを見て問題が発生しうる場所を検討します。探すべきログ出力を探します。
 
-**Reference Collection:**
+その後、バグの再現に役立つログを見つけるために再度以下のエージェントを並列で実行：
 
-- [ ] Document all research findings with specific file paths (e.g., `app/services/example_service.rb:42`)
+1. Task rails-console-explorer(issue_description)
+2. Task appsignal-log-investigator (issue_description)
 
-Then, add a comment to the issue with the findings and how to reproduce the bug.
+何が起きているかよく理解できるまでこれらのエージェントを実行し続けます。
+
+**リファレンス収集：**
+
+- [ ] 具体的なファイルパス（例：`app/services/example_service.rb:42`）ですべてのリサーチ結果を文書化
+
+その後、発見事項とバグの再現方法についてイシューにコメントを追加します。

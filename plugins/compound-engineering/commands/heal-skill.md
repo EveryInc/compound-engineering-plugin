@@ -1,52 +1,52 @@
 ---
 name: heal-skill
-description: Fix incorrect SKILL.md files when a skill has wrong instructions or outdated API references
-argument-hint: [optional: specific issue to fix]
+description: スキルに間違った指示や古いAPI参照がある場合に、不正なSKILL.mdファイルを修正する
+argument-hint: [オプション: 修正する具体的な問題]
 allowed-tools: [Read, Edit, Bash(ls:*), Bash(git:*)]
 ---
 
 <objective>
-Update a skill's SKILL.md and related files based on corrections discovered during execution.
+実行中に発見された修正に基づいて、スキルのSKILL.mdと関連ファイルを更新します。
 
-Analyze the conversation to detect which skill is running, reflect on what went wrong, propose specific fixes, get user approval, then apply changes with optional commit.
+会話を分析して実行中のスキルを検出し、何が間違っていたかを振り返り、具体的な修正を提案し、ユーザーの承認を得て、オプションのコミットと共に変更を適用します。
 </objective>
 
 <context>
-Skill detection: !`ls -1 ./skills/*/SKILL.md | head -5`
+スキル検出: !`ls -1 ./skills/*/SKILL.md | head -5`
 </context>
 
 <quick_start>
 <workflow>
-1. **Detect skill** from conversation context (invocation messages, recent SKILL.md references)
-2. **Reflect** on what went wrong and how you discovered the fix
-3. **Present** proposed changes with before/after diffs
-4. **Get approval** before making any edits
-5. **Apply** changes and optionally commit
+1. 会話コンテキストからスキルを**検出**（呼び出しメッセージ、最近のSKILL.md参照）
+2. 何が間違っていたか、どのように修正を発見したかを**振り返る**
+3. 前後の差分と共に提案された変更を**提示**
+4. 編集を行う前に**承認を得る**
+5. 変更を**適用**し、オプションでコミット
 </workflow>
 </quick_start>
 
 <process>
 <step_1 name="detect_skill">
-Identify the skill from conversation context:
+会話コンテキストからスキルを特定：
 
-- Look for skill invocation messages
-- Check which SKILL.md was recently referenced
-- Examine current task context
+- スキル呼び出しメッセージを探す
+- 最近参照されたSKILL.mdをチェック
+- 現在のタスクコンテキストを調べる
 
-Set: `SKILL_NAME=[skill-name]` and `SKILL_DIR=./skills/$SKILL_NAME`
+設定：`SKILL_NAME=[skill-name]` および `SKILL_DIR=./skills/$SKILL_NAME`
 
-If unclear, ask the user.
+不明確な場合はユーザーに質問。
 </step_1>
 
 <step_2 name="reflection_and_analysis">
-Focus on $ARGUMENTS if provided, otherwise analyze broader context.
+$ARGUMENTSが提供されている場合はそれに焦点を当て、そうでなければより広いコンテキストを分析。
 
-Determine:
-- **What was wrong**: Quote specific sections from SKILL.md that are incorrect
-- **Discovery method**: Context7, error messages, trial and error, documentation lookup
-- **Root cause**: Outdated API, incorrect parameters, wrong endpoint, missing context
-- **Scope of impact**: Single section or multiple? Related files affected?
-- **Proposed fix**: Which files, which sections, before/after for each
+判断項目：
+- **何が間違っていたか**：SKILL.mdから不正なセクションを具体的に引用
+- **発見方法**：Context7、エラーメッセージ、試行錯誤、ドキュメント検索
+- **根本原因**：古いAPI、不正なパラメータ、間違ったエンドポイント、欠落しているコンテキスト
+- **影響範囲**：単一セクションか複数か？関連ファイルも影響を受けるか？
+- **提案される修正**：どのファイル、どのセクション、各々の前後
 </step_2>
 
 <step_3 name="scan_affected_files">
@@ -58,85 +58,85 @@ ls -la $SKILL_DIR/scripts/ 2>/dev/null
 </step_3>
 
 <step_4 name="present_proposed_changes">
-Present changes in this format:
+以下のフォーマットで変更を提示：
 
 ```
-**Skill being healed:** [skill-name]
-**Issue discovered:** [1-2 sentence summary]
-**Root cause:** [brief explanation]
+**修復対象スキル:** [skill-name]
+**発見された問題:** [1-2文の要約]
+**根本原因:** [簡潔な説明]
 
-**Files to be modified:**
+**変更されるファイル:**
 - [ ] SKILL.md
 - [ ] references/[file].md
 - [ ] scripts/[file].py
 
-**Proposed changes:**
+**提案される変更:**
 
-### Change 1: SKILL.md - [Section name]
-**Location:** Line [X] in SKILL.md
+### 変更1: SKILL.md - [セクション名]
+**場所:** SKILL.mdの[X]行目
 
-**Current (incorrect):**
+**現在（不正）:**
 ```
-[exact text from current file]
-```
-
-**Corrected:**
-```
-[new text]
+[現在のファイルからの正確なテキスト]
 ```
 
-**Reason:** [why this fixes the issue]
+**修正後:**
+```
+[新しいテキスト]
+```
 
-[repeat for each change across all files]
+**理由:** [これが問題を修正する理由]
 
-**Impact assessment:**
-- Affects: [authentication/API endpoints/parameters/examples/etc.]
+[すべてのファイルにわたる各変更について繰り返す]
 
-**Verification:**
-These changes will prevent: [specific error that prompted this]
+**影響評価:**
+- 影響を受ける: [認証/APIエンドポイント/パラメータ/例/など]
+
+**検証:**
+これらの変更により防止される: [この変更のきっかけとなった具体的なエラー]
 ```
 </step_4>
 
 <step_5 name="request_approval">
 ```
-Should I apply these changes?
+これらの変更を適用しますか？
 
-1. Yes, apply and commit all changes
-2. Apply but don't commit (let me review first)
-3. Revise the changes (I'll provide feedback)
-4. Cancel (don't make changes)
+1. はい、すべての変更を適用してコミット
+2. 適用するがコミットしない（先にレビューさせて）
+3. 変更を修正（フィードバックを提供します）
+4. キャンセル（変更しない）
 
-Choose (1-4):
+選択 (1-4):
 ```
 
-**Wait for user response. Do not proceed without approval.**
+**ユーザーの応答を待つ。承認なしに進めない。**
 </step_5>
 
 <step_6 name="apply_changes">
-Only after approval (option 1 or 2):
+承認後（オプション1または2）のみ：
 
-1. Use Edit tool for each correction across all files
-2. Read back modified sections to verify
-3. If option 1, commit with structured message showing what was healed
-4. Confirm completion with file list
+1. すべてのファイルにわたる各修正にEditツールを使用
+2. 変更された箇所を読み返して検証
+3. オプション1の場合、何が修復されたかを示す構造化されたメッセージでコミット
+4. ファイルリストで完了を確認
 </step_6>
 </process>
 
 <success_criteria>
-- Skill correctly detected from conversation context
-- All incorrect sections identified with before/after
-- User approved changes before application
-- All edits applied across SKILL.md and related files
-- Changes verified by reading back
-- Commit created if user chose option 1
-- Completion confirmed with file list
+- 会話コンテキストからスキルが正しく検出された
+- すべての不正なセクションが前後と共に特定された
+- ユーザーが適用前に変更を承認した
+- SKILL.mdと関連ファイルにわたってすべての編集が適用された
+- 読み返しで変更が検証された
+- ユーザーがオプション1を選択した場合はコミットが作成された
+- ファイルリストで完了が確認された
 </success_criteria>
 
 <verification>
-Before completing:
+完了前に：
 
-- Read back each modified section to confirm changes applied
-- Ensure cross-file consistency (SKILL.md examples match references/)
-- Verify git commit created if option 1 was selected
-- Check no unintended files were modified
+- 各変更されたセクションを読み返して変更が適用されたことを確認
+- ファイル間の整合性を確保（SKILL.mdの例がreferences/と一致）
+- オプション1が選択された場合はgitコミットが作成されたことを検証
+- 意図しないファイルが変更されていないことをチェック
 </verification>

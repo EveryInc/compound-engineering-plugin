@@ -1,43 +1,43 @@
-# Compound Engineering Plugin
+# Compound Engineering プラグイン
 
-A Claude Code plugin that makes each unit of engineering work easier than the last.
+エンジニアリング作業の各単位を前回より簡単にするClaude Codeプラグイン。
 
-## Install
+## インストール
 
 ```bash
 /plugin marketplace add https://github.com/EveryInc/compound-engineering-plugin
 /plugin install compound-engineering
 ```
 
-## Workflow
+## ワークフロー
 
 ```
-Plan → Work → Review → Compound → Repeat
+計画 → 実行 → レビュー → 蓄積 → 繰り返し
 ```
 
-| Command | Purpose |
+| コマンド | 目的 |
 |---------|---------|
-| `/workflows:plan` | Turn feature ideas into detailed implementation plans |
-| `/workflows:work` | Execute plans with worktrees and task tracking |
-| `/workflows:review` | Multi-agent code review before merging |
-| `/workflows:compound` | Document learnings to make future work easier |
+| `/workflows:plan` | 機能アイデアを詳細な実装計画に変換 |
+| `/workflows:work` | ワークツリーとタスク追跡で計画を実行 |
+| `/workflows:review` | マージ前にマルチエージェントでコードレビュー |
+| `/workflows:compound` | 今後の作業を簡単にするために学びを文書化 |
 
-Each cycle compounds: plans inform future plans, reviews catch more issues, patterns get documented.
+各サイクルが蓄積される：計画は将来の計画に役立ち、レビューはより多くの問題を発見し、パターンが文書化される。
 
-## Philosophy
+## 哲学
 
-**Each unit of engineering work should make subsequent units easier—not harder.**
+**エンジニアリング作業の各単位が、その後の単位をより簡単にするべき—より難しくではなく。**
 
-Traditional development accumulates technical debt. Every feature adds complexity. The codebase becomes harder to work with over time.
+従来の開発は技術的負債を蓄積する。すべての機能が複雑さを加え、コードベースは時間とともに扱いにくくなる。
 
-Compound engineering inverts this. 80% is in planning and review, 20% is in execution:
-- Plan thoroughly before writing code
-- Review to catch issues and capture learnings
-- Codify knowledge so it's reusable
-- Keep quality high so future changes are easy
+コンパウンドエンジニアリングはこれを逆転させる。80%は計画とレビューに、20%は実行に：
+- コードを書く前に徹底的に計画する
+- 問題を発見し学びを捉えるためにレビューする
+- 再利用できるように知識を体系化する
+- 将来の変更が容易になるよう品質を高く保つ
 
-## Learn More
+## さらに詳しく
 
-- [Full component reference](plugins/compound-engineering/README.md) - all agents, commands, skills
-- [Compound engineering: how Every codes with agents](https://every.to/chain-of-thought/compound-engineering-how-every-codes-with-agents)
-- [The story behind compounding engineering](https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it)
+- [全コンポーネントリファレンス](plugins/compound-engineering/README.md) - すべてのエージェント、コマンド、スキル
+- [Compound engineering: EveryがAIエージェントとどうコーディングするか](https://every.to/chain-of-thought/compound-engineering-how-every-codes-with-agents)
+- [コンパウンドエンジニアリングの背景](https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it)

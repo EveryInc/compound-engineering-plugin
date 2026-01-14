@@ -1,34 +1,34 @@
 ---
 name: gemini-imagegen
-description: This skill should be used when generating and editing images using the Gemini API (Nano Banana Pro). It applies when creating images from text prompts, editing existing images, applying style transfers, generating logos with text, creating stickers, product mockups, or any image generation/manipulation task. Supports text-to-image, image editing, multi-turn refinement, and composition from multiple reference images.
+description: このスキルは、Gemini API（Nano Banana Pro）を使用して画像を生成および編集する際に使用されるべきです。テキストプロンプトからの画像作成、既存画像の編集、スタイル転送の適用、テキスト入りロゴの生成、ステッカー作成、製品モックアップ、または任意の画像生成/操作タスクに適用されます。テキストから画像、画像編集、マルチターン改善、複数の参照画像からの合成をサポートします。
 ---
 
-# Gemini Image Generation (Nano Banana Pro)
+# Gemini画像生成（Nano Banana Pro）
 
-Generate and edit images using Google's Gemini API. The environment variable `GEMINI_API_KEY` must be set.
+GoogleのGemini APIを使用して画像を生成および編集。環境変数`GEMINI_API_KEY`が設定されている必要があります。
 
-## Default Model
+## デフォルトモデル
 
-| Model | Resolution | Best For |
+| モデル | 解像度 | 最適な用途 |
 |-------|------------|----------|
-| `gemini-3-pro-image-preview` | 1K-4K | All image generation (default) |
+| `gemini-3-pro-image-preview` | 1K-4K | すべての画像生成（デフォルト） |
 
-**Note:** Always use this Pro model. Only use a different model if explicitly requested.
+**注意：** 常にこのProモデルを使用。明示的に要求された場合のみ別のモデルを使用。
 
-## Quick Reference
+## クイックリファレンス
 
-### Default Settings
-- **Model:** `gemini-3-pro-image-preview`
-- **Resolution:** 1K (default, options: 1K, 2K, 4K)
-- **Aspect Ratio:** 1:1 (default)
+### デフォルト設定
+- **モデル：** `gemini-3-pro-image-preview`
+- **解像度：** 1K（デフォルト、オプション：1K、2K、4K）
+- **アスペクト比：** 1:1（デフォルト）
 
-### Available Aspect Ratios
-`1:1`, `2:3`, `3:2`, `3:4`, `4:3`, `4:5`, `5:4`, `9:16`, `16:9`, `21:9`
+### 利用可能なアスペクト比
+`1:1`、`2:3`、`3:2`、`3:4`、`4:3`、`4:5`、`5:4`、`9:16`、`16:9`、`21:9`
 
-### Available Resolutions
-`1K` (default), `2K`, `4K`
+### 利用可能な解像度
+`1K`（デフォルト）、`2K`、`4K`
 
-## Core API Pattern
+## コアAPIパターン
 
 ```python
 import os
@@ -37,10 +37,10 @@ from google.genai import types
 
 client = genai.Client(api_key=os.environ["GEMINI_API_KEY"])
 
-# Basic generation (1K, 1:1 - defaults)
+# 基本生成（1K、1:1 - デフォルト）
 response = client.models.generate_content(
     model="gemini-3-pro-image-preview",
-    contents=["Your prompt here"],
+    contents=["ここにプロンプト"],
     config=types.GenerateContentConfig(
         response_modalities=['TEXT', 'IMAGE'],
     ),
@@ -54,7 +54,7 @@ for part in response.parts:
         image.save("output.png")
 ```
 
-## Custom Resolution & Aspect Ratio
+## カスタム解像度とアスペクト比
 
 ```python
 from google.genai import types
@@ -65,48 +65,48 @@ response = client.models.generate_content(
     config=types.GenerateContentConfig(
         response_modalities=['TEXT', 'IMAGE'],
         image_config=types.ImageConfig(
-            aspect_ratio="16:9",  # Wide format
-            image_size="2K"       # Higher resolution
+            aspect_ratio="16:9",  # ワイドフォーマット
+            image_size="2K"       # より高い解像度
         ),
     )
 )
 ```
 
-### Resolution Examples
+### 解像度の例
 
 ```python
-# 1K (default) - Fast, good for previews
+# 1K（デフォルト）- 高速、プレビューに最適
 image_config=types.ImageConfig(image_size="1K")
 
-# 2K - Balanced quality/speed
+# 2K - 品質/速度のバランス
 image_config=types.ImageConfig(image_size="2K")
 
-# 4K - Maximum quality, slower
+# 4K - 最高品質、より遅い
 image_config=types.ImageConfig(image_size="4K")
 ```
 
-### Aspect Ratio Examples
+### アスペクト比の例
 
 ```python
-# Square (default)
+# 正方形（デフォルト）
 image_config=types.ImageConfig(aspect_ratio="1:1")
 
-# Landscape wide
+# 横長ワイド
 image_config=types.ImageConfig(aspect_ratio="16:9")
 
-# Ultra-wide panoramic
+# ウルトラワイドパノラマ
 image_config=types.ImageConfig(aspect_ratio="21:9")
 
-# Portrait
+# 縦長
 image_config=types.ImageConfig(aspect_ratio="9:16")
 
-# Photo standard
+# 写真標準
 image_config=types.ImageConfig(aspect_ratio="4:3")
 ```
 
-## Editing Images
+## 画像の編集
 
-Pass existing images with text prompts:
+既存の画像とテキストプロンプトを渡す：
 
 ```python
 from PIL import Image
@@ -114,16 +114,16 @@ from PIL import Image
 img = Image.open("input.png")
 response = client.models.generate_content(
     model="gemini-3-pro-image-preview",
-    contents=["Add a sunset to this scene", img],
+    contents=["このシーンに夕日を追加", img],
     config=types.GenerateContentConfig(
         response_modalities=['TEXT', 'IMAGE'],
     ),
 )
 ```
 
-## Multi-Turn Refinement
+## マルチターン改善
 
-Use chat for iterative editing:
+反復編集にはチャットを使用：
 
 ```python
 from google.genai import types
@@ -133,40 +133,40 @@ chat = client.chats.create(
     config=types.GenerateContentConfig(response_modalities=['TEXT', 'IMAGE'])
 )
 
-response = chat.send_message("Create a logo for 'Acme Corp'")
-# Save first image...
+response = chat.send_message("'Acme Corp'のロゴを作成")
+# 最初の画像を保存...
 
-response = chat.send_message("Make the text bolder and add a blue gradient")
-# Save refined image...
+response = chat.send_message("テキストをより太くして青いグラデーションを追加")
+# 改善された画像を保存...
 ```
 
-## Prompting Best Practices
+## プロンプティングのベストプラクティス
 
-### Photorealistic Scenes
-Include camera details: lens type, lighting, angle, mood.
-> "A photorealistic close-up portrait, 85mm lens, soft golden hour light, shallow depth of field"
+### フォトリアリスティックなシーン
+カメラの詳細を含める：レンズタイプ、照明、角度、ムード。
+> 「フォトリアリスティックなクローズアップポートレート、85mmレンズ、柔らかなゴールデンアワーの光、被写界深度が浅い」
 
-### Stylized Art
-Specify style explicitly:
-> "A kawaii-style sticker of a happy red panda, bold outlines, cel-shading, white background"
+### スタイライズされたアート
+スタイルを明示的に指定：
+> 「幸せなレッサーパンダのかわいいスタイルのステッカー、太い輪郭、セルシェーディング、白い背景」
 
-### Text in Images
-Be explicit about font style and placement:
-> "Create a logo with text 'Daily Grind' in clean sans-serif, black and white, coffee bean motif"
+### 画像内のテキスト
+フォントスタイルと配置について明確に：
+> 「'Daily Grind'というテキストのロゴを作成、クリーンなサンセリフ、白黒、コーヒー豆のモチーフ」
 
-### Product Mockups
-Describe lighting setup and surface:
-> "Studio-lit product photo on polished concrete, three-point softbox setup, 45-degree angle"
+### 製品モックアップ
+照明設定と表面を説明：
+> 「研磨されたコンクリート上のスタジオ照明製品写真、3点ソフトボックスセットアップ、45度の角度」
 
-## Advanced Features
+## 高度な機能
 
-### Google Search Grounding
-Generate images based on real-time data:
+### Google検索グラウンディング
+リアルタイムデータに基づいて画像を生成：
 
 ```python
 response = client.models.generate_content(
     model="gemini-3-pro-image-preview",
-    contents=["Visualize today's weather in Tokyo as an infographic"],
+    contents=["今日の東京の天気をインフォグラフィックとして視覚化"],
     config=types.GenerateContentConfig(
         response_modalities=['TEXT', 'IMAGE'],
         tools=[{"google_search": {}}]
@@ -174,14 +174,14 @@ response = client.models.generate_content(
 )
 ```
 
-### Multiple Reference Images (Up to 14)
-Combine elements from multiple sources:
+### 複数の参照画像（最大14枚）
+複数のソースから要素を組み合わせる：
 
 ```python
 response = client.models.generate_content(
     model="gemini-3-pro-image-preview",
     contents=[
-        "Create a group photo of these people in an office",
+        "これらの人々のオフィスでのグループ写真を作成",
         Image.open("person1.png"),
         Image.open("person2.png"),
         Image.open("person3.png"),
@@ -192,46 +192,46 @@ response = client.models.generate_content(
 )
 ```
 
-## Important: File Format & Media Type
+## 重要：ファイル形式とメディアタイプ
 
-**CRITICAL:** The Gemini API returns images in JPEG format by default. When saving, always use `.jpg` extension to avoid media type mismatches.
+**重要：** Gemini APIはデフォルトでJPEG形式で画像を返します。保存時は、メディアタイプの不一致を避けるため常に`.jpg`拡張子を使用。
 
 ```python
-# CORRECT - Use .jpg extension (Gemini returns JPEG)
+# 正しい - .jpg拡張子を使用（GeminiはJPEGを返す）
 image.save("output.jpg")
 
-# WRONG - Will cause "Image does not match media type" errors
-image.save("output.png")  # Creates JPEG with PNG extension!
+# 間違い - 「Image does not match media type」エラーが発生
+image.save("output.png")  # PNG拡張子でJPEGを作成！
 ```
 
-### Converting to PNG (if needed)
+### PNGへの変換（必要な場合）
 
-If you specifically need PNG format:
+特にPNG形式が必要な場合：
 
 ```python
 from PIL import Image
 
-# Generate with Gemini
+# Geminiで生成
 for part in response.parts:
     if part.inline_data:
         img = part.as_image()
-        # Convert to PNG by saving with explicit format
+        # 明示的なフォーマットで保存してPNGに変換
         img.save("output.png", format="PNG")
 ```
 
-### Verifying Image Format
+### 画像形式の確認
 
-Check actual format vs extension with the `file` command:
+`file`コマンドで実際の形式と拡張子を確認：
 
 ```bash
 file image.png
-# If output shows "JPEG image data" - rename to .jpg!
+# 出力が「JPEG image data」を示す場合 - .jpgにリネーム！
 ```
 
-## Notes
+## 注意事項
 
-- All generated images include SynthID watermarks
-- Gemini returns **JPEG format by default** - always use `.jpg` extension
-- Image-only mode (`responseModalities: ["IMAGE"]`) won't work with Google Search grounding
-- For editing, describe changes conversationally—the model understands semantic masking
-- Default to 1K resolution for speed; use 2K/4K when quality is critical
+- すべての生成画像にはSynthID透かしが含まれます
+- Geminiは**デフォルトでJPEG形式**を返す - 常に`.jpg`拡張子を使用
+- 画像のみモード（`responseModalities: ["IMAGE"]`）はGoogle検索グラウンディングでは動作しません
+- 編集時は変更を会話的に説明 - モデルはセマンティックマスキングを理解します
+- 速度のためにデフォルトで1K解像度；品質が重要な場合は2K/4Kを使用

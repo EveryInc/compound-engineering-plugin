@@ -1,150 +1,150 @@
 ---
 name: agent-native-architecture
-description: This skill should be used when building AI agents using prompt-native architecture where features are defined in prompts, not code. Use it when creating autonomous agents, designing MCP servers, implementing self-modifying systems, or adopting the "trust the agent's intelligence" philosophy.
+description: このスキルは、機能がコードではなくプロンプトで定義されるプロンプトネイティブアーキテクチャを使用してAIエージェントを構築する際に使用されるべきです。自律エージェントの作成、MCPサーバーの設計、自己修正システムの実装、または「エージェントの知性を信頼する」哲学を採用する際に使用してください。
 ---
 
 <essential_principles>
-## The Prompt-Native Philosophy
+## プロンプトネイティブの哲学
 
-Agent native engineering inverts traditional software architecture. Instead of writing code that the agent executes, you define outcomes in prompts and let the agent figure out HOW to achieve them.
+エージェントネイティブエンジニアリングは、従来のソフトウェアアーキテクチャを逆転させます。エージェントが実行するコードを書く代わりに、プロンプトで結果を定義し、エージェントにそれを達成する方法を考えさせます。
 
-### The Foundational Principle
+### 基本原則
 
-**Whatever the user can do, the agent can do. Many things the developer can do, the agent can do.**
+**ユーザーができることは、エージェントもできる。開発者ができることの多くも、エージェントができる。**
 
-Don't artificially limit the agent. If a user could read files, write code, browse the web, deploy an app—the agent should be able to do those things too. The agent figures out HOW to achieve an outcome; it doesn't just call your pre-written functions.
+エージェントを人為的に制限しない。ユーザーがファイルを読んだり、コードを書いたり、ウェブを閲覧したり、アプリをデプロイできるなら、エージェントもそれらのことができるべきです。エージェントは結果を達成する方法を考え出します。事前に書かれた関数を呼び出すだけではありません。
 
-### Features Are Prompts
+### 機能はプロンプト
 
-Each feature is a prompt that defines an outcome and gives the agent the tools it needs. The agent then figures out how to accomplish it.
+各機能は結果を定義し、エージェントに必要なツールを与えるプロンプトです。エージェントはそれを達成する方法を考え出します。
 
-**Traditional:** Feature = function in codebase that agent calls
-**Prompt-native:** Feature = prompt defining desired outcome + primitive tools
+**従来型:** 機能 = エージェントが呼び出すコードベース内の関数
+**プロンプトネイティブ:** 機能 = 望む結果を定義するプロンプト + プリミティブツール
 
-The agent doesn't execute your code. It uses primitives to achieve outcomes you describe.
+エージェントはあなたのコードを実行しません。あなたが説明した結果を達成するためにプリミティブを使用します。
 
-### Tools Provide Capability, Not Behavior
+### ツールは動作ではなく能力を提供
 
-Tools should be primitives that enable capability. The prompt defines what to do with that capability.
+ツールは能力を可能にするプリミティブであるべきです。プロンプトがその能力で何をするかを定義します。
 
-**Wrong:** `generate_dashboard(data, layout, filters)` — agent executes your workflow
-**Right:** `read_file`, `write_file`, `list_files` — agent figures out how to build a dashboard
+**誤り:** `generate_dashboard(data, layout, filters)` — エージェントがあなたのワークフローを実行
+**正解:** `read_file`, `write_file`, `list_files` — エージェントがダッシュボードの構築方法を考え出す
 
-Pure primitives are better, but domain primitives (like `store_feedback`) are OK if they don't encode logic—just storage/retrieval.
+純粋なプリミティブが良いですが、ドメインプリミティブ（`store_feedback`など）はロジックを含まない場合（単なる保存/取得）は問題ありません。
 
-### The Development Lifecycle
+### 開発ライフサイクル
 
-1. **Start in the prompt** - New features begin as natural language defining outcomes
-2. **Iterate rapidly** - Change behavior by editing prose, not refactoring code
-3. **Graduate when stable** - Harden to code when requirements stabilize AND speed/reliability matter
-4. **Many features stay as prompts** - Not everything needs to become code
+1. **プロンプトから開始** - 新機能は結果を定義する自然言語として始まる
+2. **迅速に反復** - コードをリファクタリングせず、散文を編集して動作を変更
+3. **安定したら卒業** - 要件が安定し、速度/信頼性が重要になったらコードに強化
+4. **多くの機能はプロンプトのまま** - すべてがコードになる必要はない
 
-### Self-Modification (Advanced)
+### 自己修正（上級）
 
-The advanced tier: agents that can evolve their own code, prompts, and behavior. Not required for every app, but a big part of the future.
+上級層：自身のコード、プロンプト、動作を進化させることができるエージェント。すべてのアプリに必要ではありませんが、未来の大きな部分です。
 
-When implementing:
-- Approval gates for code changes
-- Auto-commit before modifications (rollback capability)
-- Health checks after changes
-- Build verification before restart
+実装時：
+- コード変更の承認ゲート
+- 修正前の自動コミット（ロールバック機能）
+- 変更後のヘルスチェック
+- 再起動前のビルド検証
 
-### When NOT to Use This Approach
+### このアプローチを使用しない場合
 
-- **High-frequency operations** - thousands of calls per second
-- **Deterministic requirements** - exact same output every time
-- **Cost-sensitive scenarios** - when API costs would be prohibitive
-- **High security** - though this is overblown for most apps
+- **高頻度の操作** - 毎秒数千回の呼び出し
+- **決定論的要件** - 毎回まったく同じ出力
+- **コスト敏感なシナリオ** - APIコストが禁止的な場合
+- **高セキュリティ** - ただしこれはほとんどのアプリで誇張されている
 </essential_principles>
 
 <intake>
-What aspect of agent native architecture do you need help with?
+エージェントネイティブアーキテクチャのどの側面で助けが必要ですか？
 
-1. **Design architecture** - Plan a new prompt-native agent system
-2. **Create MCP tools** - Build primitive tools following the philosophy
-3. **Write system prompts** - Define agent behavior in prompts
-4. **Self-modification** - Enable agents to safely evolve themselves
-5. **Review/refactor** - Make existing code more prompt-native
-6. **Context injection** - Inject runtime app state into agent prompts
-7. **Action parity** - Ensure agents can do everything users can do
-8. **Shared workspace** - Set up agents and users in the same data space
-9. **Testing** - Test agent-native apps for capability and parity
-10. **API integration** - Connect to external APIs (HealthKit, HomeKit, GraphQL)
+1. **アーキテクチャ設計** - 新しいプロンプトネイティブエージェントシステムを計画
+2. **MCPツール作成** - 哲学に従ったプリミティブツールを構築
+3. **システムプロンプト作成** - プロンプトでエージェントの動作を定義
+4. **自己修正** - エージェントが安全に自己進化できるようにする
+5. **レビュー/リファクタリング** - 既存のコードをよりプロンプトネイティブにする
+6. **コンテキスト注入** - ランタイムのアプリ状態をエージェントプロンプトに注入
+7. **アクションパリティ** - エージェントがユーザーができることすべてをできるようにする
+8. **共有ワークスペース** - エージェントとユーザーを同じデータスペースに設定
+9. **テスト** - エージェントネイティブアプリの能力とパリティをテスト
+10. **API統合** - 外部API（HealthKit、HomeKit、GraphQL）に接続
 
-**Wait for response before proceeding.**
+**進む前に応答を待ってください。**
 </intake>
 
 <routing>
-| Response | Action |
+| 応答 | アクション |
 |----------|--------|
-| 1, "design", "architecture", "plan" | Read [architecture-patterns.md](./references/architecture-patterns.md), then apply Architecture Checklist below |
-| 2, "tool", "mcp", "primitive" | Read [mcp-tool-design.md](./references/mcp-tool-design.md) |
-| 3, "prompt", "system prompt", "behavior" | Read [system-prompt-design.md](./references/system-prompt-design.md) |
-| 4, "self-modify", "evolve", "git" | Read [self-modification.md](./references/self-modification.md) |
-| 5, "review", "refactor", "existing" | Read [refactoring-to-prompt-native.md](./references/refactoring-to-prompt-native.md) |
-| 6, "context", "inject", "runtime", "dynamic" | Read [dynamic-context-injection.md](./references/dynamic-context-injection.md) |
-| 7, "parity", "ui action", "capability map" | Read [action-parity-discipline.md](./references/action-parity-discipline.md) |
-| 8, "workspace", "shared", "files", "filesystem" | Read [shared-workspace-architecture.md](./references/shared-workspace-architecture.md) |
-| 9, "test", "testing", "verify", "validate" | Read [agent-native-testing.md](./references/agent-native-testing.md) |
-| 10, "api", "healthkit", "homekit", "graphql", "external" | Read [mcp-tool-design.md](./references/mcp-tool-design.md) (Dynamic Capability Discovery section) |
+| 1, "設計", "アーキテクチャ", "計画" | [architecture-patterns.md](./references/architecture-patterns.md)を読み、その後以下のアーキテクチャチェックリストを適用 |
+| 2, "ツール", "mcp", "プリミティブ" | [mcp-tool-design.md](./references/mcp-tool-design.md)を読む |
+| 3, "プロンプト", "システムプロンプト", "動作" | [system-prompt-design.md](./references/system-prompt-design.md)を読む |
+| 4, "自己修正", "進化", "git" | [self-modification.md](./references/self-modification.md)を読む |
+| 5, "レビュー", "リファクタリング", "既存" | [refactoring-to-prompt-native.md](./references/refactoring-to-prompt-native.md)を読む |
+| 6, "コンテキスト", "注入", "ランタイム", "動的" | [dynamic-context-injection.md](./references/dynamic-context-injection.md)を読む |
+| 7, "パリティ", "UIアクション", "能力マップ" | [action-parity-discipline.md](./references/action-parity-discipline.md)を読む |
+| 8, "ワークスペース", "共有", "ファイル", "ファイルシステム" | [shared-workspace-architecture.md](./references/shared-workspace-architecture.md)を読む |
+| 9, "テスト", "検証", "バリデーション" | [agent-native-testing.md](./references/agent-native-testing.md)を読む |
+| 10, "api", "healthkit", "homekit", "graphql", "外部" | [mcp-tool-design.md](./references/mcp-tool-design.md)（動的能力発見セクション）を読む |
 
-**After reading the reference, apply those patterns to the user's specific context.**
+**リファレンスを読んだ後、それらのパターンをユーザーの特定のコンテキストに適用してください。**
 </routing>
 
 <architecture_checklist>
-## Architecture Review Checklist (Apply During Design)
+## アーキテクチャレビューチェックリスト（設計中に適用）
 
-When designing an agent-native system, verify these **before implementation**:
+エージェントネイティブシステムを設計する際、**実装前**にこれらを検証：
 
-### Tool Design
-- [ ] **Dynamic vs Static:** For external APIs where agent should have full user-level access (HealthKit, HomeKit, GraphQL), use Dynamic Capability Discovery. Only use static mapping if intentionally limiting agent scope.
-- [ ] **CRUD Completeness:** Every entity has create, read, update, AND delete tools
-- [ ] **Primitives not Workflows:** Tools enable capability, they don't encode business logic
-- [ ] **API as Validator:** Use `z.string()` inputs when the API validates, not `z.enum()`
+### ツール設計
+- [ ] **動的 vs 静的:** エージェントがフルユーザーレベルアクセスを持つべき外部API（HealthKit、HomeKit、GraphQL）には動的能力発見を使用。エージェントのスコープを意図的に制限する場合のみ静的マッピングを使用。
+- [ ] **CRUDの完全性:** すべてのエンティティに作成、読み取り、更新、削除のツールがある
+- [ ] **ワークフローではなくプリミティブ:** ツールは能力を有効にし、ビジネスロジックをエンコードしない
+- [ ] **APIがバリデータ:** APIが検証する場合、`z.enum()`ではなく`z.string()`入力を使用
 
-### Action Parity
-- [ ] **Capability Map:** Every UI action has a corresponding agent tool
-- [ ] **Edit/Delete:** If UI can edit or delete, agent must be able to too
-- [ ] **The Write Test:** "Write something to [app location]" must work for all locations
+### アクションパリティ
+- [ ] **能力マップ:** すべてのUIアクションに対応するエージェントツールがある
+- [ ] **編集/削除:** UIが編集または削除できるなら、エージェントもできる必要がある
+- [ ] **書き込みテスト:** 「[アプリの場所]に何か書いて」がすべての場所で機能する必要がある
 
-### UI Integration
-- [ ] **Agent → UI:** Define how agent changes reflect in UI (shared service, file watching, or event bus)
-- [ ] **No Silent Actions:** Agent writes should trigger UI updates immediately
-- [ ] **Capability Discovery:** Users can learn what agent can do (onboarding, hints)
+### UI統合
+- [ ] **エージェント → UI:** エージェントの変更がUIに反映される方法を定義（共有サービス、ファイル監視、またはイベントバス）
+- [ ] **サイレントアクションなし:** エージェントの書き込みは即座にUI更新をトリガーすべき
+- [ ] **能力発見:** ユーザーがエージェントの能力を学べる（オンボーディング、ヒント）
 
-### Context Injection
-- [ ] **Available Resources:** System prompt includes what exists (files, data, types)
-- [ ] **Available Capabilities:** System prompt documents what agent can do with user vocabulary
-- [ ] **Dynamic Context:** Context refreshes for long sessions (or provide `refresh_context` tool)
+### コンテキスト注入
+- [ ] **利用可能なリソース:** システムプロンプトに存在するもの（ファイル、データ、型）を含む
+- [ ] **利用可能な能力:** システムプロンプトでエージェントができることをユーザーの語彙で文書化
+- [ ] **動的コンテキスト:** 長いセッションではコンテキストを更新（または`refresh_context`ツールを提供）
 
-**When designing architecture, explicitly address each checkbox in your plan.**
+**アーキテクチャを設計する際、計画で各チェックボックスに明示的に対処してください。**
 </architecture_checklist>
 
 <quick_start>
-Build a prompt-native agent in three steps:
+3ステップでプロンプトネイティブエージェントを構築：
 
-**Step 1: Define primitive tools**
+**ステップ1: プリミティブツールを定義**
 ```typescript
 const tools = [
-  tool("read_file", "Read any file", { path: z.string() }, ...),
-  tool("write_file", "Write any file", { path: z.string(), content: z.string() }, ...),
-  tool("list_files", "List directory", { path: z.string() }, ...),
+  tool("read_file", "任意のファイルを読む", { path: z.string() }, ...),
+  tool("write_file", "任意のファイルを書く", { path: z.string(), content: z.string() }, ...),
+  tool("list_files", "ディレクトリを一覧表示", { path: z.string() }, ...),
 ];
 ```
 
-**Step 2: Write behavior in the system prompt**
+**ステップ2: システムプロンプトで動作を記述**
 ```markdown
-## Your Responsibilities
-When asked to organize content, you should:
-1. Read existing files to understand the structure
-2. Analyze what organization makes sense
-3. Create appropriate pages using write_file
-4. Use your judgment about layout and formatting
+## あなたの責任
+コンテンツを整理するよう依頼されたら、以下を行うべき：
+1. 既存のファイルを読んで構造を理解する
+2. どのような整理が理にかなっているか分析する
+3. write_fileを使用して適切なページを作成する
+4. レイアウトとフォーマットについて自分の判断を使用する
 
-You decide the structure. Make it good.
+あなたが構造を決める。良いものにしてください。
 ```
 
-**Step 3: Let the agent work**
+**ステップ3: エージェントに作業させる**
 ```typescript
 query({
   prompt: userMessage,
@@ -158,175 +158,175 @@ query({
 </quick_start>
 
 <reference_index>
-## Domain Knowledge
+## ドメイン知識
 
-All references in `references/`:
+`references/`内のすべてのリファレンス：
 
-**Core Patterns:**
-- **Architecture:** [architecture-patterns.md](./references/architecture-patterns.md)
-- **Tool Design:** [mcp-tool-design.md](./references/mcp-tool-design.md) - includes Dynamic Capability Discovery, CRUD Completeness
-- **Prompts:** [system-prompt-design.md](./references/system-prompt-design.md)
-- **Self-Modification:** [self-modification.md](./references/self-modification.md)
-- **Refactoring:** [refactoring-to-prompt-native.md](./references/refactoring-to-prompt-native.md)
+**コアパターン:**
+- **アーキテクチャ:** [architecture-patterns.md](./references/architecture-patterns.md)
+- **ツール設計:** [mcp-tool-design.md](./references/mcp-tool-design.md) - 動的能力発見、CRUDの完全性を含む
+- **プロンプト:** [system-prompt-design.md](./references/system-prompt-design.md)
+- **自己修正:** [self-modification.md](./references/self-modification.md)
+- **リファクタリング:** [refactoring-to-prompt-native.md](./references/refactoring-to-prompt-native.md)
 
-**Agent-Native Disciplines:**
-- **Context Injection:** [dynamic-context-injection.md](./references/dynamic-context-injection.md)
-- **Action Parity:** [action-parity-discipline.md](./references/action-parity-discipline.md)
-- **Shared Workspace:** [shared-workspace-architecture.md](./references/shared-workspace-architecture.md)
-- **Testing:** [agent-native-testing.md](./references/agent-native-testing.md)
+**エージェントネイティブの規律:**
+- **コンテキスト注入:** [dynamic-context-injection.md](./references/dynamic-context-injection.md)
+- **アクションパリティ:** [action-parity-discipline.md](./references/action-parity-discipline.md)
+- **共有ワークスペース:** [shared-workspace-architecture.md](./references/shared-workspace-architecture.md)
+- **テスト:** [agent-native-testing.md](./references/agent-native-testing.md)
 </reference_index>
 
 <anti_patterns>
-## What NOT to Do
+## やってはいけないこと
 
-**THE CARDINAL SIN: Agent executes your code instead of figuring things out**
+**大罪: エージェントが物事を考え出す代わりにあなたのコードを実行する**
 
-This is the most common mistake. You fall back into writing workflow code and having the agent call it, instead of defining outcomes and letting the agent figure out HOW.
+これが最も一般的な間違いです。ワークフローコードを書いてエージェントにそれを呼び出させることに戻ってしまい、結果を定義してエージェントに方法を考えさせる代わりにしてしまいます。
 
 ```typescript
-// WRONG - You wrote the workflow, agent just executes it
+// 誤り - あなたがワークフローを書き、エージェントはそれを実行するだけ
 tool("process_feedback", async ({ message }) => {
-  const category = categorize(message);      // Your code
-  const priority = calculatePriority(message); // Your code
-  await store(message, category, priority);   // Your code
-  if (priority > 3) await notify();           // Your code
+  const category = categorize(message);      // あなたのコード
+  const priority = calculatePriority(message); // あなたのコード
+  await store(message, category, priority);   // あなたのコード
+  if (priority > 3) await notify();           // あなたのコード
 });
 
-// RIGHT - Agent figures out how to process feedback
-tool("store_item", { key, value }, ...);  // Primitive
-tool("send_message", { channel, content }, ...);  // Primitive
-// Prompt says: "Rate importance 1-5 based on actionability, store feedback, notify if >= 4"
+// 正解 - エージェントがフィードバックの処理方法を考え出す
+tool("store_item", { key, value }, ...);  // プリミティブ
+tool("send_message", { channel, content }, ...);  // プリミティブ
+// プロンプトで言う: 「アクション可能性に基づいて重要度を1-5で評価し、フィードバックを保存、>= 4なら通知」
 ```
 
-**Don't artificially limit what the agent can do**
+**エージェントができることを人為的に制限しない**
 
-If a user could do it, the agent should be able to do it.
+ユーザーができるなら、エージェントもできるべき。
 
 ```typescript
-// WRONG - limiting agent capabilities
+// 誤り - エージェントの能力を制限
 tool("read_approved_files", { path }, async ({ path }) => {
   if (!ALLOWED_PATHS.includes(path)) throw new Error("Not allowed");
   return readFile(path);
 });
 
-// RIGHT - give full capability, use guardrails appropriately
-tool("read_file", { path }, ...);  // Agent can read anything
-// Use approval gates for writes, not artificial limits on reads
+// 正解 - フル能力を与え、ガードレールを適切に使用
+tool("read_file", { path }, ...);  // エージェントは何でも読める
+// 読み取りへの人為的制限ではなく、書き込みに承認ゲートを使用
 ```
 
-**Don't encode decisions in tools**
+**ツールに決定をエンコードしない**
 ```typescript
-// Wrong - tool decides format
+// 誤り - ツールがフォーマットを決定
 tool("format_report", { format: z.enum(["markdown", "html", "pdf"]) }, ...)
 
-// Right - agent decides format via prompt
-tool("write_file", ...) // Agent chooses what to write
+// 正解 - エージェントがプロンプト経由でフォーマットを決定
+tool("write_file", ...) // エージェントが何を書くか選ぶ
 ```
 
-**Don't over-specify in prompts**
+**プロンプトで過度に指定しない**
 ```markdown
-// Wrong - micromanaging the HOW
-When creating a summary, use exactly 3 bullet points,
-each under 20 words, formatted with em-dashes...
+// 誤り - 方法をマイクロマネジメント
+サマリーを作成する際、正確に3つの箇条書きを使用し、
+各箇条書きは20語未満で、emダッシュでフォーマットし...
 
-// Right - define outcome, trust intelligence
-Create clear, useful summaries. Use your judgment.
+// 正解 - 結果を定義し、知性を信頼
+明確で有用なサマリーを作成。判断を使用。
 ```
 
-### Agent-Native Anti-Patterns
+### エージェントネイティブのアンチパターン
 
-**Context Starvation**
-Agent doesn't know what resources exist in the app.
+**コンテキスト飢餓**
+エージェントがアプリに存在するリソースを知らない。
 ```
-User: "Write something about Catherine the Great in my feed"
-Agent: "What feed? I don't understand what system you're referring to."
+ユーザー: 「私のフィードにエカテリーナ大帝について何か書いて」
+エージェント: 「どのフィードですか？どのシステムを指しているのかわかりません。」
 ```
-Fix: Inject available resources, capabilities, and vocabulary into the system prompt at runtime.
+修正: 利用可能なリソース、能力、語彙をランタイムでシステムプロンプトに注入。
 
-**Orphan Features**
-UI action with no agent equivalent.
+**孤立した機能**
+エージェント相当のないUIアクション。
 ```swift
-// UI has a "Publish to Feed" button
+// UIに「フィードに公開」ボタンがある
 Button("Publish") { publishToFeed(insight) }
-// But no agent tool exists to do the same thing
+// しかし同じことをするエージェントツールが存在しない
 ```
-Fix: Add corresponding tool and document in system prompt for every UI action.
+修正: すべてのUIアクションに対応するツールを追加し、システムプロンプトに文書化。
 
-**Sandbox Isolation**
-Agent works in separate data space from user.
+**サンドボックス分離**
+エージェントがユーザーとは別のデータスペースで作業。
 ```
 Documents/
-├── user_files/        ← User's space
-└── agent_output/      ← Agent's space (isolated)
+├── user_files/        ← ユーザーのスペース
+└── agent_output/      ← エージェントのスペース（分離）
 ```
-Fix: Use shared workspace where both agent and user operate on the same files.
+修正: エージェントとユーザーが同じファイルで操作する共有ワークスペースを使用。
 
-**Silent Actions**
-Agent changes state but UI doesn't update.
+**サイレントアクション**
+エージェントが状態を変更するがUIが更新されない。
 ```typescript
-// Agent writes to database
+// エージェントがデータベースに書き込む
 await db.insert("feed", content);
-// But UI doesn't observe this table - user sees nothing
+// しかしUIはこのテーブルを監視していない - ユーザーには何も見えない
 ```
-Fix: Use shared data stores with reactive binding, or file system observation.
+修正: リアクティブバインディングを持つ共有データストア、またはファイルシステム監視を使用。
 
-**Capability Hiding**
-Users can't discover what agents can do.
+**能力の隠蔽**
+ユーザーがエージェントの能力を発見できない。
 ```
-User: "Help me with my reading"
-Agent: "What would you like help with?"
-// Agent doesn't mention it can publish to feed, research books, etc.
+ユーザー: 「読書を手伝って」
+エージェント: 「何を手伝いましょうか？」
+// エージェントがフィードに公開したり、本をリサーチしたりできることを言及しない
 ```
-Fix: Include capability hints in agent responses or provide onboarding.
+修正: エージェントの応答に能力ヒントを含めるか、オンボーディングを提供。
 
-**Static Tool Mapping (for agent-native apps)**
-Building individual tools for each API endpoint when you want the agent to have full access.
+**静的ツールマッピング（エージェントネイティブアプリの場合）**
+エージェントにフルアクセスを持たせたい場合に、各APIエンドポイントに個別のツールを構築。
 ```typescript
-// You built 50 tools for 50 HealthKit types
+// 50のHealthKitタイプに対して50のツールを構築
 tool("read_steps", ...)
 tool("read_heart_rate", ...)
 tool("read_sleep", ...)
-// When glucose tracking is added... code change required
-// Agent can only access what you anticipated
+// グルコーストラッキングが追加されたら...コード変更が必要
+// エージェントは予測したものにしかアクセスできない
 ```
-Fix: Use Dynamic Capability Discovery - one `list_*` tool to discover what's available, one generic tool to access any type. See [mcp-tool-design.md](./references/mcp-tool-design.md). (Note: Static mapping is fine for constrained agents with intentionally limited scope.)
+修正: 動的能力発見を使用 - 利用可能なものを発見する1つの`list_*`ツール、任意のタイプにアクセスする1つの汎用ツール。[mcp-tool-design.md](./references/mcp-tool-design.md)を参照。（注: 静的マッピングは意図的にスコープを制限した制約のあるエージェントには問題ない。）
 
-**Incomplete CRUD**
-Agent can create but not update or delete.
+**不完全なCRUD**
+エージェントは作成できるが更新や削除はできない。
 ```typescript
-// ❌ User: "Delete that journal entry"
-// Agent: "I don't have a tool for that"
+// ❌ ユーザー: 「そのジャーナルエントリを削除して」
+// エージェント: 「そのためのツールがありません」
 tool("create_journal_entry", ...)
-// Missing: update_journal_entry, delete_journal_entry
+// 不足: update_journal_entry, delete_journal_entry
 ```
-Fix: Every entity needs full CRUD (Create, Read, Update, Delete). The CRUD Audit: for each entity, verify all four operations exist.
+修正: すべてのエンティティにフルCRUD（作成、読み取り、更新、削除）が必要。CRUDの監査: 各エンティティについて、4つの操作すべてが存在することを確認。
 </anti_patterns>
 
 <success_criteria>
-You've built a prompt-native agent when:
+プロンプトネイティブエージェントを構築できた場合：
 
-**Core Prompt-Native Criteria:**
-- [ ] The agent figures out HOW to achieve outcomes, not just calls your functions
-- [ ] Whatever a user could do, the agent can do (no artificial limits)
-- [ ] Features are prompts that define outcomes, not code that defines workflows
-- [ ] Tools are primitives (read, write, store, call API) that enable capability
-- [ ] Changing behavior means editing prose, not refactoring code
-- [ ] The agent can surprise you with clever approaches you didn't anticipate
-- [ ] You could add a new feature by writing a new prompt section, not new code
+**コアプロンプトネイティブ基準:**
+- [ ] エージェントが関数を呼び出すだけでなく、結果を達成する方法を考え出す
+- [ ] ユーザーができることは何でもエージェントができる（人為的制限なし）
+- [ ] 機能はワークフローを定義するコードではなく、結果を定義するプロンプト
+- [ ] ツールは能力を可能にするプリミティブ（read、write、store、call API）
+- [ ] 動作を変更するにはコードのリファクタリングではなく散文の編集
+- [ ] エージェントが予想しなかった賢いアプローチで驚かせることができる
+- [ ] 新しいコードではなく新しいプロンプトセクションを書くことで新機能を追加できる
 
-**Tool Design Criteria:**
-- [ ] External APIs (where agent should have full access) use Dynamic Capability Discovery
-- [ ] Every entity has full CRUD (Create, Read, Update, Delete)
-- [ ] API validates inputs, not your enum definitions
-- [ ] Discovery tools exist for each API surface (`list_*`, `discover_*`)
+**ツール設計基準:**
+- [ ] 外部API（エージェントがフルアクセスを持つべき場合）は動的能力発見を使用
+- [ ] すべてのエンティティにフルCRUD（作成、読み取り、更新、削除）がある
+- [ ] あなたのenum定義ではなくAPIが入力を検証
+- [ ] 各APIサーフェスに発見ツール（`list_*`、`discover_*`）が存在
 
-**Agent-Native Criteria:**
-- [ ] System prompt includes dynamic context about app state (available resources, recent activity)
-- [ ] Every UI action has a corresponding agent tool (action parity)
-- [ ] Agent tools are documented in the system prompt with user vocabulary
-- [ ] Agent and user work in the same data space (shared workspace)
-- [ ] Agent actions are immediately reflected in the UI (shared service, file watching, or event bus)
-- [ ] The "write something to [app location]" test passes for all locations
-- [ ] Users can discover what the agent can do (capability hints, onboarding)
-- [ ] Context refreshes for long sessions (or `refresh_context` tool exists)
+**エージェントネイティブ基準:**
+- [ ] システムプロンプトにアプリ状態に関する動的コンテキスト（利用可能なリソース、最近の活動）が含まれる
+- [ ] すべてのUIアクションに対応するエージェントツールがある（アクションパリティ）
+- [ ] エージェントツールがシステムプロンプトでユーザーの語彙で文書化されている
+- [ ] エージェントとユーザーが同じデータスペースで作業（共有ワークスペース）
+- [ ] エージェントのアクションが即座にUIに反映（共有サービス、ファイル監視、またはイベントバス）
+- [ ] 「[アプリの場所]に何か書いて」テストがすべての場所で合格
+- [ ] ユーザーがエージェントの能力を発見できる（能力ヒント、オンボーディング）
+- [ ] 長いセッションではコンテキストが更新される（または`refresh_context`ツールが存在）
 </success_criteria>

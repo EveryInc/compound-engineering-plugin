@@ -1,8 +1,8 @@
-# Testing Patterns
+# テストパターン
 
-## Minitest Setup
+## Minitestセットアップ
 
-Kane exclusively uses Minitest—never RSpec.
+KaneはMinitestのみを使用—RSpecは使わない。
 
 ```ruby
 # test/test_helper.rb
@@ -11,24 +11,24 @@ Bundler.require(:default)
 require "minitest/autorun"
 require "minitest/pride"
 
-# Load the gem
+# gemをロード
 require "gemname"
 
-# Test database setup (if needed)
+# テストデータベースセットアップ（必要な場合）
 ActiveRecord::Base.establish_connection(
   adapter: "postgresql",
   database: "gemname_test"
 )
 
-# Base test class
+# ベーステストクラス
 class Minitest::Test
   def setup
-    # Reset state before each test
+    # 各テスト前に状態をリセット
   end
 end
 ```
 
-## Test File Structure
+## テストファイル構造
 
 ```ruby
 # test/model_test.rb
@@ -58,9 +58,9 @@ class ModelTest < Minitest::Test
 end
 ```
 
-## Multi-Version Testing
+## マルチバージョンテスト
 
-Test against multiple Rails/Ruby versions using gemfiles:
+gemfileを使用して複数のRails/Rubyバージョンに対してテスト：
 
 ```
 test/
@@ -89,7 +89,7 @@ gem "activerecord", "~> 7.2.0"
 gem "sqlite3"
 ```
 
-Run with specific gemfile:
+特定のgemfileで実行：
 
 ```bash
 BUNDLE_GEMFILE=test/gemfiles/activerecord70.gemfile bundle install
@@ -148,10 +148,10 @@ jobs:
       - run: bundle exec rake test
 ```
 
-## Database-Specific Testing
+## データベース固有のテスト
 
 ```yaml
-# .github/workflows/build.yml (with services)
+# .github/workflows/build.yml（サービス付き）
 services:
   postgres:
     image: postgres:15
@@ -170,13 +170,13 @@ env:
   DATABASE_URL: postgres://postgres:postgres@localhost/gemname_test
 ```
 
-## Test Database Setup
+## テストデータベースセットアップ
 
 ```ruby
 # test/test_helper.rb
 require "active_record"
 
-# Connect to database
+# データベースに接続
 ActiveRecord::Base.establish_connection(
   ENV["DATABASE_URL"] || {
     adapter: "postgresql",
@@ -184,7 +184,7 @@ ActiveRecord::Base.establish_connection(
   }
 )
 
-# Create tables
+# テーブルを作成
 ActiveRecord::Schema.define do
   create_table :users, force: true do |t|
     t.string :email
@@ -193,22 +193,22 @@ ActiveRecord::Schema.define do
   end
 end
 
-# Define models
+# モデルを定義
 class User < ActiveRecord::Base
   gemname_feature :email
 end
 ```
 
-## Assertion Patterns
+## アサーションパターン
 
 ```ruby
-# Basic assertions
+# 基本アサーション
 assert result
 assert_equal expected, actual
 assert_nil value
 assert_empty array
 
-# Exception testing
+# 例外テスト
 assert_raises(ArgumentError) { bad_code }
 
 error = assert_raises(GemName::Error) do
@@ -216,13 +216,13 @@ error = assert_raises(GemName::Error) do
 end
 assert_match /expected message/, error.message
 
-# Refutations
+# 否定
 refute condition
 refute_equal unexpected, actual
 refute_nil value
 ```
 
-## Test Helpers
+## テストヘルパー
 
 ```ruby
 # test/test_helper.rb
@@ -247,12 +247,12 @@ class Minitest::Test
 end
 ```
 
-## Skipping Tests
+## テストのスキップ
 
 ```ruby
 def test_postgresql_specific
   skip "PostgreSQL only" unless postgresql?
-  # test code
+  # テストコード
 end
 
 def postgresql?

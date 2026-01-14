@@ -1,19 +1,19 @@
 ---
 name: dhh-ruby-style
-description: This skill should be used when writing Ruby and Rails code in DHH's distinctive 37signals style. It applies when writing Ruby code, Rails applications, creating models, controllers, or any Ruby file. Triggers on Ruby/Rails code generation, refactoring requests, code review, or when the user mentions DHH, 37signals, Basecamp, HEY, or Campfire style. Embodies REST purity, fat models, thin controllers, Current attributes, Hotwire patterns, and the "clarity over cleverness" philosophy.
+description: このスキルは、DHHの独特な37signalsスタイルでRubyおよびRailsコードを書く際に使用されるべきです。Rubyコード、Railsアプリケーションの作成、モデル、コントローラー、または任意のRubyファイルの作成時に適用されます。Ruby/Railsコード生成、リファクタリングリクエスト、コードレビュー、またはユーザーがDHH、37signals、Basecamp、HEY、Campfireスタイルに言及した場合にトリガーされます。RESTの純粋性、ファットモデル、薄いコントローラー、Current属性、Hotwireパターン、そして「賢さより明確さ」の哲学を体現します。
 ---
 
-# DHH Ruby/Rails Style Guide
+# DHH Ruby/Rails スタイルガイド
 
-Write Ruby and Rails code following DHH's philosophy: **clarity over cleverness**, **convention over configuration**, **developer happiness** above all.
+DHHの哲学に従ってRubyとRailsコードを書く：**賢さより明確さ**、**設定より規約**、何よりも**開発者の幸福**。
 
-## Quick Reference
+## クイックリファレンス
 
-### Controller Actions
-- **Only 7 REST actions**: `index`, `show`, `new`, `create`, `edit`, `update`, `destroy`
-- **New behavior?** Create a new controller, not a custom action
-- **Action length**: 1-5 lines maximum
-- **Empty actions are fine**: Let Rails convention handle rendering
+### コントローラーアクション
+- **7つのRESTアクションのみ**: `index`、`show`、`new`、`create`、`edit`、`update`、`destroy`
+- **新しい振る舞い？** カスタムアクションではなく、新しいコントローラーを作成
+- **アクションの長さ**: 最大1〜5行
+- **空のアクションも可**: Rails規約にレンダリングを任せる
 
 ```ruby
 class MessagesController < ApplicationController
@@ -43,8 +43,8 @@ class MessagesController < ApplicationController
 end
 ```
 
-### Private Method Indentation
-Indent private methods one level under `private` keyword:
+### プライベートメソッドのインデント
+プライベートメソッドは`private`キーワードの下に1レベルインデント：
 
 ```ruby
   private
@@ -57,8 +57,8 @@ Indent private methods one level under `private` keyword:
     end
 ```
 
-### Model Design (Fat Models)
-Models own business logic, authorization, and broadcasting:
+### モデル設計（ファットモデル）
+モデルはビジネスロジック、認可、ブロードキャストを所有：
 
 ```ruby
 class Message < ApplicationRecord
@@ -85,43 +85,43 @@ class User < ApplicationRecord
 end
 ```
 
-### Current Attributes
-Use `Current` for request context, never pass `current_user` everywhere:
+### Current属性
+リクエストコンテキストには`Current`を使用、どこでも`current_user`を渡さない：
 
 ```ruby
 class Current < ActiveSupport::CurrentAttributes
   attribute :user, :session
 end
 
-# Usage anywhere in app
+# アプリ内のどこでも使用可能
 Current.user.can_administer?(@message)
 ```
 
-### Ruby Syntax Preferences
+### Ruby構文の好み
 
 ```ruby
-# Symbol arrays with spaces inside brackets
+# 括弧内にスペースを入れたシンボル配列
 before_action :set_message, only: %i[ show edit update destroy ]
 
-# Modern hash syntax exclusively
+# モダンハッシュ構文のみ
 params.require(:message).permit(:body, :attachment)
 
-# Single-line blocks with braces
+# 1行ブロックには波括弧
 users.each { |user| user.notify }
 
-# Ternaries for simple conditionals
+# シンプルな条件には三項演算子
 @room.direct? ? @room.users : @message.mentionees
 
-# Bang methods for fail-fast
+# フェイルファストにはバングメソッド
 @message = Message.create!(params)
 @message.update!(message_params)
 
-# Predicate methods with question marks
+# 述語メソッドには疑問符
 @room.direct?
 user.can_administer?(@message)
 @messages.any?
 
-# Expression-less case for cleaner conditionals
+# 式なしcaseでクリーンな条件分岐
 case
 when params[:before].present?
   @room.messages.page_before(params[:before])
@@ -132,34 +132,34 @@ else
 end
 ```
 
-### Naming Conventions
+### 命名規約
 
-| Element | Convention | Example |
+| 要素 | 規約 | 例 |
 |---------|------------|---------|
-| Setter methods | `set_` prefix | `set_message`, `set_room` |
-| Parameter methods | `{model}_params` | `message_params` |
-| Association names | Semantic, not generic | `creator` not `user` |
-| Scopes | Chainable, descriptive | `with_creator`, `page_before` |
-| Predicates | End with `?` | `direct?`, `can_administer?` |
+| セッターメソッド | `set_`プレフィックス | `set_message`、`set_room` |
+| パラメータメソッド | `{model}_params` | `message_params` |
+| 関連付け名 | 汎用ではなく意味的 | `user`ではなく`creator` |
+| スコープ | チェイン可能、説明的 | `with_creator`、`page_before` |
+| 述語 | `?`で終わる | `direct?`、`can_administer?` |
 
-### Hotwire/Turbo Patterns
-Broadcasting is model responsibility:
+### Hotwire/Turboパターン
+ブロードキャストはモデルの責任：
 
 ```ruby
-# In model
+# モデル内
 def broadcast_create
   broadcast_append_to room, :messages, target: "messages"
 end
 
-# In controller
+# コントローラー内
 @message.broadcast_replace_to @room, :messages,
   target: [ @message, :presentation ],
   partial: "messages/presentation",
   attributes: { maintain_scroll: true }
 ```
 
-### Error Handling
-Rescue specific exceptions, fail fast with bang methods:
+### エラーハンドリング
+特定の例外をレスキュー、バングメソッドでフェイルファスト：
 
 ```ruby
 def create
@@ -170,37 +170,37 @@ rescue ActiveRecord::RecordNotFound
 end
 ```
 
-### Architecture Preferences
+### アーキテクチャの好み
 
-| Traditional | DHH Way |
+| 従来型 | DHH流 |
 |-------------|---------|
-| PostgreSQL | SQLite (for single-tenant) |
+| PostgreSQL | SQLite（シングルテナント向け） |
 | Redis + Sidekiq | Solid Queue |
-| Redis cache | Solid Cache |
-| Kubernetes | Single Docker container |
-| Service objects | Fat models |
-| Policy objects (Pundit) | Authorization on User model |
-| FactoryBot | Fixtures |
+| Redisキャッシュ | Solid Cache |
+| Kubernetes | 単一Dockerコンテナ |
+| サービスオブジェクト | ファットモデル |
+| ポリシーオブジェクト（Pundit） | Userモデルでの認可 |
+| FactoryBot | フィクスチャ |
 
-## Detailed References
+## 詳細リファレンス
 
-For comprehensive patterns and examples, see:
-- [controllers.md](./references/controllers.md) - REST mapping, concerns, Turbo responses, API patterns
-- [models.md](./references/models.md) - Concerns, state records, callbacks, scopes, POROs
-- [frontend.md](./references/frontend.md) - Turbo, Stimulus, CSS architecture, view patterns
-- [architecture.md](./references/architecture.md) - Routing, auth, jobs, caching, multi-tenancy, config
-- [gems.md](./references/gems.md) - What they use vs avoid, and why
-- [patterns.md](./references/patterns.md) - Complete code patterns with explanations
-- [resources.md](./references/resources.md) - Links to source material and further reading
+包括的なパターンと例については以下を参照：
+- [controllers.md](./references/controllers.md) - RESTマッピング、concerns、Turboレスポンス、APIパターン
+- [models.md](./references/models.md) - Concerns、状態レコード、コールバック、スコープ、PORO
+- [frontend.md](./references/frontend.md) - Turbo、Stimulus、CSSアーキテクチャ、ビューパターン
+- [architecture.md](./references/architecture.md) - ルーティング、認証、ジョブ、キャッシュ、マルチテナンシー、設定
+- [gems.md](./references/gems.md) - 使用するものと避けるもの、その理由
+- [patterns.md](./references/patterns.md) - 説明付きの完全なコードパターン
+- [resources.md](./references/resources.md) - ソース資料と参考文献へのリンク
 
-## Philosophy Summary
+## 哲学のまとめ
 
-1. **REST purity**: 7 actions only; new controllers for variations
-2. **Fat models**: Authorization, broadcasting, business logic in models
-3. **Thin controllers**: 1-5 line actions; extract complexity
-4. **Convention over configuration**: Empty methods, implicit rendering
-5. **Minimal abstractions**: No service objects for simple cases
-6. **Current attributes**: Thread-local request context everywhere
-7. **Hotwire-first**: Model-level broadcasting, Turbo Streams, Stimulus
-8. **Readable code**: Semantic naming, small methods, no comments needed
-9. **Pragmatic testing**: System tests over unit tests, real integrations
+1. **RESTの純粋性**: 7アクションのみ；バリエーションには新しいコントローラー
+2. **ファットモデル**: 認可、ブロードキャスト、ビジネスロジックはモデルに
+3. **薄いコントローラー**: 1〜5行のアクション；複雑さは抽出
+4. **設定より規約**: 空のメソッド、暗黙的なレンダリング
+5. **最小限の抽象化**: シンプルなケースにはサービスオブジェクトなし
+6. **Current属性**: スレッドローカルなリクエストコンテキストをどこでも
+7. **Hotwireファースト**: モデルレベルのブロードキャスト、Turbo Streams、Stimulus
+8. **読みやすいコード**: 意味的な命名、小さなメソッド、コメント不要
+9. **実用的なテスト**: ユニットテストよりシステムテスト、実際のインテグレーション

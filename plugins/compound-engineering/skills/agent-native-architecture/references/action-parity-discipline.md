@@ -1,304 +1,304 @@
 <overview>
-A structured discipline for ensuring agents can do everything users can do. Every UI action should have an equivalent agent tool. This isn't a one-time check—it's an ongoing practice integrated into your development workflow.
+エージェントがユーザーができることすべてをできるようにするための構造化された規律。すべてのUIアクションには同等のエージェントツールがあるべきです。これは一度きりのチェックではなく、開発ワークフローに統合された継続的なプラクティスです。
 
-**Core principle:** When adding a UI feature, add the corresponding tool in the same PR.
+**コア原則:** UIフィーチャーを追加する際は、同じPRで対応するツールを追加する。
 </overview>
 
 <why_parity>
-## Why Action Parity Matters
+## なぜアクションパリティが重要か
 
-**The failure case:**
+**失敗ケース:**
 ```
-User: "Write something about Catherine the Great in my reading feed"
-Agent: "What system are you referring to? I'm not sure what reading feed means."
+ユーザー: 「私の読書フィードにエカテリーナ大帝について何か書いて」
+エージェント: 「どのシステムを指していますか？読書フィードの意味がわかりません。」
 ```
 
-The user could publish to their feed through the UI. But the agent had no `publish_to_feed` tool. The fix was simple—add the tool. But the insight is profound:
+ユーザーはUI経由でフィードに公開できた。しかしエージェントには`publish_to_feed`ツールがなかった。修正はシンプル—ツールを追加。しかしインサイトは深い：
 
-**Every action a user can take through the UI must have an equivalent tool the agent can call.**
+**ユーザーがUI経由で取れるすべてのアクションには、エージェントが呼び出せる同等のツールが必要。**
 
-Without this parity:
-- Users ask agents to do things they can't do
-- Agents ask clarifying questions about features they should understand
-- The agent feels limited compared to direct app usage
-- Users lose trust in the agent's capabilities
+このパリティがないと：
+- ユーザーがエージェントにできないことを依頼する
+- エージェントが理解すべき機能について明確化の質問をする
+- 直接アプリを使用する場合と比べてエージェントが制限されていると感じる
+- ユーザーがエージェントの能力への信頼を失う
 </why_parity>
 
 <capability_mapping>
-## The Capability Map
+## 能力マップ
 
-Maintain a structured map of UI actions to agent tools:
+UIアクションとエージェントツールの構造化されたマップを維持：
 
-| UI Action | UI Location | Agent Tool | System Prompt Reference |
+| UIアクション | UI場所 | エージェントツール | システムプロンプト参照 |
 |-----------|-------------|------------|-------------------------|
-| View library | Library tab | `read_library` | "View books and highlights" |
-| Add book | Library → Add | `add_book` | "Add books to library" |
-| Publish insight | Analysis view | `publish_to_feed` | "Create insights for Feed tab" |
-| Start research | Book detail | `start_research` | "Research books via web search" |
-| Edit profile | Settings | `write_file(profile.md)` | "Update reading profile" |
-| Take screenshot | Camera | N/A (user action) | — |
-| Search web | Chat | `web_search` | "Search the internet" |
+| ライブラリを表示 | ライブラリタブ | `read_library` | 「本とハイライトを表示」 |
+| 本を追加 | ライブラリ → 追加 | `add_book` | 「ライブラリに本を追加」 |
+| インサイトを公開 | 分析ビュー | `publish_to_feed` | 「フィードタブ用のインサイトを作成」 |
+| リサーチを開始 | 本の詳細 | `start_research` | 「ウェブ検索で本をリサーチ」 |
+| プロフィールを編集 | 設定 | `write_file(profile.md)` | 「読書プロフィールを更新」 |
+| スクリーンショットを撮る | カメラ | N/A（ユーザーアクション） | — |
+| ウェブ検索 | チャット | `web_search` | 「インターネットを検索」 |
 
-**Update this table whenever adding features.**
+**機能を追加するたびにこのテーブルを更新。**
 
-### Template for Your App
+### あなたのアプリ用テンプレート
 
 ```markdown
-# Capability Map - [Your App Name]
+# 能力マップ - [あなたのアプリ名]
 
-| UI Action | UI Location | Agent Tool | System Prompt | Status |
+| UIアクション | UI場所 | エージェントツール | システムプロンプト | ステータス |
 |-----------|-------------|------------|---------------|--------|
-| | | | | ⚠️ Missing |
-| | | | | ✅ Done |
+| | | | | ⚠️ 不足 |
+| | | | | ✅ 完了 |
 | | | | | 🚫 N/A |
 ```
 
-Status meanings:
-- ✅ Done: Tool exists and is documented in system prompt
-- ⚠️ Missing: UI action exists but no agent equivalent
-- 🚫 N/A: User-only action (e.g., biometric auth, camera capture)
+ステータスの意味：
+- ✅ 完了: ツールが存在し、システムプロンプトに文書化されている
+- ⚠️ 不足: UIアクションは存在するがエージェント相当がない
+- 🚫 N/A: ユーザー専用アクション（例: 生体認証、カメラキャプチャ）
 </capability_mapping>
 
 <parity_workflow>
-## The Action Parity Workflow
+## アクションパリティワークフロー
 
-### When Adding a New Feature
+### 新機能を追加する際
 
-Before merging any PR that adds UI functionality:
+UIフィーチャーを追加するPRをマージする前に：
 
 ```
-1. What action is this?
-   → "User can publish an insight to their reading feed"
+1. このアクションは何か？
+   → 「ユーザーが読書フィードにインサイトを公開できる」
 
-2. Does an agent tool exist for this?
-   → Check tool definitions
-   → If NO: Create the tool
+2. エージェントツールは存在するか？
+   → ツール定義を確認
+   → NOなら: ツールを作成
 
-3. Is it documented in the system prompt?
-   → Check system prompt capabilities section
-   → If NO: Add documentation
+3. システムプロンプトに文書化されているか？
+   → システムプロンプトの能力セクションを確認
+   → NOなら: ドキュメントを追加
 
-4. Is the context available?
-   → Does agent know what "feed" means?
-   → Does agent see available books?
-   → If NO: Add to context injection
+4. コンテキストは利用可能か？
+   → エージェントは「フィード」の意味を知っているか？
+   → エージェントは利用可能な本を見れるか？
+   → NOなら: コンテキスト注入に追加
 
-5. Update the capability map
-   → Add row to tracking document
+5. 能力マップを更新
+   → トラッキングドキュメントに行を追加
 ```
 
-### PR Checklist
+### PRチェックリスト
 
-Add to your PR template:
+PRテンプレートに追加：
 
 ```markdown
-## Agent-Native Checklist
+## エージェントネイティブチェックリスト
 
-- [ ] Every new UI action has a corresponding agent tool
-- [ ] System prompt updated to mention new capability
-- [ ] Agent has access to same data UI uses
-- [ ] Capability map updated
-- [ ] Tested with natural language request
+- [ ] すべての新しいUIアクションに対応するエージェントツールがある
+- [ ] 新しい能力を記載してシステムプロンプトを更新
+- [ ] エージェントがUIと同じデータにアクセスできる
+- [ ] 能力マップを更新
+- [ ] 自然言語リクエストでテスト
 ```
 </parity_workflow>
 
 <parity_audit>
-## The Parity Audit
+## パリティ監査
 
-Periodically audit your app for action parity gaps:
+定期的にアプリのアクションパリティギャップを監査：
 
-### Step 1: List All UI Actions
+### ステップ1: すべてのUIアクションを一覧表示
 
-Walk through every screen and list what users can do:
-
-```
-Library Screen:
-- View list of books
-- Search books
-- Filter by category
-- Add new book
-- Delete book
-- Open book detail
-
-Book Detail Screen:
-- View book info
-- Start research
-- View highlights
-- Add highlight
-- Share book
-- Remove from library
-
-Feed Screen:
-- View insights
-- Create new insight
-- Edit insight
-- Delete insight
-- Share insight
-
-Settings:
-- Edit profile
-- Change theme
-- Export data
-- Delete account
-```
-
-### Step 2: Check Tool Coverage
-
-For each action, verify:
+すべての画面を歩いて、ユーザーができることを一覧表示：
 
 ```
-✅ View list of books      → read_library
-✅ Search books            → read_library (with query param)
-⚠️ Filter by category     → MISSING (add filter param to read_library)
-⚠️ Add new book           → MISSING (need add_book tool)
-✅ Delete book             → delete_book
-✅ Open book detail        → read_library (single book)
+ライブラリ画面:
+- 本のリストを表示
+- 本を検索
+- カテゴリでフィルタ
+- 新しい本を追加
+- 本を削除
+- 本の詳細を開く
 
-✅ Start research          → start_research
-✅ View highlights         → read_library (includes highlights)
-⚠️ Add highlight          → MISSING (need add_highlight tool)
-⚠️ Share book             → MISSING (or N/A if sharing is UI-only)
+本の詳細画面:
+- 本の情報を表示
+- リサーチを開始
+- ハイライトを表示
+- ハイライトを追加
+- 本を共有
+- ライブラリから削除
 
-✅ View insights           → read_library (includes feed)
-✅ Create new insight      → publish_to_feed
-⚠️ Edit insight           → MISSING (need update_feed_item tool)
-⚠️ Delete insight         → MISSING (need delete_feed_item tool)
+フィード画面:
+- インサイトを表示
+- 新しいインサイトを作成
+- インサイトを編集
+- インサイトを削除
+- インサイトを共有
+
+設定:
+- プロフィールを編集
+- テーマを変更
+- データをエクスポート
+- アカウントを削除
 ```
 
-### Step 3: Prioritize Gaps
+### ステップ2: ツールカバレッジを確認
 
-Not all gaps are equal:
+各アクションについて検証：
 
-**High priority (users will ask for this):**
-- Add new book
-- Create/edit/delete content
-- Core workflow actions
+```
+✅ 本のリストを表示    → read_library
+✅ 本を検索            → read_library（クエリパラメータ付き）
+⚠️ カテゴリでフィルタ  → 不足（read_libraryにフィルタパラメータを追加）
+⚠️ 新しい本を追加      → 不足（add_bookツールが必要）
+✅ 本を削除            → delete_book
+✅ 本の詳細を開く      → read_library（単一の本）
 
-**Medium priority (occasional requests):**
-- Filter/search variations
-- Export functionality
-- Sharing features
+✅ リサーチを開始      → start_research
+✅ ハイライトを表示    → read_library（ハイライト含む）
+⚠️ ハイライトを追加    → 不足（add_highlightツールが必要）
+⚠️ 本を共有           → 不足（または共有がUI専用ならN/A）
 
-**Low priority (rarely requested via agent):**
-- Theme changes
-- Account deletion
-- Settings that are UI-preference
+✅ インサイトを表示    → read_library（フィード含む）
+✅ 新しいインサイトを作成 → publish_to_feed
+⚠️ インサイトを編集    → 不足（update_feed_itemツールが必要）
+⚠️ インサイトを削除    → 不足（delete_feed_itemツールが必要）
+```
+
+### ステップ3: ギャップの優先順位付け
+
+すべてのギャップが同等ではない：
+
+**高優先度（ユーザーがこれを求める）:**
+- 新しい本を追加
+- コンテンツの作成/編集/削除
+- コアワークフローアクション
+
+**中優先度（時々リクエスト）:**
+- フィルタ/検索のバリエーション
+- エクスポート機能
+- 共有機能
+
+**低優先度（エージェント経由で稀にリクエスト）:**
+- テーマ変更
+- アカウント削除
+- UI設定の設定
 </parity_audit>
 
 <tool_design_for_parity>
-## Designing Tools for Parity
+## パリティのためのツール設計
 
-### Match Tool Granularity to UI Granularity
+### ツールの粒度をUIの粒度に合わせる
 
-If the UI has separate buttons for "Edit" and "Delete", consider separate tools:
+UIに「編集」と「削除」の別々のボタンがある場合、別々のツールを検討：
 
 ```typescript
-// Matches UI granularity
+// UIの粒度に合わせる
 tool("update_feed_item", { id, content, headline }, ...);
 tool("delete_feed_item", { id }, ...);
 
-// vs. combined (harder for agent to discover)
+// vs. 結合（エージェントが発見しにくい）
 tool("modify_feed_item", { id, action: "update" | "delete", ... }, ...);
 ```
 
-### Use User Vocabulary in Tool Names
+### ツール名にユーザーの語彙を使用
 
 ```typescript
-// Good: Matches what users say
-tool("publish_to_feed", ...);  // "publish to my feed"
-tool("add_book", ...);         // "add this book"
-tool("start_research", ...);   // "research this"
+// 良い: ユーザーが言うことに合わせる
+tool("publish_to_feed", ...);  // 「フィードに公開」
+tool("add_book", ...);         // 「この本を追加」
+tool("start_research", ...);   // 「これをリサーチ」
 
-// Bad: Technical jargon
+// 悪い: 技術的な専門用語
 tool("create_analysis_record", ...);
 tool("insert_library_item", ...);
 tool("initiate_web_scrape_workflow", ...);
 ```
 
-### Return What the UI Shows
+### UIが表示するものを返す
 
-If the UI shows a confirmation with details, the tool should too:
+UIが詳細付きの確認を表示するなら、ツールも同様にすべき：
 
 ```typescript
-// UI shows: "Added 'Moby Dick' to your library"
-// Tool should return the same:
+// UIが表示: 「'白鯨'をライブラリに追加しました」
+// ツールも同じものを返すべき:
 tool("add_book", async ({ title, author }) => {
   const book = await library.add({ title, author });
   return {
-    text: `Added "${book.title}" by ${book.author} to your library (id: ${book.id})`
+    text: `「${book.title}」by ${book.author}をライブラリに追加しました (id: ${book.id})`
   };
 });
 ```
 </tool_design_for_parity>
 
 <context_parity>
-## Context Parity
+## コンテキストパリティ
 
-Whatever the user sees, the agent should be able to access.
+ユーザーが見るものは何でも、エージェントもアクセスできるべき。
 
-### The Problem
+### 問題
 
 ```swift
-// UI shows recent analyses in a list
+// UIがリストで最近の分析を表示
 ForEach(analysisRecords) { record in
     AnalysisRow(record: record)
 }
 
-// But system prompt only mentions books, not analyses
+// しかしシステムプロンプトは本だけを言及し、分析は言及しない
 let systemPrompt = """
-## Available Books
+## 利用可能な本
 \(books.map { $0.title })
-// Missing: recent analyses!
+// 不足: 最近の分析！
 """
 ```
 
-The user sees their reading journal. The agent doesn't. This creates a disconnect.
+ユーザーは読書ジャーナルを見る。エージェントは見ない。これが断絶を生む。
 
-### The Fix
+### 修正
 
 ```swift
-// System prompt includes what UI shows
+// システムプロンプトにUIが表示するものを含める
 let systemPrompt = """
-## Available Books
+## 利用可能な本
 \(books.map { "- \($0.title)" }.joined(separator: "\n"))
 
-## Recent Reading Journal
+## 最近の読書ジャーナル
 \(analysisRecords.prefix(10).map { "- \($0.summary)" }.joined(separator: "\n"))
 """
 ```
 
-### Context Parity Checklist
+### コンテキストパリティチェックリスト
 
-For each screen in your app:
-- [ ] What data does this screen display?
-- [ ] Is that data available to the agent?
-- [ ] Can the agent access the same level of detail?
+アプリの各画面について：
+- [ ] この画面はどのデータを表示するか？
+- [ ] そのデータはエージェントが利用可能か？
+- [ ] エージェントは同じレベルの詳細にアクセスできるか？
 </context_parity>
 
 <continuous_parity>
-## Maintaining Parity Over Time
+## 時間の経過とともにパリティを維持
 
-### Git Hooks / CI Checks
+### Gitフック / CIチェック
 
 ```bash
 #!/bin/bash
-# pre-commit hook: check for new UI actions without tools
+# pre-commitフック: ツールのない新しいUIアクションをチェック
 
-# Find new SwiftUI Button/onTapGesture additions
+# 新しいSwiftUI Button/onTapGestureの追加を見つける
 NEW_ACTIONS=$(git diff --cached --name-only | xargs grep -l "Button\|onTapGesture")
 
 if [ -n "$NEW_ACTIONS" ]; then
-    echo "⚠️  New UI actions detected. Did you add corresponding agent tools?"
-    echo "Files: $NEW_ACTIONS"
+    echo "⚠️  新しいUIアクションが検出されました。対応するエージェントツールを追加しましたか？"
+    echo "ファイル: $NEW_ACTIONS"
     echo ""
-    echo "Checklist:"
-    echo "  [ ] Agent tool exists for new action"
-    echo "  [ ] System prompt documents new capability"
-    echo "  [ ] Capability map updated"
+    echo "チェックリスト:"
+    echo "  [ ] 新しいアクションのエージェントツールが存在"
+    echo "  [ ] システムプロンプトが新しい能力を文書化"
+    echo "  [ ] 能力マップを更新"
 fi
 ```
 
-### Automated Parity Testing
+### 自動パリティテスト
 
 ```typescript
 // parity.test.ts
@@ -319,91 +319,91 @@ describe('Action Parity', () => {
 });
 ```
 
-### Regular Audits
+### 定期監査
 
-Schedule periodic reviews:
+定期レビューをスケジュール：
 
 ```markdown
-## Monthly Parity Audit
+## 月次パリティ監査
 
-1. Review all PRs merged this month
-2. Check each for new UI actions
-3. Verify tool coverage
-4. Update capability map
-5. Test with natural language requests
+1. 今月マージされたすべてのPRをレビュー
+2. 各PRで新しいUIアクションを確認
+3. 各々のツールカバレッジを検証
+4. 能力マップを更新
+5. 自然言語リクエストでテスト
 ```
 </continuous_parity>
 
 <examples>
-## Real Example: The Feed Gap
+## 実例: フィードギャップ
 
-**Before:** Every Reader had a feed where insights appeared, but no agent tool to publish there.
+**Before:** Every Readerにはインサイトが表示されるフィードがあったが、そこに公開するエージェントツールがなかった。
 
 ```
-User: "Write something about Catherine the Great in my reading feed"
-Agent: "I'm not sure what system you're referring to. Could you clarify?"
+ユーザー: 「私の読書フィードにエカテリーナ大帝について何か書いて」
+エージェント: 「どのシステムを指していますか？明確にしていただけますか？」
 ```
 
-**Diagnosis:**
-- ✅ UI action: User can publish insights from the analysis view
-- ❌ Agent tool: No `publish_to_feed` tool
-- ❌ System prompt: No mention of "feed" or how to publish
-- ❌ Context: Agent didn't know what "feed" meant
+**診断:**
+- ✅ UIアクション: ユーザーは分析ビューからインサイトを公開できる
+- ❌ エージェントツール: `publish_to_feed`ツールがない
+- ❌ システムプロンプト: 「フィード」や公開方法の言及なし
+- ❌ コンテキスト: エージェントは「フィード」の意味を知らなかった
 
-**Fix:**
+**修正:**
 
 ```swift
-// 1. Add the tool
+// 1. ツールを追加
 tool("publish_to_feed",
-    "Publish an insight to the user's reading feed",
+    "ユーザーの読書フィードにインサイトを公開",
     {
-        bookId: z.string().describe("Book ID"),
-        content: z.string().describe("The insight content"),
-        headline: z.string().describe("A punchy headline")
+        bookId: z.string().describe("本のID"),
+        content: z.string().describe("インサイトの内容"),
+        headline: z.string().describe("キャッチーな見出し")
     },
     async ({ bookId, content, headline }) => {
         await feedService.publish({ bookId, content, headline });
-        return { text: `Published "${headline}" to your reading feed` };
+        return { text: `「${headline}」を読書フィードに公開しました` };
     }
 );
 
-// 2. Update system prompt
+// 2. システムプロンプトを更新
 """
-## Your Capabilities
+## あなたの能力
 
-- **Publish to Feed**: Create insights that appear in the Feed tab using `publish_to_feed`.
-  Include a book_id, content, and a punchy headline.
+- **フィードに公開**: `publish_to_feed`を使用してフィードタブに表示されるインサイトを作成。
+  book_id、content、キャッチーなheadlineを含める。
 """
 
-// 3. Add to context injection
+// 3. コンテキスト注入に追加
 """
-When the user mentions "the feed" or "reading feed", they mean the Feed tab
-where insights appear. Use `publish_to_feed` to create content there.
+ユーザーが「フィード」や「読書フィード」と言及した場合、それはインサイトが表示される
+フィードタブを意味します。そこにコンテンツを作成するには`publish_to_feed`を使用。
 """
 ```
 
 **After:**
 ```
-User: "Write something about Catherine the Great in my reading feed"
-Agent: [Uses publish_to_feed to create insight]
-       "Done! I've published 'The Enlightened Empress' to your reading feed."
+ユーザー: 「私の読書フィードにエカテリーナ大帝について何か書いて」
+エージェント: [publish_to_feedを使用してインサイトを作成]
+       「完了！『啓蒙された女帝』を読書フィードに公開しました。」
 ```
 </examples>
 
 <checklist>
-## Action Parity Checklist
+## アクションパリティチェックリスト
 
-For every PR with UI changes:
-- [ ] Listed all new UI actions
-- [ ] Verified agent tool exists for each action
-- [ ] Updated system prompt with new capabilities
-- [ ] Added to capability map
-- [ ] Tested with natural language request
+UIの変更があるすべてのPRについて：
+- [ ] すべての新しいUIアクションを一覧表示
+- [ ] 各アクションにエージェントツールが存在することを検証
+- [ ] 新しい能力でシステムプロンプトを更新
+- [ ] 能力マップに追加
+- [ ] 自然言語リクエストでテスト
 
-For periodic audits:
-- [ ] Walked through every screen
-- [ ] Listed all possible user actions
-- [ ] Checked tool coverage for each
-- [ ] Prioritized gaps by likelihood of user request
-- [ ] Created issues for high-priority gaps
+定期監査について：
+- [ ] すべての画面を歩いた
+- [ ] すべての可能なユーザーアクションを一覧表示
+- [ ] 各々のツールカバレッジを確認
+- [ ] ユーザーリクエストの可能性でギャップに優先順位付け
+- [ ] 高優先度ギャップのイシューを作成
 </checklist>

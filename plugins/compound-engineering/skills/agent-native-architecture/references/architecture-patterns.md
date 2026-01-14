@@ -1,185 +1,185 @@
 <overview>
-Architectural patterns for building prompt-native agent systems. These patterns emerge from the philosophy that features should be defined in prompts, not code, and that tools should be primitives.
+プロンプトネイティブエージェントシステムを構築するためのアーキテクチャパターン。これらのパターンは、機能はコードではなくプロンプトで定義されるべきであり、ツールはプリミティブであるべきという哲学から生まれています。
 </overview>
 
 <pattern name="event-driven-agent">
-## Event-Driven Agent Architecture
+## イベント駆動エージェントアーキテクチャ
 
-The agent runs as a long-lived process that responds to events. Events become prompts.
+エージェントはイベントに応答する長寿命プロセスとして実行されます。イベントはプロンプトになります。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                    Agent Loop                                │
+│                    エージェントループ                        │
 ├─────────────────────────────────────────────────────────────┤
-│  Event Source → Agent (Claude) → Tool Calls → Response      │
+│  イベントソース → エージェント (Claude) → ツール呼び出し → レスポンス │
 └─────────────────────────────────────────────────────────────┘
                           │
           ┌───────────────┼───────────────┐
           ▼               ▼               ▼
     ┌─────────┐    ┌──────────┐    ┌───────────┐
-    │ Content │    │   Self   │    │   Data    │
-    │  Tools  │    │  Tools   │    │   Tools   │
+    │ コンテンツ │    │   セルフ   │    │   データ   │
+    │  ツール   │    │   ツール   │    │   ツール   │
     └─────────┘    └──────────┘    └───────────┘
     (write_file)   (read_source)   (store_item)
                    (restart)       (list_items)
 ```
 
-**Key characteristics:**
-- Events (messages, webhooks, timers) trigger agent turns
-- Agent decides how to respond based on system prompt
-- Tools are primitives for IO, not business logic
-- State persists between events via data tools
+**主要な特徴:**
+- イベント（メッセージ、webhook、タイマー）がエージェントのターンをトリガー
+- エージェントはシステムプロンプトに基づいて応答方法を決定
+- ツールはビジネスロジックではなくIOのためのプリミティブ
+- 状態はデータツールを介してイベント間で持続
 
-**Example: Discord feedback bot**
+**例: Discordフィードバックボット**
 ```typescript
-// Event source
+// イベントソース
 client.on("messageCreate", (message) => {
   if (!message.author.bot) {
     runAgent({
-      userMessage: `New message from ${message.author}: "${message.content}"`,
+      userMessage: `${message.author}からの新しいメッセージ: "${message.content}"`,
       channelId: message.channelId,
     });
   }
 });
 
-// System prompt defines behavior
+// システムプロンプトが動作を定義
 const systemPrompt = `
-When someone shares feedback:
-1. Acknowledge their feedback warmly
-2. Ask clarifying questions if needed
-3. Store it using the feedback tools
-4. Update the feedback site
+誰かがフィードバックを共有したとき:
+1. フィードバックを温かく認める
+2. 必要に応じて明確化の質問をする
+3. フィードバックツールを使用して保存する
+4. フィードバックサイトを更新する
 
-Use your judgment about importance and categorization.
+重要度と分類については自分の判断を使用。
 `;
 ```
 </pattern>
 
 <pattern name="two-layer-git">
-## Two-Layer Git Architecture
+## 2層Gitアーキテクチャ
 
-For self-modifying agents, separate code (shared) from data (instance-specific).
+自己修正エージェントの場合、コード（共有）とデータ（インスタンス固有）を分離。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
-│                     GitHub (shared repo)                     │
-│  - src/           (agent code)                              │
-│  - site/          (web interface)                           │
-│  - package.json   (dependencies)                            │
-│  - .gitignore     (excludes data/, logs/)                   │
+│                     GitHub（共有リポジトリ）                  │
+│  - src/           (エージェントコード)                       │
+│  - site/          (ウェブインターフェース)                    │
+│  - package.json   (依存関係)                                │
+│  - .gitignore     (data/, logs/を除外)                      │
 └─────────────────────────────────────────────────────────────┘
                           │
                      git clone
                           │
                           ▼
 ┌─────────────────────────────────────────────────────────────┐
-│                  Instance (Server)                           │
+│                  インスタンス（サーバー）                      │
 │                                                              │
-│  FROM GITHUB (tracked):                                      │
-│  - src/           → pushed back on code changes             │
-│  - site/          → pushed, triggers deployment             │
+│  GITHUBから（追跡）:                                         │
+│  - src/           → コード変更時にプッシュバック              │
+│  - site/          → プッシュでデプロイをトリガー             │
 │                                                              │
-│  LOCAL ONLY (untracked):                                     │
-│  - data/          → instance-specific storage               │
-│  - logs/          → runtime logs                            │
-│  - .env           → secrets                                 │
+│  ローカルのみ（追跡されない）:                                │
+│  - data/          → インスタンス固有のストレージ             │
+│  - logs/          → ランタイムログ                          │
+│  - .env           → シークレット                            │
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Why this works:**
-- Code and site are version controlled (GitHub)
-- Raw data stays local (instance-specific)
-- Site is generated from data, so reproducible
-- Automatic rollback via git history
+**なぜこれが機能するか:**
+- コードとサイトはバージョン管理される（GitHub）
+- 生データはローカルに留まる（インスタンス固有）
+- サイトはデータから生成されるので再現可能
+- git履歴による自動ロールバック
 </pattern>
 
 <pattern name="multi-instance">
-## Multi-Instance Branching
+## マルチインスタンスブランチング
 
-Each agent instance gets its own branch while sharing core code.
+各エージェントインスタンスは、コアコードを共有しながら独自のブランチを取得。
 
 ```
-main                        # Shared features, bug fixes
-├── instance/feedback-bot   # Every Reader feedback bot
-├── instance/support-bot    # Customer support bot
-└── instance/research-bot   # Research assistant
+main                        # 共有機能、バグ修正
+├── instance/feedback-bot   # Every Readerフィードバックボット
+├── instance/support-bot    # カスタマーサポートボット
+└── instance/research-bot   # リサーチアシスタント
 ```
 
-**Change flow:**
-| Change Type | Work On | Then |
+**変更フロー:**
+| 変更タイプ | 作業場所 | その後 |
 |-------------|---------|------|
-| Core features | main | Merge to instance branches |
-| Bug fixes | main | Merge to instance branches |
-| Instance config | instance branch | Done |
-| Instance data | instance branch | Done |
+| コア機能 | main | インスタンスブランチにマージ |
+| バグ修正 | main | インスタンスブランチにマージ |
+| インスタンス設定 | インスタンスブランチ | 完了 |
+| インスタンスデータ | インスタンスブランチ | 完了 |
 
-**Sync tools:**
+**同期ツール:**
 ```typescript
-tool("self_deploy", "Pull latest from main, rebuild, restart", ...)
-tool("sync_from_instance", "Merge from another instance", ...)
-tool("propose_to_main", "Create PR to share improvements", ...)
+tool("self_deploy", "mainから最新をプル、リビルド、再起動", ...)
+tool("sync_from_instance", "別のインスタンスからマージ", ...)
+tool("propose_to_main", "改善を共有するためPRを作成", ...)
 ```
 </pattern>
 
 <pattern name="site-as-output">
-## Site as Agent Output
+## エージェント出力としてのサイト
 
-The agent generates and maintains a website as a natural output, not through specialized site tools.
+エージェントは、専門的なサイトツールではなく、自然な出力としてウェブサイトを生成・維持。
 
 ```
-Discord Message
+Discordメッセージ
       ↓
-Agent processes it, extracts insights
+エージェントが処理し、インサイトを抽出
       ↓
-Agent decides what site updates are needed
+エージェントが必要なサイト更新を決定
       ↓
-Agent writes files using write_file primitive
+エージェントがwrite_fileプリミティブを使用してファイルを書く
       ↓
-Git commit + push triggers deployment
+Gitコミット + プッシュがデプロイをトリガー
       ↓
-Site updates automatically
+サイトが自動更新
 ```
 
-**Key insight:** Don't build site generation tools. Give the agent file tools and teach it in the prompt how to create good sites.
+**重要なインサイト:** サイト生成ツールを構築しない。エージェントにファイルツールを与え、良いサイトを作成する方法をプロンプトで教える。
 
 ```markdown
-## Site Management
+## サイト管理
 
-You maintain a public feedback site. When feedback comes in:
-1. Use write_file to update site/public/content/feedback.json
-2. If the site's React components need improvement, modify them
-3. Commit changes and push to trigger Vercel deploy
+公開フィードバックサイトを維持します。フィードバックが入ってきたら:
+1. write_fileを使用してsite/public/content/feedback.jsonを更新
+2. サイトのReactコンポーネントに改善が必要なら、それを修正
+3. 変更をコミットしてプッシュし、Vercelデプロイをトリガー
 
-The site should be:
-- Clean, modern dashboard aesthetic
-- Clear visual hierarchy
-- Status organization (Inbox, Active, Done)
+サイトは以下のようにすべき:
+- クリーンでモダンなダッシュボードの美学
+- 明確な視覚的階層
+- ステータス整理（受信トレイ、アクティブ、完了）
 
-You decide the structure. Make it good.
+あなたが構造を決める。良いものにしてください。
 ```
 </pattern>
 
 <pattern name="approval-gates">
-## Approval Gates Pattern
+## 承認ゲートパターン
 
-Separate "propose" from "apply" for dangerous operations.
+危険な操作のために「提案」と「適用」を分離。
 
 ```typescript
-// Pending changes stored separately
+// 保留中の変更を別に保存
 const pendingChanges = new Map<string, string>();
 
 tool("write_file", async ({ path, content }) => {
   if (requiresApproval(path)) {
-    // Store for approval
+    // 承認のために保存
     pendingChanges.set(path, content);
     const diff = generateDiff(path, content);
     return {
-      text: `Change requires approval.\n\n${diff}\n\nReply "yes" to apply.`
+      text: `変更には承認が必要です。\n\n${diff}\n\n「yes」と返信して適用。`
     };
   } else {
-    // Apply immediately
+    // 即座に適用
     writeFileSync(path, content);
-    return { text: `Wrote ${path}` };
+    return { text: `${path}を書きました` };
   }
 });
 
@@ -188,56 +188,56 @@ tool("apply_pending", async () => {
     writeFileSync(path, content);
   }
   pendingChanges.clear();
-  return { text: "Applied all pending changes" };
+  return { text: "保留中のすべての変更を適用しました" };
 });
 ```
 
-**What requires approval:**
-- src/*.ts (agent code)
-- package.json (dependencies)
-- system prompt changes
+**承認が必要なもの:**
+- src/*.ts（エージェントコード）
+- package.json（依存関係）
+- システムプロンプトの変更
 
-**What doesn't:**
-- data/* (instance data)
-- site/* (generated content)
-- docs/* (documentation)
+**不要なもの:**
+- data/*（インスタンスデータ）
+- site/*（生成されたコンテンツ）
+- docs/*（ドキュメント）
 </pattern>
 
 <pattern name="unified-agent-architecture">
-## Unified Agent Architecture
+## 統一エージェントアーキテクチャ
 
-One execution engine, many agent types. All agents use the same orchestrator but with different configurations.
+1つの実行エンジン、多くのエージェントタイプ。すべてのエージェントは同じオーケストレーターを使用するが、異なる設定で。
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    AgentOrchestrator                         │
 ├─────────────────────────────────────────────────────────────┤
-│  - Lifecycle management (start, pause, resume, stop)        │
-│  - Checkpoint/restore (for background execution)            │
-│  - Tool execution                                            │
-│  - Chat integration                                          │
+│  - ライフサイクル管理（開始、一時停止、再開、停止）           │
+│  - チェックポイント/復元（バックグラウンド実行用）            │
+│  - ツール実行                                                │
+│  - チャット統合                                              │
 └─────────────────────────────────────────────────────────────┘
           │                    │                    │
     ┌─────┴─────┐        ┌─────┴─────┐        ┌─────┴─────┐
-    │ Research  │        │   Chat    │        │  Profile  │
-    │   Agent   │        │   Agent   │        │   Agent   │
+    │  リサーチ  │        │   チャット  │        │ プロフィール│
+    │   エージェント│        │  エージェント │        │  エージェント│
     └───────────┘        └───────────┘        └───────────┘
     - web_search         - read_library       - read_photos
     - write_file         - publish_to_feed    - write_file
     - read_file          - web_search         - analyze_image
 ```
 
-**Implementation:**
+**実装:**
 
 ```swift
-// All agents use the same orchestrator
+// すべてのエージェントは同じオーケストレーターを使用
 let session = try await AgentOrchestrator.shared.startAgent(
-    config: ResearchAgent.create(book: book),  // Config varies
-    tools: ResearchAgent.tools,                 // Tools vary
-    context: ResearchAgent.context(for: book)   // Context varies
+    config: ResearchAgent.create(book: book),  // 設定は異なる
+    tools: ResearchAgent.tools,                 // ツールは異なる
+    context: ResearchAgent.context(for: book)   // コンテキストは異なる
 )
 
-// Agent types define their own configuration
+// エージェントタイプは独自の設定を定義
 struct ResearchAgent {
     static var tools: [AgentTool] {
         [
@@ -250,8 +250,8 @@ struct ResearchAgent {
 
     static func context(for book: Book) -> String {
         """
-        You are researching "\(book.title)" by \(book.author).
-        Save findings to Documents/Research/\(book.id)/
+        「\(book.title)」by \(book.author)をリサーチしています。
+        発見をDocuments/Research/\(book.id)/に保存してください。
         """
     }
 }
@@ -262,39 +262,39 @@ struct ChatAgent {
             FileTools.readFile(),
             FileTools.writeFile(),
             BookTools.readLibrary(),
-            BookTools.publishToFeed(),  // Chat can publish directly
+            BookTools.publishToFeed(),  // チャットは直接公開できる
             WebTools.webSearch(),
         ]
     }
 
     static func context(library: [Book]) -> String {
         """
-        You help the user with their reading.
-        Available books: \(library.map { $0.title }.joined(separator: ", "))
+        ユーザーの読書を手伝います。
+        利用可能な本: \(library.map { $0.title }.joined(separator: ", "))
         """
     }
 }
 ```
 
-**Benefits:**
-- Consistent lifecycle management across all agent types
-- Automatic checkpoint/resume (critical for mobile)
-- Shared tool protocol
-- Easy to add new agent types
-- Centralized error handling and logging
+**利点:**
+- すべてのエージェントタイプで一貫したライフサイクル管理
+- 自動チェックポイント/再開（モバイルに重要）
+- 共有ツールプロトコル
+- 新しいエージェントタイプを簡単に追加
+- 集中化されたエラー処理とロギング
 </pattern>
 
 <pattern name="agent-to-ui-communication">
-## Agent-to-UI Communication
+## エージェントからUIへの通信
 
-When agents take actions, the UI should reflect them immediately. The user should see what the agent did.
+エージェントがアクションを取ると、UIは即座にそれを反映すべきです。ユーザーはエージェントが何をしたかを見れるべきです。
 
-**Pattern 1: Shared Data Store (Recommended)**
+**パターン1: 共有データストア（推奨）**
 
-Agent writes through the same service the UI observes:
+エージェントはUIが監視するのと同じサービスを通じて書き込む:
 
 ```swift
-// Shared service
+// 共有サービス
 class BookLibraryService: ObservableObject {
     static let shared = BookLibraryService()
     @Published var books: [Book] = []
@@ -306,29 +306,29 @@ class BookLibraryService: ObservableObject {
     }
 }
 
-// Agent tool writes through shared service
+// エージェントツールは共有サービスを通じて書き込む
 tool("publish_to_feed", async ({ bookId, content, headline }) => {
     let item = FeedItem(bookId: bookId, content: content, headline: headline)
-    BookLibraryService.shared.addFeedItem(item)  // Same service UI uses
-    return { text: "Published to feed" }
+    BookLibraryService.shared.addFeedItem(item)  // UIと同じサービス
+    return { text: "フィードに公開しました" }
 })
 
-// UI observes the same service
+// UIは同じサービスを監視
 struct FeedView: View {
     @StateObject var library = BookLibraryService.shared
 
     var body: some View {
         List(library.feedItems) { item in
             FeedItemRow(item: item)
-            // Automatically updates when agent adds items
+            // エージェントがアイテムを追加すると自動更新
         }
     }
 }
 ```
 
-**Pattern 2: File System Observation**
+**パターン2: ファイルシステム監視**
 
-For file-based data, watch the file system:
+ファイルベースのデータの場合、ファイルシステムを監視:
 
 ```swift
 class ResearchWatcher: ObservableObject {
@@ -346,29 +346,29 @@ class ResearchWatcher: ObservableObject {
     }
 }
 
-// Agent writes files
+// エージェントがファイルを書く
 tool("write_file", { path, content }) -> {
     writeFile(documentsURL.appendingPathComponent(path), content)
-    // DirectoryWatcher triggers UI update automatically
+    // DirectoryWatcherがUI更新を自動トリガー
 }
 ```
 
-**Pattern 3: Event Bus (Cross-Component)**
+**パターン3: イベントバス（クロスコンポーネント）**
 
-For complex apps with multiple independent components:
+複数の独立したコンポーネントを持つ複雑なアプリの場合:
 
 ```typescript
-// Shared event bus
+// 共有イベントバス
 const agentEvents = new EventEmitter();
 
-// Agent tool emits events
+// エージェントツールがイベントを発行
 tool("publish_to_feed", async ({ content }) => {
     const item = await feedService.add(content);
     agentEvents.emit('feed:new-item', item);
-    return { text: "Published" };
+    return { text: "公開しました" };
 });
 
-// UI components subscribe
+// UIコンポーネントがサブスクライブ
 function FeedView() {
     const [items, setItems] = useState([]);
 
@@ -382,43 +382,43 @@ function FeedView() {
 }
 ```
 
-**What to avoid:**
+**避けるべきこと:**
 
 ```swift
-// BAD: UI doesn't observe agent changes
-// Agent writes to database directly
+// 悪い: UIがエージェントの変更を監視しない
+// エージェントがデータベースに直接書き込む
 tool("publish_to_feed", { content }) {
-    database.insert("feed", content)  // UI doesn't see this
+    database.insert("feed", content)  // UIはこれを見ない
 }
 
-// UI loads once at startup, never refreshes
+// UIは起動時に一度だけ読み込み、更新しない
 struct FeedView: View {
-    let items = database.query("feed")  // Stale!
+    let items = database.query("feed")  // 古い！
 }
 ```
 </pattern>
 
 <pattern name="model-tier-selection">
-## Model Tier Selection
+## モデルティア選択
 
-Different agents need different intelligence levels. Use the cheapest model that achieves the outcome.
+異なるエージェントには異なる知性レベルが必要。結果を達成する最も安価なモデルを使用。
 
-| Agent Type | Recommended Tier | Reasoning |
+| エージェントタイプ | 推奨ティア | 理由 |
 |------------|-----------------|-----------|
-| Chat/Conversation | Balanced | Fast responses, good reasoning |
-| Research | Balanced | Tool loops, not ultra-complex synthesis |
-| Content Generation | Balanced | Creative but not synthesis-heavy |
-| Complex Analysis | Powerful | Multi-document synthesis, nuanced judgment |
-| Profile/Onboarding | Powerful | Photo analysis, complex pattern recognition |
-| Simple Queries | Fast/Haiku | Quick lookups, simple transformations |
+| チャット/会話 | バランス | 高速レスポンス、良好な推論 |
+| リサーチ | バランス | ツールループ、超複雑な合成ではない |
+| コンテンツ生成 | バランス | クリエイティブだが合成重視ではない |
+| 複雑な分析 | パワフル | マルチドキュメント合成、微妙な判断 |
+| プロフィール/オンボーディング | パワフル | 写真分析、複雑なパターン認識 |
+| シンプルなクエリ | 高速/Haiku | 素早い検索、シンプルな変換 |
 
-**Implementation:**
+**実装:**
 
 ```swift
 enum ModelTier {
-    case fast      // claude-3-haiku: Quick, cheap, simple tasks
-    case balanced  // claude-3-sonnet: Good balance for most tasks
-    case powerful  // claude-3-opus: Complex reasoning, synthesis
+    case fast      // claude-3-haiku: 高速、安価、シンプルなタスク
+    case balanced  // claude-3-sonnet: ほとんどのタスクに良いバランス
+    case powerful  // claude-3-opus: 複雑な推論、合成
 }
 
 struct AgentConfig {
@@ -427,45 +427,45 @@ struct AgentConfig {
     let systemPrompt: String
 }
 
-// Research agent: balanced tier
+// リサーチエージェント: バランスティア
 let researchConfig = AgentConfig(
     modelTier: .balanced,
     tools: researchTools,
     systemPrompt: researchPrompt
 )
 
-// Profile analysis: powerful tier (complex photo interpretation)
+// プロフィール分析: パワフルティア（複雑な写真解釈）
 let profileConfig = AgentConfig(
     modelTier: .powerful,
     tools: profileTools,
     systemPrompt: profilePrompt
 )
 
-// Quick lookup: fast tier
+// 素早い検索: 高速ティア
 let lookupConfig = AgentConfig(
     modelTier: .fast,
     tools: [readLibrary],
-    systemPrompt: "Answer quick questions about the user's library."
+    systemPrompt: "ユーザーのライブラリに関する素早い質問に答える。"
 )
 ```
 
-**Cost optimization strategies:**
-- Start with balanced tier, only upgrade if quality insufficient
-- Use fast tier for tool-heavy loops where each turn is simple
-- Reserve powerful tier for synthesis tasks (comparing multiple sources)
-- Consider token limits per turn to control costs
+**コスト最適化戦略:**
+- バランスティアから開始し、品質が不十分な場合のみアップグレード
+- 各ターンがシンプルなツール重視のループには高速ティアを使用
+- パワフルティアは合成タスク（複数のソースを比較）に予約
+- コスト管理のためターンごとのトークン制限を検討
 </pattern>
 
 <design_questions>
-## Questions to Ask When Designing
+## 設計時に尋ねるべき質問
 
-1. **What events trigger agent turns?** (messages, webhooks, timers, user requests)
-2. **What primitives does the agent need?** (read, write, call API, restart)
-3. **What decisions should the agent make?** (format, structure, priority, action)
-4. **What decisions should be hardcoded?** (security boundaries, approval requirements)
-5. **How does the agent verify its work?** (health checks, build verification)
-6. **How does the agent recover from mistakes?** (git rollback, approval gates)
-7. **How does the UI know when agent changes state?** (shared store, file watching, events)
-8. **What model tier does each agent type need?** (fast, balanced, powerful)
-9. **How do agents share infrastructure?** (unified orchestrator, shared tools)
+1. **エージェントのターンをトリガーするイベントは何か？**（メッセージ、webhook、タイマー、ユーザーリクエスト）
+2. **エージェントが必要とするプリミティブは何か？**（read、write、call API、restart）
+3. **エージェントがすべき決定は何か？**（フォーマット、構造、優先度、アクション）
+4. **ハードコードすべき決定は何か？**（セキュリティ境界、承認要件）
+5. **エージェントはどのように作業を検証するか？**（ヘルスチェック、ビルド検証）
+6. **エージェントはどのようにミスから回復するか？**（gitロールバック、承認ゲート）
+7. **UIはいつエージェントが状態を変更したかをどのように知るか？**（共有ストア、ファイル監視、イベント）
+8. **各エージェントタイプにどのモデルティアが必要か？**（高速、バランス、パワフル）
+9. **エージェントはどのようにインフラを共有するか？**（統一オーケストレーター、共有ツール）
 </design_questions>

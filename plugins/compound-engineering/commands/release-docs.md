@@ -1,144 +1,144 @@
 ---
 name: release-docs
-description: Build and update the documentation site with current plugin components
-argument-hint: "[optional: --dry-run to preview changes without writing]"
+description: 現在のプラグインコンポーネントでドキュメントサイトをビルドして更新する
+argument-hint: "[オプション: --dry-runで書き込みなしにプレビュー]"
 ---
 
-# Release Documentation Command
+# ドキュメントリリースコマンド
 
-You are a documentation generator for the compound-engineering plugin. Your job is to ensure the documentation site at `plugins/compound-engineering/docs/` is always up-to-date with the actual plugin components.
+あなたはcompound-engineeringプラグインのドキュメント生成者です。`plugins/compound-engineering/docs/`にあるドキュメントサイトが実際のプラグインコンポーネントと常に最新であることを確認することが仕事です。
 
-## Overview
+## 概要
 
-The documentation site is a static HTML/CSS/JS site based on the Evil Martians LaunchKit template. It needs to be regenerated whenever:
+ドキュメントサイトはEvil MartiansのLaunchKitテンプレートをベースにした静的HTML/CSS/JSサイトです。以下の場合に再生成が必要です：
 
-- Agents are added, removed, or modified
-- Commands are added, removed, or modified
-- Skills are added, removed, or modified
-- MCP servers are added, removed, or modified
+- エージェントが追加、削除、または変更された
+- コマンドが追加、削除、または変更された
+- スキルが追加、削除、または変更された
+- MCPサーバーが追加、削除、または変更された
 
-## Step 1: Inventory Current Components
+## ステップ1: 現在のコンポーネントの棚卸し
 
-First, count and list all current components:
+まず、すべての現在のコンポーネントをカウントしてリスト：
 
 ```bash
-# Count agents
+# エージェントをカウント
 ls plugins/compound-engineering/agents/*.md | wc -l
 
-# Count commands
+# コマンドをカウント
 ls plugins/compound-engineering/commands/*.md | wc -l
 
-# Count skills
+# スキルをカウント
 ls -d plugins/compound-engineering/skills/*/ 2>/dev/null | wc -l
 
-# Count MCP servers
+# MCPサーバーをカウント
 ls -d plugins/compound-engineering/mcp-servers/*/ 2>/dev/null | wc -l
 ```
 
-Read all component files to get their metadata:
+すべてのコンポーネントファイルを読んでメタデータを取得：
 
-### Agents
-For each agent file in `plugins/compound-engineering/agents/*.md`:
-- Extract the frontmatter (name, description)
-- Note the category (Review, Research, Workflow, Design, Docs)
-- Get key responsibilities from the content
+### エージェント
+`plugins/compound-engineering/agents/*.md`の各エージェントファイルについて：
+- フロントマター（name、description）を抽出
+- カテゴリをメモ（Review、Research、Workflow、Design、Docs）
+- コンテンツから主な責任を取得
 
-### Commands
-For each command file in `plugins/compound-engineering/commands/*.md`:
-- Extract the frontmatter (name, description, argument-hint)
-- Categorize as Workflow or Utility command
+### コマンド
+`plugins/compound-engineering/commands/*.md`の各コマンドファイルについて：
+- フロントマター（name、description、argument-hint）を抽出
+- WorkflowまたはUtilityコマンドとして分類
 
-### Skills
-For each skill directory in `plugins/compound-engineering/skills/*/`:
-- Read the SKILL.md file for frontmatter (name, description)
-- Note any scripts or supporting files
+### スキル
+`plugins/compound-engineering/skills/*/`の各スキルディレクトリについて：
+- フロントマター（name、description）のためにSKILL.mdファイルを読む
+- スクリプトやサポートファイルをメモ
 
-### MCP Servers
-For each MCP server in `plugins/compound-engineering/mcp-servers/*/`:
-- Read the configuration and README
-- List the tools provided
+### MCPサーバー
+`plugins/compound-engineering/mcp-servers/*/`の各MCPサーバーについて：
+- 設定とREADMEを読む
+- 提供されるツールをリスト
 
-## Step 2: Update Documentation Pages
+## ステップ2: ドキュメントページの更新
 
-### 2a. Update `docs/index.html`
+### 2a. `docs/index.html`を更新
 
-Update the stats section with accurate counts:
+正確なカウントでスタッツセクションを更新：
 ```html
 <div class="stats-grid">
   <div class="stat-card">
     <span class="stat-number">[AGENT_COUNT]</span>
     <span class="stat-label">Specialized Agents</span>
   </div>
-  <!-- Update all stat cards -->
+  <!-- すべてのスタットカードを更新 -->
 </div>
 ```
 
-Ensure the component summary sections list key components accurately.
+コンポーネントサマリーセクションが主要なコンポーネントを正確にリストしていることを確認。
 
-### 2b. Update `docs/pages/agents.html`
+### 2b. `docs/pages/agents.html`を更新
 
-Regenerate the complete agents reference page:
-- Group agents by category (Review, Research, Workflow, Design, Docs)
-- Include for each agent:
-  - Name and description
-  - Key responsibilities (bullet list)
-  - Usage example: `claude agent [agent-name] "your message"`
-  - Use cases
+完全なエージェントリファレンスページを再生成：
+- カテゴリ別にエージェントをグループ化（Review、Research、Workflow、Design、Docs）
+- 各エージェントに含める：
+  - 名前と説明
+  - 主な責任（箇条書きリスト）
+  - 使用例：`claude agent [agent-name] "your message"`
+  - ユースケース
 
-### 2c. Update `docs/pages/commands.html`
+### 2c. `docs/pages/commands.html`を更新
 
-Regenerate the complete commands reference page:
-- Group commands by type (Workflow, Utility)
-- Include for each command:
-  - Name and description
-  - Arguments (if any)
-  - Process/workflow steps
-  - Example usage
+完全なコマンドリファレンスページを再生成：
+- タイプ別にコマンドをグループ化（Workflow、Utility）
+- 各コマンドに含める：
+  - 名前と説明
+  - 引数（ある場合）
+  - プロセス/ワークフローステップ
+  - 使用例
 
-### 2d. Update `docs/pages/skills.html`
+### 2d. `docs/pages/skills.html`を更新
 
-Regenerate the complete skills reference page:
-- Group skills by category (Development Tools, Content & Workflow, Image Generation)
-- Include for each skill:
-  - Name and description
-  - Usage: `claude skill [skill-name]`
-  - Features and capabilities
+完全なスキルリファレンスページを再生成：
+- カテゴリ別にスキルをグループ化（Development Tools、Content & Workflow、Image Generation）
+- 各スキルに含める：
+  - 名前と説明
+  - 使用法：`claude skill [skill-name]`
+  - 機能と能力
 
-### 2e. Update `docs/pages/mcp-servers.html`
+### 2e. `docs/pages/mcp-servers.html`を更新
 
-Regenerate the MCP servers reference page:
-- For each server:
-  - Name and purpose
-  - Tools provided
-  - Configuration details
-  - Supported frameworks/services
+MCPサーバーリファレンスページを再生成：
+- 各サーバーについて：
+  - 名前と目的
+  - 提供されるツール
+  - 設定詳細
+  - サポートされるフレームワーク/サービス
 
-## Step 3: Update Metadata Files
+## ステップ3: メタデータファイルの更新
 
-Ensure counts are consistent across:
+以下全体でカウントが一貫していることを確認：
 
 1. **`plugins/compound-engineering/.claude-plugin/plugin.json`**
-   - Update `description` with correct counts
-   - Update `components` object with counts
-   - Update `agents`, `commands` arrays with current items
+   - 正しいカウントで`description`を更新
+   - カウントで`components`オブジェクトを更新
+   - 現在のアイテムで`agents`、`commands`配列を更新
 
 2. **`.claude-plugin/marketplace.json`**
-   - Update plugin `description` with correct counts
+   - 正しいカウントでプラグイン`description`を更新
 
 3. **`plugins/compound-engineering/README.md`**
-   - Update intro paragraph with counts
-   - Update component lists
+   - カウントで紹介段落を更新
+   - コンポーネントリストを更新
 
-## Step 4: Validate
+## ステップ4: 検証
 
-Run validation checks:
+検証チェックを実行：
 
 ```bash
-# Validate JSON files
+# JSONファイルを検証
 cat .claude-plugin/marketplace.json | jq .
 cat plugins/compound-engineering/.claude-plugin/plugin.json | jq .
 
-# Verify counts match
+# カウントが一致することを確認
 echo "Agents in files: $(ls plugins/compound-engineering/agents/*.md | wc -l)"
 grep -o "[0-9]* specialized agents" plugins/compound-engineering/docs/index.html
 
@@ -146,66 +146,66 @@ echo "Commands in files: $(ls plugins/compound-engineering/commands/*.md | wc -l
 grep -o "[0-9]* slash commands" plugins/compound-engineering/docs/index.html
 ```
 
-## Step 5: Report Changes
+## ステップ5: 変更の報告
 
-Provide a summary of what was updated:
+更新された内容のサマリーを提供：
 
 ```
-## Documentation Release Summary
+## ドキュメントリリースサマリー
 
-### Component Counts
-- Agents: X (previously Y)
-- Commands: X (previously Y)
-- Skills: X (previously Y)
-- MCP Servers: X (previously Y)
+### コンポーネントカウント
+- Agents: X（以前Y）
+- Commands: X（以前Y）
+- Skills: X（以前Y）
+- MCP Servers: X（以前Y）
 
-### Files Updated
-- docs/index.html - Updated stats and component summaries
-- docs/pages/agents.html - Regenerated with X agents
-- docs/pages/commands.html - Regenerated with X commands
-- docs/pages/skills.html - Regenerated with X skills
-- docs/pages/mcp-servers.html - Regenerated with X servers
-- plugin.json - Updated counts and component lists
-- marketplace.json - Updated description
-- README.md - Updated component lists
+### 更新されたファイル
+- docs/index.html - スタッツとコンポーネントサマリーを更新
+- docs/pages/agents.html - Xエージェントで再生成
+- docs/pages/commands.html - Xコマンドで再生成
+- docs/pages/skills.html - Xスキルで再生成
+- docs/pages/mcp-servers.html - Xサーバーで再生成
+- plugin.json - カウントとコンポーネントリストを更新
+- marketplace.json - 説明を更新
+- README.md - コンポーネントリストを更新
 
-### New Components Added
-- [List any new agents/commands/skills]
+### 追加された新コンポーネント
+- [新しいエージェント/コマンド/スキルをリスト]
 
-### Components Removed
-- [List any removed agents/commands/skills]
+### 削除されたコンポーネント
+- [削除されたエージェント/コマンド/スキルをリスト]
 ```
 
-## Dry Run Mode
+## ドライランモード
 
-If `--dry-run` is specified:
-- Perform all inventory and validation steps
-- Report what WOULD be updated
-- Do NOT write any files
-- Show diff previews of proposed changes
+`--dry-run`が指定された場合：
+- すべての棚卸しと検証ステップを実行
+- 更新されるものを報告
+- ファイルを書き込まない
+- 提案された変更の差分プレビューを表示
 
-## Error Handling
+## エラーハンドリング
 
-- If component files have invalid frontmatter, report the error and skip
-- If JSON validation fails, report and abort
-- Always maintain a valid state - don't partially update
+- コンポーネントファイルに無効なフロントマターがある場合、エラーを報告してスキップ
+- JSON検証が失敗した場合、報告して中止
+- 常に有効な状態を維持 - 部分的に更新しない
 
-## Post-Release
+## リリース後
 
-After successful release:
-1. Suggest updating CHANGELOG.md with documentation changes
-2. Remind to commit with message: `docs: Update documentation site to match plugin components`
-3. Remind to push changes
+成功したリリース後：
+1. ドキュメント変更でCHANGELOG.mdを更新することを提案
+2. メッセージでコミットすることを思い出させる：`docs: Update documentation site to match plugin components`
+3. 変更をプッシュすることを思い出させる
 
-## Usage Examples
+## 使用例
 
 ```bash
-# Full documentation release
+# フルドキュメントリリース
 claude /release-docs
 
-# Preview changes without writing
+# 書き込みなしに変更をプレビュー
 claude /release-docs --dry-run
 
-# After adding new agents
+# 新しいエージェント追加後
 claude /release-docs
 ```

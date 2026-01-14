@@ -1,275 +1,275 @@
 ---
 name: git-worktree
-description: This skill manages Git worktrees for isolated parallel development. It handles creating, listing, switching, and cleaning up worktrees with a simple interactive interface, following KISS principles.
+description: このスキルは、分離された並行開発のためにGit worktreeを管理します。worktreeの作成、一覧表示、切り替え、クリーンアップを、KISSの原則に従ったシンプルなインタラクティブインターフェースで処理します。
 ---
 
-# Git Worktree Manager
+# Git Worktreeマネージャー
 
-This skill provides a unified interface for managing Git worktrees across your development workflow. Whether you're reviewing PRs in isolation or working on features in parallel, this skill handles all the complexity.
+このスキルは、開発ワークフロー全体でGit worktreeを管理するための統一されたインターフェースを提供します。PRを分離してレビューする場合でも、機能を並行して作業する場合でも、このスキルがすべての複雑さを処理します。
 
-## What This Skill Does
+## このスキルができること
 
-- **Create worktrees** from main branch with clear branch names
-- **List worktrees** with current status
-- **Switch between worktrees** for parallel work
-- **Clean up completed worktrees** automatically
-- **Interactive confirmations** at each step
-- **Automatic .gitignore management** for worktree directory
-- **Automatic .env file copying** from main repo to new worktrees
+- mainブランチから明確なブランチ名で**worktreeを作成**
+- 現在の状態と共に**worktreeを一覧表示**
+- 並行作業のために**worktree間を切り替え**
+- 完了したworktreeを自動的に**クリーンアップ**
+- 各ステップでの**インタラクティブな確認**
+- worktreeディレクトリの**自動.gitignore管理**
+- メインリポジトリから新しいworktreeへの**自動.envファイルコピー**
 
-## CRITICAL: Always Use the Manager Script
+## 重要：常にマネージャースクリプトを使用
 
-**NEVER call `git worktree add` directly.** Always use the `worktree-manager.sh` script.
+**直接`git worktree add`を呼び出さない。** 常に`worktree-manager.sh`スクリプトを使用。
 
-The script handles critical setup that raw git commands don't:
-1. Copies `.env`, `.env.local`, `.env.test`, etc. from main repo
-2. Ensures `.worktrees` is in `.gitignore`
-3. Creates consistent directory structure
+スクリプトは生のgitコマンドでは処理されない重要なセットアップを行う：
+1. メインリポジトリから`.env`、`.env.local`、`.env.test`などをコピー
+2. `.worktrees`が`.gitignore`にあることを確認
+3. 一貫したディレクトリ構造を作成
 
 ```bash
-# ✅ CORRECT - Always use the script
+# ✅ 正しい - 常にスクリプトを使用
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh create feature-name
 
-# ❌ WRONG - Never do this directly
+# ❌ 間違い - 直接これをしない
 git worktree add .worktrees/feature-name -b feature-name main
 ```
 
-## When to Use This Skill
+## このスキルを使用する場面
 
-Use this skill in these scenarios:
+以下のシナリオでこのスキルを使用：
 
-1. **Code Review (`/workflows:review`)**: If NOT already on the PR branch, offer worktree for isolated review
-2. **Feature Work (`/workflows:work`)**: Always ask if user wants parallel worktree or live branch work
-3. **Parallel Development**: When working on multiple features simultaneously
-4. **Cleanup**: After completing work in a worktree
+1. **コードレビュー（`/workflows:review`）**：PRブランチにいない場合、分離したレビューのためにworktreeを提案
+2. **機能作業（`/workflows:work`）**：常にユーザーに並行worktreeかライブブランチ作業かを確認
+3. **並行開発**：複数の機能を同時に作業する場合
+4. **クリーンアップ**：worktreeでの作業完了後
 
-## How to Use
+## 使用方法
 
-### In Claude Code Workflows
+### Claude Codeワークフローでの使用
 
-The skill is automatically called from `/workflows:review` and `/workflows:work` commands:
+スキルは`/workflows:review`と`/workflows:work`コマンドから自動的に呼び出される：
 
 ```
-# For review: offers worktree if not on PR branch
-# For work: always asks - new branch or worktree?
+# レビュー時：PRブランチにいない場合はworktreeを提案
+# 作業時：常に確認 - 新しいブランチかworktreeか？
 ```
 
-### Manual Usage
+### 手動での使用
 
-You can also invoke the skill directly from bash:
+bashから直接スキルを呼び出すことも可能：
 
 ```bash
-# Create a new worktree (copies .env files automatically)
+# 新しいworktreeを作成（.envファイルを自動コピー）
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh create feature-login
 
-# List all worktrees
+# すべてのworktreeを一覧表示
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh list
 
-# Switch to a worktree
+# worktreeに切り替え
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh switch feature-login
 
-# Copy .env files to an existing worktree (if they weren't copied)
+# 既存のworktreeに.envファイルをコピー（コピーされていない場合）
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh copy-env feature-login
 
-# Clean up completed worktrees
+# 完了したworktreeをクリーンアップ
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh cleanup
 ```
 
-## Commands
+## コマンド
 
 ### `create <branch-name> [from-branch]`
 
-Creates a new worktree with the given branch name.
+指定されたブランチ名で新しいworktreeを作成。
 
-**Options:**
-- `branch-name` (required): The name for the new branch and worktree
-- `from-branch` (optional): Base branch to create from (defaults to `main`)
+**オプション：**
+- `branch-name`（必須）：新しいブランチとworktreeの名前
+- `from-branch`（オプション）：作成元のベースブランチ（デフォルトは`main`）
 
-**Example:**
+**例：**
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh create feature-login
 ```
 
-**What happens:**
-1. Checks if worktree already exists
-2. Updates the base branch from remote
-3. Creates new worktree and branch
-4. **Copies all .env files from main repo** (.env, .env.local, .env.test, etc.)
-5. Shows path for cd-ing to the worktree
+**動作：**
+1. worktreeが既に存在するか確認
+2. リモートからベースブランチを更新
+3. 新しいworktreeとブランチを作成
+4. **メインリポジトリからすべての.envファイルをコピー**（.env、.env.local、.env.testなど）
+5. worktreeへのcdパスを表示
 
-### `list` or `ls`
+### `list`または`ls`
 
-Lists all available worktrees with their branches and current status.
+ブランチと現在の状態を含むすべての利用可能なworktreeを一覧表示。
 
-**Example:**
+**例：**
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh list
 ```
 
-**Output shows:**
-- Worktree name
-- Branch name
-- Which is current (marked with ✓)
-- Main repo status
+**出力表示：**
+- worktree名
+- ブランチ名
+- 現在のもの（✓でマーク）
+- メインリポジトリの状態
 
-### `switch <name>` or `go <name>`
+### `switch <name>`または`go <name>`
 
-Switches to an existing worktree and cd's into it.
+既存のworktreeに切り替えてcdで移動。
 
-**Example:**
+**例：**
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh switch feature-login
 ```
 
-**Optional:**
-- If name not provided, lists available worktrees and prompts for selection
+**オプション：**
+- 名前が指定されていない場合、利用可能なworktreeを一覧表示して選択を促す
 
-### `cleanup` or `clean`
+### `cleanup`または`clean`
 
-Interactively cleans up inactive worktrees with confirmation.
+非アクティブなworktreeを確認付きでインタラクティブにクリーンアップ。
 
-**Example:**
+**例：**
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh cleanup
 ```
 
-**What happens:**
-1. Lists all inactive worktrees
-2. Asks for confirmation
-3. Removes selected worktrees
-4. Cleans up empty directories
+**動作：**
+1. すべての非アクティブなworktreeを一覧表示
+2. 確認を求める
+3. 選択されたworktreeを削除
+4. 空のディレクトリをクリーンアップ
 
-## Workflow Examples
+## ワークフローの例
 
-### Code Review with Worktree
+### Worktreeを使用したコードレビュー
 
 ```bash
-# Claude Code recognizes you're not on the PR branch
-# Offers: "Use worktree for isolated review? (y/n)"
+# Claude CodeがPRブランチにいないことを認識
+# 提案：「分離したレビューにworktreeを使用しますか？（y/n）」
 
-# You respond: yes
-# Script runs (copies .env files automatically):
+# 回答：yes
+# スクリプトが実行（.envファイルを自動コピー）：
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh create pr-123-feature-name
 
-# You're now in isolated worktree for review with all env vars
+# すべてのenv変数を持つ分離されたworktreeでレビュー
 cd .worktrees/pr-123-feature-name
 
-# After review, return to main:
+# レビュー後、メインに戻る：
 cd ../..
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh cleanup
 ```
 
-### Parallel Feature Development
+### 並行機能開発
 
 ```bash
-# For first feature (copies .env files):
+# 最初の機能用（.envファイルをコピー）：
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh create feature-login
 
-# Later, start second feature (also copies .env files):
+# 後で、2番目の機能を開始（.envファイルもコピー）：
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh create feature-notifications
 
-# List what you have:
+# 持っているものを一覧表示：
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh list
 
-# Switch between them as needed:
+# 必要に応じて切り替え：
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh switch feature-login
 
-# Return to main and cleanup when done:
+# メインに戻り、完了時にクリーンアップ：
 cd .
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh cleanup
 ```
 
-## Key Design Principles
+## 主要な設計原則
 
-### KISS (Keep It Simple, Stupid)
+### KISS（Keep It Simple, Stupid）
 
-- **One manager script** handles all worktree operations
-- **Simple commands** with sensible defaults
-- **Interactive prompts** prevent accidental operations
-- **Clear naming** using branch names directly
+- **1つのマネージャースクリプト**がすべてのworktree操作を処理
+- 賢明なデフォルトを持つ**シンプルなコマンド**
+- **インタラクティブなプロンプト**が誤操作を防止
+- ブランチ名を直接使用する**明確な命名**
 
-### Opinionated Defaults
+### 意見のあるデフォルト
 
-- Worktrees always created from **main** (unless specified)
-- Worktrees stored in **.worktrees/** directory
-- Branch name becomes worktree name
-- **.gitignore** automatically managed
+- worktreeは常に**main**から作成（指定がない限り）
+- worktreeは**.worktrees/**ディレクトリに保存
+- ブランチ名がworktree名になる
+- **.gitignore**は自動管理
 
-### Safety First
+### 安全第一
 
-- **Confirms before creating** worktrees
-- **Confirms before cleanup** to prevent accidental removal
-- **Won't remove current worktree**
-- **Clear error messages** for issues
+- worktree作成前に**確認**
+- 誤削除を防ぐため**クリーンアップ前に確認**
+- **現在のworktreeは削除しない**
+- 問題に対する**明確なエラーメッセージ**
 
-## Integration with Workflows
+## ワークフローとの統合
 
 ### `/workflows:review`
 
-Instead of always creating a worktree:
+常にworktreeを作成する代わりに：
 
 ```
-1. Check current branch
-2. If ALREADY on PR branch → stay there, no worktree needed
-3. If DIFFERENT branch → offer worktree:
-   "Use worktree for isolated review? (y/n)"
-   - yes → call git-worktree skill
-   - no → proceed with PR diff on current branch
+1. 現在のブランチを確認
+2. すでにPRブランチにいる場合 → そこに留まる、worktree不要
+3. 別のブランチにいる場合 → worktreeを提案：
+   「分離したレビューにworktreeを使用しますか？（y/n）」
+   - yes → git-worktreeスキルを呼び出す
+   - no → 現在のブランチでPR差分を進める
 ```
 
 ### `/workflows:work`
 
-Always offer choice:
+常に選択を提供：
 
 ```
-1. Ask: "How do you want to work?
-   1. New branch on current worktree (live work)
-   2. Worktree (parallel work)"
+1. 確認：「どのように作業しますか？
+   1. 現在のworktreeに新しいブランチ（ライブ作業）
+   2. Worktree（並行作業）」
 
-2. If choice 1 → create new branch normally
-3. If choice 2 → call git-worktree skill to create from main
+2. 選択1の場合 → 通常どおり新しいブランチを作成
+3. 選択2の場合 → git-worktreeスキルを呼び出してmainから作成
 ```
 
-## Troubleshooting
+## トラブルシューティング
 
-### "Worktree already exists"
+### 「Worktree already exists」
 
-If you see this, the script will ask if you want to switch to it instead.
+これが表示された場合、スクリプトは代わりに切り替えるかを確認します。
 
-### "Cannot remove worktree: it is the current worktree"
+### 「Cannot remove worktree: it is the current worktree」
 
-Switch out of the worktree first (to main repo), then cleanup:
+最初にworktreeから出て（メインリポジトリへ）、それからクリーンアップ：
 
 ```bash
 cd $(git rev-parse --show-toplevel)
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh cleanup
 ```
 
-### Lost in a worktree?
+### worktreeで迷った？
 
-See where you are:
+現在地を確認：
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh list
 ```
 
-### .env files missing in worktree?
+### worktreeに.envファイルがない？
 
-If a worktree was created without .env files (e.g., via raw `git worktree add`), copy them:
+worktreeが.envファイルなしで作成された場合（例：生の`git worktree add`経由）、コピーする：
 
 ```bash
 bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh copy-env feature-name
 ```
 
-Navigate back to main:
+メインに戻る：
 
 ```bash
 cd $(git rev-parse --show-toplevel)
 ```
 
-## Technical Details
+## 技術的詳細
 
-### Directory Structure
+### ディレクトリ構造
 
 ```
 .worktrees/
@@ -283,20 +283,20 @@ cd $(git rev-parse --show-toplevel)
 │   └── ...
 └── ...
 
-.gitignore (updated to include .worktrees)
+.gitignore（.worktreesを含むように更新）
 ```
 
-### How It Works
+### 動作原理
 
-- Uses `git worktree add` for isolated environments
-- Each worktree has its own branch
-- Changes in one worktree don't affect others
-- Share git history with main repo
-- Can push from any worktree
+- 分離された環境に`git worktree add`を使用
+- 各worktreeは独自のブランチを持つ
+- 1つのworktreeでの変更は他に影響しない
+- メインリポジトリとgit履歴を共有
+- 任意のworktreeからプッシュ可能
 
-### Performance
+### パフォーマンス
 
-- Worktrees are lightweight (just file system links)
-- No repository duplication
-- Shared git objects for efficiency
-- Much faster than cloning or stashing/switching
+- worktreeは軽量（ファイルシステムリンクのみ）
+- リポジトリの複製なし
+- 効率のための共有gitオブジェクト
+- クローンやstash/切り替えよりはるかに高速

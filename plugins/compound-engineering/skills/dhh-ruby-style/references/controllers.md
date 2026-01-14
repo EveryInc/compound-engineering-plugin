@@ -1,41 +1,41 @@
-# Controllers - DHH Rails Style
+# コントローラー - DHH Railsスタイル
 
 <rest_mapping>
-## Everything Maps to CRUD
+## すべてがCRUDにマッピング
 
-Custom actions become new resources. Instead of verbs on existing resources, create noun resources:
+カスタムアクションは新しいリソースになる。既存のリソースへの動詞ではなく、名詞リソースを作成：
 
 ```ruby
-# Instead of this:
+# これの代わりに：
 POST /cards/:id/close
 DELETE /cards/:id/close
 POST /cards/:id/archive
 
-# Do this:
-POST /cards/:id/closure      # create closure
-DELETE /cards/:id/closure    # destroy closure
-POST /cards/:id/archival     # create archival
+# こうする：
+POST /cards/:id/closure      # closureを作成
+DELETE /cards/:id/closure    # closureを削除
+POST /cards/:id/archival     # archivalを作成
 ```
 
-**Real examples from 37signals:**
+**37signalsの実例：**
 ```ruby
 resources :cards do
-  resource :closure       # closing/reopening
-  resource :goldness      # marking important
-  resource :not_now       # postponing
-  resources :assignments  # managing assignees
+  resource :closure       # クローズ/再開
+  resource :goldness      # 重要としてマーク
+  resource :not_now       # 延期
+  resources :assignments  # 担当者管理
 end
 ```
 
-Each resource gets its own controller with standard CRUD actions.
+各リソースは標準CRUDアクションを持つ独自のコントローラーを取得。
 </rest_mapping>
 
 <controller_concerns>
-## Concerns for Shared Behavior
+## 共有動作のためのConcern
 
-Controllers use concerns extensively. Common patterns:
+コントローラーはconcernsを広範に使用。一般的なパターン：
 
-**CardScoped** - loads @card, @board, provides render_card_replacement
+**CardScoped** - @card、@boardを読み込み、render_card_replacementを提供
 ```ruby
 module CardScoped
   extend ActiveSupport::Concern
@@ -56,23 +56,23 @@ module CardScoped
 end
 ```
 
-**BoardScoped** - loads @board
-**CurrentRequest** - populates Current with request data
-**CurrentTimezone** - wraps requests in user's timezone
-**FilterScoped** - handles complex filtering
-**TurboFlash** - flash messages via Turbo Stream
-**ViewTransitions** - disables on page refresh
-**BlockSearchEngineIndexing** - sets X-Robots-Tag header
-**RequestForgeryProtection** - Sec-Fetch-Site CSRF (modern browsers)
+**BoardScoped** - @boardを読み込み
+**CurrentRequest** - リクエストデータでCurrentを設定
+**CurrentTimezone** - ユーザーのタイムゾーンでリクエストをラップ
+**FilterScoped** - 複雑なフィルタリングを処理
+**TurboFlash** - Turbo Stream経由のフラッシュメッセージ
+**ViewTransitions** - ページリフレッシュ時に無効化
+**BlockSearchEngineIndexing** - X-Robots-Tagヘッダーを設定
+**RequestForgeryProtection** - Sec-Fetch-Site CSRF（モダンブラウザ）
 </controller_concerns>
 
 <authorization_patterns>
-## Authorization Patterns
+## 認可パターン
 
-Controllers check permissions via before_action, models define what permissions mean:
+コントローラーはbefore_action経由で権限をチェック、モデルは権限の意味を定義：
 
 ```ruby
-# Controller concern
+# コントローラーconcern
 module Authorization
   extend ActiveSupport::Concern
 
@@ -86,13 +86,13 @@ module Authorization
     end
 end
 
-# Usage
+# 使用法
 class BoardsController < ApplicationController
   before_action :ensure_can_administer, only: [:destroy]
 end
 ```
 
-**Model-level authorization:**
+**モデルレベルの認可：**
 ```ruby
 class Board < ApplicationRecord
   def editable_by?(user)
@@ -105,14 +105,14 @@ class Board < ApplicationRecord
 end
 ```
 
-Keep authorization simple, readable, colocated with domain.
+認可はシンプル、読みやすく、ドメインと共存させる。
 </authorization_patterns>
 
 <security_concerns>
-## Security Concerns
+## セキュリティConcern
 
-**Sec-Fetch-Site CSRF Protection:**
-Modern browsers send Sec-Fetch-Site header. Use it for defense in depth:
+**Sec-Fetch-Site CSRF保護：**
+モダンブラウザはSec-Fetch-Siteヘッダーを送信。深層防御に使用：
 
 ```ruby
 module RequestForgeryProtection
@@ -128,26 +128,26 @@ module RequestForgeryProtection
       return if %w[same-origin same-site].include?(
         request.headers["Sec-Fetch-Site"]&.downcase
       )
-      # Fall back to token verification for older browsers
+      # 古いブラウザにはトークン検証にフォールバック
       verify_authenticity_token
     end
 end
 ```
 
-**Rate Limiting (Rails 8+):**
+**レート制限（Rails 8以降）：**
 ```ruby
 class MagicLinksController < ApplicationController
   rate_limit to: 10, within: 15.minutes, only: :create
 end
 ```
 
-Apply to: auth endpoints, email sending, external API calls, resource creation.
+適用先：認証エンドポイント、メール送信、外部API呼び出し、リソース作成。
 </security_concerns>
 
 <request_context>
-## Request Context Concerns
+## リクエストコンテキストConcern
 
-**CurrentRequest** - populates Current with HTTP metadata:
+**CurrentRequest** - HTTPメタデータでCurrentを設定：
 ```ruby
 module CurrentRequest
   extend ActiveSupport::Concern
@@ -166,7 +166,7 @@ module CurrentRequest
 end
 ```
 
-**CurrentTimezone** - wraps requests in user's timezone:
+**CurrentTimezone** - ユーザーのタイムゾーンでリクエストをラップ：
 ```ruby
 module CurrentTimezone
   extend ActiveSupport::Concern
@@ -187,7 +187,7 @@ module CurrentTimezone
 end
 ```
 
-**SetPlatform** - detects mobile/desktop:
+**SetPlatform** - モバイル/デスクトップを検出：
 ```ruby
 module SetPlatform
   extend ActiveSupport::Concern
@@ -204,9 +204,9 @@ end
 </request_context>
 
 <turbo_responses>
-## Turbo Stream Responses
+## Turbo Streamレスポンス
 
-Use Turbo Streams for partial updates:
+部分更新にはTurbo Streamsを使用：
 
 ```ruby
 class Cards::ClosuresController < ApplicationController
@@ -224,16 +224,16 @@ class Cards::ClosuresController < ApplicationController
 end
 ```
 
-For complex updates, use morphing:
+複雑な更新にはモーフィングを使用：
 ```ruby
 render turbo_stream: turbo_stream.morph(@card)
 ```
 </turbo_responses>
 
 <api_patterns>
-## API Design
+## API設計
 
-Same controllers, different format. Convention for responses:
+同じコントローラー、異なるフォーマット。レスポンスの規約：
 
 ```ruby
 def create
@@ -264,17 +264,17 @@ def destroy
 end
 ```
 
-**Status codes:**
-- Create: 201 Created + Location header
-- Update: 204 No Content
-- Delete: 204 No Content
-- Bearer token authentication
+**ステータスコード：**
+- Create：201 Created + Locationヘッダー
+- Update：204 No Content
+- Delete：204 No Content
+- Bearerトークン認証
 </api_patterns>
 
 <http_caching>
-## HTTP Caching
+## HTTPキャッシュ
 
-Extensive use of ETags and conditional GETs:
+ETagと条件付きGETを広範に使用：
 
 ```ruby
 class CardsController < ApplicationController
@@ -290,14 +290,14 @@ class CardsController < ApplicationController
 end
 ```
 
-Key insight: Times render server-side in user's timezone, so timezone must affect the ETag to prevent serving wrong times to other timezones.
+重要な洞察：時間はユーザーのタイムゾーンでサーバー側レンダリングされるため、他のタイムゾーンに間違った時間を提供しないようにタイムゾーンがETagに影響する必要がある。
 
-**ApplicationController global etag:**
+**ApplicationControllerのグローバルetag：**
 ```ruby
 class ApplicationController < ActionController::Base
-  etag { "v1" }  # Bump to invalidate all caches
+  etag { "v1" }  # すべてのキャッシュを無効化するために上げる
 end
 ```
 
-Use `touch: true` on associations for cache invalidation.
+キャッシュ無効化には関連付けで`touch: true`を使用。
 </http_caching>

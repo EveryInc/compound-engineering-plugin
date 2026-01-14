@@ -1,310 +1,310 @@
 ---
 name: triage
-description: Triage and categorize findings for the CLI todo system
-argument-hint: "[findings list or source type]"
+description: CLI Todoシステムのために発見事項をトリアージして分類する
+argument-hint: "[発見事項リストまたはソースタイプ]"
 ---
 
-- First set the /model to Haiku
-- Then read all pending todos in the todos/ directory
+- まず/modelをHaikuに設定
+- 次にtodos/ディレクトリ内のすべての保留中のTodoを読む
 
-Present all findings, decisions, or issues here one by one for triage. The goal is to go through each item and decide whether to add it to the CLI todo system.
+すべての発見事項、決定、またはイシューをトリアージのために一つずつ提示します。目標は各アイテムを確認し、CLI Todoシステムに追加するかどうかを決定することです。
 
-**IMPORTANT: DO NOT CODE ANYTHING DURING TRIAGE!**
+**重要: トリアージ中にコードを書かないでください！**
 
-This command is for:
+このコマンドの用途：
 
-- Triaging code review findings
-- Processing security audit results
-- Reviewing performance analysis
-- Handling any other categorized findings that need tracking
+- コードレビューの発見事項のトリアージ
+- セキュリティ監査結果の処理
+- パフォーマンス分析のレビュー
+- 追跡が必要なその他の分類された発見事項の処理
 
-## Workflow
+## ワークフロー
 
-### Step 1: Present Each Finding
+### ステップ1: 各発見事項を提示
 
-For each finding, present in this format:
+各発見事項について、このフォーマットで提示：
 
 ```
 ---
-Issue #X: [Brief Title]
+イシュー #X: [簡潔なタイトル]
 
-Severity: 🔴 P1 (CRITICAL) / 🟡 P2 (IMPORTANT) / 🔵 P3 (NICE-TO-HAVE)
+重大度: 🔴 P1 (クリティカル) / 🟡 P2 (重要) / 🔵 P3 (あれば良い)
 
-Category: [Security/Performance/Architecture/Bug/Feature/etc.]
+カテゴリ: [セキュリティ/パフォーマンス/アーキテクチャ/バグ/機能/など]
 
-Description:
-[Detailed explanation of the issue or improvement]
+説明:
+[イシューまたは改善の詳細な説明]
 
-Location: [file_path:line_number]
+場所: [file_path:line_number]
 
-Problem Scenario:
-[Step by step what's wrong or could happen]
+問題シナリオ:
+[何が問題か、または何が起こりうるかのステップバイステップ]
 
-Proposed Solution:
-[How to fix it]
+提案されるソリューション:
+[修正方法]
 
-Estimated Effort: [Small (< 2 hours) / Medium (2-8 hours) / Large (> 8 hours)]
+推定工数: [小規模 (< 2時間) / 中規模 (2-8時間) / 大規模 (> 8時間)]
 
 ---
-Do you want to add this to the todo list?
-1. yes - create todo file
-2. next - skip this item
-3. custom - modify before creating
+これをTodoリストに追加しますか？
+1. yes - Todoファイルを作成
+2. next - このアイテムをスキップ
+3. custom - 作成前に修正
 ```
 
-### Step 2: Handle User Decision
+### ステップ2: ユーザーの決定を処理
 
-**When user says "yes":**
+**ユーザーが「yes」と言った場合：**
 
-1. **Update existing todo file** (if it exists) or **Create new filename:**
+1. **既存のTodoファイルを更新**（存在する場合）または**新しいファイル名を作成：**
 
-   If todo already exists (from code review):
+   Todoが既に存在する場合（コードレビューから）：
 
-   - Rename file from `{id}-pending-{priority}-{desc}.md` → `{id}-ready-{priority}-{desc}.md`
-   - Update YAML frontmatter: `status: pending` → `status: ready`
-   - Keep issue_id, priority, and description unchanged
+   - ファイル名を`{id}-pending-{priority}-{desc}.md` → `{id}-ready-{priority}-{desc}.md`に変更
+   - YAMLフロントマターを更新：`status: pending` → `status: ready`
+   - issue_id、priority、descriptionは変更しない
 
-   If creating new todo:
+   新しいTodoを作成する場合：
 
    ```
    {next_id}-ready-{priority}-{brief-description}.md
    ```
 
-   Priority mapping:
+   優先度マッピング：
 
-   - 🔴 P1 (CRITICAL) → `p1`
-   - 🟡 P2 (IMPORTANT) → `p2`
-   - 🔵 P3 (NICE-TO-HAVE) → `p3`
+   - 🔴 P1 (クリティカル) → `p1`
+   - 🟡 P2 (重要) → `p2`
+   - 🔵 P3 (あれば良い) → `p3`
 
-   Example: `042-ready-p1-transaction-boundaries.md`
+   例：`042-ready-p1-transaction-boundaries.md`
 
-2. **Update YAML frontmatter:**
+2. **YAMLフロントマターを更新：**
 
    ```yaml
    ---
-   status: ready # IMPORTANT: Change from "pending" to "ready"
-   priority: p1 # or p2, p3 based on severity
+   status: ready # 重要: "pending"から"ready"に変更
+   priority: p1 # または重大度に基づいてp2、p3
    issue_id: "042"
    tags: [category, relevant-tags]
    dependencies: []
    ---
    ```
 
-3. **Populate or update the file:**
+3. **ファイルを作成または更新：**
 
    ```yaml
-   # [Issue Title]
+   # [イシュータイトル]
 
-   ## Problem Statement
-   [Description from finding]
+   ## 問題の説明
+   [発見事項からの説明]
 
-   ## Findings
-   - [Key discoveries]
-   - Location: [file_path:line_number]
-   - [Scenario details]
+   ## 発見事項
+   - [主要な発見]
+   - 場所: [file_path:line_number]
+   - [シナリオの詳細]
 
-   ## Proposed Solutions
+   ## 提案されるソリューション
 
-   ### Option 1: [Primary solution]
-   - **Pros**: [Benefits]
-   - **Cons**: [Drawbacks if any]
-   - **Effort**: [Small/Medium/Large]
-   - **Risk**: [Low/Medium/High]
+   ### オプション1: [主要なソリューション]
+   - **長所**: [メリット]
+   - **短所**: [デメリットがあれば]
+   - **工数**: [小規模/中規模/大規模]
+   - **リスク**: [低/中/高]
 
-   ## Recommended Action
-   [Filled during triage - specific action plan]
+   ## 推奨アクション
+   [トリアージ中に入力 - 具体的なアクションプラン]
 
-   ## Technical Details
-   - **Affected Files**: [List files]
-   - **Related Components**: [Components affected]
-   - **Database Changes**: [Yes/No - describe if yes]
+   ## 技術詳細
+   - **影響を受けるファイル**: [ファイルリスト]
+   - **関連コンポーネント**: [影響を受けるコンポーネント]
+   - **データベース変更**: [はい/いいえ - はいの場合は説明]
 
-   ## Resources
-   - Original finding: [Source of this issue]
-   - Related issues: [If any]
+   ## リソース
+   - 元の発見: [このイシューのソース]
+   - 関連イシュー: [ある場合]
 
-   ## Acceptance Criteria
-   - [ ] [Specific success criteria]
-   - [ ] Tests pass
-   - [ ] Code reviewed
+   ## 受け入れ基準
+   - [ ] [具体的な成功基準]
+   - [ ] テストパス
+   - [ ] コードレビュー済み
 
-   ## Work Log
+   ## 作業ログ
 
-   ### {date} - Approved for Work
-   **By:** Claude Triage System
-   **Actions:**
-   - Issue approved during triage session
-   - Status changed from pending → ready
-   - Ready to be picked up and worked on
+   ### {date} - 作業承認
+   **担当:** Claude Triage System
+   **アクション:**
+   - トリアージセッション中にイシューが承認された
+   - ステータスがpending → readyに変更
+   - 着手して作業する準備が完了
 
-   **Learnings:**
-   - [Context and insights]
+   **学び:**
+   - [コンテキストとインサイト]
 
-   ## Notes
-   Source: Triage session on {date}
+   ## 備考
+   ソース: {date}のトリアージセッション
    ```
 
-4. **Confirm approval:** "✅ Approved: `{new_filename}` (Issue #{issue_id}) - Status: **ready** → Ready to work on"
+4. **承認を確認:** "✅ 承認: `{new_filename}` (イシュー #{issue_id}) - ステータス: **ready** → 作業準備完了"
 
-**When user says "next":**
+**ユーザーが「next」と言った場合：**
 
-- **Delete the todo file** - Remove it from todos/ directory since it's not relevant
-- Skip to the next item
-- Track skipped items for summary
+- **Todoファイルを削除** - 関連性がないためtodos/ディレクトリから削除
+- 次のアイテムにスキップ
+- スキップしたアイテムをサマリー用に追跡
 
-**When user says "custom":**
+**ユーザーが「custom」と言った場合：**
 
-- Ask what to modify (priority, description, details)
-- Update the information
-- Present revised version
-- Ask again: yes/next/custom
+- 何を修正するか（優先度、説明、詳細）を質問
+- 情報を更新
+- 修正版を提示
+- 再度質問：yes/next/custom
 
-### Step 3: Continue Until All Processed
+### ステップ3: すべて処理されるまで続行
 
-- Process all items one by one
-- Track using TodoWrite for visibility
-- Don't wait for approval between items - keep moving
+- すべてのアイテムを一つずつ処理
+- 可視性のためにTodoWriteで追跡
+- アイテム間で承認を待たない - 続行する
 
-### Step 4: Final Summary
+### ステップ4: 最終サマリー
 
-After all items processed:
+すべてのアイテム処理後：
 
 ````markdown
-## Triage Complete
+## トリアージ完了
 
-**Total Items:** [X] **Todos Approved (ready):** [Y] **Skipped:** [Z]
+**合計アイテム:** [X] **承認されたTodo (ready):** [Y] **スキップ:** [Z]
 
-### Approved Todos (Ready for Work):
+### 承認されたTodo（作業準備完了）:
 
-- `042-ready-p1-transaction-boundaries.md` - Transaction boundary issue
-- `043-ready-p2-cache-optimization.md` - Cache performance improvement ...
+- `042-ready-p1-transaction-boundaries.md` - トランザクション境界の問題
+- `043-ready-p2-cache-optimization.md` - キャッシュパフォーマンス改善 ...
 
-### Skipped Items (Deleted):
+### スキップされたアイテム（削除済み）:
 
-- Item #5: [reason] - Removed from todos/
-- Item #12: [reason] - Removed from todos/
+- アイテム #5: [理由] - todos/から削除
+- アイテム #12: [理由] - todos/から削除
 
-### Summary of Changes Made:
+### 行われた変更のサマリー:
 
-During triage, the following status updates occurred:
+トリアージ中に以下のステータス更新が発生：
 
-- **Pending → Ready:** Filenames and frontmatter updated to reflect approved status
-- **Deleted:** Todo files for skipped findings removed from todos/ directory
-- Each approved file now has `status: ready` in YAML frontmatter
+- **Pending → Ready:** ファイル名とフロントマターが承認ステータスを反映するよう更新
+- **削除済み:** スキップされた発見のTodoファイルがtodos/ディレクトリから削除
+- 各承認ファイルのYAMLフロントマターに`status: ready`が設定
 
-### Next Steps:
+### 次のステップ:
 
-1. View approved todos ready for work:
+1. 作業準備完了の承認済みTodoを表示：
    ```bash
    ls todos/*-ready-*.md
    ```
 ````
 
-2. Start work on approved items:
+2. 承認されたアイテムの作業を開始：
 
    ```bash
-   /resolve_todo_parallel  # Work on multiple approved items efficiently
+   /resolve_todo_parallel  # 複数の承認済みアイテムを効率的に作業
    ```
 
-3. Or pick individual items to work on
+3. または個別アイテムを選んで作業
 
-4. As you work, update todo status:
-   - Ready → In Progress (in your local context as you work)
-   - In Progress → Complete (rename file: ready → complete, update frontmatter)
+4. 作業に応じてTodoステータスを更新：
+   - Ready → In Progress（作業中はローカルコンテキストで）
+   - In Progress → Complete（ファイル名変更：ready → complete、フロントマター更新）
 
 ```
 
-## Example Response Format
+## 応答フォーマット例
 
 ```
 
 ---
 
-Issue #5: Missing Transaction Boundaries for Multi-Step Operations
+イシュー #5: マルチステップ操作のトランザクション境界欠落
 
-Severity: 🔴 P1 (CRITICAL)
+重大度: 🔴 P1 (クリティカル)
 
-Category: Data Integrity / Security
+カテゴリ: データ整合性 / セキュリティ
 
-Description: The google_oauth2_connected callback in GoogleOauthCallbacks concern performs multiple database operations without transaction protection. If any step fails midway, the database is left in an inconsistent state.
+説明: GoogleOauthCallbacksコンサーン内のgoogle_oauth2_connectedコールバックが、トランザクション保護なしで複数のデータベース操作を実行しています。途中でステップが失敗すると、データベースが不整合な状態になります。
 
-Location: app/controllers/concerns/google_oauth_callbacks.rb:13-50
+場所: app/controllers/concerns/google_oauth_callbacks.rb:13-50
 
-Problem Scenario:
+問題シナリオ:
 
-1. User.update succeeds (email changed)
-2. Account.save! fails (validation error)
-3. Result: User has changed email but no associated Account
-4. Next login attempt fails completely
+1. User.updateが成功（メール変更）
+2. Account.save!が失敗（バリデーションエラー）
+3. 結果：ユーザーはメールが変更されたが、関連するAccountがない
+4. 次回のログイン試行が完全に失敗
 
-Operations Without Transaction:
+トランザクションなしの操作:
 
-- User confirmation (line 13)
-- Waitlist removal (line 14)
-- User profile update (line 21-23)
-- Account creation (line 28-37)
-- Avatar attachment (line 39-45)
-- Journey creation (line 47)
+- ユーザー確認（13行目）
+- ウェイトリスト削除（14行目）
+- ユーザープロファイル更新（21-23行目）
+- アカウント作成（28-37行目）
+- アバター添付（39-45行目）
+- ジャーニー作成（47行目）
 
-Proposed Solution: Wrap all operations in ApplicationRecord.transaction do ... end block
+提案されるソリューション: すべての操作をApplicationRecord.transaction do ... endブロックでラップ
 
-Estimated Effort: Small (30 minutes)
+推定工数: 小規模（30分）
 
 ---
 
-Do you want to add this to the todo list?
+これをTodoリストに追加しますか？
 
-1. yes - create todo file
-2. next - skip this item
-3. custom - modify before creating
-
-```
-
-## Important Implementation Details
-
-### Status Transitions During Triage
-
-**When "yes" is selected:**
-1. Rename file: `{id}-pending-{priority}-{desc}.md` → `{id}-ready-{priority}-{desc}.md`
-2. Update YAML frontmatter: `status: pending` → `status: ready`
-3. Update Work Log with triage approval entry
-4. Confirm: "✅ Approved: `{filename}` (Issue #{issue_id}) - Status: **ready**"
-
-**When "next" is selected:**
-1. Delete the todo file from todos/ directory
-2. Skip to next item
-3. No file remains in the system
-
-### Progress Tracking
-
-Every time you present a todo as a header, include:
-- **Progress:** X/Y completed (e.g., "3/10 completed")
-- **Estimated time remaining:** Based on how quickly you're progressing
-- **Pacing:** Monitor time per finding and adjust estimate accordingly
-
-Example:
-```
-
-Progress: 3/10 completed | Estimated time: ~2 minutes remaining
+1. yes - Todoファイルを作成
+2. next - このアイテムをスキップ
+3. custom - 作成前に修正
 
 ```
 
-### Do Not Code During Triage
+## 重要な実装詳細
 
-- ✅ Present findings
-- ✅ Make yes/next/custom decisions
-- ✅ Update todo files (rename, frontmatter, work log)
-- ❌ Do NOT implement fixes or write code
-- ❌ Do NOT add detailed implementation details
-- ❌ That's for /resolve_todo_parallel phase
+### トリアージ中のステータス遷移
+
+**「yes」が選択された場合：**
+1. ファイル名変更：`{id}-pending-{priority}-{desc}.md` → `{id}-ready-{priority}-{desc}.md`
+2. YAMLフロントマター更新：`status: pending` → `status: ready`
+3. トリアージ承認エントリで作業ログを更新
+4. 確認："✅ 承認: `{filename}` (イシュー #{issue_id}) - ステータス: **ready**"
+
+**「next」が選択された場合：**
+1. todos/ディレクトリからTodoファイルを削除
+2. 次のアイテムにスキップ
+3. システムにファイルは残らない
+
+### 進捗追跡
+
+ヘッダーとしてTodoを提示するたびに含める：
+- **進捗:** X/Y 完了（例："3/10 完了"）
+- **推定残り時間:** 進捗速度に基づいて
+- **ペース:** 発見ごとの時間を監視し、それに応じて推定を調整
+
+例：
 ```
 
-When done give these options
+進捗: 3/10 完了 | 推定時間: 約2分残り
+
+```
+
+### トリアージ中にコードを書かない
+
+- ✅ 発見事項を提示
+- ✅ yes/next/custom の決定を行う
+- ✅ Todoファイルを更新（名前変更、フロントマター、作業ログ）
+- ❌ 修正を実装したりコードを書いたりしない
+- ❌ 詳細な実装詳細を追加しない
+- ❌ それは/resolve_todo_parallelフェーズの仕事
+```
+
+完了したらこれらのオプションを提示
 
 ```markdown
-What would you like to do next?
+次に何をしますか？
 
-1. run /resolve_todo_parallel to resolve the todos
-2. commit the todos
-3. nothing, go chill
+1. /resolve_todo_parallelを実行してTodoを解決
+2. Todoをコミット
+3. 何もしない、休憩
 ```

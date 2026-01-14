@@ -1,6 +1,6 @@
-# Database Adapter Patterns
+# データベースアダプターパターン
 
-## Abstract Base Class Pattern
+## 抽象基底クラスパターン
 
 ```ruby
 # lib/strong_migrations/adapters/abstract_adapter.rb
@@ -16,11 +16,11 @@ module StrongMigrations
       end
 
       def set_statement_timeout(timeout)
-        # no-op by default
+        # デフォルトでno-op
       end
 
       def check_lock_timeout
-        # no-op by default
+        # デフォルトでno-op
       end
 
       private
@@ -37,7 +37,7 @@ module StrongMigrations
 end
 ```
 
-## PostgreSQL Adapter
+## PostgreSQLアダプター
 
 ```ruby
 # lib/strong_migrations/adapters/postgresql_adapter.rb
@@ -59,7 +59,7 @@ module StrongMigrations
       def check_lock_timeout
         lock_timeout = connection.select_value("SHOW lock_timeout")
         lock_timeout_sec = timeout_to_sec(lock_timeout)
-        # validation logic
+        # 検証ロジック
       end
 
       private
@@ -77,7 +77,7 @@ module StrongMigrations
 end
 ```
 
-## MySQL Adapter
+## MySQLアダプター
 
 ```ruby
 # lib/strong_migrations/adapters/mysql_adapter.rb
@@ -94,14 +94,14 @@ module StrongMigrations
 
       def check_lock_timeout
         lock_timeout = connection.select_value("SELECT @@lock_wait_timeout")
-        # validation logic
+        # 検証ロジック
       end
     end
   end
 end
 ```
 
-## MariaDB Adapter (MySQL variant)
+## MariaDBアダプター（MySQLバリアント）
 
 ```ruby
 # lib/strong_migrations/adapters/mariadb_adapter.rb
@@ -112,7 +112,7 @@ module StrongMigrations
         "10.5"
       end
 
-      # Override MySQL-specific behavior
+      # MySQL固有の動作をオーバーライド
       def set_statement_timeout(timeout)
         select_all("SET max_statement_time = #{timeout.to_i}")
       end
@@ -121,9 +121,9 @@ module StrongMigrations
 end
 ```
 
-## Adapter Detection Pattern
+## アダプター検出パターン
 
-Use regex matching on adapter name:
+アダプター名で正規表現マッチングを使用：
 
 ```ruby
 def adapter
@@ -144,7 +144,7 @@ def adapter
 end
 ```
 
-## Multi-Database Support (PgHero pattern)
+## マルチデータベースサポート（PgHeroパターン）
 
 ```ruby
 module PgHero
@@ -188,7 +188,7 @@ module PgHero
 end
 ```
 
-## Connection Switching
+## 接続切り替え
 
 ```ruby
 def with_connection(database_name)
@@ -198,13 +198,13 @@ def with_connection(database_name)
   yield db.connection
 end
 
-# Usage
+# 使用法
 PgHero.with_connection(:replica) do |conn|
   conn.execute("SELECT * FROM users")
 end
 ```
 
-## SQL Dialect Handling
+## SQL方言処理
 
 ```ruby
 def quote_column(column)

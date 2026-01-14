@@ -1,49 +1,49 @@
 ---
 name: resolve_pr_parallel
-description: Resolve all PR comments using parallel processing
-argument-hint: "[optional: PR number or current PR]"
+description: 並列処理を使用してすべてのPRコメントを解決する
+argument-hint: "[オプション: PR番号または現在のPR]"
 ---
 
-Resolve all PR comments using parallel processing.
+並列処理を使用してすべてのPRコメントを解決します。
 
-Claude Code automatically detects and understands your git context:
+Claude Codeは自動的にgitコンテキストを検出して理解します：
 
-- Current branch detection
-- Associated PR context
-- All PR comments and review threads
-- Can work with any PR by specifying the PR number, or ask it.
+- 現在のブランチ検出
+- 関連するPRコンテキスト
+- すべてのPRコメントとレビュースレッド
+- PR番号を指定して任意のPRで作業可能、または質問してください
 
-## Workflow
+## ワークフロー
 
-### 1. Analyze
+### 1. 分析
 
-Get all unresolved comments for PR
+PRのすべての未解決コメントを取得
 
 ```bash
 gh pr status
 bin/get-pr-comments PR_NUMBER
 ```
 
-### 2. Plan
+### 2. 計画
 
-Create a TodoWrite list of all unresolved items grouped by type.
+タイプ別にグループ化されたすべての未解決アイテムのTodoWriteリストを作成します。
 
-### 3. Implement (PARALLEL)
+### 3. 実装（並列）
 
-Spawn a pr-comment-resolver agent for each unresolved item in parallel.
+各未解決アイテムに対してpr-comment-resolverエージェントを並列で起動します。
 
-So if there are 3 comments, it will spawn 3 pr-comment-resolver agents in parallel. liek this
+3つのコメントがある場合、3つのpr-comment-resolverエージェントを並列で起動します。このように：
 
 1. Task pr-comment-resolver(comment1)
 2. Task pr-comment-resolver(comment2)
 3. Task pr-comment-resolver(comment3)
 
-Always run all in parallel subagents/Tasks for each Todo item.
+各Todoアイテムに対して常にすべてのサブエージェント/Taskを並列で実行します。
 
-### 4. Commit & Resolve
+### 4. コミット & 解決
 
-- Commit changes
-- Run bin/resolve-pr-thread THREAD_ID_1
-- Push to remote
+- 変更をコミット
+- bin/resolve-pr-thread THREAD_ID_1を実行
+- リモートにプッシュ
 
-Last, check bin/get-pr-comments PR_NUMBER again to see if all comments are resolved. They should be, if not, repeat the process from 1.
+最後に、bin/get-pr-comments PR_NUMBERを再度チェックしてすべてのコメントが解決されているか確認します。解決されているはずですが、そうでなければ1からプロセスを繰り返します。

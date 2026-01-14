@@ -1,69 +1,69 @@
-# Frontend - DHH Rails Style
+# フロントエンド - DHH Railsスタイル
 
 <turbo_patterns>
-## Turbo Patterns
+## Turboパターン
 
-**Turbo Streams** for partial updates:
+**Turbo Streams**で部分更新：
 ```erb
 <%# app/views/cards/closures/create.turbo_stream.erb %>
 <%= turbo_stream.replace @card %>
 ```
 
-**Morphing** for complex updates:
+**モーフィング**で複雑な更新：
 ```ruby
 render turbo_stream: turbo_stream.morph(@card)
 ```
 
-**Global morphing** - enable in layout:
+**グローバルモーフィング** - レイアウトで有効化：
 ```ruby
 turbo_refreshes_with method: :morph, scroll: :preserve
 ```
 
-**Fragment caching** with `cached: true`:
+**フラグメントキャッシュ**で`cached: true`：
 ```erb
 <%= render partial: "card", collection: @cards, cached: true %>
 ```
 
-**No ViewComponents** - standard partials work fine.
+**ViewComponentsは使わない** - 標準パーシャルで十分。
 </turbo_patterns>
 
 <turbo_morphing>
-## Turbo Morphing Best Practices
+## Turboモーフィングのベストプラクティス
 
-**Listen for morph events** to restore client state:
+**morphイベントをリッスン**してクライアント状態を復元：
 ```javascript
 document.addEventListener("turbo:morph-element", (event) => {
-  // Restore any client-side state after morph
+  // morph後にクライアント側の状態を復元
 })
 ```
 
-**Permanent elements** - skip morphing with data attribute:
+**永続要素** - data属性でモーフィングをスキップ：
 ```erb
 <div data-turbo-permanent id="notification-count">
   <%= @count %>
 </div>
 ```
 
-**Frame morphing** - add refresh attribute:
+**フレームモーフィング** - refresh属性を追加：
 ```erb
 <%= turbo_frame_tag :assignment, src: path, refresh: :morph %>
 ```
 
-**Common issues and solutions:**
+**一般的な問題と解決策：**
 
-| Problem | Solution |
+| 問題 | 解決策 |
 |---------|----------|
-| Timers not updating | Clear/restart in morph event listener |
-| Forms resetting | Wrap form sections in turbo frames |
-| Pagination breaking | Use turbo frames with `refresh: :morph` |
-| Flickering on replace | Switch to morph instead of replace |
-| localStorage loss | Listen to `turbo:morph-element`, restore state |
+| タイマーが更新されない | morphイベントリスナーでクリア/再開 |
+| フォームがリセットされる | フォームセクションをturbo framesでラップ |
+| ページネーションが壊れる | `refresh: :morph`付きturbo framesを使用 |
+| replaceでちらつき | replaceの代わりにmorphに切り替え |
+| localStorageの喪失 | `turbo:morph-element`をリッスンして状態を復元 |
 </turbo_morphing>
 
 <turbo_frames>
 ## Turbo Frames
 
-**Lazy loading** with spinner:
+**遅延読み込み**とスピナー：
 ```erb
 <%= turbo_frame_tag "menu",
       src: menu_path,
@@ -72,7 +72,7 @@ document.addEventListener("turbo:morph-element", (event) => {
 <% end %>
 ```
 
-**Inline editing** with edit/view toggle:
+**インライン編集**で編集/表示切り替え：
 ```erb
 <%= turbo_frame_tag dom_id(card, :edit) do %>
   <%= link_to "Edit", edit_card_path(card),
@@ -80,12 +80,12 @@ document.addEventListener("turbo:morph-element", (event) => {
 <% end %>
 ```
 
-**Target parent frame** without hardcoding:
+**親フレームをターゲット**にハードコーディングなしで：
 ```erb
 <%= form_with model: @card, data: { turbo_frame: "_parent" } do |f| %>
 ```
 
-**Real-time subscriptions:**
+**リアルタイムサブスクリプション：**
 ```erb
 <%= turbo_stream_from @card %>
 <%= turbo_stream_from @card, :activity %>
@@ -93,21 +93,21 @@ document.addEventListener("turbo:morph-element", (event) => {
 </turbo_frames>
 
 <stimulus_controllers>
-## Stimulus Controllers
+## Stimulusコントローラー
 
-52 controllers in Fizzy, split 62% reusable, 38% domain-specific.
+Fizzyで52のコントローラー、62%が再利用可能、38%がドメイン固有。
 
-**Characteristics:**
-- Single responsibility per controller
-- Configuration via values/classes
-- Events for communication
-- Private methods with #
-- Most under 50 lines
+**特徴：**
+- コントローラーごとに単一責任
+- values/classes経由で設定
+- 通信にはイベント
+- #でプライベートメソッド
+- ほとんどが50行未満
 
-**Examples:**
+**例：**
 
 ```javascript
-// copy-to-clipboard (25 lines)
+// copy-to-clipboard（25行）
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
@@ -126,7 +126,7 @@ export default class extends Controller {
 ```
 
 ```javascript
-// auto-click (7 lines)
+// auto-click（7行）
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
@@ -137,7 +137,7 @@ export default class extends Controller {
 ```
 
 ```javascript
-// toggle-class (31 lines)
+// toggle-class（31行）
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
@@ -155,7 +155,7 @@ export default class extends Controller {
 ```
 
 ```javascript
-// auto-submit (28 lines) - debounced form submission
+// auto-submit（28行）- デバウンスされたフォーム送信
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
@@ -179,7 +179,7 @@ export default class extends Controller {
 ```
 
 ```javascript
-// dialog (45 lines) - native HTML dialog management
+// dialog（45行）- ネイティブHTMLダイアログ管理
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
@@ -199,7 +199,7 @@ export default class extends Controller {
 ```
 
 ```javascript
-// local-time (40 lines) - relative time display
+// local-time（40行）- 相対時間表示
 import { Controller } from "@hotwired/stimulus"
 
 export default class extends Controller {
@@ -227,18 +227,18 @@ export default class extends Controller {
 </stimulus_controllers>
 
 <stimulus_best_practices>
-## Stimulus Best Practices
+## Stimulusベストプラクティス
 
-**Values API** over getAttribute:
+**Values API**をgetAttributeの代わりに：
 ```javascript
-// Good
+// 良い
 static values = { delay: { type: Number, default: 300 } }
 
-// Avoid
+// 避ける
 this.element.getAttribute("data-delay")
 ```
 
-**Cleanup in disconnect:**
+**disconnectでクリーンアップ：**
 ```javascript
 disconnect() {
   clearTimeout(this.timeout)
@@ -247,12 +247,12 @@ disconnect() {
 }
 ```
 
-**Action filters** - `:self` prevents bubbling:
+**アクションフィルター** - `:self`でバブリングを防止：
 ```erb
 <div data-action="click->menu#toggle:self">
 ```
 
-**Helper extraction** - shared utilities in separate modules:
+**ヘルパー抽出** - 共有ユーティリティを別モジュールに：
 ```javascript
 // app/javascript/helpers/timing.js
 export function debounce(fn, delay) {
@@ -264,16 +264,16 @@ export function debounce(fn, delay) {
 }
 ```
 
-**Event dispatching** for loose coupling:
+**イベントディスパッチ**で疎結合：
 ```javascript
 this.dispatch("selected", { detail: { id: this.idValue } })
 ```
 </stimulus_best_practices>
 
 <view_helpers>
-## View Helpers (Stimulus-Integrated)
+## ビューヘルパー（Stimulus統合）
 
-**Dialog helper:**
+**ダイアログヘルパー：**
 ```ruby
 def dialog_tag(id, &block)
   tag.dialog(
@@ -287,7 +287,7 @@ def dialog_tag(id, &block)
 end
 ```
 
-**Auto-submit form helper:**
+**自動送信フォームヘルパー：**
 ```ruby
 def auto_submit_form_with(model:, delay: 300, **options, &block)
   form_with(
@@ -303,7 +303,7 @@ def auto_submit_form_with(model:, delay: 300, **options, &block)
 end
 ```
 
-**Copy button helper:**
+**コピーボタンヘルパー：**
 ```ruby
 def copy_button(content:, label: "Copy")
   tag.button(
@@ -319,11 +319,11 @@ end
 </view_helpers>
 
 <css_architecture>
-## CSS Architecture
+## CSSアーキテクチャ
 
-Vanilla CSS with modern features, no preprocessors.
+モダン機能を使用したバニラCSS、プリプロセッサなし。
 
-**CSS @layer** for cascade control:
+**CSS @layer**でカスケード制御：
 ```css
 @layer reset, base, components, modules, utilities;
 
@@ -336,11 +336,11 @@ Vanilla CSS with modern features, no preprocessors.
 }
 
 @layer components {
-  .btn { /* button styles */ }
+  .btn { /* ボタンスタイル */ }
 }
 
 @layer modules {
-  .card { /* card module styles */ }
+  .card { /* カードモジュールスタイル */ }
 }
 
 @layer utilities {
@@ -348,7 +348,7 @@ Vanilla CSS with modern features, no preprocessors.
 }
 ```
 
-**OKLCH color system** for perceptual uniformity:
+**OKLCHカラーシステム**で知覚的均一性：
 ```css
 :root {
   --color-primary: oklch(60% 0.15 250);
@@ -358,7 +358,7 @@ Vanilla CSS with modern features, no preprocessors.
 }
 ```
 
-**Dark mode** via CSS variables:
+**ダークモード**をCSS変数で：
 ```css
 :root {
   --bg: oklch(98% 0 0);
@@ -373,7 +373,7 @@ Vanilla CSS with modern features, no preprocessors.
 }
 ```
 
-**Native CSS nesting:**
+**ネイティブCSSネスト：**
 ```css
 .card {
   padding: var(--space-4);
@@ -388,20 +388,20 @@ Vanilla CSS with modern features, no preprocessors.
 }
 ```
 
-**~60 minimal utilities** vs Tailwind's hundreds.
+**約60の最小限のユーティリティ** vs Tailwindの数百。
 
-**Modern features used:**
-- `@starting-style` for enter animations
-- `color-mix()` for color manipulation
-- `:has()` for parent selection
-- Logical properties (`margin-inline`, `padding-block`)
-- Container queries
+**使用するモダン機能：**
+- エンターアニメーション用`@starting-style`
+- カラー操作用`color-mix()`
+- 親選択用`:has()`
+- 論理プロパティ（`margin-inline`、`padding-block`）
+- コンテナクエリ
 </css_architecture>
 
 <view_patterns>
-## View Patterns
+## ビューパターン
 
-**Standard partials** - no ViewComponents:
+**標準パーシャル** - ViewComponentsなし：
 ```erb
 <%# app/views/cards/_card.html.erb %>
 <article id="<%= dom_id(card) %>" class="card">
@@ -411,19 +411,19 @@ Vanilla CSS with modern features, no preprocessors.
 </article>
 ```
 
-**Fragment caching:**
+**フラグメントキャッシュ：**
 ```erb
 <% cache card do %>
   <%= render "cards/card", card: card %>
 <% end %>
 ```
 
-**Collection caching:**
+**コレクションキャッシュ：**
 ```erb
 <%= render partial: "card", collection: @cards, cached: true %>
 ```
 
-**Simple component naming** - no strict BEM:
+**シンプルなコンポーネント命名** - 厳格なBEMなし：
 ```css
 .card { }
 .card .title { }
@@ -434,12 +434,12 @@ Vanilla CSS with modern features, no preprocessors.
 </view_patterns>
 
 <caching_with_personalization>
-## User-Specific Content in Caches
+## キャッシュ内のユーザー固有コンテンツ
 
-Move personalization to client-side JavaScript to preserve caching:
+キャッシュを保持するためにパーソナライゼーションをクライアント側JavaScriptに移動：
 
 ```erb
-<%# Cacheable fragment %>
+<%# キャッシュ可能なフラグメント %>
 <% cache card do %>
   <article class="card"
            data-creator-id="<%= card.creator_id %>"
@@ -451,7 +451,7 @@ Move personalization to client-side JavaScript to preserve caching:
 ```
 
 ```javascript
-// Reveal user-specific elements after cache hit
+// キャッシュヒット後にユーザー固有の要素を表示
 export default class extends Controller {
   static values = { currentUser: Number }
   static targets = ["ownerOnly"]
@@ -465,7 +465,7 @@ export default class extends Controller {
 }
 ```
 
-**Extract dynamic content** to separate frames:
+**動的コンテンツを別フレームに抽出：**
 ```erb
 <% cache [card, board] do %>
   <article class="card">
@@ -476,13 +476,13 @@ export default class extends Controller {
 <% end %>
 ```
 
-Assignment dropdown updates independently without invalidating parent cache.
+担当者ドロップダウンは親キャッシュを無効化せずに独立して更新。
 </caching_with_personalization>
 
 <broadcasting>
-## Broadcasting with Turbo Streams
+## Turbo Streamsによるブロードキャスト
 
-**Model callbacks** for real-time updates:
+**モデルコールバック**でリアルタイム更新：
 ```ruby
 class Card < ApplicationRecord
   include Broadcastable
@@ -506,5 +506,5 @@ class Card < ApplicationRecord
 end
 ```
 
-**Scope by tenant** using `[Current.account, resource]` pattern.
+**テナントでスコープ**するには`[Current.account, resource]`パターンを使用。
 </broadcasting>

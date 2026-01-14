@@ -1,114 +1,114 @@
-# DHH Ruby Style Resources
+# DHH Rubyスタイル リソース
 
-Links to source material, documentation, and further reading for mastering DHH's Ruby/Rails style.
+DHHのRuby/Railsスタイルを習得するためのソース資料、ドキュメント、参考文献へのリンク。
 
-## Primary Source Code
+## 主要ソースコード
 
 ### Campfire (Once)
-The main codebase this style guide is derived from.
+このスタイルガイドの元となった主要なコードベース。
 
-- **Repository**: https://github.com/basecamp/once-campfire
-- **Messages Controller**: https://github.com/basecamp/once-campfire/blob/main/app/controllers/messages_controller.rb
+- **リポジトリ**: https://github.com/basecamp/once-campfire
+- **メッセージコントローラー**: https://github.com/basecamp/once-campfire/blob/main/app/controllers/messages_controller.rb
 - **JavaScript/Stimulus**: https://github.com/basecamp/once-campfire/tree/main/app/javascript
-- **Deployment**: Single Docker container with SQLite
+- **デプロイメント**: SQLiteを使用した単一Dockerコンテナ
 
-### Other 37signals Open Source
-- **Solid Queue**: https://github.com/rails/solid_queue - Database-backed Active Job backend
-- **Solid Cache**: https://github.com/rails/solid_cache - Database-backed Rails cache
-- **Solid Cable**: https://github.com/rails/solid_cable - Database-backed Action Cable adapter
-- **Kamal**: https://github.com/basecamp/kamal - Zero-downtime deployment tool
-- **Turbo**: https://github.com/hotwired/turbo-rails - Hotwire's SPA-like page accelerator
-- **Stimulus**: https://github.com/hotwired/stimulus - Modest JavaScript framework
+### その他の37signalsオープンソース
+- **Solid Queue**: https://github.com/rails/solid_queue - データベースバックドActive Jobバックエンド
+- **Solid Cache**: https://github.com/rails/solid_cache - データベースバックドRailsキャッシュ
+- **Solid Cable**: https://github.com/rails/solid_cable - データベースバックドAction Cableアダプター
+- **Kamal**: https://github.com/basecamp/kamal - ゼロダウンタイムデプロイメントツール
+- **Turbo**: https://github.com/hotwired/turbo-rails - HotwireのSPAライクなページアクセラレーター
+- **Stimulus**: https://github.com/hotwired/stimulus - 控えめなJavaScriptフレームワーク
 
-## Articles & Blog Posts
+## 記事とブログ投稿
 
-### Controller Organization
-- **How DHH Organizes His Rails Controllers**: https://jeromedalbert.com/how-dhh-organizes-his-rails-controllers/
-  - Definitive article on REST-pure controller design
-  - Documents the "only 7 actions" philosophy
-  - Shows how to create new controllers instead of custom actions
+### コントローラー構成
+- **DHHがRailsコントローラーを整理する方法**: https://jeromedalbert.com/how-dhh-organizes-his-rails-controllers/
+  - REST純粋主義のコントローラー設計に関する決定版記事
+  - 「7アクションのみ」哲学を文書化
+  - カスタムアクションの代わりに新しいコントローラーを作成する方法を示す
 
-### Testing Philosophy
+### テスト哲学
 - **37signals Dev - Pending Tests**: https://dev.37signals.com/pending-tests/
-  - How 37signals handles incomplete tests
-  - Pragmatic approach to test coverage
+  - 37signalsが不完全なテストを処理する方法
+  - テストカバレッジへの実用的なアプローチ
 - **37signals Dev - All About QA**: https://dev.37signals.com/all-about-qa/
-  - QA philosophy at 37signals
-  - Balance between automated and manual testing
+  - 37signalsでのQA哲学
+  - 自動テストと手動テストのバランス
 
-### Architecture & Deployment
-- **Deploy Campfire on Railway**: https://railway.com/deploy/campfire
-  - Single-container deployment example
-  - SQLite in production patterns
+### アーキテクチャとデプロイメント
+- **RailwayにCampfireをデプロイ**: https://railway.com/deploy/campfire
+  - 単一コンテナデプロイメントの例
+  - 本番環境でのSQLiteパターン
 
-## Official Documentation
+## 公式ドキュメント
 
-### Rails Guides (DHH's Vision)
+### Railsガイド（DHHのビジョン）
 - **Rails Doctrine**: https://rubyonrails.org/doctrine
-  - The philosophical foundation
-  - Convention over configuration explained
-  - "Optimize for programmer happiness"
+  - 哲学的基盤
+  - 設定より規約の説明
+  - 「プログラマーの幸福のための最適化」
 
 ### Hotwire
 - **Hotwire**: https://hotwired.dev/
-  - Official Hotwire documentation
-  - Turbo Drive, Frames, and Streams
-- **Turbo Handbook**: https://turbo.hotwired.dev/handbook/introduction
-- **Stimulus Handbook**: https://stimulus.hotwired.dev/handbook/introduction
+  - 公式Hotwireドキュメント
+  - Turbo Drive、Frames、Streams
+- **Turboハンドブック**: https://turbo.hotwired.dev/handbook/introduction
+- **Stimulusハンドブック**: https://stimulus.hotwired.dev/handbook/introduction
 
-### Current Attributes
+### Current属性
 - **Rails API - CurrentAttributes**: https://api.rubyonrails.org/classes/ActiveSupport/CurrentAttributes.html
-  - Official documentation for the Current pattern
-  - Thread-isolated attribute singleton
+  - Currentパターンの公式ドキュメント
+  - スレッド分離された属性シングルトン
 
-## Videos & Talks
+## 動画と講演
 
-### DHH Keynotes
-- **RailsConf Keynotes**: Search YouTube for "DHH RailsConf"
-  - Annual state of Rails addresses
-  - Philosophy and direction discussions
+### DHH基調講演
+- **RailsConf基調講演**: YouTubeで「DHH RailsConf」を検索
+  - 毎年のRailsの現状報告
+  - 哲学と方向性の議論
 
-### Hotwire Tutorials
-- **Hotwire Demo by DHH**: Original demo showing the approach
-- **GoRails Hotwire Series**: Practical implementation tutorials
+### Hotwireチュートリアル
+- **DHHによるHotwireデモ**: アプローチを示すオリジナルデモ
+- **GoRails Hotwireシリーズ**: 実践的な実装チュートリアル
 
-## Books
+## 書籍
 
-### By DHH & 37signals
+### DHHと37signalsによる
 - **Getting Real**: https://basecamp.com/gettingreal
-  - Product development philosophy
-  - Less is more approach
-- **Remote**: Working remotely philosophy
-- **It Doesn't Have to Be Crazy at Work**: Calm company culture
+  - 製品開発哲学
+  - 少ないほど良いアプローチ
+- **Remote**: リモートワークの哲学
+- **It Doesn't Have to Be Crazy at Work**: 穏やかな会社文化
 
-### Rails Books
-- **Agile Web Development with Rails**: The original Rails book
-- **The Rails Way**: Comprehensive Rails patterns
+### Rails書籍
+- **Agile Web Development with Rails**: オリジナルのRails本
+- **The Rails Way**: 包括的なRailsパターン
 
-## Gems & Tools Used
+## 使用するGemとツール
 
-### Core Stack
+### コアスタック
 ```ruby
-# Gemfile patterns from Campfire
+# Campfireからのパターン
 gem "rails", "~> 8.0"
 gem "sqlite3"
-gem "propshaft"        # Asset pipeline
-gem "importmap-rails"  # JavaScript imports
+gem "propshaft"        # アセットパイプライン
+gem "importmap-rails"  # JavaScriptインポート
 gem "turbo-rails"      # Hotwire Turbo
 gem "stimulus-rails"   # Hotwire Stimulus
-gem "solid_queue"      # Job backend
-gem "solid_cache"      # Cache backend
-gem "solid_cable"      # WebSocket backend
-gem "kamal"            # Deployment
-gem "thruster"         # HTTP/2 proxy
-gem "image_processing" # Active Storage variants
+gem "solid_queue"      # ジョブバックエンド
+gem "solid_cache"      # キャッシュバックエンド
+gem "solid_cable"      # WebSocketバックエンド
+gem "kamal"            # デプロイメント
+gem "thruster"         # HTTP/2プロキシ
+gem "image_processing" # Active Storageバリアント
 ```
 
-### Development
+### 開発
 ```ruby
 group :development do
   gem "web-console"
-  gem "rubocop-rails-omakase"  # 37signals style rules
+  gem "rubocop-rails-omakase"  # 37signalsスタイルルール
 end
 
 group :test do
@@ -117,63 +117,63 @@ group :test do
 end
 ```
 
-## RuboCop Configuration
+## RuboCop設定
 
-37signals publishes their RuboCop rules:
+37signalsは彼らのRuboCopルールを公開：
 - **rubocop-rails-omakase**: https://github.com/rails/rubocop-rails-omakase
-  - Official Rails/37signals style rules
-  - Use this for consistent style enforcement
+  - 公式Rails/37signalsスタイルルール
+  - 一貫したスタイル強制に使用
 
 ```yaml
 # .rubocop.yml
 inherit_gem:
   rubocop-rails-omakase: rubocop.yml
 
-# Project-specific overrides if needed
+# 必要に応じてプロジェクト固有のオーバーライド
 ```
 
-## Community Resources
+## コミュニティリソース
 
-### Forums & Discussion
+### フォーラムとディスカッション
 - **Ruby on Rails Discourse**: https://discuss.rubyonrails.org/
 - **Reddit r/rails**: https://reddit.com/r/rails
 
-### Podcasts
-- **Remote Ruby**: Ruby/Rails discussions
-- **Ruby Rogues**: Long-running Ruby podcast
-- **The Bike Shed**: Thoughtbot's development podcast
+### ポッドキャスト
+- **Remote Ruby**: Ruby/Railsのディスカッション
+- **Ruby Rogues**: 長年続くRubyポッドキャスト
+- **The Bike Shed**: Thoughtbotの開発ポッドキャスト
 
-## Key Philosophy Documents
+## 重要な哲学文書
 
-### The Rails Doctrine Pillars
-1. Optimize for programmer happiness
-2. Convention over Configuration
-3. The menu is omakase
-4. No one paradigm
-5. Exalt beautiful code
-6. Provide sharp knives
-7. Value integrated systems
-8. Progress over stability
-9. Push up a big tent
+### Rails Doctrineの柱
+1. プログラマーの幸福のための最適化
+2. 設定より規約
+3. メニューはお任せ
+4. 単一のパラダイムはない
+5. 美しいコードを称える
+6. 鋭いナイフを提供
+7. 統合システムを重視
+8. 安定性より進歩
+9. 大きなテントを張る
 
-### DHH Quotes to Remember
+### 覚えておくべきDHHの言葉
 
-> "The vast majority of Rails controllers can use the same seven actions."
+> 「Railsコントローラーの大多数は同じ7つのアクションを使用できます。」
 
-> "If you're adding a custom action, you're probably missing a controller."
+> 「カスタムアクションを追加しているなら、おそらくコントローラーが足りていません。」
 
-> "Clear code is better than clever code."
+> 「明確なコードは賢いコードよりも優れています。」
 
-> "The test file should be a love letter to the code."
+> 「テストファイルはコードへのラブレターであるべきです。」
 
-> "SQLite is enough for most applications."
+> 「SQLiteはほとんどのアプリケーションに十分です。」
 
-## Version History
+## バージョン履歴
 
-This style guide is based on:
-- Campfire source code (2024)
-- Rails 8.0 conventions
-- Ruby 3.3 syntax preferences
-- Hotwire 2.0 patterns
+このスタイルガイドは以下に基づいています：
+- Campfireソースコード（2024年）
+- Rails 8.0規約
+- Ruby 3.3構文の好み
+- Hotwire 2.0パターン
 
-Last updated: 2024
+最終更新：2024年

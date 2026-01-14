@@ -1,50 +1,50 @@
-# Rails Integration Patterns
+# Rails統合パターン
 
-## The Golden Rule
+## 黄金律
 
-**Never require Rails gems directly.** This causes loading order issues.
+**Rails gemを直接requireしない。** これはローディング順序の問題を引き起こす。
 
 ```ruby
-# WRONG - causes premature loading
+# 間違い - 早期ローディングを引き起こす
 require "active_record"
 ActiveRecord::Base.include(MyGem::Model)
 
-# CORRECT - lazy loading
+# 正しい - 遅延ローディング
 ActiveSupport.on_load(:active_record) do
   extend MyGem::Model
 end
 ```
 
-## ActiveSupport.on_load Hooks
+## ActiveSupport.on_loadフック
 
-Common hooks and their uses:
+一般的なフックとその用途：
 
 ```ruby
-# Models
+# モデル
 ActiveSupport.on_load(:active_record) do
-  extend GemName::Model        # Add class methods (searchkick, has_encrypted)
-  include GemName::Callbacks   # Add instance methods
+  extend GemName::Model        # クラスメソッドを追加（searchkick、has_encrypted）
+  include GemName::Callbacks   # インスタンスメソッドを追加
 end
 
-# Controllers
+# コントローラー
 ActiveSupport.on_load(:action_controller) do
   include Ahoy::Controller
 end
 
-# Jobs
+# ジョブ
 ActiveSupport.on_load(:active_job) do
   include GemName::JobExtensions
 end
 
-# Mailers
+# メーラー
 ActiveSupport.on_load(:action_mailer) do
   include GemName::MailerExtensions
 end
 ```
 
-## Prepend for Behavior Modification
+## 動作変更にはPrepend
 
-When overriding existing Rails methods:
+既存のRailsメソッドをオーバーライドする場合：
 
 ```ruby
 ActiveSupport.on_load(:active_record) do
@@ -53,9 +53,9 @@ ActiveSupport.on_load(:active_record) do
 end
 ```
 
-## Railtie Pattern
+## Railtieパターン
 
-Minimal Railtie for non-mountable gems:
+マウント不要なgem向けの最小限のRailtie：
 
 ```ruby
 # lib/gemname/railtie.rb
@@ -67,7 +67,7 @@ module GemName
       end
     end
 
-    # Optional: Add to controller runtime logging
+    # オプション：コントローラーランタイムロギングに追加
     initializer "gemname.log_runtime" do
       require_relative "controller_runtime"
       ActiveSupport.on_load(:action_controller) do
@@ -75,7 +75,7 @@ module GemName
       end
     end
 
-    # Optional: Rake tasks
+    # オプション：Rakeタスク
     rake_tasks do
       load "tasks/gemname.rake"
     end
@@ -83,9 +83,9 @@ module GemName
 end
 ```
 
-## Engine Pattern (Mountable Gems)
+## Engineパターン（マウント可能なGem）
 
-For gems with web interfaces (PgHero, Blazer, Ahoy):
+Webインターフェースを持つgem（PgHero、Blazer、Ahoy）向け：
 
 ```ruby
 # lib/pghero/engine.rb
@@ -107,26 +107,26 @@ module PgHero
 end
 ```
 
-## Routes for Engines
+## Engineのルート
 
 ```ruby
-# config/routes.rb (in engine)
+# config/routes.rb（engine内）
 PgHero::Engine.routes.draw do
   root to: "home#index"
   resources :databases, only: [:show]
 end
 ```
 
-Mount in app:
+アプリでマウント：
 
 ```ruby
-# config/routes.rb (in app)
+# config/routes.rb（アプリ内）
 mount PgHero::Engine, at: "pghero"
 ```
 
-## YAML Configuration with ERB
+## ERB付きYAML設定
 
-For complex gems needing config files:
+設定ファイルが必要な複雑なgem向け：
 
 ```ruby
 def self.settings
@@ -141,7 +141,7 @@ def self.settings
 end
 ```
 
-## Generator Pattern
+## ジェネレーターパターン
 
 ```ruby
 # lib/generators/gemname/install_generator.rb
@@ -162,15 +162,15 @@ module GemName
 end
 ```
 
-## Conditional Feature Detection
+## 条件付き機能検出
 
 ```ruby
-# Check for specific Rails versions
+# 特定のRailsバージョンをチェック
 if ActiveRecord.version >= Gem::Version.new("7.0")
-  # Rails 7+ specific code
+  # Rails 7+固有のコード
 end
 
-# Check for optional dependencies
+# オプション依存関係をチェック
 def self.client
   @client ||= if defined?(OpenSearch::Client)
     OpenSearch::Client.new

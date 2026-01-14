@@ -1,162 +1,162 @@
 ---
 name: generate_command
-description: Create a new custom slash command following conventions and best practices
-argument-hint: "[command purpose and requirements]"
+description: 規約とベストプラクティスに従って新しいカスタムスラッシュコマンドを作成する
+argument-hint: "[コマンドの目的と要件]"
 ---
 
-# Create a Custom Claude Code Command
+# カスタムClaude Codeコマンドを作成
 
-Create a new slash command in `.claude/commands/` for the requested task.
+リクエストされたタスク用に`.claude/commands/`に新しいスラッシュコマンドを作成します。
 
-## Goal
+## 目標
 
 #$ARGUMENTS
 
-## Key Capabilities to Leverage
+## 活用すべき主要な機能
 
-**File Operations:**
-- Read, Edit, Write - modify files precisely
-- Glob, Grep - search codebase
-- MultiEdit - atomic multi-part changes
+**ファイル操作：**
+- Read、Edit、Write - ファイルを正確に変更
+- Glob、Grep - コードベースを検索
+- MultiEdit - アトミックな複数パートの変更
 
-**Development:**
-- Bash - run commands (git, tests, linters)
-- Task - launch specialized agents for complex tasks
-- TodoWrite - track progress with todo lists
+**開発：**
+- Bash - コマンドを実行（git、テスト、リンター）
+- Task - 複雑なタスク用に専門エージェントを起動
+- TodoWrite - ToDoリストで進捗を追跡
 
-**Web & APIs:**
-- WebFetch, WebSearch - research documentation
-- GitHub (gh cli) - PRs, issues, reviews
-- Playwright - browser automation, screenshots
+**Web & API：**
+- WebFetch、WebSearch - ドキュメントをリサーチ
+- GitHub（gh cli）- PR、イシュー、レビュー
+- Playwright - ブラウザ自動化、スクリーンショット
 
-**Integrations:**
-- AppSignal - logs and monitoring
-- Context7 - framework docs
-- Stripe, Todoist, Featurebase (if relevant)
+**統合：**
+- AppSignal - ログとモニタリング
+- Context7 - フレームワークドキュメント
+- Stripe、Todoist、Featurebase（関連する場合）
 
-## Best Practices
+## ベストプラクティス
 
-1. **Be specific and clear** - detailed instructions yield better results
-2. **Break down complex tasks** - use step-by-step plans
-3. **Use examples** - reference existing code patterns
-4. **Include success criteria** - tests pass, linting clean, etc.
-5. **Think first** - use "think hard" or "plan" keywords for complex problems
-6. **Iterate** - guide the process step by step
+1. **具体的かつ明確に** - 詳細な指示がより良い結果をもたらす
+2. **複雑なタスクを分解** - ステップバイステップのプランを使用
+3. **例を使用** - 既存のコードパターンを参照
+4. **成功基準を含める** - テストパス、リンティングクリーンなど
+5. **最初に考える** - 複雑な問題には「think hard」や「plan」キーワードを使用
+6. **反復** - プロセスをステップバイステップでガイド
 
-## Required: YAML Frontmatter
+## 必須: YAMLフロントマター
 
-**EVERY command MUST start with YAML frontmatter:**
+**すべてのコマンドはYAMLフロントマターで始める必要があります：**
 
 ```yaml
 ---
 name: command-name
-description: Brief description of what this command does (max 100 chars)
-argument-hint: "[what arguments the command accepts]"
+description: このコマンドが何をするかの簡潔な説明（最大100文字）
+argument-hint: "[コマンドが受け入れる引数]"
 ---
 ```
 
-**Fields:**
-- `name`: Lowercase command identifier (used internally)
-- `description`: Clear, concise summary of command purpose
-- `argument-hint`: Shows user what arguments are expected (e.g., `[file path]`, `[PR number]`, `[optional: format]`)
+**フィールド：**
+- `name`: 小文字のコマンド識別子（内部で使用）
+- `description`: コマンドの目的の明確で簡潔な要約
+- `argument-hint`: 期待される引数をユーザーに表示（例：`[file path]`、`[PR number]`、`[optional: format]`）
 
-## Structure Your Command
-
-```markdown
-# [Command Name]
-
-[Brief description of what this command does]
-
-## Steps
-
-1. [First step with specific details]
-   - Include file paths, patterns, or constraints
-   - Reference existing code if applicable
-
-2. [Second step]
-   - Use parallel tool calls when possible
-   - Check/verify results
-
-3. [Final steps]
-   - Run tests
-   - Lint code
-   - Commit changes (if appropriate)
-
-## Success Criteria
-
-- [ ] Tests pass
-- [ ] Code follows style guide
-- [ ] Documentation updated (if needed)
-```
-
-## Tips for Effective Commands
-
-- **Use $ARGUMENTS** placeholder for dynamic inputs
-- **Reference CLAUDE.md** patterns and conventions
-- **Include verification steps** - tests, linting, visual checks
-- **Be explicit about constraints** - don't modify X, use pattern Y
-- **Use XML tags** for structured prompts: `<task>`, `<requirements>`, `<constraints>`
-
-## Example Pattern
+## コマンドの構造
 
 ```markdown
-Implement #$ARGUMENTS following these steps:
+# [コマンド名]
 
-1. Research existing patterns
-   - Search for similar code using Grep
-   - Read relevant files to understand approach
+[このコマンドが何をするかの簡潔な説明]
 
-2. Plan the implementation
-   - Think through edge cases and requirements
-   - Consider test cases needed
+## ステップ
 
-3. Implement
-   - Follow existing code patterns (reference specific files)
-   - Write tests first if doing TDD
-   - Ensure code follows CLAUDE.md conventions
+1. [具体的な詳細を含む最初のステップ]
+   - ファイルパス、パターン、または制約を含める
+   - 該当する場合は既存のコードを参照
 
-4. Verify
-   - Run tests: `bin/rails test`
-   - Run linter: `bundle exec standardrb`
-   - Check changes with git diff
+2. [2番目のステップ]
+   - 可能な場合は並列ツールコールを使用
+   - 結果をチェック/検証
 
-5. Commit (optional)
-   - Stage changes
-   - Write clear commit message
+3. [最終ステップ]
+   - テストを実行
+   - コードをリント
+   - 変更をコミット（適切な場合）
+
+## 成功基準
+
+- [ ] テストがパス
+- [ ] コードがスタイルガイドに従っている
+- [ ] ドキュメントが更新されている（必要な場合）
 ```
 
-## Creating the Command File
+## 効果的なコマンドのヒント
 
-1. **Create the file** at `.claude/commands/[name].md` (subdirectories like `workflows/` supported)
-2. **Start with YAML frontmatter** (see section above)
-3. **Structure the command** using the template above
-4. **Test the command** by using it with appropriate arguments
+- 動的入力には**$ARGUMENTS**プレースホルダーを使用
+- **CLAUDE.md**のパターンと規約を参照
+- **検証ステップを含める** - テスト、リンティング、ビジュアルチェック
+- **制約について明示的に** - Xを変更しない、パターンYを使用など
+- 構造化されたプロンプトには**XMLタグを使用**：`<task>`、`<requirements>`、`<constraints>`
 
-## Command File Template
+## 例のパターン
+
+```markdown
+以下のステップに従って#$ARGUMENTSを実装：
+
+1. 既存のパターンをリサーチ
+   - Grepを使用して類似のコードを検索
+   - アプローチを理解するために関連ファイルを読む
+
+2. 実装を計画
+   - エッジケースと要件を検討
+   - 必要なテストケースを考慮
+
+3. 実装
+   - 既存のコードパターンに従う（特定のファイルを参照）
+   - TDDを行う場合は先にテストを書く
+   - CLAUDE.mdの規約にコードが従っていることを確認
+
+4. 検証
+   - テストを実行：`bin/rails test`
+   - リンターを実行：`bundle exec standardrb`
+   - git diffで変更を確認
+
+5. コミット（オプション）
+   - 変更をステージング
+   - 明確なコミットメッセージを書く
+```
+
+## コマンドファイルの作成
+
+1. `.claude/commands/[name].md`に**ファイルを作成**（`workflows/`のようなサブディレクトリもサポート）
+2. **YAMLフロントマターで開始**（上記のセクションを参照）
+3. 上記のテンプレートを使用して**コマンドを構造化**
+4. 適切な引数で使用してコマンドを**テスト**
+
+## コマンドファイルテンプレート
 
 ```markdown
 ---
 name: command-name
-description: What this command does
-argument-hint: "[expected arguments]"
+description: このコマンドが何をするか
+argument-hint: "[期待される引数]"
 ---
 
-# Command Title
+# コマンドタイトル
 
-Brief introduction of what the command does and when to use it.
+コマンドが何をするか、いつ使用するかの簡潔な紹介。
 
-## Workflow
+## ワークフロー
 
-### Step 1: [First Major Step]
+### ステップ1: [最初の主要ステップ]
 
-Details about what to do.
+何をするかの詳細。
 
-### Step 2: [Second Major Step]
+### ステップ2: [2番目の主要ステップ]
 
-Details about what to do.
+何をするかの詳細。
 
-## Success Criteria
+## 成功基準
 
-- [ ] Expected outcome 1
-- [ ] Expected outcome 2
+- [ ] 期待される結果1
+- [ ] 期待される結果2
 ```

@@ -1,9 +1,9 @@
-# Models - DHH Rails Style
+# Models - DHH Railsスタイル
 
 <model_concerns>
-## Concerns for Horizontal Behavior
+## 水平的な振る舞いのためのConcerns
 
-Models heavily use concerns. A typical Card model includes 14+ concerns:
+モデルはconcernsを多用する。典型的なCardモデルには14以上のconcernsが含まれる：
 
 ```ruby
 class Card < ApplicationRecord
@@ -25,23 +25,23 @@ class Card < ApplicationRecord
 end
 ```
 
-Each concern is self-contained with associations, scopes, and methods.
+各concernは関連付け、スコープ、メソッドを含む自己完結型。
 
-**Naming:** Adjectives describing capability (`Closeable`, `Publishable`, `Watchable`)
+**命名：** 能力を表す形容詞（`Closeable`、`Publishable`、`Watchable`）
 </model_concerns>
 
 <state_records>
-## State as Records, Not Booleans
+## ブール値ではなくレコードとしての状態
 
-Instead of boolean columns, create separate records:
+ブール値カラムの代わりに、個別のレコードを作成：
 
 ```ruby
-# Instead of:
+# 代わりに：
 closed: boolean
 is_golden: boolean
 postponed: boolean
 
-# Create records:
+# レコードを作成：
 class Card::Closure < ApplicationRecord
   belongs_to :card
   belongs_to :creator, class_name: "User"
@@ -58,13 +58,13 @@ class Card::NotNow < ApplicationRecord
 end
 ```
 
-**Benefits:**
-- Automatic timestamps (when it happened)
-- Track who made changes
-- Easy filtering via joins and `where.missing`
-- Enables rich UI showing when/who
+**メリット：**
+- 自動タイムスタンプ（いつ発生したか）
+- 誰が変更したかを追跡
+- joinsと`where.missing`による簡単なフィルタリング
+- いつ/誰がを表示するリッチUIを可能に
 
-**In the model:**
+**モデル内で：**
 ```ruby
 module Closeable
   extend ActiveSupport::Concern
@@ -87,27 +87,27 @@ module Closeable
 end
 ```
 
-**Querying:**
+**クエリ：**
 ```ruby
-Card.joins(:closure)         # closed cards
-Card.where.missing(:closure) # open cards
+Card.joins(:closure)         # クローズされたカード
+Card.where.missing(:closure) # オープンなカード
 ```
 </state_records>
 
 <callbacks>
-## Callbacks - Used Sparingly
+## コールバック - 控えめに使用
 
-Only 38 callback occurrences across 30 files in Fizzy. Guidelines:
+Fizzyで30ファイルにわたって38のコールバック出現のみ。ガイドライン：
 
-**Use for:**
-- `after_commit` for async work
-- `before_save` for derived data
-- `after_create_commit` for side effects
+**使用する場合：**
+- 非同期処理に`after_commit`
+- 派生データに`before_save`
+- 副作用に`after_create_commit`
 
-**Avoid:**
-- Complex callback chains
-- Business logic in callbacks
-- Synchronous external calls
+**避ける場合：**
+- 複雑なコールバックチェーン
+- コールバック内のビジネスロジック
+- 同期的な外部呼び出し
 
 ```ruby
 class Card < ApplicationRecord
@@ -123,9 +123,9 @@ end
 </callbacks>
 
 <scopes>
-## Scope Naming
+## スコープ命名
 
-Standard scope names:
+標準的なスコープ名：
 
 ```ruby
 class Card < ApplicationRecord
@@ -134,10 +134,10 @@ class Card < ApplicationRecord
   scope :alphabetically, -> { order(title: :asc) }
   scope :latest, -> { reverse_chronologically.limit(10) }
 
-  # Standard eager loading
+  # 標準的なeager loading
   scope :preloaded, -> { includes(:creator, :assignees, :tags) }
 
-  # Parameterized
+  # パラメータ付き
   scope :indexed_by, ->(column) { order(column => :asc) }
   scope :sorted_by, ->(column, direction = :asc) { order(column => direction) }
 end
@@ -145,9 +145,9 @@ end
 </scopes>
 
 <poros>
-## Plain Old Ruby Objects
+## プレーンオールドRubyオブジェクト
 
-POROs namespaced under parent models:
+POROは親モデルの名前空間下に配置：
 
 ```ruby
 # app/models/event/description.rb
@@ -157,7 +157,7 @@ class Event::Description
   end
 
   def to_s
-    # Presentation logic for event description
+    # イベント説明のプレゼンテーションロジック
   end
 end
 
@@ -168,63 +168,63 @@ class Card::Eventable::SystemCommenter
   end
 
   def comment(message)
-    # Business logic
+    # ビジネスロジック
   end
 end
 
 # app/models/user/filtering.rb
 class User::Filtering
-  # View context bundling
+  # ビューコンテキストのバンドル
 end
 ```
 
-**NOT used for service objects.** Business logic stays in models.
+**サービスオブジェクトには使用しない。** ビジネスロジックはモデルに置く。
 </poros>
 
 <verbs_predicates>
-## Method Naming
+## メソッド命名
 
-**Verbs** - Actions that change state:
+**動詞** - 状態を変更するアクション：
 ```ruby
 card.close
 card.reopen
-card.gild      # make golden
+card.gild      # ゴールデンにする
 card.ungild
 board.publish
 board.archive
 ```
 
-**Predicates** - Queries derived from state:
+**述語** - 状態から派生するクエリ：
 ```ruby
 card.closed?    # closure.present?
 card.golden?    # goldness.present?
 board.published?
 ```
 
-**Avoid** generic setters:
+**避ける**べき汎用セッター：
 ```ruby
-# Bad
+# 悪い
 card.set_closed(true)
 card.update_golden_status(false)
 
-# Good
+# 良い
 card.close
 card.ungild
 ```
 </verbs_predicates>
 
 <validation_philosophy>
-## Validation Philosophy
+## バリデーション哲学
 
-Minimal validations on models. Use contextual validations on form/operation objects:
+モデルでのバリデーションは最小限に。フォーム/オペレーションオブジェクトでコンテキストバリデーションを使用：
 
 ```ruby
-# Model - minimal
+# モデル - 最小限
 class User < ApplicationRecord
   validates :email, presence: true, format: { with: URI::MailTo::EMAIL_REGEXP }
 end
 
-# Form object - contextual
+# フォームオブジェクト - コンテキスト依存
 class Signup
   include ActiveModel::Model
 
@@ -240,39 +240,39 @@ class Signup
 end
 ```
 
-**Prefer database constraints** over model validations for data integrity:
+データ整合性のためにはモデルバリデーションよりも**データベース制約を優先**：
 ```ruby
-# migration
+# マイグレーション
 add_index :users, :email, unique: true
 add_foreign_key :cards, :boards
 ```
 </validation_philosophy>
 
 <error_handling>
-## Let It Crash Philosophy
+## クラッシュさせる哲学
 
-Use bang methods that raise exceptions on failure:
+失敗時に例外を発生させるバングメソッドを使用：
 
 ```ruby
-# Preferred - raises on failure
+# 推奨 - 失敗時に例外
 @card = Card.create!(card_params)
 @card.update!(title: new_title)
 @comment.destroy!
 
-# Avoid - silent failures
-@card = Card.create(card_params)  # returns false on failure
+# 避ける - サイレント失敗
+@card = Card.create(card_params)  # 失敗時にfalseを返す
 if @card.save
   # ...
 end
 ```
 
-Let errors propagate naturally. Rails handles ActiveRecord::RecordInvalid with 422 responses.
+エラーは自然に伝播させる。RailsはActiveRecord::RecordInvalidを422レスポンスで処理。
 </error_handling>
 
 <default_values>
-## Default Values with Lambdas
+## ラムダでのデフォルト値
 
-Use lambda defaults for associations with Current:
+Currentを使用する関連付けにはラムダデフォルトを使用：
 
 ```ruby
 class Card < ApplicationRecord
@@ -285,13 +285,13 @@ class Comment < ApplicationRecord
 end
 ```
 
-Lambdas ensure dynamic resolution at creation time.
+ラムダは作成時の動的解決を保証。
 </default_values>
 
 <rails_71_patterns>
-## Rails 7.1+ Model Patterns
+## Rails 7.1以降のモデルパターン
 
-**Normalizes** - clean data before validation:
+**Normalizes** - バリデーション前にデータをクリーン：
 ```ruby
 class User < ApplicationRecord
   normalizes :email, with: ->(email) { email.strip.downcase }
@@ -299,19 +299,19 @@ class User < ApplicationRecord
 end
 ```
 
-**Delegated Types** - replace polymorphic associations:
+**Delegated Types** - ポリモーフィック関連付けを置き換え：
 ```ruby
 class Message < ApplicationRecord
   delegated_type :messageable, types: %w[Comment Reply Announcement]
 end
 
-# Now you get:
-message.comment?        # true if Comment
-message.comment         # returns the Comment
-Message.comments        # scope for Comment messages
+# これで取得できる：
+message.comment?        # Commentならtrue
+message.comment         # Commentを返す
+Message.comments        # Commentメッセージのスコープ
 ```
 
-**Store Accessor** - structured JSON storage:
+**Store Accessor** - 構造化JSONストレージ：
 ```ruby
 class User < ApplicationRecord
   store :settings, accessors: [:theme, :notifications_enabled], coder: JSON
@@ -323,15 +323,15 @@ user.notifications_enabled = true
 </rails_71_patterns>
 
 <concern_guidelines>
-## Concern Guidelines
+## Concernガイドライン
 
-- **50-150 lines** per concern (most are ~100)
-- **Cohesive** - related functionality only
-- **Named for capabilities** - `Closeable`, `Watchable`, not `CardHelpers`
-- **Self-contained** - associations, scopes, methods together
-- **Not for mere organization** - create when genuine reuse needed
+- concernあたり**50〜150行**（ほとんどは約100行）
+- **一貫性** - 関連する機能のみ
+- **能力で命名** - `Closeable`、`Watchable`、`CardHelpers`ではない
+- **自己完結型** - 関連付け、スコープ、メソッドを一緒に
+- **単なる整理のためではない** - 本当の再利用が必要な場合に作成
 
-**Touch chains** for cache invalidation:
+**キャッシュ無効化のためのタッチチェーン：**
 ```ruby
 class Comment < ApplicationRecord
   belongs_to :card, touch: true
@@ -342,9 +342,9 @@ class Card < ApplicationRecord
 end
 ```
 
-When comment updates, card's `updated_at` changes, which cascades to board.
+コメントが更新されると、cardの`updated_at`が変更され、boardにカスケード。
 
-**Transaction wrapping** for related updates:
+**関連する更新のためのトランザクションラッピング：**
 ```ruby
 class Card < ApplicationRecord
   def close(creator: Current.user)

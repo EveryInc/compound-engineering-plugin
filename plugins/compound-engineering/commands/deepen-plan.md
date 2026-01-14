@@ -1,157 +1,157 @@
 ---
 name: deepen-plan
-description: Enhance a plan with parallel research agents for each section to add depth, best practices, and implementation details
-argument-hint: "[path to plan file]"
+description: 各セクションに対して並列リサーチエージェントを使用し、深度、ベストプラクティス、実装詳細を追加してプランを強化する
+argument-hint: "[プランファイルへのパス]"
 ---
 
-# Deepen Plan - Power Enhancement Mode
+# プラン深化 - パワー強化モード
 
-## Introduction
+## はじめに
 
-**Note: The current year is 2025.** Use this when searching for recent documentation and best practices.
+**注意: 現在の年は2025年です。** 最新のドキュメントやベストプラクティスを検索する際にこれを使用してください。
 
-This command takes an existing plan (from `/workflows:plan`) and enhances each section with parallel research agents. Each major element gets its own dedicated research sub-agent to find:
-- Best practices and industry patterns
-- Performance optimizations
-- UI/UX improvements (if applicable)
-- Quality enhancements and edge cases
-- Real-world implementation examples
+このコマンドは既存のプラン（`/workflows:plan`から）を取得し、並列リサーチエージェントで各セクションを強化します。各主要要素には専用のリサーチサブエージェントが割り当てられ、以下を検索します：
+- ベストプラクティスと業界パターン
+- パフォーマンス最適化
+- UI/UXの改善（該当する場合）
+- 品質強化とエッジケース
+- 実際の実装例
 
-The result is a deeply grounded, production-ready plan with concrete implementation details.
+結果として、具体的な実装詳細を含む、深く根拠のある本番環境対応のプランが得られます。
 
-## Plan File
+## プランファイル
 
 <plan_path> #$ARGUMENTS </plan_path>
 
-**If the plan path above is empty:**
-1. Check for recent plans: `ls -la plans/`
-2. Ask the user: "Which plan would you like to deepen? Please provide the path (e.g., `plans/my-feature.md`)."
+**上記のプランパスが空の場合：**
+1. 最近のプランを確認：`ls -la plans/`
+2. ユーザーに質問：「どのプランを深化させますか？パスを提供してください（例：`plans/my-feature.md`）。」
 
-Do not proceed until you have a valid plan file path.
+有効なプランファイルパスが得られるまで進めないでください。
 
-## Main Tasks
+## 主要タスク
 
-### 1. Parse and Analyze Plan Structure
+### 1. プラン構造の解析と分析
 
 <thinking>
-First, read and parse the plan to identify each major section that can be enhanced with research.
+まず、プランを読み込んで解析し、リサーチで強化できる各主要セクションを特定します。
 </thinking>
 
-**Read the plan file and extract:**
-- [ ] Overview/Problem Statement
-- [ ] Proposed Solution sections
-- [ ] Technical Approach/Architecture
-- [ ] Implementation phases/steps
-- [ ] Code examples and file references
-- [ ] Acceptance criteria
-- [ ] Any UI/UX components mentioned
-- [ ] Technologies/frameworks mentioned (Rails, React, Python, TypeScript, etc.)
-- [ ] Domain areas (data models, APIs, UI, security, performance, etc.)
+**プランファイルを読み込み、以下を抽出：**
+- [ ] 概要/問題文
+- [ ] 提案されたソリューションセクション
+- [ ] 技術的アプローチ/アーキテクチャ
+- [ ] 実装フェーズ/ステップ
+- [ ] コード例とファイル参照
+- [ ] 受け入れ基準
+- [ ] 言及されているUI/UXコンポーネント
+- [ ] 言及されている技術/フレームワーク（Rails、React、Python、TypeScriptなど）
+- [ ] ドメイン領域（データモデル、API、UI、セキュリティ、パフォーマンスなど）
 
-**Create a section manifest:**
+**セクションマニフェストを作成：**
 ```
-Section 1: [Title] - [Brief description of what to research]
-Section 2: [Title] - [Brief description of what to research]
+セクション1: [タイトル] - [リサーチ内容の簡潔な説明]
+セクション2: [タイトル] - [リサーチ内容の簡潔な説明]
 ...
 ```
 
-### 2. Discover and Apply Available Skills
+### 2. 利用可能なスキルの発見と適用
 
 <thinking>
-Dynamically discover all available skills and match them to plan sections. Don't assume what skills exist - discover them at runtime.
+利用可能なすべてのスキルを動的に発見し、プランセクションにマッチさせます。どのスキルが存在するかを仮定せず、実行時に発見します。
 </thinking>
 
-**Step 1: Discover ALL available skills from ALL sources**
+**ステップ1: すべてのソースからすべての利用可能なスキルを発見**
 
 ```bash
-# 1. Project-local skills (highest priority - project-specific)
+# 1. プロジェクトローカルスキル（最高優先度 - プロジェクト固有）
 ls .claude/skills/
 
-# 2. User's global skills (~/.claude/)
+# 2. ユーザーのグローバルスキル（~/.claude/）
 ls ~/.claude/skills/
 
-# 3. compound-engineering plugin skills
+# 3. compound-engineeringプラグインスキル
 ls ~/.claude/plugins/cache/*/compound-engineering/*/skills/
 
-# 4. ALL other installed plugins - check every plugin for skills
+# 4. 他のすべてのインストール済みプラグイン - すべてのプラグインでスキルをチェック
 find ~/.claude/plugins/cache -type d -name "skills" 2>/dev/null
 
-# 5. Also check installed_plugins.json for all plugin locations
+# 5. installed_plugins.jsonもチェックしてすべてのプラグインの場所を確認
 cat ~/.claude/plugins/installed_plugins.json
 ```
 
-**Important:** Check EVERY source. Don't assume compound-engineering is the only plugin. Use skills from ANY installed plugin that's relevant.
+**重要：** すべてのソースをチェックしてください。compound-engineeringが唯一のプラグインだと仮定しないでください。関連するすべてのインストール済みプラグインからスキルを使用します。
 
-**Step 2: For each discovered skill, read its SKILL.md to understand what it does**
+**ステップ2: 発見された各スキルについて、SKILL.mdを読んで何をするか理解する**
 
 ```bash
-# For each skill directory found, read its documentation
+# 見つかった各スキルディレクトリについて、そのドキュメントを読む
 cat [skill-path]/SKILL.md
 ```
 
-**Step 3: Match skills to plan content**
+**ステップ3: スキルをプランコンテンツにマッチング**
 
-For each skill discovered:
-- Read its SKILL.md description
-- Check if any plan sections match the skill's domain
-- If there's a match, spawn a sub-agent to apply that skill's knowledge
+発見された各スキルについて：
+- SKILL.mdの説明を読む
+- プランセクションがスキルのドメインにマッチするか確認
+- マッチがあれば、そのスキルの知識を適用するサブエージェントを起動
 
-**Step 4: Spawn a sub-agent for EVERY matched skill**
+**ステップ4: マッチした各スキルに対してサブエージェントを起動**
 
-**CRITICAL: For EACH skill that matches, spawn a separate sub-agent and instruct it to USE that skill.**
+**重要: マッチした各スキルに対して、別々のサブエージェントを起動し、そのスキルを使用するよう指示します。**
 
-For each matched skill:
+マッチした各スキルについて：
 ```
-Task general-purpose: "You have the [skill-name] skill available at [skill-path].
+Task general-purpose: "[skill-name]スキルが[skill-path]で利用可能です。
 
-YOUR JOB: Use this skill on the plan.
+あなたの仕事: このスキルをプランに使用すること。
 
-1. Read the skill: cat [skill-path]/SKILL.md
-2. Follow the skill's instructions exactly
-3. Apply the skill to this content:
+1. スキルを読む: cat [skill-path]/SKILL.md
+2. スキルの指示に正確に従う
+3. このコンテンツにスキルを適用:
 
-[relevant plan section or full plan]
+[関連するプランセクションまたは全プラン]
 
-4. Return the skill's full output
+4. スキルの完全な出力を返す
 
-The skill tells you what to do - follow it. Execute the skill completely."
-```
-
-**Spawn ALL skill sub-agents in PARALLEL:**
-- 1 sub-agent per matched skill
-- Each sub-agent reads and uses its assigned skill
-- All run simultaneously
-- 10, 20, 30 skill sub-agents is fine
-
-**Each sub-agent:**
-1. Reads its skill's SKILL.md
-2. Follows the skill's workflow/instructions
-3. Applies the skill to the plan
-4. Returns whatever the skill produces (code, recommendations, patterns, reviews, etc.)
-
-**Example spawns:**
-```
-Task general-purpose: "Use the dhh-rails-style skill at ~/.claude/plugins/.../dhh-rails-style. Read SKILL.md and apply it to: [Rails sections of plan]"
-
-Task general-purpose: "Use the frontend-design skill at ~/.claude/plugins/.../frontend-design. Read SKILL.md and apply it to: [UI sections of plan]"
-
-Task general-purpose: "Use the agent-native-architecture skill at ~/.claude/plugins/.../agent-native-architecture. Read SKILL.md and apply it to: [agent/tool sections of plan]"
-
-Task general-purpose: "Use the security-patterns skill at ~/.claude/skills/security-patterns. Read SKILL.md and apply it to: [full plan]"
+スキルが何をすべきか教えてくれます - 従ってください。スキルを完全に実行してください。"
 ```
 
-**No limit on skill sub-agents. Spawn one for every skill that could possibly be relevant.**
+**すべてのスキルサブエージェントを並列で起動：**
+- マッチしたスキルごとに1サブエージェント
+- 各サブエージェントは割り当てられたスキルを読んで使用
+- すべて同時に実行
+- 10、20、30のスキルサブエージェントでも問題なし
 
-### 3. Discover and Apply Learnings/Solutions
+**各サブエージェント：**
+1. 自分のスキルのSKILL.mdを読む
+2. スキルのワークフロー/指示に従う
+3. プランにスキルを適用
+4. スキルが生成するものを返す（コード、推奨事項、パターン、レビューなど）
+
+**起動例：**
+```
+Task general-purpose: "~/.claude/plugins/.../dhh-rails-styleにあるdhh-rails-styleスキルを使用。SKILL.mdを読んで適用: [プランのRailsセクション]"
+
+Task general-purpose: "~/.claude/plugins/.../frontend-designにあるfrontend-designスキルを使用。SKILL.mdを読んで適用: [プランのUIセクション]"
+
+Task general-purpose: "~/.claude/plugins/.../agent-native-architectureにあるagent-native-architectureスキルを使用。SKILL.mdを読んで適用: [プランのエージェント/ツールセクション]"
+
+Task general-purpose: "~/.claude/skills/security-patternsにあるsecurity-patternsスキルを使用。SKILL.mdを読んで適用: [全プラン]"
+```
+
+**スキルサブエージェントの数に制限なし。関連する可能性のあるすべてのスキルに対して1つずつ起動してください。**
+
+### 3. 学習/ソリューションの発見と適用
 
 <thinking>
-Check for documented learnings from /workflows:compound. These are solved problems stored as markdown files. Spawn a sub-agent for each learning to check if it's relevant.
+/workflows:compoundからの文書化された学習をチェックします。これらはマークダウンファイルとして保存された解決済みの問題です。各学習に対してサブエージェントを起動し、関連性を確認します。
 </thinking>
 
-**LEARNINGS LOCATION - Check these exact folders:**
+**学習の場所 - これらの正確なフォルダをチェック：**
 
 ```
-docs/solutions/           <-- PRIMARY: Project-level learnings (created by /workflows:compound)
+docs/solutions/           <-- プライマリ: プロジェクトレベルの学習（/workflows:compoundで作成）
 ├── performance-issues/
 │   └── *.md
 ├── debugging-patterns/
@@ -166,366 +166,366 @@ docs/solutions/           <-- PRIMARY: Project-level learnings (created by /work
     └── *.md
 ```
 
-**Step 1: Find ALL learning markdown files**
+**ステップ1: すべての学習マークダウンファイルを見つける**
 
-Run these commands to get every learning file:
+すべての学習ファイルを取得するためにこれらのコマンドを実行：
 
 ```bash
-# PRIMARY LOCATION - Project learnings
+# プライマリの場所 - プロジェクト学習
 find docs/solutions -name "*.md" -type f 2>/dev/null
 
-# If docs/solutions doesn't exist, check alternate locations:
+# docs/solutionsが存在しない場合、代替場所をチェック:
 find .claude/docs -name "*.md" -type f 2>/dev/null
 find ~/.claude/docs -name "*.md" -type f 2>/dev/null
 ```
 
-**Step 2: Read frontmatter of each learning to filter**
+**ステップ2: フィルタリングのために各学習のフロントマターを読む**
 
-Each learning file has YAML frontmatter with metadata. Read the first ~20 lines of each file to get:
+各学習ファイルにはメタデータを含むYAMLフロントマターがあります。各ファイルの最初の約20行を読んで取得：
 
 ```yaml
 ---
-title: "N+1 Query Fix for Briefs"
+title: "BriefsのN+1クエリ修正"
 category: performance-issues
 tags: [activerecord, n-plus-one, includes, eager-loading]
 module: Briefs
-symptom: "Slow page load, multiple queries in logs"
-root_cause: "Missing includes on association"
+symptom: "ページ読み込みが遅い、ログに複数のクエリ"
+root_cause: "関連付けにincludesが欠落"
 ---
 ```
 
-**For each .md file, quickly scan its frontmatter:**
+**各.mdファイルについて、フロントマターを素早くスキャン：**
 
 ```bash
-# Read first 20 lines of each learning (frontmatter + summary)
+# 各学習の最初の20行を読む（フロントマター + サマリー）
 head -20 docs/solutions/**/*.md
 ```
 
-**Step 3: Filter - only spawn sub-agents for LIKELY relevant learnings**
+**ステップ3: フィルタリング - 関連性が高い学習にのみサブエージェントを起動**
 
-Compare each learning's frontmatter against the plan:
-- `tags:` - Do any tags match technologies/patterns in the plan?
-- `category:` - Is this category relevant? (e.g., skip deployment-issues if plan is UI-only)
-- `module:` - Does the plan touch this module?
-- `symptom:` / `root_cause:` - Could this problem occur with the plan?
+各学習のフロントマターをプランと比較：
+- `tags:` - プランの技術/パターンにマッチするタグはあるか？
+- `category:` - このカテゴリは関連性があるか？（例：プランがUIのみならdeployment-issuesをスキップ）
+- `module:` - プランはこのモジュールに触れるか？
+- `symptom:` / `root_cause:` - この問題はプランで発生する可能性があるか？
 
-**SKIP learnings that are clearly not applicable:**
-- Plan is frontend-only → skip `database-migrations/` learnings
-- Plan is Python → skip `rails-specific/` learnings
-- Plan has no auth → skip `authentication-issues/` learnings
+**明らかに適用されない学習をスキップ：**
+- プランがフロントエンドのみ → `database-migrations/` 学習をスキップ
+- プランがPython → `rails-specific/` 学習をスキップ
+- プランに認証がない → `authentication-issues/` 学習をスキップ
 
-**SPAWN sub-agents for learnings that MIGHT apply:**
-- Any tag overlap with plan technologies
-- Same category as plan domain
-- Similar patterns or concerns
+**適用される可能性がある学習にサブエージェントを起動：**
+- プラン技術とのタグの重複
+- プランドメインと同じカテゴリ
+- 類似のパターンや懸念
 
-**Step 4: Spawn sub-agents for filtered learnings**
+**ステップ4: フィルタリングされた学習にサブエージェントを起動**
 
-For each learning that passes the filter:
+フィルターを通過した各学習について：
 
 ```
 Task general-purpose: "
-LEARNING FILE: [full path to .md file]
+学習ファイル: [.mdファイルへのフルパス]
 
-1. Read this learning file completely
-2. This learning documents a previously solved problem
+1. この学習ファイルを完全に読む
+2. この学習は以前解決された問題を文書化
 
-Check if this learning applies to this plan:
+この学習がこのプランに適用されるか確認:
 
 ---
-[full plan content]
+[全プランコンテンツ]
 ---
 
-If relevant:
-- Explain specifically how it applies
-- Quote the key insight or solution
-- Suggest where/how to incorporate it
+関連する場合:
+- 具体的にどう適用されるか説明
+- 重要な洞察やソリューションを引用
+- どこに/どのように組み込むか提案
 
-If NOT relevant after deeper analysis:
-- Say 'Not applicable: [reason]'
+深い分析の後に関連しない場合:
+- '適用不可: [理由]'と言う
 "
 ```
 
-**Example filtering:**
+**フィルタリング例：**
 ```
-# Found 15 learning files, plan is about "Rails API caching"
+# 15の学習ファイルが見つかり、プランは「Rails APIキャッシング」について
 
-# SPAWN (likely relevant):
+# 起動（関連性が高い）:
 docs/solutions/performance-issues/n-plus-one-queries.md      # tags: [activerecord] ✓
 docs/solutions/performance-issues/redis-cache-stampede.md    # tags: [caching, redis] ✓
 docs/solutions/configuration-fixes/redis-connection-pool.md  # tags: [redis] ✓
 
-# SKIP (clearly not applicable):
-docs/solutions/deployment-issues/heroku-memory-quota.md      # not about caching
-docs/solutions/frontend-issues/stimulus-race-condition.md    # plan is API, not frontend
-docs/solutions/authentication-issues/jwt-expiry.md           # plan has no auth
+# スキップ（明らかに適用不可）:
+docs/solutions/deployment-issues/heroku-memory-quota.md      # キャッシングについてではない
+docs/solutions/frontend-issues/stimulus-race-condition.md    # プランはAPI、フロントエンドではない
+docs/solutions/authentication-issues/jwt-expiry.md           # プランに認証がない
 ```
 
-**Spawn sub-agents in PARALLEL for all filtered learnings.**
+**フィルタリングされたすべての学習に対してサブエージェントを並列で起動。**
 
-**These learnings are institutional knowledge - applying them prevents repeating past mistakes.**
+**これらの学習は組織的な知識です - 適用することで過去の間違いを繰り返すことを防ぎます。**
 
-### 4. Launch Per-Section Research Agents
+### 4. セクションごとのリサーチエージェントの起動
 
 <thinking>
-For each major section in the plan, spawn dedicated sub-agents to research improvements. Use the Explore agent type for open-ended research.
+プランの各主要セクションについて、専用のサブエージェントを起動して改善をリサーチします。オープンエンドのリサーチにはExploreエージェントタイプを使用します。
 </thinking>
 
-**For each identified section, launch parallel research:**
+**特定された各セクションについて、並列リサーチを起動：**
 
 ```
-Task Explore: "Research best practices, patterns, and real-world examples for: [section topic].
-Find:
-- Industry standards and conventions
-- Performance considerations
-- Common pitfalls and how to avoid them
-- Documentation and tutorials
-Return concrete, actionable recommendations."
+Task Explore: "[セクションのトピック]のベストプラクティス、パターン、実際の例をリサーチ。
+検索:
+- 業界標準と慣例
+- パフォーマンスの考慮事項
+- 一般的な落とし穴とその回避方法
+- ドキュメントとチュートリアル
+具体的で実行可能な推奨事項を返す。"
 ```
 
-**Also use Context7 MCP for framework documentation:**
+**フレームワークドキュメントにはContext7 MCPも使用：**
 
-For any technologies/frameworks mentioned in the plan, query Context7:
+プランで言及されている技術/フレームワークについて、Context7にクエリ：
 ```
-mcp__plugin_compound-engineering_context7__resolve-library-id: Find library ID for [framework]
-mcp__plugin_compound-engineering_context7__query-docs: Query documentation for specific patterns
+mcp__plugin_compound-engineering_context7__resolve-library-id: [フレームワーク]のライブラリIDを見つける
+mcp__plugin_compound-engineering_context7__query-docs: 特定のパターンのドキュメントをクエリ
 ```
 
-**Use WebSearch for current best practices:**
+**現在のベストプラクティスにはWebSearchを使用：**
 
-Search for recent (2024-2025) articles, blog posts, and documentation on topics in the plan.
+プラン内のトピックに関する最近の（2024-2025年）記事、ブログ投稿、ドキュメントを検索。
 
-### 5. Discover and Run ALL Review Agents
+### 5. すべてのレビューエージェントの発見と実行
 
 <thinking>
-Dynamically discover every available agent and run them ALL against the plan. Don't filter, don't skip, don't assume relevance. 40+ parallel agents is fine. Use everything available.
+利用可能なすべてのエージェントを動的に発見し、プランに対してすべて実行します。フィルタリングせず、スキップせず、関連性を仮定しません。40以上の並列エージェントでも問題ありません。利用可能なすべてを使用します。
 </thinking>
 
-**Step 1: Discover ALL available agents from ALL sources**
+**ステップ1: すべてのソースからすべての利用可能なエージェントを発見**
 
 ```bash
-# 1. Project-local agents (highest priority - project-specific)
+# 1. プロジェクトローカルエージェント（最高優先度 - プロジェクト固有）
 find .claude/agents -name "*.md" 2>/dev/null
 
-# 2. User's global agents (~/.claude/)
+# 2. ユーザーのグローバルエージェント（~/.claude/）
 find ~/.claude/agents -name "*.md" 2>/dev/null
 
-# 3. compound-engineering plugin agents (all subdirectories)
+# 3. compound-engineeringプラグインエージェント（すべてのサブディレクトリ）
 find ~/.claude/plugins/cache/*/compound-engineering/*/agents -name "*.md" 2>/dev/null
 
-# 4. ALL other installed plugins - check every plugin for agents
+# 4. 他のすべてのインストール済みプラグイン - すべてのプラグインでエージェントをチェック
 find ~/.claude/plugins/cache -path "*/agents/*.md" 2>/dev/null
 
-# 5. Check installed_plugins.json to find all plugin locations
+# 5. installed_plugins.jsonをチェックしてすべてのプラグインの場所を見つける
 cat ~/.claude/plugins/installed_plugins.json
 
-# 6. For local plugins (isLocal: true), check their source directories
-# Parse installed_plugins.json and find local plugin paths
+# 6. ローカルプラグイン（isLocal: true）については、そのソースディレクトリをチェック
+# installed_plugins.jsonを解析してローカルプラグインパスを見つける
 ```
 
-**Important:** Check EVERY source. Include agents from:
-- Project `.claude/agents/`
-- User's `~/.claude/agents/`
-- compound-engineering plugin (but SKIP workflow/ agents - only use review/, research/, design/, docs/)
-- ALL other installed plugins (agent-sdk-dev, frontend-design, etc.)
-- Any local plugins
+**重要：** すべてのソースをチェック。以下からエージェントを含める：
+- プロジェクト `.claude/agents/`
+- ユーザーの `~/.claude/agents/`
+- compound-engineeringプラグイン（ただしworkflow/エージェントはスキップ - review/、research/、design/、docs/のみ使用）
+- 他のすべてのインストール済みプラグイン（agent-sdk-dev、frontend-designなど）
+- すべてのローカルプラグイン
 
-**For compound-engineering plugin specifically:**
-- USE: `agents/review/*` (all reviewers)
-- USE: `agents/research/*` (all researchers)
-- USE: `agents/design/*` (design agents)
-- USE: `agents/docs/*` (documentation agents)
-- SKIP: `agents/workflow/*` (these are workflow orchestrators, not reviewers)
+**compound-engineeringプラグインについて具体的に：**
+- 使用: `agents/review/*`（すべてのレビュアー）
+- 使用: `agents/research/*`（すべてのリサーチャー）
+- 使用: `agents/design/*`（デザインエージェント）
+- 使用: `agents/docs/*`（ドキュメントエージェント）
+- スキップ: `agents/workflow/*`（これらはワークフローオーケストレーター、レビュアーではない）
 
-**Step 2: For each discovered agent, read its description**
+**ステップ2: 発見された各エージェントについて、その説明を読む**
 
-Read the first few lines of each agent file to understand what it reviews/analyzes.
+各エージェントファイルの最初の数行を読んで、何をレビュー/分析するか理解。
 
-**Step 3: Launch ALL agents in parallel**
+**ステップ3: すべてのエージェントを並列で起動**
 
-For EVERY agent discovered, launch a Task in parallel:
+発見されたすべてのエージェントについて、並列でTaskを起動：
 
 ```
-Task [agent-name]: "Review this plan using your expertise. Apply all your checks and patterns. Plan content: [full plan content]"
+Task [agent-name]: "あなたの専門知識を使ってこのプランをレビュー。すべてのチェックとパターンを適用。プランコンテンツ: [全プランコンテンツ]"
 ```
 
-**CRITICAL RULES:**
-- Do NOT filter agents by "relevance" - run them ALL
-- Do NOT skip agents because they "might not apply" - let them decide
-- Launch ALL agents in a SINGLE message with multiple Task tool calls
-- 20, 30, 40 parallel agents is fine - use everything
-- Each agent may catch something others miss
-- The goal is MAXIMUM coverage, not efficiency
+**重要なルール：**
+- 「関連性」でエージェントをフィルタリングしない - すべて実行
+- 「適用されないかもしれない」からとエージェントをスキップしない - 判断はエージェントに任せる
+- 複数のTask toolコールを含む単一のメッセージですべてのエージェントを起動
+- 20、30、40の並列エージェントでも問題なし - すべてを使用
+- 各エージェントは他が見逃すものをキャッチする可能性がある
+- 目標は効率性ではなく最大カバレッジ
 
-**Step 4: Also discover and run research agents**
+**ステップ4: リサーチエージェントも発見して実行**
 
-Research agents (like `best-practices-researcher`, `framework-docs-researcher`, `git-history-analyzer`, `repo-research-analyst`) should also be run for relevant plan sections.
+リサーチエージェント（`best-practices-researcher`、`framework-docs-researcher`、`git-history-analyzer`、`repo-research-analyst`など）も関連するプランセクションに対して実行すべき。
 
-### 6. Wait for ALL Agents and Synthesize Everything
+### 6. すべてのエージェントを待ち、すべてを統合
 
 <thinking>
-Wait for ALL parallel agents to complete - skills, research agents, review agents, everything. Then synthesize all findings into a comprehensive enhancement.
+すべての並列エージェントの完了を待ちます - スキル、リサーチエージェント、レビューエージェント、すべて。その後、すべての発見を包括的な強化に統合します。
 </thinking>
 
-**Collect outputs from ALL sources:**
+**すべてのソースから出力を収集：**
 
-1. **Skill-based sub-agents** - Each skill's full output (code examples, patterns, recommendations)
-2. **Learnings/Solutions sub-agents** - Relevant documented learnings from /workflows:compound
-3. **Research agents** - Best practices, documentation, real-world examples
-4. **Review agents** - All feedback from every reviewer (architecture, security, performance, simplicity, etc.)
-5. **Context7 queries** - Framework documentation and patterns
-6. **Web searches** - Current best practices and articles
+1. **スキルベースのサブエージェント** - 各スキルの完全な出力（コード例、パターン、推奨事項）
+2. **学習/ソリューションサブエージェント** - /workflows:compoundからの関連する文書化された学習
+3. **リサーチエージェント** - ベストプラクティス、ドキュメント、実際の例
+4. **レビューエージェント** - すべてのレビュアーからのフィードバック（アーキテクチャ、セキュリティ、パフォーマンス、シンプルさなど）
+5. **Context7クエリ** - フレームワークドキュメントとパターン
+6. **Web検索** - 現在のベストプラクティスと記事
 
-**For each agent's findings, extract:**
-- [ ] Concrete recommendations (actionable items)
-- [ ] Code patterns and examples (copy-paste ready)
-- [ ] Anti-patterns to avoid (warnings)
-- [ ] Performance considerations (metrics, benchmarks)
-- [ ] Security considerations (vulnerabilities, mitigations)
-- [ ] Edge cases discovered (handling strategies)
-- [ ] Documentation links (references)
-- [ ] Skill-specific patterns (from matched skills)
-- [ ] Relevant learnings (past solutions that apply - prevent repeating mistakes)
+**各エージェントの発見から抽出：**
+- [ ] 具体的な推奨事項（実行可能なアイテム）
+- [ ] コードパターンと例（コピー＆ペースト可能）
+- [ ] 避けるべきアンチパターン（警告）
+- [ ] パフォーマンスの考慮事項（メトリクス、ベンチマーク）
+- [ ] セキュリティの考慮事項（脆弱性、緩和策）
+- [ ] 発見されたエッジケース（処理戦略）
+- [ ] ドキュメントリンク（参照）
+- [ ] スキル固有のパターン（マッチしたスキルから）
+- [ ] 関連する学習（適用される過去のソリューション - 間違いの繰り返しを防ぐ）
 
-**Deduplicate and prioritize:**
-- Merge similar recommendations from multiple agents
-- Prioritize by impact (high-value improvements first)
-- Flag conflicting advice for human review
-- Group by plan section
+**重複を排除し、優先順位付け：**
+- 複数のエージェントからの類似の推奨事項をマージ
+- 影響度で優先順位付け（高価値の改善を最初に）
+- 人間のレビューのために矛盾するアドバイスにフラグを付ける
+- プランセクションごとにグループ化
 
-### 7. Enhance Plan Sections
+### 7. プランセクションの強化
 
 <thinking>
-Merge research findings back into the plan, adding depth without changing the original structure.
+リサーチの発見をプランにマージし、元の構造を変えずに深さを追加します。
 </thinking>
 
-**Enhancement format for each section:**
+**各セクションの強化フォーマット：**
 
 ```markdown
-## [Original Section Title]
+## [元のセクションタイトル]
 
-[Original content preserved]
+[元のコンテンツを保持]
 
-### Research Insights
+### リサーチインサイト
 
-**Best Practices:**
-- [Concrete recommendation 1]
-- [Concrete recommendation 2]
+**ベストプラクティス：**
+- [具体的な推奨事項1]
+- [具体的な推奨事項2]
 
-**Performance Considerations:**
-- [Optimization opportunity]
-- [Benchmark or metric to target]
+**パフォーマンスの考慮事項：**
+- [最適化の機会]
+- [目標とするベンチマークやメトリクス]
 
-**Implementation Details:**
-```[language]
-// Concrete code example from research
+**実装の詳細：**
+```[言語]
+// リサーチからの具体的なコード例
 ```
 
-**Edge Cases:**
-- [Edge case 1 and how to handle]
-- [Edge case 2 and how to handle]
+**エッジケース：**
+- [エッジケース1とその処理方法]
+- [エッジケース2とその処理方法]
 
-**References:**
-- [Documentation URL 1]
-- [Documentation URL 2]
+**参照：**
+- [ドキュメントURL 1]
+- [ドキュメントURL 2]
 ```
 
-### 8. Add Enhancement Summary
+### 8. 強化サマリーの追加
 
-At the top of the plan, add a summary section:
+プランの上部にサマリーセクションを追加：
 
 ```markdown
-## Enhancement Summary
+## 強化サマリー
 
-**Deepened on:** [Date]
-**Sections enhanced:** [Count]
-**Research agents used:** [List]
+**深化日:** [日付]
+**強化されたセクション:** [数]
+**使用したリサーチエージェント:** [リスト]
 
-### Key Improvements
-1. [Major improvement 1]
-2. [Major improvement 2]
-3. [Major improvement 3]
+### 主要な改善
+1. [主要な改善1]
+2. [主要な改善2]
+3. [主要な改善3]
 
-### New Considerations Discovered
-- [Important finding 1]
-- [Important finding 2]
+### 発見された新しい考慮事項
+- [重要な発見1]
+- [重要な発見2]
 ```
 
-### 9. Update Plan File
+### 9. プランファイルの更新
 
-**Write the enhanced plan:**
-- Preserve original filename
-- Add `-deepened` suffix if user prefers a new file
-- Update any timestamps or metadata
+**強化されたプランを書き込む：**
+- 元のファイル名を保持
+- ユーザーが新しいファイルを希望する場合は`-deepened`サフィックスを追加
+- タイムスタンプやメタデータを更新
 
-## Output Format
+## 出力フォーマット
 
-Update the plan file in place (or create `plans/<original-name>-deepened.md` if requested).
+プランファイルをその場で更新（またはリクエストされた場合は`plans/<original-name>-deepened.md`を作成）。
 
-## Quality Checks
+## 品質チェック
 
-Before finalizing:
-- [ ] All original content preserved
-- [ ] Research insights clearly marked and attributed
-- [ ] Code examples are syntactically correct
-- [ ] Links are valid and relevant
-- [ ] No contradictions between sections
-- [ ] Enhancement summary accurately reflects changes
+最終化前に：
+- [ ] すべての元のコンテンツが保持されている
+- [ ] リサーチインサイトが明確にマークされ、帰属が示されている
+- [ ] コード例が構文的に正しい
+- [ ] リンクが有効で関連性がある
+- [ ] セクション間に矛盾がない
+- [ ] 強化サマリーが変更を正確に反映している
 
-## Post-Enhancement Options
+## 強化後のオプション
 
-After writing the enhanced plan, use the **AskUserQuestion tool** to present these options:
+強化されたプランを書き込んだ後、**AskUserQuestion tool**を使用してこれらのオプションを提示：
 
-**Question:** "Plan deepened at `[plan_path]`. What would you like to do next?"
+**質問:** "`[plan_path]`でプランを深化しました。次に何をしますか？"
 
-**Options:**
-1. **View diff** - Show what was added/changed
-2. **Run `/plan_review`** - Get feedback from reviewers on enhanced plan
-3. **Start `/workflows:work`** - Begin implementing this enhanced plan
-4. **Deepen further** - Run another round of research on specific sections
-5. **Revert** - Restore original plan (if backup exists)
+**オプション:**
+1. **差分を表示** - 追加/変更された内容を表示
+2. **`/plan_review`を実行** - 強化されたプランに対してレビュアーからフィードバックを取得
+3. **`/workflows:work`を開始** - この強化されたプランの実装を開始
+4. **さらに深化** - 特定のセクションに対して別のリサーチラウンドを実行
+5. **元に戻す** - 元のプランを復元（バックアップが存在する場合）
 
-Based on selection:
-- **View diff** → Run `git diff [plan_path]` or show before/after
-- **`/plan_review`** → Call the /plan_review command with the plan file path
-- **`/workflows:work`** → Call the /workflows:work command with the plan file path
-- **Deepen further** → Ask which sections need more research, then re-run those agents
-- **Revert** → Restore from git or backup
+選択に基づいて：
+- **差分を表示** → `git diff [plan_path]`を実行または前後を表示
+- **`/plan_review`** → プランファイルパスで/plan_reviewコマンドを呼び出す
+- **`/workflows:work`** → プランファイルパスで/workflows:workコマンドを呼び出す
+- **さらに深化** → より多くのリサーチが必要なセクションを尋ね、それらのエージェントを再実行
+- **元に戻す** → gitまたはバックアップから復元
 
-## Example Enhancement
+## 強化例
 
-**Before (from /workflows:plan):**
+**前（/workflows:planから）：**
 ```markdown
-## Technical Approach
+## 技術的アプローチ
 
-Use React Query for data fetching with optimistic updates.
+楽観的更新を伴うReact Queryをデータ取得に使用。
 ```
 
-**After (from /workflows:deepen-plan):**
+**後（/workflows:deepen-planから）：**
 ```markdown
-## Technical Approach
+## 技術的アプローチ
 
-Use React Query for data fetching with optimistic updates.
+楽観的更新を伴うReact Queryをデータ取得に使用。
 
-### Research Insights
+### リサーチインサイト
 
-**Best Practices:**
-- Configure `staleTime` and `cacheTime` based on data freshness requirements
-- Use `queryKey` factories for consistent cache invalidation
-- Implement error boundaries around query-dependent components
+**ベストプラクティス：**
+- データの鮮度要件に基づいて`staleTime`と`cacheTime`を設定
+- 一貫したキャッシュ無効化のために`queryKey`ファクトリを使用
+- クエリ依存コンポーネントの周りにエラーバウンダリを実装
 
-**Performance Considerations:**
-- Enable `refetchOnWindowFocus: false` for stable data to reduce unnecessary requests
-- Use `select` option to transform and memoize data at query level
-- Consider `placeholderData` for instant perceived loading
+**パフォーマンスの考慮事項：**
+- 安定したデータに対して`refetchOnWindowFocus: false`を有効にし、不要なリクエストを減らす
+- クエリレベルでデータを変換しメモ化するために`select`オプションを使用
+- 即座の知覚ローディングのために`placeholderData`を検討
 
-**Implementation Details:**
+**実装の詳細：**
 ```typescript
-// Recommended query configuration
+// 推奨クエリ設定
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
-      staleTime: 5 * 60 * 1000, // 5 minutes
+      staleTime: 5 * 60 * 1000, // 5分
       retry: 2,
       refetchOnWindowFocus: false,
     },
@@ -533,14 +533,14 @@ const queryClient = new QueryClient({
 });
 ```
 
-**Edge Cases:**
-- Handle race conditions with `cancelQueries` on component unmount
-- Implement retry logic for transient network failures
-- Consider offline support with `persistQueryClient`
+**エッジケース：**
+- コンポーネントのアンマウント時に`cancelQueries`でレースコンディションを処理
+- 一時的なネットワーク障害に対してリトライロジックを実装
+- `persistQueryClient`でオフラインサポートを検討
 
-**References:**
+**参照：**
 - https://tanstack.com/query/latest/docs/react/guides/optimistic-updates
 - https://tkdodo.eu/blog/practical-react-query
 ```
 
-NEVER CODE! Just research and enhance the plan.
+コードは書かないでください！リサーチとプランの強化のみ。

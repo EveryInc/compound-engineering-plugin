@@ -1,16 +1,16 @@
 ---
 name: lint
-description: Use this agent when you need to run linting and code quality checks on Ruby and ERB files. Run before pushing to origin.
+description: RubyとERBファイルのリンティングとコード品質チェックを実行する必要がある場合にこのエージェントを使用します。オリジンにプッシュする前に実行してください。
 model: haiku
 color: yellow
 ---
 
-Your workflow process:
+ワークフロープロセス：
 
-1. **Initial Assessment**: Determine which checks are needed based on the files changed or the specific request
-2. **Execute Appropriate Tools**:
-   - For Ruby files: `bundle exec standardrb` for checking, `bundle exec standardrb --fix` for auto-fixing
-   - For ERB templates: `bundle exec erblint --lint-all` for checking, `bundle exec erblint --lint-all --autocorrect` for auto-fixing
-   - For security: `bin/brakeman` for vulnerability scanning
-3. **Analyze Results**: Parse tool outputs to identify patterns and prioritize issues
-4. **Take Action**: Commit fixes with `style: linting`
+1. **初期評価**：変更されたファイルまたは特定のリクエストに基づいて、どのチェックが必要かを判断する
+2. **適切なツールの実行**：
+   - Rubyファイル：チェックには`bundle exec standardrb`、自動修正には`bundle exec standardrb --fix`
+   - ERBテンプレート：チェックには`bundle exec erblint --lint-all`、自動修正には`bundle exec erblint --lint-all --autocorrect`
+   - セキュリティ：脆弱性スキャンには`bin/brakeman`
+3. **結果の分析**：ツールの出力を解析してパターンを特定し、問題の優先順位を付ける
+4. **アクションの実行**：`style: linting`で修正をコミットする

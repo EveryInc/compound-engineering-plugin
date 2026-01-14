@@ -1,20 +1,20 @@
 <overview>
-How to design MCP tools following prompt-native principles. Tools should be primitives that enable capability, not workflows that encode decisions.
+プロンプトネイティブの原則に従ってMCPツールを設計する方法。ツールは能力を有効にするプリミティブであるべきで、決定をエンコードするワークフローではありません。
 
-**Core principle:** Whatever a user can do, the agent should be able to do. Don't artificially limit the agent—give it the same primitives a power user would have.
+**コア原則:** ユーザーができることは何でも、エージェントもできるべき。エージェントを人為的に制限しない—パワーユーザーが持つのと同じプリミティブを与える。
 </overview>
 
 <principle name="primitives-not-workflows">
-## Tools Are Primitives, Not Workflows
+## ツールはワークフローではなくプリミティブ
 
-**Wrong approach:** Tools that encode business logic
+**誤ったアプローチ:** ビジネスロジックをエンコードするツール
 ```typescript
 tool("process_feedback", {
   feedback: z.string(),
   category: z.enum(["bug", "feature", "question"]),
   priority: z.enum(["low", "medium", "high"]),
 }, async ({ feedback, category, priority }) => {
-  // Tool decides how to process
+  // ツールが処理方法を決定
   const processed = categorize(feedback);
   const stored = await saveToDatabase(processed);
   const notification = await notify(priority);
@@ -22,14 +22,14 @@ tool("process_feedback", {
 });
 ```
 
-**Right approach:** Primitives that enable any workflow
+**正しいアプローチ:** 任意のワークフローを可能にするプリミティブ
 ```typescript
 tool("store_item", {
   key: z.string(),
   value: z.any(),
 }, async ({ key, value }) => {
   await db.set(key, value);
-  return { text: `Stored ${key}` };
+  return { text: `${key}を保存しました` };
 });
 
 tool("send_message", {
@@ -37,34 +37,34 @@ tool("send_message", {
   content: z.string(),
 }, async ({ channel, content }) => {
   await messenger.send(channel, content);
-  return { text: "Sent" };
+  return { text: "送信しました" };
 });
 ```
 
-The agent decides categorization, priority, and when to notify based on the system prompt.
+エージェントはシステムプロンプトに基づいて分類、優先度、通知タイミングを決定。
 </principle>
 
 <principle name="descriptive-names">
-## Tools Should Have Descriptive, Primitive Names
+## ツールには説明的でプリミティブな名前を
 
-Names should describe the capability, not the use case:
+名前はユースケースではなく、能力を説明すべき:
 
-| Wrong | Right |
+| 誤り | 正解 |
 |-------|-------|
 | `process_user_feedback` | `store_item` |
 | `create_feedback_summary` | `write_file` |
 | `send_notification` | `send_message` |
 | `deploy_to_production` | `git_push` |
 
-The prompt tells the agent *when* to use primitives. The tool just provides *capability*.
+プロンプトがエージェントに*いつ*プリミティブを使うかを伝える。ツールは*能力*だけを提供。
 </principle>
 
 <principle name="simple-inputs">
-## Inputs Should Be Simple
+## 入力はシンプルに
 
-Tools accept data. They don't accept decisions.
+ツールはデータを受け取る。決定は受け取らない。
 
-**Wrong:** Tool accepts decisions
+**誤り:** ツールが決定を受け取る
 ```typescript
 tool("format_content", {
   content: z.string(),
@@ -73,44 +73,44 @@ tool("format_content", {
 }, ...)
 ```
 
-**Right:** Tool accepts data, agent decides format
+**正解:** ツールがデータを受け取り、エージェントがフォーマットを決定
 ```typescript
 tool("write_file", {
   path: z.string(),
   content: z.string(),
 }, ...)
-// Agent decides to write index.html with HTML content, or data.json with JSON
+// エージェントがHTMLコンテンツでindex.htmlを書くか、JSONでdata.jsonを書くかを決定
 ```
 </principle>
 
 <principle name="rich-outputs">
-## Outputs Should Be Rich
+## 出力はリッチに
 
-Return enough information for the agent to verify and iterate.
+エージェントが検証して反復するのに十分な情報を返す。
 
-**Wrong:** Minimal output
+**誤り:** 最小限の出力
 ```typescript
 async ({ key }) => {
   await db.delete(key);
-  return { text: "Deleted" };
+  return { text: "削除しました" };
 }
 ```
 
-**Right:** Rich output
+**正解:** リッチな出力
 ```typescript
 async ({ key }) => {
   const existed = await db.has(key);
   if (!existed) {
-    return { text: `Key ${key} did not exist` };
+    return { text: `キー${key}は存在しませんでした` };
   }
   await db.delete(key);
-  return { text: `Deleted ${key}. ${await db.count()} items remaining.` };
+  return { text: `${key}を削除しました。残り${await db.count()}アイテム。` };
 }
 ```
 </principle>
 
 <design_template>
-## Tool Design Template
+## ツール設計テンプレート
 
 ```typescript
 import { createSdkMcpServer, tool } from "@anthropic-ai/claude-agent-sdk";
@@ -120,17 +120,17 @@ export const serverName = createSdkMcpServer({
   name: "server-name",
   version: "1.0.0",
   tools: [
-    // READ operations
+    // READ操作
     tool(
       "read_item",
-      "Read an item by key",
-      { key: z.string().describe("Item key") },
+      "キーでアイテムを読む",
+      { key: z.string().describe("アイテムキー") },
       async ({ key }) => {
         const item = await storage.get(key);
         return {
           content: [{
             type: "text",
-            text: item ? JSON.stringify(item, null, 2) : `Not found: ${key}`,
+            text: item ? JSON.stringify(item, null, 2) : `見つかりません: ${key}`,
           }],
           isError: !item,
         };
@@ -139,57 +139,57 @@ export const serverName = createSdkMcpServer({
 
     tool(
       "list_items",
-      "List all items, optionally filtered",
+      "すべてのアイテムを一覧表示、オプションでフィルタ",
       {
-        prefix: z.string().optional().describe("Filter by key prefix"),
-        limit: z.number().default(100).describe("Max items"),
+        prefix: z.string().optional().describe("キープレフィックスでフィルタ"),
+        limit: z.number().default(100).describe("最大アイテム数"),
       },
       async ({ prefix, limit }) => {
         const items = await storage.list({ prefix, limit });
         return {
           content: [{
             type: "text",
-            text: `Found ${items.length} items:\n${items.map(i => i.key).join("\n")}`,
+            text: `${items.length}件見つかりました:\n${items.map(i => i.key).join("\n")}`,
           }],
         };
       }
     ),
 
-    // WRITE operations
+    // WRITE操作
     tool(
       "store_item",
-      "Store an item",
+      "アイテムを保存",
       {
-        key: z.string().describe("Item key"),
-        value: z.any().describe("Item data"),
+        key: z.string().describe("アイテムキー"),
+        value: z.any().describe("アイテムデータ"),
       },
       async ({ key, value }) => {
         await storage.set(key, value);
         return {
-          content: [{ type: "text", text: `Stored ${key}` }],
+          content: [{ type: "text", text: `${key}を保存しました` }],
         };
       }
     ),
 
     tool(
       "delete_item",
-      "Delete an item",
-      { key: z.string().describe("Item key") },
+      "アイテムを削除",
+      { key: z.string().describe("アイテムキー") },
       async ({ key }) => {
         const existed = await storage.delete(key);
         return {
           content: [{
             type: "text",
-            text: existed ? `Deleted ${key}` : `${key} did not exist`,
+            text: existed ? `${key}を削除しました` : `${key}は存在しませんでした`,
           }],
         };
       }
     ),
 
-    // EXTERNAL operations
+    // EXTERNAL操作
     tool(
       "call_api",
-      "Make an HTTP request",
+      "HTTPリクエストを行う",
       {
         url: z.string().url(),
         method: z.enum(["GET", "POST", "PUT", "DELETE"]).default("GET"),
@@ -213,9 +213,9 @@ export const serverName = createSdkMcpServer({
 </design_template>
 
 <example name="feedback-server">
-## Example: Feedback Storage Server
+## 例: フィードバックストレージサーバー
 
-This server provides primitives for storing feedback. It does NOT decide how to categorize or organize feedback—that's the agent's job via the prompt.
+このサーバーはフィードバックを保存するためのプリミティブを提供します。フィードバックの分類や整理方法を決定しません—それはプロンプト経由でエージェントの仕事です。
 
 ```typescript
 export const feedbackMcpServer = createSdkMcpServer({
@@ -224,7 +224,7 @@ export const feedbackMcpServer = createSdkMcpServer({
   tools: [
     tool(
       "store_feedback",
-      "Store a feedback item",
+      "フィードバックアイテムを保存",
       {
         item: z.object({
           id: z.string(),
@@ -235,14 +235,14 @@ export const feedbackMcpServer = createSdkMcpServer({
           status: z.string().optional(),
           urls: z.array(z.string()).optional(),
           metadata: z.any().optional(),
-        }).describe("Feedback item"),
+        }).describe("フィードバックアイテム"),
       },
       async ({ item }) => {
         await db.feedback.insert(item);
         return {
           content: [{
             type: "text",
-            text: `Stored feedback ${item.id} from ${item.author}`,
+            text: `フィードバック${item.id}を${item.author}から保存しました`,
           }],
         };
       }
@@ -250,7 +250,7 @@ export const feedbackMcpServer = createSdkMcpServer({
 
     tool(
       "list_feedback",
-      "List feedback items",
+      "フィードバックアイテムを一覧表示",
       {
         limit: z.number().default(50),
         status: z.string().optional(),
@@ -268,7 +268,7 @@ export const feedbackMcpServer = createSdkMcpServer({
 
     tool(
       "update_feedback",
-      "Update a feedback item",
+      "フィードバックアイテムを更新",
       {
         id: z.string(),
         updates: z.object({
@@ -280,7 +280,7 @@ export const feedbackMcpServer = createSdkMcpServer({
       async ({ id, updates }) => {
         await db.feedback.update(id, updates);
         return {
-          content: [{ type: "text", text: `Updated ${id}` }],
+          content: [{ type: "text", text: `${id}を更新しました` }],
         };
       }
     ),
@@ -288,33 +288,33 @@ export const feedbackMcpServer = createSdkMcpServer({
 });
 ```
 
-The system prompt then tells the agent *how* to use these primitives:
+システムプロンプトがエージェントにこれらのプリミティブの*使い方*を伝える:
 
 ```markdown
-## Feedback Processing
+## フィードバック処理
 
-When someone shares feedback:
-1. Extract author, content, and any URLs
-2. Rate importance 1-5 based on actionability
-3. Store using feedback.store_feedback
-4. If high importance (4-5), notify the channel
+誰かがフィードバックを共有したとき:
+1. 作者、内容、URLを抽出
+2. アクション可能性に基づいて重要度を1-5で評価
+3. feedback.store_feedbackを使用して保存
+4. 高重要度（4-5）ならチャンネルに通知
 
-Use your judgment about importance ratings.
+重要度評価については自分の判断を使用。
 ```
 </example>
 
 <principle name="dynamic-capability-discovery">
-## Dynamic Capability Discovery vs Static Tool Mapping
+## 動的能力発見 vs 静的ツールマッピング
 
-**This pattern is specifically for agent-native apps** where you want the agent to have full access to an external API—the same access a user would have. It follows the core agent-native principle: "Whatever the user can do, the agent can do."
+**このパターンは、エージェントに外部APIへのフルアクセスを持たせたいエージェントネイティブアプリ専用です**—ユーザーが持つのと同じアクセス。これはコアエージェントネイティブ原則に従います: 「ユーザーができることは、エージェントもできる。」
 
-If you're building a constrained agent with limited capabilities, static tool mapping may be intentional. But for agent-native apps integrating with HealthKit, HomeKit, GraphQL, or similar APIs:
+限られた能力を持つ制約されたエージェントを構築している場合、静的ツールマッピングは意図的かもしれません。しかしHealthKit、HomeKit、GraphQL、または類似のAPIと統合するエージェントネイティブアプリの場合:
 
-**Static Tool Mapping (Anti-pattern for Agent-Native):**
-Build individual tools for each API capability. Always out of date, limits agent to only what you anticipated.
+**静的ツールマッピング（エージェントネイティブのアンチパターン）:**
+各API能力に対して個別のツールを構築。常に古く、エージェントを予測したものだけに制限。
 
 ```typescript
-// ❌ Static: Every API type needs a hardcoded tool
+// ❌ 静的: すべてのAPIタイプにハードコードされたツールが必要
 tool("read_steps", async ({ startDate, endDate }) => {
   return healthKit.query(HKQuantityType.stepCount, startDate, endDate);
 });
@@ -327,57 +327,56 @@ tool("read_sleep", async ({ startDate, endDate }) => {
   return healthKit.query(HKCategoryType.sleepAnalysis, startDate, endDate);
 });
 
-// When HealthKit adds glucose tracking... you need a code change
+// HealthKitがグルコーストラッキングを追加したら...コード変更が必要
 ```
 
-**Dynamic Capability Discovery (Preferred):**
-Build a meta-tool that discovers what's available, and a generic tool that can access anything.
+**動的能力発見（推奨）:**
+利用可能なものを発見するメタツールと、何にでもアクセスできる汎用ツールを構築。
 
 ```typescript
-// ✅ Dynamic: Agent discovers and uses any capability
-
-// Discovery tool - returns what's available at runtime
+// ✅ 動的: エージェントが任意の能力を発見して使用
+// 発見ツール - ランタイムで利用可能なものを返す
 tool("list_available_capabilities", async () => {
   const quantityTypes = await healthKit.availableQuantityTypes();
   const categoryTypes = await healthKit.availableCategoryTypes();
 
   return {
-    text: `Available health metrics:\n` +
-          `Quantity types: ${quantityTypes.join(", ")}\n` +
-          `Category types: ${categoryTypes.join(", ")}\n` +
-          `\nUse read_health_data with any of these types.`
+    text: `利用可能なヘルスメトリクス:\n` +
+          `量タイプ: ${quantityTypes.join(", ")}\n` +
+          `カテゴリタイプ: ${categoryTypes.join(", ")}\n` +
+          `\nこれらのタイプでread_health_dataを使用。`
   };
 });
 
-// Generic access tool - type is a string, API validates
+// 汎用アクセスツール - タイプは文字列、APIが検証
 tool("read_health_data", {
-  dataType: z.string(),  // NOT z.enum - let HealthKit validate
+  dataType: z.string(),  // z.enumではない - HealthKitに検証させる
   startDate: z.string(),
   endDate: z.string(),
   aggregation: z.enum(["sum", "average", "samples"]).optional()
 }, async ({ dataType, startDate, endDate, aggregation }) => {
-  // HealthKit validates the type, returns helpful error if invalid
+  // HealthKitがタイプを検証、無効なら役立つエラーを返す
   const result = await healthKit.query(dataType, startDate, endDate, aggregation);
   return { text: JSON.stringify(result, null, 2) };
 });
 ```
 
-**When to Use Each Approach:**
+**各アプローチをいつ使用するか:**
 
-| Dynamic (Agent-Native) | Static (Constrained Agent) |
+| 動的（エージェントネイティブ） | 静的（制約されたエージェント） |
 |------------------------|---------------------------|
-| Agent should access anything user can | Agent has intentionally limited scope |
-| External API with many endpoints (HealthKit, HomeKit, GraphQL) | Internal domain with fixed operations |
-| API evolves independently of your code | Tightly coupled domain logic |
-| You want full action parity | You want strict guardrails |
+| エージェントがユーザーができることすべてにアクセスすべき | エージェントが意図的に限定されたスコープ |
+| 多くのエンドポイントを持つ外部API（HealthKit、HomeKit、GraphQL） | 固定された操作を持つ内部ドメイン |
+| APIがコードから独立して進化 | 密結合されたドメインロジック |
+| フルアクションパリティが欲しい | 厳格なガードレールが欲しい |
 
-**The agent-native default is Dynamic.** Only use Static when you're intentionally limiting the agent's capabilities.
+**エージェントネイティブのデフォルトは動的。** 静的は意図的にエージェントの能力を制限する場合のみ使用。
 
-**Complete Dynamic Pattern:**
+**完全な動的パターン:**
 
 ```swift
-// 1. Discovery tool: What can I access?
-tool("list_health_types", "Get available health data types") { _ in
+// 1. 発見ツール: 何にアクセスできるか？
+tool("list_health_types", "利用可能なヘルスデータタイプを取得") { _ in
     let store = HKHealthStore()
 
     let quantityTypes = HKQuantityTypeIdentifier.allCases.map { $0.rawValue }
@@ -385,32 +384,32 @@ tool("list_health_types", "Get available health data types") { _ in
     let characteristicTypes = HKCharacteristicTypeIdentifier.allCases.map { $0.rawValue }
 
     return ToolResult(text: """
-        Available HealthKit types:
+        利用可能なHealthKitタイプ:
 
-        ## Quantity Types (numeric values)
+        ## 量タイプ（数値）
         \(quantityTypes.joined(separator: ", "))
 
-        ## Category Types (categorical data)
+        ## カテゴリタイプ（カテゴリデータ）
         \(categoryTypes.joined(separator: ", "))
 
-        ## Characteristic Types (user info)
+        ## 特性タイプ（ユーザー情報）
         \(characteristicTypes.joined(separator: ", "))
 
-        Use read_health_data or write_health_data with any of these.
+        これらでread_health_dataまたはwrite_health_dataを使用。
         """)
 }
 
-// 2. Generic read: Access any type by name
-tool("read_health_data", "Read any health metric", {
-    dataType: z.string().describe("Type name from list_health_types"),
+// 2. 汎用読み取り: 名前で任意のタイプにアクセス
+tool("read_health_data", "任意のヘルスメトリクスを読む", {
+    dataType: z.string().describe("list_health_typesからのタイプ名"),
     startDate: z.string(),
     endDate: z.string()
 }) { request in
-    // Let HealthKit validate the type name
+    // HealthKitにタイプ名を検証させる
     guard let type = HKQuantityTypeIdentifier(rawValue: request.dataType)
                      ?? HKCategoryTypeIdentifier(rawValue: request.dataType) else {
         return ToolResult(
-            text: "Unknown type: \(request.dataType). Use list_health_types to see available types.",
+            text: "不明なタイプ: \(request.dataType)。利用可能なタイプを見るにはlist_health_typesを使用。",
             isError: true
         )
     }
@@ -419,46 +418,46 @@ tool("read_health_data", "Read any health metric", {
     return ToolResult(text: samples.formatted())
 }
 
-// 3. Context injection: Tell agent what's available in system prompt
+// 3. コンテキスト注入: システムプロンプトで利用可能なものをエージェントに伝える
 func buildSystemPrompt() -> String {
     let availableTypes = healthService.getAuthorizedTypes()
 
     return """
-    ## Available Health Data
+    ## 利用可能なヘルスデータ
 
-    You have access to these health metrics:
+    これらのヘルスメトリクスにアクセスできます:
     \(availableTypes.map { "- \($0)" }.joined(separator: "\n"))
 
-    Use read_health_data with any type above. For new types not listed,
-    use list_health_types to discover what's available.
+    上記の任意のタイプでread_health_dataを使用。リストにない新しいタイプについては、
+    list_health_typesを使用して利用可能なものを発見。
     """
 }
 ```
 
-**Benefits:**
-- Agent can use any API capability, including ones added after your code shipped
-- API is the validator, not your enum definition
-- Smaller tool surface (2-3 tools vs N tools)
-- Agent naturally discovers capabilities by asking
-- Works with any API that has introspection (HealthKit, GraphQL, OpenAPI)
+**利点:**
+- エージェントはコードが出荷された後に追加されたものを含む、任意のAPI能力を使用できる
+- あなたのenum定義ではなくAPIがバリデータ
+- 小さいツールサーフェス（Nツールではなく2-3ツール）
+- エージェントは尋ねることで自然に能力を発見
+- イントロスペクションを持つ任意のAPI（HealthKit、GraphQL、OpenAPI）で機能
 </principle>
 
 <principle name="crud-completeness">
-## CRUD Completeness
+## CRUDの完全性
 
-Every data type the agent can create, it should be able to read, update, and delete. Incomplete CRUD = broken action parity.
+エージェントが作成できるすべてのデータタイプは、読み取り、更新、削除もできるべき。不完全なCRUD = 壊れたアクションパリティ。
 
-**Anti-pattern: Create-only tools**
+**アンチパターン: 作成のみのツール**
 ```typescript
-// ❌ Can create but not modify or delete
+// ❌ 作成できるが修正や削除はできない
 tool("create_experiment", { hypothesis, variable, metric })
 tool("write_journal_entry", { content, author, tags })
-// User: "Delete that experiment" → Agent: "I can't do that"
+// ユーザー: 「その実験を削除して」 → エージェント: 「それはできません」
 ```
 
-**Correct: Full CRUD for each entity**
+**正解: 各エンティティにフルCRUD**
 ```typescript
-// ✅ Complete CRUD
+// ✅ 完全なCRUD
 tool("create_experiment", { hypothesis, variable, metric })
 tool("read_experiment", { id })
 tool("update_experiment", { id, updates: { hypothesis?, status?, endDate? } })
@@ -470,37 +469,37 @@ tool("update_journal_entry", { id, content, tags? })
 tool("delete_journal_entry", { id })
 ```
 
-**The CRUD Audit:**
-For each entity type in your app, verify:
-- [ ] Create: Agent can create new instances
-- [ ] Read: Agent can query/search/list instances
-- [ ] Update: Agent can modify existing instances
-- [ ] Delete: Agent can remove instances
+**CRUDの監査:**
+アプリの各エンティティタイプについて検証:
+- [ ] 作成: エージェントが新しいインスタンスを作成できる
+- [ ] 読み取り: エージェントがクエリ/検索/一覧表示できる
+- [ ] 更新: エージェントが既存のインスタンスを修正できる
+- [ ] 削除: エージェントがインスタンスを削除できる
 
-If any operation is missing, users will eventually ask for it and the agent will fail.
+いずれかの操作が欠けていると、ユーザーは最終的にそれを求め、エージェントは失敗します。
 </principle>
 
 <checklist>
-## MCP Tool Design Checklist
+## MCPツール設計チェックリスト
 
-**Fundamentals:**
-- [ ] Tool names describe capability, not use case
-- [ ] Inputs are data, not decisions
-- [ ] Outputs are rich (enough for agent to verify)
-- [ ] CRUD operations are separate tools (not one mega-tool)
-- [ ] No business logic in tool implementations
-- [ ] Error states clearly communicated via `isError`
-- [ ] Descriptions explain what the tool does, not when to use it
+**基本:**
+- [ ] ツール名はユースケースではなく能力を説明
+- [ ] 入力は決定ではなくデータ
+- [ ] 出力はリッチ（エージェントが検証するのに十分）
+- [ ] CRUD操作は別々のツール（1つのメガツールではない）
+- [ ] ツール実装にビジネスロジックなし
+- [ ] エラー状態は`isError`で明確に伝達
+- [ ] 説明はいつ使うかではなく、何をするかを説明
 
-**Dynamic Capability Discovery (for agent-native apps):**
-- [ ] For external APIs where agent should have full access, use dynamic discovery
-- [ ] Include a `list_*` or `discover_*` tool for each API surface
-- [ ] Use string inputs (not enums) when the API validates
-- [ ] Inject available capabilities into system prompt at runtime
-- [ ] Only use static tool mapping if intentionally limiting agent scope
+**動的能力発見（エージェントネイティブアプリ用）:**
+- [ ] エージェントがフルアクセスを持つべき外部APIには動的発見を使用
+- [ ] 各APIサーフェスに`list_*`または`discover_*`ツールを含む
+- [ ] APIが検証する場合、文字列入力を使用（enumではない）
+- [ ] 利用可能な能力をランタイムでシステムプロンプトに注入
+- [ ] 静的ツールマッピングは意図的にエージェントスコープを制限する場合のみ使用
 
-**CRUD Completeness:**
-- [ ] Every entity has create, read, update, delete operations
-- [ ] Every UI action has a corresponding agent tool
-- [ ] Test: "Can the agent undo what it just did?"
+**CRUDの完全性:**
+- [ ] すべてのエンティティに作成、読み取り、更新、削除操作がある
+- [ ] すべてのUIアクションに対応するエージェントツールがある
+- [ ] テスト: 「エージェントは今したことを取り消せるか？」
 </checklist>

@@ -1,25 +1,25 @@
-# Module Organization Patterns
+# モジュール構成パターン
 
-## Simple Gem Layout
+## シンプルなGemレイアウト
 
 ```
 lib/
-├── gemname.rb          # Entry point, config, errors
+├── gemname.rb          # エントリーポイント、設定、エラー
 └── gemname/
-    ├── helper.rb       # Core functionality
-    ├── engine.rb       # Rails engine (if needed)
-    └── version.rb      # VERSION constant only
+    ├── helper.rb       # コア機能
+    ├── engine.rb       # Railsエンジン（必要な場合）
+    └── version.rb      # VERSION定数のみ
 ```
 
-## Complex Gem Layout (PgHero pattern)
+## 複雑なGemレイアウト（PgHeroパターン）
 
 ```
 lib/
 ├── pghero.rb
 └── pghero/
-    ├── database.rb     # Main class
-    ├── engine.rb       # Rails engine
-    └── methods/        # Functional decomposition
+    ├── database.rb     # メインクラス
+    ├── engine.rb       # Railsエンジン
+    └── methods/        # 機能分解
         ├── basic.rb
         ├── connections.rb
         ├── indexes.rb
@@ -27,9 +27,9 @@ lib/
         └── replication.rb
 ```
 
-## Method Decomposition Pattern
+## メソッド分解パターン
 
-Break large classes into includable modules by feature:
+大きなクラスを機能ごとにインクルード可能なモジュールに分割：
 
 ```ruby
 # lib/pghero/database.rb
@@ -47,20 +47,20 @@ module PgHero
   module Methods
     module Indexes
       def index_hit_rate
-        # implementation
+        # 実装
       end
 
       def unused_indexes
-        # implementation
+        # 実装
       end
     end
   end
 end
 ```
 
-## Version File Pattern
+## Versionファイルパターン
 
-Keep version.rb minimal:
+version.rbは最小限に：
 
 ```ruby
 # lib/gemname/version.rb
@@ -69,45 +69,45 @@ module GemName
 end
 ```
 
-## Require Order in Entry Point
+## エントリーポイントでのRequire順序
 
 ```ruby
 # lib/searchkick.rb
 
-# 1. Standard library
+# 1. 標準ライブラリ
 require "forwardable"
 require "json"
 
-# 2. External dependencies (minimal)
+# 2. 外部依存関係（最小限）
 require "active_support"
 
-# 3. Internal files via require_relative
+# 3. require_relativeで内部ファイル
 require_relative "searchkick/index"
 require_relative "searchkick/model"
 require_relative "searchkick/query"
 require_relative "searchkick/version"
 
-# 4. Conditional Rails loading (LAST)
+# 4. 条件付きRailsローディング（最後）
 require_relative "searchkick/railtie" if defined?(Rails)
 ```
 
 ## Autoload vs Require
 
-Kane uses explicit `require_relative`, not autoload:
+Kaneはautoloadではなく明示的な`require_relative`を使用：
 
 ```ruby
-# CORRECT
+# 正しい
 require_relative "gemname/model"
 require_relative "gemname/query"
 
-# AVOID
+# 避ける
 autoload :Model, "gemname/model"
 autoload :Query, "gemname/query"
 ```
 
-## Comments Style
+## コメントスタイル
 
-Minimal section headers only:
+最小限のセクションヘッダーのみ：
 
 ```ruby
 # dependencies

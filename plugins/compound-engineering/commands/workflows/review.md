@@ -1,62 +1,62 @@
 ---
 name: workflows:review
-description: Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees
-argument-hint: "[PR number, GitHub URL, branch name, or latest]"
+description: マルチエージェント分析、ウルトラシンキング、worktreeを使用して徹底的なコードレビューを実行する
+argument-hint: "[PR番号、GitHub URL、ブランチ名、またはlatest]"
 ---
 
-# Review Command
+# レビューコマンド
 
-<command_purpose> Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and Git worktrees for deep local inspection. </command_purpose>
+<command_purpose> マルチエージェント分析、ウルトラシンキング、およびGit worktreeを使用して徹底的なコードレビューを実行し、深いローカル検査を行う。 </command_purpose>
 
-## Introduction
+## はじめに
 
-<role>Senior Code Review Architect with expertise in security, performance, architecture, and quality assurance</role>
+<role>セキュリティ、パフォーマンス、アーキテクチャ、品質保証の専門知識を持つシニアコードレビューアーキテクト</role>
 
-## Prerequisites
+## 前提条件
 
 <requirements>
-- Git repository with GitHub CLI (`gh`) installed and authenticated
-- Clean main/master branch
-- Proper permissions to create worktrees and access the repository
-- For document reviews: Path to a markdown file or document
+- GitHub CLI（`gh`）がインストールされ認証されたGitリポジトリ
+- クリーンなmain/masterブランチ
+- worktreeを作成しリポジトリにアクセスする適切な権限
+- ドキュメントレビューの場合：マークダウンファイルまたはドキュメントへのパス
 </requirements>
 
-## Main Tasks
+## 主要タスク
 
-### 1. Determine Review Target & Setup (ALWAYS FIRST)
+### 1. レビュー対象の決定 & セットアップ（常に最初）
 
 <review_target> #$ARGUMENTS </review_target>
 
 <thinking>
-First, I need to determine the review target type and set up the code for analysis.
+まず、レビュー対象タイプを決定し、分析用にコードをセットアップする必要があります。
 </thinking>
 
-#### Immediate Actions:
+#### 即座のアクション：
 
 <task_list>
 
-- [ ] Determine review type: PR number (numeric), GitHub URL, file path (.md), or empty (current branch)
-- [ ] Check current git branch
-- [ ] If ALREADY on the PR branch → proceed with analysis on current branch
-- [ ] If DIFFERENT branch → offer to use worktree: "Use git-worktree skill for isolated Call `skill: git-worktree` with branch name
-- [ ] Fetch PR metadata using `gh pr view --json` for title, body, files, linked issues
-- [ ] Set up language-specific analysis tools
-- [ ] Prepare security scanning environment
-- [ ] Make sure we are on the branch we are reviewing. Use gh pr checkout to switch to the branch or manually checkout the branch.
+- [ ] レビュータイプを決定：PR番号（数値）、GitHub URL、ファイルパス（.md）、または空（現在のブランチ）
+- [ ] 現在のgitブランチをチェック
+- [ ] すでにPRブランチにいる場合 → 現在のブランチで分析を進める
+- [ ] 異なるブランチの場合 → worktreeの使用を提案：「分離のためにgit-worktreeスキルを使用」`skill: git-worktree`をブランチ名で呼び出す
+- [ ] `gh pr view --json`でPRメタデータを取得（タイトル、本文、ファイル、リンクされたイシュー）
+- [ ] 言語固有の分析ツールをセットアップ
+- [ ] セキュリティスキャン環境を準備
+- [ ] レビュー対象のブランチにいることを確認。gh pr checkoutでブランチに切り替えるか、手動でブランチをcheckout。
 
-Ensure that the code is ready for analysis (either in worktree or on current branch). ONLY then proceed to the next step.
+コードが分析準備完了（worktreeまたは現在のブランチ）であることを確認。そうして初めて次のステップに進む。
 
 </task_list>
 
-#### Parallel Agents to review the PR:
+#### PRをレビューする並列エージェント：
 
 <parallel_tasks>
 
-Run ALL or most of these agents at the same time:
+これらのエージェントをすべてまたはほとんど同時に実行：
 
 1. Task kieran-rails-reviewer(PR content)
 2. Task dhh-rails-reviewer(PR title)
-3. If turbo is used: Task rails-turbo-expert(PR content)
+3. turboが使用されている場合：Task rails-turbo-expert(PR content)
 4. Task git-history-analyzer(PR content)
 5. Task dependency-detective(PR content)
 6. Task pattern-recognition-specialist(PR content)
@@ -66,224 +66,224 @@ Run ALL or most of these agents at the same time:
 10. Task performance-oracle(PR content)
 11. Task devops-harmony-analyst(PR content)
 12. Task data-integrity-guardian(PR content)
-13. Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
+13. Task agent-native-reviewer(PR content) - 新機能がエージェントアクセス可能か確認
 
 </parallel_tasks>
 
-#### Conditional Agents (Run if applicable):
+#### 条件付きエージェント（該当する場合に実行）：
 
 <conditional_agents>
 
-These agents are run ONLY when the PR matches specific criteria. Check the PR files list to determine if they apply:
+これらのエージェントはPRが特定の基準に一致する場合にのみ実行。PRファイルリストをチェックして適用されるか判断：
 
-**If PR contains database migrations (db/migrate/*.rb files) or data backfills:**
+**PRにデータベースマイグレーション（db/migrate/*.rbファイル）またはデータバックフィルが含まれる場合：**
 
-14. Task data-migration-expert(PR content) - Validates ID mappings match production, checks for swapped values, verifies rollback safety
-15. Task deployment-verification-agent(PR content) - Creates Go/No-Go deployment checklist with SQL verification queries
+14. Task data-migration-expert(PR content) - IDマッピングが本番環境と一致することを検証、値の入れ替えをチェック、ロールバックの安全性を確認
+15. Task deployment-verification-agent(PR content) - SQL検証クエリを含むGo/No-Goデプロイメントチェックリストを作成
 
-**When to run migration agents:**
-- PR includes files matching `db/migrate/*.rb`
-- PR modifies columns that store IDs, enums, or mappings
-- PR includes data backfill scripts or rake tasks
-- PR changes how data is read/written (e.g., changing from FK to string column)
-- PR title/body mentions: migration, backfill, data transformation, ID mapping
+**マイグレーションエージェントを実行するタイミング：**
+- PRに`db/migrate/*.rb`に一致するファイルが含まれる
+- PRがID、enum、またはマッピングを格納するカラムを変更
+- PRにデータバックフィルスクリプトまたはrakeタスクが含まれる
+- PRがデータの読み書き方法を変更（例：FKから文字列カラムへの変更）
+- PRタイトル/本文に言及：migration、backfill、data transformation、ID mapping
 
-**What these agents check:**
-- `data-migration-expert`: Verifies hard-coded mappings match production reality (prevents swapped IDs), checks for orphaned associations, validates dual-write patterns
-- `deployment-verification-agent`: Produces executable pre/post-deploy checklists with SQL queries, rollback procedures, and monitoring plans
+**これらのエージェントがチェックする内容：**
+- `data-migration-expert`: ハードコードされたマッピングが本番環境の実態と一致することを確認（IDの入れ替えを防止）、孤立した関連付けをチェック、デュアルライトパターンを検証
+- `deployment-verification-agent`: 実行可能なpre/postデプロイチェックリスト、SQLクエリ、ロールバック手順、監視プランを作成
 
 </conditional_agents>
 
-### 4. Ultra-Thinking Deep Dive Phases
+### 4. ウルトラシンキング深掘りフェーズ
 
-<ultrathink_instruction> For each phase below, spend maximum cognitive effort. Think step by step. Consider all angles. Question assumptions. And bring all reviews in a synthesis to the user.</ultrathink_instruction>
+<ultrathink_instruction> 以下の各フェーズで最大の認知努力を費やす。ステップバイステップで考える。すべての角度を検討。仮定に疑問を呈する。そしてすべてのレビューをユーザーへの統合に持ち込む。</ultrathink_instruction>
 
 <deliverable>
-Complete system context map with component interactions
+コンポーネント間のインタラクションを含む完全なシステムコンテキストマップ
 </deliverable>
 
-#### Phase 3: Stakeholder Perspective Analysis
+#### フェーズ3：ステークホルダー視点分析
 
-<thinking_prompt> ULTRA-THINK: Put yourself in each stakeholder's shoes. What matters to them? What are their pain points? </thinking_prompt>
+<thinking_prompt> ウルトラシンク：各ステークホルダーの立場に立つ。彼らにとって何が重要か？彼らのペインポイントは何か？ </thinking_prompt>
 
 <stakeholder_perspectives>
 
-1. **Developer Perspective** <questions>
+1. **開発者の視点** <questions>
 
-   - How easy is this to understand and modify?
-   - Are the APIs intuitive?
-   - Is debugging straightforward?
-   - Can I test this easily? </questions>
+   - これは理解しやすく変更しやすいか？
+   - APIは直感的か？
+   - デバッグは簡単か？
+   - これを簡単にテストできるか？ </questions>
 
-2. **Operations Perspective** <questions>
+2. **運用の視点** <questions>
 
-   - How do I deploy this safely?
-   - What metrics and logs are available?
-   - How do I troubleshoot issues?
-   - What are the resource requirements? </questions>
+   - これを安全にデプロイするには？
+   - どのメトリクスとログが利用可能か？
+   - 問題のトラブルシューティングはどうするか？
+   - リソース要件は何か？ </questions>
 
-3. **End User Perspective** <questions>
+3. **エンドユーザーの視点** <questions>
 
-   - Is the feature intuitive?
-   - Are error messages helpful?
-   - Is performance acceptable?
-   - Does it solve my problem? </questions>
+   - 機能は直感的か？
+   - エラーメッセージは役に立つか？
+   - パフォーマンスは許容範囲か？
+   - 私の問題を解決するか？ </questions>
 
-4. **Security Team Perspective** <questions>
+4. **セキュリティチームの視点** <questions>
 
-   - What's the attack surface?
-   - Are there compliance requirements?
-   - How is data protected?
-   - What are the audit capabilities? </questions>
+   - 攻撃対象領域は何か？
+   - コンプライアンス要件はあるか？
+   - データはどう保護されているか？
+   - 監査機能は何か？ </questions>
 
-5. **Business Perspective** <questions>
-   - What's the ROI?
-   - Are there legal/compliance risks?
-   - How does this affect time-to-market?
-   - What's the total cost of ownership? </questions> </stakeholder_perspectives>
+5. **ビジネスの視点** <questions>
+   - ROIは何か？
+   - 法的/コンプライアンスリスクはあるか？
+   - これは市場投入までの時間にどう影響するか？
+   - 総所有コストは何か？ </questions> </stakeholder_perspectives>
 
-#### Phase 4: Scenario Exploration
+#### フェーズ4：シナリオ探索
 
-<thinking_prompt> ULTRA-THINK: Explore edge cases and failure scenarios. What could go wrong? How does the system behave under stress? </thinking_prompt>
+<thinking_prompt> ウルトラシンク：エッジケースと障害シナリオを探索。何がうまくいかない可能性があるか？ストレス下でシステムはどう動作するか？ </thinking_prompt>
 
 <scenario_checklist>
 
-- [ ] **Happy Path**: Normal operation with valid inputs
-- [ ] **Invalid Inputs**: Null, empty, malformed data
-- [ ] **Boundary Conditions**: Min/max values, empty collections
-- [ ] **Concurrent Access**: Race conditions, deadlocks
-- [ ] **Scale Testing**: 10x, 100x, 1000x normal load
-- [ ] **Network Issues**: Timeouts, partial failures
-- [ ] **Resource Exhaustion**: Memory, disk, connections
-- [ ] **Security Attacks**: Injection, overflow, DoS
-- [ ] **Data Corruption**: Partial writes, inconsistency
-- [ ] **Cascading Failures**: Downstream service issues </scenario_checklist>
+- [ ] **ハッピーパス**：有効な入力での通常動作
+- [ ] **無効な入力**：Null、空、不正なデータ
+- [ ] **境界条件**：最小/最大値、空のコレクション
+- [ ] **並行アクセス**：レースコンディション、デッドロック
+- [ ] **スケールテスト**：通常負荷の10倍、100倍、1000倍
+- [ ] **ネットワーク問題**：タイムアウト、部分的障害
+- [ ] **リソース枯渇**：メモリ、ディスク、接続
+- [ ] **セキュリティ攻撃**：インジェクション、オーバーフロー、DoS
+- [ ] **データ破損**：部分書き込み、不整合
+- [ ] **カスケード障害**：ダウンストリームサービスの問題 </scenario_checklist>
 
-### 6. Multi-Angle Review Perspectives
+### 6. 多角度レビュー視点
 
-#### Technical Excellence Angle
+#### 技術的卓越性の角度
 
-- Code craftsmanship evaluation
-- Engineering best practices
-- Technical documentation quality
-- Tooling and automation assessment
+- コード職人技の評価
+- エンジニアリングベストプラクティス
+- 技術ドキュメントの品質
+- ツールと自動化の評価
 
-#### Business Value Angle
+#### ビジネス価値の角度
 
-- Feature completeness validation
-- Performance impact on users
-- Cost-benefit analysis
-- Time-to-market considerations
+- 機能完全性の検証
+- ユーザーへのパフォーマンス影響
+- 費用対効果分析
+- 市場投入時間の考慮
 
-#### Risk Management Angle
+#### リスク管理の角度
 
-- Security risk assessment
-- Operational risk evaluation
-- Compliance risk verification
-- Technical debt accumulation
+- セキュリティリスク評価
+- 運用リスク評価
+- コンプライアンスリスク検証
+- 技術的負債の蓄積
 
-#### Team Dynamics Angle
+#### チームダイナミクスの角度
 
-- Code review etiquette
-- Knowledge sharing effectiveness
-- Collaboration patterns
-- Mentoring opportunities
+- コードレビューのエチケット
+- 知識共有の効果
+- コラボレーションパターン
+- メンタリングの機会
 
-### 4. Simplification and Minimalism Review
+### 4. 簡素化とミニマリズムレビュー
 
-Run the Task code-simplicity-reviewer() to see if we can simplify the code.
+Task code-simplicity-reviewer()を実行してコードを簡素化できるか確認。
 
-### 5. Findings Synthesis and Todo Creation Using file-todos Skill
+### 5. file-todosスキルを使用した発見事項の統合とTodo作成
 
-<critical_requirement> ALL findings MUST be stored in the todos/ directory using the file-todos skill. Create todo files immediately after synthesis - do NOT present findings for user approval first. Use the skill for structured todo management. </critical_requirement>
+<critical_requirement> すべての発見事項はfile-todosスキルを使用してtodos/ディレクトリに保存する必要があります。統合後すぐにTodoファイルを作成 - ユーザー承認のために発見事項を最初に提示しない。構造化されたTodo管理にスキルを使用。 </critical_requirement>
 
-#### Step 1: Synthesize All Findings
+#### ステップ1：すべての発見事項を統合
 
 <thinking>
-Consolidate all agent reports into a categorized list of findings.
-Remove duplicates, prioritize by severity and impact.
+すべてのエージェントレポートをカテゴリ分けされた発見事項リストに統合。
+重複を除去し、重大度と影響度で優先順位付け。
 </thinking>
 
 <synthesis_tasks>
 
-- [ ] Collect findings from all parallel agents
-- [ ] Categorize by type: security, performance, architecture, quality, etc.
-- [ ] Assign severity levels: 🔴 CRITICAL (P1), 🟡 IMPORTANT (P2), 🔵 NICE-TO-HAVE (P3)
-- [ ] Remove duplicate or overlapping findings
-- [ ] Estimate effort for each finding (Small/Medium/Large)
+- [ ] すべての並列エージェントから発見事項を収集
+- [ ] タイプ別にカテゴリ分け：セキュリティ、パフォーマンス、アーキテクチャ、品質など
+- [ ] 重大度レベルを割り当て：🔴 クリティカル（P1）、🟡 重要（P2）、🔵 あれば良い（P3）
+- [ ] 重複または重複する発見事項を除去
+- [ ] 各発見事項の工数を見積もり（小規模/中規模/大規模）
 
 </synthesis_tasks>
 
-#### Step 2: Create Todo Files Using file-todos Skill
+#### ステップ2：file-todosスキルを使用してTodoファイルを作成
 
-<critical_instruction> Use the file-todos skill to create todo files for ALL findings immediately. Do NOT present findings one-by-one asking for user approval. Create all todo files in parallel using the skill, then summarize results to user. </critical_instruction>
+<critical_instruction> file-todosスキルを使用してすべての発見事項のTodoファイルをすぐに作成。ユーザー承認を求めて発見事項を一つずつ提示しない。スキルを使用してすべてのTodoファイルを並列で作成し、結果をユーザーにサマリー。 </critical_instruction>
 
-**Implementation Options:**
+**実装オプション：**
 
-**Option A: Direct File Creation (Fast)**
+**オプションA：直接ファイル作成（高速）**
 
-- Create todo files directly using Write tool
-- All findings in parallel for speed
-- Use standard template from `.claude/skills/file-todos/assets/todo-template.md`
-- Follow naming convention: `{issue_id}-pending-{priority}-{description}.md`
+- Writeツールを使用してTodoファイルを直接作成
+- 速度のためにすべての発見事項を並列で
+- `.claude/skills/file-todos/assets/todo-template.md`の標準テンプレートを使用
+- 命名規約に従う：`{issue_id}-pending-{priority}-{description}.md`
 
-**Option B: Sub-Agents in Parallel (Recommended for Scale)** For large PRs with 15+ findings, use sub-agents to create finding files in parallel:
+**オプションB：並列サブエージェント（スケールに推奨）** 15以上の発見事項がある大規模PRでは、サブエージェントを使用して並列で発見ファイルを作成：
 
 ```bash
-# Launch multiple finding-creator agents in parallel
-Task() - Create todos for first finding
-Task() - Create todos for second finding
-Task() - Create todos for third finding
-etc. for each finding.
+# 複数のfinding-creatorエージェントを並列で起動
+Task() - 最初の発見のTodoを作成
+Task() - 2番目の発見のTodoを作成
+Task() - 3番目の発見のTodoを作成
+など、各発見について。
 ```
 
-Sub-agents can:
+サブエージェントは以下が可能：
 
-- Process multiple findings simultaneously
-- Write detailed todo files with all sections filled
-- Organize findings by severity
-- Create comprehensive Proposed Solutions
-- Add acceptance criteria and work logs
-- Complete much faster than sequential processing
+- 複数の発見事項を同時に処理
+- すべてのセクションが埋まった詳細なTodoファイルを書く
+- 重大度別に発見事項を整理
+- 包括的な提案されるソリューションを作成
+- 受け入れ基準と作業ログを追加
+- 順次処理よりはるかに速く完了
 
-**Execution Strategy:**
+**実行戦略：**
 
-1. Synthesize all findings into categories (P1/P2/P3)
-2. Group findings by severity
-3. Launch 3 parallel sub-agents (one per severity level)
-4. Each sub-agent creates its batch of todos using the file-todos skill
-5. Consolidate results and present summary
+1. すべての発見事項をカテゴリに統合（P1/P2/P3）
+2. 重大度別に発見事項をグループ化
+3. 3つの並列サブエージェントを起動（重大度レベルごとに1つ）
+4. 各サブエージェントがfile-todosスキルを使用してTodoのバッチを作成
+5. 結果を統合してサマリーを提示
 
-**Process (Using file-todos Skill):**
+**プロセス（file-todosスキルを使用）：**
 
-1. For each finding:
+1. 各発見事項について：
 
-   - Determine severity (P1/P2/P3)
-   - Write detailed Problem Statement and Findings
-   - Create 2-3 Proposed Solutions with pros/cons/effort/risk
-   - Estimate effort (Small/Medium/Large)
-   - Add acceptance criteria and work log
+   - 重大度を決定（P1/P2/P3）
+   - 詳細な問題文と発見事項を書く
+   - 長所/短所/工数/リスクを含む2-3の提案されるソリューションを作成
+   - 工数を見積もり（小規模/中規模/大規模）
+   - 受け入れ基準と作業ログを追加
 
-2. Use file-todos skill for structured todo management:
+2. 構造化されたTodo管理にfile-todosスキルを使用：
 
    ```bash
    skill: file-todos
    ```
 
-   The skill provides:
+   スキルが提供するもの：
 
-   - Template location: `.claude/skills/file-todos/assets/todo-template.md`
-   - Naming convention: `{issue_id}-{status}-{priority}-{description}.md`
-   - YAML frontmatter structure: status, priority, issue_id, tags, dependencies
-   - All required sections: Problem Statement, Findings, Solutions, etc.
+   - テンプレートの場所：`.claude/skills/file-todos/assets/todo-template.md`
+   - 命名規約：`{issue_id}-{status}-{priority}-{description}.md`
+   - YAMLフロントマター構造：status、priority、issue_id、tags、dependencies
+   - すべての必須セクション：Problem Statement、Findings、Solutionsなど
 
-3. Create todo files in parallel:
+3. Todoファイルを並列で作成：
 
    ```bash
    {next_id}-pending-{priority}-{description}.md
    ```
 
-4. Examples:
+4. 例：
 
    ```
    001-pending-p1-path-traversal-vulnerability.md
@@ -292,173 +292,173 @@ Sub-agents can:
    004-pending-p3-unused-parameter.md
    ```
 
-5. Follow template structure from file-todos skill: `.claude/skills/file-todos/assets/todo-template.md`
+5. file-todosスキルのテンプレート構造に従う：`.claude/skills/file-todos/assets/todo-template.md`
 
-**Todo File Structure (from template):**
+**Todoファイル構造（テンプレートから）：**
 
-Each todo must include:
+各Todoに含める必要があるもの：
 
-- **YAML frontmatter**: status, priority, issue_id, tags, dependencies
-- **Problem Statement**: What's broken/missing, why it matters
-- **Findings**: Discoveries from agents with evidence/location
-- **Proposed Solutions**: 2-3 options, each with pros/cons/effort/risk
-- **Recommended Action**: (Filled during triage, leave blank initially)
-- **Technical Details**: Affected files, components, database changes
-- **Acceptance Criteria**: Testable checklist items
-- **Work Log**: Dated record with actions and learnings
-- **Resources**: Links to PR, issues, documentation, similar patterns
+- **YAMLフロントマター**：status、priority、issue_id、tags、dependencies
+- **問題文**：何が壊れている/欠けている、なぜ重要か
+- **発見事項**：証拠/場所を含むエージェントからの発見
+- **提案されるソリューション**：2-3のオプション、各々長所/短所/工数/リスク付き
+- **推奨アクション**：（トリアージ中に入力、最初は空白）
+- **技術詳細**：影響を受けるファイル、コンポーネント、データベース変更
+- **受け入れ基準**：テスト可能なチェックリスト項目
+- **作業ログ**：アクションと学びを含む日付付き記録
+- **リソース**：PR、イシュー、ドキュメント、類似パターンへのリンク
 
-**File naming convention:**
+**ファイル命名規約：**
 
 ```
 {issue_id}-{status}-{priority}-{description}.md
 
-Examples:
+例：
 - 001-pending-p1-security-vulnerability.md
 - 002-pending-p2-performance-optimization.md
 - 003-pending-p3-code-cleanup.md
 ```
 
-**Status values:**
+**ステータス値：**
 
-- `pending` - New findings, needs triage/decision
-- `ready` - Approved by manager, ready to work
-- `complete` - Work finished
+- `pending` - 新しい発見事項、トリアージ/決定が必要
+- `ready` - マネージャーにより承認、作業準備完了
+- `complete` - 作業完了
 
-**Priority values:**
+**優先度値：**
 
-- `p1` - Critical (blocks merge, security/data issues)
-- `p2` - Important (should fix, architectural/performance)
-- `p3` - Nice-to-have (enhancements, cleanup)
+- `p1` - クリティカル（マージをブロック、セキュリティ/データの問題）
+- `p2` - 重要（修正すべき、アーキテクチャ/パフォーマンス）
+- `p3` - あれば良い（強化、クリーンアップ）
 
-**Tagging:** Always add `code-review` tag, plus: `security`, `performance`, `architecture`, `rails`, `quality`, etc.
+**タグ付け：** 常に`code-review`タグを追加、さらに：`security`、`performance`、`architecture`、`rails`、`quality`など
 
-#### Step 3: Summary Report
+#### ステップ3：サマリーレポート
 
-After creating all todo files, present comprehensive summary:
+すべてのTodoファイル作成後、包括的なサマリーを提示：
 
 ````markdown
-## ✅ Code Review Complete
+## ✅ コードレビュー完了
 
-**Review Target:** PR #XXXX - [PR Title] **Branch:** [branch-name]
+**レビュー対象：** PR #XXXX - [PRタイトル] **ブランチ：** [branch-name]
 
-### Findings Summary:
+### 発見事項サマリー：
 
-- **Total Findings:** [X]
-- **🔴 CRITICAL (P1):** [count] - BLOCKS MERGE
-- **🟡 IMPORTANT (P2):** [count] - Should Fix
-- **🔵 NICE-TO-HAVE (P3):** [count] - Enhancements
+- **合計発見事項：** [X]
+- **🔴 クリティカル（P1）：** [count] - マージをブロック
+- **🟡 重要（P2）：** [count] - 修正すべき
+- **🔵 あれば良い（P3）：** [count] - 強化
 
-### Created Todo Files:
+### 作成されたTodoファイル：
 
-**P1 - Critical (BLOCKS MERGE):**
+**P1 - クリティカル（マージをブロック）：**
 
 - `001-pending-p1-{finding}.md` - {description}
 - `002-pending-p1-{finding}.md` - {description}
 
-**P2 - Important:**
+**P2 - 重要：**
 
 - `003-pending-p2-{finding}.md` - {description}
 - `004-pending-p2-{finding}.md` - {description}
 
-**P3 - Nice-to-Have:**
+**P3 - あれば良い：**
 
 - `005-pending-p3-{finding}.md` - {description}
 
-### Review Agents Used:
+### 使用したレビューエージェント：
 
 - kieran-rails-reviewer
 - security-sentinel
 - performance-oracle
 - architecture-strategist
 - agent-native-reviewer
-- [other agents]
+- [その他のエージェント]
 
-### Next Steps:
+### 次のステップ：
 
-1. **Address P1 Findings**: CRITICAL - must be fixed before merge
+1. **P1発見事項に対処**：クリティカル - マージ前に修正必須
 
-   - Review each P1 todo in detail
-   - Implement fixes or request exemption
-   - Verify fixes before merging PR
+   - 各P1 Todoを詳細にレビュー
+   - 修正を実装するか免除をリクエスト
+   - PRをマージする前に修正を確認
 
-2. **Triage All Todos**:
+2. **すべてのTodoをトリアージ**：
    ```bash
-   ls todos/*-pending-*.md  # View all pending todos
-   /triage                  # Use slash command for interactive triage
+   ls todos/*-pending-*.md  # すべての保留中Todoを表示
+   /triage                  # インタラクティブトリアージにスラッシュコマンドを使用
    ```
 ````
 
-3. **Work on Approved Todos**:
+3. **承認されたTodoに取り組む**：
 
    ```bash
-   /resolve_todo_parallel  # Fix all approved items efficiently
+   /resolve_todo_parallel  # すべての承認済みアイテムを効率的に修正
    ```
 
-4. **Track Progress**:
-   - Rename file when status changes: pending → ready → complete
-   - Update Work Log as you work
-   - Commit todos: `git add todos/ && git commit -m "refactor: add code review findings"`
+4. **進捗を追跡**：
+   - ステータス変更時にファイル名を変更：pending → ready → complete
+   - 作業に応じて作業ログを更新
+   - Todoをコミット：`git add todos/ && git commit -m "refactor: add code review findings"`
 
-### Severity Breakdown:
+### 重大度の内訳：
 
-**🔴 P1 (Critical - Blocks Merge):**
+**🔴 P1（クリティカル - マージをブロック）：**
 
-- Security vulnerabilities
-- Data corruption risks
-- Breaking changes
-- Critical architectural issues
+- セキュリティ脆弱性
+- データ破損リスク
+- 破壊的変更
+- 重大なアーキテクチャ問題
 
-**🟡 P2 (Important - Should Fix):**
+**🟡 P2（重要 - 修正すべき）：**
 
-- Performance issues
-- Significant architectural concerns
-- Major code quality problems
-- Reliability issues
+- パフォーマンス問題
+- 重大なアーキテクチャ懸念
+- 主要なコード品質問題
+- 信頼性の問題
 
-**🔵 P3 (Nice-to-Have):**
+**🔵 P3（あれば良い）：**
 
-- Minor improvements
-- Code cleanup
-- Optimization opportunities
-- Documentation updates
+- 軽微な改善
+- コードクリーンアップ
+- 最適化の機会
+- ドキュメント更新
 
 ```
 
-### 7. End-to-End Testing (Optional)
+### 7. エンドツーエンドテスト（オプション）
 
 <offer_testing>
 
-After presenting the Summary Report, offer browser testing:
+サマリーレポート提示後、ブラウザテストを提案：
 
 ```markdown
-**"Want to run browser tests on the affected pages?"**
-1. Yes - run `/browser-test`
-2. No - skip
+**「影響を受けるページでブラウザテストを実行しますか？」**
+1. はい - `/browser-test`を実行
+2. いいえ - スキップ
 ```
 
 </offer_testing>
 
-#### If User Accepts Web Testing:
+#### ユーザーがWebテストを受け入れた場合：
 
-Spawn a subagent to run browser tests (preserves main context):
+サブエージェントを起動してブラウザテストを実行（メインコンテキストを保持）：
 
 ```
-Task general-purpose("Run /browser-test for PR #[number]. Test all affected pages, check for console errors, handle failures by creating todos and fixing.")
+Task general-purpose("PR #[number]の/browser-testを実行。影響を受けるすべてのページをテストし、コンソールエラーをチェックし、Todoを作成して修正することで失敗を処理。")
 ```
 
-The subagent will:
-1. Identify pages affected by the PR
-2. Navigate to each page and capture snapshots
-3. Check for console errors
-4. Test critical interactions
-5. Pause for human verification on OAuth/email/payment flows
-6. Create P1 todos for any failures
-7. Fix and retry until all tests pass
+サブエージェントは以下を行う：
+1. PRで影響を受けるページを特定
+2. 各ページに移動してスナップショットをキャプチャ
+3. コンソールエラーをチェック
+4. 重要なインタラクションをテスト
+5. OAuth/メール/決済フローで人間の検証のために一時停止
+6. 失敗に対してP1 Todoを作成
+7. すべてのテストがパスするまで修正して再試行
 
-**Standalone:** `/browser-test [PR number]`
+**スタンドアロン：** `/browser-test [PR番号]`
 
-### Important: P1 Findings Block Merge
+### 重要：P1発見事項はマージをブロック
 
-Any **🔴 P1 (CRITICAL)** findings must be addressed before merging the PR. Present these prominently and ensure they're resolved before accepting the PR.
+**🔴 P1（クリティカル）**の発見事項はPRをマージする前に対処する必要があります。これらを目立つように提示し、PRを受け入れる前に解決されることを確認します。
 ```

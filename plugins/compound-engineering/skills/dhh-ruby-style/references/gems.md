@@ -1,51 +1,51 @@
-# Gems - DHH Rails Style
+# Gems - DHH Railsスタイル
 
 <what_they_use>
-## What 37signals Uses
+## 37signalsが使用するもの
 
-**Core Rails stack:**
-- turbo-rails, stimulus-rails, importmap-rails
-- propshaft (asset pipeline)
+**コアRailsスタック：**
+- turbo-rails、stimulus-rails、importmap-rails
+- propshaft（アセットパイプライン）
 
-**Database-backed services (Solid suite):**
-- solid_queue - background jobs
-- solid_cache - caching
+**データベースバックドサービス（Solidスイート）：**
+- solid_queue - バックグラウンドジョブ
+- solid_cache - キャッシュ
 - solid_cable - WebSockets/Action Cable
 
-**Authentication & Security:**
-- bcrypt (for any password hashing needed)
+**認証とセキュリティ：**
+- bcrypt（パスワードハッシュが必要な場合）
 
-**Their own gems:**
-- geared_pagination (cursor-based pagination)
-- lexxy (rich text editor)
-- mittens (mailer utilities)
+**自社製gem：**
+- geared_pagination（カーソルベースのページネーション）
+- lexxy（リッチテキストエディタ）
+- mittens（メーラーユーティリティ）
 
-**Utilities:**
-- rqrcode (QR code generation)
-- redcarpet + rouge (Markdown rendering)
-- web-push (push notifications)
+**ユーティリティ：**
+- rqrcode（QRコード生成）
+- redcarpet + rouge（Markdownレンダリング）
+- web-push（プッシュ通知）
 
-**Deployment & Operations:**
-- kamal (Docker deployment)
-- thruster (HTTP/2 proxy)
-- mission_control-jobs (job monitoring)
-- autotuner (GC tuning)
+**デプロイメントと運用：**
+- kamal（Dockerデプロイメント）
+- thruster（HTTP/2プロキシ）
+- mission_control-jobs（ジョブモニタリング）
+- autotuner（GCチューニング）
 </what_they_use>
 
 <what_they_avoid>
-## What They Deliberately Avoid
+## 意図的に避けているもの
 
-**Authentication:**
+**認証：**
 ```
-devise → Custom ~150-line auth
+devise → カスタム約150行の認証
 ```
-Why: Full control, no password liability with magic links, simpler.
+理由：完全な制御、マジックリンクでパスワードの責任なし、よりシンプル。
 
-**Authorization:**
+**認可：**
 ```
-pundit/cancancan → Simple role checks in models
+pundit/cancancan → モデルでのシンプルな役割チェック
 ```
-Why: Most apps don't need policy objects. A method on the model suffices:
+理由：ほとんどのアプリはポリシーオブジェクトを必要としない。モデルのメソッドで十分：
 ```ruby
 class Board < ApplicationRecord
   def editable_by?(user)
@@ -54,83 +54,83 @@ class Board < ApplicationRecord
 end
 ```
 
-**Background Jobs:**
+**バックグラウンドジョブ：**
 ```
 sidekiq → Solid Queue
 ```
-Why: Database-backed means no Redis, same transactional guarantees.
+理由：データベースバックドはRedis不要、同じトランザクション保証。
 
-**Caching:**
+**キャッシュ：**
 ```
 redis → Solid Cache
 ```
-Why: Database is already there, simpler infrastructure.
+理由：データベースは既にある、シンプルなインフラストラクチャ。
 
-**Search:**
+**検索：**
 ```
-elasticsearch → Custom sharded search
+elasticsearch → カスタムシャード検索
 ```
-Why: Built exactly what they need, no external service dependency.
+理由：必要なものを正確に構築、外部サービス依存なし。
 
-**View Layer:**
+**ビューレイヤー：**
 ```
-view_component → Standard partials
+view_component → 標準パーシャル
 ```
-Why: Partials work fine. ViewComponents add complexity without clear benefit for their use case.
+理由：パーシャルで十分機能する。ViewComponentsはユースケースに対して明確なメリットなく複雑さを追加。
 
-**API:**
+**API：**
 ```
-GraphQL → REST with Turbo
+GraphQL → TurboでREST
 ```
-Why: REST is sufficient when you control both ends. GraphQL complexity not justified.
+理由：両端を制御する場合はRESTで十分。GraphQLの複雑さは正当化されない。
 
-**Factories:**
+**ファクトリー：**
 ```
-factory_bot → Fixtures
+factory_bot → フィクスチャ
 ```
-Why: Fixtures are simpler, faster, and encourage thinking about data relationships upfront.
+理由：フィクスチャはよりシンプルで高速、データの関係性を事前に考えることを促進。
 
-**Service Objects:**
+**サービスオブジェクト：**
 ```
-Interactor, Trailblazer → Fat models
+Interactor、Trailblazer → ファットモデル
 ```
-Why: Business logic stays in models. Methods like `card.close` instead of `CardCloser.call(card)`.
+理由：ビジネスロジックはモデルに置く。`CardCloser.call(card)`ではなく`card.close`のようなメソッド。
 
-**Form Objects:**
+**フォームオブジェクト：**
 ```
-Reform, dry-validation → params.expect + model validations
+Reform、dry-validation → params.expect + モデルバリデーション
 ```
-Why: Rails 7.1's `params.expect` is clean enough. Contextual validations on model.
+理由：Rails 7.1の`params.expect`は十分クリーン。モデルでのコンテキストバリデーション。
 
-**Decorators:**
+**デコレーター：**
 ```
-Draper → View helpers + partials
+Draper → ビューヘルパー + パーシャル
 ```
-Why: Helpers and partials are simpler. No decorator indirection.
+理由：ヘルパーとパーシャルはよりシンプル。デコレーターの間接化なし。
 
-**CSS:**
+**CSS：**
 ```
-Tailwind, Sass → Native CSS
+Tailwind、Sass → ネイティブCSS
 ```
-Why: Modern CSS has nesting, variables, layers. No build step needed.
+理由：モダンCSSにはネスト、変数、レイヤーがある。ビルドステップ不要。
 
-**Frontend:**
+**フロントエンド：**
 ```
-React, Vue, SPAs → Turbo + Stimulus
+React、Vue、SPA → Turbo + Stimulus
 ```
-Why: Server-rendered HTML with sprinkles of JS. SPA complexity not justified.
+理由：サーバーレンダリングHTMLにJSを少々。SPAの複雑さは正当化されない。
 
-**Testing:**
+**テスト：**
 ```
 RSpec → Minitest
 ```
-Why: Simpler, faster boot, less DSL magic, ships with Rails.
+理由：よりシンプル、起動が速い、DSLマジックが少ない、Railsに同梱。
 </what_they_avoid>
 
 <testing_philosophy>
-## Testing Philosophy
+## テスト哲学
 
-**Minitest** - simpler, faster:
+**Minitest** - よりシンプルで高速：
 ```ruby
 class CardTest < ActiveSupport::TestCase
   test "closing creates closure" do
@@ -143,7 +143,7 @@ class CardTest < ActiveSupport::TestCase
 end
 ```
 
-**Fixtures** - loaded once, deterministic:
+**フィクスチャ** - 一度読み込み、決定論的：
 ```yaml
 # test/fixtures/cards.yml
 open_card:
@@ -157,7 +157,7 @@ closed_card:
   creator: bob
 ```
 
-**Dynamic timestamps** with ERB:
+**動的タイムスタンプ**にはERBを使用：
 ```yaml
 recent:
   title: Recent
@@ -168,7 +168,7 @@ old:
   created_at: <%= 1.month.ago %>
 ```
 
-**Time travel** for time-dependent tests:
+**タイムトラベル**で時間依存テスト：
 ```ruby
 test "expires after 15 minutes" do
   magic_link = MagicLink.create!(user: users(:alice))
@@ -179,7 +179,7 @@ test "expires after 15 minutes" do
 end
 ```
 
-**VCR** for external APIs:
+**VCR**で外部API：
 ```ruby
 VCR.use_cassette("stripe/charge") do
   charge = Stripe::Charge.create(amount: 1000)
@@ -187,46 +187,46 @@ VCR.use_cassette("stripe/charge") do
 end
 ```
 
-**Tests ship with features** - same commit, not before or after.
+**テストは機能と一緒に出荷** - 同じコミット、前後ではない。
 </testing_philosophy>
 
 <decision_framework>
-## Decision Framework
+## 決定フレームワーク
 
-Before adding a gem, ask:
+gemを追加する前に確認：
 
-1. **Can vanilla Rails do this?**
-   - ActiveRecord can do most things Sequel can
-   - ActionMailer handles email fine
-   - ActiveJob works for most job needs
+1. **バニラRailsでできるか？**
+   - ActiveRecordはSequelができることのほとんどができる
+   - ActionMailerはメールを十分に処理
+   - ActiveJobはほとんどのジョブニーズに対応
 
-2. **Is the complexity worth it?**
-   - 150 lines of custom code vs. 10,000-line gem
-   - You'll understand your code better
-   - Fewer upgrade headaches
+2. **複雑さに見合う価値があるか？**
+   - カスタムコード150行 vs 10,000行のgem
+   - 自分のコードはより理解しやすい
+   - アップグレードの頭痛が少ない
 
-3. **Does it add infrastructure?**
-   - Redis? Consider database-backed alternatives
-   - External service? Consider building in-house
-   - Simpler infrastructure = fewer failure modes
+3. **インフラストラクチャを追加するか？**
+   - Redis？データベースバックドの代替を検討
+   - 外部サービス？社内構築を検討
+   - シンプルなインフラストラクチャ = 障害モードが少ない
 
-4. **Is it from someone you trust?**
-   - 37signals gems: battle-tested at scale
-   - Well-maintained, focused gems: usually fine
-   - Kitchen-sink gems: probably overkill
+4. **信頼できる人からか？**
+   - 37signalsのgem：スケールで実戦テスト済み
+   - メンテナンスされた、集中したgem：通常問題なし
+   - キッチンシンクgem：おそらく過剰
 
-**The philosophy:**
-> "Build solutions before reaching for gems."
+**哲学：**
+> 「gemに手を伸ばす前にソリューションを構築する。」
 
-Not anti-gem, but pro-understanding. Use gems when they genuinely solve a problem you have, not a problem you might have.
+アンチgemではなく、プロ理解。持っている問題を本当に解決するときにgemを使う、持つかもしれない問題ではなく。
 </decision_framework>
 
 <gem_patterns>
-## Gem Usage Patterns
+## Gem使用パターン
 
-**Pagination:**
+**ページネーション：**
 ```ruby
-# geared_pagination - cursor-based
+# geared_pagination - カーソルベース
 class CardsController < ApplicationController
   def index
     @cards = @board.cards.geared(page: params[:page])
@@ -234,7 +234,7 @@ class CardsController < ApplicationController
 end
 ```
 
-**Markdown:**
+**Markdown：**
 ```ruby
 # redcarpet + rouge
 class MarkdownRenderer
@@ -248,18 +248,18 @@ class MarkdownRenderer
 end
 ```
 
-**Background jobs:**
+**バックグラウンドジョブ：**
 ```ruby
-# solid_queue - no Redis
+# solid_queue - Redisなし
 class ApplicationJob < ActiveJob::Base
   queue_as :default
-  # Just works, backed by database
+  # そのまま動作、データベースバックド
 end
 ```
 
-**Caching:**
+**キャッシュ：**
 ```ruby
-# solid_cache - no Redis
+# solid_cache - Redisなし
 # config/environments/production.rb
 config.cache_store = :solid_cache_store
 ```

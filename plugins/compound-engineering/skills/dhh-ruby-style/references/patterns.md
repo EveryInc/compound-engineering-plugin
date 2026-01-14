@@ -1,15 +1,15 @@
-# DHH Ruby/Rails Patterns Reference
+# DHH Ruby/Rails パターンリファレンス
 
-Comprehensive code patterns extracted from 37signals' Campfire codebase and DHH's public teachings.
+37signalsのCampfireコードベースとDHHの公開教材から抽出した包括的なコードパターン。
 
-## Controller Patterns
+## コントローラーパターン
 
-### REST-Pure Controller Design
+### REST純粋主義のコントローラー設計
 
-DHH's controller philosophy is "fundamentalistic" about REST. Every controller maps to a resource with only the 7 standard actions.
+DHHのコントローラー哲学はRESTに対して「原理主義的」。すべてのコントローラーは7つの標準アクションのみを持つリソースにマッピング。
 
 ```ruby
-# ✅ CORRECT: Standard REST actions only
+# ✅ 正しい：標準RESTアクションのみ
 class MessagesController < ApplicationController
   def index; end
   def show; end
@@ -20,30 +20,30 @@ class MessagesController < ApplicationController
   def destroy; end
 end
 
-# ❌ WRONG: Custom actions
+# ❌ 間違い：カスタムアクション
 class MessagesController < ApplicationController
-  def archive    # NO
-  def unarchive  # NO
-  def search     # NO
-  def drafts     # NO
+  def archive    # NG
+  def unarchive  # NG
+  def search     # NG
+  def drafts     # NG
 end
 
-# ✅ CORRECT: New controllers for custom behavior
+# ✅ 正しい：カスタム動作には新しいコントローラー
 class Messages::ArchivesController < ApplicationController
-  def create  # archives a message
-  def destroy # unarchives a message
+  def create  # メッセージをアーカイブ
+  def destroy # アーカイブを解除
 end
 
 class Messages::DraftsController < ApplicationController
-  def index   # lists drafts
+  def index   # 下書きを一覧表示
 end
 
 class Messages::SearchesController < ApplicationController
-  def show    # shows search results
+  def show    # 検索結果を表示
 end
 ```
 
-### Controller Concerns for Shared Behavior
+### 共有動作のためのコントローラーConcern
 
 ```ruby
 # app/controllers/concerns/room_scoped.rb
@@ -60,13 +60,13 @@ module RoomScoped
     end
 end
 
-# Usage
+# 使用法
 class MessagesController < ApplicationController
   include RoomScoped
 end
 ```
 
-### Complete Controller Example
+### 完全なコントローラー例
 
 ```ruby
 class MessagesController < ApplicationController
@@ -150,20 +150,20 @@ class MessagesController < ApplicationController
 end
 ```
 
-## Model Patterns
+## モデルパターン
 
-### Semantic Association Naming
+### 意味的な関連付け命名
 
 ```ruby
 class Message < ApplicationRecord
-  # ✅ Semantic names that express domain concepts
+  # ✅ ドメイン概念を表現する意味的な名前
   belongs_to :creator, class_name: "User"
   belongs_to :room
   has_many :mentions
   has_many :mentionees, through: :mentions, source: :user
 
-  # ❌ Generic names
-  belongs_to :user  # Too generic - creator is clearer
+  # ❌ 汎用的な名前
+  belongs_to :user  # 汎用的すぎる - creatorの方が明確
 end
 
 class Room < ApplicationRecord
@@ -171,7 +171,7 @@ class Room < ApplicationRecord
   has_many :users, through: :memberships
   has_many :messages, dependent: :destroy
 
-  # Semantic scope
+  # 意味的なスコープ
   scope :direct, -> { where(direct: true) }
 
   def direct?
@@ -180,15 +180,15 @@ class Room < ApplicationRecord
 end
 ```
 
-### Scope Design
+### スコープ設計
 
 ```ruby
 class Message < ApplicationRecord
-  # Eager loading scopes
+  # Eager loadingスコープ
   scope :with_creator, -> { includes(:creator) }
   scope :with_attachments, -> { includes(attachment_attachment: :blob) }
 
-  # Cursor-based pagination scopes
+  # カーソルベースのページネーションスコープ
   scope :page_before, ->(cursor) {
     where("id < ?", cursor.id).order(id: :desc).limit(50)
   }
@@ -197,13 +197,13 @@ class Message < ApplicationRecord
   }
   scope :last_page, -> { order(id: :desc).limit(50) }
 
-  # Status scopes as chainable lambdas
+  # チェイン可能なラムダとしてのステータススコープ
   scope :recent, -> { where("created_at > ?", 24.hours.ago) }
   scope :pinned, -> { where(pinned: true) }
 end
 ```
 
-### Custom Creation Methods
+### カスタム作成メソッド
 
 ```ruby
 class Message < ApplicationRecord
@@ -222,7 +222,7 @@ class Message < ApplicationRecord
 end
 ```
 
-### Authorization on Models
+### モデルでの認可
 
 ```ruby
 class User < ApplicationRecord
@@ -239,13 +239,13 @@ class User < ApplicationRecord
   end
 end
 
-# Usage in controller
+# コントローラーでの使用
 def ensure_can_administer
   head :forbidden unless Current.user.can_administer?(@message)
 end
 ```
 
-### Model Broadcasting
+### モデルのブロードキャスト
 
 ```ruby
 class Message < ApplicationRecord
@@ -271,9 +271,9 @@ class Message < ApplicationRecord
 end
 ```
 
-## Current Attributes Pattern
+## Current属性パターン
 
-### Definition
+### 定義
 
 ```ruby
 # app/models/current.rb
@@ -292,7 +292,7 @@ class Current < ActiveSupport::CurrentAttributes
 end
 ```
 
-### Setting in Controller
+### コントローラーでの設定
 
 ```ruby
 class ApplicationController < ActionController::Base
@@ -308,10 +308,10 @@ class ApplicationController < ActionController::Base
 end
 ```
 
-### Usage Throughout App
+### アプリ全体での使用
 
 ```ruby
-# In models
+# モデル内
 class Message < ApplicationRecord
   before_create :set_creator
 
@@ -321,24 +321,24 @@ class Message < ApplicationRecord
     end
 end
 
-# In views
+# ビュー内
 <%= Current.user.name %>
 
-# In jobs
+# ジョブ内
 class NotificationJob < ApplicationJob
   def perform(message)
-    # Current is reset in jobs - pass what you need
+    # Currentはジョブ内でリセットされる - 必要なものを渡す
     message.room.users.each { |user| notify(user, message) }
   end
 end
 ```
 
-## Ruby Idioms
+## Rubyイディオム
 
-### Guard Clauses Over Nested Conditionals
+### ネストした条件よりガード節
 
 ```ruby
-# ✅ Guard clauses
+# ✅ ガード節
 def process_message
   return unless message.valid?
   return if message.spam?
@@ -347,7 +347,7 @@ def process_message
   message.deliver
 end
 
-# ❌ Nested conditionals
+# ❌ ネストした条件
 def process_message
   if message.valid?
     unless message.spam?
@@ -359,10 +359,10 @@ def process_message
 end
 ```
 
-### Expression-less Case Statements
+### 式なしcase文
 
 ```ruby
-# ✅ Clean case without expression
+# ✅ 式なしのクリーンなcase
 def status_class
   case
   when urgent? then "bg-red"
@@ -372,7 +372,7 @@ def status_class
   end
 end
 
-# For routing/dispatch logic
+# ルーティング/ディスパッチロジック用
 def find_paged_messages
   case
   when params[:before].present?
@@ -385,26 +385,26 @@ def find_paged_messages
 end
 ```
 
-### Method Chaining
+### メソッドチェイン
 
 ```ruby
-# ✅ Fluent, chainable API
+# ✅ 流暢でチェイン可能なAPI
 @room.messages
      .with_creator
      .with_attachments
      .excluding(@message.creator)
      .page_before(cursor)
 
-# On collections
+# コレクションに対して
 bots_eligible_for_webhook
   .excluding(@message.creator)
   .each { |bot| bot.deliver_webhook_later(@message) }
 ```
 
-### Implicit Returns
+### 暗黙的なreturn
 
 ```ruby
-# ✅ Implicit return - the Ruby way
+# ✅ 暗黙的なreturn - Rubyの流儀
 def full_name
   "#{first_name} #{last_name}"
 end
@@ -413,15 +413,15 @@ def can_administer?(message)
   message.creator == self || admin?
 end
 
-# ❌ Explicit return (only when needed for early exit)
+# ❌ 明示的なreturn（早期終了の場合のみ必要）
 def full_name
-  return "#{first_name} #{last_name}"  # Unnecessary
+  return "#{first_name} #{last_name}"  # 不要
 end
 ```
 
-## View Patterns
+## ビューパターン
 
-### Helper Methods for Complex HTML
+### 複雑なHTMLのためのヘルパーメソッド
 
 ```ruby
 # app/helpers/messages_helper.rb
@@ -449,7 +449,7 @@ module MessagesHelper
 end
 ```
 
-### Turbo Frame Patterns
+### Turbo Frameパターン
 
 ```erb
 <%# app/views/messages/index.html.erb %>
@@ -464,7 +464,7 @@ end
 <% end %>
 ```
 
-### Stimulus Controller Integration
+### Stimulusコントローラー統合
 
 ```erb
 <div data-controller="message-form"
@@ -478,9 +478,9 @@ end
 </div>
 ```
 
-## Testing Patterns
+## テストパターン
 
-### System Tests First
+### システムテストを最優先
 
 ```ruby
 # test/system/messages_test.rb
@@ -511,7 +511,7 @@ class MessagesTest < ApplicationSystemTestCase
 end
 ```
 
-### Fixtures Over Factories
+### ファクトリーよりフィクスチャ
 
 ```yaml
 # test/fixtures/users.yml
@@ -538,7 +538,7 @@ greeting:
   creator: david
 ```
 
-### Integration Tests for API
+### APIの統合テスト
 
 ```ruby
 # test/integration/messages_api_test.rb
@@ -554,9 +554,9 @@ class MessagesApiTest < ActionDispatch::IntegrationTest
 end
 ```
 
-## Configuration Patterns
+## 設定パターン
 
-### Solid Queue Setup
+### Solid Queueセットアップ
 
 ```ruby
 # config/queue.yml
@@ -581,7 +581,7 @@ production:
       processes: 2
 ```
 
-### Database Configuration for SQLite
+### SQLite用データベース設定
 
 ```ruby
 # config/database.yml
@@ -599,7 +599,7 @@ production:
   database: storage/production.sqlite3
 ```
 
-### Single Container Deployment
+### 単一コンテナデプロイメント
 
 ```dockerfile
 # Dockerfile
@@ -619,68 +619,68 @@ EXPOSE 80 443
 CMD ["./bin/rails", "server", "-b", "0.0.0.0"]
 ```
 
-## Development Philosophy
+## 開発哲学
 
-### Ship, Validate, Refine
+### 出荷、検証、改善
 
 ```ruby
-# 1. Merge prototype-quality code to test real usage
-# 2. Iterate based on real feedback
-# 3. Polish what works, remove what doesn't
+# 1. プロトタイプ品質のコードをマージして実際の使用をテスト
+# 2. 実際のフィードバックに基づいて反復
+# 3. 機能するものを磨き、機能しないものを削除
 ```
 
-DHH merges features early to validate in production. Perfect code that no one uses is worse than rough code that gets feedback.
+DHHは本番環境で検証するために機能を早期にマージする。誰も使わない完璧なコードは、フィードバックを得る粗いコードよりも悪い。
 
-### Fix Root Causes
+### 根本原因を修正
 
 ```ruby
-# ✅ Prevent race conditions at the source
+# ✅ 根本でレース条件を防ぐ
 config.active_job.enqueue_after_transaction_commit = true
 
-# ❌ Bandaid fix with retries
+# ❌ リトライによる絆創膏的修正
 retry_on ActiveRecord::RecordNotFound, wait: 1.second
 ```
 
-Address underlying issues rather than symptoms.
+症状ではなく根本的な問題に対処する。
 
-### Vanilla Rails Over Abstractions
+### 抽象化よりバニラRails
 
 ```ruby
-# ✅ Direct ActiveRecord
+# ✅ 直接ActiveRecord
 @card.comments.create!(comment_params)
 
-# ❌ Service layer indirection
+# ❌ サービスレイヤーの間接化
 CreateCommentService.call(@card, comment_params)
 ```
 
-Use Rails conventions. Only abstract when genuine pain emerges.
+Rails規約を使用する。本当の痛みが現れてから抽象化する。
 
-## Rails 7.1+ Idioms
+## Rails 7.1以降のイディオム
 
-### params.expect (PR #120)
+### params.expect（PR #120）
 
 ```ruby
-# ✅ Rails 7.1+ style
+# ✅ Rails 7.1+スタイル
 def card_params
   params.expect(card: [:title, :description, tags: []])
 end
 
-# Returns 400 Bad Request if structure invalid
+# 構造が無効な場合は400 Bad Requestを返す
 
-# Old style
+# 旧スタイル
 def card_params
   params.require(:card).permit(:title, :description, tags: [])
 end
 ```
 
-### StringInquirer (PR #425)
+### StringInquirer（PR #425）
 
 ```ruby
-# ✅ Readable predicates
+# ✅ 読みやすい述語
 event.action.inquiry.completed?
 event.action.inquiry.pending?
 
-# Usage
+# 使用法
 case
 when event.action.inquiry.completed?
   send_notification
@@ -688,74 +688,74 @@ when event.action.inquiry.failed?
   send_alert
 end
 
-# Old style
+# 旧スタイル
 event.action == "completed"
 ```
 
-### Positive Naming
+### 肯定的な命名
 
 ```ruby
-# ✅ Positive names
+# ✅ 肯定的な名前
 scope :active, -> { where(active: true) }
 scope :visible, -> { where(visible: true) }
 scope :published, -> { where.not(published_at: nil) }
 
-# ❌ Negative names
-scope :not_deleted, -> { ... }  # Use :active
-scope :non_hidden, -> { ... }   # Use :visible
-scope :is_not_draft, -> { ... } # Use :published
+# ❌ 否定的な名前
+scope :not_deleted, -> { ... }  # :activeを使用
+scope :non_hidden, -> { ... }   # :visibleを使用
+scope :is_not_draft, -> { ... } # :publishedを使用
 ```
 
-## Extraction Guidelines
+## 抽出ガイドライン
 
-### Rule of Three
+### 3回のルール
 
 ```ruby
-# First time: Just do it inline
+# 1回目：インラインでそのまま実行
 def process
-  # inline logic
+  # インラインロジック
 end
 
-# Second time: Still inline, note the duplication
+# 2回目：まだインライン、重複をメモ
 def process_again
-  # same logic
+  # 同じロジック
 end
 
-# Third time: NOW extract
+# 3回目：今度は抽出
 module Processing
   def shared_logic
-    # extracted
+    # 抽出済み
   end
 end
 ```
 
-Wait for genuine pain before extracting.
+本当の痛みが出るまで抽出を待つ。
 
-### Start in Controller, Extract When Complex
+### コントローラーから始めて、複雑になったら抽出
 
 ```ruby
-# Phase 1: Logic in controller
+# フェーズ1：コントローラー内のロジック
 def index
   @cards = @board.cards.where(status: params[:status])
 end
 
-# Phase 2: Move to model scope
+# フェーズ2：モデルスコープに移動
 def index
   @cards = @board.cards.by_status(params[:status])
 end
 
-# Phase 3: Extract concern if reused
+# フェーズ3：再利用される場合はconcernを抽出
 def index
   @cards = @board.cards.filtered(params)
 end
 ```
 
-## Anti-Patterns to Avoid
+## 避けるべきアンチパターン
 
-### Don't Add Service Objects for Simple Cases
+### シンプルなケースにサービスオブジェクトを追加しない
 
 ```ruby
-# ❌ Over-abstraction
+# ❌ 過剰な抽象化
 class MessageCreationService
   def initialize(room, params, user)
     @room = room
@@ -772,7 +772,7 @@ class MessageCreationService
   end
 end
 
-# ✅ Keep it in the model
+# ✅ モデルに保持
 class Message < ApplicationRecord
   def self.create_with_broadcast!(params)
     create!(params).tap(&:broadcast_create)
@@ -780,10 +780,10 @@ class Message < ApplicationRecord
 end
 ```
 
-### Don't Use Policy Objects for Simple Auth
+### シンプルな認可にポリシーオブジェクトを使わない
 
 ```ruby
-# ❌ Separate policy class
+# ❌ 別のポリシークラス
 class MessagePolicy
   def initialize(user, message)
     @user = user
@@ -795,7 +795,7 @@ class MessagePolicy
   end
 end
 
-# ✅ Method on User model
+# ✅ Userモデルのメソッド
 class User < ApplicationRecord
   def can_administer?(message)
     message.creator == self || admin?
@@ -803,10 +803,10 @@ class User < ApplicationRecord
 end
 ```
 
-### Don't Mock Everything
+### 何でもモックしない
 
 ```ruby
-# ❌ Over-mocked test
+# ❌ 過度にモック化されたテスト
 test "sending message" do
   room = mock("room")
   user = mock("user")
@@ -818,7 +818,7 @@ test "sending message" do
   MessagesController.new.create
 end
 
-# ✅ Test the real thing
+# ✅ 本物をテスト
 test "sending message" do
   sign_in users(:david)
   post room_messages_url(rooms(:watercooler)),

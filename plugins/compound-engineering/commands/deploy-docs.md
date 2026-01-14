@@ -1,27 +1,27 @@
 ---
 name: deploy-docs
-description: Validate and prepare documentation for GitHub Pages deployment
+description: ドキュメントを検証し、GitHub Pagesデプロイメントのために準備する
 ---
 
-# Deploy Documentation Command
+# ドキュメントデプロイコマンド
 
-Validate the documentation site and prepare it for GitHub Pages deployment.
+ドキュメントサイトを検証し、GitHub Pagesデプロイメントのために準備します。
 
-## Step 1: Validate Documentation
+## ステップ1: ドキュメントの検証
 
-Run these checks:
+以下のチェックを実行：
 
 ```bash
-# Count components
+# コンポーネントをカウント
 echo "Agents: $(ls plugins/compound-engineering/agents/*.md | wc -l)"
 echo "Commands: $(ls plugins/compound-engineering/commands/*.md | wc -l)"
 echo "Skills: $(ls -d plugins/compound-engineering/skills/*/ 2>/dev/null | wc -l)"
 
-# Validate JSON
+# JSONを検証
 cat .claude-plugin/marketplace.json | jq . > /dev/null && echo "✓ marketplace.json valid"
 cat plugins/compound-engineering/.claude-plugin/plugin.json | jq . > /dev/null && echo "✓ plugin.json valid"
 
-# Check all HTML files exist
+# すべてのHTMLファイルが存在するかチェック
 for page in index agents commands skills mcp-servers changelog getting-started; do
   if [ -f "plugins/compound-engineering/docs/pages/${page}.html" ] || [ -f "plugins/compound-engineering/docs/${page}.html" ]; then
     echo "✓ ${page}.html exists"
@@ -31,33 +31,33 @@ for page in index agents commands skills mcp-servers changelog getting-started; 
 done
 ```
 
-## Step 2: Check for Uncommitted Changes
+## ステップ2: コミットされていない変更をチェック
 
 ```bash
 git status --porcelain plugins/compound-engineering/docs/
 ```
 
-If there are uncommitted changes, warn the user to commit first.
+コミットされていない変更がある場合、ユーザーに先にコミットするよう警告します。
 
-## Step 3: Deployment Instructions
+## ステップ3: デプロイメント手順
 
-Since GitHub Pages deployment requires a workflow file with special permissions, provide these instructions:
+GitHub Pagesのデプロイメントには特別な権限を持つワークフローファイルが必要なため、以下の手順を提供します：
 
-### First-time Setup
+### 初回セットアップ
 
-1. Create `.github/workflows/deploy-docs.yml` with the GitHub Pages workflow
-2. Go to repository Settings > Pages
-3. Set Source to "GitHub Actions"
+1. GitHub Pagesワークフローを含む`.github/workflows/deploy-docs.yml`を作成
+2. リポジトリの設定 > Pagesに移動
+3. ソースを「GitHub Actions」に設定
 
-### Deploying
+### デプロイ
 
-After merging to `main`, the docs will auto-deploy. Or:
+`main`にマージした後、ドキュメントは自動デプロイされます。または：
 
-1. Go to Actions tab
-2. Select "Deploy Documentation to GitHub Pages"
-3. Click "Run workflow"
+1. Actionsタブに移動
+2. 「Deploy Documentation to GitHub Pages」を選択
+3. 「Run workflow」をクリック
 
-### Workflow File Content
+### ワークフローファイルの内容
 
 ```yaml
 name: Deploy Documentation to GitHub Pages
@@ -93,20 +93,20 @@ jobs:
       - uses: actions/deploy-pages@v4
 ```
 
-## Step 4: Report Status
+## ステップ4: ステータス報告
 
-Provide a summary:
+サマリーを提供：
 
 ```
-## Deployment Readiness
+## デプロイメント準備状況
 
-✓ All HTML pages present
-✓ JSON files valid
-✓ Component counts match
+✓ すべてのHTMLページが存在
+✓ JSONファイルが有効
+✓ コンポーネントカウントが一致
 
-### Next Steps
-- [ ] Commit any pending changes
-- [ ] Push to main branch
-- [ ] Verify GitHub Pages workflow exists
-- [ ] Check deployment at https://everyinc.github.io/every-marketplace/
+### 次のステップ
+- [ ] 保留中の変更をコミット
+- [ ] mainブランチにプッシュ
+- [ ] GitHub Pagesワークフローの存在を確認
+- [ ] https://everyinc.github.io/every-marketplace/ でデプロイメントを確認
 ```

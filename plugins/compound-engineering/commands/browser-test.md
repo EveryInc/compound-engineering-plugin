@@ -1,81 +1,81 @@
 ---
 name: browser-test
-description: Run browser tests on pages affected by current PR or branch using agent-browser
-argument-hint: "[PR number, branch name, or 'current' for current branch]"
+description: agent-browserを使用して現在のPRまたはブランチで影響を受けるページでブラウザテストを実行する
+argument-hint: "[PR番号、ブランチ名、または現在のブランチの場合は'current']"
 ---
 
-# Browser Test Command
+# ブラウザテストコマンド
 
-<command_purpose>Run end-to-end browser tests on pages affected by a PR or branch changes using agent-browser CLI.</command_purpose>
+<command_purpose>agent-browser CLIを使用して、PRまたはブランチの変更で影響を受けるページでエンドツーエンドのブラウザテストを実行する。</command_purpose>
 
-## Introduction
+## はじめに
 
-<role>QA Engineer specializing in browser-based end-to-end testing</role>
+<role>ブラウザベースのエンドツーエンドテストを専門とするQAエンジニア</role>
 
-This command tests affected pages in a real browser, catching issues that unit tests miss:
-- JavaScript integration bugs
-- CSS/layout regressions
-- User workflow breakages
-- Console errors
+このコマンドは実際のブラウザで影響を受けるページをテストし、ユニットテストでは見逃す問題をキャッチします：
+- JavaScript統合バグ
+- CSS/レイアウトのリグレッション
+- ユーザーワークフローの破損
+- コンソールエラー
 
-## Prerequisites
+## 前提条件
 
 <requirements>
-- Local development server running (e.g., `bin/dev`, `rails server`)
-- agent-browser CLI installed (`npx -y agent-browser@latest --help`)
-- Git repository with changes to test
+- ローカル開発サーバーが実行中（例：`bin/dev`、`rails server`）
+- agent-browser CLIがインストール済み（`npx -y agent-browser@latest --help`）
+- テストする変更があるGitリポジトリ
 </requirements>
 
-## Main Tasks
+## 主要タスク
 
-### 1. Determine Test Scope
+### 1. テスト範囲の決定
 
 <test_target> $ARGUMENTS </test_target>
 
 <determine_scope>
 
-**If PR number provided:**
+**PR番号が提供された場合：**
 ```bash
 gh pr view [number] --json files -q '.files[].path'
 ```
 
-**If 'current' or empty:**
+**'current'または空の場合：**
 ```bash
 git diff --name-only main...HEAD
 ```
 
-**If branch name provided:**
+**ブランチ名が提供された場合：**
 ```bash
 git diff --name-only main...[branch]
 ```
 
 </determine_scope>
 
-### 2. Map Files to Routes
+### 2. ファイルをルートにマッピング
 
 <file_to_route_mapping>
 
-Map changed files to testable routes:
+変更されたファイルをテスト可能なルートにマッピング：
 
-| File Pattern | Route(s) |
+| ファイルパターン | ルート |
 |-------------|----------|
 | `app/views/users/*` | `/users`, `/users/:id`, `/users/new` |
 | `app/controllers/settings_controller.rb` | `/settings` |
-| `app/javascript/controllers/*_controller.js` | Pages using that Stimulus controller |
-| `app/components/*_component.rb` | Pages rendering that component |
-| `app/views/layouts/*` | All pages (test homepage at minimum) |
-| `app/assets/stylesheets/*` | Visual regression on key pages |
-| `app/helpers/*_helper.rb` | Pages using that helper |
+| `app/javascript/controllers/*_controller.js` | そのStimulusコントローラーを使用するページ |
+| `app/components/*_component.rb` | そのコンポーネントをレンダリングするページ |
+| `app/views/layouts/*` | すべてのページ（最低限ホームページをテスト） |
+| `app/assets/stylesheets/*` | 主要ページでのビジュアルリグレッション |
+| `app/helpers/*_helper.rb` | そのヘルパーを使用するページ |
 
-Build a list of URLs to test based on the mapping.
+マッピングに基づいてテストするURLのリストを作成。
 
 </file_to_route_mapping>
 
-### 3. Verify Server is Running
+### 3. サーバーが実行中か確認
 
 <check_server>
 
-Before testing, verify the local server is accessible using Bash:
+テスト前に、Bashを使用してローカルサーバーがアクセス可能か確認：
 
 ```bash
 npx -y agent-browser@latest open http://localhost:3000
@@ -83,174 +83,174 @@ npx -y agent-browser@latest snapshot -i
 npx -y agent-browser@latest close
 ```
 
-If server is not running, inform user:
+サーバーが実行されていない場合、ユーザーに通知：
 ```markdown
-**Server not running**
+**サーバーが実行されていません**
 
-Please start your development server:
-- Rails: `bin/dev` or `rails server`
+開発サーバーを起動してください：
+- Rails: `bin/dev` または `rails server`
 - Node: `npm run dev`
 
-Then run `/browser-test` again.
+その後、`/browser-test`を再度実行してください。
 ```
 
 </check_server>
 
-### 4. Test Each Affected Page
+### 4. 影響を受ける各ページをテスト
 
 <test_pages>
 
-For each affected route:
+影響を受ける各ルートについて：
 
-**Step 1: Navigate and capture snapshot**
+**ステップ1: ナビゲートしてスナップショットをキャプチャ**
 ```bash
 npx -y agent-browser@latest open http://localhost:3000/[route]
 npx -y agent-browser@latest snapshot -i
 ```
 
-**Step 2: Check for errors**
+**ステップ2: エラーをチェック**
 ```bash
 npx -y agent-browser@latest console
 ```
 
-**Step 3: Verify key elements**
-- Page title/heading present
-- Primary content rendered
-- No error messages visible
-- Forms have expected fields
+**ステップ3: 主要要素を検証**
+- ページタイトル/見出しが存在
+- 主要コンテンツがレンダリング
+- エラーメッセージが表示されていない
+- フォームに期待されるフィールドがある
 
-**Step 4: Test critical interactions (if applicable)**
+**ステップ4: 重要なインタラクションをテスト（該当する場合）**
 ```bash
-# Click element by ref (from snapshot output)
+# ref（スナップショット出力から）で要素をクリック
 npx -y agent-browser@latest click @e1
 npx -y agent-browser@latest snapshot -i
 ```
 
-**Step 5: Close browser after testing**
+**ステップ5: テスト後にブラウザを閉じる**
 ```bash
 npx -y agent-browser@latest close
 ```
 
 </test_pages>
 
-### 5. Human Verification (When Required)
+### 5. 人間による検証（必要な場合）
 
 <human_verification>
 
-Pause for human input when testing touches:
+テストが以下に触れる場合は人間の入力のために一時停止：
 
-| Flow Type | What to Ask |
+| フロータイプ | 質問内容 |
 |-----------|-------------|
-| OAuth | "Please sign in with [provider] and confirm it works" |
-| Email | "Check your inbox for the test email and confirm receipt" |
-| Payments | "Complete a test purchase in sandbox mode" |
-| SMS | "Verify you received the SMS code" |
-| External APIs | "Confirm the [service] integration is working" |
+| OAuth | 「[プロバイダー]でサインインして、動作することを確認してください」 |
+| メール | 「受信トレイでテストメールを確認し、受信を確認してください」 |
+| 決済 | 「サンドボックスモードでテスト購入を完了してください」 |
+| SMS | 「SMSコードを受信したことを確認してください」 |
+| 外部API | 「[サービス]統合が動作していることを確認してください」 |
 
-Use AskUserQuestion:
+AskUserQuestionを使用：
 ```markdown
-**Human Verification Needed**
+**人間による検証が必要**
 
-This test touches the [flow type]. Please:
-1. [Action to take]
-2. [What to verify]
+このテストは[フロータイプ]に触れます。以下を行ってください：
+1. [実行するアクション]
+2. [検証する内容]
 
-Did it work correctly?
-1. Yes - continue testing
-2. No - describe the issue
+正常に動作しましたか？
+1. はい - テストを続行
+2. いいえ - 問題を説明
 ```
 
 </human_verification>
 
-### 6. Handle Failures
+### 6. 失敗の処理
 
 <failure_handling>
 
-When a test fails:
+テストが失敗した場合：
 
-1. **Document the failure:**
-   - Screenshot the error state
-   - Capture console errors
-   - Note the exact reproduction steps
+1. **失敗を文書化：**
+   - エラー状態のスクリーンショット
+   - コンソールエラーをキャプチャ
+   - 正確な再現手順をメモ
 
-2. **Ask user how to proceed:**
+2. **ユーザーに進め方を質問：**
    ```markdown
-   **Test Failed: [route]**
+   **テスト失敗: [route]**
 
-   Issue: [description]
-   Console errors: [if any]
+   問題: [説明]
+   コンソールエラー: [ある場合]
 
-   How to proceed?
-   1. Fix now - I'll help debug and fix
-   2. Create todo - Add to todos/ for later
-   3. Skip - Continue testing other pages
+   どう進めますか？
+   1. 今すぐ修正 - デバッグと修正を手伝います
+   2. Todoを作成 - 後でtodos/に追加
+   3. スキップ - 他のページのテストを続行
    ```
 
-3. **If "Fix now":**
-   - Investigate the issue
-   - Propose a fix
-   - Apply fix
-   - Re-run the failing test
+3. **「今すぐ修正」の場合：**
+   - 問題を調査
+   - 修正を提案
+   - 修正を適用
+   - 失敗したテストを再実行
 
-4. **If "Create todo":**
-   - Create `{id}-pending-p1-playwright-{description}.md`
-   - Continue testing
+4. **「Todoを作成」の場合：**
+   - `{id}-pending-p1-playwright-{description}.md`を作成
+   - テストを続行
 
-5. **If "Skip":**
-   - Log as skipped
-   - Continue testing
+5. **「スキップ」の場合：**
+   - スキップとして記録
+   - テストを続行
 
 </failure_handling>
 
-### 7. Test Summary
+### 7. テストサマリー
 
 <test_summary>
 
-After all tests complete, present summary:
+すべてのテスト完了後、サマリーを提示：
 
 ```markdown
-## 🌐 Browser Test Results
+## 🌐 ブラウザテスト結果
 
-**Test Scope:** PR #[number] / [branch name]
-**Server:** http://localhost:3000
-**Tool:** agent-browser
+**テスト範囲:** PR #[number] / [branch name]
+**サーバー:** http://localhost:3000
+**ツール:** agent-browser
 
-### Pages Tested: [count]
+### テストしたページ: [count]
 
-| Route | Status | Notes |
+| ルート | ステータス | 備考 |
 |-------|--------|-------|
-| `/users` | ✅ Pass | |
-| `/settings` | ✅ Pass | |
-| `/dashboard` | ❌ Fail | Console error: [msg] |
-| `/checkout` | ⏭️ Skip | Requires payment credentials |
+| `/users` | ✅ パス | |
+| `/settings` | ✅ パス | |
+| `/dashboard` | ❌ 失敗 | コンソールエラー: [msg] |
+| `/checkout` | ⏭️ スキップ | 決済認証情報が必要 |
 
-### Console Errors: [count]
-- [List any errors found]
+### コンソールエラー: [count]
+- [見つかったエラーのリスト]
 
-### Human Verifications: [count]
-- OAuth flow: ✅ Confirmed
-- Email delivery: ✅ Confirmed
+### 人間による検証: [count]
+- OAuthフロー: ✅ 確認済み
+- メール配信: ✅ 確認済み
 
-### Failures: [count]
-- `/dashboard` - [issue description]
+### 失敗: [count]
+- `/dashboard` - [問題の説明]
 
-### Created Todos: [count]
+### 作成されたTodo: [count]
 - `005-pending-p1-playwright-dashboard-error.md`
 
-### Result: [PASS / FAIL / PARTIAL]
+### 結果: [パス / 失敗 / 部分的]
 ```
 
 </test_summary>
 
-## Quick Usage Examples
+## クイック使用例
 
 ```bash
-# Test current branch changes
+# 現在のブランチの変更をテスト
 /browser-test
 
-# Test specific PR
+# 特定のPRをテスト
 /browser-test 847
 
-# Test specific branch
+# 特定のブランチをテスト
 /browser-test feature/new-dashboard
 ```

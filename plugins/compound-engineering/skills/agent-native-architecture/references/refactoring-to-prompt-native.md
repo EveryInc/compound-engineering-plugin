@@ -1,80 +1,80 @@
 <overview>
-How to refactor existing agent code to follow prompt-native principles. The goal: move behavior from code into prompts, and simplify tools into primitives.
+既存のエージェントコードをプロンプトネイティブ原則に従うようにリファクタリングする方法。目標：動作をコードからプロンプトに移動し、ツールをプリミティブに簡素化する。
 </overview>
 
 <diagnosis>
-## Diagnosing Non-Prompt-Native Code
+## 非プロンプトネイティブコードの診断
 
-Signs your agent isn't prompt-native:
+エージェントがプロンプトネイティブでない兆候：
 
-**Tools that encode workflows:**
+**ワークフローをエンコードしているツール：**
 ```typescript
-// RED FLAG: Tool contains business logic
+// 危険信号：ツールにビジネスロジックが含まれている
 tool("process_feedback", async ({ message }) => {
-  const category = categorize(message);        // Logic in code
-  const priority = calculatePriority(message); // Logic in code
-  await store(message, category, priority);    // Orchestration in code
-  if (priority > 3) await notify();            // Decision in code
+  const category = categorize(message);        // コード内のロジック
+  const priority = calculatePriority(message); // コード内のロジック
+  await store(message, category, priority);    // コード内のオーケストレーション
+  if (priority > 3) await notify();            // コード内の決定
 });
 ```
 
-**Agent calls functions instead of figuring things out:**
+**エージェントが物事を判断する代わりに関数を呼び出している：**
 ```typescript
-// RED FLAG: Agent is just a function caller
-"Use process_feedback to handle incoming messages"
+// 危険信号：エージェントが単なる関数呼び出し器になっている
+"受信メッセージを処理するにはprocess_feedbackを使用"
 // vs.
-"When feedback comes in, decide importance, store it, notify if high"
+"フィードバックが来たら、重要度を判断し、保存し、高ければ通知"
 ```
 
-**Artificial limits on agent capability:**
+**エージェント能力に人為的な制限：**
 ```typescript
-// RED FLAG: Tool prevents agent from doing what users can do
+// 危険信号：ツールがエージェントにユーザーができることをさせない
 tool("read_file", async ({ path }) => {
   if (!ALLOWED_PATHS.includes(path)) {
-    throw new Error("Not allowed to read this file");
+    throw new Error("このファイルの読み取りは許可されていません");
   }
   return readFile(path);
 });
 ```
 
-**Prompts that specify HOW instead of WHAT:**
+**WHATではなくHOWを指定するプロンプト：**
 ```markdown
-// RED FLAG: Micromanaging the agent
-When creating a summary:
-1. Use exactly 3 bullet points
-2. Each bullet must be under 20 words
-3. Format with em-dashes for sub-points
-4. Bold the first word of each bullet
+// 危険信号：エージェントを細かく管理している
+要約を作成するとき：
+1. 正確に3つの箇条書きを使用
+2. 各箇条書きは20語以下
+3. サブポイントにはemダッシュでフォーマット
+4. 各箇条書きの最初の単語を太字に
 ```
 </diagnosis>
 
 <refactoring_workflow>
-## Step-by-Step Refactoring
+## ステップバイステップのリファクタリング
 
-**Step 1: Identify workflow tools**
+**ステップ1：ワークフローツールを特定**
 
-List all your tools. Mark any that:
-- Have business logic (categorize, calculate, decide)
-- Orchestrate multiple operations
-- Make decisions on behalf of the agent
-- Contain conditional logic (if/else based on content)
+すべてのツールをリストアップ。以下に該当するものをマーク：
+- ビジネスロジックがある（分類、計算、決定）
+- 複数の操作をオーケストレーションしている
+- エージェントの代わりに決定を下している
+- 条件付きロジックを含む（内容に基づくif/else）
 
-**Step 2: Extract the primitives**
+**ステップ2：プリミティブを抽出**
 
-For each workflow tool, identify the underlying primitives:
+各ワークフローツールについて、基盤となるプリミティブを特定：
 
-| Workflow Tool | Hidden Primitives |
-|---------------|-------------------|
+| ワークフローツール | 隠れたプリミティブ |
+|-------------------|-------------------|
 | `process_feedback` | `store_item`, `send_message` |
 | `generate_report` | `read_file`, `write_file` |
 | `deploy_and_notify` | `git_push`, `send_message` |
 
-**Step 3: Move behavior to the prompt**
+**ステップ3：動作をプロンプトに移動**
 
-Take the logic from your workflow tools and express it in natural language:
+ワークフローツールからロジックを取り出し、自然言語で表現：
 
 ```typescript
-// Before (in code):
+// 前（コード内）：
 async function processFeedback(message) {
   const priority = message.includes("crash") ? 5 :
                    message.includes("bug") ? 4 : 3;
@@ -84,67 +84,67 @@ async function processFeedback(message) {
 ```
 
 ```markdown
-// After (in prompt):
-## Feedback Processing
+// 後（プロンプト内）：
+## フィードバック処理
 
-When someone shares feedback:
-1. Rate importance 1-5:
-   - 5: Crashes, data loss, security issues
-   - 4: Bug reports with clear reproduction steps
-   - 3: General suggestions, minor issues
-2. Store using store_item
-3. If importance >= 4, notify the team
+誰かがフィードバックを共有したとき：
+1. 重要度を1-5で評価：
+   - 5：クラッシュ、データ損失、セキュリティ問題
+   - 4：明確な再現手順のあるバグレポート
+   - 3：一般的な提案、軽微な問題
+2. store_itemを使用して保存
+3. 重要度が4以上の場合、チームに通知
 
-Use your judgment. Context matters more than keywords.
+判断を使用。キーワードよりコンテキストが重要。
 ```
 
-**Step 4: Simplify tools to primitives**
+**ステップ4：ツールをプリミティブに簡素化**
 
 ```typescript
-// Before: 1 workflow tool
-tool("process_feedback", { message, category, priority }, ...complex logic...)
+// 前：1つのワークフローツール
+tool("process_feedback", { message, category, priority }, ...複雑なロジック...)
 
-// After: 2 primitive tools
-tool("store_item", { key: z.string(), value: z.any() }, ...simple storage...)
-tool("send_message", { channel: z.string(), content: z.string() }, ...simple send...)
+// 後：2つのプリミティブツール
+tool("store_item", { key: z.string(), value: z.any() }, ...シンプルなストレージ...)
+tool("send_message", { channel: z.string(), content: z.string() }, ...シンプルな送信...)
 ```
 
-**Step 5: Remove artificial limits**
+**ステップ5：人為的な制限を削除**
 
 ```typescript
-// Before: Limited capability
+// 前：制限された能力
 tool("read_file", async ({ path }) => {
-  if (!isAllowed(path)) throw new Error("Forbidden");
+  if (!isAllowed(path)) throw new Error("禁止");
   return readFile(path);
 });
 
-// After: Full capability
+// 後：完全な能力
 tool("read_file", async ({ path }) => {
-  return readFile(path);  // Agent can read anything
+  return readFile(path);  // エージェントは何でも読める
 });
-// Use approval gates for WRITES, not artificial limits on READS
+// 読み取りへの人為的な制限ではなく、書き込みに承認ゲートを使用
 ```
 
-**Step 6: Test with outcomes, not procedures**
+**ステップ6：手順ではなく結果でテスト**
 
-Instead of testing "does it call the right function?", test "does it achieve the outcome?"
+「正しい関数を呼び出しているか？」ではなく「結果を達成しているか？」をテスト
 
 ```typescript
-// Before: Testing procedure
+// 前：手順のテスト
 expect(mockProcessFeedback).toHaveBeenCalledWith(...)
 
-// After: Testing outcome
-// Send feedback → Check it was stored with reasonable importance
-// Send high-priority feedback → Check notification was sent
+// 後：結果のテスト
+// フィードバックを送信 → 妥当な重要度で保存されたか確認
+// 高優先度フィードバックを送信 → 通知が送信されたか確認
 ```
 </refactoring_workflow>
 
 <before_after>
-## Before/After Examples
+## 前後の例
 
-**Example 1: Feedback Processing**
+**例1：フィードバック処理**
 
-Before:
+前：
 ```typescript
 tool("handle_feedback", async ({ message, author }) => {
   const category = detectCategory(message);
@@ -166,42 +166,42 @@ tool("handle_feedback", async ({ message, author }) => {
 });
 ```
 
-After:
+後：
 ```typescript
-// Simple storage primitive
+// シンプルなストレージプリミティブ
 tool("store_feedback", async ({ item }) => {
   await db.feedback.insert(item);
   return { text: `Stored feedback ${item.id}` };
 });
 
-// Simple message primitive
+// シンプルなメッセージプリミティブ
 tool("send_message", async ({ channel, content }) => {
   await discord.send(channel, content);
   return { text: "Sent" };
 });
 ```
 
-System prompt:
+システムプロンプト：
 ```markdown
-## Feedback Processing
+## フィードバック処理
 
-When someone shares feedback:
-1. Generate a unique ID
-2. Rate importance 1-5 based on impact and urgency
-3. Store using store_feedback with the full item
-4. If importance >= 4, send a notification to the team channel
+誰かがフィードバックを共有したとき：
+1. ユニークなIDを生成
+2. 影響度と緊急性に基づいて重要度を1-5で評価
+3. store_feedbackを使用してアイテム全体を保存
+4. 重要度が4以上の場合、チームチャンネルに通知を送信
 
-Importance guidelines:
-- 5: Critical (crashes, data loss, security)
-- 4: High (detailed bug reports, blocking issues)
-- 3: Medium (suggestions, minor bugs)
-- 2: Low (cosmetic, edge cases)
-- 1: Minimal (off-topic, duplicates)
+重要度のガイドライン：
+- 5：クリティカル（クラッシュ、データ損失、セキュリティ）
+- 4：高（詳細なバグレポート、ブロッキング問題）
+- 3：中（提案、軽微なバグ）
+- 2：低（見た目、エッジケース）
+- 1：最小（オフトピック、重複）
 ```
 
-**Example 2: Report Generation**
+**例2：レポート生成**
 
-Before:
+前：
 ```typescript
 tool("generate_weekly_report", async ({ startDate, endDate, format }) => {
   const data = await fetchMetrics(startDate, endDate);
@@ -218,7 +218,7 @@ tool("generate_weekly_report", async ({ startDate, endDate, format }) => {
 });
 ```
 
-After:
+後：
 ```typescript
 tool("query_metrics", async ({ start, end }) => {
   const data = await db.metrics.query({ start, end });
@@ -231,87 +231,87 @@ tool("write_file", async ({ path, content }) => {
 });
 ```
 
-System prompt:
+システムプロンプト：
 ```markdown
-## Report Generation
+## レポート生成
 
-When asked to generate a report:
-1. Query the relevant metrics using query_metrics
-2. Analyze the data and identify key trends
-3. Create a clear, well-formatted report
-4. Write it using write_file in the appropriate format
+レポートの生成を依頼されたとき：
+1. query_metricsを使用して関連メトリクスをクエリ
+2. データを分析し、主要なトレンドを特定
+3. 明確で適切にフォーマットされたレポートを作成
+4. write_fileを使用して適切なフォーマットで書き出す
 
-Use your judgment about format and structure. Make it useful.
+フォーマットと構造については判断を使用。有用なものにする。
 ```
 </before_after>
 
 <common_challenges>
-## Common Refactoring Challenges
+## よくあるリファクタリングの課題
 
-**"But the agent might make mistakes!"**
+**「でもエージェントがミスするかも！」**
 
-Yes, and you can iterate. Change the prompt to add guidance:
+はい、そして反復できます。ガイダンスを追加するようにプロンプトを変更：
 ```markdown
-// Before
-Rate importance 1-5.
+// 前
+重要度を1-5で評価。
 
-// After (if agent keeps rating too high)
-Rate importance 1-5. Be conservative—most feedback is 2-3.
-Only use 4-5 for truly blocking or critical issues.
+// 後（エージェントが高く評価しすぎる場合）
+重要度を1-5で評価。控えめに—ほとんどのフィードバックは2-3。
+本当にブロッキングまたはクリティカルな問題にのみ4-5を使用。
 ```
 
-**"The workflow is complex!"**
+**「ワークフローが複雑！」**
 
-Complex workflows can still be expressed in prompts. The agent is smart.
+複雑なワークフローもプロンプトで表現できます。エージェントは賢い。
 ```markdown
-When processing video feedback:
-1. Check if it's a Loom, YouTube, or direct link
-2. For YouTube, pass URL directly to video analysis
-3. For others, download first, then analyze
-4. Extract timestamped issues
-5. Rate based on issue density and severity
+ビデオフィードバックを処理するとき：
+1. Loom、YouTube、または直接リンクかを確認
+2. YouTubeの場合、URLをそのままビデオ分析に渡す
+3. その他の場合、まずダウンロードしてから分析
+4. タイムスタンプ付きの問題を抽出
+5. 問題の密度と深刻度に基づいて評価
 ```
 
-**"We need deterministic behavior!"**
+**「決定論的な動作が必要！」**
 
-Some operations should stay in code. That's fine. Prompt-native isn't all-or-nothing.
+一部の操作はコードに残すべき。それは問題ない。プロンプトネイティブはオールオアナッシングではない。
 
-Keep in code:
-- Security validation
-- Rate limiting
-- Audit logging
-- Exact format requirements
+コードに残す：
+- セキュリティ検証
+- レート制限
+- 監査ログ
+- 正確なフォーマット要件
 
-Move to prompts:
-- Categorization decisions
-- Priority judgments
-- Content generation
-- Workflow orchestration
+プロンプトに移動：
+- 分類の決定
+- 優先度の判断
+- コンテンツ生成
+- ワークフローオーケストレーション
 
-**"What about testing?"**
+**「テストはどうする？」**
 
-Test outcomes, not procedures:
-- "Given this input, does the agent achieve the right result?"
-- "Does stored feedback have reasonable importance ratings?"
-- "Are notifications sent for truly high-priority items?"
+手順ではなく結果をテスト：
+- 「この入力が与えられたとき、エージェントは正しい結果を達成するか？」
+- 「保存されたフィードバックは妥当な重要度評価を持っているか？」
+- 「本当に高優先度のアイテムに通知が送信されているか？」
 </common_challenges>
 
 <checklist>
-## Refactoring Checklist
+## リファクタリングチェックリスト
 
-Diagnosis:
-- [ ] Listed all tools with business logic
-- [ ] Identified artificial limits on agent capability
-- [ ] Found prompts that micromanage HOW
+診断：
+- [ ] ビジネスロジックを持つすべてのツールをリスト化
+- [ ] エージェント能力への人為的な制限を特定
+- [ ] HOWを細かく管理しているプロンプトを発見
 
-Refactoring:
-- [ ] Extracted primitives from workflow tools
-- [ ] Moved business logic to system prompt
-- [ ] Removed artificial limits
-- [ ] Simplified tool inputs to data, not decisions
+リファクタリング：
+- [ ] ワークフローツールからプリミティブを抽出
+- [ ] ビジネスロジックをシステムプロンプトに移動
+- [ ] 人為的な制限を削除
+- [ ] ツール入力を決定ではなくデータに簡素化
 
-Validation:
-- [ ] Agent achieves same outcomes with primitives
-- [ ] Behavior can be changed by editing prompts
-- [ ] New features could be added without new tools
+検証：
+- [ ] エージェントがプリミティブで同じ結果を達成
+- [ ] プロンプトを編集することで動作を変更可能
+- [ ] 新しいツールなしで新機能を追加可能
 </checklist>

@@ -1,47 +1,47 @@
-# Every Marketplace - Claude Code Plugin Marketplace
+# Every Marketplace - Claude Code プラグインマーケットプレイス
 
-This repository is a Claude Code plugin marketplace that distributes the `compound-engineering` plugin to developers building with AI-powered tools.
+このリポジトリは、AIツールを使って開発する開発者に`compound-engineering`プラグインを配布するClaude Codeプラグインマーケットプレイスです。
 
-## Repository Structure
+## リポジトリ構造
 
 ```
 every-marketplace/
 ├── .claude-plugin/
-│   └── marketplace.json          # Marketplace catalog (lists available plugins)
-├── docs/                         # Documentation site (GitHub Pages)
-│   ├── index.html                # Landing page
-│   ├── css/                      # Stylesheets
+│   └── marketplace.json          # マーケットプレイスカタログ（利用可能なプラグイン一覧）
+├── docs/                         # ドキュメントサイト（GitHub Pages）
+│   ├── index.html                # ランディングページ
+│   ├── css/                      # スタイルシート
 │   ├── js/                       # JavaScript
-│   └── pages/                    # Reference pages
+│   └── pages/                    # リファレンスページ
 └── plugins/
-    └── compound-engineering/   # The actual plugin
+    └── compound-engineering/   # 実際のプラグイン
         ├── .claude-plugin/
-        │   └── plugin.json        # Plugin metadata
-        ├── agents/                # 24 specialized AI agents
-        ├── commands/              # 13 slash commands
-        ├── skills/                # 11 skills
-        ├── mcp-servers/           # 2 MCP servers (playwright, context7)
-        ├── README.md              # Plugin documentation
-        └── CHANGELOG.md           # Version history
+        │   └── plugin.json        # プラグインメタデータ
+        ├── agents/                # 24の専門AIエージェント
+        ├── commands/              # 13のスラッシュコマンド
+        ├── skills/                # 11のスキル
+        ├── mcp-servers/           # 2つのMCPサーバー（playwright、context7）
+        ├── README.md              # プラグインドキュメント
+        └── CHANGELOG.md           # バージョン履歴
 ```
 
-## Philosophy: Compounding Engineering
+## 哲学：コンパウンドエンジニアリング
 
-**Each unit of engineering work should make subsequent units of work easier—not harder.**
+**エンジニアリング作業の各単位が、その後の単位をより簡単にするべき—より難しくではなく。**
 
-When working on this repository, follow the compounding engineering process:
+このリポジトリで作業する際は、コンパウンドエンジニアリングプロセスに従ってください：
 
-1. **Plan** → Understand the change needed and its impact
-2. **Delegate** → Use AI tools to help with implementation
-3. **Assess** → Verify changes work as expected
-4. **Codify** → Update this CLAUDE.md with learnings
+1. **計画** → 必要な変更とその影響を理解する
+2. **委譲** → AIツールを活用して実装を支援
+3. **評価** → 変更が期待通りに動作することを確認
+4. **体系化** → 学びをこのCLAUDE.mdに更新
 
-## Working with This Repository
+## このリポジトリでの作業
 
-### Adding a New Plugin
+### 新しいプラグインの追加
 
-1. Create plugin directory: `plugins/new-plugin-name/`
-2. Add plugin structure:
+1. プラグインディレクトリを作成：`plugins/new-plugin-name/`
+2. プラグイン構造を追加：
    ```
    plugins/new-plugin-name/
    ├── .claude-plugin/plugin.json
@@ -49,97 +49,97 @@ When working on this repository, follow the compounding engineering process:
    ├── commands/
    └── README.md
    ```
-3. Update `.claude-plugin/marketplace.json` to include the new plugin
-4. Test locally before committing
+3. `.claude-plugin/marketplace.json`を更新して新しいプラグインを含める
+4. コミット前にローカルでテスト
 
-### Updating the Compounding Engineering Plugin
+### コンパウンドエンジニアリングプラグインの更新
 
-When agents, commands, or skills are added/removed, follow this checklist:
+エージェント、コマンド、スキルを追加/削除する際は、このチェックリストに従ってください：
 
-#### 1. Count all components accurately
+#### 1. すべてのコンポーネントを正確にカウント
 
 ```bash
-# Count agents
+# エージェントをカウント
 ls plugins/compound-engineering/agents/*.md | wc -l
 
-# Count commands
+# コマンドをカウント
 ls plugins/compound-engineering/commands/*.md | wc -l
 
-# Count skills
+# スキルをカウント
 ls -d plugins/compound-engineering/skills/*/ 2>/dev/null | wc -l
 ```
 
-#### 2. Update ALL description strings with correct counts
+#### 2. 正しいカウントですべての説明文を更新
 
-The description appears in multiple places and must match everywhere:
+説明は複数の場所に表示され、すべて一致する必要があります：
 
-- [ ] `plugins/compound-engineering/.claude-plugin/plugin.json` → `description` field
-- [ ] `.claude-plugin/marketplace.json` → plugin `description` field
-- [ ] `plugins/compound-engineering/README.md` → intro paragraph
+- [ ] `plugins/compound-engineering/.claude-plugin/plugin.json` → `description`フィールド
+- [ ] `.claude-plugin/marketplace.json` → プラグインの`description`フィールド
+- [ ] `plugins/compound-engineering/README.md` → イントロ段落
 
-Format: `"Includes X specialized agents, Y commands, and Z skill(s)."`
+形式：`"X個の専門エージェント、Yつのコマンド、Z個のスキルを含む。"`
 
-#### 3. Update version numbers
+#### 3. バージョン番号を更新
 
-When adding new functionality, bump the version in:
+新しい機能を追加する際は、以下でバージョンを上げてください：
 
 - [ ] `plugins/compound-engineering/.claude-plugin/plugin.json` → `version`
-- [ ] `.claude-plugin/marketplace.json` → plugin `version`
+- [ ] `.claude-plugin/marketplace.json` → プラグインの`version`
 
-#### 4. Update documentation
+#### 4. ドキュメントを更新
 
-- [ ] `plugins/compound-engineering/README.md` → list all components
-- [ ] `plugins/compound-engineering/CHANGELOG.md` → document changes
-- [ ] `CLAUDE.md` → update structure diagram if needed
+- [ ] `plugins/compound-engineering/README.md` → すべてのコンポーネントをリスト
+- [ ] `plugins/compound-engineering/CHANGELOG.md` → 変更を記録
+- [ ] `CLAUDE.md` → 必要に応じて構造図を更新
 
-#### 5. Rebuild documentation site
+#### 5. ドキュメントサイトを再ビルド
 
-Run the release-docs command to update all documentation pages:
+release-docsコマンドを実行してすべてのドキュメントページを更新：
 
 ```bash
 claude /release-docs
 ```
 
-This will:
-- Update stats on the landing page
-- Regenerate reference pages (agents, commands, skills, MCP servers)
-- Update the changelog page
-- Validate all counts match actual files
+これにより：
+- ランディングページの統計を更新
+- リファレンスページを再生成（エージェント、コマンド、スキル、MCPサーバー）
+- 変更履歴ページを更新
+- すべてのカウントが実際のファイルと一致することを検証
 
-#### 6. Validate JSON files
+#### 6. JSONファイルを検証
 
 ```bash
 cat .claude-plugin/marketplace.json | jq .
 cat plugins/compound-engineering/.claude-plugin/plugin.json | jq .
 ```
 
-#### 6. Verify before committing
+#### 6. コミット前に確認
 
 ```bash
-# Ensure counts in descriptions match actual files
+# 説明のカウントが実際のファイルと一致することを確認
 grep -o "Includes [0-9]* specialized agents" plugins/compound-engineering/.claude-plugin/plugin.json
 ls plugins/compound-engineering/agents/*.md | wc -l
 ```
 
-### Marketplace.json Structure
+### Marketplace.jsonの構造
 
-The marketplace.json follows the official Claude Code spec:
+marketplace.jsonは公式Claude Codeの仕様に従います：
 
 ```json
 {
   "name": "marketplace-identifier",
   "owner": {
-    "name": "Owner Name",
+    "name": "オーナー名",
     "url": "https://github.com/owner"
   },
   "metadata": {
-    "description": "Marketplace description",
+    "description": "マーケットプレイスの説明",
     "version": "1.0.0"
   },
   "plugins": [
     {
       "name": "plugin-name",
-      "description": "Plugin description",
+      "description": "プラグインの説明",
       "version": "1.0.0",
       "author": { ... },
       "homepage": "https://...",
@@ -150,21 +150,21 @@ The marketplace.json follows the official Claude Code spec:
 }
 ```
 
-**Only include fields that are in the official spec.** Do not add custom fields like:
+**公式仕様にあるフィールドのみを含めてください。** 以下のようなカスタムフィールドは追加しないでください：
 
-- `downloads`, `stars`, `rating` (display-only)
-- `categories`, `featured_plugins`, `trending` (not in spec)
-- `type`, `verified`, `featured` (not in spec)
+- `downloads`、`stars`、`rating`（表示専用）
+- `categories`、`featured_plugins`、`trending`（仕様にない）
+- `type`、`verified`、`featured`（仕様にない）
 
-### Plugin.json Structure
+### Plugin.jsonの構造
 
-Each plugin has its own plugin.json with detailed metadata:
+各プラグインには詳細なメタデータを含む独自のplugin.jsonがあります：
 
 ```json
 {
   "name": "plugin-name",
   "version": "1.0.0",
-  "description": "Plugin description",
+  "description": "プラグインの説明",
   "author": { ... },
   "keywords": ["keyword1", "keyword2"],
   "components": {
@@ -176,7 +176,7 @@ Each plugin has its own plugin.json with detailed metadata:
     "category": [
       {
         "name": "agent-name",
-        "description": "Agent description",
+        "description": "エージェントの説明",
         "use_cases": ["use-case-1", "use-case-2"]
       }
     ]
@@ -187,165 +187,165 @@ Each plugin has its own plugin.json with detailed metadata:
 }
 ```
 
-## Documentation Site
+## ドキュメントサイト
 
-The documentation site is at `/docs` in the repository root (for GitHub Pages). This site is built with plain HTML/CSS/JS (based on Evil Martians' LaunchKit template) and requires no build step to view.
+ドキュメントサイトはリポジトリルートの`/docs`にあります（GitHub Pages用）。このサイトはプレーンなHTML/CSS/JS（Evil MartiansのLaunchKitテンプレートベース）で構築されており、表示にビルドステップは不要です。
 
-### Documentation Structure
+### ドキュメント構造
 
 ```
 docs/
-├── index.html           # Landing page with stats and philosophy
+├── index.html           # 統計と哲学を含むランディングページ
 ├── css/
-│   ├── style.css        # Main styles (LaunchKit-based)
-│   └── docs.css         # Documentation-specific styles
+│   ├── style.css        # メインスタイル（LaunchKitベース）
+│   └── docs.css         # ドキュメント固有のスタイル
 ├── js/
-│   └── main.js          # Interactivity (theme toggle, mobile nav)
+│   └── main.js          # インタラクティビティ（テーマ切り替え、モバイルナビ）
 └── pages/
-    ├── getting-started.html  # Installation and quick start
-    ├── agents.html           # All 24 agents reference
-    ├── commands.html         # All 13 commands reference
-    ├── skills.html           # All 11 skills reference
-    ├── mcp-servers.html      # MCP servers reference
-    └── changelog.html        # Version history
+    ├── getting-started.html  # インストールとクイックスタート
+    ├── agents.html           # 全24エージェントリファレンス
+    ├── commands.html         # 全13コマンドリファレンス
+    ├── skills.html           # 全11スキルリファレンス
+    ├── mcp-servers.html      # MCPサーバーリファレンス
+    └── changelog.html        # バージョン履歴
 ```
 
-### Keeping Docs Up-to-Date
+### ドキュメントを最新に保つ
 
-**IMPORTANT:** After ANY change to agents, commands, skills, or MCP servers, run:
+**重要：** エージェント、コマンド、スキル、MCPサーバーに変更があった後は必ず実行：
 
 ```bash
 claude /release-docs
 ```
 
-This command:
-1. Counts all current components
-2. Reads all agent/command/skill/MCP files
-3. Regenerates all reference pages
-4. Updates stats on the landing page
-5. Updates the changelog from CHANGELOG.md
-6. Validates counts match across all files
+このコマンドは：
+1. 現在のすべてのコンポーネントをカウント
+2. すべてのエージェント/コマンド/スキル/MCPファイルを読み込み
+3. すべてのリファレンスページを再生成
+4. ランディングページの統計を更新
+5. CHANGELOG.mdから変更履歴を更新
+6. すべてのファイルでカウントが一致することを検証
 
-### Manual Updates
+### 手動更新
 
-If you need to update docs manually:
+手動でドキュメントを更新する必要がある場合：
 
-1. **Landing page stats** - Update the numbers in `docs/index.html`:
+1. **ランディングページの統計** - `docs/index.html`の数字を更新：
    ```html
-   <span class="stat-number">24</span>  <!-- agents -->
-   <span class="stat-number">13</span>  <!-- commands -->
+   <span class="stat-number">24</span>  <!-- エージェント -->
+   <span class="stat-number">13</span>  <!-- コマンド -->
    ```
 
-2. **Reference pages** - Each page in `docs/pages/` documents all components in that category
+2. **リファレンスページ** - `docs/pages/`の各ページはそのカテゴリのすべてのコンポーネントを文書化
 
-3. **Changelog** - `docs/pages/changelog.html` mirrors `CHANGELOG.md` in HTML format
+3. **変更履歴** - `docs/pages/changelog.html`は`CHANGELOG.md`をHTML形式でミラー
 
-### Viewing Docs Locally
+### ローカルでドキュメントを表示
 
-Since the docs are static HTML, you can view them directly:
+ドキュメントは静的HTMLなので、直接表示できます：
 
 ```bash
-# Open in browser
+# ブラウザで開く
 open docs/index.html
 
-# Or start a local server
+# またはローカルサーバーを起動
 cd docs
 python -m http.server 8000
-# Then visit http://localhost:8000
+# その後 http://localhost:8000 にアクセス
 ```
 
-## Testing Changes
+## 変更のテスト
 
-### Test Locally
+### ローカルでテスト
 
-1. Install the marketplace locally:
+1. マーケットプレイスをローカルにインストール：
 
    ```bash
    claude /plugin marketplace add /Users/yourusername/every-marketplace
    ```
 
-2. Install the plugin:
+2. プラグインをインストール：
 
    ```bash
    claude /plugin install compound-engineering
    ```
 
-3. Test agents and commands:
+3. エージェントとコマンドをテスト：
    ```bash
    claude /review
    claude agent kieran-rails-reviewer "test message"
    ```
 
-### Validate JSON
+### JSONを検証
 
-Before committing, ensure JSON files are valid:
+コミット前に、JSONファイルが有効であることを確認：
 
 ```bash
 cat .claude-plugin/marketplace.json | jq .
 cat plugins/compound-engineering/.claude-plugin/plugin.json | jq .
 ```
 
-## Common Tasks
+## よくあるタスク
 
-### Adding a New Agent
+### 新しいエージェントの追加
 
-1. Create `plugins/compound-engineering/agents/new-agent.md`
-2. Update plugin.json agent count and agent list
-3. Update README.md agent list
-4. Test with `claude agent new-agent "test"`
+1. `plugins/compound-engineering/agents/new-agent.md`を作成
+2. plugin.jsonのエージェントカウントとエージェントリストを更新
+3. README.mdのエージェントリストを更新
+4. `claude agent new-agent "test"`でテスト
 
-### Adding a New Command
+### 新しいコマンドの追加
 
-1. Create `plugins/compound-engineering/commands/new-command.md`
-2. Update plugin.json command count and command list
-3. Update README.md command list
-4. Test with `claude /new-command`
+1. `plugins/compound-engineering/commands/new-command.md`を作成
+2. plugin.jsonのコマンドカウントとコマンドリストを更新
+3. README.mdのコマンドリストを更新
+4. `claude /new-command`でテスト
 
-### Adding a New Skill
+### 新しいスキルの追加
 
-1. Create skill directory: `plugins/compound-engineering/skills/skill-name/`
-2. Add skill structure:
+1. スキルディレクトリを作成：`plugins/compound-engineering/skills/skill-name/`
+2. スキル構造を追加：
    ```
    skills/skill-name/
-   ├── SKILL.md           # Skill definition with frontmatter (name, description)
-   └── scripts/           # Supporting scripts (optional)
+   ├── SKILL.md           # フロントマター付きスキル定義（name、description）
+   └── scripts/           # サポートスクリプト（オプション）
    ```
-3. Update plugin.json description with new skill count
-4. Update marketplace.json description with new skill count
-5. Update README.md with skill documentation
-6. Update CHANGELOG.md with the addition
-7. Test with `claude skill skill-name`
+3. plugin.jsonの説明を新しいスキルカウントで更新
+4. marketplace.jsonの説明を新しいスキルカウントで更新
+5. README.mdをスキルドキュメントで更新
+6. CHANGELOG.mdに追加を記録
+7. `claude skill skill-name`でテスト
 
-**Skill file format (SKILL.md):**
+**スキルファイル形式（SKILL.md）：**
 ```markdown
 ---
 name: skill-name
-description: Brief description of what the skill does
+description: スキルが何をするかの簡単な説明
 ---
 
-# Skill Title
+# スキルタイトル
 
-Detailed documentation...
+詳細なドキュメント...
 ```
 
-### Updating Tags/Keywords
+### タグ/キーワードの更新
 
-Tags should reflect the compounding engineering philosophy:
+タグはコンパウンドエンジニアリングの哲学を反映すべきです：
 
-- Use: `ai-powered`, `compound-engineering`, `workflow-automation`, `knowledge-management`
-- Avoid: Framework-specific tags unless the plugin is framework-specific
+- 使用：`ai-powered`、`compound-engineering`、`workflow-automation`、`knowledge-management`
+- 避ける：プラグインがフレームワーク固有でない限り、フレームワーク固有のタグ
 
-## Commit Conventions
+## コミット規約
 
-Follow these patterns for commit messages:
+コミットメッセージには以下のパターンに従ってください：
 
-- `Add [agent/command name]` - Adding new functionality
-- `Remove [agent/command name]` - Removing functionality
-- `Update [file] to [what changed]` - Updating existing files
-- `Fix [issue]` - Bug fixes
-- `Simplify [component] to [improvement]` - Refactoring
+- `Add [agent/command name]` - 新機能の追加
+- `Remove [agent/command name]` - 機能の削除
+- `Update [file] to [what changed]` - 既存ファイルの更新
+- `Fix [issue]` - バグ修正
+- `Simplify [component] to [improvement]` - リファクタリング
 
-Include the Claude Code footer:
+Claude Codeフッターを含める：
 
 ```
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
@@ -353,28 +353,28 @@ Include the Claude Code footer:
 Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
-## Resources to search for when needing more information
+## 詳細情報を探す際のリソース
 
-- [Claude Code Plugin Documentation](https://docs.claude.com/en/docs/claude-code/plugins)
-- [Plugin Marketplace Documentation](https://docs.claude.com/en/docs/claude-code/plugin-marketplaces)
-- [Plugin Reference](https://docs.claude.com/en/docs/claude-code/plugins-reference)
+- [Claude Code プラグインドキュメント](https://docs.claude.com/en/docs/claude-code/plugins)
+- [プラグインマーケットプレイスドキュメント](https://docs.claude.com/en/docs/claude-code/plugin-marketplaces)
+- [プラグインリファレンス](https://docs.claude.com/en/docs/claude-code/plugins-reference)
 
-## Key Learnings
+## 主要な学び
 
-_This section captures important learnings as we work on this repository._
+_このセクションでは、このリポジトリで作業しながら得た重要な学びを記録します。_
 
-### 2024-11-22: Added gemini-imagegen skill and fixed component counts
+### 2024-11-22: gemini-imagegenスキルを追加し、コンポーネントカウントを修正
 
-Added the first skill to the plugin and discovered the component counts were wrong (said 15 agents, actually had 17). Created a comprehensive checklist for updating the plugin to prevent this in the future.
+プラグインに最初のスキルを追加し、コンポーネントカウントが間違っていることを発見（15エージェントと記載していたが、実際には17だった）。今後これを防ぐための包括的なチェックリストを作成。
 
-**Learning:** Always count actual files before updating descriptions. The counts appear in multiple places (plugin.json, marketplace.json, README.md) and must all match. Use the verification commands in the checklist above.
+**学び：** 説明を更新する前に必ず実際のファイルをカウントすること。カウントは複数の場所（plugin.json、marketplace.json、README.md）に表示され、すべて一致する必要がある。上記のチェックリストの確認コマンドを使用すること。
 
-### 2024-10-09: Simplified marketplace.json to match official spec
+### 2024-10-09: marketplace.jsonを公式仕様に合わせて簡素化
 
-The initial marketplace.json included many custom fields (downloads, stars, rating, categories, trending) that aren't part of the Claude Code specification. We simplified to only include:
+初期のmarketplace.jsonには、Claude Code仕様に含まれていない多くのカスタムフィールド（downloads、stars、rating、categories、trending）が含まれていた。以下のみを含むように簡素化：
 
-- Required: `name`, `owner`, `plugins`
-- Optional: `metadata` (with description and version)
-- Plugin entries: `name`, `description`, `version`, `author`, `homepage`, `tags`, `source`
+- 必須：`name`、`owner`、`plugins`
+- オプション：`metadata`（説明とバージョンを含む）
+- プラグインエントリ：`name`、`description`、`version`、`author`、`homepage`、`tags`、`source`
 
-**Learning:** Stick to the official spec. Custom fields may confuse users or break compatibility with future versions.
+**学び：** 公式仕様に従う。カスタムフィールドはユーザーを混乱させたり、将来のバージョンとの互換性を壊す可能性がある。

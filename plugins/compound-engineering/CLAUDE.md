@@ -1,90 +1,90 @@
-# Compounding Engineering Plugin Development
+# コンパウンドエンジニアリングプラグイン開発
 
-## Versioning Requirements
+## バージョニング要件
 
-**IMPORTANT**: Every change to this plugin MUST include updates to all three files:
+**重要**：このプラグインへのすべての変更には、3つのファイルすべての更新が必要です：
 
-1. **`.claude-plugin/plugin.json`** - Bump version using semver
-2. **`CHANGELOG.md`** - Document changes using Keep a Changelog format
-3. **`README.md`** - Verify/update component counts and tables
+1. **`.claude-plugin/plugin.json`** - semverを使用してバージョンを上げる
+2. **`CHANGELOG.md`** - Keep a Changelog形式で変更を記録
+3. **`README.md`** - コンポーネントカウントとテーブルを確認/更新
 
-### Version Bumping Rules
+### バージョン更新ルール
 
-- **MAJOR** (1.0.0 → 2.0.0): Breaking changes, major reorganization
-- **MINOR** (1.0.0 → 1.1.0): New agents, commands, or skills
-- **PATCH** (1.0.0 → 1.0.1): Bug fixes, doc updates, minor improvements
+- **MAJOR**（1.0.0 → 2.0.0）：破壊的変更、大規模な再編成
+- **MINOR**（1.0.0 → 1.1.0）：新しいエージェント、コマンド、またはスキル
+- **PATCH**（1.0.0 → 1.0.1）：バグ修正、ドキュメント更新、軽微な改善
 
-### Pre-Commit Checklist
+### コミット前チェックリスト
 
-Before committing ANY changes:
+変更をコミットする前に：
 
-- [ ] Version bumped in `.claude-plugin/plugin.json`
-- [ ] CHANGELOG.md updated with changes
-- [ ] README.md component counts verified
-- [ ] README.md tables accurate (agents, commands, skills)
-- [ ] plugin.json description matches current counts
+- [ ] `.claude-plugin/plugin.json`でバージョンを上げた
+- [ ] CHANGELOG.mdを変更で更新した
+- [ ] README.mdのコンポーネントカウントを確認した
+- [ ] README.mdのテーブルが正確（エージェント、コマンド、スキル）
+- [ ] plugin.jsonの説明が現在のカウントと一致
 
-### Directory Structure
+### ディレクトリ構造
 
 ```
 agents/
-├── review/     # Code review agents
-├── research/   # Research and analysis agents
-├── design/     # Design and UI agents
-├── workflow/   # Workflow automation agents
-└── docs/       # Documentation agents
+├── review/     # コードレビューエージェント
+├── research/   # リサーチ・分析エージェント
+├── design/     # デザイン・UIエージェント
+├── workflow/   # ワークフロー自動化エージェント
+└── docs/       # ドキュメントエージェント
 
 commands/
-├── workflows/  # Core workflow commands (workflows:plan, workflows:review, etc.)
-└── *.md        # Utility commands
+├── workflows/  # コアワークフローコマンド（workflows:plan、workflows:reviewなど）
+└── *.md        # ユーティリティコマンド
 
 skills/
-└── *.md        # All skills at root level
+└── *.md        # すべてのスキルはルートレベルに
 ```
 
-## Command Naming Convention
+## コマンド命名規約
 
-**Workflow commands** use `workflows:` prefix to avoid collisions with built-in commands:
-- `/workflows:plan` - Create implementation plans
-- `/workflows:review` - Run comprehensive code reviews
-- `/workflows:work` - Execute work items systematically
-- `/workflows:compound` - Document solved problems
+**ワークフローコマンド**は組み込みコマンドとの衝突を避けるため`workflows:`プレフィックスを使用：
+- `/workflows:plan` - 実装計画を作成
+- `/workflows:review` - 包括的なコードレビューを実行
+- `/workflows:work` - 作業項目を体系的に実行
+- `/workflows:compound` - 解決した問題を文書化
 
-**Why `workflows:`?** Claude Code has built-in `/plan` and `/review` commands. Using `name: workflows:plan` in frontmatter creates a unique `/workflows:plan` command with no collision.
+**なぜ`workflows:`?** Claude Codeには組み込みの`/plan`と`/review`コマンドがあります。フロントマターで`name: workflows:plan`を使用すると、衝突のないユニークな`/workflows:plan`コマンドが作成されます。
 
-## Skill Compliance Checklist
+## スキルコンプライアンスチェックリスト
 
-When adding or modifying skills, verify compliance with skill-creator spec:
+スキルを追加または変更する際は、skill-creator仕様への準拠を確認：
 
-### YAML Frontmatter (Required)
+### YAMLフロントマター（必須）
 
-- [ ] `name:` present and matches directory name (lowercase-with-hyphens)
-- [ ] `description:` present and uses **third person** ("This skill should be used when..." NOT "Use this skill when...")
+- [ ] `name:`が存在し、ディレクトリ名と一致（lowercase-with-hyphens）
+- [ ] `description:`が存在し、**三人称**を使用（「このスキルは...に使用されるべき」であり「このスキルを...に使用する」ではない）
 
-### Reference Links (Required if references/ exists)
+### リファレンスリンク（references/が存在する場合は必須）
 
-- [ ] All files in `references/` are linked as `[filename.md](./references/filename.md)`
-- [ ] All files in `assets/` are linked as `[filename](./assets/filename)`
-- [ ] All files in `scripts/` are linked as `[filename](./scripts/filename)`
-- [ ] No bare backtick references like `` `references/file.md` `` - use proper markdown links
+- [ ] `references/`内のすべてのファイルは`[filename.md](./references/filename.md)`としてリンク
+- [ ] `assets/`内のすべてのファイルは`[filename](./assets/filename)`としてリンク
+- [ ] `scripts/`内のすべてのファイルは`[filename](./scripts/filename)`としてリンク
+- [ ] `` `references/file.md` ``のような素のバッククォート参照は使用しない - 適切なマークダウンリンクを使用
 
-### Writing Style
+### 文体
 
-- [ ] Use imperative/infinitive form (verb-first instructions)
-- [ ] Avoid second person ("you should") - use objective language ("To accomplish X, do Y")
+- [ ] 命令形/不定形を使用（動詞から始まる指示）
+- [ ] 二人称（「あなたは...すべき」）を避ける - 客観的な言語を使用（「Xを達成するには、Yを行う」）
 
-### Quick Validation Command
+### クイック検証コマンド
 
 ```bash
-# Check for unlinked references in a skill
+# スキル内のリンクされていないリファレンスをチェック
 grep -E '`(references|assets|scripts)/[^`]+`' skills/*/SKILL.md
-# Should return nothing if all refs are properly linked
+# すべての参照が適切にリンクされていれば何も返さないはず
 
-# Check description format
+# 説明形式をチェック
 grep -E '^description:' skills/*/SKILL.md | grep -v 'This skill'
-# Should return nothing if all use third person
+# すべてが三人称を使用していれば何も返さないはず
 ```
 
-## Documentation
+## ドキュメント
 
-See `docs/solutions/plugin-versioning-requirements.md` for detailed versioning workflow.
+詳細なバージョニングワークフローについては`docs/solutions/plugin-versioning-requirements.md`を参照。

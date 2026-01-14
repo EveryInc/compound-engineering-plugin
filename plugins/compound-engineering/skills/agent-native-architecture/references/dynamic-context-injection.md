@@ -1,127 +1,127 @@
 <overview>
-How to inject dynamic runtime context into agent system prompts. The agent needs to know what exists in the app to know what it can work with. Static prompts aren't enough—the agent needs to see the same context the user sees.
+エージェントのシステムプロンプトに動的ランタイムコンテキストを注入する方法。エージェントは何を扱えるかを知るために、アプリに存在するものを知る必要があります。静的プロンプトでは不十分です—エージェントはユーザーが見るのと同じコンテキストを見る必要があります。
 
-**Core principle:** The user's context IS the agent's context.
+**コア原則:** ユーザーのコンテキスト = エージェントのコンテキスト
 </overview>
 
 <why_context_matters>
-## Why Dynamic Context Injection?
+## なぜ動的コンテキスト注入か？
 
-A static system prompt tells the agent what it CAN do. Dynamic context tells it what it can do RIGHT NOW with the user's actual data.
+静的システムプロンプトはエージェントに何ができるかを伝えます。動的コンテキストはユーザーの実際のデータで今何ができるかを伝えます。
 
-**The failure case:**
+**失敗ケース:**
 ```
-User: "Write a little thing about Catherine the Great in my reading feed"
-Agent: "What system are you referring to? I'm not sure what reading feed means."
+ユーザー: 「私の読書フィードにエカテリーナ大帝について何か書いて」
+エージェント: 「どのシステムを指していますか？読書フィードの意味がわかりません。」
 ```
 
-The agent failed because it didn't know:
-- What books exist in the user's library
-- What the "reading feed" is
-- What tools it has to publish there
+エージェントは以下を知らなかったため失敗しました:
+- ユーザーのライブラリに存在する本
+- 「読書フィード」とは何か
+- そこに公開するためのツール
 
-**The fix:** Inject runtime context about app state into the system prompt.
+**修正:** アプリ状態に関するランタイムコンテキストをシステムプロンプトに注入。
 </why_context_matters>
 
 <pattern name="context-injection">
-## The Context Injection Pattern
+## コンテキスト注入パターン
 
-Build your system prompt dynamically, including current app state:
+現在のアプリ状態を含めて、システムプロンプトを動的に構築:
 
 ```swift
 func buildSystemPrompt() -> String {
-    // Gather current state
+    // 現在の状態を収集
     let availableBooks = libraryService.books
     let recentActivity = analysisService.recentRecords(limit: 10)
     let userProfile = profileService.currentProfile
 
     return """
-    # Your Identity
+    # あなたのアイデンティティ
 
-    You are a reading assistant for \(userProfile.name)'s library.
+    あなたは\(userProfile.name)のライブラリの読書アシスタントです。
 
-    ## Available Books in User's Library
+    ## ユーザーのライブラリ内の利用可能な本
 
-    \(availableBooks.map { "- \"\($0.title)\" by \($0.author) (id: \($0.id))" }.joined(separator: "\n"))
+    \(availableBooks.map { "- 「\($0.title)」by \($0.author) (id: \($0.id))" }.joined(separator: "\n"))
 
-    ## Recent Reading Activity
+    ## 最近の読書活動
 
-    \(recentActivity.map { "- Analyzed \"\($0.bookTitle)\": \($0.excerptPreview)" }.joined(separator: "\n"))
+    \(recentActivity.map { "- 「\($0.bookTitle)」を分析: \($0.excerptPreview)" }.joined(separator: "\n"))
 
-    ## Your Capabilities
+    ## あなたの能力
 
-    - **publish_to_feed**: Create insights that appear in the Feed tab
-    - **read_library**: View books, highlights, and analyses
-    - **web_search**: Search the internet for research
-    - **write_file**: Save research to Documents/Research/{bookId}/
+    - **publish_to_feed**: フィードタブに表示されるインサイトを作成
+    - **read_library**: 本、ハイライト、分析を表示
+    - **web_search**: リサーチのためにインターネットを検索
+    - **write_file**: Documents/Research/{bookId}/にリサーチを保存
 
-    When the user mentions "the feed" or "reading feed", they mean the Feed tab
-    where insights appear. Use `publish_to_feed` to create content there.
+    ユーザーが「フィード」や「読書フィード」と言及した場合、それはインサイトが表示される
+    フィードタブを意味します。そこにコンテンツを作成するには`publish_to_feed`を使用。
     """
 }
 ```
 </pattern>
 
 <what_to_inject>
-## What Context to Inject
+## 注入すべきコンテキスト
 
-### 1. Available Resources
-What data/files exist that the agent can access?
+### 1. 利用可能なリソース
+エージェントがアクセスできるデータ/ファイルは何か？
 
 ```swift
-## Available in User's Library
+## ユーザーのライブラリ内で利用可能
 
-Books:
-- "Moby Dick" by Herman Melville (id: book_123)
-- "1984" by George Orwell (id: book_456)
+本:
+- 「白鯨」by ハーマン・メルヴィル (id: book_123)
+- 「1984」by ジョージ・オーウェル (id: book_456)
 
-Research folders:
-- Documents/Research/book_123/ (3 files)
-- Documents/Research/book_456/ (1 file)
+リサーチフォルダ:
+- Documents/Research/book_123/ (3ファイル)
+- Documents/Research/book_456/ (1ファイル)
 ```
 
-### 2. Current State
-What has the user done recently? What's the current context?
+### 2. 現在の状態
+ユーザーが最近何をしたか？現在のコンテキストは何か？
 
 ```swift
-## Recent Activity
+## 最近の活動
 
-- 2 hours ago: Highlighted passage in "1984" about surveillance
-- Yesterday: Completed research on "Moby Dick" whale symbolism
-- This week: Added 3 new books to library
+- 2時間前: 「1984」で監視についてのパッセージをハイライト
+- 昨日: 「白鯨」の鯨の象徴についてのリサーチを完了
+- 今週: ライブラリに3冊の新しい本を追加
 ```
 
-### 3. Capabilities Mapping
-What tool maps to what UI feature? Use the user's language.
+### 3. 能力マッピング
+どのツールがどのUI機能にマップするか？ユーザーの言語を使用。
 
 ```swift
-## What You Can Do
+## できること
 
-| User Says | You Should Use | Result |
+| ユーザーが言う | 使うべきもの | 結果 |
 |-----------|----------------|--------|
-| "my feed" / "reading feed" | `publish_to_feed` | Creates insight in Feed tab |
-| "my library" / "my books" | `read_library` | Shows their book collection |
-| "research this" | `web_search` + `write_file` | Saves to Research folder |
-| "my profile" | `read_file("profile.md")` | Shows reading profile |
+| 「私のフィード」/「読書フィード」 | `publish_to_feed` | フィードタブにインサイトを作成 |
+| 「私のライブラリ」/「私の本」 | `read_library` | 本のコレクションを表示 |
+| 「これをリサーチ」 | `web_search` + `write_file` | Researchフォルダに保存 |
+| 「私のプロフィール」 | `read_file("profile.md")` | 読書プロフィールを表示 |
 ```
 
-### 4. Domain Vocabulary
-Explain app-specific terms the user might use.
+### 4. ドメイン語彙
+ユーザーが使う可能性のあるアプリ固有の用語を説明。
 
 ```swift
-## Vocabulary
+## 語彙
 
-- **Feed**: The Feed tab showing reading insights and analyses
-- **Research folder**: Documents/Research/{bookId}/ where research is stored
-- **Reading profile**: A markdown file describing user's reading preferences
-- **Highlight**: A passage the user marked in a book
+- **フィード**: 読書インサイトと分析を表示するフィードタブ
+- **リサーチフォルダ**: リサーチが保存されるDocuments/Research/{bookId}/
+- **読書プロフィール**: ユーザーの読書嗜好を説明するマークダウンファイル
+- **ハイライト**: ユーザーが本でマークしたパッセージ
 ```
 </what_to_inject>
 
 <implementation_patterns>
-## Implementation Patterns
+## 実装パターン
 
-### Pattern 1: Service-Based Injection (Swift/iOS)
+### パターン1: サービスベースの注入（Swift/iOS）
 
 ```swift
 class AgentContextBuilder {
@@ -135,23 +135,23 @@ class AgentContextBuilder {
         let activity = activityService.recent(limit: 10)
 
         return """
-        ## Library (\(books.count) books)
+        ## ライブラリ (\(books.count)冊)
         \(formatBooks(books))
 
-        ## Profile
+        ## プロフィール
         \(profile.summary)
 
-        ## Recent Activity
+        ## 最近の活動
         \(formatActivity(activity))
         """
     }
 
     private func formatBooks(_ books: [Book]) -> String {
-        books.map { "- \"\($0.title)\" (id: \($0.id))" }.joined(separator: "\n")
+        books.map { "- 「\($0.title)」 (id: \($0.id))" }.joined(separator: "\n")
     }
 }
 
-// Usage in agent initialization
+// エージェント初期化時の使用
 let context = AgentContextBuilder(
     libraryService: .shared,
     profileService: .shared,
@@ -161,7 +161,7 @@ let context = AgentContextBuilder(
 let systemPrompt = basePrompt + "\n\n" + context
 ```
 
-### Pattern 2: Hook-Based Injection (TypeScript)
+### パターン2: フックベースの注入（TypeScript）
 
 ```typescript
 interface ContextProvider {
@@ -174,42 +174,42 @@ class LibraryContextProvider implements ContextProvider {
     const recent = await db.activity.recent(10);
 
     return `
-## Library
-${books.map(b => `- "${b.title}" (${b.id})`).join('\n')}
+## ライブラリ
+${books.map(b => `- 「${b.title}」 (${b.id})`).join('\n')}
 
-## Recent
+## 最近
 ${recent.map(r => `- ${r.description}`).join('\n')}
     `.trim();
   }
 }
 
-// Compose multiple providers
+// 複数のプロバイダーを合成
 async function buildSystemPrompt(providers: ContextProvider[]): Promise<string> {
   const contexts = await Promise.all(providers.map(p => p.getContext()));
   return [BASE_PROMPT, ...contexts].join('\n\n');
 }
 ```
 
-### Pattern 3: Template-Based Injection
+### パターン3: テンプレートベースの注入
 
 ```markdown
-# System Prompt Template (system-prompt.template.md)
+# システムプロンプトテンプレート (system-prompt.template.md)
 
-You are a reading assistant.
+あなたは読書アシスタントです。
 
-## Available Books
+## 利用可能な本
 
 {{#each books}}
-- "{{title}}" by {{author}} (id: {{id}})
+- 「{{title}}」by {{author}} (id: {{id}})
 {{/each}}
 
-## Capabilities
+## 能力
 
 {{#each capabilities}}
 - **{{name}}**: {{description}}
 {{/each}}
 
-## Recent Activity
+## 最近の活動
 
 {{#each recentActivity}}
 - {{timestamp}}: {{description}}
@@ -217,7 +217,7 @@ You are a reading assistant.
 ```
 
 ```typescript
-// Render at runtime
+// ランタイムでレンダリング
 const prompt = Handlebars.compile(template)({
   books: await libraryService.getBooks(),
   capabilities: getCapabilities(),
@@ -227,15 +227,15 @@ const prompt = Handlebars.compile(template)({
 </implementation_patterns>
 
 <context_freshness>
-## Context Freshness
+## コンテキストの鮮度
 
-Context should be injected at agent initialization, and optionally refreshed during long sessions.
+コンテキストはエージェント初期化時に注入し、オプションで長いセッション中に更新すべきです。
 
-**At initialization:**
+**初期化時:**
 ```swift
-// Always inject fresh context when starting an agent
+// エージェント開始時は常にフレッシュなコンテキストを注入
 func startChatAgent() async -> AgentSession {
-    let context = await buildCurrentContext()  // Fresh context
+    let context = await buildCurrentContext()  // フレッシュなコンテキスト
     return await AgentOrchestrator.shared.startAgent(
         config: ChatAgent.config,
         systemPrompt: basePrompt + context
@@ -243,96 +243,96 @@ func startChatAgent() async -> AgentSession {
 }
 ```
 
-**During long sessions (optional):**
+**長いセッション中（オプション）:**
 ```swift
-// For long-running agents, provide a refresh tool
-tool("refresh_context", "Get current app state") { _ in
+// 長時間実行エージェントには更新ツールを提供
+tool("refresh_context", "現在のアプリ状態を取得") { _ in
     let books = libraryService.books
     let recent = activityService.recent(10)
     return """
-    Current library: \(books.count) books
-    Recent: \(recent.map { $0.summary }.joined(separator: ", "))
+    現在のライブラリ: \(books.count)冊
+    最近: \(recent.map { $0.summary }.joined(separator: ", "))
     """
 }
 ```
 
-**What NOT to do:**
+**やってはいけないこと:**
 ```swift
-// DON'T: Use stale context from app launch
-let cachedContext = appLaunchContext  // Stale!
-// Books may have been added, activity may have changed
+// やらない: アプリ起動時の古いコンテキストを使用
+let cachedContext = appLaunchContext  // 古い！
+// 本が追加されたり、活動が変わったりしているかも
 ```
 </context_freshness>
 
 <examples>
-## Real-World Example: Every Reader
+## 実例: Every Reader
 
-The Every Reader app injects context for its chat agent:
+Every Readerアプリはチャットエージェントのためにコンテキストを注入:
 
 ```swift
 func getChatAgentSystemPrompt() -> String {
-    // Get current library state
+    // 現在のライブラリ状態を取得
     let books = BookLibraryService.shared.books
     let analyses = BookLibraryService.shared.analysisRecords.prefix(10)
     let profile = ReadingProfileService.shared.getProfileForSystemPrompt()
 
     let bookList = books.map { book in
-        "- \"\(book.title)\" by \(book.author) (id: \(book.id))"
+        "- 「\(book.title)」by \(book.author) (id: \(book.id))"
     }.joined(separator: "\n")
 
     let recentList = analyses.map { record in
-        let title = books.first { $0.id == record.bookId }?.title ?? "Unknown"
-        return "- From \"\(title)\": \"\(record.excerptPreview)\""
+        let title = books.first { $0.id == record.bookId }?.title ?? "不明"
+        return "- 「\(title)」から: 「\(record.excerptPreview)」"
     }.joined(separator: "\n")
 
     return """
-    # Reading Assistant
+    # 読書アシスタント
 
-    You help the user with their reading and book research.
+    ユーザーの読書と本のリサーチを手伝います。
 
-    ## Available Books in User's Library
+    ## ユーザーのライブラリ内の利用可能な本
 
-    \(bookList.isEmpty ? "No books yet." : bookList)
+    \(bookList.isEmpty ? "まだ本がありません。" : bookList)
 
-    ## Recent Reading Journal (Latest Analyses)
+    ## 最近の読書ジャーナル（最新の分析）
 
-    \(recentList.isEmpty ? "No analyses yet." : recentList)
+    \(recentList.isEmpty ? "まだ分析がありません。" : recentList)
 
-    ## Reading Profile
+    ## 読書プロフィール
 
     \(profile)
 
-    ## Your Capabilities
+    ## あなたの能力
 
-    - **Publish to Feed**: Create insights using `publish_to_feed` that appear in the Feed tab
-    - **Library Access**: View books and highlights using `read_library`
-    - **Research**: Search web and save to Documents/Research/{bookId}/
-    - **Profile**: Read/update the user's reading profile
+    - **フィードに公開**: `publish_to_feed`を使用してフィードタブに表示されるインサイトを作成
+    - **ライブラリアクセス**: `read_library`を使用して本とハイライトを表示
+    - **リサーチ**: ウェブを検索してDocuments/Research/{bookId}/に保存
+    - **プロフィール**: ユーザーの読書プロフィールを読み取り/更新
 
-    When the user asks you to "write something for their feed" or "add to my reading feed",
-    use the `publish_to_feed` tool with the relevant book_id.
+    ユーザーが「フィードに何か書いて」や「読書フィードに追加して」と依頼した場合、
+    関連するbook_idで`publish_to_feed`ツールを使用。
     """
 }
 ```
 
-**Result:** When user says "write a little thing about Catherine the Great in my reading feed", the agent:
-1. Sees "reading feed" → knows to use `publish_to_feed`
-2. Sees available books → finds the relevant book ID
-3. Creates appropriate content for the Feed tab
+**結果:** ユーザーが「私の読書フィードにエカテリーナ大帝について何か書いて」と言うと、エージェントは:
+1. 「読書フィード」を見る → `publish_to_feed`を使うことを知る
+2. 利用可能な本を見る → 関連するbook IDを見つける
+3. フィードタブに適切なコンテンツを作成
 </examples>
 
 <checklist>
-## Context Injection Checklist
+## コンテキスト注入チェックリスト
 
-Before launching an agent:
-- [ ] System prompt includes current resources (books, files, data)
-- [ ] Recent activity is visible to the agent
-- [ ] Capabilities are mapped to user vocabulary
-- [ ] Domain-specific terms are explained
-- [ ] Context is fresh (gathered at agent start, not cached)
+エージェントを起動する前に:
+- [ ] システムプロンプトに現在のリソース（本、ファイル、データ）が含まれている
+- [ ] 最近の活動がエージェントに見える
+- [ ] 能力がユーザーの語彙にマップされている
+- [ ] ドメイン固有の用語が説明されている
+- [ ] コンテキストはフレッシュ（エージェント開始時に収集、キャッシュではない）
 
-When adding new features:
-- [ ] New resources are included in context injection
-- [ ] New capabilities are documented in system prompt
-- [ ] User vocabulary for the feature is mapped
+新機能を追加する際:
+- [ ] 新しいリソースがコンテキスト注入に含まれている
+- [ ] 新しい能力がシステムプロンプトに文書化されている
+- [ ] 機能のユーザー語彙がマップされている
 </checklist>

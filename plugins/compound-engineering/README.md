@@ -1,173 +1,173 @@
-# Compounding Engineering Plugin
+# コンパウンドエンジニアリング プラグイン
 
-AI-powered development tools that get smarter with every use. Make each unit of engineering work easier than the last.
+使用するたびに賢くなるAI駆動開発ツール。エンジニアリング作業の各単位を前回より簡単に。
 
-## Components
+## コンポーネント
 
-| Component | Count |
+| コンポーネント | 数 |
 |-----------|-------|
-| Agents | 25 |
-| Commands | 15 |
-| Skills | 13 |
-| MCP Servers | 1 |
+| エージェント | 25 |
+| コマンド | 15 |
+| スキル | 13 |
+| MCPサーバー | 1 |
 
-## Agents
+## エージェント
 
-Agents are organized into categories for easier discovery.
+エージェントは発見しやすいようにカテゴリに整理されています。
 
-### Review (14)
+### レビュー (14)
 
-| Agent | Description |
+| エージェント | 説明 |
 |-------|-------------|
-| `agent-native-reviewer` | Verify features are agent-native (action + context parity) |
-| `architecture-strategist` | Analyze architectural decisions and compliance |
-| `code-simplicity-reviewer` | Final pass for simplicity and minimalism |
-| `data-integrity-guardian` | Database migrations and data integrity |
-| `data-migration-expert` | Validate ID mappings match production, check for swapped values |
-| `deployment-verification-agent` | Create Go/No-Go deployment checklists for risky data changes |
-| `dhh-rails-reviewer` | Rails review from DHH's perspective |
-| `kieran-rails-reviewer` | Rails code review with strict conventions |
-| `kieran-python-reviewer` | Python code review with strict conventions |
-| `kieran-typescript-reviewer` | TypeScript code review with strict conventions |
-| `pattern-recognition-specialist` | Analyze code for patterns and anti-patterns |
-| `performance-oracle` | Performance analysis and optimization |
-| `security-sentinel` | Security audits and vulnerability assessments |
-| `julik-frontend-races-reviewer` | Review JavaScript/Stimulus code for race conditions |
+| `agent-native-reviewer` | 機能がエージェントネイティブか確認（アクション + コンテキストの同等性） |
+| `architecture-strategist` | アーキテクチャ上の決定とコンプライアンスを分析 |
+| `code-simplicity-reviewer` | シンプルさとミニマリズムの最終チェック |
+| `data-integrity-guardian` | データベースマイグレーションとデータ整合性 |
+| `data-migration-expert` | IDマッピングが本番と一致するか検証、値の入れ替わりをチェック |
+| `deployment-verification-agent` | リスクのあるデータ変更のGo/No-Goデプロイチェックリストを作成 |
+| `dhh-rails-reviewer` | DHHの視点からのRailsレビュー |
+| `kieran-rails-reviewer` | 厳格な規約でRailsコードをレビュー |
+| `kieran-python-reviewer` | 厳格な規約でPythonコードをレビュー |
+| `kieran-typescript-reviewer` | 厳格な規約でTypeScriptコードをレビュー |
+| `pattern-recognition-specialist` | コードのパターンとアンチパターンを分析 |
+| `performance-oracle` | パフォーマンス分析と最適化 |
+| `security-sentinel` | セキュリティ監査と脆弱性評価 |
+| `julik-frontend-races-reviewer` | JavaScript/Stimulusコードのレースコンディションをレビュー |
 
-### Research (4)
+### リサーチ (4)
 
-| Agent | Description |
+| エージェント | 説明 |
 |-------|-------------|
-| `best-practices-researcher` | Gather external best practices and examples |
-| `framework-docs-researcher` | Research framework documentation and best practices |
-| `git-history-analyzer` | Analyze git history and code evolution |
-| `repo-research-analyst` | Research repository structure and conventions |
+| `best-practices-researcher` | 外部のベストプラクティスと例を収集 |
+| `framework-docs-researcher` | フレームワークのドキュメントとベストプラクティスをリサーチ |
+| `git-history-analyzer` | Git履歴とコードの進化を分析 |
+| `repo-research-analyst` | リポジトリ構造と規約をリサーチ |
 
-### Design (3)
+### デザイン (3)
 
-| Agent | Description |
+| エージェント | 説明 |
 |-------|-------------|
-| `design-implementation-reviewer` | Verify UI implementations match Figma designs |
-| `design-iterator` | Iteratively refine UI through systematic design iterations |
-| `figma-design-sync` | Synchronize web implementations with Figma designs |
+| `design-implementation-reviewer` | UI実装がFigmaデザインと一致するか確認 |
+| `design-iterator` | 体系的なデザインイテレーションでUIを反復的に改良 |
+| `figma-design-sync` | Web実装をFigmaデザインと同期 |
 
-### Workflow (4)
+### ワークフロー (4)
 
-| Agent | Description |
+| エージェント | 説明 |
 |-------|-------------|
-| `bug-reproduction-validator` | Systematically reproduce and validate bug reports |
-| `lint` | Run linting and code quality checks on Ruby and ERB files |
-| `pr-comment-resolver` | Address PR comments and implement fixes |
-| `spec-flow-analyzer` | Analyze user flows and identify gaps in specifications |
+| `bug-reproduction-validator` | バグレポートを体系的に再現し検証 |
+| `lint` | RubyとERBファイルのリンティングとコード品質チェックを実行 |
+| `pr-comment-resolver` | PRコメントに対応し修正を実装 |
+| `spec-flow-analyzer` | ユーザーフローを分析し仕様のギャップを特定 |
 
-## Commands
+## コマンド
 
-### Workflow Commands
+### ワークフローコマンド
 
-Core workflow commands use `workflows:` prefix to avoid collisions with built-in commands:
+コアワークフローコマンドは組み込みコマンドとの衝突を避けるため`workflows:`プレフィックスを使用：
 
-| Command | Description |
+| コマンド | 説明 |
 |---------|-------------|
-| `/workflows:plan` | Create implementation plans |
-| `/workflows:review` | Run comprehensive code reviews |
-| `/workflows:work` | Execute work items systematically |
-| `/workflows:compound` | Document solved problems to compound team knowledge |
+| `/workflows:plan` | 実装計画を作成 |
+| `/workflows:review` | 包括的なコードレビューを実行 |
+| `/workflows:work` | 作業項目を体系的に実行 |
+| `/workflows:compound` | 解決した問題を文書化してチームの知識を蓄積 |
 
-### Utility Commands
+### ユーティリティコマンド
 
-| Command | Description |
+| コマンド | 説明 |
 |---------|-------------|
-| `/deepen-plan` | Enhance plans with parallel research agents for each section |
-| `/changelog` | Create engaging changelogs for recent merges |
-| `/generate_command` | Generate new slash commands |
-| `/heal-skill` | Fix skill documentation issues |
-| `/plan_review` | Multi-agent plan review in parallel |
-| `/reproduce-bug` | Reproduce bugs using logs and console |
-| `/resolve_parallel` | Resolve TODO comments in parallel |
-| `/resolve_pr_parallel` | Resolve PR comments in parallel |
-| `/resolve_todo_parallel` | Resolve todos in parallel |
-| `/triage` | Triage and prioritize issues |
-| `/browser-test` | Run browser tests on PR-affected pages |
+| `/deepen-plan` | 各セクションに並行リサーチエージェントで計画を強化 |
+| `/changelog` | 最近のマージの変更履歴を作成 |
+| `/generate_command` | 新しいスラッシュコマンドを生成 |
+| `/heal-skill` | スキルドキュメントの問題を修正 |
+| `/plan_review` | マルチエージェントで並行して計画をレビュー |
+| `/reproduce-bug` | ログとコンソールを使用してバグを再現 |
+| `/resolve_parallel` | TODOコメントを並行で解決 |
+| `/resolve_pr_parallel` | PRコメントを並行で解決 |
+| `/resolve_todo_parallel` | todoを並行で解決 |
+| `/triage` | 問題をトリアージして優先順位付け |
+| `/browser-test` | PRに影響を受けたページでブラウザテストを実行 |
 
-## Skills
+## スキル
 
-### Architecture & Design
+### アーキテクチャ＆デザイン
 
-| Skill | Description |
+| スキル | 説明 |
 |-------|-------------|
-| `agent-native-architecture` | Build AI agents using prompt-native architecture |
+| `agent-native-architecture` | プロンプトネイティブアーキテクチャを使用してAIエージェントを構築 |
 
-### Development Tools
+### 開発ツール
 
-| Skill | Description |
+| スキル | 説明 |
 |-------|-------------|
-| `andrew-kane-gem-writer` | Write Ruby gems following Andrew Kane's patterns |
-| `compound-docs` | Capture solved problems as categorized documentation |
-| `create-agent-skills` | Expert guidance for creating Claude Code skills |
-| `dhh-ruby-style` | Write Ruby/Rails code in DHH's 37signals style |
-| `frontend-design` | Create production-grade frontend interfaces |
-| `kieran-code-quality` | Language-agnostic code quality principles for all Kieran reviewers |
-| `skill-creator` | Guide for creating effective Claude Code skills |
+| `andrew-kane-gem-writer` | Andrew Kaneのパターンに従ってRuby gemを作成 |
+| `compound-docs` | 解決した問題をカテゴリ化されたドキュメントとして記録 |
+| `create-agent-skills` | Claude Codeスキル作成のエキスパートガイダンス |
+| `dhh-ruby-style` | DHHの37signalsスタイルでRuby/Railsコードを作成 |
+| `frontend-design` | プロダクショングレードのフロントエンドインターフェースを作成 |
+| `kieran-code-quality` | すべてのKieranレビュアー用の言語に依存しないコード品質原則 |
+| `skill-creator` | 効果的なClaude Codeスキル作成のガイド |
 
-### Content & Workflow
+### コンテンツ＆ワークフロー
 
-| Skill | Description |
+| スキル | 説明 |
 |-------|-------------|
-| `every-style-editor` | Review copy for Every's style guide compliance |
-| `file-todos` | File-based todo tracking system |
-| `git-worktree` | Manage Git worktrees for parallel development |
+| `every-style-editor` | Everyのスタイルガイド準拠のためにコピーをレビュー |
+| `file-todos` | ファイルベースのtodo追跡システム |
+| `git-worktree` | 並行開発のためのGitワークツリーを管理 |
 
-### Image Generation
+### 画像生成
 
-| Skill | Description |
+| スキル | 説明 |
 |-------|-------------|
-| `gemini-imagegen` | Generate and edit images using Google's Gemini API |
+| `gemini-imagegen` | GoogleのGemini APIを使用して画像を生成・編集 |
 
-### Browser Automation
+### ブラウザ自動化
 
-| Skill | Description |
+| スキル | 説明 |
 |-------|-------------|
-| `agent-browser` | Automate browser interactions for web testing, form filling, screenshots, and data extraction |
+| `agent-browser` | Webテスト、フォーム入力、スクリーンショット、データ抽出のためのブラウザ操作を自動化 |
 
-**gemini-imagegen features:**
-- Text-to-image generation
-- Image editing and manipulation
-- Multi-turn refinement
-- Multiple reference image composition (up to 14 images)
+**gemini-imagegenの機能：**
+- テキストから画像を生成
+- 画像の編集と加工
+- マルチターン改良
+- 複数の参照画像の合成（最大14画像）
 
-**Requirements:**
-- `GEMINI_API_KEY` environment variable
-- Python packages: `google-genai`, `pillow`
+**要件：**
+- `GEMINI_API_KEY`環境変数
+- Pythonパッケージ：`google-genai`、`pillow`
 
-## MCP Servers
+## MCPサーバー
 
-| Server | Description |
+| サーバー | 説明 |
 |--------|-------------|
-| `context7` | Framework documentation lookup via Context7 |
+| `context7` | Context7経由でフレームワークドキュメントを検索 |
 
 ### Context7
 
-**Tools provided:**
-- `resolve-library-id` - Find library ID for a framework/package
-- `get-library-docs` - Get documentation for a specific library
+**提供されるツール：**
+- `resolve-library-id` - フレームワーク/パッケージのライブラリIDを検索
+- `get-library-docs` - 特定のライブラリのドキュメントを取得
 
-Supports 100+ frameworks including Rails, React, Next.js, Vue, Django, Laravel, and more.
+Rails、React、Next.js、Vue、Django、Laravelなど100以上のフレームワークをサポート。
 
-MCP servers start automatically when the plugin is enabled.
+MCPサーバーはプラグインが有効化されると自動的に起動します。
 
-## Installation
+## インストール
 
 ```bash
 claude /plugin install compound-engineering
 ```
 
-## Known Issues
+## 既知の問題
 
-### MCP Server Not Auto-Loading
+### MCPサーバーが自動ロードされない
 
-**Issue:** The bundled MCP server (Context7) may not load automatically when the plugin is installed.
+**問題：** バンドルされたMCPサーバー（Context7）がプラグインインストール時に自動的にロードされない場合があります。
 
-**Workaround:** Manually add it to your project's `.claude/settings.json`:
+**回避策：** プロジェクトの`.claude/settings.json`に手動で追加：
 
 ```json
 {
@@ -180,12 +180,12 @@ claude /plugin install compound-engineering
 }
 ```
 
-Or add it globally in `~/.claude/settings.json` for all projects.
+または、すべてのプロジェクトに対してグローバルに`~/.claude/settings.json`に追加。
 
-## Version History
+## バージョン履歴
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+詳細なバージョン履歴は[CHANGELOG.md](CHANGELOG.md)を参照。
 
-## License
+## ライセンス
 
 MIT

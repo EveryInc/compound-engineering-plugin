@@ -1,7 +1,7 @@
 ---
 name: plan_review
-description: Have multiple specialized agents review a plan in parallel
-argument-hint: "[plan file path or plan content]"
+description: 複数の専門エージェントにプランを並列でレビューさせる
+argument-hint: "[プランファイルパスまたはプランコンテンツ]"
 ---
 
-Have @agent-dhh-rails-reviewer @agent-kieran-rails-reviewer @agent-code-simplicity-reviewer review this plan in parallel.
+@agent-dhh-rails-reviewer @agent-kieran-rails-reviewer @agent-code-simplicity-reviewerにこのプランを並列でレビューさせます。

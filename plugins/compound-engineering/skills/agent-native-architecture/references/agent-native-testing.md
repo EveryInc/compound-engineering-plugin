@@ -1,15 +1,15 @@
 <overview>
-Testing agent-native apps requires different approaches than traditional unit testing. You're testing whether the agent achieves outcomes, not whether it calls specific functions. This guide provides concrete testing patterns for verifying your app is truly agent-native.
+エージェントネイティブアプリのテストには、従来のユニットテストとは異なるアプローチが必要です。特定の関数を呼び出すかではなく、エージェントが結果を達成するかをテストします。このガイドは、アプリが本当にエージェントネイティブであることを検証するための具体的なテストパターンを提供します。
 </overview>
 
 <testing_philosophy>
-## Testing Philosophy
+## テスト哲学
 
-### Test Outcomes, Not Procedures
+### 手順ではなく結果をテスト
 
-**Traditional (procedure-focused):**
+**従来型（手順重視）:**
 ```typescript
-// Testing that a specific function was called with specific args
+// 特定の引数で特定の関数が呼ばれたことをテスト
 expect(mockProcessFeedback).toHaveBeenCalledWith({
   message: "Great app!",
   category: "praise",
@@ -17,53 +17,53 @@ expect(mockProcessFeedback).toHaveBeenCalledWith({
 });
 ```
 
-**Agent-native (outcome-focused):**
+**エージェントネイティブ（結果重視）:**
 ```typescript
-// Testing that the outcome was achieved
+// 結果が達成されたことをテスト
 const result = await agent.process("Great app!");
 const storedFeedback = await db.feedback.getLatest();
 
 expect(storedFeedback.content).toContain("Great app");
 expect(storedFeedback.importance).toBeGreaterThanOrEqual(1);
 expect(storedFeedback.importance).toBeLessThanOrEqual(5);
-// We don't care exactly how it categorized—just that it's reasonable
+// どのように分類したかは気にしない—合理的であればよい
 ```
 
-### Accept Variability
+### 変動性を受け入れる
 
-Agents may solve problems differently each time. Your tests should:
-- Verify the end state, not the path
-- Accept reasonable ranges, not exact values
-- Check for presence of required elements, not exact format
+エージェントは毎回異なる方法で問題を解決する可能性があります。テストは：
+- 経路ではなく最終状態を検証
+- 正確な値ではなく合理的な範囲を受け入れる
+- 正確なフォーマットではなく必要な要素の存在を確認
 </testing_philosophy>
 
 <can_agent_do_it_test>
-## The "Can Agent Do It?" Test
+## 「エージェントはできるか？」テスト
 
-For each UI feature, write a test prompt and verify the agent can accomplish it.
+各UI機能について、テストプロンプトを書き、エージェントが達成できることを検証。
 
-### Template
+### テンプレート
 
 ```typescript
 describe('Agent Capability Tests', () => {
   test('Agent can add a book to library', async () => {
-    const result = await agent.chat("Add 'Moby Dick' by Herman Melville to my library");
+    const result = await agent.chat("ライブラリに'白鯨' by ハーマン・メルヴィルを追加して");
 
-    // Verify outcome
+    // 結果を検証
     const library = await libraryService.getBooks();
-    const mobyDick = library.find(b => b.title.includes("Moby Dick"));
+    const mobyDick = library.find(b => b.title.includes("白鯨"));
 
     expect(mobyDick).toBeDefined();
-    expect(mobyDick.author).toContain("Melville");
+    expect(mobyDick.author).toContain("メルヴィル");
   });
 
   test('Agent can publish to feed', async () => {
-    // Setup: ensure a book exists
+    // セットアップ: 本が存在することを確認
     await libraryService.addBook({ id: "book_123", title: "1984" });
 
-    const result = await agent.chat("Write something about surveillance themes in my feed");
+    const result = await agent.chat("監視テーマについて何かフィードに書いて");
 
-    // Verify outcome
+    // 結果を検証
     const feed = await feedService.getItems();
     const newItem = feed.find(item => item.bookId === "book_123");
 
@@ -72,45 +72,45 @@ describe('Agent Capability Tests', () => {
   });
 
   test('Agent can search and save research', async () => {
-    await libraryService.addBook({ id: "book_456", title: "Moby Dick" });
+    await libraryService.addBook({ id: "book_456", title: "白鯨" });
 
-    const result = await agent.chat("Research whale symbolism in Moby Dick");
+    const result = await agent.chat("白鯨の鯨の象徴をリサーチして");
 
-    // Verify files were created
+    // ファイルが作成されたことを検証
     const files = await fileService.listFiles("Research/book_456/");
     expect(files.length).toBeGreaterThan(0);
 
-    // Verify content is relevant
+    // コンテンツが関連していることを検証
     const content = await fileService.readFile(files[0]);
     expect(content.toLowerCase()).toMatch(/whale|symbolism|melville/);
   });
 });
 ```
 
-### The "Write to Location" Test
+### 「場所に書き込み」テスト
 
-A key litmus test: can the agent create content in specific app locations?
+重要なリトマステスト: エージェントは特定のアプリの場所にコンテンツを作成できるか？
 
 ```typescript
 describe('Location Awareness Tests', () => {
   const locations = [
-    { userPhrase: "my reading feed", expectedTool: "publish_to_feed" },
-    { userPhrase: "my library", expectedTool: "add_book" },
-    { userPhrase: "my research folder", expectedTool: "write_file" },
-    { userPhrase: "my profile", expectedTool: "write_file" },
+    { userPhrase: "私の読書フィード", expectedTool: "publish_to_feed" },
+    { userPhrase: "私のライブラリ", expectedTool: "add_book" },
+    { userPhrase: "私のリサーチフォルダ", expectedTool: "write_file" },
+    { userPhrase: "私のプロフィール", expectedTool: "write_file" },
   ];
 
   for (const { userPhrase, expectedTool } of locations) {
     test(`Agent knows how to write to "${userPhrase}"`, async () => {
-      const prompt = `Write a test note to ${userPhrase}`;
+      const prompt = `${userPhrase}にテストノートを書いて`;
       const result = await agent.chat(prompt);
 
-      // Check that agent used the right tool (or achieved the outcome)
+      // エージェントが正しいツールを使用した（または結果を達成した）ことを確認
       expect(result.toolCalls).toContainEqual(
         expect.objectContaining({ name: expectedTool })
       );
 
-      // Or verify outcome directly
+      // または直接結果を検証
       // expect(await locationHasNewContent(userPhrase)).toBe(true);
     });
   }
@@ -119,28 +119,28 @@ describe('Location Awareness Tests', () => {
 </can_agent_do_it_test>
 
 <surprise_test>
-## The "Surprise Test"
+## 「サプライズテスト」
 
-A well-designed agent-native app lets the agent figure out creative approaches. Test this by giving open-ended requests.
+よく設計されたエージェントネイティブアプリは、エージェントが創造的なアプローチを考え出すことを可能にします。オープンエンドなリクエストを与えてこれをテスト。
 
-### The Test
+### テスト
 
 ```typescript
 describe('Agent Creativity Tests', () => {
   test('Agent can handle open-ended requests', async () => {
-    // Setup: user has some books
-    await libraryService.addBook({ id: "1", title: "1984", author: "Orwell" });
-    await libraryService.addBook({ id: "2", title: "Brave New World", author: "Huxley" });
-    await libraryService.addBook({ id: "3", title: "Fahrenheit 451", author: "Bradbury" });
+    // セットアップ: ユーザーがいくつかの本を持っている
+    await libraryService.addBook({ id: "1", title: "1984", author: "オーウェル" });
+    await libraryService.addBook({ id: "2", title: "すばらしい新世界", author: "ハクスリー" });
+    await libraryService.addBook({ id: "3", title: "華氏451度", author: "ブラッドベリ" });
 
-    // Open-ended request
-    const result = await agent.chat("Help me organize my reading for next month");
+    // オープンエンドなリクエスト
+    const result = await agent.chat("来月の読書計画を立てて");
 
-    // The agent should do SOMETHING useful
-    // We don't specify exactly what—that's the point
+    // エージェントは何か有用なことをすべき
+    // 正確に何かは指定しない—それがポイント
     expect(result.toolCalls.length).toBeGreaterThan(0);
 
-    // It should have engaged with the library
+    // ライブラリに関与すべき
     const libraryTools = ["read_library", "write_file", "publish_to_feed"];
     const usedLibraryTool = result.toolCalls.some(
       call => libraryTools.includes(call.name)
@@ -149,60 +149,60 @@ describe('Agent Creativity Tests', () => {
   });
 
   test('Agent finds creative solutions', async () => {
-    // Don't specify HOW to accomplish the task
+    // タスクの達成方法を指定しない
     const result = await agent.chat(
-      "I want to understand the dystopian themes across my sci-fi books"
+      "私のSF本全体のディストピアテーマを理解したい"
     );
 
-    // Agent might:
-    // - Read all books and create a comparison document
-    // - Research dystopian literature and relate it to user's books
-    // - Create a mind map in a markdown file
-    // - Publish a series of insights to the feed
+    // エージェントがするかもしれないこと:
+    // - すべての本を読んで比較ドキュメントを作成
+    // - ディストピア文学をリサーチしてユーザーの本と関連付け
+    // - マークダウンファイルでマインドマップを作成
+    // - フィードに一連のインサイトを公開
 
-    // We just verify it did something substantive
+    // 実質的な何かをしたことを検証するだけ
     expect(result.response.length).toBeGreaterThan(100);
     expect(result.toolCalls.length).toBeGreaterThan(0);
   });
 });
 ```
 
-### What Failure Looks Like
+### 失敗の見た目
 
 ```typescript
-// FAILURE: Agent can only say it can't do that
-const result = await agent.chat("Help me prepare for a book club discussion");
+// 失敗: エージェントはそれができないと言うだけ
+const result = await agent.chat("ブッククラブのディスカッションに備えて");
 
-// Bad outcome:
-expect(result.response).not.toContain("I can't");
-expect(result.response).not.toContain("I don't have a tool");
-expect(result.response).not.toContain("Could you clarify");
+// 悪い結果:
+expect(result.response).not.toContain("できません");
+expect(result.response).not.toContain("そのためのツールがありません");
+expect(result.response).not.toContain("明確にしていただけますか");
 
-// If the agent asks for clarification on something it should understand,
-// you have a context injection or capability gap
+// エージェントが理解すべきことについて明確化を求める場合、
+// コンテキスト注入または能力のギャップがある
 ```
 </surprise_test>
 
 <parity_testing>
-## Automated Parity Testing
+## 自動パリティテスト
 
-Ensure every UI action has an agent equivalent.
+すべてのUIアクションにエージェント相当があることを確認。
 
-### Capability Map Testing
+### 能力マップテスト
 
 ```typescript
 // capability-map.ts
 export const capabilityMap = {
-  // UI Action: Agent Tool
-  "View library": "read_library",
-  "Add book": "add_book",
-  "Delete book": "delete_book",
-  "Publish insight": "publish_to_feed",
-  "Start research": "start_research",
-  "View highlights": "read_library",  // same tool, different query
-  "Edit profile": "write_file",
-  "Search web": "web_search",
-  "Export data": "N/A",  // UI-only action
+  // UIアクション: エージェントツール
+  "ライブラリを表示": "read_library",
+  "本を追加": "add_book",
+  "本を削除": "delete_book",
+  "インサイトを公開": "publish_to_feed",
+  "リサーチを開始": "start_research",
+  "ハイライトを表示": "read_library",  // 同じツール、異なるクエリ
+  "プロフィールを編集": "write_file",
+  "ウェブ検索": "web_search",
+  "データをエクスポート": "N/A",  // UI専用アクション
 };
 
 // parity.test.ts
@@ -229,31 +229,31 @@ describe('Action Parity', () => {
 });
 ```
 
-### Context Parity Testing
+### コンテキストパリティテスト
 
 ```typescript
 describe('Context Parity', () => {
   test('Agent sees all data that UI shows', async () => {
-    // Setup: create some data
-    await libraryService.addBook({ id: "1", title: "Test Book" });
-    await feedService.addItem({ id: "f1", content: "Test insight" });
+    // セットアップ: データを作成
+    await libraryService.addBook({ id: "1", title: "テスト本" });
+    await feedService.addItem({ id: "f1", content: "テストインサイト" });
 
-    // Get system prompt (which includes context)
+    // システムプロンプトを取得（コンテキストを含む）
     const systemPrompt = await buildSystemPrompt();
 
-    // Verify data is included
-    expect(systemPrompt).toContain("Test Book");
-    expect(systemPrompt).toContain("Test insight");
+    // データが含まれていることを検証
+    expect(systemPrompt).toContain("テスト本");
+    expect(systemPrompt).toContain("テストインサイト");
   });
 
   test('Recent activity is visible to agent', async () => {
-    // Perform some actions
+    // いくつかのアクションを実行
     await activityService.log({ action: "highlighted", bookId: "1" });
     await activityService.log({ action: "researched", bookId: "2" });
 
     const systemPrompt = await buildSystemPrompt();
 
-    // Verify activity is included
+    // 活動が含まれていることを検証
     expect(systemPrompt).toMatch(/highlighted|researched/);
   });
 });
@@ -261,53 +261,53 @@ describe('Context Parity', () => {
 </parity_testing>
 
 <integration_testing>
-## Integration Testing
+## 統合テスト
 
-Test the full flow from user request to outcome.
+ユーザーリクエストから結果までの完全なフローをテスト。
 
-### End-to-End Flow Tests
+### エンドツーエンドフローテスト
 
 ```typescript
 describe('End-to-End Flows', () => {
   test('Research flow: request → web search → file creation', async () => {
-    // Setup
+    // セットアップ
     const bookId = "book_123";
-    await libraryService.addBook({ id: bookId, title: "Moby Dick" });
+    await libraryService.addBook({ id: bookId, title: "白鯨" });
 
-    // User request
-    await agent.chat("Research the historical context of whaling in Moby Dick");
+    // ユーザーリクエスト
+    await agent.chat("白鯨の捕鯨の歴史的背景をリサーチして");
 
-    // Verify: web search was performed
+    // 検証: ウェブ検索が実行された
     const searchCalls = mockWebSearch.mock.calls;
     expect(searchCalls.length).toBeGreaterThan(0);
     expect(searchCalls.some(call =>
       call[0].query.toLowerCase().includes("whaling")
     )).toBe(true);
 
-    // Verify: files were created
+    // 検証: ファイルが作成された
     const researchFiles = await fileService.listFiles(`Research/${bookId}/`);
     expect(researchFiles.length).toBeGreaterThan(0);
 
-    // Verify: content is relevant
+    // 検証: コンテンツが関連している
     const content = await fileService.readFile(researchFiles[0]);
     expect(content.toLowerCase()).toMatch(/whale|whaling|nantucket|melville/);
   });
 
   test('Publish flow: request → tool call → feed update → UI reflects', async () => {
-    // Setup
+    // セットアップ
     await libraryService.addBook({ id: "book_1", title: "1984" });
 
-    // Initial state
+    // 初期状態
     const feedBefore = await feedService.getItems();
 
-    // User request
-    await agent.chat("Write something about Big Brother for my reading feed");
+    // ユーザーリクエスト
+    await agent.chat("私の読書フィードにビッグブラザーについて何か書いて");
 
-    // Verify feed updated
+    // フィードが更新されたことを検証
     const feedAfter = await feedService.getItems();
     expect(feedAfter.length).toBe(feedBefore.length + 1);
 
-    // Verify content
+    // コンテンツを検証
     const newItem = feedAfter.find(item =>
       !feedBefore.some(old => old.id === item.id)
     );
@@ -317,35 +317,35 @@ describe('End-to-End Flows', () => {
 });
 ```
 
-### Failure Recovery Tests
+### 失敗復旧テスト
 
 ```typescript
 describe('Failure Recovery', () => {
   test('Agent handles missing book gracefully', async () => {
-    const result = await agent.chat("Tell me about 'Nonexistent Book'");
+    const result = await agent.chat("'存在しない本'について教えて");
 
-    // Agent should not crash
+    // エージェントはクラッシュすべきでない
     expect(result.error).toBeUndefined();
 
-    // Agent should acknowledge the issue
+    // エージェントは問題を認識すべき
     expect(result.response.toLowerCase()).toMatch(
-      /not found|don't see|can't find|library/
+      /見つかりません|見えません|ライブラリ/
     );
   });
 
   test('Agent recovers from API failure', async () => {
-    // Mock API failure
+    // API失敗をモック
     mockWebSearch.mockRejectedValueOnce(new Error("Network error"));
 
-    const result = await agent.chat("Research this topic");
+    const result = await agent.chat("このトピックをリサーチして");
 
-    // Agent should handle gracefully
+    // エージェントは優雅に処理すべき
     expect(result.error).toBeUndefined();
     expect(result.response).not.toContain("unhandled exception");
 
-    // Agent should communicate the issue
+    // エージェントは問題を伝えるべき
     expect(result.response.toLowerCase()).toMatch(
-      /couldn't search|unable to|try again/
+      /検索できませんでした|できません|再試行/
     );
   });
 });
@@ -353,16 +353,16 @@ describe('Failure Recovery', () => {
 </integration_testing>
 
 <snapshot_testing>
-## Snapshot Testing for System Prompts
+## システムプロンプトのスナップショットテスト
 
-Track changes to system prompts and context injection over time.
+システムプロンプトとコンテキスト注入の変更を時間の経過とともに追跡。
 
 ```typescript
 describe('System Prompt Stability', () => {
   test('System prompt structure matches snapshot', async () => {
     const systemPrompt = await buildSystemPrompt();
 
-    // Extract structure (removing dynamic data)
+    // 構造を抽出（動的データを除去）
     const structure = systemPrompt
       .replace(/id: \w+/g, 'id: [ID]')
       .replace(/"[^"]+"/g, '"[TITLE]"')
@@ -375,9 +375,9 @@ describe('System Prompt Stability', () => {
     const systemPrompt = await buildSystemPrompt();
 
     const requiredSections = [
-      "Your Capabilities",
-      "Available Books",
-      "Recent Activity",
+      "あなたの能力",
+      "利用可能な本",
+      "最近の活動",
     ];
 
     for (const section of requiredSections) {
@@ -389,60 +389,60 @@ describe('System Prompt Stability', () => {
 </snapshot_testing>
 
 <manual_testing>
-## Manual Testing Checklist
+## 手動テストチェックリスト
 
-Some things are best tested manually during development:
+開発中に手動でテストするのが最善なものもある：
 
-### Natural Language Variation Test
+### 自然言語バリエーションテスト
 
-Try multiple phrasings for the same request:
-
-```
-"Add this to my feed"
-"Write something in my reading feed"
-"Publish an insight about this"
-"Put this in the feed"
-"I want this in my feed"
-```
-
-All should work if context injection is correct.
-
-### Edge Case Prompts
+同じリクエストに対して複数のフレーズを試す：
 
 ```
-"What can you do?"
-→ Agent should describe capabilities
-
-"Help me with my books"
-→ Agent should engage with library, not ask what "books" means
-
-"Write something"
-→ Agent should ask WHERE (feed, file, etc.) if not clear
-
-"Delete everything"
-→ Agent should confirm before destructive actions
+「これをフィードに追加」
+「私の読書フィードに何か書いて」
+「これについてのインサイトを公開」
+「これをフィードに入れて」
+「これをフィードに入れたい」
 ```
 
-### Confusion Test
+コンテキスト注入が正しければすべて機能するはず。
 
-Ask about things that should exist but might not be properly connected:
+### エッジケースプロンプト
 
 ```
-"What's in my research folder?"
-→ Should list files, not ask "what research folder?"
+「何ができる？」
+→ エージェントは能力を説明すべき
 
-"Show me my recent reading"
-→ Should show activity, not ask "what do you mean?"
+「私の本を手伝って」
+→ エージェントはライブラリに関与し、「本」の意味を聞かない
 
-"Continue where I left off"
-→ Should reference recent activity if available
+「何か書いて」
+→ エージェントはどこに（フィード、ファイルなど）を聞くべき（明確でない場合）
+
+「すべて削除」
+→ エージェントは破壊的アクションの前に確認すべき
+```
+
+### 混乱テスト
+
+存在すべきだが適切に接続されていないかもしれないものについて尋ねる：
+
+```
+「リサーチフォルダには何がある？」
+→ ファイルをリストすべき、「どのリサーチフォルダ？」と聞かない
+
+「最近の読書を見せて」
+→ 活動を表示すべき、「どういう意味？」と聞かない
+
+「中断したところから続けて」
+→ 利用可能なら最近の活動を参照すべき
 ```
 </manual_testing>
 
 <ci_integration>
-## CI/CD Integration
+## CI/CD統合
 
-Add agent-native tests to your CI pipeline:
+エージェントネイティブテストをCIパイプラインに追加：
 
 ```yaml
 # .github/workflows/test.yml
@@ -472,29 +472,29 @@ jobs:
 
       - name: Verify Capability Map
         run: |
-          # Ensure capability map is up to date
+          # 能力マップが最新であることを確認
           npm run generate:capability-map
           git diff --exit-code capability-map.ts
 ```
 
-### Cost-Aware Testing
+### コスト意識のあるテスト
 
-Agent tests cost API tokens. Strategies to manage:
+エージェントテストはAPIトークンを消費します。管理戦略：
 
 ```typescript
-// Use smaller models for basic tests
+// 基本テストには小さいモデルを使用
 const testConfig = {
   model: process.env.CI ? "claude-3-haiku" : "claude-3-opus",
-  maxTokens: 500,  // Limit output length
+  maxTokens: 500,  // 出力長を制限
 };
 
-// Cache responses for deterministic tests
+// 決定論的テストのためにレスポンスをキャッシュ
 const cachedAgent = new CachedAgent({
   cacheDir: ".test-cache",
-  ttl: 24 * 60 * 60 * 1000,  // 24 hours
+  ttl: 24 * 60 * 60 * 1000,  // 24時間
 });
 
-// Run expensive tests only on main branch
+// 高価なテストはmainブランチでのみ実行
 if (process.env.GITHUB_REF === 'refs/heads/main') {
   describe('Full Integration Tests', () => { ... });
 }
@@ -502,9 +502,9 @@ if (process.env.GITHUB_REF === 'refs/heads/main') {
 </ci_integration>
 
 <test_utilities>
-## Test Utilities
+## テストユーティリティ
 
-### Agent Test Harness
+### エージェントテストハーネス
 
 ```typescript
 class AgentTestHarness {
@@ -515,7 +515,7 @@ class AgentTestHarness {
     this.mockServices = createMockServices();
     this.agent = await createAgent({
       services: this.mockServices,
-      model: "claude-3-haiku",  // Cheaper for tests
+      model: "claude-3-haiku",  // テスト用に安価
     });
   }
 
@@ -542,41 +542,41 @@ class AgentTestHarness {
   }
 }
 
-// Usage
+// 使用法
 test('full flow', async () => {
   const harness = new AgentTestHarness();
   await harness.setup();
 
-  await harness.chat("Add 'Moby Dick' to my library");
+  await harness.chat("ライブラリに'白鯨'を追加");
   await harness.expectToolCall("add_book");
   await harness.expectOutcome(async () => {
     const state = harness.getState();
-    return state.library.some(b => b.title.includes("Moby"));
+    return state.library.some(b => b.title.includes("白鯨"));
   });
 });
 ```
 </test_utilities>
 
 <checklist>
-## Testing Checklist
+## テストチェックリスト
 
-Automated Tests:
-- [ ] "Can Agent Do It?" tests for each UI action
-- [ ] Location awareness tests ("write to my feed")
-- [ ] Parity tests (tool exists, documented in prompt)
-- [ ] Context parity tests (agent sees what UI shows)
-- [ ] End-to-end flow tests
-- [ ] Failure recovery tests
+自動テスト：
+- [ ] 各UIアクションの「エージェントはできるか？」テスト
+- [ ] 場所認識テスト（「フィードに書いて」）
+- [ ] パリティテスト（ツールが存在し、プロンプトに文書化）
+- [ ] コンテキストパリティテスト（エージェントはUIが表示するものを見れる）
+- [ ] エンドツーエンドフローテスト
+- [ ] 失敗復旧テスト
 
-Manual Tests:
-- [ ] Natural language variation (multiple phrasings work)
-- [ ] Edge case prompts (open-ended requests)
-- [ ] Confusion test (agent knows app vocabulary)
-- [ ] Surprise test (agent can be creative)
+手動テスト：
+- [ ] 自然言語バリエーション（複数のフレーズが機能）
+- [ ] エッジケースプロンプト（オープンエンドなリクエスト）
+- [ ] 混乱テスト（エージェントはアプリの語彙を知っている）
+- [ ] サプライズテスト（エージェントは創造的になれる）
 
-CI Integration:
-- [ ] Parity tests run on every PR
-- [ ] Capability tests run with API key
-- [ ] System prompt completeness check
-- [ ] Capability map drift detection
+CI統合：
+- [ ] パリティテストがすべてのPRで実行
+- [ ] 能力テストがAPIキーで実行
+- [ ] システムプロンプトの完全性チェック
+- [ ] 能力マップのドリフト検出
 </checklist>

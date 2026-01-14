@@ -1,32 +1,32 @@
 ---
 name: andrew-kane-gem-writer
-description: This skill should be used when writing Ruby gems following Andrew Kane's proven patterns and philosophy. It applies when creating new Ruby gems, refactoring existing gems, designing gem APIs, or when clean, minimal, production-ready Ruby library code is needed. Triggers on requests like "create a gem", "write a Ruby library", "design a gem API", or mentions of Andrew Kane's style.
+description: このスキルは、Andrew Kaneの実績あるパターンと哲学に従ってRuby gemを書く際に使用されるべきです。新しいRuby gemの作成、既存gemのリファクタリング、gem APIの設計、またはクリーンでミニマル、本番対応のRubyライブラリコードが必要な場合に適用されます。「gemを作成」、「Rubyライブラリを書く」、「gem APIを設計」などのリクエストや、Andrew Kaneのスタイルへの言及でトリガーされます。
 ---
 
 # Andrew Kane Gem Writer
 
-Write Ruby gems following Andrew Kane's battle-tested patterns from 100+ gems with 374M+ downloads (Searchkick, PgHero, Chartkick, Strong Migrations, Lockbox, Ahoy, Blazer, Groupdate, Neighbor, Blind Index).
+Andrew Kaneの100以上のgemと374M以上のダウンロード（Searchkick、PgHero、Chartkick、Strong Migrations、Lockbox、Ahoy、Blazer、Groupdate、Neighbor、Blind Index）から得た実戦的なパターンに従ってRuby gemを書く。
 
-## Core Philosophy
+## コア哲学
 
-**Simplicity over cleverness.** Zero or minimal dependencies. Explicit code over metaprogramming. Rails integration without Rails coupling. Every pattern serves production use cases.
+**シンプルさは巧妙さに勝る。** 依存関係はゼロまたは最小限。メタプログラミングよりも明示的なコード。Rails結合なしでRails統合。すべてのパターンは本番ユースケースに対応。
 
-## Entry Point Structure
+## エントリーポイント構造
 
-Every gem follows this exact pattern in `lib/gemname.rb`:
+すべてのgemは`lib/gemname.rb`でこの正確なパターンに従う：
 
 ```ruby
-# 1. Dependencies (stdlib preferred)
+# 1. 依存関係（stdlibを優先）
 require "forwardable"
 
-# 2. Internal modules
+# 2. 内部モジュール
 require_relative "gemname/model"
 require_relative "gemname/version"
 
-# 3. Conditional Rails (CRITICAL - never require Rails directly)
+# 3. 条件付きRails（重要 - Railsを直接requireしない）
 require_relative "gemname/railtie" if defined?(Rails)
 
-# 4. Module with config and errors
+# 4. 設定とエラーを持つモジュール
 module GemName
   class Error < StandardError; end
   class InvalidConfigError < Error; end
@@ -36,21 +36,21 @@ module GemName
     attr_writer :client
   end
 
-  self.timeout = 10  # Defaults set immediately
+  self.timeout = 10  # デフォルトをすぐに設定
 end
 ```
 
-## Class Macro DSL Pattern
+## クラスマクロDSLパターン
 
-The signature Kane pattern—single method call configures everything:
+Kaneの特徴的パターン—単一メソッド呼び出しですべてを設定：
 
 ```ruby
-# Usage
+# 使用法
 class Product < ApplicationRecord
   searchkick word_start: [:name]
 end
 
-# Implementation
+# 実装
 module GemName
   module Model
     def gemname(**options)
@@ -60,7 +60,7 @@ module GemName
       mod = Module.new
       mod.module_eval do
         define_method :some_method do
-          # implementation
+          # 実装
         end unless method_defined?(:some_method)
       end
       include mod
@@ -74,29 +74,29 @@ module GemName
 end
 ```
 
-## Rails Integration
+## Rails統合
 
-**Always use `ActiveSupport.on_load`—never require Rails gems directly:**
+**常に`ActiveSupport.on_load`を使用—Rails gemを直接requireしない：**
 
 ```ruby
-# WRONG
+# 間違い
 require "active_record"
 ActiveRecord::Base.include(MyGem::Model)
 
-# CORRECT
+# 正しい
 ActiveSupport.on_load(:active_record) do
   extend GemName::Model
 end
 
-# Use prepend for behavior modification
+# 動作修正にはprependを使用
 ActiveSupport.on_load(:active_record) do
   ActiveRecord::Migration.prepend(GemName::Migration)
 end
 ```
 
-## Configuration Pattern
+## 設定パターン
 
-Use `class << self` with `attr_accessor`, not Configuration objects:
+Configurationオブジェクトではなく、`class << self`と`attr_accessor`を使用：
 
 ```ruby
 module GemName
@@ -114,9 +114,9 @@ module GemName
 end
 ```
 
-## Error Handling
+## エラー処理
 
-Simple hierarchy with informative messages:
+情報量の多いメッセージを持つシンプルな階層：
 
 ```ruby
 module GemName
@@ -125,13 +125,13 @@ module GemName
   class ValidationError < Error; end
 end
 
-# Validate early with ArgumentError
+# ArgumentErrorで早期検証
 def initialize(key:)
   raise ArgumentError, "Key must be 32 bytes" unless key&.bytesize == 32
 end
 ```
 
-## Testing (Minitest Only)
+## テスト（Minitestのみ）
 
 ```ruby
 # test/test_helper.rb
@@ -148,9 +148,9 @@ class ModelTest < Minitest::Test
 end
 ```
 
-## Gemspec Pattern
+## Gemspecパターン
 
-Zero runtime dependencies when possible:
+可能な限りランタイム依存関係ゼロ：
 
 ```ruby
 Gem::Specification.new do |spec|
@@ -159,26 +159,26 @@ Gem::Specification.new do |spec|
   spec.required_ruby_version = ">= 3.1"
   spec.files = Dir["*.{md,txt}", "{lib}/**/*"]
   spec.require_path = "lib"
-  # NO add_dependency lines - dev deps go in Gemfile
+  # add_dependency行なし - 開発用depsはGemfileへ
 end
 ```
 
-## Anti-Patterns to Avoid
+## 避けるべきアンチパターン
 
-- `method_missing` (use `define_method` instead)
-- Configuration objects (use class accessors)
-- `@@class_variables` (use `class << self`)
-- Requiring Rails gems directly
-- Many runtime dependencies
-- Committing Gemfile.lock in gems
-- RSpec (use Minitest)
-- Heavy DSLs (prefer explicit Ruby)
+- `method_missing`（代わりに`define_method`を使用）
+- Configurationオブジェクト（クラスアクセサを使用）
+- `@@class_variables`（`class << self`を使用）
+- Rails gemの直接require
+- 多数のランタイム依存関係
+- gemでGemfile.lockをコミット
+- RSpec（Minitestを使用）
+- 重いDSL（明示的なRubyを優先）
 
-## Reference Files
+## リファレンスファイル
 
-For deeper patterns, see:
-- **[references/module-organization.md](references/module-organization.md)** - Directory layouts, method decomposition
-- **[references/rails-integration.md](references/rails-integration.md)** - Railtie, Engine, on_load patterns
-- **[references/database-adapters.md](references/database-adapters.md)** - Multi-database support patterns
-- **[references/testing-patterns.md](references/testing-patterns.md)** - Multi-version testing, CI setup
-- **[references/resources.md](references/resources.md)** - Links to Kane's repos and articles
+より深いパターンについては：
+- **[references/module-organization.md](references/module-organization.md)** - ディレクトリレイアウト、メソッド分解
+- **[references/rails-integration.md](references/rails-integration.md)** - Railtie、Engine、on_loadパターン
+- **[references/database-adapters.md](references/database-adapters.md)** - マルチデータベースサポートパターン
+- **[references/testing-patterns.md](references/testing-patterns.md)** - マルチバージョンテスト、CIセットアップ
+- **[references/resources.md](references/resources.md)** - Kaneのリポジトリと記事へのリンク

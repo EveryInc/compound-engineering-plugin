@@ -1,169 +1,169 @@
 ---
 name: workflows:work
-description: Execute work plans efficiently while maintaining quality and finishing features
-argument-hint: "[plan file, specification, or todo file path]"
+description: 品質を維持しながら効率的に作業プランを実行し、機能を完成させる
+argument-hint: "[プランファイル、仕様書、またはTodoファイルのパス]"
 ---
 
-# Work Plan Execution Command
+# 作業プラン実行コマンド
 
-Execute a work plan efficiently while maintaining quality and finishing features.
+品質を維持しながら効率的に作業プランを実行し、機能を完成させます。
 
-## Introduction
+## はじめに
 
-This command takes a work document (plan, specification, or todo file) and executes it systematically. The focus is on **shipping complete features** by understanding requirements quickly, following existing patterns, and maintaining quality throughout.
+このコマンドは作業ドキュメント（プラン、仕様書、またはTodoファイル）を受け取り、体系的に実行します。焦点は、要件を素早く理解し、既存のパターンに従い、全体を通して品質を維持することで**完全な機能を出荷すること**です。
 
-## Input Document
+## 入力ドキュメント
 
 <input_document> #$ARGUMENTS </input_document>
 
-## Execution Workflow
+## 実行ワークフロー
 
-### Phase 1: Quick Start
+### フェーズ1：クイックスタート
 
-1. **Read Plan and Clarify**
+1. **プランを読んで明確化**
 
-   - Read the work document completely
-   - Review any references or links provided in the plan
-   - If anything is unclear or ambiguous, ask clarifying questions now
-   - Get user approval to proceed
-   - **Do not skip this** - better to ask questions now than build the wrong thing
+   - 作業ドキュメントを完全に読む
+   - プランで提供されている参照やリンクをレビュー
+   - 不明確または曖昧な点があれば、今すぐ明確化の質問をする
+   - 進行前にユーザーの承認を得る
+   - **これをスキップしない** - 今質問する方が間違ったものを作るより良い
 
-2. **Setup Environment**
+2. **環境のセットアップ**
 
-   Choose your work style:
+   作業スタイルを選択：
 
-   **Option A: Live work on current branch**
+   **オプションA：現在のブランチでライブ作業**
    ```bash
    git checkout main && git pull origin main
    git checkout -b feature-branch-name
    ```
 
-   **Option B: Parallel work with worktree (recommended for parallel development)**
+   **オプションB：worktreeを使った並列作業（並列開発に推奨）**
    ```bash
-   # Ask user first: "Work in parallel with worktree or on current branch?"
-   # If worktree:
+   # まずユーザーに質問：「worktreeで並列作業しますか、現在のブランチで作業しますか？」
+   # worktreeの場合：
    skill: git-worktree
-   # The skill will create a new branch from main in an isolated worktree
+   # スキルがmainから分離したworktreeに新しいブランチを作成
    ```
 
-   **Recommendation**: Use worktree if:
-   - You want to work on multiple features simultaneously
-   - You want to keep main clean while experimenting
-   - You plan to switch between branches frequently
+   **推奨**：以下の場合にworktreeを使用：
+   - 複数の機能を同時に作業したい
+   - 実験中はmainをクリーンに保ちたい
+   - ブランチ間を頻繁に切り替える予定
 
-   Use live branch if:
-   - You're working on a single feature
-   - You prefer staying in the main repository
+   以下の場合はライブブランチを使用：
+   - 単一の機能に取り組んでいる
+   - メインリポジトリにとどまりたい
 
-3. **Create Todo List**
-   - Use TodoWrite to break plan into actionable tasks
-   - Include dependencies between tasks
-   - Prioritize based on what needs to be done first
-   - Include testing and quality check tasks
-   - Keep tasks specific and completable
+3. **Todoリストを作成**
+   - TodoWriteを使用してプランを実行可能なタスクに分解
+   - タスク間の依存関係を含める
+   - 最初に行うべきことに基づいて優先順位付け
+   - テストと品質チェックタスクを含める
+   - タスクを具体的で完了可能に保つ
 
-### Phase 2: Execute
+### フェーズ2：実行
 
-1. **Task Execution Loop**
+1. **タスク実行ループ**
 
-   For each task in priority order:
+   優先順位順に各タスクについて：
 
    ```
-   while (tasks remain):
-     - Mark task as in_progress in TodoWrite
-     - Read any referenced files from the plan
-     - Look for similar patterns in codebase
-     - Implement following existing conventions
-     - Write tests for new functionality
-     - Run tests after changes
-     - Mark task as completed
+   while (タスクが残っている):
+     - TodoWriteでタスクをin_progressにマーク
+     - プランから参照されているファイルを読む
+     - コードベースで類似パターンを探す
+     - 既存の規約に従って実装
+     - 新機能のテストを書く
+     - 変更後にテストを実行
+     - タスクをcompletedにマーク
    ```
 
-2. **Follow Existing Patterns**
+2. **既存パターンに従う**
 
-   - The plan should reference similar code - read those files first
-   - Match naming conventions exactly
-   - Reuse existing components where possible
-   - Follow project coding standards (see CLAUDE.md)
-   - When in doubt, grep for similar implementations
+   - プランは類似コードを参照しているはず - まずそれらのファイルを読む
+   - 命名規約を正確にマッチ
+   - 可能な場合は既存コンポーネントを再利用
+   - プロジェクトのコーディング標準に従う（CLAUDE.mdを参照）
+   - 迷ったら類似実装をgrepで検索
 
-3. **Test Continuously**
+3. **継続的にテスト**
 
-   - Run relevant tests after each significant change
-   - Don't wait until the end to test
-   - Fix failures immediately
-   - Add new tests for new functionality
+   - 重要な変更のたびに関連テストを実行
+   - 最後までテストを待たない
+   - 失敗はすぐに修正
+   - 新機能には新しいテストを追加
 
-4. **Figma Design Sync** (if applicable)
+4. **Figmaデザイン同期**（該当する場合）
 
-   For UI work with Figma designs:
+   Figmaデザインを伴うUI作業の場合：
 
-   - Implement components following design specs
-   - Use figma-design-sync agent iteratively to compare
-   - Fix visual differences identified
-   - Repeat until implementation matches design
+   - デザイン仕様に従ってコンポーネントを実装
+   - figma-design-syncエージェントを繰り返し使用して比較
+   - 特定された視覚的な差異を修正
+   - 実装がデザインに一致するまで繰り返す
 
-5. **Track Progress**
-   - Keep TodoWrite updated as you complete tasks
-   - Note any blockers or unexpected discoveries
-   - Create new tasks if scope expands
-   - Keep user informed of major milestones
+5. **進捗を追跡**
+   - タスク完了に応じてTodoWriteを更新
+   - ブロッカーや予期しない発見をメモ
+   - スコープが拡大した場合は新しいタスクを作成
+   - 主要なマイルストーンをユーザーに通知
 
-### Phase 3: Quality Check
+### フェーズ3：品質チェック
 
-1. **Run Core Quality Checks**
+1. **コア品質チェックを実行**
 
-   Always run before submitting:
+   提出前に常に実行：
 
    ```bash
-   # Run full test suite
+   # フルテストスイートを実行
    bin/rails test
 
-   # Run linting (per CLAUDE.md)
-   # Use linting-agent before pushing to origin
+   # リンティングを実行（CLAUDE.mdに従って）
+   # originにプッシュする前にlinting-agentを使用
    ```
 
-2. **Consider Reviewer Agents** (Optional)
+2. **レビュアーエージェントの検討**（オプション）
 
-   Use for complex, risky, or large changes:
+   複雑、リスクの高い、または大きな変更に使用：
 
-   - **code-simplicity-reviewer**: Check for unnecessary complexity
-   - **kieran-rails-reviewer**: Verify Rails conventions (Rails projects)
-   - **performance-oracle**: Check for performance issues
-   - **security-sentinel**: Scan for security vulnerabilities
-   - **cora-test-reviewer**: Review test quality (CORA projects)
+   - **code-simplicity-reviewer**：不要な複雑さをチェック
+   - **kieran-rails-reviewer**：Rails規約を確認（Railsプロジェクト）
+   - **performance-oracle**：パフォーマンス問題をチェック
+   - **security-sentinel**：セキュリティ脆弱性をスキャン
+   - **cora-test-reviewer**：テスト品質をレビュー（CORAプロジェクト）
 
-   Run reviewers in parallel with Task tool:
+   Taskツールでレビュアーを並列実行：
 
    ```
-   Task(code-simplicity-reviewer): "Review changes for simplicity"
-   Task(kieran-rails-reviewer): "Check Rails conventions"
+   Task(code-simplicity-reviewer): "シンプルさのために変更をレビュー"
+   Task(kieran-rails-reviewer): "Rails規約をチェック"
    ```
 
-   Present findings to user and address critical issues.
+   発見事項をユーザーに提示し、重大な問題に対処。
 
-3. **Final Validation**
-   - All TodoWrite tasks marked completed
-   - All tests pass
-   - Linting passes
-   - Code follows existing patterns
-   - Figma designs match (if applicable)
-   - No console errors or warnings
+3. **最終検証**
+   - すべてのTodoWriteタスクがcompletedにマーク
+   - すべてのテストがパス
+   - リンティングがパス
+   - コードが既存パターンに従っている
+   - Figmaデザインに一致（該当する場合）
+   - コンソールエラーや警告がない
 
-### Phase 4: Ship It
+### フェーズ4：出荷
 
-1. **Create Commit**
+1. **コミットを作成**
 
    ```bash
    git add .
-   git status  # Review what's being committed
-   git diff --staged  # Check the changes
+   git status  # コミットされる内容をレビュー
+   git diff --staged  # 変更をチェック
 
-   # Commit with conventional format
+   # 従来のフォーマットでコミット
    git commit -m "$(cat <<'EOF'
-   feat(scope): description of what and why
+   feat(scope): 何を、なぜの説明
 
-   Brief explanation if needed.
+   必要に応じて簡潔な説明。
 
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
@@ -172,137 +172,137 @@ This command takes a work document (plan, specification, or todo file) and execu
    )"
    ```
 
-2. **Capture and Upload Screenshots for UI Changes** (REQUIRED for any UI work)
+2. **UI変更のスクリーンショットをキャプチャしてアップロード**（UI作業では必須）
 
-   For **any** design changes, new views, or UI modifications, you MUST capture and upload screenshots:
+   **すべての**デザイン変更、新しいビュー、またはUI修正では、スクリーンショットをキャプチャしてアップロードする必要があります：
 
-   **Step 1: Start dev server** (if not running)
+   **ステップ1：devサーバーを起動**（実行していない場合）
    ```bash
-   bin/dev  # Run in background
+   bin/dev  # バックグラウンドで実行
    ```
 
-   **Step 2: Capture screenshots with Playwright MCP tools**
-   - `browser_navigate` to go to affected pages
-   - `browser_resize` to set viewport (desktop or mobile as needed)
-   - `browser_snapshot` to verify page state
-   - `browser_take_screenshot` to capture images
+   **ステップ2：Playwright MCPツールでスクリーンショットをキャプチャ**
+   - `browser_navigate`で影響を受けるページに移動
+   - `browser_resize`でビューポートを設定（必要に応じてデスクトップまたはモバイル）
+   - `browser_snapshot`でページ状態を確認
+   - `browser_take_screenshot`で画像をキャプチャ
 
-   **Step 3: Upload using imgup skill**
+   **ステップ3：imgupスキルでアップロード**
    ```bash
    skill: imgup
-   # Then upload each screenshot:
-   imgup -h pixhost screenshot.png  # pixhost works without API key
-   # Alternative hosts: catbox, imagebin, beeimg
+   # 各スクリーンショットをアップロード：
+   imgup -h pixhost screenshot.png  # pixhostはAPIキー不要で動作
+   # 代替ホスト：catbox、imagebin、beeimg
    ```
 
-   **What to capture:**
-   - **New screens**: Screenshot of the new UI
-   - **Modified screens**: Before AND after screenshots
-   - **Design implementation**: Screenshot showing Figma design match
+   **キャプチャする内容：**
+   - **新しい画面**：新しいUIのスクリーンショット
+   - **変更された画面**：変更前と変更後のスクリーンショット
+   - **デザイン実装**：Figmaデザインとの一致を示すスクリーンショット
 
-   **IMPORTANT**: Always include uploaded image URLs in PR description. This provides visual context for reviewers and documents the change.
+   **重要**：アップロードされた画像URLは常にPR説明に含めること。これはレビュアーに視覚的コンテキストを提供し、変更を文書化します。
 
-3. **Create Pull Request**
+3. **プルリクエストを作成**
 
    ```bash
    git push -u origin feature-branch-name
 
-   gh pr create --title "Feature: [Description]" --body "$(cat <<'EOF'
-   ## Summary
-   - What was built
-   - Why it was needed
-   - Key decisions made
+   gh pr create --title "Feature: [説明]" --body "$(cat <<'EOF'
+   ## サマリー
+   - 何を構築したか
+   - なぜ必要だったか
+   - 行った重要な決定
 
-   ## Testing
-   - Tests added/modified
-   - Manual testing performed
+   ## テスト
+   - 追加/変更したテスト
+   - 実行した手動テスト
 
-   ## Before / After Screenshots
+   ## Before / After スクリーンショット
    | Before | After |
    |--------|-------|
    | ![before](URL) | ![after](URL) |
 
-   ## Figma Design
-   [Link if applicable]
+   ## Figmaデザイン
+   [該当する場合はリンク]
 
    🤖 Generated with [Claude Code](https://claude.com/claude-code)
    EOF
    )"
    ```
 
-4. **Notify User**
-   - Summarize what was completed
-   - Link to PR
-   - Note any follow-up work needed
-   - Suggest next steps if applicable
+4. **ユーザーに通知**
+   - 完了したことをサマリー
+   - PRへのリンク
+   - 必要なフォローアップ作業をメモ
+   - 該当する場合は次のステップを提案
 
 ---
 
-## Key Principles
+## 主要原則
 
-### Start Fast, Execute Faster
+### 速くスタートし、より速く実行
 
-- Get clarification once at the start, then execute
-- Don't wait for perfect understanding - ask questions and move
-- The goal is to **finish the feature**, not create perfect process
+- 最初に一度明確化を得て、それから実行
+- 完璧な理解を待たない - 質問して進む
+- 目標は完璧なプロセスではなく**機能を完成させること**
 
-### The Plan is Your Guide
+### プランがガイド
 
-- Work documents should reference similar code and patterns
-- Load those references and follow them
-- Don't reinvent - match what exists
+- 作業ドキュメントは類似コードとパターンを参照すべき
+- それらの参照をロードして従う
+- 再発明しない - 既存のものに合わせる
 
-### Test As You Go
+### 進みながらテスト
 
-- Run tests after each change, not at the end
-- Fix failures immediately
-- Continuous testing prevents big surprises
+- 最後ではなく各変更後にテストを実行
+- 失敗はすぐに修正
+- 継続的テストは大きなサプライズを防ぐ
 
-### Quality is Built In
+### 品質は組み込み
 
-- Follow existing patterns
-- Write tests for new code
-- Run linting before pushing
-- Use reviewer agents for complex/risky changes only
+- 既存パターンに従う
+- 新しいコードにはテストを書く
+- プッシュ前にリンティングを実行
+- レビュアーエージェントは複雑/リスクの高い変更にのみ使用
 
-### Ship Complete Features
+### 完全な機能を出荷
 
-- Mark all tasks completed before moving on
-- Don't leave features 80% done
-- A finished feature that ships beats a perfect feature that doesn't
+- 次に進む前にすべてのタスクを完了にマーク
+- 機能を80%完成で放置しない
+- 出荷される完成した機能は、出荷されない完璧な機能に勝る
 
-## Quality Checklist
+## 品質チェックリスト
 
-Before creating PR, verify:
+PR作成前に確認：
 
-- [ ] All clarifying questions asked and answered
-- [ ] All TodoWrite tasks marked completed
-- [ ] Tests pass (run `bin/rails test`)
-- [ ] Linting passes (use linting-agent)
-- [ ] Code follows existing patterns
-- [ ] Figma designs match implementation (if applicable)
-- [ ] Before/after screenshots captured and uploaded (for UI changes)
-- [ ] Commit messages follow conventional format
-- [ ] PR description includes summary, testing notes, and screenshots
+- [ ] すべての明確化の質問を聞いて回答を得た
+- [ ] すべてのTodoWriteタスクがcompletedにマーク
+- [ ] テストがパス（`bin/rails test`を実行）
+- [ ] リンティングがパス（linting-agentを使用）
+- [ ] コードが既存パターンに従っている
+- [ ] Figmaデザインが実装に一致（該当する場合）
+- [ ] Before/afterスクリーンショットをキャプチャしてアップロード（UI変更の場合）
+- [ ] コミットメッセージが従来のフォーマットに従っている
+- [ ] PR説明にサマリー、テストメモ、スクリーンショットが含まれている
 
-## When to Use Reviewer Agents
+## レビュアーエージェントを使用するタイミング
 
-**Don't use by default.** Use reviewer agents only when:
+**デフォルトでは使用しない。** 以下の場合にのみレビュアーエージェントを使用：
 
-- Large refactor affecting many files (10+)
-- Security-sensitive changes (authentication, permissions, data access)
-- Performance-critical code paths
-- Complex algorithms or business logic
-- User explicitly requests thorough review
+- 多くのファイル（10+）に影響する大規模リファクタリング
+- セキュリティに敏感な変更（認証、権限、データアクセス）
+- パフォーマンスクリティカルなコードパス
+- 複雑なアルゴリズムやビジネスロジック
+- ユーザーが徹底的なレビューを明示的にリクエスト
 
-For most features: tests + linting + following patterns is sufficient.
+ほとんどの機能では：テスト + リンティング + パターンに従う で十分。
 
-## Common Pitfalls to Avoid
+## 避けるべき一般的な落とし穴
 
-- **Analysis paralysis** - Don't overthink, read the plan and execute
-- **Skipping clarifying questions** - Ask now, not after building wrong thing
-- **Ignoring plan references** - The plan has links for a reason
-- **Testing at the end** - Test continuously or suffer later
-- **Forgetting TodoWrite** - Track progress or lose track of what's done
-- **80% done syndrome** - Finish the feature, don't move on early
-- **Over-reviewing simple changes** - Save reviewer agents for complex work
+- **分析麻痺** - 考えすぎない、プランを読んで実行
+- **明確化の質問をスキップ** - 間違ったものを作った後ではなく今質問
+- **プラン参照を無視** - プランには理由があってリンクがある
+- **最後にテスト** - 継続的にテストしないと後で苦しむ
+- **TodoWriteを忘れる** - 進捗を追跡しないと何が完了したかわからなくなる
+- **80%完了症候群** - 機能を完成させる、早めに次に行かない
+- **単純な変更を過剰レビュー** - 複雑な作業のためにレビュアーエージェントを取っておく

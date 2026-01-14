@@ -1,99 +1,99 @@
 <overview>
-Self-modification is the advanced tier of agent native engineering: agents that can evolve their own code, prompts, and behavior. Not required for every app, but a big part of the future.
+自己修正はエージェントネイティブエンジニアリングの上級ティア：自身のコード、プロンプト、動作を進化させることができるエージェント。すべてのアプリに必要というわけではないが、未来の大きな部分。
 
-This is the logical extension of "whatever the developer can do, the agent can do."
+これは「開発者ができることは何でもエージェントもできる」の論理的拡張。
 </overview>
 
 <why_self_modification>
-## Why Self-Modification?
+## なぜ自己修正なのか？
 
-Traditional software is static—it does what you wrote, nothing more. Self-modifying agents can:
+従来のソフトウェアは静的—書いたことをそのまま実行し、それ以上のことはしない。自己修正エージェントは以下が可能：
 
-- **Fix their own bugs** - See an error, patch the code, restart
-- **Add new capabilities** - User asks for something new, agent implements it
-- **Evolve behavior** - Learn from feedback and adjust prompts
-- **Deploy themselves** - Push code, trigger builds, restart
+- **自身のバグを修正** - エラーを見て、コードをパッチし、再起動
+- **新しい機能を追加** - ユーザーが新しいことを要求、エージェントが実装
+- **動作を進化** - フィードバックから学び、プロンプトを調整
+- **自身をデプロイ** - コードをプッシュ、ビルドをトリガー、再起動
 
-The agent becomes a living system that improves over time, not frozen code.
+エージェントは凍結されたコードではなく、時間とともに改善する生きたシステムになる。
 </why_self_modification>
 
 <capabilities>
-## What Self-Modification Enables
+## 自己修正が可能にすること
 
-**Code modification:**
-- Read and understand source files
-- Write fixes and new features
-- Commit and push to version control
-- Trigger builds and verify they pass
+**コード修正：**
+- ソースファイルを読んで理解
+- 修正と新機能を書く
+- バージョン管理にコミットしてプッシュ
+- ビルドをトリガーしてパスを確認
 
-**Prompt evolution:**
-- Edit the system prompt based on feedback
-- Add new features as prompt sections
-- Refine judgment criteria that aren't working
+**プロンプト進化：**
+- フィードバックに基づいてシステムプロンプトを編集
+- プロンプトセクションとして新機能を追加
+- 機能していない判断基準を改善
 
-**Infrastructure control:**
-- Pull latest code from upstream
-- Merge from other branches/instances
-- Restart after changes
-- Roll back if something breaks
+**インフラストラクチャ制御：**
+- アップストリームから最新コードをプル
+- 他のブランチ/インスタンスからマージ
+- 変更後に再起動
+- 何か壊れたらロールバック
 
-**Site/output generation:**
-- Generate and maintain websites
-- Create documentation
-- Build dashboards from data
+**サイト/出力生成：**
+- ウェブサイトを生成して維持
+- ドキュメントを作成
+- データからダッシュボードを構築
 </capabilities>
 
 <guardrails>
-## Required Guardrails
+## 必須のガードレール
 
-Self-modification is powerful. It needs safety mechanisms.
+自己修正は強力。安全メカニズムが必要。
 
-**Approval gates for code changes:**
+**コード変更の承認ゲート：**
 ```typescript
 tool("write_file", async ({ path, content }) => {
   if (isCodeFile(path)) {
-    // Store for approval, don't apply immediately
+    // 承認のために保存、すぐには適用しない
     pendingChanges.set(path, content);
     const diff = generateDiff(path, content);
-    return { text: `Requires approval:\n\n${diff}\n\nReply "yes" to apply.` };
+    return { text: `承認が必要：\n\n${diff}\n\n適用するには"yes"と返信。` };
   }
-  // Non-code files apply immediately
+  // コード以外のファイルはすぐに適用
   writeFileSync(path, content);
   return { text: `Wrote ${path}` };
 });
 ```
 
-**Auto-commit before changes:**
+**変更前の自動コミット：**
 ```typescript
 tool("self_deploy", async () => {
-  // Save current state first
-  runGit("stash");  // or commit uncommitted changes
+  // まず現在の状態を保存
+  runGit("stash");  // またはコミットされていない変更をコミット
 
-  // Then pull/merge
+  // その後pull/merge
   runGit("fetch origin");
   runGit("merge origin/main --no-edit");
 
-  // Build and verify
+  // ビルドして確認
   runCommand("npm run build");
 
-  // Only then restart
+  // その後のみ再起動
   scheduleRestart();
 });
 ```
 
-**Build verification:**
+**ビルド検証：**
 ```typescript
-// Don't restart unless build passes
+// ビルドがパスしない限り再起動しない
 try {
   runCommand("npm run build", { timeout: 120000 });
 } catch (error) {
-  // Rollback the merge
+  // マージをロールバック
   runGit("merge --abort");
-  return { text: "Build failed, aborting deploy", isError: true };
+  return { text: "ビルド失敗、デプロイを中止", isError: true };
 }
 ```
 
-**Health checks after restart:**
+**再起動後のヘルスチェック：**
 ```typescript
 tool("health_check", async () => {
   const uptime = process.uptime();
@@ -113,15 +113,15 @@ tool("health_check", async () => {
 </guardrails>
 
 <git_architecture>
-## Git-Based Self-Modification
+## Gitベースの自己修正
 
-Use git as the foundation for self-modification. It provides:
-- Version history (rollback capability)
-- Branching (experiment safely)
-- Merge (sync with other instances)
-- Push/pull (deploy and collaborate)
+gitを自己修正の基盤として使用。以下を提供：
+- バージョン履歴（ロールバック機能）
+- ブランチ（安全に実験）
+- マージ（他のインスタンスと同期）
+- プッシュ/プル（デプロイとコラボレーション）
 
-**Essential git tools:**
+**必須のgitツール：**
 ```typescript
 tool("status", "Show git status", {}, ...);
 tool("diff", "Show file changes", { path: z.string().optional() }, ...);
@@ -132,92 +132,92 @@ tool("pull", "Pull from GitHub", { source: z.enum(["main", "instance"]) }, ...);
 tool("rollback", "Revert recent commits", { commits: z.number() }, ...);
 ```
 
-**Multi-instance architecture:**
+**マルチインスタンスアーキテクチャ：**
 ```
-main                      # Shared code
-├── instance/bot-a       # Instance A's branch
-├── instance/bot-b       # Instance B's branch
-└── instance/bot-c       # Instance C's branch
+main                      # 共有コード
+├── instance/bot-a       # インスタンスAのブランチ
+├── instance/bot-b       # インスタンスBのブランチ
+└── instance/bot-c       # インスタンスCのブランチ
 ```
 
-Each instance can:
-- Pull updates from main
-- Push improvements back to main (via PR)
-- Sync features from other instances
-- Maintain instance-specific config
+各インスタンスが可能：
+- mainから更新をプル
+- 改善をmainにプッシュバック（PR経由）
+- 他のインスタンスから機能を同期
+- インスタンス固有の設定を維持
 </git_architecture>
 
 <prompt_evolution>
-## Self-Modifying Prompts
+## 自己修正プロンプト
 
-The system prompt is a file the agent can read and write.
+システムプロンプトはエージェントが読み書きできるファイル。
 
 ```typescript
-// Agent can read its own prompt
-tool("read_file", ...);  // Can read src/prompts/system.md
+// エージェントは自身のプロンプトを読める
+tool("read_file", ...);  // src/prompts/system.mdを読める
 
-// Agent can propose changes
-tool("write_file", ...);  // Can write to src/prompts/system.md (with approval)
+// エージェントは変更を提案できる
+tool("write_file", ...);  // src/prompts/system.mdに書ける（承認付き）
 ```
 
-**System prompt as living document:**
+**生きたドキュメントとしてのシステムプロンプト：**
 ```markdown
-## Feedback Processing
+## フィードバック処理
 
-When someone shares feedback:
-1. Acknowledge warmly
-2. Rate importance 1-5
-3. Store using feedback tools
+誰かがフィードバックを共有したとき：
+1. 温かく認める
+2. 重要度を1-5で評価
+3. フィードバックツールを使用して保存
 
-<!-- Note to self: Video walkthroughs should always be 4-5,
-     learned this from Dan's feedback on 2024-12-07 -->
+<!-- 自分へのメモ：ビデオウォークスルーは常に4-5にすべき、
+     2024-12-07のDanのフィードバックから学んだ -->
 ```
 
-The agent can:
-- Add notes to itself
-- Refine judgment criteria
-- Add new feature sections
-- Document edge cases it learned
+エージェントが可能：
+- 自分自身にメモを追加
+- 判断基準を改善
+- 新しい機能セクションを追加
+- 学んだエッジケースを文書化
 </prompt_evolution>
 
 <when_to_use>
-## When to Implement Self-Modification
+## 自己修正をいつ実装するか
 
-**Good candidates:**
-- Long-running autonomous agents
-- Agents that need to adapt to feedback
-- Systems where behavior evolution is valuable
-- Internal tools where rapid iteration matters
+**良い候補：**
+- 長時間実行される自律エージェント
+- フィードバックに適応する必要があるエージェント
+- 動作の進化が価値あるシステム
+- 迅速な反復が重要な内部ツール
 
-**Not necessary for:**
-- Simple single-task agents
-- Highly regulated environments
-- Systems where behavior must be auditable
-- One-off or short-lived agents
+**必要ない場合：**
+- シンプルな単一タスクエージェント
+- 高度に規制された環境
+- 動作が監査可能でなければならないシステム
+- 一回限りまたは短命のエージェント
 
-Start with a non-self-modifying prompt-native agent. Add self-modification when you need it.
+まず自己修正しないプロンプトネイティブエージェントから始める。必要になったら自己修正を追加。
 </when_to_use>
 
 <example_tools>
-## Complete Self-Modification Toolset
+## 完全な自己修正ツールセット
 
 ```typescript
 const selfMcpServer = createSdkMcpServer({
   name: "self",
   version: "1.0.0",
   tools: [
-    // FILE OPERATIONS
+    // ファイル操作
     tool("read_file", "Read any project file", { path: z.string() }, ...),
     tool("write_file", "Write a file (code requires approval)", { path, content }, ...),
     tool("list_files", "List directory contents", { path: z.string() }, ...),
     tool("search_code", "Search for patterns", { pattern: z.string() }, ...),
 
-    // APPROVAL WORKFLOW
+    // 承認ワークフロー
     tool("apply_pending", "Apply approved changes", {}, ...),
     tool("get_pending", "Show pending changes", {}, ...),
     tool("clear_pending", "Discard pending changes", {}, ...),
 
-    // RESTART
+    // 再起動
     tool("restart", "Rebuild and restart", {}, ...),
     tool("health_check", "Check if bot is healthy", {}, ...),
   ],
@@ -227,20 +227,20 @@ const gitMcpServer = createSdkMcpServer({
   name: "git",
   version: "1.0.0",
   tools: [
-    // STATUS
+    // ステータス
     tool("status", "Show git status", {}, ...),
     tool("diff", "Show changes", { path: z.string().optional() }, ...),
     tool("log", "Show history", { count: z.number() }, ...),
 
-    // COMMIT & PUSH
+    // コミット＆プッシュ
     tool("commit_code", "Commit code changes", { message: z.string() }, ...),
     tool("git_push", "Push to GitHub", { branch: z.string().optional() }, ...),
 
-    // SYNC
+    // 同期
     tool("pull", "Pull from upstream", { source: z.enum(["main", "instance"]) }, ...),
     tool("self_deploy", "Pull, build, restart", { source: z.enum(["main", "instance"]) }, ...),
 
-    // SAFETY
+    // 安全
     tool("rollback", "Revert commits", { commits: z.number() }, ...),
     tool("health_check", "Detailed health report", {}, ...),
   ],
@@ -249,21 +249,21 @@ const gitMcpServer = createSdkMcpServer({
 </example_tools>
 
 <checklist>
-## Self-Modification Checklist
+## 自己修正チェックリスト
 
-Before enabling self-modification:
-- [ ] Git-based version control set up
-- [ ] Approval gates for code changes
-- [ ] Build verification before restart
-- [ ] Rollback mechanism available
-- [ ] Health check endpoint
-- [ ] Instance identity configured
+自己修正を有効にする前に：
+- [ ] Gitベースのバージョン管理をセットアップ
+- [ ] コード変更の承認ゲート
+- [ ] 再起動前のビルド検証
+- [ ] ロールバックメカニズムが利用可能
+- [ ] ヘルスチェックエンドポイント
+- [ ] インスタンスIDを設定
 
-When implementing:
-- [ ] Agent can read all project files
-- [ ] Agent can write files (with appropriate approval)
-- [ ] Agent can commit and push
-- [ ] Agent can pull updates
-- [ ] Agent can restart itself
-- [ ] Agent can roll back if needed
+実装時：
+- [ ] エージェントがすべてのプロジェクトファイルを読める
+- [ ] エージェントがファイルを書ける（適切な承認付き）
+- [ ] エージェントがコミットしてプッシュできる
+- [ ] エージェントが更新をプルできる
+- [ ] エージェントが自身を再起動できる
+- [ ] エージェントが必要に応じてロールバックできる
 </checklist>

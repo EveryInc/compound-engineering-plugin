@@ -1,9 +1,9 @@
-# Architecture - DHH Rails Style
+# アーキテクチャ - DHH Railsスタイル
 
 <routing>
-## Routing
+## ルーティング
 
-Everything maps to CRUD. Nested resources for related actions:
+すべてがCRUDにマッピング。関連するアクションにはネストされたリソース：
 
 ```ruby
 Rails.application.routes.draw do
@@ -19,40 +19,40 @@ Rails.application.routes.draw do
 end
 ```
 
-**Verb-to-noun conversion:**
-| Action | Resource |
+**動詞から名詞への変換：**
+| アクション | リソース |
 |--------|----------|
-| close a card | `card.closure` |
-| watch a board | `board.watching` |
-| mark as golden | `card.goldness` |
-| archive a card | `card.archival` |
+| カードを閉じる | `card.closure` |
+| ボードを監視する | `board.watching` |
+| 重要としてマークする | `card.goldness` |
+| カードをアーカイブする | `card.archival` |
 
-**Shallow nesting** - avoid deep URLs:
+**浅いネスト** - 深いURLを避ける：
 ```ruby
 resources :boards do
-  resources :cards, shallow: true  # /boards/:id/cards, but /cards/:id
+  resources :cards, shallow: true  # /boards/:id/cards、ただし /cards/:id
 end
 ```
 
-**Singular resources** for one-per-parent:
+**親ごとに1つの場合は単数リソース**：
 ```ruby
-resource :closure   # not resources
+resource :closure   # resourcesではなく
 resource :goldness
 ```
 
-**Resolve for URL generation:**
+**URL生成のためのresolve：**
 ```ruby
 # config/routes.rb
 resolve("Comment") { |comment| [comment.card, anchor: dom_id(comment)] }
 
-# Now url_for(@comment) works correctly
+# これでurl_for(@comment)が正しく動作
 ```
 </routing>
 
 <multi_tenancy>
-## Multi-Tenancy (Path-Based)
+## マルチテナンシー（パスベース）
 
-**Middleware extracts tenant** from URL prefix:
+**ミドルウェアがURLプレフィックスからテナントを抽出**：
 
 ```ruby
 # lib/tenant_extractor.rb
@@ -72,16 +72,16 @@ class TenantExtractor
 end
 ```
 
-**Cookie scoping** per tenant:
+**テナントごとのCookieスコープ**：
 ```ruby
-# Cookies scoped to tenant path
+# テナントパスにスコープされたCookie
 cookies.signed[:session_id] = {
   value: session.id,
   path: "/#{Current.account.id}"
 }
 ```
 
-**Background job context** - serialize tenant:
+**バックグラウンドジョブコンテキスト** - テナントをシリアライズ：
 ```ruby
 class ApplicationJob < ActiveJob::Base
   around_perform do |job, block|
@@ -90,7 +90,7 @@ class ApplicationJob < ActiveJob::Base
 end
 ```
 
-**Recurring jobs** must iterate all tenants:
+**定期ジョブ**はすべてのテナントを反復する必要がある：
 ```ruby
 class DailyDigestJob < ApplicationJob
   def perform
@@ -103,20 +103,20 @@ class DailyDigestJob < ApplicationJob
 end
 ```
 
-**Controller security** - always scope through tenant:
+**コントローラーセキュリティ** - 常にテナント経由でスコープ：
 ```ruby
-# Good - scoped through user's accessible records
+# 良い - ユーザーのアクセス可能なレコード経由でスコープ
 @card = Current.user.accessible_cards.find(params[:id])
 
-# Avoid - direct lookup
+# 避ける - 直接ルックアップ
 @card = Card.find(params[:id])
 ```
 </multi_tenancy>
 
 <authentication>
-## Authentication
+## 認証
 
-Custom passwordless magic link auth (~150 lines total):
+カスタムのパスワードレスマジックリンク認証（合計約150行）：
 
 ```ruby
 # app/models/session.rb
@@ -141,13 +141,13 @@ class MagicLink < ApplicationRecord
 end
 ```
 
-**Why not Devise:**
-- ~150 lines vs massive dependency
-- No password storage liability
-- Simpler UX for users
-- Full control over flow
+**なぜDeviseではないか：**
+- 約150行 vs 巨大な依存関係
+- パスワード保存の責任なし
+- ユーザーにとってよりシンプルなUX
+- フローの完全な制御
 
-**Bearer token** for APIs:
+**APIのためのBearerトークン**：
 ```ruby
 module Authentication
   extend ActiveSupport::Concern
@@ -171,9 +171,9 @@ end
 </authentication>
 
 <background_jobs>
-## Background Jobs
+## バックグラウンドジョブ
 
-Jobs are shallow wrappers calling model methods:
+ジョブはモデルメソッドを呼び出す浅いラッパー：
 
 ```ruby
 class NotifyWatchersJob < ApplicationJob
@@ -183,9 +183,9 @@ class NotifyWatchersJob < ApplicationJob
 end
 ```
 
-**Naming convention:**
-- `_later` suffix for async: `card.notify_watchers_later`
-- `_now` suffix for immediate: `card.notify_watchers_now`
+**命名規約：**
+- 非同期には`_later`サフィックス：`card.notify_watchers_later`
+- 即時には`_now`サフィックス：`card.notify_watchers_now`
 
 ```ruby
 module Watchable
@@ -205,40 +205,40 @@ module Watchable
 end
 ```
 
-**Database-backed** with Solid Queue:
-- No Redis required
-- Same transactional guarantees as your data
-- Simpler infrastructure
+**データベースバックド** - Solid Queue使用：
+- Redisが不要
+- データと同じトランザクション保証
+- シンプルなインフラストラクチャ
 
-**Transaction safety:**
+**トランザクションの安全性：**
 ```ruby
 # config/application.rb
 config.active_job.enqueue_after_transaction_commit = true
 ```
 
-**Error handling** by type:
+**タイプ別のエラーハンドリング：**
 ```ruby
 class DeliveryJob < ApplicationJob
-  # Transient errors - retry with backoff
+  # 一時的なエラー - バックオフでリトライ
   retry_on Net::OpenTimeout, Net::ReadTimeout,
            Resolv::ResolvError,
            wait: :polynomially_longer
 
-  # Permanent errors - log and discard
+  # 永続的なエラー - ログして破棄
   discard_on Net::SMTPSyntaxError do |job, error|
     Sentry.capture_exception(error, level: :info)
   end
 end
 ```
 
-**Batch processing** with continuable:
+**continuableでのバッチ処理：**
 ```ruby
 class ProcessCardsJob < ApplicationJob
   include ActiveJob::Continuable
 
   def perform
     Card.in_batches.each_record do |card|
-      checkpoint!  # Resume from here if interrupted
+      checkpoint!  # 中断時にここから再開
       process(card)
     end
   end
@@ -247,52 +247,52 @@ end
 </background_jobs>
 
 <database_patterns>
-## Database Patterns
+## データベースパターン
 
-**UUIDs as primary keys** (time-sortable UUIDv7):
+**主キーとしてのUUID**（時間ソート可能なUUIDv7）：
 ```ruby
-# migration
+# マイグレーション
 create_table :cards, id: :uuid do |t|
   t.references :board, type: :uuid, foreign_key: true
 end
 ```
 
-Benefits: No ID enumeration, distributed-friendly, client-side generation.
+メリット：ID列挙なし、分散対応、クライアント側生成。
 
-**State as records** (not booleans):
+**レコードとしての状態**（ブール値ではなく）：
 ```ruby
-# Instead of closed: boolean
+# closed: booleanの代わりに
 class Card::Closure < ApplicationRecord
   belongs_to :card
   belongs_to :creator, class_name: "User"
 end
 
-# Queries become joins
-Card.joins(:closure)          # closed
-Card.where.missing(:closure)  # open
+# クエリはjoinsになる
+Card.joins(:closure)          # クローズ済み
+Card.where.missing(:closure)  # オープン
 ```
 
-**Hard deletes** - no soft delete:
+**ハードデリート** - ソフトデリートなし：
 ```ruby
-# Just destroy
+# 単にdestroy
 card.destroy!
 
-# Use events for history
+# 履歴にはイベントを使用
 card.record_event(:deleted, by: Current.user)
 ```
 
-Simplifies queries, uses event logs for auditing.
+クエリを簡素化し、監査にはイベントログを使用。
 
-**Counter caches** for performance:
+**パフォーマンスのためのカウンターキャッシュ：**
 ```ruby
 class Comment < ApplicationRecord
   belongs_to :card, counter_cache: true
 end
 
-# card.comments_count available without query
+# card.comments_countがクエリなしで利用可能
 ```
 
-**Account scoping** on every table:
+**すべてのテーブルでのアカウントスコープ：**
 ```ruby
 class Card < ApplicationRecord
   belongs_to :account
@@ -302,9 +302,9 @@ end
 </database_patterns>
 
 <current_attributes>
-## Current Attributes
+## Current属性
 
-Use `Current` for request-scoped state:
+リクエストスコープの状態には`Current`を使用：
 
 ```ruby
 # app/models/current.rb
@@ -320,7 +320,7 @@ class Current < ActiveSupport::CurrentAttributes
 end
 ```
 
-Set in controller:
+コントローラーで設定：
 ```ruby
 class ApplicationController < ActionController::Base
   before_action :set_current_request
@@ -334,7 +334,7 @@ class ApplicationController < ActionController::Base
 end
 ```
 
-Use throughout app:
+アプリ全体で使用：
 ```ruby
 class Card < ApplicationRecord
   belongs_to :creator, default: -> { Current.user }
@@ -343,21 +343,21 @@ end
 </current_attributes>
 
 <caching>
-## Caching
+## キャッシュ
 
-**HTTP caching** with ETags:
+**ETagを使用したHTTPキャッシュ：**
 ```ruby
 fresh_when etag: [@card, Current.user.timezone]
 ```
 
-**Fragment caching:**
+**フラグメントキャッシュ：**
 ```erb
 <% cache card do %>
   <%= render card %>
 <% end %>
 ```
 
-**Russian doll caching:**
+**ロシア人形キャッシュ：**
 ```erb
 <% cache @board do %>
   <% @board.cards.each do |card| %>
@@ -368,30 +368,30 @@ fresh_when etag: [@card, Current.user.timezone]
 <% end %>
 ```
 
-**Cache invalidation** via `touch: true`:
+**`touch: true`によるキャッシュ無効化：**
 ```ruby
 class Card < ApplicationRecord
   belongs_to :board, touch: true
 end
 ```
 
-**Solid Cache** - database-backed:
-- No Redis required
-- Consistent with application data
-- Simpler infrastructure
+**Solid Cache** - データベースバックド：
+- Redisが不要
+- アプリケーションデータと一貫性
+- シンプルなインフラストラクチャ
 </caching>
 
 <configuration>
-## Configuration
+## 設定
 
-**ENV.fetch with defaults:**
+**デフォルト付きのENV.fetch：**
 ```ruby
 # config/application.rb
 config.active_job.queue_adapter = ENV.fetch("QUEUE_ADAPTER", "solid_queue").to_sym
 config.cache_store = ENV.fetch("CACHE_STORE", "solid_cache").to_sym
 ```
 
-**Multiple databases:**
+**複数データベース：**
 ```yaml
 # config/database.yml
 production:
@@ -408,12 +408,12 @@ production:
     migrations_paths: db/cache_migrate
 ```
 
-**Switch between SQLite and MySQL via ENV:**
+**ENV経由でSQLiteとMySQLを切り替え：**
 ```ruby
 adapter = ENV.fetch("DATABASE_ADAPTER", "sqlite3")
 ```
 
-**CSP extensible via ENV:**
+**ENV経由で拡張可能なCSP：**
 ```ruby
 config.content_security_policy do |policy|
   policy.default_src :self
@@ -423,9 +423,9 @@ end
 </configuration>
 
 <testing>
-## Testing
+## テスト
 
-**Minitest**, not RSpec:
+**Minitest**、RSpecではなく：
 ```ruby
 class CardTest < ActiveSupport::TestCase
   test "closing a card creates a closure" do
@@ -439,7 +439,7 @@ class CardTest < ActiveSupport::TestCase
 end
 ```
 
-**Fixtures** instead of factories:
+**ファクトリーの代わりにフィクスチャ：**
 ```yaml
 # test/fixtures/cards.yml
 one:
@@ -453,7 +453,7 @@ two:
   creator: bob
 ```
 
-**Integration tests** for controllers:
+**コントローラーの統合テスト：**
 ```ruby
 class CardsControllerTest < ActionDispatch::IntegrationTest
   test "closing a card" do
@@ -468,15 +468,15 @@ class CardsControllerTest < ActionDispatch::IntegrationTest
 end
 ```
 
-**Tests ship with features** - same commit, not TDD-first but together.
+**テストは機能と一緒に出荷** - 同じコミット、TDDファーストではなく一緒に。
 
-**Regression tests for security fixes** - always.
+**セキュリティ修正にはリグレッションテスト** - 常に。
 </testing>
 
 <events>
-## Event Tracking
+## イベント追跡
 
-Events are the single source of truth:
+イベントは信頼できる唯一の情報源：
 
 ```ruby
 class Event < ApplicationRecord
@@ -487,7 +487,7 @@ class Event < ApplicationRecord
 end
 ```
 
-**Eventable concern:**
+**Eventable concern：**
 ```ruby
 module Eventable
   extend ActiveSupport::Concern
@@ -506,13 +506,13 @@ module Eventable
 end
 ```
 
-**Webhooks driven by events** - events are the canonical source.
+**イベント駆動のWebhook** - イベントが正規のソース。
 </events>
 
 <email_patterns>
-## Email Patterns
+## メールパターン
 
-**Multi-tenant URL helpers:**
+**マルチテナントURLヘルパー：**
 ```ruby
 class ApplicationMailer < ActionMailer::Base
   def default_url_options
@@ -525,7 +525,7 @@ class ApplicationMailer < ActionMailer::Base
 end
 ```
 
-**Timezone-aware delivery:**
+**タイムゾーン対応の配信：**
 ```ruby
 class NotificationMailer < ApplicationMailer
   def daily_digest(user)
@@ -538,13 +538,13 @@ class NotificationMailer < ApplicationMailer
 end
 ```
 
-**Batch delivery:**
+**バッチ配信：**
 ```ruby
 emails = users.map { |user| NotificationMailer.digest(user) }
 ActiveJob.perform_all_later(emails.map(&:deliver_later))
 ```
 
-**One-click unsubscribe (RFC 8058):**
+**ワンクリック購読解除（RFC 8058）：**
 ```ruby
 class ApplicationMailer < ActionMailer::Base
   after_action :set_unsubscribe_headers
@@ -559,27 +559,27 @@ end
 </email_patterns>
 
 <security_patterns>
-## Security Patterns
+## セキュリティパターン
 
-**XSS prevention** - escape in helpers:
+**XSS防止** - ヘルパーでエスケープ：
 ```ruby
 def formatted_content(text)
-  # Escape first, then mark safe
+  # まずエスケープ、次にセーフとしてマーク
   simple_format(h(text)).html_safe
 end
 ```
 
-**SSRF protection:**
+**SSRF保護：**
 ```ruby
-# Resolve DNS once, pin the IP
+# DNSを一度解決し、IPを固定
 def fetch_safely(url)
   uri = URI.parse(url)
   ip = Resolv.getaddress(uri.host)
 
-  # Block private networks
+  # プライベートネットワークをブロック
   raise "Private IP" if private_ip?(ip)
 
-  # Use pinned IP for request
+  # リクエストに固定IPを使用
   Net::HTTP.start(uri.host, uri.port, ipaddr: ip) { |http| ... }
 end
 
@@ -589,7 +589,7 @@ def private_ip?(ip)
 end
 ```
 
-**Content Security Policy:**
+**コンテンツセキュリティポリシー：**
 ```ruby
 # config/initializers/content_security_policy.rb
 Rails.application.configure do
@@ -604,7 +604,7 @@ Rails.application.configure do
 end
 ```
 
-**ActionText sanitization:**
+**ActionTextサニタイズ：**
 ```ruby
 # config/initializers/action_text.rb
 Rails.application.config.after_initialize do
@@ -616,9 +616,9 @@ end
 </security_patterns>
 
 <active_storage>
-## Active Storage Patterns
+## Active Storageパターン
 
-**Variant preprocessing:**
+**バリアントの事前処理：**
 ```ruby
 class User < ApplicationRecord
   has_one_attached :avatar do |attachable|
@@ -628,13 +628,13 @@ class User < ApplicationRecord
 end
 ```
 
-**Direct upload expiry** - extend for slow connections:
+**ダイレクトアップロードの有効期限** - 遅い接続のために延長：
 ```ruby
 # config/initializers/active_storage.rb
 Rails.application.config.active_storage.service_urls_expire_in = 48.hours
 ```
 
-**Avatar optimization** - redirect to blob:
+**アバター最適化** - blobにリダイレクト：
 ```ruby
 def show
   expires_in 1.year, public: true
@@ -642,7 +642,7 @@ def show
 end
 ```
 
-**Mirror service** for migrations:
+**移行のためのミラーサービス：**
 ```yaml
 # config/storage.yml
 production:

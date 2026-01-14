@@ -1,35 +1,35 @@
 ---
 name: resolve_todo_parallel
-description: Resolve all pending CLI todos using parallel processing
-argument-hint: "[optional: specific todo ID or pattern]"
+description: 並列処理を使用してすべての保留中のCLI Todoを解決する
+argument-hint: "[オプション: 特定のTodo IDまたはパターン]"
 ---
 
-Resolve all TODO comments using parallel processing.
+並列処理を使用してすべてのTODOコメントを解決します。
 
-## Workflow
+## ワークフロー
 
-### 1. Analyze
+### 1. 分析
 
-Get all unresolved TODOs from the /todos/\*.md directory
+/todos/\*.mdディレクトリからすべての未解決TODOを取得
 
-### 2. Plan
+### 2. 計画
 
-Create a TodoWrite list of all unresolved items grouped by type.Make sure to look at dependencies that might occur and prioritize the ones needed by others. For example, if you need to change a name, you must wait to do the others. Output a mermaid flow diagram showing how we can do this. Can we do everything in parallel? Do we need to do one first that leads to others in parallel? I'll put the to-dos in the mermaid diagram flow‑wise so the agent knows how to proceed in order.
+タイプ別にグループ化されたすべての未解決アイテムのTodoWriteリストを作成します。発生する可能性のある依存関係を確認し、他で必要とされるものを優先します。例えば、名前を変更する必要がある場合、他のものを先に待つ必要があります。これをどのように行えるかを示すmermaidフローダイアグラムを出力します。すべてを並列で行えますか？他を並列で進めるために最初に1つを行う必要がありますか？エージェントが順番に進む方法を知るために、mermaidダイアグラムにフロー形式でToDoを配置します。
 
-### 3. Implement (PARALLEL)
+### 3. 実装（並列）
 
-Spawn a pr-comment-resolver agent for each unresolved item in parallel.
+各未解決アイテムに対してpr-comment-resolverエージェントを並列で起動します。
 
-So if there are 3 comments, it will spawn 3 pr-comment-resolver agents in parallel. liek this
+3つのコメントがある場合、3つのpr-comment-resolverエージェントを並列で起動します。このように：
 
 1. Task pr-comment-resolver(comment1)
 2. Task pr-comment-resolver(comment2)
 3. Task pr-comment-resolver(comment3)
 
-Always run all in parallel subagents/Tasks for each Todo item.
+各Todoアイテムに対して常にすべてのサブエージェント/Taskを並列で実行します。
 
-### 4. Commit & Resolve
+### 4. コミット & 解決
 
-- Commit changes
-- Remove the TODO from the file, and mark it as resolved.
-- Push to remote
+- 変更をコミット
+- ファイルからTODOを削除し、解決済みとしてマーク
+- リモートにプッシュ

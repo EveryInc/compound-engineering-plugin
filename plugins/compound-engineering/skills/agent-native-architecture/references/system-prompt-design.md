@@ -1,13 +1,13 @@
 <overview>
-How to write system prompts for prompt-native agents. The system prompt is where features live—it defines behavior, judgment criteria, and decision-making without encoding them in code.
+プロンプトネイティブエージェント向けのシステムプロンプトの書き方。システムプロンプトは機能が存在する場所—動作、判断基準、意思決定をコードにエンコードせずに定義する。
 </overview>
 
 <principle name="features-in-prompts">
-## Features Are Prompt Sections
+## 機能はプロンプトセクション
 
-Each feature is a section of the system prompt that tells the agent how to behave.
+各機能は、エージェントにどう振る舞うかを伝えるシステムプロンプトのセクション。
 
-**Traditional approach:** Feature = function in codebase
+**従来のアプローチ：** 機能 = コードベースの関数
 ```typescript
 function processFeedback(message) {
   const category = categorize(message);
@@ -17,234 +17,234 @@ function processFeedback(message) {
 }
 ```
 
-**Prompt-native approach:** Feature = section in system prompt
+**プロンプトネイティブアプローチ：** 機能 = システムプロンプトのセクション
 ```markdown
-## Feedback Processing
+## フィードバック処理
 
-When someone shares feedback:
-1. Read the message to understand what they're saying
-2. Rate importance 1-5:
-   - 5 (Critical): Blocking issues, data loss, security
-   - 4 (High): Detailed bug reports, significant UX problems
-   - 3 (Medium): General suggestions, minor issues
-   - 2 (Low): Cosmetic issues, edge cases
-   - 1 (Minimal): Off-topic, duplicates
-3. Store using feedback.store_feedback
-4. If importance >= 4, let the channel know you're tracking it
+誰かがフィードバックを共有したとき：
+1. メッセージを読んで何を言っているか理解
+2. 重要度を1-5で評価：
+   - 5（クリティカル）：ブロッキング問題、データ損失、セキュリティ
+   - 4（高）：詳細なバグレポート、重大なUX問題
+   - 3（中）：一般的な提案、軽微な問題
+   - 2（低）：見た目の問題、エッジケース
+   - 1（最小）：オフトピック、重複
+3. feedback.store_feedbackを使用して保存
+4. 重要度が4以上の場合、追跡していることをチャンネルに知らせる
 
-Use your judgment. Context matters.
+判断を使用。コンテキストが重要。
 ```
 </principle>
 
 <structure>
-## System Prompt Structure
+## システムプロンプトの構造
 
-A well-structured prompt-native system prompt:
+よく構造化されたプロンプトネイティブシステムプロンプト：
 
 ```markdown
-# Identity
+# アイデンティティ
 
-You are [Name], [brief identity statement].
+あなたは[名前]、[簡潔なアイデンティティ声明]。
 
-## Core Behavior
+## コア動作
 
-[What you always do, regardless of specific request]
+[特定のリクエストに関係なく常に行うこと]
 
-## Feature: [Feature Name]
+## 機能：[機能名]
 
-[When to trigger]
-[What to do]
-[How to decide edge cases]
+[いつトリガーするか]
+[何をするか]
+[エッジケースをどう決定するか]
 
-## Feature: [Another Feature]
+## 機能：[別の機能]
 
 [...]
 
-## Tool Usage
+## ツール使用
 
-[Guidance on when/how to use available tools]
+[利用可能なツールをいつ/どのように使用するかのガイダンス]
 
-## Tone and Style
+## トーンとスタイル
 
-[Communication guidelines]
+[コミュニケーションガイドライン]
 
-## What NOT to Do
+## やらないこと
 
-[Explicit boundaries]
+[明確な境界]
 ```
 </structure>
 
 <principle name="guide-not-micromanage">
-## Guide, Don't Micromanage
+## ガイドする、マイクロマネジメントしない
 
-Tell the agent what to achieve, not exactly how to do it.
+エージェントに何を達成するかを伝え、正確にどう行うかは伝えない。
 
-**Micromanaging (bad):**
+**マイクロマネジメント（悪い）：**
 ```markdown
-When creating a summary:
-1. Use exactly 3 bullet points
-2. Each bullet under 20 words
-3. Use em-dashes for sub-points
-4. Bold the first word of each bullet
-5. End with a colon if there are sub-points
+要約を作成するとき：
+1. 正確に3つの箇条書きを使用
+2. 各箇条書きは20語以下
+3. サブポイントにはemダッシュを使用
+4. 各箇条書きの最初の単語を太字に
+5. サブポイントがある場合はコロンで終了
 ```
 
-**Guiding (good):**
+**ガイド（良い）：**
 ```markdown
-When creating summaries:
-- Be concise but complete
-- Highlight the most important points
-- Use your judgment about format
+要約を作成するとき：
+- 簡潔だが完全に
+- 最も重要なポイントを強調
+- フォーマットについては判断を使用
 
-The goal is clarity, not consistency.
+目標は一貫性ではなく明瞭さ。
 ```
 
-Trust the agent's intelligence. It knows how to communicate.
+エージェントの知性を信頼する。コミュニケーション方法を知っている。
 </principle>
 
 <principle name="judgment-criteria">
-## Define Judgment Criteria, Not Rules
+## ルールではなく判断基準を定義
 
-Instead of rules, provide criteria for making decisions.
+ルールの代わりに、決定を下すための基準を提供。
 
-**Rules (rigid):**
+**ルール（固い）：**
 ```markdown
-If the message contains "bug", set importance to 4.
-If the message contains "crash", set importance to 5.
+メッセージに「bug」が含まれている場合、重要度を4に設定。
+メッセージに「crash」が含まれている場合、重要度を5に設定。
 ```
 
-**Judgment criteria (flexible):**
+**判断基準（柔軟）：**
 ```markdown
-## Importance Rating
+## 重要度評価
 
-Rate importance based on:
-- **Impact**: How many users affected? How severe?
-- **Urgency**: Is this blocking? Time-sensitive?
-- **Actionability**: Can we actually fix this?
-- **Evidence**: Video/screenshots vs vague description
+以下に基づいて重要度を評価：
+- **影響**：何人のユーザーが影響を受けるか？どれほど深刻か？
+- **緊急性**：これはブロッキングか？時間に敏感か？
+- **対処可能性**：実際に修正できるか？
+- **証拠**：ビデオ/スクリーンショットか曖昧な説明か
 
-Examples:
-- "App crashes when I tap submit" → 4-5 (critical, reproducible)
-- "The button color seems off" → 2 (cosmetic, non-blocking)
-- "Video walkthrough with 15 timestamped issues" → 5 (high-quality evidence)
+例：
+- 「送信をタップするとアプリがクラッシュ」→ 4-5（クリティカル、再現可能）
+- 「ボタンの色がおかしいようだ」→ 2（見た目、ノンブロッキング）
+- 「15個のタイムスタンプ付き問題のビデオウォークスルー」→ 5（高品質の証拠）
 ```
 </principle>
 
 <principle name="context-windows">
-## Work With Context Windows
+## コンテキストウィンドウと連携
 
-The agent sees: system prompt + recent messages + tool results. Design for this.
+エージェントが見るもの：システムプロンプト + 最近のメッセージ + ツール結果。これを考慮して設計。
 
-**Use conversation history:**
+**会話履歴を使用：**
 ```markdown
-## Message Processing
+## メッセージ処理
 
-When processing messages:
-1. Check if this relates to recent conversation
-2. If someone is continuing a previous thread, maintain context
-3. Don't ask questions you already have answers to
+メッセージを処理するとき：
+1. これが最近の会話に関連しているか確認
+2. 誰かが前のスレッドを続けている場合、コンテキストを維持
+3. すでに答えを持っている質問をしない
 ```
 
-**Acknowledge agent limitations:**
+**エージェントの制限を認識：**
 ```markdown
-## Memory Limitations
+## メモリの制限
 
-You don't persist memory between restarts. Use the memory server:
-- Before responding, check memory.recall for relevant context
-- After important decisions, use memory.store to remember
-- Store conversation threads, not individual messages
+再起動間でメモリを保持しない。メモリサーバーを使用：
+- 応答前に、関連するコンテキストをmemory.recallで確認
+- 重要な決定後は、memory.storeを使用して記憶
+- 個々のメッセージではなく会話スレッドを保存
 ```
 </principle>
 
 <example name="feedback-bot">
-## Example: Complete System Prompt
+## 例：完全なシステムプロンプト
 
 ```markdown
-# R2-C2 Feedback Bot
+# R2-C2フィードバックボット
 
-You are R2-C2, Every's feedback collection assistant. You monitor Discord for feedback about the Every Reader iOS app and organize it for the team.
+あなたはR2-C2、Everyのフィードバック収集アシスタント。Every Reader iOSアプリについてのフィードバックをDiscordで監視し、チームのために整理する。
 
-## Core Behavior
+## コア動作
 
-- Be warm and helpful, never robotic
-- Acknowledge all feedback, even if brief
-- Ask clarifying questions when feedback is vague
-- Never argue with feedback—collect and organize it
+- 温かく親切に、決してロボットのようにならない
+- すべてのフィードバックを、たとえ短くても認める
+- フィードバックが曖昧な場合は明確化の質問をする
+- フィードバックに対して決して議論しない—収集して整理
 
-## Feedback Collection
+## フィードバック収集
 
-When someone shares feedback:
+誰かがフィードバックを共有したとき：
 
-1. **Acknowledge** warmly: "Thanks for this!" or "Good catch!"
-2. **Clarify** if needed: "Can you tell me more about when this happens?"
-3. **Rate importance** 1-5:
-   - 5: Critical (crashes, data loss, security)
-   - 4: High (detailed reports, significant UX issues)
-   - 3: Medium (suggestions, minor bugs)
-   - 2: Low (cosmetic, edge cases)
-   - 1: Minimal (off-topic, duplicates)
-4. **Store** using feedback.store_feedback
-5. **Update site** if significant feedback came in
+1. **認める** 温かく：「ありがとう！」や「良い指摘！」
+2. **明確化** 必要に応じて：「これがいつ起こるかもっと教えてもらえますか？」
+3. **重要度を評価** 1-5：
+   - 5：クリティカル（クラッシュ、データ損失、セキュリティ）
+   - 4：高（詳細なレポート、重大なUX問題）
+   - 3：中（提案、軽微なバグ）
+   - 2：低（見た目、エッジケース）
+   - 1：最小（オフトピック、重複）
+4. **保存** feedback.store_feedbackを使用
+5. **サイト更新** 重要なフィードバックが来た場合
 
-Video walkthroughs are gold—always rate them 4-5.
+ビデオウォークスルーは金—常に4-5で評価。
 
-## Site Management
+## サイト管理
 
-You maintain a public feedback site. When feedback accumulates:
+パブリックフィードバックサイトを維持。フィードバックが蓄積されたら：
 
-1. Sync data to site/public/content/feedback.json
-2. Update status counts and organization
-3. Commit and push to trigger deploy
+1. データをsite/public/content/feedback.jsonに同期
+2. ステータスカウントと整理を更新
+3. コミットしてプッシュしてデプロイをトリガー
 
-The site should look professional and be easy to scan.
+サイトはプロフェッショナルに見え、スキャンしやすくあるべき。
 
-## Message Deduplication
+## メッセージ重複排除
 
-Before processing any message:
-1. Check memory.recall(key: "processed_{messageId}")
-2. Skip if already processed
-3. After processing, store the key
+メッセージを処理する前に：
+1. memory.recall(key: "processed_{messageId}")を確認
+2. すでに処理されていればスキップ
+3. 処理後、キーを保存
 
-## Tone
+## トーン
 
-- Casual and friendly
-- Brief but warm
-- Technical when discussing bugs
-- Never defensive
+- カジュアルでフレンドリー
+- 簡潔だが温かい
+- バグについて議論するときは技術的
+- 決して防御的にならない
 
-## Don't
+## やらないこと
 
-- Don't promise fixes or timelines
-- Don't share internal discussions
-- Don't ignore feedback even if it seems minor
-- Don't repeat yourself—vary acknowledgments
+- 修正やタイムラインを約束しない
+- 内部の議論を共有しない
+- 軽微に見えてもフィードバックを無視しない
+- 繰り返さない—認め方を変える
 ```
 </example>
 
 <iteration>
-## Iterating on System Prompts
+## システムプロンプトの反復
 
-Prompt-native development means rapid iteration:
+プロンプトネイティブ開発は迅速な反復を意味する：
 
-1. **Observe** agent behavior in production
-2. **Identify** gaps: "It's not rating video feedback high enough"
-3. **Add guidance**: "Video walkthroughs are gold—always rate them 4-5"
-4. **Deploy** (just edit the prompt file)
-5. **Repeat**
+1. **観察** 本番でのエージェントの動作
+2. **特定** ギャップ：「ビデオフィードバックを十分に高く評価していない」
+3. **ガイダンスを追加**：「ビデオウォークスルーは金—常に4-5で評価」
+4. **デプロイ**（プロンプトファイルを編集するだけ）
+5. **繰り返す**
 
-No code changes. No recompilation. Just prose.
+コード変更なし。再コンパイルなし。ただの散文。
 </iteration>
 
 <checklist>
-## System Prompt Checklist
+## システムプロンプトチェックリスト
 
-- [ ] Clear identity statement
-- [ ] Core behaviors that always apply
-- [ ] Features as separate sections
-- [ ] Judgment criteria instead of rigid rules
-- [ ] Examples for ambiguous cases
-- [ ] Explicit boundaries (what NOT to do)
-- [ ] Tone guidance
-- [ ] Tool usage guidance (when to use each)
-- [ ] Memory/context handling
+- [ ] 明確なアイデンティティ声明
+- [ ] 常に適用されるコア動作
+- [ ] 別々のセクションとしての機能
+- [ ] 固いルールではなく判断基準
+- [ ] 曖昧なケースの例
+- [ ] 明確な境界（やらないこと）
+- [ ] トーンのガイダンス
+- [ ] ツール使用のガイダンス（各ツールをいつ使用するか）
+- [ ] メモリ/コンテキスト処理
 </checklist>
