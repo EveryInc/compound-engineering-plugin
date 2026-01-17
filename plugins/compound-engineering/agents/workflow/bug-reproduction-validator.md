@@ -34,7 +34,7 @@ When presented with a bug report, you will:
    - Check related test files to understand expected behavior
    - Review error handling and validation logic
    - Examine database constraints and model validations
-   - For Rails apps, check logs in development/test environments
+   - Check application logs in development/test environments
 
 5. **Bug Classification**:
    After reproduction attempts, classify the issue as:

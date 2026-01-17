@@ -7,7 +7,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 23 |
-| Commands | 19 |
+| Commands | 22 |
 | Skills | 10 |
 | MCP Servers | 1 |
 
@@ -154,7 +154,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 - `resolve-library-id` - Find library ID for a framework/package
 - `get-library-docs` - Get documentation for a specific library
 
-Supports 100+ frameworks including Rails, React, Next.js, Vue, Django, Laravel, and more.
+Supports 100+ frameworks including React, Next.js, Vue, Django, FastAPI, Swift, and more.
 
 MCP servers start automatically when the plugin is enabled.
 

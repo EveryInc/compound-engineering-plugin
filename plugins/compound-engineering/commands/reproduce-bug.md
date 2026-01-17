@@ -10,16 +10,15 @@ Look at github issue #$ARGUMENTS and read the issue description and comments.
 
 ## Phase 1: Log Investigation
 
-Run the following agents in parallel to investigate the bug:
+Investigate the bug through available logs and application state:
 
-1. Task rails-console-explorer(issue_description)
-2. Task appsignal-log-investigator(issue_description)
+1. Review application logs for errors related to the issue
+2. Check for any error tracking or monitoring outputs
+3. Examine relevant service/module state
 
 Think about the places it could go wrong looking at the codebase. Look for logging output we can look for.
 
-Run the agents again to find any logs that could help us reproduce the bug.
-
-Keep running these agents until you have a good idea of what is going on.
+Keep investigating until you have a good idea of what is going on.
 
 ## Phase 2: Visual Reproduction with Playwright
 
@@ -83,7 +82,7 @@ mcp__plugin_compound-engineering_pw__browser_take_screenshot({ filename: "bug-[i
 
 **Reference Collection:**
 
-- [ ] Document all research findings with specific file paths (e.g., `app/services/example_service.rb:42`)
+- [ ] Document all research findings with specific file paths (e.g., `src/services/example.ts:42`)
 - [ ] Include screenshots showing the bug reproduction
 - [ ] List console errors if any
 - [ ] Document the exact reproduction steps

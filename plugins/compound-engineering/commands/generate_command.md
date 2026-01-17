@@ -116,8 +116,8 @@ Implement #$ARGUMENTS following these steps:
    - Ensure code follows CLAUDE.md conventions
 
 4. Verify
-   - Run tests: `bin/rails test`
-   - Run linter: `bundle exec standardrb`
+   - Run tests: `npm test` or project's test command
+   - Run linter: `npm run lint` or project's lint command
    - Check changes with git diff
 
 5. Commit (optional)

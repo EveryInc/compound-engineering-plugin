@@ -328,7 +328,7 @@ Examples:
 - `p2` - Important (should fix, architectural/performance)
 - `p3` - Nice-to-have (enhancements, cleanup)
 
-**Tagging:** Always add `code-review` tag, plus: `security`, `performance`, `architecture`, `rails`, `quality`, etc.
+**Tagging:** Always add `code-review` tag, plus: `security`, `performance`, `architecture`, `quality`, etc.
 
 #### Step 3: Summary Report
 
@@ -431,7 +431,7 @@ After creating all todo files, present comprehensive summary:
 | Indicator | Project Type |
 |-----------|--------------|
 | `*.xcodeproj`, `*.xcworkspace`, `Package.swift` (iOS) | iOS/macOS |
-| `Gemfile`, `package.json`, `app/views/*`, `*.html.*` | Web |
+| `package.json`, `tsconfig.json`, `*.tsx`, `*.jsx` | Web |
 | Both iOS files AND web files | Hybrid (test both) |
 
 </detect_project_type>
@@ -454,7 +454,7 @@ After presenting the Summary Report, offer appropriate testing based on project 
 2. No - skip
 ```
 
-**For Hybrid Projects (e.g., Rails + Hotwire Native):**
+**For Hybrid Projects (e.g., React Native + Web):**
 ```markdown
 **"Want to run end-to-end tests?"**
 1. Web only - run `/test-browser`

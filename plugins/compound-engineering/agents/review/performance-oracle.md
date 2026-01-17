@@ -101,7 +101,7 @@ Always provide specific code examples for recommended optimizations. Include ben
 
 ## Special Considerations
 
-- For Rails applications, pay special attention to ActiveRecord query optimization
+- For database-heavy applications, pay special attention to ORM query optimization
 - Consider background job processing for expensive operations
 - Recommend progressive enhancement for frontend features
 - Always balance performance optimization with code maintainability
