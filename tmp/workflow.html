@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compound Writing Workflow</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      min-height: 100vh;
+      padding: 40px;
+    }
+    .container { max-width: 1100px; margin: 0 auto; }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 10px;
+      background: linear-gradient(90deg, #f093fb, #f5576c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      text-align: center;
+    }
+    .subtitle {
+      text-align: center;
+      color: #94a3b8;
+      margin-bottom: 50px;
+      font-size: 1.1rem;
+    }
+    .workflow {
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+    .phase {
+      display: flex;
+      align-items: stretch;
+      gap: 20px;
+    }
+    .phase-number {
+      width: 60px;
+      height: 60px;
+      background: linear-gradient(135deg, #f093fb, #f5576c);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.5rem;
+      font-weight: bold;
+      flex-shrink: 0;
+    }
+    .phase-content {
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .phase-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .phase-title {
+      font-size: 1.3rem;
+      color: #fff;
+    }
+    .phase-cmd {
+      font-family: 'SF Mono', Menlo, monospace;
+      background: rgba(245, 87, 108, 0.2);
+      color: #f5576c;
+      padding: 6px 14px;
+      border-radius: 20px;
+      font-size: 0.9rem;
+    }
+    .phase-details {
+      display: flex;
+      gap: 30px;
+    }
+    .detail-col {
+      flex: 1;
+    }
+    .detail-label {
+      font-size: 0.8rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 8px;
+    }
+    .detail-list {
+      list-style: none;
+    }
+    .detail-list li {
+      padding: 4px 0;
+      font-size: 0.95rem;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .detail-list li::before {
+      content: "→";
+      color: #f093fb;
+    }
+    .output-badge {
+      display: inline-block;
+      background: rgba(34, 197, 94, 0.2);
+      border: 1px solid rgba(34, 197, 94, 0.5);
+      color: #22c55e;
+      padding: 4px 10px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-family: monospace;
+    }
+    .connector {
+      width: 60px;
+      display: flex;
+      justify-content: center;
+      padding: 10px 0;
+    }
+    .connector-line {
+      width: 2px;
+      height: 100%;
+      background: linear-gradient(180deg, #f5576c, #f093fb);
+    }
+    .compound-badge {
+      margin-top: 30px;
+      text-align: center;
+      padding: 20px;
+      background: rgba(245, 87, 108, 0.1);
+      border: 1px solid rgba(245, 87, 108, 0.3);
+      border-radius: 12px;
+    }
+    .compound-badge h3 {
+      color: #f5576c;
+      margin-bottom: 8px;
+    }
+    .compound-badge p {
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>The Compound Writing Workflow</h1>
+    <p class="subtitle">From topic to published content with captured patterns</p>
+
+    <div class="workflow">
+      <div class="phase">
+        <div class="phase-number">1</div>
+        <div class="phase-content">
+          <div class="phase-header">
+            <span class="phase-title">📋 Plan</span>
+            <span class="phase-cmd">/writing:plan</span>
+          </div>
+          <div class="phase-details">
+            <div class="detail-col">
+              <div class="detail-label">Agents</div>
+              <ul class="detail-list">
+                <li>source-researcher</li>
+                <li>structure-architect</li>
+              </ul>
+            </div>
+            <div class="detail-col">
+              <div class="detail-label">Output</div>
+              <span class="output-badge">drafts/{slug}/outline.md</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector"><div class="connector-line"></div></div>
+
+      <div class="phase">
+        <div class="phase-number">2</div>
+        <div class="phase-content">
+          <div class="phase-header">
+            <span class="phase-title">✍️ Draft</span>
+            <span class="phase-cmd">/writing:draft</span>
+          </div>
+          <div class="phase-details">
+            <div class="detail-col">
+              <div class="detail-label">Features</div>
+              <ul class="detail-list">
+                <li>Voice profile matching</li>
+                <li>Producer-critic loop (≥85 score)</li>
+              </ul>
+            </div>
+            <div class="detail-col">
+              <div class="detail-label">Output</div>
+              <span class="output-badge">drafts/{slug}/draft-v1.md</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector"><div class="connector-line"></div></div>
+
+      <div class="phase">
+        <div class="phase-number">3</div>
+        <div class="phase-content">
+          <div class="phase-header">
+            <span class="phase-title">🔍 Review</span>
+            <span class="phase-cmd">/writing:review</span>
+          </div>
+          <div class="phase-details">
+            <div class="detail-col">
+              <div class="detail-label">Parallel Agents</div>
+              <ul class="detail-list">
+                <li>voice-guardian, clarity-editor</li>
+                <li>fact-checker, structure-architect</li>
+              </ul>
+            </div>
+            <div class="detail-col">
+              <div class="detail-label">Output</div>
+              <span class="output-badge">drafts/{slug}/draft-v2.md</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="connector"><div class="connector-line"></div></div>
+
+      <div class="phase">
+        <div class="phase-number">4</div>
+        <div class="phase-content">
+          <div class="phase-header">
+            <span class="phase-title">📚 Compound</span>
+            <span class="phase-cmd">/writing:compound</span>
+          </div>
+          <div class="phase-details">
+            <div class="detail-col">
+              <div class="detail-label">Captures</div>
+              <ul class="detail-list">
+                <li>Hooks, structures, transitions</li>
+                <li>Voice patterns, templates</li>
+              </ul>
+            </div>
+            <div class="detail-col">
+              <div class="detail-label">Output</div>
+              <span class="output-badge">docs/patterns/*.md</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="compound-badge">
+      <h3>🔄 The Compound Effect</h3>
+      <p>Each piece you write makes the next one faster and better. Patterns compound.</p>
+    </div>
+  </div>
+</body>
+</html>

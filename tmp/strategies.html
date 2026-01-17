@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Writing Strategies</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #fff;
+      min-height: 100vh;
+      padding: 40px;
+    }
+    .container { max-width: 1200px; margin: 0 auto; }
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 30px;
+      background: linear-gradient(90deg, #f093fb, #f5576c);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    .categories {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: 24px;
+    }
+    .category {
+      background: rgba(255,255,255,0.05);
+      border-radius: 16px;
+      padding: 24px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .category-title {
+      font-size: 1.2rem;
+      color: #f093fb;
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .category-icon { font-size: 1.5rem; }
+    .strategies-list { list-style: none; }
+    .strategies-list li {
+      padding: 10px 0;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .strategies-list li:last-child { border-bottom: none; }
+    .strategy-name {
+      font-family: 'SF Mono', Menlo, monospace;
+      color: #f5576c;
+      font-size: 0.95rem;
+    }
+    .strategy-desc {
+      color: #94a3b8;
+      font-size: 0.85rem;
+      margin-top: 4px;
+    }
+    .selection-guide {
+      margin-top: 30px;
+      background: rgba(34, 197, 94, 0.1);
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      border-radius: 12px;
+      padding: 20px;
+    }
+    .selection-title {
+      color: #22c55e;
+      font-size: 1.1rem;
+      margin-bottom: 12px;
+    }
+    .guide-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .guide-table th, .guide-table td {
+      padding: 10px;
+      text-align: left;
+      border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .guide-table th {
+      color: #94a3b8;
+      font-weight: normal;
+      font-size: 0.85rem;
+    }
+    .guide-table td:first-child { color: #f093fb; }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>20+ Situational Strategies</h1>
+
+    <div class="categories">
+      <div class="category">
+        <h3 class="category-title"><span class="category-icon">🎣</span> Hook & Opening</h3>
+        <ul class="strategies-list">
+          <li>
+            <div class="strategy-name">hook-effectiveness</div>
+            <div class="strategy-desc">Counterintuitive or surprising openings</div>
+          </li>
+          <li>
+            <div class="strategy-name">tension-builder</div>
+            <div class="strategy-desc">Create and resolve tension</div>
+          </li>
+          <li>
+            <div class="strategy-name">pattern-twist</div>
+            <div class="strategy-desc">Set expectations, then break them</div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="category">
+        <h3 class="category-title"><span class="category-icon">📐</span> Structure & Flow</h3>
+        <ul class="strategies-list">
+          <li>
+            <div class="strategy-name">order-words-emphasis</div>
+            <div class="strategy-desc">Important words at sentence ends</div>
+          </li>
+          <li>
+            <div class="strategy-name">sentence-length</div>
+            <div class="strategy-desc">Vary for rhythm (short for impact)</div>
+          </li>
+          <li>
+            <div class="strategy-name">ladder-abstraction</div>
+            <div class="strategy-desc">Alternate concrete ↔ abstract</div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="category">
+        <h3 class="category-title"><span class="category-icon">🎨</span> Style & Voice</h3>
+        <ul class="strategies-list">
+          <li>
+            <div class="strategy-name">elegant-variation</div>
+            <div class="strategy-desc">Avoid word repetition</div>
+          </li>
+          <li>
+            <div class="strategy-name">punctuation-pace</div>
+            <div class="strategy-desc">Use punctuation for rhythm</div>
+          </li>
+          <li>
+            <div class="strategy-name">key-words-space</div>
+            <div class="strategy-desc">Give important terms breathing room</div>
+          </li>
+        </ul>
+      </div>
+
+      <div class="category">
+        <h3 class="category-title"><span class="category-icon">📖</span> Narrative & Story</h3>
+        <ul class="strategies-list">
+          <li>
+            <div class="strategy-name">narrate-scenes</div>
+            <div class="strategy-desc">Immersive scene-setting</div>
+          </li>
+          <li>
+            <div class="strategy-name">cinematic-angles</div>
+            <div class="strategy-desc">Camera-like perspective shifts</div>
+          </li>
+          <li>
+            <div class="strategy-name">reveal-traits</div>
+            <div class="strategy-desc">Character through action</div>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="selection-guide">
+      <h3 class="selection-title">Strategy Selection Guide</h3>
+      <table class="guide-table">
+        <tr>
+          <th>Content Type</th>
+          <th>Recommended Strategies</th>
+        </tr>
+        <tr>
+          <td>Blog post</td>
+          <td>hook-effectiveness, ladder-abstraction, sentence-length</td>
+        </tr>
+        <tr>
+          <td>Newsletter</td>
+          <td>hook-effectiveness, sentence-length, one-idea-per-sentence</td>
+        </tr>
+        <tr>
+          <td>Profile</td>
+          <td>cinematic-angles, reveal-traits, dialogue-compression</td>
+        </tr>
+        <tr>
+          <td>Tutorial</td>
+          <td>ladder-abstraction, sentence-length, paragraph-length</td>
+        </tr>
+      </table>
+    </div>
+  </div>
+</body>
+</html>

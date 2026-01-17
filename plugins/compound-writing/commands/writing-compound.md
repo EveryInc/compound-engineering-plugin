@@ -459,18 +459,29 @@ Keep only:
 
 ## Step 12: Post-Compound Options (BRAINSTORM)
 
-```
-Use AskUserQuestion:
+**MANDATORY: Use the AskUserQuestion tool here. Do NOT output options as plain text.**
 
-Question: "Compounding complete. [N] patterns extracted. What next?"
-
-Options:
-1. **View patterns** - Open the extracted pattern files
-2. **Start new piece** - `/writing:plan` with new patterns available
-3. **Review pattern library** - See all accumulated patterns
-4. **Export voice profile** - Share voice profile
-5. **Done** - Finished for now
+```yaml
+tool: AskUserQuestion
+question: "Compounding complete. [N] patterns extracted. What next?"
+header: "Next"
+options:
+  - label: "View patterns"
+    description: "Open the extracted pattern files in editor"
+  - label: "Review pattern library"
+    description: "See all accumulated patterns"
+  - label: "Start new piece"
+    description: "/writing:plan with new patterns available"
+  - label: "Done"
+    description: "Finished for now"
 ```
+
+Based on selection:
+- **View patterns** → Run `open` on each extracted pattern file
+- **Review pattern library** → Display contents of `.claude/writing-knowledge/patterns/`
+- **Start new piece** → Call `/writing:plan` to begin new content with accumulated patterns
+- **Done** → Exit, patterns are saved for future use
+- **Other** (automatically provided) → Accept free text for custom action
 
 ---
 

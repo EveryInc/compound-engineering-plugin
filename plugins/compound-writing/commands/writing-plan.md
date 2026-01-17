@@ -340,18 +340,29 @@ EXPLORATION
 
 ## Step 11: Post-Planning Options
 
-```
-Use AskUserQuestion:
+**MANDATORY: Use the AskUserQuestion tool here. Do NOT output options as plain text.**
 
-Question: "Outline ready at `drafts/[slug]/outline.md`. What next?"
-
-Options:
-1. **Start drafting** - Run `/writing:draft drafts/[slug]/outline.md`
-2. **Deepen research** - Get more sources on specific sections
-3. **Review outline** - Get structural feedback before drafting
-4. **Adjust angle** - Refine the thesis or approach
-5. **Save for later** - Done for now
+```yaml
+tool: AskUserQuestion
+question: "Outline ready at `drafts/[slug]/outline.md`. What would you like to do next?"
+header: "Next"
+options:
+  - label: "Open outline"
+    description: "View the outline in editor for review"
+  - label: "Deepen research"
+    description: "Get more sources on specific sections"
+  - label: "Review outline"
+    description: "Get structural feedback before drafting"
+  - label: "Start drafting"
+    description: "Run /writing:draft drafts/[slug]/outline.md"
 ```
+
+Based on selection:
+- **Open outline** → Run `open drafts/[slug]/outline.md` to open in default editor
+- **Deepen research** → Ask which sections need more sources, then run source-researcher agent
+- **Review outline** → Run structure-architect agent on the outline
+- **Start drafting** → Call `/writing:draft drafts/[slug]/outline.md`
+- **Other** (automatically provided) → Accept free text for adjustments
 
 ---
 

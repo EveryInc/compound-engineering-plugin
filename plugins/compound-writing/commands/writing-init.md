@@ -441,17 +441,29 @@ Run `/writing:knowledge status` to see your setup anytime.
 
 ## Step 9: Post-Init Options (BRAINSTORM)
 
-```
-Use AskUserQuestion:
+**MANDATORY: Use the AskUserQuestion tool here. Do NOT output options as plain text.**
 
-Question: "Setup complete! What would you like to do next?"
-Header: "Next"
-Options:
-1. **Start a draft** - Run /writing:plan with a topic
-2. **Configure voice** - Set up voice profile from samples
-3. **View setup** - Show created files and directories
-4. **Done** - Exit setup
+```yaml
+tool: AskUserQuestion
+question: "Setup complete! What would you like to do next?"
+header: "Next"
+options:
+  - label: "View setup"
+    description: "Show created files and directories"
+  - label: "Start a draft"
+    description: "Run /writing:plan with a topic"
+  - label: "Configure voice"
+    description: "Set up voice profile from samples"
+  - label: "Done"
+    description: "Exit setup"
 ```
+
+Based on selection:
+- **View setup** → Run `ls -la` on created directories and show file contents
+- **Start a draft** → Ask for topic, then call `/writing:plan [topic]`
+- **Configure voice** → Call `/writing:knowledge add voice-profile` workflow
+- **Done** → Exit, setup is complete
+- **Other** (automatically provided) → Accept free text for custom action
 
 ---
 

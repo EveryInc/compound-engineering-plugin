@@ -468,18 +468,29 @@ REFINEMENT (working on draft-[ID])
 
 ## Step 15: Post-Review Options (BRAINSTORM)
 
-```
-Use AskUserQuestion:
+**MANDATORY: Use the AskUserQuestion tool here. Do NOT output options as plain text.**
 
-Question: "Review complete. [X] issues found, [Y] fixed. Voice score: [before]→[after]. What next?"
-
-Options:
-1. **View full report** - Open review-v[N].md
-2. **Another review pass** - Re-run with fresh perspective
-3. **Refine further** - `/writing:draft refine draft-[ID]`
-4. **Compound** - `/writing:compound draft-[ID]` (capture patterns)
-5. **Done** - Ready to publish
+```yaml
+tool: AskUserQuestion
+question: "Review complete. [X] issues found, [Y] fixed. Voice score: [before]→[after]. What next?"
+header: "Next"
+options:
+  - label: "View full report"
+    description: "Open review-v[N].md in editor"
+  - label: "View diff"
+    description: "Show before/after changes"
+  - label: "Another review pass"
+    description: "Re-run with fresh perspective"
+  - label: "Compound"
+    description: "/writing:compound draft-[ID] (capture patterns)"
 ```
+
+Based on selection:
+- **View full report** → Run `open drafts/[slug]/review-v[N].md` to open in default editor
+- **View diff** → Show side-by-side or unified diff of changes made
+- **Another review pass** → Re-run review agents for fresh perspective
+- **Compound** → Call `/writing:compound draft-[ID]` to capture winning patterns
+- **Other** (automatically provided) → Accept free text for custom action
 
 ---
 

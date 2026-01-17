@@ -372,19 +372,29 @@ Options:
 5. **None** - Try different angles
 ```
 
-After selection:
+After selection, **MANDATORY: Use the AskUserQuestion tool here. Do NOT output options as plain text.**
 
+```yaml
+tool: AskUserQuestion
+question: "What next with [selected draft]?"
+header: "Next"
+options:
+  - label: "Open draft"
+    description: "View the draft in editor for review"
+  - label: "Run editorial review"
+    description: "/writing:review [draft-ID]"
+  - label: "Quick feedback"
+    description: "Mark what works/doesn't"
+  - label: "Refine this draft"
+    description: "Make specific improvements"
 ```
-Use AskUserQuestion:
 
-Question: "What next with [selected draft]?"
-
-Options:
-1. **Run editorial review** - `/writing:review [draft-ID]`
-2. **Quick feedback** - Mark what works/doesn't
-3. **Refine this draft** - Make specific improvements
-4. **Generate more variations** - Create 3 more options
-```
+Based on selection:
+- **Open draft** → Run `open drafts/[slug]/draft-v[N].md` to open in default editor
+- **Run editorial review** → Call `/writing:review [draft-ID]`
+- **Quick feedback** → Call `/writing:feedback [draft-ID]` with user's note
+- **Refine this draft** → Ask what to improve, then iterate on the draft
+- **Other** (automatically provided) → Accept free text for custom action
 
 ---
 

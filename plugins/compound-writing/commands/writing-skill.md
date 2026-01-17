@@ -486,18 +486,29 @@ Co-Authored-By: Claude <noreply@anthropic.com>"
 
 ## Step 9: Post-Creation Options (BRAINSTORM)
 
-```
-Use AskUserQuestion:
+**MANDATORY: Use the AskUserQuestion tool here. Do NOT output options as plain text.**
 
-Question: "Skill '[name]' created and committed. What next?"
-
-Options:
-1. **View skill** - Open the SKILL.md file
-2. **Test it** - Run /writing:plan with this voice
-3. **Refine** - Edit or expand the skill
-4. **Create another** - Make another skill
-5. **Done** - Finished for now
+```yaml
+tool: AskUserQuestion
+question: "Skill '[name]' created and committed. What next?"
+header: "Next"
+options:
+  - label: "View skill"
+    description: "Open the SKILL.md file in editor"
+  - label: "Test it"
+    description: "Run /writing:plan with this voice"
+  - label: "Refine"
+    description: "Edit or expand the skill"
+  - label: "Create another"
+    description: "Make another skill"
 ```
+
+Based on selection:
+- **View skill** → Run `open skills/[type]/[name]/SKILL.md` to open in default editor
+- **Test it** → Ask for a topic, then call `/writing:plan` with the new voice selected
+- **Refine** → Ask what to improve, then edit the skill file
+- **Create another** → Loop back to Step 1 for a new skill
+- **Other** (automatically provided) → Accept free text for custom action
 
 ---
 
