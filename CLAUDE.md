@@ -273,7 +273,7 @@ python -m http.server 8000
 3. Test agents and commands:
    ```bash
    claude /review
-   claude agent senior-rails-reviewer "test message"
+   claude agent architecture-strategist "test message"
    ```
 
 ### Validate JSON

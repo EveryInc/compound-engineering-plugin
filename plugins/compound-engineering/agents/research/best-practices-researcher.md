@@ -21,7 +21,6 @@ Before going online, check if curated knowledge already exists in skills:
 
 2. **Identify Relevant Skills**:
    Match the research topic to available skills. Common mappings:
-   - Ruby → `andrew-kane-gem-writer`, `dspy-ruby`
    - Frontend/Design → `frontend-design`
    - TypeScript/React → `react-best-practices`
    - AI/Agents → `agent-native-architecture`, `create-agent-skills`
