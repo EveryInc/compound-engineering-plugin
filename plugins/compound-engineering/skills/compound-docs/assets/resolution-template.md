@@ -1,13 +1,13 @@
 ---
-module: [Module name or "CORA" for system-wide]
+module: [Module name or "System" for system-wide]
 date: [YYYY-MM-DD]
 problem_type: [build_error|test_failure|runtime_error|performance_issue|database_issue|security_issue|ui_bug|integration_issue|logic_error]
-component: [rails_model|rails_controller|rails_view|service_object|background_job|database|frontend_stimulus|hotwire_turbo|email_processing|brief_system|assistant|authentication|payments]
+component: [model|controller|view|service|hook|component|background_job|database|state_management|api_client|data_processing|ai_assistant|authentication|payments]
 symptoms:
   - [Observable symptom 1 - specific error message or behavior]
   - [Observable symptom 2 - what user actually saw/experienced]
-root_cause: [missing_association|missing_include|missing_index|wrong_api|scope_issue|thread_violation|async_timing|memory_leak|config_error|logic_error|test_isolation|missing_validation|missing_permission]
-rails_version: [7.1.2 - optional]
+root_cause: [missing_dependency|incorrect_import|type_mismatch|missing_query_optimization|wrong_api_usage|scope_issue|race_condition|async_timing|memory_leak|config_error|logic_error|test_isolation|missing_validation|missing_permission]
+framework_version: [e.g., "React 18.2" - optional]
 resolution_type: [code_fix|migration|config_change|test_fix|dependency_update|environment_setup]
 severity: [critical|high|medium|low]
 tags: [keyword1, keyword2, keyword3]
@@ -19,9 +19,9 @@ tags: [keyword1, keyword2, keyword3]
 [1-2 sentence clear description of the issue and what the user experienced]
 
 ## Environment
-- Module: [Name or "CORA system"]
-- Rails Version: [e.g., 7.1.2]
-- Affected Component: [e.g., "Email Processing model", "Brief System service", "Authentication controller"]
+- Module: [Name or "System-wide"]
+- Framework: [e.g., "React 18.2", "Next.js 14.0", "Python 3.11"]
+- Affected Component: [e.g., "User service", "Dashboard component", "API controller"]
 - Date: [YYYY-MM-DD when this was solved]
 
 ## Symptoms
@@ -47,17 +47,17 @@ tags: [keyword1, keyword2, keyword3]
 [The actual fix that worked - provide specific details]
 
 **Code changes** (if applicable):
-```ruby
-# Before (broken):
+```typescript
+// Before (broken):
 [Show the problematic code]
 
-# After (fixed):
+// After (fixed):
 [Show the corrected code with explanation]
 ```
 
 **Database migration** (if applicable):
-```ruby
-# Migration change:
+```sql
+-- Migration change:
 [Show what was changed in the migration]
 ```
 
@@ -72,13 +72,13 @@ tags: [keyword1, keyword2, keyword3]
 [Technical explanation of:]
 1. What was the ROOT CAUSE of the problem?
 2. Why does the solution address this root cause?
-3. What was the underlying issue (API misuse, configuration error, Rails version issue, etc.)?
+3. What was the underlying issue (API misuse, configuration error, version issue, etc.)?
 
 [Be detailed enough that future developers understand the "why", not just the "what"]
 
 ## Prevention
 
-[How to avoid this problem in future CORA development:]
+[How to avoid this problem in future development:]
 - [Specific coding practice, check, or pattern to follow]
 - [What to watch out for]
 - [How to catch this early]

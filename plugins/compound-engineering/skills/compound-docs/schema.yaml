@@ -1,15 +1,15 @@
-# CORA Documentation Schema
+# Documentation Schema
 # This schema MUST be validated before writing any documentation file
 
 required_fields:
   module:
     type: string
-    description: "Module/area of CORA (e.g., 'Email Processing', 'Brief System', 'Authentication')"
+    description: "Module/area of the application (e.g., 'User Authentication', 'API Gateway', 'Data Processing')"
     examples:
-      - "Email Processing"
-      - "Brief System"
-      - "Assistant"
-      - "Authentication"
+      - "User Authentication"
+      - "API Gateway"
+      - "Data Processing"
+      - "Dashboard"
 
   date:
     type: string
@@ -19,13 +19,13 @@ required_fields:
   problem_type:
     type: enum
     values:
-      - build_error          # Rails, bundle, compilation errors
+      - build_error          # Compilation, bundling, build process errors
       - test_failure         # Test failures, flaky tests
       - runtime_error        # Exceptions, crashes during execution
       - performance_issue    # Slow queries, memory issues, N+1 queries
       - database_issue       # Migration, query, schema problems
       - security_issue       # Authentication, authorization, XSS, SQL injection
-      - ui_bug               # Frontend, Stimulus, Turbo issues
+      - ui_bug               # Frontend, component, styling issues
       - integration_issue    # External service, API integration problems
       - logic_error          # Business logic bugs
       - developer_experience # DX issues: workflow, tooling, seed data, dev setup
@@ -37,24 +37,27 @@ required_fields:
   component:
     type: enum
     values:
-      - rails_model          # ActiveRecord models
-      - rails_controller     # ActionController
-      - rails_view           # ERB templates, ViewComponent
-      - service_object       # Custom service classes
-      - background_job       # Sidekiq, Active Job
+      - model                # Data models, ORM entities
+      - controller           # Request handlers, API controllers
+      - view                 # Templates, UI components, pages
+      - service              # Service classes, business logic
+      - hook                 # React hooks, lifecycle methods
+      - component            # UI components (React, Vue, Swift, etc.)
+      - background_job       # Async workers, queue processors
       - database             # PostgreSQL, migrations, schema
-      - frontend_stimulus    # Stimulus JS controllers
-      - hotwire_turbo        # Turbo Streams, Turbo Drive
-      - email_processing     # Email handling, mailers
-      - brief_system         # Brief generation, summarization
-      - assistant            # AI assistant, prompts
-      - authentication       # Devise, user auth
-      - payments             # Stripe, billing
-      - development_workflow # Dev process, seed data, tooling
-      - testing_framework    # Test setup, fixtures, VCR
+      - state_management     # Redux, Context, MobX, state stores
+      - api_client           # HTTP clients, SDK integrations
+      - data_processing      # Data pipelines, transformations
+      - ai_assistant         # AI features, prompts, LLM integration
+      - authentication       # Auth providers, session management
+      - payments             # Stripe, billing, subscriptions
+      - development_workflow # Dev process, tooling
+      - testing_framework    # Test setup, fixtures, mocks
       - documentation        # README, guides, inline docs
       - tooling              # Scripts, generators, CLI tools
-    description: "CORA component involved"
+      - mobile_native        # iOS/Android native code
+      - navigation           # Routing, navigation flows
+    description: "Application component involved"
 
   symptoms:
     type: array[string]
@@ -62,30 +65,33 @@ required_fields:
     max_items: 5
     description: "Observable symptoms (error messages, visual issues, crashes)"
     examples:
-      - "N+1 query detected in brief generation"
-      - "Brief emails not appearing in summary"
-      - "Turbo Stream response returns 404"
+      - "API response taking >5 seconds"
+      - "Component not re-rendering on state change"
+      - "Build failing with type error"
 
   root_cause:
     type: enum
     values:
-      - missing_association  # Incorrect Rails associations
-      - missing_include      # Missing eager loading (N+1)
-      - missing_index        # Database performance issue
-      - wrong_api            # Using deprecated/incorrect Rails API
-      - scope_issue          # Incorrect query scope or filtering
-      - thread_violation     # Real-time unsafe operation
-      - async_timing         # Async/background job timing
+      - missing_dependency   # Missing import, package, or module
+      - incorrect_import     # Wrong import path or module
+      - type_mismatch        # Type errors, incorrect types
+      - missing_query_optimization  # N+1, missing indexes, unoptimized queries
+      - wrong_api_usage      # Using deprecated/incorrect API
+      - scope_issue          # Incorrect variable scope or closure
+      - race_condition       # Timing issues, concurrent access
+      - async_timing         # Async/await, promise timing issues
       - memory_leak          # Memory leak or excessive allocation
       - config_error         # Configuration or environment issue
       - logic_error          # Algorithm/business logic bug
-      - test_isolation       # Test isolation or fixture issue
-      - missing_validation   # Missing model validation
+      - test_isolation       # Test isolation or mock issue
+      - missing_validation   # Missing input validation
       - missing_permission   # Authorization check missing
       - missing_workflow_step # Skipped or undocumented workflow step
       - inadequate_documentation # Missing or unclear documentation
       - missing_tooling      # Lacking helper scripts or automation
       - incomplete_setup     # Missing seed data, fixtures, or config
+      - state_management     # State not updating correctly
+      - render_issue         # Component rendering incorrectly
     description: "Fundamental cause of the problem"
 
   resolution_type:
@@ -95,12 +101,14 @@ required_fields:
       - migration            # Fixed by database migration
       - config_change        # Fixed by changing configuration
       - test_fix             # Fixed by correcting tests
-      - dependency_update    # Fixed by updating gem/dependency
+      - dependency_update    # Fixed by updating package/dependency
       - environment_setup    # Fixed by environment configuration
       - workflow_improvement # Improved development workflow or process
       - documentation_update # Added or updated documentation
       - tooling_addition     # Added helper script or automation
-      - seed_data_update     # Updated db/seeds.rb or fixtures
+      - seed_data_update     # Updated seed data or fixtures
+      - type_fix             # Fixed type definitions
+      - refactor             # Restructured code to fix issue
     description: "Type of fix applied"
 
   severity:
@@ -113,10 +121,10 @@ required_fields:
     description: "Impact severity"
 
 optional_fields:
-  rails_version:
+  framework_version:
     type: string
-    pattern: '^\d+\.\d+\.\d+$'
-    description: "Rails version where this was encountered (e.g., '7.1.0')"
+    pattern: '^\d+\.\d+(\.\d+)?$'
+    description: "Framework version where this was encountered (e.g., 'React 18.2', 'Next.js 14.0')"
 
   related_components:
     type: array[string]
@@ -127,13 +135,13 @@ optional_fields:
     max_items: 8
     description: "Searchable keywords (lowercase, hyphen-separated)"
     examples:
-      - "n-plus-one"
-      - "eager-loading"
-      - "test-isolation"
-      - "turbo-stream"
+      - "react-query"
+      - "typescript"
+      - "async-await"
+      - "state-management"
 
 validation_rules:
-  - "module must be a valid CORA module name"
+  - "module must be a valid application module name"
   - "date must be in YYYY-MM-DD format"
   - "problem_type must match one of the enum values"
   - "component must match one of the enum values"
@@ -145,18 +153,18 @@ validation_rules:
 
 # Example valid front matter:
 # ---
-# module: Email Processing
+# module: Data Processing
 # date: 2025-11-12
 # problem_type: performance_issue
-# component: rails_model
+# component: service
 # symptoms:
-#   - N+1 query when loading email threads
-#   - Brief generation taking >5 seconds
-# root_cause: missing_include
-# rails_version: 7.1.2
+#   - "API response taking >5 seconds"
+#   - "Dashboard loading slowly"
+# root_cause: missing_query_optimization
+# framework_version: "Next.js 14.0"
 # resolution_type: code_fix
 # severity: high
-# tags: [n-plus-one, eager-loading, performance]
+# tags: [performance, react-query, caching]
 # ---
 #
 # Example DX issue front matter:
@@ -166,10 +174,9 @@ validation_rules:
 # problem_type: developer_experience
 # component: development_workflow
 # symptoms:
-#   - No example data for new feature in development
-#   - Rails db:seed doesn't demonstrate new capabilities
+#   - "No example data for new feature in development"
+#   - "Seed script doesn't demonstrate new capabilities"
 # root_cause: incomplete_setup
-# rails_version: 7.1.2
 # resolution_type: seed_data_update
 # severity: low
 # tags: [seed-data, dx, workflow]

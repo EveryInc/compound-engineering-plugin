@@ -61,7 +61,7 @@ Extract from conversation history:
 
 **Required information:**
 
-- **Module name**: Which CORA module had the problem
+- **Module name**: Which application module had the problem
 - **Symptom**: Observable error/behavior (exact error messages)
 - **Investigation attempts**: What didn't work and why
 - **Root cause**: Technical explanation of actual problem
@@ -70,8 +70,8 @@ Extract from conversation history:
 
 **Environment details:**
 
-- Rails version
-- Stage (0-6 or post-implementation)
+- Framework version (React, Next.js, Python, etc.)
+- Environment (development, staging, production)
 - OS version
 - File/line references
 
@@ -82,7 +82,7 @@ I need a few details to document this properly:
 
 1. Which module had this issue? [ModuleName]
 2. What was the exact error message or symptom?
-3. What stage were you in? (0-6 or post-implementation)
+3. What environment were you in? (development, staging, production)
 
 [Continue after user provides details]
 ```
@@ -137,7 +137,7 @@ Format: `[sanitized-symptom]-[module]-[YYYYMMDD].md`
 
 **Examples:**
 
-- `missing-include-BriefSystem-20251110.md`
+- `missing-dependency-UserService-20251110.md`
 - `parameter-not-saving-state-EmailProcessing-20251110.md`
 - `webview-crash-on-resize-Assistant-20251110.md`
 </step>
@@ -237,7 +237,7 @@ EOF
 
 If this issue has automatic indicators suggesting it might be critical:
 - Severity: `critical` in YAML
-- Affects multiple modules OR foundational stage (Stage 2 or 3)
+- Affects multiple modules OR foundational components
 - Non-obvious solution
 
 Then in the decision menu (Step 8), add a note:
@@ -249,7 +249,7 @@ But **NEVER auto-promote**. User decides via decision menu (Option 2).
 
 **Template for critical pattern addition:**
 
-When user selects Option 2 (Add to Required Reading), use the template from `assets/critical-pattern-template.md` to structure the pattern entry. Number it sequentially based on existing patterns in `docs/solutions/patterns/cora-critical-patterns.md`.
+When user selects Option 2 (Add to Required Reading), use the template from `assets/critical-pattern-template.md` to structure the pattern entry. Number it sequentially based on existing patterns in `docs/solutions/patterns/critical-patterns.md`.
 </step>
 
 </critical_sequence>
@@ -270,9 +270,9 @@ File created:
 
 What's next?
 1. Continue workflow (recommended)
-2. Add to Required Reading - Promote to critical patterns (cora-critical-patterns.md)
+2. Add to Required Reading - Promote to critical patterns (critical-patterns.md)
 3. Link related issues - Connect to similar problems
-4. Add to existing skill - Add to a learning skill (e.g., hotwire-native)
+4. Add to existing skill - Add to a learning skill
 5. Create new skill - Extract into new learning skill
 6. View documentation - See what was captured
 7. Other
@@ -290,12 +290,12 @@ What's next?
 User selects this when:
 - System made this mistake multiple times across different modules
 - Solution is non-obvious but must be followed every time
-- Foundational requirement (Rails, Rails API, threading, etc.)
+- Foundational requirement (core framework, API, threading, etc.)
 
 Action:
 1. Extract pattern from the documentation
 2. Format as ❌ WRONG vs ✅ CORRECT with code examples
-3. Add to `docs/solutions/patterns/cora-critical-patterns.md`
+3. Add to `docs/solutions/patterns/critical-patterns.md`
 4. Add cross-reference back to this doc
 5. Confirm: "✓ Added to Required Reading. All subagents will see this pattern before code generation."
 
@@ -311,14 +311,14 @@ Action:
 User selects this when the documented solution relates to an existing learning skill:
 
 Action:
-1. Prompt: "Which skill? (hotwire-native, etc.)"
+1. Prompt: "Which skill? (e.g., react-patterns, api-design)"
 2. Determine which reference file to update (resources.md, patterns.md, or examples.md)
 3. Add link and brief description to appropriate section
 4. Confirm: "✓ Added to [skill-name] skill in [file]"
 
-Example: For Hotwire Native Tailwind variants solution:
-- Add to `hotwire-native/references/resources.md` under "CORA-Specific Resources"
-- Add to `hotwire-native/references/examples.md` with link to solution doc
+Example: For a React Query caching solution:
+- Add to relevant skill's `references/resources.md`
+- Add to skill's `references/examples.md` with link to solution doc
 
 **Option 5: Create new skill**
 
@@ -397,11 +397,11 @@ Documentation is successful when ALL of the following are true:
 - Present multiple matches
 - Let user choose: new doc, update existing, or link as duplicate
 
-**Module not in CORA-MODULES.md:**
+**Module not recognized:**
 
 - Warn but don't block
 - Proceed with documentation
-- Suggest: "Add [Module] to CORA-MODULES.md if not there"
+- Suggest adding the module to project documentation if needed
 
 ---
 
@@ -447,35 +447,35 @@ Documentation is successful when ALL of the following are true:
 
 ## Example Scenario
 
-**User:** "That worked! The N+1 query is fixed."
+**User:** "That worked! The slow API is fixed."
 
 **Skill activates:**
 
 1. **Detect confirmation:** "That worked!" triggers auto-invoke
 2. **Gather context:**
-   - Module: Brief System
-   - Symptom: Brief generation taking >5 seconds, N+1 query when loading email threads
+   - Module: Data Processing
+   - Symptom: API response taking >5 seconds, dashboard loading slowly
    - Failed attempts: Added pagination (didn't help), checked background job performance
-   - Solution: Added eager loading with `includes(:emails)` on Brief model
-   - Root cause: Missing eager loading causing separate database query per email thread
+   - Solution: Added query caching with React Query and optimized database indexes
+   - Root cause: Missing caching and unoptimized queries
 3. **Check existing:** No similar issue found
-4. **Generate filename:** `n-plus-one-brief-generation-BriefSystem-20251110.md`
+4. **Generate filename:** `slow-api-response-DataProcessing-20251110.md`
 5. **Validate YAML:**
    ```yaml
-   module: Brief System
+   module: Data Processing
    date: 2025-11-10
    problem_type: performance_issue
-   component: rails_model
+   component: service
    symptoms:
-     - "N+1 query when loading email threads"
-     - "Brief generation taking >5 seconds"
-   root_cause: missing_include
+     - "API response taking >5 seconds"
+     - "Dashboard loading slowly"
+   root_cause: missing_query_optimization
    severity: high
-   tags: [n-plus-one, eager-loading, performance]
+   tags: [performance, caching, optimization]
    ```
    ✅ Valid
 6. **Create documentation:**
-   - `docs/solutions/performance-issues/n-plus-one-brief-generation-BriefSystem-20251110.md`
+   - `docs/solutions/performance-issues/slow-api-response-DataProcessing-20251110.md`
 7. **Cross-reference:** None needed (no similar issues)
 
 **Output:**
@@ -484,13 +484,13 @@ Documentation is successful when ALL of the following are true:
 ✓ Solution documented
 
 File created:
-- docs/solutions/performance-issues/n-plus-one-brief-generation-BriefSystem-20251110.md
+- docs/solutions/performance-issues/slow-api-response-DataProcessing-20251110.md
 
 What's next?
 1. Continue workflow (recommended)
-2. Add to Required Reading - Promote to critical patterns (cora-critical-patterns.md)
+2. Add to Required Reading - Promote to critical patterns (critical-patterns.md)
 3. Link related issues - Connect to similar problems
-4. Add to existing skill - Add to a learning skill (e.g., hotwire-native)
+4. Add to existing skill - Add to a learning skill
 5. Create new skill - Extract into new learning skill
 6. View documentation - See what was captured
 7. Other
