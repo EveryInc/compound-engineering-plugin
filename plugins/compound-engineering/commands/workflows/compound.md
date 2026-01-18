@@ -59,7 +59,6 @@ This command launches multiple specialized subagents IN PARALLEL to maximize eff
    - Assembles complete markdown file
    - Validates YAML frontmatter
    - Formats content for readability
-   - Creates the file in correct location
 
 ### 7. **Optional: Specialized Agent Invocation** (Post-Documentation)
    Based on problem type detected, automatically invoke applicable agents:

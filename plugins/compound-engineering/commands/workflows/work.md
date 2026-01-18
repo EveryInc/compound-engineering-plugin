@@ -239,13 +239,12 @@ This command takes a work document (plan, specification, or todo file) and execu
 - Don't leave features 80% done
 - A finished feature that ships beats a perfect feature that doesn't
 
-## Before Moving to Review
+## Completion Requirements
 
 - [ ] All TodoWrite tasks marked completed
-- [ ] Tests pass (run project's test command)
-- [ ] Changes pushed to feature branch
+- [ ] Tests pass
+- [ ] Linting passes
 
-Then run `/workflows:review` - it handles quality checks, security, architecture, and creates todos for any issues.
 
 ## Common Pitfalls to Avoid
 
