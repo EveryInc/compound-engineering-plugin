@@ -20,6 +20,17 @@ Think about the places it could go wrong looking at the codebase. Look for loggi
 
 Keep investigating until you have a good idea of what is going on.
 
+## Phase 1.5: Check Past Solutions (Optional)
+
+If the bug symptoms seem familiar, quickly check if a similar issue was solved before:
+
+```bash
+# Search documented solutions by symptom keywords
+grep -ri "[keyword from error message]" docs/solutions/ 2>/dev/null | head -5
+```
+
+If a match is found, read the solution file - it may contain the exact fix or useful context.
+
 ## Phase 2: Visual Reproduction with Playwright
 
 If the bug is UI-related or involves user flows, use Playwright to visually reproduce it:
