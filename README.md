@@ -1,13 +1,13 @@
-# Kohen
+# Coen
 
 A Claude Code plugin that makes each unit of engineering work easier than the last.
 
-> **Attribution:** This is a customized fork of [Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin) by [Every](https://every.to). The name "Kohen" (כהן) is a tribute to the original—"Coen" being shorthand for "compound engineering." All credit for the foundational architecture, philosophy, and original implementation goes to the Every team.
+> **Attribution:** This is a customized fork of [Compound Engineering Plugin](https://github.com/EveryInc/compound-engineering-plugin) by [Every](https://every.to). The name "Coen" is shorthand for "compound engineering." All credit for the foundational architecture, philosophy, and original implementation goes to the Every team.
 
 ## Install
 
 ```bash
-/plugin marketplace add https://github.com/criztiano/kohen-plugin
+/plugin marketplace add https://github.com/criztiano/coen-plugin
 /plugin install compound-engineering
 ```
 
