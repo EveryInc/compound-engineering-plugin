@@ -427,88 +427,124 @@ After fixing each finding:
 mv todos/001-pending-p1-*.md todos/001-complete-p1-*.md
 ```
 
-### 7. End-to-End Testing (Optional)
+### 7. Browser Testing
 
-<detect_project_type>
+<detect_testing_requirement>
 
-**First, detect the project type from PR files:**
+**Analyze PR files to determine testing requirement:**
+
+```bash
+git diff --name-only origin/main...HEAD
+```
+
+**MANDATORY testing (UI-affecting changes):**
+
+| File Patterns | Why |
+|---------------|-----|
+| `components/*`, `*/components/*` | Component changes need visual verification |
+| `*.tsx`, `*.jsx` | React/JSX files affect UI |
+| `pages/*`, `app/*`, `views/*` | Page/route changes |
+| `*.css`, `*.scss`, `styles/*` | Styling changes need visual verification |
+| `layouts/*`, `templates/*` | Layout changes affect multiple pages |
+| `*form*`, `*input*`, `*validation*` | Form handling needs functional testing |
+| `store/*`, `context/*`, `hooks/use*` | State changes can affect UI behavior |
+| `tailwind.config.*`, `theme.*` | Design system changes |
+
+**OPTIONAL testing (offer but don't require):**
+
+| File Patterns | Why |
+|---------------|-----|
+| `api/*`, `services/*`, `lib/*` | Backend changes might affect displayed data |
+| `*.config.*`, `webpack.*`, `vite.*` | Build config might cause regressions |
+| `types/*`, `*.d.ts` | Type changes alone rarely break UI |
+
+**SKIP testing:**
+
+| File Patterns | Why |
+|---------------|-----|
+| `*.md`, `docs/*`, `README*` | Documentation only |
+| `.github/*`, `Dockerfile`, `*.yml` (CI) | CI/CD changes |
+| `*.test.*`, `*.spec.*`, `__tests__/*` | Test files only |
+| `package.json` only (no other changes) | Dependency updates only |
+
+</detect_testing_requirement>
+
+<testing_flow>
+
+**Step 1: Categorize the PR**
+
+```bash
+# Check for UI-affecting files
+git diff --name-only origin/main...HEAD | grep -E '\.(tsx|jsx|css|scss)$|components/|pages/|app/|views/|layouts/|styles/' | head -5
+```
+
+If matches found → **MANDATORY**
+If no matches, check for optional patterns → **OPTIONAL**
+If only docs/CI/tests → **SKIP**
+
+**Step 2: Detect project type**
 
 | Indicator | Project Type |
 |-----------|--------------|
-| `*.xcodeproj`, `*.xcworkspace`, `Package.swift` (iOS) | iOS/macOS |
+| `*.xcodeproj`, `*.xcworkspace`, `Package.swift` | iOS/macOS |
 | `package.json`, `tsconfig.json`, `*.tsx`, `*.jsx` | Web |
-| Both iOS files AND web files | Hybrid (test both) |
+| Both iOS AND web files | Hybrid |
 
-</detect_project_type>
+**Step 3: Execute based on requirement**
 
-<offer_testing>
+</testing_flow>
 
-After presenting the Summary Report, offer appropriate testing based on project type:
+#### If MANDATORY (UI changes detected):
 
-**For Web Projects:**
+Inform the user and run browser tests automatically:
+
 ```markdown
-**"Want to run browser tests on the affected pages?"**
+**🔍 UI changes detected - running browser tests**
+
+Files affecting UI:
+- src/components/Button.tsx
+- src/pages/dashboard.tsx
+- styles/main.css
+
+Running `/test-browser`...
+```
+
+Spawn subagent:
+```
+Task general-purpose("Run /test-browser for PR #[number]. This is MANDATORY - UI files were changed. Test all affected pages, check for console errors, create P1 todos for failures and fix them before proceeding.")
+```
+
+**Do NOT proceed to Step 8 (PR creation) until browser tests pass.**
+
+#### If OPTIONAL (config/API changes only):
+
+Offer testing to the user:
+
+```markdown
+**"No direct UI changes, but API/config files were modified. Run browser tests to verify no regressions?"**
 1. Yes - run `/test-browser`
-2. No - skip
+2. No - skip to PR creation
 ```
 
-**For iOS Projects:**
+#### If SKIP (docs/CI/tests only):
+
 ```markdown
-**"Want to run Xcode simulator tests on the app?"**
-1. Yes - run `/xcode-test`
-2. No - skip
+**ℹ️ No UI-affecting changes detected. Skipping browser tests.**
 ```
 
-**For Hybrid Projects (e.g., React Native + Web):**
-```markdown
-**"Want to run end-to-end tests?"**
-1. Web only - run `/test-browser`
-2. iOS only - run `/xcode-test`
-3. Both - run both commands
-4. No - skip
-```
+Proceed directly to Step 8.
 
-</offer_testing>
+#### iOS Testing (when applicable):
 
-#### If User Accepts Web Testing:
-
-Spawn a subagent to run browser tests (preserves main context):
-
-```
-Task general-purpose("Run /test-browser for PR #[number]. Test all affected pages, check for console errors, handle failures by creating todos and fixing.")
-```
-
-The subagent will:
-1. Identify pages affected by the PR
-2. Navigate to each page and capture snapshots (using Playwright MCP or agent-browser CLI)
-3. Check for console errors
-4. Test critical interactions
-5. Pause for human verification on OAuth/email/payment flows
-6. Create P1 todos for any failures
-7. Fix and retry until all tests pass
-
-**Standalone:** `/test-browser [PR number]`
-
-#### If User Accepts iOS Testing:
-
-Spawn a subagent to run Xcode tests (preserves main context):
+For iOS/macOS or Hybrid projects with UI changes:
 
 ```
 Task general-purpose("Run /xcode-test for scheme [name]. Build for simulator, install, launch, take screenshots, check for crashes.")
 ```
 
-The subagent will:
-1. Verify XcodeBuildMCP is installed
-2. Discover project and schemes
-3. Build for iOS Simulator
-4. Install and launch app
-5. Take screenshots of key screens
-6. Capture console logs for errors
-7. Pause for human verification (Sign in with Apple, push, IAP)
-8. Create P1 todos for any failures
-9. Fix and retry until all tests pass
-
-**Standalone:** `/xcode-test [scheme]`
+**Standalone commands:**
+- `/test-browser [PR number]` - Web testing
+- `/xcode-test [scheme]` - iOS testing
 
 ### 8. Commit, Push, and Create PR
 
