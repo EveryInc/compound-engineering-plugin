@@ -1,7 +1,7 @@
 {
   "name": "compound-engineering",
-  "version": "2.26.4",
-  "description": "AI-powered development tools. 23 agents, 22 commands, 11 skills, 1 MCP server for code review, research, design, and workflow automation.",
+  "version": "2.26.5",
+  "description": "AI-powered development tools. 27 agents, 21 commands, 14 skills, 1 MCP server for code review, research, design, and workflow automation.",
   "author": {
     "name": "Cristiano",
     "url": "https://github.com/criztiano"

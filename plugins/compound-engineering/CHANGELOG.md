@@ -5,6 +5,17 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.26.5] - 2026-01-18
+
+### Changed
+
+- **`/workflows:work` command** - Now marks off checkboxes in plan document as tasks complete
+  - Added step to update original plan file (`[ ]` → `[x]`) after each task
+  - Ensures no checkboxes are left unchecked when work is done
+  - Keeps plan as living document showing progress
+
+---
+
 ## [2.26.4] - 2026-01-15
 
 ### Changed
