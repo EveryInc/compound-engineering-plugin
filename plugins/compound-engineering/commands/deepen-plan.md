@@ -8,7 +8,7 @@ argument-hint: "[path to plan file]"
 
 ## Introduction
 
-**Note: The current year is 2025.** Use this when searching for recent documentation and best practices.
+**Note: The current year is 2026.** Use this when searching for recent documentation and best practices.
 
 This command takes an existing plan (from `/workflows:plan`) and enhances each section with parallel research agents. Each major element gets its own dedicated research sub-agent to find:
 - Best practices and industry patterns
