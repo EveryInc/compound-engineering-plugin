@@ -9,6 +9,12 @@ allowed-tools:
 preconditions:
   - Problem has been solved (not in-progress)
   - Solution has been verified working
+hooks:
+  PreToolUse:
+    - matcher: "Write"
+      hooks:
+        - type: command
+          command: "./plugins/compound-engineering/scripts/validate-yaml-frontmatter.sh"
 ---
 
 # compound-docs Skill
