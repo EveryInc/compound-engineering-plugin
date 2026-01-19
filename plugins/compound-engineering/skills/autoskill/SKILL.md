@@ -9,31 +9,36 @@ A meta-learning mechanism that analyzes coding sessions to extract durable prefe
 
 ## Activation Triggers
 
-This skill activates when users explicitly request it:
-- "learn from this session"
-- "update skills from these corrections"
-- "remember this pattern"
-- "autoskill"
+This skill activates when:
+- User explicitly requests: "learn from this session", "update skills", "remember this pattern", "autoskill"
 - After `/workflows:compound` documents a solution
+- **A skill was used but didn't produce ideal results** - user had to make corrections or adjustments that better skill documentation could have prevented
 
-**Does NOT activate for:** One-off corrections or declined modifications.
+**Does NOT activate for:** One-off corrections, declined modifications, or general best practices already well-known.
 
 ## Signal Detection
 
-Scan the conversation for three signal types:
+Scan the conversation for four signal types:
 
-### 1. Corrections (Highest Value)
+### 1. Skill Usage Gaps (Highest Value)
+A skill was invoked but needed adjustments:
+- Output required manual corrections
+- User refined or adjusted skill-generated content
+- Better skill documentation would have produced correct output first try
+- Example: "Actually, that should have been X format, not Y"
+
+### 2. Corrections (High Value)
 Direct contradictions like:
 - "use X instead of Y"
 - "don't do X, do Y"
 - "that's wrong, it should be..."
 
-### 2. Repeated Patterns (High Value)
+### 3. Repeated Patterns (High Value)
 Feedback given multiple times across files:
 - Same correction applied to different files
 - Consistent preference expressed repeatedly
 
-### 3. Approvals (Supporting Evidence)
+### 4. Approvals (Supporting Evidence)
 Confirmations that reinforce approaches:
 - "yes, that's right"
 - "exactly like that"
@@ -91,11 +96,14 @@ For each qualified signal, identify which skill it relates to:
 
 | Signal Type | Likely Skill |
 |-------------|--------------|
+| Skill usage gap | The skill that was invoked and needed adjustment |
 | Code style preference | `frontend-design`, language-specific skills |
 | Architecture pattern | `agent-native-architecture` |
 | Documentation format | `compound-docs` |
 | Component structure | `frontend-design` |
 | Testing approach | testing-related skills |
+
+**For skill usage gaps:** Always target the specific skill that was used. The fix should prevent the same adjustment from being needed in future sessions.
 
 ### Step 4: Propose Changes
 
