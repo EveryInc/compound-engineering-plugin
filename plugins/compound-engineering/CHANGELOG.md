@@ -1,216 +1,216 @@
-# Changelog
+# 変更履歴
 
-All notable changes to the compound-engineering plugin will be documented in this file.
+compound-engineeringプラグインのすべての重要な変更は、このファイルに記録されます。
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+この形式は[Keep a Changelog](https://keepachangelog.com/en/1.0.0/)に基づいており、
+このプロジェクトは[セマンティックバージョニング](https://semver.org/spec/v2.0.0.html)に準拠しています。
 
 ## [2.24.0] - 2026-01-13
 
-### Added
+### 追加
 
-- **`agent-browser` skill** - Comprehensive documentation for Vercel's agent-browser CLI. Automate browser interactions for web testing, form filling, screenshots, and data extraction. Features:
-  - Fast Rust CLI with Node.js fallback
-  - Element references (`@e1`, `@e2`) for precise interactions
-  - Session state persistence for authentication
-  - Parallel browser sessions
-  - Semantic locators (find by role, text, label)
+- **`agent-browser` スキル** - VercelのagentブラウザCLIの包括的なドキュメント。Webテスト、フォーム入力、スクリーンショット、データ抽出のためのブラウザ操作を自動化。機能：
+  - Node.jsフォールバック付きの高速RustCLI
+  - 正確な操作のための要素参照（`@e1`、`@e2`）
+  - 認証のためのセッション状態永続化
+  - 並列ブラウザセッション
+  - セマンティックロケーター（役割、テキスト、ラベルで検索）
 
-### Changed
+### 変更
 
-- **`/browser-test` command** (formerly `/playwright-test`) - Renamed and migrated from Playwright MCP to agent-browser CLI. The command now uses `agent-browser` commands via Bash for browser automation:
-  - `agent-browser open <url>` for navigation
-  - `agent-browser snapshot -i` for page state capture
-  - `agent-browser console` for error checking
-  - `agent-browser click @ref` for interactions
+- **`/browser-test` コマンド**（旧`/playwright-test`）- Playwright MCPからagent-browser CLIに名前変更および移行。コマンドは現在、ブラウザ自動化のためにBash経由で`agent-browser`コマンドを使用：
+  - ナビゲーションのための`agent-browser open <url>`
+  - ページ状態キャプチャのための`agent-browser snapshot -i`
+  - エラーチェックのための`agent-browser console`
+  - 操作のための`agent-browser click @ref`
 
-### Removed
+### 削除
 
-- **Playwright MCP server** - Removed `@playwright/mcp` dependency. Browser automation now handled by agent-browser CLI (installed via npx).
+- **Playwright MCPサーバー** - `@playwright/mcp`依存関係を削除。ブラウザ自動化は現在、agent-browser CLI（npx経由でインストール）によって処理されます。
 
 ---
 
 ## [2.23.0] - 2026-01-08
 
-### Added
+### 追加
 
-- **`kieran-code-quality` skill** - Extracted common code quality principles from all Kieran reviewers. This skill provides the foundation that language-specific reviewers build upon:
-  - Duplication > Complexity philosophy
-  - Strict on existing code, pragmatic on new code
-  - Testing as quality indicator
-  - 5-second naming rule
-  - Module extraction signals
+- **`kieran-code-quality` スキル** - すべてのKieranレビュアーから共通のコード品質原則を抽出。このスキルは、言語固有のレビュアーが構築する基盤を提供：
+  - 重複 > 複雑さの哲学
+  - 既存コードには厳格に、新しいコードには実用的に
+  - 品質指標としてのテスト
+  - 5秒命名ルール
+  - モジュール抽出シグナル
 
-### Changed
+### 変更
 
-- **Kieran reviewers refactored** - All three language-specific reviewers now reference the `kieran-code-quality` skill:
-  - `kieran-rails-reviewer` - Now focused on Rails-specific conventions (Turbo Streams, namespacing, service extraction)
-  - `kieran-python-reviewer` - Now focused on Python-specific patterns (type hints, PEP 8, modern Python features)
-  - `kieran-typescript-reviewer` - Now focused on TypeScript-specific rules (type safety, React patterns, ES6+)
+- **Kieranレビュアーのリファクタリング** - 3つの言語固有のレビュアーすべてが`kieran-code-quality`スキルを参照するようになりました：
+  - `kieran-rails-reviewer` - Rails固有の規約に焦点（Turbo Streams、名前空間、サービス抽出）
+  - `kieran-python-reviewer` - Python固有のパターンに焦点（型ヒント、PEP 8、最新のPython機能）
+  - `kieran-typescript-reviewer` - TypeScript固有のルールに焦点（型安全性、Reactパターン、ES6+）
 
-  This reduces duplication and ensures consistency across all Kieran reviewers.
+  これにより、重複が削減され、すべてのKieranレビュアー間で一貫性が確保されます。
 
 ---
 
 ## [2.22.0] - 2026-01-07
 
-### Removed
+### 削除
 
-- **`dhh-rails-style` skill** - Consolidated into `dhh-ruby-style`. The two skills had identical descriptions and overlapping content. All references from `dhh-rails-style` (controllers.md, models.md, frontend.md, architecture.md, gems.md) have been merged into `dhh-ruby-style`.
-- **`every-style-editor` agent** - Removed duplicate agent. The `every-style-editor` skill provides the same functionality with better reference documentation.
+- **`dhh-rails-style` スキル** - `dhh-ruby-style`に統合。2つのスキルは同一の説明と重複するコンテンツを持っていました。`dhh-rails-style`からのすべての参照（controllers.md、models.md、frontend.md、architecture.md、gems.md）は`dhh-ruby-style`にマージされました。
+- **`every-style-editor` エージェント** - 重複エージェントを削除。`every-style-editor`スキルが、より良い参照ドキュメントで同じ機能を提供します。
 
-### Changed
+### 変更
 
-- **`dhh-ruby-style` skill** - Now includes comprehensive references from the removed `dhh-rails-style`:
-  - controllers.md - REST mapping, concerns, Turbo responses, API patterns
-  - models.md - Concerns, state records, callbacks, scopes, POROs
-  - frontend.md - Turbo, Stimulus, CSS architecture, view patterns
-  - architecture.md - Routing, auth, jobs, caching, multi-tenancy, config
-  - gems.md - What they use vs avoid, and why
+- **`dhh-ruby-style` スキル** - 削除された`dhh-rails-style`からの包括的な参照を含むようになりました：
+  - controllers.md - RESTマッピング、コンサーン、Turboレスポンス、APIパターン
+  - models.md - コンサーン、ステートレコード、コールバック、スコープ、PORO
+  - frontend.md - Turbo、Stimulus、CSSアーキテクチャ、ビューパターン
+  - architecture.md - ルーティング、認証、ジョブ、キャッシング、マルチテナンシー、設定
+  - gems.md - 使用するものと避けるもの、その理由
 
 ---
 
 ## [2.21.0] - 2026-01-05
 
-### Removed
+### 削除
 
-- **`/xcode-test` command** - Removed iOS simulator testing command
-- **`mobile-patterns.md` reference** - Removed iOS/Swift mobile patterns from agent-native-architecture skill
+- **`/xcode-test` コマンド** - iOSシミュレーターテストコマンドを削除
+- **`mobile-patterns.md` リファレンス** - agent-native-architectureスキルからiOS/Swiftモバイルパターンを削除
 
-This release removes all iOS-specific implementations to focus on web development workflows.
+このリリースでは、Web開発ワークフローに焦点を当てるため、すべてのiOS固有の実装を削除しました。
 
 ---
 
 ## [2.20.0] - 2026-01-01
 
-### Changed
+### 変更
 
-- **`create-agent-skills` skill** - Complete rewrite to match Anthropic's official skill specification:
-  - **Format change**: Skills now use standard markdown headings (`## Quick Start`, `## Instructions`), NOT XML tags. The previous version incorrectly recommended XML tags which is not the official format.
-  - **Naming convention**: Updated to use gerund form (`creating-agent-skills`, `processing-pdfs`) per official spec
-  - **Description format**: Must be third person, include both what and when to use
-  - Added `references/official-spec.md` - Anthropic's official skill specification from code.claude.com/docs/en/skills
-  - Added `references/best-practices.md` - Skill authoring best practices from platform.claude.com
-  - Removed obsolete `references/use-xml-tags.md` - this was incorrect guidance
+- **`create-agent-skills` スキル** - Anthropicの公式スキル仕様に合わせて完全書き直し：
+  - **形式変更**: スキルは現在、標準のマークダウン見出し（`## Quick Start`、`## Instructions`）を使用し、XMLタグは使用しません。以前のバージョンはXMLタグを誤って推奨していましたが、これは公式形式ではありませんでした。
+  - **命名規約**: 公式仕様に従い、動名詞形式（`creating-agent-skills`、`processing-pdfs`）を使用するように更新
+  - **説明形式**: 三人称を使用し、何をするかといつ使用するかの両方を含む必要があります
+  - `references/official-spec.md`を追加 - code.claude.com/docs/en/skillsからのAnthropicの公式スキル仕様
+  - `references/best-practices.md`を追加 - platform.claude.comからのスキルオーサリングベストプラクティス
+  - 古い`references/use-xml-tags.md`を削除 - これは誤ったガイダンスでした
 
-### Philosophy
+### 哲学
 
-This update aligns the skill with Anthropic's official documentation. The key insight: **Skills are prompts**. All standard prompting best practices apply. Use standard markdown, not custom XML tags. Keep SKILL.md under 500 lines with progressive disclosure to reference files.
+この更新により、スキルがAnthropicの公式ドキュメントと一致します。主な洞察：**スキルはプロンプトです**。すべての標準的なプロンプティングベストプラクティスが適用されます。カスタムXMLタグではなく、標準のマークダウンを使用してください。SKILL.mdは500行未満に保ち、参照ファイルへの段階的な開示を行います。
 
 ---
 
 ## [2.19.0] - 2025-12-31
 
-### Added
+### 追加
 
-- **`/deepen-plan` command** - Power enhancement for plans. Takes an existing plan and runs parallel research sub-agents for each major section to add:
-  - Best practices and industry patterns
-  - Performance optimizations
-  - UI/UX improvements (if applicable)
-  - Quality enhancements and edge cases
-  - Real-world implementation examples
+- **`/deepen-plan` コマンド** - 計画のパワー強化。既存の計画を取り、各主要セクションに並列リサーチサブエージェントを実行して以下を追加：
+  - ベストプラクティスと業界パターン
+  - パフォーマンス最適化
+  - UI/UX改善（該当する場合）
+  - 品質向上とエッジケース
+  - 実世界の実装例
 
-  The result is a deeply grounded, production-ready plan with concrete implementation details.
+  結果は、具体的な実装詳細を持つ、深く根拠のある本番対応の計画です。
 
-### Changed
+### 変更
 
-- **`/workflows:plan` command** - Added `/deepen-plan` as option 2 in post-generation menu. Added note: if running with ultrathink enabled, automatically run deepen-plan for maximum depth.
+- **`/workflows:plan` コマンド** - 生成後メニューのオプション2として`/deepen-plan`を追加。注記を追加：ultrathinkを有効にして実行する場合、最大の深さのためにdeepen-planを自動実行します。
 
 ## [2.18.0] - 2025-12-25
 
-### Added
+### 追加
 
-- **`agent-native-architecture` skill** - Added **Dynamic Capability Discovery** pattern and **Architecture Review Checklist**:
+- **`agent-native-architecture` スキル** - **動的機能発見**パターンと**アーキテクチャレビューチェックリスト**を追加：
 
-  **New Patterns in mcp-tool-design.md:**
-  - **Dynamic Capability Discovery** - For external APIs (HealthKit, HomeKit, GraphQL), build a discovery tool (`list_*`) that returns available capabilities at runtime, plus a generic access tool that takes strings (not enums). The API validates, not your code. This means agents can use new API capabilities without code changes.
-  - **CRUD Completeness** - Every entity the agent can create must also be readable, updatable, and deletable. Incomplete CRUD = broken action parity.
+  **mcp-tool-design.mdの新パターン：**
+  - **動的機能発見** - 外部API（HealthKit、HomeKit、GraphQL）の場合、実行時に利用可能な機能を返す発見ツール（`list_*`）と、文字列を受け取る汎用アクセスツール（列挙型ではない）を構築します。コードではなく、APIが検証します。これにより、エージェントはコード変更なしで新しいAPI機能を使用できます。
+  - **CRUD完全性** - エージェントが作成できるすべてのエンティティは、読み取り、更新、削除も可能である必要があります。不完全なCRUD = 壊れたアクション同等性。
 
-  **New in SKILL.md:**
-  - **Architecture Review Checklist** - Pushes reviewer findings earlier into the design phase. Covers tool design (dynamic vs static, CRUD completeness), action parity (capability map, edit/delete), UI integration (agent → UI communication), and context injection.
-  - **Option 11: API Integration** - New intake option for connecting to external APIs like HealthKit, HomeKit, GraphQL
-  - **New anti-patterns:** Static Tool Mapping (building individual tools for each API endpoint), Incomplete CRUD (create-only tools)
-  - **Tool Design Criteria** section added to success criteria checklist
+  **SKILL.mdの新規追加：**
+  - **アーキテクチャレビューチェックリスト** - レビュアーの発見を設計フェーズの早期に押し上げます。ツール設計（動的vs静的、CRUD完全性）、アクション同等性（機能マップ、編集/削除）、UI統合（エージェント→UI通信）、コンテキストインジェクションをカバー。
+  - **オプション11: API統合** - HealthKit、HomeKit、GraphQLなどの外部APIに接続するための新しい取り込みオプション
+  - **新しいアンチパターン：** 静的ツールマッピング（各APIエンドポイントに個別のツールを構築）、不完全なCRUD（作成のみのツール）
+  - 成功基準チェックリストに**ツール設計基準**セクションを追加
 
-  **New in shared-workspace-architecture.md:**
-  - **iCloud File Storage for Multi-Device Sync** - Use iCloud Documents for your shared workspace to get free, automatic multi-device sync without building a sync layer. Includes implementation pattern, conflict handling, entitlements, and when NOT to use it.
+  **shared-workspace-architecture.mdの新規追加：**
+  - **マルチデバイス同期のためのiCloudファイルストレージ** - 共有ワークスペースにiCloud Documentsを使用して、同期レイヤーを構築することなく、無料で自動のマルチデバイス同期を取得。実装パターン、競合処理、資格、使用すべきでない場合を含みます。
 
-### Philosophy
+### 哲学
 
-This update codifies a key insight for **agent-native apps**: when integrating with external APIs where the agent should have the same access as the user, use **Dynamic Capability Discovery** instead of static tool mapping. Instead of building `read_steps`, `read_heart_rate`, `read_sleep`... build `list_health_types` + `read_health_data(dataType: string)`. The agent discovers what's available, the API validates the type.
+この更新は、**エージェントネイティブアプリ**の重要な洞察を体系化します：エージェントがユーザーと同じアクセス権を持つべき外部APIと統合する場合、静的ツールマッピングの代わりに**動的機能発見**を使用します。`read_steps`、`read_heart_rate`、`read_sleep`...を構築する代わりに、`list_health_types` + `read_health_data(dataType: string)`を構築します。エージェントが利用可能なものを発見し、APIが型を検証します。
 
-Note: This pattern is specifically for agent-native apps following the "whatever the user can do, the agent can do" philosophy. For constrained agents with intentionally limited capabilities, static tool mapping may be appropriate.
+注：このパターンは、「ユーザーができることは何でも、エージェントができる」という哲学に従ったエージェントネイティブアプリに特に適しています。意図的に制限された機能を持つ制約付きエージェントの場合、静的ツールマッピングが適切な場合があります。
 
 ---
 
 ## [2.17.0] - 2025-12-25
 
-### Enhanced
+### 強化
 
-- **`agent-native-architecture` skill** - Major expansion based on real-world learnings from building the Every Reader iOS app. Added 5 new reference documents and expanded existing ones:
+- **`agent-native-architecture` スキル** - Every Reader iOSアプリの構築から得られた実世界の学びに基づく大幅な拡張。5つの新しい参照ドキュメントを追加し、既存のものを拡張：
 
-  **New References:**
-  - **dynamic-context-injection.md** - How to inject runtime app state into agent system prompts. Covers context injection patterns, what context to inject (resources, activity, capabilities, vocabulary), implementation patterns for Swift/iOS and TypeScript, and context freshness.
-  - **action-parity-discipline.md** - Workflow for ensuring agents can do everything users can do. Includes capability mapping templates, parity audit process, PR checklists, tool design for parity, and context parity guidelines.
-  - **shared-workspace-architecture.md** - Patterns for agents and users working in the same data space. Covers directory structure, file tools, UI integration (file watching, shared stores), agent-user collaboration patterns, and security considerations.
-  - **agent-native-testing.md** - Testing patterns for agent-native apps. Includes "Can Agent Do It?" tests, the Surprise Test, automated parity testing, integration testing, and CI/CD integration.
-  - **mobile-patterns.md** - Mobile-specific patterns for iOS/Android. Covers background execution (checkpoint/resume), permission handling, cost-aware design (model tiers, token budgets, network awareness), offline handling, and battery awareness.
+  **新しいリファレンス：**
+  - **dynamic-context-injection.md** - 実行時のアプリ状態をエージェントシステムプロンプトに注入する方法。コンテキストインジェクションパターン、注入するコンテキスト（リソース、アクティビティ、機能、語彙）、Swift/iOSとTypeScriptの実装パターン、コンテキストの鮮度をカバー。
+  - **action-parity-discipline.md** - エージェントがユーザーができるすべてのことを実行できることを確保するためのワークフロー。機能マッピングテンプレート、同等性監査プロセス、PRチェックリスト、同等性のためのツール設計、コンテキスト同等性ガイドラインを含みます。
+  - **shared-workspace-architecture.md** - エージェントとユーザーが同じデータスペースで作業するためのパターン。ディレクトリ構造、ファイルツール、UI統合（ファイル監視、共有ストア）、エージェント-ユーザーコラボレーションパターン、セキュリティ考慮事項をカバー。
+  - **agent-native-testing.md** - エージェントネイティブアプリのテストパターン。「Can Agent Do It?」テスト、サプライズテスト、自動化された同等性テスト、統合テスト、CI/CD統合を含みます。
+  - **mobile-patterns.md** - iOS/Android向けのモバイル固有パターン。バックグラウンド実行（チェックポイント/再開）、権限処理、コスト意識の設計（モデルティア、トークン予算、ネットワーク認識）、オフライン処理、バッテリー認識をカバー。
 
-  **Updated References:**
-  - **architecture-patterns.md** - Added 3 new patterns: Unified Agent Architecture (one orchestrator, many agent types), Agent-to-UI Communication (shared data store, file watching, event bus), and Model Tier Selection (fast/balanced/powerful).
+  **更新されたリファレンス：**
+  - **architecture-patterns.md** - 3つの新しいパターンを追加：統合エージェントアーキテクチャ（1つのオーケストレーター、多数のエージェントタイプ）、エージェント-UI通信（共有データストア、ファイル監視、イベントバス）、モデルティア選択（高速/バランス/強力）。
 
-  **Updated Skill Root:**
-  - **SKILL.md** - Expanded intake menu (now 10 options including context injection, action parity, shared workspace, testing, mobile patterns). Added 5 new agent-native anti-patterns (Context Starvation, Orphan Features, Sandbox Isolation, Silent Actions, Capability Hiding). Expanded success criteria with agent-native and mobile-specific checklists.
+  **更新されたスキルルート：**
+  - **SKILL.md** - 取り込みメニューを拡張（現在10オプションで、コンテキストインジェクション、アクション同等性、共有ワークスペース、テスト、モバイルパターンを含む）。5つの新しいエージェントネイティブアンチパターンを追加（コンテキスト枯渇、孤立した機能、サンドボックス分離、サイレントアクション、機能の隠蔽）。エージェントネイティブおよびモバイル固有のチェックリストで成功基準を拡張。
 
-- **`agent-native-reviewer` agent** - Significantly enhanced with comprehensive review process covering all new patterns. Now checks for action parity, context parity, shared workspace, tool design (primitives vs workflows), dynamic context injection, and mobile-specific concerns. Includes detailed anti-patterns, output format template, quick checks ("Write to Location" test, Surprise test), and mobile-specific verification.
+- **`agent-native-reviewer` エージェント** - すべての新しいパターンをカバーする包括的なレビュープロセスで大幅に強化。現在、アクション同等性、コンテキスト同等性、共有ワークスペース、ツール設計（プリミティブvsワークフロー）、動的コンテキストインジェクション、モバイル固有の懸念をチェックします。詳細なアンチパターン、出力形式テンプレート、クイックチェック（「Write to Location」テスト、サプライズテスト）、モバイル固有の検証を含みます。
 
-### Philosophy
+### 哲学
 
-These updates operationalize a key insight from building agent-native mobile apps: **"The agent should be able to do anything the user can do, through tools that mirror UI capabilities, with full context about the app state."** The failure case that prompted these changes: an agent asked "what reading feed?" when a user said "write something in my reading feed"—because it had no `publish_to_feed` tool and no context about what "feed" meant.
+これらの更新は、エージェントネイティブモバイルアプリの構築から得られた重要な洞察を運用化します：**「エージェントは、UI機能をミラーするツールを通じて、アプリ状態に関する完全なコンテキストを持って、ユーザーができることは何でもできるべきです。」** これらの変更のきっかけとなった失敗事例：ユーザーが「私のリーディングフィードに何か書いて」と言ったときにエージェントが「どのリーディングフィード？」と尋ねました—`publish_to_feed`ツールがなく、「フィード」が何を意味するかについてのコンテキストがなかったためです。
 
 ## [2.16.0] - 2025-12-21
 
-### Enhanced
+### 強化
 
-- **`dhh-rails-style` skill** - Massively expanded reference documentation incorporating patterns from Marc Köhlbrugge's Unofficial 37signals Coding Style Guide:
-  - **controllers.md** - Added authorization patterns, rate limiting, Sec-Fetch-Site CSRF protection, request context concerns
-  - **models.md** - Added validation philosophy, let it crash philosophy (bang methods), default values with lambdas, Rails 7.1+ patterns (normalizes, delegated types, store accessor), concern guidelines with touch chains
-  - **frontend.md** - Added Turbo morphing best practices, Turbo frames patterns, 6 new Stimulus controllers (auto-submit, dialog, local-time, etc.), Stimulus best practices, view helpers, caching with personalization, broadcasting patterns
-  - **architecture.md** - Added path-based multi-tenancy, database patterns (UUIDs, state as records, hard deletes, counter caches), background job patterns (transaction safety, error handling, batch processing), email patterns, security patterns (XSS, SSRF, CSP), Active Storage patterns
-  - **gems.md** - Added expanded what-they-avoid section (service objects, form objects, decorators, CSS preprocessors, React/Vue), testing philosophy with Minitest/fixtures patterns
+- **`dhh-rails-style` スキル** - Marc Köhlbruggeの非公式37signalsコーディングスタイルガイドからのパターンを組み込んで、参照ドキュメントを大幅に拡張：
+  - **controllers.md** - 認可パターン、レート制限、Sec-Fetch-Site CSRF保護、リクエストコンテキストコンサーンを追加
+  - **models.md** - 検証の哲学、クラッシュさせる哲学（bangメソッド）、ラムダを使用したデフォルト値、Rails 7.1+パターン（normalizes、delegated types、store accessor）、タッチチェーンを持つコンサーンガイドラインを追加
+  - **frontend.md** - Turboモーフィングのベストプラクティス、Turboフレームパターン、6つの新しいStimulusコントローラー（auto-submit、dialog、local-timeなど）、Stimulusのベストプラクティス、ビューヘルパー、パーソナライゼーションを持つキャッシング、ブロードキャストパターンを追加
+  - **architecture.md** - パスベースのマルチテナンシー、データベースパターン（UUID、レコードとしての状態、ハード削除、カウンターキャッシュ）、バックグラウンドジョブパターン（トランザクションの安全性、エラー処理、バッチ処理）、メールパターン、セキュリティパターン（XSS、SSRF、CSP）、Active Storageパターンを追加
+  - **gems.md** - 避けるものセクションを拡張（サービスオブジェクト、フォームオブジェクト、デコレーター、CSSプリプロセッサ、React/Vue）、Minitest/fixturesパターンでテストの哲学を追加
 
-- **`dhh-ruby-style` skill** - Expanded patterns.md with:
-  - Development philosophy (ship/validate/refine, fix root causes, vanilla Rails first)
-  - Rails 7.1+ idioms (params.expect, StringInquirer, positive naming conventions)
-  - Extraction guidelines (rule of three, start in controller extract when complex)
+- **`dhh-ruby-style` スキル** - patterns.mdを以下で拡張：
+  - 開発の哲学（出荷/検証/洗練、根本原因の修正、バニラRailsファースト）
+  - Rails 7.1+イディオム（params.expect、StringInquirer、肯定的な命名規約）
+  - 抽出ガイドライン（3のルール、コントローラーで開始し複雑になったら抽出）
 
-### Credits
+### クレジット
 
-- Reference patterns derived from [Marc Köhlbrugge's Unofficial 37signals Coding Style Guide](https://github.com/marckohlbrugge/unofficial-37signals-coding-style-guide)
+- 参照パターンは[Marc Köhlbruggeの非公式37signalsコーディングスタイルガイド](https://github.com/marckohlbrugge/unofficial-37signals-coding-style-guide)から派生
 
 ## [2.15.2] - 2025-12-21
 
-### Fixed
+### 修正
 
-- **All skills** - Fixed spec compliance issues across 13 skills:
-  - Reference files now use proper markdown links (`[file.md](./references/file.md)`) instead of backtick text
-  - Descriptions now use third person ("This skill should be used when...") per skill-creator spec
-  - Affected skills: agent-native-architecture, andrew-kane-gem-writer, compound-docs, create-agent-skills, dhh-rails-style, dhh-ruby-style, dspy-ruby, every-style-editor, file-todos, frontend-design, gemini-imagegen
+- **すべてのスキル** - 13のスキル全体で仕様準拠の問題を修正：
+  - 参照ファイルは現在、バッククォートテキストではなく、適切なマークダウンリンク（`[file.md](./references/file.md)`）を使用
+  - 説明は現在、skill-creator仕様に従って三人称（「このスキルは...に使用されるべき」）を使用
+  - 影響を受けるスキル：agent-native-architecture、andrew-kane-gem-writer、compound-docs、create-agent-skills、dhh-rails-style、dhh-ruby-style、dspy-ruby、every-style-editor、file-todos、frontend-design、gemini-imagegen
 
-### Added
+### 追加
 
-- **CLAUDE.md** - Added Skill Compliance Checklist with validation commands for ensuring new skills meet spec requirements
+- **CLAUDE.md** - 新しいスキルが仕様要件を満たすことを確保するための検証コマンドを含むスキルコンプライアンスチェックリストを追加
 
 ## [2.15.1] - 2025-12-18
 
-### Changed
+### 変更
 
-- **`/workflows:review` command** - Section 7 now detects project type (Web, iOS, or Hybrid) and offers appropriate testing. Web projects get `/playwright-test`, iOS projects get `/xcode-test`, hybrid projects can run both.
+- **`/workflows:review` コマンド** - セクション7は現在、プロジェクトタイプ（Web、iOS、またはハイブリッド）を検出し、適切なテストを提供します。Webプロジェクトは`/playwright-test`を取得し、iOSプロジェクトは`/xcode-test`を取得し、ハイブリッドプロジェクトは両方を実行できます。
 
 ## [2.15.0] - 2025-12-18
 
-### Added
+### 追加
 
-- **`/xcode-test` command** - Build and test iOS apps on simulator using XcodeBuildMCP. Automatically detects Xcode project, builds app, launches simulator, and runs test suite. Includes retries for flaky tests.
+- **`/xcode-test` コマンド** - XcodeBuildMCPを使用してシミュレーターでiOSアプリをビルドおよびテスト。Xcodeプロジェクトを自動的に検出し、アプリをビルドし、シミュレーターを起動し、テストスイートを実行します。不安定なテストの再試行を含みます。
 
-- **`/playwright-test` command** - Run Playwright browser tests on pages affected by current PR or branch. Detects changed files, maps to affected routes, generates/runs targeted tests, and reports results with screenshots.
+- **`/playwright-test` コマンド** - 現在のPRまたはブランチの影響を受けたページでPlaywrightブラウザテストを実行。変更されたファイルを検出し、影響を受けたルートにマッピングし、対象テストを生成/実行し、スクリーンショット付きで結果を報告します。
