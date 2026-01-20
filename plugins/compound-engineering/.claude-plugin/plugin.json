@@ -1,7 +1,7 @@
 {
   "name": "compound-engineering",
-  "version": "2.26.0",
-  "description": "AI-powered development tools. Includes 25 specialized agents, 13 commands, and 11 skills.",
+  "version": "2.27.0",
+  "description": "AI-powered development tools. Includes 25 specialized agents, 13 commands, and 10 skills.",
   "author": {
     "name": "Kieran Klaassen",
     "email": "kieran@every.to",

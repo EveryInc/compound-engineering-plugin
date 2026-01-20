@@ -5,6 +5,14 @@ compound-engineeringプラグインのすべての重要な変更は、このフ
 この形式は[Keep a Changelog](https://keepachangelog.com/en/1.0.0/)に基づいており、
 このプロジェクトは[セマンティックバージョニング](https://semver.org/spec/v2.0.0.html)に準拠しています。
 
+## [2.27.0] - 2026-01-20
+
+### 削除
+
+- **`gemini-imagegen` スキル** - Gemini APIを使用した画像生成・編集スキルを削除。
+
+---
+
 ## [2.26.0] - 2026-01-20
 
 ### 削除
