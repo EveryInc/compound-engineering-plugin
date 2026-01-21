@@ -4,6 +4,25 @@ A Claude Code plugin marketplace featuring the **Compound Engineering Plugin** â
 
 ## Install
 
+### Option 1: SkillKit (Multi-Agent Support)
+
+Use [skillkit](https://github.com/rohitg00/skillkit) to install across multiple AI agents:
+
+```bash
+# Install compound engineering skills
+npx skillkit install EveryInc/compound-engineering-plugin
+
+# Install to multiple agents at once
+npx skillkit install EveryInc/compound-engineering-plugin --agent cursor --agent claude-code --agent windsurf
+```
+
+**Why SkillKit?**
+- **Multi-agent sync**: Install and sync skills across 17+ AI agents (Claude Code, Cursor, Codex, Gemini CLI, Windsurf, Goose, Amp, and more)
+- **Auto-detection**: Automatically detects which AI agent you're using
+- **Global or project-level**: Install skills globally (`--global`) or per-project
+
+### Option 2: Claude Code Plugin
+
 ```bash
 /plugin marketplace add https://github.com/kieranklaassen/compound-engineering-plugin
 /plugin install compound-engineering
