@@ -4,6 +4,7 @@ import path from "path"
 import { loadClaudePlugin } from "../parsers/claude"
 import { targets } from "../targets"
 import type { PermissionMode } from "../converters/claude-to-opencode"
+import { ensureCodexAgentsFile } from "../utils/codex-agents"
 
 const permissionModes: PermissionMode[] = ["none", "broad", "from-commands"]
 
@@ -90,6 +91,7 @@ export default defineCommand({
     console.log(`Converted ${plugin.manifest.name} to ${targetName} at ${primaryOutputRoot}`)
 
     const extraTargets = parseExtraTargets(args.also)
+    const allTargets = [targetName, ...extraTargets]
     for (const extra of extraTargets) {
       const handler = targets[extra]
       if (!handler) {
@@ -111,6 +113,10 @@ export default defineCommand({
       await handler.write(extraRoot, extraBundle)
       console.log(`Converted ${plugin.manifest.name} to ${extra} at ${extraRoot}`)
     }
+
+    if (allTargets.includes("codex")) {
+      await ensureCodexAgentsFile(resolveCodexAgentsHome(codexHome))
+    }
   },
 })
 
@@ -128,6 +134,11 @@ function resolveCodexHome(value: unknown): string | null {
   if (!raw) return null
   const expanded = expandHome(raw)
   return path.resolve(expanded)
+}
+
+function resolveCodexAgentsHome(codexHome: string | null): string {
+  if (codexHome) return codexHome
+  return path.join(os.homedir(), ".codex")
 }
 
 function expandHome(value: string): string {

@@ -138,11 +138,13 @@ describe("CLI", () => {
     expect(stdout).toContain(codexRoot)
     expect(await exists(path.join(codexRoot, "prompts", "command-one.md"))).toBe(true)
     expect(await exists(path.join(codexRoot, "skills", "command-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
   })
 
   test("install supports --also with codex output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-"))
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const codexRoot = path.join(tempRoot, ".codex")
 
     const proc = Bun.spawn([
       "bun",
@@ -154,6 +156,8 @@ describe("CLI", () => {
       "opencode",
       "--also",
       "codex",
+      "--codex-home",
+      codexRoot,
       "--output",
       tempRoot,
     ], {
@@ -171,9 +175,10 @@ describe("CLI", () => {
     }
 
     expect(stdout).toContain("Installed sample-plugin")
-    expect(stdout).toContain(path.join(tempRoot, "codex"))
-    expect(await exists(path.join(tempRoot, "codex", ".codex", "prompts", "command-one.md"))).toBe(true)
-    expect(await exists(path.join(tempRoot, "codex", ".codex", "skills", "command-one", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(tempRoot, "codex", ".codex", "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(stdout).toContain(codexRoot)
+    expect(await exists(path.join(codexRoot, "prompts", "command-one.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "skills", "command-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
   })
 })
