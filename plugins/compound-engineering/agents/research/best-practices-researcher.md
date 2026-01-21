@@ -36,12 +36,23 @@ Before going online, check if curated knowledge already exists in skills:
 
 4. **Assess Coverage**:
    - If skills provide comprehensive guidance → summarize and deliver
-   - If skills provide partial guidance → note what's covered, proceed to Phase 2 for gaps
-   - If no relevant skills found → proceed to Phase 2
+   - If skills provide partial guidance → note what's covered, proceed to Phase 1.5 and Phase 2 for gaps
+   - If no relevant skills found → proceed to Phase 1.5 and Phase 2
+
+### Phase 1.5: MANDATORY Deprecation Check (for external APIs/services)
+
+**Before recommending any external API, OAuth flow, SDK, or third-party service:**
+
+1. Search for deprecation: `"[API name] deprecated [current year] sunset shutdown"`
+2. Search for breaking changes: `"[API name] breaking changes migration"`
+3. Check official documentation for deprecation banners or sunset notices
+4. **Report findings before proceeding** - do not recommend deprecated APIs
+
+**Why this matters:** Google Photos Library API scopes were deprecated March 2025. Without this check, developers can waste hours debugging "insufficient scopes" errors on dead APIs. 5 minutes of validation saves hours of debugging.
 
 ### Phase 2: Online Research (If Needed)
 
-Only after checking skills, gather additional information:
+Only after checking skills AND verifying API availability, gather additional information:
 
 1. **Leverage External Sources**:
    - Use Context7 MCP to access official documentation from GitHub, framework docs, and library references
