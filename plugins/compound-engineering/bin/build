@@ -1,0 +1,179 @@
+#!/usr/bin/env ruby
+# frozen_string_literal: true
+
+# Build script for compound-engineering plugin
+# Reads compound.config.json and copies only enabled components to output directories
+
+require "json"
+require "fileutils"
+
+PLUGIN_ROOT = File.expand_path("..", __dir__)
+SOURCE_DIR = File.join(PLUGIN_ROOT, "_source")
+CONFIG_FILE = File.join(PLUGIN_ROOT, "compound.config.json")
+
+COMPONENT_TYPES = {
+  "agents" => { source: "agents", pattern: "**/*.md", flatten: false },
+  "commands" => { source: "commands", pattern: "**/*.md", flatten: false },
+  "skills" => { source: "skills", pattern: "*", type: :directory }
+}.freeze
+
+def load_config
+  unless File.exist?(CONFIG_FILE)
+    puts "Config file not found: #{CONFIG_FILE}"
+    puts "Creating default config with all components enabled..."
+    create_default_config
+  end
+
+  JSON.parse(File.read(CONFIG_FILE))
+end
+
+def create_default_config
+  config = {
+    "description" => "Configure which components load into Claude Code context.",
+    "agents" => { "enabled" => ["*"], "disabled" => [] },
+    "commands" => { "enabled" => ["*"], "disabled" => [] },
+    "skills" => { "enabled" => ["*"], "disabled" => [] },
+    "mcpServers" => { "enabled" => ["*"], "disabled" => [] }
+  }
+  File.write(CONFIG_FILE, JSON.pretty_generate(config))
+  config
+end
+
+def available_components(type, options)
+  source_path = File.join(SOURCE_DIR, options[:source])
+  return [] unless File.directory?(source_path)
+
+  if options[:type] == :directory
+    Dir.glob(File.join(source_path, "*"))
+       .select { |f| File.directory?(f) }
+       .map { |f| File.basename(f) }
+  else
+    Dir.glob(File.join(source_path, options[:pattern]))
+       .map { |f| File.basename(f, ".md") }
+       .uniq
+  end
+end
+
+def enabled_components(type, config, options)
+  available = available_components(type, options)
+  settings = config[type] || { "enabled" => ["*"], "disabled" => [] }
+
+  enabled = settings["enabled"] || ["*"]
+  disabled = settings["disabled"] || []
+
+  # If enabled includes "*", start with all available
+  result = if enabled.include?("*")
+             available
+           else
+             available & enabled
+           end
+
+  # Remove disabled components
+  result - disabled
+end
+
+def clean_output_dirs
+  COMPONENT_TYPES.each_key do |type|
+    output_dir = File.join(PLUGIN_ROOT, type)
+    FileUtils.rm_rf(output_dir) if File.directory?(output_dir)
+  end
+end
+
+def copy_component(type, name, options)
+  source_base = File.join(SOURCE_DIR, options[:source])
+  output_base = File.join(PLUGIN_ROOT, type)
+
+  if options[:type] == :directory
+    # Skills: copy entire directory
+    source_path = File.join(source_base, name)
+    output_path = File.join(output_base, name)
+    FileUtils.mkdir_p(output_path)
+    FileUtils.cp_r("#{source_path}/.", output_path)
+  else
+    # Agents/Commands: find and copy .md files, preserving subdirectory structure
+    Dir.glob(File.join(source_base, "**", "#{name}.md")).each do |source_file|
+      relative_path = source_file.sub("#{source_base}/", "")
+      output_file = File.join(output_base, relative_path)
+      FileUtils.mkdir_p(File.dirname(output_file))
+      FileUtils.cp(source_file, output_file)
+    end
+  end
+end
+
+def build_plugin_json(config)
+  plugin_json_path = File.join(PLUGIN_ROOT, ".claude-plugin", "plugin.json")
+  return unless File.exist?(plugin_json_path)
+
+  plugin_config = JSON.parse(File.read(plugin_json_path))
+
+  # Update MCP servers based on config
+  if plugin_config["mcpServers"] && config["mcpServers"]
+    mcp_enabled = config["mcpServers"]["enabled"] || ["*"]
+    mcp_disabled = config["mcpServers"]["disabled"] || []
+
+    unless mcp_enabled.include?("*") && mcp_disabled.empty?
+      original_servers = plugin_config["mcpServers"].dup
+      plugin_config["mcpServers"] = {}
+
+      original_servers.each do |name, server_config|
+        include_server = if mcp_enabled.include?("*")
+                           !mcp_disabled.include?(name)
+                         else
+                           mcp_enabled.include?(name) && !mcp_disabled.include?(name)
+                         end
+        plugin_config["mcpServers"][name] = server_config if include_server
+      end
+    end
+  end
+
+  File.write(plugin_json_path, JSON.pretty_generate(plugin_config))
+end
+
+def main
+  puts "Building compound-engineering plugin..."
+  puts
+
+  config = load_config
+
+  # Clean output directories
+  clean_output_dirs
+
+  stats = {}
+
+  COMPONENT_TYPES.each do |type, options|
+    available = available_components(type, options)
+    enabled = enabled_components(type, config, options)
+
+    stats[type] = { available: available.size, enabled: enabled.size }
+
+    puts "#{type.capitalize}:"
+    puts "  Available: #{available.size}"
+    puts "  Enabled: #{enabled.size}"
+
+    if enabled.empty?
+      puts "  (none enabled)"
+    else
+      enabled.each { |name| copy_component(type, name, options) }
+      puts "  Copied: #{enabled.join(", ")}" if enabled.size <= 10
+      puts "  Copied: #{enabled.size} components" if enabled.size > 10
+    end
+    puts
+  end
+
+  # Handle MCP servers
+  build_plugin_json(config)
+
+  mcp_config = config["mcpServers"] || { "enabled" => ["*"], "disabled" => [] }
+  puts "MCP Servers:"
+  puts "  Enabled: #{mcp_config["enabled"].join(", ")}"
+  puts "  Disabled: #{mcp_config["disabled"].join(", ")}" unless mcp_config["disabled"].empty?
+  puts
+
+  total_enabled = stats.values.sum { |s| s[:enabled] }
+  total_available = stats.values.sum { |s| s[:available] }
+  puts "Build complete! #{total_enabled}/#{total_available} components enabled."
+  puts
+  puts "To apply changes, reinstall the plugin or restart Claude Code."
+end
+
+main

@@ -1,0 +1,31 @@
+{
+  "$schema": "./compound.config.schema.json",
+  "description": "Minimal config - only essential components for Rails development",
+  "agents": {
+    "enabled": [
+      "kieran-rails-reviewer",
+      "code-simplicity-reviewer",
+      "dhh-rails-reviewer"
+    ],
+    "disabled": []
+  },
+  "commands": {
+    "enabled": [
+      "review",
+      "plan",
+      "work"
+    ],
+    "disabled": []
+  },
+  "skills": {
+    "enabled": [
+      "dhh-rails-style",
+      "git-worktree"
+    ],
+    "disabled": []
+  },
+  "mcpServers": {
+    "enabled": ["context7"],
+    "disabled": []
+  }
+}

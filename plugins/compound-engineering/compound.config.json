@@ -1,0 +1,20 @@
+{
+  "$schema": "./compound.config.schema.json",
+  "description": "Default configuration - all components enabled. Run /compound:configure to customize.",
+  "agents": {
+    "enabled": ["*"],
+    "disabled": []
+  },
+  "commands": {
+    "enabled": ["*"],
+    "disabled": []
+  },
+  "skills": {
+    "enabled": ["*"],
+    "disabled": []
+  },
+  "mcpServers": {
+    "enabled": ["*"],
+    "disabled": []
+  }
+}

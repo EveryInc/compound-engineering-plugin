@@ -1,0 +1,47 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Compound Engineering Plugin Config",
+  "description": "Configuration for selective component loading in the compound-engineering plugin",
+  "type": "object",
+  "properties": {
+    "description": {
+      "type": "string",
+      "description": "Optional description of this configuration"
+    },
+    "agents": {
+      "$ref": "#/definitions/componentConfig",
+      "description": "Configure which agents to load"
+    },
+    "commands": {
+      "$ref": "#/definitions/componentConfig",
+      "description": "Configure which commands to load"
+    },
+    "skills": {
+      "$ref": "#/definitions/componentConfig",
+      "description": "Configure which skills to load"
+    },
+    "mcpServers": {
+      "$ref": "#/definitions/componentConfig",
+      "description": "Configure which MCP servers to enable"
+    }
+  },
+  "definitions": {
+    "componentConfig": {
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Components to enable. Use ['*'] for all, or list specific names."
+        },
+        "disabled": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Components to disable. Takes precedence over enabled."
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

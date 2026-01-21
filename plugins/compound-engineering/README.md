@@ -7,9 +7,25 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 27 |
-| Commands | 20 |
+| Commands | 24 |
 | Skills | 14 |
 | MCP Servers | 1 |
+
+## Quick Start: Customize Your Installation
+
+By default, all 65 components load into your context. To reduce context usage and only load what you need:
+
+```
+/compound:configure
+```
+
+This interactive command will:
+1. Ask about your tech stack (Rails, Python, TypeScript, etc.)
+2. Ask about tools you use (Figma, browser automation, etc.)
+3. Generate a custom plugin with only the components you need
+4. Guide you through switching to your custom version
+
+**Estimated context savings:** 30-50% for most developers.
 
 ## Agents
 
@@ -84,6 +100,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 
 | Command | Description |
 |---------|-------------|
+| `/compound:configure` | **Interactive setup** - customize which components load into your context |
 | `/deepen-plan` | Enhance plans with parallel research agents for each section |
 | `/changelog` | Create engaging changelogs for recent merges |
 | `/create-agent-skill` | Create or edit Claude Code skills |
@@ -188,6 +205,65 @@ The `agent-browser` skill provides comprehensive documentation on usage.
 ```bash
 claude /plugin install compound-engineering
 ```
+
+## Selective Component Loading
+
+By default, all 64 components load into your Claude Code context. To reduce context usage, configure which components to load.
+
+### Quick Start
+
+1. Edit `compound.config.json` in the plugin directory
+2. Run `./bin/build` to regenerate the plugin
+3. Restart Claude Code
+
+### Configuration
+
+The config file supports four component types:
+
+```json
+{
+  "agents": {
+    "enabled": ["*"],
+    "disabled": []
+  },
+  "commands": { ... },
+  "skills": { ... },
+  "mcpServers": { ... }
+}
+```
+
+- `enabled: ["*"]` - Load all components (default)
+- `enabled: ["name1", "name2"]` - Load only listed components
+- `disabled: ["name"]` - Exclude specific components (takes precedence)
+
+### Example: Minimal Rails Config
+
+```json
+{
+  "agents": {
+    "enabled": ["kieran-rails-reviewer", "dhh-rails-reviewer", "code-simplicity-reviewer"],
+    "disabled": []
+  },
+  "commands": {
+    "enabled": ["review", "plan", "work"],
+    "disabled": []
+  },
+  "skills": {
+    "enabled": ["dhh-rails-style", "git-worktree"],
+    "disabled": []
+  },
+  "mcpServers": {
+    "enabled": ["context7"],
+    "disabled": []
+  }
+}
+```
+
+This reduces from 64 components to 8, significantly lowering context usage.
+
+### Available Components
+
+Run `./bin/build` to see all available component names, or check the `_source/` directory.
 
 ## Known Issues
 
