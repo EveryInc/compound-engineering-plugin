@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Auto-rebuild compound-engineering plugin when version changes
+# This runs on SessionStart via hooks.json
+
+set -e
+
+CONFIG_FILE="$HOME/.claude/compound-engineering.config.json"
+VERSION_FILE="$HOME/.claude/compound-engineering.last-build-version"
+PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-$(dirname "$(dirname "$0")")}"
+PLUGIN_JSON="$PLUGIN_ROOT/.claude-plugin/plugin.json"
+
+# Exit silently if no config exists (user hasn't run /compound:configure)
+if [[ ! -f "$CONFIG_FILE" ]]; then
+  exit 0
+fi
+
+# Exit silently if plugin.json doesn't exist
+if [[ ! -f "$PLUGIN_JSON" ]]; then
+  exit 0
+fi
+
+# Get current plugin version
+CURRENT_VERSION=$(grep -o '"version": *"[^"]*"' "$PLUGIN_JSON" | head -1 | cut -d'"' -f4)
+
+# Get last build version (empty if file doesn't exist)
+LAST_VERSION=""
+if [[ -f "$VERSION_FILE" ]]; then
+  LAST_VERSION=$(cat "$VERSION_FILE")
+fi
+
+# Exit if versions match (no rebuild needed)
+if [[ "$CURRENT_VERSION" == "$LAST_VERSION" ]]; then
+  exit 0
+fi
+
+# Rebuild needed - copy config and run build
+echo "[compound-engineering] Plugin updated ($LAST_VERSION -> $CURRENT_VERSION), rebuilding with your config..."
+
+# Copy user config to plugin directory
+cp "$CONFIG_FILE" "$PLUGIN_ROOT/compound.config.json"
+
+# Run build script
+if [[ -x "$PLUGIN_ROOT/bin/build" ]]; then
+  cd "$PLUGIN_ROOT" && ./bin/build
+
+  # Update version marker on success
+  echo "$CURRENT_VERSION" > "$VERSION_FILE"
+
+  echo "[compound-engineering] Auto-rebuild complete!"
+else
+  echo "[compound-engineering] Warning: bin/build not found or not executable"
+fi

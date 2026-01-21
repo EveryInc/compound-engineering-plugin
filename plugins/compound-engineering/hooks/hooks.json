@@ -1,0 +1,16 @@
+{
+  "description": "Auto-rebuild when plugin updates and user has custom configuration",
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "${CLAUDE_PLUGIN_ROOT}/bin/auto-rebuild",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -5,7 +5,14 @@ description: Interactive setup to customize which plugin components load into yo
 
 # Configure Compound Engineering Plugin
 
-This command creates a customized version of compound-engineering that only loads the components you need, reducing context window usage by 30-50%.
+This command customizes compound-engineering to only load the components you need, reducing context window usage by 30-50%. Configuration persists across plugin updates.
+
+## How It Works
+
+1. Asks 5 questions about your workflow
+2. Saves preferences to `~/.claude/compound-engineering.config.json`
+3. Rebuilds the installed plugin in-place
+4. On future plugin updates, auto-rebuilds with your saved preferences
 
 ## Prerequisites
 
@@ -15,34 +22,34 @@ This command requires:
 
 ## Step 1: Find the Installed Plugin
 
-First, find where compound-engineering is installed by reading `~/.claude/plugins/installed_plugins.json`.
+Read `~/.claude/plugins/installed_plugins.json` and find the compound-engineering entry.
 
-Look for an entry like `"compound-engineering@every-marketplace"` or similar and get the `installPath`.
+Look in the `plugins` object for a key containing `compound-engineering` (e.g., `"compound-engineering@every-marketplace"`).
 
-Example:
+Extract the `installPath` value. Example:
 ```json
 "compound-engineering@every-marketplace": [
   {
-    "installPath": "/Users/username/.claude/plugins/cache/every-marketplace/compound-engineering/2.27.0",
-    ...
+    "installPath": "/Users/username/.claude/plugins/cache/every-marketplace/compound-engineering/2.27.0"
   }
 ]
 ```
 
-**CRITICAL:** Verify the plugin has the build infrastructure:
+Save this path as `PLUGIN_PATH` for later steps.
+
+**Verify build infrastructure exists:**
 ```bash
-ls -la <installPath>/bin/build
-ls -la <installPath>/_source/
+ls -la PLUGIN_PATH/bin/build && ls -d PLUGIN_PATH/_source/
 ```
 
-If `bin/build` or `_source/` don't exist, tell the user:
+If either doesn't exist, tell the user:
 > "Your installed version doesn't support custom configuration. Please update the plugin or install from a marketplace that includes the configuration feature."
 
 Then stop.
 
 ## Step 2: Gather User Preferences
 
-Use the **AskUserQuestion** tool to ask these questions ONE AT A TIME:
+Use **AskUserQuestion** to ask these questions ONE AT A TIME:
 
 ### Question 1: Primary Language
 **Question:** "What is your primary programming language?"
@@ -76,9 +83,9 @@ Use the **AskUserQuestion** tool to ask these questions ONE AT A TIME:
 - Yes, I write for Every.to
 - No, I don't need Every style editing
 
-## Step 3: Build the Configuration
+## Step 3: Build the Configuration JSON
 
-Based on answers, build the config JSON:
+Start with this base config:
 
 ```json
 {
@@ -103,181 +110,90 @@ Based on answers, build the config JSON:
 }
 ```
 
-**Add to disabled based on answers:**
+**Add to disabled arrays based on answers:**
 
-| Answer | Add to agents.disabled | Add to skills.disabled |
-|--------|----------------------|----------------------|
-| Ruby/Rails | `kieran-python-reviewer`, `kieran-typescript-reviewer` | |
-| Python | `kieran-rails-reviewer`, `dhh-rails-reviewer`, `kieran-typescript-reviewer` | `dhh-rails-style`, `andrew-kane-gem-writer` |
-| TypeScript | `kieran-rails-reviewer`, `dhh-rails-reviewer`, `kieran-python-reviewer` | `dhh-rails-style`, `andrew-kane-gem-writer` |
-| No Figma | `figma-design-sync`, `design-implementation-reviewer`, `design-iterator` | |
-| No browser | | `agent-browser` |
-| No image gen | | `gemini-imagegen` |
-| No Every style | `every-style-editor` | `every-style-editor` |
+| Answer | Add to agents.disabled | Add to skills.disabled | Add to commands.disabled |
+|--------|----------------------|----------------------|------------------------|
+| Ruby/Rails | `kieran-python-reviewer`, `kieran-typescript-reviewer` | | |
+| Python | `kieran-rails-reviewer`, `dhh-rails-reviewer`, `kieran-typescript-reviewer` | `dhh-rails-style`, `andrew-kane-gem-writer` | |
+| TypeScript | `kieran-rails-reviewer`, `dhh-rails-reviewer`, `kieran-python-reviewer` | `dhh-rails-style`, `andrew-kane-gem-writer` | |
+| No Figma | `figma-design-sync`, `design-implementation-reviewer`, `design-iterator` | | |
+| No browser | | `agent-browser` | `test-browser` |
+| No image gen | | `gemini-imagegen` | |
+| No Every style | `every-style-editor` | `every-style-editor` | |
 
-Also add `test-browser` to commands.disabled if no browser automation.
+## Step 4: Save Configuration to User's Home Directory
 
-## Step 4: Create Custom Plugin
-
-Run these commands in sequence:
+Write the config JSON from Step 3 to `~/.claude/compound-engineering.config.json`:
 
 ```bash
-# 1. Create the local plugins directory structure
-mkdir -p ~/.claude/plugins/local/compound-engineering-custom/.claude-plugin
-
-# 2. Copy entire plugin from installed location (PLUGIN_PATH is from Step 1)
-cp -r <PLUGIN_PATH>/* ~/.claude/plugins/local/compound-engineering-custom/
-
-# 3. Verify the copy worked
-ls ~/.claude/plugins/local/compound-engineering-custom/bin/build
+# Get the absolute path
+CONFIG_PATH="$HOME/.claude/compound-engineering.config.json"
 ```
 
-## Step 5: Write Custom Config
+Use the Write tool with the absolute path (e.g., `/Users/username/.claude/compound-engineering.config.json`).
 
-Use the Write tool to create the config file:
+## Step 5: Copy Config to Plugin and Run Build
 
-**File:** `~/.claude/plugins/local/compound-engineering-custom/compound.config.json`
-
-Write the JSON config built in Step 3.
-
-## Step 6: Run the Build
+Copy the config to the plugin directory and run the build:
 
 ```bash
-cd ~/.claude/plugins/local/compound-engineering-custom && ./bin/build
+cp ~/.claude/compound-engineering.config.json PLUGIN_PATH/compound.config.json
+cd PLUGIN_PATH && ./bin/build
 ```
 
-This will output something like:
-```
-Building compound-engineering plugin...
-Agents: Available: 27, Enabled: 21
-Commands: Available: 24, Enabled: 21
-Skills: Available: 14, Enabled: 12
-Build complete! 54/65 components enabled.
-```
+Note the output showing enabled/disabled counts.
 
-## Step 7: Update Plugin Metadata
+## Step 6: Write Version Marker
 
-Read and update the plugin.json to mark this as a custom version:
-
-**File:** `~/.claude/plugins/local/compound-engineering-custom/.claude-plugin/plugin.json`
-
-Change:
-- `"name"` → `"compound-engineering-custom"`
-- `"version"` → append `-custom` (e.g., `"2.27.0-custom"`)
-- `"description"` → update to reflect customization
-
-## Step 8: Setup Local Marketplace
-
-Create the local marketplace structure:
+Read the plugin version from `PLUGIN_PATH/.claude-plugin/plugin.json` and write it to the version marker file:
 
 ```bash
-mkdir -p ~/.claude/plugins/local/.claude-plugin
+# Extract version and write to marker file
+VERSION=$(grep -o '"version": *"[^"]*"' PLUGIN_PATH/.claude-plugin/plugin.json | head -1 | cut -d'"' -f4)
+echo "$VERSION" > ~/.claude/compound-engineering.last-build-version
 ```
 
-Write marketplace.json:
-
-**File:** `~/.claude/plugins/local/.claude-plugin/marketplace.json`
-
-```json
-{
-  "name": "local",
-  "owner": { "name": "Local Plugins" },
-  "metadata": { "description": "Local custom plugins", "version": "1.0.0" },
-  "plugins": [
-    {
-      "name": "compound-engineering-custom",
-      "description": "Custom build of compound-engineering",
-      "version": "2.27.0-custom",
-      "source": "./compound-engineering-custom"
-    }
-  ]
-}
-```
-
-## Step 9: Register Local Marketplace
-
-Read `~/.claude/plugins/known_marketplaces.json` and add:
-
-```json
-"local": {
-  "source": {
-    "source": "directory",
-    "path": "/Users/<username>/.claude/plugins/local"
-  },
-  "installLocation": "/Users/<username>/.claude/plugins/local",
-  "lastUpdated": "<current ISO timestamp>"
-}
-```
-
-Use the actual home directory path, not `~`.
-
-## Step 10: Register Installed Plugin
-
-Read `~/.claude/plugins/installed_plugins.json` and add:
-
-```json
-"compound-engineering-custom@local": [
-  {
-    "scope": "user",
-    "installPath": "/Users/<username>/.claude/plugins/local/compound-engineering-custom",
-    "version": "2.27.0-custom",
-    "installedAt": "<current ISO timestamp>",
-    "lastUpdated": "<current ISO timestamp>"
-  }
-]
-```
-
-## Step 11: Update Settings
-
-Read `~/.claude/settings.json` and in the `enabledPlugins` object:
-
-1. Set the original marketplace plugin to `false`:
-   - `"compound-engineering@every-marketplace": false`
-2. Add and enable the custom plugin:
-   - `"compound-engineering-custom@local": true`
-
-## Step 12: Summary
+## Step 7: Summary
 
 Tell the user:
 
 ```
 Configuration complete!
 
-Your custom compound-engineering plugin:
+Your preferences saved to: ~/.claude/compound-engineering.config.json
+
+Components status:
 - Agents: X enabled (Y disabled)
 - Commands: X enabled (Y disabled)
 - Skills: X enabled (Y disabled)
-- Estimated context savings: ~Z tokens
-
-Files created:
-- ~/.claude/plugins/local/compound-engineering-custom/
-
-Settings updated:
-- compound-engineering@every-marketplace: disabled
-- compound-engineering-custom@local: enabled
 
 **Restart Claude Code to apply changes.**
 
-To reconfigure later:
-1. Edit ~/.claude/plugins/local/compound-engineering-custom/compound.config.json
-2. Run: cd ~/.claude/plugins/local/compound-engineering-custom && ./bin/build
-3. Restart Claude Code
+Your preferences will automatically apply when the plugin updates.
+
+To reconfigure:
+- Run /compound:configure again
 
 To restore full plugin:
-1. Set "compound-engineering@every-marketplace": true in ~/.claude/settings.json
-2. Set "compound-engineering-custom@local": false
-3. Restart Claude Code
+- Delete ~/.claude/compound-engineering.config.json
+- Delete ~/.claude/compound-engineering.last-build-version
+- Restart Claude Code (plugin will rebuild with all components)
 ```
 
 ## Error Handling
 
-If any step fails:
 - **No bin/build:** Plugin version doesn't support configuration
 - **Build fails:** Check Ruby is installed (`ruby --version`)
-- **JSON parse error:** Validate JSON before writing
 - **Permission denied:** Check file permissions
 
-Always validate JSON files with `jq` after writing:
-```bash
-cat <file> | jq . > /dev/null && echo "Valid" || echo "Invalid JSON"
-```
+## What Happens on Plugin Update
+
+When the marketplace updates compound-engineering:
+1. SessionStart hook runs `bin/auto-rebuild`
+2. Script detects version change (compares plugin.json to last-build-version)
+3. Copies saved config from `~/.claude/compound-engineering.config.json`
+4. Runs `bin/build` to apply preferences
+5. Updates version marker
+
+This is automatic - no user action needed.
