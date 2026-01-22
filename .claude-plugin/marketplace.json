@@ -18,7 +18,7 @@
         "url": "https://github.com/kieranklaassen",
         "email": "kieran@every.to"
       },
-      "homepage": "https://github.com/kieranklaassen/compound-engineering-plugin",
+      "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
       "tags": ["ai-powered", "compound-engineering", "workflow-automation", "code-review", "quality", "knowledge-management", "image-generation"],
       "source": "./plugins/compound-engineering"
     },
@@ -29,7 +29,7 @@
       "author": {
         "name": "Nityesh Agarwal"
       },
-      "homepage": "https://github.com/kieranklaassen/compound-engineering-plugin",
+      "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
       "tags": ["coding", "programming", "tutorial", "learning", "spaced-repetition", "education"],
       "source": "./plugins/coding-tutor"
     }
