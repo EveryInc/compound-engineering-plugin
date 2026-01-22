@@ -159,7 +159,7 @@ Load `schema.yaml` and classify the problem against the enum values defined in [
 
 Errors:
 - problem_type: must be one of schema enums, got "compilation_error"
-- severity: must be one of [critical, moderate, minor], got "high"
+- severity: must be one of [critical, high, medium, low], got "invalid"
 - symptoms: must be array with 1-5 items, got string
 
 Please provide corrected values.
