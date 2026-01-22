@@ -34,7 +34,7 @@ Your primary responsibilities:
 
 Your workflow:
 
-1. Start with a broad pattern search using grep or ast-grep for structural matching
+1. Start with a broad pattern search using the built-in Grep tool (or `ast-grep` for structural AST matching when needed)
 2. Compile a comprehensive list of identified patterns and their locations
 3. Search for common anti-pattern indicators (TODO, FIXME, HACK, XXX)
 4. Analyze naming conventions by sampling representative files
