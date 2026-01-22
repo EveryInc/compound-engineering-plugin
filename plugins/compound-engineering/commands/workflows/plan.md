@@ -66,17 +66,22 @@ Refine the idea through collaborative dialogue using the **AskUserQuestion tool*
 
 ## Main Tasks
 
-### 1. Repository Research (Always Runs)
+### 1. Local Research (Always Runs - Parallel)
 
 <thinking>
-First, I need to understand the project's conventions and existing patterns. This is fast and local - it informs whether external research is needed.
+First, I need to understand the project's conventions, existing patterns, and any documented learnings. This is fast and local - it informs whether external research is needed.
 </thinking>
 
-Run repo research to understand the codebase:
+Run these agents **in parallel** to gather local context:
 
 - Task repo-research-analyst(feature_description)
+- Task learnings-researcher(feature_description)
 
-**What to look for:** existing patterns, CLAUDE.md guidance, technology familiarity, pattern consistency. These findings inform the next step.
+**What to look for:**
+- **Repo research:** existing patterns, CLAUDE.md guidance, technology familiarity, pattern consistency
+- **Learnings:** documented solutions in `docs/solutions/` that might apply (gotchas, patterns, lessons learned)
+
+These findings inform the next step.
 
 ### 1.5. Research Decision
 
@@ -108,6 +113,7 @@ Run these agents in parallel:
 After all research steps complete, consolidate findings:
 
 - Document relevant file paths from repo research (e.g., `app/services/example_service.rb:42`)
+- **Include relevant institutional learnings** from `docs/solutions/` (key insights, gotchas to avoid)
 - Note external documentation URLs and best practices (if external research was done)
 - List related issues or PRs discovered
 - Capture CLAUDE.md conventions
