@@ -1,6 +1,6 @@
 # Critical Pattern Template
 
-Use this template when adding a pattern to `docs/solutions/patterns/cora-critical-patterns.md`:
+Use this template when adding a pattern to `docs/solutions/patterns/critical-patterns.md`:
 
 ---
 

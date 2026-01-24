@@ -28,7 +28,7 @@ This command launches multiple specialized subagents IN PARALLEL to maximize eff
 ### 1. **Context Analyzer** (Parallel)
    - Extracts conversation history
    - Identifies problem type, component, symptoms
-   - Validates against CORA schema
+   - Validates against solution schema
    - Returns: YAML frontmatter skeleton
 
 ### 2. **Solution Extractor** (Parallel)

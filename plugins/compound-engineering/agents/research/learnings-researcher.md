@@ -66,7 +66,7 @@ Grep: pattern="email" path=docs/solutions/ output_mode=files_with_matches -i=tru
 **Regardless of Grep results**, always read the critical patterns file:
 
 ```bash
-Read: docs/solutions/patterns/cora-critical-patterns.md
+Read: docs/solutions/patterns/critical-patterns.md
 ```
 
 This file contains must-know patterns that apply across all work - high-severity issues promoted to required reading. Scan for patterns relevant to the current feature/task.
@@ -182,7 +182,7 @@ Structure your findings as:
 - **Relevant Matches**: [Y files]
 
 ### Critical Patterns (Always Check)
-[Any matching patterns from cora-critical-patterns.md]
+[Any matching patterns from critical-patterns.md]
 
 ### Relevant Learnings
 

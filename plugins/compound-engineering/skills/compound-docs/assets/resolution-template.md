@@ -1,5 +1,5 @@
 ---
-module: [Module name or "CORA" for system-wide]
+module: [Module name or "System" for system-wide]
 date: [YYYY-MM-DD]
 problem_type: [build_error|test_failure|runtime_error|performance_issue|database_issue|security_issue|ui_bug|integration_issue|logic_error]
 component: [rails_model|rails_controller|rails_view|service_object|background_job|database|frontend_stimulus|hotwire_turbo|email_processing|brief_system|assistant|authentication|payments]
@@ -19,7 +19,7 @@ tags: [keyword1, keyword2, keyword3]
 [1-2 sentence clear description of the issue and what the user experienced]
 
 ## Environment
-- Module: [Name or "CORA system"]
+- Module: [Name or "System-wide"]
 - Rails Version: [e.g., 7.1.2]
 - Affected Component: [e.g., "Email Processing model", "Brief System service", "Authentication controller"]
 - Date: [YYYY-MM-DD when this was solved]
@@ -78,7 +78,7 @@ tags: [keyword1, keyword2, keyword3]
 
 ## Prevention
 
-[How to avoid this problem in future CORA development:]
+[How to avoid this problem in future development:]
 - [Specific coding practice, check, or pattern to follow]
 - [What to watch out for]
 - [How to catch this early]

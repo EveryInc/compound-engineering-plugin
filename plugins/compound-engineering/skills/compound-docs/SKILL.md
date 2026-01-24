@@ -61,7 +61,7 @@ Extract from conversation history:
 
 **Required information:**
 
-- **Module name**: Which CORA module had the problem
+- **Module name**: Which module or component had the problem
 - **Symptom**: Observable error/behavior (exact error messages)
 - **Investigation attempts**: What didn't work and why
 - **Root cause**: Technical explanation of actual problem
@@ -249,7 +249,7 @@ But **NEVER auto-promote**. User decides via decision menu (Option 2).
 
 **Template for critical pattern addition:**
 
-When user selects Option 2 (Add to Required Reading), use the template from `assets/critical-pattern-template.md` to structure the pattern entry. Number it sequentially based on existing patterns in `docs/solutions/patterns/cora-critical-patterns.md`.
+When user selects Option 2 (Add to Required Reading), use the template from `assets/critical-pattern-template.md` to structure the pattern entry. Number it sequentially based on existing patterns in `docs/solutions/patterns/critical-patterns.md`.
 </step>
 
 </critical_sequence>
@@ -270,7 +270,7 @@ File created:
 
 What's next?
 1. Continue workflow (recommended)
-2. Add to Required Reading - Promote to critical patterns (cora-critical-patterns.md)
+2. Add to Required Reading - Promote to critical patterns (critical-patterns.md)
 3. Link related issues - Connect to similar problems
 4. Add to existing skill - Add to a learning skill (e.g., hotwire-native)
 5. Create new skill - Extract into new learning skill
@@ -295,7 +295,7 @@ User selects this when:
 Action:
 1. Extract pattern from the documentation
 2. Format as ❌ WRONG vs ✅ CORRECT with code examples
-3. Add to `docs/solutions/patterns/cora-critical-patterns.md`
+3. Add to `docs/solutions/patterns/critical-patterns.md`
 4. Add cross-reference back to this doc
 5. Confirm: "✓ Added to Required Reading. All subagents will see this pattern before code generation."
 
@@ -317,7 +317,7 @@ Action:
 4. Confirm: "✓ Added to [skill-name] skill in [file]"
 
 Example: For Hotwire Native Tailwind variants solution:
-- Add to `hotwire-native/references/resources.md` under "CORA-Specific Resources"
+- Add to `hotwire-native/references/resources.md` under "Project-Specific Resources"
 - Add to `hotwire-native/references/examples.md` with link to solution doc
 
 **Option 5: Create new skill**
@@ -397,11 +397,11 @@ Documentation is successful when ALL of the following are true:
 - Present multiple matches
 - Let user choose: new doc, update existing, or link as duplicate
 
-**Module not in CORA-MODULES.md:**
+**Module not in modules documentation:**
 
 - Warn but don't block
 - Proceed with documentation
-- Suggest: "Add [Module] to CORA-MODULES.md if not there"
+- Suggest: "Add [Module] to modules documentation if not there"
 
 ---
 
@@ -488,7 +488,7 @@ File created:
 
 What's next?
 1. Continue workflow (recommended)
-2. Add to Required Reading - Promote to critical patterns (cora-critical-patterns.md)
+2. Add to Required Reading - Promote to critical patterns (critical-patterns.md)
 3. Link related issues - Connect to similar problems
 4. Add to existing skill - Add to a learning skill (e.g., hotwire-native)
 5. Create new skill - Extract into new learning skill
