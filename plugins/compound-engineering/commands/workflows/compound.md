@@ -66,7 +66,7 @@ This command launches multiple specialized subagents IN PARALLEL to maximize eff
    - **performance_issue** → `performance-oracle`
    - **security_issue** → `security-sentinel`
    - **database_issue** → `data-integrity-guardian`
-   - **test_failure** → `cora-test-reviewer`
+    - **test_failure** → `test-quality-reviewer`
    - Any code-heavy issue → `kieran-rails-reviewer` + `code-simplicity-reviewer`
 
 ## What It Captures
@@ -184,7 +184,7 @@ Based on problem type, these agents can enhance documentation:
 ### Specific Domain Experts
 - **performance-oracle**: Analyzes performance_issue category solutions
 - **security-sentinel**: Reviews security_issue solutions for vulnerabilities
-- **cora-test-reviewer**: Creates test cases for prevention strategies
+- **test-quality-reviewer**: Creates test cases for prevention strategies
 - **data-integrity-guardian**: Reviews database_issue migrations and queries
 
 ### Enhancement & Documentation
