@@ -7,7 +7,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 28 |
-| Commands | 25 |
+| Commands | 26 |
 | Skills | 15 |
 | MCP Servers | 1 |
 
@@ -95,6 +95,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `/heal-skill` | Fix skill documentation issues |
 | `/lfg` | Sequential autonomous engineering workflow |
 | `/slfg` | Swarm-based autonomous engineering with parallel agents |
+| `/swarm-status` | Show status of active swarm teams and tasks |
 | `/plan_review` | Multi-agent plan review in parallel |
 | `/release-docs` | Build and release plugin documentation |
 | `/report-bug` | Report a bug in the plugin |

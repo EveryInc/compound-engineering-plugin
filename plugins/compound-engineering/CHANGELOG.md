@@ -5,6 +5,18 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.30.0] - 2026-01-25
+
+### Added
+
+- **`/swarm-status` command** - Display status of active swarm teams
+  - Shows all active teams from ~/.claude/teams/
+  - Lists teammates with their roles and status (Active/Idle/Offline)
+  - Displays task progress with completion percentage
+  - Supports viewing specific team or all teams
+
+---
+
 ## [2.29.0] - 2026-01-25
 
 ### Added
