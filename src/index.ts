@@ -8,7 +8,7 @@ import sync from "./commands/sync"
 const main = defineCommand({
   meta: {
     name: "compound-plugin",
-    version: "0.1.1",
+    version: "0.1.0",
     description: "Convert Claude Code plugins into other agent formats",
   },
   subCommands: {
