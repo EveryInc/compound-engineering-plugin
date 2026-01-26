@@ -116,13 +116,27 @@ function convertCommands(commands: ClaudeCommand[]): Record<string, OpenCodeComm
   for (const command of commands) {
     const entry: OpenCodeCommandConfig = {
       description: command.description,
-      template: command.body,
+      template: transformContentForOpenCode(command.body),
     }
     if (command.model && command.model !== "inherit") {
       entry.model = normalizeModel(command.model)
     }
     result[command.name] = entry
   }
+  return result
+}
+
+/**
+ * Transform Claude Code content to OpenCode-compatible content.
+ * 
+ * Specifically handles fixing legacy namespaces like ralph-wiggum -> ralph-loop.
+ */
+function transformContentForOpenCode(body: string): string {
+  let result = body
+
+  // 1. Fix legacy ralph-wiggum namespace
+  result = result.replace(/\/ralph-wiggum:ralph-loop/g, "/ralph-loop:ralph-loop")
+
   return result
 }
 
