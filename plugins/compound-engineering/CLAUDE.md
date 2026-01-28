@@ -59,7 +59,7 @@ When adding or modifying skills, verify compliance with skill-creator spec:
 ### YAML Frontmatter (Required)
 
 - [ ] `name:` present and matches directory name (lowercase-with-hyphens)
-- [ ] `description:` present and uses **third person** ("This skill should be used when..." NOT "Use this skill when...")
+- [ ] `description:` is present and uses **passive voice** ("This skill should be used when..." NOT "Use this skill when...")
 
 ### Reference Links (Required if references/ exists)
 
@@ -82,7 +82,7 @@ grep -E '`(references|assets|scripts)/[^`]+`' skills/*/SKILL.md
 
 # Check description format
 grep -E '^description:' skills/*/SKILL.md | grep -v 'This skill'
-# Should return nothing if all use third person
+# Should return nothing if all use passive voice
 ```
 
 ## Documentation

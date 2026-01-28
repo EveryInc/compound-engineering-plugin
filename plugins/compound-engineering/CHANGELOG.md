@@ -371,7 +371,7 @@ These updates operationalize a key insight from building agent-native mobile app
 
 - **All skills** - Fixed spec compliance issues across 12 skills:
   - Reference files now use proper markdown links (`[file.md](./references/file.md)`) instead of backtick text
-  - Descriptions now use third person ("This skill should be used when...") per skill-creator spec
+  - Descriptions now use passive voice ("This skill should be used when...") per skill-creator spec
   - Affected skills: agent-native-architecture, andrew-kane-gem-writer, compound-docs, create-agent-skills, dhh-rails-style, dspy-ruby, every-style-editor, file-todos, frontend-design, gemini-imagegen
 
 ### Added

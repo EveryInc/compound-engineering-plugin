@@ -144,7 +144,7 @@ Domain knowledge that:
 Check:
 - [ ] YAML frontmatter valid
 - [ ] Name matches directory (lowercase-with-hyphens)
-- [ ] Description says what it does AND when to use it (third person)
+- [ ] Description says what it does AND when to use it (passive voice)
 - [ ] No markdown headings (#) in body - use XML tags
 - [ ] Required tags present: objective, quick_start, success_criteria
 - [ ] All referenced files exist

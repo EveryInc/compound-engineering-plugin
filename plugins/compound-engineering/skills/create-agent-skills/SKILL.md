@@ -49,7 +49,7 @@ my-skill/
 
 ### 4. Effective Descriptions
 
-The description field enables skill discovery. Include both what the skill does AND when to use it. Write in third person.
+The description field enables skill discovery. Include both what the skill does AND when to use it. Write in passive voice.
 
 **Good:**
 ```yaml

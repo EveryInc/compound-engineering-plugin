@@ -81,7 +81,7 @@ Be consistent within your skill. If you use `<workflow>`, don't also use `<proce
 ```yaml
 ---
 name: skill-name-here
-description: What it does and when to use it (third person, specific triggers)
+description: What it does and when to use it (passive voice, specific triggers)
 ---
 ```
 </required_fields>
@@ -107,10 +107,10 @@ description: What it does and when to use it (third person, specific triggers)
 **Validation rules**:
 - Non-empty, maximum 1024 characters
 - No XML tags
-- Third person (never first or second person)
+- Passive voice (never first or second person)
 - Include what it does AND when to use it
 
-**Critical rule**: Always write in third person.
+**Critical rule**: Always write in passive voice.
 - ✅ "Processes Excel files and generates reports"
 - ❌ "I can help you process Excel files"
 - ❌ "You can use this to process Excel files"
@@ -360,7 +360,7 @@ Every skill must have: `<objective>`, `<quick_start>`, and `<success_criteria>` 
 <validation_checklist>
 Before finalizing a skill, verify:
 
-- ✅ YAML frontmatter valid (name matches directory, description in third person)
+- ✅ YAML frontmatter valid (name matches directory, description in passive voice)
 - ✅ No markdown headings in body (pure XML structure)
 - ✅ Required tags present: objective, quick_start, success_criteria
 - ✅ Conditional tags appropriate for complexity level

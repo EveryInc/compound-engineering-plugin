@@ -107,7 +107,7 @@ Use **gerund form** (verb + -ing) for Skill names:
 
 ## Writing Effective Descriptions
 
-**Always write in third person.** The description is injected into the system prompt.
+**Always write in passive voice.** The description is injected into the system prompt.
 
 **Be specific and include key terms:**
 
