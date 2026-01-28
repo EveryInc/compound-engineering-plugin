@@ -32,6 +32,18 @@
       "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
       "tags": ["coding", "programming", "tutorial", "learning", "spaced-repetition", "education"],
       "source": "./plugins/coding-tutor"
+    },
+    {
+      "name": "vmark-mcp",
+      "description": "AI writing assistant for VMark markdown editor. Comprehensive skills and workflows for 76 MCP tools - write, edit, reorganize, and format documents with AI assistance. Includes 1 skill with detailed references.",
+      "version": "0.3.10",
+      "author": {
+        "name": "xiaolai",
+        "url": "https://github.com/xiaolai"
+      },
+      "homepage": "https://github.com/xiaolai/vmark",
+      "tags": ["markdown", "editor", "mcp", "writing", "ai-assistant", "vmark"],
+      "source": "./plugins/vmark-mcp"
     }
   ]
 }
