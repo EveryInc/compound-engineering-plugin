@@ -1,10 +1,10 @@
-# CORA Documentation Schema
+# Documentation Schema
 # This schema MUST be validated before writing any documentation file
 
 required_fields:
   module:
     type: string
-    description: "Module/area of CORA (e.g., 'Email Processing', 'Brief System', 'Authentication')"
+    description: "Module/area (e.g., 'Email Processing', 'Brief System', 'Authentication')"
     examples:
       - "Email Processing"
       - "Brief System"
@@ -54,7 +54,7 @@ required_fields:
       - testing_framework    # Test setup, fixtures, VCR
       - documentation        # README, guides, inline docs
       - tooling              # Scripts, generators, CLI tools
-    description: "CORA component involved"
+    description: "Component involved"
 
   symptoms:
     type: array[string]
@@ -133,7 +133,7 @@ optional_fields:
       - "turbo-stream"
 
 validation_rules:
-  - "module must be a valid CORA module name"
+  - "module must be a valid module name"
   - "date must be in YYYY-MM-DD format"
   - "problem_type must match one of the enum values"
   - "component must match one of the enum values"
