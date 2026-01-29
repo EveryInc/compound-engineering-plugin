@@ -6,9 +6,9 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 27 |
-| Commands | 20 |
-| Skills | 14 |
+| Agents | 37 |
+| Commands | 24 |
+| Skills | 15 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -34,38 +34,48 @@ Agents are organized into categories for easier discovery.
 | `security-sentinel` | Security audits and vulnerability assessments |
 | `julik-frontend-races-reviewer` | Review JavaScript/Stimulus code for race conditions |
 
-### Research (4)
+### Research (5)
 
 | Agent | Description |
 |-------|-------------|
 | `best-practices-researcher` | Gather external best practices and examples |
 | `framework-docs-researcher` | Research framework documentation and best practices |
 | `git-history-analyzer` | Analyze git history and code evolution |
+| `learnings-researcher` | Research and extract key learnings from previous tasks |
 | `repo-research-analyst` | Research repository structure and conventions |
 
-### Design (3)
+### Design (5)
 
 | Agent | Description |
 |-------|-------------|
 | `design-implementation-reviewer` | Verify UI implementations match Figma designs |
 | `design-iterator` | Iteratively refine UI through systematic design iterations |
 | `figma-design-sync` | Synchronize web implementations with Figma designs |
+| `frontend-design` | Create distinctive, production-grade frontend interfaces |
+| `gemini-imagegen` | Generate and edit images using the Gemini API |
 
-### Workflow (5)
+### Workflow (11)
 
 | Agent | Description |
 |-------|-------------|
+| `agent-browser` | Browser automation using Vercel's agent-browser CLI |
+| `brainstorming` | Clarify requirements and explore approaches before implementation |
 | `bug-reproduction-validator` | Systematically reproduce and validate bug reports |
+| `create-agent-skills` | Expert guidance for creating and refining Claude Code Skills |
+| `dspy-ruby` | Expert in DSPy.rb for building type-safe LLM applications |
 | `every-style-editor` | Edit content to conform to Every's style guide |
+| `file-todos` | Manage the file-based todo tracking system |
 | `lint` | Run linting and code quality checks on Ruby and ERB files |
 | `pr-comment-resolver` | Address PR comments and implement fixes |
+| `skill-creator` | Guide for creating effective skills |
 | `spec-flow-analyzer` | Analyze user flows and identify gaps in specifications |
 
-### Docs (1)
+### Docs (2)
 
 | Agent | Description |
 |-------|-------------|
 | `ankane-readme-writer` | Create READMEs following Ankane-style template for Ruby gems |
+| `compound-docs` | Capture solved problems as categorized documentation |
 
 ## Commands
 
@@ -85,12 +95,16 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 
 | Command | Description |
 |---------|-------------|
+| `/agent-native-audit` | Comprehensive agent-native architecture review |
 | `/deepen-plan` | Enhance plans with parallel research agents for each section |
 | `/changelog` | Create engaging changelogs for recent merges |
 | `/create-agent-skill` | Create or edit Claude Code skills |
+| `/deploy-docs` | Deploy documentation to the production site |
 | `/generate_command` | Generate new slash commands |
 | `/heal-skill` | Fix skill documentation issues |
+| `/lfg` | Full autonomous engineering workflow |
 | `/plan_review` | Multi-agent plan review in parallel |
+| `/release-docs` | Release updated documentation to staging/production |
 | `/report-bug` | Report a bug in the plugin |
 | `/reproduce-bug` | Reproduce bugs using logs and console |
 | `/resolve_parallel` | Resolve TODO comments in parallel |

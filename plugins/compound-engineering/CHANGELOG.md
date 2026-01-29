@@ -5,6 +5,26 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.29.0] - 2026-01-30
+
+### Added
+
+- **New Agent: `frontend-design`** - Create production-grade frontend interfaces with high design quality
+- **New Agent: `gemini-imagegen`** - Generate and edit images using the Gemini API (Nano Banana Pro)
+- **New Agent: `compound-docs`** - Capture solved problems as documentation with YAML frontmatter
+- **New Agent: `agent-browser`** - Browser automation using Vercel's agent-browser CLI
+- **New Agent: `brainstorming`** - Guided ideation flow to clarify intent before implementation
+- **New Agent: `create-agent-skills`** - Expert guidance for creating and refining Claude Code skills
+- **New Agent: `dspy-ruby`** - Build type-safe LLM applications with DSPy.rb
+- **New Agent: `file-todos`** - Manage the file-based todo tracking system
+- **New Agent: `skill-creator`** - Guide for modularizing capabilities into self-contained skills
+
+### Summary
+
+- 37 agents, 24 commands, 15 skills, 1 MCP server
+
+---
+
 ## [2.28.0] - 2026-01-21
 
 ### Added
