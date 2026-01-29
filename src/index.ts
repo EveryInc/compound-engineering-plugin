@@ -3,6 +3,7 @@ import { defineCommand, runMain } from "citty"
 import convert from "./commands/convert"
 import install from "./commands/install"
 import listCommand from "./commands/list"
+import sync from "./commands/sync"
 
 const main = defineCommand({
   meta: {
@@ -14,6 +15,7 @@ const main = defineCommand({
     convert: () => convert,
     install: () => install,
     list: () => listCommand,
+    sync: () => sync,
   },
 })
 
