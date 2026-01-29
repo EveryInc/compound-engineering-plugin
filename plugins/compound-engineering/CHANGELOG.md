@@ -5,6 +5,26 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.28.0] - 2026-01-29
+
+### Removed
+
+- **Ruby-focused skills** - Removed 3 skills that were no longer relevant:
+  - `andrew-kane-gem-writer` - Ruby gem patterns
+  - `dhh-rails-style` - Rails/37signals style guide
+  - `dspy-ruby` - DSPy Ruby bindings
+
+### Changed
+
+- Updated agent and command counts in README to match actual files
+- Updated component counts: 27 agents, 23 commands, 11 skills, 1 MCP server
+
+### Summary
+
+- 27 agents, 23 commands, 11 skills, 1 MCP server
+
+---
+
 ## [2.27.0] - 2026-01-20
 
 ### Added

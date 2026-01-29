@@ -84,7 +84,6 @@ skill: [skill-name]
 
 # Examples
 skill: gemini-imagegen
-skill: dhh-rails-style
 skill: create-agent-skills</code></pre>
           </div>
         </div>
@@ -155,115 +154,6 @@ skill: create-agent-skills</code></pre>
             </ol>
             <div class="card-code-block">
               <pre><code>skill: skill-creator</code></pre>
-            </div>
-          </div>
-
-          <div class="skill-detail" id="dhh-rails-style">
-            <div class="skill-detail-header">
-              <h3>dhh-rails-style</h3>
-              <span class="skill-badge">Rails</span>
-            </div>
-            <p class="skill-detail-description">
-              Comprehensive 37signals Rails conventions based on Marc Köhlbrugge's analysis of 265 PRs from the Fizzy codebase. Covers everything from REST mapping to state-as-records, Turbo/Stimulus patterns, CSS with OKLCH colors, Minitest with fixtures, and Solid Queue/Cache/Cable patterns.
-            </p>
-            <h4>Key Patterns</h4>
-            <ul>
-              <li><strong>REST Purity</strong> - Verbs become nouns (close → closure)</li>
-              <li><strong>State as Records</strong> - Boolean columns → separate records</li>
-              <li><strong>Fat Models</strong> - Business logic, authorization, broadcasting</li>
-              <li><strong>Thin Controllers</strong> - 1-5 line actions with concerns</li>
-              <li><strong>Current Attributes</strong> - Request context everywhere</li>
-              <li><strong>Hotwire/Turbo</strong> - Model-level broadcasting, morphing</li>
-            </ul>
-            <h4>Reference Files (6)</h4>
-            <ul>
-              <li><code>controllers.md</code> - REST mapping, concerns, Turbo responses</li>
-              <li><code>models.md</code> - Concerns, state records, callbacks, POROs</li>
-              <li><code>frontend.md</code> - Turbo, Stimulus, CSS layers, OKLCH</li>
-              <li><code>architecture.md</code> - Routing, auth, jobs, caching</li>
-              <li><code>testing.md</code> - Minitest, fixtures, integration tests</li>
-              <li><code>gems.md</code> - What to use vs avoid, decision framework</li>
-            </ul>
-            <div class="card-code-block">
-              <pre><code>skill: dhh-rails-style</code></pre>
-            </div>
-          </div>
-
-          <div class="skill-detail" id="andrew-kane-gem-writer">
-            <div class="skill-detail-header">
-              <h3>andrew-kane-gem-writer</h3>
-              <span class="skill-badge">Ruby</span>
-            </div>
-            <p class="skill-detail-description">
-              Andrew Kane has written 100+ Ruby gems with 374 million downloads. Every gem follows the same patterns: minimal dependencies, class macro DSLs, Rails integration without Rails coupling. When you're building a gem and want it to feel production-ready from day one, this is how you do it.
-            </p>
-            <h4>Philosophy</h4>
-            <ul>
-              <li>Simplicity over cleverness</li>
-              <li>Zero or minimal dependencies</li>
-              <li>Explicit code over metaprogramming</li>
-              <li>Rails integration without Rails coupling</li>
-            </ul>
-            <h4>Key Patterns</h4>
-            <ul>
-              <li>Class macro DSL for configuration</li>
-              <li><code>ActiveSupport.on_load</code> for Rails integration</li>
-              <li><code>class << self</code> with <code>attr_accessor</code></li>
-              <li>Railtie pattern for hooks</li>
-              <li>Minitest (no RSpec)</li>
-            </ul>
-            <h4>Reference Files</h4>
-            <ul>
-              <li><code>references/module-organization.md</code></li>
-              <li><code>references/rails-integration.md</code></li>
-              <li><code>references/database-adapters.md</code></li>
-              <li><code>references/testing-patterns.md</code></li>
-            </ul>
-            <div class="card-code-block">
-              <pre><code>skill: andrew-kane-gem-writer</code></pre>
-            </div>
-          </div>
-
-          <div class="skill-detail" id="dspy-ruby">
-            <div class="skill-detail-header">
-              <h3>dspy-ruby</h3>
-              <span class="skill-badge">AI</span>
-            </div>
-            <p class="skill-detail-description">
-              You're adding AI features to your Rails app, but you don't want brittle prompt strings scattered everywhere. DSPy.rb gives you type-safe signatures, composable predictors, and tool-using agents. This skill shows you how to use it—from basic inference to ReAct agents that iterate until they get the answer right.
-            </p>
-            <h4>Predictor Types</h4>
-            <ul>
-              <li><strong>Predict</strong> - Basic inference</li>
-              <li><strong>ChainOfThought</strong> - Reasoning with explanations</li>
-              <li><strong>ReAct</strong> - Tool-using agents with iteration</li>
-              <li><strong>CodeAct</strong> - Dynamic code generation</li>
-            </ul>
-            <h4>Supported Providers</h4>
-            <ul>
-              <li>OpenAI (GPT-4, GPT-4o-mini)</li>
-              <li>Anthropic Claude</li>
-              <li>Google Gemini</li>
-              <li>Ollama (free, local)</li>
-              <li>OpenRouter</li>
-            </ul>
-            <h4>Requirements</h4>
-            <table class="docs-table">
-              <tr>
-                <td><code>OPENAI_API_KEY</code></td>
-                <td>For OpenAI provider</td>
-              </tr>
-              <tr>
-                <td><code>ANTHROPIC_API_KEY</code></td>
-                <td>For Anthropic provider</td>
-              </tr>
-              <tr>
-                <td><code>GOOGLE_API_KEY</code></td>
-                <td>For Gemini provider</td>
-              </tr>
-            </table>
-            <div class="card-code-block">
-              <pre><code>skill: dspy-ruby</code></pre>
             </div>
           </div>
 
