@@ -5,6 +5,32 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.28.2] - 2026-01-30
+
+### Fixed
+
+- **`/lfg` command** - Fixed broken command references and Ralph-Wiggum namespace typos for OpenCode users (#126)
+
+---
+
+## [2.28.1] - 2026-01-30
+
+### Fixed
+
+- **CORA Cleanup** - Removed remaining hardcoded CORA references in schemas and commands (#127)
+- **Agent Rename** - `cora-test-reviewer` renamed to `test-quality-reviewer` for consistency
+
+---
+
+## [2.28.0] - 2026-01-21
+
+### Fixed
+
+- **CORA Cleanup** - Removed remaining hardcoded CORA references in schemas and commands (#127)
+- **Agent Rename** - `cora-test-reviewer` renamed to `test-quality-reviewer` for consistency
+
+---
+
 ## [2.28.0] - 2026-01-21
 
 ### Added
