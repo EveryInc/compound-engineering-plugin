@@ -32,6 +32,18 @@
       "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
       "tags": ["coding", "programming", "tutorial", "learning", "spaced-repetition", "education"],
       "source": "./plugins/coding-tutor"
+    },
+    {
+      "name": "nextjs-compound-engineering",
+      "description": "AI-powered development tools for Next.js 16+ / TypeScript / Tailwind / shadcn/ui / Drizzle. Includes 27 specialized agents, 24 commands, and 13 skills.",
+      "version": "1.0.0",
+      "author": {
+        "name": "Livio Frol",
+        "url": "https://github.com/liviofrol"
+      },
+      "homepage": "https://github.com/liviofrol/nextjs-compound-engineering-plugin",
+      "tags": ["ai-powered", "nextjs", "react", "typescript", "tailwind", "shadcn", "drizzle", "compound-engineering"],
+      "source": "./plugins/nextjs-compound-engineering"
     }
   ]
 }

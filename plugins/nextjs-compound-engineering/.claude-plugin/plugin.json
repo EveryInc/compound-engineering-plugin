@@ -1,0 +1,33 @@
+{
+  "name": "nextjs-compound-engineering",
+  "version": "1.0.0",
+  "description": "AI-powered development tools for Next.js 16+. 27 agents, 24 commands, 13 skills, 1 MCP server for code review, research, design, and workflow automation.",
+  "author": {
+    "name": "Livio Frol",
+    "url": "https://github.com/liviofrol"
+  },
+  "homepage": "https://github.com/liviofrol/nextjs-compound-engineering-plugin",
+  "repository": "https://github.com/liviofrol/nextjs-compound-engineering-plugin",
+  "license": "MIT",
+  "keywords": [
+    "ai-powered",
+    "compound-engineering",
+    "workflow-automation",
+    "code-review",
+    "nextjs",
+    "react",
+    "typescript",
+    "tailwind",
+    "shadcn",
+    "drizzle",
+    "knowledge-management",
+    "agent-browser",
+    "browser-automation"
+  ],
+  "mcpServers": {
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
+    }
+  }
+}
