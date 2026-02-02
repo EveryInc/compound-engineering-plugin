@@ -6,9 +6,9 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 27 |
-| Commands | 20 |
-| Skills | 14 |
+| Agents | 28 |
+| Commands | 26 |
+| Skills | 16 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -34,13 +34,14 @@ Agents are organized into categories for easier discovery.
 | `security-sentinel` | Security audits and vulnerability assessments |
 | `julik-frontend-races-reviewer` | Review JavaScript/Stimulus code for race conditions |
 
-### Research (4)
+### Research (5)
 
 | Agent | Description |
 |-------|-------------|
 | `best-practices-researcher` | Gather external best practices and examples |
 | `framework-docs-researcher` | Research framework documentation and best practices |
 | `git-history-analyzer` | Analyze git history and code evolution |
+| `learnings-researcher` | Research and synthesize team learnings and patterns |
 | `repo-research-analyst` | Research repository structure and conventions |
 
 ### Design (3)
@@ -85,12 +86,18 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 
 | Command | Description |
 |---------|-------------|
+| `/agent-native-audit` | Audit features for agent-native compliance |
 | `/deepen-plan` | Enhance plans with parallel research agents for each section |
 | `/changelog` | Create engaging changelogs for recent merges |
 | `/create-agent-skill` | Create or edit Claude Code skills |
+| `/deploy-docs` | Deploy documentation to GitHub Pages |
 | `/generate_command` | Generate new slash commands |
 | `/heal-skill` | Fix skill documentation issues |
+| `/lfg` | Sequential autonomous engineering workflow |
+| `/slfg` | Swarm-based autonomous engineering with parallel agents |
+| `/swarm-status` | Show status of active swarm teams and tasks |
 | `/plan_review` | Multi-agent plan review in parallel |
+| `/release-docs` | Build and release plugin documentation |
 | `/report-bug` | Report a bug in the plugin |
 | `/reproduce-bug` | Reproduce bugs using logs and console |
 | `/resolve_parallel` | Resolve TODO comments in parallel |
@@ -108,6 +115,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | Skill | Description |
 |-------|-------------|
 | `agent-native-architecture` | Build AI agents using prompt-native architecture |
+| `brainstorming` | Expert guidance for brainstorming and exploring ideas |
 
 ### Development Tools
 
@@ -119,6 +127,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `dhh-rails-style` | Write Ruby/Rails code in DHH's 37signals style |
 | `dspy-ruby` | Build type-safe LLM applications with DSPy.rb |
 | `frontend-design` | Create production-grade frontend interfaces |
+| `orchestrating-swarms` | Master multi-agent orchestration using TeammateTool and Task system |
 | `skill-creator` | Guide for creating effective Claude Code skills |
 
 ### Content & Workflow

@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Command Reference - Compounding Engineering</title>
-  <meta content="Complete reference for all 16 slash commands in the Compounding Engineering plugin." name="description" />
+  <meta content="Complete reference for all 24 slash commands in the Compounding Engineering plugin." name="description" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
@@ -33,9 +33,9 @@
         <div class="nav-section">
           <h3>Reference</h3>
           <ul>
-            <li><a href="agents.html">Agents (23)</a></li>
-            <li><a href="commands.html" class="active">Commands (13)</a></li>
-            <li><a href="skills.html">Skills (11)</a></li>
+            <li><a href="agents.html">Agents (28)</a></li>
+            <li><a href="commands.html" class="active">Commands (24)</a></li>
+            <li><a href="skills.html">Skills (15)</a></li>
             <li><a href="mcp-servers.html">MCP Servers (two)</a></li>
           </ul>
         </div>
@@ -48,8 +48,8 @@
         <div class="nav-section">
           <h3>On This Page</h3>
           <ul>
-            <li><a href="#workflow-commands">Workflow (four)</a></li>
-            <li><a href="#utility-commands">Utility (12)</a></li>
+            <li><a href="#workflow-commands">Workflow (5)</a></li>
+            <li><a href="#utility-commands">Utility (19)</a></li>
           </ul>
         </div>
       </nav>
@@ -77,8 +77,23 @@
 
         <!-- Workflow Commands -->
         <section id="workflow-commands">
-          <h2><i class="fa-solid fa-arrows-spin"></i> Workflow Commands (four)</h2>
-          <p>These are the big four: Plan your feature, Review your code, Work through the implementation, and Codify what you learned. Every professional developer does this cycle—these commands just make you faster at it.</p>
+          <h2><i class="fa-solid fa-arrows-spin"></i> Workflow Commands (5)</h2>
+          <p>These are the core five: Brainstorm your ideas, Plan your feature, Review your code, Work through the implementation, and Codify what you learned. Every professional developer does this cycle—these commands just make you faster at it.</p>
+
+          <div class="command-detail" id="workflows-brainstorm">
+            <div class="command-detail-header">
+              <code class="command-detail-name">/brainstorm</code>
+            </div>
+            <p class="command-detail-description">
+              Explore requirements and approaches before planning. Brainstorm with multiple experts to find the best architectural path forward.
+            </p>
+            <h4>Arguments</h4>
+            <p><code>[topic or problem description]</code></p>
+            <div class="card-code-block">
+              <pre><code>/brainstorm architecture for new notification system
+/brainstorm how to optimize database performance</code></pre>
+            </div>
+          </div>
 
           <div class="command-detail" id="workflows-plan">
             <div class="command-detail-header">
@@ -244,7 +259,7 @@
 
         <!-- Utility Commands -->
         <section id="utility-commands">
-          <h2><i class="fa-solid fa-wrench"></i> Utility Commands (12)</h2>
+          <h2><i class="fa-solid fa-wrench"></i> Utility Commands (19)</h2>
           <p>The supporting cast—commands that do one specific thing really well. Generate changelogs, resolve todos in parallel, triage findings, create new commands. The utilities you reach for daily.</p>
 
           <div class="command-detail" id="changelog">
@@ -485,15 +500,63 @@
             </div>
           </div>
 
-          <div class="command-detail" id="prime">
+          <div class="command-detail" id="agent-native-audit">
             <div class="command-detail-header">
-              <code class="command-detail-name">/prime</code>
+              <code class="command-detail-name">/agent-native-audit</code>
             </div>
             <p class="command-detail-description">
-              Your project initialization command. What exactly it does depends on your project setup—think of it as the "get everything ready" button before you start coding.
+              Audit features for agent-native compliance. Ensures that all functionality available to users is also accessible to AI agents.
             </p>
             <div class="card-code-block">
-              <pre><code>/prime</code></pre>
+              <pre><code>/agent-native-audit</code></pre>
+            </div>
+          </div>
+
+          <div class="command-detail" id="release-docs">
+            <div class="command-detail-header">
+              <code class="command-detail-name">/release-docs</code>
+            </div>
+            <p class="command-detail-description">
+              Build and update the documentation site with current plugin components. Synchronizes all reference pages with the current state of the plugin.
+            </p>
+            <div class="card-code-block">
+              <pre><code>/release-docs</code></pre>
+            </div>
+          </div>
+
+          <div class="command-detail" id="deploy-docs">
+            <div class="command-detail-header">
+              <code class="command-detail-name">/deploy-docs</code>
+            </div>
+            <p class="command-detail-description">
+              Validate and prepare documentation for GitHub Pages deployment. Ensures all internal links work and assets are correctly placed.
+            </p>
+            <div class="card-code-block">
+              <pre><code>/deploy-docs</code></pre>
+            </div>
+          </div>
+
+          <div class="command-detail" id="lfg">
+            <div class="command-detail-header">
+              <code class="command-detail-name">/lfg</code>
+            </div>
+            <p class="command-detail-description">
+              Launch something fun (or just start the day). A mood-boosting command to kick off your development session.
+            </p>
+            <div class="card-code-block">
+              <pre><code>/lfg</code></pre>
+            </div>
+          </div>
+
+          <div class="command-detail" id="deepen-plan">
+            <div class="command-detail-header">
+              <code class="command-detail-name">/deepen-plan</code>
+            </div>
+            <p class="command-detail-description">
+              Enhance plans with parallel research agents for each section. Adds more depth and research to an existing implementation plan.
+            </p>
+            <div class="card-code-block">
+              <pre><code>/deepen-plan plans/my-plan.md</code></pre>
             </div>
           </div>
         </section>

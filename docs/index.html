@@ -244,7 +244,7 @@
                 The <code>security-sentinel</code> has checked 10,000 PRs for SQL injection. The <code>kieran-rails-reviewer</code> never approves a controller with business logic. They don't get tired, don't skip Friday afternoon reviews, don't forget the conventions you agreed on in March. Run <code>/work</code> and watch your plan execute with quality gates that actually enforce your standards—every single time.
               </p>
               <div class="pillar-tools">
-                <span class="tool-tag">27 specialized agents</span>
+                <span class="tool-tag">28 specialized agents</span>
                 <span class="tool-tag">/work</span>
                 <span class="tool-tag">dhh-rails-style skill</span>
                 <span class="tool-tag">git-worktree skill</span>
@@ -292,7 +292,7 @@
       <section id="agents">
         <div class="heading">
           <h2 class="no-top-margin">
-            <i class="fa-solid fa-users-gear color-accent"></i> 27 Specialized Agents
+            <i class="fa-solid fa-users-gear color-accent"></i> 28 Specialized Agents
           </h2>
           <p class="paragraph m secondary">
             Think of them as coworkers who never quit. The security-sentinel has seen every SQL injection variant. The kieran-rails-reviewer enforces conventions with zero compromise. The performance-oracle spots N+1 queries while you're still reading the PR. Run them solo or launch twelve in parallel—your choice.
@@ -301,7 +301,7 @@
 
         <!-- Review Agents -->
         <div class="agent-category">
-          <h3><i class="fa-solid fa-code-pull-request"></i> Review Agents (11)</h3>
+          <h3><i class="fa-solid fa-code-pull-request"></i> Review Agents (14)</h3>
           <div class="grid columns-2">
             <div class="agent-card">
               <div class="agent-header">
@@ -396,7 +396,7 @@
 
         <!-- Research Agents -->
         <div class="agent-category">
-          <h3><i class="fa-solid fa-microscope"></i> Research Agents (4)</h3>
+          <h3><i class="fa-solid fa-microscope"></i> Research Agents (5)</h3>
           <div class="grid columns-2">
             <div class="agent-card">
               <div class="agent-header">
@@ -429,6 +429,14 @@
               </div>
               <p class="agent-description">Research repository structure and conventions. Understand project patterns and organization.</p>
               <code class="agent-usage">claude agent repo-research-analyst</code>
+            </div>
+            <div class="agent-card">
+              <div class="agent-header">
+                <span class="agent-name">learnings-researcher</span>
+                <span class="agent-badge">Research</span>
+              </div>
+              <p class="agent-description">Research and synthesize team learnings and patterns from documentation and history.</p>
+              <code class="agent-usage">claude agent learnings-researcher</code>
             </div>
           </div>
         </div>
@@ -531,7 +539,7 @@
       <section id="commands">
         <div class="heading">
           <h2 class="no-top-margin">
-            <i class="fa-solid fa-terminal color-accent"></i> 19 Powerful Commands
+            <i class="fa-solid fa-terminal color-accent"></i> 24 Powerful Commands
           </h2>
           <p class="paragraph m secondary">
             Slash commands that replace entire workflows. <code>/review</code> is your code review committee. <code>/plan</code> is your research team. <code>/triage</code> sorts 50 todos in the time it takes you to read five. Each one automates hours of work into a single line.
@@ -540,7 +548,7 @@
 
         <!-- Workflow Commands -->
         <div class="command-category">
-          <h3><i class="fa-solid fa-arrows-spin"></i> Workflow Commands</h3>
+          <h3><i class="fa-solid fa-arrows-spin"></i> Workflow Commands (5)</h3>
           <div class="grid columns-2">
             <div class="command-card">
               <div class="command-header">
@@ -570,12 +578,19 @@
               </div>
               <p class="command-description">Document solved problems to compound team knowledge. Turn learnings into reusable patterns.</p>
             </div>
+            <div class="command-card">
+              <div class="command-header">
+                <code class="command-name">/brainstorm</code>
+                <span class="command-type-badge">core</span>
+              </div>
+              <p class="command-description">Explore requirements and approaches before planning. Brainstorm with multiple experts.</p>
+            </div>
           </div>
         </div>
 
         <!-- Utility Commands -->
         <div class="command-category">
-          <h3><i class="fa-solid fa-wrench"></i> Utility Commands</h3>
+          <h3><i class="fa-solid fa-wrench"></i> Utility Commands (19)</h3>
           <div class="grid columns-3">
             <div class="command-card">
               <div class="command-header">
@@ -611,13 +626,6 @@
                 <span class="command-type-badge">util</span>
               </div>
               <p class="command-description">Multi-agent plan review in parallel.</p>
-            </div>
-            <div class="command-card">
-              <div class="command-header">
-                <code class="command-name">/prime</code>
-                <span class="command-type-badge">util</span>
-              </div>
-              <p class="command-description">Prime/setup command for project initialization.</p>
             </div>
             <div class="command-card">
               <div class="command-header">
@@ -675,6 +683,20 @@
               </div>
               <p class="command-description">Validate and prepare documentation for GitHub Pages deployment.</p>
             </div>
+            <div class="command-card">
+              <div class="command-header">
+                <code class="command-name">/lfg</code>
+                <span class="command-type-badge">util</span>
+              </div>
+              <p class="command-description">Launch something fun (or just start the day).</p>
+            </div>
+            <div class="command-card">
+              <div class="command-header">
+                <code class="command-name">/agent-native-audit</code>
+                <span class="command-type-badge">util</span>
+              </div>
+              <p class="command-description">Audit features for agent-native compliance.</p>
+            </div>
           </div>
         </div>
       </section>
@@ -683,7 +705,7 @@
       <section id="skills">
         <div class="heading">
           <h2 class="no-top-margin">
-            <i class="fa-solid fa-wand-magic-sparkles color-accent"></i> 12 Intelligent Skills
+            <i class="fa-solid fa-wand-magic-sparkles color-accent"></i> 15 Intelligent Skills
           </h2>
           <p class="paragraph m secondary">
             Domain expertise on tap. Need to write a Ruby gem? The andrew-kane-gem-writer knows the patterns Andrew uses in 50+ popular gems. Building a Rails app? The dhh-rails-style enforces 37signals conventions. Generating images? The gemini-imagegen has Google's AI on speed dial. Just invoke the skill and watch it work.
@@ -750,6 +772,14 @@
               <p class="skill-description">Capture solved problems as categorized documentation with YAML schema.</p>
               <code class="skill-usage">skill: compound-docs</code>
             </div>
+            <div class="skill-card">
+              <div class="skill-header">
+                <span class="skill-name">brainstorming</span>
+                <span class="skill-badge">Ideation</span>
+              </div>
+              <p class="skill-description">Expert guidance for brainstorming and exploring ideas with multiple agent perspectives.</p>
+              <code class="skill-usage">skill: brainstorming</code>
+            </div>
           </div>
         </div>
 
@@ -780,6 +810,22 @@
               </div>
               <p class="skill-description">Manage Git worktrees for parallel development on multiple branches.</p>
               <code class="skill-usage">skill: git-worktree</code>
+            </div>
+            <div class="skill-card">
+              <div class="skill-header">
+                <span class="skill-name">rclone</span>
+                <span class="skill-badge">Cloud</span>
+              </div>
+              <p class="skill-description">Upload and sync files to S3, Cloudflare R2, and other cloud providers.</p>
+              <code class="skill-usage">skill: rclone</code>
+            </div>
+            <div class="skill-card">
+              <div class="skill-header">
+                <span class="skill-name">agent-browser</span>
+                <span class="skill-badge">Automation</span>
+              </div>
+              <p class="skill-description">Browser automation and interaction using agent-browser CLI.</p>
+              <code class="skill-usage">skill: agent-browser</code>
             </div>
           </div>
         </div>
@@ -989,7 +1035,7 @@ skill: gemini-imagegen</code></pre>
           <span class="cta-badge"><i class="fa-solid fa-bolt"></i> Free & Open Source</span>
           <h2>Install Once. Compound Forever.</h2>
           <p class="paragraph m cta-subheading">
-            <strong>Your next code review takes 30 seconds.</strong> The one after that? Even faster. That's compounding. Get 27 expert agents, 19 workflow commands, and 12 specialized skills working for you right now.
+            <strong>Your next code review takes 30 seconds.</strong> The one after that? Even faster. That's compounding. Get 28 expert agents, 24 workflow commands, and 15 specialized skills working for you right now.
           </p>
           <div class="button-group margin-paragraph centered">
             <a href="#install" class="button primary cta-primary">

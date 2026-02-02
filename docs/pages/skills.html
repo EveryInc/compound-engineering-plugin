@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Skill Reference - Compounding Engineering</title>
-  <meta content="Complete reference for all 12 intelligent skills in the Compounding Engineering plugin." name="description" />
+  <meta content="Complete reference for all 15 intelligent skills in the Compounding Engineering plugin." name="description" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
@@ -33,9 +33,9 @@
         <div class="nav-section">
           <h3>Reference</h3>
           <ul>
-            <li><a href="agents.html">Agents (27)</a></li>
-            <li><a href="commands.html">Commands (19)</a></li>
-            <li><a href="skills.html" class="active">Skills (12)</a></li>
+            <li><a href="agents.html">Agents (28)</a></li>
+            <li><a href="commands.html">Commands (24)</a></li>
+            <li><a href="skills.html" class="active">Skills (15)</a></li>
             <li><a href="mcp-servers.html">MCP Servers (2)</a></li>
           </ul>
         </div>
@@ -48,8 +48,8 @@
         <div class="nav-section">
           <h3>On This Page</h3>
           <ul>
-            <li><a href="#development-tools">Development (8)</a></li>
-            <li><a href="#content-workflow">Content & Workflow (3)</a></li>
+            <li><a href="#development-tools">Development (10)</a></li>
+            <li><a href="#content-workflow">Content & Workflow (4)</a></li>
             <li><a href="#image-generation">Image Generation (1)</a></li>
           </ul>
         </div>
@@ -101,7 +101,7 @@ skill: create-agent-skills</code></pre>
 
         <!-- Development Tools -->
         <section id="development-tools">
-          <h2><i class="fa-solid fa-code"></i> Development Tools (8)</h2>
+          <h2><i class="fa-solid fa-code"></i> Development Tools (10)</h2>
           <p>These skills teach Claude specific coding styles and architectural patterns. Use them when you want code that follows a particular philosophy—not just any working code, but code that looks like it was written by a specific person or framework.</p>
 
           <div class="skill-detail" id="create-agent-skills">
@@ -356,11 +356,24 @@ skill: create-agent-skills</code></pre>
               <pre><code>skill: agent-native-architecture</code></pre>
             </div>
           </div>
+
+          <div class="skill-detail" id="brainstorming">
+            <div class="skill-detail-header">
+              <h3>brainstorming</h3>
+              <span class="skill-badge">Ideation</span>
+            </div>
+            <p class="skill-detail-description">
+              Expert guidance for brainstorming and exploring ideas. Uses multiple agent perspectives (Creative, Skeptic, Pragmatist) to stress-test ideas and find the best path forward.
+            </p>
+            <div class="card-code-block">
+              <pre><code>skill: brainstorming</code></pre>
+            </div>
+          </div>
         </section>
 
         <!-- Content & Workflow -->
         <section id="content-workflow">
-          <h2><i class="fa-solid fa-pen-fancy"></i> Content & Workflow (3)</h2>
+          <h2><i class="fa-solid fa-pen-fancy"></i> Content & Workflow (4)</h2>
           <p>Writing, editing, and organizing work. These skills handle everything from style guide compliance to git worktree management—the meta-work that makes the real work easier.</p>
 
           <div class="skill-detail" id="every-style-editor">
@@ -447,16 +460,16 @@ dependencies: []
             <h4>Commands</h4>
             <div class="card-code-block">
               <pre><code># Create new worktree
-bash scripts/worktree-manager.sh create feature-login
-
-# List worktrees
-bash scripts/worktree-manager.sh list
-
-# Switch to worktree
-bash scripts/worktree-manager.sh switch feature-login
-
-# Clean up completed worktrees
-bash scripts/worktree-manager.sh cleanup</code></pre>
+00450| bash scripts/worktree-manager.sh create feature-login
+00451| 
+00452| # List worktrees
+00453| bash scripts/worktree-manager.sh list
+00454| 
+00455| # Switch to worktree
+00456| bash scripts/worktree-manager.sh switch feature-login
+00457| 
+00458| # Clean up completed worktrees
+00459| bash scripts/worktree-manager.sh cleanup</code></pre>
             </div>
             <h4>Integration</h4>
             <ul>
@@ -470,6 +483,32 @@ bash scripts/worktree-manager.sh cleanup</code></pre>
             </ul>
             <div class="card-code-block">
               <pre><code>skill: git-worktree</code></pre>
+            </div>
+          </div>
+
+          <div class="skill-detail" id="rclone">
+            <div class="skill-detail-header">
+              <h3>rclone</h3>
+              <span class="skill-badge">Cloud</span>
+            </div>
+            <p class="skill-detail-description">
+              Upload, sync, and manage files across cloud storage providers using rclone. Supports S3, Cloudflare R2, Backblaze B2, Google Drive, and more.
+            </p>
+            <div class="card-code-block">
+              <pre><code>skill: rclone</code></pre>
+            </div>
+          </div>
+
+          <div class="skill-detail" id="agent-browser">
+            <div class="skill-detail-header">
+              <h3>agent-browser</h3>
+              <span class="skill-badge">Automation</span>
+            </div>
+            <p class="skill-detail-description">
+              Browser automation using Vercel's agent-browser CLI. Interact with web pages, fill forms, take screenshots, and scrape data through AI-driven automation.
+            </p>
+            <div class="card-code-block">
+              <pre><code>skill: agent-browser</code></pre>
             </div>
           </div>
         </section>

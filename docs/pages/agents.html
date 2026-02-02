@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Agent Reference - Compounding Engineering</title>
-  <meta content="Complete reference for all 23 specialized AI agents in the Compounding Engineering plugin." name="description" />
+  <meta content="Complete reference for all 28 specialized AI agents in the Compounding Engineering plugin." name="description" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
@@ -33,9 +33,9 @@
         <div class="nav-section">
           <h3>Reference</h3>
           <ul>
-            <li><a href="agents.html" class="active">Agents (23)</a></li>
-            <li><a href="commands.html">Commands (13)</a></li>
-            <li><a href="skills.html">Skills (11)</a></li>
+            <li><a href="agents.html" class="active">Agents (28)</a></li>
+            <li><a href="commands.html">Commands (24)</a></li>
+            <li><a href="skills.html">Skills (15)</a></li>
             <li><a href="mcp-servers.html">MCP Servers (2)</a></li>
           </ul>
         </div>
@@ -48,8 +48,8 @@
         <div class="nav-section">
           <h3>On This Page</h3>
           <ul>
-            <li><a href="#review-agents">Review (10)</a></li>
-            <li><a href="#research-agents">Research (4)</a></li>
+            <li><a href="#review-agents">Review (14)</a></li>
+            <li><a href="#research-agents">Research (5)</a></li>
             <li><a href="#workflow-agents">Workflow (5)</a></li>
             <li><a href="#design-agents">Design (3)</a></li>
             <li><a href="#docs-agents">Docs (1)</a></li>
@@ -75,7 +75,7 @@
       <article class="docs-article">
         <h1><i class="fa-solid fa-users-gear color-accent"></i> Agent Reference</h1>
         <p class="lead">
-          Think of agents as your expert teammates who never sleep. You've got 23 specialists here—each one obsessed with a single domain. Call them individually when you need focused expertise, or orchestrate them together for multi-angle analysis. They're opinionated, they're fast, and they remember your codebase better than you do.
+          Think of agents as your expert teammates who never sleep. You've got 28 specialists here—each one obsessed with a single domain. Call them individually when you need focused expertise, or orchestrate them together for multi-angle analysis. They're opinionated, they're fast, and they remember your codebase better than you do.
         </p>
 
         <div class="usage-box">
@@ -95,7 +95,7 @@ claude agent security-sentinel "Audit the payment flow"</code></pre>
 
         <!-- Review Agents -->
         <section id="review-agents">
-          <h2><i class="fa-solid fa-code-pull-request"></i> Review Agents (10)</h2>
+          <h2><i class="fa-solid fa-code-pull-request"></i> Review Agents (14)</h2>
           <p>Your code review dream team. These agents catch what humans miss at 2am—security holes, performance cliffs, architectural drift, and those "it works but I hate it" moments. They're picky. They disagree with each other. That's the point.</p>
 
           <div class="agent-detail" id="kieran-rails-reviewer">
@@ -295,32 +295,62 @@ claude agent security-sentinel "Audit the payment flow"</code></pre>
             </div>
           </div>
 
-          <div class="agent-detail" id="code-simplicity-reviewer">
+          <div class="agent-detail" id="julik-frontend-races-reviewer">
             <div class="agent-detail-header">
-              <h3>code-simplicity-reviewer</h3>
-              <span class="agent-badge">Quality</span>
+              <h3>julik-frontend-races-reviewer</h3>
+              <span class="agent-badge">JavaScript</span>
             </div>
             <p class="agent-detail-description">
-              Simplicity is violent discipline. This agent asks "do you actually need this?" about every line, every abstraction, every dependency. YAGNI isn't a suggestion—it's the law. Your 200-line feature with three layers of indirection? This agent will show you the 50-line version that does the same thing. Complexity is a liability; simplicity compounds.
+              Review JavaScript and Stimulus code for race conditions, DOM event handling, promise management, and timer cleanup. Spotting UI data races before they cause "it only happens sometimes" bugs.
             </p>
-            <h4>Simplification Checks</h4>
-            <ul>
-              <li>Analyze every line for necessity</li>
-              <li>Simplify complex logic</li>
-              <li>Remove redundancy and duplication</li>
-              <li>Challenge abstractions</li>
-              <li>Optimize for readability</li>
-              <li>Eliminate premature generalization</li>
-            </ul>
             <div class="card-code-block">
-              <pre><code>claude agent code-simplicity-reviewer</code></pre>
+              <pre><code>claude agent julik-frontend-races-reviewer</code></pre>
+            </div>
+          </div>
+
+          <div class="agent-detail" id="agent-native-reviewer">
+            <div class="agent-detail-header">
+              <h3>agent-native-reviewer</h3>
+              <span class="agent-badge highlight">AI</span>
+            </div>
+            <p class="agent-detail-description">
+              Verify features are agent-native. Ensures action and context parity—anything a user can do or see, an agent must also be able to do or see.
+            </p>
+            <div class="card-code-block">
+              <pre><code>claude agent agent-native-reviewer</code></pre>
+            </div>
+          </div>
+
+          <div class="agent-detail" id="data-migration-expert">
+            <div class="agent-detail-header">
+              <h3>data-migration-expert</h3>
+              <span class="agent-badge critical">Data</span>
+            </div>
+            <p class="agent-detail-description">
+              Validate ID mappings match production reality. Check for swapped values and verify rollback safety during schema changes and data transformations.
+            </p>
+            <div class="card-code-block">
+              <pre><code>claude agent data-migration-expert</code></pre>
+            </div>
+          </div>
+
+          <div class="agent-detail" id="deployment-verification-agent">
+            <div class="agent-detail-header">
+              <h3>deployment-verification-agent</h3>
+              <span class="agent-badge highlight">Ops</span>
+            </div>
+            <p class="agent-detail-description">
+              Create Go/No-Go deployment checklists for risky data changes. Essential for PRs touching production data, migrations, or critical backfills.
+            </p>
+            <div class="card-code-block">
+              <pre><code>claude agent deployment-verification-agent</code></pre>
             </div>
           </div>
         </section>
 
         <!-- Research Agents -->
         <section id="research-agents">
-          <h2><i class="fa-solid fa-microscope"></i> Research Agents (4)</h2>
+          <h2><i class="fa-solid fa-microscope"></i> Research Agents (5)</h2>
           <p>Stop guessing. These agents dig through documentation, GitHub repos, git history, and real-world examples to give you answers backed by evidence. They read faster than you, remember more than you, and synthesize patterns you'd miss. Perfect for "how should I actually do this?" questions.</p>
 
           <div class="agent-detail" id="framework-docs-researcher">
@@ -404,6 +434,19 @@ claude agent security-sentinel "Audit the payment flow"</code></pre>
             </ul>
             <div class="card-code-block">
               <pre><code>claude agent repo-research-analyst</code></pre>
+            </div>
+          </div>
+
+          <div class="agent-detail" id="learnings-researcher">
+            <div class="agent-detail-header">
+              <h3>learnings-researcher</h3>
+              <span class="agent-badge">Research</span>
+            </div>
+            <p class="agent-detail-description">
+              Research and synthesize team learnings and patterns from documentation, history, and solved problems. Helps turn individual fixes into collective knowledge.
+            </p>
+            <div class="card-code-block">
+              <pre><code>claude agent learnings-researcher</code></pre>
             </div>
           </div>
         </section>

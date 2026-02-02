@@ -5,6 +5,57 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0] - 2026-02-02
+
+### Added
+
+- **`orchestrating-swarms` skill** - Master multi-agent orchestration using Claude Code's TeammateTool and Task system
+  - Core primitives: Teams, Teammates, Tasks, Inboxes, Messages
+  - Built-in agent types: Bash, Explore, Plan, general-purpose
+  - TeammateTool operations: spawnTeam, write, broadcast, shutdown, cleanup
+  - Task system integration with dependencies and auto-unblocking
+  - Orchestration patterns: Parallel Specialists, Pipeline, Swarm, Research + Implementation
+  - Spawn backends: in-process, tmux, iterm2
+  - Complete workflows and best practices
+
+### Summary
+
+- 28 agents, 26 commands, 16 skills, 1 MCP server
+
+---
+
+## [2.30.0] - 2026-01-25
+
+### Added
+
+- **`/swarm-status` command** - Display status of active swarm teams
+  - Shows all active teams from ~/.claude/teams/
+  - Lists teammates with their roles and status (Active/Idle/Offline)
+  - Displays task progress with completion percentage
+  - Supports viewing specific team or all teams
+
+---
+
+## [2.29.0] - 2026-01-25
+
+### Added
+
+- **`/slfg` command** - Swarm-based autonomous engineering workflow using TeammateTool
+  - Spawns specialized agents (Planner, Researcher, Worker, Reviewer, Tester, Resolver, Video) that work in parallel
+  - Coordinates through shared task list with dependencies
+  - Team lead orchestrates and approves plans before implementation
+  - Maximizes parallelism: planning + research run simultaneously, review + testing run simultaneously
+  - Full autonomous workflow from feature description to PR with video
+
+---
+
+## [2.28.1] - 2026-01-22
+
+### Fixed
+
+- **Documentation** - Updated component counts and added missing entries in README, HTML docs, and metadata to reflect 28 agents, 24 commands, and 15 skills
+- **Slash Commands** - Corrected documentation for recently added commands (`lfg`, `release-docs`, `deploy-docs`)
+
 ## [2.28.0] - 2026-01-21
 
 ### Added
