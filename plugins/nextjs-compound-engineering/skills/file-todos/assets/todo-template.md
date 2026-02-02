@@ -29,10 +29,10 @@ Investigation results, root cause analysis, and key discoveries.
 - Related issues or patterns discovered
 
 **Example format:**
-- Identified 12 missing test scenarios in `app/models/user_test.rb`
+- Identified 12 missing test scenarios in `src/lib/__tests__/user.test.ts`
 - Current coverage: 60% of code paths
 - Missing: empty inputs, special characters, large payloads
-- Similar issues exist in `app/models/post_test.rb` (~8 scenarios)
+- Similar issues exist in `src/lib/__tests__/post.test.ts` (~8 scenarios)
 
 ## Proposed Solutions
 
@@ -90,9 +90,9 @@ Present multiple options with pros, cons, effort estimates, and risk assessment.
 Affected files, related components, database changes, or architectural considerations.
 
 **Affected files:**
-- `app/models/user.rb:45` - full_name method
-- `app/services/user_service.rb:12` - validation logic
-- `test/models/user_test.rb` - existing tests
+- `src/lib/models/user.ts:45` - fullName function
+- `src/lib/services/user-service.ts:12` - validation logic
+- `src/lib/__tests__/user.test.ts` - existing tests
 
 **Related components:**
 - UserMailer (depends on user validation)
