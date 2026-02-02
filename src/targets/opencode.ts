@@ -28,7 +28,10 @@ export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBu
 }
 
 function resolveOpenCodePaths(outputRoot: string) {
-  if (path.basename(outputRoot) === ".opencode") {
+  const base = path.basename(outputRoot)
+  // Global install: ~/.config/opencode (basename is "opencode")
+  // Project install: .opencode (basename is ".opencode")
+  if (base === "opencode" || base === ".opencode") {
     return {
       root: outputRoot,
       configPath: path.join(outputRoot, "opencode.json"),
@@ -38,6 +41,7 @@ function resolveOpenCodePaths(outputRoot: string) {
     }
   }
 
+  // Custom output directory - nest under .opencode subdirectory
   return {
     root: outputRoot,
     configPath: path.join(outputRoot, "opencode.json"),

@@ -175,7 +175,9 @@ function resolveOutputRoot(value: unknown): string {
     const expanded = expandHome(String(value).trim())
     return path.resolve(expanded)
   }
-  return path.join(os.homedir(), ".opencode")
+  // OpenCode global config lives at ~/.config/opencode per XDG spec
+  // See: https://opencode.ai/docs/config/
+  return path.join(os.homedir(), ".config", "opencode")
 }
 
 async function resolveGitHubPluginPath(pluginName: string): Promise<ResolvedPluginPath> {

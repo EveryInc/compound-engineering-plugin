@@ -63,7 +63,7 @@ describe("CLI", () => {
     expect(await exists(path.join(tempRoot, ".opencode", "plugins", "converted-hooks.ts"))).toBe(true)
   })
 
-  test("install defaults output to ~/.opencode", async () => {
+  test("install defaults output to ~/.config/opencode", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-local-default-"))
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
@@ -95,8 +95,9 @@ describe("CLI", () => {
     }
 
     expect(stdout).toContain("Installed compound-engineering")
-    expect(await exists(path.join(tempRoot, ".opencode", "opencode.json"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".opencode", "agents", "repo-research-analyst.md"))).toBe(true)
+    // OpenCode global config lives at ~/.config/opencode per XDG spec
+    expect(await exists(path.join(tempRoot, ".config", "opencode", "opencode.json"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".config", "opencode", "agents", "repo-research-analyst.md"))).toBe(true)
   })
 
   test("list returns plugins in a temp workspace", async () => {
@@ -174,8 +175,9 @@ describe("CLI", () => {
     }
 
     expect(stdout).toContain("Installed compound-engineering")
-    expect(await exists(path.join(tempRoot, ".opencode", "opencode.json"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".opencode", "agents", "repo-research-analyst.md"))).toBe(true)
+    // OpenCode global config lives at ~/.config/opencode per XDG spec
+    expect(await exists(path.join(tempRoot, ".config", "opencode", "opencode.json"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".config", "opencode", "agents", "repo-research-analyst.md"))).toBe(true)
   })
 
   test("convert writes OpenCode output", async () => {

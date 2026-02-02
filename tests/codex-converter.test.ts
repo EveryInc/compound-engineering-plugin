@@ -89,6 +89,89 @@ describe("convertClaudeToCodex", () => {
     expect(bundle.mcpServers?.local?.args).toEqual(["hello"])
   })
 
+  test("transforms Task agent calls to skill references", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "plan",
+          description: "Planning with agents",
+          body: `Run these agents in parallel:
+
+- Task repo-research-analyst(feature_description)
+- Task learnings-researcher(feature_description)
+
+Then consolidate findings.
+
+Task best-practices-researcher(topic)`,
+          sourcePath: "/tmp/plugin/commands/plan.md",
+        },
+      ],
+      agents: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCodex(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const commandSkill = bundle.generatedSkills.find((s) => s.name === "plan")
+    expect(commandSkill).toBeDefined()
+    const parsed = parseFrontmatter(commandSkill!.content)
+
+    // Task calls should be transformed to skill references
+    expect(parsed.body).toContain("Use the $repo-research-analyst skill to: feature_description")
+    expect(parsed.body).toContain("Use the $learnings-researcher skill to: feature_description")
+    expect(parsed.body).toContain("Use the $best-practices-researcher skill to: topic")
+
+    // Original Task syntax should not remain
+    expect(parsed.body).not.toContain("Task repo-research-analyst")
+    expect(parsed.body).not.toContain("Task learnings-researcher")
+  })
+
+  test("transforms slash commands to prompts syntax", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "plan",
+          description: "Planning with commands",
+          body: `After planning, you can:
+
+1. Run /deepen-plan to enhance
+2. Run /plan_review for feedback
+3. Start /workflows:work to implement
+
+Don't confuse with file paths like /tmp/output.md or /dev/null.`,
+          sourcePath: "/tmp/plugin/commands/plan.md",
+        },
+      ],
+      agents: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCodex(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const commandSkill = bundle.generatedSkills.find((s) => s.name === "plan")
+    expect(commandSkill).toBeDefined()
+    const parsed = parseFrontmatter(commandSkill!.content)
+
+    // Slash commands should be transformed to /prompts: syntax
+    expect(parsed.body).toContain("/prompts:deepen-plan")
+    expect(parsed.body).toContain("/prompts:plan_review")
+    expect(parsed.body).toContain("/prompts:workflows-work")
+
+    // File paths should NOT be transformed
+    expect(parsed.body).toContain("/tmp/output.md")
+    expect(parsed.body).toContain("/dev/null")
+  })
+
   test("truncates generated skill descriptions to Codex limits and single line", () => {
     const longDescription = `Line one\nLine two ${"a".repeat(2000)}`
     const plugin: ClaudePlugin = {
