@@ -7,8 +7,8 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 28 |
-| Commands | 27 |
-| Skills | 15 |
+| Commands | 26 |
+| Skills | 16 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -87,7 +87,6 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | Command | Description |
 |---------|-------------|
 | `/agent-native-audit` | Audit features for agent-native compliance |
-| `/build-website` | Scaffold Rails 8 app with Hotwire, auth, and DHH conventions |
 | `/deepen-plan` | Enhance plans with parallel research agents for each section |
 | `/changelog` | Create engaging changelogs for recent merges |
 | `/create-agent-skill` | Create or edit Claude Code skills |
@@ -128,6 +127,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `dhh-rails-style` | Write Ruby/Rails code in DHH's 37signals style |
 | `dspy-ruby` | Build type-safe LLM applications with DSPy.rb |
 | `frontend-design` | Create production-grade frontend interfaces |
+| `orchestrating-swarms` | Master multi-agent orchestration using TeammateTool and Task system |
 | `skill-creator` | Guide for creating effective Claude Code skills |
 
 ### Content & Workflow

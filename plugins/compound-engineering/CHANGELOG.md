@@ -5,23 +5,22 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [3.1.0] - 2026-01-27
+## [3.1.0] - 2026-02-02
 
 ### Added
 
-- **`/build-website` command** - Scaffold a complete Rails 8 application with DHH/37signals conventions
-  - Generates Rails 8 app with PostgreSQL and Tailwind
-  - Custom passwordless magic link authentication (~150 lines, no Devise)
-  - Solid stack: Solid Queue, Solid Cache, Solid Cable (no Redis)
-  - Minitest with fixtures (no RSpec, no factory_bot)
-  - Content Security Policy configured
-  - Full auth flow: sessions, magic links, user model
-  - Sample views with Tailwind styling
-  - Integration tests for authentication
+- **`orchestrating-swarms` skill** - Master multi-agent orchestration using Claude Code's TeammateTool and Task system
+  - Core primitives: Teams, Teammates, Tasks, Inboxes, Messages
+  - Built-in agent types: Bash, Explore, Plan, general-purpose
+  - TeammateTool operations: spawnTeam, write, broadcast, shutdown, cleanup
+  - Task system integration with dependencies and auto-unblocking
+  - Orchestration patterns: Parallel Specialists, Pipeline, Swarm, Research + Implementation
+  - Spawn backends: in-process, tmux, iterm2
+  - Complete workflows and best practices
 
 ### Summary
 
-- 28 agents, 27 commands, 15 skills, 1 MCP server
+- 28 agents, 26 commands, 16 skills, 1 MCP server
 
 ---
 
