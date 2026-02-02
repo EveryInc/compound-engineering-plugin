@@ -12,7 +12,7 @@ Resolve all TODO comments using parallel processing.
 
 Get all unresolved TODOs from the /todos/\*.md directory
 
-**Protected Artifacts Check:** Before proceeding, scan each todo's proposed solution. If any todo recommends deleting, removing, or gitignoring files in `docs/plans/` or `docs/solutions/`, **skip that todo entirely** and mark it as `wont_fix`. These directories contain compound-engineering pipeline artifacts that are intentional and permanent.
+If any todo recommends deleting, removing, or gitignoring files in `docs/plans/` or `docs/solutions/`, skip it and mark it as `wont_fix`. These are compound-engineering pipeline artifacts that are intentional and permanent.
 
 ### 2. Plan
 
