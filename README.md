@@ -37,11 +37,12 @@ Codex output is written to `~/.codex/prompts` and `~/.codex/skills`, with each C
 ## Workflow
 
 ```
-Plan → Work → Review → Compound → Repeat
+Brainstorm → Plan → Work → Review → Compound → Repeat
 ```
 
 | Command | Purpose |
 |---------|---------|
+| `/workflows:brainstorm` | Explore requirements and approaches through collaborative dialogue |
 | `/workflows:plan` | Turn feature ideas into detailed implementation plans |
 | `/workflows:work` | Execute plans with worktrees and task tracking |
 | `/workflows:review` | Multi-agent code review before merging |

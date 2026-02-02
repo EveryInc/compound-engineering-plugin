@@ -6,10 +6,26 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 27 |
-| Commands | 20 |
-| Skills | 14 |
+| Agents | 28 |
+| Commands | 24 |
+| Skills | 15 |
 | MCP Servers | 1 |
+
+## The Workflow
+
+The core workflow commands form a connected development cycle:
+
+```
+Brainstorm → Plan → Work → Review → Compound → Repeat
+```
+
+| Phase | Command | Purpose |
+|-------|---------|---------|
+| **Brainstorm** | `/workflows:brainstorm` | Clarify WHAT to build. Explore requirements, compare approaches, document decisions. |
+| **Plan** | `/workflows:plan` | Design HOW to build it. Create implementation steps, identify files, define verification. |
+| **Work** | `/workflows:work` | Execute the plan. Follow steps systematically, verify each change. |
+| **Review** | `/workflows:review` | Multi-agent code review. Catch issues from multiple perspectives before merging. |
+| **Compound** | `/workflows:compound` | Document learnings. Capture solved problems so future work is easier. |
 
 ## Agents
 
@@ -34,13 +50,14 @@ Agents are organized into categories for easier discovery.
 | `security-sentinel` | Security audits and vulnerability assessments |
 | `julik-frontend-races-reviewer` | Review JavaScript/Stimulus code for race conditions |
 
-### Research (4)
+### Research (5)
 
 | Agent | Description |
 |-------|-------------|
 | `best-practices-researcher` | Gather external best practices and examples |
 | `framework-docs-researcher` | Research framework documentation and best practices |
 | `git-history-analyzer` | Analyze git history and code evolution |
+| `learnings-researcher` | Search institutional learnings for past solutions and patterns |
 | `repo-research-analyst` | Research repository structure and conventions |
 
 ### Design (3)
@@ -125,6 +142,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 
 | Skill | Description |
 |-------|-------------|
+| `brainstorming` | Explore requirements and approaches before planning implementation |
 | `every-style-editor` | Review copy for Every's style guide compliance |
 | `file-todos` | File-based todo tracking system |
 | `git-worktree` | Manage Git worktrees for parallel development |
