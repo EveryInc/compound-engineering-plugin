@@ -91,14 +91,6 @@ create_worktree() {
   echo -e "${BLUE}Creating worktree: $branch_name${NC}"
   echo "  From: $from_branch"
   echo "  Path: $worktree_path"
-  echo ""
-  echo "Proceed? (y/n)"
-  read -r response
-
-  if [[ "$response" != "y" ]]; then
-    echo -e "${YELLOW}Cancelled${NC}"
-    return
-  fi
 
   # Update main branch
   echo -e "${BLUE}Updating $from_branch...${NC}"
