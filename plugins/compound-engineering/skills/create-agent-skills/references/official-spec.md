@@ -116,7 +116,7 @@ Benefits:
 
 The `description` field enables Skill discovery and should include both what the Skill does and when to use it.
 
-**Always write in third person.** The description is injected into the system prompt.
+**Always write in passive voice.** The description is injected into the system prompt.
 
 - **Good:** "Processes Excel files and generates reports"
 - **Avoid:** "I can help you process Excel files"

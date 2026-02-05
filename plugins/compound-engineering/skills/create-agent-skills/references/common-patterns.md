@@ -276,7 +276,7 @@ description: I can help you process Excel files and generate reports
 description: Processes Excel files and generates reports. Use when analyzing spreadsheets or .xlsx files.
 ```
 
-**Why it matters**: Skills must use third person. First/second person breaks the skill metadata pattern.
+**Why it matters**: Skills must use passive voice. First/second person breaks the skill metadata pattern.
 </pitfall>
 
 <pitfall name="wrong_naming_convention">
