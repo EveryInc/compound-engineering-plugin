@@ -92,7 +92,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `/create-agent-skill` | Create or edit Claude Code skills |
 | `/generate_command` | Generate new slash commands |
 | `/heal-skill` | Fix skill documentation issues |
-| `/plan_review` | Multi-agent plan review in parallel |
+| `/technical_review` | Multi-agent technical/architecture review in parallel |
 | `/report-bug` | Report a bug in the plugin |
 | `/reproduce-bug` | Reproduce bugs using logs and console |
 | `/resolve_parallel` | Resolve TODO comments in parallel |
@@ -127,6 +127,8 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 
 | Skill | Description |
 |-------|-------------|
+| `brainstorming` | Explore requirements and approaches through collaborative dialogue |
+| `document-review` | Improve documents through structured self-review |
 | `every-style-editor` | Review copy for Every's style guide compliance |
 | `file-todos` | File-based todo tracking system |
 | `git-worktree` | Manage Git worktrees for parallel development |
