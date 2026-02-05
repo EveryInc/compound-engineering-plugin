@@ -1,0 +1,18 @@
+{
+  "name": "vmark-mcp",
+  "version": "0.3.10",
+  "description": "AI writing assistant for VMark markdown editor. Provides comprehensive skills and workflows for interacting with VMark through 76 MCP tools - write, edit, reorganize, and format documents with AI assistance. Includes 1 skill with detailed reference documentation.",
+  "author": {
+    "name": "xiaolai",
+    "url": "https://github.com/xiaolai"
+  },
+  "repository": "https://github.com/xiaolai/vmark",
+  "keywords": [
+    "vmark",
+    "markdown",
+    "editor",
+    "mcp",
+    "writing",
+    "ai-assistant"
+  ]
+}
