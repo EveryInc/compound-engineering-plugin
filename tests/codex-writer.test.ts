@@ -73,4 +73,36 @@ describe("writeCodexBundle", () => {
     expect(await exists(path.join(codexRoot, "prompts", "command-one.md"))).toBe(true)
     expect(await exists(path.join(codexRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
   })
+
+  test("backs up existing config.toml before overwriting", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-backup-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+    const configPath = path.join(codexRoot, "config.toml")
+
+    // Create existing config
+    await fs.mkdir(codexRoot, { recursive: true })
+    const originalContent = "# My original config\n[custom]\nkey = \"value\"\n"
+    await fs.writeFile(configPath, originalContent)
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      mcpServers: { test: { command: "echo" } },
+    }
+
+    await writeCodexBundle(codexRoot, bundle)
+
+    // New config should be written
+    const newConfig = await fs.readFile(configPath, "utf8")
+    expect(newConfig).toContain("[mcp_servers.test]")
+
+    // Backup should exist with original content
+    const files = await fs.readdir(codexRoot)
+    const backupFileName = files.find((f) => f.startsWith("config.toml.bak."))
+    expect(backupFileName).toBeDefined()
+
+    const backupContent = await fs.readFile(path.join(codexRoot, backupFileName!), "utf8")
+    expect(backupContent).toBe(originalContent)
+  })
 })

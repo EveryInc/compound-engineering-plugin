@@ -1,6 +1,19 @@
 import { promises as fs } from "fs"
 import path from "path"
 
+export async function backupFile(filePath: string): Promise<string | null> {
+  if (!(await pathExists(filePath))) return null
+
+  try {
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+    const backupPath = `${filePath}.bak.${timestamp}`
+    await fs.copyFile(filePath, backupPath)
+    return backupPath
+  } catch {
+    return null
+  }
+}
+
 export async function pathExists(filePath: string): Promise<boolean> {
   try {
     await fs.access(filePath)

@@ -1,10 +1,15 @@
 import path from "path"
-import { copyDir, ensureDir, writeJson, writeText } from "../utils/files"
+import { backupFile, copyDir, ensureDir, writeJson, writeText } from "../utils/files"
 import type { OpenCodeBundle } from "../types/opencode"
 
 export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBundle): Promise<void> {
   const paths = resolveOpenCodePaths(outputRoot)
   await ensureDir(paths.root)
+
+  const backupPath = await backupFile(paths.configPath)
+  if (backupPath) {
+    console.log(`Backed up existing config to ${backupPath}`)
+  }
   await writeJson(paths.configPath, bundle.config)
 
   const agentsDir = paths.agentsDir

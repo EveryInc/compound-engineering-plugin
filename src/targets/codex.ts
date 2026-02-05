@@ -1,5 +1,5 @@
 import path from "path"
-import { copyDir, ensureDir, writeText } from "../utils/files"
+import { backupFile, copyDir, ensureDir, writeText } from "../utils/files"
 import type { CodexBundle } from "../types/codex"
 import type { ClaudeMcpServer } from "../types/claude"
 
@@ -30,7 +30,12 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
 
   const config = renderCodexConfig(bundle.mcpServers)
   if (config) {
-    await writeText(path.join(codexRoot, "config.toml"), config)
+    const configPath = path.join(codexRoot, "config.toml")
+    const backupPath = await backupFile(configPath)
+    if (backupPath) {
+      console.log(`Backed up existing config to ${backupPath}`)
+    }
+    await writeText(configPath, config)
   }
 }
 

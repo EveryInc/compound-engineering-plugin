@@ -84,4 +84,36 @@ describe("writeOpenCodeBundle", () => {
     expect(await exists(path.join(outputRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, ".opencode"))).toBe(false)
   })
+
+  test("backs up existing opencode.json before overwriting", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-backup-"))
+    const outputRoot = path.join(tempRoot, ".opencode")
+    const configPath = path.join(outputRoot, "opencode.json")
+
+    // Create existing config
+    await fs.mkdir(outputRoot, { recursive: true })
+    const originalConfig = { $schema: "https://opencode.ai/config.json", custom: "value" }
+    await fs.writeFile(configPath, JSON.stringify(originalConfig, null, 2))
+
+    const bundle: OpenCodeBundle = {
+      config: { $schema: "https://opencode.ai/config.json", new: "config" },
+      agents: [],
+      plugins: [],
+      skillDirs: [],
+    }
+
+    await writeOpenCodeBundle(outputRoot, bundle)
+
+    // New config should be written
+    const newConfig = JSON.parse(await fs.readFile(configPath, "utf8"))
+    expect(newConfig.new).toBe("config")
+
+    // Backup should exist with original content
+    const files = await fs.readdir(outputRoot)
+    const backupFileName = files.find((f) => f.startsWith("opencode.json.bak."))
+    expect(backupFileName).toBeDefined()
+
+    const backupContent = JSON.parse(await fs.readFile(path.join(outputRoot, backupFileName!), "utf8"))
+    expect(backupContent.custom).toBe("value")
+  })
 })
