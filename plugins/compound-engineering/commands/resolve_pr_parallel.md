@@ -17,11 +17,17 @@ Claude Code automatically detects and understands your git context:
 
 ### 1. Analyze
 
-Get all unresolved comments for PR
+Get all unresolved comments for the PR:
 
 ```bash
+# Get PR status and context
 gh pr status
-bin/get-pr-comments PR_NUMBER
+
+# Get review comments (inline code comments)
+gh api repos/{owner}/{repo}/pulls/PR_NUMBER/comments
+
+# Get reviews with their bodies
+gh pr view PR_NUMBER --json reviews,comments
 ```
 
 ### 2. Plan
@@ -32,7 +38,7 @@ Create a TodoWrite list of all unresolved items grouped by type.
 
 Spawn a pr-comment-resolver agent for each unresolved item in parallel.
 
-So if there are 3 comments, it will spawn 3 pr-comment-resolver agents in parallel. liek this
+So if there are 3 comments, spawn 3 pr-comment-resolver agents in parallel:
 
 1. Task pr-comment-resolver(comment1)
 2. Task pr-comment-resolver(comment2)
@@ -40,10 +46,17 @@ So if there are 3 comments, it will spawn 3 pr-comment-resolver agents in parall
 
 Always run all in parallel subagents/Tasks for each Todo item.
 
-### 4. Commit & Resolve
+### 4. Commit & Push
 
-- Commit changes
-- Run bin/resolve-pr-thread THREAD_ID_1
+- Commit changes with a clear message referencing the PR feedback
 - Push to remote
 
-Last, check bin/get-pr-comments PR_NUMBER again to see if all comments are resolved. They should be, if not, repeat the process from 1.
+### 5. Verify
+
+Re-fetch comments to confirm all feedback has been addressed:
+
+```bash
+gh api repos/{owner}/{repo}/pulls/PR_NUMBER/comments
+```
+
+If any comments remain unaddressed, repeat the process from step 1.
