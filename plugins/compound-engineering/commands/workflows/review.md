@@ -163,6 +163,8 @@ Do NOT run all agents on every PR. Examine the PR file list and select relevant 
 - `dependency-detective` — only if PR modifies package files (Gemfile, package.json, etc.)
 - `devops-harmony-analyst` — only if PR touches CI/CD, Docker, or deployment configs
 - `data-integrity-guardian` — only if PR modifies database queries or data flows
+- `git-history-analyzer` — if PR touches files with complex change history or frequent churn
+- `code-philosopher` — if PR introduces new abstractions, significant API design, or architectural decisions worth deeper reasoning about maintainability and conceptual clarity
 
 **Migration-Specific (only for db/migrate/*.rb files):**
 - `data-migration-expert` — validates ID mappings, rollback safety
@@ -312,26 +314,61 @@ You are a Code Review Judge. Consolidate findings from multiple review agents in
 
 <critical_instruction>
 After judging, spawn a deep-analysis agent to enrich findings. This runs in its own context window so it doesn't cost the parent anything, but it produces significantly richer findings for todo creation.
+
+This agent performs the Ultra-Thinking deep dive from the original review command — stakeholder perspectives, scenario exploration, and multi-angle analysis — but scoped to the judged findings rather than the raw diff, and in an isolated context window rather than the parent.
 </critical_instruction>
 
 ```
 Task deep-analysis("
-You are a Deep Analysis Reviewer. Your job is to enrich judged code review findings with stakeholder impact analysis and scenario exploration.
+You are a Deep Analysis Reviewer. Your job is to enrich judged code review findings with deep stakeholder analysis, scenario exploration, and concrete fix suggestions.
 
 ## Instructions:
 1. Read .review/JUDGED_FINDINGS.json
 2. Read .review/pr_diff.txt for code context
 3. Read .review/PR_INTENT.md for PR context
-4. For each P1 finding:
-   - Add 'stakeholder_impact' field: assess Developer experience, Operations risk, End User impact, Security surface (each 1-2 sentences, <400 chars total)
-   - Add 'scenarios' field: list 2-3 specific failure scenarios with trigger conditions (<300 chars total)
-   - Add 'suggested_fix' field: a concrete code-level suggestion for resolution (<500 chars)
-5. For each P2 finding:
-   - Add 'stakeholder_impact' field (<200 chars)
-   - Add 'suggested_fix' field (<300 chars)
-6. P3 findings: pass through unchanged
-7. Write the enriched report to .review/ENRICHED_FINDINGS.json (same schema as JUDGED_FINDINGS.json, plus the new fields)
-8. Return to parent: 'Deep analysis complete. Enriched <N> P1 and <M> P2 findings. Written to .review/ENRICHED_FINDINGS.json'
+
+## For each P1 finding, perform ALL of the following:
+
+### Stakeholder Impact Analysis
+Put yourself in each stakeholder's shoes. Assess impact from each perspective:
+
+- **Developer**: How easy is the affected code to understand and modify? Are the APIs intuitive? Is debugging straightforward? Can this be tested easily?
+- **Operations**: How do I deploy this safely? What metrics and logs are available? How do I troubleshoot if this goes wrong? What are the resource requirements?
+- **End User**: Is the feature intuitive? Are error messages helpful? Is performance acceptable? Does it solve their problem?
+- **Security**: What's the attack surface? Are there compliance requirements? How is data protected? What are the audit capabilities?
+- **Business**: What's the ROI impact? Are there legal/compliance risks? How does this affect time-to-market?
+
+Add a 'stakeholder_impact' object with a field for each perspective (each 1-3 sentences).
+
+### Scenario Exploration
+Think through edge cases and failure scenarios. For the code involved in this finding, consider:
+
+- Invalid/malformed inputs (null, empty, unexpected types)
+- Boundary conditions (min/max values, empty collections)
+- Concurrent access (race conditions, deadlocks)
+- Scale pressure (10x, 100x normal load)
+- Network issues (timeouts, partial failures)
+- Resource exhaustion (memory, disk, connections)
+- Security vectors (injection, overflow, DoS)
+- Data corruption (partial writes, inconsistency)
+- Cascading failures (downstream service issues)
+
+Add a 'scenarios' array listing the 3-5 most relevant failure scenarios with specific trigger conditions and expected impact.
+
+### Suggested Fix
+Add a 'suggested_fix' field with a concrete code-level suggestion for resolution (<500 chars).
+
+## For each P2 finding:
+- Add 'stakeholder_impact' with Developer and Operations perspectives (1-2 sentences each)
+- Add 'scenarios' with 1-2 most relevant failure scenarios
+- Add 'suggested_fix' (<300 chars)
+
+## For P3 findings:
+- Pass through unchanged
+
+## Output:
+Write the enriched report to .review/ENRICHED_FINDINGS.json (same schema as JUDGED_FINDINGS.json, plus the new fields).
+Return to parent: 'Deep analysis complete. Enriched <N> P1 and <M> P2 findings. Written to .review/ENRICHED_FINDINGS.json'
 ")
 ```
 
