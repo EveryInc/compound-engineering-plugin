@@ -79,7 +79,7 @@ export type ClaudeHookAgent = {
 export type ClaudeHookEntry = ClaudeHookCommand | ClaudeHookPrompt | ClaudeHookAgent
 
 export type ClaudeHookMatcher = {
-  matcher: string
+  matcher?: string
   hooks: ClaudeHookEntry[]
 }
 
