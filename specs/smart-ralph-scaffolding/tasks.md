@@ -303,7 +303,7 @@
 
 ## Phase 4: Quality Gates
 
-- [ ] 4.1 Run full bun test suite
+- [x] 4.1 Run full bun test suite
   - **Do**: Run `bun test` and verify ALL tests pass: existing tests + command-validation + hook-scripts
   - **Verify**: `bun test`
   - **Done when**: Zero test failures
