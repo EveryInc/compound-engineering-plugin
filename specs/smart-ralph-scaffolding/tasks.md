@@ -268,7 +268,7 @@
   - **Done when**: All tests pass
   - **Commit**: `chore: pass interactive patterns quality checkpoint`
 
-- [ ] 3.7 Add State Checkpoint section to workflows/plan.md
+- [x] 3.7 Add State Checkpoint section to workflows/plan.md
   - **Do**: Insert a `### State Checkpoint` section at the end of `workflows/plan.md`, after the plan file is written. Logic: (1) derive feature slug from plan filename (strip date prefix `YYYY-MM-DD-`, type prefix `feat-`/`fix-`/`refactor-`, `-plan` suffix), (2) create `.{feature-slug}.local.md` in project root with YAML frontmatter (`feature`, `plan_file`, `phase: plan-complete`, `branch: ""`, `started`, `updated` as ISO 8601), (3) progress section with "Plan created" checked, all others unchecked, (4) announce "Progress saved to .{slug}.local.md (gitignored)". Include bash example for slug derivation.
   - **Files**: plugins/compound-engineering/commands/workflows/plan.md (modify)
   - **Done when**: State Checkpoint section creates `.local.md` files with correct YAML frontmatter schema

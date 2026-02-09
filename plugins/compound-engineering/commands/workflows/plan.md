@@ -526,6 +526,49 @@ Examples:
 - ❌ `docs/plans/2026-01-15-feat: user auth-plan.md` (invalid characters - colon and space)
 - ❌ `docs/plans/feat-user-auth-plan.md` (missing date prefix)
 
+### State Checkpoint
+
+After writing the plan file, create a local state file for workflow resumability.
+
+**1. Derive the feature slug from the plan filename:**
+
+Strip the date prefix (`YYYY-MM-DD-`), the type prefix (`feat-`/`fix-`/`refactor-`), and the `-plan.md` suffix to get the feature slug.
+
+```bash
+# Example: derive slug from plan filename
+PLAN_FILE="docs/plans/2026-02-09-feat-user-auth-flow-plan.md"
+SLUG=$(echo "$PLAN_FILE" | sed 's|.*/||; s|^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-||; s|^feat-\|^fix-\|^refactor-||; s|-plan\.md$||')
+# Result: SLUG="user-auth-flow"
+STATE_FILE=".$SLUG.local.md"
+# Result: STATE_FILE=".user-auth-flow.local.md"
+```
+
+**2. Create `.{feature-slug}.local.md` in the project root** with the following content:
+
+```markdown
+---
+feature: {slug}
+plan_file: docs/plans/YYYY-MM-DD-<type>-<slug>-plan.md
+phase: plan-complete
+branch: ""
+started: 2026-MM-DDTHH:MM:SSZ
+updated: 2026-MM-DDTHH:MM:SSZ
+---
+
+## Progress
+
+- [x] Plan created
+- [ ] Implementation started
+- [ ] Code review
+- [ ] Changes documented
+```
+
+Replace `{slug}` with the derived feature slug, `plan_file` with the actual plan file path, and `started`/`updated` with the current ISO 8601 timestamp.
+
+**3. Announce:** "Progress saved to .{slug}.local.md (gitignored)"
+
+This state file enables `/workflows:work` to detect and resume from a previous planning session.
+
 ## Post-Generation Options
 
 **If `$ARGUMENTS` is non-empty (autonomous mode):**
