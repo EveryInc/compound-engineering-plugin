@@ -1,0 +1,27 @@
+{
+  "description": "Safety guardrails for compound-engineering plugin. Prompts for confirmation before destructive operations.",
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/validate-bash.sh",
+            "timeout": 10
+          }
+        ]
+      },
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash ${CLAUDE_PLUGIN_ROOT}/hooks/scripts/protect-env-files.sh",
+            "timeout": 5
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -103,7 +103,7 @@
   - **Verify**: `ls -d plugins/compound-engineering/hooks/scripts/`
   - **Commit**: skip (directory creation only, commit with hook files)
 
-- [ ] 1.14 Create hooks.json configuration
+- [x] 1.14 Create hooks.json configuration
   - **Do**: Create `plugins/compound-engineering/hooks/hooks.json` with: (1) `description` field, (2) PreToolUse matcher for `Bash` tool -> runs `validate-bash.sh` with 10s timeout, (3) PreToolUse matcher for `Write|Edit` tools -> runs `protect-env-files.sh` with 5s timeout. Use `${CLAUDE_PLUGIN_ROOT}/hooks/scripts/` for script paths. Follow the exact JSON structure from TECH.md spec.
   - **Files**: plugins/compound-engineering/hooks/hooks.json (create)
   - **Done when**: Valid JSON file with 2 PreToolUse matchers
