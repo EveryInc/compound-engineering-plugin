@@ -1,0 +1,18 @@
+{
+  "source": "spec",
+  "name": "smart-ralph-scaffolding",
+  "basePath": "./specs/smart-ralph-scaffolding",
+  "commitSpec": true,
+  "relatedSpecs": [],
+  "phase": "execution",
+  "taskIndex": 0,
+  "totalTasks": 35,
+  "taskIteration": 1,
+  "maxTaskIterations": 5,
+  "recoveryMode": true,
+  "maxFixTasksPerOriginal": 3,
+  "maxFixTaskDepth": 3,
+  "globalIteration": 1,
+  "maxGlobalIterations": 200,
+  "fixTaskMap": {}
+}
