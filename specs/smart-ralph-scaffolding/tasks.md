@@ -81,7 +81,7 @@
   - **Commit**: `fix(reproduce-bug): replace all MCP tool refs with agent-browser CLI`
   - _Requirements: US-2_
 
-- [ ] 1.11 Add agent-browser CLI reference section to reproduce-bug.md
+- [x] 1.11 Add agent-browser CLI reference section to reproduce-bug.md
   - **Do**: Add a `## agent-browser CLI Reference` section at the end of `reproduce-bug.md` with key commands (open, snapshot, screenshot, click, fill), copied/adapted from `test-browser.md`. Include the console error detection workaround note.
   - **Files**: plugins/compound-engineering/commands/reproduce-bug.md (modify)
   - **Done when**: CLI reference section exists with all key agent-browser commands documented
