@@ -89,7 +89,7 @@
   - **Commit**: `fix(reproduce-bug): add agent-browser CLI reference section`
   - _Requirements: US-2_
 
-- [ ] 1.12 Verify no stale MCP references remain
+- [x] 1.12 Verify no stale MCP references remain
   - **Do**: Search the entire `reproduce-bug.md` file and all other command files for any remaining `mcp__plugin_compound-engineering_pw__` references
   - **Files**: plugins/compound-engineering/commands/**/*.md (read-only)
   - **Done when**: Zero matches across all command files
