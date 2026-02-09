@@ -351,7 +351,7 @@
   - **Verify**: `gh pr view` shows PR URL
   - **Done when**: PR created
 
-- [ ] 5.2 Monitor CI and fix failures
+- [x] 5.2 Monitor CI and fix failures
   - **Do**: Watch CI, fix failures iteratively
   - **Verify**: `gh pr checks` shows all green
   - **Done when**: All CI checks passing
