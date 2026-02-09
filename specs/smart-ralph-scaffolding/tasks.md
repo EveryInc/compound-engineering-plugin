@@ -147,7 +147,7 @@
 
 ## Phase 2: Refactoring (Input Validation + CI)
 
-- [ ] 2.1 Add input validation to workflows/work.md
+- [x] 2.1 Add input validation to workflows/work.md
   - **Do**: Insert an `## Input Validation` section (wrapped in `<input_validation>` tags) before Phase 1 in `workflows/work.md`. When `$ARGUMENTS` is provided, validate the plan file path: check file exists, ends in `.md`, is in `docs/plans/`. On failure, show What/Why/Fix error with `ls -1t docs/plans/*.md | head -5` to list available plans. Include "If validation passes: Proceed to Phase 1" at the end.
   - **Files**: plugins/compound-engineering/commands/workflows/work.md (modify)
   - **Done when**: Input validation section exists with plan file path validation and What/Why/Fix error format

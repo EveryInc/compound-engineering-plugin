@@ -19,6 +19,71 @@ This command takes a work document (plan, specification, or todo file) and execu
 
 ## Execution Workflow
 
+## Input Validation
+
+Before proceeding, validate the input:
+
+<input_validation>
+
+**If `$ARGUMENTS` is provided, validate the plan file path:**
+
+```bash
+PLAN_PATH="$ARGUMENTS"
+
+# Check file exists
+if [[ ! -f "$PLAN_PATH" ]]; then
+  echo "Error: Plan file not found."
+  echo ""
+  echo "  \"$PLAN_PATH\" does not exist."
+  echo ""
+  echo "Why: The /workflows:work command requires a valid plan file path."
+  echo "  Plan files are created by /workflows:plan in docs/plans/."
+  echo ""
+  echo "Fix: Check the path and try again:"
+  echo "  /workflows:work docs/plans/2026-02-09-feat-example-plan.md"
+  echo ""
+  echo "Available plans:"
+  ls -1t docs/plans/*.md 2>/dev/null | head -5
+  # STOP - do not proceed
+fi
+
+# Check file ends in .md
+if [[ "$PLAN_PATH" != *.md ]]; then
+  echo "Error: Invalid file type."
+  echo ""
+  echo "  \"$PLAN_PATH\" is not a Markdown file."
+  echo ""
+  echo "Why: Work plans must be Markdown (.md) files created by /workflows:plan."
+  echo ""
+  echo "Fix: Provide a .md file path:"
+  echo "  /workflows:work docs/plans/2026-02-09-feat-example-plan.md"
+  echo ""
+  echo "Available plans:"
+  ls -1t docs/plans/*.md 2>/dev/null | head -5
+  # STOP - do not proceed
+fi
+
+# Check file is in docs/plans/
+if [[ "$PLAN_PATH" != docs/plans/* ]]; then
+  echo "Error: Plan file is not in docs/plans/."
+  echo ""
+  echo "  \"$PLAN_PATH\" is outside the expected directory."
+  echo ""
+  echo "Why: Plan files are expected to be in docs/plans/ where /workflows:plan creates them."
+  echo ""
+  echo "Fix: Use a plan file from docs/plans/:"
+  echo "  /workflows:work docs/plans/2026-02-09-feat-example-plan.md"
+  echo ""
+  echo "Available plans:"
+  ls -1t docs/plans/*.md 2>/dev/null | head -5
+  # STOP - do not proceed
+fi
+```
+
+**If validation passes:** Proceed to Phase 1.
+
+</input_validation>
+
 ### Phase 1: Quick Start
 
 1. **Read Plan and Clarify**
