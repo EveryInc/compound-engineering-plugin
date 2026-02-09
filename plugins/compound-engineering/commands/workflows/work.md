@@ -122,6 +122,117 @@ Help the user select a plan.
 
 </input_handling>
 
+### State Discovery
+
+Before starting work, check for saved progress from a previous session:
+
+<state_discovery>
+
+1. **Scan for state files** in the project root:
+   ```bash
+   ls -1a .*.local.md 2>/dev/null
+   ```
+
+2. **Match state to selected plan:**
+
+   For each `.*.local.md` file found, read its YAML frontmatter and check if the `plan_file` field matches the selected plan path. If a match is found:
+
+   - Read the state file contents
+   - Extract `phase`, `branch`, `updated`, and `feature` from frontmatter
+   - Parse the progress checklist to determine completed steps
+
+3. **Staleness detection:**
+
+   When a matching state file is found, calculate its age:
+
+   ```bash
+   STATE_FILE=".feature-slug.local.md"
+   UPDATED=$(grep '^updated:' "$STATE_FILE" | sed 's/updated: //')
+   AGE_SECONDS=$(( $(date +%s) - $(date -jf "%Y-%m-%dT%H:%M:%SZ" "$UPDATED" +%s 2>/dev/null || date -d "$UPDATED" +%s 2>/dev/null) ))
+   AGE_DAYS=$(( AGE_SECONDS / 86400 ))
+   ```
+
+   | Age | Behavior |
+   |-----|----------|
+   | < 24 hours | Resume prompt with "recommended" label |
+   | 1-7 days | Resume prompt with neutral framing |
+   | > 7 days | Warning: "This saved state is [N] days old and may be outdated" |
+   | > 30 days | "Start fresh" becomes the recommended option |
+
+4. **Branch divergence check:**
+
+   If the state file records a branch, check for new commits since the state was saved:
+
+   ```bash
+   BRANCH=$(grep '^branch:' "$STATE_FILE" | sed 's/branch: //')
+   if [ -n "$BRANCH" ]; then
+     COMMITS_SINCE=$(git log --oneline "$BRANCH" --since="$UPDATED" 2>/dev/null | wc -l | tr -d ' ')
+     if [ "$COMMITS_SINCE" -gt 0 ]; then
+       echo "Note: Branch '$BRANCH' has $COMMITS_SINCE new commit(s) since state was saved."
+     fi
+   fi
+   ```
+
+   If divergence is detected, include a note in the resume prompt: "Branch has [N] new commits since last session."
+
+5. **Resume prompt (matching state found):**
+
+   Use **AskUserQuestion** to present resume options:
+
+   **For states < 24 hours old:**
+
+   **Question:** "Found previous session for '[feature]' (last updated [time ago])"
+   **Options:**
+   1. Resume from where you left off (recommended)
+   2. Start fresh (discards saved progress)
+   3. View saved state before deciding
+
+   **For states 1-7 days old:**
+
+   **Question:** "Found previous session for '[feature]' (last updated [N] days ago)"
+   **Options:**
+   1. Resume from where you left off
+   2. Start fresh (discards saved progress)
+   3. View saved state before deciding
+
+   **For states > 7 days old:**
+
+   **Question:** "Found previous session for '[feature]' ([N] days old -- may be outdated)"
+   **Options:**
+   1. Resume from where you left off
+   2. Start fresh (recommended -- state is stale)
+   3. View saved state before deciding
+
+   **For states > 30 days old:**
+
+   **Question:** "Found previous session for '[feature]' ([N] days old -- likely outdated)"
+   **Options:**
+   1. Start fresh (recommended)
+   2. Resume anyway
+   3. View saved state before deciding
+
+   **If "Resume" is selected:**
+   - Update the state file's `updated` timestamp to now
+   - Set `phase: work`
+   - If the state records a branch, check it out: `git checkout $BRANCH`
+   - Skip to the appropriate Phase based on progress (e.g., if "Branch created" is checked, skip to Phase 2)
+
+   **If "Start fresh" is selected:**
+   - Delete the state file: `rm "$STATE_FILE"`
+   - Proceed to Phase 1 as if no state existed
+
+   **If "View saved state" is selected:**
+   - Display the state file contents
+   - Then re-present the Resume/Start fresh options
+
+6. **No matching state file:**
+
+   If no `.*.local.md` file matches the selected plan, proceed normally to Phase 1. This is the default path for new workflows.
+
+**Autonomous mode:** When `$ARGUMENTS` is non-empty, skip the resume prompt. If a matching state file exists, auto-resume (update timestamp, checkout branch if recorded). If no state file exists, proceed normally.
+
+</state_discovery>
+
 ### Phase 1: Quick Start
 
 1. **Read Plan and Clarify**

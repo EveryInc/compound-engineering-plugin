@@ -277,7 +277,7 @@
   - _Requirements: US-7_
   - _Design: Area 5_
 
-- [ ] 3.8 Add State Discovery section to workflows/work.md
+- [x] 3.8 Add State Discovery section to workflows/work.md
   - **Do**: Insert a `### State Discovery` section before Phase 1 (after Input Handling) in `workflows/work.md`. Logic: (1) scan for `.*.local.md` files in project root, (2) if a state file matches selected plan (by `plan_file` field): read state, parse phase/progress, show resume prompt via AskUserQuestion with options: Resume (recommended), Start fresh (deletes state), View saved state, (3) if no matching state file: proceed normally. Include staleness detection: <24h (recommended resume), 1-7d (neutral), >7d (warning), >30d (recommend fresh). Include branch divergence check via `git log --since`.
   - **Files**: plugins/compound-engineering/commands/workflows/work.md (modify)
   - **Done when**: State Discovery section with resume prompt, staleness detection, and branch divergence check
