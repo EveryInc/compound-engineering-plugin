@@ -346,7 +346,7 @@
 
 ## Phase 5: PR Lifecycle
 
-- [ ] 5.1 Create pull request
+- [x] 5.1 Create pull request
   - **Do**: Create PR with proper title and description covering all changes
   - **Verify**: `gh pr view` shows PR URL
   - **Done when**: PR created
