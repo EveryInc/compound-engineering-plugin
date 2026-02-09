@@ -58,7 +58,7 @@
   - **Verify**: `for f in $(find plugins/compound-engineering/commands -name '*.md'); do name=$(basename "$f"); has_arg=$(grep -c 'argument-hint' "$f"); has_dmi=$(grep -c 'disable-model-invocation' "$f"); echo "$name: arg=$has_arg dmi=$has_dmi"; done | grep -v 'arg=1 dmi=1'`
   - **Commit**: skip (verification only)
 
-- [ ] 1.8 Quality Checkpoint
+- [x] 1.8 Quality Checkpoint
   - **Do**: Run existing test suite to verify frontmatter changes don't break anything
   - **Verify**: `bun test`
   - **Done when**: All existing tests pass with no regressions
