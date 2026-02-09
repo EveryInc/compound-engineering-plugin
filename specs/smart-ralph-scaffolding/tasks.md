@@ -120,7 +120,7 @@
   - **Commit**: `feat(hooks): add validate-bash.sh for destructive command detection`
   - _Requirements: US-4_
 
-- [ ] 1.16 Create protect-env-files.sh hook script
+- [x] 1.16 Create protect-env-files.sh hook script
   - **Do**: Create `plugins/compound-engineering/hooks/scripts/protect-env-files.sh` that: (1) reads JSON from stdin, extracts `tool_input.file_path` via `jq`, (2) matches curated secrets pattern: `\.env($|\.)`, `\.pem$`, `\.key$`, `credentials`, `secret.*\.(json|yml|yaml)`, (3) returns "ask" with reason for matches, (4) all other files: exit 0. Empty file_path: exit 0. Use `set -euo pipefail`.
   - **Files**: plugins/compound-engineering/hooks/scripts/protect-env-files.sh (create)
   - **Done when**: Script detects all secret file patterns per TECH spec
