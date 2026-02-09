@@ -1,359 +1,187 @@
 # frozen_string_literal: true
 
-# DSPy.rb Configuration Examples
-# This file demonstrates various configuration patterns for different use cases
-
-require 'dspy'
-
-# ============================================================================
-# Basic Configuration
-# ============================================================================
-
-# Simple OpenAI configuration
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('openai/gpt-4o-mini',
-    api_key: ENV['OPENAI_API_KEY'])
-end
-
-# ============================================================================
-# Multi-Provider Configuration
-# ============================================================================
-
-# Anthropic Claude
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('anthropic/claude-3-5-sonnet-20241022',
-    api_key: ENV['ANTHROPIC_API_KEY'])
-end
-
-# Google Gemini
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('gemini/gemini-1.5-pro',
-    api_key: ENV['GOOGLE_API_KEY'])
-end
-
-# Local Ollama
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('ollama/llama3.1',
-    base_url: 'http://localhost:11434')
-end
-
-# OpenRouter (access to 200+ models)
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('openrouter/anthropic/claude-3.5-sonnet',
-    api_key: ENV['OPENROUTER_API_KEY'],
-    base_url: 'https://openrouter.ai/api/v1')
-end
-
-# ============================================================================
-# Environment-Based Configuration
-# ============================================================================
-
-# Different models for different environments
-if Rails.env.development?
-  # Use local Ollama for development (free, private)
-  DSPy.configure do |c|
-    c.lm = DSPy::LM.new('ollama/llama3.1')
-  end
-elsif Rails.env.test?
-  # Use cheap model for testing
-  DSPy.configure do |c|
-    c.lm = DSPy::LM.new('openai/gpt-4o-mini',
-      api_key: ENV['OPENAI_API_KEY'])
-  end
-else
-  # Use powerful model for production
-  DSPy.configure do |c|
-    c.lm = DSPy::LM.new('anthropic/claude-3-5-sonnet-20241022',
-      api_key: ENV['ANTHROPIC_API_KEY'])
-  end
-end
-
-# ============================================================================
-# Configuration with Custom Parameters
-# ============================================================================
-
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('openai/gpt-4o',
-    api_key: ENV['OPENAI_API_KEY'],
-    temperature: 0.7,        # Creativity (0.0-2.0, default: 1.0)
-    max_tokens: 2000,        # Maximum response length
-    top_p: 0.9,              # Nucleus sampling
-    frequency_penalty: 0.0,  # Reduce repetition (-2.0 to 2.0)
-    presence_penalty: 0.0    # Encourage new topics (-2.0 to 2.0)
-  )
-end
-
-# ============================================================================
-# Multiple Model Configuration (Task-Specific)
-# ============================================================================
-
-# Create different language models for different tasks
-module MyApp
-  # Fast model for simple tasks
-  FAST_LM = DSPy::LM.new('openai/gpt-4o-mini',
-    api_key: ENV['OPENAI_API_KEY'],
-    temperature: 0.3  # More deterministic
-  )
-
-  # Powerful model for complex tasks
-  POWERFUL_LM = DSPy::LM.new('anthropic/claude-3-5-sonnet-20241022',
-    api_key: ENV['ANTHROPIC_API_KEY'],
-    temperature: 0.7
-  )
-
-  # Creative model for content generation
-  CREATIVE_LM = DSPy::LM.new('openai/gpt-4o',
-    api_key: ENV['OPENAI_API_KEY'],
-    temperature: 1.2,  # More creative
-    top_p: 0.95
-  )
-
-  # Vision-capable model
-  VISION_LM = DSPy::LM.new('openai/gpt-4o',
-    api_key: ENV['OPENAI_API_KEY'])
-end
-
-# Use in modules
-class SimpleClassifier < DSPy::Module
-  def initialize
-    super
-    DSPy.configure { |c| c.lm = MyApp::FAST_LM }
-    @predictor = DSPy::Predict.new(SimpleSignature)
-  end
-end
-
-class ComplexAnalyzer < DSPy::Module
-  def initialize
-    super
-    DSPy.configure { |c| c.lm = MyApp::POWERFUL_LM }
-    @predictor = DSPy::ChainOfThought.new(ComplexSignature)
-  end
-end
-
-# ============================================================================
-# Configuration with Observability (OpenTelemetry)
-# ============================================================================
-
-require 'opentelemetry/sdk'
-
-# Configure OpenTelemetry
-OpenTelemetry::SDK.configure do |c|
-  c.service_name = 'my-dspy-app'
-  c.use_all
-end
-
-# Configure DSPy (automatically integrates with OpenTelemetry)
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('openai/gpt-4o-mini',
-    api_key: ENV['OPENAI_API_KEY'])
-end
-
-# ============================================================================
-# Configuration with Langfuse Tracing
-# ============================================================================
-
-require 'dspy/langfuse'
-
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('openai/gpt-4o-mini',
-    api_key: ENV['OPENAI_API_KEY'])
-
-  # Enable Langfuse tracing
-  c.langfuse = {
-    public_key: ENV['LANGFUSE_PUBLIC_KEY'],
-    secret_key: ENV['LANGFUSE_SECRET_KEY'],
-    host: ENV['LANGFUSE_HOST'] || 'https://cloud.langfuse.com'
-  }
-end
-
-# ============================================================================
-# Configuration with Retry Logic
-# ============================================================================
-
-class RetryableConfig
-  MAX_RETRIES = 3
-
-  def self.configure
-    DSPy.configure do |c|
-      c.lm = create_lm_with_retry
-    end
-  end
-
-  def self.create_lm_with_retry
-    lm = DSPy::LM.new('openai/gpt-4o-mini',
-      api_key: ENV['OPENAI_API_KEY'])
-
-    # Wrap with retry logic
-    lm.extend(RetryBehavior)
-    lm
-  end
-
-  module RetryBehavior
-    def forward(input, retry_count: 0)
-      super(input)
-    rescue RateLimitError, TimeoutError => e
-      if retry_count < MAX_RETRIES
-        sleep(2 ** retry_count)  # Exponential backoff
-        forward(input, retry_count: retry_count + 1)
-      else
-        raise
-      end
-    end
-  end
-end
-
-RetryableConfig.configure
-
-# ============================================================================
-# Configuration with Fallback Models
-# ============================================================================
-
-class FallbackConfig
-  def self.configure
-    DSPy.configure do |c|
-      c.lm = create_lm_with_fallback
-    end
-  end
-
-  def self.create_lm_with_fallback
-    primary = DSPy::LM.new('anthropic/claude-3-5-sonnet-20241022',
-      api_key: ENV['ANTHROPIC_API_KEY'])
-
-    fallback = DSPy::LM.new('openai/gpt-4o',
-      api_key: ENV['OPENAI_API_KEY'])
-
-    FallbackLM.new(primary, fallback)
-  end
-
-  class FallbackLM
-    def initialize(primary, fallback)
-      @primary = primary
-      @fallback = fallback
-    end
-
-    def forward(input)
-      @primary.forward(input)
-    rescue => e
-      puts "Primary model failed: #{e.message}. Falling back..."
-      @fallback.forward(input)
-    end
-  end
-end
-
-FallbackConfig.configure
-
-# ============================================================================
-# Configuration with Budget Tracking
-# ============================================================================
-
-class BudgetTrackedConfig
-  def self.configure(monthly_budget_usd:)
-    DSPy.configure do |c|
-      c.lm = BudgetTracker.new(
-        DSPy::LM.new('openai/gpt-4o',
-          api_key: ENV['OPENAI_API_KEY']),
-        monthly_budget_usd: monthly_budget_usd
-      )
-    end
-  end
-
-  class BudgetTracker
-    def initialize(lm, monthly_budget_usd:)
-      @lm = lm
-      @monthly_budget_usd = monthly_budget_usd
-      @monthly_cost = 0.0
-    end
-
-    def forward(input)
-      result = @lm.forward(input)
-
-      # Track cost (simplified - actual costs vary by model)
-      tokens = result.metadata[:usage][:total_tokens]
-      cost = estimate_cost(tokens)
-      @monthly_cost += cost
-
-      if @monthly_cost > @monthly_budget_usd
-        raise "Monthly budget of $#{@monthly_budget_usd} exceeded!"
-      end
-
-      result
-    end
-
-    private
-
-    def estimate_cost(tokens)
-      # Simplified cost estimation (check provider pricing)
-      (tokens / 1_000_000.0) * 5.0  # $5 per 1M tokens
-    end
-  end
-end
-
-BudgetTrackedConfig.configure(monthly_budget_usd: 100)
-
-# ============================================================================
-# Configuration Initializer for Rails
-# ============================================================================
-
-# Save this as config/initializers/dspy.rb
+# =============================================================================
+# DSPy.rb Configuration Template — v0.34.3 API
 #
-# require 'dspy'
+# Rails initializer patterns for DSPy.rb with RubyLLM, observability,
+# and feature-flagged model selection.
 #
-# DSPy.configure do |c|
-#   # Environment-specific configuration
-#   model_config = case Rails.env.to_sym
-#   when :development
-#     { provider: 'ollama', model: 'llama3.1' }
-#   when :test
-#     { provider: 'openai', model: 'gpt-4o-mini', temperature: 0.0 }
-#   when :production
-#     { provider: 'anthropic', model: 'claude-3-5-sonnet-20241022' }
-#   end
-#
-#   # Configure language model
-#   c.lm = DSPy::LM.new(
-#     "#{model_config[:provider]}/#{model_config[:model]}",
-#     api_key: ENV["#{model_config[:provider].upcase}_API_KEY"],
-#     **model_config.except(:provider, :model)
-#   )
-#
-#   # Optional: Add observability
-#   if Rails.env.production?
-#     c.langfuse = {
-#       public_key: ENV['LANGFUSE_PUBLIC_KEY'],
-#       secret_key: ENV['LANGFUSE_SECRET_KEY']
-#     }
-#   end
-# end
+# Key patterns:
+#   - Use after_initialize for Rails setup
+#   - Use dspy-ruby_llm for multi-provider routing
+#   - Use structured_outputs: true for reliable parsing
+#   - Use dspy-o11y + dspy-o11y-langfuse for observability
+#   - Use ENV-based feature flags for model selection
+# =============================================================================
 
-# ============================================================================
-# Testing Configuration
-# ============================================================================
-
-# In spec/spec_helper.rb or test/test_helper.rb
+# =============================================================================
+# Gemfile Dependencies
+# =============================================================================
 #
-# RSpec.configure do |config|
-#   config.before(:suite) do
-#     DSPy.configure do |c|
-#       c.lm = DSPy::LM.new('openai/gpt-4o-mini',
-#         api_key: ENV['OPENAI_API_KEY'],
-#         temperature: 0.0  # Deterministic for testing
-#       )
+# # Core
+# gem 'dspy'
+#
+# # Provider adapter (choose one strategy):
+#
+# # Strategy A: Unified adapter via RubyLLM (recommended)
+# gem 'dspy-ruby_llm'
+# gem 'ruby_llm'
+#
+# # Strategy B: Per-provider adapters (direct SDK access)
+# gem 'dspy-openai'     # OpenAI, OpenRouter, Ollama
+# gem 'dspy-anthropic'  # Claude
+# gem 'dspy-gemini'     # Gemini
+#
+# # Observability (optional)
+# gem 'dspy-o11y'
+# gem 'dspy-o11y-langfuse'
+#
+# # Optimization (optional)
+# gem 'dspy-miprov2'    # MIPROv2 optimizer
+# gem 'dspy-gepa'       # GEPA optimizer
+#
+# # Schema formats (optional)
+# gem 'sorbet-baml'     # BAML schema format (84% token reduction)
+
+# =============================================================================
+# Rails Initializer — config/initializers/dspy.rb
+# =============================================================================
+
+Rails.application.config.after_initialize do
+  # Skip in test unless explicitly enabled
+  next if Rails.env.test? && ENV["DSPY_ENABLE_IN_TEST"].blank?
+
+  # Configure RubyLLM provider credentials
+  RubyLLM.configure do |config|
+    config.gemini_api_key = ENV["GEMINI_API_KEY"] if ENV["GEMINI_API_KEY"].present?
+    config.anthropic_api_key = ENV["ANTHROPIC_API_KEY"] if ENV["ANTHROPIC_API_KEY"].present?
+    config.openai_api_key = ENV["OPENAI_API_KEY"] if ENV["OPENAI_API_KEY"].present?
+  end
+
+  # Configure DSPy with unified RubyLLM adapter
+  model = ENV.fetch("DSPY_MODEL", "ruby_llm/gemini-2.5-flash")
+  DSPy.configure do |config|
+    config.lm = DSPy::LM.new(model, structured_outputs: true)
+    config.logger = Rails.logger
+  end
+
+  # Enable Langfuse observability (optional)
+  if ENV["LANGFUSE_PUBLIC_KEY"].present? && ENV["LANGFUSE_SECRET_KEY"].present?
+    DSPy::Observability.configure!
+  end
+end
+
+# =============================================================================
+# Feature Flags — config/initializers/feature_flags.rb
+# =============================================================================
+
+# Use different models for different roles:
+#   - Fast/cheap for classification, routing, simple tasks
+#   - Powerful for synthesis, reasoning, complex analysis
+
+module FeatureFlags
+  SELECTOR_MODEL = ENV.fetch("DSPY_SELECTOR_MODEL", "ruby_llm/gemini-2.5-flash-lite")
+  SYNTHESIZER_MODEL = ENV.fetch("DSPY_SYNTHESIZER_MODEL", "ruby_llm/gemini-2.5-flash")
+  REASONING_MODEL = ENV.fetch("DSPY_REASONING_MODEL", "ruby_llm/claude-sonnet-4-20250514")
+end
+
+# Usage in tools/modules:
+#
+#   class ClassifyTool < DSPy::Tools::Base
+#     def call(query:)
+#       predictor = DSPy::Predict.new(ClassifySignature)
+#       predictor.configure { |c| c.lm = DSPy::LM.new(FeatureFlags::SELECTOR_MODEL, structured_outputs: true) }
+#       predictor.call(query: query)
 #     end
 #   end
+
+# =============================================================================
+# Environment Variables — .env
+# =============================================================================
+#
+# # Provider API keys (set the ones you need)
+# GEMINI_API_KEY=...
+# ANTHROPIC_API_KEY=...
+# OPENAI_API_KEY=...
+#
+# # DSPy model configuration
+# DSPY_MODEL=ruby_llm/gemini-2.5-flash
+# DSPY_SELECTOR_MODEL=ruby_llm/gemini-2.5-flash-lite
+# DSPY_SYNTHESIZER_MODEL=ruby_llm/gemini-2.5-flash
+# DSPY_REASONING_MODEL=ruby_llm/claude-sonnet-4-20250514
+#
+# # Langfuse observability (optional)
+# LANGFUSE_PUBLIC_KEY=pk-...
+# LANGFUSE_SECRET_KEY=sk-...
+# DSPY_TELEMETRY_BATCH_SIZE=5
+#
+# # Test environment
+# DSPY_ENABLE_IN_TEST=1  # Set to enable DSPy in test env
+
+# =============================================================================
+# Per-Provider Configuration (without RubyLLM)
+# =============================================================================
+
+# OpenAI (dspy-openai gem)
+# DSPy.configure do |c|
+#   c.lm = DSPy::LM.new('openai/gpt-4o-mini', api_key: ENV['OPENAI_API_KEY'])
 # end
 
-# ============================================================================
-# Configuration Best Practices
-# ============================================================================
+# Anthropic (dspy-anthropic gem)
+# DSPy.configure do |c|
+#   c.lm = DSPy::LM.new('anthropic/claude-sonnet-4-20250514', api_key: ENV['ANTHROPIC_API_KEY'])
+# end
 
-# 1. Use environment variables for API keys (never hardcode)
-# 2. Use different models for different environments
-# 3. Use cheaper/faster models for development and testing
-# 4. Configure temperature based on use case:
-#    - 0.0-0.3: Deterministic, factual tasks
-#    - 0.7-1.0: Balanced creativity
-#    - 1.0-2.0: High creativity, content generation
-# 5. Add observability in production (OpenTelemetry, Langfuse)
-# 6. Implement retry logic and fallbacks for reliability
-# 7. Track costs and set budgets for production
-# 8. Use max_tokens to control response length and costs
+# Gemini (dspy-gemini gem)
+# DSPy.configure do |c|
+#   c.lm = DSPy::LM.new('gemini/gemini-2.5-flash', api_key: ENV['GEMINI_API_KEY'])
+# end
+
+# Ollama (dspy-openai gem, local models)
+# DSPy.configure do |c|
+#   c.lm = DSPy::LM.new('ollama/llama3.2', base_url: 'http://localhost:11434')
+# end
+
+# OpenRouter (dspy-openai gem, 200+ models)
+# DSPy.configure do |c|
+#   c.lm = DSPy::LM.new('openrouter/anthropic/claude-3.5-sonnet',
+#     api_key: ENV['OPENROUTER_API_KEY'],
+#     base_url: 'https://openrouter.ai/api/v1')
+# end
+
+# =============================================================================
+# VCR Test Configuration — spec/support/dspy.rb
+# =============================================================================
+
+# VCR.configure do |config|
+#   config.cassette_library_dir = "spec/vcr_cassettes"
+#   config.hook_into :webmock
+#   config.configure_rspec_metadata!
+#   config.filter_sensitive_data('<GEMINI_API_KEY>') { ENV['GEMINI_API_KEY'] }
+#   config.filter_sensitive_data('<OPENAI_API_KEY>') { ENV['OPENAI_API_KEY'] }
+#   config.filter_sensitive_data('<ANTHROPIC_API_KEY>') { ENV['ANTHROPIC_API_KEY'] }
+# end
+
+# =============================================================================
+# Schema Format Configuration (optional)
+# =============================================================================
+
+# BAML schema format — 84% token reduction for Enhanced Prompting mode
+# DSPy.configure do |c|
+#   c.lm = DSPy::LM.new('openai/gpt-4o-mini',
+#     api_key: ENV['OPENAI_API_KEY'],
+#     schema_format: :baml  # Requires sorbet-baml gem
+#   )
+# end
+
+# TOON schema + data format — table-oriented format
+# DSPy.configure do |c|
+#   c.lm = DSPy::LM.new('openai/gpt-4o-mini',
+#     api_key: ENV['OPENAI_API_KEY'],
+#     schema_format: :toon,  # How DSPy describes the signature
+#     data_format: :toon     # How inputs/outputs are rendered in prompts
+#   )
+# end
+#
+# Note: BAML and TOON apply only when structured_outputs: false.
+# With structured_outputs: true, the provider receives JSON Schema directly.
