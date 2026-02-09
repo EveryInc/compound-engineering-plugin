@@ -104,6 +104,55 @@ gh pr list --limit 5 --json number,title --jq '.[] | "  #\(.number) \(.title)"'
 
 </input_validation>
 
+## Input Handling
+
+<input_handling>
+
+**If `$ARGUMENTS` is non-empty (autonomous mode):**
+Parse the argument as PR number, GitHub URL, branch name, or keyword ("latest"/"current"). Proceed directly to Main Tasks. Do not ask questions.
+
+**If `$ARGUMENTS` is empty (interactive mode):**
+Help the user select a review target.
+
+1. Check current context:
+   ```bash
+   current_branch=$(git branch --show-current)
+   # Check if current branch has a PR
+   current_pr=$(gh pr list --head "$current_branch" --json number,title,url --jq '.[0]' 2>/dev/null)
+   # List recent PRs by the current user
+   recent_prs=$(gh pr list --author @me --json number,title,updatedAt --jq '.[:5]' 2>/dev/null)
+   ```
+
+2. Use **AskUserQuestion** to present a target selector:
+
+   **Question:** "What would you like to review?"
+   **Options** (context-dependent, max 5):
+
+   - **If on feature branch with open PR:** Default to that PR.
+     1. Review PR #[number] - [title] on current branch (recommended)
+     2. Review current branch without PR context
+     3. [Recent PR #2 by you]
+     4. [Recent PR #3 by you]
+     5. Enter PR number or branch name manually
+
+   - **If on feature branch without PR:** Default to current branch.
+     1. Review current branch `[branch-name]` (recommended)
+     2. [Recent PR #1 by you]
+     3. [Recent PR #2 by you]
+     4. [Recent PR #3 by you]
+     5. Enter PR number or branch name manually
+
+   - **If on main/master:** Show recent PRs.
+     1. [Most recent PR by you] (recommended)
+     2. [Recent PR #2 by you]
+     3. [Recent PR #3 by you]
+     4. [Recent PR #4 by you]
+     5. Enter PR number or branch name manually
+
+3. Set the selected target as the input and proceed to Main Tasks.
+
+</input_handling>
+
 ## Main Tasks
 
 ### 1. Determine Review Target & Setup (ALWAYS FIRST)

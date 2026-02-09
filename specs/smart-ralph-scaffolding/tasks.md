@@ -228,7 +228,7 @@
   - _Requirements: US-6_
   - _Design: Area 4a_
 
-- [ ] 3.2 Add target selector to workflows/review.md
+- [x] 3.2 Add target selector to workflows/review.md
   - **Do**: Insert an `## Input Handling` section (wrapped in `<input_handling>` tags) before Main Tasks (after Input Validation). **Autonomous mode** (`$ARGUMENTS` non-empty): parse as PR/URL/branch/keyword, proceed. **Interactive mode** (`$ARGUMENTS` empty): use AskUserQuestion -- check current branch, check for open PR on branch, list recent PRs by current user. Context-dependent options: feature branch with PR -> default to that PR; feature branch without PR -> default to branch; main/master -> show recent PRs. No review depth selector (comprehensive is default).
   - **Files**: plugins/compound-engineering/commands/workflows/review.md (modify)
   - **Done when**: Input Handling section exists with AskUserQuestion target selector and autonomous bypass
