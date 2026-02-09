@@ -96,7 +96,7 @@
   - **Verify**: `grep -r 'mcp__plugin_compound-engineering_pw__' plugins/compound-engineering/commands/`
   - **Commit**: skip (verification only)
 
-- [ ] 1.13 Create hooks directory structure
+- [x] 1.13 Create hooks directory structure
   - **Do**: Create `plugins/compound-engineering/hooks/` and `plugins/compound-engineering/hooks/scripts/` directories
   - **Files**: plugins/compound-engineering/hooks/ (create dir), plugins/compound-engineering/hooks/scripts/ (create dir)
   - **Done when**: Both directories exist
