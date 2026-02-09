@@ -27,7 +27,7 @@
   - **Commit**: `fix(commands): add disable-model-invocation to resolve_todo_parallel`
   - _Requirements: US-1_
 
-- [ ] 1.4 Add `disable-model-invocation: true` to test-browser.md
+- [x] 1.4 Add `disable-model-invocation: true` to test-browser.md
   - **Do**: Open `plugins/compound-engineering/commands/test-browser.md`, add `disable-model-invocation: true` to YAML frontmatter
   - **Files**: plugins/compound-engineering/commands/test-browser.md (modify)
   - **Done when**: Frontmatter contains `disable-model-invocation: true`
