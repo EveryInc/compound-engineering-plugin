@@ -229,6 +229,77 @@ Before starting work, check for saved progress from a previous session:
 
    If no `.*.local.md` file matches the selected plan, proceed normally to Phase 1. This is the default path for new workflows.
 
+7. **Edge Cases:**
+
+   **Case 1: Corrupt state file (invalid YAML)**
+
+   If a `.*.local.md` file exists but its YAML frontmatter fails to parse (missing delimiters, invalid syntax, malformed fields):
+
+   - Warn: "State file '[filename]' is corrupt (invalid YAML). Cannot read saved progress."
+   - Delete the corrupt file: `rm "$STATE_FILE"`
+   - Announce: "Deleted corrupt state file. Starting fresh."
+   - Proceed to Phase 1 as if no state existed.
+
+   **Case 2: Multiple state files for different features**
+
+   If multiple `.*.local.md` files are found and none match the selected plan (or no plan is selected yet):
+
+   ```bash
+   STATE_FILES=$(ls -1a .*.local.md 2>/dev/null)
+   STATE_COUNT=$(echo "$STATE_FILES" | wc -l | tr -d ' ')
+   ```
+
+   If `STATE_COUNT` > 1 and no plan is selected:
+
+   Use **AskUserQuestion** to present all discovered state files:
+
+   **Question:** "Found [N] saved sessions. Which one would you like to resume?"
+   **Options** (max 5, most recent first by `updated` field):
+   1. [feature-1] -- last updated [time ago] (recommended)
+   2. [feature-2] -- last updated [time ago]
+   3. [feature-3] -- last updated [time ago]
+   4. Start a new session (ignore saved state)
+   5. Enter a plan file path manually
+
+   After selection, proceed with the chosen state file or plan.
+
+   **Case 3: Plan file deleted (state references missing plan)**
+
+   If a matching state file is found but its `plan_file` path no longer exists on disk:
+
+   ```bash
+   PLAN_FILE=$(grep '^plan_file:' "$STATE_FILE" | sed 's/plan_file: //')
+   if [ ! -f "$PLAN_FILE" ]; then
+     echo "Warning: Plan file '$PLAN_FILE' referenced in state has been deleted or moved."
+   fi
+   ```
+
+   Use **AskUserQuestion**:
+
+   **Question:** "Saved session for '[feature]' references plan '[plan_file]', but that file no longer exists."
+   **Options:**
+   1. Start fresh (recommended -- delete state, proceed to plan selection)
+   2. Enter the new path to the plan file
+   3. View saved state before deciding
+
+   If "Enter new path" is selected, validate the new path exists and update the state file's `plan_file` field.
+
+   **Case 4: Phase mismatch (state phase doesn't match current command)**
+
+   If a matching state file is found but the `phase` field indicates work that belongs to a different command:
+
+   | State Phase | Expected Command | Suggestion |
+   |-------------|-----------------|------------|
+   | `plan-complete` | /workflows:work | Correct -- proceed normally |
+   | `work` | /workflows:work | Correct -- resume work |
+   | `review` | /workflows:review | Warn: "This feature is in review phase" |
+   | `shipped` | (none) | Warn: "This feature has already been shipped" |
+
+   If phase mismatch is detected:
+
+   - Warn: "State file shows phase '[phase]'. You may want to use /workflows:[suggested-command] instead."
+   - Still allow the user to proceed if they choose to (don't block).
+
 **Autonomous mode:** When `$ARGUMENTS` is non-empty, skip the resume prompt. If a matching state file exists, auto-resume (update timestamp, checkout branch if recorded). If no state file exists, proceed normally.
 
 </state_discovery>

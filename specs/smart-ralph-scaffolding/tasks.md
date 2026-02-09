@@ -285,7 +285,7 @@
   - **Commit**: `feat(work): add state discovery for workflow resumability`
   - _Requirements: US-7_
 
-- [ ] 3.9 Handle state management edge cases
+- [x] 3.9 Handle state management edge cases
   - **Do**: Add instructions in the State Discovery section for: (1) corrupt state file (invalid YAML): warn and delete, start fresh, (2) multiple state files for different features: list all, ask user which one, (3) plan file deleted: warn, offer to start fresh or enter new path, (4) phase mismatch: warn and suggest correct command
   - **Files**: plugins/compound-engineering/commands/workflows/work.md (modify)
   - **Done when**: All 4 edge cases are handled with clear instructions
