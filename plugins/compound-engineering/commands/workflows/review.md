@@ -22,6 +22,88 @@ disable-model-invocation: true
 - For document reviews: Path to a markdown file or document
 </requirements>
 
+## Input Validation
+
+<input_validation>
+
+**If `$ARGUMENTS` is provided, parse the input to determine review target type:**
+
+```bash
+INPUT="$ARGUMENTS"
+
+# 1. Keyword: "latest" — most recent PR by current user
+if [[ "$INPUT" == "latest" ]]; then
+  PR_NUMBER=$(gh pr list --author @me --limit 1 --json number --jq '.[0].number')
+  if [[ -z "$PR_NUMBER" ]]; then
+    echo "Error: No open PRs found for your user."
+    echo ""
+    echo "Why: The keyword 'latest' looks up your most recent open PR, but none exist."
+    echo ""
+    echo "Fix: Open a PR first, or specify a target directly:"
+    echo "  /workflows:review 123"
+    echo "  /workflows:review feature-branch-name"
+    # STOP - do not proceed
+  fi
+  # Proceed with PR_NUMBER
+fi
+
+# 2. Keyword: "current" — review current branch
+if [[ "$INPUT" == "current" ]]; then
+  BRANCH=$(git branch --show-current)
+  # Proceed with current branch review
+fi
+
+# 3. Numeric PR number (e.g., "123", "#456")
+CLEAN_INPUT="${INPUT#\#}"
+if [[ "$CLEAN_INPUT" =~ ^[0-9]+$ ]]; then
+  PR_NUMBER="$CLEAN_INPUT"
+  # Proceed with PR_NUMBER
+fi
+
+# 4. GitHub URL (extract PR number)
+#    Matches: https://github.com/owner/repo/pull/123
+#             https://github.com/owner/repo/pull/123/files
+#             github.com/owner/repo/pull/123
+if [[ "$INPUT" =~ github\.com/.+/pull/([0-9]+) ]]; then
+  PR_NUMBER="${BASH_REMATCH[1]}"
+  # Proceed with PR_NUMBER
+fi
+
+# 5. Branch name — verify it exists
+if git rev-parse --verify "$INPUT" >/dev/null 2>&1; then
+  BRANCH="$INPUT"
+  # Check if branch has an open PR
+  PR_NUMBER=$(gh pr list --head "$BRANCH" --limit 1 --json number --jq '.[0].number' 2>/dev/null)
+  # Proceed with BRANCH (and optionally PR_NUMBER if one exists)
+fi
+
+# 6. If none of the above matched — unrecognizable input
+echo "Error: Cannot determine review target from input."
+echo ""
+echo "  \"$INPUT\" is not a recognized PR number, URL, branch, or keyword."
+echo ""
+echo "Why: The /workflows:review command accepts a PR number, GitHub PR URL,"
+echo "  branch name, or keyword. The input did not match any expected format."
+echo ""
+echo "Fix: Use one of the supported formats:"
+echo "  /workflows:review 123                              # PR number"
+echo "  /workflows:review #456                             # PR number with hash"
+echo "  /workflows:review https://github.com/o/r/pull/789  # GitHub PR URL"
+echo "  /workflows:review feature-branch-name              # Branch name"
+echo "  /workflows:review latest                           # Your most recent PR"
+echo "  /workflows:review current                          # Current branch"
+echo ""
+echo "Recent open PRs:"
+gh pr list --limit 5 --json number,title --jq '.[] | "  #\(.number) \(.title)"'
+# STOP - do not proceed
+```
+
+**Validation is permissive:** infer type from format, only fail when no reasonable interpretation exists.
+
+**If validation passes:** Proceed to Main Tasks with the resolved PR number or branch.
+
+</input_validation>
+
 ## Main Tasks
 
 ### 1. Determine Review Target & Setup (ALWAYS FIRST)

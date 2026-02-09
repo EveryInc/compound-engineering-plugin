@@ -156,7 +156,7 @@
   - _Requirements: US-3_
   - _Design: Area 2_
 
-- [ ] 2.2 Add input validation to workflows/review.md
+- [x] 2.2 Add input validation to workflows/review.md
   - **Do**: Insert an `## Input Validation` section (wrapped in `<input_validation>` tags) before Main Tasks in `workflows/review.md`. Parse argument as: PR number (numeric), GitHub URL (extract PR number), branch name (check `git rev-parse --verify`), or keyword ("latest", "current"). On unrecognizable input, show What/Why/Fix error listing valid formats. Validation must be permissive -- infer type from format, only fail when no reasonable interpretation exists.
   - **Files**: plugins/compound-engineering/commands/workflows/review.md (modify)
   - **Done when**: Input validation section exists with multi-format PR/branch/URL validation
