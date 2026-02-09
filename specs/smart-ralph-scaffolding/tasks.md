@@ -237,7 +237,7 @@
   - _Requirements: US-6_
   - _Design: Area 4b_
 
-- [ ] 3.3 Add category confirmation to workflows/compound.md
+- [x] 3.3 Add category confirmation to workflows/compound.md
   - **Do**: Insert a `### Category Confirmation` section (wrapped in `<category_confirmation>` tags) in Phase 1 after the Category Classifier subagent returns. **Autonomous mode** (`$ARGUMENTS` non-empty, from lfg/slfg): skip confirmation. **Interactive mode**: AskUserQuestion "Classified as '[category]'. Does this look right?" with options: (1) Yes, proceed (recommended), (2) Change category, (3) This is actually two problems. If "Change category": second AskUserQuestion with full category list.
   - **Files**: plugins/compound-engineering/commands/workflows/compound.md (modify)
   - **Done when**: Category confirmation section exists with AskUserQuestion and autonomous bypass
