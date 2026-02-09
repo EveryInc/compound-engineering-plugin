@@ -194,7 +194,7 @@
   - _Requirements: US-5_
   - _Design: Area 3_
 
-- [ ] 2.7 Create tests/hook-scripts.test.ts
+- [x] 2.7 Create tests/hook-scripts.test.ts
   - **Do**: Create a Bun test file that: (1) implements a `runHook(script, input)` helper using `Bun.spawn()` to pipe JSON to stdin, (2) adds `jq` availability check as first test (skip all if missing), (3) tests validate-bash.sh with 14 cases: normal command (allow), non-force git push (allow), `git push --force` (ask), `git push -f` (ask), `git reset --hard` (ask), `rm -rf src/components` (ask), `rm -fr dist/build` (ask), `rm -rf /` (deny), `rm -rf ~` (deny), `rm -rf $HOME` (deny), `rm -rf node_modules` (allow), `rm -rf .cache` (allow), empty command (allow), piped `cd && rm -rf` (ask). (4) Tests protect-env-files.sh with 10 cases: `.env` (ask), `.env.local` (ask), `.env.production` (ask), `src/index.ts` (allow), `cert.pem` (ask), `private.key` (ask), `credentials.json` (ask), `secret.yml` (ask), `src/env-utils.ts` (allow), empty file_path (allow).
   - **Files**: tests/hook-scripts.test.ts (create)
   - **Done when**: Test file exists with all 24 test cases using Bun.spawn
