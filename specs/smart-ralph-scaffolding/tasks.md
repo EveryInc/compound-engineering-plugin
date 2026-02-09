@@ -19,7 +19,7 @@
   - **Commit**: `fix(commands): add disable-model-invocation to feature-video`
   - _Requirements: US-1_
 
-- [ ] 1.3 Add `disable-model-invocation: true` to resolve_todo_parallel.md
+- [x] 1.3 Add `disable-model-invocation: true` to resolve_todo_parallel.md
   - **Do**: Open `plugins/compound-engineering/commands/resolve_todo_parallel.md`, add `disable-model-invocation: true` to YAML frontmatter
   - **Files**: plugins/compound-engineering/commands/resolve_todo_parallel.md (modify)
   - **Done when**: Frontmatter contains `disable-model-invocation: true`
