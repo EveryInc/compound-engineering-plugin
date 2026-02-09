@@ -112,7 +112,7 @@
   - _Requirements: US-4_
   - _Design: Area 6_
 
-- [ ] 1.15 Create validate-bash.sh hook script
+- [x] 1.15 Create validate-bash.sh hook script
   - **Do**: Create `plugins/compound-engineering/hooks/scripts/validate-bash.sh` that: (1) reads JSON from stdin, extracts `tool_input.command` via `jq`, (2) detects `git push --force`/`-f` -> returns "ask" with branch context, (3) detects `git reset --hard` -> returns "ask", (4) detects `rm -rf`/`rm -fr` with three-tier logic: hard deny catastrophic targets (`/`, `~`, `$HOME`, `.`), silent allow safe targets (`node_modules`, `.cache`, `tmp`, `__pycache__`, `.next`), ask for everything else, (5) all other commands: exit 0 (allow). Use `set -euo pipefail`. Follow the corrected implementation from TECH.md spec.
   - **Files**: plugins/compound-engineering/hooks/scripts/validate-bash.sh (create)
   - **Done when**: Script handles all patterns correctly per TECH spec
