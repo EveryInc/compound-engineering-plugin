@@ -35,7 +35,7 @@
   - **Commit**: `fix(commands): add disable-model-invocation to test-browser`
   - _Requirements: US-1_
 
-- [ ] 1.5 Add `disable-model-invocation: true` to all 5 workflow commands
+- [x] 1.5 Add `disable-model-invocation: true` to all 5 workflow commands
   - **Do**: Open each of these 5 files and add `disable-model-invocation: true` to YAML frontmatter: `workflows/brainstorm.md`, `workflows/compound.md`, `workflows/plan.md`, `workflows/review.md`, `workflows/work.md`
   - **Files**: plugins/compound-engineering/commands/workflows/brainstorm.md (modify), plugins/compound-engineering/commands/workflows/compound.md (modify), plugins/compound-engineering/commands/workflows/plan.md (modify), plugins/compound-engineering/commands/workflows/review.md (modify), plugins/compound-engineering/commands/workflows/work.md (modify)
   - **Done when**: All 5 workflow commands have `disable-model-invocation: true` in frontmatter
