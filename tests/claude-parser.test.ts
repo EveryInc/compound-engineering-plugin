@@ -15,8 +15,8 @@ describe("loadClaudePlugin", () => {
 
     expect(plugin.manifest.name).toBe("compound-engineering")
     expect(plugin.agents.length).toBe(2)
-    expect(plugin.commands.length).toBe(6)
-    expect(plugin.skills.length).toBe(1)
+    expect(plugin.commands.length).toBe(7)
+    expect(plugin.skills.length).toBe(2)
     expect(plugin.hooks).toBeDefined()
     expect(plugin.mcpServers).toBeDefined()
 
@@ -53,6 +53,28 @@ describe("loadClaudePlugin", () => {
     expect(planCommand?.allowedTools).toEqual(["Question", "TodoWrite", "TodoRead"])
 
     expect(plugin.mcpServers?.context7?.url).toBe("https://mcp.context7.com/mcp")
+  })
+
+  test("parses disable-model-invocation from commands", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+
+    const disabledCommand = plugin.commands.find((command) => command.name === "deploy-docs")
+    expect(disabledCommand).toBeDefined()
+    expect(disabledCommand?.disableModelInvocation).toBe(true)
+
+    const normalCommand = plugin.commands.find((command) => command.name === "workflows:review")
+    expect(normalCommand?.disableModelInvocation).toBeUndefined()
+  })
+
+  test("parses disable-model-invocation from skills", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+
+    const disabledSkill = plugin.skills.find((skill) => skill.name === "disabled-skill")
+    expect(disabledSkill).toBeDefined()
+    expect(disabledSkill?.disableModelInvocation).toBe(true)
+
+    const normalSkill = plugin.skills.find((skill) => skill.name === "skill-one")
+    expect(normalSkill?.disableModelInvocation).toBeUndefined()
   })
 
   test("loads MCP servers from .mcp.json when manifest is empty", async () => {

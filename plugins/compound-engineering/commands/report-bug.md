@@ -2,6 +2,7 @@
 name: report-bug
 description: Report a bug in the compound-engineering plugin
 argument-hint: "[optional: brief description of the bug]"
+disable-model-invocation: true
 ---
 
 # Report a Compounding Engineering Plugin Bug

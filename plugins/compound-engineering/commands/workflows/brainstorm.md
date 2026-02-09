@@ -87,12 +87,21 @@ Use **AskUserQuestion tool** to present next steps:
 **Question:** "Brainstorm captured. What would you like to do next?"
 
 **Options:**
-1. **Proceed to planning** - Run `/workflows:plan` (will auto-detect this brainstorm)
-2. **Ask more questions** - I have more questions to clarify before moving on
-3. **Refine design further** - Continue exploring the design
+1. **Review and refine** - Improve the document through structured self-review
+2. **Proceed to planning** - Run `/workflows:plan` (will auto-detect this brainstorm)
+3. **Ask more questions** - I have more questions to clarify before moving on
 4. **Done for now** - Return later
 
 **If user selects "Ask more questions":** YOU (Claude) return to Phase 1.2 (Collaborative Dialogue) and continue asking the USER questions one at a time to further refine the design. The user wants YOU to probe deeper - ask about edge cases, constraints, preferences, or areas not yet explored. Continue until the user is satisfied, then return to Phase 4.
+
+**If user selects "Review and refine":**
+
+Load the `document-review` skill and apply it to the brainstorm document.
+
+When document-review returns "Review complete", present next steps:
+
+1. **Move to planning** - Continue to `/workflows:plan` with this document
+2. **Done for now** - Brainstorming complete. To start planning later: `/workflows:plan [document-path]`
 
 ## Output Summary
 

@@ -114,6 +114,7 @@ function convertAgent(agent: ClaudeAgent, options: ClaudeToOpenCodeOptions) {
 function convertCommands(commands: ClaudeCommand[]): Record<string, OpenCodeCommandConfig> {
   const result: Record<string, OpenCodeCommandConfig> = {}
   for (const command of commands) {
+    if (command.disableModelInvocation) continue
     const entry: OpenCodeCommandConfig = {
       description: command.description,
       template: command.body,
@@ -209,9 +210,11 @@ function renderHookStatements(
 ): string[] {
   if (!matcher.hooks || matcher.hooks.length === 0) return []
   const tools = matcher.matcher
-    .split("|")
-    .map((tool) => tool.trim().toLowerCase())
-    .filter(Boolean)
+    ? matcher.matcher
+        .split("|")
+        .map((tool) => tool.trim().toLowerCase())
+        .filter(Boolean)
+    : []
 
   const useMatcher = useToolMatcher && tools.length > 0 && !tools.includes("*")
   const condition = useMatcher
@@ -232,10 +235,10 @@ function renderHookStatements(
       continue
     }
     if (hook.type === "prompt") {
-      statements.push(`// Prompt hook for ${matcher.matcher}: ${hook.prompt.replace(/\n/g, " ")}`)
+      statements.push(`// Prompt hook for ${matcher.matcher ?? "*"}: ${hook.prompt.replace(/\n/g, " ")}`)
       continue
     }
-    statements.push(`// Agent hook for ${matcher.matcher}: ${hook.agent}`)
+    statements.push(`// Agent hook for ${matcher.matcher ?? "*"}: ${hook.agent}`)
   }
 
   return statements

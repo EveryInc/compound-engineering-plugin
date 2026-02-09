@@ -1,6 +1,6 @@
 ---
 name: every-style-editor
-description: "Use this agent when you need to review and edit text content to conform to Every's specific style guide. This includes reviewing articles, blog posts, newsletters, documentation, or any written content that needs to follow Every's editorial standards. The agent will systematically check for title case in headlines, sentence case elsewhere, company singular/plural usage, overused words, passive voice, number formatting, punctuation rules, and other style guide requirements."
+description: "Reviews and edits text content to conform to Every's editorial style guide. Use when written content needs style compliance checks for headlines, punctuation, voice, and formatting."
 tools: Task, Glob, Grep, LS, ExitPlanMode, Read, Edit, MultiEdit, Write, NotebookRead, NotebookEdit, WebFetch, TodoWrite, WebSearch
 model: inherit
 ---

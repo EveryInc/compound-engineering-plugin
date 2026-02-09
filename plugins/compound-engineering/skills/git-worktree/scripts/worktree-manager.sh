@@ -91,14 +91,6 @@ create_worktree() {
   echo -e "${BLUE}Creating worktree: $branch_name${NC}"
   echo "  From: $from_branch"
   echo "  Path: $worktree_path"
-  echo ""
-  echo "Proceed? (y/n)"
-  read -r response
-
-  if [[ "$response" != "y" ]]; then
-    echo -e "${YELLOW}Cancelled${NC}"
-    return
-  fi
 
   # Update main branch
   echo -e "${BLUE}Updating $from_branch...${NC}"
@@ -134,7 +126,7 @@ list_worktrees() {
 
   local count=0
   for worktree_path in "$WORKTREE_DIR"/*; do
-    if [[ -d "$worktree_path" && -d "$worktree_path/.git" ]]; then
+    if [[ -d "$worktree_path" && -e "$worktree_path/.git" ]]; then
       count=$((count + 1))
       local worktree_name=$(basename "$worktree_path")
       local branch=$(git -C "$worktree_path" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")
@@ -231,7 +223,7 @@ cleanup_worktrees() {
   local to_remove=()
 
   for worktree_path in "$WORKTREE_DIR"/*; do
-    if [[ -d "$worktree_path" && -d "$worktree_path/.git" ]]; then
+    if [[ -d "$worktree_path" && -e "$worktree_path/.git" ]]; then
       local worktree_name=$(basename "$worktree_path")
 
       # Skip if current worktree

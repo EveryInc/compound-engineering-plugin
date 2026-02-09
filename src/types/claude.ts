@@ -39,6 +39,7 @@ export type ClaudeCommand = {
   argumentHint?: string
   model?: string
   allowedTools?: string[]
+  disableModelInvocation?: boolean
   body: string
   sourcePath: string
 }
@@ -46,6 +47,7 @@ export type ClaudeCommand = {
 export type ClaudeSkill = {
   name: string
   description?: string
+  disableModelInvocation?: boolean
   sourceDir: string
   skillPath: string
 }
@@ -79,7 +81,7 @@ export type ClaudeHookAgent = {
 export type ClaudeHookEntry = ClaudeHookCommand | ClaudeHookPrompt | ClaudeHookAgent
 
 export type ClaudeHookMatcher = {
-  matcher: string
+  matcher?: string
   hooks: ClaudeHookEntry[]
 }
 

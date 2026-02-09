@@ -21,55 +21,83 @@ Captures problem solutions while context is fresh, creating structured documenta
 /workflows:compound [brief context]    # Provide additional context hint
 ```
 
-## Execution Strategy: Parallel Subagents
+## Execution Strategy: Two-Phase Orchestration
 
-This command launches multiple specialized subagents IN PARALLEL to maximize efficiency:
+<critical_requirement>
+**Only ONE file gets written - the final documentation.**
 
-### 1. **Context Analyzer** (Parallel)
+Phase 1 subagents return TEXT DATA to the orchestrator. They must NOT use Write, Edit, or create any files. Only the orchestrator (Phase 2) writes the final documentation file.
+</critical_requirement>
+
+### Phase 1: Parallel Research
+
+<parallel_tasks>
+
+Launch these subagents IN PARALLEL. Each returns text data to the orchestrator.
+
+#### 1. **Context Analyzer**
    - Extracts conversation history
    - Identifies problem type, component, symptoms
-   - Validates against solution schema
+   - Validates against schema
    - Returns: YAML frontmatter skeleton
 
-### 2. **Solution Extractor** (Parallel)
+#### 2. **Solution Extractor**
    - Analyzes all investigation steps
    - Identifies root cause
    - Extracts working solution with code examples
    - Returns: Solution content block
 
-### 3. **Related Docs Finder** (Parallel)
+#### 3. **Related Docs Finder**
    - Searches `docs/solutions/` for related documentation
    - Identifies cross-references and links
    - Finds related GitHub issues
    - Returns: Links and relationships
 
-### 4. **Prevention Strategist** (Parallel)
+#### 4. **Prevention Strategist**
    - Develops prevention strategies
    - Creates best practices guidance
    - Generates test cases if applicable
    - Returns: Prevention/testing content
 
-### 5. **Category Classifier** (Parallel)
+#### 5. **Category Classifier**
    - Determines optimal `docs/solutions/` category
    - Validates category against schema
    - Suggests filename based on slug
    - Returns: Final path and filename
 
-### 6. **Documentation Writer** (Parallel)
-   - Assembles complete markdown file
-   - Validates YAML frontmatter
-   - Formats content for readability
-   - Creates the file in correct location
+</parallel_tasks>
 
-### 7. **Optional: Specialized Agent Invocation** (Post-Documentation)
-   Based on problem type detected, invoke agents from `.claude/compound-engineering.json` config:
-   - **performance_issue** → `performance-oracle` (if configured)
-   - **security_issue** → `security-sentinel` (if configured)
-   - **database_issue** → `data-integrity-guardian` (if in `conditionalAgents.data`)
-   - **test_failure** → test reviewer (if configured)
-   - Any code-heavy issue → agents from `reviewAgents` + `code-simplicity-reviewer`
+### Phase 2: Assembly & Write
 
-   **Note:** If no config exists, use project-appropriate defaults or prompt to run `/compound-engineering-setup`.
+<sequential_tasks>
+
+**WAIT for all Phase 1 subagents to complete before proceeding.**
+
+The orchestrating agent (main conversation) performs these steps:
+
+1. Collect all text results from Phase 1 subagents
+2. Assemble complete markdown file from the collected pieces
+3. Validate YAML frontmatter against schema
+4. Create directory if needed: `mkdir -p docs/solutions/[category]/`
+5. Write the SINGLE final file: `docs/solutions/[category]/[filename].md`
+
+</sequential_tasks>
+
+### Phase 3: Optional Enhancement
+
+**WAIT for Phase 2 to complete before proceeding.**
+
+<parallel_tasks>
+
+Based on problem type, optionally invoke specialized agents to review the documentation:
+
+- **performance_issue** → `performance-oracle`
+- **security_issue** → `security-sentinel`
+- **database_issue** → `data-integrity-guardian`
+- **test_failure** → `cora-test-reviewer`
+- Any code-heavy issue → `kieran-rails-reviewer` + `code-simplicity-reviewer`
+
+</parallel_tasks>
 
 ## What It Captures
 
@@ -112,18 +140,25 @@ This command launches multiple specialized subagents IN PARALLEL to maximize eff
 - integration-issues/
 - logic-errors/
 
+## Common Mistakes to Avoid
+
+| ❌ Wrong | ✅ Correct |
+|----------|-----------|
+| Subagents write files like `context-analysis.md`, `solution-draft.md` | Subagents return text data; orchestrator writes one final file |
+| Research and assembly run in parallel | Research completes → then assembly runs |
+| Multiple files created during workflow | Single file: `docs/solutions/[category]/[filename].md` |
+
 ## Success Output
 
 ```
-✓ Parallel documentation generation complete
+✓ Documentation complete
 
-Primary Subagent Results:
+Subagent Results:
   ✓ Context Analyzer: Identified performance_issue in brief_system
-  ✓ Solution Extractor: Extracted 3 code fixes
-  ✓ Related Docs Finder: Found 2 related issues
-  ✓ Prevention Strategist: Generated test cases
-  ✓ Category Classifier: docs/solutions/performance-issues/
-  ✓ Documentation Writer: Created complete markdown
+  ✓ Solution Extractor: 3 code fixes
+  ✓ Related Docs Finder: 2 related issues
+  ✓ Prevention Strategist: Prevention strategies, test suggestions
+  ✓ Category Classifier: `performance-issues`
 
 Specialized Agent Reviews (Auto-Triggered):
   ✓ performance-oracle: Validated query optimization approach
@@ -176,18 +211,17 @@ Build → Test → Find Issue → Research → Improve → Document → Validate
 
 ## Applicable Specialized Agents
 
-Based on problem type, agents from `.claude/compound-engineering.json` config enhance documentation.
+Based on problem type, these agents can enhance documentation:
 
-**Configure via:** `/compound-engineering-setup`
-
-### Code Quality & Review (from `reviewAgents`)
-- Language-specific reviewer (e.g., `kieran-rails-reviewer`, `kieran-python-reviewer`)
+### Code Quality & Review
+- **kieran-rails-reviewer**: Reviews code examples for Rails best practices
 - **code-simplicity-reviewer**: Ensures solution code is minimal and clear
 - **pattern-recognition-specialist**: Identifies anti-patterns or repeating issues
 
-### Specific Domain Experts (from `conditionalAgents`)
+### Specific Domain Experts
 - **performance-oracle**: Analyzes performance_issue category solutions
 - **security-sentinel**: Reviews security_issue solutions for vulnerabilities
+- **cora-test-reviewer**: Creates test cases for prevention strategies
 - **data-integrity-guardian**: Reviews database_issue migrations and queries
 
 ### Enhancement & Documentation
@@ -196,7 +230,7 @@ Based on problem type, agents from `.claude/compound-engineering.json` config en
 - **framework-docs-researcher**: Links to Rails/gem documentation references
 
 ### When to Invoke
-- **Auto-triggered** (optional): Agents from config run post-documentation for enhancement
+- **Auto-triggered** (optional): Agents can run post-documentation for enhancement
 - **Manual trigger**: User can invoke agents after /workflows:compound completes for deeper review
 
 ## Related Commands

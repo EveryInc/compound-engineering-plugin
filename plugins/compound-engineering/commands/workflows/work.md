@@ -175,34 +175,19 @@ This command takes a work document (plan, specification, or todo file) and execu
 
 2. **Consider Reviewer Agents** (Optional)
 
-   Use for complex, risky, or large changes. Agents are configured via `.claude/compound-engineering.json`.
+   Use for complex, risky, or large changes:
 
-   **If config exists:** Use agents from `reviewAgents` array.
-
-   **If no config exists and user wants reviewers:**
-   ```
-   AskUserQuestion:
-     questions:
-       - question: "No config found. Set up review agents now?"
-         header: "Setup"
-         options:
-           - label: "Quick Setup (Recommended)"
-             description: "Create config with smart defaults for your project type"
-           - label: "Skip - Use defaults this time"
-             description: "Use general defaults without saving"
-   ```
-
-   **Default agents by project type:**
-   - **Rails**: `kieran-rails-reviewer`, `code-simplicity-reviewer`
-   - **Python**: `kieran-python-reviewer`, `code-simplicity-reviewer`
-   - **TypeScript**: `kieran-typescript-reviewer`, `code-simplicity-reviewer`
-   - **General**: `code-simplicity-reviewer`, `security-sentinel`
+   - **code-simplicity-reviewer**: Check for unnecessary complexity
+   - **kieran-rails-reviewer**: Verify Rails conventions (Rails projects)
+   - **performance-oracle**: Check for performance issues
+   - **security-sentinel**: Scan for security vulnerabilities
+   - **cora-test-reviewer**: Review test quality (Rails projects with comprehensive test coverage)
 
    Run reviewers in parallel with Task tool:
 
    ```
-   Task({configured-agent}): "Review changes"
-   Task(code-simplicity-reviewer): "Review for simplicity"
+   Task(code-simplicity-reviewer): "Review changes for simplicity"
+   Task(kieran-rails-reviewer): "Check Rails conventions"
    ```
 
    Present findings to user and address critical issues.
@@ -304,6 +289,76 @@ This command takes a work document (plan, specification, or todo file) and execu
    - Link to PR
    - Note any follow-up work needed
    - Suggest next steps if applicable
+
+---
+
+## Swarm Mode (Optional)
+
+For complex plans with multiple independent workstreams, enable swarm mode for parallel execution with coordinated agents.
+
+### When to Use Swarm Mode
+
+| Use Swarm Mode when... | Use Standard Mode when... |
+|------------------------|---------------------------|
+| Plan has 5+ independent tasks | Plan is linear/sequential |
+| Multiple specialists needed (review + test + implement) | Single-focus work |
+| Want maximum parallelism | Simpler mental model preferred |
+| Large feature with clear phases | Small feature or bug fix |
+
+### Enabling Swarm Mode
+
+To trigger swarm execution, say:
+
+> "Make a Task list and launch an army of agent swarm subagents to build the plan"
+
+Or explicitly request: "Use swarm mode for this work"
+
+### Swarm Workflow
+
+When swarm mode is enabled, the workflow changes:
+
+1. **Create Team**
+   ```
+   Teammate({ operation: "spawnTeam", team_name: "work-{timestamp}" })
+   ```
+
+2. **Create Task List with Dependencies**
+   - Parse plan into TaskCreate items
+   - Set up blockedBy relationships for sequential dependencies
+   - Independent tasks have no blockers (can run in parallel)
+
+3. **Spawn Specialized Teammates**
+   ```
+   Task({
+     team_name: "work-{timestamp}",
+     name: "implementer",
+     subagent_type: "general-purpose",
+     prompt: "Claim implementation tasks, execute, mark complete",
+     run_in_background: true
+   })
+
+   Task({
+     team_name: "work-{timestamp}",
+     name: "tester",
+     subagent_type: "general-purpose",
+     prompt: "Claim testing tasks, run tests, mark complete",
+     run_in_background: true
+   })
+   ```
+
+4. **Coordinate and Monitor**
+   - Team lead monitors task completion
+   - Spawn additional workers as phases unblock
+   - Handle plan approval if required
+
+5. **Cleanup**
+   ```
+   Teammate({ operation: "requestShutdown", target_agent_id: "implementer" })
+   Teammate({ operation: "requestShutdown", target_agent_id: "tester" })
+   Teammate({ operation: "cleanup" })
+   ```
+
+See the `orchestrating-swarms` skill for detailed swarm patterns and best practices.
 
 ---
 

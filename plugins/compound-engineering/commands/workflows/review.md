@@ -48,73 +48,36 @@ Ensure that the code is ready for analysis (either in worktree or on current bra
 
 </task_list>
 
-#### Load Review Configuration (Auto-Setup if Missing)
+#### Protected Artifacts
 
-<config_loading>
+<protected_artifacts>
+The following paths are compound-engineering pipeline artifacts and must never be flagged for deletion, removal, or gitignore by any review agent:
 
-**Step 1: Check for configuration file:**
+- `docs/plans/*.md` — Plan files created by `/workflows:plan`. These are living documents that track implementation progress (checkboxes are checked off by `/workflows:work`).
+- `docs/solutions/*.md` — Solution documents created during the pipeline.
 
-```bash
-# Check project config first, then global
-test -f .claude/compound-engineering.json && echo "project" || \
-test -f ~/.claude/compound-engineering.json && echo "global" || echo "none"
-```
-
-**Step 2: If config exists** → Read agents from configuration and proceed.
-
-**Step 3: If NO config exists** → Run inline quick setup:
-
-```
-AskUserQuestion:
-  questions:
-    - question: "No agent configuration found. How would you like to configure review agents?"
-      header: "Quick Setup"
-      options:
-        - label: "Quick Setup - Use smart defaults (Recommended)"
-          description: "Auto-detect project type and use appropriate agents. Takes 5 seconds."
-        - label: "Full Setup - Customize everything"
-          description: "Run /compound-engineering-setup for detailed configuration."
-        - label: "Skip - Use defaults just this once"
-          description: "Use general defaults for this review only, don't save config."
-```
-
-**If "Quick Setup":**
-1. Detect project type (check for Gemfile+Rails, package.json+tsconfig, etc.)
-2. Create `.claude/compound-engineering.json` with smart defaults for detected type
-3. Inform user: "Created config for {project_type}. Run `/compound-engineering-setup` anytime to customize."
-4. Continue with review using new config
-
-**If "Full Setup":**
-1. Run `/compound-engineering-setup` (the full interactive flow)
-2. After setup completes, continue with review
-
-**If "Skip":**
-1. Use general defaults for this review only
-2. Don't create config file
-
-</config_loading>
+If a review agent flags any file in these directories for cleanup or removal, discard that finding during synthesis. Do not create a todo for it.
+</protected_artifacts>
 
 #### Parallel Agents to review the PR:
 
 <parallel_tasks>
 
-**From `reviewAgents` in config** (or defaults if no config):
+Run ALL or most of these agents at the same time:
 
-Run all configured review agents in parallel. Example defaults:
-- Task {first-configured-reviewer}(PR content)
-- Task {second-configured-reviewer}(PR content)
-- Task code-simplicity-reviewer(PR content)
-- Task security-sentinel(PR content)
-- Task performance-oracle(PR content)
-
-**Default reviewAgents (if no config):**
-- Rails: `kieran-rails-reviewer`, `dhh-rails-reviewer`, `code-simplicity-reviewer`, `security-sentinel`, `performance-oracle`
-- Python: `kieran-python-reviewer`, `code-simplicity-reviewer`, `security-sentinel`, `performance-oracle`
-- TypeScript: `kieran-typescript-reviewer`, `code-simplicity-reviewer`, `security-sentinel`, `performance-oracle`
-- General: `code-simplicity-reviewer`, `security-sentinel`, `performance-oracle`
-
-**If `options.agentNative` is true (default):**
-- Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
+1. Task kieran-rails-reviewer(PR content)
+2. Task dhh-rails-reviewer(PR title)
+3. If turbo is used: Task rails-turbo-expert(PR content)
+4. Task git-history-analyzer(PR content)
+5. Task dependency-detective(PR content)
+6. Task pattern-recognition-specialist(PR content)
+7. Task architecture-strategist(PR content)
+8. Task code-philosopher(PR content)
+9. Task security-sentinel(PR content)
+10. Task performance-oracle(PR content)
+11. Task devops-harmony-analyst(PR content)
+12. Task data-integrity-guardian(PR content)
+13. Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
 
 </parallel_tasks>
 
@@ -124,14 +87,10 @@ Run all configured review agents in parallel. Example defaults:
 
 These agents are run ONLY when the PR matches specific criteria. Check the PR files list to determine if they apply:
 
----
+**If PR contains database migrations (db/migrate/*.rb files) or data backfills:**
 
-**MIGRATIONS: If PR contains database migrations or data backfills:**
-
-From `conditionalAgents.migrations` in config (defaults: `data-migration-expert`, `deployment-verification-agent`)
-
-- Task data-migration-expert(PR content) - Validates ID mappings match production, checks for swapped values, verifies rollback safety
-- Task deployment-verification-agent(PR content) - Creates Go/No-Go deployment checklist with SQL verification queries
+14. Task data-migration-expert(PR content) - Validates ID mappings match production, checks for swapped values, verifies rollback safety
+15. Task deployment-verification-agent(PR content) - Creates Go/No-Go deployment checklist with SQL verification queries
 
 **When to run migration agents:**
 - PR includes files matching `db/migrate/*.rb`
@@ -143,64 +102,6 @@ From `conditionalAgents.migrations` in config (defaults: `data-migration-expert`
 **What these agents check:**
 - `data-migration-expert`: Verifies hard-coded mappings match production reality (prevents swapped IDs), checks for orphaned associations, validates dual-write patterns
 - `deployment-verification-agent`: Produces executable pre/post-deploy checklists with SQL queries, rollback procedures, and monitoring plans
-
----
-
-**FRONTEND: If PR contains JavaScript/TypeScript or frontend files:**
-
-From `conditionalAgents.frontend` in config (defaults: `julik-frontend-races-reviewer`)
-
-- Task julik-frontend-races-reviewer(PR content) - Reviews for race conditions, async issues, and frontend performance problems
-
-**When to run frontend agents:**
-- PR includes files matching `*.js`, `*.ts`, `*.jsx`, `*.tsx`
-- PR includes files in `app/javascript/**`, `app/assets/javascripts/**`
-- PR includes files in `frontend/**`, `src/**` (for JS-heavy projects)
-- PR modifies Stimulus controllers, Turbo frames, or Hotwire components
-- PR includes CSS/SCSS changes with JavaScript interactions
-
-**What these agents check:**
-- `julik-frontend-races-reviewer`: Detects async race conditions, improper event handling, memory leaks, Turbo/Stimulus lifecycle issues, and JavaScript performance anti-patterns
-
----
-
-**ARCHITECTURE: If PR contains significant structural changes:**
-
-From `conditionalAgents.architecture` in config (defaults: `architecture-strategist`, `pattern-recognition-specialist`)
-
-- Task architecture-strategist(PR content) - Evaluates architectural decisions, coupling, and system design
-- Task pattern-recognition-specialist(PR content) - Identifies anti-patterns, code smells, and architectural drift
-
-**When to run architecture agents:**
-- PR creates new directories or major new components
-- PR changes 10+ files across multiple directories
-- PR introduces new gems, packages, or dependencies
-- PR modifies core infrastructure (config, initializers, middleware)
-- PR refactors or moves significant code between modules
-- PR title/body mentions: refactor, restructure, architecture, reorganize
-
-**What these agents check:**
-- `architecture-strategist`: Evaluates separation of concerns, dependency direction, module boundaries, and long-term maintainability
-- `pattern-recognition-specialist`: Identifies recurring anti-patterns, code duplication across the PR, and violations of established project patterns
-
----
-
-**DATA: If PR contains model or data-related changes:**
-
-From `conditionalAgents.data` in config (defaults: `data-integrity-guardian`)
-
-- Task data-integrity-guardian(PR content) - Reviews data integrity, validation, and query safety
-
-**When to run data agents:**
-- PR includes files matching `app/models/*.rb`, `app/models/**/*.rb`
-- PR includes concerns in `app/models/concerns/**`
-- PR modifies ActiveRecord associations, validations, or callbacks
-- PR includes changes to database queries or scopes
-- PR modifies serializers, decorators, or data transformation logic
-- PR title/body mentions: model, validation, association, query optimization
-
-**What these agents check:**
-- `data-integrity-guardian`: Validates referential integrity, N+1 query risks, proper use of transactions, data consistency across associations, and safe handling of nullable fields
 
 </conditional_agents>
 
@@ -317,6 +218,7 @@ Remove duplicates, prioritize by severity and impact.
 <synthesis_tasks>
 
 - [ ] Collect findings from all parallel agents
+- [ ] Discard any findings that recommend deleting or gitignoring files in `docs/plans/` or `docs/solutions/` (see Protected Artifacts above)
 - [ ] Categorize by type: security, performance, architecture, quality, etc.
 - [ ] Assign severity levels: 🔴 CRITICAL (P1), 🟡 IMPORTANT (P2), 🔵 NICE-TO-HAVE (P3)
 - [ ] Remove duplicate or overlapping findings
@@ -477,8 +379,12 @@ After creating all todo files, present comprehensive summary:
 
 ### Review Agents Used:
 
-- {List agents from config or defaults used}
-- (configured via `.claude/compound-engineering.json`)
+- kieran-rails-reviewer
+- security-sentinel
+- performance-oracle
+- architecture-strategist
+- agent-native-reviewer
+- [other agents]
 
 ### Next Steps:
 

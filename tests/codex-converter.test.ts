@@ -172,6 +172,44 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
     expect(parsed.body).toContain("/dev/null")
   })
 
+  test("excludes commands with disable-model-invocation from prompts and skills", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "normal-command",
+          description: "Normal command",
+          body: "Normal body.",
+          sourcePath: "/tmp/plugin/commands/normal.md",
+        },
+        {
+          name: "disabled-command",
+          description: "Disabled command",
+          disableModelInvocation: true,
+          body: "Disabled body.",
+          sourcePath: "/tmp/plugin/commands/disabled.md",
+        },
+      ],
+      agents: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCodex(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    // Only normal command should produce a prompt
+    expect(bundle.prompts).toHaveLength(1)
+    expect(bundle.prompts[0].name).toBe("normal-command")
+
+    // Only normal command should produce a generated skill
+    const commandSkills = bundle.generatedSkills.filter((s) => s.name === "normal-command" || s.name === "disabled-command")
+    expect(commandSkills).toHaveLength(1)
+    expect(commandSkills[0].name).toBe("normal-command")
+  })
+
   test("truncates generated skill descriptions to Codex limits and single line", () => {
     const longDescription = `Line one\nLine two ${"a".repeat(2000)}`
     const plugin: ClaudePlugin = {

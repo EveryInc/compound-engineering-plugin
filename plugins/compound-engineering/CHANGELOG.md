@@ -5,58 +5,61 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.29.1] - 2026-01-28
-
-### Improved
-
-- **`/workflows:brainstorm` command** - Better question flow
-  - Added "Ask more questions" option at handoff phase
-  - Clarified that Claude should ask the user questions (not wait for user to ask)
-  - Added requirement to resolve ALL open questions before offering to proceed to planning
-
----
-
-## [2.29.0] - 2026-01-25
+## [2.31.0] - 2026-02-08
 
 ### Added
 
-- **`/compound-engineering-setup` command** - Configure plugin agents and preferences
-  - Multi-step onboarding with AskUserQuestion for easy setup
-  - Auto-detects project type (Rails, Python, TypeScript, etc.)
-  - Three setup modes: Quick (smart defaults), Advanced (manual selection), Minimal
-  - Creates `.claude/compound-engineering.json` config file
-  - Supports global config (`~/.claude/`) or project-specific (`.claude/`)
-  - **Custom agent discovery**: Auto-detects agents in `.claude/agents/` and `~/.claude/agents/`
-  - **Modify flow**: Re-run setup to add/remove agents from existing config
-  - **Custom agent guide**: Instructions for creating your own review agents
+- **`document-review` skill** — Brainstorm and plan refinement through structured review ([@Trevin Chow](https://github.com/trevin))
+- **`/sync` command** — Sync Claude Code personal config across machines ([@Terry Li](https://github.com/terryli))
 
 ### Changed
 
-- **`/workflows:review`** - Now reads review agents from config file instead of hardcoding
-- **`/plan_review`** - Now reads plan review agents from config file
-- **`/workflows:work`** - References config for optional reviewer agents
-- **`/workflows:compound`** - References config for specialized agent invocation
+- **Context token optimization (79% reduction)** — Plugin was consuming 316% of the context description budget, causing Claude Code to silently exclude components. Now at 65% with room to grow:
+  - All 29 agent descriptions trimmed from ~1,400 to ~180 chars avg (examples moved to agent body)
+  - 18 manual commands marked `disable-model-invocation: true` (side-effect commands like `/lfg`, `/deploy-docs`, `/triage`, etc.)
+  - 6 manual skills marked `disable-model-invocation: true` (`orchestrating-swarms`, `git-worktree`, `skill-creator`, `compound-docs`, `file-todos`, `resolve-pr-parallel`)
+- **git-worktree**: Remove confirmation prompt for worktree creation ([@Sam Xie](https://github.com/samxie))
+- **Prevent subagents from writing intermediary files** in compound workflow ([@Trevin Chow](https://github.com/trevin))
 
-### Configuration
+### Fixed
 
-New config file format (`.claude/compound-engineering.json`):
-```json
-{
-  "version": "1.0",
-  "projectType": "rails",
-  "reviewAgents": ["kieran-rails-reviewer", "code-simplicity-reviewer", "my-custom-reviewer"],
-  "planReviewAgents": ["kieran-rails-reviewer", "code-simplicity-reviewer"],
-  "customAgents": {
-    "my-custom-reviewer": ".claude/agents/my-custom-reviewer.md"
-  },
-  "conditionalAgents": {
-    "migrations": ["data-migration-expert", "deployment-verification-agent"],
-    "frontend": ["julik-frontend-races-reviewer"],
-    "architecture": ["architecture-strategist"],
-    "data": ["data-integrity-guardian"]
-  }
-}
-```
+- Fix crash when hook entries have no matcher ([@Roberto Mello](https://github.com/robertomello))
+- Fix git-worktree detection where `.git` is a file, not a directory ([@David Alley](https://github.com/davidalley))
+- Backup existing config files before overwriting in sync ([@Zac Williams](https://github.com/zacwilliams))
+- Note new repository URL ([@Aarni Koskela](https://github.com/aarnikoskela))
+- Plugin component counts corrected: 29 agents, 24 commands, 18 skills
+
+---
+
+## [2.30.0] - 2026-02-05
+
+### Added
+
+- **`orchestrating-swarms` skill** - Comprehensive guide to multi-agent orchestration
+  - Covers primitives: Agent, Team, Teammate, Leader, Task, Inbox, Message, Backend
+  - Documents two spawning methods: subagents vs teammates
+  - Explains all 13 TeammateTool operations
+  - Includes orchestration patterns: Parallel Specialists, Pipeline, Self-Organizing Swarm
+  - Details spawn backends: in-process, tmux, iterm2
+  - Provides complete workflow examples
+- **`/slfg` command** - Swarm-enabled variant of `/lfg` that uses swarm mode for parallel execution
+
+### Changed
+
+- **`/workflows:work` command** - Added optional Swarm Mode section for parallel execution with coordinated agents
+
+---
+
+## [2.29.0] - 2026-02-04
+
+### Added
+
+- **`schema-drift-detector` agent** - Detects unrelated schema.rb changes in PRs
+  - Compares schema.rb diff against migrations in the PR
+  - Catches columns, indexes, and tables from other branches
+  - Prevents accidental inclusion of local database state
+  - Provides clear fix instructions (checkout + migrate)
+  - Essential pre-merge check for any PR with database changes
 
 ---
 

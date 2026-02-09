@@ -1,21 +1,35 @@
 ---
-name: creating-agent-skills
-description: Expert guidance for creating, writing, and refining Claude Code Skills. Use when working with SKILL.md files, authoring new skills, improving existing skills, or understanding skill structure and best practices.
+name: create-agent-skills
+description: Expert guidance for creating Claude Code skills and slash commands. Use when working with SKILL.md files, authoring new skills, improving existing skills, creating slash commands, or understanding skill structure and best practices.
 ---
 
-# Creating Agent Skills
+# Creating Skills & Commands
 
-This skill teaches how to create effective Claude Code Skills following Anthropic's official specification.
+This skill teaches how to create effective Claude Code skills following the official specification from [code.claude.com/docs/en/skills](https://code.claude.com/docs/en/skills).
 
-## Core Principles
+## Commands and Skills Are Now The Same Thing
 
-### 1. Skills Are Prompts
+Custom slash commands have been merged into skills. A file at `.claude/commands/review.md` and a skill at `.claude/skills/review/SKILL.md` both create `/review` and work the same way. Existing `.claude/commands/` files keep working. Skills add optional features: a directory for supporting files, frontmatter to control invocation, and automatic context loading.
 
-All prompting best practices apply. Be clear, be direct. Assume Claude is smart - only add context Claude doesn't have.
+**If a skill and a command share the same name, the skill takes precedence.**
 
-### 2. Standard Markdown Format
+## When To Create What
 
-Use YAML frontmatter + markdown body. **No XML tags** - use standard markdown headings.
+**Use a command file** (`commands/name.md`) when:
+- Simple, single-file workflow
+- No supporting files needed
+- Task-oriented action (deploy, commit, triage)
+
+**Use a skill directory** (`skills/name/SKILL.md`) when:
+- Need supporting reference files, scripts, or templates
+- Background knowledge Claude should auto-load
+- Complex enough to benefit from progressive disclosure
+
+Both use identical YAML frontmatter and markdown content format.
+
+## Standard Markdown Format
+
+Use YAML frontmatter + markdown body with **standard markdown headings**. Keep it clean and direct.
 
 ```markdown
 ---
@@ -35,25 +49,113 @@ Step-by-step procedures...
 Concrete usage examples...
 ```
 
-### 3. Progressive Disclosure
+## Frontmatter Reference
 
-Keep SKILL.md under 500 lines. Split detailed content into reference files. Load only what's needed.
+All fields are optional. Only `description` is recommended.
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `name` | No | Display name. Lowercase letters, numbers, hyphens (max 64 chars). Defaults to directory name. |
+| `description` | Recommended | What it does AND when to use it. Claude uses this for auto-discovery. Max 1024 chars. |
+| `argument-hint` | No | Hint shown during autocomplete. Example: `[issue-number]` |
+| `disable-model-invocation` | No | Set `true` to prevent Claude auto-loading. Use for manual workflows like `/deploy`, `/commit`. Default: `false`. |
+| `user-invocable` | No | Set `false` to hide from `/` menu. Use for background knowledge. Default: `true`. |
+| `allowed-tools` | No | Tools Claude can use without permission prompts. Example: `Read, Bash(git *)` |
+| `model` | No | Model to use. Options: `haiku`, `sonnet`, `opus`. |
+| `context` | No | Set `fork` to run in isolated subagent context. |
+| `agent` | No | Subagent type when `context: fork`. Options: `Explore`, `Plan`, `general-purpose`, or custom agent name. |
+
+### Invocation Control
+
+| Frontmatter | User can invoke | Claude can invoke | When loaded |
+|-------------|----------------|-------------------|-------------|
+| (default) | Yes | Yes | Description always in context, full content loads when invoked |
+| `disable-model-invocation: true` | Yes | No | Description not in context, loads only when user invokes |
+| `user-invocable: false` | No | Yes | Description always in context, loads when relevant |
+
+**Use `disable-model-invocation: true`** for workflows with side effects: `/deploy`, `/commit`, `/triage-prs`, `/send-slack-message`. You don't want Claude deciding to deploy because your code looks ready.
+
+**Use `user-invocable: false`** for background knowledge that isn't a meaningful user action: coding conventions, domain context, legacy system docs.
+
+## Dynamic Features
+
+### Arguments
+
+Use `$ARGUMENTS` placeholder for user input. If not present in content, arguments are appended automatically.
+
+```yaml
+---
+name: fix-issue
+description: Fix a GitHub issue
+disable-model-invocation: true
+---
+
+Fix GitHub issue $ARGUMENTS following our coding standards.
+```
+
+Access individual args: `$ARGUMENTS[0]` or shorthand `$0`, `$1`, `$2`.
+
+### Dynamic Context Injection
+
+The `` !`command` `` syntax runs shell commands before content is sent to Claude:
+
+```yaml
+---
+name: pr-summary
+description: Summarize changes in a pull request
+context: fork
+agent: Explore
+---
+
+## Context
+- PR diff: !`gh pr diff`
+- Changed files: !`gh pr diff --name-only`
+
+Summarize this pull request...
+```
+
+### Running in a Subagent
+
+Add `context: fork` to run in isolation. The skill content becomes the subagent's prompt. It won't have conversation history.
+
+```yaml
+---
+name: deep-research
+description: Research a topic thoroughly
+context: fork
+agent: Explore
+---
+
+Research $ARGUMENTS thoroughly:
+1. Find relevant files
+2. Analyze the code
+3. Summarize findings
+```
+
+## Progressive Disclosure
+
+Keep SKILL.md under 500 lines. Split detailed content into reference files:
 
 ```
 my-skill/
-├── SKILL.md              # Entry point (required)
-├── reference.md          # Detailed docs (loaded when needed)
-├── examples.md           # Usage examples
-└── scripts/              # Utility scripts (executed, not loaded)
+├── SKILL.md           # Entry point (required, overview + navigation)
+├── reference.md       # Detailed docs (loaded when needed)
+├── examples.md        # Usage examples (loaded when needed)
+└── scripts/
+    └── helper.py      # Utility script (executed, not loaded)
 ```
 
-### 4. Effective Descriptions
+Link from SKILL.md: `For API details, see [reference.md](reference.md).`
 
-The description field enables skill discovery. Include both what the skill does AND when to use it. Write in third person.
+Keep references **one level deep** from SKILL.md. Avoid nested chains.
+
+## Effective Descriptions
+
+The description enables skill discovery. Include both **what** it does and **when** to use it.
 
 **Good:**
 ```yaml
-description: Extracts text and tables from PDF files, fills forms, merges documents. Use when working with PDF files or when the user mentions PDFs, forms, or document extraction.
+description: Extract text and tables from PDF files, fill forms, merge documents. Use when working with PDF files or when the user mentions PDFs, forms, or document extraction.
 ```
 
 **Bad:**
@@ -61,239 +163,113 @@ description: Extracts text and tables from PDF files, fills forms, merges docume
 description: Helps with documents
 ```
 
-## Skill Structure
-
-### Required Frontmatter
-
-| Field | Required | Max Length | Description |
-|-------|----------|------------|-------------|
-| `name` | Yes | 64 chars | Lowercase letters, numbers, hyphens only |
-| `description` | Yes | 1024 chars | What it does AND when to use it |
-| `allowed-tools` | No | - | Tools Claude can use without asking |
-| `model` | No | - | Specific model to use |
-
-### Naming Conventions
-
-Use **gerund form** (verb + -ing) for skill names:
-
-- `processing-pdfs`
-- `analyzing-spreadsheets`
-- `generating-commit-messages`
-- `reviewing-code`
-
-Avoid: `helper`, `utils`, `tools`, `anthropic-*`, `claude-*`
-
-### Body Structure
-
-Use standard markdown headings:
-
-```markdown
-# Skill Name
-
-## Quick Start
-Fastest path to value...
-
-## Instructions
-Core guidance Claude follows...
-
-## Examples
-Input/output pairs showing expected behavior...
-
-## Advanced Features
-Additional capabilities (link to reference files)...
-
-## Guidelines
-Rules and constraints...
-```
-
 ## What Would You Like To Do?
 
 1. **Create new skill** - Build from scratch
-2. **Audit existing skill** - Check against best practices
-3. **Add component** - Add workflow/reference/example
-4. **Get guidance** - Understand skill design
+2. **Create new command** - Build a slash command
+3. **Audit existing skill** - Check against best practices
+4. **Add component** - Add workflow/reference/example
+5. **Get guidance** - Understand skill design
 
-## Creating a New Skill
+## Creating a New Skill or Command
 
 ### Step 1: Choose Type
 
-**Simple skill (single file):**
-- Under 500 lines
-- Self-contained guidance
-- No complex workflows
+Ask: Is this a manual workflow (deploy, commit, triage) or background knowledge (conventions, patterns)?
 
-**Progressive disclosure skill (multiple files):**
-- SKILL.md as overview
-- Reference files for detailed docs
-- Scripts for utilities
+- **Manual workflow** → command with `disable-model-invocation: true`
+- **Background knowledge** → skill without `disable-model-invocation`
+- **Complex with supporting files** → skill directory
 
-### Step 2: Create SKILL.md
+### Step 2: Create the File
 
+**Command:**
 ```markdown
 ---
-name: your-skill-name
-description: [What it does]. Use when [trigger conditions].
+name: my-command
+description: What this command does
+argument-hint: [expected arguments]
+disable-model-invocation: true
+allowed-tools: Bash(gh *), Read
 ---
 
-# Your Skill Name
+# Command Title
 
-## Quick Start
+## Workflow
 
-[Immediate actionable example]
+### Step 1: Gather Context
+...
 
-```[language]
-[Code example]
+### Step 2: Execute
+...
+
+## Success Criteria
+- [ ] Expected outcome 1
+- [ ] Expected outcome 2
 ```
 
-## Instructions
+**Skill:**
+```markdown
+---
+name: my-skill
+description: What it does. Use when [trigger conditions].
+---
 
+# Skill Title
+
+## Quick Start
+[Immediate actionable example]
+
+## Instructions
 [Core guidance]
 
 ## Examples
-
-**Example 1:**
-Input: [description]
-Output:
-```
-[result]
-```
-
-## Guidelines
-
-- [Constraint 1]
-- [Constraint 2]
+[Concrete input/output pairs]
 ```
 
 ### Step 3: Add Reference Files (If Needed)
 
 Link from SKILL.md to detailed content:
-
 ```markdown
-For API reference, see [REFERENCE.md](REFERENCE.md).
-For form filling guide, see [FORMS.md](FORMS.md).
+For API reference, see [reference.md](reference.md).
+For form filling guide, see [forms.md](forms.md).
 ```
 
-Keep references **one level deep** from SKILL.md.
-
-### Step 4: Add Scripts (If Needed)
-
-Scripts execute without loading into context:
-
-```markdown
-## Utility Scripts
-
-Extract fields:
-```bash
-python scripts/analyze.py input.pdf > fields.json
-```
-```
-
-### Step 5: Test With Real Usage
+### Step 4: Test With Real Usage
 
 1. Test with actual tasks, not test scenarios
-2. Observe where Claude struggles
-3. Refine based on real behavior
-4. Test with Haiku, Sonnet, and Opus
+2. Invoke directly with `/skill-name` to verify
+3. Check auto-triggering by asking something that matches the description
+4. Refine based on real behavior
 
-## Auditing Existing Skills
-
-Check against this rubric:
+## Audit Checklist
 
 - [ ] Valid YAML frontmatter (name + description)
-- [ ] Description includes trigger keywords
+- [ ] Description includes trigger keywords and is specific
 - [ ] Uses standard markdown headings (not XML tags)
 - [ ] SKILL.md under 500 lines
-- [ ] References one level deep
+- [ ] `disable-model-invocation: true` if it has side effects
+- [ ] `allowed-tools` set if specific tools needed
+- [ ] References one level deep, properly linked
 - [ ] Examples are concrete, not abstract
-- [ ] Consistent terminology
-- [ ] No time-sensitive information
-- [ ] Scripts handle errors explicitly
-
-## Common Patterns
-
-### Template Pattern
-
-Provide output templates for consistent results:
-
-```markdown
-## Report Template
-
-```markdown
-# [Analysis Title]
-
-## Executive Summary
-[One paragraph overview]
-
-## Key Findings
-- Finding 1
-- Finding 2
-
-## Recommendations
-1. [Action item]
-2. [Action item]
-```
-```
-
-### Workflow Pattern
-
-For complex multi-step tasks:
-
-```markdown
-## Migration Workflow
-
-Copy this checklist:
-
-```
-- [ ] Step 1: Backup database
-- [ ] Step 2: Run migration script
-- [ ] Step 3: Validate output
-- [ ] Step 4: Update configuration
-```
-
-**Step 1: Backup database**
-Run: `./scripts/backup.sh`
-...
-```
-
-### Conditional Pattern
-
-Guide through decision points:
-
-```markdown
-## Choose Your Approach
-
-**Creating new content?** Follow "Creation workflow" below.
-**Editing existing?** Follow "Editing workflow" below.
-```
+- [ ] Tested with real usage
 
 ## Anti-Patterns to Avoid
 
-- **XML tags in body** - Use markdown headings instead
+- **XML tags in body** - Use standard markdown headings
 - **Vague descriptions** - Be specific with trigger keywords
 - **Deep nesting** - Keep references one level from SKILL.md
+- **Missing invocation control** - Side-effect workflows need `disable-model-invocation: true`
 - **Too many options** - Provide a default with escape hatch
-- **Windows paths** - Always use forward slashes
-- **Punting to Claude** - Scripts should handle errors
-- **Time-sensitive info** - Use "old patterns" section instead
+- **Punting to Claude** - Scripts should handle errors explicitly
 
 ## Reference Files
 
 For detailed guidance, see:
-
-- [official-spec.md](references/official-spec.md) - Anthropic's official skill specification
+- [official-spec.md](references/official-spec.md) - Official skill specification
 - [best-practices.md](references/best-practices.md) - Skill authoring best practices
 
-## Success Criteria
+## Sources
 
-A well-structured skill:
-- Has valid YAML frontmatter with descriptive name and description
-- Uses standard markdown headings (not XML tags)
-- Keeps SKILL.md under 500 lines
-- Links to reference files for detailed content
-- Includes concrete examples with input/output pairs
-- Has been tested with real usage
-
-Sources:
-- [Agent Skills - Claude Code Docs](https://code.claude.com/docs/en/skills)
-- [Skill authoring best practices](https://platform.claude.com/docs/en/agents-and-tools/agent-skills/best-practices)
+- [Extend Claude with skills - Official Docs](https://code.claude.com/docs/en/skills)
 - [GitHub - anthropics/skills](https://github.com/anthropics/skills)

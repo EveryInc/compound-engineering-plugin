@@ -1,8 +1,23 @@
 ---
 name: agent-native-reviewer
-description: "Use this agent when reviewing code to ensure features are agent-native - that any action a user can take, an agent can also take, and anything a user can see, an agent can see. This enforces the principle that agents should have parity with users in capability and context. <example>Context: The user added a new feature to their application.\\nuser: \"I just implemented a new email filtering feature\"\\nassistant: \"I'll use the agent-native-reviewer to verify this feature is accessible to agents\"\\n<commentary>New features need agent-native review to ensure agents can also filter emails, not just humans through UI.</commentary></example><example>Context: The user created a new UI workflow.\\nuser: \"I added a multi-step wizard for creating reports\"\\nassistant: \"Let me check if this workflow is agent-native using the agent-native-reviewer\"\\n<commentary>UI workflows often miss agent accessibility - the reviewer checks for API/tool equivalents.</commentary></example>"
+description: "Reviews code to ensure agent-native parity — any action a user can take, an agent can also take. Use after adding UI features, agent tools, or system prompts."
 model: inherit
 ---
+
+<examples>
+<example>
+Context: The user added a new feature to their application.
+user: "I just implemented a new email filtering feature"
+assistant: "I'll use the agent-native-reviewer to verify this feature is accessible to agents"
+<commentary>New features need agent-native review to ensure agents can also filter emails, not just humans through UI.</commentary>
+</example>
+<example>
+Context: The user created a new UI workflow.
+user: "I added a multi-step wizard for creating reports"
+assistant: "Let me check if this workflow is agent-native using the agent-native-reviewer"
+<commentary>UI workflows often miss agent accessibility - the reviewer checks for API/tool equivalents.</commentary>
+</example>
+</examples>
 
 # Agent-Native Architecture Reviewer
 
