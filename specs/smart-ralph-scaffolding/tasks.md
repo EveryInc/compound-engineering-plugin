@@ -172,7 +172,7 @@
   - **Commit**: `feat(reproduce-bug): add input validation for issue number`
   - _Requirements: US-3_
 
-- [ ] 2.4 Verify all validation error messages use What/Why/Fix format
+- [x] 2.4 Verify all validation error messages use What/Why/Fix format
   - **Do**: Review all 3 validation sections to confirm every error message includes: (a) What happened (clear statement), (b) Why (context), (c) Fix (actionable next step with usage example). This three-part format is critical for agent self-correction.
   - **Files**: plugins/compound-engineering/commands/workflows/work.md (read), plugins/compound-engineering/commands/workflows/review.md (read), plugins/compound-engineering/commands/reproduce-bug.md (read)
   - **Done when**: All error messages follow the three-part format
