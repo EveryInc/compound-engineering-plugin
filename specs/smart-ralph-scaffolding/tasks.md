@@ -73,7 +73,7 @@
   - _Requirements: US-2_
   - _Design: Area 7_
 
-- [ ] 1.10 Replace all 6 MCP tool references with agent-browser CLI equivalents
+- [x] 1.10 Replace all 6 MCP tool references with agent-browser CLI equivalents
   - **Do**: In `reproduce-bug.md`, replace ALL `mcp__plugin_compound-engineering_pw__*` references: (1) `browser_navigate` + `browser_snapshot` -> `agent-browser open` + `agent-browser snapshot -i`, (2) `browser_take_screenshot` -> `agent-browser screenshot`, (3) `browser_click`/`browser_type` -> `agent-browser click @ref`/`agent-browser fill @ref "text"`, (4) `browser_console_messages` -> snapshot-based workaround (check visible error states via snapshot), (5) final screenshot -> `agent-browser screenshot "bug-[issue]-reproduced.png"`. Follow the exact pattern from `test-browser.md` and `feature-video.md`.
   - **Files**: plugins/compound-engineering/commands/reproduce-bug.md (modify)
   - **Done when**: Zero `mcp__plugin_compound-engineering_pw__` references remain in the file
