@@ -128,7 +128,7 @@
   - **Commit**: `feat(hooks): add protect-env-files.sh for secret file protection`
   - _Requirements: US-4_
 
-- [ ] 1.17 Make hook scripts executable
+- [x] 1.17 Make hook scripts executable
   - **Do**: Run `chmod +x` on both hook scripts
   - **Files**: plugins/compound-engineering/hooks/scripts/validate-bash.sh (modify permissions), plugins/compound-engineering/hooks/scripts/protect-env-files.sh (modify permissions)
   - **Done when**: Both scripts have executable permission
