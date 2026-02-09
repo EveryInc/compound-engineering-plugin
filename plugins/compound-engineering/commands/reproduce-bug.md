@@ -48,6 +48,65 @@ command -v agent-browser >/dev/null 2>&1 && echo "Ready" || (echo "Installing...
 
 If installation fails, inform the user and stop.
 
+## Input Validation
+
+Before proceeding, validate the issue number argument:
+
+<input_validation>
+
+**Validate that `$ARGUMENTS` is a numeric GitHub issue number:**
+
+```bash
+ISSUE_NUMBER="$ARGUMENTS"
+
+# Check argument is provided
+if [[ -z "$ISSUE_NUMBER" ]]; then
+  echo "Error: No issue number provided."
+  echo ""
+  echo "Why: The /reproduce-bug command requires a GitHub issue number to investigate."
+  echo ""
+  echo "Fix: Provide a numeric issue number:"
+  echo "  /reproduce-bug 42"
+  # STOP - do not proceed
+fi
+
+# Check argument is numeric
+if ! [[ "$ISSUE_NUMBER" =~ ^[0-9]+$ ]]; then
+  echo "Error: Invalid issue number."
+  echo ""
+  echo "  \"$ISSUE_NUMBER\" is not a numeric GitHub issue number."
+  echo ""
+  echo "Why: The /reproduce-bug command expects a numeric GitHub issue number (e.g., 42), not a URL or description."
+  echo ""
+  echo "Fix: Provide just the issue number:"
+  echo "  /reproduce-bug 42"
+  echo "  /reproduce-bug 157"
+  # STOP - do not proceed
+fi
+```
+
+**Optionally verify the issue exists:**
+
+```bash
+# Verify issue exists on GitHub (non-blocking)
+if command -v gh >/dev/null 2>&1; then
+  if ! gh issue view "$ISSUE_NUMBER" --json number >/dev/null 2>&1; then
+    echo "Warning: Could not find issue #$ISSUE_NUMBER on GitHub."
+    echo ""
+    echo "Why: The issue may not exist, or gh CLI may not be authenticated for this repo."
+    echo ""
+    echo "Fix: Verify the issue number is correct:"
+    echo "  gh issue view $ISSUE_NUMBER"
+    echo ""
+    echo "Proceeding anyway -- the issue may be in a different repo or gh may lack access."
+  fi
+fi
+```
+
+**If validation passes:** Proceed to Phase 1.
+
+</input_validation>
+
 Look at github issue #$ARGUMENTS and read the issue description and comments.
 
 ## Phase 1: Log Investigation

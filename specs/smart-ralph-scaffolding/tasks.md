@@ -164,7 +164,7 @@
   - **Commit**: `feat(review): add input validation for PR number/branch/URL`
   - _Requirements: US-3_
 
-- [ ] 2.3 Add input validation to reproduce-bug.md
+- [x] 2.3 Add input validation to reproduce-bug.md
   - **Do**: Insert an `## Input Validation` section early in `reproduce-bug.md`. Validate that `$ARGUMENTS` is a numeric GitHub issue number. On non-numeric input, show What/Why/Fix error with correct usage example (`/reproduce-bug 42`). Optionally verify issue exists with `gh issue view`.
   - **Files**: plugins/compound-engineering/commands/reproduce-bug.md (modify)
   - **Done when**: Input validation section exists with numeric issue number validation
