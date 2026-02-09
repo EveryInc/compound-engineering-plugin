@@ -219,7 +219,7 @@
 
 ## Phase 3: Testing (Interactive Patterns + State Management)
 
-- [ ] 3.1 Add plan picker to workflows/work.md
+- [x] 3.1 Add plan picker to workflows/work.md
   - **Do**: Insert an `## Input Handling` section (wrapped in `<input_handling>` tags) before Phase 1 (after Input Validation). **Autonomous mode** (`$ARGUMENTS` non-empty): validate plan path, proceed directly. **Interactive mode** (`$ARGUMENTS` empty): use AskUserQuestion to present plan picker -- scan `docs/plans/` for recent `.md` files (max 10), scan for `.*.local.md` state files, present max 5 options (state-files first, then most recent), include "Enter a file path manually" and "Browse all plans" options. Special cases: single plan -> "Found one plan: [name]. Work on this?"; no plans -> "No plans found."
   - **Files**: plugins/compound-engineering/commands/workflows/work.md (modify)
   - **Done when**: Input Handling section exists with AskUserQuestion plan picker and autonomous bypass

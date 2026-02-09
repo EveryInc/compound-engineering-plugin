@@ -84,6 +84,44 @@ fi
 
 </input_validation>
 
+## Input Handling
+
+<input_handling>
+
+**If `$ARGUMENTS` is non-empty (autonomous mode):**
+Validate the plan path and proceed directly to Phase 1: Quick Start. Do not ask questions.
+
+**If `$ARGUMENTS` is empty (interactive mode):**
+Help the user select a plan.
+
+1. Scan for recent plans:
+   ```bash
+   ls -1t docs/plans/*.md 2>/dev/null | head -10
+   ```
+
+2. Scan for state files with saved progress:
+   ```bash
+   ls -1 .*.local.md 2>/dev/null
+   ```
+
+3. Use **AskUserQuestion** to present a plan picker:
+
+   **Question:** "Which plan would you like to work on?"
+   **Options** (max 5, state-files first, then most recent):
+   1. `docs/plans/2026-02-08-feat-user-auth-plan.md` (yesterday) -- has saved progress
+   2. `docs/plans/2026-02-07-fix-checkout-bug-plan.md` (2 days ago)
+   3. `docs/plans/2026-02-05-refactor-api-client-plan.md` (4 days ago)
+   4. Enter a file path manually
+   5. Browse all plans
+
+   **Special cases:**
+   - If only 1 plan exists: "Found one plan: [name]. Work on this? (y/n)"
+   - If no plans exist: "No plans found in docs/plans/. Create one first with /workflows:plan"
+
+4. Set the selected plan as the input and proceed to Phase 1.
+
+</input_handling>
+
 ### Phase 1: Quick Start
 
 1. **Read Plan and Clarify**
