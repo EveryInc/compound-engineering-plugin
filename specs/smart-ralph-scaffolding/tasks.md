@@ -64,7 +64,7 @@
   - **Done when**: All existing tests pass with no regressions
   - **Commit**: skip (checkpoint only)
 
-- [ ] 1.9 Add critical header and prerequisites to reproduce-bug.md
+- [x] 1.9 Add critical header and prerequisites to reproduce-bug.md
   - **Do**: Open `plugins/compound-engineering/commands/reproduce-bug.md`. Add a `## CRITICAL: Use agent-browser CLI Only` section after the title (following the pattern from `test-browser.md`). Add a `## Prerequisites` section verifying `agent-browser` is installed. These sections warn against using Chrome MCP tools.
   - **Files**: plugins/compound-engineering/commands/reproduce-bug.md (modify)
   - **Done when**: Critical header and prerequisites sections exist at the top of the command body

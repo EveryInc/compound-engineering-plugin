@@ -7,6 +7,47 @@ disable-model-invocation: true
 
 # Reproduce Bug Command
 
+<command_purpose>Reproduce and investigate a bug using logs, console inspection, and browser screenshots via agent-browser CLI.</command_purpose>
+
+## CRITICAL: Use agent-browser CLI Only
+
+**DO NOT use Chrome MCP tools (mcp__claude-in-chrome__*).**
+
+This command uses the `agent-browser` CLI exclusively. The agent-browser CLI is a Bash-based tool from Vercel that runs headless Chromium. It is NOT the same as Chrome browser automation via MCP.
+
+If you find yourself calling `mcp__claude-in-chrome__*` tools, STOP. Use `agent-browser` Bash commands instead.
+
+## Prerequisites
+
+<requirements>
+- Local development server running (e.g., `bin/dev`, `rails server`, `npm run dev`)
+- agent-browser CLI installed (see Setup below)
+- Git repository with the bug to investigate
+</requirements>
+
+### Setup
+
+**Check installation:**
+```bash
+command -v agent-browser >/dev/null 2>&1 && echo "Installed" || echo "NOT INSTALLED"
+```
+
+**Install if needed:**
+```bash
+npm install -g agent-browser
+agent-browser install  # Downloads Chromium (~160MB)
+```
+
+### Verify agent-browser Installation
+
+Before starting ANY browser-based reproduction, verify agent-browser is installed:
+
+```bash
+command -v agent-browser >/dev/null 2>&1 && echo "Ready" || (echo "Installing..." && npm install -g agent-browser && agent-browser install)
+```
+
+If installation fails, inform the user and stop.
+
 Look at github issue #$ARGUMENTS and read the issue description and comments.
 
 ## Phase 1: Log Investigation
