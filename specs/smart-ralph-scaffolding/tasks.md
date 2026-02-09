@@ -202,7 +202,7 @@
   - **Commit**: `feat(ci): add hook script unit tests (24 test cases)`
   - _Requirements: US-5_
 
-- [ ] 2.8 Run full test suite and verify CI compatibility
+- [x] 2.8 Run full test suite and verify CI compatibility
   - **Do**: Execute `bun test` and verify ALL tests pass: existing 8 tests + new command-validation + new hook-scripts tests. Fix any failures.
   - **Files**: tests/ (read-only)
   - **Done when**: All tests pass with zero failures
