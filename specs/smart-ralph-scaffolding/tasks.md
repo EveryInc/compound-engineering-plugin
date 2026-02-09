@@ -185,7 +185,7 @@
   - **Done when**: All tests pass
   - **Commit**: `chore: pass input validation quality checkpoint`
 
-- [ ] 2.6 Create tests/command-validation.test.ts
+- [x] 2.6 Create tests/command-validation.test.ts
   - **Do**: Create a Bun test file that: (1) discovers all `.md` files in `plugins/compound-engineering/commands/` and `commands/workflows/` via glob, (2) uses existing `parseFrontmatter()` from `src/utils/frontmatter.ts`, (3) implements 6 assertion groups per command: YAML parses without error, `name` is non-empty string, `description` is non-empty string, `argument-hint` is string, `disable-model-invocation` is boolean `true` (unless `# ci-allow: model-invocation` escape hatch in body), body doesn't match `REMOVED_TOOL_PATTERNS` (starting with `/mcp__plugin_compound-engineering_pw__/`). (4) Add GitHub Actions inline annotations via `console.error('::error file=...')` for failures.
   - **Files**: tests/command-validation.test.ts (create)
   - **Done when**: Test file exists with all 6 assertion groups, uses existing parseFrontmatter, discovers all 24 commands
