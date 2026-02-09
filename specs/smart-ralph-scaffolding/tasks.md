@@ -339,7 +339,7 @@
   - **Done when**: All commands pass with no errors
   - **Commit**: `fix: address final quality issues` (if any fixes needed)
 
-- [ ] 4.4 Create PR and verify CI
+- [x] 4.4 Create PR and verify CI
   - **Do**: Push branch and create PR with title "feat: smart-ralph command scaffolding improvements" and body summarizing all 8 improvement areas, linking to spec files
   - **Verify**: `gh pr checks --watch` shows all green
   - **Done when**: All CI checks passing, PR ready for review
