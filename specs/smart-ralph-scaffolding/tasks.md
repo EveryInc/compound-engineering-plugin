@@ -43,7 +43,7 @@
   - **Commit**: `fix(workflows): add disable-model-invocation to all 5 workflow commands`
   - _Requirements: US-1_
 
-- [ ] 1.6 Add `argument-hint` to deploy-docs.md
+- [x] 1.6 Add `argument-hint` to deploy-docs.md
   - **Do**: Open `plugins/compound-engineering/commands/deploy-docs.md`, add `argument-hint: "[optional: --dry-run to preview changes]"` to YAML frontmatter
   - **Files**: plugins/compound-engineering/commands/deploy-docs.md (modify)
   - **Done when**: Frontmatter contains `argument-hint` field
