@@ -11,7 +11,7 @@
   - _Requirements: US-1_
   - _Design: Frontmatter Audit_
 
-- [ ] 1.2 Add `disable-model-invocation: true` to feature-video.md
+- [x] 1.2 Add `disable-model-invocation: true` to feature-video.md
   - **Do**: Open `plugins/compound-engineering/commands/feature-video.md`, add `disable-model-invocation: true` to YAML frontmatter
   - **Files**: plugins/compound-engineering/commands/feature-video.md (modify)
   - **Done when**: Frontmatter contains `disable-model-invocation: true`
