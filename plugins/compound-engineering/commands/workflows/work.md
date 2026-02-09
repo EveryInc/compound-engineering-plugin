@@ -108,7 +108,7 @@ Help the user select a plan.
 
    **Question:** "Which plan would you like to work on?"
    **Options** (max 5, state-files first, then most recent):
-   1. `docs/plans/2026-02-08-feat-user-auth-plan.md` (yesterday) -- has saved progress
+   1. `docs/plans/2026-02-08-feat-user-auth-plan.md` (yesterday) -- has saved progress (recommended)
    2. `docs/plans/2026-02-07-fix-checkout-bug-plan.md` (2 days ago)
    3. `docs/plans/2026-02-05-refactor-api-client-plan.md` (4 days ago)
    4. Enter a file path manually

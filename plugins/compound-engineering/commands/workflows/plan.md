@@ -528,28 +528,28 @@ Examples:
 
 ## Post-Generation Options
 
-After writing the plan file, use the **AskUserQuestion tool** to present these options:
+**If `$ARGUMENTS` is non-empty (autonomous mode):**
+Announce: "Plan ready at `docs/plans/YYYY-MM-DD-<type>-<name>-plan.md`." Do not ask questions. Stop here.
+
+**If `$ARGUMENTS` is empty (interactive mode):**
+After writing the plan file, use the **AskUserQuestion tool** to present next steps:
 
 **Question:** "Plan ready at `docs/plans/YYYY-MM-DD-<type>-<name>-plan.md`. What would you like to do next?"
 
 **Options:**
-1. **Open plan in editor** - Open the plan file for review
-2. **Run `/deepen-plan`** - Enhance each section with parallel research agents (best practices, performance, UI)
-3. **Run `/technical_review`** - Technical feedback from code-focused reviewers (DHH, Kieran, Simplicity)
-4. **Review and refine** - Improve the document through structured self-review
-5. **Start `/workflows:work`** - Begin implementing this plan locally
-6. **Start `/workflows:work` on remote** - Begin implementing in Claude Code on the web (use `&` to run in background)
-7. **Create Issue** - Create issue in project tracker (GitHub/Linear)
+1. **Start `/workflows:work`** - Begin implementing this plan (recommended)
+2. **Run `/deepen-plan`** - Enhance with parallel research agents
+3. **Run `/technical_review`** - Technical feedback from code reviewers
+4. **Review and refine** - Improve through structured self-review
+5. **Create Issue or other action** - Create issue, open in editor, or describe what you need
 
 Based on selection:
-- **Open plan in editor** → Run `open docs/plans/<plan_filename>.md` to open the file in the user's default editor
+- **`/workflows:work`** → Call the /workflows:work command with the plan file path
 - **`/deepen-plan`** → Call the /deepen-plan command with the plan file path to enhance with research
 - **`/technical_review`** → Call the /technical_review command with the plan file path
-- **Review and refine** → Load `document-review` skill.
-- **`/workflows:work`** → Call the /workflows:work command with the plan file path
-- **`/workflows:work` on remote** → Run `/workflows:work docs/plans/<plan_filename>.md &` to start work in background for Claude Code web
-- **Create Issue** → See "Issue Creation" section below
-- **Other** (automatically provided) → Accept free text for rework or specific changes
+- **Review and refine** → Load `document-review` skill
+- **Create Issue or other action** → Ask a follow-up: "What would you like? Options: Open in editor, Create GitHub/Linear issue, Start `/workflows:work` on remote, or describe your need." See "Issue Creation" section below for tracker details
+- **Other** (automatically provided by AskUserQuestion) → Accept free text for rework or specific changes
 
 **Note:** If running `/workflows:plan` with ultrathink enabled, automatically run `/deepen-plan` after plan creation for maximum depth and grounding.
 

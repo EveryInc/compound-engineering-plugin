@@ -255,7 +255,7 @@
   - _Requirements: US-6_
   - _Design: Area 4d_
 
-- [ ] 3.5 Verify AskUserQuestion design rules consistency
+- [x] 3.5 Verify AskUserQuestion design rules consistency
   - **Do**: Review all 4 AskUserQuestion implementations to confirm: (1) recommended option is first, (2) max 5 options, (3) "skip/proceed with defaults" available when sensible, (4) questions framed as decisions not information requests, (5) autonomous bypass checks `$ARGUMENTS` non-empty
   - **Files**: plugins/compound-engineering/commands/workflows/work.md (read), plugins/compound-engineering/commands/workflows/review.md (read), plugins/compound-engineering/commands/workflows/compound.md (read), plugins/compound-engineering/commands/workflows/plan.md (read)
   - **Done when**: All 4 implementations follow the design rules consistently
