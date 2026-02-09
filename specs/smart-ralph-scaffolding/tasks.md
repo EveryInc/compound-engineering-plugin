@@ -246,7 +246,7 @@
   - _Requirements: US-6_
   - _Design: Area 4c_
 
-- [ ] 3.4 Add L1/L2/L3 layer detection to workflows/plan.md
+- [x] 3.4 Add L1/L2/L3 layer detection to workflows/plan.md
   - **Do**: Add explicit layer detection to the Idea Refinement section in `workflows/plan.md`: **L1** (`$ARGUMENTS` >50 words or references a brainstorm doc): skip idea refinement, announce "Description is detailed, proceeding to research." **L2** (1-50 words): current single-question behavior. **L3** (empty): current full refinement dialogue.
   - **Files**: plugins/compound-engineering/commands/workflows/plan.md (modify)
   - **Done when**: Layer detection logic exists with L1/L2/L3 paths clearly documented

@@ -23,9 +23,15 @@ Do not proceed until you have a clear feature description from the user.
 
 ### 0. Idea Refinement
 
-**Check for brainstorm output first:**
+#### Layer Detection
 
-Before asking questions, look for recent brainstorm documents in `docs/brainstorms/` that match this feature:
+Determine the refinement layer based on `$ARGUMENTS` length and context:
+
+<layer_detection>
+
+**Count the words in the feature description** (contents of `$ARGUMENTS`).
+
+**Check for brainstorm references:** Scan `docs/brainstorms/` for recent documents matching this feature:
 
 ```bash
 ls -la docs/brainstorms/*.md 2>/dev/null | head -10
@@ -36,17 +42,50 @@ ls -la docs/brainstorms/*.md 2>/dev/null | head -10
 - Created within the last 14 days
 - If multiple candidates match, use the most recent one
 
+**If multiple brainstorms could match:**
+Use **AskUserQuestion tool** to ask which brainstorm to use, or whether to proceed without one.
+
+Now classify into one of three layers:
+
+- **L1 (Detailed / Autonomous)**: `$ARGUMENTS` contains >50 words OR a relevant brainstorm document exists. The description is already detailed enough to plan from.
+- **L2 (Brief)**: `$ARGUMENTS` contains 1-50 words. A short description that needs one clarifying question.
+- **L3 (Empty / Interactive)**: `$ARGUMENTS` is empty. Full interactive refinement dialogue is needed.
+
+</layer_detection>
+
+#### L1 Path: Skip Idea Refinement
+
+**Condition:** `$ARGUMENTS` >50 words OR a relevant brainstorm document was found.
+
 **If a relevant brainstorm exists:**
 1. Read the brainstorm document
 2. Announce: "Found brainstorm from [date]: [topic]. Using as context for planning."
 3. Extract key decisions, chosen approach, and open questions
-4. **Skip the idea refinement questions below** - the brainstorm already answered WHAT to build
-5. Use brainstorm decisions as input to the research phase
+4. Use brainstorm decisions as input to the research phase
 
-**If multiple brainstorms could match:**
-Use **AskUserQuestion tool** to ask which brainstorm to use, or whether to proceed without one.
+**If description is >50 words (no brainstorm):**
+1. Announce: "Description is detailed, proceeding to research."
+2. Proceed directly to Step 1 (Local Research)
 
-**If no brainstorm found (or not relevant), run idea refinement:**
+**No questions asked.** The input is sufficient to begin research.
+
+#### L2 Path: Single Clarifying Question
+
+**Condition:** `$ARGUMENTS` contains 1-50 words.
+
+Ask **one** focused clarifying question using the **AskUserQuestion tool** to fill the biggest gap:
+- Prefer a multiple choice question when natural options exist
+- Focus on the single most important unknown: scope, approach, or constraint
+- After the answer, proceed to research
+
+**Gather signals for research decision** from the description and answer:
+
+- **Topic risk**: Security, payments, external APIs warrant more caution
+- **Uncertainty level**: Is the approach clear or open-ended?
+
+#### L3 Path: Full Refinement Dialogue
+
+**Condition:** `$ARGUMENTS` is empty.
 
 Refine the idea through collaborative dialogue using the **AskUserQuestion tool**:
 
@@ -61,9 +100,6 @@ Refine the idea through collaborative dialogue using the **AskUserQuestion tool*
 - **User's intent**: Speed vs thoroughness? Exploration vs execution?
 - **Topic risk**: Security, payments, external APIs warrant more caution
 - **Uncertainty level**: Is the approach clear or open-ended?
-
-**Skip option:** If the feature description is already detailed, offer:
-"Your description is clear. Should I proceed with research, or would you like to refine it further?"
 
 ## Main Tasks
 
