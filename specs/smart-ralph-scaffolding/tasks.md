@@ -2,7 +2,7 @@
 
 ## Phase 1: Make It Work (Foundation - P0 + P1)
 
-- [ ] 1.1 Add `disable-model-invocation: true` to deepen-plan.md
+- [x] 1.1 Add `disable-model-invocation: true` to deepen-plan.md
   - **Do**: Open `plugins/compound-engineering/commands/deepen-plan.md`, find the YAML frontmatter block (between `---` delimiters), add the line `disable-model-invocation: true` after the last existing frontmatter field
   - **Files**: plugins/compound-engineering/commands/deepen-plan.md (modify)
   - **Done when**: Frontmatter contains `disable-model-invocation: true` as boolean (not string "true")
