@@ -309,7 +309,7 @@
   - **Done when**: Zero test failures
   - **Commit**: skip (or fix commit if any failures found)
 
-- [ ] 4.2 Verify all 12 QA acceptance criteria
+- [x] 4.2 Verify all 12 QA acceptance criteria
   - **Do**: Check each acceptance criterion from `ai/tasks/spec/QA.md`:
     - AC-1: All 24 commands have valid frontmatter (verified by command-validation.test.ts)
     - AC-2: No stale Playwright MCP refs (verified by command-validation.test.ts)
