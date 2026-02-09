@@ -2,6 +2,7 @@
 name: workflows:plan
 description: Transform feature descriptions into well-structured project plans following conventions
 argument-hint: "[feature description, bug report, or improvement idea]"
+disable-model-invocation: true
 ---
 
 # Create a plan for a new feature or bug fix
@@ -22,9 +23,15 @@ Do not proceed until you have a clear feature description from the user.
 
 ### 0. Idea Refinement
 
-**Check for brainstorm output first:**
+#### Layer Detection
 
-Before asking questions, look for recent brainstorm documents in `docs/brainstorms/` that match this feature:
+Determine the refinement layer based on `$ARGUMENTS` length and context:
+
+<layer_detection>
+
+**Count the words in the feature description** (contents of `$ARGUMENTS`).
+
+**Check for brainstorm references:** Scan `docs/brainstorms/` for recent documents matching this feature:
 
 ```bash
 ls -la docs/brainstorms/*.md 2>/dev/null | head -10
@@ -35,17 +42,50 @@ ls -la docs/brainstorms/*.md 2>/dev/null | head -10
 - Created within the last 14 days
 - If multiple candidates match, use the most recent one
 
+**If multiple brainstorms could match:**
+Use **AskUserQuestion tool** to ask which brainstorm to use, or whether to proceed without one.
+
+Now classify into one of three layers:
+
+- **L1 (Detailed / Autonomous)**: `$ARGUMENTS` contains >50 words OR a relevant brainstorm document exists. The description is already detailed enough to plan from.
+- **L2 (Brief)**: `$ARGUMENTS` contains 1-50 words. A short description that needs one clarifying question.
+- **L3 (Empty / Interactive)**: `$ARGUMENTS` is empty. Full interactive refinement dialogue is needed.
+
+</layer_detection>
+
+#### L1 Path: Skip Idea Refinement
+
+**Condition:** `$ARGUMENTS` >50 words OR a relevant brainstorm document was found.
+
 **If a relevant brainstorm exists:**
 1. Read the brainstorm document
 2. Announce: "Found brainstorm from [date]: [topic]. Using as context for planning."
 3. Extract key decisions, chosen approach, and open questions
-4. **Skip the idea refinement questions below** - the brainstorm already answered WHAT to build
-5. Use brainstorm decisions as input to the research phase
+4. Use brainstorm decisions as input to the research phase
 
-**If multiple brainstorms could match:**
-Use **AskUserQuestion tool** to ask which brainstorm to use, or whether to proceed without one.
+**If description is >50 words (no brainstorm):**
+1. Announce: "Description is detailed, proceeding to research."
+2. Proceed directly to Step 1 (Local Research)
 
-**If no brainstorm found (or not relevant), run idea refinement:**
+**No questions asked.** The input is sufficient to begin research.
+
+#### L2 Path: Single Clarifying Question
+
+**Condition:** `$ARGUMENTS` contains 1-50 words.
+
+Ask **one** focused clarifying question using the **AskUserQuestion tool** to fill the biggest gap:
+- Prefer a multiple choice question when natural options exist
+- Focus on the single most important unknown: scope, approach, or constraint
+- After the answer, proceed to research
+
+**Gather signals for research decision** from the description and answer:
+
+- **Topic risk**: Security, payments, external APIs warrant more caution
+- **Uncertainty level**: Is the approach clear or open-ended?
+
+#### L3 Path: Full Refinement Dialogue
+
+**Condition:** `$ARGUMENTS` is empty.
 
 Refine the idea through collaborative dialogue using the **AskUserQuestion tool**:
 
@@ -60,9 +100,6 @@ Refine the idea through collaborative dialogue using the **AskUserQuestion tool*
 - **User's intent**: Speed vs thoroughness? Exploration vs execution?
 - **Topic risk**: Security, payments, external APIs warrant more caution
 - **Uncertainty level**: Is the approach clear or open-ended?
-
-**Skip option:** If the feature description is already detailed, offer:
-"Your description is clear. Should I proceed with research, or would you like to refine it further?"
 
 ## Main Tasks
 
@@ -489,30 +526,73 @@ Examples:
 - ❌ `docs/plans/2026-01-15-feat: user auth-plan.md` (invalid characters - colon and space)
 - ❌ `docs/plans/feat-user-auth-plan.md` (missing date prefix)
 
+### State Checkpoint
+
+After writing the plan file, create a local state file for workflow resumability.
+
+**1. Derive the feature slug from the plan filename:**
+
+Strip the date prefix (`YYYY-MM-DD-`), the type prefix (`feat-`/`fix-`/`refactor-`), and the `-plan.md` suffix to get the feature slug.
+
+```bash
+# Example: derive slug from plan filename
+PLAN_FILE="docs/plans/2026-02-09-feat-user-auth-flow-plan.md"
+SLUG=$(echo "$PLAN_FILE" | sed 's|.*/||; s|^[0-9]\{4\}-[0-9]\{2\}-[0-9]\{2\}-||; s|^feat-\|^fix-\|^refactor-||; s|-plan\.md$||')
+# Result: SLUG="user-auth-flow"
+STATE_FILE=".$SLUG.local.md"
+# Result: STATE_FILE=".user-auth-flow.local.md"
+```
+
+**2. Create `.{feature-slug}.local.md` in the project root** with the following content:
+
+```markdown
+---
+feature: {slug}
+plan_file: docs/plans/YYYY-MM-DD-<type>-<slug>-plan.md
+phase: plan-complete
+branch: ""
+started: 2026-MM-DDTHH:MM:SSZ
+updated: 2026-MM-DDTHH:MM:SSZ
+---
+
+## Progress
+
+- [x] Plan created
+- [ ] Implementation started
+- [ ] Code review
+- [ ] Changes documented
+```
+
+Replace `{slug}` with the derived feature slug, `plan_file` with the actual plan file path, and `started`/`updated` with the current ISO 8601 timestamp.
+
+**3. Announce:** "Progress saved to .{slug}.local.md (gitignored)"
+
+This state file enables `/workflows:work` to detect and resume from a previous planning session.
+
 ## Post-Generation Options
 
-After writing the plan file, use the **AskUserQuestion tool** to present these options:
+**If `$ARGUMENTS` is non-empty (autonomous mode):**
+Announce: "Plan ready at `docs/plans/YYYY-MM-DD-<type>-<name>-plan.md`." Do not ask questions. Stop here.
+
+**If `$ARGUMENTS` is empty (interactive mode):**
+After writing the plan file, use the **AskUserQuestion tool** to present next steps:
 
 **Question:** "Plan ready at `docs/plans/YYYY-MM-DD-<type>-<name>-plan.md`. What would you like to do next?"
 
 **Options:**
-1. **Open plan in editor** - Open the plan file for review
-2. **Run `/deepen-plan`** - Enhance each section with parallel research agents (best practices, performance, UI)
-3. **Run `/technical_review`** - Technical feedback from code-focused reviewers (DHH, Kieran, Simplicity)
-4. **Review and refine** - Improve the document through structured self-review
-5. **Start `/workflows:work`** - Begin implementing this plan locally
-6. **Start `/workflows:work` on remote** - Begin implementing in Claude Code on the web (use `&` to run in background)
-7. **Create Issue** - Create issue in project tracker (GitHub/Linear)
+1. **Start `/workflows:work`** - Begin implementing this plan (recommended)
+2. **Run `/deepen-plan`** - Enhance with parallel research agents
+3. **Run `/technical_review`** - Technical feedback from code reviewers
+4. **Review and refine** - Improve through structured self-review
+5. **Create Issue or other action** - Create issue, open in editor, or describe what you need
 
 Based on selection:
-- **Open plan in editor** → Run `open docs/plans/<plan_filename>.md` to open the file in the user's default editor
+- **`/workflows:work`** → Call the /workflows:work command with the plan file path
 - **`/deepen-plan`** → Call the /deepen-plan command with the plan file path to enhance with research
 - **`/technical_review`** → Call the /technical_review command with the plan file path
-- **Review and refine** → Load `document-review` skill.
-- **`/workflows:work`** → Call the /workflows:work command with the plan file path
-- **`/workflows:work` on remote** → Run `/workflows:work docs/plans/<plan_filename>.md &` to start work in background for Claude Code web
-- **Create Issue** → See "Issue Creation" section below
-- **Other** (automatically provided) → Accept free text for rework or specific changes
+- **Review and refine** → Load `document-review` skill
+- **Create Issue or other action** → Ask a follow-up: "What would you like? Options: Open in editor, Create GitHub/Linear issue, Start `/workflows:work` on remote, or describe your need." See "Issue Creation" section below for tracker details
+- **Other** (automatically provided by AskUserQuestion) → Accept free text for rework or specific changes
 
 **Note:** If running `/workflows:plan` with ultrathink enabled, automatically run `/deepen-plan` after plan creation for maximum depth and grounding.
 

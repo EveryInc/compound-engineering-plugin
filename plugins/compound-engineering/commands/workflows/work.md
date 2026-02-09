@@ -2,6 +2,7 @@
 name: workflows:work
 description: Execute work plans efficiently while maintaining quality and finishing features
 argument-hint: "[plan file, specification, or todo file path]"
+disable-model-invocation: true
 ---
 
 # Work Plan Execution Command
@@ -17,6 +18,291 @@ This command takes a work document (plan, specification, or todo file) and execu
 <input_document> #$ARGUMENTS </input_document>
 
 ## Execution Workflow
+
+## Input Validation
+
+Before proceeding, validate the input:
+
+<input_validation>
+
+**If `$ARGUMENTS` is provided, validate the plan file path:**
+
+```bash
+PLAN_PATH="$ARGUMENTS"
+
+# Check file exists
+if [[ ! -f "$PLAN_PATH" ]]; then
+  echo "Error: Plan file not found."
+  echo ""
+  echo "  \"$PLAN_PATH\" does not exist."
+  echo ""
+  echo "Why: The /workflows:work command requires a valid plan file path."
+  echo "  Plan files are created by /workflows:plan in docs/plans/."
+  echo ""
+  echo "Fix: Check the path and try again:"
+  echo "  /workflows:work docs/plans/2026-02-09-feat-example-plan.md"
+  echo ""
+  echo "Available plans:"
+  ls -1t docs/plans/*.md 2>/dev/null | head -5
+  # STOP - do not proceed
+fi
+
+# Check file ends in .md
+if [[ "$PLAN_PATH" != *.md ]]; then
+  echo "Error: Invalid file type."
+  echo ""
+  echo "  \"$PLAN_PATH\" is not a Markdown file."
+  echo ""
+  echo "Why: Work plans must be Markdown (.md) files created by /workflows:plan."
+  echo ""
+  echo "Fix: Provide a .md file path:"
+  echo "  /workflows:work docs/plans/2026-02-09-feat-example-plan.md"
+  echo ""
+  echo "Available plans:"
+  ls -1t docs/plans/*.md 2>/dev/null | head -5
+  # STOP - do not proceed
+fi
+
+# Check file is in docs/plans/
+if [[ "$PLAN_PATH" != docs/plans/* ]]; then
+  echo "Error: Plan file is not in docs/plans/."
+  echo ""
+  echo "  \"$PLAN_PATH\" is outside the expected directory."
+  echo ""
+  echo "Why: Plan files are expected to be in docs/plans/ where /workflows:plan creates them."
+  echo ""
+  echo "Fix: Use a plan file from docs/plans/:"
+  echo "  /workflows:work docs/plans/2026-02-09-feat-example-plan.md"
+  echo ""
+  echo "Available plans:"
+  ls -1t docs/plans/*.md 2>/dev/null | head -5
+  # STOP - do not proceed
+fi
+```
+
+**If validation passes:** Proceed to Phase 1.
+
+</input_validation>
+
+## Input Handling
+
+<input_handling>
+
+**If `$ARGUMENTS` is non-empty (autonomous mode):**
+Validate the plan path and proceed directly to Phase 1: Quick Start. Do not ask questions.
+
+**If `$ARGUMENTS` is empty (interactive mode):**
+Help the user select a plan.
+
+1. Scan for recent plans:
+   ```bash
+   ls -1t docs/plans/*.md 2>/dev/null | head -10
+   ```
+
+2. Scan for state files with saved progress:
+   ```bash
+   ls -1 .*.local.md 2>/dev/null
+   ```
+
+3. Use **AskUserQuestion** to present a plan picker:
+
+   **Question:** "Which plan would you like to work on?"
+   **Options** (max 5, state-files first, then most recent):
+   1. `docs/plans/2026-02-08-feat-user-auth-plan.md` (yesterday) -- has saved progress (recommended)
+   2. `docs/plans/2026-02-07-fix-checkout-bug-plan.md` (2 days ago)
+   3. `docs/plans/2026-02-05-refactor-api-client-plan.md` (4 days ago)
+   4. Enter a file path manually
+   5. Browse all plans
+
+   **Special cases:**
+   - If only 1 plan exists: "Found one plan: [name]. Work on this? (y/n)"
+   - If no plans exist: "No plans found in docs/plans/. Create one first with /workflows:plan"
+
+4. Set the selected plan as the input and proceed to Phase 1.
+
+</input_handling>
+
+### State Discovery
+
+Before starting work, check for saved progress from a previous session:
+
+<state_discovery>
+
+1. **Scan for state files** in the project root:
+   ```bash
+   ls -1a .*.local.md 2>/dev/null
+   ```
+
+2. **Match state to selected plan:**
+
+   For each `.*.local.md` file found, read its YAML frontmatter and check if the `plan_file` field matches the selected plan path. If a match is found:
+
+   - Read the state file contents
+   - Extract `phase`, `branch`, `updated`, and `feature` from frontmatter
+   - Parse the progress checklist to determine completed steps
+
+3. **Staleness detection:**
+
+   When a matching state file is found, calculate its age:
+
+   ```bash
+   STATE_FILE=".feature-slug.local.md"
+   UPDATED=$(grep '^updated:' "$STATE_FILE" | sed 's/updated: //')
+   AGE_SECONDS=$(( $(date +%s) - $(date -jf "%Y-%m-%dT%H:%M:%SZ" "$UPDATED" +%s 2>/dev/null || date -d "$UPDATED" +%s 2>/dev/null) ))
+   AGE_DAYS=$(( AGE_SECONDS / 86400 ))
+   ```
+
+   | Age | Behavior |
+   |-----|----------|
+   | < 24 hours | Resume prompt with "recommended" label |
+   | 1-7 days | Resume prompt with neutral framing |
+   | > 7 days | Warning: "This saved state is [N] days old and may be outdated" |
+   | > 30 days | "Start fresh" becomes the recommended option |
+
+4. **Branch divergence check:**
+
+   If the state file records a branch, check for new commits since the state was saved:
+
+   ```bash
+   BRANCH=$(grep '^branch:' "$STATE_FILE" | sed 's/branch: //')
+   if [ -n "$BRANCH" ]; then
+     COMMITS_SINCE=$(git log --oneline "$BRANCH" --since="$UPDATED" 2>/dev/null | wc -l | tr -d ' ')
+     if [ "$COMMITS_SINCE" -gt 0 ]; then
+       echo "Note: Branch '$BRANCH' has $COMMITS_SINCE new commit(s) since state was saved."
+     fi
+   fi
+   ```
+
+   If divergence is detected, include a note in the resume prompt: "Branch has [N] new commits since last session."
+
+5. **Resume prompt (matching state found):**
+
+   Use **AskUserQuestion** to present resume options:
+
+   **For states < 24 hours old:**
+
+   **Question:** "Found previous session for '[feature]' (last updated [time ago])"
+   **Options:**
+   1. Resume from where you left off (recommended)
+   2. Start fresh (discards saved progress)
+   3. View saved state before deciding
+
+   **For states 1-7 days old:**
+
+   **Question:** "Found previous session for '[feature]' (last updated [N] days ago)"
+   **Options:**
+   1. Resume from where you left off
+   2. Start fresh (discards saved progress)
+   3. View saved state before deciding
+
+   **For states > 7 days old:**
+
+   **Question:** "Found previous session for '[feature]' ([N] days old -- may be outdated)"
+   **Options:**
+   1. Resume from where you left off
+   2. Start fresh (recommended -- state is stale)
+   3. View saved state before deciding
+
+   **For states > 30 days old:**
+
+   **Question:** "Found previous session for '[feature]' ([N] days old -- likely outdated)"
+   **Options:**
+   1. Start fresh (recommended)
+   2. Resume anyway
+   3. View saved state before deciding
+
+   **If "Resume" is selected:**
+   - Update the state file's `updated` timestamp to now
+   - Set `phase: work`
+   - If the state records a branch, check it out: `git checkout $BRANCH`
+   - Skip to the appropriate Phase based on progress (e.g., if "Branch created" is checked, skip to Phase 2)
+
+   **If "Start fresh" is selected:**
+   - Delete the state file: `rm "$STATE_FILE"`
+   - Proceed to Phase 1 as if no state existed
+
+   **If "View saved state" is selected:**
+   - Display the state file contents
+   - Then re-present the Resume/Start fresh options
+
+6. **No matching state file:**
+
+   If no `.*.local.md` file matches the selected plan, proceed normally to Phase 1. This is the default path for new workflows.
+
+7. **Edge Cases:**
+
+   **Case 1: Corrupt state file (invalid YAML)**
+
+   If a `.*.local.md` file exists but its YAML frontmatter fails to parse (missing delimiters, invalid syntax, malformed fields):
+
+   - Warn: "State file '[filename]' is corrupt (invalid YAML). Cannot read saved progress."
+   - Delete the corrupt file: `rm "$STATE_FILE"`
+   - Announce: "Deleted corrupt state file. Starting fresh."
+   - Proceed to Phase 1 as if no state existed.
+
+   **Case 2: Multiple state files for different features**
+
+   If multiple `.*.local.md` files are found and none match the selected plan (or no plan is selected yet):
+
+   ```bash
+   STATE_FILES=$(ls -1a .*.local.md 2>/dev/null)
+   STATE_COUNT=$(echo "$STATE_FILES" | wc -l | tr -d ' ')
+   ```
+
+   If `STATE_COUNT` > 1 and no plan is selected:
+
+   Use **AskUserQuestion** to present all discovered state files:
+
+   **Question:** "Found [N] saved sessions. Which one would you like to resume?"
+   **Options** (max 5, most recent first by `updated` field):
+   1. [feature-1] -- last updated [time ago] (recommended)
+   2. [feature-2] -- last updated [time ago]
+   3. [feature-3] -- last updated [time ago]
+   4. Start a new session (ignore saved state)
+   5. Enter a plan file path manually
+
+   After selection, proceed with the chosen state file or plan.
+
+   **Case 3: Plan file deleted (state references missing plan)**
+
+   If a matching state file is found but its `plan_file` path no longer exists on disk:
+
+   ```bash
+   PLAN_FILE=$(grep '^plan_file:' "$STATE_FILE" | sed 's/plan_file: //')
+   if [ ! -f "$PLAN_FILE" ]; then
+     echo "Warning: Plan file '$PLAN_FILE' referenced in state has been deleted or moved."
+   fi
+   ```
+
+   Use **AskUserQuestion**:
+
+   **Question:** "Saved session for '[feature]' references plan '[plan_file]', but that file no longer exists."
+   **Options:**
+   1. Start fresh (recommended -- delete state, proceed to plan selection)
+   2. Enter the new path to the plan file
+   3. View saved state before deciding
+
+   If "Enter new path" is selected, validate the new path exists and update the state file's `plan_file` field.
+
+   **Case 4: Phase mismatch (state phase doesn't match current command)**
+
+   If a matching state file is found but the `phase` field indicates work that belongs to a different command:
+
+   | State Phase | Expected Command | Suggestion |
+   |-------------|-----------------|------------|
+   | `plan-complete` | /workflows:work | Correct -- proceed normally |
+   | `work` | /workflows:work | Correct -- resume work |
+   | `review` | /workflows:review | Warn: "This feature is in review phase" |
+   | `shipped` | (none) | Warn: "This feature has already been shipped" |
+
+   If phase mismatch is detected:
+
+   - Warn: "State file shows phase '[phase]'. You may want to use /workflows:[suggested-command] instead."
+   - Still allow the user to proceed if they choose to (don't block).
+
+**Autonomous mode:** When `$ARGUMENTS` is non-empty, skip the resume prompt. If a matching state file exists, auto-resume (update timestamp, checkout branch if recorded). If no state file exists, proceed normally.
+
+</state_discovery>
 
 ### Phase 1: Quick Start
 

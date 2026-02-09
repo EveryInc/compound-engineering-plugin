@@ -1,6 +1,7 @@
 ---
 name: deploy-docs
 description: Validate and prepare documentation for GitHub Pages deployment
+argument-hint: "[optional: --dry-run to preview changes]"
 disable-model-invocation: true
 ---
 

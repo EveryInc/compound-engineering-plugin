@@ -2,6 +2,7 @@
 name: workflows:compound
 description: Document a recently solved problem to compound your team's knowledge
 argument-hint: "[optional: brief context about the fix]"
+disable-model-invocation: true
 ---
 
 # /compound
@@ -66,6 +67,46 @@ Launch these subagents IN PARALLEL. Each returns text data to the orchestrator.
    - Returns: Final path and filename
 
 </parallel_tasks>
+
+### Category Confirmation (Interactive Mode Only)
+
+<category_confirmation>
+
+**If running in autonomous mode** (invoked by lfg/slfg with `$ARGUMENTS` non-empty):
+Skip this step. Auto-classify and proceed directly to Phase 2.
+
+**If running in interactive mode** (`$ARGUMENTS` is empty or user-invoked):
+After the Category Classifier subagent returns, show a confirmation:
+
+Use **AskUserQuestion**:
+
+**Question:** "Classified as '[category]'. Does this look right?"
+**Options:**
+1. Yes, proceed (recommended)
+2. Change category
+3. This is actually two problems -- document separately
+
+**If user selects "Change category":** present a second AskUserQuestion with the full category list:
+
+**Question:** "Select the correct category:"
+**Options:**
+1. build-errors
+2. test-failures
+3. runtime-errors
+4. performance-issues
+5. database-issues
+
+_(If more categories needed, present a follow-up with remaining options:)_
+- security-issues
+- ui-bugs
+- integration-issues
+- logic-errors
+
+**If user selects "This is actually two problems":**
+Inform the user: "Understood. Let's document the first problem now. After completing this, run `/workflows:compound` again for the second problem."
+Proceed with the current problem only.
+
+</category_confirmation>
 
 ### Phase 2: Assembly & Write
 
