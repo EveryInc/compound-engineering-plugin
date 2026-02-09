@@ -51,7 +51,7 @@
   - **Commit**: `fix(commands): add argument-hint to deploy-docs`
   - _Requirements: US-1_
 
-- [ ] 1.7 Verify all 24 commands have both frontmatter fields
+- [x] 1.7 Verify all 24 commands have both frontmatter fields
   - **Do**: Run a scan across all 24 command files to confirm every one has both `argument-hint` and `disable-model-invocation: true`. List any that are missing.
   - **Files**: plugins/compound-engineering/commands/**/*.md (read-only)
   - **Done when**: 24/24 commands have `argument-hint` and 24/24 have `disable-model-invocation: true`
