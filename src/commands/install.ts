@@ -24,7 +24,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex)",
+      description: "Target format (opencode | codex | droid)",
     },
     output: {
       type: "string",
@@ -88,7 +88,7 @@ export default defineCommand({
       if (!bundle) {
         throw new Error(`Target ${targetName} did not return a bundle.`)
       }
-      const primaryOutputRoot = targetName === "codex" && codexHome ? codexHome : outputRoot
+      const primaryOutputRoot = resolveTargetOutputRoot(targetName, outputRoot, codexHome)
       await target.write(primaryOutputRoot, bundle)
       console.log(`Installed ${plugin.manifest.name} to ${primaryOutputRoot}`)
 
@@ -109,9 +109,7 @@ export default defineCommand({
           console.warn(`Skipping ${extra}: no output returned.`)
           continue
         }
-        const extraRoot = extra === "codex" && codexHome
-          ? codexHome
-          : path.join(outputRoot, extra)
+        const extraRoot = resolveTargetOutputRoot(extra, path.join(outputRoot, extra), codexHome)
         await handler.write(extraRoot, extraBundle)
         console.log(`Installed ${plugin.manifest.name} to ${extraRoot}`)
       }
@@ -178,6 +176,12 @@ function resolveOutputRoot(value: unknown): string {
   // OpenCode global config lives at ~/.config/opencode per XDG spec
   // See: https://opencode.ai/docs/config/
   return path.join(os.homedir(), ".config", "opencode")
+}
+
+function resolveTargetOutputRoot(targetName: string, outputRoot: string, codexHome: string): string {
+  if (targetName === "codex") return codexHome
+  if (targetName === "droid") return path.join(os.homedir(), ".factory")
+  return outputRoot
 }
 
 async function resolveGitHubPluginPath(pluginName: string): Promise<ResolvedPluginPath> {
