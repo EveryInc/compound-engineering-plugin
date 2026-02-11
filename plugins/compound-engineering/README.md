@@ -6,9 +6,9 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 29 |
-| Commands | 22 |
-| Skills | 19 |
+| Agents | 30 |
+| Commands | 23 |
+| Skills | 22 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -35,7 +35,7 @@ Agents are organized into categories for easier discovery.
 | `schema-drift-detector` | Detect unrelated schema.rb changes in PRs |
 | `security-sentinel` | Security audits and vulnerability assessments |
 
-### Research (5)
+### Research (6)
 
 | Agent | Description |
 |-------|-------------|
@@ -44,6 +44,7 @@ Agents are organized into categories for easier discovery.
 | `git-history-analyzer` | Analyze git history and code evolution |
 | `learnings-researcher` | Search institutional learnings for relevant past solutions |
 | `repo-research-analyst` | Research repository structure and conventions |
+| `user-research-analyst` | Search research artifacts for relevant personas and insights |
 
 ### Design (3)
 
@@ -79,6 +80,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 |---------|-------------|
 | `/workflows:brainstorm` | Explore requirements and approaches before planning |
 | `/workflows:plan` | Create implementation plans |
+| `/workflows:research` | Plan research, process transcripts, and build personas |
 | `/workflows:review` | Run comprehensive code reviews |
 | `/workflows:work` | Execute work items systematically |
 | `/workflows:compound` | Document solved problems to compound team knowledge |
@@ -154,6 +156,14 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | Skill | Description |
 |-------|-------------|
 | `agent-browser` | CLI-based browser automation using Vercel's agent-browser |
+
+### User Research
+
+| Skill | Description |
+|-------|-------------|
+| `research-plan` | Create structured research plans with outcome-focused objectives |
+| `transcript-insights` | Process interview transcripts into structured snapshots and insights |
+| `persona-builder` | Synthesize insights across interviews into living persona documents |
 
 ### Image Generation
 

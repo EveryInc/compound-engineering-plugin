@@ -5,6 +5,24 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.0] - 2026-02-24
+
+### Added
+
+- **`/workflows:research` command** - Plan user research, process interview transcripts, and build personas from accumulated insights
+- **`research-plan` skill** - Create structured research plans with outcome-focused objectives and story-based discussion guides
+- **`transcript-insights` skill** - Process interview transcripts into structured snapshots with tagged insights and experience maps
+- **`persona-builder` skill** - Synthesize insights across interviews into living persona documents with confidence tracking
+- **`user-research-analyst` agent** - Search research artifacts for relevant personas and insights
+- **Discovery playbook reference** - Bundled Continuous Product Discovery Playbook (Teresa Torres + Mom Test methodology)
+
+### Changed
+
+- **`/workflows:brainstorm`** - Now runs `user-research-analyst` in parallel; silently skips when no research data exists
+- **`/workflows:plan`** - Research context integrated into Step 1.6 consolidation
+
+---
+
 ## [2.35.2] - 2026-02-20
 
 ### Changed
