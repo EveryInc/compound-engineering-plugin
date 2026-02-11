@@ -125,12 +125,12 @@ Create the three skills and their shared reference file. These are the core know
 
 **Tasks:**
 
-- [ ] Copy `~/Downloads/discovery-playbook.md` to three locations:
+- [x] Copy `~/Downloads/discovery-playbook.md` to three locations:
   - `plugins/compound-engineering/skills/research-plan/references/discovery-playbook.md`
   - `plugins/compound-engineering/skills/transcript-insights/references/discovery-playbook.md`
   - `plugins/compound-engineering/skills/persona-builder/references/discovery-playbook.md`
 
-- [ ] Create `plugins/compound-engineering/skills/research-plan/SKILL.md`
+- [x] Create `plugins/compound-engineering/skills/research-plan/SKILL.md`
   - Frontmatter:
     ```yaml
     name: research-plan
@@ -145,7 +145,7 @@ Create the three skills and their shared reference file. These are the core know
   - References discovery playbook via `[discovery-playbook.md](./references/discovery-playbook.md)`
   - Include `## Human Review Checklist` in the output template
 
-- [ ] Create `plugins/compound-engineering/skills/transcript-insights/SKILL.md`
+- [x] Create `plugins/compound-engineering/skills/transcript-insights/SKILL.md`
   - Frontmatter:
     ```yaml
     name: transcript-insights
@@ -183,7 +183,7 @@ Create the three skills and their shared reference file. These are the core know
     - [ ] No insights fabricated or composited from multiple participants
     ```
 
-- [ ] Create `plugins/compound-engineering/skills/persona-builder/SKILL.md`
+- [x] Create `plugins/compound-engineering/skills/persona-builder/SKILL.md`
   - Frontmatter:
     ```yaml
     name: persona-builder
@@ -277,7 +277,7 @@ Create the orchestrating command that ties the skills together.
 
 **Tasks:**
 
-- [ ] Create `plugins/compound-engineering/commands/workflows/research.md`
+- [x] Create `plugins/compound-engineering/commands/workflows/research.md`
   - Frontmatter: `name: workflows:research`, `description: Plan user research, process interview transcripts, and build personas from accumulated insights`, `argument-hint: "[plan|process|personas]"`
   - Year note: "The current year is 2026."
   - **File path contracts** documented at top of command (plans, transcripts, interviews, personas paths)
@@ -338,7 +338,7 @@ Create the agent for searching research artifacts.
 
 **Tasks:**
 
-- [ ] Create `plugins/compound-engineering/agents/research/user-research-analyst.md`
+- [x] Create `plugins/compound-engineering/agents/research/user-research-analyst.md`
   - Frontmatter:
     ```yaml
     name: user-research-analyst
@@ -432,15 +432,15 @@ Update all plugin metadata files with correct counts. **Note:** Fix pre-existing
 
 **Tasks:**
 
-- [ ] Update `plugins/compound-engineering/.claude-plugin/plugin.json`
+- [x] Update `plugins/compound-engineering/.claude-plugin/plugin.json`
   - Bump version from `2.31.1` to `2.32.0` (MINOR: new components)
   - Update description: `"AI-powered development tools. 30 agents, 25 commands, 21 skills, 1 MCP server for code review, research, design, and workflow automation."`
 
-- [ ] Update `.claude-plugin/marketplace.json`
+- [x] Update `.claude-plugin/marketplace.json`
   - Update compound-engineering plugin description: `"Includes 30 specialized agents, 25 commands, and 21 skills."`
   - Update version to `2.32.0` (fixes pre-existing drift from 2.31.0)
 
-- [ ] Update `plugins/compound-engineering/README.md`
+- [x] Update `plugins/compound-engineering/README.md`
   - **Fix pre-existing count errors** (currently says 25 commands, 16 skills)
   - Update component count table: Agents 30, Commands 25, Skills 21
   - Add to Research agents table (currently 5, becomes 6):
@@ -462,7 +462,7 @@ Update all plugin metadata files with correct counts. **Note:** Fix pre-existing
     | `persona-builder` | Synthesize insights across interviews into living persona documents |
     ```
 
-- [ ] Update `plugins/compound-engineering/CHANGELOG.md`
+- [x] Update `plugins/compound-engineering/CHANGELOG.md`
   - Add exact entry:
     ```markdown
     ## [2.32.0] - 2026-02-11
@@ -490,20 +490,20 @@ Validate everything is correct before committing.
 
 **Tasks:**
 
-- [ ] Count components match descriptions:
+- [x] Count components match descriptions:
   ```bash
   ls plugins/compound-engineering/agents/**/*.md | wc -l  # Should be 30
   ls plugins/compound-engineering/commands/**/*.md | wc -l  # Should be 25
   ls -d plugins/compound-engineering/skills/*/ | wc -l     # Should be 21
   ```
 
-- [ ] Validate JSON files:
+- [x] Validate JSON files:
   ```bash
   cat .claude-plugin/marketplace.json | jq .
   cat plugins/compound-engineering/.claude-plugin/plugin.json | jq .
   ```
 
-- [ ] Verify no bare backtick references in skills:
+- [x] Verify no bare backtick references in skills:
   ```bash
   grep -E '`(references|assets|scripts)/[^`]+`' plugins/compound-engineering/skills/research-plan/SKILL.md
   grep -E '`(references|assets|scripts)/[^`]+`' plugins/compound-engineering/skills/transcript-insights/SKILL.md
@@ -511,14 +511,14 @@ Validate everything is correct before committing.
   # All three should return nothing
   ```
 
-- [ ] Verify description counts match across files:
+- [x] Verify description counts match across files:
   ```bash
   grep "30.*agents" plugins/compound-engineering/.claude-plugin/plugin.json
   grep "25 commands" plugins/compound-engineering/.claude-plugin/plugin.json
   grep "21 skills" plugins/compound-engineering/.claude-plugin/plugin.json
   ```
 
-- [ ] Verify discovery playbook exists in all three skill directories and is identical:
+- [x] Verify discovery playbook exists in all three skill directories and is identical:
   ```bash
   ls plugins/compound-engineering/skills/research-plan/references/discovery-playbook.md
   ls plugins/compound-engineering/skills/transcript-insights/references/discovery-playbook.md
@@ -527,7 +527,7 @@ Validate everything is correct before committing.
   # All three checksums should be identical
   ```
 
-- [ ] Verify interview frontmatter has separate role/company_type/source_transcript fields (spot-check SKILL.md templates)
+- [x] Verify interview frontmatter has separate role/company_type/source_transcript fields (spot-check SKILL.md templates)
 
 ## Acceptance Criteria
 
