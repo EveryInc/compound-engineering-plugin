@@ -1,9 +1,8 @@
 name: Publish to npm
 
 on:
-  push:
-    branches: [main]
-    paths: [package.json]
+  release:
+    types: [published]
 
 jobs:
   publish:
@@ -13,7 +12,7 @@ jobs:
       id-token: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
@@ -26,36 +25,13 @@ jobs:
       - name: Run tests
         run: bun test
 
-      - name: Check if version changed
-        id: version
-        run: |
-          PUBLISHED=$(npm view @every-env/compound-plugin version 2>/dev/null || echo "0.0.0")
-          LOCAL=$(node -p "require('./package.json').version")
-          echo "published=$PUBLISHED" >> "$GITHUB_OUTPUT"
-          echo "local=$LOCAL" >> "$GITHUB_OUTPUT"
-          if [ "$PUBLISHED" = "$LOCAL" ]; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Setup Node for npm publish
-        if: steps.version.outputs.changed == 'true'
+      - name: Setup Node.js for npm publish
         uses: actions/setup-node@v4
         with:
-          node-version: 22
-          registry-url: https://registry.npmjs.org
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
 
-      - name: Publish
-        if: steps.version.outputs.changed == 'true'
+      - name: Publish to npm
         run: npm publish --provenance --access public
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
-
-      - name: Summary
-        run: |
-          if [ "${{ steps.version.outputs.changed }}" = "true" ]; then
-            echo "Published @every-env/compound-plugin@${{ steps.version.outputs.local }}" >> "$GITHUB_STEP_SUMMARY"
-          else
-            echo "Version ${{ steps.version.outputs.local }} already published, skipping." >> "$GITHUB_STEP_SUMMARY"
-          fi

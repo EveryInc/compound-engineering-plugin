@@ -22,7 +22,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex)",
+      description: "Target format (opencode | codex | droid)",
     },
     output: {
       type: "string",
@@ -80,7 +80,7 @@ export default defineCommand({
       permissions: permissions as PermissionMode,
     }
 
-    const primaryOutputRoot = targetName === "codex" && codexHome ? codexHome : outputRoot
+    const primaryOutputRoot = resolveTargetOutputRoot(targetName, outputRoot, codexHome)
     const bundle = target.convert(plugin, options)
     if (!bundle) {
       throw new Error(`Target ${targetName} did not return a bundle.`)
@@ -106,9 +106,7 @@ export default defineCommand({
         console.warn(`Skipping ${extra}: no output returned.`)
         continue
       }
-      const extraRoot = extra === "codex" && codexHome
-        ? codexHome
-        : path.join(outputRoot, extra)
+      const extraRoot = resolveTargetOutputRoot(extra, path.join(outputRoot, extra), codexHome)
       await handler.write(extraRoot, extraBundle)
       console.log(`Converted ${plugin.manifest.name} to ${extra} at ${extraRoot}`)
     }
@@ -153,4 +151,10 @@ function resolveOutputRoot(value: unknown): string {
     return path.resolve(expanded)
   }
   return process.cwd()
+}
+
+function resolveTargetOutputRoot(targetName: string, outputRoot: string, codexHome: string): string {
+  if (targetName === "codex") return codexHome
+  if (targetName === "droid") return path.join(os.homedir(), ".factory")
+  return outputRoot
 }

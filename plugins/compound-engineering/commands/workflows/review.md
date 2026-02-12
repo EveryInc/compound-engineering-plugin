@@ -82,8 +82,9 @@ Run all configured review agents in parallel using Task tool. For each agent in 
 Task {agent-name}(PR content + review context from settings body)
 ```
 
-Additionally, always run:
+Additionally, always run these regardless of settings:
 - Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
+- Task learnings-researcher(PR content) - Search docs/solutions/ for past issues related to this PR's modules and patterns
 
 </parallel_tasks>
 
@@ -225,6 +226,7 @@ Remove duplicates, prioritize by severity and impact.
 <synthesis_tasks>
 
 - [ ] Collect findings from all parallel agents
+- [ ] Surface learnings-researcher results: if past solutions are relevant, flag them as "Known Pattern" with links to docs/solutions/ files
 - [ ] Discard any findings that recommend deleting or gitignoring files in `docs/plans/` or `docs/solutions/` (see Protected Artifacts above)
 - [ ] Categorize by type: security, performance, architecture, quality, etc.
 - [ ] Assign severity levels: 🔴 CRITICAL (P1), 🟡 IMPORTANT (P2), 🔵 NICE-TO-HAVE (P3)

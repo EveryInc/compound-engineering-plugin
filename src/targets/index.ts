@@ -1,10 +1,13 @@
 import type { ClaudePlugin } from "../types/claude"
 import type { OpenCodeBundle } from "../types/opencode"
 import type { CodexBundle } from "../types/codex"
+import type { DroidBundle } from "../types/droid"
 import { convertClaudeToOpenCode, type ClaudeToOpenCodeOptions } from "../converters/claude-to-opencode"
 import { convertClaudeToCodex } from "../converters/claude-to-codex"
+import { convertClaudeToDroid } from "../converters/claude-to-droid"
 import { writeOpenCodeBundle } from "./opencode"
 import { writeCodexBundle } from "./codex"
+import { writeDroidBundle } from "./droid"
 
 export type TargetHandler<TBundle = unknown> = {
   name: string
@@ -25,5 +28,11 @@ export const targets: Record<string, TargetHandler> = {
     implemented: true,
     convert: convertClaudeToCodex as TargetHandler<CodexBundle>["convert"],
     write: writeCodexBundle as TargetHandler<CodexBundle>["write"],
+  },
+  droid: {
+    name: "droid",
+    implemented: true,
+    convert: convertClaudeToDroid as TargetHandler<DroidBundle>["convert"],
+    write: writeDroidBundle as TargetHandler<DroidBundle>["write"],
   },
 }

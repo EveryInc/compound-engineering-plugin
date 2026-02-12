@@ -1,326 +1,300 @@
 # frozen_string_literal: true
 
-# Example DSPy Module Template
-# This template demonstrates best practices for creating composable modules
+# =============================================================================
+# DSPy.rb Module Template — v0.34.3 API
+#
+# Modules orchestrate predictors, tools, and business logic.
+#
+# Key patterns:
+#   - Use .call() to invoke (not .forward())
+#   - Access results with result.field (not result[:field])
+#   - Use DSPy::Tools::Base for tools (not DSPy::Tool)
+#   - Use lifecycle callbacks (before/around/after) for cross-cutting concerns
+#   - Use DSPy.with_lm for temporary model overrides
+#   - Use configure_predictor for fine-grained agent control
+# =============================================================================
 
-# Basic module with single predictor
-class BasicModule < DSPy::Module
+# --- Basic Module ---
+
+class BasicClassifier < DSPy::Module
   def initialize
     super
-    # Initialize predictor with signature
-    @predictor = DSPy::Predict.new(ExampleSignature)
+    @predictor = DSPy::Predict.new(ClassificationSignature)
   end
 
-  def forward(input_hash)
-    # Forward pass through the predictor
-    @predictor.forward(input_hash)
+  def forward(text:)
+    @predictor.call(text: text)
   end
 end
 
-# Module with Chain of Thought reasoning
-class ChainOfThoughtModule < DSPy::Module
+# Usage:
+#   classifier = BasicClassifier.new
+#   result = classifier.call(text: "This is a test")
+#   result.category   # => "technical"
+#   result.confidence  # => 0.95
+
+# --- Module with Chain of Thought ---
+
+class ReasoningClassifier < DSPy::Module
   def initialize
     super
-    # ChainOfThought automatically adds reasoning to output
-    @predictor = DSPy::ChainOfThought.new(EmailClassificationSignature)
+    @predictor = DSPy::ChainOfThought.new(ClassificationSignature)
   end
 
-  def forward(email_subject:, email_body:)
-    result = @predictor.forward(
-      email_subject: email_subject,
-      email_body: email_body
-    )
+  def forward(text:)
+    result = @predictor.call(text: text)
+    # ChainOfThought adds result.reasoning automatically
+    result
+  end
+end
 
-    # Result includes :reasoning field automatically
-    {
-      category: result[:category],
-      priority: result[:priority],
-      reasoning: result[:reasoning],
-      confidence: calculate_confidence(result)
-    }
+# --- Module with Lifecycle Callbacks ---
+
+class InstrumentedModule < DSPy::Module
+  before :setup_metrics
+  around :manage_context
+  after :log_completion
+
+  def initialize
+    super
+    @predictor = DSPy::Predict.new(AnalysisSignature)
+    @start_time = nil
+  end
+
+  def forward(query:)
+    @predictor.call(query: query)
   end
 
   private
 
-  def calculate_confidence(result)
-    # Add custom logic to calculate confidence
-    # For example, based on reasoning length or specificity
-    result[:confidence] || 0.8
+  # Runs before forward
+  def setup_metrics
+    @start_time = Time.now
+    Rails.logger.info "Starting prediction"
+  end
+
+  # Wraps forward — must call yield
+  def manage_context
+    load_user_context
+    result = yield
+    save_updated_context(result)
+    result
+  end
+
+  # Runs after forward completes
+  def log_completion
+    duration = Time.now - @start_time
+    Rails.logger.info "Prediction completed in #{duration}s"
+  end
+
+  def load_user_context = nil
+  def save_updated_context(_result) = nil
+end
+
+# Execution order: before → around (before yield) → forward → around (after yield) → after
+# Callbacks are inherited from parent classes and execute in registration order.
+
+# --- Module with Tools ---
+
+class SearchTool < DSPy::Tools::Base
+  tool_name "search"
+  tool_description "Search for information by query"
+
+  sig { params(query: String, max_results: Integer).returns(T::Array[T::Hash[Symbol, String]]) }
+  def call(query:, max_results: 5)
+    # Implementation here
+    [{ title: "Result 1", url: "https://example.com" }]
   end
 end
 
-# Composable module that chains multiple steps
-class MultiStepPipeline < DSPy::Module
-  def initialize
-    super
-    # Initialize multiple predictors for different steps
-    @step1 = DSPy::Predict.new(Step1Signature)
-    @step2 = DSPy::ChainOfThought.new(Step2Signature)
-    @step3 = DSPy::Predict.new(Step3Signature)
-  end
+class FinishTool < DSPy::Tools::Base
+  tool_name "finish"
+  tool_description "Submit the final answer"
 
-  def forward(input)
-    # Chain predictors together
-    result1 = @step1.forward(input)
-    result2 = @step2.forward(result1)
-    result3 = @step3.forward(result2)
-
-    # Combine results as needed
-    {
-      step1_output: result1,
-      step2_output: result2,
-      final_result: result3
-    }
+  sig { params(answer: String).returns(String) }
+  def call(answer:)
+    answer
   end
 end
 
-# Module with conditional logic
-class ConditionalModule < DSPy::Module
+class ResearchAgent < DSPy::Module
   def initialize
     super
-    @simple_classifier = DSPy::Predict.new(SimpleClassificationSignature)
-    @complex_analyzer = DSPy::ChainOfThought.new(ComplexAnalysisSignature)
+    tools = [SearchTool.new, FinishTool.new]
+    @agent = DSPy::ReAct.new(
+      ResearchSignature,
+      tools: tools,
+      max_iterations: 5
+    )
   end
 
-  def forward(text:, complexity_threshold: 100)
-    # Use different predictors based on input characteristics
-    if text.length < complexity_threshold
-      @simple_classifier.forward(text: text)
-    else
-      @complex_analyzer.forward(text: text)
-    end
+  def forward(question:)
+    @agent.call(question: question)
   end
 end
 
-# Module with error handling and retry logic
-class RobustModule < DSPy::Module
-  MAX_RETRIES = 3
+# --- Module with Per-Task Model Selection ---
 
+class SmartRouter < DSPy::Module
   def initialize
     super
-    @predictor = DSPy::Predict.new(RobustSignature)
-    @logger = Logger.new(STDOUT)
+    @classifier = DSPy::Predict.new(RouteSignature)
+    @analyzer = DSPy::ChainOfThought.new(AnalysisSignature)
   end
 
-  def forward(input, retry_count: 0)
-    @logger.info "Processing input: #{input.inspect}"
+  def forward(text:)
+    # Use fast model for classification
+    DSPy.with_lm(fast_model) do
+      route = @classifier.call(text: text)
 
-    begin
-      result = @predictor.forward(input)
-      validate_result!(result)
-      result
-    rescue DSPy::ValidationError => e
-      @logger.error "Validation error: #{e.message}"
-
-      if retry_count < MAX_RETRIES
-        @logger.info "Retrying (#{retry_count + 1}/#{MAX_RETRIES})..."
-        sleep(2 ** retry_count) # Exponential backoff
-        forward(input, retry_count: retry_count + 1)
+      if route.requires_deep_analysis
+        # Switch to powerful model for analysis
+        DSPy.with_lm(powerful_model) do
+          @analyzer.call(text: text)
+        end
       else
-        @logger.error "Max retries exceeded"
-        raise
+        route
       end
     end
   end
 
   private
 
-  def validate_result!(result)
-    # Add custom validation logic
-    raise DSPy::ValidationError, "Invalid result" unless result[:category]
-    raise DSPy::ValidationError, "Low confidence" if result[:confidence] && result[:confidence] < 0.5
+  def fast_model
+    @fast_model ||= DSPy::LM.new(
+      ENV.fetch("DSPY_SELECTOR_MODEL", "ruby_llm/gemini-2.5-flash-lite"),
+      structured_outputs: true
+    )
+  end
+
+  def powerful_model
+    @powerful_model ||= DSPy::LM.new(
+      ENV.fetch("DSPY_SYNTHESIZER_MODEL", "ruby_llm/gemini-2.5-flash"),
+      structured_outputs: true
+    )
   end
 end
 
-# Module with ReAct agent and tools
-class AgentModule < DSPy::Module
+# --- Module with configure_predictor ---
+
+class ConfiguredAgent < DSPy::Module
   def initialize
     super
+    tools = [SearchTool.new, FinishTool.new]
+    @agent = DSPy::ReAct.new(ResearchSignature, tools: tools)
 
-    # Define tools for the agent
-    tools = [
-      SearchTool.new,
-      CalculatorTool.new,
-      DatabaseQueryTool.new
-    ]
+    # Set default model for all internal predictors
+    @agent.configure { |c| c.lm = DSPy::LM.new('ruby_llm/gemini-2.5-flash', structured_outputs: true) }
 
-    # ReAct provides iterative reasoning and tool usage
-    @agent = DSPy::ReAct.new(
-      AgentSignature,
-      tools: tools,
-      max_iterations: 5
-    )
-  end
-
-  def forward(task:)
-    # Agent will autonomously use tools to complete the task
-    @agent.forward(task: task)
-  end
-end
-
-# Tool definition example
-class SearchTool < DSPy::Tool
-  def call(query:)
-    # Implement search functionality
-    results = perform_search(query)
-    { results: results }
-  end
-
-  private
-
-  def perform_search(query)
-    # Actual search implementation
-    # Could call external API, database, etc.
-    ["result1", "result2", "result3"]
-  end
-end
-
-# Module with state management
-class StatefulModule < DSPy::Module
-  attr_reader :history
-
-  def initialize
-    super
-    @predictor = DSPy::ChainOfThought.new(StatefulSignature)
-    @history = []
-  end
-
-  def forward(input)
-    # Process with context from history
-    context = build_context_from_history
-    result = @predictor.forward(
-      input: input,
-      context: context
-    )
-
-    # Store in history
-    @history << {
-      input: input,
-      result: result,
-      timestamp: Time.now
-    }
-
-    result
-  end
-
-  def reset!
-    @history.clear
-  end
-
-  private
-
-  def build_context_from_history
-    @history.last(5).map { |h| h[:result][:summary] }.join("\n")
-  end
-end
-
-# Module that uses different LLMs for different tasks
-class MultiModelModule < DSPy::Module
-  def initialize
-    super
-
-    # Fast, cheap model for simple classification
-    @fast_predictor = create_predictor(
-      'openai/gpt-4o-mini',
-      SimpleClassificationSignature
-    )
-
-    # Powerful model for complex analysis
-    @powerful_predictor = create_predictor(
-      'anthropic/claude-3-5-sonnet-20241022',
-      ComplexAnalysisSignature
-    )
-  end
-
-  def forward(input, use_complex: false)
-    if use_complex
-      @powerful_predictor.forward(input)
-    else
-      @fast_predictor.forward(input)
+    # Override specific predictor with a more capable model
+    @agent.configure_predictor('thought_generator') do |c|
+      c.lm = DSPy::LM.new('ruby_llm/claude-sonnet-4-20250514', structured_outputs: true)
     end
   end
 
-  private
-
-  def create_predictor(model, signature)
-    lm = DSPy::LM.new(model, api_key: ENV["#{model.split('/').first.upcase}_API_KEY"])
-    DSPy::Predict.new(signature, lm: lm)
+  def forward(question:)
+    @agent.call(question: question)
   end
 end
 
-# Module with caching
-class CachedModule < DSPy::Module
+# Available internal predictors by agent type:
+#   DSPy::ReAct      → thought_generator, observation_processor
+#   DSPy::CodeAct    → code_generator, observation_processor
+#   DSPy::DeepSearch → seed_predictor, search_predictor, reader_predictor, reason_predictor
+
+# --- Module with Event Subscriptions ---
+
+class TokenTrackingModule < DSPy::Module
+  subscribe 'lm.tokens', :track_tokens, scope: :descendants
+
   def initialize
     super
-    @predictor = DSPy::Predict.new(CachedSignature)
-    @cache = {}
+    @predictor = DSPy::Predict.new(AnalysisSignature)
+    @total_tokens = 0
   end
 
-  def forward(input)
-    # Create cache key from input
-    cache_key = create_cache_key(input)
-
-    # Return cached result if available
-    if @cache.key?(cache_key)
-      puts "Cache hit for #{cache_key}"
-      return @cache[cache_key]
-    end
-
-    # Compute and cache result
-    result = @predictor.forward(input)
-    @cache[cache_key] = result
-    result
+  def forward(query:)
+    @predictor.call(query: query)
   end
 
-  def clear_cache!
-    @cache.clear
+  def track_tokens(_event, attrs)
+    @total_tokens += attrs.fetch(:total_tokens, 0)
   end
 
-  private
-
-  def create_cache_key(input)
-    # Create deterministic hash from input
-    Digest::MD5.hexdigest(input.to_s)
+  def token_usage
+    @total_tokens
   end
 end
 
-# Usage Examples:
-#
-# Basic usage:
-#   module = BasicModule.new
-#   result = module.forward(field_name: "value")
-#
-# Chain of Thought:
-#   module = ChainOfThoughtModule.new
-#   result = module.forward(
-#     email_subject: "Can't log in",
-#     email_body: "I'm unable to access my account"
-#   )
-#   puts result[:reasoning]
-#
-# Multi-step pipeline:
-#   pipeline = MultiStepPipeline.new
-#   result = pipeline.forward(input_data)
-#
-# With error handling:
-#   module = RobustModule.new
-#   begin
-#     result = module.forward(input_data)
-#   rescue DSPy::ValidationError => e
-#     puts "Failed after retries: #{e.message}"
-#   end
-#
-# Agent with tools:
-#   agent = AgentModule.new
-#   result = agent.forward(task: "Find the population of Tokyo")
-#
-# Stateful processing:
-#   module = StatefulModule.new
-#   result1 = module.forward("First input")
-#   result2 = module.forward("Second input")  # Has context from first
-#   module.reset!  # Clear history
-#
-# With caching:
-#   module = CachedModule.new
-#   result1 = module.forward(input)  # Computes result
-#   result2 = module.forward(input)  # Returns cached result
+# Module-scoped subscriptions automatically scope to the module instance and descendants.
+# Use scope: :self_only to restrict delivery to the module itself (ignoring children).
+
+# --- Tool That Wraps a Prediction ---
+
+class RerankTool < DSPy::Tools::Base
+  tool_name "rerank"
+  tool_description "Score and rank search results by relevance"
+
+  MAX_ITEMS = 200
+  MIN_ITEMS_FOR_LLM = 5
+
+  sig { params(query: String, items: T::Array[T::Hash[Symbol, T.untyped]]).returns(T::Hash[Symbol, T.untyped]) }
+  def call(query:, items: [])
+    # Short-circuit: skip LLM for small sets
+    return { scored_items: items, reranked: false } if items.size < MIN_ITEMS_FOR_LLM
+
+    # Cap to prevent token overflow
+    capped_items = items.first(MAX_ITEMS)
+
+    predictor = DSPy::Predict.new(RerankSignature)
+    predictor.configure { |c| c.lm = DSPy::LM.new("ruby_llm/gemini-2.5-flash", structured_outputs: true) }
+
+    result = predictor.call(query: query, items: capped_items)
+    { scored_items: result.scored_items, reranked: true }
+  rescue => e
+    Rails.logger.warn "[RerankTool] LLM rerank failed: #{e.message}"
+    { error: "Rerank failed: #{e.message}", scored_items: items, reranked: false }
+  end
+end
+
+# Key patterns for tools wrapping predictions:
+#   - Short-circuit LLM calls when unnecessary (small data, trivial cases)
+#   - Cap input size to prevent token overflow
+#   - Per-tool model selection via configure
+#   - Graceful error handling with fallback data
+
+# --- Multi-Step Pipeline ---
+
+class AnalysisPipeline < DSPy::Module
+  def initialize
+    super
+    @classifier = DSPy::Predict.new(ClassifySignature)
+    @analyzer = DSPy::ChainOfThought.new(AnalyzeSignature)
+    @summarizer = DSPy::Predict.new(SummarizeSignature)
+  end
+
+  def forward(text:)
+    classification = @classifier.call(text: text)
+    analysis = @analyzer.call(text: text, category: classification.category)
+    @summarizer.call(analysis: analysis.reasoning, category: classification.category)
+  end
+end
+
+# --- Observability with Spans ---
+
+class TracedModule < DSPy::Module
+  def initialize
+    super
+    @predictor = DSPy::Predict.new(AnalysisSignature)
+  end
+
+  def forward(query:)
+    DSPy::Context.with_span(
+      operation: "traced_module.analyze",
+      "dspy.module" => self.class.name,
+      "query.length" => query.length.to_s
+    ) do
+      @predictor.call(query: query)
+    end
+  end
+end

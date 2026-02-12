@@ -1,623 +1,603 @@
-# DSPy.rb Testing, Optimization & Observability
+# DSPy.rb Optimization
 
-## Testing
+## MIPROv2
 
-DSPy.rb enables standard RSpec testing patterns for LLM logic, making your AI applications testable and maintainable.
+MIPROv2 (Multi-prompt Instruction Proposal with Retrieval Optimization) is the primary instruction tuner in DSPy.rb. It proposes new instructions and few-shot demonstrations per predictor, evaluates them on mini-batches, and retains candidates that improve the metric. It ships as a separate gem to keep the Gaussian Process dependency tree out of apps that do not need it.
 
-### Basic Testing Setup
+### Installation
 
 ```ruby
-require 'rspec'
-require 'dspy'
+# Gemfile
+gem "dspy"
+gem "dspy-miprov2"
+```
 
-RSpec.describe EmailClassifier do
-  before do
-    DSPy.configure do |c|
-      c.lm = DSPy::LM.new('openai/gpt-4o-mini', api_key: ENV['OPENAI_API_KEY'])
-    end
-  end
+Bundler auto-requires `dspy/miprov2`. No additional `require` statement is needed.
 
-  describe '#classify' do
-    it 'classifies technical support emails correctly' do
-      classifier = EmailClassifier.new
-      result = classifier.forward(
-        email_subject: "Can't log in",
-        email_body: "I'm unable to access my account"
-      )
+### AutoMode presets
 
-      expect(result[:category]).to eq('Technical')
-      expect(result[:priority]).to be_in(['High', 'Medium', 'Low'])
-    end
-  end
+Use `DSPy::Teleprompt::MIPROv2::AutoMode` for preconfigured optimizers:
+
+```ruby
+light  = DSPy::Teleprompt::MIPROv2::AutoMode.light(metric: metric)   # 6 trials, greedy
+medium = DSPy::Teleprompt::MIPROv2::AutoMode.medium(metric: metric)  # 12 trials, adaptive
+heavy  = DSPy::Teleprompt::MIPROv2::AutoMode.heavy(metric: metric)   # 18 trials, Bayesian
+```
+
+| Preset   | Trials | Strategy   | Use case                                            |
+|----------|--------|------------|-----------------------------------------------------|
+| `light`  | 6      | `:greedy`  | Quick wins on small datasets or during prototyping. |
+| `medium` | 12     | `:adaptive`| Balanced exploration vs. runtime for most pilots.   |
+| `heavy`  | 18     | `:bayesian`| Highest accuracy targets or multi-stage programs.   |
+
+### Manual configuration with dry-configurable
+
+`DSPy::Teleprompt::MIPROv2` includes `Dry::Configurable`. Configure at the class level (defaults for all instances) or instance level (overrides class defaults).
+
+**Class-level defaults:**
+
+```ruby
+DSPy::Teleprompt::MIPROv2.configure do |config|
+  config.optimization_strategy = :bayesian
+  config.num_trials = 30
+  config.bootstrap_sets = 10
 end
 ```
 
-### Mocking LLM Responses
-
-Test your modules without making actual API calls:
+**Instance-level overrides:**
 
 ```ruby
-RSpec.describe MyModule do
-  it 'handles mock responses correctly' do
-    # Create a mock predictor that returns predetermined results
-    mock_predictor = instance_double(DSPy::Predict)
-    allow(mock_predictor).to receive(:forward).and_return({
-      category: 'Technical',
-      priority: 'High',
-      confidence: 0.95
-    })
-
-    # Inject mock into your module
-    module_instance = MyModule.new
-    module_instance.instance_variable_set(:@predictor, mock_predictor)
-
-    result = module_instance.forward(input: 'test data')
-    expect(result[:category]).to eq('Technical')
-  end
+optimizer = DSPy::Teleprompt::MIPROv2.new(metric: metric)
+optimizer.configure do |config|
+  config.num_trials = 15
+  config.num_instruction_candidates = 6
+  config.bootstrap_sets = 5
+  config.max_bootstrapped_examples = 4
+  config.max_labeled_examples = 16
+  config.optimization_strategy = :adaptive       # :greedy, :adaptive, :bayesian
+  config.early_stopping_patience = 3
+  config.init_temperature = 1.0
+  config.final_temperature = 0.1
+  config.minibatch_size = nil                     # nil = auto
+  config.auto_seed = 42
 end
 ```
 
-### Testing Type Safety
+The `optimization_strategy` setting accepts symbols (`:greedy`, `:adaptive`, `:bayesian`) and coerces them internally to `DSPy::Teleprompt::OptimizationStrategy` T::Enum values.
 
-Verify that signatures enforce type constraints:
+The old `config:` constructor parameter is removed. Passing `config:` raises `ArgumentError`.
+
+### Auto presets via configure
+
+Instead of `AutoMode`, set the preset through the configure block:
 
 ```ruby
-RSpec.describe EmailClassificationSignature do
-  it 'validates output types' do
-    predictor = DSPy::Predict.new(EmailClassificationSignature)
-
-    # This should work
-    result = predictor.forward(
-      email_subject: 'Test',
-      email_body: 'Test body'
-    )
-    expect(result[:category]).to be_a(String)
-
-    # Test that invalid types are caught
-    expect {
-      # Simulate LLM returning invalid type
-      predictor.send(:validate_output, { category: 123 })
-    }.to raise_error(DSPy::ValidationError)
-  end
+optimizer = DSPy::Teleprompt::MIPROv2.new(metric: metric)
+optimizer.configure do |config|
+  config.auto_preset = DSPy::Teleprompt::AutoPreset.deserialize("medium")
 end
 ```
 
-### Testing Edge Cases
-
-Always test boundary conditions and error scenarios:
+### Compile and inspect
 
 ```ruby
-RSpec.describe EmailClassifier do
-  it 'handles empty emails' do
-    classifier = EmailClassifier.new
-    result = classifier.forward(
-      email_subject: '',
-      email_body: ''
-    )
-    # Define expected behavior for edge case
-    expect(result[:category]).to eq('General')
-  end
+program = DSPy::Predict.new(MySignature)
 
-  it 'handles very long emails' do
-    long_body = 'word ' * 10000
-    classifier = EmailClassifier.new
-
-    expect {
-      classifier.forward(
-        email_subject: 'Test',
-        email_body: long_body
-      )
-    }.not_to raise_error
-  end
-
-  it 'handles special characters' do
-    classifier = EmailClassifier.new
-    result = classifier.forward(
-      email_subject: 'Test <script>alert("xss")</script>',
-      email_body: 'Body with émojis 🎉 and spëcial çharacters'
-    )
-
-    expect(result[:category]).to be_in(['Technical', 'Billing', 'General'])
-  end
-end
-```
-
-### Integration Testing
-
-Test complete workflows end-to-end:
-
-```ruby
-RSpec.describe EmailProcessingPipeline do
-  it 'processes email through complete pipeline' do
-    pipeline = EmailProcessingPipeline.new
-
-    result = pipeline.forward(
-      email_subject: 'Billing question',
-      email_body: 'How do I update my payment method?'
-    )
-
-    # Verify the complete pipeline output
-    expect(result[:classification]).to eq('Billing')
-    expect(result[:priority]).to eq('Medium')
-    expect(result[:suggested_response]).to include('payment')
-    expect(result[:assigned_team]).to eq('billing_support')
-  end
-end
-```
-
-### VCR for Deterministic Tests
-
-Use VCR to record and replay API responses:
-
-```ruby
-require 'vcr'
-
-VCR.configure do |config|
-  config.cassette_library_dir = 'spec/vcr_cassettes'
-  config.hook_into :webmock
-  config.filter_sensitive_data('<OPENAI_API_KEY>') { ENV['OPENAI_API_KEY'] }
-end
-
-RSpec.describe EmailClassifier do
-  it 'classifies emails consistently', :vcr do
-    VCR.use_cassette('email_classification') do
-      classifier = EmailClassifier.new
-      result = classifier.forward(
-        email_subject: 'Test subject',
-        email_body: 'Test body'
-      )
-
-      expect(result[:category]).to eq('Technical')
-    end
-  end
-end
-```
-
-## Optimization
-
-DSPy.rb provides powerful optimization capabilities to automatically improve your prompts and modules.
-
-### MIPROv2 Optimization
-
-MIPROv2 is an advanced multi-prompt optimization technique that uses bootstrap sampling, instruction generation, and Bayesian optimization.
-
-```ruby
-require 'dspy/mipro'
-
-# Define your module to optimize
-class EmailClassifier < DSPy::Module
-  def initialize
-    super
-    @predictor = DSPy::ChainOfThought.new(EmailClassificationSignature)
-  end
-
-  def forward(input)
-    @predictor.forward(input)
-  end
-end
-
-# Prepare training data
-training_examples = [
-  {
-    input: { email_subject: "Can't log in", email_body: "Password reset not working" },
-    expected_output: { category: 'Technical', priority: 'High' }
-  },
-  {
-    input: { email_subject: "Billing question", email_body: "How much does premium cost?" },
-    expected_output: { category: 'Billing', priority: 'Medium' }
-  },
-  # Add more examples...
-]
-
-# Define evaluation metric
-def accuracy_metric(example, prediction)
-  (example[:expected_output][:category] == prediction[:category]) ? 1.0 : 0.0
-end
-
-# Run optimization
-optimizer = DSPy::MIPROv2.new(
-  metric: method(:accuracy_metric),
-  num_candidates: 10,
-  num_threads: 4
+result = optimizer.compile(
+  program,
+  trainset: train_examples,
+  valset: val_examples
 )
 
-optimized_module = optimizer.compile(
-  EmailClassifier.new,
-  trainset: training_examples
-)
-
-# Use optimized module
-result = optimized_module.forward(
-  email_subject: "New email",
-  email_body: "New email content"
-)
+optimized_program = result.optimized_program
+puts "Best score: #{result.best_score_value}"
 ```
 
-### Bootstrap Few-Shot Learning
+The `result` object exposes:
+- `optimized_program` -- ready-to-use predictor with updated instruction and demos.
+- `optimization_trace[:trial_logs]` -- per-trial record of instructions, demos, and scores.
+- `metadata[:optimizer]` -- `"MIPROv2"`, useful when persisting experiments from multiple optimizers.
 
-Automatically generate few-shot examples from your training data:
+### Multi-stage programs
+
+MIPROv2 generates dataset summaries for each predictor and proposes per-stage instructions. For a ReAct agent with `thought_generator` and `observation_processor` predictors, the optimizer handles credit assignment internally. The metric only needs to evaluate the final output.
+
+### Bootstrap sampling
+
+During the bootstrap phase MIPROv2:
+1. Generates dataset summaries from the training set.
+2. Bootstraps few-shot demonstrations by running the baseline program.
+3. Proposes candidate instructions grounded in the summaries and bootstrapped examples.
+4. Evaluates each candidate on mini-batches drawn from the validation set.
+
+Control the bootstrap phase with `bootstrap_sets`, `max_bootstrapped_examples`, and `max_labeled_examples`.
+
+### Bayesian optimization
+
+When `optimization_strategy` is `:bayesian` (or when using the `heavy` preset), MIPROv2 fits a Gaussian Process surrogate over past trial scores to select the next candidate. This replaces random search with informed exploration, reducing the number of trials needed to find high-scoring instructions.
+
+---
+
+## GEPA
+
+GEPA (Genetic-Pareto Reflective Prompt Evolution) is a feedback-driven optimizer. It runs the program on a small batch, collects scores and textual feedback, and asks a reflection LM to rewrite the instruction. Improved candidates are retained on a Pareto frontier.
+
+### Installation
 
 ```ruby
-require 'dspy/teleprompt'
-
-# Create a teleprompter for few-shot optimization
-teleprompter = DSPy::BootstrapFewShot.new(
-  metric: method(:accuracy_metric),
-  max_bootstrapped_demos: 5,
-  max_labeled_demos: 3
-)
-
-# Compile the optimized module
-optimized = teleprompter.compile(
-  MyModule.new,
-  trainset: training_examples
-)
+# Gemfile
+gem "dspy"
+gem "dspy-gepa"
 ```
 
-### Custom Optimization Metrics
+The `dspy-gepa` gem depends on the `gepa` core optimizer gem automatically.
 
-Define custom metrics for your specific use case:
+### Metric contract
 
-```ruby
-def custom_metric(example, prediction)
-  score = 0.0
-
-  # Category accuracy (60% weight)
-  score += 0.6 if example[:expected_output][:category] == prediction[:category]
-
-  # Priority accuracy (40% weight)
-  score += 0.4 if example[:expected_output][:priority] == prediction[:priority]
-
-  score
-end
-
-# Use in optimization
-optimizer = DSPy::MIPROv2.new(
-  metric: method(:custom_metric),
-  num_candidates: 10
-)
-```
-
-### A/B Testing Different Approaches
-
-Compare different module implementations:
+GEPA metrics return `DSPy::Prediction` with both a numeric score and a feedback string. Do not return a plain boolean.
 
 ```ruby
-# Approach A: ChainOfThought
-class ApproachA < DSPy::Module
-  def initialize
-    super
-    @predictor = DSPy::ChainOfThought.new(EmailClassificationSignature)
-  end
+metric = lambda do |example, prediction|
+  expected  = example.expected_values[:label]
+  predicted = prediction.label
 
-  def forward(input)
-    @predictor.forward(input)
-  end
-end
-
-# Approach B: ReAct with tools
-class ApproachB < DSPy::Module
-  def initialize
-    super
-    @predictor = DSPy::ReAct.new(
-      EmailClassificationSignature,
-      tools: [KnowledgeBaseTool.new]
-    )
-  end
-
-  def forward(input)
-    @predictor.forward(input)
-  end
-end
-
-# Evaluate both approaches
-def evaluate_approach(approach_class, test_set)
-  approach = approach_class.new
-  scores = test_set.map do |example|
-    prediction = approach.forward(example[:input])
-    accuracy_metric(example, prediction)
-  end
-  scores.sum / scores.size
-end
-
-approach_a_score = evaluate_approach(ApproachA, test_examples)
-approach_b_score = evaluate_approach(ApproachB, test_examples)
-
-puts "Approach A accuracy: #{approach_a_score}"
-puts "Approach B accuracy: #{approach_b_score}"
-```
-
-## Observability
-
-Track your LLM application's performance, token usage, and behavior in production.
-
-### OpenTelemetry Integration
-
-DSPy.rb automatically integrates with OpenTelemetry when configured:
-
-```ruby
-require 'opentelemetry/sdk'
-require 'dspy'
-
-# Configure OpenTelemetry
-OpenTelemetry::SDK.configure do |c|
-  c.service_name = 'my-dspy-app'
-  c.use_all # Use all available instrumentation
-end
-
-# DSPy automatically creates traces for predictions
-predictor = DSPy::Predict.new(MySignature)
-result = predictor.forward(input: 'data')
-# Traces are automatically sent to your OpenTelemetry collector
-```
-
-### Langfuse Integration
-
-Track detailed LLM execution traces with Langfuse:
-
-```ruby
-require 'dspy/langfuse'
-
-# Configure Langfuse
-DSPy.configure do |c|
-  c.lm = DSPy::LM.new('openai/gpt-4o-mini', api_key: ENV['OPENAI_API_KEY'])
-  c.langfuse = {
-    public_key: ENV['LANGFUSE_PUBLIC_KEY'],
-    secret_key: ENV['LANGFUSE_SECRET_KEY'],
-    host: ENV['LANGFUSE_HOST'] || 'https://cloud.langfuse.com'
-  }
-end
-
-# All predictions are automatically traced
-predictor = DSPy::Predict.new(MySignature)
-result = predictor.forward(input: 'data')
-# View detailed traces in Langfuse dashboard
-```
-
-### Manual Token Tracking
-
-Track token usage without external services:
-
-```ruby
-class TokenTracker
-  def initialize
-    @total_tokens = 0
-    @request_count = 0
-  end
-
-  def track_prediction(predictor, input)
-    start_time = Time.now
-    result = predictor.forward(input)
-    duration = Time.now - start_time
-
-    # Get token usage from response metadata
-    tokens = result.metadata[:usage][:total_tokens] rescue 0
-    @total_tokens += tokens
-    @request_count += 1
-
-    puts "Request ##{@request_count}: #{tokens} tokens in #{duration}s"
-    puts "Total tokens used: #{@total_tokens}"
-
-    result
-  end
-end
-
-# Usage
-tracker = TokenTracker.new
-predictor = DSPy::Predict.new(MySignature)
-
-result = tracker.track_prediction(predictor, { input: 'data' })
-```
-
-### Custom Logging
-
-Add detailed logging to your modules:
-
-```ruby
-class EmailClassifier < DSPy::Module
-  def initialize
-    super
-    @predictor = DSPy::ChainOfThought.new(EmailClassificationSignature)
-    @logger = Logger.new(STDOUT)
-  end
-
-  def forward(input)
-    @logger.info "Classifying email: #{input[:email_subject]}"
-
-    start_time = Time.now
-    result = @predictor.forward(input)
-    duration = Time.now - start_time
-
-    @logger.info "Classification: #{result[:category]} (#{duration}s)"
-
-    if result[:reasoning]
-      @logger.debug "Reasoning: #{result[:reasoning]}"
-    end
-
-    result
-  rescue => e
-    @logger.error "Classification failed: #{e.message}"
-    raise
-  end
-end
-```
-
-### Performance Monitoring
-
-Monitor latency and performance metrics:
-
-```ruby
-class PerformanceMonitor
-  def initialize
-    @metrics = {
-      total_requests: 0,
-      total_duration: 0.0,
-      errors: 0,
-      success_count: 0
-    }
-  end
-
-  def monitor_request
-    start_time = Time.now
-    @metrics[:total_requests] += 1
-
-    begin
-      result = yield
-      @metrics[:success_count] += 1
-      result
-    rescue => e
-      @metrics[:errors] += 1
-      raise
-    ensure
-      duration = Time.now - start_time
-      @metrics[:total_duration] += duration
-
-      if @metrics[:total_requests] % 10 == 0
-        print_stats
-      end
-    end
-  end
-
-  def print_stats
-    avg_duration = @metrics[:total_duration] / @metrics[:total_requests]
-    success_rate = @metrics[:success_count].to_f / @metrics[:total_requests]
-
-    puts "\n=== Performance Stats ==="
-    puts "Total requests: #{@metrics[:total_requests]}"
-    puts "Average duration: #{avg_duration.round(3)}s"
-    puts "Success rate: #{(success_rate * 100).round(2)}%"
-    puts "Errors: #{@metrics[:errors]}"
-    puts "========================\n"
-  end
-end
-
-# Usage
-monitor = PerformanceMonitor.new
-predictor = DSPy::Predict.new(MySignature)
-
-result = monitor.monitor_request do
-  predictor.forward(input: 'data')
-end
-```
-
-### Error Rate Tracking
-
-Monitor and alert on error rates:
-
-```ruby
-class ErrorRateMonitor
-  def initialize(alert_threshold: 0.1)
-    @alert_threshold = alert_threshold
-    @recent_results = []
-    @window_size = 100
-  end
-
-  def track_result(success:)
-    @recent_results << success
-    @recent_results.shift if @recent_results.size > @window_size
-
-    error_rate = calculate_error_rate
-    alert_if_needed(error_rate)
-
-    error_rate
-  end
-
-  private
-
-  def calculate_error_rate
-    failures = @recent_results.count(false)
-    failures.to_f / @recent_results.size
-  end
-
-  def alert_if_needed(error_rate)
-    if error_rate > @alert_threshold
-      puts "⚠️  ALERT: Error rate #{(error_rate * 100).round(2)}% exceeds threshold!"
-      # Send notification, page oncall, etc.
-    end
-  end
-end
-```
-
-## Best Practices
-
-### 1. Start with Tests
-
-Write tests before optimizing:
-
-```ruby
-# Define test cases first
-test_cases = [
-  { input: {...}, expected: {...} },
-  # More test cases...
-]
-
-# Ensure baseline functionality
-test_cases.each do |tc|
-  result = module.forward(tc[:input])
-  assert result[:category] == tc[:expected][:category]
-end
-
-# Then optimize
-optimized = optimizer.compile(module, trainset: test_cases)
-```
-
-### 2. Use Meaningful Metrics
-
-Define metrics that align with business goals:
-
-```ruby
-def business_aligned_metric(example, prediction)
-  # High-priority errors are more costly
-  if example[:expected_output][:priority] == 'High'
-    return prediction[:priority] == 'High' ? 1.0 : 0.0
+  score = predicted == expected ? 1.0 : 0.0
+  feedback = if score == 1.0
+    "Correct (#{expected}) for: \"#{example.input_values[:text][0..60]}\""
   else
-    return prediction[:category] == example[:expected_output][:category] ? 0.8 : 0.0
+    "Misclassified (expected #{expected}, got #{predicted}) for: \"#{example.input_values[:text][0..60]}\""
   end
+
+  DSPy::Prediction.new(score: score, feedback: feedback)
 end
 ```
 
-### 3. Monitor in Production
+Keep the score in `[0, 1]`. Always include a short feedback message explaining what happened -- GEPA hands this text to the reflection model so it can reason about failures.
 
-Always track production performance:
+### Feedback maps
+
+`feedback_map` targets individual predictors inside a composite module. Each entry receives keyword arguments and returns a `DSPy::Prediction`:
 
 ```ruby
-class ProductionModule < DSPy::Module
-  def initialize
-    super
-    @predictor = DSPy::ChainOfThought.new(MySignature)
-    @monitor = PerformanceMonitor.new
-    @error_tracker = ErrorRateMonitor.new
-  end
+feedback_map = {
+  'self' => lambda do |predictor_output:, predictor_inputs:, module_inputs:, module_outputs:, captured_trace:|
+    expected  = module_inputs.expected_values[:label]
+    predicted = predictor_output.label
 
-  def forward(input)
-    @monitor.monitor_request do
-      result = @predictor.forward(input)
-      @error_tracker.track_result(success: true)
-      result
-    rescue => e
-      @error_tracker.track_result(success: false)
-      raise
-    end
+    DSPy::Prediction.new(
+      score: predicted == expected ? 1.0 : 0.0,
+      feedback: "Classifier saw \"#{predictor_inputs[:text][0..80]}\" -> #{predicted} (expected #{expected})"
+    )
   end
-end
+}
 ```
 
-### 4. Version Your Modules
+For single-predictor programs, key the map with `'self'`. For multi-predictor chains, add entries per component so the reflection LM sees localized context at each step. Omit `feedback_map` entirely if the top-level metric already covers the basics.
 
-Track which version of your module is deployed:
+### Configuring the teleprompter
 
 ```ruby
-class EmailClassifierV2 < DSPy::Module
-  VERSION = '2.1.0'
+teleprompter = DSPy::Teleprompt::GEPA.new(
+  metric: metric,
+  reflection_lm: DSPy::ReflectionLM.new('openai/gpt-4o-mini', api_key: ENV['OPENAI_API_KEY']),
+  feedback_map: feedback_map,
+  config: {
+    max_metric_calls: 600,
+    minibatch_size: 6,
+    skip_perfect_score: false
+  }
+)
+```
 
-  def initialize
-    super
-    @predictor = DSPy::ChainOfThought.new(EmailClassificationSignature)
-  end
+Key configuration knobs:
 
-  def forward(input)
-    result = @predictor.forward(input)
-    result.merge(model_version: VERSION)
-  end
+| Knob                 | Purpose                                                                                   |
+|----------------------|-------------------------------------------------------------------------------------------|
+| `max_metric_calls`   | Hard budget on evaluation calls. Set to at least the validation set size plus a few minibatches. |
+| `minibatch_size`     | Examples per reflective replay batch. Smaller = cheaper iterations, noisier scores.       |
+| `skip_perfect_score` | Set `true` to stop early when a candidate reaches score `1.0`.                            |
+
+### Minibatch sizing
+
+| Goal                                            | Suggested size | Rationale                                                  |
+|-------------------------------------------------|----------------|------------------------------------------------------------|
+| Explore many candidates within a tight budget   | 3--6           | Cheap iterations, more prompt variants, noisier metrics.   |
+| Stable metrics when each rollout is costly      | 8--12          | Smoother scores, fewer candidates unless budget is raised. |
+| Investigate specific failure modes              | 3--4 then 8+   | Start with breadth, increase once patterns emerge.         |
+
+### Compile and evaluate
+
+```ruby
+program = DSPy::Predict.new(MySignature)
+
+result = teleprompter.compile(program, trainset: train, valset: val)
+optimized_program = result.optimized_program
+
+test_metrics = evaluate(optimized_program, test)
+```
+
+The `result` object exposes:
+- `optimized_program` -- predictor with updated instruction and few-shot examples.
+- `best_score_value` -- validation score for the best candidate.
+- `metadata` -- candidate counts, trace hashes, and telemetry IDs.
+
+### Reflection LM
+
+Swap `DSPy::ReflectionLM` for any callable object that accepts the reflection prompt hash and returns a string. The default reflection signature extracts the new instruction from triple backticks in the response.
+
+### Experiment tracking
+
+Plug `GEPA::Logging::ExperimentTracker` into a persistence layer:
+
+```ruby
+tracker = GEPA::Logging::ExperimentTracker.new
+tracker.with_subscriber { |event| MyModel.create!(payload: event) }
+
+teleprompter = DSPy::Teleprompt::GEPA.new(
+  metric: metric,
+  reflection_lm: reflection_lm,
+  experiment_tracker: tracker,
+  config: { max_metric_calls: 900 }
+)
+```
+
+The tracker emits Pareto update events, merge decisions, and candidate evolution records as JSONL.
+
+### Pareto frontier
+
+GEPA maintains a diverse candidate pool and samples from the Pareto frontier instead of mutating only the top-scoring program. This balances exploration and prevents the search from collapsing onto a single lineage.
+
+Enable the merge proposer after multiple strong lineages emerge:
+
+```ruby
+config: {
+  max_metric_calls: 900,
+  enable_merge_proposer: true
+}
+```
+
+Premature merges eat budget without meaningful gains. Gate merge on having several validated candidates first.
+
+### Advanced options
+
+- `acceptance_strategy:` -- plug in bespoke Pareto filters or early-stop heuristics.
+- Telemetry spans emit via `GEPA::Telemetry`. Enable global observability with `DSPy.configure { |c| c.observability = true }` to stream spans to an OpenTelemetry exporter.
+
+---
+
+## Evaluation Framework
+
+`DSPy::Evals` provides batch evaluation of predictors against test datasets with built-in and custom metrics.
+
+### Basic usage
+
+```ruby
+metric = proc do |example, prediction|
+  prediction.answer == example.expected_values[:answer]
+end
+
+evaluator = DSPy::Evals.new(predictor, metric: metric)
+
+result = evaluator.evaluate(
+  test_examples,
+  display_table: true,
+  display_progress: true
+)
+
+puts "Pass rate: #{(result.pass_rate * 100).round(1)}%"
+puts "Passed: #{result.passed_examples}/#{result.total_examples}"
+```
+
+### DSPy::Example
+
+Convert raw data into `DSPy::Example` instances before passing to optimizers or evaluators. Each example carries `input_values` and `expected_values`:
+
+```ruby
+examples = rows.map do |row|
+  DSPy::Example.new(
+    input_values: { text: row[:text] },
+    expected_values: { label: row[:label] }
+  )
+end
+
+train, val, test = split_examples(examples, train_ratio: 0.6, val_ratio: 0.2, seed: 42)
+```
+
+Hold back a test set from the optimization loop. Optimizers work on train/val; only the test set proves generalization.
+
+### Built-in metrics
+
+```ruby
+# Exact match -- prediction must exactly equal expected value
+metric = DSPy::Metrics.exact_match(field: :answer, case_sensitive: true)
+
+# Contains -- prediction must contain expected substring
+metric = DSPy::Metrics.contains(field: :answer, case_sensitive: false)
+
+# Numeric difference -- numeric output within tolerance
+metric = DSPy::Metrics.numeric_difference(field: :answer, tolerance: 0.01)
+
+# Composite AND -- all sub-metrics must pass
+metric = DSPy::Metrics.composite_and(
+  DSPy::Metrics.exact_match(field: :answer),
+  DSPy::Metrics.contains(field: :reasoning)
+)
+```
+
+### Custom metrics
+
+```ruby
+quality_metric = lambda do |example, prediction|
+  return false unless prediction
+
+  score = 0.0
+  score += 0.5 if prediction.answer == example.expected_values[:answer]
+  score += 0.3 if prediction.explanation && prediction.explanation.length > 50
+  score += 0.2 if prediction.confidence && prediction.confidence > 0.8
+  score >= 0.7
+end
+
+evaluator = DSPy::Evals.new(predictor, metric: quality_metric)
+```
+
+Access prediction fields with dot notation (`prediction.answer`), not hash notation.
+
+### Observability hooks
+
+Register callbacks without editing the evaluator:
+
+```ruby
+DSPy::Evals.before_example do |payload|
+  example = payload[:example]
+  DSPy.logger.info("Evaluating example #{example.id}") if example.respond_to?(:id)
+end
+
+DSPy::Evals.after_batch do |payload|
+  result = payload[:result]
+  Langfuse.event(
+    name: 'eval.batch',
+    metadata: {
+      total: result.total_examples,
+      passed: result.passed_examples,
+      score: result.score
+    }
+  )
 end
 ```
+
+Available hooks: `before_example`, `after_example`, `before_batch`, `after_batch`.
+
+### Langfuse score export
+
+Enable `export_scores: true` to emit `score.create` events for each evaluated example and a batch score at the end:
+
+```ruby
+evaluator = DSPy::Evals.new(
+  predictor,
+  metric: metric,
+  export_scores: true,
+  score_name: 'qa_accuracy'   # default: 'evaluation'
+)
+
+result = evaluator.evaluate(test_examples)
+# Emits per-example scores + overall batch score via DSPy::Scores::Exporter
+```
+
+Scores attach to the current trace context automatically and flow to Langfuse asynchronously.
+
+### Evaluation results
+
+```ruby
+result = evaluator.evaluate(test_examples)
+
+result.score            # Overall score (0.0 to 1.0)
+result.passed_count     # Examples that passed
+result.failed_count     # Examples that failed
+result.error_count      # Examples that errored
+
+result.results.each do |r|
+  r.passed              # Boolean
+  r.score               # Numeric score
+  r.error               # Error message if the example errored
+end
+```
+
+### Integration with optimizers
+
+```ruby
+metric = proc do |example, prediction|
+  expected  = example.expected_values[:answer].to_s.strip.downcase
+  predicted = prediction.answer.to_s.strip.downcase
+  !expected.empty? && predicted.include?(expected)
+end
+
+optimizer = DSPy::Teleprompt::MIPROv2::AutoMode.medium(metric: metric)
+
+result = optimizer.compile(
+  DSPy::Predict.new(QASignature),
+  trainset: train_examples,
+  valset: val_examples
+)
+
+evaluator = DSPy::Evals.new(result.optimized_program, metric: metric)
+test_result = evaluator.evaluate(test_examples, display_table: true)
+puts "Test accuracy: #{(test_result.pass_rate * 100).round(2)}%"
+```
+
+---
+
+## Storage System
+
+`DSPy::Storage` persists optimization results, tracks history, and manages multiple versions of optimized programs.
+
+### ProgramStorage (low-level)
+
+```ruby
+storage = DSPy::Storage::ProgramStorage.new(storage_path: "./dspy_storage")
+
+# Save
+saved = storage.save_program(
+  result.optimized_program,
+  result,
+  metadata: {
+    signature_class: 'ClassifyText',
+    optimizer: 'MIPROv2',
+    examples_count: examples.size
+  }
+)
+puts "Stored with ID: #{saved.program_id}"
+
+# Load
+saved = storage.load_program(program_id)
+predictor = saved.program
+score = saved.optimization_result[:best_score_value]
+
+# List
+storage.list_programs.each do |p|
+  puts "#{p[:program_id]} -- score: #{p[:best_score]} -- saved: #{p[:saved_at]}"
+end
+```
+
+### StorageManager (recommended)
+
+```ruby
+manager = DSPy::Storage::StorageManager.new
+
+# Save with tags
+saved = manager.save_optimization_result(
+  result,
+  tags: ['production', 'sentiment-analysis'],
+  description: 'Optimized sentiment classifier v2'
+)
+
+# Find programs
+programs = manager.find_programs(
+  optimizer: 'MIPROv2',
+  min_score: 0.85,
+  tags: ['production']
+)
+
+recent = manager.find_programs(
+  max_age_days: 7,
+  signature_class: 'ClassifyText'
+)
+
+# Get best program for a signature
+best = manager.get_best_program('ClassifyText')
+predictor = best.program
+```
+
+Global shorthand:
+
+```ruby
+DSPy::Storage::StorageManager.save(result, metadata: { version: '2.0' })
+DSPy::Storage::StorageManager.load(program_id)
+DSPy::Storage::StorageManager.best('ClassifyText')
+```
+
+### Checkpoints
+
+Create and restore checkpoints during long-running optimizations:
+
+```ruby
+# Save a checkpoint
+manager.create_checkpoint(
+  current_result,
+  'iteration_50',
+  metadata: { iteration: 50, current_score: 0.87 }
+)
+
+# Restore
+restored = manager.restore_checkpoint('iteration_50')
+program = restored.program
+
+# Auto-checkpoint every N iterations
+if iteration % 10 == 0
+  manager.create_checkpoint(current_result, "auto_checkpoint_#{iteration}")
+end
+```
+
+### Import and export
+
+Share programs between environments:
+
+```ruby
+storage = DSPy::Storage::ProgramStorage.new
+
+# Export
+storage.export_programs(['abc123', 'def456'], './export_backup.json')
+
+# Import
+imported = storage.import_programs('./export_backup.json')
+puts "Imported #{imported.size} programs"
+```
+
+### Optimization history
+
+```ruby
+history = manager.get_optimization_history
+
+history[:summary][:total_programs]
+history[:summary][:avg_score]
+
+history[:optimizer_stats].each do |optimizer, stats|
+  puts "#{optimizer}: #{stats[:count]} programs, best: #{stats[:best_score]}"
+end
+
+history[:trends][:improvement_percentage]
+```
+
+### Program comparison
+
+```ruby
+comparison = manager.compare_programs(id_a, id_b)
+comparison[:comparison][:score_difference]
+comparison[:comparison][:better_program]
+comparison[:comparison][:age_difference_hours]
+```
+
+### Storage configuration
+
+```ruby
+config = DSPy::Storage::StorageManager::StorageConfig.new
+config.storage_path = Rails.root.join('dspy_storage')
+config.auto_save = true
+config.save_intermediate_results = false
+config.max_stored_programs = 100
+
+manager = DSPy::Storage::StorageManager.new(config: config)
+```
+
+### Cleanup
+
+Remove old programs. Cleanup retains the best performing and most recent programs using a weighted score (70% performance, 30% recency):
+
+```ruby
+deleted_count = manager.cleanup_old_programs
+```
+
+### Storage events
+
+The storage system emits structured log events for monitoring:
+- `dspy.storage.save_start`, `dspy.storage.save_complete`, `dspy.storage.save_error`
+- `dspy.storage.load_start`, `dspy.storage.load_complete`, `dspy.storage.load_error`
+- `dspy.storage.delete`, `dspy.storage.export`, `dspy.storage.import`, `dspy.storage.cleanup`
+
+### File layout
+
+```
+dspy_storage/
+  programs/
+    abc123def456.json
+    789xyz012345.json
+  history.json
+```
+
+---
+
+## API rules
+
+- Call predictors with `.call()`, not `.forward()`.
+- Access prediction fields with dot notation (`result.answer`), not hash notation (`result[:answer]`).
+- GEPA metrics return `DSPy::Prediction.new(score:, feedback:)`, not a boolean.
+- MIPROv2 metrics may return `true`/`false`, a numeric score, or `DSPy::Prediction`.

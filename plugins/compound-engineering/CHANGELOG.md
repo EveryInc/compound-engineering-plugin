@@ -5,19 +5,27 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.32.0] - 2026-02-08
+## [2.32.2] - 2026-02-12
+
+### Changed
+
+- **`/release-docs` command** — Moved from plugin to local `.claude/commands/` since it's a repo maintenance command, not something distributed to plugin users. Plugin command count: 24 → 23.
+
+---
+
+## [2.32.1] - 2026-02-12
 
 ### Added
 
 - **`/compound-engineering-setup` command** — Configure which review agents run for your project
   - Auto-detects project type (Rails, Python, TypeScript, etc.)
-  - Creates `.claude/compound-engineering.local.md` with smart defaults
+  - Creates `.compound-engineering.local.md` with smart defaults
   - Uses plugin-settings pattern (YAML frontmatter + markdown body for review context)
 - **`schema-drift-detector` wired into `/workflows:review`** — Detects unrelated schema.rb changes in PRs with migrations
 
 ### Changed
 
-- **`/workflows:review`** — Now reads review agents from `.claude/compound-engineering.local.md` settings file, falls back to auto-detected defaults
+- **`/workflows:review` command** — Now reads review agents from settings file, falls back to auto-detected defaults. Added `learnings-researcher` agent to always-run list to surface past solutions during review.
 - **`/workflows:work`** — Review agents now configurable via settings file
 - **`/workflows:compound`** — Added reference to `/compound-engineering-setup` for agent customization
 
@@ -26,6 +34,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/technical_review` command** — Superseded by `/plan_review` skill
 
 ---
+
+## [2.32.0] - 2026-02-11
+
+### Added
+
+- **Factory Droid target** — New converter target for [Factory Droid](https://docs.factory.ai). Install with `--to droid` to output agents, commands, and skills to `~/.factory/`. Includes tool name mapping (Claude → Factory), namespace prefix stripping, Task syntax conversion, and agent reference rewriting. 13 new tests (9 converter + 4 writer). ([#174](https://github.com/EveryInc/compound-engineering-plugin/pull/174))
+
+---
+
+## [2.31.1] - 2026-02-09
+
+### Changed
+
+- **`dspy-ruby` skill** — Complete rewrite to DSPy.rb v0.34.3 API: `.call()` / `result.field` patterns, `T::Enum` classes, `DSPy::Tools::Base` / `Toolset`. Added events system, lifecycle callbacks, fiber-local LM context, GEPA optimization, evaluation framework, typed context pattern, BAML/TOON schema formats, storage system, score reporting, RubyLLM adapter. 5 reference files (2 new: toolsets, observability), 3 asset templates rewritten.
 
 ## [2.31.0] - 2026-02-08
 

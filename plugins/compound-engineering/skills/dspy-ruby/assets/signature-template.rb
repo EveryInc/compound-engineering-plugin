@@ -1,143 +1,221 @@
 # frozen_string_literal: true
 
-# Example DSPy Signature Template
-# This template demonstrates best practices for creating type-safe signatures
+# =============================================================================
+# DSPy.rb Signature Template — v0.34.3 API
+#
+# Signatures define the interface between your application and LLMs.
+# They specify inputs, outputs, and task descriptions using Sorbet types.
+#
+# Key patterns:
+#   - Use T::Enum classes for controlled outputs (not inline T.enum([...]))
+#   - Use description: kwarg on fields to guide the LLM
+#   - Use default values for optional fields
+#   - Use Date/DateTime/Time for temporal data (auto-converted)
+#   - Access results with result.field (not result[:field])
+#   - Invoke with predictor.call() (not predictor.forward())
+# =============================================================================
 
-class ExampleSignature < DSPy::Signature
-  # Clear, specific description of what this signature does
-  # Good: "Classify customer support emails into Technical, Billing, or General categories"
-  # Avoid: "Classify emails"
-  description "Describe what this signature accomplishes and what output it produces"
+# --- Basic Signature ---
 
-  # Input fields: Define what data the LLM receives
-  input do
-    # Basic field with description
-    const :field_name, String, desc: "Clear description of this input field"
+class SentimentAnalysis < DSPy::Signature
+  description "Analyze sentiment of text"
 
-    # Numeric fields
-    const :count, Integer, desc: "Number of items to process"
-    const :score, Float, desc: "Confidence score between 0.0 and 1.0"
-
-    # Boolean fields
-    const :is_active, T::Boolean, desc: "Whether the item is currently active"
-
-    # Array fields
-    const :tags, T::Array[String], desc: "List of tags associated with the item"
-
-    # Optional: Enum for constrained values
-    const :priority, T.enum(["Low", "Medium", "High"]), desc: "Priority level"
+  class Sentiment < T::Enum
+    enums do
+      Positive = new('positive')
+      Negative = new('negative')
+      Neutral = new('neutral')
+    end
   end
 
-  # Output fields: Define what data the LLM produces
+  input do
+    const :text, String
+  end
+
   output do
-    # Primary output
-    const :result, String, desc: "The main result of the operation"
-
-    # Classification result with enum
-    const :category, T.enum(["Technical", "Billing", "General"]),
-      desc: "Category classification - must be one of: Technical, Billing, General"
-
-    # Confidence/metadata
-    const :confidence, Float, desc: "Confidence score (0.0-1.0) for this classification"
-
-    # Optional reasoning (automatically added by ChainOfThought)
-    # const :reasoning, String, desc: "Step-by-step reasoning for the classification"
+    const :sentiment, Sentiment
+    const :score, Float, description: "Confidence score from 0.0 to 1.0"
   end
 end
 
-# Example with multimodal input (vision)
-class VisionExampleSignature < DSPy::Signature
+# Usage:
+#   predictor = DSPy::Predict.new(SentimentAnalysis)
+#   result = predictor.call(text: "This product is amazing!")
+#   result.sentiment  # => Sentiment::Positive
+#   result.score      # => 0.92
+
+# --- Signature with Date/Time Types ---
+
+class EventScheduler < DSPy::Signature
+  description "Schedule events based on requirements"
+
+  input do
+    const :event_name, String
+    const :start_date, Date                     # ISO 8601: YYYY-MM-DD
+    const :end_date, T.nilable(Date)            # Optional date
+    const :preferred_time, DateTime             # ISO 8601 with timezone
+    const :deadline, Time                       # Stored as UTC
+  end
+
+  output do
+    const :scheduled_date, Date                 # LLM returns ISO string, auto-converted
+    const :event_datetime, DateTime             # Preserves timezone
+    const :created_at, Time                     # Converted to UTC
+  end
+end
+
+# Date/Time format handling:
+#   Date     → ISO 8601 (YYYY-MM-DD)
+#   DateTime → ISO 8601 with timezone (YYYY-MM-DDTHH:MM:SS+00:00)
+#   Time     → ISO 8601, automatically converted to UTC
+
+# --- Signature with Default Values ---
+
+class SmartSearch < DSPy::Signature
+  description "Search with intelligent defaults"
+
+  input do
+    const :query, String
+    const :max_results, Integer, default: 10
+    const :language, String, default: "English"
+    const :include_metadata, T::Boolean, default: false
+  end
+
+  output do
+    const :results, T::Array[String]
+    const :total_found, Integer
+    const :search_time_ms, Float, default: 0.0       # Fallback if LLM omits
+    const :cached, T::Boolean, default: false
+  end
+end
+
+# Input defaults reduce boilerplate:
+#   search = DSPy::Predict.new(SmartSearch)
+#   result = search.call(query: "Ruby programming")
+#   # max_results=10, language="English", include_metadata=false are applied
+
+# --- Signature with Nested Structs and Field Descriptions ---
+
+class EntityExtraction < DSPy::Signature
+  description "Extract named entities from text"
+
+  class EntityType < T::Enum
+    enums do
+      Person = new('person')
+      Organization = new('organization')
+      Location = new('location')
+      DateEntity = new('date')
+    end
+  end
+
+  class Entity < T::Struct
+    const :name, String, description: "The entity text as it appears in the source"
+    const :type, EntityType
+    const :confidence, Float, description: "Extraction confidence from 0.0 to 1.0"
+    const :start_offset, Integer, default: 0
+  end
+
+  input do
+    const :text, String
+    const :entity_types, T::Array[EntityType], default: [],
+          description: "Filter to these entity types; empty means all types"
+  end
+
+  output do
+    const :entities, T::Array[Entity]
+    const :total_found, Integer
+  end
+end
+
+# --- Signature with Union Types ---
+
+class FlexibleClassification < DSPy::Signature
+  description "Classify input with flexible result type"
+
+  class Category < T::Enum
+    enums do
+      Technical = new('technical')
+      Business = new('business')
+      Personal = new('personal')
+    end
+  end
+
+  input do
+    const :text, String
+  end
+
+  output do
+    const :category, Category
+    const :result, T.any(Float, String),
+          description: "Numeric score or text explanation depending on classification"
+    const :confidence, Float
+  end
+end
+
+# --- Signature with Recursive Types ---
+
+class DocumentParser < DSPy::Signature
+  description "Parse document into tree structure"
+
+  class NodeType < T::Enum
+    enums do
+      Heading = new('heading')
+      Paragraph = new('paragraph')
+      List = new('list')
+      CodeBlock = new('code_block')
+    end
+  end
+
+  class TreeNode < T::Struct
+    const :node_type, NodeType, description: "The type of document element"
+    const :text, String, default: "", description: "Text content of the node"
+    const :level, Integer, default: 0
+    const :children, T::Array[TreeNode], default: []  # Self-reference → $defs in JSON Schema
+  end
+
+  input do
+    const :html, String, description: "Raw HTML to parse"
+  end
+
+  output do
+    const :root, TreeNode
+    const :word_count, Integer
+  end
+end
+
+# The schema generator creates #/$defs/TreeNode references for recursive types,
+# compatible with OpenAI and Gemini structured outputs.
+# Use `default: []` instead of `T.nilable(T::Array[...])` for OpenAI compatibility.
+
+# --- Vision Signature ---
+
+class ImageAnalysis < DSPy::Signature
   description "Analyze an image and answer questions about its content"
 
   input do
-    const :image, DSPy::Image, desc: "The image to analyze"
-    const :question, String, desc: "Question about the image content"
+    const :image, DSPy::Image, description: "The image to analyze"
+    const :question, String, description: "Question about the image content"
   end
 
   output do
-    const :answer, String, desc: "Detailed answer to the question about the image"
-    const :confidence, Float, desc: "Confidence in the answer (0.0-1.0)"
+    const :answer, String
+    const :confidence, Float, description: "Confidence in the answer (0.0-1.0)"
   end
 end
 
-# Example for complex analysis task
-class SentimentAnalysisSignature < DSPy::Signature
-  description "Analyze the sentiment of text with nuanced emotion detection"
-
-  input do
-    const :text, String, desc: "The text to analyze for sentiment"
-    const :context, String, desc: "Additional context about the text source or situation"
-  end
-
-  output do
-    const :sentiment, T.enum(["Positive", "Negative", "Neutral", "Mixed"]),
-      desc: "Overall sentiment - must be Positive, Negative, Neutral, or Mixed"
-
-    const :emotions, T::Array[String],
-      desc: "List of specific emotions detected (e.g., joy, anger, sadness, fear)"
-
-    const :intensity, T.enum(["Low", "Medium", "High"]),
-      desc: "Intensity of the detected sentiment"
-
-    const :confidence, Float,
-      desc: "Confidence in the sentiment classification (0.0-1.0)"
-  end
-end
-
-# Example for code generation task
-class CodeGenerationSignature < DSPy::Signature
-  description "Generate Ruby code based on natural language requirements"
-
-  input do
-    const :requirements, String,
-      desc: "Natural language description of what the code should do"
-
-    const :constraints, String,
-      desc: "Any specific requirements or constraints (e.g., libraries to use, style preferences)"
-  end
-
-  output do
-    const :code, String,
-      desc: "Complete, working Ruby code that fulfills the requirements"
-
-    const :explanation, String,
-      desc: "Brief explanation of how the code works and any important design decisions"
-
-    const :dependencies, T::Array[String],
-      desc: "List of required gems or dependencies"
-  end
-end
-
-# Usage Examples:
-#
-# Basic usage with Predict:
-#   predictor = DSPy::Predict.new(ExampleSignature)
-#   result = predictor.forward(
-#     field_name: "example value",
-#     count: 5,
-#     score: 0.85,
-#     is_active: true,
-#     tags: ["tag1", "tag2"],
-#     priority: "High"
-#   )
-#   puts result[:result]
-#   puts result[:category]
-#   puts result[:confidence]
-#
-# With Chain of Thought reasoning:
-#   predictor = DSPy::ChainOfThought.new(SentimentAnalysisSignature)
-#   result = predictor.forward(
-#     text: "I absolutely love this product! It exceeded all my expectations.",
-#     context: "Product review on e-commerce site"
-#   )
-#   puts result[:reasoning]  # See the LLM's step-by-step thinking
-#   puts result[:sentiment]
-#   puts result[:emotions]
-#
-# With Vision:
-#   predictor = DSPy::Predict.new(VisionExampleSignature)
-#   result = predictor.forward(
+# Vision usage:
+#   predictor = DSPy::Predict.new(ImageAnalysis)
+#   result = predictor.call(
 #     image: DSPy::Image.from_file("path/to/image.jpg"),
-#     question: "What objects are visible in this image?"
+#     question: "What objects are visible?"
 #   )
-#   puts result[:answer]
+#   result.answer  # => "The image shows..."
+
+# --- Accessing Schemas Programmatically ---
+#
+#   SentimentAnalysis.input_json_schema   # => { type: "object", properties: { ... } }
+#   SentimentAnalysis.output_json_schema  # => { type: "object", properties: { ... } }
+#
+#   # Field descriptions propagate to JSON Schema
+#   Entity.field_descriptions[:name]       # => "The entity text as it appears in the source"
+#   Entity.field_descriptions[:confidence] # => "Extraction confidence from 0.0 to 1.0"

@@ -48,6 +48,8 @@
         <div class="nav-section">
           <h3>On This Page</h3>
           <ul>
+            <li><a href="#v2.32.2">v2.32.2</a></li>
+            <li><a href="#v2.32.1">v2.32.1</a></li>
             <li><a href="#v2.6.0">v2.6.0</a></li>
             <li><a href="#v2.5.0">v2.5.0</a></li>
             <li><a href="#v2.4.1">v2.4.1</a></li>
@@ -85,6 +87,43 @@
           <a href="https://semver.org/">Semantic Versioning</a> and
           <a href="https://keepachangelog.com/">Keep a Changelog</a> conventions.
         </p>
+
+        <!-- Version 2.32.2 -->
+        <section id="v2.32.2" class="version-section">
+          <div class="version-header">
+            <h2>v2.32.2</h2>
+            <span class="version-date">2026-02-12</span>
+          </div>
+
+          <div class="changelog-category changed">
+            <h3><i class="fa-solid fa-arrows-rotate"></i> Changed</h3>
+            <ul>
+              <li>
+                <strong><code>/release-docs</code> command moved from plugin to local <code>.claude/commands/</code></strong> -
+                This is a repository maintenance command and should not be distributed to users. Command count reduced from 24 to 23.
+              </li>
+            </ul>
+          </div>
+        </section>
+
+        <!-- Version 2.32.1 -->
+        <section id="v2.32.1" class="version-section">
+          <div class="version-header">
+            <h2>v2.32.1</h2>
+            <span class="version-date">2026-02-12</span>
+          </div>
+
+          <div class="changelog-category changed">
+            <h3><i class="fa-solid fa-arrows-rotate"></i> Changed</h3>
+            <ul>
+              <li>
+                <strong><code>/workflows:review</code> command</strong> - Added <code>learnings-researcher</code>
+                agent to the parallel review phase. The review now searches <code>docs/solutions/</code> for past
+                issues related to the PR's modules and patterns, surfacing "Known Pattern" findings during synthesis.
+              </li>
+            </ul>
+          </div>
+        </section>
 
         <!-- Version 2.6.0 -->
         <section id="v2.6.0" class="version-section">

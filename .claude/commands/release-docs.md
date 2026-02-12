@@ -2,7 +2,6 @@
 name: release-docs
 description: Build and update the documentation site with current plugin components
 argument-hint: "[optional: --dry-run to preview changes without writing]"
-disable-model-invocation: true
 ---
 
 # Release Documentation Command
