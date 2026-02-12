@@ -745,16 +745,13 @@ Ask the user:
 3. **Start `/workflows:work`** — Begin implementing the enhanced plan
 4. **Deepen further** — Run another round on specific sections
 5. **Revert** — `git checkout <plan_path>`
-6. **Compound insights** — Extract novel patterns discovered during deepening into `docs/solutions/` for future sessions
+6. **Compound insights** — Run `/workflows:compound` to extract novel patterns into `docs/solutions/`
 
 If user selects option 6:
-- Read `.deepen/JUDGED_RECOMMENDATIONS.json`
-- Identify recommendations that represent novel discoveries (not already in `docs/solutions/`)
-- For each novel finding, use the `compound-docs` skill to create a properly validated learning file:
-  1. Read the compound-docs skill at the plugin's skills path for the full YAML schema and template
-  2. Create files in `docs/solutions/[category]/` using the skill's required YAML frontmatter fields (module, date, problem_type, component, symptoms, root_cause, resolution_type, severity, tags)
-  3. Use the category mapping from the skill's yaml-schema reference to determine the correct subdirectory
-- This closes the compound engineering loop — future `/deepen-plan` runs will discover these learnings and apply them automatically
+- Summarize the key novel discoveries from the deepening session (findings that aren't already in `docs/solutions/`)
+- Tell the user to run `/workflows:compound` which will capture these insights using the proper `compound-docs` skill with validated YAML schema
+- The user can run `/workflows:compound` once per novel finding, or describe multiple findings and let the command handle them
+- This closes the compound engineering loop — future `/deepen-plan` runs will discover these learnings in Step 3b and apply them automatically
 
 ---
 
