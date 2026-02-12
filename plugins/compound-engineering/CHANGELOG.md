@@ -5,6 +5,24 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.0] - 2026-02-12
+
+### Changed
+
+- **`/deepen-plan` command** — Rewritten with **phased file-based map-reduce** architecture (v3) to prevent context overflow
+  - Sub-agents write full analysis JSON to `.deepen/` on disk and return only ~100 token summaries to parent
+  - Parent context stays under ~12k tokens regardless of agent count (vs unbounded in v1)
+  - New phases: **Plan Manifest Analysis** (structured context for all agents), **Validation** (catches silent failures + hallucination flagging), **Judge** (dedup + conflict resolution with source attribution priority), **Preservation Check** (catches rewrite-instead-of-append errors)
+  - Smart agent selection: always-run cross-cutting agents (security, architecture, performance) + manifest-matched domain agents
+  - Skill agents now read `references/`, `assets/`, and `templates/` subdirectories for deeper context
+  - Compound insights option (Step 9d) now uses `compound-docs` skill YAML schema for properly validated learning files
+  - Cross-platform safe: uses project-relative `.deepen/` instead of `/tmp/` (fixes Windows path issues)
+  - Uses Node.js for validation scripts (Python3 may not be installed on all platforms)
+  - Next steps offer `/plan_review` (not `/workflows:review` which is for code, not plans)
+  - Correct agent name references matching actual plugin agent filenames
+
+---
+
 ## [2.33.0] - 2026-02-12
 
 ### Added
