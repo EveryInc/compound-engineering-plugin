@@ -6,11 +6,11 @@ disable-model-invocation: true
 
 # Compound Engineering Setup
 
-Create a `.claude/compound-engineering.local.md` settings file with review agent defaults for this project.
+Create a `compound-engineering.local.md` settings file with review agent defaults for this project.
 
 ## Step 1: Check Existing Config
 
-Read `.claude/compound-engineering.local.md`. If it exists, display the current contents and use AskUserQuestion:
+Read `compound-engineering.local.md`. If it exists, display the current contents and use AskUserQuestion:
 
 **Question:** "Settings file already exists. What would you like to do?"
 **Options:**
@@ -35,7 +35,7 @@ echo "general"
 
 ## Step 3: Write Settings File
 
-Create `.claude/compound-engineering.local.md` using the Write tool with defaults for the detected project type:
+Create `compound-engineering.local.md` using the Write tool with defaults for the detected project type:
 
 **Rails:**
 ```markdown
@@ -84,7 +84,7 @@ These notes are available to all review agents during /workflows:review.
 Display:
 
 ```
-Settings saved to .claude/compound-engineering.local.md
+Settings saved to compound-engineering.local.md
 
 Detected: {project_type}
 Review agents: {agent list}

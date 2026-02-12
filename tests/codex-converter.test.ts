@@ -217,7 +217,7 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
         {
           name: "review",
           description: "Review command",
-          body: `Read \`.claude/compound-engineering.local.md\` (project-level) or \`~/.claude/compound-engineering.local.md\` (global fallback).
+          body: `Read \`compound-engineering.local.md\` in the project root.
 
 If no settings file exists, auto-detect project type.
 
@@ -239,13 +239,8 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
     expect(commandSkill).toBeDefined()
     const parsed = parseFrontmatter(commandSkill!.content)
 
-    // .claude/ paths should be rewritten to .codex/
-    expect(parsed.body).toContain(".codex/compound-engineering.local.md")
-    expect(parsed.body).not.toContain(".claude/compound-engineering.local.md")
-
-    // Global path should be rewritten
-    expect(parsed.body).toContain("~/.codex/compound-engineering.local.md")
-    expect(parsed.body).not.toContain("~/.claude/compound-engineering.local.md")
+    // Tool-agnostic path in project root — no rewriting needed
+    expect(parsed.body).toContain("compound-engineering.local.md")
   })
 
   test("rewrites .claude/ paths in agent skill bodies", () => {
@@ -257,7 +252,7 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
         {
           name: "config-reader",
           description: "Reads config",
-          body: "Read `.claude/compound-engineering.local.md` for config.",
+          body: "Read `compound-engineering.local.md` for config.",
           sourcePath: "/tmp/plugin/agents/config-reader.md",
         },
       ],
@@ -273,8 +268,8 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
     expect(agentSkill).toBeDefined()
     const parsed = parseFrontmatter(agentSkill!.content)
 
-    expect(parsed.body).toContain(".codex/compound-engineering.local.md")
-    expect(parsed.body).not.toContain(".claude/compound-engineering.local.md")
+    // Tool-agnostic path in project root — no rewriting needed
+    expect(parsed.body).toContain("compound-engineering.local.md")
   })
 
   test("truncates generated skill descriptions to Codex limits and single line", () => {

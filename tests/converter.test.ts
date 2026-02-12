@@ -194,7 +194,7 @@ describe("convertClaudeToOpenCode", () => {
         {
           name: "review",
           description: "Review command",
-          body: `Read \`.claude/compound-engineering.local.md\` (project-level) or \`~/.claude/compound-engineering.local.md\` (global fallback).
+          body: `Read \`compound-engineering.local.md\` in the project root.
 
 If no settings file exists, auto-detect project type.
 
@@ -213,13 +213,8 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
 
     const template = bundle.config.command?.["review"]?.template ?? ""
 
-    // .claude/ paths should be rewritten to .opencode/
-    expect(template).toContain(".opencode/compound-engineering.local.md")
-    expect(template).not.toContain(".claude/compound-engineering.local.md")
-
-    // Global path should be rewritten
-    expect(template).toContain("~/.config/opencode/compound-engineering.local.md")
-    expect(template).not.toContain("~/.claude/compound-engineering.local.md")
+    // Tool-agnostic path in project root — no rewriting needed
+    expect(template).toContain("compound-engineering.local.md")
   })
 
   test("rewrites .claude/ paths in agent bodies", () => {
@@ -230,7 +225,7 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
         {
           name: "test-agent",
           description: "Test agent",
-          body: "Read `.claude/compound-engineering.local.md` for config.",
+          body: "Read `compound-engineering.local.md` for config.",
           sourcePath: "/tmp/plugin/agents/test-agent.md",
         },
       ],
@@ -246,7 +241,7 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
 
     const agentFile = bundle.agents.find((a) => a.name === "test-agent")
     expect(agentFile).toBeDefined()
-    expect(agentFile!.content).toContain(".opencode/compound-engineering.local.md")
-    expect(agentFile!.content).not.toContain(".claude/compound-engineering.local.md")
+    // Tool-agnostic path in project root — no rewriting needed
+    expect(agentFile!.content).toContain("compound-engineering.local.md")
   })
 })

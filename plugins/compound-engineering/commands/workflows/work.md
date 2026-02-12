@@ -175,7 +175,7 @@ This command takes a work document (plan, specification, or todo file) and execu
 
 2. **Consider Reviewer Agents** (Optional)
 
-   Use for complex, risky, or large changes. Read agents from `.claude/compound-engineering.local.md` frontmatter (`review_agents`). If no settings file, auto-detect project type and use defaults:
+   Use for complex, risky, or large changes. Read agents from `compound-engineering.local.md` frontmatter (`review_agents`). If no settings file, auto-detect project type and use defaults:
 
    - **Rails**: kieran-rails-reviewer, code-simplicity-reviewer
    - **Python**: kieran-python-reviewer, code-simplicity-reviewer

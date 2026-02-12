@@ -61,7 +61,7 @@ If a review agent flags any file in these directories for cleanup or removal, di
 
 #### Load Review Agents
 
-Read `.claude/compound-engineering.local.md` (project-level) or `~/.claude/compound-engineering.local.md` (global fallback). If found, use `review_agents` from YAML frontmatter. If the markdown body contains review context, pass it to each agent as additional instructions.
+Read `compound-engineering.local.md` in the project root. If found, use `review_agents` from YAML frontmatter. If the markdown body contains review context, pass it to each agent as additional instructions.
 
 If no settings file exists, auto-detect project type and use defaults:
 
