@@ -23,6 +23,8 @@ argument-hint: "[PR number, GitHub URL, branch name, or latest]"
 
 ## Main Tasks
 
+<autonomous_execution> Complete all setup and launch all applicable review agents without prompting the user for input. Do not ask questions between steps. Do not offer choices. Execute the full workflow autonomously. </autonomous_execution>
+
 ### 1. Determine Review Target & Setup (ALWAYS FIRST)
 
 <review_target> #$ARGUMENTS </review_target>
@@ -36,15 +38,11 @@ First, I need to determine the review target type and set up the code for analys
 <task_list>
 
 - [ ] Determine review type: PR number (numeric), GitHub URL, file path (.md), or empty (current branch)
-- [ ] Check current git branch
-- [ ] If ALREADY on the target branch (PR branch, requested branch name, or the branch already checked out for review) → proceed with analysis on current branch
-- [ ] If DIFFERENT branch than the review target → offer to use worktree: "Use git-worktree skill for isolated Call `skill: git-worktree` with branch name
-- [ ] Fetch PR metadata using `gh pr view --json` for title, body, files, linked issues
-- [ ] Set up language-specific analysis tools
-- [ ] Prepare security scanning environment
-- [ ] Make sure we are on the branch we are reviewing. Use gh pr checkout to switch to the branch or manually checkout the branch.
+- [ ] Checkout the PR branch: `gh pr checkout <pr-number>` or `git checkout <branch-name>` (skip if already on correct branch)
+- [ ] Verify we're on the correct branch with `git branch --show-current`
+- [ ] Fetch PR metadata using `gh pr view --json title,body,files` (auto-detects from current branch)
 
-Ensure that the code is ready for analysis (either in worktree or on current branch). ONLY then proceed to the next step.
+Ensure that the code is ready for analysis. ONLY then proceed to the next step.
 
 </task_list>
 
@@ -59,385 +57,249 @@ The following paths are compound-engineering pipeline artifacts and must never b
 If a review agent flags any file in these directories for cleanup or removal, discard that finding during synthesis. Do not create a todo for it.
 </protected_artifacts>
 
+#### GATE: Detect project stack
+
+Before launching agents, detect the project stack so only relevant agents run. Check for these indicators:
+
+| Indicator | Stack Tag |
+|-----------|-----------|
+| `tsconfig.json`, `*.ts`, `*.tsx` files in PR | `typescript` |
+| `*.py` files in PR, `requirements.txt`, `pyproject.toml`, `setup.py` | `python` |
+| `Gemfile`, `config/routes.rb`, `app/models/` | `rails` |
+| `db/migrate/*.rb` in PR diff | `rails-migrations` |
+| `turbo` in Gemfile or `app/javascript/` imports | `rails-turbo` |
+| `package.json` with React Native / Expo | `react-native` |
+| `firebase.json`, Cloud Functions, Firestore | `firebase` |
+
+Record the detected stack tags. These determine which conditional agents to launch below.
+
+#### GATE: Create output directory (REQUIRED before launching agents)
+
+Run `mkdir -p todos/raw` and verify the directory exists. **Do NOT proceed to the next section until this command succeeds.** All review agents write their findings to `todos/raw/` — if this directory does not exist, every agent will fail.
+
 #### Parallel Agents to review the PR:
 
 <parallel_tasks>
 
-Run ALL or most of these agents at the same time:
+Launch agents using `Task general-purpose`. Do NOT use specialized agent types (e.g., `Task kieran-rails-reviewer`) — those agents control their own output and will return full reports into the main context, causing context overflow.
 
-1. Task kieran-rails-reviewer(PR content)
-2. Task dhh-rails-reviewer(PR title)
-3. If turbo is used: Task rails-turbo-expert(PR content)
-4. Task git-history-analyzer(PR content)
-5. Task dependency-detective(PR content)
-6. Task pattern-recognition-specialist(PR content)
-7. Task architecture-strategist(PR content)
-8. Task code-philosopher(PR content)
-9. Task security-sentinel(PR content)
-10. Task performance-oracle(PR content)
-11. Task devops-harmony-analyst(PR content)
-12. Task data-integrity-guardian(PR content)
-13. Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
+Instead, each agent is a `Task general-purpose` call with the role and file-writing rule in one prompt. Use this template for every agent:
+
+```
+Task general-purpose("
+You are a {ROLE_DESCRIPTION}.
+
+Review the PR on the current branch. Read the changed files using git diff and the codebase as needed.
+
+{AGENT-SPECIFIC FOCUS AREA}
+
+OUTPUT RULES:
+1. First run `pwd` to get the current working directory. Then write your full findings
+   to {cwd}/todos/raw/{agent-name}.md using the Write tool (it requires absolute paths).
+   Include: file paths, line numbers, severity (P1/P2/P3), detailed evidence.
+2. Your entire response back to the caller must be ONLY this single line:
+   {agent-name}: {count} findings ({P1 count} P1, {P2 count} P2, {P3 count} P3)
+   Or: {agent-name}: no findings
+3. Do not include any other text in your response.
+")
+```
+
+##### Available Review Agents
+
+| Agent | Focus Area | Launch Criteria | Status |
+|-------|------------|-----------------|--------|
+| **security-sentinel** | Input validation, null checks, security vulnerabilities, OWASP, auth | Always (all project types) | ✅ Active |
+| **pattern-recognition-specialist** | Anti-patterns, error handling gaps, naming, duplication | Always (all project types) | ✅ Active |
+| **kieran-typescript-reviewer** | TypeScript safety, type guards, assertion abuse, conventions | Stack includes `typescript` | ✅ Active |
+| **kieran-python-reviewer** | Python conventions, type safety, maintainability | Stack includes `python` | ✅ Active |
+| **kieran-rails-reviewer** | Rails conventions, clarity, maintainability | Stack includes `rails` | 💤 Available |
+| **dhh-rails-reviewer** | DHH/37signals Rails philosophy, anti-patterns | Stack includes `rails` | 💤 Available |
+| **rails-turbo-expert** | Turbo Frames/Streams patterns | Stack includes `rails-turbo` | 💤 Available |
+| **agent-native-reviewer** | Verify new features are agent-accessible | Stack includes `react-native` or `firebase` | 💤 Available |
+| **architecture-strategist** | Architectural patterns, design integrity, structural concerns | Large refactors, architectural changes | 💤 Available |
+| **code-simplicity-reviewer** | YAGNI violations, over-engineering, simplification opportunities | After implementation complete | 💤 Available |
+| **performance-oracle** | Performance bottlenecks, algorithmic complexity, scalability | Performance-critical PRs | 💤 Available |
+| **git-history-analyzer** | Git history, code evolution, contributor patterns | Refactoring old code, understanding legacy | 💤 Available |
+| **data-integrity-guardian** | Database safety, migrations, transactions, constraints | Stack includes `rails-migrations` | 💤 Available |
+| **data-migration-expert** | ID mappings, swapped values, rollback safety | Stack includes `rails-migrations` | 💤 Available |
+| **deployment-verification-agent** | Go/No-Go deployment checklist, SQL verification queries | Stack includes `rails-migrations` | 💤 Available |
+
+**Legend:**
+- ✅ **Active** — Currently used in the review workflow
+- 💤 **Available** — Can be enabled when needed for specific scenarios
+
+**Note:** To enable an available agent, add it to the parallel agent launch section below with appropriate conditional logic based on stack detection.
 
 </parallel_tasks>
 
-#### Conditional Agents (Run if applicable):
+#### Agent Completion Tracking
 
-<conditional_agents>
+After all parallel and conditional agents finish, verify that each agent wrote its file to `todos/raw/`. Record the status of every agent:
 
-These agents are run ONLY when the PR matches specific criteria. Check the PR files list to determine if they apply:
+- **Completed** — file exists in `todos/raw/{agent-name}.md` with findings
+- **No findings** — agent returned "no findings" (file may or may not exist)
+- **Failed** — agent errored or timed out (no file written)
+- **Skipped** — not applicable to this PR, with reason
 
-**If PR contains database migrations (db/migrate/*.rb files) or data backfills:**
+This tracking is required for the summary report in Step 3.
 
-14. Task data-migration-expert(PR content) - Validates ID mappings match production, checks for swapped values, verifies rollback safety
-15. Task deployment-verification-agent(PR content) - Creates Go/No-Go deployment checklist with SQL verification queries
+### 2. Deep Analysis
 
-**When to run migration agents:**
-- PR includes files matching `db/migrate/*.rb`
-- PR modifies columns that store IDs, enums, or mappings
-- PR includes data backfill scripts or rake tasks
-- PR changes how data is read/written (e.g., changing from FK to string column)
-- PR title/body mentions: migration, backfill, data transformation, ID mapping
-
-**What these agents check:**
-- `data-migration-expert`: Verifies hard-coded mappings match production reality (prevents swapped IDs), checks for orphaned associations, validates dual-write patterns
-- `deployment-verification-agent`: Produces executable pre/post-deploy checklists with SQL queries, rollback procedures, and monitoring plans
-
-</conditional_agents>
-
-### 4. Ultra-Thinking Deep Dive Phases
-
-<ultrathink_instruction> For each phase below, spend maximum cognitive effort. Think step by step. Consider all angles. Question assumptions. And bring all reviews in a synthesis to the user.</ultrathink_instruction>
-
-<deliverable>
-Complete system context map with component interactions
-</deliverable>
-
-#### Phase 3: Stakeholder Perspective Analysis
-
-<thinking_prompt> ULTRA-THINK: Put yourself in each stakeholder's shoes. What matters to them? What are their pain points? </thinking_prompt>
-
-<stakeholder_perspectives>
-
-1. **Developer Perspective** <questions>
-
-   - How easy is this to understand and modify?
-   - Are the APIs intuitive?
-   - Is debugging straightforward?
-   - Can I test this easily? </questions>
-
-2. **Operations Perspective** <questions>
-
-   - How do I deploy this safely?
-   - What metrics and logs are available?
-   - How do I troubleshoot issues?
-   - What are the resource requirements? </questions>
-
-3. **End User Perspective** <questions>
-
-   - Is the feature intuitive?
-   - Are error messages helpful?
-   - Is performance acceptable?
-   - Does it solve my problem? </questions>
-
-4. **Security Team Perspective** <questions>
-
-   - What's the attack surface?
-   - Are there compliance requirements?
-   - How is data protected?
-   - What are the audit capabilities? </questions>
-
-5. **Business Perspective** <questions>
-   - What's the ROI?
-   - Are there legal/compliance risks?
-   - How does this affect time-to-market?
-   - What's the total cost of ownership? </questions> </stakeholder_perspectives>
-
-#### Phase 4: Scenario Exploration
-
-<thinking_prompt> ULTRA-THINK: Explore edge cases and failure scenarios. What could go wrong? How does the system behave under stress? </thinking_prompt>
-
-<scenario_checklist>
-
-- [ ] **Happy Path**: Normal operation with valid inputs
-- [ ] **Invalid Inputs**: Null, empty, malformed data
-- [ ] **Boundary Conditions**: Min/max values, empty collections
-- [ ] **Concurrent Access**: Race conditions, deadlocks
-- [ ] **Scale Testing**: 10x, 100x, 1000x normal load
-- [ ] **Network Issues**: Timeouts, partial failures
-- [ ] **Resource Exhaustion**: Memory, disk, connections
-- [ ] **Security Attacks**: Injection, overflow, DoS
-- [ ] **Data Corruption**: Partial writes, inconsistency
-- [ ] **Cascading Failures**: Downstream service issues </scenario_checklist>
-
-### 6. Multi-Angle Review Perspectives
-
-#### Technical Excellence Angle
-
-- Code craftsmanship evaluation
-- Engineering best practices
-- Technical documentation quality
-- Tooling and automation assessment
-
-#### Business Value Angle
-
-- Feature completeness validation
-- Performance impact on users
-- Cost-benefit analysis
-- Time-to-market considerations
-
-#### Risk Management Angle
-
-- Security risk assessment
-- Operational risk evaluation
-- Compliance risk verification
-- Technical debt accumulation
-
-#### Team Dynamics Angle
-
-- Code review etiquette
-- Knowledge sharing effectiveness
-- Collaboration patterns
-- Mentoring opportunities
-
-### 4. Simplification and Minimalism Review
-
-Run the Task code-simplicity-reviewer() to see if we can simplify the code.
-
-### 5. Findings Synthesis and Todo Creation Using file-todos Skill
-
-<critical_requirement> ALL findings MUST be stored in the todos/ directory using the file-todos skill. Create todo files immediately after synthesis - do NOT present findings for user approval first. Use the skill for structured todo management. </critical_requirement>
-
-#### Step 1: Synthesize All Findings
-
-<thinking>
-Consolidate all agent reports into a categorized list of findings.
-Remove duplicates, prioritize by severity and impact.
-</thinking>
-
-<synthesis_tasks>
-
-- [ ] Collect findings from all parallel agents
-- [ ] Discard any findings that recommend deleting or gitignoring files in `docs/plans/` or `docs/solutions/` (see Protected Artifacts above)
-- [ ] Categorize by type: security, performance, architecture, quality, etc.
-- [ ] Assign severity levels: 🔴 CRITICAL (P1), 🟡 IMPORTANT (P2), 🔵 NICE-TO-HAVE (P3)
-- [ ] Remove duplicate or overlapping findings
-- [ ] Estimate effort for each finding (Small/Medium/Large)
-
-</synthesis_tasks>
-
-#### Step 2: Create Todo Files Using file-todos Skill
-
-<critical_instruction> Use the file-todos skill to create todo files for ALL findings immediately. Do NOT present findings one-by-one asking for user approval. Create all todo files in parallel using the skill, then summarize results to user. </critical_instruction>
-
-**Implementation Options:**
-
-**Option A: Direct File Creation (Fast)**
-
-- Create todo files directly using Write tool
-- All findings in parallel for speed
-- Use standard template from `.claude/skills/file-todos/assets/todo-template.md`
-- Follow naming convention: `{issue_id}-pending-{priority}-{description}.md`
-
-**Option B: Sub-Agents in Parallel (Recommended for Scale)** For large PRs with 15+ findings, use sub-agents to create finding files in parallel:
-
-```bash
-# Launch multiple finding-creator agents in parallel
-Task() - Create todos for first finding
-Task() - Create todos for second finding
-Task() - Create todos for third finding
-etc. for each finding.
-```
-
-Sub-agents can:
-
-- Process multiple findings simultaneously
-- Write detailed todo files with all sections filled
-- Organize findings by severity
-- Create comprehensive Proposed Solutions
-- Add acceptance criteria and work logs
-- Complete much faster than sequential processing
-
-**Execution Strategy:**
-
-1. Synthesize all findings into categories (P1/P2/P3)
-2. Group findings by severity
-3. Launch 3 parallel sub-agents (one per severity level)
-4. Each sub-agent creates its batch of todos using the file-todos skill
-5. Consolidate results and present summary
-
-**Process (Using file-todos Skill):**
-
-1. For each finding:
-
-   - Determine severity (P1/P2/P3)
-   - Write detailed Problem Statement and Findings
-   - Create 2-3 Proposed Solutions with pros/cons/effort/risk
-   - Estimate effort (Small/Medium/Large)
-   - Add acceptance criteria and work log
-
-2. Use file-todos skill for structured todo management:
-
-   ```bash
-   skill: file-todos
-   ```
-
-   The skill provides:
-
-   - Template location: `.claude/skills/file-todos/assets/todo-template.md`
-   - Naming convention: `{issue_id}-{status}-{priority}-{description}.md`
-   - YAML frontmatter structure: status, priority, issue_id, tags, dependencies
-   - All required sections: Problem Statement, Findings, Solutions, etc.
-
-3. Create todo files in parallel:
-
-   ```bash
-   {next_id}-pending-{priority}-{description}.md
-   ```
-
-4. Examples:
-
-   ```
-   001-pending-p1-path-traversal-vulnerability.md
-   002-pending-p1-api-response-validation.md
-   003-pending-p2-concurrency-limit.md
-   004-pending-p3-unused-parameter.md
-   ```
-
-5. Follow template structure from file-todos skill: `.claude/skills/file-todos/assets/todo-template.md`
-
-**Todo File Structure (from template):**
-
-Each todo must include:
-
-- **YAML frontmatter**: status, priority, issue_id, tags, dependencies
-- **Problem Statement**: What's broken/missing, why it matters
-- **Findings**: Discoveries from agents with evidence/location
-- **Proposed Solutions**: 2-3 options, each with pros/cons/effort/risk
-- **Recommended Action**: (Filled during triage, leave blank initially)
-- **Technical Details**: Affected files, components, database changes
-- **Acceptance Criteria**: Testable checklist items
-- **Work Log**: Dated record with actions and learnings
-- **Resources**: Links to PR, issues, documentation, similar patterns
-
-**File naming convention:**
+After all parallel and conditional agents complete, launch a deep-analysis sub-agent. This performs the stakeholder perspective analysis, scenario exploration, and multi-angle assessment as a sub-agent so the reasoning stays out of the main context.
 
 ```
-{issue_id}-{status}-{priority}-{description}.md
+Task general-purpose("
+You are a senior technical analyst performing a deep-dive review of a PR.
 
-Examples:
-- 001-pending-p1-security-vulnerability.md
-- 002-pending-p2-performance-optimization.md
-- 003-pending-p3-code-cleanup.md
+Read the PR diff on the current branch (use git diff against the base branch) and all raw findings in todos/raw/*.md.
+
+Perform these analyses with maximum cognitive effort — think step by step, consider all angles, question assumptions:
+
+1. STAKEHOLDER PERSPECTIVE ANALYSIS
+   For each perspective, identify concrete risks and gaps in the PR:
+   - Developer: How easy is this to understand, modify, debug, and test? Are APIs intuitive?
+   - Operations: How safe is deployment? What metrics/logs exist? Resource requirements?
+   - End User: Is the feature intuitive? Are error messages helpful? Is performance acceptable?
+   - Security: What is the attack surface? Compliance requirements? Data protection? Audit capabilities?
+   - Business: ROI? Legal/compliance risks? Time-to-market impact? Total cost of ownership?
+
+2. SCENARIO EXPLORATION
+   For each scenario, note whether the PR handles it, partially handles it, or ignores it:
+   - Happy path with valid inputs
+   - Invalid inputs (null, empty, malformed)
+   - Boundary conditions (min/max values, empty collections)
+   - Concurrent access (race conditions, deadlocks)
+   - Scale (10x, 100x, 1000x normal load)
+   - Network issues (timeouts, partial failures)
+   - Resource exhaustion (memory, disk, connections)
+   - Security attacks (injection, overflow, DoS)
+   - Data corruption (partial writes, inconsistency)
+   - Cascading failures (downstream service issues)
+
+3. MULTI-ANGLE ASSESSMENT
+   - Technical excellence: code craftsmanship, best practices, documentation quality, tooling
+   - Business value: feature completeness, performance impact on users, cost-benefit
+   - Risk management: security risk, operational risk, compliance, technical debt accumulation
+   - Team dynamics: knowledge sharing effectiveness, mentoring opportunities
+
+OUTPUT RULES:
+1. First run `pwd` to get the current working directory. Then write your full analysis
+   to {cwd}/todos/raw/deep-analysis.md using the Write tool (it requires absolute paths).
+   Include specific file paths and line numbers for every concern raised.
+   Assign severity (P1/P2/P3) to any new findings not already covered by other agents.
+2. Your entire response back to the caller must be ONLY this single line:
+   deep-analysis: {count} concerns ({P1 count} P1, {P2 count} P2, {P3 count} P3)
+   Or: deep-analysis: no additional concerns
+3. Do not include any other text in your response.
+")
 ```
 
-**Status values:**
+### 3. Findings Synthesis and Todo Creation
 
-- `pending` - New findings, needs triage/decision
-- `ready` - Approved by manager, ready to work
-- `complete` - Work finished
-
-**Priority values:**
-
-- `p1` - Critical (blocks merge, security/data issues)
-- `p2` - Important (should fix, architectural/performance)
-- `p3` - Nice-to-have (enhancements, cleanup)
-
-**Tagging:** Always add `code-review` tag, plus: `security`, `performance`, `architecture`, `rails`, `quality`, etc.
-
-#### Step 3: Summary Report
-
-After creating all todo files, present comprehensive summary:
-
-````markdown
-## ✅ Code Review Complete
-
-**Review Target:** PR #XXXX - [PR Title] **Branch:** [branch-name]
-
-### Findings Summary:
-
-- **Total Findings:** [X]
-- **🔴 CRITICAL (P1):** [count] - BLOCKS MERGE
-- **🟡 IMPORTANT (P2):** [count] - Should Fix
-- **🔵 NICE-TO-HAVE (P3):** [count] - Enhancements
-
-### Created Todo Files:
-
-**P1 - Critical (BLOCKS MERGE):**
-
-- `001-pending-p1-{finding}.md` - {description}
-- `002-pending-p1-{finding}.md` - {description}
-
-**P2 - Important:**
-
-- `003-pending-p2-{finding}.md` - {description}
-- `004-pending-p2-{finding}.md` - {description}
-
-**P3 - Nice-to-Have:**
-
-- `005-pending-p3-{finding}.md` - {description}
-
-### Review Agents Used:
-
-- kieran-rails-reviewer
-- security-sentinel
-- performance-oracle
-- architecture-strategist
-- agent-native-reviewer
-- [other agents]
-
-### Next Steps:
-
-1. **Address P1 Findings**: CRITICAL - must be fixed before merge
-
-   - Review each P1 todo in detail
-   - Implement fixes or request exemption
-   - Verify fixes before merging PR
-
-2. **Triage All Todos**:
-   ```bash
-   ls todos/*-pending-*.md  # View all pending todos
-   /triage                  # Use slash command for interactive triage
-   ```
-````
-
-3. **Work on Approved Todos**:
-
-   ```bash
-   /resolve_todo_parallel  # Fix all approved items efficiently
-   ```
-
-4. **Track Progress**:
-   - Rename file when status changes: pending → ready → complete
-   - Update Work Log as you work
-   - Commit todos: `git add todos/ && git commit -m "refactor: add code review findings"`
-
-### Severity Breakdown:
-
-**🔴 P1 (Critical - Blocks Merge):**
-
-- Security vulnerabilities
-- Data corruption risks
-- Breaking changes
-- Critical architectural issues
-
-**🟡 P2 (Important - Should Fix):**
-
-- Performance issues
-- Significant architectural concerns
-- Major code quality problems
-- Reliability issues
-
-**🔵 P3 (Nice-to-Have):**
-
-- Minor improvements
-- Code cleanup
-- Optimization opportunities
-- Documentation updates
+Launch a **synthesis sub-agent** with a fresh context to read all raw findings (including `todos/raw/deep-analysis.md` from Step 2) and produce the final deliverables. This prevents context overflow — the main context only sees the sub-agent's one-line result.
 
 ```
+Task general-purpose("
+You are the synthesis agent for a code review. Your job is to read raw agent findings, deduplicate, and produce structured todo files and a summary report.
 
-### 7. End-to-End Testing (Optional)
+IMPORTANT: First run `pwd` to get the current working directory. All file paths below use {cwd} as a placeholder — replace it with the absolute path returned by pwd. The Write tool requires absolute paths.
+
+INSTRUCTIONS — complete all steps without stopping:
+
+1. READ all raw finding files:
+   - Read every file in {cwd}/todos/raw/*.md (use Glob to find them)
+   - List every file you found and every individual finding within each file
+   - No finding may be silently omitted
+
+2. SYNTHESIZE findings:
+   - If two findings from different agents are duplicates, merge them and note both source agents and the reason
+   - Discard any findings that recommend deleting files in docs/plans/ or docs/solutions/
+   - Categorize by type: security, performance, architecture, quality, etc.
+   - Assign severity: P1 (critical, blocks merge), P2 (important, should fix), P3 (nice-to-have)
+   - Estimate effort: Small/Medium/Large
+
+3. WRITE one todo file per finding to {cwd}/todos/ using this exact template:
+
+   ---
+   status: pending
+   priority: {p1|p2|p3}
+   issue_id: '{NNN}'
+   tags: [code-review, {category}]
+   ---
+
+   # {Title}
+
+   ## Problem Statement
+   {What is broken/missing and why it matters}
+
+   ## Findings
+   {Evidence from review agents — include file paths, line numbers, agent name}
+
+   ## Proposed Solutions
+
+   ### Option A: {Name}
+   - Approach: {description}
+   - Effort: {Small/Medium/Large}
+   - Risk: {Low/Medium/High}
+
+   ### Option B: {Name}
+   - Approach: {description}
+   - Effort: {Small/Medium/Large}
+   - Risk: {Low/Medium/High}
+
+   ## Acceptance Criteria
+   - [ ] {Testable criterion 1}
+   - [ ] {Testable criterion 2}
+
+   File naming: {issue_id}-pending-{priority}-{description}.md
+   Examples: 001-pending-p1-path-traversal-vulnerability.md, 002-pending-p2-concurrency-limit.md
+
+   Priority values: p1 (critical, blocks merge), p2 (important, should fix), p3 (nice-to-have).
+   Always include code-review tag plus relevant tags.
+
+   FALLBACK: If individual todo files cannot be created, write ALL findings to a single {cwd}/todos/review-findings.md with each finding as a separate section. Something must always be written to disk.
+
+4. WRITE {cwd}/todos/review-summary.md with this structure:
+
+   # Code Review Summary
+
+   **Review Target:** PR #XXXX - [PR Title]
+   **Branch:** [branch-name]
+   **Date:** YYYY-MM-DD
+
+   ## Agent Coverage
+   | # | Agent | Status | Findings |
+   |---|-------|--------|----------|
+   (one row per agent — use the filenames in todos/raw/ to determine which agents ran)
+
+   ## Findings Summary
+   - Total Findings: [X]
+   - P1 CRITICAL: [count] — BLOCKS MERGE
+   - P2 IMPORTANT: [count] — Should Fix
+   - P3 NICE-TO-HAVE: [count] — Enhancements
+
+   ## Created Todo Files
+   (list each todo file created, grouped by priority)
+
+   ## Next Steps
+   1. Address P1 findings — must be fixed before merge
+   2. Triage remaining todos: ls todos/*-pending-*.md
+   3. Work on approved items: /resolve_todo_parallel
+   4. Track progress: rename files as status changes (pending → ready → complete)
+
+5. RETURN a one-line summary: 'Synthesis complete. [X] findings, [Y] todo files written. P1: [count]'
+")
+```
+
+After the synthesis agent returns, print its one-line summary to chat:
+
+```
+Review complete. [X] findings written to todos/.
+See todos/review-summary.md for full report.
+P1 findings: [count] (blocks merge)
+```
+
+### 4. End-to-End Testing (Optional)
 
 <detect_project_type>
 
@@ -523,4 +385,3 @@ The subagent will:
 ### Important: P1 Findings Block Merge
 
 Any **🔴 P1 (CRITICAL)** findings must be addressed before merging the PR. Present these prominently and ensure they're resolved before accepting the PR.
-```
