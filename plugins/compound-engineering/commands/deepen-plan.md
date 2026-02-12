@@ -183,6 +183,8 @@ Read `.deepen/PLAN_MANIFEST.json` and match discovered resources:
 
 **Important:** Skills may have `references/` subdirectories with additional context files. When spawning skill agents in Step 4, instruct them to also check for and read files in `references/`, `assets/`, and `templates/` directories within the skill path.
 
+**Special routing — `agent-native-architecture` skill:** This skill is interactive with a routing table. Do NOT use the generic skill template. Use the dedicated template in Step 4 that routes to the Architecture Review Checklist, Anti-Patterns sections, and specific reference files (`from-primitives-to-domain-tools.md`, `mcp-tool-design.md`, `refactoring-to-prompt-native.md`).
+
 **Learnings** — Match if learning's tags, category, or module overlaps with plan technologies, domains, or modules being changed.
 
 **Agents** — Two tiers:
@@ -191,8 +193,9 @@ Read `.deepen/PLAN_MANIFEST.json` and match discovered resources:
 - Security agents (security-sentinel, any security reviewer)
 - Architecture agents (architecture-strategist)
 - Performance agents (performance-oracle)
+- **Project Architecture Challenger** (dedicated agent — see Step 4 template)
 
-These run regardless of manifest matching because their domains are relevant to virtually every plan. A security agent catching a data exposure risk in a "simple UI plan" is exactly the kind of cross-cutting insight that makes deepening valuable.
+These run regardless of manifest matching because their domains are relevant to virtually every plan. A security agent catching a data exposure risk in a "simple UI plan" is exactly the kind of cross-cutting insight that makes deepening valuable. The Project Architecture Challenger specifically questions whether the plan's decisions align with the project's own CLAUDE.md principles — catching redundant features, YAGNI violations, and logic in the wrong layer.
 
 **Manifest-matched (run if domain overlap):**
 - Framework-specific review agents (dhh-rails-reviewer for Rails, kieran-rails-reviewer for Rails, kieran-typescript-reviewer for TypeScript, kieran-python-reviewer for Python)
@@ -303,6 +306,9 @@ If not relevant after analysis: write an empty recommendations array with summar
 ```
 Task [agent-name]("
 Review this plan using your expertise. Focus on your domain.
+
+## PROJECT ARCHITECTURE CONTEXT
+Read the project's CLAUDE.md (or .claude/CLAUDE.md) for project-specific architectural principles, patterns, and conventions. Evaluate the plan against THESE principles, not just generic best practices. If no CLAUDE.md exists, skip this step.
 " + SHARED_CONTEXT + OUTPUT_RULES)
 ```
 
@@ -325,6 +331,70 @@ Budget: 3-5 searches per technology for thorough coverage.
 ```
 
 Example: For a plan using React 19, TypeScript 5.5, and PostgreSQL 17, spawn three separate agents — one per technology. Each gets a full context window to research deeply.
+
+**SPECIAL: `agent-native-architecture` skill (if matched):**
+
+Do NOT use the generic skill template. This skill has an interactive routing table that doesn't work with "read and follow." Instead, route directly to the architectural review references:
+
+```
+Task agent-native-architecture-reviewer("
+You are an Agent-Native Architecture Reviewer. Your job is to evaluate whether this plan's tool design, feature decisions, and state management align with agent-native principles.
+
+## Instructions:
+1. Read the agent-native-architecture skill: [skill-path]/SKILL.md
+   - Focus on: <architecture_checklist>, <anti_patterns>, and <core_principles> sections
+2. Read these SPECIFIC reference files for deeper context:
+   - [skill-path]/references/from-primitives-to-domain-tools.md — when to add domain tools vs stay with primitives
+   - [skill-path]/references/mcp-tool-design.md — tools should be primitives, not workflows
+   - [skill-path]/references/refactoring-to-prompt-native.md — moving logic from code to prompts
+3. Read the project's CLAUDE.md for project-specific architectural principles
+4. Read the plan from .deepen/
+
+## Apply these checks to EVERY tool change and new feature in the plan:
+- Does a new tool parameter duplicate capability already available through another tool?
+- Does the tool encode business logic (judgment/decisions) that should live in the agent prompt?
+- Are there two ways to accomplish the same outcome? (redundancy — confuses LLMs about which path to choose)
+- Is logic placed in the right layer? (backend tool vs frontend vs agent prompt vs skill guidance)
+- Do hardcoded values belong in skills, or should the agent discover them from data? (emergent capability)
+- Are features truly needed now, or are they YAGNI? If the plan flags something as YAGNI but builds it anyway, that's a finding.
+- Does the Architecture Review Checklist pass? (Parity, Granularity, Composability, Emergent Capability)
+
+Write findings as recommendations following the OUTPUT RULES. Use type 'architecture' or 'anti-pattern' for findings.
+" + SHARED_CONTEXT + OUTPUT_RULES)
+```
+
+**ALWAYS RUN: Project Architecture Challenger**
+
+<critical_instruction>
+This agent runs on EVERY plan, regardless of manifest matching. It is the architectural decision challenge phase — it questions whether the plan's decisions should exist, not just whether they're implemented correctly. This catches the class of issues that deepening misses: redundant features, logic in the wrong layer, YAGNI violations built despite being acknowledged, and drift from project conventions.
+</critical_instruction>
+
+```
+Task project-architecture-challenger("
+You are a Project Architecture Challenger. Your job is NOT to deepen the plan — it's to CHALLENGE the plan's decisions against the project's own architectural principles.
+
+## Instructions:
+1. Read the project's CLAUDE.md (or .claude/CLAUDE.md) — extract the architectural principles, patterns, and conventions this project follows
+2. Read .deepen/original_plan.md — the plan to challenge
+3. Read .deepen/PLAN_MANIFEST.md — for context
+
+## For each major decision in the plan, ask:
+- **Redundancy**: Does this new feature/tool/parameter duplicate something that already exists? Can the same outcome be achieved with existing tools via composition?
+- **Layer placement**: Is business logic in the right place? Frontend should be a thin rendering layer. Tools should be atomic primitives. Judgment belongs in prompts/skills, not code.
+- **YAGNI enforcement**: Does the plan acknowledge something as YAGNI but build it anyway? Flag these — the plan is contradicting itself.
+- **Hardcoded vs emergent**: Are mappings/values hardcoded that the agent could discover from data? Skill guidance should teach patterns, not enumerate values.
+- **Convention drift**: Does any decision contradict the project's stated conventions in CLAUDE.md?
+- **Complexity budget**: Does each feature earn its complexity? Three similar lines are better than a premature abstraction.
+
+## What to produce:
+- Recommendations with type 'architecture' for structural concerns
+- Recommendations with type 'anti-pattern' for agent-native violations
+- High confidence (0.8+) when CLAUDE.md explicitly contradicts the plan
+- Medium confidence (0.6-0.7) when the concern is a judgment call
+
+Be specific. Quote the principle from CLAUDE.md that the plan violates. Name the alternative approach.
+" + SHARED_CONTEXT + OUTPUT_RULES)
+```
 
 Wait for ALL agents to complete.
 
