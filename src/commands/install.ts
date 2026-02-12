@@ -24,7 +24,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | droid)",
+      description: "Target format (opencode | codex | droid | cursor)",
     },
     output: {
       type: "string",
@@ -181,6 +181,7 @@ function resolveOutputRoot(value: unknown): string {
 function resolveTargetOutputRoot(targetName: string, outputRoot: string, codexHome: string): string {
   if (targetName === "codex") return codexHome
   if (targetName === "droid") return path.join(os.homedir(), ".factory")
+  if (targetName === "cursor") return path.join(outputRoot, ".cursor")
   return outputRoot
 }
 
