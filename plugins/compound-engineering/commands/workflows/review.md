@@ -1,7 +1,7 @@
 ---
 name: workflows:review
 description: Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees
-argument-hint: "[PR number, GitHub URL, branch name, or latest]"
+argument-hint: "[PR number, GitHub URL, branch name, or latest] [--skip-frameworks]"
 ---
 
 # Review Command
@@ -26,6 +26,12 @@ argument-hint: "[PR number, GitHub URL, branch name, or latest]"
 ### 1. Determine Review Target & Setup (ALWAYS FIRST)
 
 <review_target> #$ARGUMENTS </review_target>
+
+<flag_parsing>
+Check if `$ARGUMENTS` contains `--skip-frameworks`:
+- If present: Set SKIP_FRAMEWORKS=true. Remove the flag from the review target string before proceeding.
+- If absent: Set SKIP_FRAMEWORKS=false (default). Run all agents including framework-specific ones.
+</flag_parsing>
 
 <thinking>
 First, I need to determine the review target type and set up the code for analysis.
@@ -63,21 +69,24 @@ If a review agent flags any file in these directories for cleanup or removal, di
 
 <parallel_tasks>
 
-Run ALL or most of these agents at the same time:
+Run ALL of these generic agents at the same time:
 
-1. Task kieran-rails-reviewer(PR content)
-2. Task dhh-rails-reviewer(PR title)
-3. If turbo is used: Task rails-turbo-expert(PR content)
-4. Task git-history-analyzer(PR content)
-5. Task dependency-detective(PR content)
-6. Task pattern-recognition-specialist(PR content)
-7. Task architecture-strategist(PR content)
-8. Task code-philosopher(PR content)
-9. Task security-sentinel(PR content)
-10. Task performance-oracle(PR content)
-11. Task devops-harmony-analyst(PR content)
-12. Task data-integrity-guardian(PR content)
-13. Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
+1. Task git-history-analyzer(PR content)
+2. Task dependency-detective(PR content)
+3. Task pattern-recognition-specialist(PR content)
+4. Task architecture-strategist(PR content)
+5. Task code-philosopher(PR content)
+6. Task security-sentinel(PR content)
+7. Task performance-oracle(PR content)
+8. Task devops-harmony-analyst(PR content)
+9. Task data-integrity-guardian(PR content)
+10. Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
+
+**Unless `--skip-frameworks` flag was passed**, also run these framework-specific agents:
+
+11. Task kieran-rails-reviewer(PR content)
+12. Task dhh-rails-reviewer(PR title)
+13. If turbo is used: Task rails-turbo-expert(PR content)
 
 </parallel_tasks>
 
