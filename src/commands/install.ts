@@ -131,12 +131,15 @@ type ResolvedPluginPath = {
 }
 
 async function resolvePluginPath(input: string): Promise<ResolvedPluginPath> {
-  const directPath = path.resolve(input)
-  if (await pathExists(directPath)) return { path: directPath }
+  // Only treat as a local path if it explicitly looks like one
+  if (input.startsWith(".") || input.startsWith("/") || input.startsWith("~")) {
+    const expanded = expandHome(input)
+    const directPath = path.resolve(expanded)
+    if (await pathExists(directPath)) return { path: directPath }
+    throw new Error(`Local plugin path not found: ${directPath}`)
+  }
 
-  const pluginsPath = path.join(process.cwd(), "plugins", input)
-  if (await pathExists(pluginsPath)) return { path: pluginsPath }
-
+  // Otherwise, always fetch the latest from GitHub
   return await resolveGitHubPluginPath(input)
 }
 
