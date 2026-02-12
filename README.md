@@ -12,9 +12,9 @@ A Claude Code plugin marketplace featuring the **Compound Engineering Plugin** �
 /plugin install compound-engineering
 ```
 
-## OpenCode, Codex & Droid (experimental) Install
+## OpenCode, Codex, Droid & Cursor (experimental) Install
 
-This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, and Factory Droid.
+This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, and Cursor.
 
 ```bash
 # convert the compound-engineering plugin into OpenCode format
@@ -25,6 +25,9 @@ bunx @every-env/compound-plugin install compound-engineering --to codex
 
 # convert to Factory Droid format
 bunx @every-env/compound-plugin install compound-engineering --to droid
+
+# convert to Cursor format
+bunx @every-env/compound-plugin install compound-engineering --to cursor
 ```
 
 Local dev:
@@ -36,6 +39,7 @@ bun run src/index.ts install ./plugins/compound-engineering --to opencode
 OpenCode output is written to `~/.config/opencode` by default, with `opencode.json` at the root and `agents/`, `skills/`, and `plugins/` alongside it.
 Codex output is written to `~/.codex/prompts` and `~/.codex/skills`, with each Claude command converted into both a prompt and a skill (the prompt instructs Codex to load the corresponding skill). Generated Codex skill descriptions are truncated to 1024 characters (Codex limit).
 Droid output is written to `~/.factory/` with commands, droids (agents), and skills. Claude tool names are mapped to Factory equivalents (`Bash` → `Execute`, `Write` → `Create`, etc.) and namespace prefixes are stripped from commands.
+Cursor output is written to `.cursor/` with rules (`.mdc`), commands, skills, and `mcp.json`. Agents become "Agent Requested" rules (`alwaysApply: false`) so Cursor's AI activates them on demand.
 
 All provider targets are experimental and may change as the formats evolve.
 
