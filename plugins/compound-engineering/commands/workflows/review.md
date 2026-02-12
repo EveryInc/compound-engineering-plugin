@@ -1,6 +1,6 @@
 ---
 name: workflows:review
-description: Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees
+description: Perform exhaustive code reviews using multi-agent analysis with file-based synthesis to prevent context overflow
 argument-hint: "[PR number, GitHub URL, branch name, or latest]"
 ---
 
@@ -64,7 +64,7 @@ Using .review/ inside the project avoids both issues. All tools (Read, Write, Ba
 REVIEW_DIR=".review"
 rm -rf "$REVIEW_DIR"
 mkdir -p "$REVIEW_DIR"
-echo "$REVIEW_DIR/" >> .gitignore 2>/dev/null  # Ensure it's gitignored
+grep -q '.review/' .gitignore 2>/dev/null || echo "$REVIEW_DIR/" >> .gitignore  # Ensure it's gitignored (idempotent)
 
 # Save PR metadata for agents to reference
 gh pr view <number> --json title,body,files > "$REVIEW_DIR/pr_meta.json"
@@ -155,16 +155,19 @@ Do NOT run all agents on every PR. Examine the PR file list and select relevant 
 4. `code-simplicity-reviewer` — unnecessary complexity, dead code, simplification opportunities
 5. `pattern-recognition-specialist` — anti-patterns, inconsistencies, convention violations
 
-**Run If Applicable:**
+**Run If Applicable (language-specific):**
 - `kieran-rails-reviewer` — only if PR has `.rb` files
 - `dhh-rails-reviewer` — only if PR has `.rb` files
-- `rails-turbo-expert` — only if PR uses Turbo/Stimulus
+- `kieran-typescript-reviewer` — only if PR has `.ts`/`.tsx` files
+- `kieran-python-reviewer` — only if PR has `.py` files
+- `julik-frontend-races-reviewer` — only if PR has Stimulus controllers or frontend async code
+
+**Run If Applicable (domain-specific):**
 - `agent-native-reviewer` — only if PR adds user-facing features
-- `dependency-detective` — only if PR modifies package files (Gemfile, package.json, etc.)
-- `devops-harmony-analyst` — only if PR touches CI/CD, Docker, or deployment configs
 - `data-integrity-guardian` — only if PR modifies database queries or data flows
 - `git-history-analyzer` — if PR touches files with complex change history or frequent churn
-- `code-philosopher` — if PR introduces new abstractions, significant API design, or architectural decisions worth deeper reasoning about maintainability and conceptual clarity
+- `schema-drift-detector` — if PR includes `schema.rb` changes, cross-reference against included migrations
+- `learnings-researcher` — if PR touches areas where `docs/solutions/` may have relevant prior art
 
 **Migration-Specific (only for db/migrate/*.rb files):**
 - `data-migration-expert` — validates ID mappings, rollback safety
@@ -184,16 +187,19 @@ Task security-sentinel("Review PR #49. <PR title and summary>. " + SHARED_CONTEX
 Task performance-oracle("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
 Task code-simplicity-reviewer("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
 Task pattern-recognition-specialist("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
+Task kieran-typescript-reviewer("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
 ```
 
 Example for a Rails PR with migrations:
 
 ```
 Task kieran-rails-reviewer("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
+Task dhh-rails-reviewer("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
 Task security-sentinel("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
 Task performance-oracle("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
 Task architecture-strategist("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
 Task data-migration-expert("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
+Task schema-drift-detector("Review PR #49. <PR title and summary>. " + SHARED_CONTEXT + OUTPUT_RULES)
 ```
 
 Wait for ALL agents to complete.
@@ -231,25 +237,26 @@ fi
 #### Step 5b: Validate JSON Schema
 
 ```bash
-# Validate all agent output files
-PR_FILES=$(cat .review/pr_meta.json | python3 -c "import json,sys; [print(f['path']) for f in json.load(sys.stdin)['files']]" 2>/dev/null || echo "")
-
+# Validate all agent output files (uses Node.js — guaranteed available since Claude Code requires it)
 for f in .review/*.json; do
   [[ "$(basename "$f")" == "pr_meta.json" ]] && continue
-  python3 -c "
-import json, sys
-try:
-    data = json.load(open('$f'))
-    assert 'findings' in data, 'missing findings key'
-    assert isinstance(data['findings'], list), 'findings not a list'
-    assert len(data['findings']) <= 10, f'too many findings: {len(data[\"findings\"])}'
-    for i, finding in enumerate(data['findings']):
-        assert finding.get('severity') in ('p1','p2','p3'), f'finding {i}: bad severity'
-        assert finding.get('location'), f'finding {i}: missing location'
-    print('VALID:', '$(basename $f)', '-', len(data['findings']), 'findings')
-except Exception as e:
-    print('INVALID:', '$(basename $f)', '-', str(e), '— removing from review')
-    import os; os.remove('$f')
+  node -e "
+const fs = require('fs');
+const f = '$f';
+const name = require('path').basename(f);
+try {
+  const data = JSON.parse(fs.readFileSync(f, 'utf8'));
+  if (!Array.isArray(data.findings)) throw new Error('findings not an array');
+  if (data.findings.length > 10) throw new Error('too many findings: ' + data.findings.length);
+  data.findings.forEach((finding, i) => {
+    if (!['p1','p2','p3'].includes(finding.severity)) throw new Error('finding ' + i + ': bad severity');
+    if (!finding.location) throw new Error('finding ' + i + ': missing location');
+  });
+  console.log('VALID:', name, '-', data.findings.length, 'findings');
+} catch (e) {
+  console.log('INVALID:', name, '-', e.message, '— removing from review');
+  fs.unlinkSync(f);
+}
 " 2>&1
 done
 ```
@@ -273,6 +280,7 @@ You are a Code Review Judge. Consolidate findings from multiple review agents in
 2. Read .review/pr_meta.json to get the list of files actually in this PR
 3. Collect all findings across agents
 4. EVIDENCE CHECK: Discard any finding whose 'location' field does not reference a file path present in pr_meta.json. These are hallucinated findings.
+4b. EXCLUDED PATHS: Also discard any finding whose location is under docs/plans/ or docs/solutions/ — these are compound-engineering pipeline artifacts and must never be flagged.
 5. DEDUPLICATE: Remove semantically similar findings (keep the higher-confidence one)
 6. RESOLVE CONFLICTS: If agents contradict each other, note the conflict and pick the more evidence-based finding
 7. RANK by: severity (p1 > p2 > p3), then confidence score
@@ -308,6 +316,17 @@ You are a Code Review Judge. Consolidate findings from multiple review agents in
 
 11. Return to parent: 'Judging complete. <X> raw findings → <Y> after dedup (<Z> hallucinated removed). P1: <count>, P2: <count>, P3: <count>. Report at .review/JUDGED_FINDINGS.json'
 ")
+```
+
+**Short-circuit: If the judge returns 0 final findings**, skip Deep Analysis and Todo Creation. Present a clean summary:
+
+```markdown
+## ✅ Code Review Complete — No Findings
+
+**Review Target:** PR #XXXX - [PR Title]
+**Branch:** [branch-name]
+
+All [N] agents reviewed the PR. [X] raw findings were raised, but all were either hallucinated (wrong file paths), duplicates, or below confidence threshold after judging. No action items.
 ```
 
 ### 7. Deep Analysis Phase (P1/P2 Enrichment)

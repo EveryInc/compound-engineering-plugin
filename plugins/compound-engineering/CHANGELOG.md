@@ -5,6 +5,30 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.31.0] - 2026-02-12
+
+### Changed
+
+- **`/workflows:review` command** — Rewritten as v2 with context-managed map-reduce architecture
+  - **Architecture**: Phased File-Based Map-Reduce — sub-agents write full analysis to `.review/`, return ~100 tokens each to parent. Parent context stays under ~12k tokens vs ~30-50k in v1
+  - **6 phases**: Intent → Map (parallel specialists) → Validate → Judge (dedup + evidence-check) → Deep Analysis (stakeholder impact) → Reduce (todo creation)
+  - **Smart agent selection**: 5 always-run core agents + conditional agents based on PR file types (vs v1's "run ALL agents")
+  - **Cross-platform**: Uses `.review/` scratchpad (not `/tmp/`), Node.js validation (not Python3)
+  - **Judge phase**: Deduplicates findings, discards hallucinated file references, ranks by severity × confidence, caps at 15 findings
+  - **Deep Analysis phase**: Replaces v1's inline Ultra-Thinking with isolated sub-agent for stakeholder perspectives and scenario exploration on P1/P2 findings
+  - **Protected artifacts**: Excluded paths (docs/plans/, docs/solutions/) enforced in both agent prompts and judge phase
+  - **0-findings short-circuit**: Clean PRs get a summary without running deep analysis or todo creation
+
+### Fixed
+
+- Removed 4 ghost agent references (`rails-turbo-expert`, `dependency-detective`, `devops-harmony-analyst`, `code-philosopher`) that don't exist in the plugin
+- Added 5 missing agents to selection matrix: `kieran-typescript-reviewer`, `kieran-python-reviewer`, `julik-frontend-races-reviewer`, `schema-drift-detector`, `learnings-researcher`
+- Replaced Python3 JSON validation with Node.js (cross-platform — Python3 not guaranteed on all systems)
+- Fixed `.gitignore` append duplication on repeated runs (now uses `grep -q` guard)
+- Added excluded paths check to judge prompt (v1 only had it in agent prompts, not synthesis)
+
+---
+
 ## [2.30.0] - 2026-02-05
 
 ### Added
