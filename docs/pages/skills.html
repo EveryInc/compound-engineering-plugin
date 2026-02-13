@@ -4,7 +4,7 @@
 <head>
   <meta charset="utf-8" />
   <title>Skill Reference - Compounding Engineering</title>
-  <meta content="Complete reference for all 12 intelligent skills in the Compounding Engineering plugin." name="description" />
+  <meta content="Complete reference for all 13 intelligent skills in the Compounding Engineering plugin." name="description" />
   <meta content="width=device-width, initial-scale=1" name="viewport" />
 
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" />
@@ -35,7 +35,7 @@
           <ul>
             <li><a href="agents.html">Agents (27)</a></li>
             <li><a href="commands.html">Commands (19)</a></li>
-            <li><a href="skills.html" class="active">Skills (12)</a></li>
+            <li><a href="skills.html" class="active">Skills (13)</a></li>
             <li><a href="mcp-servers.html">MCP Servers (2)</a></li>
           </ul>
         </div>
@@ -101,7 +101,7 @@ skill: create-agent-skills</code></pre>
 
         <!-- Development Tools -->
         <section id="development-tools">
-          <h2><i class="fa-solid fa-code"></i> Development Tools (8)</h2>
+          <h2><i class="fa-solid fa-code"></i> Development Tools (9)</h2>
           <p>These skills teach Claude specific coding styles and architectural patterns. Use them when you want code that follows a particular philosophy—not just any working code, but code that looks like it was written by a specific person or framework.</p>
 
           <div class="skill-detail" id="create-agent-skills">
@@ -332,6 +332,33 @@ skill: create-agent-skills</code></pre>
             </ul>
             <div class="card-code-block">
               <pre><code>skill: compound-docs</code></pre>
+            </div>
+          </div>
+
+          <div class="skill-detail" id="compound-foundations">
+            <div class="skill-detail-header">
+              <h3>compound-foundations</h3>
+              <span class="skill-badge">Foundations</span>
+            </div>
+            <p class="skill-detail-description">
+              Your repo solves issues, but the learnings never graduate into conventions or enforcement. This skill closes that loop. It audits foundations, generates missing docs artifacts, promotes repeated findings into conventions, and tracks tech debt with occurrence-based promotion rules.
+            </p>
+            <h4>Core Workflows</h4>
+            <ul>
+              <li><code>audit-foundations.md</code> - Tiered foundation audit with scorecard output</li>
+              <li><code>generate-artifacts.md</code> - Generate missing docs from templates</li>
+              <li><code>promote-to-convention.md</code> - Add findings to <code>docs/CONVENTIONS.md</code></li>
+              <li><code>track-tech-debt.md</code> - Track and increment debt occurrences in <code>docs/TECH_DEBT.md</code></li>
+            </ul>
+            <h4>Generated Artifacts</h4>
+            <ul>
+              <li><code>docs/CONVENTIONS.md</code></li>
+              <li><code>docs/TECH_DEBT.md</code></li>
+              <li><code>docs/QUALITY_SCORE.md</code></li>
+              <li><code>docs/ARCHITECTURE.md</code></li>
+            </ul>
+            <div class="card-code-block">
+              <pre><code>skill: compound-foundations</code></pre>
             </div>
           </div>
 

@@ -8,7 +8,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 |-----------|-------|
 | Agents | 29 |
 | Commands | 22 |
-| Skills | 19 |
+| Skills | 20 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -112,6 +112,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | Skill | Description |
 |-------|-------------|
 | `agent-native-architecture` | Build AI agents using prompt-native architecture |
+| `compound-foundations` | Audit repo foundations, generate artifacts, and promote recurring findings |
 
 ### Development Tools
 

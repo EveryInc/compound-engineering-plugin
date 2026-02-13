@@ -166,3 +166,50 @@ Agents:       {count} configured
 Tip: Edit the "Review Context" section to add project-specific instructions.
      Re-run this setup anytime to reconfigure.
 ```
+
+## Step 6: Foundations Check (optional)
+
+Use AskUserQuestion:
+
+```
+question: "Would you like to audit your repo's foundations? Checks CLAUDE.md quality, conventions, tech debt tracking, and more."
+header: "Foundations"
+options:
+  - label: "Yes (Recommended)"
+    description: "Run tiered audit: CLAUDE.md quality, conventions, tech debt, architecture docs."
+  - label: "Skip"
+    description: "Finish setup without auditing foundations."
+```
+
+If "Skip": end setup.
+If "Yes": explicitly load the foundations skill, then run its audit workflow:
+
+1. Load skill: `skill: compound-foundations`
+2. Invoke workflow: `workflows/audit-foundations.md`
+3. After audit results are shown, use AskUserQuestion:
+
+```
+question: "Audit complete. Do you want to create all missing foundation files now?"
+header: "Generate Files"
+options:
+  - label: "Create all missing (Recommended)"
+    description: "Generate every missing artifact from compound-foundations templates."
+  - label: "Choose files"
+    description: "Select specific missing artifacts to generate."
+  - label: "Skip"
+    description: "Keep audit report only, no file generation."
+```
+
+If "Create all missing":
+- Invoke `compound-foundations` workflow `workflows/generate-artifacts.md`
+- Pass all missing artifacts from the audit scorecard
+- Create files immediately in `docs/` (and `CLAUDE.md` only if missing)
+
+If "Choose files":
+- Invoke `compound-foundations` workflow `workflows/generate-artifacts.md`
+- Generate only selected missing artifacts
+
+If "Skip":
+- End setup and keep the scorecard as follow-up guidance
+
+Do not run foundations checks inline in `setup`; always delegate to the `compound-foundations` skill.

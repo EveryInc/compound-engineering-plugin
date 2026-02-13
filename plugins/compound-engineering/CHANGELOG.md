@@ -5,6 +5,35 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.1] - 2026-02-13
+
+### Fixed
+
+- **`/workflows:work` Phase 4 Step 4** — Strengthened "Update Plan Status" to require updating the original plan document with completion summary, `completed_by`, `completed_date`, and `actual_effort` frontmatter fields. Explicitly prohibits creating separate completion report files (e.g. `COMPLETION_REPORT.md`). The plan is the single source of truth for both planning and delivery.
+- **`/workflows:work` pitfalls** — Added anti-pattern: "Creating separate completion reports — update the plan file itself."
+
+---
+
+## [2.34.0] - 2026-02-13
+
+### Added
+
+- **`compound-foundations` skill** - New foundations skill with router-style `SKILL.md`, 10 principle references, 4 workflows, and 8 artifact templates.
+- **`setup` skill Step 6** - Optional foundations audit now runs after setup confirmation and invokes `compound-foundations/workflows/audit-foundations.md`.
+- **`compound-docs` decision gate Options 8 and 9** - Added promotion to `docs/CONVENTIONS.md` and tracking in `docs/TECH_DEBT.md`.
+
+### Changed
+
+- **`compound-docs` Step 7** - Added promotion suggestion when 3+ similar findings are detected (same category + overlapping tags), with Option 8 marked as suggested.
+- **`/workflows:compound` command** - Removed duplicate post-capture menu and now defers to the `compound-docs` decision gate as source of truth.
+- **Plugin metadata and docs** - Version bumped to `2.34.0`; skill count updated for the new foundations skill.
+
+### Removed
+
+- **Empty docs scaffolding** - Removed `docs/patterns/` empty directory structure from the compound-engineering plugin.
+
+---
+
 ## [2.33.1] - 2026-02-13
 
 ### Changed

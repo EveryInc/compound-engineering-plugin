@@ -234,6 +234,14 @@ cat >> docs/solutions/patterns/common-solutions.md << 'EOF'
 EOF
 ```
 
+**Promotion suggestion:** If 3+ similar findings exist in the same category directory and they share 2+ overlapping tags, add this note to the decision menu:
+
+```
+This pattern has appeared [N] times. Consider promoting to a convention (Option 8).
+```
+
+When this condition is met, show Option 8 as `Promote to convention (suggested)`.
+
 **Critical Pattern Detection (Optional Proactive Suggestion):**
 
 If this issue has automatic indicators suggesting it might be critical:
@@ -271,12 +279,14 @@ File created:
 
 What's next?
 1. Continue workflow (recommended)
-2. Add to Required Reading - Promote to critical patterns (critical-patterns.md)
+2. Add to Required Reading - Patterns agents must read before code generation (critical-patterns.md)
 3. Link related issues - Connect to similar problems
 4. Add to existing skill - Add to a learning skill (e.g., hotwire-native)
 5. Create new skill - Extract into new learning skill
 6. View documentation - See what was captured
 7. Other
+8. Promote to convention - Graduate this finding to docs/CONVENTIONS.md
+9. Track as tech debt - Add to docs/TECH_DEBT.md with occurrence tracking
 ```
 
 **Handle responses:**
@@ -299,6 +309,8 @@ Action:
 3. Add to `docs/solutions/patterns/critical-patterns.md`
 4. Add cross-reference back to this doc
 5. Confirm: "✓ Added to Required Reading. All subagents will see this pattern before code generation."
+
+Option 2 is for Required Reading patterns agents must know before generating code.
 
 **Option 3: Link related issues**
 
@@ -339,6 +351,25 @@ Action:
 **Option 7: Other**
 
 - Ask what they'd like to do
+
+**Option 8: Promote to convention**
+
+Action:
+1. Invoke `compound-foundations` workflow `workflows/promote-to-convention.md`
+2. If `docs/CONVENTIONS.md` does not exist, create it from `compound-foundations/assets/CONVENTIONS.md` in-place
+3. Append convention entry with rule + rationale + source link to this solution doc
+4. Confirm: "✓ Promoted to convention in docs/CONVENTIONS.md"
+
+Option 8 is for coding standards your team follows.
+
+**Option 9: Track as tech debt**
+
+Action:
+1. Invoke `compound-foundations` workflow `workflows/track-tech-debt.md`
+2. If `docs/TECH_DEBT.md` does not exist, create it from `compound-foundations/assets/TECH_DEBT.md` in-place
+3. Add or update table row with issue, occurrence count, severity, status, source
+4. If count reaches 3+, suggest Option 8 promotion
+5. Confirm: "✓ Tracked in docs/TECH_DEBT.md"
 
 </decision_gate>
 

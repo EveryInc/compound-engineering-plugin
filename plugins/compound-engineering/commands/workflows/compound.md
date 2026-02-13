@@ -172,12 +172,10 @@ File created:
 This documentation will be searchable for future reference when similar
 issues occur in the Email Processing or Brief System modules.
 
-What's next?
-1. Continue workflow (recommended)
-2. Link related documentation
-3. Update other references
-4. View documentation
-5. Other
+Next step:
+Proceed to the `compound-docs` decision gate, which is the authoritative
+post-capture menu for continuation, required reading promotion, convention
+promotion, and tech debt tracking.
 ```
 
 ## The Compounding Philosophy

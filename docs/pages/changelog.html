@@ -35,7 +35,7 @@
           <ul>
             <li><a href="agents.html">Agents (23)</a></li>
             <li><a href="commands.html">Commands (13)</a></li>
-            <li><a href="skills.html">Skills (11)</a></li>
+            <li><a href="skills.html">Skills (12)</a></li>
             <li><a href="mcp-servers.html">MCP Servers (two)</a></li>
           </ul>
         </div>
@@ -48,6 +48,7 @@
         <div class="nav-section">
           <h3>On This Page</h3>
           <ul>
+            <li><a href="#v2.34.0">v2.34.0</a></li>
             <li><a href="#v2.32.2">v2.32.2</a></li>
             <li><a href="#v2.32.1">v2.32.1</a></li>
             <li><a href="#v2.6.0">v2.6.0</a></li>
@@ -87,6 +88,41 @@
           <a href="https://semver.org/">Semantic Versioning</a> and
           <a href="https://keepachangelog.com/">Keep a Changelog</a> conventions.
         </p>
+
+        <!-- Version 2.34.0 -->
+        <section id="v2.34.0" class="version-section">
+          <div class="version-header">
+            <h2>v2.34.0</h2>
+            <span class="version-date">2026-02-13</span>
+          </div>
+
+          <div class="changelog-category added">
+            <h3><i class="fa-solid fa-plus"></i> Added</h3>
+            <ul>
+              <li>
+                <strong><code>compound-foundations</code> skill</strong> - Added a new foundations skill with router-style intake, 10 principle references, 4 workflows, and 8 artifact templates.
+              </li>
+              <li>
+                <strong><code>setup</code> skill Step 6</strong> - Added optional foundations audit flow after setup confirmation.
+              </li>
+              <li>
+                <strong><code>compound-docs</code> decision menu options</strong> - Added Option 8 (promote to convention) and Option 9 (track as tech debt).
+              </li>
+            </ul>
+          </div>
+
+          <div class="changelog-category changed">
+            <h3><i class="fa-solid fa-arrows-rotate"></i> Changed</h3>
+            <ul>
+              <li>
+                <strong><code>compound-docs</code> Step 7</strong> - Added promotion suggestion logic when similar findings recur.
+              </li>
+              <li>
+                <strong><code>/workflows:compound</code> command</strong> - Removed duplicate post-capture menu and now defers to the skill decision gate.
+              </li>
+            </ul>
+          </div>
+        </section>
 
         <!-- Version 2.32.2 -->
         <section id="v2.32.2" class="version-section">
