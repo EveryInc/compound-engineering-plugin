@@ -9,7 +9,7 @@ description: "Process interview transcripts into structured snapshots with tagge
 
 Process raw interview transcripts into structured interview snapshots following Teresa Torres' one-page interview snapshot format. Extract atomic insights, map experience timelines, identify opportunities in Opportunity Solution Tree language, and track hypothesis status.
 
-**Reference:** [discovery-playbook.md](./references/discovery-playbook.md) -- Continuous Product Discovery Playbook with detailed methodology.
+**Reference:** [discovery-playbook.md](../research-plan/references/discovery-playbook.md) -- Continuous Product Discovery Playbook with detailed methodology.
 
 ## Quick Start
 
@@ -282,4 +282,11 @@ Extracted opportunity:
 
 ## Privacy Note
 
-Interview snapshots use anonymized participant IDs (user-001, user-002). Do not include real names, email addresses, or other PII in the snapshot. If the source transcript contains PII, strip it during processing. Consider adding `docs/research/transcripts/` to `.gitignore`.
+Interview snapshots use anonymized participant IDs (user-001, user-002). Do not include real names, email addresses, or other identifying information in the snapshot output. When processing transcripts:
+
+- **Replace all real names** with anonymized IDs (e.g., "user-001") in quotes and context
+- **Replace company names** with generic descriptors (e.g., "a regional health plan") unless the company is public knowledge and relevant to the insight
+- **Strip identifying details** from the `source_transcript` frontmatter field -- use a descriptive slug, not the original filename if it contains names
+- **Quotes must be exact** from the transcript, but with PII replaced inline (e.g., `"[user-001] said the export was broken"`)
+
+Transcripts in `docs/research/transcripts/` contain raw interview data with PII and MUST NOT be committed to public repositories. The `.gitignore` includes `docs/research/transcripts/*.md` by default.
