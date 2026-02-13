@@ -3,7 +3,7 @@ title: "feat: Add Compound Foundations Skill and Integrate into Setup + Compound
 type: feat
 status: active
 date: 2026-02-13
-shaping: plans/2026-02-13-compound-foundations-shaping.md
+shaping: docs/plans/2026-02-13-compound-foundations-shaping.md
 ---
 
 # Add Compound Foundations Skill and Integrate into Setup + Compound
@@ -216,7 +216,7 @@ Confirm that `docs/solutions/patterns/` (used by compound-docs Step 7) is NOT af
 
 ## Alternative Approaches Considered
 
-See shaping doc (`plans/2026-02-13-compound-foundations-shaping.md`) for full evaluation of 3 shapes. Shape C (enhance existing commands) was selected over Shape A (extend both, no skill) and Shape B (new `/foundations` command).
+See shaping doc (`docs/plans/2026-02-13-compound-foundations-shaping.md`) for full evaluation of 3 shapes. Shape C (enhance existing commands) was selected over Shape A (extend both, no skill) and Shape B (new `/foundations` command).
 
 Within Shape C, we considered a `foundations:` config block in `compound-engineering.local.md` with configurable paths. Removed in favor of convention over configuration -- files always in `docs/`.
 
@@ -262,7 +262,7 @@ Within Shape C, we considered a `foundations:` config block in `compound-enginee
 
 ## Dependencies & Prerequisites
 
-- Shaping doc: `plans/2026-02-13-compound-foundations-shaping.md` (approved)
+- Shaping doc: `docs/plans/2026-02-13-compound-foundations-shaping.md` (approved)
 - Source material: `~/.claude/skills/harness-engineering/SKILL.md` (personal skill, 10 principles)
 - Existing patterns: `skills/agent-native-architecture/` (14 refs, router), `skills/create-agent-skills/` (13 refs, 10 workflows, 2 templates)
 
@@ -341,7 +341,7 @@ docs/pages/changelog.html          # New version
 ## References & Research
 
 ### Internal References
-- Shaping doc: `plans/2026-02-13-compound-foundations-shaping.md`
+- Shaping doc: `docs/plans/2026-02-13-compound-foundations-shaping.md`
 - Router pattern exemplar: `skills/agent-native-architecture/SKILL.md`
 - Workflow pattern exemplar: `skills/create-agent-skills/workflows/create-new-skill.md`
 - Asset pattern exemplar: `skills/compound-docs/assets/resolution-template.md`
