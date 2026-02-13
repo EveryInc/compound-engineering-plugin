@@ -5,6 +5,15 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.34.1] - 2026-02-13
+
+### Fixed
+
+- **`/workflows:work` Phase 4 Step 4** — Strengthened "Update Plan Status" to require updating the original plan document with completion summary, `completed_by`, `completed_date`, and `actual_effort` frontmatter fields. Explicitly prohibits creating separate completion report files (e.g. `COMPLETION_REPORT.md`). The plan is the single source of truth for both planning and delivery.
+- **`/workflows:work` pitfalls** — Added anti-pattern: "Creating separate completion reports — update the plan file itself."
+
+---
+
 ## [2.34.0] - 2026-02-13
 
 ### Added

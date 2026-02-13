@@ -297,12 +297,48 @@ This command takes a work document (plan, specification, or todo file) and execu
    )"
    ```
 
-4. **Update Plan Status**
+4. **Update the Plan Document** (REQUIRED)
 
-   If the input document has YAML frontmatter with a `status` field, update it to `completed`:
+   When work is complete, **update the original plan file** — never create a separate completion report, summary document, or status file. The plan is the living record of what was planned AND what was delivered.
+
+   **Step A: Update frontmatter**
+   ```yaml
+   status: completed                              # was: active
+   completed_date: YYYY-MM-DD                     # today's date
+   completed_by: "Claude Haiku 4.5"               # model that did the work
+   actual_effort: "Description of actual effort"   # e.g. "Completed in one session"
    ```
-   status: active  →  status: completed
+
+   **Step B: Add a completion summary section** at the end of the plan (before any "Out of Scope" or "Future" sections):
+   ```markdown
+   ## Completion Summary
+
+   ### What Was Delivered
+   - [List each major feature/phase completed with checkmarks]
+
+   ### Implementation Statistics
+   - Files changed, lines added, commits made
+   - Dependencies added (if any)
+   - Build/test status
+
+   ### Performance / Results
+   - Key metrics achieved vs targets
+   - Test verification results
+
+   ### Git Commits
+   - [List commit SHAs and messages]
+
+   ### Completion Details
+   - **Completed By:** [Model name, e.g. Claude Haiku 4.5]
+   - **Date:** [Date]
+   - **Session:** [Single session / multiple sessions / etc.]
    ```
+
+   **Anti-patterns — do NOT do these:**
+   - Do NOT create a separate `*_COMPLETION_REPORT.md` or `*_SUMMARY.md` file
+   - Do NOT create files with ALL_CAPS names for completion status
+   - Do NOT duplicate plan content into a new document
+   - The plan file itself is the single source of truth for both planning and completion
 
 5. **Notify User**
    - Summarize what was completed
@@ -452,3 +488,4 @@ For most features: tests + linting + following patterns is sufficient.
 - **Forgetting TodoWrite** - Track progress or lose track of what's done
 - **80% done syndrome** - Finish the feature, don't move on early
 - **Over-reviewing simple changes** - Save reviewer agents for complex work
+- **Creating separate completion reports** - Update the plan file itself, never create new files like `COMPLETION_REPORT.md`
