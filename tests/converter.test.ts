@@ -75,6 +75,35 @@ describe("convertClaudeToOpenCode", () => {
     expect(modelCommand?.model).toBe("openai/gpt-4o")
   })
 
+  test("resolves bare Claude model aliases to full IDs", () => {
+    const plugin: ClaudePlugin = {
+      root: "/tmp/plugin",
+      manifest: { name: "fixture", version: "1.0.0" },
+      agents: [
+        {
+          name: "cheap-agent",
+          description: "Agent using bare alias",
+          body: "Test agent.",
+          sourcePath: "/tmp/plugin/agents/cheap-agent.md",
+          model: "haiku",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const agent = bundle.agents.find((a) => a.name === "cheap-agent")
+    expect(agent).toBeDefined()
+    const parsed = parseFrontmatter(agent!.content)
+    expect(parsed.data.model).toBe("anthropic/claude-haiku-4-5")
+  })
+
   test("converts hooks into plugin file", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToOpenCode(plugin, {

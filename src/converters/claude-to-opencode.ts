@@ -250,8 +250,24 @@ function rewriteClaudePaths(body: string): string {
     .replace(/\.claude\//g, ".opencode/")
 }
 
+// Bare Claude family aliases used in Claude Code (e.g. `model: haiku`).
+// Update these when new model generations are released.
+const CLAUDE_FAMILY_ALIASES: Record<string, string> = {
+  haiku: "claude-haiku-4-5",
+  sonnet: "claude-sonnet-4-5",
+  opus: "claude-opus-4-6",
+}
+
 function normalizeModel(model: string): string {
   if (model.includes("/")) return model
+  if (CLAUDE_FAMILY_ALIASES[model]) {
+    const resolved = `anthropic/${CLAUDE_FAMILY_ALIASES[model]}`
+    console.warn(
+      `Warning: bare model alias "${model}" mapped to "${resolved}". ` +
+        `Update CLAUDE_FAMILY_ALIASES if a newer version is available.`,
+    )
+    return resolved
+  }
   if (/^claude-/.test(model)) return `anthropic/${model}`
   if (/^(gpt-|o1-|o3-)/.test(model)) return `openai/${model}`
   if (/^gemini-/.test(model)) return `google/${model}`
