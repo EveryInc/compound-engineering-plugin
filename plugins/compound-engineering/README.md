@@ -204,6 +204,69 @@ The `agent-browser` skill provides comprehensive documentation on usage.
 claude /plugin install compound-engineering
 ```
 
+## Customizing Agent Behavior
+
+Plugin agents read your project's `CLAUDE.md` before executing. You can add instructions to customize their behavior without modifying the plugin.
+
+### Example: LSP Prioritization
+
+To make agents prioritize LSP tools over grep for code understanding, add this to your project's `CLAUDE.md`:
+
+**Minimal version:**
+
+```markdown
+## Code Search
+
+Prefer LSP operations for semantic code understanding; use grep for text patterns and config files.
+```
+
+**Detailed version:**
+
+```markdown
+## Code Search Strategy (MANDATORY)
+
+**This applies to ALL code search operations, including work delegated to sub-agents.**
+
+When searching or analyzing code - whether directly or via Task tool agents - prioritize LSP tools over rg:
+
+1. **LSP First** - Use LSP operations for semantic code understanding:
+   - `documentSymbol` - List all symbols in a file (ALWAYS START HERE)
+   - `findReferences` - Find all usages of a symbol
+   - `goToDefinition` - Navigate to where a symbol is defined
+   - `hover` - Get type info and documentation
+   - `incomingCalls` - Find callers of a function
+   - `outgoingCalls` - Find functions called by a function
+
+2. **rg/Grep Second** - Fall back to text search ONLY for:
+   - String literals and comments
+   - Config files (YAML, JSON, ENV)
+   - TODO/FIXME markers
+   - Files without LSP support (Markdown, templates)
+
+LSP provides compiler-accurate results; rg finds text patterns.
+
+### Agent Delegation
+
+When using the Task tool to spawn agents for code exploration, you MUST include this instruction in the prompt:
+
+> "Use LSP tools (documentSymbol, findReferences, goToDefinition, hover) before falling back to Grep/Glob for code search."
+```
+
+This influences agents like `repo-research-analyst`, `pattern-recognition-specialist`, and `security-sentinel` to use LSP operations before falling back to grep.
+
+**When to use LSP prioritization:**
+- TypeScript/JavaScript projects (excellent LSP via tsserver)
+- Python projects (good LSP via Pyright/Pylsp)
+- Rust projects (excellent LSP via rust-analyzer)
+- Ruby projects (good LSP via ruby-lsp/Solargraph)
+- Go projects (excellent LSP via gopls)
+
+**When grep is still appropriate:**
+- Searching for hardcoded secrets (`password`, `API_KEY`, etc.)
+- Finding TODO/FIXME comments
+- Searching config files and environment variables
+- Pattern matching across non-code files
+
 ## Known Issues
 
 ### MCP Servers Not Auto-Loading
