@@ -169,8 +169,8 @@ If `docs/research/` does not exist or contains no files, return:
 
 ## Integration Points
 
-Intended callers (to be wired in PR 2):
-- `/workflows:brainstorm` Phase 1.1 -- surface research before brainstorming
-- `/workflows:plan` Step 1 -- inform planning with user evidence
+This agent is called by:
+- `/workflows:brainstorm` Phase 1.1 -- surfaces research before brainstorming
+- `/workflows:plan` Step 1 -- informs planning with user evidence
 
-Will run in parallel with `learnings-researcher` and `repo-research-analyst` during planning phases.
+Runs in parallel with `learnings-researcher` and `repo-research-analyst` during planning phases.

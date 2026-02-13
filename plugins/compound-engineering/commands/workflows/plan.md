@@ -84,10 +84,12 @@ Run these agents **in parallel** to gather local context:
 
 - Task repo-research-analyst(feature_description)
 - Task learnings-researcher(feature_description)
+- Task user-research-analyst(feature_description)
 
 **What to look for:**
 - **Repo research:** existing patterns, CLAUDE.md guidance, technology familiarity, pattern consistency
 - **Learnings:** documented solutions in `docs/solutions/` that might apply (gotchas, patterns, lessons learned)
+- **User research:** relevant personas, interview insights, opportunities, and research gaps from `docs/research/`
 
 These findings inform the next step.
 
@@ -122,6 +124,7 @@ After all research steps complete, consolidate findings:
 
 - Document relevant file paths from repo research (e.g., `app/services/example_service.rb:42`)
 - **Include relevant institutional learnings** from `docs/solutions/` (key insights, gotchas to avoid)
+- **If user research findings were returned**: include relevant personas and their relationship to this feature, key insights and quotes from interviews, research gaps (areas where coverage is thin). If no research data was found, skip this bullet silently.
 - Note external documentation URLs and best practices (if external research was done)
 - List related issues or PRs discovered
 - Capture CLAUDE.md conventions

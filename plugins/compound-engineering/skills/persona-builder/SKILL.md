@@ -9,7 +9,7 @@ description: "Synthesize personas from processed interview snapshots with confid
 
 Synthesize personas from processed interview snapshots. Personas are living documents that grow more confident as interviews accumulate. Follow evidence-based persona construction with confidence tracking, opportunity tables, and contradiction handling via Divergences sections.
 
-**Reference:** [discovery-playbook.md](./references/discovery-playbook.md) -- Continuous Product Discovery Playbook with detailed methodology.
+**Reference:** [discovery-playbook.md](../research-plan/references/discovery-playbook.md) -- Continuous Product Discovery Playbook with detailed methodology.
 
 ## Quick Start
 
@@ -116,22 +116,18 @@ When a new interview contradicts an existing finding, do NOT silently update cou
 3. When divergences reach 40/60 split or closer, flag for potential persona segmentation: `[Flag: Consider splitting this persona -- [finding] shows near-even split]`
 4. Surface contradictions in the merge confirmation prompt so the user is aware before confirming
 
-### Evidence Strength Thresholds
+### Evidence Strength
 
-| Strength | Criteria |
-|----------|---------|
-| Weak | Less than 33% of participants, or only 1 interview |
-| Medium | 33-66% of participants |
-| Strong | 67%+ of participants |
+- **Weak**: Only 1 participant, or a small minority
+- **Medium**: Roughly half of participants
+- **Strong**: Most participants (clear majority)
 
-### Hypothesis Status Transitions
+### Hypothesis Status
 
-| Status | Criteria |
-|--------|---------|
-| SUPPORTED | 75%+ of evidence supports |
-| MIXED | 40-75% support |
-| CHALLENGED | Less than 40% support |
-| NEW | Emerged from this interview, no prior evidence |
+- **SUPPORTED**: Most evidence supports
+- **MIXED**: Evidence is split
+- **CHALLENGED**: Most evidence contradicts
+- **NEW**: Emerged from this interview, no prior evidence
 
 ## Output Template
 

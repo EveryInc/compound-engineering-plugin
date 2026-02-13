@@ -53,9 +53,9 @@ Research status:
 **Counting unprocessed transcripts:** Count files in `docs/research/transcripts/`. Then check `docs/research/interviews/` frontmatter for `source_transcript` fields. Transcripts not referenced by any interview are unprocessed. Simpler fallback: count transcripts minus count of interviews.
 
 **Recommend the next logical phase** based on state:
-- No plans exist → recommend Plan
-- Unprocessed transcripts exist → recommend Process
+- Unprocessed transcripts exist → recommend Process (ready-to-process data takes priority)
 - Interviews exist but no personas → recommend Personas
+- No plans and no transcripts → recommend Plan
 - All phases have artifacts → show neutral menu
 
 Use **AskUserQuestion** with three options:
