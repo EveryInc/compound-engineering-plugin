@@ -1,0 +1,25 @@
+{
+  "name": "compound-engineering",
+  "owner": {
+    "name": "Kieran Klaassen",
+    "email": "kieran@every.to",
+    "url": "https://github.com/kieranklaassen"
+  },
+  "metadata": {
+    "description": "Cursor plugin marketplace for Every Inc plugins",
+    "version": "1.0.0",
+    "pluginRoot": "plugins"
+  },
+  "plugins": [
+    {
+      "name": "compound-engineering",
+      "source": "compound-engineering",
+      "description": "AI-powered development tools that get smarter with every use. Includes specialized agents, commands, skills, and Context7 MCP."
+    },
+    {
+      "name": "coding-tutor",
+      "source": "coding-tutor",
+      "description": "Personalized coding tutorials with spaced repetition quizzes using your real codebase."
+    }
+  ]
+}
