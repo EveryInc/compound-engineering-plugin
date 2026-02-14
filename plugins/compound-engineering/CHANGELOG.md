@@ -5,25 +5,56 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.34.0] - 2026-02-12
+## [2.34.0] - 2026-02-13
 
 ### Changed
 
-- **`/deepen-plan` command** — Rewritten with **phased file-based map-reduce** architecture (v3) to prevent context overflow
-  - Sub-agents write full analysis JSON to `.deepen/` on disk and return only ~100 token summaries to parent
-  - Parent context stays under ~12k tokens regardless of agent count (vs unbounded in v1)
-  - New phases: **Plan Manifest Analysis** (structured context for all agents), **Validation** (catches silent failures + hallucination flagging), **Judge** (dedup + conflict resolution with source attribution priority), **Preservation Check** (catches rewrite-instead-of-append errors)
-  - Smart agent selection: always-run cross-cutting agents (security, architecture, performance) + manifest-matched domain agents
-  - Skill agents now read `references/`, `assets/`, and `templates/` subdirectories for deeper context
-  - Compound insights option (Step 9d) now uses `compound-docs` skill YAML schema for properly validated learning files
-  - Cross-platform safe: uses project-relative `.deepen/` instead of `/tmp/` (fixes Windows path issues)
-  - Uses Node.js for validation scripts (Python3 may not be installed on all platforms)
-  - Next steps offer `/plan_review` (not `/workflows:review` which is for code, not plans)
-  - Correct agent name references matching actual plugin agent filenames
-  - **New: Architectural Decision Challenge phase** — Two new always-run agents that challenge plan decisions (not just deepen them):
-    - `agent-native-architecture-reviewer`: Properly routes to the `agent-native-architecture` skill's checklist, anti-patterns, and reference files (`from-primitives-to-domain-tools.md`, `mcp-tool-design.md`, `refactoring-to-prompt-native.md`)
-    - `project-architecture-challenger`: Reads CLAUDE.md and challenges every decision against the project's own architectural principles (redundancy, layer placement, YAGNI enforcement, convention drift)
-  - Review/research agents now receive `## PROJECT ARCHITECTURE CONTEXT` — they read the project's CLAUDE.md to evaluate against project-specific principles, not just generic best practices
+- **`/deepen-plan` command** — Complete rewrite with **context-managed map-reduce** architecture to prevent context overflow. Validated across multiple real-world runs.
+
+  **Architecture:**
+  - Sub-agents write full analysis JSON to `.deepen/` on disk, return only a ~200-char completion signal to parent
+  - Parent context stays under ~13k tokens regardless of agent count (vs unbounded in v1)
+  - 10-phase pipeline: Analyze → Discover → Research (batched) → Validate → Judge (parallel per-section + merge) → Enhance → Quality Review → Preservation Check → Present
+
+  **Context Overflow Prevention (crash-tested):**
+  - **Batched agent launches** — Max 4 Task() agents pending simultaneously. Prevents session crash from simultaneous returns (anthropics/claude-code#11280, #8136)
+  - **200-char return cap** — Hard limit on agent return messages. All analysis lives in JSON files on disk
+  - **Task() failure recovery** — Retry once on silent infrastructure errors (`[Tool result missing due to internal error]`)
+
+  **Version Grounding:**
+  - Plan-analyzer reads lockfile → package.json → plan text (priority order) to resolve actual framework versions
+  - Prevents downstream agents from researching wrong library versions (e.g., MUI 5 when project uses MUI 7)
+  - `version_mismatches` field flags discrepancies between plan text and actual dependencies
+
+  **Per-Section Judge Parallelization:**
+  - Replaces single monolithic judge with parallel per-section judges + merge judge
+  - Section judges run in parallel (batched max 4), each deduplicates and ranks within its section
+  - Merge judge resolves cross-section conflicts, identifies cross-section convergence
+  - Reduced judge time from ~21 min to ~8-10 min in testing
+
+  **Two-Part Output Structure:**
+  - **Decision Record** (reviewer-facing): Enhancement summary, agent consensus, research insights, strong signal markers, fast follow items, verification checklist
+  - **Implementation Spec** (developer-facing): Clean, linear implementation guidance with ready-to-copy code blocks — no `// ENHANCED:` annotations or `(Rec #X)` references
+
+  **Quality Review (CoVe Pattern):**
+  - Post-enhancement agent checks for self-contradictions, PR scope assessment, defensive stacking, code completeness (undefined references), integration test gap detection, deferred items needing bridge mitigations
+  - Runs in isolated context — does not inherit enhancer's perspective
+
+  **Enhancer Improvements:**
+  - **Resolve conditionals** — Reads codebase to determine which implementation path applies, eliminates "if X use A, if Y use B" forks
+  - **Version verification** — Checks `frameworks_with_versions` before suggesting APIs (prevents ES2023+ suggestions for ES2022 targets)
+  - **Accessibility verification** — Ensures `prefers-reduced-motion` fallbacks don't leave permanent visual artifacts
+  - **Convergence signals** — `[Strong Signal — N agents]` markers when 3+ agents independently flag same concern
+  - **`fast_follow` classification** — Fourth action bucket for items with real UX impact but out of PR scope (must be ticketed before merge)
+
+  **Other Improvements:**
+  - `truncated_count` required field — Agents report omitted recommendations beyond 8-cap; judge weights convergence accordingly
+  - `learnings-researcher` integration — Single dedicated agent replaces N per-file learning agents
+  - Pipeline checkpoint logging to `.deepen/PIPELINE_LOG.md` for diagnostics
+  - Cross-platform safe: project-relative `.deepen/`, Node.js validation (no Python3 dependency)
+  - Architectural Decision Challenge phase with `project-architecture-challenger` agent
+  - `agent-native-architecture-reviewer` with dedicated skill routing
+  - PROJECT ARCHITECTURE CONTEXT block for all review/research agents
 
 ---
 
