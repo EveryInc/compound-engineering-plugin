@@ -21,6 +21,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **`/workflows:brainstorm`** - Now runs `user-research-analyst` in parallel; silently skips when no research data exists
 - **`/workflows:plan`** - Research context integrated into Step 1.6 consolidation
 
+### Fixed
+
+- **`/workflows:research` command** — Process phase now handles inline transcript content (saves to file before processing) instead of requiring pre-existing files in `docs/research/transcripts/`
+- **`transcript-insights` skill** — Step 2 (Link to Research Plan) now gracefully handles empty `docs/research/plans/` directory by defaulting to ad-hoc instead of stalling
+
 ---
 
 ## [2.35.2] - 2026-02-20

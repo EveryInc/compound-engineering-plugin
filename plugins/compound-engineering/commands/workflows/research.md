@@ -81,12 +81,23 @@ After the skill completes, proceed to **Handoff**.
 
 ## Phase 2: Process
 
+### Check for Inline Content
+
+If the research phase argument contains more than just the word "process" (i.e., transcript content was provided inline):
+
+1. Extract the transcript content from the argument (everything after "process")
+2. Look for a meeting title or date in the content to generate a filename. Use the format: `YYYY-MM-DD_<meeting-title-slug>_transcript.md`. If no title or date is found, use today's date with a generic slug (e.g., `2026-02-13_interview_transcript.md`)
+3. Save the content to `docs/research/transcripts/[filename]`
+4. Skip the transcript selection step below — proceed directly to **Process Selected Transcript** with this file path
+
 ### Check for Transcripts
+
+**If inline content was already saved above, skip this section.**
 
 Look for `.md` files in `docs/research/transcripts/`.
 
 **If no transcripts exist:**
-Report: "No transcripts found in `docs/research/transcripts/`. Save your interview transcript as a `.md` file there, then re-run this phase."
+Report: "No transcripts found in `docs/research/transcripts/`. Save your interview transcript as a `.md` file there, or pass the content inline: `/workflows:research process [transcript content]`."
 Proceed to **Handoff**.
 
 **If transcripts exist:**

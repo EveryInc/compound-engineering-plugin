@@ -30,6 +30,12 @@ If content is pasted directly, proceed with that content (no file reference in o
 
 ### Step 2: Link to Research Plan
 
+Check for files in `docs/research/plans/`.
+
+**If no plans exist:**
+Set `research_plan: ad-hoc` in frontmatter and proceed to Step 3.
+
+**If plans exist:**
 List existing research plans by reading frontmatter from files in `docs/research/plans/`:
 - Show title, date, and status for each plan
 - Most recent first, cap at 7 entries
