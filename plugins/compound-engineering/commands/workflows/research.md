@@ -31,17 +31,37 @@ mkdir -p docs/research/plans docs/research/transcripts docs/research/interviews 
 
 Run this silently before any phase.
 
-## Research Phase
+## Routing
 
 <research_phase> #$ARGUMENTS </research_phase>
 
-**If argument matches a phase name** (`plan`, `process`, or `personas`), jump directly to that phase below.
+Read the content inside `<research_phase>`. Follow the FIRST matching rule below and STOP — do not continue to later rules.
 
-**If argument is unrecognized**, show the phase selection menu with a note: "Valid arguments: `plan`, `process`, `personas`."
+### Rule 1: Inline transcript content
 
-**If argument is empty**, run phase selection:
+If the argument contains multi-line content (a transcript, meeting notes, interview text — anything beyond a single keyword or short phrase):
+
+This IS inline transcript content. Do NOT check artifact status. Do NOT show phase selection. Handle it immediately:
+
+1. Extract the meeting title and date from the content to generate a filename: `YYYY-MM-DD_<meeting-title-slug>_transcript.md`. If no date is found, use today's date.
+2. Save the full content to `docs/research/transcripts/[filename]`
+3. Jump to **Process Selected Transcript** in Phase 2 below with this file path
+
+### Rule 2: Phase name keyword
+
+If the argument is exactly `plan`, `process`, or `personas`, jump to that phase below.
+
+### Rule 3: Unrecognized argument
+
+If the argument is a short unrecognized string, show the phase selection menu with a note: "Valid arguments: `plan`, `process`, `personas`."
+
+### Rule 4: Empty argument
+
+If the argument is empty, run phase selection:
 
 ### Phase Selection
+
+**SKIP this section if Rule 1 matched above (inline content).** Only run this when the argument was empty.
 
 Show a brief artifact status (2-3 lines max):
 
@@ -83,12 +103,9 @@ After the skill completes, proceed to **Handoff**.
 
 ### Check for Inline Content
 
-If the research phase argument contains more than just the word "process" (i.e., transcript content was provided inline):
+If arriving here from **Rule 1** in Routing, the transcript has already been saved. Skip directly to **Process Selected Transcript** below.
 
-1. Extract the transcript content from the argument (everything after "process")
-2. Look for a meeting title or date in the content to generate a filename. Use the format: `YYYY-MM-DD_<meeting-title-slug>_transcript.md`. If no title or date is found, use today's date with a generic slug (e.g., `2026-02-13_interview_transcript.md`)
-3. Save the content to `docs/research/transcripts/[filename]`
-4. Skip the transcript selection step below — proceed directly to **Process Selected Transcript** with this file path
+If the argument starts with "process" followed by substantial content, strip the "process" prefix, save the content as a transcript file (using the same naming logic from Rule 1), and skip to **Process Selected Transcript**.
 
 ### Check for Transcripts
 
