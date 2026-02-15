@@ -299,7 +299,7 @@ Read .deepen/original_plan.md for the full plan content.
      "tools_used": ["read_file:path", "web_search:query", ...],
      "recommendations": [
        {
-         "section_id": <from manifest>,
+         "section_id": <NUMBER from manifest — must be a numeric id like 1, 2, 3. NOT a string like "Phase-1">,
          "type": "best-practice|edge-case|anti-pattern|performance|security|code-example|architecture|ux|testing",
          "title": "<100 chars>",
          "recommendation": "<500 chars>",
@@ -313,7 +313,7 @@ Read .deepen/original_plan.md for the full plan content.
    }
 3. Max 8 recommendations per agent. Prioritize by impact.
 4. Only include recommendations with confidence >= 0.6.
-5. Every recommendation MUST reference a specific section_id from the plan manifest.
+5. Every recommendation MUST reference a NUMERIC section_id from the plan manifest (e.g., 1, 2, 3 — NOT "Phase-1" or "Phase-1-Types-Store"). String section IDs will be silently dropped by section judges.
 6. Code examples are ENCOURAGED.
 7. tools_used is MANDATORY. If empty, set confidence to 0.5 max.
 8. **truncated_count is REQUIRED (default 0).** If you had more recommendations beyond the 8 cap, set this to the number you omitted. Example: you found 12 relevant issues but only wrote the top 8 → truncated_count: 4. The judge uses this to weight convergence signals.
@@ -519,6 +519,9 @@ for (const file of files) {
     for (let i = 0; i < data.recommendations.length; i++) {
       const rec = data.recommendations[i];
       if (rec.section_id == null) throw new Error('rec ' + i + ': missing section_id');
+      if (typeof rec.section_id !== 'number') {
+        console.log('WARNING: ' + file + ' rec ' + i + ': section_id is ' + JSON.stringify(rec.section_id) + ' (string) — must be numeric. Section judges may drop this rec.');
+      }
       if (rec.type == null || rec.type === '') throw new Error('rec ' + i + ': missing type');
       if (rec.recommendation == null || rec.recommendation === '') throw new Error('rec ' + i + ': missing recommendation');
     }
