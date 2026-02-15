@@ -20,7 +20,7 @@ argument-hint: "[path to plan file]"
 2. **Discover Phase** (parent) — Find available skills, learnings, agents using Glob/Read. Match against manifest.
 3. **Research Phase** (batched parallel) — Matched agents write structured recommendations to `.deepen/`, return only a completion signal. Agents report `truncated_count` when capped.
 4. **Validate** — Verify all expected agent files exist, conform to schema (including required `truncated_count`), flag zero-tool-use hallucination risk.
-5. **Judge Phase** (parallel per-section + merge) — Per-section judges run in parallel (batched, max 4). Each deduplicates and ranks within its section. Merge judge then resolves cross-section conflicts/convergence and produces final consolidated output.
+5. **Judge Phase** (parallel per-section + data prep + merge) — Per-section judges run in parallel (batched, max 4). Data prep agent (haiku) compiles all results into a single `MERGE_INPUT.json`. Merge judge reads one file and focuses on cross-section conflict/convergence reasoning.
 6. **Judge Validation** — Verify judge output references real manifest sections.
 7. **Enhance Phase** — Synthesis agent reads consolidated recommendations + original plan, writes enhanced version. **Verifies APIs exist in resolved versions before suggesting code.** Classifies items as implement/verify/fast_follow/defer. Two-part output: Decision Record + Implementation Spec.
 8. **Quality Review** — CoVe-pattern agent checks enhanced plan for self-contradictions, PR scope, defensive stacking, deferred items needing bridge mitigations.
@@ -229,27 +229,6 @@ Read `.deepen/PLAN_MANIFEST.json` and match discovered resources:
 **Special routing — `agent-native-architecture` skill:** This skill is interactive with a routing table. Do NOT use the generic skill template. Use the dedicated template in Step 4.
 
 **Learnings** — Match if tags, category, or module overlaps with plan technologies/domains.
-
-#### Learnings Filtering Examples
-
-Given 12 learning files and a plan about "Rails API caching with Redis":
-
-**SPAWN (likely relevant):**
-```
-docs/solutions/performance-issues/n-plus-one-queries.md      # tags: [activerecord] — matches Rails
-docs/solutions/performance-issues/redis-cache-stampede.md    # tags: [caching, redis] — exact match
-docs/solutions/configuration-fixes/redis-connection-pool.md  # tags: [redis] — matches Redis
-docs/solutions/integration-issues/api-versioning-gotcha.md   # tags: [api, rails] — matches API
-```
-
-**SKIP (clearly not applicable):**
-```
-docs/solutions/deployment-issues/heroku-memory-quota.md      # plan has no deployment concerns
-docs/solutions/frontend-issues/stimulus-race-condition.md    # plan is API, not frontend
-docs/solutions/authentication-issues/jwt-expiry.md           # plan has no auth
-```
-
-When in doubt, spawn it. A learning agent that returns "Not applicable" wastes one context window. A missed learning that would have prevented a production bug wastes days.
 
 **Agents** — Two tiers:
 
@@ -534,14 +513,14 @@ for (const file of files) {
   const fp = path.join('.deepen', file);
   try {
     const data = JSON.parse(fs.readFileSync(fp, 'utf8'));
-    if (!Array.isArray(data.recommendations)) throw new Error('recommendations not an array');
+    if (Array.isArray(data.recommendations) === false) throw new Error('recommendations not an array');
     if (data.recommendations.length > 8) throw new Error('too many recommendations: ' + data.recommendations.length);
     if (typeof data.truncated_count !== 'number') throw new Error('missing required field: truncated_count');
     for (let i = 0; i < data.recommendations.length; i++) {
       const rec = data.recommendations[i];
       if (rec.section_id == null) throw new Error('rec ' + i + ': missing section_id');
-      if (!rec.type) throw new Error('rec ' + i + ': missing type');
-      if (!rec.recommendation) throw new Error('rec ' + i + ': missing recommendation');
+      if (rec.type == null || rec.type === '') throw new Error('rec ' + i + ': missing type');
+      if (rec.recommendation == null || rec.recommendation === '') throw new Error('rec ' + i + ': missing recommendation');
     }
     const tools = data.tools_used || [];
     const truncNote = data.truncated_count > 0 ? ' (truncated ' + data.truncated_count + ')' : '';
@@ -663,36 +642,79 @@ echo "- Completed: $(date -u +%H:%M:%S)" >> .deepen/PIPELINE_LOG.md
 echo "" >> .deepen/PIPELINE_LOG.md
 ```
 
-#### Step 6c: Merge Judge (sequential)
+#### Step 6c: Data Prep Agent (mechanical — model: haiku)
 
-After ALL section judges complete, launch a single merge judge to handle cross-section concerns.
+<critical_instruction>
+The merge judge previously failed due to OOM/timeout when reading 20+ files AND doing cross-section reasoning in one context. Split into two agents: a cheap data prep agent handles all I/O, then the merge judge focuses entirely on reasoning from a single pre-compiled input file.
+</critical_instruction>
 
 ```
-Task judge-merge("
-You are the Merge Judge. Combine per-section judgments into the final consolidated report.
+Task judge-data-prep("
+You are a Data Preparation Agent. Your job is purely mechanical — extract and compile data from multiple files into a single structured input for the merge judge. No judgment, no synthesis.
 
 ## Instructions:
-1. Read .deepen/PLAN_MANIFEST.json for plan structure
-2. Read ALL .deepen/JUDGED_SECTION_*.json files
-3. Read ALL agent JSON files in .deepen/*.json (skip PLAN_MANIFEST.json, JUDGED_*.json) — ONLY to extract agent_summaries (agent_name + summary field)
+1. Read .deepen/PLAN_MANIFEST.json — extract plan_title, section count
+2. Read ALL .deepen/JUDGED_SECTION_*.json files — extract each section's full recommendations array, raw_count, duplicates_removed, conflicts_resolved, section_concerns
+3. Read ALL agent JSON files in .deepen/*.json (skip PLAN_MANIFEST.json, JUDGED_*.json) — extract ONLY agent_name and summary fields (ignore recommendations — those are already in section judges)
 
-## Cross-Section Analysis (the merge judge's unique job):
-4. CROSS-SECTION CONFLICTS: Check if any recommendation in Section A contradicts one in Section C (e.g., same file referenced with conflicting guidance on where logic should live). Flag conflicts with both section IDs and a resolution recommendation.
-
-5. CROSS-SECTION CONVERGENCE: Check if different sections independently recommend the same pattern (e.g., Section 1 recommends typed filterContext AND Section 3 recommends deriving from typed context). This strengthens both signals — note the cross-section reinforcement.
-
-6. RENUMBER recommendation IDs sequentially across all sections (1, 2, 3... not per-section).
-
-7. Write to .deepen/JUDGED_RECOMMENDATIONS.json:
+4. Write to .deepen/MERGE_INPUT.json:
 
 {
   \"plan_title\": \"<from manifest>\",
-  \"total_raw_recommendations\": <sum of raw_count from all section judges>,
-  \"duplicates_removed\": <sum of duplicates_removed>,
-  \"conflicts_resolved\": <sum of section conflicts + cross-section conflicts>,
+  \"section_count\": <N>,
+  \"sections\": [
+    {
+      \"section_id\": <id>,
+      \"section_title\": \"<title>\",
+      \"raw_count\": <from section judge>,
+      \"duplicates_removed\": <from section judge>,
+      \"conflicts_resolved\": <from section judge>,
+      \"section_concerns\": [\"<from section judge>\"],
+      \"recommendations\": [<full array from section judge>]
+    }
+  ],
+  \"agent_summaries\": [
+    {\"agent\": \"<name>\", \"summary\": \"<500 chars>\"}
+  ],
+  \"totals\": {
+    \"total_raw\": <sum of all raw_count>,
+    \"total_duplicates_removed\": <sum>,
+    \"total_conflicts_resolved\": <sum>
+  }
+}
+
+5. Return to parent: 'Data prep complete. <N> sections, <M> agent summaries compiled to .deepen/MERGE_INPUT.json'
+", model: haiku)
+```
+
+#### Step 6d: Merge Judge (reasoning — reads one file)
+
+After data prep completes, the merge judge reads a single pre-compiled input and focuses entirely on cross-section analysis.
+
+```
+Task judge-merge("
+You are the Merge Judge. Your job is cross-section reasoning — conflict detection, convergence analysis, and final consolidation. All data has been pre-compiled for you in one file.
+
+## Instructions:
+1. Read .deepen/MERGE_INPUT.json — this contains ALL section judgments and agent summaries in one file. Do NOT read individual agent or section judge files.
+
+## Cross-Section Analysis (your unique job):
+2. CROSS-SECTION CONFLICTS: Check if any recommendation in Section A contradicts one in Section C (e.g., same file referenced with conflicting guidance on where logic should live). Flag conflicts with both section IDs and a resolution recommendation.
+
+3. CROSS-SECTION CONVERGENCE: Check if different sections independently recommend the same pattern (e.g., Section 1 recommends typed filterContext AND Section 3 recommends deriving from typed context). This strengthens both signals — note the cross-section reinforcement.
+
+4. RENUMBER recommendation IDs sequentially across all sections (1, 2, 3... not per-section).
+
+5. Write to .deepen/JUDGED_RECOMMENDATIONS.json:
+
+{
+  \"plan_title\": \"<from MERGE_INPUT>\",
+  \"total_raw_recommendations\": <from MERGE_INPUT totals>,
+  \"duplicates_removed\": <from MERGE_INPUT totals>,
+  \"conflicts_resolved\": <MERGE_INPUT totals + any new cross-section conflicts>,
   \"low_evidence_downweighted\": <count>,
   \"sections\": [
-    <each section's recommendations from JUDGED_SECTION_*.json, with renumbered IDs>
+    <each section's recommendations from MERGE_INPUT, with renumbered IDs>
   ],
   \"cross_cutting_concerns\": [
     {
@@ -701,16 +723,14 @@ You are the Merge Judge. Combine per-section judgments into the final consolidat
       \"affected_sections\": [1, 3, 5]
     }
   ],
-  \"agent_summaries\": [
-    {\"agent\": \"name\", \"summary\": \"<500 chars>\"}
-  ]
+  \"agent_summaries\": <from MERGE_INPUT>
 }
 
-8. Return to parent: 'Merge complete. <X> total recs across <Y> sections. <Z> cross-section concerns. Written to .deepen/JUDGED_RECOMMENDATIONS.json'
+6. Return to parent: 'Merge complete. <X> total recs across <Y> sections. <Z> cross-section concerns. Written to .deepen/JUDGED_RECOMMENDATIONS.json'
 ")
 ```
 
-#### Step 6d: Validate Judge Output
+#### Step 6e: Validate Judge Output
 
 ```bash
 node -e "
@@ -720,12 +740,12 @@ try {
   const manifest = JSON.parse(fs.readFileSync('.deepen/PLAN_MANIFEST.json', 'utf8'));
   const manifestIds = new Set(manifest.sections.map(s => s.id));
 
-  if (!Array.isArray(judged.sections)) throw new Error('sections not array');
+  if (Array.isArray(judged.sections) === false) throw new Error('sections not array');
   if (judged.sections.length === 0) throw new Error('sections empty');
 
   let totalRecs = 0;
   for (const section of judged.sections) {
-    if (!manifestIds.has(section.section_id)) {
+    if (manifestIds.has(section.section_id) === false) {
       console.log('WARNING: Section ID ' + section.section_id + ' not in manifest');
     }
     totalRecs += section.recommendations.length;
@@ -1042,25 +1062,26 @@ echo "" >> .deepen/PIPELINE_LOG.md
 ```bash
 node -e "
 const fs = require('fs');
+const norm = s => s.replace(/\u2014/g, '--').replace(/\u2013/g, '-');
 const manifest = JSON.parse(fs.readFileSync('.deepen/PLAN_MANIFEST.json', 'utf8'));
-const enhanced = fs.readFileSync('.deepen/ENHANCED_PLAN.md', 'utf8');
+const enhanced = norm(fs.readFileSync('.deepen/ENHANCED_PLAN.md', 'utf8'));
 const enhancedLower = enhanced.toLowerCase();
 
 let found = 0, missing = [];
 for (const section of manifest.sections) {
-  // Try exact match first, then case-insensitive substring
-  if (enhanced.includes(section.title)) {
+  const title = norm(section.title);
+  if (enhanced.includes(title)) {
     found++;
-  } else if (enhancedLower.includes(section.title.toLowerCase())) {
+  } else if (enhancedLower.includes(title.toLowerCase())) {
     found++;
-    console.log('FUZZY MATCH: \"' + section.title + '\" (case mismatch but present)');
+    console.log('FUZZY MATCH: ' + JSON.stringify(section.title) + ' (case mismatch but present)');
   } else {
     missing.push(section.title);
   }
 }
 
 if (missing.length > 0) {
-  console.log('PRESERVATION FAILURE — missing ' + missing.length + ' of ' + manifest.sections.length + ' sections:');
+  console.log('PRESERVATION FAILURE -- missing ' + missing.length + ' of ' + manifest.sections.length + ' sections:');
   missing.forEach(t => console.log('  - ' + t));
 } else {
   console.log('ALL ' + manifest.sections.length + ' sections preserved (' + found + ' found).');
@@ -1073,9 +1094,10 @@ Log checkpoint (single entry — do NOT run preservation check twice):
 ```bash
 PRES_RESULT=$(node -e "
 const fs = require('fs');
+const norm = s => s.replace(/\u2014/g, '--').replace(/\u2013/g, '-');
 const m = JSON.parse(fs.readFileSync('.deepen/PLAN_MANIFEST.json', 'utf8'));
-const e = fs.readFileSync('.deepen/ENHANCED_PLAN.md', 'utf8').toLowerCase();
-const missing = m.sections.filter(s => !e.includes(s.title.toLowerCase()));
+const e = norm(fs.readFileSync('.deepen/ENHANCED_PLAN.md', 'utf8')).toLowerCase();
+const missing = m.sections.filter(s => e.includes(norm(s.title).toLowerCase()) === false);
 console.log(missing.length === 0 ? 'PASS' : 'PARTIAL');
 ")
 echo "## Phase 7: Preservation Check — $PRES_RESULT" >> .deepen/PIPELINE_LOG.md
@@ -1156,6 +1178,7 @@ Read and display the contents of `.deepen/PIPELINE_LOG.md` to the user so they c
 | Per-agent summary (10-20) | ~100-150 each | One sentence + counts |
 | Validation script | ~0 | Bash (now reports truncated_count totals) |
 | Per-section judge returns (N) | ~100 each | One sentence per section |
+| Data prep agent return | ~100 | One sentence (compiles MERGE_INPUT.json) |
 | Merge judge return | ~100 | One sentence + cross-section count |
 | Enhancement return | ~100 | One sentence |
 | Quality review return | ~100 | One sentence |
