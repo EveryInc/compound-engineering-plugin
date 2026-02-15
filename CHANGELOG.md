@@ -5,6 +5,15 @@ All notable changes to the `@every-env/compound-plugin` CLI tool will be documen
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.0] - 2026-02-14
+
+### Added
+
+- **Auto-detect install targets** — `install --to all` and `convert --to all` auto-detect installed AI coding tools and install to all of them
+- **Gemini sync** — `sync --target gemini` symlinks personal skills to `.gemini/skills/` and merges MCP servers into `.gemini/settings.json`
+- **Sync all targets** — `sync --target all` syncs personal config to all detected tools
+- **Tool detection utility** — Checks config directories for OpenCode, Codex, Droid, Cursor, Pi, and Gemini
+
 ## [0.6.0] - 2026-02-12
 
 ### Added

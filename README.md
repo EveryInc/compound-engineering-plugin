@@ -34,6 +34,9 @@ bunx @every-env/compound-plugin install compound-engineering --to pi
 
 # convert to Gemini CLI format
 bunx @every-env/compound-plugin install compound-engineering --to gemini
+
+# auto-detect installed tools and install to all
+bunx @every-env/compound-plugin install compound-engineering --to all
 ```
 
 Local dev:
@@ -70,6 +73,12 @@ bunx @every-env/compound-plugin sync --target droid
 
 # Sync to Cursor (skills + MCP servers)
 bunx @every-env/compound-plugin sync --target cursor
+
+# Sync to Gemini (skills + MCP servers)
+bunx @every-env/compound-plugin sync --target gemini
+
+# Sync to all detected tools
+bunx @every-env/compound-plugin sync --target all
 ```
 
 This syncs:
