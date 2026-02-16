@@ -194,109 +194,42 @@ OUTPUT RULES:
 ")
 ```
 
-### 3. Findings Synthesis and Todo Creation
+### 3. Review Summary
 
-Launch a **synthesis sub-agent** with a fresh context to read all raw findings (including `todos/raw/deep-analysis.md` from Step 2) and produce the final deliverables. This prevents context overflow — the main context only sees the sub-agent's one-line result.
+After all agents complete, list the raw findings and print a simple summary.
 
-```
-Task general-purpose("
-You are the synthesis agent for a code review. Your job is to read raw agent findings, deduplicate, and produce structured todo files and a summary report.
+#### List Raw Findings
 
-IMPORTANT: First run `pwd` to get the current working directory. All file paths below use {cwd} as a placeholder — replace it with the absolute path returned by pwd. The Write tool requires absolute paths.
-
-INSTRUCTIONS — complete all steps without stopping:
-
-1. READ all raw finding files:
-   - Read every file in {cwd}/todos/raw/*.md (use Glob to find them)
-   - List every file you found and every individual finding within each file
-   - No finding may be silently omitted
-
-2. SYNTHESIZE findings:
-   - If two findings from different agents are duplicates, merge them and note both source agents and the reason
-   - Discard any findings that recommend deleting files in docs/plans/ or docs/solutions/
-   - Categorize by type: security, performance, architecture, quality, etc.
-   - Assign severity: P1 (critical, blocks merge), P2 (important, should fix), P3 (nice-to-have)
-   - Estimate effort: Small/Medium/Large
-
-3. WRITE one todo file per finding to {cwd}/todos/ using this exact template:
-
-   ---
-   status: pending
-   priority: {p1|p2|p3}
-   issue_id: '{NNN}'
-   tags: [code-review, {category}]
-   ---
-
-   # {Title}
-
-   ## Problem Statement
-   {What is broken/missing and why it matters}
-
-   ## Findings
-   {Evidence from review agents — include file paths, line numbers, agent name}
-
-   ## Proposed Solutions
-
-   ### Option A: {Name}
-   - Approach: {description}
-   - Effort: {Small/Medium/Large}
-   - Risk: {Low/Medium/High}
-
-   ### Option B: {Name}
-   - Approach: {description}
-   - Effort: {Small/Medium/Large}
-   - Risk: {Low/Medium/High}
-
-   ## Acceptance Criteria
-   - [ ] {Testable criterion 1}
-   - [ ] {Testable criterion 2}
-
-   File naming: {issue_id}-pending-{priority}-{description}.md
-   Examples: 001-pending-p1-path-traversal-vulnerability.md, 002-pending-p2-concurrency-limit.md
-
-   Priority values: p1 (critical, blocks merge), p2 (important, should fix), p3 (nice-to-have).
-   Always include code-review tag plus relevant tags.
-
-   FALLBACK: If individual todo files cannot be created, write ALL findings to a single {cwd}/todos/review-findings.md with each finding as a separate section. Something must always be written to disk.
-
-4. WRITE {cwd}/todos/review-summary.md with this structure:
-
-   # Code Review Summary
-
-   **Review Target:** PR #XXXX - [PR Title]
-   **Branch:** [branch-name]
-   **Date:** YYYY-MM-DD
-
-   ## Agent Coverage
-   | # | Agent | Status | Findings |
-   |---|-------|--------|----------|
-   (one row per agent — use the filenames in todos/raw/ to determine which agents ran)
-
-   ## Findings Summary
-   - Total Findings: [X]
-   - P1 CRITICAL: [count] — BLOCKS MERGE
-   - P2 IMPORTANT: [count] — Should Fix
-   - P3 NICE-TO-HAVE: [count] — Enhancements
-
-   ## Created Todo Files
-   (list each todo file created, grouped by priority)
-
-   ## Next Steps
-   1. Address P1 findings — must be fixed before merge
-   2. Triage remaining todos: ls todos/*-pending-*.md
-   3. Work on approved items: /resolve_todo_parallel
-   4. Track progress: rename files as status changes (pending → ready → complete)
-
-5. RETURN a one-line summary: 'Synthesis complete. [X] findings, [Y] todo files written. P1: [count]'
-")
+```bash
+echo "=== Code Review Complete ==="
+echo ""
+echo "Agent findings written to todos/raw/:"
+ls -lh todos/raw/*.md
+echo ""
+echo "Total files: $(ls -1 todos/raw/*.md 2>/dev/null | wc -l)"
 ```
 
-After the synthesis agent returns, print its one-line summary to chat:
+#### Print Summary to Chat
 
 ```
-Review complete. [X] findings written to todos/.
-See todos/review-summary.md for full report.
-P1 findings: [count] (blocks merge)
+✅ Review complete!
+
+📁 Raw findings: todos/raw/
+   - security-sentinel.md
+   - pattern-recognition-specialist.md
+   - kieran-typescript-reviewer.md
+   - deep-analysis.md
+   [... list all files found ...]
+
+📊 Total agent reports: [count]
+
+🔍 Next Steps:
+1. Manually review each file in todos/raw/
+2. Prioritize issues based on your judgment
+3. Address critical findings before merge
+
+💡 Tip: Read findings in order of importance to you, not by agent name.
+    Multiple agents may flag the same issue from different perspectives.
 ```
 
 ### 4. End-to-End Testing (Optional)
