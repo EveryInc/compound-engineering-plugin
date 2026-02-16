@@ -3,3 +3,6 @@
 node_modules/
 .codex/
 todos/
+
+# Research data - transcripts contain raw interview data with PII
+docs/research/transcripts/*.md

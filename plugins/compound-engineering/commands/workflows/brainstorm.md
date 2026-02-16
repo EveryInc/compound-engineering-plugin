@@ -37,13 +37,16 @@ Use **AskUserQuestion tool** to suggest: "Your requirements seem detailed enough
 
 ### Phase 1: Understand the Idea
 
-#### 1.1 Repository Research (Lightweight)
+#### 1.1 Repository & User Research (Lightweight)
 
-Run a quick repo scan to understand existing patterns:
+Run these agents **in parallel** to understand existing patterns and user context:
 
 - Task repo-research-analyst("Understand existing patterns related to: <feature_description>")
+- Task user-research-analyst("Surface research relevant to: <feature_description>")
 
 Focus on: similar features, established patterns, CLAUDE.md guidance.
+
+If `user-research-analyst` returns relevant findings (personas, insights, opportunities), briefly summarize them before starting the collaborative dialogue. If no research data exists, skip the summary silently and proceed directly to the collaborative dialogue — do not mention the absence of research or suggest running `/workflows:research`.
 
 #### 1.2 Collaborative Dialogue
 
