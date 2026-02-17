@@ -5,18 +5,21 @@ import type { DroidBundle } from "../types/droid"
 import type { CursorBundle } from "../types/cursor"
 import type { PiBundle } from "../types/pi"
 import type { GeminiBundle } from "../types/gemini"
+import type { KiroBundle } from "../types/kiro"
 import { convertClaudeToOpenCode, type ClaudeToOpenCodeOptions } from "../converters/claude-to-opencode"
 import { convertClaudeToCodex } from "../converters/claude-to-codex"
 import { convertClaudeToDroid } from "../converters/claude-to-droid"
 import { convertClaudeToCursor } from "../converters/claude-to-cursor"
 import { convertClaudeToPi } from "../converters/claude-to-pi"
 import { convertClaudeToGemini } from "../converters/claude-to-gemini"
+import { convertClaudeToKiro } from "../converters/claude-to-kiro"
 import { writeOpenCodeBundle } from "./opencode"
 import { writeCodexBundle } from "./codex"
 import { writeDroidBundle } from "./droid"
 import { writeCursorBundle } from "./cursor"
 import { writePiBundle } from "./pi"
 import { writeGeminiBundle } from "./gemini"
+import { writeKiroBundle } from "./kiro"
 
 export type TargetHandler<TBundle = unknown> = {
   name: string
@@ -61,5 +64,11 @@ export const targets: Record<string, TargetHandler> = {
     implemented: true,
     convert: convertClaudeToGemini as TargetHandler<GeminiBundle>["convert"],
     write: writeGeminiBundle as TargetHandler<GeminiBundle>["write"],
+  },
+  kiro: {
+    name: "kiro",
+    implemented: true,
+    convert: convertClaudeToKiro as TargetHandler<KiroBundle>["convert"],
+    write: writeKiroBundle as TargetHandler<KiroBundle>["write"],
   },
 }
