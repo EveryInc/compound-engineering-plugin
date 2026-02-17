@@ -115,11 +115,11 @@ OUTPUT RULES:
 | **kieran-rails-reviewer** | Rails conventions, clarity, maintainability | Stack includes `rails` | 💤 Available |
 | **dhh-rails-reviewer** | DHH/37signals Rails philosophy, anti-patterns | Stack includes `rails` | 💤 Available |
 | **rails-turbo-expert** | Turbo Frames/Streams patterns | Stack includes `rails-turbo` | 💤 Available |
-| **agent-native-reviewer** | Verify new features are agent-accessible | Stack includes `react-native` or `firebase` | 💤 Available |
-| **architecture-strategist** | Architectural patterns, design integrity, structural concerns | Large refactors, architectural changes | 💤 Available |
-| **code-simplicity-reviewer** | YAGNI violations, over-engineering, simplification opportunities | After implementation complete | 💤 Available |
-| **performance-oracle** | Performance bottlenecks, algorithmic complexity, scalability | Performance-critical PRs | 💤 Available |
-| **git-history-analyzer** | Git history, code evolution, contributor patterns | Refactoring old code, understanding legacy | 💤 Available |
+| **agent-native-reviewer** | Verify new features are agent-accessible | Manual use only (for agent-native features) | 💤 Available |
+| **architecture-strategist** | Architectural patterns, design integrity, structural concerns | Always (all project types) | ✅ Active |
+| **code-simplicity-reviewer** | YAGNI violations, over-engineering, simplification opportunities | Always (all project types) | ✅ Active |
+| **performance-oracle** | Performance bottlenecks, algorithmic complexity, scalability | Performance-critical PRs (manual) | 💤 Available |
+| **git-history-analyzer** | Git history, code evolution, contributor patterns | Manual use only (verbose output) | 💤 Available |
 | **data-integrity-guardian** | Database safety, migrations, transactions, constraints | Stack includes `rails-migrations` | 💤 Available |
 | **data-migration-expert** | ID mappings, swapped values, rollback safety | Stack includes `rails-migrations` | 💤 Available |
 | **deployment-verification-agent** | Go/No-Go deployment checklist, SQL verification queries | Stack includes `rails-migrations` | 💤 Available |
@@ -129,6 +129,129 @@ OUTPUT RULES:
 - 💤 **Available** — Can be enabled when needed for specific scenarios
 
 **Note:** To enable an available agent, add it to the parallel agent launch section below with appropriate conditional logic based on stack detection.
+
+##### Launch Active Agents in Parallel
+
+**CONFIGURATION:** The Task calls below define which agents run on every PR. To change which agents run, add/remove Task calls in this section.
+
+**IMPORTANT:** Launch ALL agents below in a single message with multiple Task calls to run them in parallel. Do NOT wait between launches.
+
+**Always-Active Agents (run on every PR):**
+
+```
+Task general-purpose("
+You are a security reviewer (security-sentinel).
+
+Review the PR on the current branch. Read the changed files using git diff and the codebase as needed.
+
+Focus on: Input validation, null checks, security vulnerabilities, OWASP compliance, authentication/authorization.
+
+OUTPUT RULES:
+1. First run `pwd` to get the current working directory. Then write your full findings
+   to {cwd}/todos/raw/security-sentinel.md using the Write tool (it requires absolute paths).
+   Include: file paths, line numbers, severity (P1/P2/P3), detailed evidence.
+2. Your entire response back to the caller must be ONLY this single line:
+   security-sentinel: {count} findings ({P1 count} P1, {P2 count} P2, {P3 count} P3)
+   Or: security-sentinel: no findings
+3. Do not include any other text in your response.
+")
+
+Task general-purpose("
+You are a pattern recognition specialist (pattern-recognition-specialist).
+
+Review the PR on the current branch. Read the changed files using git diff and the codebase as needed.
+
+Focus on: Anti-patterns, error handling gaps, naming conventions, code duplication.
+
+OUTPUT RULES:
+1. First run `pwd` to get the current working directory. Then write your full findings
+   to {cwd}/todos/raw/pattern-recognition-specialist.md using the Write tool (it requires absolute paths).
+   Include: file paths, line numbers, severity (P1/P2/P3), detailed evidence.
+2. Your entire response back to the caller must be ONLY this single line:
+   pattern-recognition-specialist: {count} findings ({P1 count} P1, {P2 count} P2, {P3 count} P3)
+   Or: pattern-recognition-specialist: no findings
+3. Do not include any other text in your response.
+")
+
+Task general-purpose("
+You are an architecture strategist (architecture-strategist).
+
+Review the PR on the current branch. Read the changed files using git diff and the codebase as needed.
+
+Focus on: Architectural patterns, design integrity, structural concerns, system design decisions.
+
+OUTPUT RULES:
+1. First run `pwd` to get the current working directory. Then write your full findings
+   to {cwd}/todos/raw/architecture-strategist.md using the Write tool (it requires absolute paths).
+   Include: file paths, line numbers, severity (P1/P2/P3), detailed evidence.
+2. Your entire response back to the caller must be ONLY this single line:
+   architecture-strategist: {count} findings ({P1 count} P1, {P2 count} P2, {P3 count} P3)
+   Or: architecture-strategist: no findings
+3. Do not include any other text in your response.
+")
+
+Task general-purpose("
+You are a code simplicity reviewer (code-simplicity-reviewer).
+
+Review the PR on the current branch. Read the changed files using git diff and the codebase as needed.
+
+Focus on: YAGNI violations, over-engineering, unnecessary complexity, simplification opportunities.
+
+OUTPUT RULES:
+1. First run `pwd` to get the current working directory. Then write your full findings
+   to {cwd}/todos/raw/code-simplicity-reviewer.md using the Write tool (it requires absolute paths).
+   Include: file paths, line numbers, severity (P1/P2/P3), detailed evidence.
+2. Your entire response back to the caller must be ONLY this single line:
+   code-simplicity-reviewer: {count} findings ({P1 count} P1, {P2 count} P2, {P3 count} P3)
+   Or: code-simplicity-reviewer: no findings
+3. Do not include any other text in your response.
+")
+```
+
+**Conditional Agents (only launch if stack detected in Step 1):**
+
+```
+Task general-purpose("
+You are a TypeScript reviewer (kieran-typescript-reviewer).
+
+Review the PR on the current branch. Read the changed files using git diff and the codebase as needed.
+
+Focus on: TypeScript type safety, type guards, assertion abuse, conventions, maintainability.
+
+OUTPUT RULES:
+1. First run `pwd` to get the current working directory. Then write your full findings
+   to {cwd}/todos/raw/kieran-typescript-reviewer.md using the Write tool (it requires absolute paths).
+   Include: file paths, line numbers, severity (P1/P2/P3), detailed evidence.
+2. Your entire response back to the caller must be ONLY this single line:
+   kieran-typescript-reviewer: {count} findings ({P1 count} P1, {P2 count} P2, {P3 count} P3)
+   Or: kieran-typescript-reviewer: no findings
+3. Do not include any other text in your response.
+")
+
+Task general-purpose("
+You are a Python reviewer (kieran-python-reviewer).
+
+Review the PR on the current branch. Read the changed files using git diff and the codebase as needed.
+
+Focus on: Python conventions, PEP 8 compliance, type safety, maintainability.
+
+OUTPUT RULES:
+1. First run `pwd` to get the current working directory. Then write your full findings
+   to {cwd}/todos/raw/kieran-python-reviewer.md using the Write tool (it requires absolute paths).
+   Include: file paths, line numbers, severity (P1/P2/P3), detailed evidence.
+2. Your entire response back to the caller must be ONLY this single line:
+   kieran-python-reviewer: {count} findings ({P1 count} P1, {P2 count} P2, {P3 count} P3)
+   Or: kieran-python-reviewer: no findings
+3. Do not include any other text in your response.
+")
+```
+
+**Rails-Specific Agents (disabled - not in your stack):**
+
+If you ever need these, invoke manually:
+- `kieran-rails-reviewer`
+- `data-integrity-guardian`
+- `data-migration-expert`
 
 </parallel_tasks>
 
