@@ -169,20 +169,46 @@ describe("convertClaudeToCopilot", () => {
 
     expect(bundle.generatedSkills).toHaveLength(1)
     const skill = bundle.generatedSkills[0]
-    expect(skill.name).toBe("plan")
+    expect(skill.name).toBe("workflows-plan")
 
     const parsed = parseFrontmatter(skill.content)
-    expect(parsed.data.name).toBe("plan")
+    expect(parsed.data.name).toBe("workflows-plan")
     expect(parsed.data.description).toBe("Planning command")
     expect(parsed.body).toContain("Plan the work.")
   })
 
-  test("flattens namespaced command names", () => {
+  test("preserves namespaced command names with hyphens", () => {
     const bundle = convertClaudeToCopilot(fixturePlugin, defaultOptions)
-    expect(bundle.generatedSkills[0].name).toBe("plan")
+    expect(bundle.generatedSkills[0].name).toBe("workflows-plan")
   })
 
-  test("command name collision after flattening is deduplicated", () => {
+  test("command name collision after normalization is deduplicated", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "workflows:plan",
+          description: "Workflow plan",
+          body: "Plan body.",
+          sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+        },
+        {
+          name: "workflows:plan",
+          description: "Duplicate plan",
+          body: "Duplicate body.",
+          sourcePath: "/tmp/plugin/commands/workflows/plan2.md",
+        },
+      ],
+      agents: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCopilot(plugin, defaultOptions)
+    const names = bundle.generatedSkills.map((s) => s.name)
+    expect(names).toEqual(["workflows-plan", "workflows-plan-2"])
+  })
+
+  test("namespaced and non-namespaced commands produce distinct names", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
       commands: [
@@ -205,7 +231,7 @@ describe("convertClaudeToCopilot", () => {
 
     const bundle = convertClaudeToCopilot(plugin, defaultOptions)
     const names = bundle.generatedSkills.map((s) => s.name)
-    expect(names).toEqual(["plan", "plan-2"])
+    expect(names).toEqual(["workflows-plan", "plan"])
   })
 
   test("command allowedTools is silently dropped", () => {
@@ -418,14 +444,14 @@ Task best-practices-researcher(topic)`
     expect(result).not.toContain("Task repo-research-analyst(")
   })
 
-  test("flattens slash commands", () => {
+  test("replaces colons with hyphens in slash commands", () => {
     const input = `1. Run /deepen-plan to enhance
 2. Start /workflows:work to implement
 3. File at /tmp/output.md`
 
     const result = transformContentForCopilot(input)
     expect(result).toContain("/deepen-plan")
-    expect(result).toContain("/work")
+    expect(result).toContain("/workflows-work")
     expect(result).not.toContain("/workflows:work")
     // File paths preserved
     expect(result).toContain("/tmp/output.md")

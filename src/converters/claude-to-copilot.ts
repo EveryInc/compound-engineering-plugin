@@ -113,13 +113,13 @@ export function transformContentForCopilot(body: string): string {
     return `${prefix}Use the ${skillName} skill to: ${args.trim()}`
   })
 
-  // 2. Transform slash command references (flatten namespaces)
+  // 2. Transform slash command references (replace colons with hyphens)
   const slashCommandPattern = /(?<![:\w])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
   result = result.replace(slashCommandPattern, (match, commandName: string) => {
     if (commandName.includes("/")) return match
     if (["dev", "tmp", "etc", "usr", "var", "bin", "home"].includes(commandName)) return match
-    const flattened = flattenCommandName(commandName)
-    return `/${flattened}`
+    const normalized = flattenCommandName(commandName)
+    return `/${normalized}`
   })
 
   // 3. Rewrite .claude/ paths to .github/ and ~/.claude/ to ~/.copilot/
@@ -179,9 +179,7 @@ function prefixEnvVars(env: Record<string, string>): Record<string, string> {
 }
 
 function flattenCommandName(name: string): string {
-  const colonIndex = name.lastIndexOf(":")
-  const base = colonIndex >= 0 ? name.slice(colonIndex + 1) : name
-  return normalizeName(base)
+  return normalizeName(name)
 }
 
 function normalizeName(value: string): string {
