@@ -12,9 +12,9 @@ A Claude Code plugin marketplace featuring the **Compound Engineering Plugin** �
 /plugin install compound-engineering
 ```
 
-## OpenCode, Codex, Droid, Cursor, Pi & Gemini (experimental) Install
+## OpenCode, Codex, Droid, Cursor, Pi, Gemini & Kiro (experimental) Install
 
-This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Cursor, Pi, and Gemini CLI.
+This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Cursor, Pi, Gemini CLI, and Kiro CLI.
 
 ```bash
 # convert the compound-engineering plugin into OpenCode format
@@ -34,6 +34,9 @@ bunx @every-env/compound-plugin install compound-engineering --to pi
 
 # convert to Gemini CLI format
 bunx @every-env/compound-plugin install compound-engineering --to gemini
+
+# convert to Kiro CLI format
+bunx @every-env/compound-plugin install compound-engineering --to kiro
 ```
 
 Local dev:
@@ -48,6 +51,7 @@ Droid output is written to `~/.factory/` with commands, droids (agents), and ski
 Cursor output is written to `.cursor/` with rules (`.mdc`), commands, skills, and `mcp.json`. Agents become "Agent Requested" rules (`alwaysApply: false`) so Cursor's AI activates them on demand. Works with both the Cursor IDE and Cursor CLI (`cursor-agent`) — they share the same `.cursor/` config directory.
 Pi output is written to `~/.pi/agent/` by default with prompts, skills, extensions, and `compound-engineering/mcporter.json` for MCPorter interoperability.
 Gemini output is written to `.gemini/` with skills (from agents), commands (`.toml`), and `settings.json` (MCP servers). Namespaced commands create directory structure (`workflows:plan` → `commands/workflows/plan.toml`). Skills use the identical SKILL.md standard and pass through unchanged.
+Kiro output is written to `.kiro/` with custom agents (`.json` configs + prompt `.md` files), skills (from commands), pass-through skills, steering files (from CLAUDE.md), and `mcp.json`. Agents get `includeMcpJson: true` for MCP server access. Only stdio MCP servers are supported (HTTP servers are skipped with a warning).
 
 All provider targets are experimental and may change as the formats evolve.
 
