@@ -8,7 +8,7 @@ import type {
 } from "../types/claude"
 import type {
   OpenCodeBundle,
-  OpenCodeCommandConfig,
+  OpenCodeCommandFile,
   OpenCodeConfig,
   OpenCodeMcpServer,
 } from "../types/opencode"

@@ -21,6 +21,7 @@ describe("writeOpenCodeBundle", () => {
       config: { $schema: "https://opencode.ai/config.json" },
       agents: [{ name: "agent-one", content: "Agent content" }],
       plugins: [{ name: "hook.ts", content: "export {}" }],
+      commandFiles: [],
       skillDirs: [
         {
           name: "skill-one",
@@ -44,6 +45,7 @@ describe("writeOpenCodeBundle", () => {
       config: { $schema: "https://opencode.ai/config.json" },
       agents: [{ name: "agent-one", content: "Agent content" }],
       plugins: [],
+      commandFiles: [],
       skillDirs: [
         {
           name: "skill-one",
@@ -68,6 +70,7 @@ describe("writeOpenCodeBundle", () => {
       config: { $schema: "https://opencode.ai/config.json" },
       agents: [{ name: "agent-one", content: "Agent content" }],
       plugins: [],
+      commandFiles: [],
       skillDirs: [
         {
           name: "skill-one",
@@ -99,6 +102,7 @@ describe("writeOpenCodeBundle", () => {
       config: { $schema: "https://opencode.ai/config.json", new: "config" },
       agents: [],
       plugins: [],
+      commandFiles: [],
       skillDirs: [],
     }
 
