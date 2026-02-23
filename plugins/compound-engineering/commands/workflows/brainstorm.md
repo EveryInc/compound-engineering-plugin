@@ -119,6 +119,31 @@ Key decisions:
 Next: Run `/workflows:plan` when ready to implement.
 ```
 
+### Share to Proof
+
+After writing the brainstorm document, upload it to Proof for collaborative review:
+
+```bash
+# Read the brainstorm file content
+CONTENT=$(cat docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md)
+TITLE="Brainstorm: <topic title>"
+
+# Upload to Proof
+RESPONSE=$(curl -s -X POST https://www.proofeditor.ai/share/markdown \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n --arg title "$TITLE" --arg markdown "$CONTENT" --arg by "ai:compound" '{title: $title, markdown: $markdown, by: $by}')")
+
+PROOF_URL=$(echo "$RESPONSE" | jq -r '.tokenUrl')
+```
+
+Display the Proof URL prominently:
+
+```
+View & collaborate in Proof: <PROOF_URL>
+```
+
+If the curl fails (network error, non-JSON response), skip silently and continue — Proof sharing is optional.
+
 ## Important Guidelines
 
 - **Stay focused on WHAT, not HOW** - Implementation details belong in the plan

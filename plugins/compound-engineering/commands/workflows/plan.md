@@ -544,6 +544,31 @@ Use the Write tool to save the complete plan to `docs/plans/YYYY-MM-DD-<type>-<d
 
 Confirm: "Plan written to docs/plans/[filename]"
 
+### Share to Proof
+
+After writing the plan file, upload it to Proof for collaborative review:
+
+```bash
+# Read the plan file content
+CONTENT=$(cat docs/plans/YYYY-MM-DD-<type>-<descriptive-name>-plan.md)
+TITLE="Plan: <plan title from frontmatter>"
+
+# Upload to Proof
+RESPONSE=$(curl -s -X POST https://www.proofeditor.ai/share/markdown \
+  -H "Content-Type: application/json" \
+  -d "$(jq -n --arg title "$TITLE" --arg markdown "$CONTENT" --arg by "ai:compound" '{title: $title, markdown: $markdown, by: $by}')")
+
+PROOF_URL=$(echo "$RESPONSE" | jq -r '.tokenUrl')
+```
+
+Display the Proof URL prominently:
+
+```
+View & collaborate in Proof: <PROOF_URL>
+```
+
+If the curl fails (network error, non-JSON response), skip silently and continue — Proof sharing is optional.
+
 **Pipeline mode:** If invoked from an automated workflow (LFG, SLFG, or any `disable-model-invocation` context), skip all AskUserQuestion calls. Make decisions automatically and proceed to writing the plan without interactive prompts.
 
 ## Output Format

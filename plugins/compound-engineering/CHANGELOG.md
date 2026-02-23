@@ -5,6 +5,16 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.0] - 2026-02-23
+
+### Added
+
+- **`proof` skill** — Create, edit, comment on, and share markdown documents via Proof's web API and local bridge. Supports document creation, track-changes suggestions, comments, and bulk rewrites. No authentication required for creating shared documents.
+- **Proof upload in `/workflows:brainstorm`** — After writing the brainstorm document, automatically uploads it to Proof and displays a shareable URL for collaborative review.
+- **Proof upload in `/workflows:plan`** — After writing the plan file, automatically uploads it to Proof and displays a shareable URL for collaborative review.
+
+---
+
 ## [2.35.2] - 2026-02-20
 
 ### Changed
