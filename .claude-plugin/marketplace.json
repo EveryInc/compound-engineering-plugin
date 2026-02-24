@@ -17,7 +17,7 @@
         "name": "Anthony Agnone",
         "url": "https://github.com/aagnone3"
       },
-      "homepage": "https://github.com/aagnone3/agentic-engineering-plugin",
+      "homepage": "https://github.com/aagnone3/agentic-engineering",
       "tags": ["ai-powered", "agentic-engineering", "workflow-automation", "code-review", "quality", "knowledge-management", "image-generation"],
       "source": "./plugins/agentic-engineering"
     }

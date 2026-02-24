@@ -5,7 +5,7 @@ set -e
 if [ $# -lt 1 ]; then
     echo "Usage: get-pr-comments PR_NUMBER [OWNER/REPO]"
     echo "Example: get-pr-comments 123"
-    echo "Example: get-pr-comments 123 aagnone3/agentic-engineering-plugin"
+    echo "Example: get-pr-comments 123 aagnone3/agentic-engineering"
     exit 1
 fi
 

@@ -1,6 +1,6 @@
 # Agentic Engineering Marketplace
 
-[![Build Status](https://github.com/aagnone3/agentic-engineering-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/aagnone3/agentic-engineering-plugin/actions/workflows/ci.yml)
+[![Build Status](https://github.com/aagnone3/agentic-engineering/actions/workflows/ci.yml/badge.svg)](https://github.com/aagnone3/agentic-engineering/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@aagnone3/agentic-plugin)](https://www.npmjs.com/package/@aagnone3/agentic-plugin)
 
 A Claude Code plugin marketplace featuring the **Agentic Engineering Plugin** â€” tools that make each unit of engineering work easier than the last.
@@ -8,7 +8,7 @@ A Claude Code plugin marketplace featuring the **Agentic Engineering Plugin** â€
 ## Claude Code Install
 
 ```bash
-/plugin marketplace add https://github.com/aagnone3/agentic-engineering-plugin
+/plugin marketplace add https://github.com/aagnone3/agentic-engineering
 /plugin install agentic-engineering
 ```
 

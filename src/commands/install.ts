@@ -252,7 +252,7 @@ async function resolveGitHubPluginPath(
 function resolveGitHubSource(): string {
   const override = process.env.AGENTIC_PLUGIN_GITHUB_SOURCE;
   if (override && override.trim()) return override.trim();
-  return "https://github.com/aagnone3/agentic-engineering-plugin";
+  return "https://github.com/aagnone3/agentic-engineering";
 }
 
 async function cloneGitHubRepo(

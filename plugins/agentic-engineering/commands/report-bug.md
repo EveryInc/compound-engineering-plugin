@@ -101,7 +101,7 @@ Use the GitHub CLI to create the issue:
 
 ```bash
 gh issue create \
-  --repo aagnone3/agentic-engineering-plugin \
+  --repo aagnone3/agentic-engineering \
   --title "[agentic-engineering] Bug: [Brief description]" \
   --body "[Formatted bug report from Step 3]" \
   --label "bug,agentic-engineering"
@@ -110,7 +110,7 @@ gh issue create \
 **Note:** If labels don't exist, create without labels:
 ```bash
 gh issue create \
-  --repo aagnone3/agentic-engineering-plugin \
+  --repo aagnone3/agentic-engineering \
   --title "[agentic-engineering] Bug: [Brief description]" \
   --body "[Formatted bug report]"
 ```
@@ -127,7 +127,7 @@ After the issue is created:
 ```
 ✅ Bug report submitted successfully!
 
-Issue: https://github.com/aagnone3/agentic-engineering-plugin/issues/[NUMBER]
+Issue: https://github.com/aagnone3/agentic-engineering/issues/[NUMBER]
 Title: [agentic-engineering] Bug: [description]
 
 Thank you for helping improve the agentic-engineering plugin!
