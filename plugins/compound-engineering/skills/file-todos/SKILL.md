@@ -64,6 +64,8 @@ priority: p1              # p1 | p2 | p3
 issue_id: "002"
 tags: [rails, performance, database]
 dependencies: ["001"]     # Issue IDs this is blocked by
+linear_id: ""             # Linear issue identifier (e.g. "ENG-142"), set by sync
+linear_synced_at: ""      # Last bidirectional sync timestamp, set by sync
 ---
 ```
 
@@ -190,6 +192,16 @@ Work logs serve as:
 | Code TODOs | `/resolve_todo_parallel` → Fixes + Complex todos | Agent + skill |
 | Planning | Brainstorm → Create todo → Work → Complete | Skill |
 | Feedback | Discussion → Create todo → Triage → Work | Skill + slash |
+
+## Linear Integration
+
+Todos can optionally sync with Linear for dependency visualization and stakeholder visibility. See the [linear-sync](../linear-sync/SKILL.md) skill for full details.
+
+**Key points:**
+- `linear_id` and `linear_synced_at` frontmatter fields track sync state
+- `compound-plugin linear sync` handles bidirectional sync
+- Changes flow both ways: file→Linear and Linear→file
+- All Linear operations gracefully skip when `LINEAR_API_KEY` is not set
 
 ## Quick Reference Commands
 

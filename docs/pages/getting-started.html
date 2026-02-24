@@ -196,7 +196,7 @@ skill: create-agent-skills</code></pre>
           </div>
 
           <h3>Environment Variables</h3>
-          <p>Right now, only one skill needs an API key. If you use Gemini's image generation:</p>
+          <p>Some features require API keys. Set the ones you need:</p>
           <table class="docs-table">
             <thead>
               <tr>
@@ -207,12 +207,26 @@ skill: create-agent-skills</code></pre>
             </thead>
             <tbody>
               <tr>
+                <td><code>LINEAR_API_KEY</code></td>
+                <td>linear-sync</td>
+                <td>Linear API key for bidirectional todo sync. Get it from Linear Settings &rarr; API &rarr; Personal API keys.</td>
+              </tr>
+              <tr>
                 <td><code>GEMINI_API_KEY</code></td>
                 <td>gemini-imagegen</td>
                 <td>Google Gemini API key for image generation</td>
               </tr>
             </tbody>
           </table>
+          <div class="callout callout-info">
+            <div class="callout-icon"><i class="fa-solid fa-circle-info"></i></div>
+            <div class="callout-content">
+              <h4>No API keys in code</h4>
+              <p>
+                Always set API keys as environment variables. Never commit them to your repository. All features that need API keys gracefully skip when the key is not set.
+              </p>
+            </div>
+          </div>
         </section>
 
         <!-- Philosophy Section -->

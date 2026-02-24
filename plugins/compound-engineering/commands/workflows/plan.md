@@ -611,15 +611,17 @@ When user selects "Create Issue", detect their project tracker from CLAUDE.md:
 3. **If Linear:**
 
    ```bash
-   linear issue create --title "<title>" --description "$(cat <plan_path>)"
+   compound-plugin linear create <plan_path>
    ```
+
+   This reads the plan frontmatter, creates a Linear issue, and writes `linear_issue` back to the plan file. Silently skips if `LINEAR_API_KEY` is not set.
 
 4. **If no tracker configured:**
    Ask user: "Which project tracker do you use? (GitHub/Linear/Other)"
    - Suggest adding `project_tracker: github` or `project_tracker: linear` to their CLAUDE.md
 
 5. **After creation:**
-   - Display the issue URL
+   - Display the issue URL or identifier
    - Ask if they want to proceed to `/workflows:work` or `/technical_review`
 
 NEVER CODE! Just research and write the plan.

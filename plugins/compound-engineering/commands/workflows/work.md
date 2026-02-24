@@ -72,7 +72,16 @@ This command takes a work document (plan, specification, or todo file) and execu
    - You want to keep the default branch clean while experimenting
    - You plan to switch between branches frequently
 
-3. **Create Todo List**
+3. **Sync with Linear**
+
+   Pull latest state and push current plan status:
+   ```bash
+   compound-plugin linear pull --todos-dir ./todos
+   compound-plugin linear push --file <plan-or-todo-path>
+   ```
+   (Silently skips if LINEAR_API_KEY is not set)
+
+4. **Create Todo List**
    - Use TodoWrite to break plan into actionable tasks
    - Include dependencies between tasks
    - Prioritize based on what needs to be done first
@@ -313,12 +322,18 @@ This command takes a work document (plan, specification, or todo file) and execu
    )"
    ```
 
-4. **Update Plan Status**
+4. **Update Plan Status & Sync to Linear**
 
    If the input document has YAML frontmatter with a `status` field, update it to `completed`:
    ```
    status: active  →  status: completed
    ```
+
+   Push final state to Linear:
+   ```bash
+   compound-plugin linear push --file <plan-or-todo-path>
+   ```
+   (Silently skips if LINEAR_API_KEY is not set)
 
 5. **Notify User**
    - Summarize what was completed

@@ -5,6 +5,33 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.0] - 2026-02-24
+
+### Added
+
+- **Linear integration** — Bidirectional sync between file-based todos and Linear project management
+  - **`linear-sync` skill** — Documents the integration pattern, status/priority mappings, configuration, and workflow integration
+  - **`/linear:sync` command** — Full bidirectional sync (push local changes + pull Linear changes)
+  - **`/linear:status` command** — Show sync dashboard comparing file state with Linear state
+  - **`/linear:import` command** — Import a specific Linear issue as a local todo file
+  - **`/linear:pull` command** — Pull Linear changes (state, priority, comments, new issues) into files
+  - **CLI subcommand `compound-plugin linear`** — 8 subcommands: sync, push, pull, status, import, create, cancel, config
+  - **Graceful degradation** — All Linear operations silently skip when `LINEAR_API_KEY` is not set
+  - **Last-write-wins conflict resolution** — Compares Linear `updatedAt` vs file mtime; conflicts logged, never silently dropped
+  - **Parent/sub-issue hierarchy** — Plans map to parent Linear issues, spawned todos become sub-issues
+
+### Changed
+
+- **`/workflows:review`** — After creating todo files, pushes them to Linear with optional parent linking
+- **`/triage`** — Pulls latest Linear state before presenting items; pushes approved items; cancels skipped items in Linear
+- **`/resolve_todo_parallel`** — Pulls latest Linear state before planning; pushes completed state after resolution
+- **`/workflows:plan`** — Issue creation now uses `compound-plugin linear create` instead of `linear issue create`
+- **`/workflows:work`** — Syncs with Linear at start and pushes final state on completion
+- **`file-todos` skill** — Added `linear_id` and `linear_synced_at` frontmatter documentation
+- **`file-todos` todo template** — Added `linear_id` field to YAML frontmatter
+
+---
+
 ## [2.35.2] - 2026-02-20
 
 ### Changed

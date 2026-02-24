@@ -14,6 +14,16 @@ Get all unresolved TODOs from the /todos/\*.md directory
 
 If any todo recommends deleting, removing, or gitignoring files in `docs/plans/` or `docs/solutions/`, skip it and mark it as `wont_fix`. These are compound-engineering pipeline artifacts that are intentional and permanent.
 
+### 1b. Sync with Linear
+
+Before planning, pull latest state from Linear:
+
+```bash
+compound-plugin linear pull --todos-dir ./todos
+```
+
+(Silently skips if LINEAR_API_KEY is not set)
+
 ### 2. Plan
 
 Create a TodoWrite list of all unresolved items grouped by type.Make sure to look at dependencies that might occur and prioritize the ones needed by others. For example, if you need to change a name, you must wait to do the others. Output a mermaid flow diagram showing how we can do this. Can we do everything in parallel? Do we need to do one first that leads to others in parallel? I'll put the to-dos in the mermaid diagram flow‑wise so the agent knows how to proceed in order.
@@ -34,4 +44,9 @@ Always run all in parallel subagents/Tasks for each Todo item.
 
 - Commit changes
 - Remove the TODO from the file, and mark it as resolved.
+- Push completed state to Linear for each resolved todo:
+  ```bash
+  compound-plugin linear push --file <resolved-todo-path>
+  ```
+  (Silently skips if LINEAR_API_KEY is not set)
 - Push to remote

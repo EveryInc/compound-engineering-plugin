@@ -347,6 +347,19 @@ Examples:
 
 **Tagging:** Always add `code-review` tag, plus: `security`, `performance`, `architecture`, `rails`, `quality`, etc.
 
+#### Step 2b: Push Todos to Linear
+
+After creating all todo files, push them to Linear for tracking:
+
+```bash
+# For each newly created todo file with no linear_id:
+compound-plugin linear create <file-path> [--parent <plan-linear-issue>]
+```
+
+If the plan that triggered this review has a `linear_issue` field in its frontmatter, use it as the `--parent` for all created todos so they appear as sub-issues in Linear.
+
+This step silently skips if `LINEAR_API_KEY` is not set.
+
 #### Step 3: Summary Report
 
 After creating all todo files, present comprehensive summary:

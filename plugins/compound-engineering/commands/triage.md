@@ -6,6 +6,11 @@ disable-model-invocation: true
 ---
 
 - First set the /model to Haiku
+- Pull latest Linear state before presenting items:
+  ```bash
+  compound-plugin linear pull --todos-dir ./todos
+  ```
+  (Silently skips if LINEAR_API_KEY is not set)
 - Then read all pending todos in the todos/ directory
 
 Present all findings, decisions, or issues here one by one for triage. The goal is to go through each item and decide whether to add it to the CLI todo system.
@@ -145,10 +150,20 @@ Do you want to add this to the todo list?
    Source: Triage session on {date}
    ```
 
-4. **Confirm approval:** "✅ Approved: `{new_filename}` (Issue #{issue_id}) - Status: **ready** → Ready to work on"
+4. **Push to Linear:**
+   ```bash
+   compound-plugin linear push --file todos/{new_filename}
+   ```
+   (Silently skips if LINEAR_API_KEY is not set)
+
+5. **Confirm approval:** "✅ Approved: `{new_filename}` (Issue #{issue_id}) - Status: **ready** → Ready to work on"
 
 **When user says "next":**
 
+- If the todo file has a `linear_id`, cancel it in Linear:
+  ```bash
+  compound-plugin linear cancel {linear_id} --comment "Skipped during triage"
+  ```
 - **Delete the todo file** - Remove it from todos/ directory since it's not relevant
 - Skip to the next item
 - Track skipped items for summary

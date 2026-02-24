@@ -7,8 +7,8 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 29 |
-| Commands | 22 |
-| Skills | 19 |
+| Commands | 26 |
+| Skills | 20 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -104,6 +104,10 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `/test-browser` | Run browser tests on PR-affected pages |
 | `/xcode-test` | Build and test iOS apps on simulator |
 | `/feature-video` | Record video walkthroughs and add to PR description |
+| `/linear:sync` | Bidirectional sync between file todos and Linear |
+| `/linear:status` | Show sync status between file todos and Linear |
+| `/linear:import` | Import a Linear issue as a local todo file |
+| `/linear:pull` | Pull Linear changes into local todo files |
 
 ## Skills
 
@@ -134,6 +138,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `every-style-editor` | Review copy for Every's style guide compliance |
 | `file-todos` | File-based todo tracking system |
 | `git-worktree` | Manage Git worktrees for parallel development |
+| `linear-sync` | Bidirectional sync between file-based todos and Linear |
 | `resolve-pr-parallel` | Resolve PR review comments in parallel |
 | `setup` | Configure which review agents run for your project |
 
