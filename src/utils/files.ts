@@ -36,6 +36,18 @@ export async function readJson<T>(filePath: string): Promise<T> {
   return JSON.parse(raw) as T
 }
 
+export async function readJsonSafe(filePath: string): Promise<Record<string, unknown>> {
+  try {
+    const content = await fs.readFile(filePath, "utf-8")
+    return JSON.parse(content) as Record<string, unknown>
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      return {}
+    }
+    throw err
+  }
+}
+
 export async function writeText(filePath: string, content: string): Promise<void> {
   await ensureDir(path.dirname(filePath))
   await fs.writeFile(filePath, content, "utf8")
