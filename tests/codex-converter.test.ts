@@ -251,6 +251,12 @@ File created:
 
 Document the solution → docs/solutions/performance-issues/n-plus-one-briefs.md (5 min)
 
+#### 3. **Related Docs Finder**
+   - Searches \`docs/solutions/\` for related documentation
+
+#### 5. **Category Classifier**
+   - Determines optimal \`docs/solutions/\` category
+
 - \`/research [topic]\` - Deep investigation (searches docs/solutions/ for patterns)`,
           sourcePath: "/tmp/plugin/commands/workflows/compound.md",
         },
@@ -271,6 +277,7 @@ Document the solution → docs/solutions/performance-issues/n-plus-one-briefs.md
     expect(parsed.body).toContain("LEARNINGS.md")
     expect(parsed.body).not.toContain("docs/solutions/[category]/[filename].md")
     expect(parsed.body).not.toContain("docs/solutions/performance-issues")
+    expect(parsed.body).not.toContain("docs/solutions/")
     expect(parsed.body).toContain("searches LEARNINGS.md for patterns")
   })
 

@@ -152,6 +152,14 @@ function transformContentForCodex(body: string, commandName?: string): string {
 function transformCompoundArtifactContract(body: string): string {
   let result = body
   result = result.replace(
+    "- Searches `docs/solutions/` for related documentation",
+    "- Searches `LEARNINGS.md` for related documentation",
+  )
+  result = result.replace(
+    "- Determines optimal `docs/solutions/` category",
+    "- Determines optimal `LEARNINGS.md` section",
+  )
+  result = result.replace(
     /^4\. Create directory if needed: .*$/m,
     "4. Use project root as the artifact target (no extra directories).",
   )
@@ -179,6 +187,9 @@ function transformCompoundArtifactContract(body: string): string {
     /searches docs\/solutions\/ for patterns/g,
     "searches LEARNINGS.md for patterns",
   )
+  result = result.replace(/`docs\/solutions\/`/g, "`LEARNINGS.md`")
+  result = result.replace(/docs\/solutions\/[^\s`)]*/g, "LEARNINGS.md")
+  result = result.replace(/docs\/solutions\//g, "LEARNINGS.md")
   result = result.replace(
     "creating structured documentation in `docs/solutions/` with YAML frontmatter",
     "capturing a reusable project learning artifact in `LEARNINGS.md`",
