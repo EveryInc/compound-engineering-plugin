@@ -6,6 +6,12 @@ import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 export type ClaudeToCodexOptions = ClaudeToOpenCodeOptions
 
 const CODEX_DESCRIPTION_MAX_LENGTH = 1024
+const WORKFLOW_SKILL_NAME_MAP: Record<string, string> = {
+  "workflows-plan": "ce-plan",
+  "workflows-work": "ce-work",
+  "workflows-review": "ce-review",
+  "workflows-compound": "ce-compound",
+}
 
 export function convertClaudeToCodex(
   plugin: ClaudePlugin,
@@ -60,7 +66,9 @@ function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): CodexGenerate
 }
 
 function convertCommandSkill(command: ClaudeCommand, usedNames: Set<string>): CodexGeneratedSkill {
-  const name = uniqueName(normalizeName(command.name), usedNames)
+  const normalizedCommandName = normalizeName(command.name)
+  const mappedName = WORKFLOW_SKILL_NAME_MAP[normalizedCommandName] ?? normalizedCommandName
+  const name = uniqueName(mappedName, usedNames)
   const frontmatter: Record<string, unknown> = {
     name,
     description: sanitizeDescription(
@@ -75,7 +83,7 @@ function convertCommandSkill(command: ClaudeCommand, usedNames: Set<string>): Co
     sections.push(`## Allowed tools\n${command.allowedTools.map((tool) => `- ${tool}`).join("\n")}`)
   }
   // Transform Task agent calls to Codex skill references
-  const transformedBody = transformTaskCalls(command.body.trim())
+  const transformedBody = transformTaskCalls(command.body.trim(), normalizedCommandName)
   sections.push(transformedBody)
   const body = sections.filter(Boolean).join("\n\n").trim()
   const content = formatFrontmatter(frontmatter, body.length > 0 ? body : command.body)
@@ -93,7 +101,7 @@ function convertCommandSkill(command: ClaudeCommand, usedNames: Set<string>): Co
  * This bridges the gap since Claude Code and Codex have different syntax
  * for invoking commands, agents, and skills.
  */
-function transformContentForCodex(body: string): string {
+function transformContentForCodex(body: string, commandName?: string): string {
   let result = body
 
   // 1. Transform Task agent calls
@@ -134,6 +142,47 @@ function transformContentForCodex(body: string): string {
     return `$${skillName} skill`
   })
 
+  if (commandName === "workflows-compound") {
+    result = transformCompoundArtifactContract(result)
+  }
+
+  return result
+}
+
+function transformCompoundArtifactContract(body: string): string {
+  let result = body
+  result = result.replace(
+    /^4\. Create directory if needed: .*$/m,
+    "4. Use project root as the artifact target (no extra directories).",
+  )
+  result = result.replace(
+    /^5\. Write the SINGLE final file: .*$/m,
+    "5. Write the SINGLE final file: `LEARNINGS.md` in project root.",
+  )
+  result = result.replace(
+    "- File: `docs/solutions/[category]/[filename].md`",
+    "- File: `LEARNINGS.md` in project root",
+  )
+  result = result.replace(
+    "Single file: `docs/solutions/[category]/[filename].md`",
+    "Single file: `LEARNINGS.md` in project root",
+  )
+  result = result.replace(
+    "- docs/solutions/performance-issues/n-plus-one-brief-generation.md",
+    "- LEARNINGS.md",
+  )
+  result = result.replace(
+    "Document the solution → docs/solutions/performance-issues/n-plus-one-briefs.md (5 min)",
+    "Document the solution in LEARNINGS.md (5 min)",
+  )
+  result = result.replace(
+    /searches docs\/solutions\/ for patterns/g,
+    "searches LEARNINGS.md for patterns",
+  )
+  result = result.replace(
+    "creating structured documentation in `docs/solutions/` with YAML frontmatter",
+    "capturing a reusable project learning artifact in `LEARNINGS.md`",
+  )
   return result
 }
 
@@ -147,7 +196,7 @@ function renderPrompt(command: ClaudeCommand, skillName: string): string {
   }
   const instructions = `Use the $${skillName} skill for this command and follow its instructions.`
   // Transform Task calls in prompt body too (not just skill body)
-  const transformedBody = transformTaskCalls(command.body)
+  const transformedBody = transformTaskCalls(command.body, normalizeName(command.name))
   const body = [instructions, "", transformedBody].join("\n").trim()
   return formatFrontmatter(frontmatter, body)
 }
