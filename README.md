@@ -8,7 +8,7 @@ A Claude Code plugin marketplace featuring the **Compound Engineering Plugin** â
 ## Claude Code Install
 
 ```bash
-/plugin marketplace add https://github.com/EveryInc/compound-engineering-plugin
+/plugin marketplace add https://github.com/EveryInc/every-marketplace
 /plugin install compound-engineering
 ```
 
