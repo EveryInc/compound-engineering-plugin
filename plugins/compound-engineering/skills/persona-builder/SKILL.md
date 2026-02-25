@@ -202,6 +202,8 @@ _No divergences identified yet._
 
 ## Human Review Checklist
 
+- [ ] All source interviews use anonymized participant IDs (no real names)
+- [ ] No real names, email addresses, or company names appear in persona
 - [ ] Goals and frustrations grounded in interview evidence
 - [ ] Behavior counts accurate (absence not counted as negative)
 - [ ] Quotes are exact (verified against source interviews)

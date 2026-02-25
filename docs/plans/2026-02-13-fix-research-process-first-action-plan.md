@@ -1,6 +1,7 @@
 ---
 title: "fix: Research process fails when transcript is first action"
 type: fix
+status: completed
 date: 2026-02-13
 ---
 

@@ -1,6 +1,7 @@
 ---
 title: "feat: Add user research workflow"
 type: feat
+status: completed
 date: 2026-02-11
 source_brainstorm: docs/brainstorms/2026-02-10-user-research-workflow-brainstorm.md
 ---

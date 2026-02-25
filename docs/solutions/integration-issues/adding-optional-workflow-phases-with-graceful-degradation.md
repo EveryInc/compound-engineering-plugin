@@ -67,7 +67,7 @@ docs/research/
 ```
 
 **Key rules:**
-- `.gitignore` must include `docs/research/transcripts/*.md` BEFORE any transcripts are created
+- `.gitignore` must exclude `docs/research/transcripts/*` (with `!.gitkeep` exception) BEFORE any transcripts are created
 - Skills must give explicit PII stripping instructions: replace names inline in quotes, anonymize company names, sanitize filenames
 - Use "MUST NOT be committed to public repositories" — not "consider" or "should"
 - Sample data for testing must use synthetic data, never real interview content
@@ -171,7 +171,7 @@ Users who drop a transcript into the folder and run `/workflows:research` should
 | `agents/research/user-research-analyst.md` | Removed "to be wired in PR 2" TODO, updated Integration Points |
 | `skills/transcript-insights/SKILL.md` | Strengthened PII guidance from "Consider" to "MUST NOT" |
 | `skills/persona-builder/SKILL.md` | Simplified evidence strength/hypothesis status tables; deduplicated playbook reference |
-| `.gitignore` | Added `docs/research/transcripts/*.md` |
+| `.gitignore` | Added `docs/research/transcripts/*` with `!.gitkeep` exception |
 
 ## Key Takeaway
 

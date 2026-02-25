@@ -58,7 +58,19 @@ Check existing interviews in `docs/research/interviews/` for the next available 
 
 ### Step 4: Process the Transcript
 
-Read the full transcript and extract the following components:
+Read the full transcript and extract the following components. **Apply anonymization throughout all output** per Step 4.0.
+
+#### 4.0: Anonymization During Processing
+
+Before extracting insights, apply these transformations to ALL output:
+
+- Assign anonymized participant IDs (user-001, user-002, etc.)
+- Replace real names with anonymized IDs in all quotes and references
+- Replace company names with generic descriptors (e.g., "their company", "a competitor")
+- Strip identifying details from the `source_transcript` filename field -- use a descriptive slug, not the original filename if it contains names
+- Quotes must be exact from the transcript, but with PII replaced inline (e.g., `"[user-001] said the export was broken"`)
+
+If the transcript already uses anonymized IDs (matching pattern `user-NNN`), note that anonymization is already complete and proceed.
 
 #### 4a: Interview Summary
 
@@ -250,6 +262,8 @@ Opportunities are unmet needs -- NOT solutions.
 
 ## Human Review Checklist
 
+- [ ] No real names, email addresses, or company names in output
+- [ ] All participant references use anonymized IDs (user-NNN)
 - [ ] All quotes verified against source transcript
 - [ ] Experience map accurately reflects story arc
 - [ ] Opportunities reflect participant needs, not assumed solutions
@@ -286,13 +300,6 @@ Extracted opportunity:
 | Users check dashboard first thing in the morning | SUPPORTED | "Every morning I open three different tabs -- the dashboard, the Slack channel, and this spreadsheet" |
 | Export is primarily used for sharing with non-users | CHALLENGED | Export is used for personal tracking spreadsheet, not sharing |
 
-## Privacy Note
+## Privacy
 
-Interview snapshots use anonymized participant IDs (user-001, user-002). Do not include real names, email addresses, or other identifying information in the snapshot output. When processing transcripts:
-
-- **Replace all real names** with anonymized IDs (e.g., "user-001") in quotes and context
-- **Replace company names** with generic descriptors (e.g., "a regional health plan") unless the company is public knowledge and relevant to the insight
-- **Strip identifying details** from the `source_transcript` frontmatter field -- use a descriptive slug, not the original filename if it contains names
-- **Quotes must be exact** from the transcript, but with PII replaced inline (e.g., `"[user-001] said the export was broken"`)
-
-Transcripts in `docs/research/transcripts/` contain raw interview data with PII and MUST NOT be committed to public repositories. The `.gitignore` includes `docs/research/transcripts/*.md` by default.
+See Step 4.0 for anonymization requirements. Transcripts in `docs/research/transcripts/` contain raw interview data with PII and MUST NOT be committed to version control.

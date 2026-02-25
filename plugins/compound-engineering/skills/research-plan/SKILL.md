@@ -218,6 +218,6 @@ Output objective: "Understand how teams currently create, share, and act on data
 | Bad | "Do you think reporting is important?" |
 | Bad | "Would you use a better reporting tool?" |
 
-## Privacy Note
+## Privacy
 
-Consider adding `docs/research/transcripts/` to `.gitignore` if transcripts contain personally identifiable information. Research plans and processed insights (with anonymized participant IDs) are generally safe to commit.
+Transcripts in `docs/research/transcripts/` contain raw interview data with PII and MUST NOT be committed to version control. The `.gitignore` already excludes this directory. Research plans and processed insights (with anonymized participant IDs) are safe to commit.

@@ -17,7 +17,7 @@ All research artifacts follow these path conventions:
 | Artifact | Path Pattern |
 |----------|-------------|
 | Research plans | `docs/research/plans/YYYY-MM-DD-<slug>-research-plan.md` |
-| Transcripts | `docs/research/transcripts/*.md` (user-provided) |
+| Transcripts | `docs/research/transcripts/*` (user-provided, gitignored) |
 | Interview snapshots | `docs/research/interviews/YYYY-MM-DD-participant-NNN.md` |
 | Personas | `docs/research/personas/<persona-slug>.md` |
 
