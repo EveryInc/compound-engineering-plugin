@@ -106,7 +106,7 @@ These agents are run ONLY when the PR matches specific criteria. Check the PR fi
 
 </conditional_agents>
 
-### 4. Ultra-Thinking Deep Dive Phases
+### 2. Ultra-Thinking Deep Dive Phases
 
 <ultrathink_instruction> For each phase below, spend maximum cognitive effort. Think step by step. Consider all angles. Question assumptions. And bring all reviews in a synthesis to the user.</ultrathink_instruction>
 
@@ -114,7 +114,7 @@ These agents are run ONLY when the PR matches specific criteria. Check the PR fi
 Complete system context map with component interactions
 </deliverable>
 
-#### Phase 3: Stakeholder Perspective Analysis
+#### Phase 1: Stakeholder Perspective Analysis
 
 <thinking_prompt> ULTRA-THINK: Put yourself in each stakeholder's shoes. What matters to them? What are their pain points? </thinking_prompt>
 
@@ -154,7 +154,7 @@ Complete system context map with component interactions
    - How does this affect time-to-market?
    - What's the total cost of ownership? </questions> </stakeholder_perspectives>
 
-#### Phase 4: Scenario Exploration
+#### Phase 2: Scenario Exploration
 
 <thinking_prompt> ULTRA-THINK: Explore edge cases and failure scenarios. What could go wrong? How does the system behave under stress? </thinking_prompt>
 
@@ -171,7 +171,7 @@ Complete system context map with component interactions
 - [ ] **Data Corruption**: Partial writes, inconsistency
 - [ ] **Cascading Failures**: Downstream service issues </scenario_checklist>
 
-### 6. Multi-Angle Review Perspectives
+### 3. Multi-Angle Review Perspectives
 
 #### Technical Excellence Angle
 
@@ -437,9 +437,7 @@ After creating all todo files, present comprehensive summary:
 - Optimization opportunities
 - Documentation updates
 
-```
-
-### 7. End-to-End Testing (Optional)
+### 6. End-to-End Testing (Optional)
 
 <detect_project_type>
 
@@ -525,4 +523,3 @@ The subagent will:
 ### Important: P1 Findings Block Merge
 
 Any **🔴 P1 (CRITICAL)** findings must be addressed before merging the PR. Present these prominently and ensure they're resolved before accepting the PR.
-```
