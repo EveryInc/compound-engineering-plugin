@@ -100,7 +100,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - All 29 agent descriptions trimmed from ~1,400 to ~180 chars avg (examples moved to agent body)
   - 18 manual commands marked `disable-model-invocation: true` (side-effect commands like `/lfg`, `/deploy-docs`, `/triage`, etc.)
   - 6 manual skills marked `disable-model-invocation: true` (`orchestrating-swarms`, `git-worktree`, `skill-creator`, `compound-docs`, `file-todos`, `resolve-pr-parallel`)
-- **git-worktree**: Remove confirmation prompt for worktree creation ([@Sam Xie](https://github.com/samxie))
+- **git-worktree**: Remove confirmation prompt for worktree creation ([@Sam Xie](https://github.com/XSAM))
 - **Prevent subagents from writing intermediary files** in compound workflow ([@Trevin Chow](https://github.com/trevin))
 
 ### Fixed
