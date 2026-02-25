@@ -401,7 +401,6 @@ After creating all todo files, present comprehensive summary:
    ls todos/*-pending-*.md  # View all pending todos
    /triage                  # Use slash command for interactive triage
    ```
-````
 
 3. **Work on Approved Todos**:
 
@@ -436,6 +435,7 @@ After creating all todo files, present comprehensive summary:
 - Code cleanup
 - Optimization opportunities
 - Documentation updates
+````
 
 ### 6. End-to-End Testing (Optional)
 
