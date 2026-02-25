@@ -14,22 +14,14 @@ Orchestrate the user research loop: plan studies, process interview transcripts,
 
 All research artifacts follow these path conventions:
 
-| Artifact | Path Pattern |
-|----------|-------------|
-| Research plans | `docs/research/plans/YYYY-MM-DD-<slug>-research-plan.md` |
-| Transcripts | `docs/research/transcripts/*` (user-provided, gitignored) |
-| Interview snapshots | `docs/research/interviews/YYYY-MM-DD-participant-NNN.md` |
-| Personas | `docs/research/personas/<persona-slug>.md` |
+| Artifact | Path Pattern | Created by |
+|----------|-------------|------------|
+| Research plans | `docs/research/plans/YYYY-MM-DD-<slug>-research-plan.md` | `research-plan` skill |
+| Transcripts | `docs/research/transcripts/*` (gitignored, PII) | This workflow (Rule 1 / Phase 2) |
+| Interview snapshots | `docs/research/interviews/YYYY-MM-DD-participant-NNN.md` | `transcript-insights` skill |
+| Personas | `docs/research/personas/<persona-slug>.md` | `persona-builder` skill |
 
-## Directory Setup
-
-Create research directories if they do not exist:
-
-```bash
-mkdir -p docs/research/plans docs/research/transcripts docs/research/interviews docs/research/personas
-```
-
-Run this silently before any phase.
+Directories are created lazily — each owner creates its directory before first write.
 
 ## Routing
 
@@ -44,8 +36,9 @@ If the argument contains multi-line content (a transcript, meeting notes, interv
 This IS inline transcript content. Do NOT check artifact status. Do NOT show phase selection. Handle it immediately:
 
 1. Extract the meeting title and date from the content to generate a filename: `YYYY-MM-DD_<meeting-title-slug>_transcript.md`. If no date is found, use today's date.
-2. Save the full content to `docs/research/transcripts/[filename]`
-3. Jump to **Process Selected Transcript** in Phase 2 below with this file path
+2. Create the transcripts directory if it doesn't exist: `mkdir -p docs/research/transcripts`
+3. Save the full content to `docs/research/transcripts/[filename]`
+4. Jump to **Process Selected Transcript** in Phase 2 below with this file path
 
 ### Rule 2: Phase name keyword
 
@@ -63,12 +56,20 @@ If the argument is empty, run phase selection:
 
 **SKIP this section if Rule 1 matched above (inline content).** Only run this when the argument was empty.
 
+**First-run check:** If `docs/research/` does not exist, create it (`mkdir -p docs/research/`) and show before the status line:
+
+> Setting up research workspace at `docs/research/`. Directories will be created as you use each phase. Transcripts are gitignored (they may contain PII).
+
+Only show this once — when the root `docs/research/` directory does not exist. On subsequent runs, skip directly to the artifact status.
+
 Show a brief artifact status (2-3 lines max):
 
 ```
 Research status:
 - N plans, N transcripts (M unprocessed), N interviews, N personas
 ```
+
+**Counting artifacts:** For each directory, check if it exists first. If a directory does not exist, count as 0. Do not create directories during counting.
 
 **Counting unprocessed transcripts:** Count files in `docs/research/transcripts/`. Then check `docs/research/interviews/` frontmatter for `source_transcript` fields. Transcripts not referenced by any interview are unprocessed. Simpler fallback: count transcripts minus count of interviews.
 
@@ -113,8 +114,8 @@ If the argument starts with "process" followed by substantial content, strip the
 
 Look for `.md` files in `docs/research/transcripts/`.
 
-**If no transcripts exist:**
-Report: "No transcripts found in `docs/research/transcripts/`. Save your interview transcript as a `.md` file there, or pass the content inline: `/workflows:research process [transcript content]`."
+**If no transcripts directory exists or no transcripts found:**
+Report: "No transcripts found. Save your interview transcript to `docs/research/transcripts/` or pass content inline: `/workflows:research [transcript content]`."
 Proceed to **Handoff**.
 
 **If transcripts exist:**
