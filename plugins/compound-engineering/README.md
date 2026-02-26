@@ -6,24 +6,26 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 29 |
-| Commands | 22 |
-| Skills | 19 |
+| Agents | 31 |
+| Commands | 23 |
+| Skills | 25 |
 | MCP Servers | 1 |
 
 ## Agents
 
 Agents are organized into categories for easier discovery.
 
-### Review (15)
+### Review (17)
 
 | Agent | Description |
 |-------|-------------|
 | `agent-native-reviewer` | Verify features are agent-native (action + context parity) |
-| `architecture-strategist` | Analyze architectural decisions and compliance |
+| `architecture-strategist` | Analyze architectural decisions and compliance (+ data warehouse architecture) |
 | `code-simplicity-reviewer` | Final pass for simplicity and minimalism |
 | `data-integrity-guardian` | Database migrations and data integrity |
 | `data-migration-expert` | Validate ID mappings match production, check for swapped values |
+| `data-pipeline-reviewer` | Review ETL/ELT pipelines for reliability, idempotency, and credential safety |
+| `dbt-model-reviewer` | Review dbt models for SQL quality, ref/source usage, and testing coverage |
 | `deployment-verification-agent` | Create Go/No-Go deployment checklists for risky data changes |
 | `dhh-rails-reviewer` | Rails review from DHH's perspective |
 | `julik-frontend-races-reviewer` | Review JavaScript/Stimulus code for race conditions |
@@ -31,7 +33,7 @@ Agents are organized into categories for easier discovery.
 | `kieran-python-reviewer` | Python code review with strict conventions |
 | `kieran-typescript-reviewer` | TypeScript code review with strict conventions |
 | `pattern-recognition-specialist` | Analyze code for patterns and anti-patterns |
-| `performance-oracle` | Performance analysis and optimization |
+| `performance-oracle` | Performance analysis and optimization (+ warehouse SQL optimization) |
 | `schema-drift-detector` | Detect unrelated schema.rb changes in PRs |
 | `security-sentinel` | Security audits and vulnerability assessments |
 
@@ -104,6 +106,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `/test-browser` | Run browser tests on PR-affected pages |
 | `/xcode-test` | Build and test iOS apps on simulator |
 | `/feature-video` | Record video walkthroughs and add to PR description |
+| `/data-scaffold` | Scaffold dbt models or dimensional data models from source descriptions |
 
 ## Skills
 
@@ -112,6 +115,17 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | Skill | Description |
 |-------|-------------|
 | `agent-native-architecture` | Build AI agents using prompt-native architecture |
+
+### Data Engineering
+
+| Skill | Description |
+|-------|-------------|
+| `dbt` | Comprehensive dbt project guidance: structure, models, testing, Jinja, incremental strategies, packages |
+| `snowflake` | Snowflake SQL patterns, optimization, cost management, and Terraform IaC |
+| `duckdb` | DuckDB local analytics: file querying, SQL extensions, Python/dbt integration |
+| `databricks` | Databricks/Spark patterns: Delta Lake, Unity Catalog, optimization, Terraform IaC |
+| `warehouse-architecture` | Kimball, Data Vault 2.0, Medallion, SCD types (background knowledge) |
+| `data-quality` | Data validation frameworks: Pandera, Great Expectations, Soda Core, dbt contracts (background knowledge) |
 
 ### Development Tools
 

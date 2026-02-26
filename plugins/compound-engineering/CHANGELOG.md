@@ -5,6 +5,31 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.36.0] - 2026-02-26
+
+### Added
+
+- **`dbt` skill** — Comprehensive dbt project guidance with intake/routing pattern. Covers project structure, naming conventions, model patterns, testing tiers, Jinja macros, incremental strategies, and package management. 6 reference files.
+- **`snowflake` skill** — Snowflake SQL patterns, optimization, cost management, and Terraform IaC. Covers QUALIFY, FLATTEN, clustering keys, warehouse sizing, resource monitors, and key-pair authentication. 4 reference files.
+- **`duckdb` skill** — DuckDB local analytics patterns including file querying (Parquet/CSV/JSON), SQL extensions (ASOF JOIN, PIVOT/UNPIVOT, LIST/STRUCT), and integration with dbt/Python/Polars. 3 reference files.
+- **`databricks` skill** — Databricks and Spark patterns with Delta Lake, Unity Catalog, Spark optimization (AQE, broadcast joins), and Terraform IaC. 4 reference files.
+- **`warehouse-architecture` skill** — Background knowledge skill covering Kimball star schema, Data Vault 2.0, Medallion/Lakehouse, and SCD types 0-6. Includes pattern selection decision tree and hybrid patterns. 4 reference files. (`user-invocable: false`)
+- **`data-quality` skill** — Background knowledge skill for data validation frameworks: Pandera, Great Expectations, Soda Core, dbt contracts, ODCS, and anomaly detection. Includes tool decision matrix and advanced dbt testing patterns. 4 reference files. (`user-invocable: false`)
+- **`dbt-model-reviewer` agent** — Reviews dbt models for SQL quality, ref/source usage, materialization strategy, incremental patterns, and testing coverage. 8-section checklist with common bug patterns.
+- **`data-pipeline-reviewer` agent** — Reviews ETL/ELT pipelines for idempotency, error handling, backfill capability, credential safety, and observability. Covers Airflow, Dagster, and general orchestration patterns.
+- **`/data-scaffold` command** — Scaffold dbt models or dimensional data models. Two modes: `dbt` mode generates staging models with source YAML, and `model` mode generates star schema ERDs with fact/dimension tables.
+
+### Changed
+
+- **`performance-oracle` agent** — Added Warehouse SQL Optimization section covering Snowflake (clustering, pruning, EXPLAIN), DuckDB (memory, parallelism), Databricks (shuffle, broadcast, Liquid Clustering, AQE), and cross-dialect anti-patterns.
+- **`architecture-strategist` agent** — Added Data Warehouse Architecture section covering grain definition, dimensional modeling (conformed dimensions, star vs snowflake, fact types), SCD strategy, medallion layer boundaries, and referential integrity.
+
+### Summary
+
+- 31 agents, 23 commands, 25 skills, 1 MCP server
+
+---
+
 ## [2.35.2] - 2026-02-20
 
 ### Changed

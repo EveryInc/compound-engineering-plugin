@@ -126,9 +126,44 @@ When reviewing code:
 
 Always provide specific code examples for recommended optimizations. Include benchmarking suggestions where appropriate.
 
+## Warehouse SQL Optimization
+
+When reviewing warehouse SQL (Snowflake, DuckDB, Databricks), apply these additional checks:
+
+### Snowflake
+- **Clustering keys** - Verify clustering aligns with common filter and join predicates
+- **Micro-partition pruning** - Check that WHERE clauses enable partition elimination
+- **Warehouse sizing** - Match warehouse size to workload (XS for development, larger for production)
+- **EXPLAIN plan** - Use `EXPLAIN` to verify query plan uses pruning and pushdown
+- **Unnecessary DISTINCT** - Flag DISTINCT that masks a missing join condition or deduplication issue
+- **Missing predicate pushdown** - Subqueries that prevent filter pushdown to base tables
+- **Credit impact** - Estimate credit consumption for recurring queries
+
+### DuckDB
+- **Memory management** - Large queries may exceed available memory; use `PRAGMA memory_limit`
+- **Parallelism** - DuckDB auto-parallelizes; avoid patterns that serialize execution
+- **File format** - Prefer Parquet over CSV for analytical queries (columnar, compressed)
+- **Predicate pushdown** - Verify filters are pushed down into file reads
+
+### Databricks
+- **Shuffle reduction** - Minimize data shuffling across executors
+- **Broadcast joins** - Use broadcast hint for small dimension tables (<10MB)
+- **Liquid Clustering** - Recommend over ZORDER for new Delta tables (DBR 13.3+)
+- **Adaptive Query Execution (AQE)** - Verify AQE is enabled; check for skew handling
+- **DBU consumption** - Consider cluster sizing and runtime for cost efficiency
+- **Avoid Python UDFs** - Prefer SQL or Pandas UDFs over row-at-a-time Python UDFs
+
+### Cross-Dialect Anti-Patterns
+- **Correlated subqueries** - Rewrite as JOINs or window functions
+- **Unnecessary DISTINCT** - Often masks a join issue; investigate root cause
+- **Missing predicate pushdown** - Filters applied after aggregation instead of before
+- **SELECT * in analytical queries** - Select only needed columns for columnar storage benefit
+- **Non-deterministic functions in WHERE** - Functions like `RANDOM()` prevent caching
+
 ## Special Considerations
 
 - For Rails applications, pay special attention to ActiveRecord query optimization
+- For warehouse queries, consider credit/DBU cost alongside execution time
 - Consider background job processing for expensive operations
 - Recommend progressive enhancement for frontend features
 - Always balance performance optimization with code maintainability
