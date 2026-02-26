@@ -56,16 +56,16 @@ describe("convertClaudeToCodex", () => {
     const parsedPrompt = parseFrontmatter(prompt.content)
     expect(parsedPrompt.data.description).toBe("Planning command")
     expect(parsedPrompt.data["argument-hint"]).toBe("[FOCUS]")
-    expect(parsedPrompt.body).toContain("$workflows-plan")
+    expect(parsedPrompt.body).toContain("$ce-plan")
     expect(parsedPrompt.body).toContain("Plan the work.")
 
     expect(bundle.skillDirs[0]?.name).toBe("existing-skill")
     expect(bundle.generatedSkills).toHaveLength(2)
 
-    const commandSkill = bundle.generatedSkills.find((skill) => skill.name === "workflows-plan")
+    const commandSkill = bundle.generatedSkills.find((skill) => skill.name === "ce-plan")
     expect(commandSkill).toBeDefined()
     const parsedCommandSkill = parseFrontmatter(commandSkill!.content)
-    expect(parsedCommandSkill.data.name).toBe("workflows-plan")
+    expect(parsedCommandSkill.data.name).toBe("ce-plan")
     expect(parsedCommandSkill.data.description).toBe("Planning command")
     expect(parsedCommandSkill.body).toContain("Allowed tools")
 
@@ -170,6 +170,115 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
     // File paths should NOT be transformed
     expect(parsed.body).toContain("/tmp/output.md")
     expect(parsed.body).toContain("/dev/null")
+  })
+
+  test("maps workflow command skills to ce-* names", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "workflows:plan",
+          description: "Plan flow",
+          body: "Plan body.",
+          sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+        },
+        {
+          name: "workflows:work",
+          description: "Work flow",
+          body: "Work body.",
+          sourcePath: "/tmp/plugin/commands/workflows/work.md",
+        },
+        {
+          name: "workflows:review",
+          description: "Review flow",
+          body: "Review body.",
+          sourcePath: "/tmp/plugin/commands/workflows/review.md",
+        },
+        {
+          name: "workflows:compound",
+          description: "Compound flow",
+          body: "Compound body.",
+          sourcePath: "/tmp/plugin/commands/workflows/compound.md",
+        },
+      ],
+      agents: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCodex(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const names = bundle.generatedSkills.map((s) => s.name)
+    expect(names).toContain("ce-plan")
+    expect(names).toContain("ce-work")
+    expect(names).toContain("ce-review")
+    expect(names).toContain("ce-compound")
+
+    const compoundPrompt = bundle.prompts.find((p) => p.name === "workflows-compound")
+    expect(compoundPrompt).toBeDefined()
+    const parsedPrompt = parseFrontmatter(compoundPrompt!.content)
+    expect(parsedPrompt.body).toContain("$ce-compound")
+  })
+
+  test("rewrites workflows-compound output contract to LEARNINGS.md", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "workflows:compound",
+          description: "Compound flow",
+          body: `### Phase 2: Assembly & Write
+
+1. Collect all text results from Phase 1 subagents
+2. Assemble complete markdown file from the collected pieces
+3. Validate YAML frontmatter against schema
+4. Create directory if needed: \`mkdir -p docs/solutions/[category]/\`
+5. Write the SINGLE final file: \`docs/solutions/[category]/[filename].md\`
+
+## What It Creates
+- File: \`docs/solutions/[category]/[filename].md\`
+
+## Common Mistakes to Avoid
+| ❌ Wrong | ✅ Correct |
+|----------|-----------|
+| Multiple files created during workflow | Single file: \`docs/solutions/[category]/[filename].md\` |
+
+File created:
+- docs/solutions/performance-issues/n-plus-one-brief-generation.md
+
+Document the solution → docs/solutions/performance-issues/n-plus-one-briefs.md (5 min)
+
+#### 3. **Related Docs Finder**
+   - Searches \`docs/solutions/\` for related documentation
+
+#### 5. **Category Classifier**
+   - Determines optimal \`docs/solutions/\` category
+
+- \`/research [topic]\` - Deep investigation (searches docs/solutions/ for patterns)`,
+          sourcePath: "/tmp/plugin/commands/workflows/compound.md",
+        },
+      ],
+      agents: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCodex(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const compoundSkill = bundle.generatedSkills.find((s) => s.name === "ce-compound")
+    expect(compoundSkill).toBeDefined()
+    const parsed = parseFrontmatter(compoundSkill!.content)
+    expect(parsed.body).toContain("LEARNINGS.md")
+    expect(parsed.body).not.toContain("docs/solutions/[category]/[filename].md")
+    expect(parsed.body).not.toContain("docs/solutions/performance-issues")
+    expect(parsed.body).not.toContain("docs/solutions/")
+    expect(parsed.body).toContain("searches LEARNINGS.md for patterns")
   })
 
   test("excludes commands with disable-model-invocation from prompts and skills", () => {

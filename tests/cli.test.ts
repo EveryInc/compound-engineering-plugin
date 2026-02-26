@@ -306,7 +306,7 @@ describe("CLI", () => {
     expect(stdout).toContain("Converted compound-engineering")
     expect(stdout).toContain(codexRoot)
     expect(await exists(path.join(codexRoot, "prompts", "workflows-review.md"))).toBe(true)
-    expect(await exists(path.join(codexRoot, "skills", "workflows-review", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "skills", "ce-review", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
   })
 
@@ -346,7 +346,7 @@ describe("CLI", () => {
     expect(stdout).toContain("Installed compound-engineering")
     expect(stdout).toContain(codexRoot)
     expect(await exists(path.join(codexRoot, "prompts", "workflows-review.md"))).toBe(true)
-    expect(await exists(path.join(codexRoot, "skills", "workflows-review", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "skills", "ce-review", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(codexRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
   })
