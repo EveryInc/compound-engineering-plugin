@@ -53,7 +53,7 @@ All three support both **workspace-level** (project-specific) and **global** (us
 ├── skills/                    # Global skills (directories)
 │   └── {skill-name}/
 │       └── SKILL.md
-├── workflows/                 # Global workflows (flat .md files)
+├── global_workflows/           # Global workflows (flat .md files)
 │   └── {workflow-name}.md
 ├── rules/                     # Global rules (flat .md files)  
 │   └── {rule-name}.md
@@ -167,7 +167,7 @@ Workflows define step-by-step procedures invoked via slash commands. They guide 
 
 | Scope | Location |
 |-------|----------|
-| **Global** | `~/.codeium/windsurf/workflows/{workflow-name}.md` |
+| **Global** | `~/.codeium/windsurf/global_workflows/{workflow-name}.md` |
 | **Workspace** | `.windsurf/workflows/{workflow-name}.md` |
 
 ### File Format
@@ -208,7 +208,7 @@ Step-by-step instructions in markdown.
 
 ### Example: Complete Workflow
 
-**File**: `~/.codeium/windsurf/workflows/address-pr-comments.md`
+**File**: `~/.codeium/windsurf/global_workflows/address-pr-comments.md`
 
 ```markdown
 ---
@@ -366,7 +366,7 @@ When items with the same name exist at multiple levels:
 | Type | Path Pattern | Format | Key Fields |
 |------|--------------|--------|------------|
 | **Skill** | `skills/{name}/SKILL.md` | YAML frontmatter + markdown | `name`, `description` |
-| **Workflow** | `workflows/{name}.md` | YAML frontmatter + markdown | `description` |
+| **Workflow** | `global_workflows/{name}.md` (global) or `workflows/{name}.md` (workspace) | YAML frontmatter + markdown | `description` |
 | **Rule** | `rules/{name}.md` | YAML frontmatter + markdown | `description`, `trigger`, `globs` |
 | **Global Rules** | `memories/global_rules.md` | Plain text/markdown | None |
 

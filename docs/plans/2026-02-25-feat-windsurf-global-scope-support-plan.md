@@ -15,7 +15,7 @@ After auditing the implementation against `docs/specs/windsurf.md`, two signific
 
 1. **Agents → Skills (not Workflows)**: Claude agents map to Windsurf Skills (`skills/{name}/SKILL.md`), not Workflows. Skills are "complex multi-step tasks with supporting resources" — a better conceptual match for specialized expertise/personas. Workflows are "reusable step-by-step procedures" — a better match for Claude Commands (slash commands).
 
-2. **Workflows are flat files**: Command workflows are written to `workflows/{name}.md` (no subdirectories). The spec requires flat files, not `workflows/agents/` or `workflows/commands/` subdirectories.
+2. **Workflows are flat files**: Command workflows are written to `global_workflows/{name}.md` (global scope) or `workflows/{name}.md` (workspace scope). No subdirectories — the spec requires flat files.
 
 3. **Content transforms updated**: `@agent-name` references are kept as-is (Windsurf skill invocation syntax). `/command` references produce `/{name}` (not `/commands/{name}`). `Task agent(args)` produces `Use the @agent-name skill: args`.
 
@@ -24,7 +24,7 @@ After auditing the implementation against `docs/specs/windsurf.md`, two signific
 | Claude Code | Windsurf | Output Path | Invocation |
 |---|---|---|---|
 | Agents (`.md`) | Skills | `skills/{name}/SKILL.md` | `@skill-name` or automatic |
-| Commands (`.md`) | Workflows (flat) | `workflows/{name}.md` | `/{workflow-name}` |
+| Commands (`.md`) | Workflows (flat) | `global_workflows/{name}.md` (global) / `workflows/{name}.md` (workspace) | `/{workflow-name}` |
 | Skills (`SKILL.md`) | Skills (pass-through) | `skills/{name}/SKILL.md` | `@skill-name` |
 | MCP servers | `mcp_config.json` | `mcp_config.json` | N/A |
 | Hooks | Skipped with warning | N/A | N/A |

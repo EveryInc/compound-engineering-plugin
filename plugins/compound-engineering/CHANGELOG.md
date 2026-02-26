@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Windsurf target provider** — `--to windsurf` converts plugins to Windsurf format per the [Windsurf spec](docs/specs/windsurf.md). Claude agents become Windsurf skills (`skills/{name}/SKILL.md`), commands become flat workflows (`workflows/{name}.md`), pass-through skills copy unchanged, and MCP servers write to `mcp_config.json`.
+- **Windsurf target provider** — `--to windsurf` converts plugins to Windsurf format per the [Windsurf spec](docs/specs/windsurf.md). Claude agents become Windsurf skills (`skills/{name}/SKILL.md`), commands become flat workflows (`global_workflows/{name}.md` for global scope, `workflows/{name}.md` for workspace), pass-through skills copy unchanged, and MCP servers write to `mcp_config.json`.
 - **Global scope support** — New `--scope global|workspace` flag for the converter CLI (generic, Windsurf as first adopter). `--to windsurf` defaults to global scope (`~/.codeium/windsurf/`), making installed skills, workflows, and MCP servers available across all projects. Use `--scope workspace` for project-level `.windsurf/` output.
 - **`mcp_config.json` integration** — Machine-readable MCP config supporting stdio, Streamable HTTP, and SSE transports. Merges with existing config (user entries preserved, plugin entries take precedence). Written with `0o600` permissions for security.
 - **Shared utilities** — Extracted `resolveTargetOutputRoot` to `src/utils/resolve-output.ts` and `hasPotentialSecrets` to `src/utils/secrets.ts`.
