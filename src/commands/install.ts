@@ -25,7 +25,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro)",
+      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro | openclaw)",
     },
     output: {
       type: "string",
@@ -194,6 +194,9 @@ function resolveTargetOutputRoot(
   if (targetName === "kiro") {
     const base = hasExplicitOutput ? outputRoot : process.cwd()
     return path.join(base, ".kiro")
+  }
+  if (targetName === "openclaw") {
+    return path.join(os.homedir(), ".openclaw", "extensions", "compound-engineering")
   }
   return outputRoot
 }

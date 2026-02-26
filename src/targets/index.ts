@@ -6,6 +6,7 @@ import type { PiBundle } from "../types/pi"
 import type { CopilotBundle } from "../types/copilot"
 import type { GeminiBundle } from "../types/gemini"
 import type { KiroBundle } from "../types/kiro"
+import type { OpenClawBundle } from "../types/openclaw"
 import { convertClaudeToOpenCode, type ClaudeToOpenCodeOptions } from "../converters/claude-to-opencode"
 import { convertClaudeToCodex } from "../converters/claude-to-codex"
 import { convertClaudeToDroid } from "../converters/claude-to-droid"
@@ -13,6 +14,7 @@ import { convertClaudeToPi } from "../converters/claude-to-pi"
 import { convertClaudeToCopilot } from "../converters/claude-to-copilot"
 import { convertClaudeToGemini } from "../converters/claude-to-gemini"
 import { convertClaudeToKiro } from "../converters/claude-to-kiro"
+import { convertClaudeToOpenClaw } from "../converters/claude-to-openclaw"
 import { writeOpenCodeBundle } from "./opencode"
 import { writeCodexBundle } from "./codex"
 import { writeDroidBundle } from "./droid"
@@ -20,6 +22,7 @@ import { writePiBundle } from "./pi"
 import { writeCopilotBundle } from "./copilot"
 import { writeGeminiBundle } from "./gemini"
 import { writeKiroBundle } from "./kiro"
+import { writeOpenClawBundle } from "./openclaw"
 
 export type TargetHandler<TBundle = unknown> = {
   name: string
@@ -70,5 +73,11 @@ export const targets: Record<string, TargetHandler> = {
     implemented: true,
     convert: convertClaudeToKiro as TargetHandler<KiroBundle>["convert"],
     write: writeKiroBundle as TargetHandler<KiroBundle>["write"],
+  },
+  openclaw: {
+    name: "openclaw",
+    implemented: true,
+    convert: convertClaudeToOpenClaw as TargetHandler<OpenClawBundle>["convert"],
+    write: writeOpenClawBundle as TargetHandler<OpenClawBundle>["write"],
   },
 }
