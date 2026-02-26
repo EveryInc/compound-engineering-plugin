@@ -2,10 +2,11 @@ import { defineCommand } from "citty"
 import os from "os"
 import path from "path"
 import { loadClaudePlugin } from "../parsers/claude"
-import { targets } from "../targets"
+import { targets, validateScope } from "../targets"
 import type { PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
 import { expandHome, resolveTargetHome } from "../utils/resolve-home"
+import { resolveTargetOutputRoot } from "../utils/resolve-output"
 
 const permissionModes: PermissionMode[] = ["none", "broad", "from-commands"]
 
@@ -23,7 +24,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro)",
+      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro | windsurf)",
     },
     output: {
       type: "string",
@@ -39,6 +40,10 @@ export default defineCommand({
       type: "string",
       alias: "pi-home",
       description: "Write Pi output to this Pi root (ex: ~/.pi/agent or ./.pi)",
+    },
+    scope: {
+      type: "string",
+      description: "Scope level: global | workspace (default varies by target)",
     },
     also: {
       type: "string",
@@ -76,8 +81,11 @@ export default defineCommand({
       throw new Error(`Unknown permissions mode: ${permissions}`)
     }
 
+    const resolvedScope = validateScope(targetName, target, args.scope ? String(args.scope) : undefined)
+
     const plugin = await loadClaudePlugin(String(args.source))
     const outputRoot = resolveOutputRoot(args.output)
+    const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
     const codexHome = resolveTargetHome(args.codexHome, path.join(os.homedir(), ".codex"))
     const piHome = resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent"))
 
@@ -87,7 +95,14 @@ export default defineCommand({
       permissions: permissions as PermissionMode,
     }
 
-    const primaryOutputRoot = resolveTargetOutputRoot(targetName, outputRoot, codexHome, piHome)
+    const primaryOutputRoot = resolveTargetOutputRoot({
+      targetName,
+      outputRoot,
+      codexHome,
+      piHome,
+      hasExplicitOutput,
+      scope: resolvedScope,
+    })
     const bundle = target.convert(plugin, options)
     if (!bundle) {
       throw new Error(`Target ${targetName} did not return a bundle.`)
@@ -113,7 +128,14 @@ export default defineCommand({
         console.warn(`Skipping ${extra}: no output returned.`)
         continue
       }
-      const extraRoot = resolveTargetOutputRoot(extra, path.join(outputRoot, extra), codexHome, piHome)
+      const extraRoot = resolveTargetOutputRoot({
+        targetName: extra,
+        outputRoot: path.join(outputRoot, extra),
+        codexHome,
+        piHome,
+        hasExplicitOutput,
+        scope: handler.defaultScope,
+      })
       await handler.write(extraRoot, extraBundle)
       console.log(`Converted ${plugin.manifest.name} to ${extra} at ${extraRoot}`)
     }
@@ -140,12 +162,3 @@ function resolveOutputRoot(value: unknown): string {
   return process.cwd()
 }
 
-function resolveTargetOutputRoot(targetName: string, outputRoot: string, codexHome: string, piHome: string): string {
-  if (targetName === "codex") return codexHome
-  if (targetName === "pi") return piHome
-  if (targetName === "droid") return path.join(os.homedir(), ".factory")
-  if (targetName === "cursor") return path.join(outputRoot, ".cursor")
-  if (targetName === "gemini") return path.join(outputRoot, ".gemini")
-  if (targetName === "kiro") return path.join(outputRoot, ".kiro")
-  return outputRoot
-}

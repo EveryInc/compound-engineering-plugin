@@ -3,11 +3,12 @@ import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
 import { loadClaudePlugin } from "../parsers/claude"
-import { targets } from "../targets"
+import { targets, validateScope } from "../targets"
 import { pathExists } from "../utils/files"
 import type { PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
 import { expandHome, resolveTargetHome } from "../utils/resolve-home"
+import { resolveTargetOutputRoot } from "../utils/resolve-output"
 
 const permissionModes: PermissionMode[] = ["none", "broad", "from-commands"]
 
@@ -25,7 +26,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro)",
+      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro | windsurf)",
     },
     output: {
       type: "string",
@@ -41,6 +42,10 @@ export default defineCommand({
       type: "string",
       alias: "pi-home",
       description: "Write Pi output to this Pi root (ex: ~/.pi/agent or ./.pi)",
+    },
+    scope: {
+      type: "string",
+      description: "Scope level: global | workspace (default varies by target)",
     },
     also: {
       type: "string",
@@ -77,6 +82,8 @@ export default defineCommand({
       throw new Error(`Unknown permissions mode: ${permissions}`)
     }
 
+    const resolvedScope = validateScope(targetName, target, args.scope ? String(args.scope) : undefined)
+
     const resolvedPlugin = await resolvePluginPath(String(args.plugin))
 
     try {
@@ -96,7 +103,14 @@ export default defineCommand({
         throw new Error(`Target ${targetName} did not return a bundle.`)
       }
       const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
-      const primaryOutputRoot = resolveTargetOutputRoot(targetName, outputRoot, codexHome, piHome, hasExplicitOutput)
+      const primaryOutputRoot = resolveTargetOutputRoot({
+        targetName,
+        outputRoot,
+        codexHome,
+        piHome,
+        hasExplicitOutput,
+        scope: resolvedScope,
+      })
       await target.write(primaryOutputRoot, bundle)
       console.log(`Installed ${plugin.manifest.name} to ${primaryOutputRoot}`)
 
@@ -117,7 +131,14 @@ export default defineCommand({
           console.warn(`Skipping ${extra}: no output returned.`)
           continue
         }
-        const extraRoot = resolveTargetOutputRoot(extra, path.join(outputRoot, extra), codexHome, piHome, hasExplicitOutput)
+        const extraRoot = resolveTargetOutputRoot({
+          targetName: extra,
+          outputRoot: path.join(outputRoot, extra),
+          codexHome,
+          piHome,
+          hasExplicitOutput,
+          scope: handler.defaultScope,
+        })
         await handler.write(extraRoot, extraBundle)
         console.log(`Installed ${plugin.manifest.name} to ${extraRoot}`)
       }
@@ -167,35 +188,6 @@ function resolveOutputRoot(value: unknown): string {
   // OpenCode global config lives at ~/.config/opencode per XDG spec
   // See: https://opencode.ai/docs/config/
   return path.join(os.homedir(), ".config", "opencode")
-}
-
-function resolveTargetOutputRoot(
-  targetName: string,
-  outputRoot: string,
-  codexHome: string,
-  piHome: string,
-  hasExplicitOutput: boolean,
-): string {
-  if (targetName === "codex") return codexHome
-  if (targetName === "pi") return piHome
-  if (targetName === "droid") return path.join(os.homedir(), ".factory")
-  if (targetName === "cursor") {
-    const base = hasExplicitOutput ? outputRoot : process.cwd()
-    return path.join(base, ".cursor")
-  }
-  if (targetName === "gemini") {
-    const base = hasExplicitOutput ? outputRoot : process.cwd()
-    return path.join(base, ".gemini")
-  }
-  if (targetName === "copilot") {
-    const base = hasExplicitOutput ? outputRoot : process.cwd()
-    return path.join(base, ".github")
-  }
-  if (targetName === "kiro") {
-    const base = hasExplicitOutput ? outputRoot : process.cwd()
-    return path.join(base, ".kiro")
-  }
-  return outputRoot
 }
 
 async function resolveGitHubPluginPath(pluginName: string): Promise<ResolvedPluginPath> {
