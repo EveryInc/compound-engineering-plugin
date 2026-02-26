@@ -46,6 +46,13 @@ export async function writeJson(filePath: string, data: unknown): Promise<void> 
   await writeText(filePath, content + "\n")
 }
 
+/** Write JSON with restrictive permissions (0o600) for files containing secrets */
+export async function writeJsonSecure(filePath: string, data: unknown): Promise<void> {
+  const content = JSON.stringify(data, null, 2)
+  await ensureDir(path.dirname(filePath))
+  await fs.writeFile(filePath, content + "\n", { encoding: "utf8", mode: 0o600 })
+}
+
 export async function walkFiles(root: string): Promise<string[]> {
   const entries = await fs.readdir(root, { withFileTypes: true })
   const results: string[] = []

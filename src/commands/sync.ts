@@ -8,26 +8,13 @@ import { syncToPi } from "../sync/pi"
 import { syncToDroid } from "../sync/droid"
 import { syncToCopilot } from "../sync/copilot"
 import { expandHome } from "../utils/resolve-home"
+import { hasPotentialSecrets } from "../utils/secrets"
 
 const validTargets = ["opencode", "codex", "pi", "droid", "copilot"] as const
 type SyncTarget = (typeof validTargets)[number]
 
 function isValidTarget(value: string): value is SyncTarget {
   return (validTargets as readonly string[]).includes(value)
-}
-
-/** Check if any MCP servers have env vars that might contain secrets */
-function hasPotentialSecrets(mcpServers: Record<string, unknown>): boolean {
-  const sensitivePatterns = /key|token|secret|password|credential|api_key/i
-  for (const server of Object.values(mcpServers)) {
-    const env = (server as { env?: Record<string, string> }).env
-    if (env) {
-      for (const key of Object.keys(env)) {
-        if (sensitivePatterns.test(key)) return true
-      }
-    }
-  }
-  return false
 }
 
 function resolveOutputRoot(target: SyncTarget): string {

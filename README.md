@@ -18,9 +18,9 @@ A Claude Code plugin marketplace featuring the **Compound Engineering Plugin** �
 /add-plugin compound-engineering
 ```
 
-## OpenCode, Codex, Droid, Pi, Gemini, Copilot & Kiro (experimental) Install
+## OpenCode, Codex, Droid, Pi, Gemini, Copilot, Kiro & Windsurf (experimental) Install
 
-This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Pi, Gemini CLI, GitHub Copilot, and Kiro CLI.
+This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Pi, Gemini CLI, GitHub Copilot, Kiro CLI, and Windsurf.
 
 ```bash
 # convert the compound-engineering plugin into OpenCode format
@@ -43,6 +43,12 @@ bunx @every-env/compound-plugin install compound-engineering --to copilot
 
 # convert to Kiro CLI format
 bunx @every-env/compound-plugin install compound-engineering --to kiro
+
+# convert to Windsurf format (global scope by default)
+bunx @every-env/compound-plugin install compound-engineering --to windsurf
+
+# convert to Windsurf workspace scope
+bunx @every-env/compound-plugin install compound-engineering --to windsurf --scope workspace
 ```
 
 Local dev:
@@ -58,6 +64,7 @@ Pi output is written to `~/.pi/agent/` by default with prompts, skills, extensio
 Gemini output is written to `.gemini/` with skills (from agents), commands (`.toml`), and `settings.json` (MCP servers). Namespaced commands create directory structure (`workflows:plan` → `commands/workflows/plan.toml`). Skills use the identical SKILL.md standard and pass through unchanged.
 Copilot output is written to `.github/` with agents (`.agent.md`), skills (`SKILL.md`), and `copilot-mcp-config.json`. Agents get Copilot frontmatter (`description`, `tools: ["*"]`, `infer: true`), commands are converted to agent skills, and MCP server env vars are prefixed with `COPILOT_MCP_`.
 Kiro output is written to `.kiro/` with custom agents (`.json` configs + prompt `.md` files), skills (from commands), pass-through skills, steering files (from CLAUDE.md), and `mcp.json`. Agents get `includeMcpJson: true` for MCP server access. Only stdio MCP servers are supported (HTTP servers are skipped with a warning).
+Windsurf output defaults to global scope (`~/.codeium/windsurf/`). Claude agents become Windsurf skills (`skills/{name}/SKILL.md`), commands become flat workflows (`global_workflows/{name}.md` for global scope, `workflows/{name}.md` for workspace), and pass-through skills copy unchanged. MCP servers write to `mcp_config.json` (machine-readable, merged with existing config). Use `--scope workspace` for project-level output (`.windsurf/`). Env vars including secrets are included in `mcp_config.json` with a console warning for sensitive keys. The `--scope` flag is generic — Windsurf is the first target to support it.
 
 All provider targets are experimental and may change as the formats evolve.
 
