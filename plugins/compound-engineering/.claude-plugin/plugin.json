@@ -1,7 +1,7 @@
 {
   "name": "compound-engineering",
-  "version": "2.35.2",
-  "description": "AI-powered development tools. 29 agents, 22 commands, 19 skills, 1 MCP server for code review, research, design, and workflow automation.",
+  "version": "2.36.0",
+  "description": "AI-powered development tools. 31 agents, 23 commands, 25 skills, 1 MCP server for code review, research, design, data engineering, and workflow automation.",
   "author": {
     "name": "Kieran Klaassen",
     "email": "kieran@every.to",
@@ -22,7 +22,13 @@
     "knowledge-management",
     "image-generation",
     "agent-browser",
-    "browser-automation"
+    "browser-automation",
+    "dbt",
+    "snowflake",
+    "databricks",
+    "duckdb",
+    "data-engineering",
+    "warehouse-architecture"
   ],
   "mcpServers": {
     "context7": {
