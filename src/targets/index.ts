@@ -58,7 +58,7 @@ export type TargetHandler<TBundle = unknown> = {
   /** Valid scope values. If absent, the --scope flag is rejected for this target. */
   supportedScopes?: TargetScope[]
   convert: (plugin: ClaudePlugin, options: ClaudeToOpenCodeOptions) => TBundle | null
-  write: (outputRoot: string, bundle: TBundle) => Promise<void>
+  write: (outputRoot: string, bundle: TBundle, scope?: TargetScope) => Promise<void>
 }
 
 export const targets: Record<string, TargetHandler> = {

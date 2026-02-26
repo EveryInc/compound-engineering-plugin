@@ -108,7 +108,7 @@ export default defineCommand({
       throw new Error(`Target ${targetName} did not return a bundle.`)
     }
 
-    await target.write(primaryOutputRoot, bundle)
+    await target.write(primaryOutputRoot, bundle, resolvedScope)
     console.log(`Converted ${plugin.manifest.name} to ${targetName} at ${primaryOutputRoot}`)
 
     const extraTargets = parseExtraTargets(args.also)
@@ -136,7 +136,7 @@ export default defineCommand({
         hasExplicitOutput,
         scope: handler.defaultScope,
       })
-      await handler.write(extraRoot, extraBundle)
+      await handler.write(extraRoot, extraBundle, handler.defaultScope)
       console.log(`Converted ${plugin.manifest.name} to ${extra} at ${extraRoot}`)
     }
 

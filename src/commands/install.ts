@@ -111,7 +111,7 @@ export default defineCommand({
         hasExplicitOutput,
         scope: resolvedScope,
       })
-      await target.write(primaryOutputRoot, bundle)
+      await target.write(primaryOutputRoot, bundle, resolvedScope)
       console.log(`Installed ${plugin.manifest.name} to ${primaryOutputRoot}`)
 
       const extraTargets = parseExtraTargets(args.also)
@@ -139,7 +139,7 @@ export default defineCommand({
           hasExplicitOutput,
           scope: handler.defaultScope,
         })
-        await handler.write(extraRoot, extraBundle)
+        await handler.write(extraRoot, extraBundle, handler.defaultScope)
         console.log(`Installed ${plugin.manifest.name} to ${extraRoot}`)
       }
 

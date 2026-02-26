@@ -1,5 +1,5 @@
 ---
-name: resolve_pr_parallel
+name: resolve-pr-parallel
 description: Resolve all PR comments using parallel processing. Use when addressing PR review feedback, resolving review threads, or batch-fixing PR comments.
 argument-hint: "[optional: PR number or current PR]"
 disable-model-invocation: true

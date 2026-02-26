@@ -2,6 +2,7 @@ import path from "path"
 import { backupFile, copyDir, ensureDir, pathExists, readJson, writeJsonSecure, writeText } from "../utils/files"
 import { formatFrontmatter } from "../utils/frontmatter"
 import type { WindsurfBundle } from "../types/windsurf"
+import type { TargetScope } from "./index"
 
 /**
  * Write a WindsurfBundle directly into outputRoot.
@@ -9,7 +10,7 @@ import type { WindsurfBundle } from "../types/windsurf"
  * Unlike other target writers, this writer expects outputRoot to be the final
  * resolved directory — the CLI handles scope-based nesting (global vs workspace).
  */
-export async function writeWindsurfBundle(outputRoot: string, bundle: WindsurfBundle): Promise<void> {
+export async function writeWindsurfBundle(outputRoot: string, bundle: WindsurfBundle, scope?: TargetScope): Promise<void> {
   await ensureDir(outputRoot)
 
   // Write agent skills (before pass-through copies so pass-through takes precedence on collision)
@@ -31,9 +32,10 @@ export async function writeWindsurfBundle(outputRoot: string, bundle: WindsurfBu
     }
   }
 
-  // Write command workflows (flat in workflows/, per spec)
+  // Write command workflows (flat in global_workflows/ for global scope, workflows/ for workspace)
   if (bundle.commandWorkflows.length > 0) {
-    const workflowsDir = path.join(outputRoot, "workflows")
+    const workflowsDirName = scope === "global" ? "global_workflows" : "workflows"
+    const workflowsDir = path.join(outputRoot, workflowsDirName)
     await ensureDir(workflowsDir)
     for (const workflow of bundle.commandWorkflows) {
       validatePathSafe(workflow.name, "command workflow")
