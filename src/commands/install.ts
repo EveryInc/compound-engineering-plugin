@@ -25,7 +25,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro)",
+      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro | qwen)",
     },
     output: {
       type: "string",
@@ -41,6 +41,11 @@ export default defineCommand({
       type: "string",
       alias: "pi-home",
       description: "Write Pi output to this Pi root (ex: ~/.pi/agent or ./.pi)",
+    },
+    qwenHome: {
+      type: "string",
+      alias: "qwen-home",
+      description: "Write Qwen output to this Qwen extensions root (ex: ~/.qwen/extensions/compound-engineering)",
     },
     also: {
       type: "string",
@@ -84,6 +89,7 @@ export default defineCommand({
       const outputRoot = resolveOutputRoot(args.output)
       const codexHome = resolveTargetHome(args.codexHome, path.join(os.homedir(), ".codex"))
       const piHome = resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent"))
+      const qwenHome = resolveTargetHome(args.qwenHome, path.join(os.homedir(), ".qwen", "extensions", "compound-engineering"))
 
       const options = {
         agentMode: String(args.agentMode) === "primary" ? "primary" : "subagent",
@@ -178,6 +184,10 @@ function resolveTargetOutputRoot(
 ): string {
   if (targetName === "codex") return codexHome
   if (targetName === "pi") return piHome
+  if (targetName === "qwen") {
+    const base = hasExplicitOutput ? outputRoot : path.join(os.homedir(), ".qwen", "extensions")
+    return path.join(base, "compound-engineering")
+  }
   if (targetName === "droid") return path.join(os.homedir(), ".factory")
   if (targetName === "cursor") {
     const base = hasExplicitOutput ? outputRoot : process.cwd()

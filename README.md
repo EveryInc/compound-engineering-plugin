@@ -18,9 +18,9 @@ A Claude Code plugin marketplace featuring the **Compound Engineering Plugin** �
 /add-plugin compound-engineering
 ```
 
-## OpenCode, Codex, Droid, Pi, Gemini, Copilot & Kiro (experimental) Install
+## OpenCode, Codex, Droid, Pi, Gemini, Copilot, Kiro & Qwen (experimental) Install
 
-This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Pi, Gemini CLI, GitHub Copilot, and Kiro CLI.
+This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Pi, Gemini CLI, GitHub Copilot, Kiro CLI, and Qwen Code.
 
 ```bash
 # convert the compound-engineering plugin into OpenCode format
@@ -43,6 +43,9 @@ bunx @every-env/compound-plugin install compound-engineering --to copilot
 
 # convert to Kiro CLI format
 bunx @every-env/compound-plugin install compound-engineering --to kiro
+
+# convert to Qwen Code format
+bunx @every-env/compound-plugin install compound-engineering --to qwen
 ```
 
 Local dev:
@@ -58,6 +61,7 @@ Pi output is written to `~/.pi/agent/` by default with prompts, skills, extensio
 Gemini output is written to `.gemini/` with skills (from agents), commands (`.toml`), and `settings.json` (MCP servers). Namespaced commands create directory structure (`workflows:plan` → `commands/workflows/plan.toml`). Skills use the identical SKILL.md standard and pass through unchanged.
 Copilot output is written to `.github/` with agents (`.agent.md`), skills (`SKILL.md`), and `copilot-mcp-config.json`. Agents get Copilot frontmatter (`description`, `tools: ["*"]`, `infer: true`), commands are converted to agent skills, and MCP server env vars are prefixed with `COPILOT_MCP_`.
 Kiro output is written to `.kiro/` with custom agents (`.json` configs + prompt `.md` files), skills (from commands), pass-through skills, steering files (from CLAUDE.md), and `mcp.json`. Agents get `includeMcpJson: true` for MCP server access. Only stdio MCP servers are supported (HTTP servers are skipped with a warning).
+Qwen output is written to `~/.qwen/extensions/compound-engineering/` by default with `qwen-extension.json` (MCP servers), `QWEN.md` (context), agents (`.yaml`), commands (`.md`), and skills. Claude tool names are passed through unchanged. MCP server environment variables with placeholder values are extracted as settings in `qwen-extension.json`. Nested commands use colon separator (`workflows:plan` → `commands/workflows/plan.md`).
 
 All provider targets are experimental and may change as the formats evolve.
 
