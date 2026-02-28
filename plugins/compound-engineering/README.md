@@ -7,8 +7,8 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 29 |
-| Commands | 22 |
-| Skills | 19 |
+| Commands | 25 |
+| Skills | 20 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -102,6 +102,9 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | `/resolve_todo_parallel` | Resolve todos in parallel |
 | `/triage` | Triage and prioritize issues |
 | `/test-browser` | Run browser tests on PR-affected pages |
+| `/user-test` | Run browser-based user testing with quality scoring |
+| `/user-test-iterate` | Run user test N times to measure consistency |
+| `/user-test-commit` | Commit user-test results (maturity updates, issues, history) |
 | `/xcode-test` | Build and test iOS apps on simulator |
 | `/feature-video` | Record video walkthroughs and add to PR description |
 
@@ -154,6 +157,7 @@ Core workflow commands use `workflows:` prefix to avoid collisions with built-in
 | Skill | Description |
 |-------|-------------|
 | `agent-browser` | CLI-based browser automation using Vercel's agent-browser |
+| `user-test` | Exploratory browser testing via claude-in-chrome with quality scoring and compounding test files |
 
 ### Image Generation
 

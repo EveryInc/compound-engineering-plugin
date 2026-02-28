@@ -5,6 +5,54 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.37.0] - 2026-02-28
+
+### Changed
+
+- **`user-test` skill v3** — Compounding UX intelligence system (schema v2→v3):
+  - **Bug registry (`bugs.md`):** Persistent bug tracker with open/fixed/regressed lifecycle. Sequential IDs (B001...), multi-area support, fix_check tied to area's `pass_threshold`, regression detection.
+  - **Per-area score history:** Machine-readable `score-history.json` with last 10 entries per area. Thin `Area Trends` table in test file (trend + last score + delta). Trend computation: improving/stable/declining/volatile/fixed.
+  - **Structured skip reasons:** `skip_reason` field on each area (enum: null, proven_spotcheck, known_bug_open, known_bug_fixed, cli_precheck_failed, disconnect, user_skip). Pass rate excludes disconnects.
+  - **Explicit pass thresholds:** Per-area `pass_threshold` (default 4) and `quality_threshold` (default 3) in area details. Promotion gate uses per-area thresholds.
+  - **Queryable qualitative data:** Best/worst moments tagged with area slug. Pattern surfacing after 10+ runs with asymmetric thresholds (positive: 7/10, negative: 5/10).
+  - **Discovery-to-regression graduation:** When a bug is fixed, offer to generate a CLI regression check. Manual trigger, batched prompts, browser-only detection.
+  - **UX Opportunities + Good Patterns:** Two new report sections. P1/P2 improvement suggestions with status lifecycle (open/implemented/wont_fix). Good Patterns for preserving deliberate design choices, auto-expire after 5 unconfirmed runs.
+  - **New reference files:** `bugs-registry.md`, `graduation.md`. Updated `test-file-template.md` with v3 sections.
+
+---
+
+## [2.36.0] - 2026-02-28
+
+### Changed
+
+- **`user-test` skill v2** — Major revision based on 7 rounds of real-world testing:
+  - **Schema migration (v1→v2):** Existing test files upgrade non-destructively on commit. Forward-compatible reader ignores unknown fields.
+  - **Run results persistence:** `.user-test-last-run.json` bridges `/user-test` and `/user-test-commit` sessions. Stale/missing file handling with 24h warn / 7d block.
+  - **Timing tracking (1A):** Wall-clock time per area, `Last Time` column in template, `Time` column in report output.
+  - **Qualitative summary (1B):** Best/worst moment, demo readiness, verdict with `context` note persisted to history.
+  - **Delta tracking (1C):** Run-over-run delta in commit history. Flags regressions worse than -0.5.
+  - **Explore-next-run generation (1D):** Auto-generates 2-3 items with P1/P2/P3 priority after scoring.
+  - **CLI mode (2A):** Optional `cli_test_command` runs agent reasoning tests without browser. Explicit `prechecks` tag for browser area overlap detection.
+  - **Output quality scoring (2B):** Dual UX + Quality scores for `scored_output` areas. Promotion gate: UX >= 4 AND Quality >= 3.
+  - **Conditional regression checks (2C):** Known-bug areas auto-check if linked issue is closed, flip to Uncharted, run fix_check. Files "Regression of #N" on failure.
+  - **Async wait pattern (3A):** Documented in browser-input-patterns.md.
+  - **Performance thresholds (3B):** Optional per-project timing grades (fast/acceptable/slow/BROKEN).
+  - **Iterate mode updates:** Timing variance alongside score variance, CLI iterate reset, delta vs. pre-session baseline.
+
+---
+
+## [2.35.0] - 2026-02-27
+
+### Added
+
+- **`user-test` skill** — Exploratory browser testing via claude-in-chrome MCP with quality scoring and compounding test files. Tests run in a visible Chrome window with shared login state. Features a maturity model (Proven/Uncharted/Known-bug) that compounds knowledge across runs, quality scoring rubric (1-5), area-based test decomposition, and structured issue deduplication via GitHub labels.
+- **`/user-test` command** — Run browser-based user testing with quality scoring against a test file or description
+- **`/user-test-iterate` command** — Run the same test scenario N times to measure consistency
+- **`/user-test-commit` command** — Commit test results: update maturity map, file issues, append history
+- **Reference files** — `test-file-template.md`, `browser-input-patterns.md`, `iterate-mode.md` extracted from day one per skill size budget best practices
+
+---
+
 ## [2.34.0] - 2026-02-14
 
 ### Added
