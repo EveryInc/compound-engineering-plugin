@@ -64,4 +64,46 @@ Be proactive in identifying architectural smells such as:
 - Inconsistent architectural patterns
 - Missing or inadequate architectural boundaries
 
+## Data Warehouse Architecture
+
+When reviewing data warehouse designs, dimensional models, or dbt project architecture, apply these additional checks:
+
+### Grain Definition
+- Every fact table must have a clearly defined grain (one row per what?)
+- Grain should be documented in model descriptions
+- Mixed grains in a single fact table are a critical anti-pattern
+
+### Dimensional Modeling
+- **Conformed dimensions** - Shared dimensions (dim_customers, dim_date) must be consistent across all fact tables
+- **Star schema vs snowflake schema** - Prefer star schema (denormalized dimensions) unless dimension tables exceed reasonable size
+- **Fact table types** - Verify correct type: transaction (events), periodic snapshot (balances), accumulating snapshot (workflows)
+- **Degenerate dimensions** - Order numbers, invoice IDs belong in the fact table, not a separate dimension
+- **Role-playing dimensions** - Same dimension joined multiple times (e.g., dim_date as order_date and ship_date)
+
+### Slowly Changing Dimensions
+- Verify appropriate SCD strategy for each dimension
+- SCD Type 1 (overwrite) for attributes where history is not needed
+- SCD Type 2 (add row) for attributes requiring full history
+- dbt snapshots configured with appropriate strategy (timestamp vs check)
+
+### Medallion / Lakehouse Architecture
+- **Bronze layer** - Raw ingestion only, no business logic, schema-on-read
+- **Silver layer** - Cleaned, deduplicated, typed, conformed
+- **Gold layer** - Business-facing aggregates, denormalized for consumption
+- No business logic in bronze; no raw data in gold
+- Layer boundaries align with dbt model layers (staging/intermediate/marts)
+
+### Referential Integrity
+- Foreign keys tested with dbt `relationships` test
+- Orphan records handled explicitly (inner join vs left join decision documented)
+- Bridge tables used for many-to-many relationships
+
+### Anti-Patterns to Flag
+- Mixed grains in a single fact table
+- Business logic in staging/bronze layer
+- Dimension tables without surrogate keys
+- Fact tables without date dimension foreign key
+- Over-normalized dimensions (snowflake schema without clear benefit)
+- One Big Table as primary model (acceptable only as downstream consumption layer)
+
 When you identify issues, provide concrete, actionable recommendations that maintain architectural integrity while being practical for implementation. Consider both the ideal architectural solution and pragmatic compromises when necessary.
