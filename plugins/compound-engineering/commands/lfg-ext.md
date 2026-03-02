@@ -1,11 +1,11 @@
 ---
 name: lfg-ext
-description: LFG with external delegates (Codex/Gemini/OpenCode) in parallel worktrees — token-efficient alternative to /slfg
+description: LFG with external delegates (Codex/Gemini CLI) in parallel worktrees — preserves Claude token budget while maintaining parallel execution
 argument-hint: "[feature description]"
 disable-model-invocation: true
 ---
 
-External-delegate LFG. Uses CE for planning and review; replaces `/ce:work` swarm with external tools running in isolated git worktrees. Saves Max20 tokens while maintaining parallel execution.
+External-delegate LFG. Uses CE for planning and review; replaces `/ce:work` swarm with external AI tools running in isolated git worktrees. Preserves Claude token budget for planning and review where it adds the most value.
 
 Run these steps in order. Do not stop between steps — complete every step through to the end.
 
@@ -19,9 +19,18 @@ Run these steps in order. Do not stop between steps — complete every step thro
    git add docs/plans/ && git commit -m "plan: <feature>"
    ```
 
-## Phase 2: Decompose
+## Phase 2: Check tools & decompose
 
-4. Read the generated plan. Identify tasks that target **different files/modules with no shared state**.
+4. **Check which external tools are available:**
+
+   ```bash
+   command -v codex  && echo "codex: available"  || echo "codex: not installed"
+   command -v gemini && echo "gemini: available" || echo "gemini: not installed"
+   ```
+
+   If neither is installed, **stop here and run `/slfg` instead** — there's no point creating worktrees without delegates to fill them.
+
+5. Read the generated plan. Identify tasks that target **different files/modules with no shared state**.
 
    Good signal: tasks write to non-overlapping files.
    Bad signal: tasks share a model, schema, config, or any single file — don't force it, fall back to `/slfg` or sequential `/ce:work`.
@@ -30,23 +39,13 @@ Run these steps in order. Do not stop between steps — complete every step thro
 
 ## Phase 3: External Swarm
 
-5. **Create one worktree per task** using the CE worktree manager:
+6. **Create one worktree per task** using the CE worktree manager:
 
    ```bash
    bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh create <task-branch>
    ```
 
    The script handles `.env` file copying, `.gitignore` management, and directory setup automatically.
-
-6. **Check which external tools are available:**
-
-   ```bash
-   command -v codex   && echo "codex: available"   || echo "codex: not installed"
-   command -v gemini  && echo "gemini: available"  || echo "gemini: not installed"
-   command -v opencode && echo "opencode: available" || echo "opencode: not installed"
-   ```
-
-   Use whichever tools are available. If none are installed, fall back to `/slfg` instead.
 
 7. **Launch all delegates in parallel** — one per worktree, all backgrounded simultaneously.
 
@@ -56,15 +55,12 @@ Run these steps in order. Do not stop between steps — complete every step thro
    |-----------|----------------|---------|
    | Multi-file, repo navigation, test loops | **Codex** | `cd .worktrees/<branch> && codex exec --full-auto "<prompt>"` |
    | Algorithmic, isolated logic | **Gemini CLI** | `cd .worktrees/<branch> && gemini -p "<prompt>" --yolo` |
-   | Bulk ops, boilerplate, routine refactoring | **OpenCode** | `cd .worktrees/<branch> && opencode run --title "<title>" "<prompt>"` |
 
    Each delegate prompt must include:
    - Absolute file paths (let the delegate read — don't inline file contents)
    - Constraints: "don't modify X", "keep existing patterns"
    - Verification: "run `npm test` / `bin/rails test` / `pytest` to verify"
    - "Implement fully. No stubs, no TODOs, no simplified versions."
-
-   ⚠️ **OpenCode note:** OpenCode's sandbox only allows writes inside its worktree and `/tmp`. Tasks that write outside the repo (config files, global tooling) must use Codex instead.
 
 8. **Wait for all delegates to complete.**
 
@@ -85,14 +81,16 @@ Run these steps in order. Do not stop between steps — complete every step thro
 10. `/ce:review`
 11. `/compound-engineering:resolve_todo_parallel`
 
+> Note: `/lfg-ext` omits `/feature-video` — external delegates don't produce a reviewable PR automatically, so a video walkthrough isn't meaningful until you've raised one manually.
+
 ---
 
 ## When to use vs /slfg
 
 | Signal | Use |
 |--------|-----|
-| Max20 pool healthy, want fully hands-off | `/slfg` |
-| Max20 constrained, or tasks decompose cleanly by file | `/lfg-ext` |
+| Want fully hands-off, token cost not a concern | `/slfg` |
+| Token budget constrained, or tasks decompose cleanly by file | `/lfg-ext` |
 | Tasks share files or state | `/slfg` or sequential `/ce:work` |
 | Want Codex repo navigation or Gemini algorithmic strength | `/lfg-ext` |
 | No external tools installed | `/slfg` |
