@@ -5,6 +5,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.39.0] - 2026-03-02
+
+### Added
+
+- **`/lfg-ext` command** — LFG variant that delegates execution to external tools (Codex, Gemini CLI, OpenCode) running in parallel git worktrees instead of CE swarm agents. Token-efficient alternative to `/slfg` for teams that have external AI coding tools installed or want to preserve Claude Max20 budget for planning and review. Includes tool availability check with graceful fallback to `/slfg`, worktree isolation via the CE `git-worktree` skill's `worktree-manager.sh`, and a decision table for when to use `/lfg-ext` vs `/slfg`. Validated against a real Rust feature implementation.
+
+---
+
 ## [2.38.1] - 2026-03-01
 
 ### Fixed
