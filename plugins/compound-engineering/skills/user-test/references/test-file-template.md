@@ -62,6 +62,8 @@ performance_thresholds:  # optional, seconds
 | Query | Verify | Status | Priority | Confidence | Generated From | Run History |
 |-------|--------|--------|----------|------------|---------------|-------------|
 
+Run History format: comma-separated P/F entries, most recent first. Example: `P,P,F,P` (4 runs: latest passed twice, then failed, then passed). Cap at 10 entries, drop oldest. Consecutive count for escalation/graduation is computed from the leading streak.
+
 ## Area Trends
 
 <!-- Auto-maintained from score-history.json. Do not edit manually. -->
@@ -125,7 +127,7 @@ performance_thresholds:  # optional, seconds
 **Reading v4 files:** Treat missing `**Queries:**` and `**Multi-turn:**` tables as absent (no queries, no multi-turn sequences). Do NOT rewrite the file on read.
 
 **Reading any file missing `cli_test_command`:** Treat as `cli_test_command: ""`
-regardless of schema version. CLI discovery runs in Phase 1 step 2.
+regardless of schema version. CLI discovery runs in Phase 1 step 3.
 
 **v4 → v5 changes:**
 - Area Details: added optional `**Queries:**` table (`| Query | Ideal Outcome | Check | Notes |`) (v6 adds Status column)

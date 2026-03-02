@@ -23,13 +23,7 @@ Empty Queries or Multi-turn tables are no-ops at step 2. Step 7 feeds directly i
 
 ### Scoring Boundaries
 
-Probe results, verification results, and UX scores are **three separate signals**:
-
-- **UX score** reflects the user-facing experience of completing the task
-- **Probes** test specific regression claims (pass/fail binary)
-- **Verification** tests structural data integrity (claims checked vs mismatches)
-
-A probe failure does NOT drag the UX score down. A verification mismatch does NOT drag the UX score down. They are recorded as distinct findings in the report and in `.user-test-last-run.json`. All three matter; none subsume the others.
+Probes, verification, and UX scores are three separate signals — none subsumes the others. See SKILL.md Phase 3 checklist for the canonical definition.
 
 ### CLI + Browser Score Mapping
 
@@ -88,13 +82,13 @@ When `cli_test_command` is present, Phase 2.5 also runs each `scored_output` are
 
 Include `Tools` and `Results` columns in the CLI Speed table. Tool call spike flagging (2x+ historical avg) activates after 3+ data points for a query — before that, track but don't flag. Same minimum sample pattern as probe flaky transition.
 
-## During Commit (Phase 4)
+## During Commit
 
 ### Query Compounding (Steps 8-10)
 
 These steps run AFTER existing commit mode steps 1-7.
 
-**8. Sharpen Queries from failures:** For each Query that scored ≤ 3, generate an adversarial probe targeting the specific gap. The probe goes in the area's `**Probes:**` table (not the `**Queries:**` table). One failed query generates one probe. Probe fields: query = adversarial version, verify = specific gap observed, status = untested, generated = "run-N query failure: <query text>". Existing probe dedup (70% word overlap) catches duplicates.
+**8. Sharpen Queries from failures:** For each Query that scored ≤ 3, generate an adversarial probe targeting the specific gap. The probe goes in the area's `**Probes:**` table (not the `**Queries:**` table). One failed query generates one probe. Probe fields: query = adversarial version, verify = specific gap observed, status = untested, generated_from = "run-N query failure: <query text>". Existing probe dedup (70% word overlap) catches duplicates.
 
 Example: "earth tones" scored 3 because results were generic neutrals → Probe: query "terracotta and rust specifically", verify "results include warm red/orange tones, not beige/cream."
 
@@ -109,7 +103,7 @@ Example: "earth tones" scored 3 because results were generic neutrals → Probe:
 Transition rules (applied per-query, commit mode only):
 
 - Active → `[stable]`: Scores 5/5 for 3 consecutive runs (commits)
-- `[stable]` → `[retired]`: Scores 5/5 for 10 consecutive runs AND `cli_test_command` is set
+- `[stable]` → `[retired]`: Scores 5/5 for 10 consecutive runs AND `cli_test_command` is set (long-term maturity state — most queries won't reach this quickly)
 - `[stable]` → active: Scores Q4 twice consecutively (soft regression — note "previously stable query softened") OR scores Q≤3 once (immediate — generate probe per step 8)
 - `[retired]` → active: CLI spot-check scores ≤ 4 (generate probe)
 
@@ -127,6 +121,8 @@ Transition rules (applied per-query, commit mode only):
 
 **Iterate mode timing:** An iterate×N session counts as 1 commit toward consecutive thresholds. A query scoring 5 all N runs counts as 1 toward the 3-consecutive threshold.
 
+**Data source:** The `scores` array in `quality_by_query` (see `score-history.json`) stores one entry per commit, not per iterate run. For iterate sessions, record the aggregate query score as a single entry. Consecutive count = length of the leading streak of 5s in the array (most recent first).
+
 Commit mode marks status automatically based on run history — no manual project-file edits needed.
 
 ## Novelty Budget
@@ -135,7 +131,9 @@ Commit mode marks status automatically based on run history — no manual projec
 
 ### "Not Documented" Definition
 
-Any interaction where the core action (query text, filter applied, button sequence) does not appear in any existing table entry. Rephrasing a stable query is not novel. A different filter combination is novel. A user behavior with no table representation is novel.
+Any interaction where the core action (query text, filter applied, button sequence) does not appear in any existing table entry for this area. Rephrasing a stable query is not novel. A different filter combination is novel. A user behavior with no table representation is novel.
+
+**Run 1 state boundary:** Novelty is measured against the test file state at run start. On run 1 of a new file, all Queries defined during Phase 1 area creation are "documented" even though they were just written. The novelty budget requires interactions beyond those Queries.
 
 ### MCP Budget by Area Type
 

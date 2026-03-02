@@ -10,20 +10,26 @@ On first run against a project (when `seams_read` is `false` or absent in the te
 
 ## Discovery Sequence
 
-Run these 4 bash commands before reading any files. They target the 20-file budget at highest-probability locations.
+Run these 5 bash commands before reading any files. They target the 20-file budget at highest-probability locations.
 
 ```bash
+# 0. Discover source root — do NOT assume src/ exists
+SRC=$(ls -d src/ app/ lib/ pages/ 2>/dev/null | head -1)
+[ -z "$SRC" ] && SRC=$(find . -maxdepth 2 \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.py" -o -name "*.rb" \) 2>/dev/null | head -5 | xargs -I{} dirname {} | sort -u | head -1)
+[ -z "$SRC" ] && SRC="."
+echo "Source root: $SRC"
+
 # 1. Get the file tree — understand project structure first
-find src -name "*.ts" -o -name "*.tsx" 2>/dev/null | head -50
+find "$SRC" \( -name "*.ts" -o -name "*.tsx" -o -name "*.js" -o -name "*.jsx" -o -name "*.py" -o -name "*.rb" -o -name "*.go" \) 2>/dev/null | head -50
 
 # 2. Find likely translation/state/API files by keyword
-grep -rl "filter\|translate\|transform\|map\|schema" src/ 2>/dev/null | head -20
+grep -rl "filter\|translate\|transform\|map\|schema" "$SRC" 2>/dev/null | head -20
 
 # 3. Find state management files
-grep -rl "useState\|useStore\|createSlice\|zustand\|redux\|context" src/ 2>/dev/null | head -10
+grep -rl "useState\|useStore\|createSlice\|zustand\|redux\|context\|@store\|session" "$SRC" 2>/dev/null | head -10
 
 # 4. Find API route handlers
-find src -path "*/api/*" -o -path "*/routes/*" -o -path "*/server/*" 2>/dev/null | head -20
+find "$SRC" -path "*/api/*" -o -path "*/routes/*" -o -path "*/server/*" -o -path "*/controllers/*" 2>/dev/null | head -20
 ```
 
 Read the top hits from commands 2-4 first. Follow imports from those files to find related state management.
@@ -79,6 +85,3 @@ If no clear seams are found within the budget: produce 0 probes, note "no seams 
 
 **Non-local app:** If the 4 bash commands find no source files (app hosted remotely, no local repo), set `seams_read: true` to avoid retrying. Output 0 probes. Log: "No local source code found — Orientation skipped. Probes will be generated from runtime observations."
 
-## Design Note
-
-The `seams_read` boolean means "code reading happened," not "code reading was useful." This is fine for v1 — reruns would likely hit the same cap. The field accommodates a future enhancement: if git diff shows significant new files since last orientation, reset `seams_read: false`. The boolean could later become a timestamp or commit SHA without migration — `true` remains truthy.

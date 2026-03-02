@@ -58,6 +58,8 @@ Each generated probe has:
 | quality spread >= 2 (iterate) | medium |
 | structural-hypothesis (code reading) | medium |
 
+`low` confidence is reserved for future generation triggers or manual assignment. No current trigger produces `low` automatically, but the execution order (line 16) prioritizes `low` first within untested probes to maximize discovery value.
+
 **Confidence update rules (commit mode):**
 
 - Probe passes: confidence unchanged

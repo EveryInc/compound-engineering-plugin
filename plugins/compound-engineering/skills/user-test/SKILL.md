@@ -35,10 +35,10 @@ live and accessible before testing.
      - Validate `schema_version` is present (1–6 accepted) <!-- bump range when schema changes -->
      - **v1 migration:** If `schema_version: 1`, fill missing columns with defaults in memory (`Last Quality` → `—`, `Last Time` → `—`, `Delta` → `—`, `Context` → empty). Do NOT rewrite the file — upgrades happen only during commit.
      - **v2 migration:** If `schema_version: 2`, fill missing sections (Area Trends, UX Opportunities Log, Good Patterns) with empty tables. Fill missing Run History columns (Best Area, Worst Area) with `—`. Do NOT rewrite the file on read.
-     - **v3 migration:** If `schema_version: 3`, treat missing `verify:` blocks and `Probes:` tables as absent. Do NOT rewrite the file on read.
-     - **v4 migration:** If `schema_version: 4`, treat missing `**Queries:**` and `**Multi-turn:**` tables as absent. Do NOT rewrite the file on read.
+     - **v3/v4 migration:** If `schema_version: 3`, treat missing `verify:` blocks and `Probes:` tables as absent. If `schema_version: 4`, also treat missing `**Queries:**` and `**Multi-turn:**` tables as absent. Do NOT rewrite on read.
+     - **v5 migration:** If `schema_version: 5`, treat Probes without `Confidence` column as `confidence: high` (existing probes were generated from observed failures). Treat Probes without `Priority` column as inferred from `Generated From` (verification failure → P1, score-based → P2). Treat Queries without `Status` column as active. Treat missing `seams_read` as `false`. Do NOT rewrite the file on read.
      - **Forward compatibility:** Ignore unknown frontmatter fields. Preserve unknown table columns on write.
-     - **Missing `cli_test_command` (any version):** Treat as `cli_test_command: ""`. CLI discovery (step 2) will populate it. Do NOT rewrite the file on read.
+     - **Missing `cli_test_command` (any version):** Treat as `cli_test_command: ""`. CLI discovery (step 3) will populate it. Do NOT rewrite the file on read.
      - Extract maturity map, run history, and explore-next-run items
    - If argument is a description string:
      - Generate a slug from the description

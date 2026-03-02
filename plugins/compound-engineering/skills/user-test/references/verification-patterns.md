@@ -39,12 +39,10 @@ threshold in the area's `verify:` block if different.
 
 ## Scoring Impact
 
-Verification results are **separate** from UX score. An area can have:
-- Good UX (smooth, fast) + passing verification = healthy
+Verification results, probe results, and UX scores are three separate signals — none subsumes the others. See SKILL.md Phase 3 checklist. An area can have:
+- Good UX + passing verification = healthy
 - Good UX + failing verification = data integrity issue (the UI lies)
 - Poor UX + passing verification = genuine UX problem (the data is correct)
-
-Both UX score and verification status appear in the report and in `.user-test-last-run.json`.
 
 ## Maturity Interaction
 
@@ -91,7 +89,7 @@ sample 5 results (`.product-card .title`, `.condition-badge`).
 Every result's category must match the filter.
 ```
 
-**First-run selector lifecycle:** Selectors discovered during exploration are used for verification in the same run (held in context). They are persisted to the verify: block during commit mode (Phase 5). Subsequent runs read the persisted selectors directly. Do NOT write selectors to the test file mid-Phase-3 — that's a commit-time operation.
+**First-run selector lifecycle:** Selectors discovered during exploration are used for verification in the same run (held in context). They are persisted to the verify: block during commit mode. Subsequent runs read the persisted selectors directly. Do NOT write selectors to the test file mid-Phase-3 — that's a commit-time operation.
 
 Selectors compound: by run 3, most verification passes are single-call batched reads because the selectors were discovered in runs 1-2.
 
