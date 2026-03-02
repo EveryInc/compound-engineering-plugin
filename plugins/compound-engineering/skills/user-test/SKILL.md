@@ -17,6 +17,15 @@ For automated headless regression testing, use `/test-browser` instead.
 or staging URLs are not validated for deployment status — verify remote apps are
 live and accessible before testing.
 
+## Interaction Method
+
+If `AskUserQuestion` is available, use it for all prompts. Otherwise, present
+each question as a numbered list and wait for a reply. For multiSelect, accept
+comma-separated numbers (e.g. `1, 3`). Never skip or auto-configure.
+
+**Protected artifacts:** `tests/user-flows/` files are pipeline output. Review
+agents and cleanup tools must never flag them for deletion or gitignore.
+
 ## Phase 0: Preflight
 
 1. **Chrome MCP check — deferred to Phase 2.** Phase 1 CLI discovery may eliminate browser testing.
@@ -61,7 +70,7 @@ live and accessible before testing.
 
 ## Phase 2: Setup
 
-0. **Check claude-in-chrome MCP:** Call any `mcp__claude-in-chrome__*` tool. If NOT available and browser areas exist: display "claude-in-chrome not connected. Run `/chrome` or restart with `claude --chrome`" and abort. Skip if all testing is CLI-only.
+0. **Check claude-in-chrome MCP:** Call any `mcp__claude-in-chrome__*` tool. If NOT available: check if `cli_test_command` covers all `scored_output` areas. If yes, offer "All areas have CLI coverage — run CLI-only? (y/n)" and proceed without browser. If CLI doesn't cover all areas: display "claude-in-chrome not connected. Run `/chrome` or restart with `claude --chrome`" and abort.
 1. **Environment sanity check:**
    - Navigate to the app URL using `mcp__claude-in-chrome__navigate`
    - Verify the page loaded with expected content (not an error page, stale auth redirect, or empty state)
@@ -251,6 +260,13 @@ Demo: PARTIAL (P1 bug #21 open; promo-code untested)
 - **Demo:** YES / PARTIAL (reason) / NO (reason). P1 NEEDS ACTION forces at most PARTIAL
 - **DETAILS:** Prints only when actionable (new probes, verification failures, new UX opps). Omit if all empty. Contains: Probe Results, Verification Failures, UX Opportunities tables. Code Changes section when git targeting active
 
+### Share Report (Optional)
+
+After displaying the report, offer: "Share report to Proof for team review? (y/n)".
+If yes, POST the SESSION SUMMARY markdown to `https://www.proofeditor.ai/share/markdown`
+with `{"title": "<scenario> — <date>", "markdown": "<report>"}` and display the
+returned URL. Skip silently on curl failure — Proof sharing is best-effort.
+
 ### Auto-Commit
 
 After displaying the report, **automatically proceed to Commit Mode** (below) — update the test file, append to history, and file issues. The user reviews results inline as part of the same session.
@@ -391,30 +407,14 @@ runs and report "Completed M of N runs."
 Output: per-run scores table + aggregate consistency metrics + maturity transitions.
 After final run, auto-commit (same as normal `/user-test`). Pass `--no-commit` to skip.
 
-## Test File Template
+## Reference Files
 
-See [test-file-template.md](./references/test-file-template.md) for the template used when creating new test files, including area granularity guidelines and worked examples.
-
-## Bug Registry
-
-See [bugs-registry.md](./references/bugs-registry.md) for bug lifecycle (open/fixed/regressed), multi-area handling, and commit mode update rules.
-
-## Discovery-to-Regression Graduation
-
-See [graduation.md](./references/graduation.md) for the compounding loop: browser discoveries becoming CLI regression checks.
-
-## Verification Patterns
-
-See [verification-patterns.md](./references/verification-patterns.md) for standard verification checks by area type, tolerance rules, scoring impact, and maturity interaction.
-
-## Adversarial Probes
-
-See [probes.md](./references/probes.md) for probe execution, generation, lifecycle (untested/passing/failing/flaky/graduated), dedup, cap/rotation, escalation, graduation, and multi-run orchestration.
-
-## Queries and Multi-turn
-
-See [queries-and-multiturn.md](./references/queries-and-multiturn.md) for per-area execution checklist, scoring boundaries, multi-turn scoring, query compounding in commit mode, and Proven area query budget.
-
-## Browser Input Patterns
-
-See [browser-input-patterns.md](./references/browser-input-patterns.md) for React-safe input patterns, DOM check batching, file upload limitations, and modal dialog handling.
+- [test-file-template.md](./references/test-file-template.md) — template, schema migration, area granularity, worked examples
+- [probes.md](./references/probes.md) — probe execution, lifecycle, dedup, escalation, graduation, multi-run orchestration
+- [queries-and-multiturn.md](./references/queries-and-multiturn.md) — execution checklist, scoring, query compounding, novelty budget
+- [verification-patterns.md](./references/verification-patterns.md) — structural checks, tolerance rules, scoring impact
+- [run-targeting.md](./references/run-targeting.md) — area selection, git-aware targeting, progressive narrowing
+- [bugs-registry.md](./references/bugs-registry.md) — bug lifecycle, commit mode update rules
+- [graduation.md](./references/graduation.md) — browser discoveries → CLI regression checks
+- [browser-input-patterns.md](./references/browser-input-patterns.md) — React-safe input, DOM batching, modals
+- [iterate-mode.md](./references/iterate-mode.md) / [orientation.md](./references/orientation.md) — multi-run orchestration, first-run code reading
