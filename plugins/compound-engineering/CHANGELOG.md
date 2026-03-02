@@ -5,6 +5,158 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.48.0] - 2026-03-02
+
+### Added
+
+- **`user-test` skill — coverage expansion (schema v6):**
+  - Orientation: first-run code reading identifies structural seams (translation layers, state boundaries, API edges, data coverage gaps) and generates 0-5 structural-hypothesis probes before any browser interaction
+  - 4-command discovery sequence targets highest-probability files within 5-min/20-file budget
+  - `seams_read` frontmatter flag prevents re-running orientation on subsequent sessions
+  - Probe confidence field (high/medium/low): execution orders low-confidence probes first within priority level for maximum discovery value
+  - Confidence defaults by trigger: observed failures → high, structural hypotheses → medium, timing signals → medium
+  - Stable query rotation: active → `[stable]` (CLI-only) after 3 consecutive 5/5 → `[retired]` after 10 (CLI-capable only)
+  - CLI gate: queries without `cli_test_command` max out at `[stable]`, continue browser spot-checks
+  - Novelty budget (MANDATORY): Proven areas = 1 MCP call, Uncharted = 30% of probe+query calls min 2
+  - Mandatory probe rule: at least 1 novel interaction per scored_output area generates a probe
+  - Novelty log in report DETAILS section (ephemeral — does not persist to test file)
+  - New reference file: `orientation.md` (four seam patterns, discovery sequence, graceful no-op)
+
+## [2.47.0] - 2026-03-01
+
+### Changed
+
+- **`user-test` skill — verification gap closure:**
+  - Per-area checklist inlined in SKILL.md Phase 3 (8 steps visible, no longer hidden behind pointer)
+  - Step 0 CLI precheck gate covers three cases: prechecks low (skip), no prechecks tag (proceed), no CLI (proceed)
+  - Filter areas verification: sub-filter count accuracy check (±10% or ±2 items tolerance)
+  - Search/agent areas verification: scroll position check (`window.scrollY < 100px`) with calibration cross-reference
+  - Filter chip dismiss verification: 3-step before/after check (chip gone, count changed, agent responds)
+  - Interaction State Checks section: before/after table for non-batchable verifications (chip dismiss, scroll, agent follow-up)
+  - Escalation rationale ("Why 3, not 5") moved to top of section in probes.md (rationale before rules)
+  - Missing `cli_test_command` handling: treat as empty string regardless of schema version
+  - Schema version range compressed with maintenance comment
+  - File reorganization: `run-targeting.md` extracts area selection priority, git-aware targeting, and progressive narrowing into one discoverable file
+  - SKILL.md Area Selection Priority replaced with pointer + quick reference (Known-bug sub-bullets kept inline)
+  - All cross-references updated to point to run-targeting.md
+
+## [2.46.0] - 2026-03-01
+
+### Changed
+
+- **`user-test` skill — iterate efficiency (progressive narrowing + MCP call reduction):**
+  - Progressive narrowing upgraded: LOW/MEDIUM/HIGH replaced with sharper SKIP/PROBES-ONLY/FULL classification per area between iterate runs
+  - Override priority table: git-diff (verify) > explicit user override > classification > Proven 3-MCP budget
+  - SKIP areas still run CLI queries (lightweight quality signal) and failing/untested probes (uncap rule preserved)
+  - Verification batching: single `javascript_tool` call replaces 5+ sequential MCP find calls for read-only verification
+  - Selector compounding: discovered selectors held in context during run, persisted during commit mode for subsequent runs
+  - Agent response polling: 1s interval, 30s max replaces fixed 5-10s waits after agent chat queries
+  - Poll timeout ≠ disconnect: poll timeouts log timing but don't increment disconnect_counter
+  - Disconnect pattern tracking: records call_number, tool, area per disconnect; surfaces patterns when count ≥ 3
+  - Run focus vs. area budget: run focus shapes WHAT is tested (queries, edge cases), not treatment level
+  - Incremental context loading: run 2+ skips reference file re-reads, loads only JSON scratchpad + FULL area details
+  - Retest classification trajectory stored per-run in .user-test-last-run.json for N-run summary display
+
+## [2.45.0] - 2026-03-01
+
+### Added
+
+- **`user-test` skill — probe lifecycle completion:**
+  - Escalation threshold lowered from 5 to 3 consecutive failures, now auto-files to bugs.md (no manual offer)
+  - Dedup via `escalated_to` field prevents duplicate bug filing; `gh` unauthenticated fallback files locally with `Issue: ---`
+  - Quality spread ≥ 2 across iterate runs generates reliability probes (P1 priority, flakiness detection)
+  - Within-session probe injection: R1-generated probes execute FIRST in R2 of same iterate session
+  - Progressive narrowing: R2+ computes per-area retest value (superseded by v2.46.0 SKIP/PROBES-ONLY/FULL)
+  - Consecutive failure counting is per-commit, not per-iterate-run (iterate×5 = 1 count)
+- **`user-test` skill — research-informed quality:**
+  - Per-query quality reporting with outlier flagging (✗ on scores ≤ 3) in DETAILS section of dispatch report
+  - Evaluation provenance: CLI = cross-model, Browser = same-model (static labels in Quality Scores table)
+  - Proven Area Verification: ephemeral `(verify)` annotation + causal links when git changes affect Proven areas
+  - Known-bug areas with git changes override normal skip — run fix_check regardless of gh auth status
+  - `quality_by_query` added to score-history.json schema for per-query trend tracking across sessions
+
+## [2.44.0] - 2026-03-01
+
+### Changed
+
+- **`user-test` skill — dispatch report format:** Report restructured from broadcast (status update) to dispatch (tells you what to do next). Sections in priority order: NEEDS ACTION (open items with `⚠`), FILED THIS SESSION (confirmations with `✓`), IMPROVED (score deltas), STABLE (collapsed one-liner), EXPLORE NEXT RUN (now surfaces in printed report), SIGNALS (+/-/~ prefixed observations with context deltas). DETAILS section only prints when actionable. Demo line handles YES/PARTIAL/NO with mandatory P1 caveat. Probe failures only escalate to NEEDS ACTION for Proven areas (expected failures on Uncharted stay in DETAILS). Disconnects show delta from last session, never in NEEDS ACTION. SKILL.md dropped from 414 to 405 lines — freed 9 lines of budget.
+
+## [2.43.0] - 2026-03-01
+
+### Added
+
+- **`user-test` skill — tool call tracking for CLI queries:**
+  - **Tool call count per query:** Captures `toolCalls.length` and unique tool names from CLI response JSON. Adds `Tools` and `Results` columns to CLI Speed table. Free data already in the response.
+  - **Result count tracking:** Counts items in primary search/retrieval tool call results. Ignores non-search tool calls (filter lookups, respond_to_user).
+  - **Opportunistic token capture:** If response includes `usage` field (prompt/completion tokens), captures it. Null if not available.
+  - **Tool call spike probes:** When a query uses 2x+ its historical average tool calls (minimum 3 data points), generates an informational probe. Tool call probes don't block maturity promotion — efficiency concern, not correctness.
+  - **cli_metrics in score-history.json:** Per-area `avg_tool_calls` and `avg_time` tracked over time for trend detection.
+
+### Improved
+
+- **`user-test` skill — iterate mode auto-commit:** Iterate mode now auto-commits after the final run (same as normal `/user-test`). Persists git_sha, maturity, probes, and history automatically. Pass `--no-commit` to opt out.
+- **`user-test` skill — git-aware targeting fix:** Main diff (origin/main..HEAD) now unconditionally triggers area targeting when non-empty. Eliminates agent dismissing upstream changes as "already tested" or "main is behind HEAD."
+
+## [2.42.0] - 2026-03-01
+
+### Improved
+
+- **`user-test` skill — hybrid refinements from real test runs:**
+  - **Performance probes from CLI speed variance:** CLI timing variance >50% between runs or any timeout now generates a performance probe (verify = timing threshold, not results). New probe generation trigger alongside existing score/verification triggers.
+  - **Persistent ≤3 escalation to Known-bug:** If an area scores ≤3 for 3+ consecutive runs with the same issue noted, the agent offers to file it as Known-bug — manual escalation for reproducible defects that don't hit the automatic UX ≤2 threshold.
+  - **Delta shows overlap context:** Report now displays "Delta: -0.3 (over N overlapping areas, M new excluded)" so denominator changes from new areas are visible, not hidden behind a misleading regression number.
+  - **CLI evaluates full JSON response:** CLI Area Queries section now explicitly requires evaluating tool calls, inferred facets, result arrays, and suggestions — not just the message text. Catches "UI lies" at the CLI layer.
+  - **TL;DR summary at top of report:** One-line verdict before all tables: `TL;DR: UX X.X | Quality X.X (CLI) | Demo ready: yes | Risk: <area>`. Scannable in 2 seconds.
+
+## [2.41.0] - 2026-02-28
+
+### Added
+
+- **`user-test` skill v6** — Git-aware test targeting + hybrid CLI/browser improvements:
+  - **Git-aware test targeting:** Captures `git_sha` at run start. On subsequent runs, uses `git diff --name-only <old_sha>..HEAD` to identify changed files and map them to test areas. Code-affected areas get full exploration regardless of maturity — even Proven areas bypass spot-check limits. Augments existing priority system (doesn't replace it). Edge cases: no .git, force push/rebase, >30 files, docs-only changes, monorepo paths.
+  - **CLI runs area Queries (Phase 2.5):** When `cli_test_command` exists, Phase 2.5 now runs each `scored_output` area's Queries table through CLI (not just frontmatter `cli_queries`). Skip browser-specific queries. Budget: Proven areas max 2 Queries via CLI, Uncharted run all.
+  - **Explicit score mapping:** CLI score → Quality, Browser score → UX. Report shows `UX: 5 | Quality: 2 (CLI)` with source explicit. CLI-only areas populate both. Browser-only areas show `(browser)` or nothing.
+  - **Probe Results table shows all active probes:** Table now has `Previous | This Run` columns instead of single `Status`. Shows ALL probes (untested, passing, failing) — not just failures. New probes show `Previous: new`.
+  - **Explore Next Run Mode column:** Table now `| Priority | Area | Mode | Why |`. Mode values: CLI, Browser, Both. Lets Phase 2.5 automatically pick up CLI-eligible items.
+  - **CLI consistency patterns persist:** Step 11 in commit mode persists CLI observations to area Notes column. Marked `[confirmed]` if pattern holds on next run. Removed if contradicted. Only specific, actionable patterns.
+  - **Code Changes report section:** When git targeting active, report shows files changed, areas targeted, and spot-check-only areas.
+
+## [2.40.0] - 2026-02-28
+
+### Added
+
+- **`user-test` skill — CLI auto-discovery for bootstrapping:**
+  - **CLI discovery in Phase 1:** When creating new test files, auto-discovers CLI-testable API surfaces (API endpoints, test scripts, curl-able routes) and pre-populates `cli_test_command` + `cli_queries` from area Queries. Discovery checks package.json scripts, .env files, route definitions, and existing test scripts.
+  - **CLI precheck gate (step 0):** Per-area checklist now 8 steps. Step 0 gates browser testing on CLI precheck results — if a CLI query tagged with `prechecks: "area-slug"` scored ≤ 2, browser testing is skipped for that area with "CLI pre-check failed — agent reasoning broken, browser test skipped."
+  - **CLI test command patterns:** Reference table for Express/Hono JSON, SSE-only, direct script, and REST GET patterns.
+  - **Query-to-CLI mapping:** Automatic generation of `cli_queries` from `scored_output` area Queries, with reasoning-only filtering (skip pure UI queries).
+  - **CLI response evaluation:** Full response assessment — tool calls, structured data, metadata — not just text.
+  - **Existing file discovery:** CLI discovery also runs for existing test files with empty `cli_test_command` — not just new files. Writes changes immediately so CLI mode activates on the same run.
+
+## [2.39.0] - 2026-02-28
+
+### Added
+
+- **`user-test` skill v5** — Rich area definitions with Queries and Multi-turn (schema v4→v5):
+  - **Queries:** Exploratory test inputs that score an app's domain understanding. Table: `| Query | Ideal Outcome | Check | Notes |`. Scored 1-5. Failed queries (≤3) generate probes. Stable queries (`[stable]` tag after 3+ runs at 5/5) get abbreviated evaluation.
+  - **Multi-turn sequences:** Test context retention across user turns. Table: `| Turn | Query | Check |`. Final turn scored for Quality. Context failures at intermediate turns generate probes.
+  - **Per-area execution checklist:** 7-step structured flow per area: probes → queries → explore → verify → score → time → notes. Explicit scoring boundaries: probes, verification, and UX scores are three separate signals.
+  - **Query compounding in commit mode:** Steps 8-10 — sharpen failed queries into probes, expand from exploration discoveries, mark stable queries.
+  - **First-run bootstrapping guidance:** Rich area definitions from first run. Area Depth section in template with thin-vs-rich comparison, writing queries guide, multi-turn guide.
+  - **Proven area query budget:** Queries count against 3-call MCP cap. Only failing/untested probes bypass.
+  - **New reference file:** `queries-and-multiturn.md` (76 lines). Updated `test-file-template.md` with v5 schema, Area Depth guidance, rich bedding store worked example. Updated `probes.md` with query-sourced and multi-turn probe generation triggers.
+
+## [2.38.0] - 2026-02-28
+
+### Added
+
+- **`user-test` skill v4** — Compounding probe system (schema v3→v4):
+  - **Verification pass (Layer 2):** Structural verification after each area — audits the app's claims against visible reality. Standard checks by area type (filter, search, cart, count, sort). Zero tolerance for mismatches. Verification failures block promotion to Proven but don't demote.
+  - **`verify:` blocks (Layer 1):** Optional per-area verification instructions in test file. Freeform "distrust the UI" instructions.
+  - **Adversarial probe generation (Layer 3):** Auto-generates targeted probes from verification failures, scores ≤3, or worst_moment. Probes persist in test file per area with lifecycle: untested→passing/failing/flaky→graduated. Flaky detection after 3+ mixed runs. Escalation to bugs.md after 5+ consecutive failures. Graduation to CLI regression checks after 2+ consecutive passes.
+  - **Multi-run mode (`/user-test N`):** Orchestrates N sequential runs with inter-run probe learning. Progressive Proven area reduction. N-run trajectory summary. Interruption-safe with JSON scratchpad for inter-run state.
+  - **New reference files:** `verification-patterns.md`, `probes.md`. Updated `test-file-template.md` with v4 schema (verify blocks, probes table).
+
 ## [2.37.0] - 2026-02-28
 
 ### Changed
