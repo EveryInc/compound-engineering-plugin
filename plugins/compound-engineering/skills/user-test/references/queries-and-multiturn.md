@@ -84,6 +84,21 @@ Include `Tools` and `Results` columns in the CLI Speed table. Tool call spike fl
 
 ## During Commit
 
+### Tactical Notes (Commit Mode Step 1)
+
+After scoring, commit mode may append a short tactical note to the area's Notes column in the Areas table. Format: `[Run N] <finding>`.
+
+**Cap:** 3 entries per area. Drop oldest when exceeded.
+
+**Write only when there's a genuine tactical insight:**
+- A reliable JS selector pattern: `[Run 4] batch read via [data-filter-chip] + .product-card reliable`
+- A timing pattern: `[Run 3] agent response 8-12s on first query, faster on follow-ups`
+- An interaction sequence that revealed a bug: `[Run 2] filter → navigate → back → filter again surfaces stale state`
+
+**Do NOT write:** generic observations ("tested 3 areas"), maturity updates ("promoted to Proven"), restatements of probe results.
+
+In `.user-test-last-run.json`, `tactical_note: null` means skip Notes update for this area.
+
 ### Query Compounding (Steps 8-10)
 
 These steps run AFTER existing commit mode steps 1-7.
@@ -191,4 +206,129 @@ Format: `✓` tried and clean (probe generated per mandatory rule), `~` tried an
 "stable_queries_rotated": ["cottagecore dresses", "leather jacket"]
 ```
 
-**v2 limitation:** The "not in any table" constraint doesn't prevent repeating the same novel interaction across runs — the log expired, so run 9 could try what run 8 tried. In practice, the mandatory probe rule promotes at least 1 novel interaction per run to a Probe table, naturally expanding the exclusion set.
+## Novelty Fingerprint Persistence
+
+Resolves the v2 limitation where novelty logs expired between runs. Fingerprints persist a compact record of each novel interaction so run N+1 knows what run N already explored.
+
+### Fingerprint Format
+
+`<area-slug>:<action-type>:<key-parameter>`
+
+Examples:
+- `agent/filter-via-chat:edge-query:price-floor`
+- `browse/filters:filter-combo:size+color`
+- `checkout/shipping-form:invalid-input:zip-letters`
+
+### Normalization Taxonomy
+
+| Pattern | Format |
+|---------|--------|
+| Price/number inputs | `price-floor`, `price-ceiling`, `price-range` |
+| Filter combinations | `filter-combo:<f1>+<f2>` |
+| Invalid inputs | `invalid-input:<input-type>` |
+| Edge case queries | `edge-query:<topic>` |
+| Navigation sequences | `nav-sequence:<from>-<to>` |
+| Doesn't fit taxonomy | `<area>:freeform:<3-word-summary>` |
+
+Coverage is more important than taxonomy consistency. Use freeform when unsure.
+
+### Read-Merge-Write Sequence
+
+1. **Phase 1 (Load Context):** Read existing `novelty_fingerprints` from `.user-test-last-run.json` into memory
+2. **Phase 3 (Execute):** Use fingerprints to skip already-explored interactions. Generate new fingerprints for novel interactions this run.
+3. **Phase 4 / Commit (Write):** Merge existing + new fingerprints. Apply 20-per-area cap (drop oldest). Write merged set to JSON.
+
+Safe because the JSON is written once atomically at the end. No partial-write risk.
+
+### Iterate Mode Exemption
+
+Iterate mode measures consistency by running the same scenario N times. **Fingerprints are ignored in iterate mode** — all runs test the same interaction set. Fingerprints still accumulate for use in the next non-iterate session.
+
+### Adversarial Mode Override
+
+Adversarial mode (CLI score 3 trigger) overrides fingerprint skipping for its specific actions. Competing-constraint queries triggered by adversarial mode always run regardless of fingerprint state.
+
+### Proven Area Budget Interaction
+
+Proven areas keep their 3-MCP-call cap. Fingerprint filtering does NOT increase the budget — it changes WHAT those 3 calls test. If fingerprints exclude obvious interactions, the 3 calls target genuinely novel territory.
+
+### Matching Semantics
+
+Agent exercises judgment on what "matches." The goal is to skip interactions of the same *type*, not requiring exact parameter matches. `edge-query:price-floor` and `edge-query:price-ceiling` are different fingerprints. `edge-query:price-floor` from run 1 means "don't test price-floor edge cases again."
+
+### SIGNALS Format
+
+When fingerprints meaningfully constrained novelty choices:
+```
+~ agent/filter-via-chat novelty: 3 fingerprints excluded, 2 new interactions found
+```
+
+### Resilience
+
+If `.user-test-last-run.json` is deleted or corrupted, fingerprint history resets to empty. Acceptable — the skill re-explores previously covered territory (same as pre-fingerprint behavior). Fingerprints are an optimization, not a correctness requirement.
+
+## CLI Adversarial Mode
+
+CLI score 3 ("partially correct — surface-level right, deeper reasoning wrong") triggers adversarial browser mode for the affected area. Score 3 is the adversarial sweet spot: the app functions, but CLI revealed shallow reasoning that browser testing can expose.
+
+### Trigger Condition
+
+**Primary:** Adversarial mode triggers when **any individual CLI query** for the area scores exactly 3. Per-query scores, not averages.
+
+**Secondary:** If the area's CLI Quality average across queries is 3.0-3.4 AND no single query hit exactly 3 (all queries borderline), also trigger adversarial mode. Record `adversarial_trigger: "cli-avg-3.x: <average>"`.
+
+### Phase 2.5 Addition
+
+After scoring CLI queries, for each area with `prechecks`-tagged queries:
+- If any individual query score == 3: set `adversarial_browser: true`, record triggering query
+- If average 3.0-3.4 with no single 3: also set `adversarial_browser: true` (secondary check)
+
+### Adversarial Browser Mode Behaviors
+
+When triggered, the area's Phase 3 execution changes in five ways:
+
+1. **Skip the happy path.** Start with the query most likely to expose the shallow reasoning — not the simplest, expected query.
+
+2. **Front-load competing-constraint queries.** If the area has Queries defined, execute any query with competing constraints (e.g., "crisp not silky") before single-intent queries.
+
+3. **Pre-emptive probe (before exploration).** Generate an `untested` probe targeting the specific CLI weakness:
+   - `generated_from: "cli-score-3: <query that scored 3>"`
+   - Priority: P1 (CLI already revealed the weakness)
+
+4. **Increased novelty budget.**
+   - Proven areas: all 3 MCP calls must be adversarial, not happy-path spot-checks
+   - Uncharted areas: novelty budget increases to 40% of calls (from 30%), minimum 3 (from 2)
+
+5. **Report flag** in DETAILS:
+   ```
+   agent/filter-via-chat: CLI 3 → browser adversarial mode
+     Pre-emptive probe: "competing filter constraints" (P1)
+     Exploration front-loaded with competing-constraint queries
+   ```
+
+### Progressive Narrowing Override
+
+If a SKIP-classified area has a CLI query scoring 3, **adversarial mode overrides SKIP for that area only** — promoted to PROBES-ONLY with adversarial execution. The CLI signal is too strong to ignore. PROBES-ONLY areas with adversarial mode execute their probes + the pre-emptive probe, but skip full exploration.
+
+### Fingerprint Override
+
+Adversarial mode overrides fingerprint skipping for its specific actions. Competing-constraint queries triggered by adversarial mode always run regardless of fingerprint state.
+
+### SIGNALS Addition
+
+```
+~ 2 areas in CLI-adversarial mode (CLI score 3): agent/filter-via-chat, agent/search-query
+```
+
+### .user-test-last-run.json Fields
+
+Per-area additions:
+
+```json
+{
+  "adversarial_browser": true,
+  "adversarial_trigger": "cli-score-3: show me items under $50 in good condition"
+}
+```
+
+`adversarial_browser: false` (default) means no adversarial mode. `adversarial_trigger: null` when not triggered.

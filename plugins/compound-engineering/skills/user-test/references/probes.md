@@ -399,3 +399,103 @@ Cross-area probe results are stored alongside `probes_run`:
   }
 ]
 ```
+
+## Weakness Classification
+
+When 2+ probes in the same area share a recognizable failure pattern, commit mode writes a `weakness_class` field to the area details. This enables cross-area adversarial targeting (see Cross-Area Weakness Synthesis below).
+
+### Predefined Classes
+
+| Class | Pattern |
+|-------|---------|
+| `stale-react-state` | Filters/state not resetting on navigation |
+| `count-display-lag` | Displayed counts don't match actual DOM counts |
+| `multi-turn-context-loss` | Agent forgets constraints from earlier turns |
+| `async-render-race` | Results appear but attributes/badges haven't updated |
+| `filter-intersection-empty` | Compound filter combinations return 0 results unexpectedly |
+| `agent-reasoning-shallow` | CLI quality consistently 3, partially correct but missing nuance |
+
+### Freeform Classes
+
+For novel failure modes that don't fit a predefined class, write a freeform string (e.g., `weakness_class: checkout-state-leaked-across-sessions`). Predefined classes are accelerators for cross-area synthesis template lookup — freeform classes produce custom adversarial instructions.
+
+### Classification Method
+
+Commit mode reads each failing probe's `query`, `verify`, and `result_detail` fields and matches against predefined class descriptions using agent judgment. No mechanical matching rule — agent decides which class (if any) best describes the shared failure pattern. If classification is ambiguous, prefer freeform over forcing a predefined class.
+
+### Lifecycle
+
+- **Write:** When 2+ probes in the area share a failure pattern (one probe = insufficient signal)
+- **Update:** Each run. If a new pattern emerges with more probes than the current class, replace it
+- **Remove:** If the class's probes have all passed for 3+ consecutive runs (weakness resolved)
+- **Dominance:** One `weakness_class` per area — the dominant pattern. Probe count decides dominance.
+
+### Matching for Synthesis
+
+Cross-area weakness synthesis (see below) uses exact string equality after normalization (lowercase, hyphenated). Predefined classes are canonical strings. Freeform classes match only identical freeform strings across areas.
+
+## Cross-Area Weakness Synthesis
+
+Phase 4 Step 6 runs a cross-area synthesis pass after generating per-area Explore Next Run items. When a `weakness_class` appears in 2+ areas, it generates one `[cross-area]` Explore Next Run entry targeting the class systemically.
+
+### Synthesis Pass
+
+Synthesis reads `weakness_class` fields from the test file as written by the previous run's commit — first-run appearance of a weakness_class does not trigger synthesis until the following run.
+
+1. Collect all areas with a `weakness_class` field set in the test file
+2. Group by weakness_class value (exact string match)
+3. For each class appearing in 2+ areas: generate one `[cross-area]` Explore Next Run entry
+
+### Cap and Tiebreaker
+
+**Cap:** Maximum 2 cross-area synthesis entries per run.
+
+**Tiebreaker when >2 classes qualify:** Rank by (1) number of affected areas — more areas = higher priority; then (2) number of failing probes in the class. Deterministic, favors widespread patterns.
+
+### Adversarial Instruction Templates
+
+| Class | Adversarial Instruction |
+|-------|------------------------|
+| `stale-react-state` | Probe ALL navigation sequences that cross area boundaries — apply filter → navigate away → return → verify state reset |
+| `count-display-lag` | After every action changing result count, wait 2s then re-read count vs DOM — check for lag window |
+| `multi-turn-context-loss` | On every multi-turn sequence, inject a context-breaking action at turn 3, then return to prior context — verify retention |
+| `async-render-race` | After every action triggering async rendering, immediately read badges/attributes — check for race window |
+| `filter-intersection-empty` | Probe all 2-filter compound combinations systematically — check for empty-intersection cases |
+| `agent-reasoning-shallow` | Replace simple queries with competing-constraint and ambiguous queries across all affected areas |
+
+**Freeform classes:** When `weakness_class` is freeform (no matching template), the agent generates a custom adversarial instruction based on the class name and probe failure details.
+
+### Persistence Signal
+
+If the same class appeared in the previous run's Explore Next Run, was targeted, and still didn't resolve: `PERSISTENT — stale-react-state active N runs — escalate to Known-bug consideration`
+
+### Report Placement
+
+Cross-area synthesis entries appear at the top of EXPLORE NEXT RUN:
+
+```
+EXPLORE NEXT RUN
+  P1  [cross-area]  Browser  stale-react-state in 3 areas — probe all navigation events
+  P1  shipping-form  Browser  Validation broken — edge cases
+  P2  checkout/promo  Both    Adjacent to cart, untested
+```
+
+### .user-test-last-run.json Format
+
+Cross-area synthesis entries are stored in the `explore_next_run` array:
+
+```json
+{
+  "priority": "P1",
+  "area": "[cross-area]",
+  "mode": "Browser",
+  "why": "stale-react-state in agent/filter-via-chat + browse/filters",
+  "weakness_class": "stale-react-state",
+  "affected_areas": ["agent/filter-via-chat", "browse/filters"],
+  "adversarial_instruction": "Probe ALL navigation sequences that cross area boundaries..."
+}
+```
+
+### Why Explore Next Run Entries, Not Cross-Area Probes
+
+Synthesis produces targeting instructions that are regenerated each run from current state. Cross-area probes are persistent regression tests with a full lifecycle. Different tools: synthesis directs exploration, probes track regressions. If a synthesis target repeatedly fails, the agent should generate a cross-area probe from the failure — that's the natural escalation path.

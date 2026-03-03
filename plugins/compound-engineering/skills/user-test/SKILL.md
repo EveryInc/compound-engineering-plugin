@@ -41,11 +41,12 @@ agents and cleanup tools must never flag them for deletion or gitignore.
    - If argument is a file path (contains `/` or ends in `.md`):
      - Validate path resolves within `tests/user-flows/` (prevent directory traversal)
      - Read and parse the test file
-     - Validate `schema_version` is present (1–7 accepted) <!-- bump range when schema changes -->
+     - Validate `schema_version` is present (1–8 accepted) <!-- bump range when schema changes -->
      - **v1/v2 migration:** If `schema_version: 1`, fill missing columns (`Last Quality`, `Last Time`, `Delta`, `Context`) with `—`. If `schema_version: 2`, also fill missing sections (Area Trends, UX Opportunities, Good Patterns) and Run History columns (Best Area, Worst Area). Do NOT rewrite on read.
      - **v3/v4 migration:** If `schema_version: 3`, treat missing `verify:` blocks and `Probes:` tables as absent. If `schema_version: 4`, also treat missing `**Queries:**` and `**Multi-turn:**` tables as absent. Do NOT rewrite on read.
      - **v5 migration:** If `schema_version: 5`, treat Probes without `Confidence` column as `confidence: high` (existing probes were generated from observed failures). Treat Probes without `Priority` column as inferred from `Generated From` (verification failure → P1, score-based → P2). Treat Queries without `Status` column as active. Treat missing `seams_read` as `false`. Do NOT rewrite the file on read.
      - **v6 migration:** If `schema_version: 6`, treat missing `## Cross-Area Probes` section as empty table. Treat missing `mcp_restart_threshold` as 15. Treat probes without `related_bug` as unlinked. Do NOT rewrite on read.
+     - **v7 migration:** If `schema_version: 7`, treat missing `weakness_class` as absent. Treat missing `novelty_fingerprints` as empty. Treat missing `adversarial_browser` as false. Do NOT rewrite on read.
      - **Forward compatibility:** Ignore unknown frontmatter fields. Preserve unknown table columns on write.
      - **Missing `cli_test_command` (any version):** Treat as `cli_test_command: ""`. CLI discovery (step 3) will populate it. Do NOT rewrite the file on read.
      - Extract maturity map, run history, and explore-next-run items
@@ -86,13 +87,11 @@ agents and cleanup tools must never flag them for deletion or gitignore.
 If the test file defines `cli_test_command` in frontmatter, run CLI queries before browser testing. CLI mode catches agent reasoning errors without browser overhead.
 
 **When `cli_test_command` is present:**
-1. Phase 0 runs `gh auth status` only (Chrome MCP deferred). Skip Phase 2 browser setup entirely (unless browser areas also exist).
-2. For each `scored_output` area's **Queries:** table: run the Query text through `cli_test_command` (skip browser-specific queries mentioning clicks/scrolling/layout). Score as CLI Quality. See CLI Area Queries in [queries-and-multiturn.md](./references/queries-and-multiturn.md).
-3. For each query in `cli_queries`: run the command via Bash (substituting `{query}`), capture stdout.
-4. Score output quality 1-5 using the **output quality rubric** (see Scoring section). The agent evaluates whether CLI output satisfies the `expected` description **semantically** — not exact string matching. The `expected` field describes what a correct response looks like.
-5. CLI results feed into the same maturity map and scoring pipeline.
-6. **Browser area overlap:** If a CLI query has a `prechecks: "area-slug"` tag and scores <= 2, skip the tagged browser area with "CLI pre-check failed — skipping browser test." No `prechecks` tag = standalone CLI query, no browser areas skipped.
-7. Credentials: the command inherits the shell environment. No credentials stored in the test file.
+1. Phase 0 runs `gh auth status` only (Chrome MCP deferred). Skip Phase 2 browser setup unless browser areas exist.
+2. Run each `scored_output` area's Queries through `cli_test_command`. Run `cli_queries` via Bash. Score 1-5 using output quality rubric (semantic evaluation). See CLI Area Queries in [queries-and-multiturn.md](./references/queries-and-multiturn.md).
+3. **Browser area overlap:** If a `prechecks`-tagged CLI query scores ≤ 2, skip the tagged browser area. No `prechecks` tag = standalone.
+4. Credentials: shell environment only. No credentials in the test file.
+5. **Adversarial flag check:** For each area with `prechecks`-tagged queries: if any individual query score == 3, set `adversarial_browser: true`. If average is 3.0-3.4 with no single query at 3, also set `adversarial_browser: true` (secondary check). Record triggering query in `adversarial_trigger`. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) CLI Adversarial Mode.
 
 **CLI + browser coexistence:** When both exist, run CLI first. CLI failures only skip browser areas explicitly tagged via `prechecks`.
 
@@ -105,14 +104,10 @@ Test areas based on maturity status. The agent exercises judgment on area select
 ### Per-Area Checklist (run in order for every area)
 
 0. **CLI precheck gate** — if `prechecks` CLI query scored ≤ 2, skip. No prechecks tag = proceed. No CLI = proceed.
+0b. **Adversarial mode** — if `adversarial_browser: true` (from Phase 2.5): skip happy path, front-load competing-constraint queries, generate pre-emptive P1 probe, increase novelty budget. SKIP areas promoted to PROBES-ONLY. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) CLI Adversarial Mode.
 1. **Run probes** — failing/untested first. See [probes.md](./references/probes.md).
 2. **Execute Queries and Multi-turn** — if defined. See [queries-and-multiturn.md](./references/queries-and-multiturn.md).
-3. **Novelty budget — MANDATORY.** Use at least 1 MCP call (Proven areas)
-   or 30% of probe+query calls minimum 2 (Uncharted/FULL areas) on
-   interactions not in any Query, Probe, or Multi-turn table. At least 1
-   novel interaction per scored_output area must generate a probe. Log
-   what you tried and what you observed.
-   See novelty budget rules in [queries-and-multiturn.md](./references/queries-and-multiturn.md).
+3. **Novelty budget — MANDATORY.** Before generating novel interactions, check `novelty_fingerprints` from `.user-test-last-run.json` — skip interactions matching existing fingerprints. At least 1 novel interaction per `scored_output` area must generate a probe. Iterate mode ignores fingerprints. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) for fingerprint matching, MCP budget, and mandatory probe rule.
 4. **Verification pass** — per area type. See [verification-patterns.md](./references/verification-patterns.md).
 5. **Score** — UX (1-5) + Quality if `scored_output: true`.
 6. **Time** — wall-clock seconds, first to last MCP call. Async waits count. Disconnect = `—`.
@@ -210,6 +205,7 @@ After all areas are scored, generate:
    - **P1** — Things that surprised you (positive or negative)
    - **P2** — Edge cases adjacent to tested areas
    - **P3** — Interactions started but not finished, or borderline scores (score of 3 warrants deeper investigation next run)
+   - **Cross-area weakness synthesis:** After per-area items, check if any `weakness_class` appears in 2+ areas. If so, generate up to 2 `[cross-area]` P1 entries with adversarial instructions targeting the shared pattern. See [probes.md](./references/probes.md) Cross-Area Weakness Synthesis.
 7. **UX Opportunities** (P1/P2 action items for improvements observed at score 3-5)
 8. **Good Patterns** (patterns worth preserving observed at score 4-5 — deliberate design choices, not trivial successes)
 9. **Verification results** per area: claims checked, mismatches found (from Layer 2 pass)
@@ -277,60 +273,7 @@ After displaying the report, **automatically proceed to Commit Mode** (below) �
 
 ### Run Results Persistence
 
-After Phase 4 completes (all areas scored), write `tests/user-flows/.user-test-last-run.json`:
-
-```json
-{
-  "run_timestamp": "2026-02-28T14:30:00Z",
-  "completed": true,
-  "scenario_slug": "checkout",
-  "git_sha": "abc1234",
-  "areas": [
-    {
-      "slug": "cart-validation",
-      "ux_score": 4,
-      "quality_score": null,
-      "time_seconds": 12,
-      "skip_reason": null,
-      "assessment": "Ready for promotion",
-      "issues": []
-    }
-  ],
-  "qualitative": {
-    "best_moment": { "area": "cart-validation", "text": "Cart updates instantly on quantity change" },
-    "worst_moment": { "area": "shipping-form", "text": "Shipping form accepts invalid zip codes" },
-    "demo_readiness": "partial",
-    "verdict": "Checkout works but shipping validation broken",
-    "context": "shipping zip validation bypassed"
-  },
-  "explore_next_run": [
-    { "priority": "P1", "area": "shipping-form", "mode": "Browser", "why": "Validation broken" }
-  ],
-  "ux_opportunities": [
-    { "id": "UX001", "area": "shipping-form", "priority": "P1", "suggestion": "Should show inline validation before submit" }
-  ],
-  "good_patterns": [
-    { "area": "cart-validation", "pattern": "Cart updates instantly on quantity change" }
-  ],
-  "verification_results": [
-    { "area": "agent/filter-via-chat", "claims_checked": 8, "mismatches": [
-      { "claim": "Condition: Like New", "actual": "Good", "element": "result-3 badge" }
-    ]}
-  ],
-  "probes_run": [
-    { "area": "agent/filter-via-chat", "query": "show me NWT only", "verify": "all badges say NWT", "status": "failing", "result_detail": "3 non-NWT results" }
-  ],
-  "probes_generated": [
-    { "area": "agent/filter-via-chat", "query": "show me good condition only", "verify": "no NWT/like-new badges visible", "priority": "P1", "generated_from": "run-2 condition mismatch" }
-  ],
-  "novelty_log": [],
-  "stable_queries_rotated": []
-}
-```
-
-- File is overwritten on each run (only last run is committable)
-- `completed: false` if the run was interrupted — commit mode will reject it
-- If Phase 4 is interrupted before writing this file, no committable output exists
+After Phase 4 completes (all areas scored), write `tests/user-flows/.user-test-last-run.json`. See [last-run-schema.md](./references/last-run-schema.md) for full schema (v8), per-area fields, and behavioral notes. File is overwritten each run except `novelty_fingerprints` which accumulates across runs (read-merge-write).
 
 ## Commit Mode
 
@@ -362,11 +305,14 @@ Apply maturity transitions using agent judgment and the scoring rubric:
 
 1. **Update test file maturity map and area details:**
    - Write to `.tmp` file first, then rename (atomic write)
-   - Upgrade to v7: bump `schema_version: 7` on first commit regardless of query/probe usage. Add missing columns and sections per [test-file-template.md](./references/test-file-template.md)
+   - Upgrade to v8: bump `schema_version: 8` on first commit regardless of query/probe usage. Add missing columns and sections per [test-file-template.md](./references/test-file-template.md)
    - Update area statuses, scores, timing, quality scores, and consecutive pass counts
    - Update `## Area Trends` section from `score-history.json` data
    - Update `## UX Opportunities Log`: add new entries with sequential IDs (UX001...), update existing entries (mark `implemented` if improvement detected), age out entries per lifecycle rules
    - Update `## Good Patterns`: confirm existing patterns (update `Last Confirmed`), add new patterns, remove patterns unconfirmed for 5+ runs
+   - **Tactical notes:** Append `[Run N] <finding>` to area's Notes column when there's a genuine tactical insight (selector pattern, timing pattern, interaction sequence). Cap 3 entries per area; drop oldest. See [queries-and-multiturn.md](./references/queries-and-multiturn.md).
+   - **Verified selectors:** When Phase 3 confirmed DOM selectors via successful `javascript_tool` batch call, append them to the area's `**verify:**` block with `_Selectors confirmed run N._`. Append-only — never replace user-authored content. See [verification-patterns.md](./references/verification-patterns.md).
+   - **Weakness class:** When 2+ probes in an area share a failure pattern, write `**weakness_class:** <class>` below `pass_threshold`. Remove after 3 consecutive pass runs. One class per area — dominant by probe count. See [probes.md](./references/probes.md) Weakness Classification.
 2. **Update `tests/user-flows/score-history.json`:**
    - Append current run's per-area scores (UX, quality, time)
    - Compute trend per area from last 3 entries
@@ -395,6 +341,7 @@ Apply maturity transitions using agent judgment and the scoring rubric:
    - Skip gracefully if `gh` is not authenticated
    - Never persist credentials (passwords, tokens, session IDs) in issue bodies or test files
 8. **Query compounding:** Sharpen failed queries into probes, expand from discoveries, mark stable queries. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) for steps 8-10 details, query-to-probe conversion rules, and stable query regression tiers.
+9. **Novelty fingerprints:** Merge this run's new fingerprints with existing ones from `.user-test-last-run.json`. Apply 20-per-area cap (drop oldest). Write merged set. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) Novelty Fingerprint Persistence.
 
 ## Iterate Mode
 
@@ -410,8 +357,9 @@ After final run, auto-commit (same as normal `/user-test`). Pass `--no-commit` t
 ## Reference Files
 
 - [test-file-template.md](./references/test-file-template.md) — template, schema migration, area granularity, worked examples
-- [probes.md](./references/probes.md) — probe execution, lifecycle, dedup, escalation, graduation, multi-run orchestration
-- [queries-and-multiturn.md](./references/queries-and-multiturn.md) — execution checklist, scoring, query compounding, novelty budget
+- [last-run-schema.md](./references/last-run-schema.md) — `.user-test-last-run.json` schema, per-area fields, behavioral notes
+- [probes.md](./references/probes.md) — probe execution, lifecycle, dedup, escalation, graduation, multi-run orchestration, weakness classification
+- [queries-and-multiturn.md](./references/queries-and-multiturn.md) — execution checklist, scoring, query compounding, novelty budget, fingerprints, CLI adversarial mode
 - [verification-patterns.md](./references/verification-patterns.md) — structural checks, tolerance rules, scoring impact
 - [run-targeting.md](./references/run-targeting.md) — area selection, git-aware targeting, progressive narrowing
 - [bugs-registry.md](./references/bugs-registry.md) — bug lifecycle, commit mode update rules

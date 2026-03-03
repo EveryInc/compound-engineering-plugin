@@ -6,7 +6,7 @@ Test files live in `tests/user-flows/<scenario-slug>.md` in the target project. 
 
 ```markdown
 ---
-schema_version: 7
+schema_version: 8
 scenario: "<scenario-name>"
 app_url: "http://localhost:3000"
 created: "<YYYY-MM-DD>"
@@ -43,6 +43,8 @@ mcp_restart_threshold: 15  # optional, proactive page reload after N MCP calls
 **What's tested:** <what does "good" look like for this area? Be specific about the domain. What are the ways the output could be subtly wrong?>
 
 **pass_threshold:** 4
+
+**weakness_class:** <!-- optional, written by commit mode when 2+ probes share a failure pattern. See probes.md Weakness Classification. -->
 
 **verify:**
 - <optional: freeform verification instructions — what claims to audit>
@@ -163,9 +165,20 @@ regardless of schema version. CLI discovery runs in Phase 1 step 3.
 
 **Reading v6 files:** Treat missing `## Cross-Area Probes` section as empty table. Treat missing `mcp_restart_threshold` as 15. Treat probes without `related_bug` as unlinked. Do NOT rewrite on read.
 
+**v7 → v8 changes:**
+- Area Details: optional `**weakness_class:**` field (below `pass_threshold`), written by commit mode when 2+ probes share a failure pattern
+- Area Details: `**verify:**` blocks auto-updated with confirmed selectors by commit mode (append-only, run-tagged)
+- Areas table: Notes column receives tactical run notes in `[Run N] <finding>` format (max 3 entries, drop oldest)
+- `.user-test-last-run.json` schema extracted to `references/last-run-schema.md`
+- `.user-test-last-run.json`: new per-area fields (`tactical_note`, `confirmed_selectors`, `weakness_class`, `adversarial_browser`, `adversarial_trigger`)
+- `.user-test-last-run.json`: new top-level key `novelty_fingerprints` (accumulates across runs, 20-per-area cap)
+- `.user-test-last-run.json`: cross-area synthesis entries in `explore_next_run` with `weakness_class`, `affected_areas`, `adversarial_instruction`
+
+**Reading v7 files:** Treat missing `weakness_class` as absent. Treat missing `novelty_fingerprints` as empty. Treat missing `adversarial_browser` as false. Do NOT rewrite on read.
+
 **CLI gate for query retirement:** Only queries in test files with `cli_test_command` set can reach `[retired]` status. Queries without CLI backstop max out at `[stable]` and continue receiving browser spot-checks via the Proven area MCP budget. If `cli_test_command` is removed from a file with `[retired]` queries, those queries demote to `[stable]` on next commit.
 
-**Writing any file:** Upgrade to v7 on commit. Bump `schema_version: 7` in frontmatter on the first commit under v7 skill logic. The version number reflects which skill version last wrote the file.
+**Writing any file:** Upgrade to v8 on commit. Bump `schema_version: 8` in frontmatter on the first commit under v8 skill logic. The version number reflects which skill version last wrote the file.
 
 **Forward compatibility:** Ignore unknown frontmatter fields from future schema versions. Preserve unknown table columns on write.
 

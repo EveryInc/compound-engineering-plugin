@@ -129,3 +129,41 @@ This data compounds: after 3+ sessions, patterns emerge (e.g., "always after 20+
 Areas can include an optional `**verify:**` block in their area details — freeform instructions that tell the agent what claims to audit. The structural checks above run regardless; verify blocks add area-specific auditing on top.
 
 When to add a verify block: any area with a filter, search result set, count, sort order, or agent response that summarizes data — anywhere the app could lie and the user wouldn't immediately notice.
+
+## Selector Discovery and Writeback
+
+Commit mode persists confirmed selectors into each area's `**verify:**` block. This is the highest-leverage writeback: run 1 discovers selectors through sequential trial (3-5 MCP calls), run 2 reads the verify block and batches them into one `javascript_tool` call.
+
+### Rules
+
+1. **Only write selectors confirmed by a successful batch call this run.** A selector that appeared in the DOM but wasn't used in a batch call is not confirmed — it may be fragile.
+2. **Append-only.** Never replace user-authored verify content. New selectors go below existing lines.
+3. **Tag with run number:** Append `_Selectors confirmed run N._` so future runs know the source.
+4. **Update changed selectors:** If a confirmed selector changed from the previous run (e.g., `.product-card` → `.item-card`), update the selector and reset the tag to the current run.
+5. **Preserve unchanged selectors:** If selectors from a previous run still work, leave them and their tag intact.
+6. **First-run placeholder:** If no selectors are confirmed yet, write `_Selectors not yet confirmed — discover during exploration._`
+
+### Format
+
+```markdown
+**verify:**
+- Apply filter. Batch-check via javascript_tool:
+  activeFilters (`[data-filter-chip]`), resultCount (`.product-card`),
+  sample 5 results (`.product-card .title`, `.condition-badge`).
+  Every result's attribute must match the active filter.
+  _Selectors confirmed run 3._
+```
+
+### Interaction with `.user-test-last-run.json`
+
+Confirmed selectors are stored per area in the `confirmed_selectors` object:
+
+```json
+"confirmed_selectors": {
+  "activeFilters": "[data-filter-chip]",
+  "resultCount": ".product-card",
+  "sampleResults": ".product-card .title, .condition-badge"
+}
+```
+
+`confirmed_selectors: {}` means no selectors were confirmed this run — skip verify block update for this area.

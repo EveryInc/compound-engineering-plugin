@@ -5,6 +5,21 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.50.0] - 2026-03-02
+
+### Added
+
+- **`user-test` skill — compounding quality: richer writebacks, weakness synthesis, fingerprints, CLI adversarial (schema v8):**
+  - **Richer commit writebacks (C1):** Tactical notes in Notes column (`[Run N] <finding>`, cap 3), verified selectors auto-appended to verify: blocks, `weakness_class` field written when 2+ probes share a failure pattern
+  - **Weakness-class synthesis (C2):** Cross-area synthesis pass in Phase 4 Step 6 generates `[cross-area]` Explore Next Run entries when a weakness_class appears in 2+ areas, with adversarial instruction templates for 6 predefined classes + freeform
+  - **Novelty fingerprint persistence (C3):** Compact fingerprints (`<area-slug>:<action-type>:<key-parameter>`) persisted in `.user-test-last-run.json` across runs with read-merge-write sequence, 20-per-area cap, iterate mode exemption
+  - **CLI adversarial browser mode (C4):** CLI score 3 triggers adversarial browser testing — skip happy path, front-load competing constraints, pre-emptive P1 probe, increased novelty budget, SKIP→PROBES-ONLY override
+  - `.user-test-last-run.json` schema extracted to `references/last-run-schema.md` (SKILL.md savings: 52→2 lines)
+  - New reference file: `last-run-schema.md` (full JSON schema, per-area fields, behavioral notes)
+  - New sections: Weakness Classification and Cross-Area Weakness Synthesis in `probes.md`, Novelty Fingerprint Persistence and CLI Adversarial Mode in `queries-and-multiturn.md`, Selector Discovery and Writeback in `verification-patterns.md`
+  - v7 → v8 schema migration: `weakness_class`, `novelty_fingerprints`, `adversarial_browser`, `adversarial_trigger`, confirmed selector writeback
+  - SKILL.md reduced from 421→368 lines (net -53) via JSON schema extraction and prose compression
+
 ## [2.49.0] - 2026-03-02
 
 ### Added
