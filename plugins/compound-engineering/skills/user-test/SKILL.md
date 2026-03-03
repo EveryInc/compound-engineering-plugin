@@ -377,7 +377,7 @@ Apply maturity transitions using agent judgment and the scoring rubric:
    - Mark bugs as `fixed` when Known-bug area passes fix_check (score >= `pass_threshold`) AND GitHub issue is closed
    - Mark bugs as `regressed` when previously-fixed area fails again
    - Create file if it doesn't exist — see [bugs-registry.md](./references/bugs-registry.md)
-4. **Update probe statuses** in each area's `**Probes:**` table: mark passing/failing/flaky based on this run's results. Rotate out passing probes older than 10 runs. If a probe has failed 3+ consecutive runs, auto-escalate to bugs.md (see [probes.md](./references/probes.md) Escalation). If a probe has passed 2+ consecutive runs, offer CLI graduation (same path as bug graduation — see [probes.md](./references/probes.md)).
+4. **Update probe statuses** in each area's `**Probes:**` table and the `## Cross-Area Probes` table: mark passing/failing/flaky based on this run's results. Rotate out passing probes older than 10 runs. If a probe has failed 3+ consecutive runs, auto-escalate to bugs.md (see [probes.md](./references/probes.md) Escalation). If a probe has passed 2+ consecutive runs, offer CLI graduation (same path as bug graduation — see [probes.md](./references/probes.md)).
 5. **Offer graduation** for newly-fixed bugs — see [graduation.md](./references/graduation.md)
 6. **Append to `tests/user-flows/test-history.md`:**
    - Add row with: date, areas tested, quality avg, delta, pass rate, best area, worst area, demo ready, context, key finding

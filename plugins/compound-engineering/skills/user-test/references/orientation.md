@@ -77,7 +77,7 @@ For each identified seam, generate a structural-hypothesis probe:
 - `confidence`: `medium` (structural read, not observed)
 - `generated_from`: `"structural-hypothesis: <filename> <line or function>"`
 
-Write probes to the relevant area's Probes table. If a seam spans multiple areas, place the probe in the area most likely to surface the fragility.
+Write probes to the relevant area's Probes table. If a seam spans multiple areas, place the probe in the area most likely to surface the fragility. If the seam involves state carry-over between two areas (one sets state, another reads it), generate a cross-area probe instead — see [probes.md](./probes.md) Cross-Area Probes section.
 
 ## Graceful No-Op
 

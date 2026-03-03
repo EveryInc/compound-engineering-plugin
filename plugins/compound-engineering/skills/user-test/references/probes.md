@@ -43,6 +43,7 @@ Each generated probe has:
 - `priority`: P1 for verification failures, P2 for score-based
 - `confidence`: Default assigned by generation trigger (see table below)
 - `generated_from`: Origin trail (e.g., "run-3 condition mismatch")
+- `related_bug`: (optional) Bug ID from bugs.md if this probe tests a symptom of a known open bug. Check bugs.md for bugs affecting the same area — if exactly one open bug matches, link it. Stored inline in the `Generated From` column: `"run-3 condition mismatch | related_bug: B003"`
 
 ### Confidence Defaults by Trigger
 
@@ -92,7 +93,7 @@ Isolated probe B (cross-area):
   Trigger: browse/product-grid — search "dresses" via search bar
   Observation: agent/filter-via-chat — ask for "y2k accessories"
   Verify: "agent clears stale category filter before applying y2k"
-  related_bug: UX010
+  related_bug: B002
 ```
 
 **`related_bug` field:** Optional field on any probe (per-area or cross-area) linking the probe to a specific bug ID. When the probe passes, it provides evidence that the linked bug is fixed. When it fails, it confirms the linked bug is still active. Multiple probes can reference the same bug — each tests the bug from a different angle.
@@ -324,11 +325,7 @@ Cross-area probes test interactions that span two areas — where an action in o
 
 ### Lifecycle
 
-Cross-area probes follow the same lifecycle as per-area probes:
-- Status transitions: untested → passing/failing → flaky/graduated
-- Escalation: 3+ consecutive failures → auto-file to bugs.md
-- Graduation: 2+ consecutive passes → eligible for CLI graduation (only if BOTH areas have CLI coverage)
-- Confidence field: same defaults and update rules as per-area
+Same as per-area probes (status transitions, escalation, confidence). One exception: CLI graduation requires BOTH trigger and observation areas to have CLI coverage.
 
 ### Generation Triggers
 
@@ -371,7 +368,7 @@ When a cross-area probe escalates (3+ consecutive failures), the bug entry in bu
 
 ### Spot-Check Budget
 
-Passing cross-area probes are spot-checked — execute at most 3 passing probes per run (selected randomly). Failing and untested cross-area probes always execute. This bounds the front-load: a stable test file with 5 passing cross-area probes spot-checks 3, not all 5.
+Passing cross-area probes are spot-checked — execute at most 3 passing probes per run, rotating round-robin by table order (advance start position each run). Failing and untested cross-area probes always execute. This bounds the front-load: a stable test file with 5 passing cross-area probes spot-checks 3, not all 5.
 
 ### Progressive Narrowing Interaction
 
@@ -397,7 +394,8 @@ Cross-area probe results are stored alongside `probes_run`:
     "observation_area": "agent/filter-via-chat",
     "verify": "agent chat responds without stale category filter",
     "status": "failing",
-    "result_detail": "agent showed stale Dresses filter on follow-up"
+    "result_detail": "agent showed stale Dresses filter on follow-up",
+    "related_bug": "B002"
   }
 ]
 ```

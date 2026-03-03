@@ -12,7 +12,7 @@
 
 6. Track `mcp_call_counter` for the session (increments on every successful MCP tool call)
 7. When `mcp_call_counter` reaches `mcp_restart_threshold` (default: 15, configurable in test file frontmatter): navigate to the app entry URL (full page reload). Reset `mcp_call_counter` to 0. Log: "Proactive restart at call #N to prevent connection degradation."
-8. The restart happens between areas, not mid-area. If the threshold is reached during an area, finish the current area first, then restart before the next area.
+8. The restart happens between areas, not mid-area. If the threshold is reached during an area, finish the current area first, then restart before the next area. Cross-area probes are an exception: the restart is deferred until the entire cross-area probe sequence completes. See [probes.md](./probes.md) Proactive Restart Interaction.
 9. In iterate mode, the between-run reset counts as a restart. Reset `mcp_call_counter` at each between-run page reload.
 
 ## Disconnect Pattern Tracking

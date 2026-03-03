@@ -132,7 +132,7 @@ dismiss it manually before continuing.
 
 ## Proactive Restart
 
-Sustained MCP tool usage degrades browser extension connections. The skill proactively restarts (full page reload to app entry URL) after a configurable number of MCP calls — see Connection Resilience in SKILL.md.
+Sustained MCP tool usage degrades browser extension connections. The skill proactively restarts (full page reload to app entry URL) after a configurable number of MCP calls. See [connection-resilience.md](./connection-resilience.md) for timing rules and cross-area probe interaction.
 
 **What a restart clears:**
 - Extension message channel state
@@ -143,7 +143,3 @@ Sustained MCP tool usage degrades browser extension connections. The skill proac
 - Cookies and session storage (login state preserved)
 - IndexedDB data
 - Service worker caches
-
-**Timing:** Restarts happen between areas. If a restart is triggered mid-area, the current area completes first. The next area starts with a fresh page load.
-
-**Impact on cross-area probes:** Cross-area probes must NOT be interrupted by a proactive restart — they depend on state carry-over between trigger and observation areas. The restart check is skipped during cross-area probe execution. The counter still increments.
