@@ -126,7 +126,7 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
 | `journeys_run` | array | Per-journey results with checkpoint data |
 | `journeys_run[].id` | string | Journey ID (e.g., "J001") |
 | `journeys_run[].name` | string | Journey name |
-| `journeys_run[].status` | string | `passing`, `failing-at-N`, or checkpoint detail |
+| `journeys_run[].status` | string | `untested`, `passing`, `failing-at-N`, `flaky`, or `stable` |
 | `journeys_run[].on_failure` | string | `abort` or `continue` |
 | `journeys_run[].checkpoints` | array | Per-step results: step, area, passed, detail |
 | `journeys_run[].time_seconds` | number | Wall-clock time for the journey |

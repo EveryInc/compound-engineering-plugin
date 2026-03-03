@@ -78,9 +78,9 @@ Run History format: comma-separated P/F entries, most recent first. Example: `P,
 ## Journeys
 
 <!-- Multi-area user flows without resets. Run after cross-area probes,
-     before per-area testing. See journeys.md for lifecycle and budget. -->
-
-<!-- Journey definitions go here. See journeys.md for schema. -->
+     before per-area testing. See journeys.md for lifecycle and budget.
+     Each journey: ### J001: <name>, Steps table, Status, Last Run,
+     Run History, Generated From, optional on_failure, optional escalated_to. -->
 
 ## Area Trends
 

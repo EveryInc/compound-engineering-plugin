@@ -35,6 +35,7 @@ Each journey lives in the test file's `## Journeys` section:
 - **Run History:** Compact pass/fail, e.g. `P P F:3 P F:5 P`. Failures include step number after colon — `F:3` = "failed at step 3" (colon avoids ambiguity with count formats).
 - **Generated From:** `manual`, `orientation`, `cross-area-escalation`, `weakness-class-synthesis`
 - **on_failure:** `abort` (default) or `continue` (opt-in, per-journey)
+- **escalated_to:** (optional) Bug ID if this journey has been auto-escalated (e.g., `B005`). Prevents duplicate filing.
 
 ## Checkpoint Types
 
@@ -46,7 +47,7 @@ Each journey lives in the test file's `## Journeys` section:
 | State clean | "No stale filters from prior steps" | Read active state, verify none from prior steps |
 | No check | `---` | Skip verification (use sparingly) |
 
-Checkpoints are 1 MCP call each (batched `javascript_tool`). A 5-step journey = ~10 MCP calls (5 actions + 5 reads). Journey MCP calls are separate from per-area budgets.
+Checkpoints are 1 MCP call each (batched `javascript_tool`). For "Count change" checkpoints, read the target element BEFORE executing the step's Action to capture the baseline — this adds 1 MCP call per count-change step. A 5-step journey = ~10-15 MCP calls (5 actions + 5 checkpoint reads + pre-reads for count-change steps). Journey MCP calls are separate from per-area budgets.
 
 ## Execution
 
@@ -55,11 +56,11 @@ Checkpoints are 1 MCP call each (batched `javascript_tool`). A 5-step journey = 
 **Inter-journey reset:** Navigate to the app's entry URL between journeys. Each journey starts from clean navigation state. Within a journey, no resets between steps.
 
 **Execution order when multiple journeys exist:**
-1. `failing-at-N` (highest signal)
-2. `untested`
-3. `flaky`
-4. `passing`
-5. `stable` (every other run only)
+1. `failing-at-N` (highest signal) — always run
+2. `untested` — always run
+3. `flaky` — always run
+4. `passing` — spot-check: run at most 3 per run, rotating round-robin by table order (advance start position each run). If ≤3 passing journeys, all run.
+5. `stable` (every other run only) — same 3-journey spot-check cap applies when eligible to run
 
 ## Lifecycle
 
@@ -78,7 +79,7 @@ untested -> [run] -> passing / failing-at-N
 
 - **`failing-at-N`:** Pinpoints which step failed. Step 2 failure = area broken. Step 5 failure after 1-4 passed = accumulated state bug.
 - **`flaky`:** Fails at different steps across 3+ runs. Consecutive-same-step counter resets on step change.
-- **Escalation:** Same step 3+ consecutive runs → auto-escalate to bugs.md. Failing step's area is primary, preceding areas are context. Suppressed when failing step's area has active Known-bug.
+- **Escalation:** Same step 3+ consecutive runs → auto-escalate to bugs.md. Failing step's area is primary, preceding areas are context. Suppressed when failing step's area has active Known-bug. Dedup: if journey already has `escalated_to: "B00N"`, skip (already filed). Add `escalated_to` field to journey definition on escalation.
 - **Stable frequency:** Run every other run (odd Run History length = run, even = skip).
 - **Stable revert:** On failure, set status to `failing-at-N`, reset consecutive counter. Journey runs every time again.
 
@@ -86,7 +87,9 @@ untested -> [run] -> passing / failing-at-N
 
 **Abort (default):** Stop at failing step. Record `failing-at-N`. If step 3 state is wrong, step 4 is unpredictable.
 
-**Continue (opt-in):** `on_failure: continue`. Log each failure, execute all remaining steps. Status = `failing-at-N` where N = first failing step. Run History records all failing steps: `F:2,5` (failed at steps 2 and 5). Escalation uses first failing step only.
+**Continue (opt-in):** `on_failure: continue`. Log each failure, execute all remaining steps. Status = `failing-at-N` where N = first failing step. Run History records all failing steps: `F:2,5` (failed at steps 2 and 5).
+
+**Continue-mode escalation:** Track consecutive failures per step independently. `F:2,5` then `F:2` then `F:2,3` = step 2 failed 3 consecutive runs → escalate step 2, regardless of other steps also failing. Step 5 failed only once → no escalation. The per-step counter uses the first failing step from Run History entries containing that step number.
 
 ## Definition Change Detection
 
@@ -106,7 +109,7 @@ If no orientation results, fall back to:
 
 > "No journeys defined. Journeys test multi-area flows without resets. Define 1-2 journeys based on your app's primary user flows? (y/n)"
 
-**2. Orientation.** Code reading identifies state boundaries crossing 3+ areas. Completes before first-run prompt so findings feed into suggestions.
+**2. Orientation.** When orientation probes span 3+ distinct areas, synthesize those probes into a journey suggestion (the steps are the areas the probes touch, in state-flow order). Orientation completes before the first-run prompt so its findings feed into suggestions.
 
 **3. Cross-area probe escalation.** 2+ cross-area probes pass individually but per-area issues persist → suggest journey.
 
@@ -131,6 +134,8 @@ Sources 2-4 generate suggestions requiring user confirmation.
 **Cross-area probes:** Complementary. No dedup — a cross-area probe and journey step covering the same seam test different things (isolation vs. accumulation).
 
 **Adversarial mode:** Does NOT apply to journey steps. Journey steps execute defined action and checkpoint.
+
+**Graduation:** Does NOT apply to journeys. Journeys are multi-step browser flows that cannot be reduced to a single CLI call. Stable journeys remain as browser-only spot-checks.
 
 **Per-area MCP budgets:** Journey calls are separate. Visiting an area in a journey does not consume its per-area budget.
 
@@ -159,7 +164,7 @@ Checkpoint detail shown for failing/flaky journeys only. Passing journeys show s
 
 **SIGNALS:** `~ 1 journey failing: J001 at step 5 (<area-slug>) — accumulated state`
 
-**N-run summary:** Add "Journeys stabilized" and "Journeys with persistent issues."
+**N-run summary:** Add "Journeys stabilized" (reached `stable` during this session = 5+ consecutive passes) and "Journeys with persistent issues" (status is `failing-at-N` or `flaky` at end of session).
 
 ## Commit Mode
 
