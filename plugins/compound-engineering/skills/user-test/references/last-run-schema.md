@@ -84,6 +84,23 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
       "related_bug": "B002"
     }
   ],
+  "journeys_run": [
+    {
+      "id": "J001",
+      "name": "Primary user flow",
+      "status": "failing-at-5",
+      "on_failure": "abort",
+      "checkpoints": [
+        { "step": 1, "area": "<area-slug-1>", "passed": true },
+        { "step": 2, "area": "<area-slug-2>", "passed": true },
+        { "step": 3, "area": "<area-slug-3>", "passed": true },
+        { "step": 4, "area": "<area-slug-4>", "passed": true },
+        { "step": 5, "area": "<area-slug-1>", "passed": false,
+          "detail": "stale state from step 2 still active" }
+      ],
+      "time_seconds": 45
+    }
+  ],
   "novelty_log": [],
   "novelty_fingerprints": {
     "agent/filter-via-chat": [
@@ -101,6 +118,20 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
   }
 }
 ```
+
+## Journey Fields (v9 additions)
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `journeys_run` | array | Per-journey results with checkpoint data |
+| `journeys_run[].id` | string | Journey ID (e.g., "J001") |
+| `journeys_run[].name` | string | Journey name |
+| `journeys_run[].status` | string | `passing`, `failing-at-N`, or checkpoint detail |
+| `journeys_run[].on_failure` | string | `abort` or `continue` |
+| `journeys_run[].checkpoints` | array | Per-step results: step, area, passed, detail |
+| `journeys_run[].time_seconds` | number | Wall-clock time for the journey |
+
+See [journeys.md](./journeys.md) for lifecycle, budget, and execution rules.
 
 ## Per-Area Fields (v8 additions)
 

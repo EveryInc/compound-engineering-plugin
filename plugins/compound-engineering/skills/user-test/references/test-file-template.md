@@ -6,7 +6,7 @@ Test files live in `tests/user-flows/<scenario-slug>.md` in the target project. 
 
 ```markdown
 ---
-schema_version: 8
+schema_version: 9
 scenario: "<scenario-name>"
 app_url: "http://localhost:3000"
 created: "<YYYY-MM-DD>"
@@ -74,6 +74,13 @@ Run History format: comma-separated P/F entries, most recent first. Example: `P,
 
 | Trigger Area | Action | Observation Area | Verify | Status | Priority | Confidence | Generated From | Run History |
 |-------------|--------|-----------------|--------|--------|----------|------------|---------------|-------------|
+
+## Journeys
+
+<!-- Multi-area user flows without resets. Run after cross-area probes,
+     before per-area testing. See journeys.md for lifecycle and budget. -->
+
+<!-- Journey definitions go here. See journeys.md for schema. -->
 
 ## Area Trends
 
@@ -176,9 +183,16 @@ regardless of schema version. CLI discovery runs in Phase 1 step 3.
 
 **Reading v7 files:** Treat missing `weakness_class` as absent. Treat missing `novelty_fingerprints` as empty. Treat missing `adversarial_browser` as false. Do NOT rewrite on read.
 
+**v8 → v9 changes:**
+- New section: `## Journeys` (scenario-level multi-area user flows without resets)
+- `.user-test-last-run.json`: new `journeys_run` array field (per-journey checkpoint data)
+- New reference file: `journeys.md` (lifecycle, budget, execution rules, checkpoint types, generation, interactions)
+
+**Reading v8 files:** Treat missing `## Journeys` section as empty (no journeys defined). Do NOT rewrite on read.
+
 **CLI gate for query retirement:** Only queries in test files with `cli_test_command` set can reach `[retired]` status. Queries without CLI backstop max out at `[stable]` and continue receiving browser spot-checks via the Proven area MCP budget. If `cli_test_command` is removed from a file with `[retired]` queries, those queries demote to `[stable]` on next commit.
 
-**Writing any file:** Upgrade to v8 on commit. Bump `schema_version: 8` in frontmatter on the first commit under v8 skill logic. The version number reflects which skill version last wrote the file.
+**Writing any file:** Upgrade to v9 on commit. Bump `schema_version: 9` in frontmatter on the first commit under v9 skill logic. The version number reflects which skill version last wrote the file.
 
 **Forward compatibility:** Ignore unknown frontmatter fields from future schema versions. Preserve unknown table columns on write.
 

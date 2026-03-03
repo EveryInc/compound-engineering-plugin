@@ -41,12 +41,13 @@ agents and cleanup tools must never flag them for deletion or gitignore.
    - If argument is a file path (contains `/` or ends in `.md`):
      - Validate path resolves within `tests/user-flows/` (prevent directory traversal)
      - Read and parse the test file
-     - Validate `schema_version` is present (1–8 accepted) <!-- bump range when schema changes -->
+     - Validate `schema_version` is present (1–9 accepted) <!-- bump range when schema changes -->
      - **v1/v2 migration:** If `schema_version: 1`, fill missing columns (`Last Quality`, `Last Time`, `Delta`, `Context`) with `—`. If `schema_version: 2`, also fill missing sections (Area Trends, UX Opportunities, Good Patterns) and Run History columns (Best Area, Worst Area). Do NOT rewrite on read.
      - **v3/v4 migration:** If `schema_version: 3`, treat missing `verify:` blocks and `Probes:` tables as absent. If `schema_version: 4`, also treat missing `**Queries:**` and `**Multi-turn:**` tables as absent. Do NOT rewrite on read.
      - **v5 migration:** If `schema_version: 5`, treat Probes without `Confidence` column as `confidence: high` (existing probes were generated from observed failures). Treat Probes without `Priority` column as inferred from `Generated From` (verification failure → P1, score-based → P2). Treat Queries without `Status` column as active. Treat missing `seams_read` as `false`. Do NOT rewrite the file on read.
      - **v6 migration:** If `schema_version: 6`, treat missing `## Cross-Area Probes` section as empty table. Treat missing `mcp_restart_threshold` as 15. Treat probes without `related_bug` as unlinked. Do NOT rewrite on read.
      - **v7 migration:** If `schema_version: 7`, treat missing `weakness_class` as absent. Treat missing `novelty_fingerprints` as empty. Treat missing `adversarial_browser` as false. In JSON: treat missing `tactical_note` as null, `confirmed_selectors` as `{}`. Do NOT rewrite on read.
+     - **v8 migration:** If `schema_version: 8`, treat missing `## Journeys` section as empty (no journeys defined). Do NOT rewrite on read.
      - **Forward compatibility:** Ignore unknown frontmatter fields. Preserve unknown table columns on write.
      - **Missing `cli_test_command` (any version):** Treat as `cli_test_command: ""`. CLI discovery (step 3) will populate it. Do NOT rewrite the file on read.
      - Extract maturity map, run history, and explore-next-run items
@@ -122,6 +123,10 @@ Read probes from area `**Probes:**` tables. Execute `untested` and `failing` pro
 ### Cross-Area Probes (Before Per-Area Testing)
 
 Execute cross-area probes before per-area testing — they test state carry-over between areas and inform per-area score interpretation. Results do NOT affect per-area scores. See [probes.md](./references/probes.md).
+
+### Journey Execution (After Cross-Area Probes)
+
+Execute journeys after cross-area probes, before per-area testing. Journeys test accumulated state across 3+ areas without resets, with checkpoints at each step. Results do NOT affect per-area scores. See [journeys.md](./references/journeys.md).
 
 ### Verification Pass (After Each Area)
 
@@ -247,6 +252,7 @@ Demo: PARTIAL (P1 bug #21 open; promo-code untested)
 
 **Section rules:**
 - **Header:** `UX X.X | Quality X.X (CLI) | N areas | M need action` — 2-second scan
+- **JOURNEYS:** After cross-area probes, before NEEDS ACTION. Failing/flaky journeys show checkpoint detail. Passing show summary. See [journeys.md](./references/journeys.md).
 - **NEEDS ACTION:** `⚠` prefix. Only open items: degrading areas, failing probes on **Proven** areas (unexpected regression), verification mismatches on Proven. Probe failures on Uncharted/Known-bug stay in DETAILS (expected)
 - **FILED THIS SESSION:** `✓` prefix. Bugs/issues filed. Omit if nothing filed
 - **IMPROVED:** `<area> <old>→<new> <reason>`
@@ -273,7 +279,7 @@ After displaying the report, **automatically proceed to Commit Mode** (below) �
 
 ### Run Results Persistence
 
-After Phase 4 completes (all areas scored), write `tests/user-flows/.user-test-last-run.json`. See [last-run-schema.md](./references/last-run-schema.md) for full schema (v8), per-area fields, and behavioral notes. File is overwritten each run except `novelty_fingerprints` which accumulates across runs (read-merge-write).
+After Phase 4 completes (all areas scored), write `tests/user-flows/.user-test-last-run.json`. See [last-run-schema.md](./references/last-run-schema.md) for full schema (v9), per-area fields, journey fields, and behavioral notes. File is overwritten each run except `novelty_fingerprints` which accumulates across runs (read-merge-write).
 
 ## Commit Mode
 
@@ -305,7 +311,7 @@ Apply maturity transitions using agent judgment and the scoring rubric:
 
 1. **Update test file maturity map and area details:**
    - Write to `.tmp` file first, then rename (atomic write)
-   - Upgrade to v8: bump `schema_version: 8` on first commit regardless of query/probe usage. Add missing columns and sections per [test-file-template.md](./references/test-file-template.md)
+   - Upgrade to v9: bump `schema_version: 9` on first commit regardless of query/probe usage. Add missing columns and sections per [test-file-template.md](./references/test-file-template.md)
    - Update area statuses, scores, timing, quality scores, and consecutive pass counts
    - Update `## Area Trends` section from `score-history.json` data
    - Update `## UX Opportunities Log`: add new entries with sequential IDs (UX001...), update existing entries (mark `implemented` if improvement detected), age out entries per lifecycle rules
@@ -342,6 +348,7 @@ Apply maturity transitions using agent judgment and the scoring rubric:
    - Never persist credentials (passwords, tokens, session IDs) in issue bodies or test files
 8. **Query compounding:** Sharpen failed queries into probes, expand from discoveries, mark stable queries. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) for steps 8-12 details, query-to-probe conversion rules, and stable query regression tiers.
 8b. **Novelty fingerprints:** Merge this run's new fingerprints with existing ones from `.user-test-last-run.json`. Apply 20-per-area cap (drop oldest). Write merged set. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) Novelty Fingerprint Persistence.
+8c. **Journey updates:** Update journey Status, Last Run, Run History. Auto-escalate, mark stable, detect definition changes. Journey results do NOT affect per-area maturity. See [journeys.md](./references/journeys.md) Commit Mode.
 
 ## Iterate Mode
 
@@ -358,6 +365,7 @@ After final run, auto-commit (same as normal `/user-test`). Pass `--no-commit` t
 
 - [test-file-template.md](./references/test-file-template.md) — template, schema migration, area granularity, worked examples
 - [last-run-schema.md](./references/last-run-schema.md) — `.user-test-last-run.json` schema, per-area fields, behavioral notes
+- [journeys.md](./references/journeys.md) — multi-area journey testing: lifecycle, budget, execution, checkpoint types, generation, feature interactions
 - [probes.md](./references/probes.md) — probe execution, lifecycle, dedup, escalation, graduation, multi-run orchestration, weakness classification
 - [queries-and-multiturn.md](./references/queries-and-multiturn.md) — execution checklist, scoring, query compounding, novelty budget, fingerprints, CLI adversarial mode
 - [verification-patterns.md](./references/verification-patterns.md) — structural checks, tolerance rules, scoring impact
