@@ -46,7 +46,7 @@ agents and cleanup tools must never flag them for deletion or gitignore.
      - **v3/v4 migration:** If `schema_version: 3`, treat missing `verify:` blocks and `Probes:` tables as absent. If `schema_version: 4`, also treat missing `**Queries:**` and `**Multi-turn:**` tables as absent. Do NOT rewrite on read.
      - **v5 migration:** If `schema_version: 5`, treat Probes without `Confidence` column as `confidence: high` (existing probes were generated from observed failures). Treat Probes without `Priority` column as inferred from `Generated From` (verification failure → P1, score-based → P2). Treat Queries without `Status` column as active. Treat missing `seams_read` as `false`. Do NOT rewrite the file on read.
      - **v6 migration:** If `schema_version: 6`, treat missing `## Cross-Area Probes` section as empty table. Treat missing `mcp_restart_threshold` as 15. Treat probes without `related_bug` as unlinked. Do NOT rewrite on read.
-     - **v7 migration:** If `schema_version: 7`, treat missing `weakness_class` as absent. Treat missing `novelty_fingerprints` as empty. Treat missing `adversarial_browser` as false. Do NOT rewrite on read.
+     - **v7 migration:** If `schema_version: 7`, treat missing `weakness_class` as absent. Treat missing `novelty_fingerprints` as empty. Treat missing `adversarial_browser` as false. In JSON: treat missing `tactical_note` as null, `confirmed_selectors` as `{}`. Do NOT rewrite on read.
      - **Forward compatibility:** Ignore unknown frontmatter fields. Preserve unknown table columns on write.
      - **Missing `cli_test_command` (any version):** Treat as `cli_test_command: ""`. CLI discovery (step 3) will populate it. Do NOT rewrite the file on read.
      - Extract maturity map, run history, and explore-next-run items
@@ -91,7 +91,7 @@ If the test file defines `cli_test_command` in frontmatter, run CLI queries befo
 2. Run each `scored_output` area's Queries through `cli_test_command`. Run `cli_queries` via Bash. Score 1-5 using output quality rubric (semantic evaluation). See CLI Area Queries in [queries-and-multiturn.md](./references/queries-and-multiturn.md).
 3. **Browser area overlap:** If a `prechecks`-tagged CLI query scores ≤ 2, skip the tagged browser area. No `prechecks` tag = standalone.
 4. Credentials: shell environment only. No credentials in the test file.
-5. **Adversarial flag check:** For each area with `prechecks`-tagged queries: if any individual query score == 3, set `adversarial_browser: true`. If average is 3.0-3.4 with no single query at 3, also set `adversarial_browser: true` (secondary check). Record triggering query in `adversarial_trigger`. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) CLI Adversarial Mode.
+5. **Adversarial flag check:** If any CLI query for an area scores exactly 3, set `adversarial_browser: true`. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) CLI Adversarial Mode for trigger conditions and secondary check.
 
 **CLI + browser coexistence:** When both exist, run CLI first. CLI failures only skip browser areas explicitly tagged via `prechecks`.
 
@@ -205,7 +205,7 @@ After all areas are scored, generate:
    - **P1** — Things that surprised you (positive or negative)
    - **P2** — Edge cases adjacent to tested areas
    - **P3** — Interactions started but not finished, or borderline scores (score of 3 warrants deeper investigation next run)
-   - **Cross-area weakness synthesis:** After per-area items, check if any `weakness_class` appears in 2+ areas. If so, generate up to 2 `[cross-area]` P1 entries with adversarial instructions targeting the shared pattern. See [probes.md](./references/probes.md) Cross-Area Weakness Synthesis.
+   - **Cross-area weakness synthesis:** After per-area items, read `weakness_class` fields from the test file (as present at run start — ignore any written by this run's commit). If a class appears in 2+ areas, generate up to 2 `[cross-area]` P1 entries with adversarial instructions. See [probes.md](./references/probes.md) Cross-Area Weakness Synthesis.
 7. **UX Opportunities** (P1/P2 action items for improvements observed at score 3-5)
 8. **Good Patterns** (patterns worth preserving observed at score 4-5 — deliberate design choices, not trivial successes)
 9. **Verification results** per area: claims checked, mismatches found (from Layer 2 pass)
@@ -310,8 +310,8 @@ Apply maturity transitions using agent judgment and the scoring rubric:
    - Update `## Area Trends` section from `score-history.json` data
    - Update `## UX Opportunities Log`: add new entries with sequential IDs (UX001...), update existing entries (mark `implemented` if improvement detected), age out entries per lifecycle rules
    - Update `## Good Patterns`: confirm existing patterns (update `Last Confirmed`), add new patterns, remove patterns unconfirmed for 5+ runs
-   - **Tactical notes:** Append `[Run N] <finding>` to area's Notes column when there's a genuine tactical insight (selector pattern, timing pattern, interaction sequence). Cap 3 entries per area; drop oldest. See [queries-and-multiturn.md](./references/queries-and-multiturn.md).
-   - **Verified selectors:** When Phase 3 confirmed DOM selectors via successful `javascript_tool` batch call, append them to the area's `**verify:**` block with `_Selectors confirmed run N._`. Append-only — never replace user-authored content. See [verification-patterns.md](./references/verification-patterns.md).
+   - **Tactical notes:** Append `[Run N] <finding>` to area's Notes column when there's a genuine tactical insight (selector pattern, timing pattern, interaction sequence). Cap 3 entries per area; drop oldest. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) Tactical Notes.
+   - **Verified selectors:** When Phase 3 confirmed DOM selectors via successful `javascript_tool` batch call, append them to the area's `**verify:**` block with `_Selectors confirmed run N._`. Append-only — never replace user-authored content. See [verification-patterns.md](./references/verification-patterns.md) Selector Discovery and Writeback.
    - **Weakness class:** When 2+ probes in an area share a failure pattern, write `**weakness_class:** <class>` below `pass_threshold`. Remove after 3 consecutive pass runs. One class per area — dominant by probe count. See [probes.md](./references/probes.md) Weakness Classification.
 2. **Update `tests/user-flows/score-history.json`:**
    - Append current run's per-area scores (UX, quality, time)
@@ -340,8 +340,8 @@ Apply maturity transitions using agent judgment and the scoring rubric:
    - Sanitize issue body content before `gh issue create`
    - Skip gracefully if `gh` is not authenticated
    - Never persist credentials (passwords, tokens, session IDs) in issue bodies or test files
-8. **Query compounding:** Sharpen failed queries into probes, expand from discoveries, mark stable queries. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) for steps 8-10 details, query-to-probe conversion rules, and stable query regression tiers.
-9. **Novelty fingerprints:** Merge this run's new fingerprints with existing ones from `.user-test-last-run.json`. Apply 20-per-area cap (drop oldest). Write merged set. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) Novelty Fingerprint Persistence.
+8. **Query compounding:** Sharpen failed queries into probes, expand from discoveries, mark stable queries. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) for steps 8-12 details, query-to-probe conversion rules, and stable query regression tiers.
+8b. **Novelty fingerprints:** Merge this run's new fingerprints with existing ones from `.user-test-last-run.json`. Apply 20-per-area cap (drop oldest). Write merged set. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) Novelty Fingerprint Persistence.
 
 ## Iterate Mode
 

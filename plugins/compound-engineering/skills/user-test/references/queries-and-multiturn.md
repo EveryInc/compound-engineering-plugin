@@ -310,10 +310,6 @@ When triggered, the area's Phase 3 execution changes in five ways:
 
 If a SKIP-classified area has a CLI query scoring 3, **adversarial mode overrides SKIP for that area only** — promoted to PROBES-ONLY with adversarial execution. The CLI signal is too strong to ignore. PROBES-ONLY areas with adversarial mode execute their probes + the pre-emptive probe, but skip full exploration.
 
-### Fingerprint Override
-
-Adversarial mode overrides fingerprint skipping for its specific actions. Competing-constraint queries triggered by adversarial mode always run regardless of fingerprint state.
-
 ### SIGNALS Addition
 
 ```
@@ -322,13 +318,4 @@ Adversarial mode overrides fingerprint skipping for its specific actions. Compet
 
 ### .user-test-last-run.json Fields
 
-Per-area additions:
-
-```json
-{
-  "adversarial_browser": true,
-  "adversarial_trigger": "cli-score-3: show me items under $50 in good condition"
-}
-```
-
-`adversarial_browser: false` (default) means no adversarial mode. `adversarial_trigger: null` when not triggered.
+Per-area: `adversarial_browser` (boolean, default false) and `adversarial_trigger` (string or null). See [last-run-schema.md](./last-run-schema.md) for full schema.

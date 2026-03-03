@@ -482,19 +482,7 @@ EXPLORE NEXT RUN
 
 ### .user-test-last-run.json Format
 
-Cross-area synthesis entries are stored in the `explore_next_run` array:
-
-```json
-{
-  "priority": "P1",
-  "area": "[cross-area]",
-  "mode": "Browser",
-  "why": "stale-react-state in agent/filter-via-chat + browse/filters",
-  "weakness_class": "stale-react-state",
-  "affected_areas": ["agent/filter-via-chat", "browse/filters"],
-  "adversarial_instruction": "Probe ALL navigation sequences that cross area boundaries..."
-}
-```
+Cross-area synthesis entries are stored in the `explore_next_run` array with `weakness_class`, `affected_areas`, and `adversarial_instruction` fields. See [last-run-schema.md](./last-run-schema.md) for full schema.
 
 ### Why Explore Next Run Entries, Not Cross-Area Probes
 
