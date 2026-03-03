@@ -5,6 +5,25 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.49.0] - 2026-03-02
+
+### Added
+
+- **`user-test` skill — cross-area probes, probe isolation, proactive browser restart (schema v7):**
+  - Cross-area probe table: scenario-level probes that test state carry-over between areas (trigger area → observation area)
+  - Cross-area execution slot: runs before per-area testing in Phase 3, no reset between trigger and observation
+  - Spot-check budget: max 3 passing cross-area probes per run, failing/untested always execute
+  - Progressive narrowing: cross-area probes ignore SKIP/PROBES-ONLY classification
+  - Cap: 10 active cross-area probes per test file
+  - Probe isolation: multi-cause isolation pattern for generating cause-specific probes
+  - `related_bug` field: optional field linking any probe to a bug ID for traceability
+  - Bug lifecycle interaction: agent notes related_bug probe status when bug marked fixed
+  - Proactive browser restart: page reload at configurable `mcp_restart_threshold` (default 15 MCP calls)
+  - Connection resilience extracted to `references/connection-resilience.md` (SKILL.md budget savings)
+  - Restart skipped during cross-area probe execution (preserves state carry-over)
+  - New reference file: `connection-resilience.md` (reactive + proactive rules, disconnect tracking)
+  - v6 → v7 schema migration: Cross-Area Probes section, `related_bug`, `mcp_restart_threshold`
+
 ## [2.48.0] - 2026-03-02
 
 ### Added

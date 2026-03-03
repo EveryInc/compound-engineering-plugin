@@ -129,3 +129,21 @@ response=`.chat-message:last-child`, chips=`.suggestion-chip`
 JavaScript dialogs (`alert()`, `confirm()`, `prompt()`) block all browser events.
 If MCP commands stop responding after triggering a dialog, instruct the user to
 dismiss it manually before continuing.
+
+## Proactive Restart
+
+Sustained MCP tool usage degrades browser extension connections. The skill proactively restarts (full page reload to app entry URL) after a configurable number of MCP calls — see Connection Resilience in SKILL.md.
+
+**What a restart clears:**
+- Extension message channel state
+- In-memory JavaScript variables
+- Pending network requests
+
+**What a restart does NOT clear:**
+- Cookies and session storage (login state preserved)
+- IndexedDB data
+- Service worker caches
+
+**Timing:** Restarts happen between areas. If a restart is triggered mid-area, the current area completes first. The next area starts with a fresh page load.
+
+**Impact on cross-area probes:** Cross-area probes must NOT be interrupted by a proactive restart — they depend on state carry-over between trigger and observation areas. The restart check is skipped during cross-area probe execution. The counter still increments.

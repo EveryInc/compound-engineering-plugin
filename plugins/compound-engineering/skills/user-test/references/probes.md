@@ -70,6 +70,42 @@ Each generated probe has:
 
 **v5 migration:** Probes without confidence field → treat as `confidence: high` (existing probes were generated from observed failures). Do NOT rewrite on read.
 
+### Multi-Cause Isolation
+
+When a probe targets a symptom that could have multiple causes (e.g., two open bugs producing the same "0 results" failure), generate separate probes per hypothesized cause. Each probe's setup must isolate the variable being tested:
+
+**Pattern:**
+
+```
+Symptom: y2k accessories returns 0 results
+Cause A: empty data intersection (BUG003)
+Cause B: search bar state contamination (UX010)
+
+Isolated probe A:
+  Setup: fresh session (no prior search bar usage)
+  Query: "y2k accessories"
+  Verify: "results include y2k-tagged items — tests data coverage
+    independent of search bar state"
+  related_bug: BUG003
+
+Isolated probe B (cross-area):
+  Trigger: browse/product-grid — search "dresses" via search bar
+  Observation: agent/filter-via-chat — ask for "y2k accessories"
+  Verify: "agent clears stale category filter before applying y2k"
+  related_bug: UX010
+```
+
+**`related_bug` field:** Optional field on any probe (per-area or cross-area) linking the probe to a specific bug ID. When the probe passes, it provides evidence that the linked bug is fixed. When it fails, it confirms the linked bug is still active. Multiple probes can reference the same bug — each tests the bug from a different angle.
+
+**When to isolate:** The agent should consider isolation when:
+- A probe has `escalated_to` linking to a bug, AND another open bug affects the same area or a related area
+- A failing probe's `result_detail` is ambiguous ("0 results" without specifying whether the data is missing or the query is wrong)
+- Two bugs in bugs.md have overlapping area slugs
+
+**When NOT to isolate:** If only one bug exists for the symptom, or if the causes are clearly distinguishable from the probe result alone, isolation adds complexity without value. Single probes are preferred when the cause is unambiguous.
+
+**Bug lifecycle interaction:** When a bug is marked `fixed` in commit mode, the agent should note whether probes with `related_bug` pointing to that bug are passing or failing. If the bug is fixed but its related probes fail, note the discrepancy in the report: "BUG003 marked fixed but related probe still failing — investigate." This keeps `related_bug` informational while giving it a concrete use during the bug lifecycle.
+
 ## Per-Query Quality Reporting
 
 When an area has `scored_output: true` and multiple Queries were evaluated, the report must surface per-query breakdown — not just the average.
@@ -281,3 +317,87 @@ If the newly generated probe has a `prechecks` tag and `cli_test_command` exists
 **Inter-run probe status:** R2 sees R1's probe results via the `.user-test-last-run.json` scratchpad. A probe that flipped from `failing` to `passing` in R1 is deprioritized in R2 (failing/untested before passing). This is correct and intentional.
 
 Progressive narrowing (SKIP/PROBES-ONLY/FULL classification for run 2+) has moved to [run-targeting.md](./run-targeting.md).
+
+## Cross-Area Probes
+
+Cross-area probes test interactions that span two areas — where an action in one area affects state in another. They live in a scenario-level table (not per-area) and run before per-area testing in Phase 3.
+
+### Lifecycle
+
+Cross-area probes follow the same lifecycle as per-area probes:
+- Status transitions: untested → passing/failing → flaky/graduated
+- Escalation: 3+ consecutive failures → auto-file to bugs.md
+- Graduation: 2+ consecutive passes → eligible for CLI graduation (only if BOTH areas have CLI coverage)
+- Confidence field: same defaults and update rules as per-area
+
+### Generation Triggers
+
+Cross-area probes are generated when:
+- A per-area probe fails AND the failure symptom could be caused by state from another area (agent judgment — look for stale filters, carry-over context, shared state)
+- The novelty budget discovers a cross-area interaction worth tracking
+- Orientation (code reading) identifies a state ownership boundary that crosses two areas
+- The user explicitly requests a cross-area probe
+
+Cross-area probes are NOT generated automatically from every per-area failure. The agent must identify a plausible cross-area cause before generating one. This keeps the table focused on genuine seam tests, not duplicates of per-area probes.
+
+### Execution
+
+1. Navigate to trigger area
+2. Perform action (do NOT reset between trigger and observation)
+3. Navigate to observation area
+4. Run verify check
+5. Record result
+
+The "no reset" between steps 2 and 3 is the critical difference from per-area probes. The whole point is testing state carry-over. If you reset between areas, you're testing two independent areas, not a seam.
+
+### Report Section
+
+Cross-area probe results appear in their own report section, between the header and NEEDS ACTION:
+
+```
+Cross-Area Probes:
+| Trigger → Observation | Action | Status | Detail |
+|-----------------------|--------|--------|--------|
+| browse/product-grid → agent/filter-via-chat | search "dresses" via search bar | failing | agent chat shows stale "Dresses" filter on follow-up |
+```
+
+### Dedup
+
+Key: `trigger_area + observation_area + verify text`. Same 70% word-overlap rule as per-area probes, applied to the area pair. A probe from A→B and a probe from B→A are different probes (different causal direction).
+
+### Bug Filing
+
+When a cross-area probe escalates (3+ consecutive failures), the bug entry in bugs.md lists the trigger area as primary and the observation area in the summary: "Also affects: <observation_area>". This matches the existing multi-area bug format in bugs-registry.md.
+
+### Spot-Check Budget
+
+Passing cross-area probes are spot-checked — execute at most 3 passing probes per run (selected randomly). Failing and untested cross-area probes always execute. This bounds the front-load: a stable test file with 5 passing cross-area probes spot-checks 3, not all 5.
+
+### Progressive Narrowing Interaction
+
+Progressive narrowing classifications (SKIP/PROBES-ONLY/FULL) apply to per-area testing only. Cross-area probes execute in their own slot regardless of the trigger or observation area's narrowing classification. An area classified SKIP for per-area testing can still be a trigger or observation target for cross-area probes.
+
+### Cap
+
+Maximum 10 active cross-area probes per test file. Cross-area probes are more expensive than per-area (two navigation steps, no reset). If the table exceeds 10 active entries, the oldest passing probes rotate out first (same as per-area rotation).
+
+### Proactive Restart Interaction
+
+Cross-area probes must NOT be interrupted by a proactive restart — they depend on state carry-over between trigger and observation areas. The restart check is skipped during cross-area probe execution. The MCP call counter still increments; the restart happens after the cross-area probe sequence completes.
+
+### .user-test-last-run.json Schema
+
+Cross-area probe results are stored alongside `probes_run`:
+
+```json
+"cross_area_probes_run": [
+  {
+    "trigger_area": "browse/product-grid",
+    "action": "search 'dresses' via search bar",
+    "observation_area": "agent/filter-via-chat",
+    "verify": "agent chat responds without stale category filter",
+    "status": "failing",
+    "result_detail": "agent showed stale Dresses filter on follow-up"
+  }
+]
+```

@@ -41,11 +41,11 @@ agents and cleanup tools must never flag them for deletion or gitignore.
    - If argument is a file path (contains `/` or ends in `.md`):
      - Validate path resolves within `tests/user-flows/` (prevent directory traversal)
      - Read and parse the test file
-     - Validate `schema_version` is present (1–6 accepted) <!-- bump range when schema changes -->
-     - **v1 migration:** If `schema_version: 1`, fill missing columns with defaults in memory (`Last Quality` → `—`, `Last Time` → `—`, `Delta` → `—`, `Context` → empty). Do NOT rewrite the file — upgrades happen only during commit.
-     - **v2 migration:** If `schema_version: 2`, fill missing sections (Area Trends, UX Opportunities Log, Good Patterns) with empty tables. Fill missing Run History columns (Best Area, Worst Area) with `—`. Do NOT rewrite the file on read.
+     - Validate `schema_version` is present (1–7 accepted) <!-- bump range when schema changes -->
+     - **v1/v2 migration:** If `schema_version: 1`, fill missing columns (`Last Quality`, `Last Time`, `Delta`, `Context`) with `—`. If `schema_version: 2`, also fill missing sections (Area Trends, UX Opportunities, Good Patterns) and Run History columns (Best Area, Worst Area). Do NOT rewrite on read.
      - **v3/v4 migration:** If `schema_version: 3`, treat missing `verify:` blocks and `Probes:` tables as absent. If `schema_version: 4`, also treat missing `**Queries:**` and `**Multi-turn:**` tables as absent. Do NOT rewrite on read.
      - **v5 migration:** If `schema_version: 5`, treat Probes without `Confidence` column as `confidence: high` (existing probes were generated from observed failures). Treat Probes without `Priority` column as inferred from `Generated From` (verification failure → P1, score-based → P2). Treat Queries without `Status` column as active. Treat missing `seams_read` as `false`. Do NOT rewrite the file on read.
+     - **v6 migration:** If `schema_version: 6`, treat missing `## Cross-Area Probes` section as empty table. Treat missing `mcp_restart_threshold` as 15. Treat probes without `related_bug` as unlinked. Do NOT rewrite on read.
      - **Forward compatibility:** Ignore unknown frontmatter fields. Preserve unknown table columns on write.
      - **Missing `cli_test_command` (any version):** Treat as `cli_test_command: ""`. CLI discovery (step 3) will populate it. Do NOT rewrite the file on read.
      - Extract maturity map, run history, and explore-next-run items
@@ -124,6 +124,10 @@ Probes, verification, and UX scores are three separate signals — none subsumes
 
 Read probes from area `**Probes:**` tables. Execute `untested` and `failing` probes before broad exploration — these are the highest-signal checks. For Proven areas, failing/untested probes always run regardless of MCP budget; the 3-call cap only constrains passing-probe spot-checks. Record each probe result. See [probes.md](./references/probes.md) for execution flow, lifecycle, and dedup rules.
 
+### Cross-Area Probes (Before Per-Area Testing)
+
+Execute cross-area probes before per-area testing — they test state carry-over between areas and inform per-area score interpretation. Results do NOT affect per-area scores. See [probes.md](./references/probes.md).
+
 ### Verification Pass (After Each Area)
 
 After exploring each area, run structural verification checks based on area type — independent of what the agent noticed. Read the area's `**verify:**` block for area-specific instructions. Record verification results separately from UX score. Verification failures block promotion to Proven but do not demote existing Proven areas. See [verification-patterns.md](./references/verification-patterns.md) for standard checks, tolerance rules, and maturity interaction.
@@ -140,11 +144,7 @@ Quick reference: (0) Code-affected → full. (1) P1 Explore Next Run → full. (
 
 ### Connection Resilience
 
-1. After any MCP tool failure: wait 3 seconds (`Bash: sleep 3`)
-2. Retry the call once
-3. If retry fails: display "Extension disconnected. Run `/chrome` and select Reconnect extension"
-4. Track `disconnect_counter` for the session
-5. If `disconnect_counter >= 3`: abort with "Extension connection unstable. Check Chrome extension status and restart the session."
+See [connection-resilience.md](./references/connection-resilience.md) for reactive recovery, proactive restart at configurable MCP call threshold, and disconnect tracking rules.
 
 ### Modal Dialog Handling
 
@@ -362,7 +362,7 @@ Apply maturity transitions using agent judgment and the scoring rubric:
 
 1. **Update test file maturity map and area details:**
    - Write to `.tmp` file first, then rename (atomic write)
-   - Upgrade to v6: bump `schema_version: 6` on first commit regardless of query/probe usage. Add missing columns and sections per [test-file-template.md](./references/test-file-template.md)
+   - Upgrade to v7: bump `schema_version: 7` on first commit regardless of query/probe usage. Add missing columns and sections per [test-file-template.md](./references/test-file-template.md)
    - Update area statuses, scores, timing, quality scores, and consecutive pass counts
    - Update `## Area Trends` section from `score-history.json` data
    - Update `## UX Opportunities Log`: add new entries with sequential IDs (UX001...), update existing entries (mark `implemented` if improvement detected), age out entries per lifecycle rules
@@ -416,5 +416,5 @@ After final run, auto-commit (same as normal `/user-test`). Pass `--no-commit` t
 - [run-targeting.md](./references/run-targeting.md) — area selection, git-aware targeting, progressive narrowing
 - [bugs-registry.md](./references/bugs-registry.md) — bug lifecycle, commit mode update rules
 - [graduation.md](./references/graduation.md) — browser discoveries → CLI regression checks
-- [browser-input-patterns.md](./references/browser-input-patterns.md) — React-safe input, DOM batching, modals
+- [browser-input-patterns.md](./references/browser-input-patterns.md) / [connection-resilience.md](./references/connection-resilience.md) — browser patterns, connection resilience
 - [iterate-mode.md](./references/iterate-mode.md) / [orientation.md](./references/orientation.md) — multi-run orchestration, first-run code reading

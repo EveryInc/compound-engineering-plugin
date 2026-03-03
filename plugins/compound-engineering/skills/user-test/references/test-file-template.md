@@ -6,7 +6,7 @@ Test files live in `tests/user-flows/<scenario-slug>.md` in the target project. 
 
 ```markdown
 ---
-schema_version: 6
+schema_version: 7
 scenario: "<scenario-name>"
 app_url: "http://localhost:3000"
 created: "<YYYY-MM-DD>"
@@ -23,6 +23,7 @@ performance_thresholds:  # optional, seconds
   # acceptable: 8
   # slow: 20
   # broken: 60
+mcp_restart_threshold: 15  # optional, proactive page reload after N MCP calls
 ---
 
 # <Scenario Name>
@@ -63,6 +64,14 @@ performance_thresholds:  # optional, seconds
 |-------|--------|--------|----------|------------|---------------|-------------|
 
 Run History format: comma-separated P/F entries, most recent first. Example: `P,P,F,P` (4 runs: latest passed twice, then failed, then passed). Cap at 10 entries, drop oldest. Consecutive count for escalation/graduation is computed from the leading streak.
+
+## Cross-Area Probes
+
+<!-- Probes that test state carry-over between areas. Run before per-area
+     testing. See probes.md for lifecycle and generation triggers. -->
+
+| Trigger Area | Action | Observation Area | Verify | Status | Priority | Confidence | Generated From | Run History |
+|-------------|--------|-----------------|--------|--------|----------|------------|---------------|-------------|
 
 ## Area Trends
 
@@ -146,9 +155,17 @@ regardless of schema version. CLI discovery runs in Phase 1 step 3.
 
 **Reading v5 files:** Probes without `Confidence` column → treat as `confidence: high` (existing probes were generated from observed failures). Probes without `Priority` column → infer from `Generated From` (verification failure → P1, score-based → P2). Queries without `Status` column → treat as active. Existing `[stable]` tags in Notes column → migrate to Status column on first v6 commit, remove from Notes. Missing `seams_read` → treat as `false` (triggers Orientation on first v6 run). Do NOT rewrite the file on read.
 
+**v6 → v7 changes:**
+- New section: `## Cross-Area Probes` (scenario-level probe table for interactions spanning two areas)
+- Probe generation: optional `related_bug` field for isolation probes (any probe, per-area or cross-area)
+- Test file frontmatter: optional `mcp_restart_threshold` field (default 15)
+- Connection resilience extracted to `references/connection-resilience.md`
+
+**Reading v6 files:** Treat missing `## Cross-Area Probes` section as empty table. Treat missing `mcp_restart_threshold` as 15. Treat probes without `related_bug` as unlinked. Do NOT rewrite on read.
+
 **CLI gate for query retirement:** Only queries in test files with `cli_test_command` set can reach `[retired]` status. Queries without CLI backstop max out at `[stable]` and continue receiving browser spot-checks via the Proven area MCP budget. If `cli_test_command` is removed from a file with `[retired]` queries, those queries demote to `[stable]` on next commit.
 
-**Writing any file:** Upgrade to v6 on commit. Bump `schema_version: 6` in frontmatter on the first commit under v6 skill logic. The version number reflects which skill version last wrote the file.
+**Writing any file:** Upgrade to v7 on commit. Bump `schema_version: 7` in frontmatter on the first commit under v7 skill logic. The version number reflects which skill version last wrote the file.
 
 **Forward compatibility:** Ignore unknown frontmatter fields from future schema versions. Preserve unknown table columns on write.
 
