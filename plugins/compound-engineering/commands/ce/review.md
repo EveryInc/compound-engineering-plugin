@@ -65,19 +65,67 @@ Read `compound-engineering.local.md` in the project root. If found, use `review_
 
 If no settings file exists, invoke the `setup` skill to create one. Then read the newly created file and continue.
 
+#### Build Review Packet (REQUIRED BEFORE SPAWNING AGENTS)
+
+<review_packet_rules>
+
+Before launching any review agent, create a compact review packet from local repo inspection and `gh pr view --json` output.
+
+The packet should contain:
+- PR title, body summary, and linked issues in 5 bullets or fewer
+- Changed files grouped by subsystem, plus churn totals (file count / additions / deletions)
+- High-risk files and why they matter
+- Test coverage summary: existing tests touched, new tests added, missing test areas
+- Open questions or suspicious patterns that need deeper inspection
+
+Keep the packet lean:
+- Target under 200 lines and under ~3k tokens
+- Do NOT paste the full diff, full PR body, or full file contents into every Task
+- Omit generated files, lockfiles, snapshots, vendored assets, and build artifacts unless they are the source of risk
+- For large files, include only the specific functions/classes/line ranges that matter
+
+Each Task should receive:
+- the review packet
+- the project-specific review context from `compound-engineering.local.md`
+- the exact file paths it should inspect next
+
+If an agent needs more detail, instruct it to read files from disk directly rather than relying on pasted context.
+
+</review_packet_rules>
+
 #### Parallel Agents to review the PR:
 
 <parallel_tasks>
 
-Run all configured review agents in parallel using Task tool. For each agent in the `review_agents` list:
+Build the final base agent set as:
+
+1. `review_agents` from config
+2. Always-on agents: `agent-native-reviewer`, `learnings-researcher`
+
+Deduplicate this list while preserving order. Never run the same agent twice.
+
+Run the deduped agent set in parallel using Task tool. For each agent:
 
 ```
-Task {agent-name}(PR content + review context from settings body)
+Task {agent-name}(review packet + exact file paths to inspect + review context from settings body)
 ```
 
-Additionally, always run these regardless of settings:
-- Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
-- Task learnings-researcher(PR content) - Search docs/solutions/ for past issues related to this PR's modules and patterns
+Additionally:
+- `agent-native-reviewer` verifies that new features are agent-accessible
+- `learnings-researcher` searches `docs/solutions/` for past issues related to this PR's modules and patterns
+
+#### Large-PR Context Guardrails
+
+If the PR is large (for example: >25 files changed, >800 changed lines, multiple subsystems, or the model has already warned about compaction/context pressure), do NOT fan out to every configured agent immediately.
+
+Instead:
+
+1. Start with a first wave: stack-specific reviewer(s), `agent-native-reviewer`, `learnings-researcher`, and only the most relevant focus agent(s) for the risky files.
+2. Wait for first-wave results and identify unresolved hot spots.
+3. Launch second-wave agents only for those hot spots, passing a narrower follow-up packet and the specific file paths.
+4. Prefer targeted follow-up Tasks over repeating a full-repo review.
+
+When context pressure is visible, breadth yields to precision. It is better to run fewer well-targeted agents than many shallow agents that compact and lose the actual code under review.
 
 </parallel_tasks>
 
@@ -89,9 +137,9 @@ These agents are run ONLY when the PR matches specific criteria. Check the PR fi
 
 **MIGRATIONS: If PR contains database migrations, schema.rb, or data backfills:**
 
-- Task schema-drift-detector(PR content) - Detects unrelated schema.rb changes by cross-referencing against included migrations (run FIRST)
-- Task data-migration-expert(PR content) - Validates ID mappings match production, checks for swapped values, verifies rollback safety
-- Task deployment-verification-agent(PR content) - Creates Go/No-Go deployment checklist with SQL verification queries
+- Task schema-drift-detector(review packet + migration file paths) - Detects unrelated schema.rb changes by cross-referencing against included migrations (run FIRST)
+- Task data-migration-expert(review packet + migration file paths) - Validates ID mappings match production, checks for swapped values, verifies rollback safety
+- Task deployment-verification-agent(review packet + migration file paths) - Creates Go/No-Go deployment checklist with SQL verification queries
 
 **When to run:**
 - PR includes files matching `db/migrate/*.rb` or `db/schema.rb`
@@ -203,7 +251,9 @@ Complete system context map with component interactions
 
 ### 4. Simplification and Minimalism Review
 
-Run the Task code-simplicity-reviewer() to see if we can simplify the code.
+If `code-simplicity-reviewer` is NOT already in the deduped agent set, run it now with the same review packet.
+
+If it already ran in the main review wave, reuse that result. Do not spawn `code-simplicity-reviewer` twice for the same PR.
 
 ### 5. Findings Synthesis and Todo Creation Using file-todos Skill
 

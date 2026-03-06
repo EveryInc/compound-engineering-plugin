@@ -114,9 +114,9 @@ options:
   - label: "Thorough (Recommended)"
     description: "Stack reviewers + all selected focus agents."
   - label: "Fast"
-    description: "Stack reviewers + code simplicity only. Less context, quicker."
+    description: "Stack reviewers + code simplicity only. Lowest context use for large PRs."
   - label: "Comprehensive"
-    description: "All above + git history, data integrity, agent-native checks."
+    description: "All above + git history and data integrity. Always-on review agents stay deduped."
 ```
 
 ## Step 4: Build Agent List and Write File
@@ -136,7 +136,9 @@ options:
 **Depth:**
 - Thorough: stack + selected focus areas
 - Fast: stack + `code-simplicity-reviewer` only
-- Comprehensive: all above + `git-history-analyzer, data-integrity-guardian, agent-native-reviewer`
+- Comprehensive: all above + `git-history-analyzer, data-integrity-guardian`
+
+`agent-native-reviewer` and `learnings-researcher` are always added by `/ce:review`, so do not include them in `review_agents`.
 
 **Plan review agents:** stack-specific reviewer + `code-simplicity-reviewer`.
 
@@ -168,6 +170,10 @@ Stack:        {type}
 Review depth: {depth}
 Agents:       {count} configured
               {agent list, one per line}
+
+Always-on during /ce:review:
+              agent-native-reviewer
+              learnings-researcher
 
 Tip: Edit the "Review Context" section to add project-specific instructions.
      Re-run this setup anytime to reconfigure.
