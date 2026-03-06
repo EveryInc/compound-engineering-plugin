@@ -310,6 +310,56 @@ describe("CLI", () => {
     expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
   })
 
+  test("convert preserves compound-engineering review guardrails in codex output", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-ce-codex-home-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+    const pluginRoot = path.join(import.meta.dir, "..", "plugins", "compound-engineering")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      "src/index.ts",
+      "convert",
+      pluginRoot,
+      "--to",
+      "codex",
+      "--codex-home",
+      codexRoot,
+    ], {
+      cwd: path.join(import.meta.dir, ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    const reviewPromptPath = path.join(codexRoot, "prompts", "ce-review.md")
+    const reviewSkillPath = path.join(codexRoot, "skills", "ce-review", "SKILL.md")
+    const setupSkillPath = path.join(codexRoot, "skills", "setup", "SKILL.md")
+
+    expect(stdout).toContain("Converted compound-engineering")
+    expect(await exists(reviewPromptPath)).toBe(true)
+    expect(await exists(reviewSkillPath)).toBe(true)
+    expect(await exists(setupSkillPath)).toBe(true)
+
+    const reviewPrompt = await fs.readFile(reviewPromptPath, "utf8")
+    const reviewSkill = await fs.readFile(reviewSkillPath, "utf8")
+    const setupSkill = await fs.readFile(setupSkillPath, "utf8")
+
+    expect(reviewPrompt).toContain("create a compact review packet")
+    expect(reviewPrompt).toContain("Deduplicate this list while preserving order. Never run the same agent twice.")
+    expect(reviewPrompt).toContain("Do not spawn `code-simplicity-reviewer` twice for the same PR.")
+    expect(reviewSkill).toContain("Task {agent-name}(review packet + exact file paths to inspect + review context from settings body)")
+    expect(setupSkill).toContain("`agent-native-reviewer` and `learnings-researcher` are always added by `/ce:review`, so do not include them in `review_agents`.")
+    expect(setupSkill).toContain("Always-on during /ce:review:")
+  })
+
   test("install supports --also with codex output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-"))
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")

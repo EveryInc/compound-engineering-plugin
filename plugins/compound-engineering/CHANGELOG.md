@@ -5,6 +5,15 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.38.2] - 2026-03-06
+
+### Fixed
+
+- **`/ce:review` context budget guardrails** — Review agents now build and share a compact review packet instead of receiving the full PR content by default, dedupe always-on agents, and stage follow-up agents for large PRs to reduce context-limit failures during high-effort reviews. ([#166](https://github.com/EveryInc/compound-engineering-plugin/issues/166))
+- **`setup` review depth dedupe** — Comprehensive review configs no longer add `agent-native-reviewer` to `review_agents`, because `/ce:review` already runs it automatically alongside `learnings-researcher`.
+
+---
+
 ## [2.38.1] - 2026-03-01
 
 ### Fixed
