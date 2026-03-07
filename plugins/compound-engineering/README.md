@@ -7,7 +7,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 29 |
-| Commands | 22 |
+| Commands | 23 |
 | Skills | 20 |
 | MCP Servers | 1 |
 
@@ -91,6 +91,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 |---------|-------------|
 | `/lfg` | Full autonomous engineering workflow |
 | `/slfg` | Full autonomous workflow with swarm mode for parallel execution |
+| `/lfg-ext` | LFG with external delegates (Codex/Gemini/OpenCode) in parallel worktrees — token-efficient alternative to /slfg |
 | `/deepen-plan` | Enhance plans with parallel research agents for each section |
 | `/changelog` | Create engaging changelogs for recent merges |
 | `/create-agent-skill` | Create or edit Claude Code skills |
