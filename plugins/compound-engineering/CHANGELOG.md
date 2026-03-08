@@ -5,6 +5,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.39.0] - 2026-03-08
+
+### Added
+
+- **`tdd` skill** -- Opt-in test-driven development workflow that integrates red-green-refactor discipline into implementation plans. Triggered when the user mentions TDD-related keywords before or after `/ce:plan`. Includes the full TDD cycle (RED/GREEN/REFACTOR), plan augmentation format for restructuring tasks into behavioral increments, test granularity guidance, and a reference file of common TDD anti-patterns with corrections. Language-agnostic and strongly opinionated.
+
+---
+
 ## [2.38.1] - 2026-03-01
 
 ### Fixed
