@@ -8,15 +8,15 @@ Common mistakes that undermine test-driven development, and how to correct them.
 
 **Example (bad):**
 ```
-# Tests that the internal cache hash has a specific key
-assert user._cache[:permissions] == [:read, :write]
+# Tests internal cache state
+assert user.internal_cache["permissions"] == ["read", "write"]
 ```
 
 **Correction:** Assert on outcomes visible to the caller.
 ```
 # Tests that the user has the expected permissions
-assert user.can?(:read)
-assert user.can?(:write)
+assert user.has_permission("read")
+assert user.has_permission("write")
 ```
 
 **Rule of thumb:** If renaming a private method or changing an internal data structure breaks a test, the test is coupled to implementation.
@@ -31,7 +31,9 @@ assert user.can?(:write)
 
 **Problem:** Every dependency is mocked, so tests pass but the system does not actually work. Tests verify that mocks return what they were told to return.
 
-**Correction:** Mock at boundaries (external APIs, file systems, third-party services). Use real objects for internal collaborators. If a test requires more than 2-3 mocks, the code under test may have too many dependencies -- that is a design signal, not a testing problem.
+**Correction (Classical/Chicago approach):** Mock at boundaries (external APIs, file systems, third-party services). Use real objects for internal collaborators. If a test requires more than 2-3 test doubles, the code under test may have too many dependencies -- that is a design signal, not a testing problem.
+
+**Note:** The London/Mockist school deliberately mocks all collaborators to drive interface design. That is a different philosophy, not an error. This skill follows the Classical approach.
 
 ## Skipping the Refactor Step
 
@@ -97,4 +99,44 @@ end
 
 **Problem:** Tests fail with unhelpful messages like "expected true, got false" or "assertion failed." Debugging requires reading the test source.
 
-**Correction:** Write assertion messages that explain what went wrong in business terms. Good failure messages save time during debugging and serve as documentation.
+**Example (bad):**
+```
+assert result
+```
+
+**Correction:** Include context in the assertion message.
+```
+assert result, "Expected expired subscription to deny access, but access was granted"
+```
+
+Failure messages are documentation. When a test fails six months from now, the message should explain the business rule without reading the test body.
+
+## Over-Implementing on GREEN (AI-Specific)
+
+**Problem:** AI coding assistants tend to write the complete, optimized solution in the GREEN step instead of the minimum code to pass the test. This defeats TDD's incremental design benefit -- the design emerges from many small steps, not one large leap.
+
+**Example (bad):**
+```
+# RED: test that fizzbuzz(3) returns "Fizz"
+# GREEN: writes the entire FizzBuzz algorithm including Buzz, FizzBuzz, and edge cases
+```
+
+**Correction:** In the GREEN step, write only what the current failing test demands. If the test says `fizzbuzz(3)` returns `"Fizz"`, a valid GREEN implementation is `return "Fizz"`. The next test will force generalization.
+
+## Mirror Tests (AI-Specific)
+
+**Problem:** AI generates tests that are structural copies of the implementation -- the test essentially re-implements the production code and asserts they match. These tests pass by definition and catch nothing.
+
+**Example (bad):**
+```
+# Production: total = price * quantity * (1 - discount)
+# Test: assert total == price * quantity * (1 - discount)
+```
+
+**Correction:** Tests should use concrete values, not replicate the formula. Assert `calculate_total(10, 5, 0.1) == 45`, not `calculate_total(price, qty, disc) == price * qty * (1 - disc)`.
+
+## Skipping RED Verification (AI-Specific)
+
+**Problem:** AI writes the test and implementation together in one pass without verifying the test fails first. This skips the most important step -- confirming the test can detect failure.
+
+**Correction:** Always run the test before writing implementation code. Observe the failure. Read the failure message. Only then write the GREEN step. This is the discipline that separates TDD from "writing tests."

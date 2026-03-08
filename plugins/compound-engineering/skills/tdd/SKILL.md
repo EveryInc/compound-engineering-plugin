@@ -11,11 +11,7 @@ Integrate red-green-refactor discipline into implementation plans and coding wor
 
 The test is the first consumer of the API. If it is awkward to test, the design is wrong.
 
-- Red-green-refactor is non-negotiable -- writing code then backfilling tests is not TDD
-- Each cycle targets one behavioral change and one assertion
-- Refactoring happens ONLY when tests are green
-- Tests describe behavior, not implementation details
-- When in doubt, default to TDD
+This skill follows the Classical (Chicago) school of TDD: prefer real objects over test doubles, assert on state and outcomes, mock only at system boundaries. The London (Mockist) school -- which drives design through interaction-based testing with mocks for all collaborators -- is a valid alternative but is not the approach taught here.
 
 ## When to Use
 
@@ -31,7 +27,15 @@ The test is the first consumer of the API. If it is awkward to test, the design 
 - Doing pure UI layout and styling work
 - The task is a trivial rename or one-line change
 
-When a user mentions TDD-related keywords before or after `/ce:plan`, restructure the plan's implementation tasks to follow the red-green-refactor cycle. When TDD is not mentioned, do not apply this skill.
+When TDD is not mentioned, do not apply this skill.
+
+## Activation
+
+When this skill triggers:
+
+1. **Detect the test runner.** Identify the project's test framework from configuration files (package.json, Gemfile, pyproject.toml, go.mod, Cargo.toml, pom.xml, etc.). Use the detected runner for all RED/GREEN verification steps.
+2. **If a plan exists or is being created** (`/ce:plan`), restructure implementation tasks to follow the red-green-refactor cycle (see Restructuring Plans for TDD below).
+3. **If no plan exists,** begin the first RED step for the current task.
 
 ## The Cycle
 
@@ -41,7 +45,7 @@ For each behavioral increment in a work item:
 
 Write a test that describes the expected behavior. Run the test suite and confirm the new test fails.
 
-If the test passes immediately, it is testing nothing new -- rewrite it or question whether the behavior already exists.
+If the test passes immediately, investigate why. If the behavior already exists, skip this cycle and move to the next increment. If the test is not actually exercising the intended behavior, rewrite it until it fails. A test that was never red is not trustworthy.
 
 **Test naming convention:** describe behavior, not method names.
 
@@ -71,9 +75,11 @@ Run the test suite after each change. Never refactor on red.
 
 Move to the next behavioral increment. Each cycle should take minutes, not hours. If a cycle is dragging, the increment is too large -- split it.
 
-## Plan Augmentation
+## Restructuring Plans for TDD
 
 When TDD is requested alongside `/ce:plan`, restructure each implementation task to follow the cycle. Break features into behavioral increments, each with explicit RED/GREEN/REFACTOR steps.
+
+To decompose a feature into increments: start with the simplest happy path, then add validation and error cases, then edge cases, then integration points. Each becomes a RED-GREEN-REFACTOR cycle. Resist the urge to write all tests upfront -- discover the design incrementally.
 
 **Standard plan task:**
 
@@ -116,26 +122,23 @@ Choose the starting test level based on the situation:
 
 Do not be dogmatic about one level. Start where the value is highest, add other levels as needed.
 
+### Adding TDD to Untested Code
+
+When adding features to code with no test coverage, do not start TDD on the new feature immediately. First, write characterization tests -- tests that document the code's *current* behavior, whether correct or not:
+
+1. Run the existing code and observe what it does
+2. Write tests that assert the current behavior
+3. Confirm these tests pass (they should -- they describe what already exists)
+4. Now begin TDD for the new feature, with characterization tests as a safety net
+
+Characterization tests prevent the new feature from accidentally breaking existing behavior that users depend on.
+
 ## Discipline Rules
 
 1. **Never skip RED.** A test that was never red never proved anything. The red step confirms the test can detect failure.
-2. **Never commit without a corresponding test.** If the behavior changed, a test should document that change.
+2. **Never commit a behavioral change without a corresponding test.** Configuration, boilerplate, and trivial renames are exempt (see "Skip TDD when" above), but any change to how the system behaves needs a test.
 3. **Never refactor on red.** Get to green first, then clean up. Mixing implementation and refactoring creates confusion about what broke.
 4. **Keep cycles small.** If a RED-GREEN cycle takes more than 15-20 minutes, the behavioral increment is too large. Split it.
-5. **Test behavior, not implementation.** Assert on outcomes visible to the caller, not internal state. See [anti-patterns.md](./references/anti-patterns.md) for common mistakes.
+5. **Test behavior, not implementation.** Assert on outcomes visible to the caller, not internal state. A single behavior may have multiple observable effects worth asserting -- "one behavior per test" not "one assertion per test." See [anti-patterns.md](./references/anti-patterns.md) for common mistakes.
 6. **Run the full suite frequently.** Not just the new test -- the full suite. Catch unintended breakage early.
 
-## Decomposing Features into TDD Increments
-
-The hardest part of TDD is deciding what to test first. Use this heuristic:
-
-1. **Start with the happy path.** What is the simplest successful case?
-2. **Add validation and error cases.** What inputs should be rejected?
-3. **Add edge cases.** Empty collections, boundary values, concurrent access.
-4. **Add integration points.** How does this interact with other components?
-
-Each of these becomes a RED-GREEN-REFACTOR cycle. Resist the urge to write all tests upfront -- discover the design incrementally.
-
-## Anti-Patterns
-
-For detailed guidance on common TDD mistakes and corrections, see [anti-patterns.md](./references/anti-patterns.md).
