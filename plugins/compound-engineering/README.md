@@ -8,7 +8,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 |-----------|-------|
 | Agents | 28 |
 | Commands | 22 |
-| Skills | 20 |
+| Skills | 21 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -124,7 +124,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `dhh-rails-style` | Write Ruby/Rails code in DHH's 37signals style |
 | `dspy-ruby` | Build type-safe LLM applications with DSPy.rb |
 | `frontend-design` | Create production-grade frontend interfaces |
-
+| `tdd` | Integrate red-green-refactor TDD discipline into plans and coding |
 
 ### Content & Workflow
 
