@@ -33,8 +33,8 @@ for skill_dir in "$PLUGIN_DIR"/go-*; do
 
     [ -f "$skill_file" ] || continue
 
-    # Remove existing symlink if present
-    [ -L "$target" ] && rm "$target"
+    # Remove existing file or symlink if present
+    [ -e "$target" ] || [ -L "$target" ] && rm "$target"
 
     ln -s "$skill_file" "$target"
     echo "  Linked: $skill_name.md -> $skill_file"
