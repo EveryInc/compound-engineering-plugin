@@ -158,7 +158,7 @@ If the `simplifycode` skill is installed, invoke it:
 skill: "simplifycode"
 ```
 
-If not installed, skip this phase — code simplicity review can be done during Phase 3 (review) or manually.
+If not installed, skip this phase.
 
 Wait for Phase 5 to complete before proceeding.
 

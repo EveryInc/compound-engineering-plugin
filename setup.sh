@@ -34,7 +34,7 @@ for skill_dir in "$PLUGIN_DIR"/go-*; do
     [ -f "$skill_file" ] || continue
 
     # Remove existing file or symlink if present
-    [ -e "$target" ] || [ -L "$target" ] && rm "$target"
+    rm -f "$target"
 
     ln -s "$skill_file" "$target"
     echo "  Linked: $skill_name.md -> $skill_file"
@@ -49,6 +49,6 @@ echo "  /go-lite        — Balanced workflow (plan, work, review, fix)"
 echo "  /go-ham         — Full workflow with research and browser testing"
 echo "  /go-lite-noweb  — Fast workflow, no web research or browser testing"
 echo ""
-echo "Prerequisite: compound-engineering plugin must be installed."
-echo "These workflows depend on ce:plan, ce:review, ce:compound, and"
-echo "deepen-plan from the compound-engineering plugin."
+echo "This repo includes compound-engineering. The go-* workflows use"
+echo "ce:plan, ce:review, ce:compound, and deepen-plan skills from"
+echo "the same plugin."

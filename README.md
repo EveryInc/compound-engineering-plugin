@@ -1,6 +1,6 @@
 # t851029/skills-repo
 
-Fork of [EveryInc/every-marketplace](https://github.com/EveryInc/compound-engineering-plugin) with three custom workflow skills added: `go-lite`, `go-ham`, and `go-lite-noweb`.
+Fork of [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) with three custom workflow skills added: `go-lite`, `go-ham`, and `go-lite-noweb`.
 
 ## What this is
 
@@ -118,6 +118,11 @@ To pull in updates from the upstream compound-engineering plugin:
 
 ```bash
 cd ~/.config/opencode/skills/skills-repo   # or wherever you cloned it
+
+# One-time: add upstream remote (if not already set)
+git remote add upstream https://github.com/EveryInc/compound-engineering-plugin.git
+
+# Pull updates
 git fetch upstream
 git merge upstream/main
 ```
@@ -164,4 +169,4 @@ Optional (not in compound-engineering, skip if absent):
 
 ## License
 
-MIT — inherited from upstream [EveryInc/every-marketplace](https://github.com/EveryInc/compound-engineering-plugin). See [LICENSE](LICENSE).
+MIT — inherited from upstream [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin). See [LICENSE](LICENSE).
