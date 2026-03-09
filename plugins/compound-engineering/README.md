@@ -8,7 +8,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 |-----------|-------|
 | Agents | 29 |
 | Commands | 22 |
-| Skills | 20 |
+| Skills | 21 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -120,6 +120,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | Skill | Description |
 |-------|-------------|
 | `andrew-kane-gem-writer` | Write Ruby gems following Andrew Kane's patterns |
+| `ce-audit` | Audit docs/solutions/ for stale learnings against the current codebase |
 | `compound-docs` | Capture solved problems as categorized documentation |
 | `create-agent-skills` | Expert guidance for creating Claude Code skills |
 | `dhh-rails-style` | Write Ruby/Rails code in DHH's 37signals style |

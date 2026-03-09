@@ -5,6 +5,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.39.0] - 2026-03-08
+
+### Added
+
+- **`ce-audit` skill** - Knowledge freshness auditor that detects stale learnings in `docs/solutions/` by cross-referencing documented solutions against the current codebase. Checks for deleted files, renamed modules, restructured directories, and significantly modified code. Outputs a structured report with actionable recommendations (archive, review, or export). Addresses [#221](https://github.com/EveryInc/compound-engineering-plugin/issues/221).
+
+---
+
 ## [2.38.1] - 2026-03-01
 
 ### Fixed
