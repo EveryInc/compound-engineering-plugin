@@ -1,8 +1,8 @@
 {
-  "name": "compound-engineering-plugin",
+  "name": "t851029-skills",
   "owner": {
-    "name": "Kieran Klaassen",
-    "url": "https://github.com/kieranklaassen"
+    "name": "t851029",
+    "url": "https://github.com/t851029"
   },
   "metadata": {
     "description": "Plugin marketplace for Claude Code extensions",

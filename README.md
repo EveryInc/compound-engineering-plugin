@@ -1,189 +1,167 @@
-# Compound Marketplace
+# t851029/skills-repo
 
-[![Build Status](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@every-env/compound-plugin)](https://www.npmjs.com/package/@every-env/compound-plugin)
+Fork of [EveryInc/every-marketplace](https://github.com/EveryInc/compound-engineering-plugin) with three custom workflow skills added: `go-lite`, `go-ham`, and `go-lite-noweb`.
 
-A Claude Code plugin marketplace featuring the **Compound Engineering Plugin** — tools that make each unit of engineering work easier than the last.
+## What this is
 
-## Claude Code Install
+This is the [compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) plugin marketplace, extended with three opinionated development workflow skills. The plugin name stays `compound-engineering` because this IS the compound-engineering plugin — just with extra workflows baked in.
 
-```bash
-/plugin marketplace add EveryInc/compound-engineering-plugin
-/plugin install compound-engineering
-```
-
-## Cursor Install
-
-```text
-/add-plugin compound-engineering
-```
-
-## OpenCode, Codex, Droid, Pi, Gemini, Copilot, Kiro, Windsurf, OpenClaw & Qwen (experimental) Install
-
-This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Pi, Gemini CLI, GitHub Copilot, Kiro CLI, Windsurf, OpenClaw, and Qwen Code.
+A friend runs two commands and gets all compound-engineering skills plus the custom workflows:
 
 ```bash
-# convert the compound-engineering plugin into OpenCode format
-bunx @every-env/compound-plugin install compound-engineering --to opencode
-
-# convert to Codex format
-bunx @every-env/compound-plugin install compound-engineering --to codex
-
-# convert to Factory Droid format
-bunx @every-env/compound-plugin install compound-engineering --to droid
-
-# convert to Pi format
-bunx @every-env/compound-plugin install compound-engineering --to pi
-
-# convert to Gemini CLI format
-bunx @every-env/compound-plugin install compound-engineering --to gemini
-
-# convert to GitHub Copilot format
-bunx @every-env/compound-plugin install compound-engineering --to copilot
-
-# convert to Kiro CLI format
-bunx @every-env/compound-plugin install compound-engineering --to kiro
-
-# convert to OpenClaw format
-bunx @every-env/compound-plugin install compound-engineering --to openclaw
-
-# convert to Windsurf format (global scope by default)
-bunx @every-env/compound-plugin install compound-engineering --to windsurf
-
-# convert to Windsurf workspace scope
-bunx @every-env/compound-plugin install compound-engineering --to windsurf --scope workspace
-
-# convert to Qwen Code format
-bunx @every-env/compound-plugin install compound-engineering --to qwen
-
-# auto-detect installed tools and install to all
-bunx @every-env/compound-plugin install compound-engineering --to all
+/plugin marketplace add t851029/skills-repo
+/plugin install compound-engineering@t851029-skills
 ```
 
-Local dev:
+## Installation
+
+### Claude Code
 
 ```bash
-bun run src/index.ts install ./plugins/compound-engineering --to opencode
+/plugin marketplace add t851029/skills-repo
+/plugin install compound-engineering@t851029-skills
 ```
 
-<details>
-<summary>Output format details per target</summary>
-
-| Target | Output path | Notes |
-|--------|------------|-------|
-| `opencode` | `~/.config/opencode/` | Commands as `.md` files; `opencode.json` MCP config deep-merged; backups made before overwriting |
-| `codex` | `~/.codex/prompts` + `~/.codex/skills` | Each command becomes a prompt + skill pair; descriptions truncated to 1024 chars |
-| `droid` | `~/.factory/` | Tool names mapped (`Bash`→`Execute`, `Write`→`Create`); namespace prefixes stripped |
-| `pi` | `~/.pi/agent/` | Prompts, skills, extensions, and `mcporter.json` for MCPorter interoperability |
-| `gemini` | `.gemini/` | Skills from agents; commands as `.toml`; namespaced commands become directories (`workflows:plan` → `commands/workflows/plan.toml`) |
-| `copilot` | `.github/` | Agents as `.agent.md` with Copilot frontmatter; MCP env vars prefixed with `COPILOT_MCP_` |
-| `kiro` | `.kiro/` | Agents as JSON configs + prompt `.md` files; only stdio MCP servers supported |
-| `openclaw` | `~/.openclaw/extensions/<plugin>/` | Entry-point TypeScript skill file; `openclaw-extension.json` for MCP servers |
-| `windsurf` | `~/.codeium/windsurf/` (global) or `.windsurf/` (workspace) | Agents become skills; commands become flat workflows; `mcp_config.json` merged |
-| `qwen` | `~/.qwen/extensions/<plugin>/` | Agents as `.yaml`; env vars with placeholders extracted as settings; colon separator for nested commands |
-
-All provider targets are experimental and may change as the formats evolve.
-
-</details>
-
-## Sync Personal Config
-
-Sync your personal Claude Code config (`~/.claude/`) to other AI coding tools. Omit `--target` to sync to all detected supported tools automatically:
+### OpenCode
 
 ```bash
-# Sync to all detected tools (default)
-bunx @every-env/compound-plugin sync
-
-# Sync skills and MCP servers to OpenCode
-bunx @every-env/compound-plugin sync --target opencode
-
-# Sync to Codex
-bunx @every-env/compound-plugin sync --target codex
-
-# Sync to Pi
-bunx @every-env/compound-plugin sync --target pi
-
-# Sync to Droid
-bunx @every-env/compound-plugin sync --target droid
-
-# Sync to GitHub Copilot (skills + MCP servers)
-bunx @every-env/compound-plugin sync --target copilot
-
-# Sync to Gemini (skills + MCP servers)
-bunx @every-env/compound-plugin sync --target gemini
-
-# Sync to Windsurf
-bunx @every-env/compound-plugin sync --target windsurf
-
-# Sync to Kiro
-bunx @every-env/compound-plugin sync --target kiro
-
-# Sync to Qwen
-bunx @every-env/compound-plugin sync --target qwen
-
-# Sync to OpenClaw (skills only; MCP is validation-gated)
-bunx @every-env/compound-plugin sync --target openclaw
-
-# Sync to all detected tools
-bunx @every-env/compound-plugin sync --target all
+git clone https://github.com/t851029/skills-repo ~/.config/opencode/skills/skills-repo
+cd ~/.config/opencode/skills/skills-repo
+./setup.sh
 ```
 
-This syncs:
-- Personal skills from `~/.claude/skills/` (as symlinks)
-- Personal slash commands from `~/.claude/commands/` (as provider-native prompts, workflows, or converted skills where supported)
-- MCP servers from `~/.claude/settings.json`
+`setup.sh` symlinks the go-* SKILL.md files directly into `~/.config/opencode/commands/`.
 
-Skills are symlinked (not copied) so changes in Claude Code are reflected immediately.
+## Plugin Collision Warning
 
-Supported sync targets:
-- `opencode`
-- `codex`
-- `pi`
-- `droid`
-- `copilot`
-- `gemini`
-- `windsurf`
-- `kiro`
-- `qwen`
-- `openclaw`
+If you already have `compound-engineering` installed from upstream, uninstall it first:
 
-Notes:
-- Codex sync preserves non-managed `config.toml` content and now includes remote MCP servers.
-- Command sync reuses each provider's existing Claude command conversion, so some targets receive prompts or workflows while others receive converted skills.
-- Copilot sync writes personal skills to `~/.copilot/skills/` and MCP config to `~/.copilot/mcp-config.json`.
-- Gemini sync writes MCP config to `~/.gemini/` and avoids mirroring skills that Gemini already discovers from `~/.agents/skills`, which prevents duplicate-skill warnings.
-- Droid, Windsurf, Kiro, and Qwen sync merge MCP servers into the provider's documented user config.
-- OpenClaw currently syncs skills only. Personal command sync is skipped because this repo does not yet have a documented user-level OpenClaw command surface, and MCP sync is skipped because the current official OpenClaw docs do not clearly document an MCP server config contract.
-
-## Workflow
-
-```
-Plan → Work → Review → Compound → Repeat
+```bash
+/plugin uninstall compound-engineering
+/plugin marketplace remove EveryInc/every-marketplace    # optional
+/plugin marketplace add t851029/skills-repo
+/plugin install compound-engineering@t851029-skills
 ```
 
-| Command | Purpose |
-|---------|---------|
-| `/ce:plan` | Turn feature ideas into detailed implementation plans |
-| `/ce:work` | Execute plans with worktrees and task tracking |
-| `/ce:review` | Multi-agent code review before merging |
-| `/ce:compound` | Document learnings to make future work easier |
+Installing both will cause a name collision since both use the `compound-engineering` plugin name.
 
-Each cycle compounds: plans inform future plans, reviews catch more issues, patterns get documented.
+## Three Workflows
 
-## Philosophy
+| Workflow | Speed | Web Research | Browser Testing | Best For |
+|----------|-------|-------------|-----------------|----------|
+| `go-lite-noweb` | Fastest | No | No | Straightforward features, hotfixes |
+| `go-lite` | Fast | No | Conditional | Most features, UI work |
+| `go-ham` | Thorough | Yes (deepen-plan) | Conditional | Complex features, unknown territory |
 
-**Each unit of engineering work should make subsequent units easier—not harder.**
+All three share the same core loop: plan → work → review → fix → push.
 
-Traditional development accumulates technical debt. Every feature adds complexity. The codebase becomes harder to work with over time.
+Usage in Claude Code:
 
-Compound engineering inverts this. 80% is in planning and review, 20% is in execution:
-- Plan thoroughly before writing code
-- Review to catch issues and capture learnings
-- Codify knowledge so it's reusable
-- Keep quality high so future changes are easy
+```
+/compound-engineering:go-lite #123 add dark mode toggle
+/compound-engineering:go-ham #456 redesign auth flow
+/compound-engineering:go-lite-noweb fix null pointer in user service
+```
 
-## Learn More
+## Model Routing
 
-- [Full component reference](plugins/compound-engineering/README.md) - all agents, commands, skills
-- [Compound engineering: how Every codes with agents](https://every.to/chain-of-thought/compound-engineering-how-every-codes-with-agents)
-- [The story behind compounding engineering](https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it)
+| Phase | Model | Tool |
+|-------|-------|------|
+| Planning (ce:plan) | Opus | Skill tool |
+| Deepen plan (go-ham only) | Opus | Skill tool |
+| Implementation | Sonnet | Task tool (work-executor agent) |
+| Review (ce:review) | Opus | Skill tool |
+| Fix TODOs | Sonnet | Task tool |
+| Simplify code | Sonnet | Skill tool (if installed) |
+| Compound docs | Sonnet | Skill tool (conditional) |
+| Browser testing | Sonnet | Task tool (conditional) |
+
+Opus handles strategic reasoning. Sonnet handles execution. This keeps costs down without sacrificing plan quality.
+
+## Task Tracking (BYO)
+
+The original workflows included GitHub Projects v2 integration (Step 0.1) that automatically moved issues to "Implementation" status when a workflow started. This was stripped for portability because it was hardcoded to a specific project, repo, and script (`field_updater.sh`).
+
+**What was removed:**
+
+```bash
+PROJECT_ID=$(gh project view 10 --owner myorg --format json --jq '.id')
+ITEM_ID=$(gh issue view $ISSUE_NUMBER --repo myorg/myrepo --json projectItems --jq '.projectItems[0].id')
+field_updater.sh set-status "$PROJECT_ID" "$ITEM_ID" "Implementation"
+```
+
+**How to add your own:**
+
+Option 1 — Project-level override. Create `.claude/commands/go-lite.md` in your repo:
+
+```markdown
+---
+description: go-lite with our task tracking
+---
+
+# /go-lite
+
+1. Load the `compound-engineering:go-lite` skill.
+2. Before Phase 1, run our task tracking setup.
+3. Pass $ARGUMENTS.
+```
+
+Option 2 — CLAUDE.md hook. Add a pre-workflow instruction to your project's `CLAUDE.md` that fires before any workflow skill.
+
+Option 3 — Fork this repo and add Step 0.1 back with your own values.
+
+The BYO section in each SKILL.md includes a commented template showing the original pattern.
+
+## Upstream Sync
+
+To pull in updates from the upstream compound-engineering plugin:
+
+```bash
+cd ~/.config/opencode/skills/skills-repo   # or wherever you cloned it
+git fetch upstream
+git merge upstream/main
+```
+
+If upstream changes conflict with the go-* skills or marketplace.json name, resolve manually. The go-* skill directories are new files not present in upstream, so conflicts are unlikely.
+
+## Customization
+
+All three workflows support project-level overrides via `.claude/commands/`. Create a file at `.claude/commands/go-lite.md` (or `go-ham.md`, `go-lite-noweb.md`) in your project repo to override or extend the shared skill for that project.
+
+Example: adding a smoke test phase back for a specific project:
+
+```markdown
+---
+description: go-lite with smoke tests
+---
+
+# /go-lite
+
+1. Load the `compound-engineering:go-lite` skill using the Skill tool.
+2. After Phase 7 (Commit & Push), run: `python -m pytest tests/ -v`
+3. Pass $ARGUMENTS.
+```
+
+## Compound Engineering Skills Used
+
+These workflows depend on skills from the compound-engineering plugin:
+
+| Dependency | Used by | Purpose |
+|------------|---------|---------|
+| `ce:plan` | All three | Creates plan file in docs/plans/ |
+| `ce:review` | All three | Reviews implementation, creates todo files |
+| `ce:compound` | All three (conditional) | Documents solutions in docs/solutions/ |
+| `deepen-plan` | go-ham only | Web research to enhance the plan |
+| `git-worktree` | All three | Creates isolated worktrees via worktree-manager.sh |
+| `agent-browser` | go-lite, go-ham (conditional) | Browser testing for dashboard changes |
+
+Optional (not in compound-engineering, skip if absent):
+
+| Optional skill | Phase | Fallback behavior |
+|---------------|-------|------------------|
+| `ralph-loop` | Step 0 | Skipped, workflow continues |
+| `simplifycode` | Phase 5/6 | Skipped, code review done in Phase 3 |
+
+## License
+
+MIT — inherited from upstream [EveryInc/every-marketplace](https://github.com/EveryInc/compound-engineering-plugin). See [LICENSE](LICENSE).
