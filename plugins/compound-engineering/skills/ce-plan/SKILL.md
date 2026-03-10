@@ -291,6 +291,35 @@ origin: docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md  # if originated from 
 
 [What could block or complicate this]
 
+## Work Items
+
+> Ordered by dependency. Each task is 2-5 minutes.
+> ce:work will use these as TodoWrite items.
+
+### Task 1: [Component Name]
+
+**Files:**
+- Create: `exact/path/to/new_file`
+- Modify: `exact/path/to/existing_file`
+- Test: `test/exact/path/to/test_file`
+
+- [ ] **Step 1: Write failing test**
+  [Complete test code in fenced code block]
+
+- [ ] **Step 2: Verify test fails**
+  Run: `[exact test command]`
+  Expected: FAIL
+
+- [ ] **Step 3: Implement**
+  [Complete implementation code in fenced code block]
+
+- [ ] **Step 4: Verify test passes**
+  Run: `[exact test command]`
+  Expected: PASS
+
+- [ ] **Step 5: Commit**
+  `git add [specific files] && git commit -m "[conventional message]"`
+
 ## Sources & References
 
 - **Origin brainstorm:** [docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md](path) — include if plan originated from a brainstorm
@@ -432,6 +461,44 @@ origin: docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md  # if originated from 
 
 [What docs need updating]
 
+## Work Items
+
+> Ordered by dependency. Each task is 2-5 minutes.
+> ce:work will use these as TodoWrite items.
+> For A LOT plans, group tasks into implementation phases.
+
+### Phase 1: [Foundation]
+
+#### Task 1: [Component Name]
+
+**Files:**
+- Create: `exact/path/to/new_file`
+- Modify: `exact/path/to/existing_file`
+- Test: `test/exact/path/to/test_file`
+
+- [ ] **Step 1: Write failing test**
+  [Complete test code in fenced code block]
+
+- [ ] **Step 2: Verify test fails**
+  Run: `[exact test command]`
+  Expected: FAIL
+
+- [ ] **Step 3: Implement**
+  [Complete implementation code in fenced code block]
+
+- [ ] **Step 4: Verify test passes**
+  Run: `[exact test command]`
+  Expected: PASS
+
+- [ ] **Step 5: Commit**
+  `git add [specific files] && git commit -m "[conventional message]"`
+
+### Phase 2: [Core Implementation]
+
+#### Task 2: [Component Name]
+
+[Same structure as Task 1]
+
 ## Sources & References
 
 ### Origin
@@ -512,6 +579,37 @@ end
 - [ ] Note which AI tools were used for initial exploration (Claude, Copilot, etc.)
 - [ ] Emphasize comprehensive testing given rapid implementation
 - [ ] Document any AI-generated code that needs human review
+
+### 5.5. Work Item Decomposition
+
+**Only for MORE and A LOT detail levels.** MINIMAL plans skip this step.
+
+Decompose the implementation approach into bite-sized work items that `/ce:work` can execute directly as TodoWrite tasks. Each task should be completable in 2-5 minutes by an agent or developer with no prior context beyond the plan itself.
+
+**File Map:** Before writing tasks, list all files that will be created or modified:
+
+| Action | Path | Responsibility |
+|--------|------|---------------|
+| Create | `exact/path/to/new_file` | What this file does |
+| Modify | `exact/path/to/existing_file` | What changes and why |
+| Test | `test/exact/path/to/test_file` | What behavior is verified |
+
+**Decomposition Rules:**
+
+1. **One action per step** - "Write the test" and "Run the test" are separate steps
+2. **Exact file paths** - Never "create a test file", always `test/models/user_test.rb`
+3. **Complete code** - Never "add validation", always the actual code in a fenced code block
+4. **Verification commands** - Every implementation step has a run command with expected output
+5. **Commit boundaries** - Group related steps, commit after each logical unit
+6. **Dependency ordering** - Tasks that depend on earlier tasks come later
+7. **TDD-first when applicable** - Write test, verify fail, implement, verify pass
+8. **2-5 minute scope** - If a step would take longer, split it
+
+**Task count guidance:**
+- MORE: 3-8 tasks typical
+- A LOT: 5-15 tasks, grouped into implementation phases
+
+Fill in the `## Work Items` section in the plan template with concrete tasks following these rules.
 
 ### 6. Final Review & Submission
 
