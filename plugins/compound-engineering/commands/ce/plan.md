@@ -579,7 +579,7 @@ After writing the plan file, use the **AskUserQuestion tool** to present these o
 **Options:**
 1. **Open plan in editor** - Open the plan file for review
 2. **Run `/deepen-plan`** - Enhance each section with parallel research agents (best practices, performance, UI)
-3. **Run `/technical_review`** - Technical feedback from code-focused reviewers (DHH, Kieran, Simplicity)
+3. **Run `/ce:review`** - Technical feedback from code-focused reviewers
 4. **Review and refine** - Improve the document through structured self-review
 5. **Share to Proof** - Upload to Proof for collaborative review and sharing
 6. **Start `/ce:work`** - Begin implementing this plan locally
@@ -589,7 +589,7 @@ After writing the plan file, use the **AskUserQuestion tool** to present these o
 Based on selection:
 - **Open plan in editor** → Run `open docs/plans/<plan_filename>.md` to open the file in the user's default editor
 - **`/deepen-plan`** → Call the /deepen-plan command with the plan file path to enhance with research
-- **`/technical_review`** → Call the /technical_review command with the plan file path
+- **`/ce:review`** → Call the /ce:review command with the plan file path
 - **Review and refine** → Load `document-review` skill.
 - **Share to Proof** → Upload the plan to Proof:
   ```bash
@@ -608,7 +608,7 @@ Based on selection:
 
 **Note:** If running `/ce:plan` with ultrathink enabled, automatically run `/deepen-plan` after plan creation for maximum depth and grounding.
 
-Loop back to options after Simplify or Other changes until user selects `/ce:work` or `/technical_review`.
+Loop back to options after Simplify or Other changes until user selects `/ce:work` or `/ce:review`.
 
 ## Issue Creation
 
@@ -638,6 +638,6 @@ When user selects "Create Issue", detect their project tracker from CLAUDE.md:
 
 5. **After creation:**
    - Display the issue URL
-   - Ask if they want to proceed to `/ce:work` or `/technical_review`
+   - Ask if they want to proceed to `/ce:work` or `/ce:review`
 
 NEVER CODE! Just research and write the plan.
