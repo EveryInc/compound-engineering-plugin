@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "PreCompact": [
+      {
+        "matcher": "*",
+        "hooks": [
+          {
+            "type": "prompt",
+            "prompt": "Before context compaction, check if this session contains a solved problem, debugging insight, or pattern worth documenting. If so, run /ce:compound to capture it before context is lost. If nothing significant was solved, skip silently."
+          }
+        ]
+      }
+    ]
+  }
+}
