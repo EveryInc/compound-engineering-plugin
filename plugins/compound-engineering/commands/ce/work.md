@@ -146,7 +146,7 @@ This command takes a work document (plan, specification, or todo file) and execu
 
    **Commit message format:** Prefix the message with `#AI commit#` tag for the internal tracking and usage.
 
-3. **Follow Existing Patterns**
+4. **Follow Existing Patterns**
 
    - The plan should reference similar code - read those files first
    - Match naming conventions exactly
@@ -154,7 +154,7 @@ This command takes a work document (plan, specification, or todo file) and execu
    - Follow project coding standards (see CLAUDE.md)
    - When in doubt, grep for similar implementations
 
-4. **Test Continuously**
+5. **Test Continuously**
 
    - Run relevant tests after each significant change
    - Don't wait until the end to test
@@ -162,7 +162,7 @@ This command takes a work document (plan, specification, or todo file) and execu
    - Add new tests for new functionality
    - **Unit tests with mocks prove logic in isolation. Integration tests with real objects prove the layers work together.** If your change touches callbacks, middleware, or error handling — you need both.
 
-5. **Figma Design Sync** (if applicable)
+6. **Figma Design Sync** (if applicable)
 
    For UI work with Figma designs:
 
@@ -171,7 +171,7 @@ This command takes a work document (plan, specification, or todo file) and execu
    - Fix visual differences identified
    - Repeat until implementation matches design
 
-6. **Track Progress**
+7. **Track Progress**
    - Keep TodoWrite updated as you complete tasks
    - Note any blockers or unexpected discoveries
    - Create new tasks if scope expands
