@@ -7,6 +7,56 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Release numbering now follows the repository `v*` tag line. Starting at `v2.34.0`, the root CLI package and this changelog stay on that shared version stream. Older entries below retain the previous `0.x` CLI numbering.
 
+# [2.36.0](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.35.0...v2.36.0) (2026-03-11)
+
+
+### Bug Fixes
+
+* **hooks:** wrap PreToolUse handlers in try-catch to prevent parallel tool call crashes ([598222e](https://github.com/EveryInc/compound-engineering-plugin/commit/598222e11cb2206a2e3347cb5dd38cacdc3830df)), closes [#85](https://github.com/EveryInc/compound-engineering-plugin/issues/85)
+* **install:** merge config instead of overwriting on opencode target ([1db7680](https://github.com/EveryInc/compound-engineering-plugin/commit/1db76800f91fefcc1bb9c1798ef273ddd0b65f5c)), closes [#125](https://github.com/EveryInc/compound-engineering-plugin/issues/125)
+* **review:** add serial mode to prevent context limit crashes ([d96671b](https://github.com/EveryInc/compound-engineering-plugin/commit/d96671b9e9ecbe417568b2ce7f7fa4d379c2bec2)), closes [#166](https://github.com/EveryInc/compound-engineering-plugin/issues/166)
+
+
+### Features
+
+* **compound:** add context budget precheck and compact-safe mode ([c4b1358](https://github.com/EveryInc/compound-engineering-plugin/commit/c4b13584312058cb8db3ad0f25674805bbb91b2d)), closes [#198](https://github.com/EveryInc/compound-engineering-plugin/issues/198)
+* **plan:** add daily sequence number to plan filenames ([e94ca04](https://github.com/EveryInc/compound-engineering-plugin/commit/e94ca0409671efcfa2d4a8fcb2d60b79a848fd85)), closes [#135](https://github.com/EveryInc/compound-engineering-plugin/issues/135)
+* **plugin:** release v2.39.0 with community contributions ([d2ab6c0](https://github.com/EveryInc/compound-engineering-plugin/commit/d2ab6c076882a4dacaa787c0a6f3c9d555d38af0))
+
+# [2.35.0](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.34.7...v2.35.0) (2026-03-10)
+
+
+### Bug Fixes
+
+* **test-browser:** detect dev server port from project config ([94aedd5](https://github.com/EveryInc/compound-engineering-plugin/commit/94aedd5a7b6da4ce48de994b5a137953c0fd21c3)), closes [#164](https://github.com/EveryInc/compound-engineering-plugin/issues/164)
+
+
+### Features
+
+* **compound:** add context budget precheck and compact-safe mode ([7266062](https://github.com/EveryInc/compound-engineering-plugin/commit/726606286873c4059261a8c5f1b75c20fe11ac77)), closes [#198](https://github.com/EveryInc/compound-engineering-plugin/issues/198)
+* **plan:** add daily sequence number to plan filenames ([4fc6ddc](https://github.com/EveryInc/compound-engineering-plugin/commit/4fc6ddc5db3e2b4b398c0ffa0c156e1177b35d05)), closes [#135](https://github.com/EveryInc/compound-engineering-plugin/issues/135)
+
+## [2.34.7](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.34.6...v2.34.7) (2026-03-10)
+
+
+### Bug Fixes
+
+* **test-browser:** detect dev server port from project config ([50cb89e](https://github.com/EveryInc/compound-engineering-plugin/commit/50cb89efde7cee7d6dcd42008e6060e1bec44fcc)), closes [#164](https://github.com/EveryInc/compound-engineering-plugin/issues/164)
+
+## [2.34.6](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.34.5...v2.34.6) (2026-03-10)
+
+
+### Bug Fixes
+
+* **mcp:** add API key auth support for Context7 server ([c649cfc](https://github.com/EveryInc/compound-engineering-plugin/commit/c649cfc17f895b58babf737dfdec2f6cc391e40a)), closes [#153](https://github.com/EveryInc/compound-engineering-plugin/issues/153)
+
+## [2.34.5](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.34.4...v2.34.5) (2026-03-10)
+
+
+### Bug Fixes
+
+* **lfg:** enforce plan phase with explicit step gating ([b07f43d](https://github.com/EveryInc/compound-engineering-plugin/commit/b07f43ddf59cd7f2fe54b2e0a00d2b5b508b7f11)), closes [#227](https://github.com/EveryInc/compound-engineering-plugin/issues/227)
+
 ## [2.34.4](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.34.3...v2.34.4) (2026-03-04)
 
 

@@ -58,12 +58,16 @@ export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBu
   const openCodePaths = resolveOpenCodePaths(outputRoot)
   await ensureDir(openCodePaths.root)
 
+  const hadExistingConfig = await pathExists(openCodePaths.configPath)
   const backupPath = await backupFile(openCodePaths.configPath)
   if (backupPath) {
     console.log(`Backed up existing config to ${backupPath}`)
   }
   const merged = await mergeOpenCodeConfig(openCodePaths.configPath, bundle.config)
   await writeJson(openCodePaths.configPath, merged)
+  if (hadExistingConfig) {
+    console.log("Merged plugin config into existing opencode.json (user settings preserved)")
+  }
 
   const agentsDir = openCodePaths.agentsDir
   for (const agent of bundle.agents) {

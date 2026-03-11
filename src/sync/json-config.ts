@@ -19,7 +19,7 @@ export async function mergeJsonConfigAtKey(options: {
     ...existing,
     [key]: {
       ...existingEntries,
-      ...incoming,
+      ...incoming, // incoming plugin entries overwrite same-named servers
     },
   }
 

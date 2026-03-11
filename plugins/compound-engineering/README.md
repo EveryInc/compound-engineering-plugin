@@ -6,7 +6,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 29 |
+| Agents | 28 |
 | Commands | 22 |
 | Skills | 20 |
 | MCP Servers | 1 |
@@ -53,12 +53,11 @@ Agents are organized into categories for easier discovery.
 | `design-iterator` | Iteratively refine UI through systematic design iterations |
 | `figma-design-sync` | Synchronize web implementations with Figma designs |
 
-### Workflow (5)
+### Workflow (4)
 
 | Agent | Description |
 |-------|-------------|
 | `bug-reproduction-validator` | Systematically reproduce and validate bug reports |
-| `every-style-editor` | Edit content to conform to Every's style guide |
 | `lint` | Run linting and code quality checks on Ruby and ERB files |
 | `pr-comment-resolver` | Address PR comments and implement fixes |
 | `spec-flow-analyzer` | Analyze user flows and identify gaps in specifications |
@@ -190,6 +189,8 @@ Supports 100+ frameworks including Rails, React, Next.js, Vue, Django, Laravel, 
 
 MCP servers start automatically when the plugin is enabled.
 
+**Authentication:** To avoid anonymous rate limits, set the `CONTEXT7_API_KEY` environment variable with your Context7 API key. The plugin passes this automatically via the `x-api-key` header. Without it, requests go unauthenticated and will quickly hit the anonymous quota limit.
+
 ## Browser Automation
 
 This plugin uses **agent-browser CLI** for browser automation tasks. Install it globally:
@@ -220,13 +221,16 @@ claude /plugin install compound-engineering
   "mcpServers": {
     "context7": {
       "type": "http",
-      "url": "https://mcp.context7.com/mcp"
+      "url": "https://mcp.context7.com/mcp",
+      "headers": {
+        "x-api-key": "${CONTEXT7_API_KEY:-}"
+      }
     }
   }
 }
 ```
 
-Or add it globally in `~/.claude/settings.json` for all projects.
+Set `CONTEXT7_API_KEY` in your environment to authenticate. Or add it globally in `~/.claude/settings.json` for all projects.
 
 ## Version History
 

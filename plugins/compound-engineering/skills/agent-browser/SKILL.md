@@ -202,6 +202,107 @@ Returns:
 }
 ```
 
+## Inspection & Debugging
+
+### JavaScript Evaluation
+
+```bash
+agent-browser eval "document.title"                    # Evaluate JS expression
+agent-browser eval "JSON.stringify(localStorage)"      # Return serialized data
+agent-browser eval "document.querySelectorAll('a').length"  # Count elements
+```
+
+### Console & Errors
+
+```bash
+agent-browser console                 # Show browser console output
+agent-browser console --clear         # Show and clear console
+agent-browser errors                  # Show JavaScript errors only
+agent-browser errors --clear          # Show and clear errors
+```
+
+## Network
+
+```bash
+agent-browser network requests                          # List captured requests
+agent-browser network requests --filter "api"           # Filter by URL pattern
+agent-browser route "**/*.png" abort                    # Block matching requests
+agent-browser route "https://api.example.com/*" fulfill --status 200 --body '{"mock":true}'  # Mock response
+agent-browser unroute "**/*.png"                        # Remove route handler
+```
+
+## Storage
+
+### Cookies
+
+```bash
+agent-browser cookies get                               # Get all cookies
+agent-browser cookies get --name "session"              # Get specific cookie
+agent-browser cookies set --name "token" --value "abc"  # Set cookie
+agent-browser cookies clear                             # Clear all cookies
+```
+
+### Local & Session Storage
+
+```bash
+agent-browser storage local                             # Get all localStorage
+agent-browser storage local --key "theme"               # Get specific key
+agent-browser storage session                           # Get all sessionStorage
+agent-browser storage session --key "cart"              # Get specific key
+```
+
+## Device & Settings
+
+```bash
+agent-browser set viewport 1920 1080                    # Set viewport size
+agent-browser set device "iPhone 14"                    # Emulate device
+agent-browser set geo --lat 47.6 --lon -122.3           # Set geolocation
+agent-browser set offline true                          # Enable offline mode
+agent-browser set offline false                         # Disable offline mode
+agent-browser set media "prefers-color-scheme" "dark"   # Set media feature
+agent-browser set headers '{"X-Custom":"value"}'        # Set extra HTTP headers
+agent-browser set credentials "user" "pass"             # Set HTTP auth credentials
+```
+
+## Element Debugging
+
+```bash
+agent-browser highlight @e1                             # Highlight element visually
+agent-browser get box @e1                               # Get bounding box (x, y, width, height)
+agent-browser get styles @e1                            # Get computed styles
+agent-browser is visible @e1                            # Check if element is visible
+agent-browser is enabled @e1                            # Check if element is enabled
+agent-browser is checked @e1                            # Check if checkbox/radio is checked
+```
+
+## Recording & Tracing
+
+```bash
+agent-browser trace start                               # Start recording trace
+agent-browser trace stop trace.zip                      # Stop and save trace file
+agent-browser record start                              # Start recording video
+agent-browser record stop video.webm                    # Stop and save recording
+```
+
+## Tabs & Windows
+
+```bash
+agent-browser tab list                                  # List open tabs
+agent-browser tab new https://example.com               # Open URL in new tab
+agent-browser tab close                                 # Close current tab
+agent-browser tab 2                                     # Switch to tab by index
+```
+
+## Advanced Mouse
+
+```bash
+agent-browser mouse move 100 200                        # Move mouse to coordinates
+agent-browser mouse down                                # Press mouse button
+agent-browser mouse up                                  # Release mouse button
+agent-browser mouse wheel 0 500                         # Scroll (deltaX, deltaY)
+agent-browser drag @e1 @e2                              # Drag from element to element
+```
+
 ## vs Playwright MCP
 
 | Feature | agent-browser (CLI) | Playwright MCP |

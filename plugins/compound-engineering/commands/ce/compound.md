@@ -21,7 +21,45 @@ Captures problem solutions while context is fresh, creating structured documenta
 /ce:compound [brief context]    # Provide additional context hint
 ```
 
-## Execution Strategy: Two-Phase Orchestration
+## Execution Strategy: Context-Aware Orchestration
+
+### Phase 0: Context Budget Check
+
+<critical_requirement>
+**Run this check BEFORE launching any subagents.**
+
+The /compound command is token-heavy - it launches 5 parallel subagents that collectively consume ~10k tokens of context. Running near context limits risks compaction mid-compound, which degrades output quality significantly.
+</critical_requirement>
+
+Before proceeding, the orchestrator MUST:
+
+1. **Assess context usage**: Check how long the current conversation has been running. If there has been significant back-and-forth (many tool calls, large file reads, extensive debugging), context is likely constrained.
+
+2. **Warn the user**:
+   ```
+   ⚠️ Context Budget Check
+
+   /compound launches 5 parallel subagents (~10k tokens). Long conversations
+   risk compaction mid-compound, which degrades documentation quality.
+
+   Tip: For best results, run /compound early in a session - right after
+   verifying a fix, before continuing other work.
+   ```
+
+3. **Offer the user a choice**:
+   ```
+   How would you like to proceed?
+
+   1. Full compound (5 parallel subagents, ~10k tokens) - best quality
+   2. Compact-safe mode (single pass, ~2k tokens) - safe near context limits
+   ```
+
+4. **If the user picks option 1** (or confirms full mode): proceed to Phase 1 below.
+5. **If the user picks option 2** (or requests compact-safe): skip to the **Compact-Safe Mode** section below.
+
+---
+
+### Full Mode
 
 <critical_requirement>
 **Only ONE file gets written - the final documentation.**
@@ -98,6 +136,44 @@ Based on problem type, optionally invoke specialized agents to review the docume
 - Any code-heavy issue → `kieran-rails-reviewer` + `code-simplicity-reviewer`
 
 </parallel_tasks>
+
+---
+
+### Compact-Safe Mode
+
+<critical_requirement>
+**Single-pass alternative for context-constrained sessions.**
+
+When context budget is tight, this mode skips parallel subagents entirely. The orchestrator performs all work in a single pass, producing a minimal but complete solution document.
+</critical_requirement>
+
+The orchestrator (main conversation) performs ALL of the following in one sequential pass:
+
+1. **Extract from conversation**: Identify the problem, root cause, and solution from conversation history
+2. **Classify**: Determine category and filename (same categories as full mode)
+3. **Write minimal doc**: Create `docs/solutions/[category]/[filename].md` with:
+   - YAML frontmatter (title, category, date, tags)
+   - Problem description (1-2 sentences)
+   - Root cause (1-2 sentences)
+   - Solution with key code snippets
+   - One prevention tip
+4. **Skip specialized agent reviews** (Phase 3) to conserve context
+
+**Compact-safe output:**
+```
+✓ Documentation complete (compact-safe mode)
+
+File created:
+- docs/solutions/[category]/[filename].md
+
+Note: This was created in compact-safe mode. For richer documentation
+(cross-references, detailed prevention strategies, specialized reviews),
+re-run /compound in a fresh session.
+```
+
+**No subagents are launched. No parallel tasks. One file written.**
+
+---
 
 ## What It Captures
 

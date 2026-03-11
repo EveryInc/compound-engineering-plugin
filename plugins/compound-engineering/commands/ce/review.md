@@ -1,7 +1,7 @@
 ---
 name: ce:review
 description: Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees
-argument-hint: "[PR number, GitHub URL, branch name, or latest]"
+argument-hint: "[PR number, GitHub URL, branch name, or latest] [--serial]"
 ---
 
 # Review Command
@@ -65,9 +65,30 @@ Read `compound-engineering.local.md` in the project root. If found, use `review_
 
 If no settings file exists, invoke the `setup` skill to create one. Then read the newly created file and continue.
 
+#### Choose Execution Mode
+
+<execution_mode>
+
+Before launching review agents, check for context constraints:
+
+**If `--serial` flag is passed OR conversation is in a long session:**
+
+Run agents ONE AT A TIME in sequence. Wait for each agent to complete before starting the next. This uses less context but takes longer.
+
+**Default (parallel):**
+
+Run all agents simultaneously for speed. If you hit context limits, retry with `--serial` flag.
+
+**Auto-detect:** If more than 5 review agents are configured, automatically switch to serial mode and inform the user:
+"Running review agents in serial mode (6+ agents configured). Use --parallel to override."
+
+</execution_mode>
+
 #### Parallel Agents to review the PR:
 
 <parallel_tasks>
+
+**Parallel mode (default for ≤5 agents):**
 
 Run all configured review agents in parallel using Task tool. For each agent in the `review_agents` list:
 
@@ -75,7 +96,19 @@ Run all configured review agents in parallel using Task tool. For each agent in 
 Task {agent-name}(PR content + review context from settings body)
 ```
 
-Additionally, always run these regardless of settings:
+**Serial mode (--serial flag, or auto for 6+ agents):**
+
+Run configured review agents ONE AT A TIME. For each agent in the `review_agents` list, wait for it to complete before starting the next:
+
+```
+For each agent in review_agents:
+  1. Task {agent-name}(PR content + review context)
+  2. Wait for completion
+  3. Collect findings
+  4. Proceed to next agent
+```
+
+Always run these last regardless of mode:
 - Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
 - Task learnings-researcher(PR content) - Search docs/solutions/ for past issues related to this PR's modules and patterns
 

@@ -1,7 +1,7 @@
 ---
 name: test-browser
 description: Run browser tests on pages affected by current PR or branch
-argument-hint: "[PR number, branch name, or 'current' for current branch]"
+argument-hint: "[PR number, branch name, 'current', or --port PORT]"
 ---
 
 # Browser Test Command
@@ -122,31 +122,82 @@ Build a list of URLs to test based on the mapping.
 
 </file_to_route_mapping>
 
-### 4. Verify Server is Running
+### 4. Detect Dev Server Port
+
+<detect_port>
+
+Determine the dev server port using this priority order:
+
+**Priority 1: Explicit argument**
+If the user passed a port number (e.g., `/test-browser 5000` or `/test-browser --port 5000`), use that port directly.
+
+**Priority 2: CLAUDE.md / project instructions**
+```bash
+# Check CLAUDE.md for port references
+grep -Eio '(port\s*[:=]\s*|localhost:)([0-9]{4,5})' CLAUDE.md 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1
+```
+
+**Priority 3: package.json scripts**
+```bash
+# Check dev/start scripts for --port flags
+grep -Eo '\-\-port[= ]+[0-9]{4,5}' package.json 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1
+```
+
+**Priority 4: Environment files**
+```bash
+# Check .env, .env.local, .env.development for PORT=
+grep -h '^PORT=' .env .env.local .env.development 2>/dev/null | tail -1 | cut -d= -f2
+```
+
+**Priority 5: Default fallback**
+If none of the above yields a port, default to `3000`.
+
+Store the result in a `PORT` variable for use in all subsequent steps.
+
+```bash
+# Combined detection (run this)
+PORT="${EXPLICIT_PORT:-}"
+if [ -z "$PORT" ]; then
+  PORT=$(grep -Eio '(port\s*[:=]\s*|localhost:)([0-9]{4,5})' CLAUDE.md 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1)
+fi
+if [ -z "$PORT" ]; then
+  PORT=$(grep -Eo '\-\-port[= ]+[0-9]{4,5}' package.json 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1)
+fi
+if [ -z "$PORT" ]; then
+  PORT=$(grep -h '^PORT=' .env .env.local .env.development 2>/dev/null | tail -1 | cut -d= -f2)
+fi
+PORT="${PORT:-3000}"
+echo "Using dev server port: $PORT"
+```
+
+</detect_port>
+
+### 5. Verify Server is Running
 
 <check_server>
 
-Before testing, verify the local server is accessible:
+Before testing, verify the local server is accessible using the detected port:
 
 ```bash
-agent-browser open http://localhost:3000
+agent-browser open http://localhost:${PORT}
 agent-browser snapshot -i
 ```
 
 If server is not running, inform user:
 ```markdown
-**Server not running**
+**Server not running on port ${PORT}**
 
 Please start your development server:
 - Rails: `bin/dev` or `rails server`
 - Node/Next.js: `npm run dev`
+- Custom port: `/test-browser --port <your-port>`
 
 Then run `/test-browser` again.
 ```
 
 </check_server>
 
-### 5. Test Each Affected Page
+### 6. Test Each Affected Page
 
 <test_pages>
 
@@ -154,13 +205,13 @@ For each affected route, use agent-browser CLI commands (NOT Chrome MCP):
 
 **Step 1: Navigate and capture snapshot**
 ```bash
-agent-browser open "http://localhost:3000/[route]"
+agent-browser open "http://localhost:${PORT}/[route]"
 agent-browser snapshot -i
 ```
 
 **Step 2: For headed mode (visual debugging)**
 ```bash
-agent-browser --headed open "http://localhost:3000/[route]"
+agent-browser --headed open "http://localhost:${PORT}/[route]"
 agent-browser --headed snapshot -i
 ```
 
@@ -185,7 +236,7 @@ agent-browser screenshot --full page-name-full.png  # Full page
 
 </test_pages>
 
-### 6. Human Verification (When Required)
+### 7. Human Verification (When Required)
 
 <human_verification>
 
@@ -214,7 +265,7 @@ Did it work correctly?
 
 </human_verification>
 
-### 7. Handle Failures
+### 8. Handle Failures
 
 <failure_handling>
 
@@ -253,7 +304,7 @@ When a test fails:
 
 </failure_handling>
 
-### 8. Test Summary
+### 9. Test Summary
 
 <test_summary>
 
@@ -263,7 +314,7 @@ After all tests complete, present summary:
 ## Browser Test Results
 
 **Test Scope:** PR #[number] / [branch name]
-**Server:** http://localhost:3000
+**Server:** http://localhost:${PORT}
 
 ### Pages Tested: [count]
 
@@ -295,7 +346,7 @@ After all tests complete, present summary:
 ## Quick Usage Examples
 
 ```bash
-# Test current branch changes
+# Test current branch changes (auto-detects port)
 /test-browser
 
 # Test specific PR
@@ -303,6 +354,9 @@ After all tests complete, present summary:
 
 # Test specific branch
 /test-browser feature/new-dashboard
+
+# Test on a specific port
+/test-browser --port 5000
 ```
 
 ## agent-browser CLI Reference

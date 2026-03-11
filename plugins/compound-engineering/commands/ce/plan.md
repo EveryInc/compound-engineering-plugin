@@ -138,8 +138,11 @@ Think like a product manager - what would make this issue clear and actionable? 
 
 - [ ] Draft clear, searchable issue title using conventional format (e.g., `feat: Add user authentication`, `fix: Cart total calculation`)
 - [ ] Determine issue type: enhancement, bug, refactor
-- [ ] Convert title to filename: add today's date prefix, strip prefix colon, kebab-case, add `-plan` suffix
-  - Example: `feat: Add User Authentication` → `2026-01-21-feat-add-user-authentication-plan.md`
+- [ ] Convert title to filename: add today's date prefix, determine daily sequence number, strip prefix colon, kebab-case, add `-plan` suffix
+  - Scan `docs/plans/` for files matching today's date pattern `YYYY-MM-DD-\d{3}-`
+  - Find the highest existing sequence number for today
+  - Increment by 1, zero-padded to 3 digits (001, 002, etc.)
+  - Example: `feat: Add User Authentication` → `2026-01-21-001-feat-add-user-authentication-plan.md`
   - Keep it descriptive (3-5 words after prefix) so plans are findable by context
 
 **Stakeholder Analysis:**
@@ -538,9 +541,13 @@ Before finalizing, re-read the brainstorm document and verify:
 
 ```bash
 mkdir -p docs/plans/
+# Determine daily sequence number
+today=$(date +%Y-%m-%d)
+last_seq=$(ls docs/plans/${today}-*-plan.md 2>/dev/null | grep -oP "${today}-\K\d{3}" | sort -n | tail -1)
+next_seq=$(printf "%03d" $(( ${last_seq:-0} + 1 )))
 ```
 
-Use the Write tool to save the complete plan to `docs/plans/YYYY-MM-DD-<type>-<descriptive-name>-plan.md`. This step is mandatory and cannot be skipped — even when running as part of LFG/SLFG or other automated pipelines.
+Use the Write tool to save the complete plan to `docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md` (where NNN is `$next_seq` from the bash command above). This step is mandatory and cannot be skipped — even when running as part of LFG/SLFG or other automated pipelines.
 
 Confirm: "Plan written to docs/plans/[filename]"
 
@@ -548,26 +555,26 @@ Confirm: "Plan written to docs/plans/[filename]"
 
 ## Output Format
 
-**Filename:** Use the date and kebab-case filename from Step 2 Title & Categorization.
+**Filename:** Use the date, daily sequence number, and kebab-case filename from Step 2 Title & Categorization.
 
 ```
-docs/plans/YYYY-MM-DD-<type>-<descriptive-name>-plan.md
+docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md
 ```
 
 Examples:
-- ✅ `docs/plans/2026-01-15-feat-user-authentication-flow-plan.md`
-- ✅ `docs/plans/2026-02-03-fix-checkout-race-condition-plan.md`
-- ✅ `docs/plans/2026-03-10-refactor-api-client-extraction-plan.md`
-- ❌ `docs/plans/2026-01-15-feat-thing-plan.md` (not descriptive - what "thing"?)
-- ❌ `docs/plans/2026-01-15-feat-new-feature-plan.md` (too vague - what feature?)
-- ❌ `docs/plans/2026-01-15-feat: user auth-plan.md` (invalid characters - colon and space)
-- ❌ `docs/plans/feat-user-auth-plan.md` (missing date prefix)
+- ✅ `docs/plans/2026-01-15-001-feat-user-authentication-flow-plan.md`
+- ✅ `docs/plans/2026-02-03-001-fix-checkout-race-condition-plan.md`
+- ✅ `docs/plans/2026-03-10-002-refactor-api-client-extraction-plan.md`
+- ❌ `docs/plans/2026-01-15-feat-thing-plan.md` (missing sequence number, not descriptive)
+- ❌ `docs/plans/2026-01-15-001-feat-new-feature-plan.md` (too vague - what feature?)
+- ❌ `docs/plans/2026-01-15-001-feat: user auth-plan.md` (invalid characters - colon and space)
+- ❌ `docs/plans/feat-user-auth-plan.md` (missing date prefix and sequence number)
 
 ## Post-Generation Options
 
 After writing the plan file, use the **AskUserQuestion tool** to present these options:
 
-**Question:** "Plan ready at `docs/plans/YYYY-MM-DD-<type>-<name>-plan.md`. What would you like to do next?"
+**Question:** "Plan ready at `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md`. What would you like to do next?"
 
 **Options:**
 1. **Open plan in editor** - Open the plan file for review

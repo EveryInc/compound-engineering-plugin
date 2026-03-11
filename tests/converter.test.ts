@@ -132,6 +132,18 @@ describe("convertClaudeToOpenCode", () => {
     expect(hookFile!.content).toContain("// timeout: 30s")
     expect(hookFile!.content).toContain("// Prompt hook for Write|Edit")
     expect(hookFile!.content).toContain("// Agent hook for Write|Edit: security-sentinel")
+
+    // PreToolUse (tool.execute.before) handlers are wrapped in try-catch
+    // to prevent hook failures from crashing parallel tool call batches (#85)
+    const beforeIdx = hookFile!.content.indexOf('"tool.execute.before"')
+    const afterIdx = hookFile!.content.indexOf('"tool.execute.after"')
+    const beforeBlock = hookFile!.content.slice(beforeIdx, afterIdx)
+    expect(beforeBlock).toContain("try {")
+    expect(beforeBlock).toContain("} catch (err) {")
+
+    // PostToolUse (tool.execute.after) handlers are NOT wrapped in try-catch
+    const afterBlock = hookFile!.content.slice(afterIdx, hookFile!.content.indexOf('"session.created"'))
+    expect(afterBlock).not.toContain("try {")
   })
 
   test("converts MCP servers", async () => {
