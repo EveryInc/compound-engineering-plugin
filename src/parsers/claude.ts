@@ -158,7 +158,11 @@ async function loadMcpServers(
 
   const mcpPath = path.join(root, ".mcp.json")
   if (await pathExists(mcpPath)) {
-    return readJson<Record<string, ClaudeMcpServer>>(mcpPath)
+    const raw = await readJson<Record<string, unknown>>(mcpPath)
+    if (raw.mcpServers && typeof raw.mcpServers === "object") {
+      return raw.mcpServers as Record<string, ClaudeMcpServer>
+    }
+    return raw as Record<string, ClaudeMcpServer>
   }
 
   return undefined
@@ -232,7 +236,12 @@ async function loadMcpPaths(
   for (const entry of toPathList(value)) {
     const resolved = resolveWithinRoot(root, entry, "mcpServers path")
     if (await pathExists(resolved)) {
-      configs.push(await readJson<Record<string, ClaudeMcpServer>>(resolved))
+      const raw = await readJson<Record<string, unknown>>(resolved)
+      if (raw.mcpServers && typeof raw.mcpServers === "object") {
+        configs.push(raw.mcpServers as Record<string, ClaudeMcpServer>)
+      } else {
+        configs.push(raw as Record<string, ClaudeMcpServer>)
+      }
     }
   }
   return configs

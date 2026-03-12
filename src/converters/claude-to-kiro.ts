@@ -53,7 +53,7 @@ export function convertClaudeToKiro(
     convertCommandToSkill(command, usedSkillNames, agentNames),
   )
 
-  // Convert MCP servers (stdio only)
+  // Convert MCP servers (stdio and remote)
   const mcpServers = convertMcpServers(plugin.mcpServers)
 
   // Build steering files from CLAUDE.md
@@ -177,19 +177,20 @@ function convertMcpServers(
 
   const result: Record<string, KiroMcpServer> = {}
   for (const [name, server] of Object.entries(servers)) {
-    if (!server.command) {
+    if (server.command) {
+      const entry: KiroMcpServer = { command: server.command }
+      if (server.args && server.args.length > 0) entry.args = server.args
+      if (server.env && Object.keys(server.env).length > 0) entry.env = server.env
+      result[name] = entry
+    } else if (server.url) {
+      const entry: KiroMcpServer = { url: server.url }
+      if (server.headers && Object.keys(server.headers).length > 0) entry.headers = server.headers
+      result[name] = entry
+    } else {
       console.warn(
-        `Warning: MCP server "${name}" has no command (HTTP/SSE transport). Kiro only supports stdio. Skipping.`,
+        `Warning: MCP server "${name}" has no command or url. Skipping.`,
       )
-      continue
     }
-
-    const entry: KiroMcpServer = { command: server.command }
-    if (server.args && server.args.length > 0) entry.args = server.args
-    if (server.env && Object.keys(server.env).length > 0) entry.env = server.env
-
-    console.log(`MCP server "${name}" will execute: ${server.command}${server.args ? " " + server.args.join(" ") : ""}`)
-    result[name] = entry
   }
   return result
 }

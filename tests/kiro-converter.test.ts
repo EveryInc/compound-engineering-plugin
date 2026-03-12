@@ -174,11 +174,7 @@ describe("convertClaudeToKiro", () => {
     expect(bundle.mcpServers.local.args).toEqual(["hello"])
   })
 
-  test("MCP HTTP servers skipped with warning", () => {
-    const warnings: string[] = []
-    const originalWarn = console.warn
-    console.warn = (msg: string) => warnings.push(msg)
-
+  test("MCP HTTP servers converted with url", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
       mcpServers: {
@@ -190,10 +186,31 @@ describe("convertClaudeToKiro", () => {
     }
 
     const bundle = convertClaudeToKiro(plugin, defaultOptions)
+
+    expect(Object.keys(bundle.mcpServers)).toHaveLength(1)
+    expect(bundle.mcpServers.httpServer).toEqual({ url: "https://example.com/mcp" })
+  })
+
+  test("MCP servers with no command or url skipped with warning", () => {
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      mcpServers: {
+        broken: {} as any,
+      },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
     console.warn = originalWarn
 
     expect(Object.keys(bundle.mcpServers)).toHaveLength(0)
-    expect(warnings.some((w) => w.includes("no command") || w.includes("HTTP"))).toBe(true)
+    expect(warnings.some((w) => w.includes("no command or url"))).toBe(true)
   })
 
   test("plugin with zero agents produces empty agents array", () => {
