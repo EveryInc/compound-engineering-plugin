@@ -200,7 +200,9 @@ Use subagents for context isolation when investigating multiple artifacts — no
 | **Parallel subagents** | 3+ truly independent artifacts with low overlap |
 | **Batched subagents** | Broad sweeps — narrow scope first, then investigate in batches |
 
-Subagents should use dedicated file search and read tools for investigation — not shell commands. This avoids unnecessary permission prompts and is more reliable across platforms.
+**When spawning any subagent, include this instruction in its task prompt:**
+
+> Use dedicated file search and read tools (Glob, Grep, Read) for all investigation. Do NOT use shell commands (ls, find, cat, grep, test, bash) for file operations. This avoids permission prompts and is more reliable.
 
 There are two subagent roles:
 
