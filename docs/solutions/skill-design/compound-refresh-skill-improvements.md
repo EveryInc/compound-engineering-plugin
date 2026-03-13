@@ -29,6 +29,7 @@ The initial `ce:compound-refresh` skill had several design issues discovered dur
 3. Broad scope (9+ docs) asked the user to choose an area blindly without providing analysis
 4. The Replace flow tried to hand off to `ce:compound`, which expects fresh problem-solving context the user doesn't have months later
 5. Subagents used shell commands for file existence checks, triggering permission prompts
+6. No way to run the skill unattended (e.g., on a schedule) — every run required user interaction
 
 ## Root Cause
 
@@ -39,6 +40,7 @@ Five independent design issues, each with a distinct root cause:
 3. **Question before evidence.** The skill prompted scope selection before gathering any information about which areas were most stale or interconnected.
 4. **Unsatisfied precondition in cross-skill handoff.** `ce:compound` expects a recently solved problem with fresh context. A maintenance refresh has investigation evidence instead — equivalent data, different shape.
 5. **No tool preference guidance for subagents.** Without explicit instruction, subagents defaulted to bash for file operations.
+6. **Interactive-only design.** Every phase assumed a user was present. No way to run autonomously for scheduled maintenance or hands-off sweeps.
 
 ## Solution
 
@@ -96,6 +98,16 @@ not shell commands. This avoids unnecessary permission prompts and is more
 reliable across platforms.
 ```
 
+### 6. Autonomous mode for scheduled/unattended runs
+
+Added `mode:autonomous` argument support so the skill can run without user interaction (e.g., on a schedule, in CI, or when the user just wants a hands-off sweep).
+
+Key design decisions:
+- **Explicit opt-in only.** `mode:autonomous` must be in the arguments. Auto-detection based on tool availability was rejected because a user in an interactive agent without a question tool (e.g., Cursor, Windsurf) is still interactive — they just use plain-text replies.
+- **Conservative confidence.** Borderline cases that would get a user question in interactive mode get marked stale in autonomous mode. Err toward stale-marking over incorrect action.
+- **Detailed report as deliverable.** Since no user was present, the output report includes full rationale for each action so a human can review after the fact.
+- **Process everything.** No scope narrowing questions — if no scope hint provided, process all docs. For broad scope, process clusters in impact order without asking.
+
 ## Prevention
 
 ### Skill review checklist additions
@@ -107,6 +119,7 @@ These five patterns should be checked during any skill review:
 3. **No blind user questions** — Every question presented to the user is informed by evidence the agent gathered first
 4. **No unsatisfied cross-skill preconditions** — Every skill handoff verifies the target skill's preconditions are met by the calling context
 5. **No shell commands for file operations in subagents** — Subagent instructions explicitly prefer dedicated tools over shell commands
+6. **Autonomous mode for long-running skills** — Any skill that could run unattended should support an explicit opt-in mode with conservative confidence and detailed reporting
 
 ### Key anti-patterns
 
@@ -117,6 +130,7 @@ These five patterns should be checked during any skill review:
 | "Which area should we review?" before any investigation | Triage first, recommend with evidence, let user confirm or redirect |
 | "Create a successor learning through ce:compound" during a refresh | Replacement subagent writes directly using gathered evidence |
 | No tool guidance for subagents | "Use dedicated file search and read tools, not shell commands" |
+| Auto-detecting "no question tool = headless" | Explicit `mode:autonomous` argument — interactive agents without question tools are still interactive |
 
 ## Cross-References
 

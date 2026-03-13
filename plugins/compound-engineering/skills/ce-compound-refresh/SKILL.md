@@ -1,7 +1,7 @@
 ---
 name: ce:compound-refresh
 description: Refresh stale or drifting learnings and pattern docs in docs/solutions/ by reviewing, updating, replacing, or archiving them against the current codebase. Use after refactors, migrations, dependency upgrades, or when a retrieved learning feels outdated or wrong. Also use when reviewing docs/solutions/ for accuracy, when a recently solved problem contradicts an existing learning, or when pattern docs no longer reflect current code.
-argument-hint: "[optional: scope hint]"
+argument-hint: "[mode:autonomous] [optional: scope hint]"
 disable-model-invocation: true
 ---
 
@@ -9,7 +9,27 @@ disable-model-invocation: true
 
 Maintain the quality of `docs/solutions/` over time. This workflow reviews existing learnings against the current codebase, then refreshes any derived pattern docs that depend on them.
 
+## Mode Detection
+
+Check if `$ARGUMENTS` contains `mode:autonomous`. If present, strip it from arguments (use the remainder as a scope hint) and run in **autonomous mode**.
+
+| Mode | When | Behavior |
+|------|------|----------|
+| **Interactive** (default) | User is present and can answer questions | Ask for decisions on ambiguous cases, confirm actions |
+| **Autonomous** | `mode:autonomous` in arguments | No user interaction. Apply all unambiguous actions (Keep, Update, auto-Archive, Replace with sufficient evidence). Mark ambiguous cases as stale. Generate a summary report at the end. |
+
+### Autonomous mode rules
+
+- **Skip all user questions.** Never pause for input.
+- **Process all docs in scope.** No scope narrowing questions — if no scope hint was provided, process everything.
+- **Apply safe actions directly:** Keep (no-op), Update (fix references), auto-Archive (unambiguous criteria met), Replace (when evidence is sufficient).
+- **Mark as stale when uncertain.** If classification is genuinely ambiguous (Update vs Replace vs Archive) or Replace evidence is insufficient, mark as stale with `status: stale`, `stale_reason`, and `stale_date` in the frontmatter. Do not guess.
+- **Use conservative confidence.** In interactive mode, borderline cases get a user question. In autonomous mode, borderline cases get marked stale. Err toward stale-marking over incorrect action.
+- **Generate a full report.** The output report (see Output Format) lists all actions taken and all items marked stale with reasons, so a human can review the results after the fact.
+
 ## Interaction Principles
+
+**These principles apply to interactive mode only. In autonomous mode, skip all user questions and apply the autonomous mode rules above.**
 
 Follow the same interaction style as `ce:brainstorm`:
 
@@ -80,7 +100,7 @@ If `$ARGUMENTS` is provided, use it to narrow scope before proceeding. Try these
 3. **Filename match** — match against filenames (partial matches are fine)
 4. **Content search** — search file contents for the argument as a keyword (useful for feature names or feature areas)
 
-If no matches are found, report that and ask the user to clarify.
+If no matches are found, report that and ask the user to clarify. In autonomous mode, report the miss and stop — do not guess at scope.
 
 If no candidate docs are found, report:
 
@@ -112,7 +132,7 @@ When scope is broad (9+ candidate docs), do a lightweight triage before deep inv
 1. **Inventory** — read frontmatter of all candidate docs, group by module/component/category
 2. **Impact clustering** — identify areas with the densest clusters of learnings + pattern docs. A cluster of 5 learnings and 2 patterns covering the same module is higher-impact than 5 isolated single-doc areas, because staleness in one doc is likely to affect the others.
 3. **Spot-check drift** — for each cluster, check whether the primary referenced files still exist. Missing references in a high-impact cluster = strongest signal for where to start.
-4. **Recommend a starting area** — present the highest-impact cluster with a brief rationale and ask the user to confirm or redirect.
+4. **Recommend a starting area** — present the highest-impact cluster with a brief rationale and ask the user to confirm or redirect. In autonomous mode, skip the question and process all clusters in impact order.
 
 Example:
 
@@ -186,7 +206,7 @@ There are two subagent roles:
 1. **Investigation subagents** — read-only. They must not edit files, create successors, or archive anything. Each returns: file path, evidence, recommended action, confidence, and open questions. These can run in parallel when artifacts are independent.
 2. **Replacement subagents** — write a single new learning to replace a stale one. These run **one at a time, sequentially** (each replacement subagent may need to read significant code, and running multiple in parallel risks context exhaustion). The orchestrator handles all archival and metadata updates after each replacement completes.
 
-The orchestrator merges investigation results, detects contradictions, asks the user questions, coordinates replacement subagents, and performs all archival/metadata edits centrally. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
+The orchestrator merges investigation results, detects contradictions, coordinates replacement subagents, and performs all archival/metadata edits centrally. In interactive mode, it asks the user questions on ambiguous cases. In autonomous mode, it marks ambiguous cases as stale instead. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
 
 ## Phase 2: Classify the Right Maintenance Action
 
@@ -254,6 +274,8 @@ Apply the same four outcomes (Keep, Update, Replace, Archive) to pattern docs, b
 If "archive" feels too strong but the pattern should no longer be elevated, reduce its prominence in place if the docs structure supports that.
 
 ## Phase 3: Ask for Decisions
+
+**In autonomous mode, skip this entire phase.** Apply all unambiguous actions directly and mark ambiguous cases as stale (see autonomous mode rules).
 
 Most Updates should be applied directly without asking. Only ask the user when:
 
@@ -393,15 +415,27 @@ Updated: Y
 Replaced: Z
 Archived: W
 Skipped: V
+Marked stale: S
 ```
 
 Then list the affected files and what changed.
 
 For **Keep** outcomes, list them under a reviewed-without-edits section so the result is visible without creating git churn.
 
+### Autonomous mode output
+
+In autonomous mode, the report is the primary deliverable since no user was present during execution. Include additional detail:
+
+- For each **Updated** file: what references were fixed and why
+- For each **Replaced** file: what the old learning recommended vs what the current code does, and the path to the new successor
+- For each **Archived** file: what referenced code/workflow is gone
+- For each **Marked stale** file: what evidence was found, what was ambiguous, and what action a human should consider
+
+This report gives a human reviewer enough context to verify the autonomous run's decisions after the fact.
+
 ## Relationship to ce:compound
 
 - `ce:compound` captures a newly solved, verified problem
 - `ce:compound-refresh` maintains older learnings as the codebase evolves
 
-Use **Replace** only when the refresh process has enough real replacement context to hand off honestly into `ce:compound`.
+Use **Replace** only when the refresh process has enough real evidence to write a trustworthy successor. When evidence is insufficient, mark as stale and recommend `ce:compound` for when the user next encounters that problem area.
