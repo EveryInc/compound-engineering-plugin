@@ -485,7 +485,7 @@ Use sensible defaults — no user to ask:
 
 | Context | Default action |
 |---------|---------------|
-| On main/master | Create a branch (`docs/compound-refresh-YYYY-MM-DD`), commit, attempt to open a PR. If PR creation fails, report the branch name. |
+| On main/master | Create a descriptively named branch, commit, attempt to open a PR. If PR creation fails, report the branch name. |
 | On a feature branch | Commit as a separate commit on the current branch |
 | Git operations fail | Include the recommended git commands in the report and continue |
 
