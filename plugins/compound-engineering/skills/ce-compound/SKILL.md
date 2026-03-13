@@ -89,7 +89,8 @@ Launch these subagents IN PARALLEL. Each returns text data to the orchestrator.
    - Searches `docs/solutions/` for related documentation
    - Identifies cross-references and links
    - Finds related GitHub issues
-   - Returns: Links and relationships
+   - Flags any related learning or pattern docs that may now be stale, contradicted, or overly broad
+   - Returns: Links, relationships, and any refresh candidates
 
 #### 4. **Prevention Strategist**
    - Develops prevention strategies
@@ -120,6 +121,53 @@ The orchestrating agent (main conversation) performs these steps:
 5. Write the SINGLE final file: `docs/solutions/[category]/[filename].md`
 
 </sequential_tasks>
+
+### Phase 2.5: Selective Refresh Check
+
+After writing the new learning, decide whether this new solution is evidence that older docs should be refreshed.
+
+`ce:compound-refresh` is **not** a default follow-up. Use it selectively when the new learning suggests an older learning or pattern doc may now be inaccurate.
+
+It makes sense to invoke `ce:compound-refresh` when one or more of these are true:
+
+1. A related learning or pattern doc recommends an approach that the new fix now contradicts
+2. The new fix clearly supersedes an older documented solution
+3. The current work involved a refactor, migration, rename, or dependency upgrade that likely invalidated references in older docs
+4. A pattern doc now looks overly broad, outdated, or no longer supported by the refreshed reality
+5. The Related Docs Finder surfaced high-confidence refresh candidates in the same problem space
+
+It does **not** make sense to invoke `ce:compound-refresh` when:
+
+1. No related docs were found
+2. Related docs still appear consistent with the new learning
+3. The overlap is superficial and does not change prior guidance
+4. Refresh would require a broad historical review with weak evidence
+
+Use these rules:
+
+- If there is **one obvious stale candidate**, invoke `ce:compound-refresh` with a narrow scope hint after the new learning is written
+- If there are **multiple candidates in the same area**, ask the user whether to run a targeted refresh for that module, category, or pattern set
+- If context is already tight or you are in compact-safe mode, do not expand into a broad refresh automatically; instead recommend `ce:compound-refresh` as the next step with a scope hint
+
+When invoking or recommending `ce:compound-refresh`, be explicit about the argument to pass. Prefer the narrowest useful scope:
+
+- **Specific file** when one learning or pattern doc is the likely stale artifact
+- **Module or component name** when several related docs may need review
+- **Category name** when the drift is concentrated in one solutions area
+- **Pattern filename or pattern topic** when the stale guidance lives in `docs/solutions/patterns/`
+
+Examples:
+
+- `/ce:compound-refresh plugin-versioning-requirements`
+- `/ce:compound-refresh payments`
+- `/ce:compound-refresh performance-issues`
+- `/ce:compound-refresh critical-patterns`
+
+A single scope hint may still expand to multiple related docs when the change is cross-cutting within one domain, category, or pattern area.
+
+Do not invoke `ce:compound-refresh` without an argument unless the user explicitly wants a broad sweep.
+
+Always capture the new learning first. Refresh is a targeted maintenance follow-up, not a prerequisite for documentation.
 
 ### Phase 3: Optional Enhancement
 
@@ -172,6 +220,8 @@ re-run /compound in a fresh session.
 ```
 
 **No subagents are launched. No parallel tasks. One file written.**
+
+In compact-safe mode, only suggest `ce:compound-refresh` if there is an obvious narrow refresh target. Do not broaden into a large refresh sweep from a compact-safe session.
 
 ---
 
