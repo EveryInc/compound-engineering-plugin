@@ -485,7 +485,7 @@ Use sensible defaults — no user to ask:
 
 | Context | Default action |
 |---------|---------------|
-| On main/master | Create a descriptively named branch, commit, attempt to open a PR. If PR creation fails, report the branch name. |
+| On main/master | Create a branch named for what was refreshed (e.g., `docs/refresh-auth-and-ci-learnings`), commit, attempt to open a PR. If PR creation fails, report the branch name. |
 | On a feature branch | Commit as a separate commit on the current branch |
 | Git operations fail | Include the recommended git commands in the report and continue |
 
@@ -497,7 +497,7 @@ First, run `git branch --show-current` to determine the current branch. Then pre
 
 **If the current branch is main, master, or the repo's default branch:**
 
-1. Create a branch, commit, and open a PR (recommended)
+1. Create a branch, commit, and open a PR (recommended) — the branch name should be specific to what was refreshed, not generic (e.g., `docs/refresh-auth-learnings` not `docs/compound-refresh`)
 2. Commit directly to `{current branch name}`
 3. Don't commit — I'll handle it
 
