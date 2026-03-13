@@ -13,7 +13,7 @@ Maintain the quality of `docs/solutions/` over time. This workflow reviews exist
 
 Follow the same interaction style as `ce:brainstorm`:
 
-- Ask questions **one at a time**
+- Ask questions **one at a time** — use the platform's interactive question tool (e.g. `AskUserQuestion` in Claude Code, `request_user_input` in Codex) and **stop to wait for the answer** before continuing
 - Prefer **multiple choice** when natural options exist
 - Start with **scope and intent**, then narrow only when needed
 - Do **not** ask the user to make decisions before you have evidence
@@ -234,16 +234,14 @@ If "archive" feels too strong but the pattern should no longer be elevated, redu
 Most Updates should be applied directly without asking. Only ask the user when:
 
 - The right action is genuinely ambiguous (Update vs Replace vs Archive)
-- You are about to Archive a document
+- You are about to Archive a document **and** the evidence is not unambiguous (see auto-archive criteria in Phase 2). When auto-archive criteria are met, proceed without asking.
 - You are about to create a successor via `ce:compound`
 
 Do **not** ask questions about whether code changes were intentional, whether the user wants to fix bugs in the code, or other concerns outside doc maintenance. Stay in your lane — doc accuracy.
 
 ### Question Style
 
-Use the **AskUserQuestion tool** when available.
-
-If the environment does not support interactive prompts, present numbered options in plain text and wait for the user's response before proceeding.
+Always present choices using the platform's interactive question tool (e.g. `AskUserQuestion` in Claude Code, `request_user_input` in Codex). If the environment has no interactive prompt tool, present numbered options in plain text and wait for the user's response before proceeding.
 
 Question rules:
 
