@@ -468,6 +468,56 @@ Split actions into two sections:
 
 If all writes succeed, the Recommended section is empty. If no writes succeed (e.g., read-only invocation), all actions appear under Recommended — the report becomes a maintenance plan.
 
+## Phase 5: Commit Changes
+
+After all actions are executed and the report is generated, handle committing the changes. Skip this phase if no files were modified (all Keep, or all writes failed).
+
+### Detect git context
+
+Before offering options, check:
+1. Which branch is currently checked out (main/master vs feature branch)
+2. Whether the working tree has other uncommitted changes beyond what compound-refresh modified
+3. Recent commit messages to match the repo's commit style
+
+### Autonomous mode
+
+Use sensible defaults — no user to ask:
+
+| Context | Default action |
+|---------|---------------|
+| On main/master | Create a branch (`docs/compound-refresh-YYYY-MM-DD`), commit, attempt to open a PR. If PR creation fails, report the branch name. |
+| On a feature branch | Commit as a separate commit on the current branch |
+| Git operations fail | Include the recommended git commands in the report and continue |
+
+Stage only the files that compound-refresh modified — not other dirty files in the working tree.
+
+### Interactive mode
+
+Present options based on context. Stage only compound-refresh files regardless of which option the user picks.
+
+**On main/master (clean or dirty):**
+
+1. Create a branch, commit, and open a PR (recommended)
+2. Don't commit — I'll handle it
+
+**On a feature branch, clean working tree:**
+
+1. Commit to this branch as a separate commit (recommended)
+2. Create a separate branch and commit
+3. Don't commit
+
+**On a feature branch, dirty working tree (other uncommitted changes):**
+
+1. Commit only the compound-refresh changes to this branch (selective staging — other dirty files stay untouched)
+2. Don't commit
+
+### Commit message
+
+Write a descriptive commit message that:
+- Summarizes what was refreshed (e.g., "update 3 stale learnings, archive 1 obsolete doc")
+- Follows the repo's existing commit conventions (check recent git log for style)
+- Is succinct — the details are in the changed files themselves
+
 ## Relationship to ce:compound
 
 - `ce:compound` captures a newly solved, verified problem
