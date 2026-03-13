@@ -82,8 +82,8 @@ First, I need to understand the project's conventions, existing patterns, and an
 
 Run these agents **in parallel** to gather local context:
 
-- Task repo-research-analyst(feature_description)
-- Task learnings-researcher(feature_description)
+- Task compound-engineering:research:repo-research-analyst(feature_description)
+- Task compound-engineering:research:learnings-researcher(feature_description)
 
 **What to look for:**
 - **Repo research:** existing patterns, CLAUDE.md guidance, technology familiarity, pattern consistency
@@ -113,8 +113,8 @@ Examples:
 
 Run these agents in parallel:
 
-- Task best-practices-researcher(feature_description)
-- Task framework-docs-researcher(feature_description)
+- Task compound-engineering:research:best-practices-researcher(feature_description)
+- Task compound-engineering:research:framework-docs-researcher(feature_description)
 
 ### 1.6. Consolidate Research
 
