@@ -497,10 +497,9 @@ First, run `git branch --show-current` to determine the current branch. Then pre
 
 **If the current branch is main, master, or the repo's default branch:**
 
-Do NOT offer to commit directly to main. Always offer a branch first:
-
 1. Create a branch, commit, and open a PR (recommended)
-2. Don't commit — I'll handle it
+2. Commit directly to this branch
+3. Don't commit — I'll handle it
 
 **If the current branch is a feature branch, clean working tree:**
 
