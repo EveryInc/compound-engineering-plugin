@@ -498,18 +498,18 @@ First, run `git branch --show-current` to determine the current branch. Then pre
 **If the current branch is main, master, or the repo's default branch:**
 
 1. Create a branch, commit, and open a PR (recommended)
-2. Commit directly to this branch
+2. Commit directly to `{current branch name}`
 3. Don't commit — I'll handle it
 
 **If the current branch is a feature branch, clean working tree:**
 
-1. Commit to this branch as a separate commit (recommended)
+1. Commit to `{current branch name}` as a separate commit (recommended)
 2. Create a separate branch and commit
 3. Don't commit
 
 **If the current branch is a feature branch, dirty working tree (other uncommitted changes):**
 
-1. Commit only the compound-refresh changes to this branch (selective staging — other dirty files stay untouched)
+1. Commit only the compound-refresh changes to `{current branch name}` (selective staging — other dirty files stay untouched)
 2. Don't commit
 
 ### Commit message
