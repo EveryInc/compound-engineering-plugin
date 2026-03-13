@@ -9,6 +9,9 @@ A Claude Code plugin marketplace featuring the **Compound Engineering Plugin** â
 
 ```bash
 /plugin marketplace add EveryInc/compound-engineering-plugin
+```
+
+```bash
 /plugin install compound-engineering
 ```
 
