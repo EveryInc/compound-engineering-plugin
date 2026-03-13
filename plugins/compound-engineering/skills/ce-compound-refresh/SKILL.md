@@ -253,13 +253,24 @@ Action:
   - `archived_date: YYYY-MM-DD`
   - `archive_reason: [why it was archived]`
 
-Auto-archive when evidence is unambiguous:
+### Before archiving: check if the problem domain is still active
 
-- the referenced code, controller, or workflow is gone and no successor exists in the codebase
+When a learning's referenced files are gone, that is strong evidence — but only that the **implementation** is gone. Before archiving, reason about whether the **problem the learning solves** is still a concern in the codebase:
+
+- A learning about session token storage where `auth_token.rb` is gone — does the application still handle session tokens? If so, the concept persists under a new implementation. That is Replace, not Archive.
+- A learning about a deprecated API endpoint where the entire feature was removed — the problem domain is gone. That is Archive.
+
+Do not search mechanically for keywords from the old learning. Instead, understand what problem the learning addresses, then investigate whether that problem domain still exists in the codebase. The agent understands concepts — use that understanding to look for where the problem lives now, not where the old code used to be.
+
+**Auto-archive only when both the implementation AND the problem domain are gone:**
+
+- the referenced code is gone AND the application no longer deals with that problem domain
 - the learning is fully superseded by a clearly better successor
 - the document is plainly redundant and adds no distinct value
 
-Do not keep a learning just because its general advice is "still sound" — if the specific code it references is gone, the learning misleads readers. Archive it.
+If the implementation is gone but the problem domain persists (the app still does auth, still processes payments, still handles migrations), classify as **Replace** — the problem still matters and the current approach should be documented.
+
+Do not keep a learning just because its general advice is "still sound" — if the specific code it references is gone, the learning misleads readers. But do not archive a learning whose problem domain is still active — that knowledge gap should be filled with a replacement.
 
 If there is a clearly better successor, strongly consider **Replace** before **Archive** so the old artifact points readers toward the newer guidance.
 
