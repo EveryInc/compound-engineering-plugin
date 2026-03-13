@@ -83,7 +83,6 @@ Release numbering now follows the repository `v*` tag line. Starting at `v2.34.0
 ### Added
 
 * **plan:** add bite-sized work item decomposition to ce:plan. Plans now include structured `## Work Items` sections with exact file paths, complete code snippets, verification commands, and commit boundaries. Only for MORE and A LOT detail levels. Inspired by Superpowers' task granularity. Closes [#146](https://github.com/EveryInc/compound-engineering-plugin/issues/146)
-
 ## [2.34.4](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.34.3...v2.34.4) (2026-03-04)
 
 

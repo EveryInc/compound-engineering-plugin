@@ -294,7 +294,7 @@ origin: docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md  # if originated from 
 ## Work Items
 
 > Ordered by dependency. Each task is 2-5 minutes.
-> ce:work will use these as TodoWrite items.
+> Use these as TodoWrite items during implementation.
 
 ### Task 1: [Component Name]
 
@@ -464,7 +464,7 @@ origin: docs/brainstorms/YYYY-MM-DD-<topic>-brainstorm.md  # if originated from 
 ## Work Items
 
 > Ordered by dependency. Each task is 2-5 minutes.
-> ce:work will use these as TodoWrite items.
+> Use these as TodoWrite items during implementation.
 > For A LOT plans, group tasks into implementation phases.
 
 ### Phase 1: [Foundation]
