@@ -22,10 +22,10 @@ Check if `$ARGUMENTS` contains `mode:autonomous`. If present, strip it from argu
 
 - **Skip all user questions.** Never pause for input.
 - **Process all docs in scope.** No scope narrowing questions — if no scope hint was provided, process everything.
-- **Apply safe actions directly:** Keep (no-op), Update (fix references), auto-Archive (unambiguous criteria met), Replace (when evidence is sufficient).
-- **Mark as stale when uncertain.** If classification is genuinely ambiguous (Update vs Replace vs Archive) or Replace evidence is insufficient, mark as stale with `status: stale`, `stale_reason`, and `stale_date` in the frontmatter. Do not guess.
+- **Attempt all safe actions:** Keep (no-op), Update (fix references), auto-Archive (unambiguous criteria met), Replace (when evidence is sufficient). If a write succeeds, record it as **applied**. If a write fails (e.g., permission denied), record the action as **recommended** in the report and continue — do not stop or ask for permissions.
+- **Mark as stale when uncertain.** If classification is genuinely ambiguous (Update vs Replace vs Archive) or Replace evidence is insufficient, mark as stale with `status: stale`, `stale_reason`, and `stale_date` in the frontmatter. If even the stale-marking write fails, include it as a recommendation.
 - **Use conservative confidence.** In interactive mode, borderline cases get a user question. In autonomous mode, borderline cases get marked stale. Err toward stale-marking over incorrect action.
-- **Generate a full report.** The output report (see Output Format) lists all actions taken and all items marked stale with reasons, so a human can review the results after the fact.
+- **Always generate a report.** The report is the primary deliverable. It has two sections: **Applied** (actions that were successfully written) and **Recommended** (actions that could not be written, with full rationale so a human can apply them or run the skill interactively). The report structure is the same regardless of what permissions were granted — the only difference is which section each action lands in.
 
 ## Interaction Principles
 
@@ -424,14 +424,19 @@ For **Keep** outcomes, list them under a reviewed-without-edits section so the r
 
 ### Autonomous mode output
 
-In autonomous mode, the report is the primary deliverable since no user was present during execution. Include additional detail:
+In autonomous mode, the report is the primary deliverable. Split actions into two sections:
 
+**Applied** (writes that succeeded):
 - For each **Updated** file: what references were fixed and why
 - For each **Replaced** file: what the old learning recommended vs what the current code does, and the path to the new successor
 - For each **Archived** file: what referenced code/workflow is gone
-- For each **Marked stale** file: what evidence was found, what was ambiguous, and what action a human should consider
+- For each **Marked stale** file: what evidence was found and why it was ambiguous
 
-This report gives a human reviewer enough context to verify the autonomous run's decisions after the fact.
+**Recommended** (actions that could not be written — e.g., permission denied):
+- Same detail as above, but framed as recommendations for a human to apply
+- Include enough context that the user can apply the change manually or re-run the skill interactively
+
+If all writes succeed, the Recommended section is empty. If no writes succeed (e.g., read-only invocation), all actions appear under Recommended — the report becomes a maintenance plan.
 
 ## Relationship to ce:compound
 
