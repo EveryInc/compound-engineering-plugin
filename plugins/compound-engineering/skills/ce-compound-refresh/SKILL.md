@@ -412,7 +412,7 @@ Archive only when a learning is clearly obsolete or redundant. Do not archive a 
 
 ## Output Format
 
-**The full report MUST be printed as text output.** Do not summarize findings internally and then output a one-liner. The report is the deliverable — print every section in full.
+**The full report MUST be printed as markdown output.** Do not summarize findings internally and then output a one-liner. The report is the deliverable — print every section in full, formatted as readable markdown with headers, tables, and bullet points.
 
 After processing the selected scope, output the following report:
 
