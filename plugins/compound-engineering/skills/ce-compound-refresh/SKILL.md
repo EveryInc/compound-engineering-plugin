@@ -156,7 +156,7 @@ Use subagents for context isolation when investigating multiple artifacts — no
 | **Parallel subagents** | 3+ truly independent artifacts with low overlap |
 | **Batched subagents** | Broad sweeps — narrow scope first, then investigate in batches |
 
-Subagents are **read-only investigators**. They must not edit files, create successors, or archive anything. Each returns: file path, evidence, recommended action, confidence, and open questions.
+Subagents are **read-only investigators**. They must not edit files, create successors, or archive anything. Each returns: file path, evidence, recommended action, confidence, and open questions. Subagents should use dedicated file search and read tools for investigation — not shell commands. This avoids unnecessary permission prompts and is more reliable across platforms.
 
 The orchestrator merges results, detects contradictions, asks the user questions, and performs all edits centrally. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
 
