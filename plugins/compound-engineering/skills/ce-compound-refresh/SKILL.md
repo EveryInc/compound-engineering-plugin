@@ -493,20 +493,22 @@ Stage only the files that compound-refresh modified — not other dirty files in
 
 ### Interactive mode
 
-Present options based on context. Stage only compound-refresh files regardless of which option the user picks.
+First, run `git branch --show-current` to determine the current branch. Then present the correct options based on the result. Stage only compound-refresh files regardless of which option the user picks.
 
-**On main/master (clean or dirty):**
+**If the current branch is main, master, or the repo's default branch:**
+
+Do NOT offer to commit directly to main. Always offer a branch first:
 
 1. Create a branch, commit, and open a PR (recommended)
 2. Don't commit — I'll handle it
 
-**On a feature branch, clean working tree:**
+**If the current branch is a feature branch, clean working tree:**
 
 1. Commit to this branch as a separate commit (recommended)
 2. Create a separate branch and commit
 3. Don't commit
 
-**On a feature branch, dirty working tree (other uncommitted changes):**
+**If the current branch is a feature branch, dirty working tree (other uncommitted changes):**
 
 1. Commit only the compound-refresh changes to this branch (selective staging — other dirty files stay untouched)
 2. Don't commit
