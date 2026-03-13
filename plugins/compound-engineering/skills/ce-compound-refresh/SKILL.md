@@ -412,7 +412,9 @@ Archive only when a learning is clearly obsolete or redundant. Do not archive a 
 
 ## Output Format
 
-After processing the selected scope, report:
+**The full report MUST be printed as text output.** Do not summarize findings internally and then output a one-liner. The report is the deliverable — print every section in full.
+
+After processing the selected scope, output the following report:
 
 ```text
 Compound Refresh Summary
@@ -427,19 +429,25 @@ Skipped: V
 Marked stale: S
 ```
 
-Then list the affected files and what changed.
+Then for EVERY file processed, list:
+- The file path
+- The classification (Keep/Update/Replace/Archive/Stale)
+- What evidence was found
+- What action was taken (or recommended)
 
 For **Keep** outcomes, list them under a reviewed-without-edits section so the result is visible without creating git churn.
 
 ### Autonomous mode output
 
-In autonomous mode, the report is the primary deliverable. Split actions into two sections:
+In autonomous mode, the report is the sole deliverable — there is no user present to ask follow-up questions, so the report must be self-contained and complete. **Print the full report. Do not abbreviate, summarize, or skip sections.**
+
+Split actions into two sections:
 
 **Applied** (writes that succeeded):
-- For each **Updated** file: what references were fixed and why
+- For each **Updated** file: the file path, what references were fixed, and why
 - For each **Replaced** file: what the old learning recommended vs what the current code does, and the path to the new successor
-- For each **Archived** file: what referenced code/workflow is gone
-- For each **Marked stale** file: what evidence was found and why it was ambiguous
+- For each **Archived** file: the file path and what referenced code/workflow is gone
+- For each **Marked stale** file: the file path, what evidence was found, and why it was ambiguous
 
 **Recommended** (actions that could not be written — e.g., permission denied):
 - Same detail as above, but framed as recommendations for a human to apply
