@@ -102,18 +102,30 @@ Before asking the user to classify anything:
 | Scope | When to use it | Interaction style |
 |-------|----------------|-------------------|
 | **Focused** | 1-2 likely files or user named a specific doc | Investigate directly, then present a recommendation |
-| **Batch** | 3-8 mostly independent docs | Investigate first, then present grouped recommendations |
-| **Broad** | Large, ambiguous, or repo-wide stale-doc sweep | Ask one narrowing question before deep investigation |
+| **Batch** | Up to ~8 mostly independent docs | Investigate first, then present grouped recommendations |
+| **Broad** | 9+ docs, ambiguous, or repo-wide stale-doc sweep | Triage first, then investigate in batches |
 
-If scope is broad or ambiguous, ask one question to narrow it before scanning deeply. Prefer multiple choice when possible:
+### Broad Scope Triage
+
+When scope is broad (9+ candidate docs), do a lightweight triage before deep investigation:
+
+1. **Inventory** — read frontmatter of all candidate docs, group by module/component/category
+2. **Impact clustering** — identify areas with the densest clusters of learnings + pattern docs. A cluster of 5 learnings and 2 patterns covering the same module is higher-impact than 5 isolated single-doc areas, because staleness in one doc is likely to affect the others.
+3. **Spot-check drift** — for each cluster, check whether the primary referenced files still exist. Missing references in a high-impact cluster = strongest signal for where to start.
+4. **Recommend a starting area** — present the highest-impact cluster with a brief rationale and ask the user to confirm or redirect.
+
+Example:
 
 ```text
-I found a broad refresh scope. Which area should we review first?
+Found 24 learnings across 5 areas.
 
-1. A specific file
-2. A category or module
-3. Pattern docs first
-4. Everything in scope
+The auth module has 5 learnings and 2 pattern docs that cross-reference
+each other — and 3 of those reference files that no longer exist.
+I'd start there.
+
+1. Start with auth (recommended)
+2. Pick a different area
+3. Review everything
 ```
 
 Do not ask action-selection questions yet. First gather evidence.
@@ -131,9 +143,20 @@ A learning has several dimensions that can independently go stale. Surface-level
 
 Match investigation depth to the learning's specificity — a learning referencing exact file paths and code snippets needs more verification than one describing a general principle.
 
-Three judgment guidelines that are easy to get wrong:
+### Drift Classification: Update vs Replace
 
-1. **Contradiction = strong Replace signal.** If the learning's recommendation conflicts with current code patterns or a recently verified fix, that is not a minor drift — the learning is actively misleading.
+The critical distinction is whether the drift is **cosmetic** (references moved but the solution is the same) or **substantive** (the solution itself changed):
+
+- **Update territory** — file paths moved, classes renamed, links broke, metadata drifted, but the core recommended approach is still how the code works. `ce:compound-refresh` fixes these directly.
+- **Replace territory** — the recommended solution conflicts with current code, the architectural approach changed, or the pattern is no longer the preferred way. This means a new learning needs to be written. A replacement subagent writes the successor following `ce:compound`'s document format (frontmatter, problem, root cause, solution, prevention), using the investigation evidence already gathered. The orchestrator does not rewrite learnings inline — it delegates to a subagent for context isolation.
+
+**The boundary:** if you find yourself rewriting the solution section or changing what the learning recommends, stop — that is Replace, not Update.
+
+### Judgment Guidelines
+
+Three guidelines that are easy to get wrong:
+
+1. **Contradiction = strong Replace signal.** If the learning's recommendation conflicts with current code patterns or a recently verified fix, that is not a minor drift — the learning is actively misleading. Classify as Replace.
 2. **Age alone is not a stale signal.** A 2-year-old learning that still matches current code is fine. Only use age as a prompt to inspect more carefully.
 3. **Check for successors before archiving.** Before recommending Replace or Archive, look for newer learnings, pattern docs, PRs, or issues covering the same problem space. If successor evidence exists, prefer Replace over Archive so readers are directed to the newer guidance.
 
@@ -156,9 +179,14 @@ Use subagents for context isolation when investigating multiple artifacts — no
 | **Parallel subagents** | 3+ truly independent artifacts with low overlap |
 | **Batched subagents** | Broad sweeps — narrow scope first, then investigate in batches |
 
-Subagents are **read-only investigators**. They must not edit files, create successors, or archive anything. Each returns: file path, evidence, recommended action, confidence, and open questions. Subagents should use dedicated file search and read tools for investigation — not shell commands. This avoids unnecessary permission prompts and is more reliable across platforms.
+Subagents should use dedicated file search and read tools for investigation — not shell commands. This avoids unnecessary permission prompts and is more reliable across platforms.
 
-The orchestrator merges results, detects contradictions, asks the user questions, and performs all edits centrally. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
+There are two subagent roles:
+
+1. **Investigation subagents** — read-only. They must not edit files, create successors, or archive anything. Each returns: file path, evidence, recommended action, confidence, and open questions. These can run in parallel when artifacts are independent.
+2. **Replacement subagents** — write a single new learning to replace a stale one. These run **one at a time, sequentially** (each replacement subagent may need to read significant code, and running multiple in parallel risks context exhaustion). The orchestrator handles all archival and metadata updates after each replacement completes.
+
+The orchestrator merges investigation results, detects contradictions, asks the user questions, coordinates replacement subagents, and performs all archival/metadata edits centrally. If two artifacts overlap or discuss the same root issue, investigate them together rather than parallelizing.
 
 ## Phase 2: Classify the Right Maintenance Action
 
@@ -176,21 +204,17 @@ The core solution is still valid but references have drifted (paths, class names
 
 Choose **Replace** when the learning's core guidance is now misleading — the recommended fix changed materially, the root cause or architecture shifted, or the preferred pattern is different.
 
-Replace requires real replacement context. Investigate before asking the user — they may have invoked the refresh months after the original learning was written and not have this context themselves.
+The user may have invoked the refresh months after the original learning was written. Do not ask them for replacement context they are unlikely to have — use agent intelligence to investigate the codebase and synthesize the replacement.
 
-**Investigation order:**
+**Evidence assessment:**
 
-1. Check if the current conversation already contains replacement context (e.g., user just solved the problem differently)
-2. If not, spawn a read-only subagent to investigate deeper — git history, related PRs, newer learnings, current code patterns — to find what replaced the old approach. Use a subagent to protect the main session context window from the volume of evidence.
-3. If the conversation or codebase provides sufficient replacement context → proceed:
-   - Create a successor learning through `ce:compound`
-   - Add `superseded_by` metadata to the old learning
-   - Move the old learning to `docs/solutions/_archived/`
-4. If replacement context is insufficient → do **not** force Replace. Mark the learning as stale in place so readers know not to rely on it:
-   - Add `status: stale`, `stale_reason`, and `stale_date` to the frontmatter
-   - Report to the user what you found and suggest they come back with `ce:compound` after solving the problem fresh
+By the time you identify a Replace candidate, Phase 1 investigation has already gathered significant evidence: the old learning's claims, what the current code actually does, and where the drift occurred. Assess whether this evidence is sufficient to write a trustworthy replacement:
 
-Only ask the user for replacement context if they clearly have it (e.g., they mentioned a recent migration or refactor). Do not default to asking — default to investigating.
+- **Sufficient evidence** — you understand both what the old learning recommended AND what the current approach is. The investigation found the current code patterns, the new file locations, the changed architecture. → Proceed to write the replacement (see Phase 4 Replace Flow).
+- **Insufficient evidence** — the drift is so fundamental that you cannot confidently document the current approach. The entire subsystem was replaced, or the new architecture is too complex to understand from a file scan alone. → Mark as stale in place:
+   - Add `status: stale`, `stale_reason: [what you found]`, `stale_date: YYYY-MM-DD` to the frontmatter
+   - Report what evidence you found and what is missing
+   - Recommend the user run `ce:compound` after their next encounter with that area, when they have fresh problem-solving context
 
 ### Archive
 
@@ -331,20 +355,25 @@ Those cases require **Replace**, not Update.
 
 ### Replace Flow
 
-Follow the investigation order defined in Phase 2's Replace section. The key principle: exhaust codebase investigation before asking the user for context they may not have.
+Process Replace candidates **one at a time, sequentially**. Each replacement is written by a subagent to protect the main context window.
 
-If replacement context is found and sufficient:
+**When evidence is sufficient:**
 
-1. Run `ce:compound` with a short context summary for the replacement learning
-2. Create the new learning
-3. Update the old doc with `superseded_by`
-4. Move the old doc to `docs/solutions/_archived/`
+1. Spawn a single subagent to write the replacement learning. Pass it:
+   - The old learning's full content
+   - A summary of the investigation evidence (what changed, what the current code does, why the old guidance is misleading)
+   - The target path and category (same category as the old learning unless the category itself changed)
+2. The subagent writes the new learning following `ce:compound`'s document format: YAML frontmatter (title, category, date, module, component, tags), problem description, root cause, current solution with code examples, and prevention tips. It should use dedicated file search and read tools if it needs additional context beyond what was passed.
+3. After the subagent completes, the orchestrator:
+   - Adds `superseded_by: [new learning path]` to the old learning's frontmatter
+   - Moves the old learning to `docs/solutions/_archived/`
 
-If replacement context is insufficient, mark the learning as stale in place:
+**When evidence is insufficient:**
 
-1. Add to frontmatter: `status: stale`, `stale_reason: [what you found]`, `stale_date: YYYY-MM-DD`
-2. Report to the user what evidence you found and what's missing
-3. Suggest they revisit with `ce:compound` after solving the problem fresh
+1. Mark the learning as stale in place:
+   - Add to frontmatter: `status: stale`, `stale_reason: [what you found]`, `stale_date: YYYY-MM-DD`
+2. Report what evidence was found and what is missing
+3. Recommend the user run `ce:compound` after their next encounter with that area
 
 ### Archive Flow
 
