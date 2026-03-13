@@ -73,14 +73,15 @@ For each candidate artifact, classify it into one of four outcomes:
 1. **Evidence informs judgment.** The signals below are inputs, not a mechanical scorecard. Use engineering judgment to decide whether the artifact is still trustworthy.
 2. **Prefer no-write Keep.** Do not update a doc just to leave a review breadcrumb.
 3. **Match docs to reality, not the reverse.** When current code differs from a learning, update the learning to reflect the current code. The skill's job is doc accuracy, not code review — do not ask the user whether code changes were "intentional" or "a regression." If the code changed, the doc should match. If the user thinks the code is wrong, that is a separate concern outside this workflow.
-4. **Be decisive, minimize questions.** When evidence is clear (file renamed, class moved, reference broken), apply the update. Only ask the user when the right maintenance action is genuinely ambiguous — not to confirm obvious fixes. The goal is automated maintenance with human oversight on judgment calls, not a question for every finding.
+4. **Be decisive, minimize questions.** When evidence is clear (file renamed, class moved, reference broken), apply the update. In interactive mode, only ask the user when the right action is genuinely ambiguous. In autonomous mode, mark ambiguous cases as stale instead of asking. The goal is automated maintenance with human oversight on judgment calls, not a question for every finding.
 5. **Avoid low-value churn.** Do not edit a doc just to fix a typo, polish wording, or make cosmetic changes that do not materially improve accuracy or usability.
 6. **Use Update only for meaningful, evidence-backed drift.** Paths, module names, related links, category metadata, code snippets, and clearly stale wording are fair game when fixing them materially improves accuracy.
 7. **Use Replace only when there is a real replacement.** That means either:
    - the current conversation contains a recently solved, verified replacement fix, or
-   - the user provides enough concrete replacement context to document the successor honestly, or
+   - the user has provided enough concrete replacement context to document the successor honestly, or
+   - the codebase investigation found the current approach and can document it as the successor, or
    - newer docs, pattern docs, PRs, or issues provide strong successor evidence.
-8. **Archive when the code is gone.** If the referenced code, controller, or workflow no longer exists in the codebase and no successor can be found, recommend Archive — don't default to Keep just because the general advice is still "sound." A learning about a deleted feature misleads readers into thinking that feature still exists. When in doubt between Keep and Archive, ask the user — but missing referenced files with no matching code is strong Archive evidence, not a reason to Keep with "medium confidence."
+8. **Archive when the code is gone.** If the referenced code, controller, or workflow no longer exists in the codebase and no successor can be found, recommend Archive — don't default to Keep just because the general advice is still "sound." A learning about a deleted feature misleads readers into thinking that feature still exists. When in doubt between Keep and Archive, ask the user (in interactive mode) or mark as stale (in autonomous mode). But missing referenced files with no matching code is **not** a doubt case — it is strong, unambiguous Archive evidence. Auto-archive it.
 
 ## Scope Selection
 
@@ -275,7 +276,15 @@ If "archive" feels too strong but the pattern should no longer be elevated, redu
 
 ## Phase 3: Ask for Decisions
 
-**In autonomous mode, skip this entire phase.** Apply all unambiguous actions directly and mark ambiguous cases as stale (see autonomous mode rules).
+### Autonomous mode
+
+**Skip this entire phase. Do not ask any questions. Do not present options. Do not wait for input.** Proceed directly to Phase 4 and execute all actions based on the classifications from Phase 2:
+
+- Unambiguous Keep, Update, auto-Archive, and Replace (with sufficient evidence) → execute directly
+- Ambiguous cases → mark as stale
+- Then generate the report (see Output Format)
+
+### Interactive mode
 
 Most Updates should be applied directly without asking. Only ask the user when:
 
@@ -285,7 +294,7 @@ Most Updates should be applied directly without asking. Only ask the user when:
 
 Do **not** ask questions about whether code changes were intentional, whether the user wants to fix bugs in the code, or other concerns outside doc maintenance. Stay in your lane — doc accuracy.
 
-### Question Style
+#### Question Style
 
 Always present choices using the platform's interactive question tool (e.g. `AskUserQuestion` in Claude Code, `request_user_input` in Codex). If the environment has no interactive prompt tool, present numbered options in plain text and wait for the user's response before proceeding.
 
@@ -297,7 +306,7 @@ Question rules:
 - Explain the rationale for the recommendation in one concise sentence
 - Avoid asking the user to choose from actions that are not actually plausible
 
-### Focused Scope
+#### Focused Scope
 
 For a single artifact, present:
 
@@ -321,7 +330,7 @@ What would you like to do?
 
 Do not list all four actions unless all four are genuinely plausible.
 
-### Batch Scope
+#### Batch Scope
 
 For several learnings:
 
@@ -336,7 +345,7 @@ Ask for confirmation in stages:
 2. Then handle Replace one at a time
 3. Then handle Archive one at a time unless the archive is unambiguous and safe to auto-apply
 
-### Broad Scope
+#### Broad Scope
 
 If the user asked for a sweeping refresh, keep the interaction incremental:
 
