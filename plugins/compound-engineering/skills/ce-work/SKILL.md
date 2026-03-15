@@ -23,6 +23,10 @@ This command takes a work document (plan, specification, or todo file) and execu
 1. **Read Plan and Clarify**
 
    - Read the work document completely
+   - Treat the plan as a decision artifact, not an execution script
+   - If the plan includes sections such as `Implementation Units`, `Work Breakdown`, `Requirements Trace`, `Files`, `Test Scenarios`, or `Verification`, use those as the primary source material for execution
+   - Check for a `Deferred to Implementation` or `Implementation-Time Unknowns` section — these are questions the planner intentionally left for you to resolve during execution. Note them before starting so they inform your approach rather than surprising you mid-task
+   - Check for a `Scope Boundaries` section — these are explicit non-goals. Refer back to them if implementation starts pulling you toward adjacent work
    - Review any references or links provided in the plan
    - If anything is unclear or ambiguous, ask clarifying questions now
    - Get user approval to proceed
@@ -73,11 +77,34 @@ This command takes a work document (plan, specification, or todo file) and execu
    - You plan to switch between branches frequently
 
 3. **Create Todo List**
-   - Use TodoWrite to break plan into actionable tasks
+   - Use your available task tracking tool (e.g., TodoWrite, task lists) to break the plan into actionable tasks
+   - Derive tasks from the plan's implementation units, dependencies, files, test targets, and verification criteria
+   - For each unit, read the `Patterns to follow` field before implementing — these point to specific files or conventions to mirror
+   - Use each unit's `Verification` field as the primary "done" signal for that task
+   - Do not expect the plan to contain implementation code, micro-step TDD instructions, or exact shell commands
    - Include dependencies between tasks
    - Prioritize based on what needs to be done first
    - Include testing and quality check tasks
    - Keep tasks specific and completable
+
+4. **Choose Execution Strategy**
+
+   After creating the task list, decide how to execute based on the plan's size and dependency structure:
+
+   | Strategy | When to use |
+   |----------|-------------|
+   | **Inline** | 1-2 small tasks, or tasks needing user interaction mid-flight |
+   | **Serial subagents** | 3+ tasks with dependencies between them. Each subagent gets a fresh context window focused on one unit — prevents context degradation across many tasks |
+   | **Parallel subagents** | 3+ tasks where some units have no shared dependencies and touch non-overlapping files. Dispatch independent units simultaneously, run dependent units after their prerequisites complete |
+
+   **Subagent dispatch** uses your available subagent or task spawning mechanism. For each unit, give the subagent:
+   - The full plan file path (for overall context)
+   - The specific unit's Goal, Files, Approach, Patterns, Test scenarios, and Verification
+   - Any resolved deferred questions relevant to that unit
+
+   After each subagent completes, update the plan checkboxes and task list before dispatching the next dependent unit.
+
+   For genuinely large plans needing persistent inter-agent communication (agents challenging each other's approaches, shared coordination across 10+ tasks), see Swarm Mode below which uses Agent Teams.
 
 ### Phase 2: Execute
 
@@ -87,15 +114,14 @@ This command takes a work document (plan, specification, or todo file) and execu
 
    ```
    while (tasks remain):
-     - Mark task as in_progress in TodoWrite
+     - Mark task as in-progress
      - Read any referenced files from the plan
      - Look for similar patterns in codebase
      - Implement following existing conventions
      - Write tests for new functionality
      - Run System-Wide Test Check (see below)
      - Run tests after changes
-     - Mark task as completed in TodoWrite
-     - Mark off the corresponding checkbox in the plan file ([ ] → [x])
+     - Mark task as completed
      - Evaluate for incremental commit (see below)
    ```
 
@@ -113,7 +139,6 @@ This command takes a work document (plan, specification, or todo file) and execu
 
    **When this matters most:** Any change that touches models with callbacks, error handling with fallback/retry, or functionality exposed through multiple interfaces.
 
-   **IMPORTANT**: Always update the original plan document by checking off completed items. Use the Edit tool to change `- [ ]` to `- [x]` for each task you finish. This keeps the plan as a living document showing progress and ensures no checkboxes are left unchecked.
 
 2. **Incremental Commits**
 
@@ -127,6 +152,8 @@ This command takes a work document (plan, specification, or todo file) and execu
    | About to attempt risky/uncertain changes | Would need a "WIP" commit message |
 
    **Heuristic:** "Can I write a commit message that describes a complete, valuable change? If yes, commit. If the message would be 'WIP' or 'partial X', wait."
+
+   If the plan has Implementation Units, use them as a starting guide for commit boundaries — but adapt based on what you find during implementation. A unit might need multiple commits if it's larger than expected, or small related units might land together. Use each unit's Goal to inform the commit message.
 
    **Commit workflow:**
    ```bash
@@ -160,7 +187,15 @@ This command takes a work document (plan, specification, or todo file) and execu
    - Add new tests for new functionality
    - **Unit tests with mocks prove logic in isolation. Integration tests with real objects prove the layers work together.** If your change touches callbacks, middleware, or error handling — you need both.
 
-5. **Figma Design Sync** (if applicable)
+5. **Simplify as You Go**
+
+   After completing a cluster of related implementation units (or every 2-3 units), review recently changed files for simplification opportunities — consolidate duplicated patterns, extract shared helpers, and improve code reuse and efficiency. This is especially valuable when using subagents, since each agent works with isolated context and can't see patterns emerging across units.
+
+   Don't simplify after every single unit — early patterns may look duplicated but diverge intentionally in later units. Wait for a natural phase boundary or when you notice accumulated complexity.
+
+   If a `/simplify` skill or equivalent is available, use it. Otherwise, review the changed files yourself for reuse and consolidation opportunities.
+
+6. **Figma Design Sync** (if applicable)
 
    For UI work with Figma designs:
 
@@ -170,7 +205,7 @@ This command takes a work document (plan, specification, or todo file) and execu
    - Repeat until implementation matches design
 
 6. **Track Progress**
-   - Keep TodoWrite updated as you complete tasks
+   - Keep the task list updated as you complete tasks
    - Note any blockers or unexpected discoveries
    - Create new tasks if scope expands
    - Keep user informed of major milestones
@@ -196,12 +231,14 @@ This command takes a work document (plan, specification, or todo file) and execu
    Run configured agents in parallel with Task tool. Present findings and address critical issues.
 
 3. **Final Validation**
-   - All TodoWrite tasks marked completed
+   - All tasks marked completed
    - All tests pass
    - Linting passes
    - Code follows existing patterns
    - Figma designs match (if applicable)
    - No console errors or warnings
+   - If the plan has a `Requirements Trace`, verify each requirement is satisfied by the completed work
+   - If any `Deferred to Implementation` questions were noted, confirm they were resolved during execution
 
 4. **Prepare Operational Validation Plan** (REQUIRED)
    - Add a `## Post-Deploy Monitoring & Validation` section to the PR description for every change.
@@ -328,73 +365,30 @@ This command takes a work document (plan, specification, or todo file) and execu
 
 ---
 
-## Swarm Mode (Optional)
+## Swarm Mode with Agent Teams (Optional)
 
-For complex plans with multiple independent workstreams, enable swarm mode for parallel execution with coordinated agents.
+For genuinely large plans where agents need to communicate with each other, challenge approaches, or coordinate across 10+ tasks with persistent specialized roles, use agent team capabilities if available (e.g., Agent Teams in Claude Code, multi-agent workflows in Codex).
 
-### When to Use Swarm Mode
+**Agent teams are typically experimental and require opt-in.** Do not attempt to use agent teams unless the user explicitly requests swarm mode or agent teams, and the platform supports it.
 
-| Use Swarm Mode when... | Use Standard Mode when... |
-|------------------------|---------------------------|
-| Plan has 5+ independent tasks | Plan is linear/sequential |
-| Multiple specialists needed (review + test + implement) | Single-focus work |
-| Want maximum parallelism | Simpler mental model preferred |
-| Large feature with clear phases | Small feature or bug fix |
+### When to Use Agent Teams vs Subagents
 
-### Enabling Swarm Mode
+| Agent Teams | Subagents (standard mode) |
+|-------------|---------------------------|
+| Agents need to discuss and challenge each other's approaches | Each task is independent — only the result matters |
+| Persistent specialized roles (e.g., dedicated tester running continuously) | Workers report back and finish |
+| 10+ tasks with complex cross-cutting coordination | 3-8 tasks with clear dependency chains |
+| User explicitly requests "swarm mode" or "agent teams" | Default for most plans |
 
-To trigger swarm execution, say:
+Most plans should use subagent dispatch from standard mode. Agent teams add significant token cost and coordination overhead — use them when the inter-agent communication genuinely improves the outcome.
 
-> "Make a Task list and launch an army of agent swarm subagents to build the plan"
+### Agent Teams Workflow
 
-Or explicitly request: "Use swarm mode for this work"
-
-### Swarm Workflow
-
-When swarm mode is enabled, the workflow changes:
-
-1. **Create Team**
-   ```
-   Teammate({ operation: "spawnTeam", team_name: "work-{timestamp}" })
-   ```
-
-2. **Create Task List with Dependencies**
-   - Parse plan into TaskCreate items
-   - Set up blockedBy relationships for sequential dependencies
-   - Independent tasks have no blockers (can run in parallel)
-
-3. **Spawn Specialized Teammates**
-   ```
-   Task({
-     team_name: "work-{timestamp}",
-     name: "implementer",
-     subagent_type: "general-purpose",
-     prompt: "Claim implementation tasks, execute, mark complete",
-     run_in_background: true
-   })
-
-   Task({
-     team_name: "work-{timestamp}",
-     name: "tester",
-     subagent_type: "general-purpose",
-     prompt: "Claim testing tasks, run tests, mark complete",
-     run_in_background: true
-   })
-   ```
-
-4. **Coordinate and Monitor**
-   - Team lead monitors task completion
-   - Spawn additional workers as phases unblock
-   - Handle plan approval if required
-
-5. **Cleanup**
-   ```
-   Teammate({ operation: "requestShutdown", target_agent_id: "implementer" })
-   Teammate({ operation: "requestShutdown", target_agent_id: "tester" })
-   Teammate({ operation: "cleanup" })
-   ```
-
-See the `orchestrating-swarms` skill for detailed swarm patterns and best practices.
+1. **Create team** — use your available team creation mechanism
+2. **Create task list** — parse Implementation Units into tasks with dependency relationships
+3. **Spawn teammates** — assign specialized roles (implementer, tester, reviewer) based on the plan's needs. Give each teammate the plan file path and their specific task assignments
+4. **Coordinate** — the lead monitors task completion, reassigns work if someone gets stuck, and spawns additional workers as phases unblock
+5. **Cleanup** — shut down all teammates, then clean up the team resources
 
 ---
 
@@ -436,7 +430,7 @@ See the `orchestrating-swarms` skill for detailed swarm patterns and best practi
 Before creating PR, verify:
 
 - [ ] All clarifying questions asked and answered
-- [ ] All TodoWrite tasks marked completed
+- [ ] All tasks marked completed
 - [ ] Tests pass (run project's test command)
 - [ ] Linting passes (use linting-agent)
 - [ ] Code follows existing patterns
@@ -465,6 +459,6 @@ For most features: tests + linting + following patterns is sufficient.
 - **Skipping clarifying questions** - Ask now, not after building wrong thing
 - **Ignoring plan references** - The plan has links for a reason
 - **Testing at the end** - Test continuously or suffer later
-- **Forgetting TodoWrite** - Track progress or lose track of what's done
+- **Forgetting to track progress** - Update task status as you go or lose track of what's done
 - **80% done syndrome** - Finish the feature, don't move on early
 - **Over-reviewing simple changes** - Save reviewer agents for complex work
