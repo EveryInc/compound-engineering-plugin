@@ -8,7 +8,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 |-----------|-------|
 | Agents | 28 |
 | Commands | 22 |
-| Skills | 20 |
+| Skills | 19 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -130,7 +130,6 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 
 | Skill | Description |
 |-------|-------------|
-| `brainstorming` | Explore requirements and approaches through collaborative dialogue |
 | `document-review` | Improve documents through structured self-review |
 | `every-style-editor` | Review copy for Every's style guide compliance |
 | `file-todos` | File-based todo tracking system |

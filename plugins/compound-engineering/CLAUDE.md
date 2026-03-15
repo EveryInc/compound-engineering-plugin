@@ -78,8 +78,8 @@ When adding or modifying skills, verify compliance with skill-creator spec:
 
 ### AskUserQuestion Usage
 
-- [ ] If the skill uses `AskUserQuestion`, it must include an "Interaction Method" preamble explaining the numbered-list fallback for non-Claude environments
-- [ ] Prefer avoiding `AskUserQuestion` entirely (see `brainstorming/SKILL.md` pattern) for skills intended to run cross-platform
+- [ ] Avoid `AskUserQuestion` for skills intended to run cross-platform (see `ce-brainstorm/SKILL.md` pattern)
+- [ ] If the skill does use `AskUserQuestion`, it must include an "Interaction Method" preamble explaining the numbered-list fallback for non-Claude environments
 
 ### Quick Validation Command
 

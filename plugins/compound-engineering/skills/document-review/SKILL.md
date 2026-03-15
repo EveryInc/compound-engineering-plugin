@@ -1,17 +1,17 @@
 ---
 name: document-review
-description: This skill should be used to refine brainstorm or plan documents before proceeding to the next workflow step. It applies when a brainstorm or plan document exists and the user wants to improve it.
+description: This skill should be used to refine requirements or plan documents before proceeding to the next workflow step. It applies when a requirements document or plan document exists and the user wants to improve it.
 ---
 
 # Document Review
 
-Improve brainstorm or plan documents through structured review.
+Improve requirements or plan documents through structured review.
 
 ## Step 1: Get the Document
 
 **If a document path is provided:** Read it, then proceed to Step 2.
 
-**If no document is specified:** Ask which document to review, or look for the most recent brainstorm/plan in `docs/brainstorms/` or `docs/plans/`.
+**If no document is specified:** Ask which document to review, or look for the most recent requirements/plan in `docs/brainstorms/` or `docs/plans/`.
 
 ## Step 2: Assess
 
@@ -32,9 +32,10 @@ Score the document against these criteria:
 | Criterion | What to Check |
 |-----------|---------------|
 | **Clarity** | Problem statement is clear, no vague language ("probably," "consider," "try to") |
-| **Completeness** | Required sections present, constraints stated, open questions flagged |
-| **Specificity** | Concrete enough for next step (brainstorm → can plan, plan → can implement) |
-| **YAGNI** | No hypothetical features, simplest approach chosen |
+| **Completeness** | Required sections present, constraints stated, and outstanding questions clearly marked as blocking or deferred |
+| **Specificity** | Concrete enough for next step (requirements → can plan, plan → can implement) |
+| **Appropriate Level** | Requirements doc stays at behavior/scope level and does not drift into implementation unless the document is inherently technical |
+| **YAGNI** | Avoid speculative complexity whose carrying cost outweighs its value; keep low-cost, meaningful polish when it is easy to maintain |
 
 If invoked within a workflow (after `/ce:brainstorm` or `/ce:plan`), also check:
 - **User intent fidelity** — Document reflects what was discussed, assumptions validated
@@ -56,7 +57,7 @@ Present your findings, then:
 Simplification is purposeful removal of unnecessary complexity, not shortening for its own sake.
 
 **Simplify when:**
-- Content serves hypothetical future needs, not current ones
+- Content serves hypothetical future needs without enough current value to justify its carrying cost
 - Sections repeat information already covered elsewhere
 - Detail exceeds what's needed to take the next step
 - Abstractions or structure add overhead without clarity
@@ -65,6 +66,10 @@ Simplification is purposeful removal of unnecessary complexity, not shortening f
 - Constraints or edge cases that affect implementation
 - Rationale that explains why alternatives were rejected
 - Open questions that need resolution
+- Deferred technical or research questions that are intentionally carried forward to the next stage
+
+**Also remove when inappropriate:**
+- Library choices, file structures, endpoints, schemas, or other implementation details that do not belong in a non-technical requirements document
 
 ## Step 6: Offer Next Action
 

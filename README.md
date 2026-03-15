@@ -194,7 +194,7 @@ Brainstorm → Plan → Work → Review → Compound → Repeat
 | `/ce:review` | Multi-agent code review before merging |
 | `/ce:compound` | Document learnings to make future work easier |
 
-The `brainstorming` skill supports `/ce:brainstorm` with collaborative dialogue to clarify requirements and compare approaches before committing to a plan.
+The `/ce:brainstorm` skill supports collaborative dialogue to clarify requirements and compare approaches before committing to a plan.
 
 Each cycle compounds: brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented.
 
