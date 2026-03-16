@@ -2,24 +2,24 @@
 
 ## Versioning Requirements
 
-**IMPORTANT**: Every change to this plugin MUST include updates to all three files:
+**IMPORTANT**: Routine PRs should not cut releases for this plugin.
 
-1. **`.claude-plugin/plugin.json`** - Bump version using semver
-2. **`CHANGELOG.md`** - Document changes using Keep a Changelog format
-3. **`README.md`** - Verify/update component counts and tables
+The repo uses an automatied release process to prepare plugin releases, including version selection and changelog generation. Because multiple PRs may merge before the next release, contributors cannot know the final released version from within an individual PR.
 
-### Version Bumping Rules
+### Contributor Rules
 
-- **MAJOR** (1.0.0 → 2.0.0): Breaking changes, major reorganization
-- **MINOR** (1.0.0 → 1.1.0): New agents, commands, or skills
-- **PATCH** (1.0.0 → 1.0.1): Bug fixes, doc updates, minor improvements
+- Do **not** manually bump `.claude-plugin/plugin.json` version in a normal feature PR.
+- Do **not** manually bump `.claude-plugin/marketplace.json` plugin version in a normal feature PR.
+- Do **not** cut a release section in `CHANGELOG.md` for a normal feature PR.
+- Do update substantive docs that are part of the actual change, such as `README.md`, component tables, usage instructions, or counts when they would otherwise become inaccurate.
 
 ### Pre-Commit Checklist
 
 Before committing ANY changes:
 
-- [ ] Version bumped in `.claude-plugin/plugin.json`
-- [ ] CHANGELOG.md updated with changes
+- [ ] No manual release-version bump in `.claude-plugin/plugin.json`
+- [ ] No manual release-version bump in `.claude-plugin/marketplace.json`
+- [ ] No manual release entry added to `CHANGELOG.md`
 - [ ] README.md component counts verified
 - [ ] README.md tables accurate (agents, commands, skills)
 - [ ] plugin.json description matches current counts

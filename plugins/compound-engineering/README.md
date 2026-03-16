@@ -124,7 +124,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `dhh-rails-style` | Write Ruby/Rails code in DHH's 37signals style |
 | `dspy-ruby` | Build type-safe LLM applications with DSPy.rb |
 | `frontend-design` | Create production-grade frontend interfaces |
-| `skill-creator` | Guide for creating effective Claude Code skills |
+
 
 ### Content & Workflow
 

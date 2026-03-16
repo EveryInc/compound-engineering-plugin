@@ -82,8 +82,8 @@ First, I need to understand the project's conventions, existing patterns, and an
 
 Run these agents **in parallel** to gather local context:
 
-- Task repo-research-analyst(feature_description)
-- Task learnings-researcher(feature_description)
+- Task compound-engineering:research:repo-research-analyst(feature_description)
+- Task compound-engineering:research:learnings-researcher(feature_description)
 
 **What to look for:**
 - **Repo research:** existing patterns, CLAUDE.md guidance, technology familiarity, pattern consistency
@@ -113,8 +113,8 @@ Examples:
 
 Run these agents in parallel:
 
-- Task best-practices-researcher(feature_description)
-- Task framework-docs-researcher(feature_description)
+- Task compound-engineering:research:best-practices-researcher(feature_description)
+- Task compound-engineering:research:framework-docs-researcher(feature_description)
 
 ### 1.6. Consolidate Research
 
@@ -579,17 +579,15 @@ After writing the plan file, use the **AskUserQuestion tool** to present these o
 **Options:**
 1. **Open plan in editor** - Open the plan file for review
 2. **Run `/deepen-plan`** - Enhance each section with parallel research agents (best practices, performance, UI)
-3. **Run `/technical_review`** - Technical feedback from code-focused reviewers (DHH, Kieran, Simplicity)
-4. **Review and refine** - Improve the document through structured self-review
-5. **Share to Proof** - Upload to Proof for collaborative review and sharing
-6. **Start `/ce:work`** - Begin implementing this plan locally
-7. **Start `/ce:work` on remote** - Begin implementing in Claude Code on the web (use `&` to run in background)
-8. **Create Issue** - Create issue in project tracker (GitHub/Linear)
+3. **Review and refine** - Improve the document through structured self-review
+4. **Share to Proof** - Upload to Proof for collaborative review and sharing
+5. **Start `/ce:work`** - Begin implementing this plan locally
+6. **Start `/ce:work` on remote** - Begin implementing in Claude Code on the web (use `&` to run in background)
+7. **Create Issue** - Create issue in project tracker (GitHub/Linear)
 
 Based on selection:
 - **Open plan in editor** → Run `open docs/plans/<plan_filename>.md` to open the file in the user's default editor
 - **`/deepen-plan`** → Call the /deepen-plan command with the plan file path to enhance with research
-- **`/technical_review`** → Call the /technical_review command with the plan file path
 - **Review and refine** → Load `document-review` skill.
 - **Share to Proof** → Upload the plan to Proof:
   ```bash
@@ -608,7 +606,7 @@ Based on selection:
 
 **Note:** If running `/ce:plan` with ultrathink enabled, automatically run `/deepen-plan` after plan creation for maximum depth and grounding.
 
-Loop back to options after Simplify or Other changes until user selects `/ce:work` or `/technical_review`.
+Loop back to options after Simplify or Other changes until user selects `/ce:work` or another action.
 
 ## Issue Creation
 
@@ -638,6 +636,6 @@ When user selects "Create Issue", detect their project tracker from CLAUDE.md:
 
 5. **After creation:**
    - Display the issue URL
-   - Ask if they want to proceed to `/ce:work` or `/technical_review`
+   - Ask if they want to proceed to `/ce:work`
 
 NEVER CODE! Just research and write the plan.

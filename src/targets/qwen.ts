@@ -1,5 +1,5 @@
 import path from "path"
-import { backupFile, copyDir, ensureDir, writeJson, writeText } from "../utils/files"
+import { backupFile, copyDir, ensureDir, resolveCommandPath, writeJson, writeText } from "../utils/files"
 import type { QwenBundle, QwenExtensionConfig } from "../types/qwen"
 
 export async function writeQwenBundle(outputRoot: string, bundle: QwenBundle): Promise<void> {
@@ -31,15 +31,8 @@ export async function writeQwenBundle(outputRoot: string, bundle: QwenBundle): P
   const commandsDir = qwenPaths.commandsDir
   await ensureDir(commandsDir)
   for (const commandFile of bundle.commandFiles) {
-    // Support nested commands with colon separator
-    const parts = commandFile.name.split(":")
-    if (parts.length > 1) {
-      const nestedDir = path.join(commandsDir, ...parts.slice(0, -1))
-      await ensureDir(nestedDir)
-      await writeText(path.join(nestedDir, `${parts[parts.length - 1]}.md`), commandFile.content + "\n")
-    } else {
-      await writeText(path.join(commandsDir, `${commandFile.name}.md`), commandFile.content + "\n")
-    }
+    const dest = await resolveCommandPath(commandsDir, commandFile.name, ".md")
+    await writeText(dest, commandFile.content + "\n")
   }
 
   // Copy skills

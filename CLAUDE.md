@@ -50,7 +50,7 @@ Rules:
 - Do not start a separate root CLI version stream. The root CLI follows the repo tag line.
 - Do not hand-bump the root CLI `package.json` or root `CHANGELOG.md` for routine feature work. Use conventional commits and let semantic-release write the released root version back to git.
 - Keep the root `CHANGELOG.md` header block aligned with `.releaserc.json` `changelogTitle`. If they drift, semantic-release will prepend release notes above the header.
-- Continue updating embedded plugin metadata when the plugin contents themselves change.
+- Do not guess or hand-bump embedded plugin release versions in routine PRs. The automated release process decides the next plugin/marketplace version and generate release changelog entries after choosing which merged changes ship together.
 
 ### Adding a New Plugin
 
@@ -93,17 +93,17 @@ The description appears in multiple places and must match everywhere:
 
 Format: `"Includes X specialized agents, Y commands, and Z skill(s)."`
 
-#### 3. Update version numbers
+#### 3. Do not pre-cut release versions
 
-When adding new functionality, bump the version in:
+Contributors should not guess the next released plugin version in a normal PR:
 
-- [ ] `plugins/compound-engineering/.claude-plugin/plugin.json` → `version`
-- [ ] `.claude-plugin/marketplace.json` → plugin `version`
+- [ ] No manual bump in `plugins/compound-engineering/.claude-plugin/plugin.json` → `version`
+- [ ] No manual bump in `.claude-plugin/marketplace.json` → plugin `version`
 
 #### 4. Update documentation
 
 - [ ] `plugins/compound-engineering/README.md` → list all components
-- [ ] `plugins/compound-engineering/CHANGELOG.md` → document changes
+- [ ] Do not cut a release section in `plugins/compound-engineering/CHANGELOG.md` for a normal feature PR
 - [ ] `CLAUDE.md` → update structure diagram if needed
 
 #### 5. Rebuild documentation site

@@ -60,7 +60,32 @@ bunx @every-env/compound-plugin install compound-engineering --to qwen
 bunx @every-env/compound-plugin install compound-engineering --to all
 ```
 
-Local dev:
+### Local Development
+
+When developing and testing local changes to the plugin:
+
+**Claude Code** — add a shell alias so your local copy loads alongside your normal plugins:
+
+```bash
+# add to ~/.zshrc or ~/.bashrc
+alias claude-dev-ce='claude --plugin-dir ~/code/compound-engineering-plugin/plugins/compound-engineering'
+```
+
+One-liner to append it:
+
+```bash
+echo "alias claude-dev-ce='claude --plugin-dir ~/code/compound-engineering-plugin/plugins/compound-engineering'" >> ~/.zshrc
+```
+
+Then run `claude-dev-ce` instead of `claude` to test your changes. Your production install stays untouched.
+
+**Codex** — point the install command at your local path:
+
+```bash
+bunx @every-env/compound-plugin install ./plugins/compound-engineering --to codex
+```
+
+**Other targets** — same pattern, swap the target:
 
 ```bash
 bun run src/index.ts install ./plugins/compound-engineering --to opencode

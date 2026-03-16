@@ -75,6 +75,21 @@ export async function walkFiles(root: string): Promise<string[]> {
   return results
 }
 
+/**
+ * Resolve a colon-separated command name into a filesystem path.
+ * e.g. resolveCommandPath("/commands", "ce:plan", ".md") -> "/commands/ce/plan.md"
+ * Creates intermediate directories as needed.
+ */
+export async function resolveCommandPath(dir: string, name: string, ext: string): Promise<string> {
+  const parts = name.split(":")
+  if (parts.length > 1) {
+    const nestedDir = path.join(dir, ...parts.slice(0, -1))
+    await ensureDir(nestedDir)
+    return path.join(nestedDir, `${parts[parts.length - 1]}${ext}`)
+  }
+  return path.join(dir, `${name}${ext}`)
+}
+
 export async function copyDir(sourceDir: string, targetDir: string): Promise<void> {
   await ensureDir(targetDir)
   const entries = await fs.readdir(sourceDir, { withFileTypes: true })

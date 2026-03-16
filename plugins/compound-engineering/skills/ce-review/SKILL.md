@@ -109,8 +109,8 @@ For each agent in review_agents:
 ```
 
 Always run these last regardless of mode:
-- Task agent-native-reviewer(PR content) - Verify new features are agent-accessible
-- Task learnings-researcher(PR content) - Search docs/solutions/ for past issues related to this PR's modules and patterns
+- Task compound-engineering:review:agent-native-reviewer(PR content) - Verify new features are agent-accessible
+- Task compound-engineering:research:learnings-researcher(PR content) - Search docs/solutions/ for past issues related to this PR's modules and patterns
 
 </parallel_tasks>
 
@@ -122,9 +122,9 @@ These agents are run ONLY when the PR matches specific criteria. Check the PR fi
 
 **MIGRATIONS: If PR contains database migrations, schema.rb, or data backfills:**
 
-- Task schema-drift-detector(PR content) - Detects unrelated schema.rb changes by cross-referencing against included migrations (run FIRST)
-- Task data-migration-expert(PR content) - Validates ID mappings match production, checks for swapped values, verifies rollback safety
-- Task deployment-verification-agent(PR content) - Creates Go/No-Go deployment checklist with SQL verification queries
+- Task compound-engineering:review:schema-drift-detector(PR content) - Detects unrelated schema.rb changes by cross-referencing against included migrations (run FIRST)
+- Task compound-engineering:review:data-migration-expert(PR content) - Validates ID mappings match production, checks for swapped values, verifies rollback safety
+- Task compound-engineering:review:deployment-verification-agent(PR content) - Creates Go/No-Go deployment checklist with SQL verification queries
 
 **When to run:**
 - PR includes files matching `db/migrate/*.rb` or `db/schema.rb`
@@ -236,7 +236,7 @@ Complete system context map with component interactions
 
 ### 4. Simplification and Minimalism Review
 
-Run the Task code-simplicity-reviewer() to see if we can simplify the code.
+Run the Task compound-engineering:review:code-simplicity-reviewer() to see if we can simplify the code.
 
 ### 5. Findings Synthesis and Todo Creation Using file-todos Skill
 

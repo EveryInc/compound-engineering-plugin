@@ -1,7 +1,7 @@
 ---
 name: learnings-researcher
 description: "Searches docs/solutions/ for relevant past solutions by frontmatter metadata. Use before implementing features or fixing problems to surface institutional knowledge and prevent repeated mistakes."
-model: haiku
+model: inherit
 ---
 
 <examples>
