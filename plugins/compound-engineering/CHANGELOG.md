@@ -5,6 +5,12 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.39.1] - 2026-03-16
+
+### Fixed
+
+- **ce:compound no longer nags about context budget** — Removed the overly defensive Phase 0 precheck that warned users and forced a choice even with 80%+ context remaining. Full mode now runs by default; compact-safe mode is still available on request. ([#278](https://github.com/EveryInc/compound-engineering-plugin/issues/278))
+
 ## [2.39.0] - 2026-03-10
 
 ### Added
