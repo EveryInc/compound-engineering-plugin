@@ -110,6 +110,7 @@ async function loadSkills(skillsDirs: string[]): Promise<ClaudeSkill[]> {
     skills.push({
       name,
       description: data.description as string | undefined,
+      argumentHint: data["argument-hint"] as string | undefined,
       disableModelInvocation,
       sourceDir: path.dirname(file),
       skillPath: file,

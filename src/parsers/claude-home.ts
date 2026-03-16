@@ -37,12 +37,17 @@ async function loadPersonalSkills(skillsDir: string): Promise<ClaudeSkill[]> {
 
       try {
         await fs.access(skillPath)
+        const raw = await fs.readFile(skillPath, "utf8")
+        const { data } = parseFrontmatter(raw)
         // Resolve symlink to get the actual source directory
         const sourceDir = entry.isSymbolicLink()
           ? await fs.realpath(entryPath)
           : entryPath
         skills.push({
           name: entry.name,
+          description: data.description as string | undefined,
+          argumentHint: data["argument-hint"] as string | undefined,
+          disableModelInvocation: data["disable-model-invocation"] === true ? true : undefined,
           sourceDir,
           skillPath,
         })

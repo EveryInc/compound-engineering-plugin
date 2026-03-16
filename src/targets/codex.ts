@@ -1,7 +1,9 @@
+import { promises as fs } from "fs"
 import path from "path"
-import { backupFile, copyDir, ensureDir, writeText } from "../utils/files"
+import { backupFile, ensureDir, readText, writeText } from "../utils/files"
 import type { CodexBundle } from "../types/codex"
 import type { ClaudeMcpServer } from "../types/claude"
+import { transformContentForCodex } from "../utils/codex-content"
 
 export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle): Promise<void> {
   const codexRoot = resolveCodexRoot(outputRoot)
@@ -17,7 +19,11 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
   if (bundle.skillDirs.length > 0) {
     const skillsRoot = path.join(codexRoot, "skills")
     for (const skill of bundle.skillDirs) {
-      await copyDir(skill.sourceDir, path.join(skillsRoot, skill.name))
+      await copyCodexSkillDir(
+        skill.sourceDir,
+        path.join(skillsRoot, skill.name),
+        bundle.invocationTargets,
+      )
     }
   }
 
@@ -36,6 +42,36 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
       console.log(`Backed up existing config to ${backupPath}`)
     }
     await writeText(configPath, config)
+  }
+}
+
+async function copyCodexSkillDir(
+  sourceDir: string,
+  targetDir: string,
+  invocationTargets?: CodexBundle["invocationTargets"],
+): Promise<void> {
+  await ensureDir(targetDir)
+  const entries = await fs.readdir(sourceDir, { withFileTypes: true })
+
+  for (const entry of entries) {
+    const sourcePath = path.join(sourceDir, entry.name)
+    const targetPath = path.join(targetDir, entry.name)
+
+    if (entry.isDirectory()) {
+      await copyCodexSkillDir(sourcePath, targetPath, invocationTargets)
+      continue
+    }
+
+    if (!entry.isFile()) continue
+
+    if (entry.name === "SKILL.md") {
+      const content = await readText(sourcePath)
+      await writeText(targetPath, transformContentForCodex(content, invocationTargets))
+      continue
+    }
+
+    await ensureDir(path.dirname(targetPath))
+    await fs.copyFile(sourcePath, targetPath)
   }
 }
 
