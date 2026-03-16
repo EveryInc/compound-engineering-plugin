@@ -159,10 +159,7 @@ async function loadMcpServers(
   const mcpPath = path.join(root, ".mcp.json")
   if (await pathExists(mcpPath)) {
     const raw = await readJson<Record<string, unknown>>(mcpPath)
-    if (raw.mcpServers && typeof raw.mcpServers === "object") {
-      return raw.mcpServers as Record<string, ClaudeMcpServer>
-    }
-    return raw as Record<string, ClaudeMcpServer>
+    return unwrapMcpServers(raw)
   }
 
   return undefined
@@ -237,14 +234,17 @@ async function loadMcpPaths(
     const resolved = resolveWithinRoot(root, entry, "mcpServers path")
     if (await pathExists(resolved)) {
       const raw = await readJson<Record<string, unknown>>(resolved)
-      if (raw.mcpServers && typeof raw.mcpServers === "object") {
-        configs.push(raw.mcpServers as Record<string, ClaudeMcpServer>)
-      } else {
-        configs.push(raw as Record<string, ClaudeMcpServer>)
-      }
+      configs.push(unwrapMcpServers(raw))
     }
   }
   return configs
+}
+
+function unwrapMcpServers(raw: Record<string, unknown>): Record<string, ClaudeMcpServer> {
+  if (raw.mcpServers && typeof raw.mcpServers === "object") {
+    return raw.mcpServers as Record<string, ClaudeMcpServer>
+  }
+  return raw as Record<string, ClaudeMcpServer>
 }
 
 function mergeMcpConfigs(configs: Record<string, ClaudeMcpServer>[]): Record<string, ClaudeMcpServer> {
