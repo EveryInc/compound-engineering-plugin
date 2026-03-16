@@ -60,7 +60,32 @@ bunx @every-env/compound-plugin install compound-engineering --to qwen
 bunx @every-env/compound-plugin install compound-engineering --to all
 ```
 
-Local dev:
+### Local Development
+
+When developing and testing local changes to the plugin:
+
+**Claude Code** — add a shell alias so your local copy loads alongside your normal plugins:
+
+```bash
+# add to ~/.zshrc or ~/.bashrc
+alias claude-dev-ce='claude --plugin-dir ~/code/compound-engineering-plugin/plugins/compound-engineering'
+```
+
+One-liner to append it:
+
+```bash
+echo "alias claude-dev-ce='claude --plugin-dir ~/code/compound-engineering-plugin/plugins/compound-engineering'" >> ~/.zshrc
+```
+
+Then run `claude-dev-ce` instead of `claude` to test your changes. Your production install stays untouched.
+
+**Codex** — point the install command at your local path:
+
+```bash
+bunx @every-env/compound-plugin install ./plugins/compound-engineering --to codex
+```
+
+**Other targets** — same pattern, swap the target:
 
 ```bash
 bun run src/index.ts install ./plugins/compound-engineering --to opencode
@@ -158,17 +183,20 @@ Notes:
 ## Workflow
 
 ```
-Plan → Work → Review → Compound → Repeat
+Brainstorm → Plan → Work → Review → Compound → Repeat
 ```
 
 | Command | Purpose |
 |---------|---------|
+| `/ce:brainstorm` | Explore requirements and approaches before planning |
 | `/ce:plan` | Turn feature ideas into detailed implementation plans |
 | `/ce:work` | Execute plans with worktrees and task tracking |
 | `/ce:review` | Multi-agent code review before merging |
 | `/ce:compound` | Document learnings to make future work easier |
 
-Each cycle compounds: plans inform future plans, reviews catch more issues, patterns get documented.
+The `brainstorming` skill supports `/ce:brainstorm` with collaborative dialogue to clarify requirements and compare approaches before committing to a plan.
+
+Each cycle compounds: brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented.
 
 ## Philosophy
 

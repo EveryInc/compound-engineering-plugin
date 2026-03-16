@@ -17,20 +17,18 @@ This document applies to the embedded marketplace plugin metadata, not the root 
 
 ## Solution
 
-**Every change to the plugin MUST include:**
+**Routine PRs should not cut plugin releases.**
 
-1. **Version bump in `plugin.json`**
-   - Follow semantic versioning (semver)
-   - MAJOR: Breaking changes or major reorganization
-   - MINOR: New agents, commands, or skills added
-   - PATCH: Bug fixes, documentation updates, minor improvements
+The embedded plugin version is release-owned metadata. The maintainer uses a local slash command to choose the next version and generate release changelog entries after deciding which merged changes ship together. Because multiple PRs may merge before release, contributors should not guess release versions inside individual PRs.
 
-2. **CHANGELOG.md update**
-   - Add entry under `## [Unreleased]` or new version section
-   - Use Keep a Changelog format
-   - Categories: Added, Changed, Deprecated, Removed, Fixed, Security
+Contributors should:
 
-3. **README.md verification**
+1. **Avoid release bookkeeping in normal PRs**
+   - Do not manually bump `.claude-plugin/plugin.json`
+   - Do not manually bump `.claude-plugin/marketplace.json`
+   - Do not cut release sections in `CHANGELOG.md`
+
+2. **Keep substantive docs accurate**
    - Verify component counts match actual files
    - Verify agent/command/skill tables are accurate
    - Update descriptions if functionality changed
@@ -40,8 +38,9 @@ This document applies to the embedded marketplace plugin metadata, not the root 
 ```markdown
 Before committing changes to compound-engineering plugin:
 
-- [ ] Version bumped in `.claude-plugin/plugin.json`
-- [ ] CHANGELOG.md updated with changes
+- [ ] No manual version bump in `.claude-plugin/plugin.json`
+- [ ] No manual version bump in `.claude-plugin/marketplace.json`
+- [ ] No manual release section added to `CHANGELOG.md`
 - [ ] README.md component counts verified
 - [ ] README.md tables updated (if adding/removing/renaming)
 - [ ] plugin.json description updated (if component counts changed)
@@ -49,8 +48,8 @@ Before committing changes to compound-engineering plugin:
 
 ## File Locations
 
-- Version: `.claude-plugin/plugin.json` → `"version": "X.Y.Z"`
-- Changelog: `CHANGELOG.md`
+- Version is release-owned: `.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json`
+- Changelog release sections are release-owned: `CHANGELOG.md`
 - Readme: `README.md`
 
 ## Example Workflow
@@ -58,11 +57,10 @@ Before committing changes to compound-engineering plugin:
 When adding a new agent:
 
 1. Create the agent file in `agents/[category]/`
-2. Bump version in `plugin.json` (minor version for new agent)
-3. Add to CHANGELOG under `### Added`
-4. Add row to README agent table
-5. Update README component count
-6. Update plugin.json description with new counts
+2. Update README agent table
+3. Update README component count
+4. Update plugin metadata description with new counts if needed
+5. Leave version selection and release changelog generation to the maintainer's release command
 
 ## Prevention
 
@@ -70,7 +68,7 @@ This documentation serves as a reminder. When Claude Code works on this plugin, 
 
 1. Check this doc before committing changes
 2. Follow the checklist above
-3. Never commit partial updates (all three files must be updated together)
+3. Do not guess release versions in feature PRs
 
 ## Related Files
 

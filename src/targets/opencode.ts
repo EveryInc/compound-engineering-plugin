@@ -1,5 +1,5 @@
 import path from "path"
-import { backupFile, copyDir, ensureDir, pathExists, readJson, writeJson, writeText } from "../utils/files"
+import { backupFile, copyDir, ensureDir, pathExists, readJson, resolveCommandPath, writeJson, writeText } from "../utils/files"
 import type { OpenCodeBundle, OpenCodeConfig } from "../types/opencode"
 
 // Merges plugin config into existing opencode.json. User keys win on conflict. See ADR-002.
@@ -75,7 +75,7 @@ export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBu
   }
 
   for (const commandFile of bundle.commandFiles) {
-    const dest = path.join(openCodePaths.commandDir, `${commandFile.name}.md`)
+    const dest = await resolveCommandPath(openCodePaths.commandDir, commandFile.name, ".md")
     const cmdBackupPath = await backupFile(dest)
     if (cmdBackupPath) {
       console.log(`Backed up existing command file to ${cmdBackupPath}`)

@@ -7,6 +7,48 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Release numbering now follows the repository `v*` tag line. Starting at `v2.34.0`, the root CLI package and this changelog stay on that shared version stream. Older entries below retain the previous `0.x` CLI numbering.
 
+# [2.37.0](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.36.5...v2.37.0) (2026-03-15)
+
+
+### Features
+
+* sync agent-browser skill with upstream vercel-labs/agent-browser ([24860ec](https://github.com/EveryInc/compound-engineering-plugin/commit/24860ec3f1f1e7bfdee0f4408636ada1a3bb8f75))
+
+## [2.36.5](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.36.4...v2.36.5) (2026-03-15)
+
+
+### Bug Fixes
+
+* **create-agent-skills:** remove literal dynamic context directives that break skill loading ([4b4d1ae](https://github.com/EveryInc/compound-engineering-plugin/commit/4b4d1ae2707895d6d4fd2e60a64d83ca50f094a6)), closes [anthropics/claude-code#27149](https://github.com/anthropics/claude-code/issues/27149) [#13655](https://github.com/EveryInc/compound-engineering-plugin/issues/13655)
+
+## [2.36.4](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.36.3...v2.36.4) (2026-03-14)
+
+
+### Bug Fixes
+
+* **skills:** use fully-qualified agent namespace in Task invocations ([026602e](https://github.com/EveryInc/compound-engineering-plugin/commit/026602e6247d63a83502b80e72cd318232a06af7)), closes [#251](https://github.com/EveryInc/compound-engineering-plugin/issues/251)
+
+## [2.36.3](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.36.2...v2.36.3) (2026-03-13)
+
+
+### Bug Fixes
+
+* **targets:** nest colon-separated command names into directories ([a84682c](https://github.com/EveryInc/compound-engineering-plugin/commit/a84682cd35e94b0408f6c6a990af0732c2acf03f)), closes [#226](https://github.com/EveryInc/compound-engineering-plugin/issues/226)
+
+## [2.36.2](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.36.1...v2.36.2) (2026-03-13)
+
+
+### Bug Fixes
+
+* **plan:** remove deprecated /technical_review references ([0ab9184](https://github.com/EveryInc/compound-engineering-plugin/commit/0ab91847f278efba45477462d8e93db5f068e058)), closes [#244](https://github.com/EveryInc/compound-engineering-plugin/issues/244)
+
+## [2.36.1](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.36.0...v2.36.1) (2026-03-13)
+
+
+### Bug Fixes
+
+* **agents:** update learnings-researcher model from haiku to inherit ([30852b7](https://github.com/EveryInc/compound-engineering-plugin/commit/30852b72937091b0a85c22b7c8c45d513ab49fd1)), closes [#249](https://github.com/EveryInc/compound-engineering-plugin/issues/249)
+
 # [2.36.0](https://github.com/EveryInc/compound-engineering-plugin/compare/v2.35.0...v2.36.0) (2026-03-11)
 
 
