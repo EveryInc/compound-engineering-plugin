@@ -206,4 +206,57 @@ Also run bare agents:
     expect(installedSkill).toContain("Use the $best-practices-researcher skill to: topic")
     expect(installedSkill).not.toContain("Task best-practices-researcher")
   })
+
+  test("preserves unknown slash text in copied SKILL.md files", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-skill-preserve-"))
+    const sourceSkillDir = path.join(tempRoot, "source-skill")
+    await fs.mkdir(sourceSkillDir, { recursive: true })
+    await fs.writeFile(
+      path.join(sourceSkillDir, "SKILL.md"),
+      `---
+name: proof
+description: Proof skill
+---
+
+Route examples:
+- /users
+- /settings
+
+API examples:
+- https://www.proofeditor.ai/api/agent/{slug}/state
+- https://www.proofeditor.ai/share/markdown
+
+Workflow handoff:
+- /ce:plan
+`,
+    )
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [{ name: "proof", sourceDir: sourceSkillDir }],
+      generatedSkills: [],
+      invocationTargets: {
+        promptTargets: {
+          "ce-plan": "ce-plan",
+        },
+        skillTargets: {},
+      },
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const installedSkill = await fs.readFile(
+      path.join(tempRoot, ".codex", "skills", "proof", "SKILL.md"),
+      "utf8",
+    )
+
+    expect(installedSkill).toContain("/users")
+    expect(installedSkill).toContain("/settings")
+    expect(installedSkill).toContain("https://www.proofeditor.ai/api/agent/{slug}/state")
+    expect(installedSkill).toContain("https://www.proofeditor.ai/share/markdown")
+    expect(installedSkill).toContain("/prompts:ce-plan")
+    expect(installedSkill).not.toContain("/prompts:users")
+    expect(installedSkill).not.toContain("/prompts:settings")
+    expect(installedSkill).not.toContain("https://prompts:www.proofeditor.ai")
+  })
 })

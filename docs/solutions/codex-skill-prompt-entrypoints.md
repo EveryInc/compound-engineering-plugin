@@ -85,6 +85,24 @@ When converting copied `SKILL.md` content for Codex:
 - References to non-entrypoint skills should use the exact skill name, not a normalized alias
 - Actual Claude commands that are converted to Codex prompts can continue using `/prompts:...`
 
+### Regression hardening
+
+When rewriting copied `SKILL.md` files, only known workflow and command references should be rewritten.
+
+Do not rewrite arbitrary slash-shaped text such as:
+
+- application routes like `/users` or `/settings`
+- API path segments like `/state` or `/ops`
+- URLs such as `https://www.proofeditor.ai/...`
+
+Unknown slash references should remain unchanged in copied skill content. Otherwise Codex installs silently corrupt unrelated skills while trying to canonicalize workflow handoffs.
+
+Personal skills loaded from `~/.claude/skills` also need tolerant metadata parsing:
+
+- malformed YAML frontmatter should not cause the entire skill to disappear
+- keep the directory name as the stable skill name
+- treat frontmatter metadata as best-effort only
+
 ## Future Entry Points
 
 Do not hard-code an allowlist of workflow names in the converter.

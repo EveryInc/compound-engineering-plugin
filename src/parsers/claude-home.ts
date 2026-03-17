@@ -37,12 +37,17 @@ async function loadPersonalSkills(skillsDir: string): Promise<ClaudeSkill[]> {
 
       try {
         await fs.access(skillPath)
-        const raw = await fs.readFile(skillPath, "utf8")
-        const { data } = parseFrontmatter(raw)
         // Resolve symlink to get the actual source directory
         const sourceDir = entry.isSymbolicLink()
           ? await fs.realpath(entryPath)
           : entryPath
+        let data: Record<string, unknown> = {}
+        try {
+          const raw = await fs.readFile(skillPath, "utf8")
+          data = parseFrontmatter(raw).data
+        } catch {
+          // Keep syncing the skill even if frontmatter is malformed.
+        }
         skills.push({
           name: entry.name,
           description: data.description as string | undefined,

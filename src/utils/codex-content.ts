@@ -3,6 +3,10 @@ export type CodexInvocationTargets = {
   skillTargets: Record<string, string>
 }
 
+export type CodexTransformOptions = {
+  unknownSlashBehavior?: "prompt" | "preserve"
+}
+
 /**
  * Transform Claude Code content to Codex-compatible content.
  *
@@ -18,10 +22,12 @@ export type CodexInvocationTargets = {
 export function transformContentForCodex(
   body: string,
   targets?: CodexInvocationTargets,
+  options: CodexTransformOptions = {},
 ): string {
   let result = body
   const promptTargets = targets?.promptTargets ?? {}
   const skillTargets = targets?.skillTargets ?? {}
+  const unknownSlashBehavior = options.unknownSlashBehavior ?? "prompt"
 
   const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9:-]*)\(([^)]+)\)/gm
   result = result.replace(taskPattern, (_match, prefix: string, agentName: string, args: string) => {
@@ -44,6 +50,9 @@ export function transformContentForCodex(
     }
     if (skillTargets[normalizedName]) {
       return `the ${skillTargets[normalizedName]} skill`
+    }
+    if (unknownSlashBehavior === "preserve") {
+      return match
     }
     return `/prompts:${normalizedName}`
   })

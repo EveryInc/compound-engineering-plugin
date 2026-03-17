@@ -66,7 +66,12 @@ async function copyCodexSkillDir(
 
     if (entry.name === "SKILL.md") {
       const content = await readText(sourcePath)
-      await writeText(targetPath, transformContentForCodex(content, invocationTargets))
+      await writeText(
+        targetPath,
+        transformContentForCodex(content, invocationTargets, {
+          unknownSlashBehavior: "preserve",
+        }),
+      )
       continue
     }
 
