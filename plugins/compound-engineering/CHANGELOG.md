@@ -5,6 +5,26 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.52.0] - 2026-03-17
+
+### Added
+
+- **`user-test-eval` skill + command — self-eval loop for user-test skill (schema v10):**
+  - New `/user-test-eval` command grades skill output against 3 binary evals
+  - **Eval 1: Probe execution order** — verifies failing/untested probes ran before broad exploration (protocol layer, artifact-only index comparison)
+  - **Eval 2: Proven regression distinction** — verifies regressed Proven areas appear in NEEDS ACTION with `→ Proven regression` marker (presentation layer, regex match)
+  - **Eval 3: P1 surfacing** — verifies all `explore_next_run` P1 items appear in NEEDS ACTION section (presentation layer, slug+priority match)
+  - `skill-evals.json` artifact: score history per run with `eval_version` for forward compatibility (50-entry cap)
+  - `skill-mutations.md` artifact: proposed skill changes with PROPOSED/ACCEPTED/REJECTED status log
+  - Auto-triggers after commit mode completes (both auto-commit and standalone `/user-test-commit`)
+  - `--no-eval` flag to skip auto-trigger
+  - Graduation check: suggests adding 4th eval or shifting to query optimization after 5 consecutive passes (with 14-day gap reset)
+  - Manual eval guard: warns if run already evaluated (timestamp match) or stale (>24h)
+  - One mutation per failing eval — all failures get proposals in a single run
+  - `.user-test-last-report.md` artifact: rendered report persisted for eval grading (gitignored)
+  - `execution_index` on `probes_run` entries + `broad_exploration_start_index` per area in last-run JSON
+  - v9 → v10 schema migration: treat missing execution order fields as absent (eval skips Eval 1)
+
 ## [2.50.0] - 2026-03-02
 
 ### Added

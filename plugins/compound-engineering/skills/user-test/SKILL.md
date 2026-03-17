@@ -41,13 +41,14 @@ agents and cleanup tools must never flag them for deletion or gitignore.
    - If argument is a file path (contains `/` or ends in `.md`):
      - Validate path resolves within `tests/user-flows/` (prevent directory traversal)
      - Read and parse the test file
-     - Validate `schema_version` is present (1–9 accepted) <!-- bump range when schema changes -->
+     - Validate `schema_version` is present (1–10 accepted) <!-- bump range when schema changes -->
      - **v1/v2 migration:** If `schema_version: 1`, fill missing columns (`Last Quality`, `Last Time`, `Delta`, `Context`) with `—`. If `schema_version: 2`, also fill missing sections (Area Trends, UX Opportunities, Good Patterns) and Run History columns (Best Area, Worst Area). Do NOT rewrite on read.
      - **v3/v4 migration:** If `schema_version: 3`, treat missing `verify:` blocks and `Probes:` tables as absent. If `schema_version: 4`, also treat missing `**Queries:**` and `**Multi-turn:**` tables as absent. Do NOT rewrite on read.
      - **v5 migration:** If `schema_version: 5`, treat Probes without `Confidence` column as `confidence: high` (existing probes were generated from observed failures). Treat Probes without `Priority` column as inferred from `Generated From` (verification failure → P1, score-based → P2). Treat Queries without `Status` column as active. Treat missing `seams_read` as `false`. Do NOT rewrite the file on read.
      - **v6 migration:** If `schema_version: 6`, treat missing `## Cross-Area Probes` section as empty table. Treat missing `mcp_restart_threshold` as 15. Treat probes without `related_bug` as unlinked. Do NOT rewrite on read.
      - **v7 migration:** If `schema_version: 7`, treat missing `weakness_class` as absent. Treat missing `novelty_fingerprints` as empty. Treat missing `adversarial_browser` as false. In JSON: treat missing `tactical_note` as null, `confirmed_selectors` as `{}`. Do NOT rewrite on read.
      - **v8 migration:** If `schema_version: 8`, treat missing `## Journeys` section as empty (no journeys defined). Do NOT rewrite on read.
+     - **v9 migration:** If `schema_version: 9`, treat missing `execution_index` on `probes_run` entries as absent. Treat missing `broad_exploration_start_index` on areas as absent. Eval skips Eval 1 (probe execution order) for runs without ordering data. Do NOT rewrite on read.
      - **Forward compatibility:** Ignore unknown frontmatter fields. Preserve unknown table columns on write.
      - **Missing `cli_test_command` (any version):** Treat as `cli_test_command: ""`. CLI discovery (step 3) will populate it. Do NOT rewrite the file on read.
      - Extract maturity map, run history, and explore-next-run items
@@ -63,9 +64,9 @@ agents and cleanup tools must never flag them for deletion or gitignore.
    See [orientation.md](./references/orientation.md). Set `seams_read: true` on first commit after code reading, regardless of outcome.
 3. **CLI discovery (MANDATORY when `cli_test_command` is empty):** Whether the test file is new or existing, if `cli_test_command` is empty, run CLI discovery NOW before any browser interaction — follow every step in CLI Discovery in [test-file-template.md](./references/test-file-template.md). Check for API endpoints, test scripts, curl-able routes. If a testable surface exists, populate `cli_test_command` and `cli_queries` in the test file immediately. Do NOT skip this step. Do NOT ask the user whether to do it — just do it.
 4. **Ensure `.gitignore` coverage:**
-   - Check that `.user-test-last-run.json` is in the project's `.gitignore`
-   - If missing, append it (this file is ephemeral run state, not source)
-   - Note: `score-history.json` and `bugs.md` are NOT gitignored — they are persistent project data
+   - Check that `.user-test-last-run.json` and `.user-test-last-report.md` are in the project's `.gitignore`
+   - If missing, append them (these files are ephemeral run state, not source)
+   - Note: `score-history.json`, `bugs.md`, `skill-evals.json`, and `skill-mutations.md` are NOT gitignored — they are persistent project data
 5. **Handle corruption:**
    - If required sections are missing or `schema_version` is absent, offer to regenerate from template
 6. **Capture git state:** Run `git rev-parse HEAD` and `git rev-parse origin/main 2>/dev/null`. Run `git diff --name-only origin/main..HEAD` — if this returns ANY files, those are code-affected areas requiring full exploration (even on a feature branch where main is "behind" HEAD). See [run-targeting.md](./references/run-targeting.md) for full rules.
@@ -116,9 +117,13 @@ Test areas based on maturity status. The agent exercises judgment on area select
 
 Probes, verification, and UX scores are three separate signals — none subsumes the others.
 
+### Execution Index Tracking
+
+Maintain a monotonically increasing `execution_index` counter (starting at 0) across the entire run. Increment for each probe execution and each broad exploration action. Record `execution_index` on every `probes_run` entry. When transitioning from probe execution to broad exploration for an area, record `broad_exploration_start_index` on that area. This enables `/user-test-eval` to verify probe-before-exploration ordering from artifacts alone. See [last-run-schema.md](./references/last-run-schema.md) for field definitions.
+
 ### Probe Execution (Before Broad Exploration)
 
-Read probes from area `**Probes:**` tables. Execute `untested` and `failing` probes before broad exploration — these are the highest-signal checks. For Proven areas, failing/untested probes always run regardless of MCP budget; the 3-call cap only constrains passing-probe spot-checks. Record each probe result. See [probes.md](./references/probes.md) for execution flow, lifecycle, and dedup rules.
+Read probes from area `**Probes:**` tables. Execute `untested` and `failing` probes before broad exploration — these are the highest-signal checks. For Proven areas, failing/untested probes always run regardless of MCP budget; the 3-call cap only constrains passing-probe spot-checks. Record each probe result with its `execution_index`. See [probes.md](./references/probes.md) for execution flow, lifecycle, and dedup rules.
 
 ### Cross-Area Probes (Before Per-Area Testing)
 
@@ -269,9 +274,13 @@ If yes, POST the SESSION SUMMARY markdown to `https://www.proofeditor.ai/share/m
 with `{"title": "<scenario> — <date>", "markdown": "<report>"}` and display the
 returned URL. Skip silently on curl failure — Proof sharing is best-effort.
 
+### Persist Report
+
+After displaying the report (and optional Proof sharing), write the rendered report text to `tests/user-flows/.user-test-last-report.md`. This file is the eval artifact — `/user-test-eval` reads it to grade presentation-layer behavior. Overwritten each run, gitignored.
+
 ### Auto-Commit
 
-After displaying the report, **automatically proceed to Commit Mode** (below) — update the test file, append to history, and file issues. The user reviews results inline as part of the same session.
+After persisting the report, **automatically proceed to Commit Mode** (below) — update the test file, append to history, and file issues. The user reviews results inline as part of the same session.
 
 **Opt-out:** If invoked with `--no-commit` or if the run was partial (interrupted before all areas scored), skip commit and display the report only. The user can run `/user-test-commit` later to commit from `.user-test-last-run.json`.
 
@@ -279,7 +288,7 @@ After displaying the report, **automatically proceed to Commit Mode** (below) �
 
 ### Run Results Persistence
 
-After Phase 4 completes (all areas scored), write `tests/user-flows/.user-test-last-run.json`. See [last-run-schema.md](./references/last-run-schema.md) for full schema (v9), per-area fields, journey fields, and behavioral notes. File is overwritten each run except `novelty_fingerprints` which accumulates across runs (read-merge-write).
+After Phase 4 completes (all areas scored), write `tests/user-flows/.user-test-last-run.json`. See [last-run-schema.md](./references/last-run-schema.md) for full schema (v10), per-area fields, journey fields, execution index fields, and behavioral notes. File is overwritten each run except `novelty_fingerprints` which accumulates across runs (read-merge-write).
 
 ## Commit Mode
 
@@ -311,7 +320,7 @@ Apply maturity transitions using agent judgment and the scoring rubric:
 
 1. **Update test file maturity map and area details:**
    - Write to `.tmp` file first, then rename (atomic write)
-   - Upgrade to v9: bump `schema_version: 9` on first commit regardless of query/probe usage. Add missing columns and sections per [test-file-template.md](./references/test-file-template.md)
+   - Upgrade to v10: bump `schema_version: 10` on first commit regardless of query/probe usage. Add missing columns and sections per [test-file-template.md](./references/test-file-template.md)
    - Update area statuses, scores, timing, quality scores, and consecutive pass counts
    - Update `## Area Trends` section from `score-history.json` data
    - Update `## UX Opportunities Log`: add new entries with sequential IDs (UX001...), update existing entries (mark `implemented` if improvement detected), age out entries per lifecycle rules
@@ -349,6 +358,15 @@ Apply maturity transitions using agent judgment and the scoring rubric:
 8. **Query compounding:** Sharpen failed queries into probes, expand from discoveries, mark stable queries. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) for steps 8-12 details, query-to-probe conversion rules, and stable query regression tiers.
 8b. **Novelty fingerprints:** Merge this run's new fingerprints with existing ones from `.user-test-last-run.json`. Apply 20-per-area cap (drop oldest). Write merged set. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) Novelty Fingerprint Persistence.
 8c. **Journey updates:** Update journey Status, Last Run, Run History. Auto-escalate, mark stable, detect definition changes. Journey results do NOT affect per-area maturity. See [journeys.md](./references/journeys.md) Commit Mode.
+
+### Auto-Eval
+
+After all commit steps complete, automatically invoke `/user-test-eval` to grade this session's output. The eval reads from file artifacts (`.user-test-last-run.json` and `.user-test-last-report.md`) — it does not use conversation context from this session.
+
+**Skip conditions:** `--no-eval` flag, or if commit was partial/aborted.
+**Error handling:** If eval fails, the commit is already complete and preserved. Display "Eval failed: <reason>. Run `/user-test-eval` manually to retry."
+**Iterate mode:** Eval runs once after the final commit, not per-iteration. Grades the aggregate report. Eval 1 checks probe execution order for the first run only.
+**Standalone `/user-test-commit`:** Also triggers auto-eval after commit completes (same artifacts, same trigger).
 
 ## Iterate Mode
 

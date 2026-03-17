@@ -34,7 +34,8 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
       },
       "weakness_class": "stale-react-state",
       "adversarial_browser": false,
-      "adversarial_trigger": null
+      "adversarial_trigger": null,
+      "broad_exploration_start_index": 3
     }
   ],
   "qualitative": {
@@ -68,7 +69,7 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
     ]}
   ],
   "probes_run": [
-    { "area": "agent/filter-via-chat", "query": "show me NWT only", "verify": "all badges say NWT", "status": "failing", "result_detail": "3 non-NWT results" }
+    { "area": "agent/filter-via-chat", "query": "show me NWT only", "verify": "all badges say NWT", "status": "failing", "result_detail": "3 non-NWT results", "execution_index": 1 }
   ],
   "probes_generated": [
     { "area": "agent/filter-via-chat", "query": "show me good condition only", "verify": "no NWT/like-new badges visible", "priority": "P1", "generated_from": "run-2 condition mismatch" }
@@ -142,6 +143,17 @@ See [journeys.md](./journeys.md) for lifecycle, budget, and execution rules.
 | `weakness_class` | string or null | null | Commit Mode — when 2+ probes share a failure pattern |
 | `adversarial_browser` | boolean | false | Phase 2.5 — CLI score 3 trigger |
 | `adversarial_trigger` | string or null | null | Phase 2.5 — the query that triggered adversarial mode |
+| `broad_exploration_start_index` | integer or null | null | Phase 3 — execution index when broad exploration began (v10) |
+
+## Probe Execution Fields (v10 additions)
+
+| Field | Type | Default | Written by |
+|-------|------|---------|-----------|
+| `probes_run[].execution_index` | integer | absent | Phase 3 — 0-based monotonically increasing counter across all areas |
+
+The `execution_index` tracks the order of all probe and exploration actions across the entire run. Each probe execution and each broad exploration action increments the counter. Combined with `broad_exploration_start_index` per area, the eval can verify that probes ran before exploration: for each area, all `probes_run` entries must have `execution_index < broad_exploration_start_index`.
+
+**v9 migration:** Treat missing `execution_index` as absent — eval skips Eval 1 for runs without ordering data. Treat missing `broad_exploration_start_index` as absent.
 
 ## Explore Next Run Fields (v8 additions)
 

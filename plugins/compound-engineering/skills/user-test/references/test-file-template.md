@@ -6,7 +6,7 @@ Test files live in `tests/user-flows/<scenario-slug>.md` in the target project. 
 
 ```markdown
 ---
-schema_version: 9
+schema_version: 10
 scenario: "<scenario-name>"
 app_url: "http://localhost:3000"
 created: "<YYYY-MM-DD>"
@@ -192,7 +192,7 @@ regardless of schema version. CLI discovery runs in Phase 1 step 3.
 
 **CLI gate for query retirement:** Only queries in test files with `cli_test_command` set can reach `[retired]` status. Queries without CLI backstop max out at `[stable]` and continue receiving browser spot-checks via the Proven area MCP budget. If `cli_test_command` is removed from a file with `[retired]` queries, those queries demote to `[stable]` on next commit.
 
-**Writing any file:** Upgrade to v9 on commit. Bump `schema_version: 9` in frontmatter on the first commit under v9 skill logic. The version number reflects which skill version last wrote the file.
+**Writing any file:** Upgrade to v10 on commit. Bump `schema_version: 10` in frontmatter on the first commit under v10 skill logic. The version number reflects which skill version last wrote the file.
 
 **Forward compatibility:** Ignore unknown frontmatter fields from future schema versions. Preserve unknown table columns on write.
 
