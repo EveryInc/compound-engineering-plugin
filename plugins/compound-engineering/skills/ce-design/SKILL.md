@@ -16,13 +16,7 @@ Invoke with `/ce:design [plan-file-or-description]` between `/ce:plan` and `/ce:
 
 <input_document> #$ARGUMENTS </input_document>
 
-**If the input is empty**, scan for the most recent plan in `docs/plans/`:
-
-```bash
-ls -t docs/plans/*-plan.md 2>/dev/null | head -5
-```
-
-Ask which plan to design for, or what screens to design.
+**If the input is empty**, use the native file-search/glob tool (e.g., Glob in Claude Code) to find recent plans matching `docs/plans/*-plan.md`. Ask which plan to design for, or what screens to design.
 
 Do not proceed until a feature description or plan reference is available.
 
@@ -131,7 +125,7 @@ Before any design work, generate a short design brief:
 
 Present the brief to the user. Do not begin designing until the brief is approved or adjusted.
 
-If the `frontend-design` skill is available, apply its aesthetic principles to strengthen the brief.
+If available, load the `frontend-design` skill and apply its aesthetic principles to strengthen the brief.
 
 ### Phase 3: Create Designs
 
