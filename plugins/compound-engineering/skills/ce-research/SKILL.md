@@ -1,5 +1,5 @@
 ---
-name: workflows:research
+name: ce:research
 description: Plan user research, process interview transcripts, and build personas from accumulated insights
 argument-hint: "[plan|process|personas]"
 ---
@@ -79,7 +79,7 @@ Research status:
 - No plans and no transcripts → recommend Plan
 - All phases have artifacts → show neutral menu
 
-Use **AskUserQuestion** with three options:
+Use **AskUserQuestion** (or present numbered options and wait for reply if that tool is unavailable) with three options:
 1. **Plan** -- Create a new research plan with objectives and discussion guide
 2. **Process** -- Process an interview transcript into a structured snapshot
 3. **Personas** -- Build or update personas from processed interviews
@@ -115,7 +115,7 @@ If the argument starts with "process" followed by substantial content, strip the
 Look for `.md` files in `docs/research/transcripts/`.
 
 **If no transcripts directory exists or no transcripts found:**
-Report: "No transcripts found. Save your interview transcript to `docs/research/transcripts/` or pass content inline: `/workflows:research [transcript content]`."
+Report: "No transcripts found. Save your interview transcript to `docs/research/transcripts/` or pass content inline: `/ce:research [transcript content]`."
 Proceed to **Handoff**.
 
 **If transcripts exist:**
@@ -151,7 +151,7 @@ After the skill completes, proceed to **Handoff**.
 Look for processed interviews in `docs/research/interviews/`.
 
 **If no interviews exist:**
-Report: "No processed interviews found in `docs/research/interviews/`. Process transcripts first with `/workflows:research process`."
+Report: "No processed interviews found in `docs/research/interviews/`. Process transcripts first with `/ce:research process`."
 Proceed to **Handoff**.
 
 **If interviews exist:**
@@ -171,10 +171,10 @@ Announce the created or updated file path.
 
 If the skill completed without producing output (user abandoned or input was invalid), skip the file announcement and proceed directly to the menu.
 
-Use **AskUserQuestion** with three options:
+Use **AskUserQuestion** (or present numbered options and wait for reply if that tool is unavailable) with three options:
 
 1. **Continue research** -- Return to the phase selection menu
-2. **Proceed to `/workflows:brainstorm`** -- Hand off to brainstorm workflow
+2. **Proceed to `/ce:brainstorm`** -- Hand off to brainstorm workflow
 3. **Done for now**
 
 If the user selects "Continue research", return to the **Phase Selection** section above.
