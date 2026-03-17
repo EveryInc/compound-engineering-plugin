@@ -56,7 +56,7 @@ export function convertClaudeToKiro(
   // Convert MCP servers (stdio and remote)
   const mcpServers = convertMcpServers(plugin.mcpServers)
 
-  // Build steering files from CLAUDE.md
+  // Build steering files from repo instruction files, preferring AGENTS.md.
   const steeringFiles = buildSteeringFiles(plugin, agentNames)
 
   // Warn about hooks
@@ -196,12 +196,12 @@ function convertMcpServers(
 }
 
 function buildSteeringFiles(plugin: ClaudePlugin, knownAgentNames: string[]): KiroSteeringFile[] {
-  const claudeMdPath = path.join(plugin.root, "CLAUDE.md")
-  if (!existsSync(claudeMdPath)) return []
+  const instructionPath = resolveInstructionPath(plugin.root)
+  if (!instructionPath) return []
 
   let content: string
   try {
-    content = readFileSync(claudeMdPath, "utf8")
+    content = readFileSync(instructionPath, "utf8")
   } catch {
     return []
   }
@@ -210,6 +210,16 @@ function buildSteeringFiles(plugin: ClaudePlugin, knownAgentNames: string[]): Ki
 
   const transformed = transformContentForKiro(content, knownAgentNames)
   return [{ name: "compound-engineering", content: transformed }]
+}
+
+function resolveInstructionPath(root: string): string | null {
+  const agentsPath = path.join(root, "AGENTS.md")
+  if (existsSync(agentsPath)) return agentsPath
+
+  const claudePath = path.join(root, "CLAUDE.md")
+  if (existsSync(claudePath)) return claudePath
+
+  return null
 }
 
 function normalizeName(value: string): string {

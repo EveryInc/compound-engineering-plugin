@@ -2,6 +2,13 @@
 
 This repository contains a Bun/TypeScript CLI that converts Claude Code plugins into other agent platform formats.
 
+It also acts as:
+- a home for the distributed plugins under `plugins/`
+- the Claude marketplace catalog under `.claude-plugin/`
+- shared release and metadata infrastructure for those components
+
+`AGENTS.md` is the canonical repo instruction file. Root `CLAUDE.md` exists only as a compatibility shim for tools and conversions that still look for it.
+
 ## Working Agreement
 
 - **Branching:** Create a feature branch for any non-trivial change. If already on the correct branch for the task, keep using it; do not create additional branches or worktrees unless explicitly requested.
