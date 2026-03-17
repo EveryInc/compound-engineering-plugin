@@ -1,6 +1,7 @@
 ---
 name: user-test-eval
 description: Grade user-test skill output against binary evals and propose mutations. Use after a user-test run completes to check probe ordering, regression surfacing, and P1 presentation.
+disable-model-invocation: true
 ---
 
 # User Test Eval
@@ -21,8 +22,8 @@ not what the agent knows.
    - `completed: false`: abort with "Last run was incomplete. Run `/user-test` again."
 3. **Read `.user-test-last-report.md`:**
    - Missing: abort with "No report artifact found. The skill version may predate report persistence — run `/user-test` again with the latest skill."
-4. **Staleness check:** If `run_timestamp` > 24 hours old, warn "Run results are from <timestamp>. Evaluate anyway? (y/n)".
-5. **Already-evaluated check:** Read `skill-evals.json` if it exists. If the last entry's `run_timestamp` matches the artifact's `run_timestamp`, warn "This run was already evaluated. Run again? (y/n)".
+4. **Staleness check:** If `run_timestamp` > 24 hours old, use `AskUserQuestion` (if available, otherwise present as numbered options): "Run results are from <timestamp>. Evaluate anyway?" with options Yes / No. Abort on No.
+5. **Already-evaluated check:** Read `skill-evals.json` if it exists. If the last entry's `run_timestamp` matches the artifact's `run_timestamp`, use `AskUserQuestion`: "This run was already evaluated. Run again?" with options Yes / No. Abort on No.
 6. **Read the test file** (`tests/user-flows/<scenario_slug>.md`) to get area maturity statuses and `pass_threshold` values. Default `pass_threshold` is 4 if not specified.
 
 ## Phase 2: Run Evals
@@ -125,6 +126,8 @@ Location: `tests/user-flows/skill-evals.json`
 
 If file doesn't exist, create with `{ "eval_version": 1, "entries": [] }`.
 
+**Skill version:** Read the current `version` from the plugin's `.claude-plugin/plugin.json` at eval time. Do not hardcode.
+
 Append entry:
 
 ```json
@@ -132,7 +135,7 @@ Append entry:
   "run_timestamp": "<from .user-test-last-run.json>",
   "scenario_slug": "<from .user-test-last-run.json>",
   "git_sha": "<from .user-test-last-run.json>",
-  "skill_version": "2.52.0",
+  "skill_version": "<current version from .claude-plugin/plugin.json>",
   "evals": {
     "probe_execution_order": { "pass": <bool>, "areas_violated": [...], "detail": "..." },
     "proven_regression_distinction": { "pass": <bool>, "regressed_areas": [...], "missing_from_needs_action": [...], "detail": "..." },

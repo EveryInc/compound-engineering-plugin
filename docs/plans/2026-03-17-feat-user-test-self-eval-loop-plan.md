@@ -332,7 +332,7 @@ When evals pass for 5 consecutive runs, the eval should note: "All evals passing
 - [x] 3 binary evals implemented: probe execution order, Proven regression distinction, P1 surfacing
 - [x] Scores written to `tests/user-flows/skill-evals.json` with defined schema
 - [x] Mutation proposals written to `tests/user-flows/skill-mutations.md` when evals fail
-- [x] Auto-triggers after commit mode (both auto-commit and standalone `/user-test-commit`)
+- [x] Prompts user to run `/user-test-eval` after commit mode (both auto-commit and standalone `/user-test-commit`)
 - [x] `--no-eval` flag skips the auto-trigger
 - [x] `.user-test-last-report.md` written during commit mode, gitignored
 - [x] `execution_index` and `broad_exploration_start_index` added to last-run JSON schema
@@ -359,6 +359,7 @@ When evals pass for 5 consecutive runs, the eval should note: "All evals passing
 - More than 3 evals (expand after 5 consecutive passes)
 - Cross-model evaluation (same model, different context)
 - Mutation revert mechanism (use `git revert`)
+- Extract mutation format template and JSON schema to `references/` (v2.53.0 consideration — eval skill is 184 lines, extraction warranted when approaching 300+ or when references would be reused across skills)
 
 ## Dependencies & Risks
 

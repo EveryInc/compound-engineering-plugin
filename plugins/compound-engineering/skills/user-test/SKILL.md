@@ -359,14 +359,19 @@ Apply maturity transitions using agent judgment and the scoring rubric:
 8b. **Novelty fingerprints:** Merge this run's new fingerprints with existing ones from `.user-test-last-run.json`. Apply 20-per-area cap (drop oldest). Write merged set. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) Novelty Fingerprint Persistence.
 8c. **Journey updates:** Update journey Status, Last Run, Run History. Auto-escalate, mark stable, detect definition changes. Journey results do NOT affect per-area maturity. See [journeys.md](./references/journeys.md) Commit Mode.
 
-### Auto-Eval
+### Eval Prompt
 
-After all commit steps complete, automatically invoke `/user-test-eval` to grade this session's output. The eval reads from file artifacts (`.user-test-last-run.json` and `.user-test-last-report.md`) — it does not use conversation context from this session.
+After all commit steps complete, display:
 
-**Skip conditions:** `--no-eval` flag, or if commit was partial/aborted.
-**Error handling:** If eval fails, the commit is already complete and preserved. Display "Eval failed: <reason>. Run `/user-test-eval` manually to retry."
-**Iterate mode:** Eval runs once after the final commit, not per-iteration. Grades the aggregate report. Eval 1 checks probe execution order for the first run only.
-**Standalone `/user-test-commit`:** Also triggers auto-eval after commit completes (same artifacts, same trigger).
+```
+Run `/user-test-eval` to grade this session's output against binary evals.
+```
+
+The eval runs as a separate invocation to preserve grading integrity — it reads from file artifacts, not conversation context. Do NOT attempt to invoke the eval skill inline; the separation is intentional.
+
+**Skip conditions:** `--no-eval` flag, or if commit was partial/aborted — omit the prompt.
+**Iterate mode:** Display the prompt once after the final commit, not per-iteration.
+**Standalone `/user-test-commit`:** Also displays the eval prompt after commit completes.
 
 ## Iterate Mode
 
