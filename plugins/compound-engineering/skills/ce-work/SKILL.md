@@ -323,7 +323,8 @@ This command takes a work document (plan, specification, or todo file) and execu
 
    ---
 
-   [![Compound Engineering v[VERSION]](https://img.shields.io/badge/Compound_Engineering-v[VERSION]-6366f1)](https://github.com/EveryInc/compound-engineering-plugin) 🤖 Generated with [MODEL] via [HARNESS](HARNESS_URL)
+   [![Compound Engineering v[VERSION]](https://img.shields.io/badge/Compound_Engineering-v[VERSION]-6366f1)](https://github.com/EveryInc/compound-engineering-plugin)
+   🤖 Generated with [MODEL] ([CONTEXT] context, [THINKING]) via [HARNESS](HARNESS_URL)
    EOF
    )"
    ```
