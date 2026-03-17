@@ -228,12 +228,19 @@ This command takes a work document (plan, specification, or todo file) and execu
 
    Brief explanation if needed.
 
-   🤖 Generated with [Claude Code](https://claude.com/claude-code)
+   🤖 Generated with [MODEL] via [HARNESS](HARNESS_URL) + Compound Engineering v[VERSION]
 
-   Co-Authored-By: Claude <noreply@anthropic.com>
+   Co-Authored-By: [MODEL] <noreply@anthropic.com>
    EOF
    )"
    ```
+
+   **Attribution substitutions** — replace brackets with actual values:
+   - `[MODEL]` — your model name (e.g., "Claude Opus 4.6", "Claude Sonnet 4.6", "GPT-5.4")
+   - `[HARNESS]` / `[HARNESS_URL]` — the tool running you (e.g., "Claude Code" / `https://claude.com/claude-code`, "Codex" / `https://openai.com/codex`)
+   - `[VERSION]` — read from `plugins/compound-engineering/.claude-plugin/plugin.json` → `version`
+
+   **Multi-agent note:** If you are a subagent creating commits or PRs on behalf of a parent agent, you are still responsible for filling in accurate attribution. Read `plugin.json` for the version; use your own model name and harness.
 
 2. **Capture and Upload Screenshots for UI Changes** (REQUIRED for any UI work)
 
@@ -308,7 +315,7 @@ This command takes a work document (plan, specification, or todo file) and execu
 
    ---
 
-   [![Compound Engineered](https://img.shields.io/badge/Compound-Engineered-6366f1)](https://github.com/EveryInc/compound-engineering-plugin) 🤖 Generated with [Claude Code](https://claude.com/claude-code)
+   [![Compound Engineered](https://img.shields.io/badge/Compound_Engineered-v[VERSION]-6366f1)](https://github.com/EveryInc/compound-engineering-plugin) 🤖 Generated with [MODEL] via [HARNESS](HARNESS_URL)
    EOF
    )"
    ```
@@ -445,7 +452,7 @@ Before creating PR, verify:
 - [ ] Commit messages follow conventional format
 - [ ] PR description includes Post-Deploy Monitoring & Validation section (or explicit no-impact rationale)
 - [ ] PR description includes summary, testing notes, and screenshots
-- [ ] PR description includes Compound Engineered badge
+- [ ] PR description includes Compound Engineered badge with accurate model, harness, and version
 
 ## When to Use Reviewer Agents
 
