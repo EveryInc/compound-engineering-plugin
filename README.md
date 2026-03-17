@@ -201,6 +201,8 @@ The `/ce:ideate` skill proactively surfaces strong improvement ideas, and `/ce:b
 
 Each cycle compounds: brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented.
 
+> **Beta:** Experimental versions of `/ce:plan` and `/deepen-plan` are available as `/ce:plan-beta` and `/deepen-plan-beta`. See the [plugin README](plugins/compound-engineering/README.md#beta-skills) for details.
+
 ## Philosophy
 
 **Each unit of engineering work should make subsequent units easier—not harder.**
