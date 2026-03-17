@@ -202,7 +202,15 @@ function renderHookHandlers(
   const wrapped = options.requireError
     ? `    if (input?.error) {\n${statements.map((line) => `      ${line}`).join("\n")}\n    }`
     : rendered
+
+  // Wrap tool.execute.before handlers in try-catch to prevent a failing hook
+  // from crashing parallel tool call batches (causes API 400 errors).
+  // See: https://github.com/EveryInc/compound-engineering-plugin/issues/85
+  const isPreToolUse = event === "tool.execute.before"
   const note = options.note ? `    // ${options.note}\n` : ""
+  if (isPreToolUse) {
+    return `    "${event}": async (input) => {\n${note}    try {\n  ${wrapped}\n    } catch (err) {\n      console.error("[hook] ${event} error (non-fatal):", err)\n    }\n    }`
+  }
   return `    "${event}": async (input) => {\n${note}${wrapped}\n    }`
 }
 

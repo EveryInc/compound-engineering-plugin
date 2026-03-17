@@ -1,11 +1,13 @@
-import fs from "fs/promises"
 import path from "path"
 import type { ClaudeHomeConfig } from "../parsers/claude-home"
 import type { ClaudeMcpServer } from "../types/claude"
-import { forceSymlink, isValidSkillName } from "../utils/symlink"
+import { syncCopilotCommands } from "./commands"
+import { mergeJsonConfigAtKey } from "./json-config"
+import { hasExplicitSseTransport } from "./mcp-transports"
+import { syncSkills } from "./skills"
 
 type CopilotMcpServer = {
-  type: string
+  type: "local" | "http" | "sse"
   command?: string
   args?: string[]
   url?: string
@@ -22,41 +24,17 @@ export async function syncToCopilot(
   config: ClaudeHomeConfig,
   outputRoot: string,
 ): Promise<void> {
-  const skillsDir = path.join(outputRoot, "skills")
-  await fs.mkdir(skillsDir, { recursive: true })
-
-  for (const skill of config.skills) {
-    if (!isValidSkillName(skill.name)) {
-      console.warn(`Skipping skill with invalid name: ${skill.name}`)
-      continue
-    }
-    const target = path.join(skillsDir, skill.name)
-    await forceSymlink(skill.sourceDir, target)
-  }
+  await syncSkills(config.skills, path.join(outputRoot, "skills"))
+  await syncCopilotCommands(config, outputRoot)
 
   if (Object.keys(config.mcpServers).length > 0) {
-    const mcpPath = path.join(outputRoot, "copilot-mcp-config.json")
-    const existing = await readJsonSafe(mcpPath)
+    const mcpPath = path.join(outputRoot, "mcp-config.json")
     const converted = convertMcpForCopilot(config.mcpServers)
-    const merged: CopilotMcpConfig = {
-      mcpServers: {
-        ...(existing.mcpServers ?? {}),
-        ...converted,
-      },
-    }
-    await fs.writeFile(mcpPath, JSON.stringify(merged, null, 2), { mode: 0o600 })
-  }
-}
-
-async function readJsonSafe(filePath: string): Promise<Partial<CopilotMcpConfig>> {
-  try {
-    const content = await fs.readFile(filePath, "utf-8")
-    return JSON.parse(content) as Partial<CopilotMcpConfig>
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return {}
-    }
-    throw err
+    await mergeJsonConfigAtKey({
+      configPath: mcpPath,
+      key: "mcpServers",
+      incoming: converted,
+    })
   }
 }
 
@@ -66,7 +44,7 @@ function convertMcpForCopilot(
   const result: Record<string, CopilotMcpServer> = {}
   for (const [name, server] of Object.entries(servers)) {
     const entry: CopilotMcpServer = {
-      type: server.command ? "local" : "sse",
+      type: server.command ? "local" : hasExplicitSseTransport(server) ? "sse" : "http",
       tools: ["*"],
     }
 

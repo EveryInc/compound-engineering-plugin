@@ -28,6 +28,34 @@ describe("syncToCopilot", () => {
     expect(linkedStat.isSymbolicLink()).toBe(true)
   })
 
+  test("converts personal commands into Copilot skills", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sync-copilot-cmd-"))
+
+    const config: ClaudeHomeConfig = {
+      skills: [],
+      commands: [
+        {
+          name: "workflows:plan",
+          description: "Planning command",
+          argumentHint: "[goal]",
+          body: "Plan the work carefully.",
+          sourcePath: "/tmp/workflows/plan.md",
+        },
+      ],
+      mcpServers: {},
+    }
+
+    await syncToCopilot(config, tempRoot)
+
+    const skillContent = await fs.readFile(
+      path.join(tempRoot, "skills", "workflows-plan", "SKILL.md"),
+      "utf8",
+    )
+    expect(skillContent).toContain("name: workflows-plan")
+    expect(skillContent).toContain("Planning command")
+    expect(skillContent).toContain("## Arguments")
+  })
+
   test("skips skills with invalid names", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sync-copilot-invalid-"))
 
@@ -51,7 +79,7 @@ describe("syncToCopilot", () => {
 
   test("merges MCP config with existing file", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sync-copilot-merge-"))
-    const mcpPath = path.join(tempRoot, "copilot-mcp-config.json")
+    const mcpPath = path.join(tempRoot, "mcp-config.json")
 
     await fs.writeFile(
       mcpPath,
@@ -77,6 +105,7 @@ describe("syncToCopilot", () => {
 
     expect(merged.mcpServers.existing?.command).toBe("node")
     expect(merged.mcpServers.context7?.url).toBe("https://mcp.context7.com/mcp")
+    expect(merged.mcpServers.context7?.type).toBe("http")
   })
 
   test("transforms MCP env var names to COPILOT_MCP_ prefix", async () => {
@@ -95,7 +124,7 @@ describe("syncToCopilot", () => {
 
     await syncToCopilot(config, tempRoot)
 
-    const mcpPath = path.join(tempRoot, "copilot-mcp-config.json")
+    const mcpPath = path.join(tempRoot, "mcp-config.json")
     const mcpConfig = JSON.parse(await fs.readFile(mcpPath, "utf8")) as {
       mcpServers: Record<string, { env?: Record<string, string> }>
     }
@@ -118,7 +147,7 @@ describe("syncToCopilot", () => {
 
     await syncToCopilot(config, tempRoot)
 
-    const mcpPath = path.join(tempRoot, "copilot-mcp-config.json")
+    const mcpPath = path.join(tempRoot, "mcp-config.json")
     const stat = await fs.stat(mcpPath)
     // Check owner read+write permission (0o600 = 33216 in decimal, masked to file perms)
     const perms = stat.mode & 0o777
@@ -142,7 +171,34 @@ describe("syncToCopilot", () => {
 
     await syncToCopilot(config, tempRoot)
 
-    const mcpExists = await fs.access(path.join(tempRoot, "copilot-mcp-config.json")).then(() => true).catch(() => false)
+    const mcpExists = await fs.access(path.join(tempRoot, "mcp-config.json")).then(() => true).catch(() => false)
     expect(mcpExists).toBe(false)
+  })
+
+  test("preserves explicit SSE transport for legacy remote servers", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "sync-copilot-sse-"))
+
+    const config: ClaudeHomeConfig = {
+      skills: [],
+      mcpServers: {
+        legacy: {
+          type: "sse",
+          url: "https://example.com/sse",
+        },
+      },
+    }
+
+    await syncToCopilot(config, tempRoot)
+
+    const mcpPath = path.join(tempRoot, "mcp-config.json")
+    const mcpConfig = JSON.parse(await fs.readFile(mcpPath, "utf8")) as {
+      mcpServers: Record<string, { type?: string; url?: string }>
+    }
+
+    expect(mcpConfig.mcpServers.legacy).toEqual({
+      type: "sse",
+      tools: ["*"],
+      url: "https://example.com/sse",
+    })
   })
 })

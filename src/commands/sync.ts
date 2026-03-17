@@ -1,60 +1,34 @@
 import { defineCommand } from "citty"
-import os from "os"
 import path from "path"
 import { loadClaudeHome } from "../parsers/claude-home"
-import { syncToOpenCode } from "../sync/opencode"
-import { syncToCodex } from "../sync/codex"
-import { syncToPi } from "../sync/pi"
-import { syncToDroid } from "../sync/droid"
-import { syncToCopilot } from "../sync/copilot"
+import {
+  getDefaultSyncRegistryContext,
+  getSyncTarget,
+  isSyncTargetName,
+  syncTargetNames,
+  type SyncTargetName,
+} from "../sync/registry"
 import { expandHome } from "../utils/resolve-home"
+import { hasPotentialSecrets } from "../utils/secrets"
+import { detectInstalledTools } from "../utils/detect-tools"
 
-const validTargets = ["opencode", "codex", "pi", "droid", "copilot"] as const
-type SyncTarget = (typeof validTargets)[number]
+const validTargets = [...syncTargetNames, "all"] as const
+type SyncTarget = SyncTargetName | "all"
 
 function isValidTarget(value: string): value is SyncTarget {
-  return (validTargets as readonly string[]).includes(value)
-}
-
-/** Check if any MCP servers have env vars that might contain secrets */
-function hasPotentialSecrets(mcpServers: Record<string, unknown>): boolean {
-  const sensitivePatterns = /key|token|secret|password|credential|api_key/i
-  for (const server of Object.values(mcpServers)) {
-    const env = (server as { env?: Record<string, string> }).env
-    if (env) {
-      for (const key of Object.keys(env)) {
-        if (sensitivePatterns.test(key)) return true
-      }
-    }
-  }
-  return false
-}
-
-function resolveOutputRoot(target: SyncTarget): string {
-  switch (target) {
-    case "opencode":
-      return path.join(os.homedir(), ".config", "opencode")
-    case "codex":
-      return path.join(os.homedir(), ".codex")
-    case "pi":
-      return path.join(os.homedir(), ".pi", "agent")
-    case "droid":
-      return path.join(os.homedir(), ".factory")
-    case "copilot":
-      return path.join(process.cwd(), ".github")
-  }
+  return value === "all" || isSyncTargetName(value)
 }
 
 export default defineCommand({
   meta: {
     name: "sync",
-    description: "Sync Claude Code config (~/.claude/) to OpenCode, Codex, Pi, Droid, or Copilot",
+    description: "Sync Claude Code config (~/.claude/) to supported provider configs and skills",
   },
   args: {
     target: {
       type: "string",
-      required: true,
-      description: "Target: opencode | codex | pi | droid | copilot",
+      default: "all",
+      description: `Target: ${syncTargetNames.join(" | ")} | all (default: all)`,
     },
     claudeHome: {
       type: "string",
@@ -67,7 +41,8 @@ export default defineCommand({
       throw new Error(`Unknown target: ${args.target}. Use one of: ${validTargets.join(", ")}`)
     }
 
-    const claudeHome = expandHome(args.claudeHome ?? path.join(os.homedir(), ".claude"))
+    const { home, cwd } = getDefaultSyncRegistryContext()
+    const claudeHome = expandHome(args.claudeHome ?? path.join(home, ".claude"))
     const config = await loadClaudeHome(claudeHome)
 
     // Warn about potential secrets in MCP env vars
@@ -78,30 +53,36 @@ export default defineCommand({
       )
     }
 
-    console.log(
-      `Syncing ${config.skills.length} skills, ${Object.keys(config.mcpServers).length} MCP servers...`,
-    )
+    if (args.target === "all") {
+      const detected = await detectInstalledTools()
+      const activeTargets = detected.filter((t) => t.detected).map((t) => t.name)
 
-    const outputRoot = resolveOutputRoot(args.target)
+      if (activeTargets.length === 0) {
+        console.log("No AI coding tools detected.")
+        return
+      }
 
-    switch (args.target) {
-      case "opencode":
-        await syncToOpenCode(config, outputRoot)
-        break
-      case "codex":
-        await syncToCodex(config, outputRoot)
-        break
-      case "pi":
-        await syncToPi(config, outputRoot)
-        break
-      case "droid":
-        await syncToDroid(config, outputRoot)
-        break
-      case "copilot":
-        await syncToCopilot(config, outputRoot)
-        break
+      console.log(`Syncing to ${activeTargets.length} detected tool(s)...`)
+      for (const tool of detected) {
+        console.log(`  ${tool.detected ? "✓" : "✗"} ${tool.name} — ${tool.reason}`)
+      }
+
+      for (const name of activeTargets) {
+        const target = getSyncTarget(name as SyncTargetName)
+        const outputRoot = target.resolveOutputRoot(home, cwd)
+        await target.sync(config, outputRoot)
+        console.log(`✓ Synced to ${name}: ${outputRoot}`)
+      }
+      return
     }
 
+    console.log(
+      `Syncing ${config.skills.length} skills, ${config.commands?.length ?? 0} commands, ${Object.keys(config.mcpServers).length} MCP servers...`,
+    )
+
+    const target = getSyncTarget(args.target as SyncTargetName)
+    const outputRoot = target.resolveOutputRoot(home, cwd)
+    await target.sync(config, outputRoot)
     console.log(`✓ Synced to ${args.target}: ${outputRoot}`)
   },
 })

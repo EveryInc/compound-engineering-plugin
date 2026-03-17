@@ -1,5 +1,11 @@
 # Workflow: Create a New Skill
 
+## Interaction Method
+
+If `AskUserQuestion` is available, use it for all prompts below.
+
+If not, present each question as a numbered list and wait for a reply before proceeding to the next step. For multiSelect questions, accept comma-separated numbers (e.g. `1, 3`). Never skip or auto-configure.
+
 <required_reading>
 **Read these reference files NOW:**
 1. references/recommended-structure.md

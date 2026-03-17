@@ -1,5 +1,11 @@
 # Workflow: Add a Workflow to Existing Skill
 
+## Interaction Method
+
+If `AskUserQuestion` is available, use it for all prompts below.
+
+If not, present each question as a numbered list and wait for a reply before proceeding to the next step. Never skip or auto-configure.
+
 <required_reading>
 **Read these reference files NOW:**
 1. references/recommended-structure.md

@@ -1,5 +1,5 @@
 {
-  "name": "every-marketplace",
+  "name": "compound-engineering-plugin",
   "owner": {
     "name": "Kieran Klaassen",
     "url": "https://github.com/kieranklaassen"
@@ -11,8 +11,8 @@
   "plugins": [
     {
       "name": "compound-engineering",
-      "description": "AI-powered development tools that get smarter with every use. Make each unit of engineering work easier than the last. Includes 30 specialized agents, 23 commands, and 22 skills.",
-      "version": "2.36.0",
+      "description": "AI-powered development tools that get smarter with every use. Make each unit of engineering work easier than the last. Includes 30 specialized agents and 47 skills.",
+      "version": "2.42.0",
       "author": {
         "name": "Kieran Klaassen",
         "url": "https://github.com/kieranklaassen",

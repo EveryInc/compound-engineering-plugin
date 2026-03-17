@@ -1,11 +1,11 @@
-# Every Marketplace - Claude Code Plugin Marketplace
+# compound-engineering-plugin - Claude Code Plugin Marketplace
 
 This repository is a Claude Code plugin marketplace that distributes the `compound-engineering` plugin to developers building with AI-powered tools.
 
 ## Repository Structure
 
 ```
-every-marketplace/
+compound-engineering-plugin/
 ├── .claude-plugin/
 │   └── marketplace.json          # Marketplace catalog (lists available plugins)
 ├── docs/                         # Documentation site (GitHub Pages)
@@ -37,6 +37,20 @@ When working on this repository, follow the compounding engineering process:
 4. **Codify** → Update this CLAUDE.md with learnings
 
 ## Working with This Repository
+
+## CLI Release Versioning
+
+The repository has two separate version surfaces:
+
+1. **Root CLI package** — `package.json`, root `CHANGELOG.md`, and repo `v*` tags all share one release line managed by semantic-release on `main`.
+2. **Embedded marketplace plugin metadata** — `plugins/compound-engineering/.claude-plugin/plugin.json` and `.claude-plugin/marketplace.json` track the distributed Claude plugin metadata and can differ from the root CLI package version.
+
+Rules:
+
+- Do not start a separate root CLI version stream. The root CLI follows the repo tag line.
+- Do not hand-bump the root CLI `package.json` or root `CHANGELOG.md` for routine feature work. Use conventional commits and let semantic-release write the released root version back to git.
+- Keep the root `CHANGELOG.md` header block aligned with `.releaserc.json` `changelogTitle`. If they drift, semantic-release will prepend release notes above the header.
+- Do not guess or hand-bump embedded plugin release versions in routine PRs. The automated release process decides the next plugin/marketplace version and generate release changelog entries after choosing which merged changes ship together.
 
 ### Adding a New Plugin
 
@@ -79,17 +93,17 @@ The description appears in multiple places and must match everywhere:
 
 Format: `"Includes X specialized agents, Y commands, and Z skill(s)."`
 
-#### 3. Update version numbers
+#### 3. Do not pre-cut release versions
 
-When adding new functionality, bump the version in:
+Contributors should not guess the next released plugin version in a normal PR:
 
-- [ ] `plugins/compound-engineering/.claude-plugin/plugin.json` → `version`
-- [ ] `.claude-plugin/marketplace.json` → plugin `version`
+- [ ] No manual bump in `plugins/compound-engineering/.claude-plugin/plugin.json` → `version`
+- [ ] No manual bump in `.claude-plugin/marketplace.json` → plugin `version`
 
 #### 4. Update documentation
 
 - [ ] `plugins/compound-engineering/README.md` → list all components
-- [ ] `plugins/compound-engineering/CHANGELOG.md` → document changes
+- [ ] Do not cut a release section in `plugins/compound-engineering/CHANGELOG.md` for a normal feature PR
 - [ ] `CLAUDE.md` → update structure diagram if needed
 
 #### 5. Rebuild documentation site
@@ -258,23 +272,34 @@ python -m http.server 8000
 
 ### Test Locally
 
-1. Install the marketplace locally:
+The simplest way to test local changes is to symlink your local plugin into the cached install location. This avoids marketplace CLI commands (which can hang or timeout) and lets changes take effect immediately.
+
+1. Back up the cached plugin and symlink your local checkout:
 
    ```bash
-   claude /plugin marketplace add /Users/yourusername/every-marketplace
+   mv ~/.claude/plugins/cache/every-marketplace/compound-engineering/2.35.1 \
+      ~/.claude/plugins/cache/every-marketplace/compound-engineering/2.35.1.bak
+   ln -s "/path/to/your/repo/plugins/compound-engineering" \
+      ~/.claude/plugins/cache/every-marketplace/compound-engineering/2.35.1
    ```
 
-2. Install the plugin:
-
-   ```bash
-   claude /plugin install compound-engineering
-   ```
+2. Restart Claude Code (or Cursor). Your local branch is now loaded as the plugin.
 
 3. Test agents and commands:
    ```bash
    claude /review
    claude agent kieran-rails-reviewer "test message"
    ```
+
+4. To revert back to the original cached version:
+
+   ```bash
+   rm ~/.claude/plugins/cache/every-marketplace/compound-engineering/2.35.1
+   mv ~/.claude/plugins/cache/every-marketplace/compound-engineering/2.35.1.bak \
+      ~/.claude/plugins/cache/every-marketplace/compound-engineering/2.35.1
+   ```
+
+**Note:** The symlink target version directory (e.g. `2.35.1`) must match what's in `~/.claude/plugins/installed_plugins.json`. Check that file if the path differs.
 
 ### Validate JSON
 
@@ -345,13 +370,26 @@ Follow these patterns for commit messages:
 - `Fix [issue]` - Bug fixes
 - `Simplify [component] to [improvement]` - Refactoring
 
-Include the Claude Code footer:
+Include the attribution footer (fill in your actual values):
 
 ```
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+🤖 Generated with [MODEL] via [HARNESS](HARNESS_URL) + Compound Engineering v[VERSION]
 
-Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: [MODEL] ([CONTEXT] context, [THINKING]) <noreply@anthropic.com>
 ```
+
+**Fill in at commit/PR time:**
+
+| Placeholder | Value | Example |
+|-------------|-------|---------|
+| Placeholder | Value | Example |
+|-------------|-------|---------|
+| `[MODEL]` | Model name | Claude Opus 4.6, GPT-5.4 |
+| `[CONTEXT]` | Context window (if known) | 200K, 1M |
+| `[THINKING]` | Thinking level (if known) | extended thinking |
+| `[HARNESS]` | Tool running you | Claude Code, Codex, Gemini CLI |
+| `[HARNESS_URL]` | Link to that tool | `https://claude.com/claude-code` |
+| `[VERSION]` | `plugin.json` → `version` | 2.40.0 |
 
 ## Resources to search for when needing more information
 
