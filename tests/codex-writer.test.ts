@@ -105,4 +105,158 @@ describe("writeCodexBundle", () => {
     const backupContent = await fs.readFile(path.join(codexRoot, backupFileName!), "utf8")
     expect(backupContent).toBe(originalContent)
   })
+
+  test("transforms copied SKILL.md files using Codex invocation targets", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-skill-transform-"))
+    const sourceSkillDir = path.join(tempRoot, "source-skill")
+    await fs.mkdir(sourceSkillDir, { recursive: true })
+    await fs.writeFile(
+      path.join(sourceSkillDir, "SKILL.md"),
+      `---
+name: ce:brainstorm
+description: Brainstorm workflow
+---
+
+Continue with /ce:plan when ready.
+Or use /workflows:plan if you're following an older doc.
+Use /deepen-plan for deeper research.
+`,
+    )
+    await fs.writeFile(
+      path.join(sourceSkillDir, "notes.md"),
+      "Reference docs still mention /ce:plan here.\n",
+    )
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [{ name: "ce:brainstorm", sourceDir: sourceSkillDir }],
+      generatedSkills: [],
+      invocationTargets: {
+        promptTargets: {
+          "ce-plan": "ce-plan",
+          "workflows-plan": "ce-plan",
+          "deepen-plan": "deepen-plan",
+        },
+        skillTargets: {},
+      },
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const installedSkill = await fs.readFile(
+      path.join(tempRoot, ".codex", "skills", "ce:brainstorm", "SKILL.md"),
+      "utf8",
+    )
+    expect(installedSkill).toContain("/prompts:ce-plan")
+    expect(installedSkill).not.toContain("/workflows:plan")
+    expect(installedSkill).toContain("/prompts:deepen-plan")
+
+    const notes = await fs.readFile(
+      path.join(tempRoot, ".codex", "skills", "ce:brainstorm", "notes.md"),
+      "utf8",
+    )
+    expect(notes).toContain("/ce:plan")
+  })
+
+  test("transforms namespaced Task calls in copied SKILL.md files", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-ns-task-"))
+    const sourceSkillDir = path.join(tempRoot, "source-skill")
+    await fs.mkdir(sourceSkillDir, { recursive: true })
+    await fs.writeFile(
+      path.join(sourceSkillDir, "SKILL.md"),
+      `---
+name: ce:plan
+description: Planning workflow
+---
+
+Run these research agents:
+
+- Task compound-engineering:research:repo-research-analyst(feature_description)
+- Task compound-engineering:research:learnings-researcher(feature_description)
+
+Also run bare agents:
+
+- Task best-practices-researcher(topic)
+`,
+    )
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [{ name: "ce:plan", sourceDir: sourceSkillDir }],
+      generatedSkills: [],
+      invocationTargets: {
+        promptTargets: {},
+        skillTargets: {},
+      },
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const installedSkill = await fs.readFile(
+      path.join(tempRoot, ".codex", "skills", "ce:plan", "SKILL.md"),
+      "utf8",
+    )
+
+    // Namespaced Task calls should be rewritten using the final segment
+    expect(installedSkill).toContain("Use the $repo-research-analyst skill to: feature_description")
+    expect(installedSkill).toContain("Use the $learnings-researcher skill to: feature_description")
+    expect(installedSkill).not.toContain("Task compound-engineering:")
+
+    // Bare Task calls should still be rewritten
+    expect(installedSkill).toContain("Use the $best-practices-researcher skill to: topic")
+    expect(installedSkill).not.toContain("Task best-practices-researcher")
+  })
+
+  test("preserves unknown slash text in copied SKILL.md files", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-skill-preserve-"))
+    const sourceSkillDir = path.join(tempRoot, "source-skill")
+    await fs.mkdir(sourceSkillDir, { recursive: true })
+    await fs.writeFile(
+      path.join(sourceSkillDir, "SKILL.md"),
+      `---
+name: proof
+description: Proof skill
+---
+
+Route examples:
+- /users
+- /settings
+
+API examples:
+- https://www.proofeditor.ai/api/agent/{slug}/state
+- https://www.proofeditor.ai/share/markdown
+
+Workflow handoff:
+- /ce:plan
+`,
+    )
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [{ name: "proof", sourceDir: sourceSkillDir }],
+      generatedSkills: [],
+      invocationTargets: {
+        promptTargets: {
+          "ce-plan": "ce-plan",
+        },
+        skillTargets: {},
+      },
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const installedSkill = await fs.readFile(
+      path.join(tempRoot, ".codex", "skills", "proof", "SKILL.md"),
+      "utf8",
+    )
+
+    expect(installedSkill).toContain("/users")
+    expect(installedSkill).toContain("/settings")
+    expect(installedSkill).toContain("https://www.proofeditor.ai/api/agent/{slug}/state")
+    expect(installedSkill).toContain("https://www.proofeditor.ai/share/markdown")
+    expect(installedSkill).toContain("/prompts:ce-plan")
+    expect(installedSkill).not.toContain("/prompts:users")
+    expect(installedSkill).not.toContain("/prompts:settings")
+    expect(installedSkill).not.toContain("https://prompts:www.proofeditor.ai")
+  })
 })

@@ -40,7 +40,6 @@ agents/
 
 skills/
 ├── ce-*/          # Core workflow skills (ce:plan, ce:review, etc.)
-├── workflows-*/   # Deprecated aliases for ce:* skills
 └── */             # All other skills
 ```
 
@@ -57,7 +56,7 @@ skills/
 - `/ce:work` - Execute work items systematically
 - `/ce:compound` - Document solved problems
 
-**Why `ce:`?** Claude Code has built-in `/plan` and `/review` commands. The `ce:` namespace (short for compound-engineering) makes it immediately clear these commands belong to this plugin. The legacy `workflows:` prefix is still supported as deprecated aliases that forward to the `ce:*` equivalents.
+**Why `ce:`?** Claude Code has built-in `/plan` and `/review` commands. The `ce:` namespace (short for compound-engineering) makes it immediately clear these commands belong to this plugin.
 
 ## Skill Compliance Checklist
 
@@ -93,6 +92,18 @@ This plugin is authored once, then converted for other agent platforms. Commands
 - [ ] Inside a pass-through `SKILL.md`, do not assume slash references will be remapped for another platform. Write references according to what will still make sense after the skill is copied as-is.
 - [ ] When one skill refers to another skill, prefer semantic wording such as "load the `document-review` skill" rather than slash syntax.
 - [ ] Use slash syntax only when referring to an actual published command or workflow such as `/ce:work` or `/deepen-plan`.
+
+### Tool Selection in Agents and Skills
+
+Agents and skills that explore codebases must prefer native tools over shell commands.
+
+Why: shell-heavy exploration causes avoidable permission prompts in sub-agent workflows; native file-search, content-search, and file-read tools avoid that.
+
+- [ ] Never instruct agents to use `find`, `ls`, `cat`, `head`, `tail`, `grep`, `rg`, `wc`, or `tree` through a shell for routine file discovery, content search, or file reading
+- [ ] Describe tools by capability class with platform hints — e.g., "Use the native file-search/glob tool (e.g., Glob in Claude Code)" — not by Claude Code-specific tool names alone
+- [ ] When shell is the only option (e.g., `ast-grep`, `bundle show`, git commands), instruct one simple command at a time — no chaining (`&&`, `||`, `;`), pipes, or redirects
+- [ ] Do not encode shell recipes for routine exploration when native tools can do the job; encode intent and preferred tool classes instead
+- [ ] For shell-only workflows (e.g., `gh`, `git`, `bundle show`, project CLIs), explicit command examples are acceptable when they are simple, task-scoped, and not chained together
 
 ### Quick Validation Command
 

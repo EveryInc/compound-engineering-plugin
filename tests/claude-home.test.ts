@@ -43,4 +43,40 @@ describe("loadClaudeHome", () => {
     expect(config.commands?.find((command) => command.name === "custom-command")?.allowedTools).toEqual(["Bash", "Read"])
     expect(config.mcpServers.context7?.url).toBe("https://mcp.context7.com/mcp")
   })
+
+  test("keeps personal skill directory names stable even when frontmatter name differs", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "claude-home-skill-name-"))
+    const skillDir = path.join(tempHome, "skills", "reviewer")
+
+    await fs.mkdir(skillDir, { recursive: true })
+    await fs.writeFile(
+      path.join(skillDir, "SKILL.md"),
+      "---\nname: ce:plan\ndescription: Reviewer skill\nargument-hint: \"[topic]\"\n---\nReview things.\n",
+    )
+
+    const config = await loadClaudeHome(tempHome)
+
+    expect(config.skills).toHaveLength(1)
+    expect(config.skills[0]?.name).toBe("reviewer")
+    expect(config.skills[0]?.description).toBe("Reviewer skill")
+    expect(config.skills[0]?.argumentHint).toBe("[topic]")
+  })
+
+  test("keeps personal skills when frontmatter is malformed", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "claude-home-skill-yaml-"))
+    const skillDir = path.join(tempHome, "skills", "reviewer")
+
+    await fs.mkdir(skillDir, { recursive: true })
+    await fs.writeFile(
+      path.join(skillDir, "SKILL.md"),
+      "---\nname: ce:plan\nfoo: [unterminated\n---\nReview things.\n",
+    )
+
+    const config = await loadClaudeHome(tempHome)
+
+    expect(config.skills).toHaveLength(1)
+    expect(config.skills[0]?.name).toBe("reviewer")
+    expect(config.skills[0]?.description).toBeUndefined()
+    expect(config.skills[0]?.argumentHint).toBeUndefined()
+  })
 })

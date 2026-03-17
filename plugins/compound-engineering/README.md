@@ -83,8 +83,6 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `/ce:compound` | Document solved problems to compound team knowledge |
 | `/ce:compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
 
-> **Deprecated aliases:** `/workflows:plan`, `/workflows:work`, `/workflows:review`, `/workflows:brainstorm`, `/workflows:compound` still work but show a deprecation warning. Use `ce:*` equivalents.
-
 ### Utility Commands
 
 | Command | Description |

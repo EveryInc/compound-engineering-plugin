@@ -82,7 +82,7 @@ Then run `claude-dev-ce` instead of `claude` to test your changes. Your producti
 **Codex** — point the install command at your local path:
 
 ```bash
-bunx @every-env/compound-plugin install ./plugins/compound-engineering --to codex
+bun run src/index.ts install ./plugins/compound-engineering --to codex
 ```
 
 **Other targets** — same pattern, swap the target:
@@ -97,7 +97,7 @@ bun run src/index.ts install ./plugins/compound-engineering --to opencode
 | Target | Output path | Notes |
 |--------|------------|-------|
 | `opencode` | `~/.config/opencode/` | Commands as `.md` files; `opencode.json` MCP config deep-merged; backups made before overwriting |
-| `codex` | `~/.codex/prompts` + `~/.codex/skills` | Each command becomes a prompt + skill pair; descriptions truncated to 1024 chars |
+| `codex` | `~/.codex/prompts` + `~/.codex/skills` | Claude commands become prompt + skill pairs; canonical `ce:*` workflow skills also get prompt wrappers; deprecated `workflows:*` aliases are omitted |
 | `droid` | `~/.factory/` | Tool names mapped (`Bash`→`Execute`, `Write`→`Create`); namespace prefixes stripped |
 | `pi` | `~/.pi/agent/` | Prompts, skills, extensions, and `mcporter.json` for MCPorter interoperability |
 | `gemini` | `.gemini/` | Skills from agents; commands as `.toml`; namespaced commands become directories (`workflows:plan` → `commands/workflows/plan.toml`) |

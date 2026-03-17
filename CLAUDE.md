@@ -359,13 +359,26 @@ Follow these patterns for commit messages:
 - `Fix [issue]` - Bug fixes
 - `Simplify [component] to [improvement]` - Refactoring
 
-Include the Claude Code footer:
+Include the attribution footer (fill in your actual values):
 
 ```
-🤖 Generated with [Claude Code](https://claude.com/claude-code)
+🤖 Generated with [MODEL] via [HARNESS](HARNESS_URL) + Compound Engineering v[VERSION]
 
-Co-Authored-By: Claude <noreply@anthropic.com>
+Co-Authored-By: [MODEL] ([CONTEXT] context, [THINKING]) <noreply@anthropic.com>
 ```
+
+**Fill in at commit/PR time:**
+
+| Placeholder | Value | Example |
+|-------------|-------|---------|
+| Placeholder | Value | Example |
+|-------------|-------|---------|
+| `[MODEL]` | Model name | Claude Opus 4.6, GPT-5.4 |
+| `[CONTEXT]` | Context window (if known) | 200K, 1M |
+| `[THINKING]` | Thinking level (if known) | extended thinking |
+| `[HARNESS]` | Tool running you | Claude Code, Codex, Gemini CLI |
+| `[HARNESS_URL]` | Link to that tool | `https://claude.com/claude-code` |
+| `[VERSION]` | `plugin.json` → `version` | 2.40.0 |
 
 ## Resources to search for when needing more information
 
