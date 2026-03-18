@@ -7,7 +7,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 29 |
-| Skills | 45 |
+| Skills | 44 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -100,7 +100,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `/reproduce-bug` | Reproduce bugs using logs and console |
 | `/resolve_parallel` | Resolve TODO comments in parallel |
 | `/resolve_pr_parallel` | Resolve PR comments in parallel |
-| `/resolve_todo_parallel` | Resolve todos in parallel |
+| `/resolve-todo-parallel` | Resolve todos in parallel |
 | `/triage` | Triage and prioritize issues |
 | `/test-browser` | Run browser tests on PR-affected pages |
 | `/xcode-test` | Build and test iOS apps on simulator |
@@ -136,7 +136,6 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `git-worktree` | Manage Git worktrees for parallel development |
 | `proof` | Create, edit, and share documents via Proof collaborative editor |
 | `resolve-pr-parallel` | Resolve PR review comments in parallel |
-| `resolve-todos-fully` | Resolve todos, compound on learnings, clean up completed |
 | `setup` | Configure which review agents run for your project |
 
 ### Multi-Agent Orchestration

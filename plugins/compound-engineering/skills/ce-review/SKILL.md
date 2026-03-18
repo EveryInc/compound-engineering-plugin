@@ -439,7 +439,7 @@ After creating all todo files, present comprehensive summary:
 3. **Work on Approved Todos**:
 
    ```bash
-   /resolve_todo_parallel  # Fix all approved items efficiently
+   /resolve-todo-parallel  # Fix all approved items efficiently
    ```
 
 4. **Track Progress**:

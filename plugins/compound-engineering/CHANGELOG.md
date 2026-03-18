@@ -5,18 +5,6 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [2.43.0] - 2026-03-17
-
-### Added
-
-- **`resolve-todos-fully` skill** — Orchestrates the full todo lifecycle: resolve in parallel, compound on lessons learned via `/ce:compound`, then delete completed todos. Closes the resolve-learn-cleanup loop. ([#291](https://github.com/EveryInc/compound-engineering-plugin/issues/291))
-
-### Changed
-
-- **`/lfg` and `/slfg`** — Step 6 (lfg) and step 7 (slfg) now use `/resolve-todos-fully` instead of `/resolve_todo_parallel`, adding automatic knowledge compounding and todo cleanup after resolution.
-
----
-
 ## [2.39.0] - 2026-03-10
 
 ### Added
