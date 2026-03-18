@@ -70,7 +70,7 @@ copy_env_files() {
 # have never seen. Without trusting, these tools block with interactive
 # prompts or refuse to load configs, which breaks hooks and scripts.
 #
-# Safety: only auto-trusts configs that are unchanged from the base branch.
+# Safety: only auto-trusts configs that are unchanged from the default branch.
 # Modified configs (e.g., from a PR) are flagged for manual review.
 trust_dev_tools() {
   local worktree_path="$1"
@@ -195,8 +195,11 @@ create_worktree() {
   copy_env_files "$worktree_path"
 
   # Trust dev tool configs (mise, direnv) so hooks and scripts work immediately
-  # Only auto-trusts configs unchanged from the base branch
-  trust_dev_tools "$worktree_path" "$from_branch"
+  # Always compare against the default branch, not from_branch, so that passing
+  # a PR branch as from_branch doesn't bypass the safety check
+  local default_branch
+  default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||') || default_branch="main"
+  trust_dev_tools "$worktree_path" "$default_branch"
 
   echo -e "${GREEN}✓ Worktree created successfully!${NC}"
   echo ""
