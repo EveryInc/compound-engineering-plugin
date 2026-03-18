@@ -48,15 +48,21 @@ Multi-turn sequences contribute to the area's Quality score (scored against the 
 
 ### Proven Area Query Budget
 
-Active queries count against the 3-call MCP budget for Proven areas. `[stable]` queries run via CLI only and do not count. Only failing/untested probes bypass the cap (existing rule from [probes.md](./probes.md)).
+Active queries count against the tiered MCP budget for Proven areas (see [run-targeting.md](./run-targeting.md) for budget by consecutive pass count). `[stable]` queries run via CLI only and do not count. Only failing/untested probes bypass the cap (existing rule from [probes.md](./probes.md)).
 
-**Worked example:**
+**Worked example (3-call tier, consecutive passes 2-5):**
 ```
-Proven area with 5 queries (2 active, 3 stable), 2 failing probes, 3-call cap:
+Proven area with 5 queries (2 active, 3 stable), 2 failing probes, 3-call budget:
 → 2 failing probes run (uncapped): 2 browser calls
 → 3 stable queries run via CLI (uncapped): 0 browser calls
 → 1 remaining browser call → spot-check 1 active query
 → 1 active query skipped this run
+
+At 1-call tier (10+ consecutive passes), same area:
+→ 2 failing probes run (uncapped): 2 browser calls
+→ 3 stable queries run via CLI (uncapped): 0 browser calls
+→ 0 remaining browser calls (budget exhausted by probes)
+→ 2 active queries skipped this run
 ```
 
 ### CLI Area Queries
@@ -153,9 +159,9 @@ Any interaction where the core action (query text, filter applied, button sequen
 ### MCP Budget by Area Type
 
 ```
-Proven area (3-call cap):
-  → novelty = exactly 1 MCP call after probes and active queries
-  (practical floor — 30% of 3 rounds to 1)
+Proven area (tiered cap, see run-targeting.md):
+  → novelty = 1 MCP call after probes and active queries (at 3-call tier)
+  → at 1-call tier: single call used for probe spot-check OR novelty (agent discretion)
 
 Uncharted/FULL area (no hard cap):
   → novelty = 30% of calls used on probes + queries, minimum 2 calls
@@ -163,7 +169,7 @@ Uncharted/FULL area (no hard cap):
   → Example: 4 calls on probes/queries → still minimum 2 novelty calls
 ```
 
-**Proven area budget exhaustion:** When the 3-call cap is fully consumed by failing/untested probes and active queries, the novelty budget is 0 for that area. Probes and queries take priority — novelty defers, not the other way around. Passing-probe spot-checks also defer when novelty would compete for the last call.
+**Proven area budget exhaustion:** When the tiered budget cap is fully consumed by failing/untested probes and active queries, the novelty budget is 0 for that area. Probes and queries take priority — novelty defers, not the other way around. Passing-probe spot-checks also defer when novelty would compete for the last call.
 
 ### Mandatory Probe Rule
 
@@ -250,7 +256,7 @@ Adversarial mode (CLI score 3 trigger) overrides fingerprint skipping for its sp
 
 ### Proven Area Budget Interaction
 
-Proven areas keep their 3-MCP-call cap. Fingerprint filtering does NOT increase the budget — it changes WHAT those 3 calls test. If fingerprints exclude obvious interactions, the 3 calls target genuinely novel territory.
+Proven areas keep their tiered MCP budget (see [run-targeting.md](./run-targeting.md)). Fingerprint filtering does NOT increase the budget -- it changes WHAT those calls test. If fingerprints exclude obvious interactions, the budgeted calls target genuinely novel territory.
 
 ### Matching Semantics
 
@@ -296,7 +302,7 @@ When triggered, the area's Phase 3 execution changes in five ways:
    - Priority: P1 (CLI already revealed the weakness)
 
 4. **Increased novelty budget.**
-   - Proven areas: all 3 MCP calls must be adversarial, not happy-path spot-checks
+   - Proven areas: all budgeted MCP calls must be adversarial, not happy-path spot-checks
    - Uncharted areas: novelty budget increases to 40% of calls (from 30%), minimum 3 (from 2)
 
 5. **Report flag** in DETAILS:

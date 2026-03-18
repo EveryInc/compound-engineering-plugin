@@ -101,7 +101,7 @@ If the test file defines `cli_test_command` in frontmatter, run CLI queries befo
 
 Test areas based on maturity status. The agent exercises judgment on area selection — these are guidelines, not rigid rules. Record a `skip_reason` for each area not fully tested (see [test-file-template.md](./references/test-file-template.md) for enum values).
 
-**Run focus vs. area budget:** A run focus (e.g., "consumer stress test", "search bar exploration") controls WHAT you test within each area — which queries, which edge cases, which user personas. It does NOT override maturity-based time allocation (see override priority table in [run-targeting.md](./references/run-targeting.md)). Proven areas at score 5 get max 3 MCP calls regardless of run focus. The focus shapes the 3 calls (test the search bar instead of basic navigation), not the count.
+**Run focus vs. area budget:** A run focus (e.g., "consumer stress test", "search bar exploration") controls WHAT you test within each area — which queries, which edge cases, which user personas. It does NOT override maturity-based time allocation (see override priority table in [run-targeting.md](./references/run-targeting.md)). Proven areas get a tiered MCP budget based on consecutive pass count (see [run-targeting.md](./references/run-targeting.md) for budget table). The run focus shapes WHAT those calls test (search bar instead of basic navigation), not the count.
 
 ### Per-Area Checklist (run in order for every area)
 
@@ -123,7 +123,7 @@ Maintain a monotonically increasing `execution_index` counter (starting at 0) ac
 
 ### Probe Execution (Before Broad Exploration)
 
-Read probes from area `**Probes:**` tables. Execute `untested` and `failing` probes before broad exploration — these are the highest-signal checks. For Proven areas, failing/untested probes always run regardless of MCP budget; the 3-call cap only constrains passing-probe spot-checks. Record each probe result with its `execution_index`. See [probes.md](./references/probes.md) for execution flow, lifecycle, and dedup rules.
+Read probes from area `**Probes:**` tables. Execute `untested` and `failing` probes before broad exploration — these are the highest-signal checks. For Proven areas, failing/untested probes always run regardless of MCP budget; the tiered budget cap only constrains passing-probe spot-checks. Record each probe result with its `execution_index`. See [probes.md](./references/probes.md) for execution flow, lifecycle, and dedup rules.
 
 ### Cross-Area Probes (Before Per-Area Testing)
 
@@ -142,7 +142,7 @@ After exploring each area, run structural verification checks based on area type
 See [run-targeting.md](./references/run-targeting.md) for full rules including
 git-aware targeting, progressive narrowing, and override priority.
 
-Quick reference: (0) Code-affected → full. (1) P1 Explore Next Run → full. (2) Uncharted → full. (3) Proven → spot-check (3 MCP + failing probes). (4) Known-bug → check issue state:
+Quick reference: (0) Code-affected → full. (1) P1 Explore Next Run → full. (2) Uncharted → full. (3) Proven → spot-check (tiered MCP + failing probes). (4) Known-bug → check issue state:
   - `gh issue view` or check tracker — if closed/fixed, flip to Uncharted (verify the fix)
   - if open, spot-check the bug area (confirm still broken, note any change)
 (5) All Proven → spot-check all, suggest new areas.

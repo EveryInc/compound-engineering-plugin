@@ -9,7 +9,25 @@ narrowing — work together to focus testing time where it has the most impact.
 0. **Code-affected areas (if git diff available):** Full exploration regardless of maturity status — even Proven areas get the full checklist. See Git-Aware Targeting below.
 1. **Pick highest-priority Explore Next Run items first** (P1 > P2 > P3), not FIFO
 2. **Uncharted areas:** Full investigation with batched `javascript_tool` calls. See [browser-input-patterns.md](./browser-input-patterns.md) for input patterns and batching tips.
-3. **Proven areas:** Quick spot-check only (max 3 MCP calls per area, plus any failing/untested probes). Verify the happy path still works.
+3. **Proven areas:** Spot-check scaled by stability (see tiered budget below), plus any failing/untested probes. Verify the happy path still works.
+
+### Proven Area Budget by Stability
+
+| Consecutive Passes | Browser MCP Budget |
+|---|---|
+| 2-5 | 3 calls |
+| 6-9 | 2 calls |
+| 10+ | 1 call |
+
+Failing/untested probes remain uncapped at all tiers. The tier only constrains passing probe spot-checks and exploration calls.
+
+Tier follows the area's consecutive pass count in the Areas table. The tier only resets when the consecutive pass count resets, which occurs on demotion from Proven. If the area stays Proven despite a soft score (agent judgment: cosmetic issue), the tier stays too.
+
+Stable queries (CLI-only) do not count against the browser budget. Journey steps and cross-area probes are separate from per-area budgets.
+
+Novelty allocation within the tiered budget is at agent discretion. At the 1-call tier, the single call may be used for probe spot-check OR novelty -- the mandatory novelty probe rule is waived when the budget is 1 call.
+
+Freed calls redistribute to novelty budget and areas with active variance. Report in SIGNALS: "+ N calls freed from ultra-stable areas."
 4. **Known-bug areas:** Check if the linked issue is resolved before skipping:
    - If `gh` not authenticated: skip as normal
    - Run `gh issue view <issue-number> --json state -q '.state'`
@@ -85,7 +103,7 @@ After run K completes, classify each area for run K+1:
 1. Git-diff `(verify)` → FULL (always)
 2. Explicit user override → FULL (all areas)
 3. This classification (SKIP/PROBES-ONLY/FULL)
-4. Proven 3-MCP budget (R1 or N=1 only)
+4. Proven tiered-MCP budget (R1 or N=1 only)
 
 Time freed from SKIP areas redistributes to FULL areas. This makes R2 systematically different from R1 — it pushes on weakness, not uniformity.
 

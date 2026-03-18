@@ -21,7 +21,7 @@ At the start of Phase 3, before broad exploration:
 
 ### Proven Area MCP Budget
 
-Failing and untested probes **always run regardless of budget cap**. The 3-call MCP budget for Proven areas only constrains passing-probe spot-checks. If a Proven area has 4 failing probes, all 4 run (no spot-check). The budget prevents stable areas from consuming exploration time — it does not suppress known-failing assertions. See [run-targeting.md](./run-targeting.md) for override priority.
+Failing and untested probes **always run regardless of budget cap**. The tiered MCP budget for Proven areas (see [run-targeting.md](./run-targeting.md) for budget by consecutive pass count) only constrains passing-probe spot-checks. If a Proven area has 4 failing probes, all 4 run (no spot-check). The budget prevents stable areas from consuming exploration time — it does not suppress known-failing assertions. See [run-targeting.md](./run-targeting.md) for override priority.
 
 ## Probe Generation
 
@@ -188,6 +188,10 @@ A probe becomes `flaky` when:
 Revert rules:
 - Flaky → `failing`: 2 consecutive failures
 - Flaky → `passing`: 2 consecutive passes (eligible for graduation)
+
+### Non-Deterministic Probe Confirmation
+
+When a probe testing LLM-dependent behavior (agent reasoning, scored_output quality, search ranking) flips from `failing` or `flaky` to `passing`, treat the first pass as unconfirmed. Note "passing*" in the report. Require a 2nd consecutive pass before updating probe status to `passing` in the test file during commit. If the next run fails, revert to `failing` -- the first pass was variance. This rule does not apply to probes transitioning from `untested` to `passing` -- they have no failure history to create variance concern.
 
 ### Escalation (3+ Consecutive Failures)
 
