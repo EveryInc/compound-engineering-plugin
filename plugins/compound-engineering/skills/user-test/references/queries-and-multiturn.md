@@ -58,6 +58,12 @@ Proven area with 5 queries (2 active, 3 stable), 2 failing probes, 3-call budget
 → 1 remaining browser call → spot-check 1 active query
 → 1 active query skipped this run
 
+At 2-call tier (6-9 consecutive passes), same area:
+→ 2 failing probes run (uncapped, outside budget): 2 browser calls
+→ 3 stable queries run via CLI (uncapped): 0 browser calls
+→ 2 budget calls → spot-check 2 active queries
+→ 0 active queries skipped
+
 At 1-call tier (10+ consecutive passes), same area:
 → 2 failing probes run (uncapped, outside budget): 2 browser calls
 → 3 stable queries run via CLI (uncapped): 0 browser calls

@@ -19,15 +19,11 @@ narrowing — work together to focus testing time where it has the most impact.
 | 6-9 | 2 calls |
 | 10+ | 1 call |
 
-Failing/untested probes remain uncapped at all tiers. The tier only constrains passing probe spot-checks and exploration calls.
+Failing/untested probes remain uncapped at all tiers. The tier only constrains passing probe spot-checks and exploration calls. Tier resets on demotion from Proven (consecutive pass count returns to 0). Stable queries (CLI-only) and cross-area probes are not constrained by per-area budgets.
 
-Tier follows the area's consecutive pass count in the Areas table. The tier only resets when the consecutive pass count resets, which occurs on demotion from Proven. If the area stays Proven despite a soft score (agent judgment: cosmetic issue), the tier stays too.
+At the 1-call tier, the single call may be used for probe spot-check OR novelty -- the mandatory novelty probe rule is waived when the budget is 1 call.
 
-Stable queries (CLI-only) do not count against the browser budget. Journey steps and cross-area probes are separate from per-area budgets.
-
-Novelty allocation within the tiered budget is at agent discretion. At the 1-call tier, the single call may be used for probe spot-check OR novelty -- the mandatory novelty probe rule is waived when the budget is 1 call.
-
-Freed calls redistribute to novelty budget and areas with active variance. Report in SIGNALS: "+ N calls freed from ultra-stable areas."
+Freed calls redistribute to novelty budget and areas with active variance. N = sum of (3 - tier_budget) across all Proven areas tested this run. Report in SIGNALS: "+ N calls freed from ultra-stable areas."
 4. **Known-bug areas:** Check if the linked issue is resolved before skipping:
    - If `gh` not authenticated: skip as normal
    - Run `gh issue view <issue-number> --json state -q '.state'`
