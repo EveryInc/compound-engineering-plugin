@@ -16,6 +16,7 @@ This skill provides a unified interface for managing Git worktrees across your d
 - **Interactive confirmations** at each step
 - **Automatic .gitignore management** for worktree directory
 - **Automatic .env file copying** from main repo to new worktrees
+- **Automatic dev tool trusting** for mise and direnv configs (safe: only unchanged configs)
 
 ## CRITICAL: Always Use the Manager Script
 
@@ -23,8 +24,9 @@ This skill provides a unified interface for managing Git worktrees across your d
 
 The script handles critical setup that raw git commands don't:
 1. Copies `.env`, `.env.local`, `.env.test`, etc. from main repo
-2. Ensures `.worktrees` is in `.gitignore`
-3. Creates consistent directory structure
+2. Trusts dev tool configs (mise, direnv) so hooks and scripts work immediately
+3. Ensures `.worktrees` is in `.gitignore`
+4. Creates consistent directory structure
 
 ```bash
 # ✅ CORRECT - Always use the script
@@ -95,7 +97,7 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh creat
 2. Updates the base branch from remote
 3. Creates new worktree and branch
 4. **Copies all .env files from main repo** (.env, .env.local, .env.test, etc.)
-5. **Trusts dev tool configs** (mise, direnv) so hooks and scripts work immediately
+5. **Trusts dev tool configs** (mise, direnv) if unchanged from base branch; flags modified configs for manual review
 6. Shows path for cd-ing to the worktree
 
 ### `list` or `ls`
