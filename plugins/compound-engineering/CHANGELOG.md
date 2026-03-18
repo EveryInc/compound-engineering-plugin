@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.44.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.43.0...compound-engineering-v2.44.0) (2026-03-18)
+
+
+### Features
+
+* **plugin:** add execution posture signaling to ce:plan-beta and ce:work ([#309](https://github.com/EveryInc/compound-engineering-plugin/issues/309)) ([748f72a](https://github.com/EveryInc/compound-engineering-plugin/commit/748f72a57f713893af03a4d8ed69c2311f492dbd))
+
 ## [2.39.0] - 2026-03-10
 
 ### Added
