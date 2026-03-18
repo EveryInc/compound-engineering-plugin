@@ -95,7 +95,8 @@ bash ${CLAUDE_PLUGIN_ROOT}/skills/git-worktree/scripts/worktree-manager.sh creat
 2. Updates the base branch from remote
 3. Creates new worktree and branch
 4. **Copies all .env files from main repo** (.env, .env.local, .env.test, etc.)
-5. Shows path for cd-ing to the worktree
+5. **Trusts dev tool configs** (mise, direnv) so hooks and scripts work immediately
+6. Shows path for cd-ing to the worktree
 
 ### `list` or `ls`
 

@@ -65,6 +65,33 @@ copy_env_files() {
   echo -e "  ${GREEN}✓ Copied $copied environment file(s)${NC}"
 }
 
+# Trust development tool configs in a new worktree.
+# Worktrees get a new filesystem path that tools like mise and direnv
+# have never seen. Without trusting, these tools block with interactive
+# prompts (or silently fail) when invoked from hooks or scripts.
+trust_dev_tools() {
+  local worktree_path="$1"
+  local trusted=0
+
+  # mise: trust .mise.toml / mise.toml / .tool-versions
+  if command -v mise &>/dev/null; then
+    if [[ -f "$worktree_path/.mise.toml" ]] || [[ -f "$worktree_path/mise.toml" ]] || [[ -f "$worktree_path/.tool-versions" ]]; then
+      (cd "$worktree_path" && mise trust --quiet 2>/dev/null) && trusted=$((trusted + 1))
+    fi
+  fi
+
+  # direnv: allow .envrc
+  if command -v direnv &>/dev/null; then
+    if [[ -f "$worktree_path/.envrc" ]]; then
+      (cd "$worktree_path" && direnv allow 2>/dev/null) && trusted=$((trusted + 1))
+    fi
+  fi
+
+  if [[ $trusted -gt 0 ]]; then
+    echo -e "  ${GREEN}✓ Trusted $trusted dev tool config(s)${NC}"
+  fi
+}
+
 # Create a new worktree
 create_worktree() {
   local branch_name="$1"
@@ -106,6 +133,9 @@ create_worktree() {
 
   # Copy environment files
   copy_env_files "$worktree_path"
+
+  # Trust dev tool configs (mise, direnv) so hooks and scripts work immediately
+  trust_dev_tools "$worktree_path"
 
   echo -e "${GREEN}✓ Worktree created successfully!${NC}"
   echo ""
@@ -320,6 +350,12 @@ Environment Files:
   - Skips .env.example (should be in git)
   - Creates .backup files if destination already exists
   - Use 'copy-env' to refresh env files after main repo changes
+
+Dev Tool Trust:
+    - Automatically trusts mise config (.mise.toml, mise.toml, .tool-versions)
+    - Automatically allows direnv config (.envrc)
+    - Only runs if the tool is installed and config exists
+    - Prevents hooks/scripts from hanging on interactive trust prompts
 
 Examples:
   worktree-manager.sh create feature-login
