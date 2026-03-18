@@ -22,11 +22,9 @@ Process raw interview transcripts into structured interview snapshots following 
 ### Step 1: Accept Input
 
 Check `$ARGUMENTS` for a file path. If empty, prompt:
-- "Provide the path to a transcript in `docs/research/transcripts/`, or paste the transcript content directly."
+- "Provide the path to a transcript in `docs/research/transcripts/`."
 
-If a file path is given, read the transcript. If the file does not exist, report the error and stop.
-
-If content is pasted directly, proceed with that content (no file reference in output frontmatter).
+Read the transcript from the file path. If the file does not exist, report the error and stop.
 
 ### Step 2: Link to Research Plan
 

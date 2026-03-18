@@ -17,7 +17,7 @@ All research artifacts follow these path conventions:
 | Artifact | Path Pattern | Created by |
 |----------|-------------|------------|
 | Research plans | `docs/research/plans/YYYY-MM-DD-<slug>-research-plan.md` | `research-plan` skill |
-| Transcripts | `docs/research/transcripts/*` (gitignored, PII) | This workflow (Rule 1 / Phase 2) |
+| Transcripts | `docs/research/transcripts/*` (gitignored, PII) | User saves manually; Phase 2 reads from here |
 | Interview snapshots | `docs/research/interviews/YYYY-MM-DD-participant-NNN.md` | `transcript-insights` skill |
 | Personas | `docs/research/personas/<persona-slug>.md` | `persona-builder` skill |
 
@@ -33,12 +33,13 @@ Read the content inside `<research_phase>`. Follow the FIRST matching rule below
 
 If the argument contains multi-line content (a transcript, meeting notes, interview text — anything beyond a single keyword or short phrase):
 
-This IS inline transcript content. Do NOT check artifact status. Do NOT show phase selection. Handle it immediately:
+Do NOT attempt to save the content to a file. Writing large transcripts via tool calls causes token generation timeouts.
 
-1. Extract the meeting title and date from the content to generate a filename: `YYYY-MM-DD_<meeting-title-slug>_transcript.md`. If no date is found, use today's date.
-2. Create the transcripts directory if it doesn't exist: `mkdir -p docs/research/transcripts`
-3. Save the full content to `docs/research/transcripts/[filename]`
-4. Jump to **Process Selected Transcript** in Phase 2 below with this file path
+Instead, instruct the user:
+
+> Save your transcript to `docs/research/transcripts/` as a markdown file (e.g., `2025-03-06_bcbs-ks-customer-discovery_transcript.md`), then run `/ce-research process`.
+
+Stop here. Do not proceed to phase selection or any other rule.
 
 ### Rule 2: Phase name keyword
 
@@ -54,7 +55,7 @@ If the argument is empty, run phase selection:
 
 ### Phase Selection
 
-**SKIP this section if Rule 1 matched above (inline content).** Only run this when the argument was empty.
+Only run this when the argument was empty (Rule 4).
 
 **First-run check:** If `docs/research/` does not exist, create it (`mkdir -p docs/research/`) and show before the status line:
 
@@ -102,27 +103,19 @@ After the skill completes, proceed to **Handoff**.
 
 ## Phase 2: Process
 
-### Check for Inline Content
-
-If arriving here from **Rule 1** in Routing, the transcript has already been saved. Skip directly to **Process Selected Transcript** below.
-
-If the argument starts with "process" followed by substantial content, strip the "process" prefix, save the content as a transcript file (using the same naming logic from Rule 1), and skip to **Process Selected Transcript**.
-
 ### Check for Transcripts
-
-**If inline content was already saved above, skip this section.**
 
 Look for `.md` files in `docs/research/transcripts/`.
 
 **If no transcripts directory exists or no transcripts found:**
-Report: "No transcripts found. Save your interview transcript to `docs/research/transcripts/` or pass content inline: `/ce:research [transcript content]`."
+Report: "No transcripts found. Save your interview transcript to `docs/research/transcripts/` as a markdown file, then run `/ce-research process`."
 Proceed to **Handoff**.
 
 **If transcripts exist:**
 Identify unprocessed transcripts (not yet referenced by any interview snapshot in `docs/research/interviews/`).
 
 **If no unprocessed transcripts:**
-Report: "All transcripts have been processed. Add new transcripts to `docs/research/transcripts/` or re-process an existing one."
+Report: "All transcripts have been processed. Save new transcripts to `docs/research/transcripts/` or re-process an existing one."
 Proceed to **Handoff**.
 
 **If exactly one unprocessed transcript:**
