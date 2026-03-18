@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Plugin marketplace for Claude Code extensions",
-    "version": "1.0.0"
+    "version": "1.1.0"
   },
   "plugins": [
     {
@@ -19,7 +19,15 @@
         "email": "kieran@every.to"
       },
       "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
-      "tags": ["ai-powered", "compound-engineering", "workflow-automation", "code-review", "quality", "knowledge-management", "image-generation"],
+      "tags": [
+        "ai-powered",
+        "compound-engineering",
+        "workflow-automation",
+        "code-review",
+        "quality",
+        "knowledge-management",
+        "image-generation"
+      ],
       "source": "./plugins/compound-engineering"
     },
     {
@@ -30,7 +38,14 @@
         "name": "Nityesh Agarwal"
       },
       "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
-      "tags": ["coding", "programming", "tutorial", "learning", "spaced-repetition", "education"],
+      "tags": [
+        "coding",
+        "programming",
+        "tutorial",
+        "learning",
+        "spaced-repetition",
+        "education"
+      ],
       "source": "./plugins/coding-tutor"
     }
   ]

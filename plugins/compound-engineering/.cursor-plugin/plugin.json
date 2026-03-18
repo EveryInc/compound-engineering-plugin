@@ -1,7 +1,7 @@
 {
   "name": "compound-engineering",
   "displayName": "Compound Engineering",
-  "version": "2.42.0",
+  "version": "2.43.0",
   "description": "AI-powered development tools. 29 agents, 44 skills, 1 MCP server for code review, research, design, and workflow automation.",
   "author": {
     "name": "Kieran Klaassen",
