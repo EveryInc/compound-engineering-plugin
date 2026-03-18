@@ -191,7 +191,7 @@ Revert rules:
 
 ### Non-Deterministic Probe Confirmation
 
-When a probe testing LLM-dependent behavior (agent reasoning, scored_output quality, search ranking) flips from `failing` or `flaky` to `passing`, treat the first pass as unconfirmed. Note "passing*" in the report. Require a 2nd consecutive pass before updating probe status to `passing` in the test file during commit. If the next run fails, revert to `failing` -- the first pass was variance. This rule does not apply to probes transitioning from `untested` to `passing` -- they have no failure history to create variance concern.
+When a probe testing LLM-dependent behavior (agent reasoning, scored_output quality, search ranking) flips from `failing` or `flaky` to `passing`, treat the first pass as unconfirmed. Note "passing*" in the report. Keep the probe's status as `failing` (or `flaky`) in the test file during commit -- do not write `passing` yet. Track the unconfirmed pass in `probes_run` in `.user-test-last-run.json`. Require a 2nd consecutive pass before updating probe status to `passing` in the test file. If the next run fails, revert to `failing` -- the first pass was variance. This rule does not apply to probes transitioning from `untested` to `passing` -- they have no failure history to create variance concern.
 
 ### Escalation (3+ Consecutive Failures)
 

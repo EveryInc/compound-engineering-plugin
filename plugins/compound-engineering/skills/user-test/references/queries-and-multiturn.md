@@ -59,9 +59,9 @@ Proven area with 5 queries (2 active, 3 stable), 2 failing probes, 3-call budget
 → 1 active query skipped this run
 
 At 1-call tier (10+ consecutive passes), same area:
-→ 2 failing probes run (uncapped): 2 browser calls
+→ 2 failing probes run (uncapped, outside budget): 2 browser calls
 → 3 stable queries run via CLI (uncapped): 0 browser calls
-→ 0 remaining browser calls (budget exhausted by probes)
+→ 1 budget call available, but area already exercised by probes
 → 2 active queries skipped this run
 ```
 
@@ -173,7 +173,7 @@ Uncharted/FULL area (no hard cap):
 
 ### Mandatory Probe Rule
 
-At least 1 novel interaction per `scored_output` area MUST generate a probe each run, even if the interaction appeared clean. The probe verify clause can be "confirm this path remains clean after code changes." This prevents the agent from classifying everything as uninteresting.
+At least 1 novel interaction per `scored_output` area MUST generate a probe each run (waived at 1-call tier -- see [run-targeting.md](./run-targeting.md)), even if the interaction appeared clean. The probe verify clause can be "confirm this path remains clean after code changes." This prevents the agent from classifying everything as uninteresting.
 
 ### Progressive Narrowing Interaction
 
@@ -181,7 +181,7 @@ At least 1 novel interaction per `scored_output` area MUST generate a probe each
 |----------------------|---------------|
 | SKIP | 0 (area skipped entirely) |
 | PROBES-ONLY | 0 explicit — but 1 exploration call IS the novelty |
-| FULL | Normal budget (1 for Proven, 30%/min-2 for Uncharted) |
+| FULL | Normal budget (tiered for Proven per run-targeting.md, 30%/min-2 for Uncharted) |
 
 ### Novelty Log
 
