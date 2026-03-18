@@ -31,7 +31,7 @@ You are an expert user research analyst specializing in surfacing relevant perso
 
 ## Search Strategy (Grep-First Filtering)
 
-The `docs/research/` directory contains personas and interview snapshots with YAML frontmatter. Use this efficient strategy to find relevant research:
+The `docs/user-research/` directory contains personas and interview snapshots with YAML frontmatter. Use this efficient strategy to find relevant research:
 
 ### Step 1: Extract Keywords from Feature Description
 
@@ -47,15 +47,15 @@ Run multiple Grep calls in parallel across both research directories:
 
 ```bash
 # Search personas (run in PARALLEL, case-insensitive)
-Grep: pattern="[keyword]" path=docs/research/personas/ output_mode=files_with_matches -i=true
-Grep: pattern="tags:.*(keyword1|keyword2)" path=docs/research/interviews/ output_mode=files_with_matches -i=true
-Grep: pattern="role:.*(keyword)" path=docs/research/interviews/ output_mode=files_with_matches -i=true
-Grep: pattern="focus:.*(keyword)" path=docs/research/interviews/ output_mode=files_with_matches -i=true
+Grep: pattern="[keyword]" path=docs/user-research/personas/ output_mode=files_with_matches -i=true
+Grep: pattern="tags:.*(keyword1|keyword2)" path=docs/user-research/interviews/ output_mode=files_with_matches -i=true
+Grep: pattern="role:.*(keyword)" path=docs/user-research/interviews/ output_mode=files_with_matches -i=true
+Grep: pattern="focus:.*(keyword)" path=docs/user-research/interviews/ output_mode=files_with_matches -i=true
 ```
 
 **Note:** Opportunities data lives in persona document body tables, not frontmatter. Search persona body content for opportunity keywords:
 ```bash
-Grep: pattern="need.*[keyword]" path=docs/research/personas/ output_mode=files_with_matches -i=true
+Grep: pattern="need.*[keyword]" path=docs/user-research/personas/ output_mode=files_with_matches -i=true
 ```
 
 Combine results from all Grep calls to get candidate files.
@@ -103,12 +103,12 @@ Regardless of keyword match results, read the most recent persona files (by `las
 
 If Grep returns fewer than 3 candidate files, do a broader content search:
 ```bash
-Grep: pattern="[any feature keyword]" path=docs/research/ output_mode=files_with_matches -i=true
+Grep: pattern="[any feature keyword]" path=docs/user-research/ output_mode=files_with_matches -i=true
 ```
 
 ### Step 8: Handle Empty Research Directory
 
-If `docs/research/` does not exist or contains no files, return:
+If `docs/user-research/` does not exist or contains no files, return:
 "No user research data found. Run `/workflows:research` to start building your research corpus."
 
 ## Output Format

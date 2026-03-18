@@ -7,5 +7,5 @@ todos/
 .worktrees
 
 # Research data - transcripts contain raw interview data with PII
-docs/research/transcripts/*
-!docs/research/transcripts/.gitkeep
+docs/user-research/transcripts/*
+!docs/user-research/transcripts/.gitkeep

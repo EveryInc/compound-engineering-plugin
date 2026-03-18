@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **`/ce:research` command** - Plan user research, process interview transcripts, and build personas from accumulated insights
+- **`/ce:user-research` command** - Plan user research, process interview transcripts, and build personas from accumulated insights
 - **`research-plan` skill** - Create structured research plans with outcome-focused objectives and story-based discussion guides
 - **`transcript-insights` skill** - Process interview transcripts into structured snapshots with tagged insights and experience maps
 - **`persona-builder` skill** - Synthesize insights across interviews into living persona documents with confidence tracking
@@ -23,8 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- **`/ce:research` command** — Process phase now handles inline transcript content (saves to file before processing) instead of requiring pre-existing files in `docs/research/transcripts/`
-- **`transcript-insights` skill** — Step 2 (Link to Research Plan) now gracefully handles empty `docs/research/plans/` directory by defaulting to ad-hoc instead of stalling
+- **`/ce:user-research` command** — Process phase now handles inline transcript content (saves to file before processing) instead of requiring pre-existing files in `docs/user-research/transcripts/`
+- **`transcript-insights` skill** — Step 2 (Link to Research Plan) now gracefully handles empty `docs/user-research/plans/` directory by defaulting to ad-hoc instead of stalling
 
 ---
 

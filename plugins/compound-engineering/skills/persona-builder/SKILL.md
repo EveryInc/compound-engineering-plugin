@@ -1,6 +1,6 @@
 ---
 name: persona-builder
-description: "Synthesize personas from processed interview snapshots with confidence tracking and evidence-backed opportunities. Use when processed interviews exist in docs/research/interviews/ or when building or updating personas."
+description: "Synthesize personas from processed interview snapshots with confidence tracking and evidence-backed opportunities. Use when processed interviews exist in docs/user-research/interviews/ or when building or updating personas."
 ---
 
 # Persona Builder
@@ -13,22 +13,22 @@ Synthesize personas from processed interview snapshots. Personas are living docu
 
 ## Quick Start
 
-1. Read processed interviews from `docs/research/interviews/`
+1. Read processed interviews from `docs/user-research/interviews/`
 2. Match to existing personas or create new ones
-3. Generate or update a persona at `docs/research/personas/<persona-slug>.md`
+3. Generate or update a persona at `docs/user-research/personas/<persona-slug>.md`
 
 ## Instructions
 
 ### Step 1: Read Available Interviews
 
-Scan `docs/research/interviews/` for processed interview snapshots. Read frontmatter (first 30 lines) of each file to extract:
+Scan `docs/user-research/interviews/` for processed interview snapshots. Read frontmatter (first 30 lines) of each file to extract:
 - `participant_id`
 - `role`
 - `company_type`
 - `focus`
 - `tags`
 
-If no interviews exist, report: "No processed interviews found in `docs/research/interviews/`. Run `/workflows:research process` to create interview snapshots from transcripts."
+If no interviews exist, report: "No processed interviews found in `docs/user-research/interviews/`. Run `/workflows:research process` to create interview snapshots from transcripts."
 
 Present the user with a summary of available interviews and ask which one(s) to incorporate. If the user invoked this skill from the workflow command, a specific interview may already be identified.
 
@@ -37,7 +37,7 @@ Present the user with a summary of available interviews and ask which one(s) to 
 After identifying the interview to incorporate:
 
 1. Extract `role` and `company_type` from the interview's frontmatter
-2. Scan existing personas in `docs/research/personas/` for matches
+2. Scan existing personas in `docs/user-research/personas/` for matches
 
 **Matching algorithm:**
 
@@ -65,9 +65,9 @@ If creating a new persona:
 1. Ask the user for a persona name (suggest a descriptive archetype name like "The Data-Driven Manager" or "The Hands-On Founder")
 2. Build the persona from the selected interview(s)
 3. Set `confidence: low` (single interview), `version: 1`
-4. Write to `docs/research/personas/<persona-slug>.md`
+4. Write to `docs/user-research/personas/<persona-slug>.md`
 
-Ensure the `docs/research/personas/` directory exists before writing.
+Ensure the `docs/user-research/personas/` directory exists before writing.
 
 ### Step 3b: Merge into Existing Persona
 

@@ -1,5 +1,5 @@
 ---
-name: ce:research
+name: ce:user-research
 description: Plan user research, process interview transcripts, and build personas from accumulated insights
 argument-hint: "[plan|process|personas]"
 ---
@@ -16,10 +16,10 @@ All research artifacts follow these path conventions:
 
 | Artifact | Path Pattern | Created by |
 |----------|-------------|------------|
-| Research plans | `docs/research/plans/YYYY-MM-DD-<slug>-research-plan.md` | `research-plan` skill |
-| Transcripts | `docs/research/transcripts/*` (gitignored, PII) | User saves manually; Phase 2 reads from here |
-| Interview snapshots | `docs/research/interviews/YYYY-MM-DD-participant-NNN.md` | `transcript-insights` skill |
-| Personas | `docs/research/personas/<persona-slug>.md` | `persona-builder` skill |
+| Research plans | `docs/user-research/plans/YYYY-MM-DD-<slug>-research-plan.md` | `research-plan` skill |
+| Transcripts | `docs/user-research/transcripts/*` (gitignored, PII) | User saves manually; Phase 2 reads from here |
+| Interview snapshots | `docs/user-research/interviews/YYYY-MM-DD-participant-NNN.md` | `transcript-insights` skill |
+| Personas | `docs/user-research/personas/<persona-slug>.md` | `persona-builder` skill |
 
 Directories are created lazily — each owner creates its directory before first write.
 
@@ -37,7 +37,7 @@ Do NOT attempt to save the content to a file. Writing large transcripts via tool
 
 Instead, instruct the user:
 
-> Save your transcript to `docs/research/transcripts/` as a markdown file (e.g., `2025-03-06_bcbs-ks-customer-discovery_transcript.md`), then run `/ce-research process`.
+> Save your transcript to `docs/user-research/transcripts/` as a markdown file (e.g., `2025-03-06_bcbs-ks-customer-discovery_transcript.md`), then run `/ce-user-research process`.
 
 Stop here. Do not proceed to phase selection or any other rule.
 
@@ -57,11 +57,11 @@ If the argument is empty, run phase selection:
 
 Only run this when the argument was empty (Rule 4).
 
-**First-run check:** If `docs/research/` does not exist, create it (`mkdir -p docs/research/`) and show before the status line:
+**First-run check:** If `docs/user-research/` does not exist, create it (`mkdir -p docs/user-research/`) and show before the status line:
 
-> Setting up research workspace at `docs/research/`. Directories will be created as you use each phase. Transcripts are gitignored (they may contain PII).
+> Setting up research workspace at `docs/user-research/`. Directories will be created as you use each phase. Transcripts are gitignored (they may contain PII).
 
-Only show this once — when the root `docs/research/` directory does not exist. On subsequent runs, skip directly to the artifact status.
+Only show this once — when the root `docs/user-research/` directory does not exist. On subsequent runs, skip directly to the artifact status.
 
 Show a brief artifact status (2-3 lines max):
 
@@ -72,7 +72,7 @@ Research status:
 
 **Counting artifacts:** For each directory, check if it exists first. If a directory does not exist, count as 0. Do not create directories during counting.
 
-**Counting unprocessed transcripts:** Count files in `docs/research/transcripts/`. Then check `docs/research/interviews/` frontmatter for `source_transcript` fields. Transcripts not referenced by any interview are unprocessed. Simpler fallback: count transcripts minus count of interviews.
+**Counting unprocessed transcripts:** Count files in `docs/user-research/transcripts/`. Then check `docs/user-research/interviews/` frontmatter for `source_transcript` fields. Transcripts not referenced by any interview are unprocessed. Simpler fallback: count transcripts minus count of interviews.
 
 **Recommend the next logical phase** based on state:
 - Unprocessed transcripts exist → recommend Process (ready-to-process data takes priority)
@@ -95,7 +95,7 @@ Load the `research-plan` skill.
 
 The skill handles all research plan creation logic including objective framing, discussion guide generation, and output file creation.
 
-**Return contract:** The skill creates a file at `docs/research/plans/YYYY-MM-DD-<slug>-research-plan.md`.
+**Return contract:** The skill creates a file at `docs/user-research/plans/YYYY-MM-DD-<slug>-research-plan.md`.
 
 After the skill completes, proceed to **Handoff**.
 
@@ -105,17 +105,17 @@ After the skill completes, proceed to **Handoff**.
 
 ### Check for Transcripts
 
-Look for `.md` files in `docs/research/transcripts/`.
+Look for `.md` files in `docs/user-research/transcripts/`.
 
 **If no transcripts directory exists or no transcripts found:**
-Report: "No transcripts found. Save your interview transcript to `docs/research/transcripts/` as a markdown file, then run `/ce-research process`."
+Report: "No transcripts found. Save your interview transcript to `docs/user-research/transcripts/` as a markdown file, then run `/ce-user-research process`."
 Proceed to **Handoff**.
 
 **If transcripts exist:**
-Identify unprocessed transcripts (not yet referenced by any interview snapshot in `docs/research/interviews/`).
+Identify unprocessed transcripts (not yet referenced by any interview snapshot in `docs/user-research/interviews/`).
 
 **If no unprocessed transcripts:**
-Report: "All transcripts have been processed. Save new transcripts to `docs/research/transcripts/` or re-process an existing one."
+Report: "All transcripts have been processed. Save new transcripts to `docs/user-research/transcripts/` or re-process an existing one."
 Proceed to **Handoff**.
 
 **If exactly one unprocessed transcript:**
@@ -131,7 +131,7 @@ Load the `transcript-insights` skill with the selected transcript path.
 
 The skill handles all processing logic including plan linking, metadata gathering, insight extraction, and output file creation.
 
-**Return contract:** The skill creates a file at `docs/research/interviews/YYYY-MM-DD-participant-NNN.md`.
+**Return contract:** The skill creates a file at `docs/user-research/interviews/YYYY-MM-DD-participant-NNN.md`.
 
 After the skill completes, proceed to **Handoff**.
 
@@ -141,10 +141,10 @@ After the skill completes, proceed to **Handoff**.
 
 ### Check for Interviews
 
-Look for processed interviews in `docs/research/interviews/`.
+Look for processed interviews in `docs/user-research/interviews/`.
 
 **If no interviews exist:**
-Report: "No processed interviews found in `docs/research/interviews/`. Process transcripts first with `/ce:research process`."
+Report: "No processed interviews found in `docs/user-research/interviews/`. Process transcripts first with `/ce:user-research process`."
 Proceed to **Handoff**.
 
 **If interviews exist:**
@@ -152,7 +152,7 @@ Load the `persona-builder` skill.
 
 The skill handles persona matching, creation, merging, and output file creation.
 
-**Return contract:** The skill creates or updates a file at `docs/research/personas/<persona-slug>.md`.
+**Return contract:** The skill creates or updates a file at `docs/user-research/personas/<persona-slug>.md`.
 
 After the skill completes, proceed to **Handoff**.
 

@@ -15,7 +15,7 @@ Create structured research plans grounded in Teresa Torres' Continuous Discovery
 
 1. Ask the user for the research objective (what outcome or decision this research will inform)
 2. Identify target participants and screener criteria
-3. Generate a research plan at `docs/research/plans/YYYY-MM-DD-<slug>-research-plan.md`
+3. Generate a research plan at `docs/user-research/plans/YYYY-MM-DD-<slug>-research-plan.md`
 
 ## Instructions
 
@@ -93,9 +93,9 @@ Recommend a sample size based on research goals:
 
 ### Step 6: Write the Plan
 
-Generate the research plan file at `docs/research/plans/YYYY-MM-DD-<slug>-research-plan.md`.
+Generate the research plan file at `docs/user-research/plans/YYYY-MM-DD-<slug>-research-plan.md`.
 
-Ensure the `docs/research/plans/` directory exists before writing.
+Ensure the `docs/user-research/plans/` directory exists before writing.
 
 ## Output Template
 
@@ -220,4 +220,4 @@ Output objective: "Understand how teams currently create, share, and act on data
 
 ## Privacy
 
-Transcripts in `docs/research/transcripts/` contain raw interview data with PII and MUST NOT be committed to version control. The `.gitignore` already excludes this directory. Research plans and processed insights (with anonymized participant IDs) are safe to commit.
+Transcripts in `docs/user-research/transcripts/` contain raw interview data with PII and MUST NOT be committed to version control. The `.gitignore` already excludes this directory. Research plans and processed insights (with anonymized participant IDs) are safe to commit.

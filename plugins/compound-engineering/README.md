@@ -7,7 +7,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 | Component | Count |
 |-----------|-------|
 | Agents | 30 |
-| Skills | 47 |
+| Skills | 48 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -80,7 +80,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `/ce:ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
 | `/ce:brainstorm` | Explore requirements and approaches before planning |
 | `/ce:plan` | Create implementation plans |
-| `/ce:research` | Plan research, process transcripts, and build personas |
+| `/ce:user-research` | Plan user research, process transcripts, and build personas |
 | `/ce:review` | Run comprehensive code reviews |
 | `/ce:work` | Execute work items systematically |
 | `/ce:compound` | Document solved problems to compound team knowledge |

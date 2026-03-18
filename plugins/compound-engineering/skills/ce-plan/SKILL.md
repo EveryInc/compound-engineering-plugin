@@ -90,7 +90,7 @@ Run these agents **in parallel** to gather local context:
 **What to look for:**
 - **Repo research:** existing patterns, CLAUDE.md guidance, technology familiarity, pattern consistency
 - **Learnings:** documented solutions in `docs/solutions/` that might apply (gotchas, patterns, lessons learned)
-- **User research:** relevant personas, interview insights, opportunities, and research gaps from `docs/research/`
+- **User research:** relevant personas, interview insights, opportunities, and research gaps from `docs/user-research/`
 
 These findings inform the next step.
 

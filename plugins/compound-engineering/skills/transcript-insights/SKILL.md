@@ -1,6 +1,6 @@
 ---
 name: transcript-insights
-description: "Process interview transcripts into structured snapshots with tagged insights, experience maps, and opportunity identification. Use when a transcript exists in docs/research/transcripts/ or when pasting interview content."
+description: "Process interview transcripts into structured snapshots with tagged insights, experience maps, and opportunity identification. Use when a transcript exists in docs/user-research/transcripts/ or when pasting interview content."
 ---
 
 # Transcript Insights
@@ -15,26 +15,26 @@ Process raw interview transcripts into structured interview snapshots following 
 
 1. Accept a transcript file path or pasted content
 2. Link to a research plan (or mark as ad-hoc)
-3. Generate an interview snapshot at `docs/research/interviews/YYYY-MM-DD-participant-NNN.md`
+3. Generate an interview snapshot at `docs/user-research/interviews/YYYY-MM-DD-participant-NNN.md`
 
 ## Instructions
 
 ### Step 1: Accept Input
 
 Check `$ARGUMENTS` for a file path. If empty, prompt:
-- "Provide the path to a transcript in `docs/research/transcripts/`."
+- "Provide the path to a transcript in `docs/user-research/transcripts/`."
 
 Read the transcript from the file path. If the file does not exist, report the error and stop.
 
 ### Step 2: Link to Research Plan
 
-Check for files in `docs/research/plans/`.
+Check for files in `docs/user-research/plans/`.
 
 **If no plans exist:**
 Set `research_plan: ad-hoc` in frontmatter and proceed to Step 3.
 
 **If plans exist:**
-List existing research plans by reading frontmatter from files in `docs/research/plans/`:
+List existing research plans by reading frontmatter from files in `docs/user-research/plans/`:
 - Show title, date, and status for each plan
 - Most recent first, cap at 7 entries
 - Include "Ad-hoc / no plan" as the final option
@@ -52,7 +52,7 @@ Ask the user for participant metadata (use AskUserQuestion where appropriate):
 - **Interview focus**: Brief topic description
 - **Duration**: Approximate length in minutes
 
-Check existing interviews in `docs/research/interviews/` for the next available participant number.
+Check existing interviews in `docs/user-research/interviews/` for the next available participant number.
 
 ### Step 4: Process the Transcript
 
@@ -124,9 +124,9 @@ Note non-verbal or contextual observations:
 
 ### Step 5: Write the Interview Snapshot
 
-Generate the file at `docs/research/interviews/YYYY-MM-DD-participant-NNN.md`.
+Generate the file at `docs/user-research/interviews/YYYY-MM-DD-participant-NNN.md`.
 
-Ensure the `docs/research/interviews/` directory exists before writing.
+Ensure the `docs/user-research/interviews/` directory exists before writing.
 
 ## Tag Taxonomy
 
@@ -148,7 +148,7 @@ Assign exactly ONE type tag per insight:
 Assign 1-3 topic tags per insight:
 - Lowercase, hyphenated, singular (e.g., `dashboard`, `data-export`, `morning-workflow`)
 - Before creating a new topic tag, check existing interviews for established tags
-- Grep `docs/research/interviews/` for `tags:` lines to find existing tags
+- Grep `docs/user-research/interviews/` for `tags:` lines to find existing tags
 - Prefer existing tags over creating new synonyms
 
 ## Output Template
@@ -300,4 +300,4 @@ Extracted opportunity:
 
 ## Privacy
 
-See Step 4.0 for anonymization requirements. Transcripts in `docs/research/transcripts/` contain raw interview data with PII and MUST NOT be committed to version control.
+See Step 4.0 for anonymization requirements. Transcripts in `docs/user-research/transcripts/` contain raw interview data with PII and MUST NOT be committed to version control.
