@@ -1,3 +1,6 @@
+import { mkdtempSync, rmSync, writeFileSync } from "fs"
+import os from "os"
+import path from "path"
 import { describe, expect, test } from "bun:test"
 import { convertClaudeToKiro, transformContentForKiro } from "../src/converters/claude-to-kiro"
 import { parseFrontmatter } from "../src/utils/frontmatter"
@@ -274,7 +277,7 @@ describe("convertClaudeToKiro", () => {
     expect(warnings.some((w) => w.includes("Kiro"))).toBe(true)
   })
 
-  test("steering file not generated when CLAUDE.md missing", () => {
+  test("steering file not generated when repo instruction files are missing", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
       root: "/tmp/nonexistent-plugin-dir",
@@ -285,6 +288,27 @@ describe("convertClaudeToKiro", () => {
 
     const bundle = convertClaudeToKiro(plugin, defaultOptions)
     expect(bundle.steeringFiles).toHaveLength(0)
+  })
+
+  test("steering file prefers AGENTS.md over CLAUDE.md", () => {
+    const root = mkdtempSync(path.join(os.tmpdir(), "kiro-steering-"))
+    writeFileSync(path.join(root, "AGENTS.md"), "# AGENTS\nUse AGENTS instructions.")
+    writeFileSync(path.join(root, "CLAUDE.md"), "# CLAUDE\nUse CLAUDE instructions.")
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      root,
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    rmSync(root, { recursive: true, force: true })
+
+    expect(bundle.steeringFiles).toHaveLength(1)
+    expect(bundle.steeringFiles[0].content).toContain("Use AGENTS instructions.")
+    expect(bundle.steeringFiles[0].content).not.toContain("Use CLAUDE instructions.")
   })
 
   test("name normalization handles various inputs", () => {

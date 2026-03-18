@@ -88,7 +88,7 @@ Run these agents **in parallel** to gather local context:
 - Task compound-engineering:research:user-research-analyst(feature_description)
 
 **What to look for:**
-- **Repo research:** existing patterns, CLAUDE.md guidance, technology familiarity, pattern consistency
+- **Repo research:** existing patterns, AGENTS.md guidance, technology familiarity, pattern consistency
 - **Learnings:** documented solutions in `docs/solutions/` that might apply (gotchas, patterns, lessons learned)
 - **User research:** relevant personas, interview insights, opportunities, and research gaps from `docs/user-research/`
 
@@ -100,7 +100,7 @@ Based on signals from Step 0 and findings from Step 1, decide on external resear
 
 **High-risk topics → always research.** Security, payments, external APIs, data privacy. The cost of missing something is too high. This takes precedence over speed signals.
 
-**Strong local context → skip external research.** Codebase has good patterns, CLAUDE.md has guidance, user knows what they want. External research adds little value.
+**Strong local context -> skip external research.** Codebase has good patterns, AGENTS.md has guidance, user knows what they want. External research adds little value.
 
 **Uncertainty or unfamiliar territory → research.** User is exploring, codebase has no examples, new technology. External perspective is valuable.
 
@@ -128,7 +128,7 @@ After all research steps complete, consolidate findings:
 - **If user research findings were returned**: include relevant personas and their relationship to this feature, key insights and quotes from interviews, research gaps (areas where coverage is thin). If no research data was found, skip this bullet silently.
 - Note external documentation URLs and best practices (if external research was done)
 - List related issues or PRs discovered
-- Capture CLAUDE.md conventions
+- Capture AGENTS.md conventions
 
 **Optional validation:** Briefly summarize findings and ask if anything looks off or missing before proceeding to planning.
 
@@ -614,9 +614,9 @@ Loop back to options after Simplify or Other changes until user selects `/ce:wor
 
 ## Issue Creation
 
-When user selects "Create Issue", detect their project tracker from CLAUDE.md:
+When user selects "Create Issue", detect their project tracker from AGENTS.md:
 
-1. **Check for tracker preference** in user's CLAUDE.md (global or project):
+1. **Check for tracker preference** in the user's AGENTS.md (global or project). If AGENTS.md is absent, fall back to CLAUDE.md:
    - Look for `project_tracker: github` or `project_tracker: linear`
    - Or look for mentions of "GitHub Issues" or "Linear" in their workflow section
 
@@ -636,7 +636,7 @@ When user selects "Create Issue", detect their project tracker from CLAUDE.md:
 
 4. **If no tracker configured:**
    Ask user: "Which project tracker do you use? (GitHub/Linear/Other)"
-   - Suggest adding `project_tracker: github` or `project_tracker: linear` to their CLAUDE.md
+   - Suggest adding `project_tracker: github` or `project_tracker: linear` to their AGENTS.md
 
 5. **After creation:**
    - Display the issue URL

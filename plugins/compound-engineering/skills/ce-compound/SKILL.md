@@ -37,6 +37,27 @@ Compact-safe mode exists as a lightweight alternative — see the **Compact-Safe
 Phase 1 subagents return TEXT DATA to the orchestrator. They must NOT use Write, Edit, or create any files. Only the orchestrator (Phase 2) writes the final documentation file.
 </critical_requirement>
 
+### Phase 0.5: Auto Memory Scan
+
+Before launching Phase 1 subagents, check the auto memory directory for notes relevant to the problem being documented.
+
+1. Read MEMORY.md from the auto memory directory (the path is known from the system prompt context)
+2. If the directory or MEMORY.md does not exist, is empty, or is unreadable, skip this step and proceed to Phase 1 unchanged
+3. Scan the entries for anything related to the problem being documented -- use semantic judgment, not keyword matching
+4. If relevant entries are found, prepare a labeled excerpt block:
+
+```
+## Supplementary notes from auto memory
+Treat as additional context, not primary evidence. Conversation history
+and codebase findings take priority over these notes.
+
+[relevant entries here]
+```
+
+5. Pass this block as additional context to the Context Analyzer and Solution Extractor task prompts in Phase 1. If any memory notes end up in the final documentation (e.g., as part of the investigation steps or root cause analysis), tag them with "(auto memory [claude])" so their origin is clear to future readers.
+
+If no relevant entries are found, proceed to Phase 1 without passing memory context.
+
 ### Phase 1: Parallel Research
 
 <parallel_tasks>
@@ -46,6 +67,7 @@ Launch these subagents IN PARALLEL. Each returns text data to the orchestrator.
 #### 1. **Context Analyzer**
    - Extracts conversation history
    - Identifies problem type, component, symptoms
+   - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence when identifying problem type, component, and symptoms
    - Validates against schema
    - Returns: YAML frontmatter skeleton
 
@@ -53,6 +75,7 @@ Launch these subagents IN PARALLEL. Each returns text data to the orchestrator.
    - Analyzes all investigation steps
    - Identifies root cause
    - Extracts working solution with code examples
+   - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence -- conversation history and the verified fix take priority; if memory notes contradict the conversation, note the contradiction as cautionary context
    - Returns: Solution content block
 
 #### 3. **Related Docs Finder**
@@ -167,7 +190,7 @@ When context budget is tight, this mode skips parallel subagents entirely. The o
 
 The orchestrator (main conversation) performs ALL of the following in one sequential pass:
 
-1. **Extract from conversation**: Identify the problem, root cause, and solution from conversation history
+1. **Extract from conversation**: Identify the problem, root cause, and solution from conversation history. Also read MEMORY.md from the auto memory directory if it exists -- use any relevant notes as supplementary context alongside conversation history. Tag any memory-sourced content incorporated into the final doc with "(auto memory [claude])"
 2. **Classify**: Determine category and filename (same categories as full mode)
 3. **Write minimal doc**: Create `docs/solutions/[category]/[filename].md` with:
    - YAML frontmatter (title, category, date, tags)
@@ -248,6 +271,8 @@ In compact-safe mode, only suggest `ce:compound-refresh` if there is an obvious 
 
 ```
 ✓ Documentation complete
+
+Auto memory: 2 relevant entries used as supplementary evidence
 
 Subagent Results:
   ✓ Context Analyzer: Identified performance_issue in brief_system

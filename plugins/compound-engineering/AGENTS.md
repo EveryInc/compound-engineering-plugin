@@ -9,13 +9,13 @@ They supplement the repo-root `AGENTS.md`.
 
 **IMPORTANT**: Routine PRs should not cut releases for this plugin.
 
-The repo uses an automatied release process to prepare plugin releases, including version selection and changelog generation. Because multiple PRs may merge before the next release, contributors cannot know the final released version from within an individual PR.
+The repo uses an automated release process to prepare plugin releases, including version selection and changelog generation. Because multiple PRs may merge before the next release, contributors cannot know the final released version from within an individual PR.
 
 ### Contributor Rules
 
 - Do **not** manually bump `.claude-plugin/plugin.json` version in a normal feature PR.
 - Do **not** manually bump `.claude-plugin/marketplace.json` plugin version in a normal feature PR.
-- Do **not** cut a release section in `CHANGELOG.md` for a normal feature PR.
+- Do **not** cut a release section in the canonical root `CHANGELOG.md` for a normal feature PR.
 - Do update substantive docs that are part of the actual change, such as `README.md`, component tables, usage instructions, or counts when they would otherwise become inaccurate.
 
 ### Pre-Commit Checklist
@@ -24,7 +24,7 @@ Before committing ANY changes:
 
 - [ ] No manual release-version bump in `.claude-plugin/plugin.json`
 - [ ] No manual release-version bump in `.claude-plugin/marketplace.json`
-- [ ] No manual release entry added to `CHANGELOG.md`
+- [ ] No manual release entry added to the root `CHANGELOG.md`
 - [ ] README.md component counts verified
 - [ ] README.md tables accurate (agents, commands, skills)
 - [ ] plugin.json description matches current counts
@@ -116,42 +116,14 @@ grep -E '`(references|assets|scripts)/[^`]+`' skills/*/SKILL.md
 grep -E '^description:' skills/*/SKILL.md
 ```
 
+## Adding Components
+
+- **New skill:** Create `skills/<name>/SKILL.md` with required YAML frontmatter (`name`, `description`). Reference files go in `skills/<name>/references/`. Add the skill to the appropriate category table in `README.md` and update the skill count.
+- **New agent:** Create `agents/<category>/<name>.md` with frontmatter. Categories: `review`, `research`, `design`, `docs`, `workflow`. Add the agent to `README.md` and update the agent count.
+
 ## Beta Skills
 
-Beta skills are experimental versions of core workflow skills, published as separate skills with a `-beta` suffix (e.g., `ce-plan-beta`, `deepen-plan-beta`). They live alongside the stable versions and are invoked directly.
-
-See `docs/solutions/skill-design/beta-skills-framework.md` for the full pattern.
-
-### Beta Skill Rules
-
-- Beta skills use `-beta` suffix in directory name, skill name, and description prefix (`[BETA]`)
-- Beta skills set `disable-model-invocation: true` to prevent accidental auto-triggering — users invoke them manually
-- Beta skill descriptions should be the intended stable description prefixed with `[BETA]`, so promotion is a simple prefix removal
-- Beta skills must reference other beta skills by their beta names (e.g., `/deepen-plan-beta`, not `/deepen-plan`)
-- Beta plan output files use `-beta-plan.md` suffix to avoid clobbering stable plan files
-- Beta skills are not wired into `lfg`/`slfg` orchestration — invoke them directly
-
-### Beta Skill Validation
-
-After creating or modifying a beta skill, search its SKILL.md for any reference to the stable skill name it replaces. Occurrences of the stable name without `-beta` are missed renames that would cause output collisions or misrouting. Check for:
-
-- Output file paths using the stable naming convention instead of the `-beta` variant
-- Cross-skill references pointing to stable names instead of beta counterparts
-- User-facing text (questions, confirmations) mentioning stable paths or names
-
-### Promoting Beta to Stable
-
-When replacing a stable skill with its beta version:
-
-- [ ] Replace stable `SKILL.md` content with beta skill content
-- [ ] Restore stable frontmatter: remove `[BETA]` prefix from description, restore stable `name:` (e.g., `ce:plan` not `ce:plan-beta`)
-- [ ] Remove `disable-model-invocation: true` so the model can auto-trigger the skill
-- [ ] Update all internal references back to stable names (`/deepen-plan` not `/deepen-plan-beta`)
-- [ ] Restore stable plan file naming (remove `-beta` from `-beta-plan.md` convention)
-- [ ] Delete the beta skill directory
-- [ ] Update README.md: remove from Beta Skills section, verify counts
-- [ ] Verify `lfg`/`slfg` still work with the updated stable skill
-- [ ] Verify `ce:work` consumes plans from the promoted skill correctly
+Beta skills use a `-beta` suffix and `disable-model-invocation: true` to prevent accidental auto-triggering. See `docs/solutions/skill-design/beta-skills-framework.md` for naming, validation, and promotion rules.
 
 ## Documentation
 

@@ -112,7 +112,7 @@ Detailed instructions...
 
 - Markdown files in `.kiro/steering/`.
 - Always loaded into every agent session's context.
-- Equivalent to Claude Code's CLAUDE.md.
+- Equivalent to the repo instruction file used by Claude-oriented workflows; in this repo `AGENTS.md` is canonical and `CLAUDE.md` may exist only as a compatibility shim.
 - Used for project-wide instructions, coding standards, and conventions.
 
 ## MCP server configuration
@@ -166,6 +166,6 @@ Detailed instructions...
 | Generated agents (JSON + prompt) | Overwrite | Generated, not user-authored |
 | Generated skills (from commands) | Overwrite | Generated, not user-authored |
 | Copied skills (pass-through) | Overwrite | Plugin is source of truth |
-| Steering files | Overwrite | Generated from CLAUDE.md |
+| Steering files | Overwrite | Generated from `AGENTS.md` when present, otherwise `CLAUDE.md` |
 | `mcp.json` | Merge with backup | User may have added their own servers |
 | User-created agents/skills | Preserved | Don't delete orphans |

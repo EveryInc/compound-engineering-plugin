@@ -14,7 +14,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 Agents are organized into categories for easier discovery.
 
-### Review (15)
+### Review
 
 | Agent | Description |
 |-------|-------------|
@@ -34,7 +34,7 @@ Agents are organized into categories for easier discovery.
 | `schema-drift-detector` | Detect unrelated schema.rb changes in PRs |
 | `security-sentinel` | Security audits and vulnerability assessments |
 
-### Research (6)
+### Research
 
 | Agent | Description |
 |-------|-------------|
@@ -46,7 +46,7 @@ Agents are organized into categories for easier discovery.
 | `repo-research-analyst` | Research repository structure and conventions |
 | `user-research-analyst` | Search research artifacts for relevant personas and insights |
 
-### Design (3)
+### Design
 
 | Agent | Description |
 |-------|-------------|
@@ -54,7 +54,7 @@ Agents are organized into categories for easier discovery.
 | `design-iterator` | Iteratively refine UI through systematic design iterations |
 | `figma-design-sync` | Synchronize web implementations with Figma designs |
 
-### Workflow (4)
+### Workflow
 
 | Agent | Description |
 |-------|-------------|
@@ -63,7 +63,7 @@ Agents are organized into categories for easier discovery.
 | `pr-comment-resolver` | Address PR comments and implement fixes |
 | `spec-flow-analyzer` | Analyze user flows and identify gaps in specifications |
 
-### Docs (1)
+### Docs
 
 | Agent | Description |
 |-------|-------------|
@@ -137,6 +137,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `file-todos` | File-based todo tracking system |
 | `git-worktree` | Manage Git worktrees for parallel development |
 | `proof` | Create, edit, and share documents via Proof collaborative editor |
+| `claude-permissions-optimizer` | Optimize Claude Code permissions from session history |
 | `resolve-pr-parallel` | Resolve PR review comments in parallel |
 | `setup` | Configure which review agents run for your project |
 
@@ -254,7 +255,7 @@ Set `CONTEXT7_API_KEY` in your environment to authenticate. Or add it globally i
 
 ## Version History
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+See the repo root [CHANGELOG.md](../../CHANGELOG.md) for canonical release history.
 
 ## License
 

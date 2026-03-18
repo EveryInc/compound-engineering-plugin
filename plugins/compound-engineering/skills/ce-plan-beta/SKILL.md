@@ -35,6 +35,7 @@ Do not proceed until you have a clear planning input.
 4. **Right-size the artifact** - Small work gets a compact plan. Large work gets more structure. The philosophy stays the same at every depth.
 5. **Separate planning from execution discovery** - Resolve planning-time questions here. Explicitly defer execution-time unknowns to implementation.
 6. **Keep the plan portable** - The plan should work as a living document, review artifact, or issue body without embedding tool-specific executor instructions.
+7. **Carry execution posture lightly when it matters** - If the request, origin document, or repo context clearly implies test-first, characterization-first, or another non-default execution posture, reflect that in the plan as a lightweight signal. Do not turn the plan into step-by-step execution choreography.
 
 ## Plan Quality Bar
 
@@ -150,8 +151,21 @@ Run these agents in parallel:
 Collect:
 - Existing patterns and conventions to follow
 - Relevant files, modules, and tests
-- CLAUDE.md or AGENTS.md guidance that materially affects the plan
+- AGENTS.md guidance that materially affects the plan, with CLAUDE.md used only as compatibility fallback when present
 - Institutional learnings from `docs/solutions/`
+
+#### 1.1b Detect Execution Posture Signals
+
+Decide whether the plan should carry a lightweight execution posture signal.
+
+Look for signals such as:
+- The user explicitly asks for TDD, test-first, or characterization-first work
+- The origin document calls for test-first implementation or exploratory hardening of legacy code
+- Local research shows the target area is legacy, weakly tested, or historically fragile, suggesting characterization coverage before changing behavior
+
+When the signal is clear, carry it forward silently in the relevant implementation units.
+
+Ask the user only if the posture would materially change sequencing or risk and cannot be responsibly inferred.
 
 #### 1.2 Decide on External Research
 
@@ -261,11 +275,19 @@ For each unit, include:
 - **Dependencies** - what must exist first
 - **Files** - exact file paths to create, modify, or test
 - **Approach** - key decisions, data flow, component boundaries, or integration notes
+- **Execution note** - optional, only when the unit benefits from a non-default execution posture such as test-first or characterization-first work
 - **Patterns to follow** - existing code or conventions to mirror
 - **Test scenarios** - specific behaviors, edge cases, and failure paths to cover
 - **Verification** - how an implementer should know the unit is complete, expressed as outcomes rather than shell command scripts
 
 Every feature-bearing unit should include the test file path in `**Files:**`.
+
+Use `Execution note` sparingly. Good uses include:
+- `Execution note: Start with a failing integration test for the request/response contract.`
+- `Execution note: Add characterization coverage before modifying this legacy parser.`
+- `Execution note: Implement new domain behavior test-first.`
+
+Do not expand units into literal `RED/GREEN/REFACTOR` substeps.
 
 #### 3.5 Keep Planning-Time and Implementation-Time Unknowns Separate
 
@@ -392,6 +414,8 @@ deepened: YYYY-MM-DD  # optional, set later by deepen-plan-beta when the plan is
 **Approach:**
 - [Key design or sequencing decision]
 
+**Execution note:** [Optional test-first, characterization-first, or other execution posture signal]
+
 **Patterns to follow:**
 - [Existing file, class, or pattern]
 
@@ -468,6 +492,7 @@ For larger `Deep` plans, extend the core template only when useful with sections
 - Keep implementation units checkable with `- [ ]` syntax for progress tracking
 - Do not include fenced implementation code blocks unless the plan itself is about code shape as a design artifact
 - Do not include git commands, commit messages, or exact test command recipes
+- Do not expand implementation units into micro-step `RED/GREEN/REFACTOR` instructions
 - Do not pretend an execution-time question is settled just to make the plan look complete
 - Include mermaid diagrams when they clarify relationships or flows that prose alone would make hard to follow — ERDs for data model changes, sequence diagrams for multi-service interactions, state diagrams for lifecycle transitions, flowcharts for complex branching logic
 
@@ -480,6 +505,7 @@ Before finalizing, check:
 - If there was no origin document, the bounded planning bootstrap established enough product clarity to plan responsibly
 - Every major decision is grounded in the origin document or research
 - Each implementation unit is concrete, dependency-ordered, and implementation-ready
+- If test-first or characterization-first posture was explicit or strongly implied, the relevant units carry it forward with a lightweight `Execution note`
 - Test scenarios are specific without becoming test code
 - Deferred items are explicit and not hidden as fake certainty
 
@@ -545,7 +571,7 @@ If running with ultrathink enabled, or the platform's reasoning/effort level is 
 
 ## Issue Creation
 
-When the user selects "Create Issue", detect their project tracker from `CLAUDE.md` or `AGENTS.md`:
+When the user selects "Create Issue", detect their project tracker from `AGENTS.md` or, if needed for compatibility, `CLAUDE.md`:
 
 1. Look for `project_tracker: github` or `project_tracker: linear`
 2. If GitHub:
@@ -562,7 +588,7 @@ When the user selects "Create Issue", detect their project tracker from `CLAUDE.
 
 4. If no tracker is configured:
    - Ask which tracker they use using the platform's blocking question tool when available (see Interaction Method)
-   - Suggest adding the tracker to `CLAUDE.md` or `AGENTS.md` for future runs
+   - Suggest adding the tracker to `AGENTS.md` for future runs
 
 After issue creation:
 - Display the issue URL

@@ -103,7 +103,7 @@ Run agents in parallel in the **foreground** (do not use background dispatch —
 
 1. **Quick context scan** — dispatch a general-purpose sub-agent with this prompt:
 
-   > Read the project's CLAUDE.md (or AGENTS.md / README.md if CLAUDE.md is absent), then discover the top-level directory layout using the native file-search/glob tool (e.g., `Glob` with pattern `*` or `*/*` in Claude Code). Return a concise summary (under 30 lines) covering:
+   > Read the project's AGENTS.md (or CLAUDE.md only as compatibility fallback, then README.md if neither exists), then discover the top-level directory layout using the native file-search/glob tool (e.g., `Glob` with pattern `*` or `*/*` in Claude Code). Return a concise summary (under 30 lines) covering:
    > - project shape (language, framework, top-level directory layout)
    > - notable patterns or conventions
    > - obvious pain points or gaps

@@ -25,9 +25,11 @@ This command takes a work document (plan, specification, or todo file) and execu
    - Read the work document completely
    - Treat the plan as a decision artifact, not an execution script
    - If the plan includes sections such as `Implementation Units`, `Work Breakdown`, `Requirements Trace`, `Files`, `Test Scenarios`, or `Verification`, use those as the primary source material for execution
+   - Check for `Execution note` on each implementation unit — these carry the plan's execution posture signal for that unit (for example, test-first or characterization-first). Note them when creating tasks.
    - Check for a `Deferred to Implementation` or `Implementation-Time Unknowns` section — these are questions the planner intentionally left for you to resolve during execution. Note them before starting so they inform your approach rather than surprising you mid-task
    - Check for a `Scope Boundaries` section — these are explicit non-goals. Refer back to them if implementation starts pulling you toward adjacent work
    - Review any references or links provided in the plan
+   - If the user explicitly asks for TDD, test-first, or characterization-first execution in this session, honor that request even if the plan has no `Execution note`
    - If anything is unclear or ambiguous, ask clarifying questions now
    - Get user approval to proceed
    - **Do not skip this** - better to ask questions now than build the wrong thing
@@ -79,6 +81,7 @@ This command takes a work document (plan, specification, or todo file) and execu
 3. **Create Todo List**
    - Use your available task tracking tool (e.g., TodoWrite, task lists) to break the plan into actionable tasks
    - Derive tasks from the plan's implementation units, dependencies, files, test targets, and verification criteria
+   - Carry each unit's `Execution note` into the task when present
    - For each unit, read the `Patterns to follow` field before implementing — these point to specific files or conventions to mirror
    - Use each unit's `Verification` field as the primary "done" signal for that task
    - Do not expect the plan to contain implementation code, micro-step TDD instructions, or exact shell commands
@@ -99,7 +102,7 @@ This command takes a work document (plan, specification, or todo file) and execu
 
    **Subagent dispatch** uses your available subagent or task spawning mechanism. For each unit, give the subagent:
    - The full plan file path (for overall context)
-   - The specific unit's Goal, Files, Approach, Patterns, Test scenarios, and Verification
+   - The specific unit's Goal, Files, Approach, Execution note, Patterns, Test scenarios, and Verification
    - Any resolved deferred questions relevant to that unit
 
    After each subagent completes, update the plan checkboxes and task list before dispatching the next dependent unit.
@@ -124,6 +127,14 @@ This command takes a work document (plan, specification, or todo file) and execu
      - Mark task as completed
      - Evaluate for incremental commit (see below)
    ```
+
+   When a unit carries an `Execution note`, honor it. For test-first units, write the failing test before implementation for that unit. For characterization-first units, capture existing behavior before changing it. For units without an `Execution note`, proceed pragmatically.
+
+   Guardrails for execution posture:
+   - Do not write the test and implementation in the same step when working test-first
+   - Do not skip verifying that a new test fails before implementing the fix or feature
+   - Do not over-implement beyond the current behavior slice when working test-first
+   - Skip test-first discipline for trivial renames, pure configuration, and pure styling work
 
    **System-Wide Test Check** — Before marking a task done, pause and ask:
 
@@ -176,7 +187,7 @@ This command takes a work document (plan, specification, or todo file) and execu
    - The plan should reference similar code - read those files first
    - Match naming conventions exactly
    - Reuse existing components where possible
-   - Follow project coding standards (see CLAUDE.md)
+   - Follow project coding standards (see AGENTS.md; use CLAUDE.md only if the repo still keeps a compatibility shim)
    - When in doubt, grep for similar implementations
 
 4. **Test Continuously**
@@ -220,7 +231,7 @@ This command takes a work document (plan, specification, or todo file) and execu
    # Run full test suite (use project's test command)
    # Examples: bin/rails test, npm test, pytest, go test, etc.
 
-   # Run linting (per CLAUDE.md)
+   # Run linting (per AGENTS.md)
    # Use linting-agent before pushing to origin
    ```
 
