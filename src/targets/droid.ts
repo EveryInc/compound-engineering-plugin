@@ -1,5 +1,5 @@
 import path from "path"
-import { copyDir, ensureDir, writeText } from "../utils/files"
+import { copyDir, ensureDir, resolveCommandPath, writeText } from "../utils/files"
 import type { DroidBundle } from "../types/droid"
 
 export async function writeDroidBundle(outputRoot: string, bundle: DroidBundle): Promise<void> {
@@ -9,7 +9,8 @@ export async function writeDroidBundle(outputRoot: string, bundle: DroidBundle):
   if (bundle.commands.length > 0) {
     await ensureDir(paths.commandsDir)
     for (const command of bundle.commands) {
-      await writeText(path.join(paths.commandsDir, `${command.name}.md`), command.content + "\n")
+      const dest = await resolveCommandPath(paths.commandsDir, command.name, ".md")
+      await writeText(dest, command.content + "\n")
     }
   }
 

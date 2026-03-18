@@ -1,0 +1,21 @@
+{
+  "name": "coding-tutor",
+  "displayName": "Coding Tutor",
+  "version": "1.2.1",
+  "description": "Personalized coding tutorials that use your actual codebase for examples with spaced repetition quizzes",
+  "author": {
+    "name": "Nityesh Agarwal"
+  },
+  "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
+  "repository": "https://github.com/EveryInc/compound-engineering-plugin",
+  "license": "MIT",
+  "keywords": [
+    "cursor",
+    "plugin",
+    "coding",
+    "programming",
+    "tutorial",
+    "learning",
+    "spaced-repetition"
+  ]
+}

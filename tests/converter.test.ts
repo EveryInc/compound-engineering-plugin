@@ -8,7 +8,7 @@ import type { ClaudePlugin } from "../src/types/claude"
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
 describe("convertClaudeToOpenCode", () => {
-  test("maps commands, permissions, and agents", async () => {
+  test("from-command mode: map allowedTools to global permission block", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
       agentMode: "subagent",
@@ -16,8 +16,9 @@ describe("convertClaudeToOpenCode", () => {
       permissions: "from-commands",
     })
 
-    expect(bundle.config.command?.["workflows:review"]).toBeDefined()
-    expect(bundle.config.command?.["plan_review"]).toBeDefined()
+    expect(bundle.config.command).toBeUndefined()
+    expect(bundle.commandFiles.find((f) => f.name === "workflows:review")).toBeDefined()
+    expect(bundle.commandFiles.find((f) => f.name === "plan_review")).toBeDefined()
 
     const permission = bundle.config.permission as Record<string, string | Record<string, string>>
     expect(Object.keys(permission).sort()).toEqual([
@@ -71,8 +72,10 @@ describe("convertClaudeToOpenCode", () => {
     expect(parsed.data.model).toBe("anthropic/claude-sonnet-4-20250514")
     expect(parsed.data.temperature).toBe(0.1)
 
-    const modelCommand = bundle.config.command?.["workflows:work"]
-    expect(modelCommand?.model).toBe("openai/gpt-4o")
+    const modelCommand = bundle.commandFiles.find((f) => f.name === "workflows:work")
+    expect(modelCommand).toBeDefined()
+    const commandParsed = parseFrontmatter(modelCommand!.content)
+    expect(commandParsed.data.model).toBe("openai/gpt-4o")
   })
 
   test("resolves bare Claude model aliases to full IDs", () => {
@@ -129,6 +132,18 @@ describe("convertClaudeToOpenCode", () => {
     expect(hookFile!.content).toContain("// timeout: 30s")
     expect(hookFile!.content).toContain("// Prompt hook for Write|Edit")
     expect(hookFile!.content).toContain("// Agent hook for Write|Edit: security-sentinel")
+
+    // PreToolUse (tool.execute.before) handlers are wrapped in try-catch
+    // to prevent hook failures from crashing parallel tool call batches (#85)
+    const beforeIdx = hookFile!.content.indexOf('"tool.execute.before"')
+    const afterIdx = hookFile!.content.indexOf('"tool.execute.after"')
+    const beforeBlock = hookFile!.content.slice(beforeIdx, afterIdx)
+    expect(beforeBlock).toContain("try {")
+    expect(beforeBlock).toContain("} catch (err) {")
+
+    // PostToolUse (tool.execute.after) handlers are NOT wrapped in try-catch
+    const afterBlock = hookFile!.content.slice(afterIdx, hookFile!.content.indexOf('"session.created"'))
+    expect(afterBlock).not.toContain("try {")
   })
 
   test("converts MCP servers", async () => {
@@ -199,7 +214,7 @@ describe("convertClaudeToOpenCode", () => {
     expect(parsed.data.mode).toBe("primary")
   })
 
-  test("excludes commands with disable-model-invocation from command map", async () => {
+  test("excludes commands with disable-model-invocation from commandFiles", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
       agentMode: "subagent",
@@ -208,10 +223,10 @@ describe("convertClaudeToOpenCode", () => {
     })
 
     // deploy-docs has disable-model-invocation: true, should be excluded
-    expect(bundle.config.command?.["deploy-docs"]).toBeUndefined()
+    expect(bundle.commandFiles.find((f) => f.name === "deploy-docs")).toBeUndefined()
 
     // Normal commands should still be present
-    expect(bundle.config.command?.["workflows:review"]).toBeDefined()
+    expect(bundle.commandFiles.find((f) => f.name === "workflows:review")).toBeDefined()
   })
 
   test("rewrites .claude/ paths to .opencode/ in command bodies", () => {
@@ -240,10 +255,11 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
       permissions: "none",
     })
 
-    const template = bundle.config.command?.["review"]?.template ?? ""
+    const commandFile = bundle.commandFiles.find((f) => f.name === "review")
+    expect(commandFile).toBeDefined()
 
     // Tool-agnostic path in project root — no rewriting needed
-    expect(template).toContain("compound-engineering.local.md")
+    expect(commandFile!.content).toContain("compound-engineering.local.md")
   })
 
   test("rewrites .claude/ paths in agent bodies", () => {
@@ -272,5 +288,34 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
     expect(agentFile).toBeDefined()
     // Tool-agnostic path in project root — no rewriting needed
     expect(agentFile!.content).toContain("compound-engineering.local.md")
+  })
+
+  test("command .md files include description in frontmatter", () => {
+    const plugin: ClaudePlugin = {
+      root: "/tmp/plugin",
+      manifest: { name: "fixture", version: "1.0.0" },
+      agents: [],
+      commands: [
+        {
+          name: "test-cmd",
+          description: "Test description",
+          body: "Do the thing",
+          sourcePath: "/tmp/plugin/commands/test-cmd.md",
+        },
+      ],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const commandFile = bundle.commandFiles.find((f) => f.name === "test-cmd")
+    expect(commandFile).toBeDefined()
+    const parsed = parseFrontmatter(commandFile!.content)
+    expect(parsed.data.description).toBe("Test description")
+    expect(parsed.body).toContain("Do the thing")
   })
 })

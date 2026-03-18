@@ -1,34 +1,26 @@
 # Changelog
 
-All notable changes to the `@every-env/compound-plugin` CLI tool will be documented in this file.
+## [2.43.2](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.43.1...cli-v2.43.2) (2026-03-18)
 
-The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
-and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.6.0] - 2026-02-12
+### Bug Fixes
 
-### Added
+* enable release-please labeling so it can find its own PRs ([a7d6e3f](https://github.com/EveryInc/compound-engineering-plugin/commit/a7d6e3fbba862d4e8b4e1a0510f0776e9e274b89))
+* re-enable changelogs so release PRs accumulate correctly ([516bcc1](https://github.com/EveryInc/compound-engineering-plugin/commit/516bcc1dc4bf4e4756ae08775806494f5b43968a))
+* reduce release-please search depth from 500 to 50 ([f1713b9](https://github.com/EveryInc/compound-engineering-plugin/commit/f1713b9dcd0deddc2485e8cf0594266232bf0019))
+* remove close-stale-PR step that broke release creation ([178d6ec](https://github.com/EveryInc/compound-engineering-plugin/commit/178d6ec282512eaee71ab66d45832d22d75353ec))
 
-- **Droid sync target** — `sync --target droid` symlinks personal skills to `~/.factory/skills/`
-- **Cursor sync target** — `sync --target cursor` symlinks skills to `.cursor/skills/` and merges MCP servers into `.cursor/mcp.json`
-- **Pi target** — First-class `--to pi` converter with MCPorter config and subagent compatibility ([#181](https://github.com/EveryInc/compound-engineering-plugin/pull/181)) — thanks [@gvkhosla](https://github.com/gvkhosla)!
+## Changelog
 
-### Fixed
+Release notes now live in GitHub Releases for this repository:
 
-- **Bare Claude model alias resolution** — Fixed OpenCode converter not resolving bare model aliases like `claude-sonnet-4-5-20250514` ([#182](https://github.com/EveryInc/compound-engineering-plugin/pull/182)) — thanks [@waltbeaman](https://github.com/waltbeaman)!
+https://github.com/EveryInc/compound-engineering-plugin/releases
 
-### Changed
+Multi-component releases are published under component-specific tags such as:
 
-- Extracted shared `expandHome` / `resolveTargetHome` helpers to `src/utils/resolve-home.ts`, removing duplication across `convert.ts`, `install.ts`, and `sync.ts`
+- `cli-vX.Y.Z`
+- `compound-engineering-vX.Y.Z`
+- `coding-tutor-vX.Y.Z`
+- `marketplace-vX.Y.Z`
 
----
-
-## [0.5.2] - 2026-02-09
-
-### Fixed
-
-- Fix cursor install defaulting to cwd instead of opencode config dir
-
-## [0.5.1] - 2026-02-08
-
-- Initial npm publish
+Do not add new release entries here. New release notes are managed by release automation in GitHub.

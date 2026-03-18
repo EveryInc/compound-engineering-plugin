@@ -8,7 +8,7 @@ import type {
 } from "../types/claude"
 import type {
   OpenCodeBundle,
-  OpenCodeCommandConfig,
+  OpenCodeCommandFile,
   OpenCodeConfig,
   OpenCodeMcpServer,
 } from "../types/opencode"
@@ -66,13 +66,12 @@ export function convertClaudeToOpenCode(
   options: ClaudeToOpenCodeOptions,
 ): OpenCodeBundle {
   const agentFiles = plugin.agents.map((agent) => convertAgent(agent, options))
-  const commandMap = convertCommands(plugin.commands)
+  const cmdFiles = convertCommands(plugin.commands)
   const mcp = plugin.mcpServers ? convertMcp(plugin.mcpServers) : undefined
   const plugins = plugin.hooks ? [convertHooks(plugin.hooks)] : []
 
   const config: OpenCodeConfig = {
     $schema: "https://opencode.ai/config.json",
-    command: Object.keys(commandMap).length > 0 ? commandMap : undefined,
     mcp: mcp && Object.keys(mcp).length > 0 ? mcp : undefined,
   }
 
@@ -81,6 +80,7 @@ export function convertClaudeToOpenCode(
   return {
     config,
     agents: agentFiles,
+    commandFiles: cmdFiles,
     plugins,
     skillDirs: plugin.skills.map((skill) => ({ sourceDir: skill.sourceDir, name: skill.name })),
   }
@@ -111,20 +111,22 @@ function convertAgent(agent: ClaudeAgent, options: ClaudeToOpenCodeOptions) {
   }
 }
 
-function convertCommands(commands: ClaudeCommand[]): Record<string, OpenCodeCommandConfig> {
-  const result: Record<string, OpenCodeCommandConfig> = {}
+// Commands are written as individual .md files rather than entries in opencode.json.
+// Chosen over JSON map because opencode resolves commands by filename at runtime (ADR-001).
+function convertCommands(commands: ClaudeCommand[]): OpenCodeCommandFile[] {
+  const files: OpenCodeCommandFile[] = []
   for (const command of commands) {
     if (command.disableModelInvocation) continue
-    const entry: OpenCodeCommandConfig = {
+    const frontmatter: Record<string, unknown> = {
       description: command.description,
-      template: rewriteClaudePaths(command.body),
     }
     if (command.model && command.model !== "inherit") {
-      entry.model = normalizeModel(command.model)
+      frontmatter.model = normalizeModel(command.model)
     }
-    result[command.name] = entry
+    const content = formatFrontmatter(frontmatter, rewriteClaudePaths(command.body))
+    files.push({ name: command.name, content })
   }
-  return result
+  return files
 }
 
 function convertMcp(servers: Record<string, ClaudeMcpServer>): Record<string, OpenCodeMcpServer> {
@@ -200,7 +202,15 @@ function renderHookHandlers(
   const wrapped = options.requireError
     ? `    if (input?.error) {\n${statements.map((line) => `      ${line}`).join("\n")}\n    }`
     : rendered
+
+  // Wrap tool.execute.before handlers in try-catch to prevent a failing hook
+  // from crashing parallel tool call batches (causes API 400 errors).
+  // See: https://github.com/EveryInc/compound-engineering-plugin/issues/85
+  const isPreToolUse = event === "tool.execute.before"
   const note = options.note ? `    // ${options.note}\n` : ""
+  if (isPreToolUse) {
+    return `    "${event}": async (input) => {\n${note}    try {\n  ${wrapped}\n    } catch (err) {\n      console.error("[hook] ${event} error (non-fatal):", err)\n    }\n    }`
+  }
   return `    "${event}": async (input) => {\n${note}${wrapped}\n    }`
 }
 

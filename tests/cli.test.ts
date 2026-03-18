@@ -426,4 +426,184 @@ describe("CLI", () => {
     expect(await exists(path.join(piRoot, "prompts", "workflows-review.md"))).toBe(true)
     expect(await exists(path.join(piRoot, "extensions", "compound-engineering-compat.ts"))).toBe(true)
   })
+
+  test("install --to opencode uses permissions:none by default", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-perms-none-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      "src/index.ts",
+      "install",
+      fixtureRoot,
+      "--to",
+      "opencode",
+      "--output",
+      tempRoot,
+    ], {
+      cwd: path.join(import.meta.dir, ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering")
+
+    const opencodeJsonPath = path.join(tempRoot, "opencode.json")
+    const content = await fs.readFile(opencodeJsonPath, "utf-8")
+    const json = JSON.parse(content)
+
+    expect(json).not.toHaveProperty("permission")
+    expect(json).not.toHaveProperty("tools")
+  })
+
+  test("install --to opencode --permissions broad writes permission block", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-perms-broad-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      "src/index.ts",
+      "install",
+      fixtureRoot,
+      "--to",
+      "opencode",
+      "--permissions",
+      "broad",
+      "--output",
+      tempRoot,
+    ], {
+      cwd: path.join(import.meta.dir, ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering")
+
+    const opencodeJsonPath = path.join(tempRoot, "opencode.json")
+    const content = await fs.readFile(opencodeJsonPath, "utf-8")
+    const json = JSON.parse(content)
+
+    expect(json).toHaveProperty("permission")
+    expect(json.permission).not.toBeNull()
+  })
+
+  test("sync --target all detects new sync targets and ignores stale cursor directories", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "cli-sync-home-"))
+    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "cli-sync-cwd-"))
+    const repoRoot = path.join(import.meta.dir, "..")
+    const fixtureSkillDir = path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one")
+    const claudeSkillsDir = path.join(tempHome, ".claude", "skills", "skill-one")
+    const claudeCommandsDir = path.join(tempHome, ".claude", "commands", "workflows")
+
+    await fs.mkdir(path.dirname(claudeSkillsDir), { recursive: true })
+    await fs.cp(fixtureSkillDir, claudeSkillsDir, { recursive: true })
+    await fs.mkdir(claudeCommandsDir, { recursive: true })
+    await fs.writeFile(
+      path.join(claudeCommandsDir, "plan.md"),
+      [
+        "---",
+        "name: workflows:plan",
+        "description: Plan work",
+        "argument-hint: \"[goal]\"",
+        "---",
+        "",
+        "Plan the work.",
+      ].join("\n"),
+    )
+    await fs.writeFile(
+      path.join(tempHome, ".claude", "settings.json"),
+      JSON.stringify({
+        mcpServers: {
+          local: { command: "echo", args: ["hello"] },
+          remote: { url: "https://example.com/mcp" },
+          legacy: { type: "sse", url: "https://example.com/sse" },
+        },
+      }, null, 2),
+    )
+
+    await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".pi"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".factory"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".copilot"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".gemini"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".codeium", "windsurf"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".kiro"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".qwen"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".openclaw"), { recursive: true })
+    await fs.mkdir(path.join(tempCwd, ".cursor"), { recursive: true })
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "sync",
+      "--target",
+      "all",
+    ], {
+      cwd: tempCwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempHome,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Synced to codex")
+    expect(stdout).toContain("Synced to opencode")
+    expect(stdout).toContain("Synced to pi")
+    expect(stdout).toContain("Synced to droid")
+    expect(stdout).toContain("Synced to windsurf")
+    expect(stdout).toContain("Synced to kiro")
+    expect(stdout).toContain("Synced to qwen")
+    expect(stdout).toContain("Synced to openclaw")
+    expect(stdout).toContain("Synced to copilot")
+    expect(stdout).toContain("Synced to gemini")
+    expect(stdout).not.toContain("cursor")
+
+    expect(await exists(path.join(tempHome, ".config", "opencode", "commands", "workflows:plan.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".codex", "config.toml"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".codex", "prompts", "workflows-plan.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".codex", "skills", "workflows-plan", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".pi", "agent", "prompts", "workflows-plan.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".factory", "commands", "plan.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".codeium", "windsurf", "mcp_config.json"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".codeium", "windsurf", "global_workflows", "workflows-plan.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".kiro", "settings", "mcp.json"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".kiro", "skills", "workflows-plan", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".qwen", "settings.json"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".qwen", "commands", "workflows", "plan.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".copilot", "mcp-config.json"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".copilot", "skills", "workflows-plan", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".gemini", "settings.json"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".gemini", "commands", "workflows", "plan.toml"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".openclaw", "skills", "skill-one"))).toBe(true)
+  })
 })

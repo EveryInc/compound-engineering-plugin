@@ -2,7 +2,7 @@ import fs from "fs/promises"
 
 /**
  * Create a symlink, safely replacing any existing symlink at target.
- * Only removes existing symlinks - refuses to delete real directories.
+ * Only removes existing symlinks - skips real directories with a warning.
  */
 export async function forceSymlink(source: string, target: string): Promise<void> {
   try {
@@ -11,11 +11,9 @@ export async function forceSymlink(source: string, target: string): Promise<void
       // Safe to remove existing symlink
       await fs.unlink(target)
     } else if (stat.isDirectory()) {
-      // Refuse to delete real directories
-      throw new Error(
-        `Cannot create symlink at ${target}: a real directory exists there. ` +
-        `Remove it manually if you want to replace it with a symlink.`
-      )
+      // Skip real directories rather than deleting them
+      console.warn(`Skipping ${target}: a real directory exists there (remove it manually to replace with a symlink).`)
+      return
     } else {
       // Regular file - remove it
       await fs.unlink(target)

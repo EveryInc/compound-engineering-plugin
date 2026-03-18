@@ -1,31 +1,29 @@
 import fs from "fs/promises"
 import path from "path"
 import type { ClaudeHomeConfig } from "../parsers/claude-home"
-import type { ClaudeMcpServer } from "../types/claude"
-import { forceSymlink, isValidSkillName } from "../utils/symlink"
+import { renderCodexConfig } from "../targets/codex"
+import { writeTextSecure } from "../utils/files"
+import { syncCodexCommands } from "./commands"
+import { syncSkills } from "./skills"
+
+const CURRENT_START_MARKER = "# BEGIN compound-plugin Claude Code MCP"
+const CURRENT_END_MARKER = "# END compound-plugin Claude Code MCP"
+const LEGACY_MARKER = "# MCP servers synced from Claude Code"
 
 export async function syncToCodex(
   config: ClaudeHomeConfig,
   outputRoot: string,
 ): Promise<void> {
-  // Ensure output directories exist
-  const skillsDir = path.join(outputRoot, "skills")
-  await fs.mkdir(skillsDir, { recursive: true })
-
-  // Symlink skills (with validation)
-  for (const skill of config.skills) {
-    if (!isValidSkillName(skill.name)) {
-      console.warn(`Skipping skill with invalid name: ${skill.name}`)
-      continue
-    }
-    const target = path.join(skillsDir, skill.name)
-    await forceSymlink(skill.sourceDir, target)
-  }
+  await syncSkills(config.skills, path.join(outputRoot, "skills"))
+  await syncCodexCommands(config, outputRoot)
 
   // Write MCP servers to config.toml (TOML format)
   if (Object.keys(config.mcpServers).length > 0) {
     const configPath = path.join(outputRoot, "config.toml")
-    const mcpToml = convertMcpForCodex(config.mcpServers)
+    const mcpToml = renderCodexConfig(config.mcpServers)
+    if (!mcpToml) {
+      return
+    }
 
     // Read existing config and merge idempotently
     let existingContent = ""
@@ -37,56 +35,34 @@ export async function syncToCodex(
       }
     }
 
-    // Remove any existing Claude Code MCP section to make idempotent
-    const marker = "# MCP servers synced from Claude Code"
-    const markerIndex = existingContent.indexOf(marker)
-    if (markerIndex !== -1) {
-      existingContent = existingContent.slice(0, markerIndex).trimEnd()
-    }
+    const managedBlock = [
+      CURRENT_START_MARKER,
+      mcpToml.trim(),
+      CURRENT_END_MARKER,
+      "",
+    ].join("\n")
 
-    const newContent = existingContent
-      ? existingContent + "\n\n" + marker + "\n" + mcpToml
-      : "# Codex config - synced from Claude Code\n\n" + mcpToml
+    const withoutCurrentBlock = existingContent.replace(
+      new RegExp(
+        `${escapeForRegex(CURRENT_START_MARKER)}[\\s\\S]*?${escapeForRegex(CURRENT_END_MARKER)}\\n?`,
+        "g",
+      ),
+      "",
+    ).trimEnd()
 
-    await fs.writeFile(configPath, newContent, { mode: 0o600 })
+    const legacyMarkerIndex = withoutCurrentBlock.indexOf(LEGACY_MARKER)
+    const cleaned = legacyMarkerIndex === -1
+      ? withoutCurrentBlock
+      : withoutCurrentBlock.slice(0, legacyMarkerIndex).trimEnd()
+
+    const newContent = cleaned
+      ? `${cleaned}\n\n${managedBlock}`
+      : `${managedBlock}`
+
+    await writeTextSecure(configPath, newContent)
   }
 }
 
-/** Escape a string for TOML double-quoted strings */
-function escapeTomlString(str: string): string {
-  return str
-    .replace(/\\/g, "\\\\")
-    .replace(/"/g, '\\"')
-    .replace(/\n/g, "\\n")
-    .replace(/\r/g, "\\r")
-    .replace(/\t/g, "\\t")
-}
-
-function convertMcpForCodex(servers: Record<string, ClaudeMcpServer>): string {
-  const sections: string[] = []
-
-  for (const [name, server] of Object.entries(servers)) {
-    if (!server.command) continue
-
-    const lines: string[] = []
-    lines.push(`[mcp_servers.${name}]`)
-    lines.push(`command = "${escapeTomlString(server.command)}"`)
-
-    if (server.args && server.args.length > 0) {
-      const argsStr = server.args.map((arg) => `"${escapeTomlString(arg)}"`).join(", ")
-      lines.push(`args = [${argsStr}]`)
-    }
-
-    if (server.env && Object.keys(server.env).length > 0) {
-      lines.push("")
-      lines.push(`[mcp_servers.${name}.env]`)
-      for (const [key, value] of Object.entries(server.env)) {
-        lines.push(`${key} = "${escapeTomlString(value)}"`)
-      }
-    }
-
-    sections.push(lines.join("\n"))
-  }
-
-  return sections.join("\n\n") + "\n"
+function escapeForRegex(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
 }

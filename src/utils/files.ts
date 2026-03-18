@@ -41,9 +41,23 @@ export async function writeText(filePath: string, content: string): Promise<void
   await fs.writeFile(filePath, content, "utf8")
 }
 
+export async function writeTextSecure(filePath: string, content: string): Promise<void> {
+  await ensureDir(path.dirname(filePath))
+  await fs.writeFile(filePath, content, { encoding: "utf8", mode: 0o600 })
+  await fs.chmod(filePath, 0o600)
+}
+
 export async function writeJson(filePath: string, data: unknown): Promise<void> {
   const content = JSON.stringify(data, null, 2)
   await writeText(filePath, content + "\n")
+}
+
+/** Write JSON with restrictive permissions (0o600) for files containing secrets */
+export async function writeJsonSecure(filePath: string, data: unknown): Promise<void> {
+  const content = JSON.stringify(data, null, 2)
+  await ensureDir(path.dirname(filePath))
+  await fs.writeFile(filePath, content + "\n", { encoding: "utf8", mode: 0o600 })
+  await fs.chmod(filePath, 0o600)
 }
 
 export async function walkFiles(root: string): Promise<string[]> {
@@ -59,6 +73,21 @@ export async function walkFiles(root: string): Promise<string[]> {
     }
   }
   return results
+}
+
+/**
+ * Resolve a colon-separated command name into a filesystem path.
+ * e.g. resolveCommandPath("/commands", "ce:plan", ".md") -> "/commands/ce/plan.md"
+ * Creates intermediate directories as needed.
+ */
+export async function resolveCommandPath(dir: string, name: string, ext: string): Promise<string> {
+  const parts = name.split(":")
+  if (parts.length > 1) {
+    const nestedDir = path.join(dir, ...parts.slice(0, -1))
+    await ensureDir(nestedDir)
+    return path.join(nestedDir, `${parts[parts.length - 1]}${ext}`)
+  }
+  return path.join(dir, `${name}${ext}`)
 }
 
 export async function copyDir(sourceDir: string, targetDir: string): Promise<void> {

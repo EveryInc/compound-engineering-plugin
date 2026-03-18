@@ -65,7 +65,7 @@ You are an expert design-to-code synchronization specialist with deep expertise 
    - Move any width constraints and horizontal padding to wrapper divs in parent HTML/ERB
    - Update component props or configuration
    - Adjust layout structures if needed
-   - Ensure changes follow the project's coding standards from CLAUDE.md
+   - Ensure changes follow the project's coding standards from AGENTS.md
    - Use mobile-first responsive patterns (e.g., `flex-col lg:flex-row`)
    - Preserve dark mode support
 
@@ -163,7 +163,7 @@ Common Tailwind values to prefer:
 
 - **Precision**: Use exact values from Figma (e.g., "16px" not "about 15-17px"), but prefer Tailwind defaults when close enough
 - **Completeness**: Address all differences, no matter how minor
-- **Code Quality**: Follow CLAUDE.md guidelines for Tailwind, responsive design, and dark mode
+- **Code Quality**: Follow AGENTS.md guidance for project-specific frontend conventions
 - **Communication**: Be specific about what changed and why
 - **Iteration-Ready**: Design your fixes to allow the agent to run again for verification
 - **Responsive First**: Always implement mobile-first responsive designs with appropriate breakpoints

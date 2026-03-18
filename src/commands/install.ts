@@ -3,11 +3,13 @@ import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
 import { loadClaudePlugin } from "../parsers/claude"
-import { targets } from "../targets"
+import { targets, validateScope } from "../targets"
 import { pathExists } from "../utils/files"
 import type { PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
 import { expandHome, resolveTargetHome } from "../utils/resolve-home"
+import { resolveTargetOutputRoot } from "../utils/resolve-output"
+import { detectInstalledTools } from "../utils/detect-tools"
 
 const permissionModes: PermissionMode[] = ["none", "broad", "from-commands"]
 
@@ -25,7 +27,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | droid | cursor | pi | gemini)",
+      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro | windsurf | openclaw | qwen | all)",
     },
     output: {
       type: "string",
@@ -42,14 +44,28 @@ export default defineCommand({
       alias: "pi-home",
       description: "Write Pi output to this Pi root (ex: ~/.pi/agent or ./.pi)",
     },
+    openclawHome: {
+      type: "string",
+      alias: "openclaw-home",
+      description: "Write OpenClaw output to this extensions root (ex: ~/.openclaw/extensions)",
+    },
+    qwenHome: {
+      type: "string",
+      alias: "qwen-home",
+      description: "Write Qwen output to this Qwen extensions root (ex: ~/.qwen/extensions)",
+    },
+    scope: {
+      type: "string",
+      description: "Scope level: global | workspace (default varies by target)",
+    },
     also: {
       type: "string",
       description: "Comma-separated extra targets to generate (ex: codex)",
     },
     permissions: {
       type: "string",
-      default: "broad",
-      description: "Permission mapping: none | broad | from-commands",
+      default: "none", // Default is "none" -- writing global permissions to opencode.json pollutes user config. See ADR-003.
+      description: "Permission mapping written to opencode.json: none (default) | broad | from-command",
     },
     agentMode: {
       type: "string",
@@ -64,13 +80,6 @@ export default defineCommand({
   },
   async run({ args }) {
     const targetName = String(args.to)
-    const target = targets[targetName]
-    if (!target) {
-      throw new Error(`Unknown target: ${targetName}`)
-    }
-    if (!target.implemented) {
-      throw new Error(`Target ${targetName} is registered but not implemented yet.`)
-    }
 
     const permissions = String(args.permissions)
     if (!permissionModes.includes(permissions as PermissionMode)) {
@@ -84,6 +93,9 @@ export default defineCommand({
       const outputRoot = resolveOutputRoot(args.output)
       const codexHome = resolveTargetHome(args.codexHome, path.join(os.homedir(), ".codex"))
       const piHome = resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent"))
+      const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
+      const openclawHome = resolveTargetHome(args.openclawHome, path.join(os.homedir(), ".openclaw", "extensions"))
+      const qwenHome = resolveTargetHome(args.qwenHome, path.join(os.homedir(), ".qwen", "extensions"))
 
       const options = {
         agentMode: String(args.agentMode) === "primary" ? "primary" : "subagent",
@@ -91,13 +103,77 @@ export default defineCommand({
         permissions: permissions as PermissionMode,
       }
 
+      if (targetName === "all") {
+        const detected = await detectInstalledTools()
+        const activeTargets = detected.filter((t) => t.detected)
+
+        if (activeTargets.length === 0) {
+          console.log("No AI coding tools detected. Install at least one tool first.")
+          return
+        }
+
+        console.log(`Detected ${activeTargets.length} tool(s):`)
+        for (const tool of detected) {
+          console.log(`  ${tool.detected ? "✓" : "✗"} ${tool.name} — ${tool.reason}`)
+        }
+
+        for (const tool of activeTargets) {
+          const handler = targets[tool.name]
+          if (!handler || !handler.implemented) {
+            console.warn(`Skipping ${tool.name}: not implemented.`)
+            continue
+          }
+          const bundle = handler.convert(plugin, options)
+          if (!bundle) {
+            console.warn(`Skipping ${tool.name}: no output returned.`)
+            continue
+          }
+          const root = resolveTargetOutputRoot({
+            targetName: tool.name,
+            outputRoot,
+            codexHome,
+            piHome,
+            openclawHome,
+            qwenHome,
+            pluginName: plugin.manifest.name,
+            hasExplicitOutput,
+          })
+          await handler.write(root, bundle)
+          console.log(`Installed ${plugin.manifest.name} to ${tool.name} at ${root}`)
+        }
+
+        if (activeTargets.some((t) => t.name === "codex")) {
+          await ensureCodexAgentsFile(codexHome)
+        }
+        return
+      }
+
+      const target = targets[targetName]
+      if (!target) {
+        throw new Error(`Unknown target: ${targetName}`)
+      }
+      if (!target.implemented) {
+        throw new Error(`Target ${targetName} is registered but not implemented yet.`)
+      }
+
+      const resolvedScope = validateScope(targetName, target, args.scope ? String(args.scope) : undefined)
+
       const bundle = target.convert(plugin, options)
       if (!bundle) {
         throw new Error(`Target ${targetName} did not return a bundle.`)
       }
-      const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
-      const primaryOutputRoot = resolveTargetOutputRoot(targetName, outputRoot, codexHome, piHome, hasExplicitOutput)
-      await target.write(primaryOutputRoot, bundle)
+      const primaryOutputRoot = resolveTargetOutputRoot({
+        targetName,
+        outputRoot,
+        codexHome,
+        piHome,
+        openclawHome,
+        qwenHome,
+        pluginName: plugin.manifest.name,
+        hasExplicitOutput,
+        scope: resolvedScope,
+      })
+      await target.write(primaryOutputRoot, bundle, resolvedScope)
       console.log(`Installed ${plugin.manifest.name} to ${primaryOutputRoot}`)
 
       const extraTargets = parseExtraTargets(args.also)
@@ -117,8 +193,18 @@ export default defineCommand({
           console.warn(`Skipping ${extra}: no output returned.`)
           continue
         }
-        const extraRoot = resolveTargetOutputRoot(extra, path.join(outputRoot, extra), codexHome, piHome, hasExplicitOutput)
-        await handler.write(extraRoot, extraBundle)
+        const extraRoot = resolveTargetOutputRoot({
+          targetName: extra,
+          outputRoot: path.join(outputRoot, extra),
+          codexHome,
+          piHome,
+          openclawHome,
+          qwenHome,
+          pluginName: plugin.manifest.name,
+          hasExplicitOutput,
+          scope: handler.defaultScope,
+        })
+        await handler.write(extraRoot, extraBundle, handler.defaultScope)
         console.log(`Installed ${plugin.manifest.name} to ${extraRoot}`)
       }
 
@@ -167,27 +253,6 @@ function resolveOutputRoot(value: unknown): string {
   // OpenCode global config lives at ~/.config/opencode per XDG spec
   // See: https://opencode.ai/docs/config/
   return path.join(os.homedir(), ".config", "opencode")
-}
-
-function resolveTargetOutputRoot(
-  targetName: string,
-  outputRoot: string,
-  codexHome: string,
-  piHome: string,
-  hasExplicitOutput: boolean,
-): string {
-  if (targetName === "codex") return codexHome
-  if (targetName === "pi") return piHome
-  if (targetName === "droid") return path.join(os.homedir(), ".factory")
-  if (targetName === "cursor") {
-    const base = hasExplicitOutput ? outputRoot : process.cwd()
-    return path.join(base, ".cursor")
-  }
-  if (targetName === "gemini") {
-    const base = hasExplicitOutput ? outputRoot : process.cwd()
-    return path.join(base, ".gemini")
-  }
-  return outputRoot
 }
 
 async function resolveGitHubPluginPath(pluginName: string): Promise<ResolvedPluginPath> {

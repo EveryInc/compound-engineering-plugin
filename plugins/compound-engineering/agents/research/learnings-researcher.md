@@ -1,7 +1,7 @@
 ---
 name: learnings-researcher
 description: "Searches docs/solutions/ for relevant past solutions by frontmatter metadata. Use before implementing features or fixing problems to surface institutional knowledge and prevent repeated mistakes."
-model: haiku
+model: inherit
 ---
 
 <examples>
@@ -257,7 +257,7 @@ Structure your findings as:
 ## Integration Points
 
 This agent is designed to be invoked by:
-- `/workflows:plan` - To inform planning with institutional knowledge
+- `/ce:plan` - To inform planning with institutional knowledge
 - `/deepen-plan` - To add depth with relevant learnings
 - Manual invocation before starting work on a feature
 

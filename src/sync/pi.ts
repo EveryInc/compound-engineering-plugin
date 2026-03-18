@@ -1,8 +1,10 @@
-import fs from "fs/promises"
 import path from "path"
 import type { ClaudeHomeConfig } from "../parsers/claude-home"
 import type { ClaudeMcpServer } from "../types/claude"
-import { forceSymlink, isValidSkillName } from "../utils/symlink"
+import { ensureDir } from "../utils/files"
+import { syncPiCommands } from "./commands"
+import { mergeJsonConfigAtKey } from "./json-config"
+import { syncSkills } from "./skills"
 
 type McporterServer = {
   baseUrl?: string
@@ -20,45 +22,19 @@ export async function syncToPi(
   config: ClaudeHomeConfig,
   outputRoot: string,
 ): Promise<void> {
-  const skillsDir = path.join(outputRoot, "skills")
   const mcporterPath = path.join(outputRoot, "compound-engineering", "mcporter.json")
 
-  await fs.mkdir(skillsDir, { recursive: true })
-
-  for (const skill of config.skills) {
-    if (!isValidSkillName(skill.name)) {
-      console.warn(`Skipping skill with invalid name: ${skill.name}`)
-      continue
-    }
-    const target = path.join(skillsDir, skill.name)
-    await forceSymlink(skill.sourceDir, target)
-  }
+  await syncSkills(config.skills, path.join(outputRoot, "skills"))
+  await syncPiCommands(config, outputRoot)
 
   if (Object.keys(config.mcpServers).length > 0) {
-    await fs.mkdir(path.dirname(mcporterPath), { recursive: true })
-
-    const existing = await readJsonSafe(mcporterPath)
+    await ensureDir(path.dirname(mcporterPath))
     const converted = convertMcpToMcporter(config.mcpServers)
-    const merged: McporterConfig = {
-      mcpServers: {
-        ...(existing.mcpServers ?? {}),
-        ...converted.mcpServers,
-      },
-    }
-
-    await fs.writeFile(mcporterPath, JSON.stringify(merged, null, 2), { mode: 0o600 })
-  }
-}
-
-async function readJsonSafe(filePath: string): Promise<Partial<McporterConfig>> {
-  try {
-    const content = await fs.readFile(filePath, "utf-8")
-    return JSON.parse(content) as Partial<McporterConfig>
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      return {}
-    }
-    throw err
+    await mergeJsonConfigAtKey({
+      configPath: mcporterPath,
+      key: "mcpServers",
+      incoming: converted.mcpServers,
+    })
   }
 }
 
