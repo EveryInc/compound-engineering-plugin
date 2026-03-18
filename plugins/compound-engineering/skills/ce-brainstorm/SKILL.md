@@ -87,6 +87,8 @@ Scan the repo before substantive brainstorming. Match depth to scope:
 
 *Topic Scan* — Search for relevant terms. Read the most relevant existing artifact if one exists (brainstorm, plan, spec, skill, feature doc). Skim adjacent examples covering similar behavior.
 
+*User Research Scan* — Run `compound-engineering:research:user-research-analyst` to surface relevant personas, interview insights, and opportunities from `docs/user-research/`. If findings are returned, briefly summarize them before starting the collaborative dialogue. If no research data exists, skip this silently and do not mention the absence.
+
 If nothing obvious appears after a short scan, say so and continue. Do not drift into technical planning — avoid inspecting tests, migrations, deployment, or low-level architecture unless the brainstorm is itself about a technical decision.
 
 #### 1.2 Product Pressure Test

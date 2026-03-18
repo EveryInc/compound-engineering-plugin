@@ -9,6 +9,29 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+
+- **`/ce:user-research` command** - Plan user research, process interview transcripts, and build personas from accumulated insights
+- **`research-plan` skill** - Create structured research plans with outcome-focused objectives and story-based discussion guides
+- **`transcript-insights` skill** - Process interview transcripts into structured snapshots with tagged insights and experience maps
+- **`persona-builder` skill** - Synthesize insights across interviews into living persona documents with confidence tracking
+- **`user-research-analyst` agent** - Search research artifacts for relevant personas and insights
+- **Discovery playbook reference** - Bundled Continuous Product Discovery Playbook (Teresa Torres + Mom Test methodology)
+
+### Changed
+
+- **`ce:brainstorm`** - Now runs `user-research-analyst` in parallel; silently skips when no research data exists
+- **`ce:plan`** - Research context integrated into Step 1.6 consolidation
+
+### Fixed
+
+- **`/ce:user-research` command** — Process phase now handles inline transcript content (saves to file before processing) instead of requiring pre-existing files in `docs/user-research/transcripts/`
+- **`transcript-insights` skill** — Step 2 (Link to Research Plan) now gracefully handles empty `docs/user-research/plans/` directory by defaulting to ad-hoc instead of stalling
+
+---
+
 ## [2.44.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.43.0...compound-engineering-v2.44.0) (2026-03-18)
 
 
@@ -103,6 +126,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **`create-agent-skill` / `heal-skill` YAML crash** — `argument-hint` values containing special characters now properly quoted to prevent YAML parse errors in the Claude Code TUI. ([#219](https://github.com/EveryInc/compound-engineering-plugin/pull/219)) — thanks [@solon](https://github.com/solon)!
 - **`resolve-pr-parallel` skill name** — Renamed from `resolve_pr_parallel` (underscore) to `resolve-pr-parallel` (hyphen) to match the standard naming convention. ([#202](https://github.com/EveryInc/compound-engineering-plugin/pull/202)) — thanks [@rburnham52](https://github.com/rburnham52)!
+>>>>>>> upstream/main
 
 ---
 

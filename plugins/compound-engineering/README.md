@@ -6,8 +6,8 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 25+ |
-| Skills | 45+ |
+| Agents | 30 |
+| Skills | 48 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -44,6 +44,7 @@ Agents are organized into categories for easier discovery.
 | `issue-intelligence-analyst` | Analyze GitHub issues to surface recurring themes and pain patterns |
 | `learnings-researcher` | Search institutional learnings for relevant past solutions |
 | `repo-research-analyst` | Research repository structure and conventions |
+| `user-research-analyst` | Search research artifacts for relevant personas and insights |
 
 ### Design
 
@@ -79,6 +80,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `/ce:ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
 | `/ce:brainstorm` | Explore requirements and approaches before planning |
 | `/ce:plan` | Create implementation plans |
+| `/ce:user-research` | Plan user research, process transcripts, and build personas |
 | `/ce:review` | Run comprehensive code reviews |
 | `/ce:work` | Execute work items systematically |
 | `/ce:compound` | Document solved problems to compound team knowledge |
@@ -156,6 +158,14 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | Skill | Description |
 |-------|-------------|
 | `agent-browser` | CLI-based browser automation using Vercel's agent-browser |
+
+### User Research
+
+| Skill | Description |
+|-------|-------------|
+| `research-plan` | Create structured research plans with outcome-focused objectives |
+| `transcript-insights` | Process interview transcripts into structured snapshots and insights |
+| `persona-builder` | Synthesize insights across interviews into living persona documents |
 
 ### Beta Skills
 

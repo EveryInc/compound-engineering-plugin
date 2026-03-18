@@ -3,4 +3,9 @@
 node_modules/
 .codex/
 todos/
+.claude/settings.json
 .worktrees
+
+# Research data - transcripts contain raw interview data with PII
+docs/user-research/transcripts/*
+!docs/user-research/transcripts/.gitkeep
