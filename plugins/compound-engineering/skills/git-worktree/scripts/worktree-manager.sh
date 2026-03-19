@@ -198,8 +198,9 @@ create_worktree() {
   # Always compare against the default branch, not from_branch, so that passing
   # a PR branch as from_branch doesn't bypass the safety check
   local default_branch
-  default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||') || default_branch="main"
-  trust_dev_tools "$worktree_path" "$default_branch"
+  default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
+  default_branch="${default_branch:-main}"
+  trust_dev_tools "$worktree_path" "origin/$default_branch"
 
   echo -e "${GREEN}✓ Worktree created successfully!${NC}"
   echo ""
