@@ -206,7 +206,12 @@ create_worktree() {
   if ! git fetch origin "$default_branch" --quiet 2>/dev/null; then
     echo -e "  ${YELLOW}Warning: could not fetch origin/$default_branch -- trust check may use stale data${NC}"
   fi
-  trust_dev_tools "$worktree_path" "origin/$default_branch"
+  # Skip trust entirely if the ref doesn't exist locally (no baseline to compare)
+  if git rev-parse --verify "origin/$default_branch" &>/dev/null; then
+    trust_dev_tools "$worktree_path" "origin/$default_branch"
+  else
+    echo -e "  ${YELLOW}Skipping dev tool trust -- origin/$default_branch not found locally${NC}"
+  fi
 
   echo -e "${GREEN}✓ Worktree created successfully!${NC}"
   echo ""
