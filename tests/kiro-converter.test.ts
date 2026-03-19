@@ -625,9 +625,10 @@ describe("convertClaudeToKiro", () => {
     const bundle = convertClaudeToKiro(plugin, defaultOptions)
     console.warn = originalWarn
 
-    // Hook still created but with no toolTypes (empty array means nothing matched)
-    expect(bundle.hookFiles).toHaveLength(1)
+    // Hook skipped — unknown matchers don't widen to wildcard
+    expect(bundle.hookFiles).toHaveLength(0)
     expect(warnings.some((w) => w.includes("UnknownTool"))).toBe(true)
+    expect(warnings.some((w) => w.includes("skipped") || w.includes("Skipped"))).toBe(true)
   })
 
   test("agent hook includes capabilities when available", () => {
@@ -642,6 +643,43 @@ describe("convertClaudeToKiro", () => {
     const prompt = (bundle.hookFiles[0].hook.then as { prompt: string }).prompt
     expect(prompt).toContain("Threat modeling")
     expect(prompt).toContain("OWASP")
+  })
+
+  test("$CLAUDE_PLUGIN_ROOT path traversal is rejected with warning", () => {
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PostToolUse: [{ matcher: "Write", hooks: [{ type: "command", command: "${CLAUDE_PLUGIN_ROOT}/../../.ssh/id_rsa" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    console.warn = originalWarn
+
+    // Script should NOT be copied — path escapes plugin root
+    expect(bundle.hookScripts).toHaveLength(0)
+    expect(warnings.some((w) => w.includes("escapes plugin root"))).toBe(true)
+  })
+
+  test("prompt hook text is transformed for Kiro", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PostToolUse: [{ matcher: "Write", hooks: [{ type: "prompt", prompt: "Check .claude/ directory and run /review" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    const prompt = (bundle.hookFiles[0].hook.then as { prompt: string }).prompt
+    expect(prompt).toContain(".kiro/")
+    expect(prompt).not.toContain(".claude/")
+    expect(prompt).toContain("the review skill")
   })
 
   test("no hooks produces empty hookFiles array", () => {

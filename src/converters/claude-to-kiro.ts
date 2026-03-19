@@ -337,8 +337,15 @@ function convertHooks(
 
     for (const group of matcherGroups) {
       const toolTypes = mapMatcherToToolTypes(group.matcher, warnings)
+
+      // null = wildcard (match all), [] = nothing mapped (skip)
+      if (toolTypes !== null && toolTypes.length === 0) {
+        warnings.push(`Warning: All matchers in "${group.matcher}" are unknown. Hook skipped.`)
+        continue
+      }
+
       const when: KiroHookWhen = { type: kiroEventType }
-      if (toolTypes.length > 0) {
+      if (toolTypes !== null && toolTypes.length > 0) {
         when.toolTypes = toolTypes
       }
 
@@ -346,7 +353,7 @@ function convertHooks(
         const hook = group.hooks[i]
         const result = convertSingleHook(hook, agents, pluginRoot, when, eventName, group.matcher, i)
         if (result.hookFile) {
-          const toolSuffix = toolTypes.length > 0 ? toolTypes.join("-") : "all"
+          const toolSuffix = toolTypes !== null && toolTypes.length > 0 ? toolTypes.join("-") : "all"
           const baseName = `${pluginSlug}-${slugify(eventName)}-${toolSuffix}-${i}`
           const fileName = uniqueName(baseName, usedFileNames)
           hookFiles.push({ fileName, hook: result.hookFile })
@@ -432,7 +439,7 @@ function convertSingleHook(
         description,
         version: "1",
         when,
-        then: { type: "askAgent", prompt: hook.prompt },
+        then: { type: "askAgent", prompt: transformContentForKiro(hook.prompt) },
       },
       scripts,
       warnings,
@@ -477,15 +484,16 @@ function convertSingleHook(
   return { hookFile: null, scripts, warnings }
 }
 
-function mapMatcherToToolTypes(matcher: string | undefined, warnings: string[] = []): string[] {
-  if (!matcher || matcher === "*" || matcher === "") return []
+/** Returns mapped tool types, or null if the matcher is an intentional wildcard. */
+function mapMatcherToToolTypes(matcher: string | undefined, warnings: string[] = []): string[] | null {
+  if (!matcher || matcher === "*" || matcher === "") return null // Intentional wildcard
 
   const parts = matcher.split("|").map((p) => p.trim()).filter(Boolean)
   const types = new Set<string>()
   for (const part of parts) {
     const mapped = CLAUDE_TOOL_TO_KIRO_TYPE[part]
     if (mapped) {
-      if (mapped === "*") return [] // Wildcard — match all, omit toolTypes
+      if (mapped === "*") return null // Wildcard — match all, omit toolTypes
       types.add(mapped)
     } else {
       const lower = part.toLowerCase()
@@ -496,6 +504,7 @@ function mapMatcherToToolTypes(matcher: string | undefined, warnings: string[] =
       }
     }
   }
+  // If nothing mapped (all matchers unknown), return empty array (distinct from null/wildcard)
   return [...types].sort()
 }
 
@@ -509,7 +518,12 @@ function rewriteCommand(command: string, pluginRoot: string): RewriteResult {
   // Rewrite ${CLAUDE_PLUGIN_ROOT}/path → .kiro/hooks/scripts/<basename> and collect scripts
   const pluginRootPattern = /\$\{?CLAUDE_PLUGIN_ROOT\}?\/([^\s"']+)/g
   rewritten = rewritten.replace(pluginRootPattern, (_match, relativePath: string) => {
-    const sourcePath = path.join(pluginRoot, relativePath)
+    const sourcePath = path.resolve(pluginRoot, relativePath)
+    const resolvedRoot = path.resolve(pluginRoot)
+    if (!sourcePath.startsWith(resolvedRoot + path.sep) && sourcePath !== resolvedRoot) {
+      commandWarnings.push(`Warning: Hook script path "${relativePath}" escapes plugin root. Skipped.`)
+      return _match // Leave original reference, don't copy
+    }
     const scriptBasename = path.basename(relativePath)
     scripts.push({ name: relativePath, sourcePath })
     const kiroPath = `.kiro/hooks/scripts/${scriptBasename}`
