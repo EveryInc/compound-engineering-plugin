@@ -72,26 +72,28 @@ copy_env_files() {
 #
 # Safety: only auto-trusts configs that are unchanged from the default branch.
 # Modified configs (e.g., from a PR) are flagged for manual review.
+#
+# Note: there is an inherent TOCTOU gap between the hash check and the trust
+# command. Exploiting it requires local filesystem write access + timing,
+# which is acceptable for single-user dev machines.
 trust_dev_tools() {
   local worktree_path="$1"
-  local from_branch="$2"
+  local base_ref="$2"
   local trusted=0
-  local attempted=0
   local skipped=()
 
-  # mise: trust this directory if a mise config file is present
+  # mise: trust the specific config file if present and unchanged
   if command -v mise &>/dev/null; then
     for f in .mise.toml mise.toml .tool-versions; do
       if [[ -f "$worktree_path/$f" ]]; then
-        if _config_unchanged "$f" "$from_branch" "$worktree_path"; then
-          attempted=$((attempted + 1))
-          if (cd "$worktree_path" && mise trust --quiet); then
+        if _config_unchanged "$f" "$base_ref" "$worktree_path"; then
+          if (cd "$worktree_path" && mise trust "$f" --quiet); then
             trusted=$((trusted + 1))
           else
-            echo -e "  ${YELLOW}Warning: 'mise trust' failed -- run manually in $worktree_path${NC}"
+            echo -e "  ${YELLOW}Warning: 'mise trust $f' failed -- run manually in $worktree_path${NC}"
           fi
         else
-          skipped+=("$f (mise)")
+          skipped+=("mise trust $f")
         fi
         break
       fi
@@ -101,24 +103,20 @@ trust_dev_tools() {
   # direnv: allow .envrc
   if command -v direnv &>/dev/null; then
     if [[ -f "$worktree_path/.envrc" ]]; then
-      if _config_unchanged ".envrc" "$from_branch" "$worktree_path"; then
-        attempted=$((attempted + 1))
+      if _config_unchanged ".envrc" "$base_ref" "$worktree_path"; then
         if (cd "$worktree_path" && direnv allow); then
           trusted=$((trusted + 1))
         else
           echo -e "  ${YELLOW}Warning: 'direnv allow' failed -- run manually in $worktree_path${NC}"
         fi
       else
-        skipped+=(".envrc (direnv)")
+        skipped+=("direnv allow")
       fi
     fi
   fi
 
   if [[ $trusted -gt 0 ]]; then
     echo -e "  ${GREEN}✓ Trusted $trusted dev tool config(s)${NC}"
-  elif [[ $attempted -gt 0 ]]; then
-    echo -e "  ${YELLOW}Warning: dev tool trust was attempted but all $attempted config(s) failed${NC}"
-    echo -e "  ${YELLOW}Run 'mise trust' / 'direnv allow' manually in $worktree_path${NC}"
   fi
 
   if [[ ${#skipped[@]} -gt 0 ]]; then
@@ -126,28 +124,29 @@ trust_dev_tools() {
     for item in "${skipped[@]}"; do
       echo -e "    - $item"
     done
-    echo -e "  ${BLUE}Review the diff, then trust manually: cd $worktree_path && mise trust && direnv allow${NC}"
+    echo -e "  ${BLUE}Review the diff, then run manually: cd $worktree_path && ${skipped[*]}${NC}"
   fi
 }
 
 # Check if a config file is unchanged from the base branch.
 # Returns 0 (true) if the file is identical to the base branch version.
 # Returns 1 (false) if the file was added or modified by this branch.
+#
+# Note: git hash-object on a file path applies gitattributes filters (e.g.,
+# line-ending normalization) while git show pipes raw bytes. A mismatch
+# would cause a false negative (trust skipped), which is the safe direction.
 _config_unchanged() {
   local file="$1"
-  local base_branch="$2"
-  local wt_path="$3"
+  local base_ref="$2"
+  local worktree_path="$3"
 
-  # If file doesn't exist in base branch, it was added by this branch -- not safe
-  if ! git show "$base_branch:$file" &>/dev/null; then
-    return 1
-  fi
-
-  # Compare base branch version to worktree version
+  # Hash the base branch version; if the file doesn't exist there, it was
+  # added by this branch and is not safe to auto-trust
   local base_hash
-  base_hash=$(git show "$base_branch:$file" | git hash-object --stdin)
+  base_hash=$(git show "$base_ref:$file" 2>/dev/null | git hash-object --stdin) || return 1
+
   local worktree_hash
-  worktree_hash=$(git hash-object "$wt_path/$file")
+  worktree_hash=$(git hash-object "$worktree_path/$file")
 
   [[ "$base_hash" == "$worktree_hash" ]]
 }
@@ -194,12 +193,14 @@ create_worktree() {
   # Copy environment files
   copy_env_files "$worktree_path"
 
-  # Trust dev tool configs (mise, direnv) so hooks and scripts work immediately
-  # Always compare against the default branch, not from_branch, so that passing
-  # a PR branch as from_branch doesn't bypass the safety check
+  # Trust dev tool configs (mise, direnv) so hooks and scripts work immediately.
+  # Compare against the default branch (not from_branch) so that passing a PR
+  # branch as from_branch doesn't bypass the safety check.
   local default_branch
   default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
   default_branch="${default_branch:-main}"
+  # Ensure the ref is fresh -- create_worktree only fetches from_branch
+  git fetch origin "$default_branch" --quiet 2>/dev/null || true
   trust_dev_tools "$worktree_path" "origin/$default_branch"
 
   echo -e "${GREEN}✓ Worktree created successfully!${NC}"
