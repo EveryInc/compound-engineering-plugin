@@ -1,6 +1,6 @@
 {
   "name": "@every-env/compound-plugin",
-  "version": "2.40.3",
+  "version": "2.45.0",
   "type": "module",
   "private": false,
   "bin": {
@@ -17,7 +17,9 @@
     "list": "bun run src/index.ts list",
     "cli:install": "bun run src/index.ts install",
     "test": "bun test",
-    "release:dry-run": "semantic-release --dry-run"
+    "release:preview": "bun run scripts/release/preview.ts",
+    "release:sync-metadata": "bun run scripts/release/sync-metadata.ts --write",
+    "release:validate": "bun run scripts/release/validate.ts"
   },
   "dependencies": {
     "citty": "^0.1.6",

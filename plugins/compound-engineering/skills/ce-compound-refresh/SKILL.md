@@ -161,6 +161,7 @@ A learning has several dimensions that can independently go stale. Surface-level
 - **Recommended solution** — does the fix still match how the code actually works today? A renamed file with a completely different implementation pattern is not just a path update.
 - **Code examples** — if the learning includes code snippets, do they still reflect the current implementation?
 - **Related docs** — are cross-referenced learnings and patterns still present and consistent?
+- **Auto memory** — does the auto memory directory contain notes in the same problem domain? Read MEMORY.md from the auto memory directory (the path is known from the system prompt context). If it does not exist or is empty, skip this dimension. A memory note describing a different approach than what the learning recommends is a supplementary drift signal.
 
 Match investigation depth to the learning's specificity — a learning referencing exact file paths and code snippets needs more verification than one describing a general principle.
 
@@ -172,6 +173,13 @@ The critical distinction is whether the drift is **cosmetic** (references moved 
 - **Replace territory** — the recommended solution conflicts with current code, the architectural approach changed, or the pattern is no longer the preferred way. This means a new learning needs to be written. A replacement subagent writes the successor following `ce:compound`'s document format (frontmatter, problem, root cause, solution, prevention), using the investigation evidence already gathered. The orchestrator does not rewrite learnings inline — it delegates to a subagent for context isolation.
 
 **The boundary:** if you find yourself rewriting the solution section or changing what the learning recommends, stop — that is Replace, not Update.
+
+**Memory-sourced drift signals** are supplementary, not primary. A memory note describing a different approach does not alone justify Replace or Archive. Use memory signals to:
+- Corroborate codebase-sourced drift (strengthens the case for Replace)
+- Prompt deeper investigation when codebase evidence is borderline
+- Add context to the evidence report ("(auto memory [claude]) notes suggest approach X may have changed since this learning was written")
+
+In autonomous mode, memory-only drift (no codebase corroboration) should result in stale-marking, not action.
 
 ### Judgment Guidelines
 
@@ -203,6 +211,8 @@ Use subagents for context isolation when investigating multiple artifacts — no
 **When spawning any subagent, include this instruction in its task prompt:**
 
 > Use dedicated file search and read tools (Glob, Grep, Read) for all investigation. Do NOT use shell commands (ls, find, cat, grep, test, bash) for file operations. This avoids permission prompts and is more reliable.
+>
+> Also read MEMORY.md from the auto memory directory if it exists. Check for notes related to the learning's problem domain. Report any memory-sourced drift signals separately from codebase-sourced evidence, tagged with "(auto memory [claude])" in the evidence section. If MEMORY.md does not exist or is empty, skip this check.
 
 There are two subagent roles:
 
@@ -445,7 +455,7 @@ Marked stale: S
 Then for EVERY file processed, list:
 - The file path
 - The classification (Keep/Update/Replace/Archive/Stale)
-- What evidence was found
+- What evidence was found -- tag any memory-sourced findings with "(auto memory [claude])" to distinguish them from codebase-sourced evidence
 - What action was taken (or recommended)
 
 For **Keep** outcomes, list them under a reviewed-without-edits section so the result is visible without creating git churn.

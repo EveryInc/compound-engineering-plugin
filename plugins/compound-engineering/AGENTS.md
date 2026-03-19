@@ -9,13 +9,13 @@ They supplement the repo-root `AGENTS.md`.
 
 **IMPORTANT**: Routine PRs should not cut releases for this plugin.
 
-The repo uses an automatied release process to prepare plugin releases, including version selection and changelog generation. Because multiple PRs may merge before the next release, contributors cannot know the final released version from within an individual PR.
+The repo uses an automated release process to prepare plugin releases, including version selection and changelog generation. Because multiple PRs may merge before the next release, contributors cannot know the final released version from within an individual PR.
 
 ### Contributor Rules
 
 - Do **not** manually bump `.claude-plugin/plugin.json` version in a normal feature PR.
 - Do **not** manually bump `.claude-plugin/marketplace.json` plugin version in a normal feature PR.
-- Do **not** cut a release section in `CHANGELOG.md` for a normal feature PR.
+- Do **not** cut a release section in the canonical root `CHANGELOG.md` for a normal feature PR.
 - Do update substantive docs that are part of the actual change, such as `README.md`, component tables, usage instructions, or counts when they would otherwise become inaccurate.
 
 ### Pre-Commit Checklist
@@ -24,7 +24,7 @@ Before committing ANY changes:
 
 - [ ] No manual release-version bump in `.claude-plugin/plugin.json`
 - [ ] No manual release-version bump in `.claude-plugin/marketplace.json`
-- [ ] No manual release entry added to `CHANGELOG.md`
+- [ ] No manual release entry added to the root `CHANGELOG.md`
 - [ ] README.md component counts verified
 - [ ] README.md tables accurate (agents, commands, skills)
 - [ ] plugin.json description matches current counts
@@ -115,6 +115,15 @@ grep -E '`(references|assets|scripts)/[^`]+`' skills/*/SKILL.md
 # Check description format - should describe what + when
 grep -E '^description:' skills/*/SKILL.md
 ```
+
+## Adding Components
+
+- **New skill:** Create `skills/<name>/SKILL.md` with required YAML frontmatter (`name`, `description`). Reference files go in `skills/<name>/references/`. Add the skill to the appropriate category table in `README.md` and update the skill count.
+- **New agent:** Create `agents/<category>/<name>.md` with frontmatter. Categories: `review`, `research`, `design`, `docs`, `workflow`. Add the agent to `README.md` and update the agent count.
+
+## Beta Skills
+
+Beta skills use a `-beta` suffix and `disable-model-invocation: true` to prevent accidental auto-triggering. See `docs/solutions/skill-design/beta-skills-framework.md` for naming, validation, and promotion rules.
 
 ## Documentation
 

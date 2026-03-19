@@ -1,0 +1,73 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "include-component-in-tag": true,
+  "release-search-depth": 20,
+  "commit-search-depth": 50,
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "cli",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "package.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/compound-engineering": {
+      "release-type": "simple",
+      "package-name": "compound-engineering",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": ".claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": ".cursor-plugin/plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "plugins/coding-tutor": {
+      "release-type": "simple",
+      "package-name": "coding-tutor",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": ".claude-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": ".cursor-plugin/plugin.json",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    ".claude-plugin": {
+      "release-type": "simple",
+      "package-name": "marketplace",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "marketplace.json",
+          "jsonpath": "$.metadata.version"
+        }
+      ]
+    },
+    ".cursor-plugin": {
+      "release-type": "simple",
+      "package-name": "cursor-marketplace",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "marketplace.json",
+          "jsonpath": "$.metadata.version"
+        }
+      ]
+    }
+  }
+}

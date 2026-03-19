@@ -6,16 +6,15 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 28 |
-| Commands | 23 |
-| Skills | 20 |
+| Agents | 25+ |
+| Skills | 45+ |
 | MCP Servers | 1 |
 
 ## Agents
 
 Agents are organized into categories for easier discovery.
 
-### Review (15)
+### Review
 
 | Agent | Description |
 |-------|-------------|
@@ -35,17 +34,18 @@ Agents are organized into categories for easier discovery.
 | `schema-drift-detector` | Detect unrelated schema.rb changes in PRs |
 | `security-sentinel` | Security audits and vulnerability assessments |
 
-### Research (5)
+### Research
 
 | Agent | Description |
 |-------|-------------|
 | `best-practices-researcher` | Gather external best practices and examples |
 | `framework-docs-researcher` | Research framework documentation and best practices |
 | `git-history-analyzer` | Analyze git history and code evolution |
+| `issue-intelligence-analyst` | Analyze GitHub issues to surface recurring themes and pain patterns |
 | `learnings-researcher` | Search institutional learnings for relevant past solutions |
 | `repo-research-analyst` | Research repository structure and conventions |
 
-### Design (3)
+### Design
 
 | Agent | Description |
 |-------|-------------|
@@ -53,7 +53,7 @@ Agents are organized into categories for easier discovery.
 | `design-iterator` | Iteratively refine UI through systematic design iterations |
 | `figma-design-sync` | Synchronize web implementations with Figma designs |
 
-### Workflow (4)
+### Workflow
 
 | Agent | Description |
 |-------|-------------|
@@ -62,7 +62,7 @@ Agents are organized into categories for easier discovery.
 | `pr-comment-resolver` | Address PR comments and implement fixes |
 | `spec-flow-analyzer` | Analyze user flows and identify gaps in specifications |
 
-### Docs (1)
+### Docs
 
 | Agent | Description |
 |-------|-------------|
@@ -76,6 +76,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 
 | Command | Description |
 |---------|-------------|
+| `/ce:ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
 | `/ce:brainstorm` | Explore requirements and approaches before planning |
 | `/ce:plan` | Create implementation plans |
 | `/ce:review` | Run comprehensive code reviews |
@@ -89,7 +90,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 |---------|-------------|
 | `/lfg` | Full autonomous engineering workflow |
 | `/slfg` | Full autonomous workflow with swarm mode for parallel execution |
-| `/deepen-plan` | Enhance plans with parallel research agents for each section |
+| `/deepen-plan` | Stress-test plans and deepen weak sections with targeted research |
 | `/changelog` | Create engaging changelogs for recent merges |
 | `/create-agent-skill` | Create or edit Claude Code skills |
 | `/generate_command` | Generate new slash commands |
@@ -99,7 +100,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `/reproduce-bug` | Reproduce bugs using logs and console |
 | `/resolve_parallel` | Resolve TODO comments in parallel |
 | `/resolve_pr_parallel` | Resolve PR comments in parallel |
-| `/resolve_todo_parallel` | Resolve todos in parallel |
+| `/resolve-todo-parallel` | Resolve todos in parallel |
 | `/triage` | Triage and prioritize issues |
 | `/test-browser` | Run browser tests on PR-affected pages |
 | `/xcode-test` | Build and test iOS apps on simulator |
@@ -134,6 +135,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `file-todos` | File-based todo tracking system |
 | `git-worktree` | Manage Git worktrees for parallel development |
 | `proof` | Create, edit, and share documents via Proof collaborative editor |
+| `claude-permissions-optimizer` | Optimize Claude Code permissions from session history |
 | `resolve-pr-parallel` | Resolve PR review comments in parallel |
 | `setup` | Configure which review agents run for your project |
 
@@ -154,6 +156,17 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | Skill | Description |
 |-------|-------------|
 | `agent-browser` | CLI-based browser automation using Vercel's agent-browser |
+
+### Beta Skills
+
+Experimental versions of core workflow skills. These are being tested before replacing their stable counterparts. They work standalone but are not yet wired into the automated `lfg`/`slfg` orchestration.
+
+| Skill | Description | Replaces |
+|-------|-------------|----------|
+| `ce:plan-beta` | Decision-first planning focused on boundaries, sequencing, and verification | `ce:plan` |
+| `deepen-plan-beta` | Selective stress-test that targets weak sections with research | `deepen-plan` |
+
+To test: invoke `/ce:plan-beta` or `/deepen-plan-beta` directly. Plans produced by the beta skills are compatible with `/ce:work`.
 
 ### Image Generation
 
@@ -232,7 +245,7 @@ Set `CONTEXT7_API_KEY` in your environment to authenticate. Or add it globally i
 
 ## Version History
 
-See [CHANGELOG.md](CHANGELOG.md) for detailed version history.
+See the repo root [CHANGELOG.md](../../CHANGELOG.md) for canonical release history.
 
 ## License
 

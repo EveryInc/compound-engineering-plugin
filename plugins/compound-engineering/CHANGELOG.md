@@ -1,9 +1,28 @@
 # Changelog
 
+This file is no longer the canonical changelog for compound-engineering releases.
+
+Historical entries are preserved below, but new release history is recorded in the root [`CHANGELOG.md`](../../CHANGELOG.md).
+
 All notable changes to the compound-engineering plugin will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+## [2.45.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.44.0...compound-engineering-v2.45.0) (2026-03-19)
+
+
+### Features
+
+* edit resolve_todos_parallel skill for complete todo lifecycle ([#292](https://github.com/EveryInc/compound-engineering-plugin/issues/292)) ([88c89bc](https://github.com/EveryInc/compound-engineering-plugin/commit/88c89bc204c928d2f36e2d1f117d16c998ecd096))
+* integrate claude code auto memory as supplementary data source for ce:compound and ce:compound-refresh ([#311](https://github.com/EveryInc/compound-engineering-plugin/issues/311)) ([5c1452d](https://github.com/EveryInc/compound-engineering-plugin/commit/5c1452d4cc80b623754dd6fe09c2e5b6ae86e72e))
+
+## [2.44.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.43.0...compound-engineering-v2.44.0) (2026-03-18)
+
+
+### Features
+
+* **plugin:** add execution posture signaling to ce:plan-beta and ce:work ([#309](https://github.com/EveryInc/compound-engineering-plugin/issues/309)) ([748f72a](https://github.com/EveryInc/compound-engineering-plugin/commit/748f72a57f713893af03a4d8ed69c2311f492dbd))
 
 ## [2.39.0] - 2026-03-10
 

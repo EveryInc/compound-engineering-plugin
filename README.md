@@ -184,19 +184,24 @@ Notes:
 
 ```
 Brainstorm → Plan → Work → Review → Compound → Repeat
+    ↑
+  Ideate (optional — when you need ideas)
 ```
 
 | Command | Purpose |
 |---------|---------|
+| `/ce:ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
 | `/ce:brainstorm` | Explore requirements and approaches before planning |
 | `/ce:plan` | Turn feature ideas into detailed implementation plans |
 | `/ce:work` | Execute plans with worktrees and task tracking |
 | `/ce:review` | Multi-agent code review before merging |
 | `/ce:compound` | Document learnings to make future work easier |
 
-The `/ce:brainstorm` skill supports collaborative dialogue to clarify requirements and compare approaches before committing to a plan.
+The `/ce:ideate` skill proactively surfaces strong improvement ideas, and `/ce:brainstorm` then clarifies the selected one before committing to a plan.
 
 Each cycle compounds: brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented.
+
+> **Beta:** Experimental versions of `/ce:plan` and `/deepen-plan` are available as `/ce:plan-beta` and `/deepen-plan-beta`. See the [plugin README](plugins/compound-engineering/README.md#beta-skills) for details.
 
 ## Philosophy
 

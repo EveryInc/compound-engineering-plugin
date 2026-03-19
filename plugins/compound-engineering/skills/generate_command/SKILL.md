@@ -93,7 +93,7 @@ argument-hint: "[what arguments the command accepts]"
 ## Tips for Effective Commands
 
 - **Use $ARGUMENTS** placeholder for dynamic inputs
-- **Reference CLAUDE.md** patterns and conventions
+- **Reference AGENTS.md** patterns and conventions
 - **Include verification steps** - tests, linting, visual checks
 - **Be explicit about constraints** - don't modify X, use pattern Y
 - **Use XML tags** for structured prompts: `<task>`, `<requirements>`, `<constraints>`
@@ -114,7 +114,7 @@ Implement #$ARGUMENTS following these steps:
 3. Implement
    - Follow existing code patterns (reference specific files)
    - Write tests first if doing TDD
-   - Ensure code follows CLAUDE.md conventions
+   - Ensure code follows AGENTS.md conventions
 
 4. Verify
    - Run tests: `bin/rails test`
