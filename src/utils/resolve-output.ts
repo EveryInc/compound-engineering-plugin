@@ -46,5 +46,10 @@ export function resolveTargetOutputRoot(options: {
     const home = qwenHome ?? path.join(os.homedir(), ".qwen", "extensions")
     return path.join(home, pluginName ?? "plugin")
   }
+  if (targetName === "kilocode") {
+    if (hasExplicitOutput) return outputRoot
+    if (scope === "global") return path.join(os.homedir(), ".config", "kilo")
+    return path.join(process.cwd(), ".kilo")
+  }
   return outputRoot
 }
