@@ -142,16 +142,11 @@ _config_unchanged() {
   local base_ref="$2"
   local worktree_path="$3"
 
-  # Fetch the base branch version; if the file doesn't exist there, it was
-  # added by this branch and is not safe to auto-trust.
-  # Note: git show and git hash-object are separated so the || return 1
-  # actually fires on missing files (without pipefail, a failed git show
-  # piped into git hash-object would still exit 0).
-  local base_content
-  base_content=$(git show "$base_ref:$file" 2>/dev/null) || return 1
-
+  # Get the blob hash directly from git's object database. This avoids
+  # content round-tripping through shell variables (which strips trailing
+  # newlines) and pipefail issues with git show | git hash-object.
   local base_hash
-  base_hash=$(printf '%s' "$base_content" | git hash-object --stdin)
+  base_hash=$(git rev-parse "$base_ref:$file" 2>/dev/null) || return 1
 
   local worktree_hash
   worktree_hash=$(git hash-object "$worktree_path/$file")
