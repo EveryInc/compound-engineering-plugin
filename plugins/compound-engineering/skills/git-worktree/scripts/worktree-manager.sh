@@ -124,7 +124,9 @@ trust_dev_tools() {
     for item in "${skipped[@]}"; do
       echo -e "    - $item"
     done
-    echo -e "  ${BLUE}Review the diff, then run manually: cd $worktree_path && ${skipped[*]}${NC}"
+    local joined
+    joined=$(printf ' && %s' "${skipped[@]}")
+    echo -e "  ${BLUE}Review the diff, then run manually: cd $worktree_path${joined}${NC}"
   fi
 }
 
@@ -140,10 +142,16 @@ _config_unchanged() {
   local base_ref="$2"
   local worktree_path="$3"
 
-  # Hash the base branch version; if the file doesn't exist there, it was
-  # added by this branch and is not safe to auto-trust
+  # Fetch the base branch version; if the file doesn't exist there, it was
+  # added by this branch and is not safe to auto-trust.
+  # Note: git show and git hash-object are separated so the || return 1
+  # actually fires on missing files (without pipefail, a failed git show
+  # piped into git hash-object would still exit 0).
+  local base_content
+  base_content=$(git show "$base_ref:$file" 2>/dev/null) || return 1
+
   local base_hash
-  base_hash=$(git show "$base_ref:$file" 2>/dev/null | git hash-object --stdin) || return 1
+  base_hash=$(printf '%s' "$base_content" | git hash-object --stdin)
 
   local worktree_hash
   worktree_hash=$(git hash-object "$worktree_path/$file")
@@ -200,7 +208,9 @@ create_worktree() {
   default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
   default_branch="${default_branch:-main}"
   # Ensure the ref is fresh -- create_worktree only fetches from_branch
-  git fetch origin "$default_branch" --quiet 2>/dev/null || true
+  if ! git fetch origin "$default_branch" --quiet 2>/dev/null; then
+    echo -e "  ${YELLOW}Warning: could not fetch origin/$default_branch -- trust check may use stale data${NC}"
+  fi
   trust_dev_tools "$worktree_path" "origin/$default_branch"
 
   echo -e "${GREEN}✓ Worktree created successfully!${NC}"
