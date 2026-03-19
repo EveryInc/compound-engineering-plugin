@@ -1,6 +1,6 @@
 # Kiro CLI Spec (Custom Agents, Skills, Steering, MCP, Settings)
 
-Last verified: 2026-02-17
+Last verified: 2026-03-18
 
 ## Primary sources
 
@@ -17,7 +17,7 @@ https://agentskills.io
 ## Config locations
 
 - Project-level config: `.kiro/` directory at project root.
-- No global/user-level config directory — all config is project-scoped.
+- Global config: `~/.kiro/` (agents, steering, MCP). Local overrides global; warning on name conflicts.
 
 ## Directory structure
 
@@ -27,6 +27,9 @@ https://agentskills.io
 │   ├── <name>.json              # Agent configuration
 │   └── prompts/
 │       └── <name>.md            # Agent prompt files
+├── hooks/
+│   ├── <name>.kiro.hook         # Hook definition (JSON)
+│   └── scripts/                 # Copied hook scripts
 ├── skills/
 │   └── <name>/
 │       └── SKILL.md             # Skill definition
@@ -59,7 +62,7 @@ https://agentskills.io
 | `toolAliases` | Record | No | Tool name remapping |
 | `allowedTools` | string[] | No | Auto-approve patterns |
 | `toolsSettings` | object | No | Per-tool configuration |
-| `hooks` | object | No (future work) | 5 trigger types |
+| `hooks` | object | No | Per-agent hooks field (not used — hooks are converted to standalone `.kiro.hook` files in `.kiro/hooks/` instead) |
 | `model` | string | No | Model selection |
 | `keyboardShortcut` | string | No | Quick-switch shortcut |
 
@@ -118,9 +121,8 @@ Detailed instructions...
 ## MCP server configuration
 
 - MCP servers are configured in `.kiro/settings/mcp.json`.
-- **Only stdio transport is supported** — `command` + `args` + `env`.
-- HTTP/SSE transport (`url`, `headers`) is NOT supported by Kiro CLI.
-- The converter skips HTTP-only MCP servers with a warning.
+- Supports both **stdio** (`command` + `args` + `env`) and **remote** (`url` + optional `headers`) transports.
+- The converter handles both transport types and merges with existing config (with backup).
 
 ### Example
 
@@ -132,8 +134,7 @@ Detailed instructions...
       "args": ["-y", "@anthropic/mcp-playwright"]
     },
     "context7": {
-      "command": "npx",
-      "args": ["-y", "@context7/mcp-server"]
+      "url": "https://mcp.context7.com/mcp"
     }
   }
 }
@@ -141,10 +142,72 @@ Detailed instructions...
 
 ## Hooks
 
-- Kiro supports 5 hook trigger types: `agentSpawn`, `userPromptSubmit`, `preToolUse`, `postToolUse`, `stop`.
-- Hooks are configured inside agent JSON configs (not separate files).
-- 3 of 5 triggers map to Claude Code hooks (`preToolUse`, `postToolUse`, `stop`).
-- Not converted by the plugin converter for MVP — a warning is emitted.
+- Kiro hooks are **standalone `.kiro.hook` files** in `.kiro/hooks/`.
+- They are independent of agents — not embedded in agent JSON configs.
+- Each `.kiro.hook` file is a JSON object with `enabled`, `name`, `description`, `version`, `when`, and `then` fields.
+
+### Hook trigger types (`when.type`)
+
+| Kiro `when.type` | Claude Code equivalent | Notes |
+|---|---|---|
+| `preToolUse` | `PreToolUse` | 1:1. Uses `toolTypes` array for matching. |
+| `postToolUse` | `PostToolUse` | 1:1. Uses `toolTypes` array for matching. |
+| `agentStop` | `Stop` | 1:1. No `toolTypes` needed. |
+| `promptSubmit` | `UserPromptSubmit` | 1:1. No `toolTypes` needed. |
+| `agentSpawn` | — | No Claude Code equivalent. |
+
+### Hook action types (`then.type`)
+
+| Kiro `then.type` | Claude Code equivalent | Notes |
+|---|---|---|
+| `runCommand` | `command` | Direct mapping. `command` field. |
+| `askAgent` | `prompt` / `agent` | `prompt` maps directly. `agent` converted lossily to askAgent with agent description. |
+
+### `.kiro.hook` file schema
+
+```json
+{
+  "enabled": true,
+  "name": "Human-readable name",
+  "description": "What the hook does",
+  "version": "1",
+  "when": {
+    "type": "postToolUse",
+    "toolTypes": ["write"]
+  },
+  "then": {
+    "type": "runCommand",
+    "command": "./scripts/validate.sh",
+    "timeout": 120
+  }
+}
+```
+
+### Tool type mapping (Claude → Kiro `toolTypes`)
+
+| Claude Matcher | Kiro toolType |
+|---|---|
+| `Bash` | `shell` |
+| `Read` | `read` |
+| `Write` | `write` |
+| `Edit` | `write` |
+| `Glob` | `read` |
+| `Grep` | `read` |
+| `WebFetch` | `web` |
+| `Task` | `*` (wildcard) |
+| `*` (wildcard) | omit `toolTypes` (matches all) |
+
+Pipe-separated matchers (`Write|Edit`) are deduplicated (both map to `write`).
+
+### Conversion notes
+
+- 4 of 10+ Claude Code hook events map to Kiro (PreToolUse, PostToolUse, Stop, UserPromptSubmit). Unsupported events are skipped with a warning.
+- All 3 Claude hook types convert: `command` → `runCommand`, `prompt` → `askAgent`, `agent` → `askAgent` (lossy).
+- Plugin scripts referencing `$CLAUDE_PLUGIN_ROOT` convert to `askAgent` (not `runCommand`) because Kiro `runCommand` doesn't pipe stdin context. Scripts are copied to `.kiro/hooks/scripts/` for the agent to read.
+- `$CLAUDE_PROJECT_DIR` in commands is rewritten to relative paths.
+- Inline commands (no env var refs) stay as `runCommand`.
+- `timeout` values map to the `then.timeout` field on `runCommand` hooks (seconds). `0` = disabled (Kiro default is 60s).
+- Hook file names are prefixed with the plugin slug to prevent collisions between plugins (e.g. `aws-serverless-post-tool-use-write-0.kiro.hook`).
 
 ## Conversion lossy mappings
 
@@ -156,8 +219,8 @@ Detailed instructions...
 | `disable-model-invocation` | Lost | No invocation control |
 | `allowed-tools` per skill | Lost | No tool permission scoping per skill |
 | `$ARGUMENTS` interpolation | Lost | No structured argument passing |
-| Claude hooks | Skipped | Future follow-up (near-1:1 for 3/5 triggers) |
-| HTTP MCP servers | Skipped | Kiro only supports stdio transport |
+| Claude hooks | Converted (4/10+ events, all 3 types) | PreToolUse, PostToolUse, Stop, UserPromptSubmit map 1:1. `agent` type lossy → `askAgent`. |
+| HTTP MCP servers | Converted | Kiro supports both `stdio` and remote (`url`) transports |
 
 ## Overwrite behavior during conversion
 
@@ -168,4 +231,6 @@ Detailed instructions...
 | Copied skills (pass-through) | Overwrite | Plugin is source of truth |
 | Steering files | Overwrite | Generated from CLAUDE.md |
 | `mcp.json` | Merge with backup | User may have added their own servers |
+| Hook files (`.kiro.hook`) | Overwrite | Generated, not user-authored |
+| Hook scripts | Overwrite | Copied from plugin source |
 | User-created agents/skills | Preserved | Don't delete orphans |

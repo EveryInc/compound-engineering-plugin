@@ -20,6 +20,8 @@ const emptyBundle: KiroBundle = {
   skillDirs: [],
   steeringFiles: [],
   mcpServers: {},
+  hookFiles: [],
+  hookScripts: [],
 }
 
 describe("writeKiroBundle", () => {
@@ -59,6 +61,8 @@ describe("writeKiroBundle", () => {
       mcpServers: {
         playwright: { command: "npx", args: ["-y", "@anthropic/mcp-playwright"] },
       },
+      hookFiles: [],
+      hookScripts: [],
     }
 
     await writeKiroBundle(tempRoot, bundle)
@@ -246,6 +250,36 @@ describe("writeKiroBundle", () => {
     }
 
     expect(writeKiroBundle(tempRoot, bundle)).rejects.toThrow("unsafe path")
+  })
+
+  test("writes hook files to hooks directory (no scripts)", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "kiro-hooks-"))
+    const bundle: KiroBundle = {
+      ...emptyBundle,
+      hookFiles: [
+        {
+          fileName: "my-plugin-pre-tool-use-shell-0",
+          hook: {
+            enabled: true,
+            name: "PreToolUse shell - echo",
+            description: "Runs echo on PreToolUse.",
+            version: "1",
+            when: { type: "preToolUse", toolTypes: ["shell"] },
+            then: { type: "runCommand", command: "echo test", timeout: 0 },
+          },
+        },
+      ],
+      hookScripts: [],
+    }
+
+    await writeKiroBundle(tempRoot, bundle)
+
+    const hookPath = path.join(tempRoot, ".kiro", "hooks", "my-plugin-pre-tool-use-shell-0.kiro.hook")
+    expect(await exists(hookPath)).toBe(true)
+    const content = JSON.parse(await fs.readFile(hookPath, "utf8"))
+    expect(content.name).toBe("PreToolUse shell - echo")
+    expect(content.when.type).toBe("preToolUse")
+    expect(content.then.command).toBe("echo test")
   })
 
   test("path traversal in agent name is rejected", async () => {

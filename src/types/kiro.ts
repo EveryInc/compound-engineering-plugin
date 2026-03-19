@@ -37,10 +37,30 @@ export type KiroMcpServer = {
   headers?: Record<string, string>
 }
 
+export type KiroHookWhen = {
+  type: "preToolUse" | "postToolUse" | "agentStop" | "promptSubmit"
+  toolTypes?: string[]
+}
+
+export type KiroHookThen =
+  | { type: "runCommand"; command: string; timeout: number }
+  | { type: "askAgent"; prompt: string }
+
+export type KiroHookFile = {
+  enabled: boolean
+  name: string
+  description: string
+  version: "1"
+  when: KiroHookWhen
+  then: KiroHookThen
+}
+
 export type KiroBundle = {
   agents: KiroAgent[]
   generatedSkills: KiroSkill[]
   skillDirs: KiroSkillDir[]
   steeringFiles: KiroSteeringFile[]
   mcpServers: Record<string, KiroMcpServer>
+  hookFiles: { fileName: string; hook: KiroHookFile }[]
+  hookScripts: { name: string; sourcePath: string }[]
 }

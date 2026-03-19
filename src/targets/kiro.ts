@@ -1,3 +1,4 @@
+import { copyFileSync, existsSync } from "fs"
 import path from "path"
 import { backupFile, copyDir, ensureDir, pathExists, readJson, writeJson, writeText } from "../utils/files"
 import type { KiroBundle } from "../types/kiro"
@@ -90,6 +91,34 @@ export async function writeKiroBundle(outputRoot: string, bundle: KiroBundle): P
     const merged = { ...existingConfig, mcpServers: { ...existingServers, ...bundle.mcpServers } }
     await writeJson(mcpPath, merged)
   }
+
+  // Write hook files
+  if (bundle.hookFiles.length > 0) {
+    for (const { fileName, hook } of bundle.hookFiles) {
+      validatePathSafe(fileName, "hook file")
+      await writeJson(
+        path.join(paths.hooksDir, `${fileName}.kiro.hook`),
+        hook,
+      )
+    }
+  }
+
+  // Copy hook scripts
+  if (bundle.hookScripts.length > 0) {
+    const scriptsDir = path.join(paths.hooksDir, "scripts")
+    await ensureDir(scriptsDir)
+    for (const script of bundle.hookScripts) {
+      const scriptBasename = path.basename(script.name)
+      validatePathSafe(scriptBasename, "hook script")
+      if (existsSync(script.sourcePath)) {
+        const destPath = path.join(scriptsDir, scriptBasename)
+        await ensureDir(path.dirname(destPath))
+        copyFileSync(script.sourcePath, destPath)
+      } else {
+        console.warn(`Warning: Hook script "${script.sourcePath}" not found. Skipping copy.`)
+      }
+    }
+  }
 }
 
 function resolveKiroPaths(outputRoot: string) {
@@ -102,6 +131,7 @@ function resolveKiroPaths(outputRoot: string) {
       skillsDir: path.join(outputRoot, "skills"),
       steeringDir: path.join(outputRoot, "steering"),
       settingsDir: path.join(outputRoot, "settings"),
+      hooksDir: path.join(outputRoot, "hooks"),
     }
   }
   // Otherwise nest under .kiro
@@ -112,6 +142,7 @@ function resolveKiroPaths(outputRoot: string) {
     skillsDir: path.join(kiroDir, "skills"),
     steeringDir: path.join(kiroDir, "steering"),
     settingsDir: path.join(kiroDir, "settings"),
+    hooksDir: path.join(kiroDir, "hooks"),
   }
 }
 

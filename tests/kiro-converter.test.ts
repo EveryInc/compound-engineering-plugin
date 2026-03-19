@@ -255,23 +255,399 @@ describe("convertClaudeToKiro", () => {
     expect(bundle.generatedSkills[0].name).toBe("my-command-2")
   })
 
-  test("hooks present emits console.warn", () => {
+  test("PreToolUse command hook generates preToolUse runCommand", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo test" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles).toHaveLength(1)
+    const { hook } = bundle.hookFiles[0]
+    expect(hook.enabled).toBe(true)
+    expect(hook.version).toBe("1")
+    expect(hook.when.type).toBe("preToolUse")
+    expect(hook.when.toolTypes).toEqual(["shell"])
+    expect(hook.then).toEqual({ type: "runCommand", command: "echo test", timeout: 0 })
+  })
+
+  test("PostToolUse prompt hook generates postToolUse askAgent", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PostToolUse: [{ matcher: "Write", hooks: [{ type: "prompt", prompt: "Review this change" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles).toHaveLength(1)
+    const { hook } = bundle.hookFiles[0]
+    expect(hook.when.type).toBe("postToolUse")
+    expect(hook.when.toolTypes).toEqual(["write"])
+    expect(hook.then).toEqual({ type: "askAgent", prompt: "Review this change" })
+  })
+
+  test("Stop hook generates agentStop with no toolTypes", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { Stop: [{ hooks: [{ type: "command", command: "echo done" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles).toHaveLength(1)
+    const { hook } = bundle.hookFiles[0]
+    expect(hook.when.type).toBe("agentStop")
+    expect(hook.when.toolTypes).toBeUndefined()
+  })
+
+  test("UserPromptSubmit hook generates promptSubmit", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: "echo submit" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles).toHaveLength(1)
+    expect(bundle.hookFiles[0].hook.when.type).toBe("promptSubmit")
+  })
+
+  test("pipe-separated matcher Write|Edit deduplicates to ['write']", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PostToolUse: [{ matcher: "Write|Edit", hooks: [{ type: "command", command: "lint" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles[0].hook.when.toolTypes).toEqual(["write"])
+  })
+
+  test("wildcard matcher * produces no toolTypes", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "echo all" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles[0].hook.when.toolTypes).toBeUndefined()
+  })
+
+  test("empty matcher treated as wildcard (no toolTypes)", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ matcher: "", hooks: [{ type: "command", command: "echo all" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles[0].hook.when.toolTypes).toBeUndefined()
+  })
+
+  test("missing matcher field treated as wildcard", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "echo all" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles[0].hook.when.toolTypes).toBeUndefined()
+  })
+
+  test("agent hook type converts to askAgent with agent description", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ matcher: "Write", hooks: [{ type: "agent", agent: "Security Reviewer" }] }] } },
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles).toHaveLength(1)
+    const { hook } = bundle.hookFiles[0]
+    expect(hook.then.type).toBe("askAgent")
+    expect((hook.then as { prompt: string }).prompt).toContain("Security Reviewer")
+    expect((hook.then as { prompt: string }).prompt).toContain("Security-focused agent")
+  })
+
+  test("agent hook type with unknown agent uses fallback prompt", () => {
     const warnings: string[] = []
     const originalWarn = console.warn
     console.warn = (msg: string) => warnings.push(msg)
 
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
-      hooks: { hooks: { PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "echo test" }] }] } },
+      hooks: { hooks: { PreToolUse: [{ matcher: "Write", hooks: [{ type: "agent", agent: "unknown-agent" }] }] } },
       agents: [],
       commands: [],
       skills: [],
     }
 
-    convertClaudeToKiro(plugin, defaultOptions)
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
     console.warn = originalWarn
 
-    expect(warnings.some((w) => w.includes("Kiro"))).toBe(true)
+    const { hook } = bundle.hookFiles[0]
+    expect((hook.then as { prompt: string }).prompt).toContain("unknown-agent")
+    expect(warnings.some((w) => w.includes("unknown-agent") && w.includes("not found"))).toBe(true)
+  })
+
+  test("$CLAUDE_PLUGIN_ROOT script converts to askAgent with script reference", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PostToolUse: [{ matcher: "Edit", hooks: [{ type: "command", command: "${CLAUDE_PLUGIN_ROOT}/scripts/validate.sh --flag" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    const { hook } = bundle.hookFiles[0]
+    expect(hook.then.type).toBe("askAgent")
+    expect((hook.then as { prompt: string }).prompt).toContain(".kiro/hooks/scripts/validate.sh")
+    expect(hook.description).toContain("askAgent")
+    // Script still copied for agent to read
+    expect(bundle.hookScripts).toHaveLength(1)
+    expect(bundle.hookScripts[0].name).toBe("scripts/validate.sh")
+  })
+
+  test("$CLAUDE_PROJECT_DIR script converts to askAgent with project path", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "$CLAUDE_PROJECT_DIR/.claude/hooks/check.py" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    const { hook } = bundle.hookFiles[0]
+    expect(hook.then.type).toBe("askAgent")
+    expect((hook.then as { prompt: string }).prompt).toContain("./.claude/hooks/check.py")
+  })
+
+  test("inline command stays as runCommand", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PostToolUse: [{ matcher: "Write", hooks: [{ type: "command", command: "npm run lint" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    const { hook } = bundle.hookFiles[0]
+    expect(hook.then.type).toBe("runCommand")
+    expect((hook.then as { command: string }).command).toBe("npm run lint")
+  })
+
+  test("timeout mapped to then.timeout field", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PostToolUse: [{ matcher: "Write", hooks: [{ type: "command", command: "validate.sh", timeout: 120 }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    const then = bundle.hookFiles[0].hook.then as { type: "runCommand"; command: string; timeout?: number }
+    expect(then.timeout).toBe(120)
+    expect(bundle.hookFiles[0].hook.description).not.toContain("120")
+  })
+
+  test("hook without timeout defaults to 0 (disabled)", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo test" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    const then = bundle.hookFiles[0].hook.then as { type: "runCommand"; command: string; timeout: number }
+    expect(then.timeout).toBe(0)
+  })
+
+  test("unsupported events skipped with warning", () => {
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { SessionStart: [{ hooks: [{ type: "command", command: "echo hi" }] }], Notification: [{ hooks: [{ type: "command", command: "echo notif" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    console.warn = originalWarn
+
+    expect(bundle.hookFiles).toHaveLength(0)
+    expect(warnings.some((w) => w.includes("SessionStart"))).toBe(true)
+    expect(warnings.some((w) => w.includes("Notification"))).toBe(true)
+  })
+
+  test("mixed hooks: supported events convert, unsupported emit warnings", () => {
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: {
+        hooks: {
+          PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo pre" }] }],
+          SessionStart: [{ hooks: [{ type: "command", command: "echo start" }] }],
+        },
+      },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    console.warn = originalWarn
+
+    expect(bundle.hookFiles).toHaveLength(1)
+    expect(bundle.hookFiles[0].hook.when.type).toBe("preToolUse")
+    expect(warnings.some((w) => w.includes("SessionStart"))).toBe(true)
+  })
+
+  test("hook file names are unique and slug-friendly", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: {
+        hooks: {
+          PreToolUse: [
+            { matcher: "Bash", hooks: [{ type: "command", command: "echo a" }, { type: "command", command: "echo b" }] },
+          ],
+        },
+      },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles).toHaveLength(2)
+    const names = bundle.hookFiles.map((h) => h.fileName)
+    expect(names[0]).toBe("fixture-pre-tool-use-shell-0")
+    expect(names[1]).toBe("fixture-pre-tool-use-shell-1")
+    // All names are unique
+    expect(new Set(names).size).toBe(names.length)
+  })
+
+  test("complex command with args passes through correctly", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PostToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "uv run script.py --flag --other" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect((bundle.hookFiles[0].hook.then as { command: string }).command).toBe("uv run script.py --flag --other")
+  })
+
+  test("multiple matcher groups on same event produce separate hook files", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: {
+        hooks: {
+          PreToolUse: [
+            { matcher: "Bash", hooks: [{ type: "command", command: "echo shell" }] },
+            { matcher: "Write", hooks: [{ type: "command", command: "echo write" }] },
+          ],
+        },
+      },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles).toHaveLength(2)
+    expect(bundle.hookFiles[0].hook.when.toolTypes).toEqual(["shell"])
+    expect(bundle.hookFiles[1].hook.when.toolTypes).toEqual(["write"])
+    expect((bundle.hookFiles[0].hook.then as { command: string }).command).toBe("echo shell")
+    expect((bundle.hookFiles[1].hook.then as { command: string }).command).toBe("echo write")
+  })
+
+  test("Task matcher maps to wildcard (no toolTypes)", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ matcher: "Task", hooks: [{ type: "command", command: "echo task" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.hookFiles[0].hook.when.toolTypes).toBeUndefined()
+  })
+
+  test("unknown tool matcher is skipped with warning", () => {
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ matcher: "UnknownTool", hooks: [{ type: "command", command: "echo x" }] }] } },
+      agents: [],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    console.warn = originalWarn
+
+    // Hook still created but with no toolTypes (empty array means nothing matched)
+    expect(bundle.hookFiles).toHaveLength(1)
+    expect(warnings.some((w) => w.includes("UnknownTool"))).toBe(true)
+  })
+
+  test("agent hook includes capabilities when available", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      hooks: { hooks: { PreToolUse: [{ matcher: "Write", hooks: [{ type: "agent", agent: "Security Reviewer" }] }] } },
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    const prompt = (bundle.hookFiles[0].hook.then as { prompt: string }).prompt
+    expect(prompt).toContain("Threat modeling")
+    expect(prompt).toContain("OWASP")
+  })
+
+  test("no hooks produces empty hookFiles array", () => {
+    const bundle = convertClaudeToKiro(fixturePlugin, defaultOptions)
+    expect(bundle.hookFiles).toHaveLength(0)
+    expect(bundle.hookScripts).toHaveLength(0)
   })
 
   test("steering file not generated when CLAUDE.md missing", () => {
@@ -336,6 +712,8 @@ describe("convertClaudeToKiro", () => {
     expect(bundle.skillDirs).toHaveLength(0)
     expect(bundle.steeringFiles).toHaveLength(0)
     expect(Object.keys(bundle.mcpServers)).toHaveLength(0)
+    expect(bundle.hookFiles).toHaveLength(0)
+    expect(bundle.hookScripts).toHaveLength(0)
   })
 })
 

@@ -1,11 +1,20 @@
 import { readFileSync, existsSync } from "fs"
 import path from "path"
 import { formatFrontmatter } from "../utils/frontmatter"
-import type { ClaudeAgent, ClaudeCommand, ClaudeMcpServer, ClaudePlugin } from "../types/claude"
+import type {
+  ClaudeAgent,
+  ClaudeCommand,
+  ClaudeHookEntry,
+  ClaudeHooks,
+  ClaudeMcpServer,
+  ClaudePlugin,
+} from "../types/claude"
 import type {
   KiroAgent,
   KiroAgentConfig,
   KiroBundle,
+  KiroHookFile,
+  KiroHookWhen,
   KiroMcpServer,
   KiroSkill,
   KiroSteeringFile,
@@ -59,14 +68,22 @@ export function convertClaudeToKiro(
   // Build steering files from CLAUDE.md
   const steeringFiles = buildSteeringFiles(plugin, agentNames)
 
-  // Warn about hooks
-  if (plugin.hooks && Object.keys(plugin.hooks.hooks).length > 0) {
-    console.warn(
-      "Warning: Kiro CLI hooks use a different format (preToolUse/postToolUse inside agent configs). Hooks were skipped during conversion.",
-    )
+  // Convert hooks
+  const pluginSlug = slugify(plugin.manifest.name || "plugin")
+  const hookResult = convertHooks(plugin.hooks, plugin.agents, plugin.root, pluginSlug)
+  for (const warning of hookResult.warnings) {
+    console.warn(warning)
   }
 
-  return { agents, generatedSkills, skillDirs, steeringFiles, mcpServers }
+  return {
+    agents,
+    generatedSkills,
+    skillDirs,
+    steeringFiles,
+    mcpServers,
+    hookFiles: hookResult.hookFiles,
+    hookScripts: hookResult.hookScripts,
+  }
 }
 
 function convertAgentToKiroAgent(agent: ClaudeAgent, knownAgentNames: string[]): KiroAgent {
@@ -261,3 +278,278 @@ function uniqueName(base: string, used: Set<string>): string {
   used.add(name)
   return name
 }
+
+// ── Hook conversion ──────────────────────────────────────────────────
+
+const CLAUDE_EVENT_TO_KIRO: Record<string, KiroHookWhen["type"]> = {
+  PreToolUse: "preToolUse",
+  PostToolUse: "postToolUse",
+  Stop: "agentStop",
+  UserPromptSubmit: "promptSubmit",
+}
+
+const CLAUDE_TOOL_TO_KIRO_TYPE: Record<string, string> = {
+  Bash: "shell",
+  Read: "read",
+  Write: "write",
+  Edit: "write",
+  Glob: "read",
+  Grep: "read",
+  WebFetch: "web",
+  Task: "*",
+}
+
+const VALID_KIRO_TOOL_TYPES = new Set(["read", "write", "shell", "web", "spec", "*"])
+
+type NamedHookFile = { fileName: string; hook: KiroHookFile }
+type ScriptRef = { name: string; sourcePath: string }
+
+type RewriteResult = {
+  command: string
+  referencedScripts: ScriptRef[]
+  scriptPaths: string[]
+  referencesScript: boolean
+  commandWarnings: string[]
+}
+
+function convertHooks(
+  hooksConfig: ClaudeHooks | undefined,
+  agents: ClaudeAgent[],
+  pluginRoot: string,
+  pluginSlug: string,
+): { hookFiles: NamedHookFile[]; hookScripts: ScriptRef[]; warnings: string[] } {
+  const hookFiles: NamedHookFile[] = []
+  const hookScripts: ScriptRef[] = []
+  const warnings: string[] = []
+
+  if (!hooksConfig || Object.keys(hooksConfig.hooks).length === 0) {
+    return { hookFiles, hookScripts, warnings }
+  }
+
+  const usedFileNames = new Set<string>()
+
+  for (const [eventName, matcherGroups] of Object.entries(hooksConfig.hooks)) {
+    const kiroEventType = CLAUDE_EVENT_TO_KIRO[eventName]
+    if (!kiroEventType) {
+      warnings.push(`Warning: Hook event "${eventName}" has no Kiro equivalent. Skipped.`)
+      continue
+    }
+
+    for (const group of matcherGroups) {
+      const toolTypes = mapMatcherToToolTypes(group.matcher, warnings)
+      const when: KiroHookWhen = { type: kiroEventType }
+      if (toolTypes.length > 0) {
+        when.toolTypes = toolTypes
+      }
+
+      for (let i = 0; i < group.hooks.length; i++) {
+        const hook = group.hooks[i]
+        const result = convertSingleHook(hook, agents, pluginRoot, when, eventName, group.matcher, i)
+        if (result.hookFile) {
+          const toolSuffix = toolTypes.length > 0 ? toolTypes.join("-") : "all"
+          const baseName = `${pluginSlug}-${slugify(eventName)}-${toolSuffix}-${i}`
+          const fileName = uniqueName(baseName, usedFileNames)
+          hookFiles.push({ fileName, hook: result.hookFile })
+        }
+        hookScripts.push(...result.scripts)
+        warnings.push(...result.warnings)
+      }
+    }
+  }
+
+  return { hookFiles, hookScripts, warnings }
+}
+
+function convertSingleHook(
+  hook: ClaudeHookEntry,
+  agents: ClaudeAgent[],
+  pluginRoot: string,
+  when: KiroHookWhen,
+  eventName: string,
+  matcher: string | undefined,
+  index: number,
+): { hookFile: KiroHookFile | null; scripts: ScriptRef[]; warnings: string[] } {
+  const scripts: ScriptRef[] = []
+  const warnings: string[] = []
+  const matcherLabel = matcher && matcher !== "*" ? ` (${matcher} matcher)` : ""
+
+  if (hook.type === "command") {
+    const { command, referencedScripts, scriptPaths, referencesScript, commandWarnings } = rewriteCommand(hook.command, pluginRoot)
+    scripts.push(...referencedScripts)
+    warnings.push(...commandWarnings)
+
+    const scriptName = extractScriptName(command)
+    const name = `${eventName} ${when.toolTypes?.join("/") ?? "all"} - ${scriptName}`
+
+    if (referencesScript) {
+      // Script references $CLAUDE_PLUGIN_ROOT or $CLAUDE_PROJECT_DIR — these scripts
+      // expect Claude Code's stdin JSON context which Kiro doesn't provide.
+      // Convert to askAgent so the agent can read the script and perform the equivalent.
+      const pathList = scriptPaths.join(" and ")
+      const prompt = `Read the script at ${pathList} to understand its validation logic, then perform the equivalent check on the file that was just modified. If the script's checks don't apply to the current file, do nothing.`
+      let description = `Agent performs equivalent of ${scriptName} on ${eventName}.`
+      if (matcherLabel) description += ` Converted from Claude Code ${eventName} hook${matcherLabel}.`
+      description += ` Original script converted to askAgent because Kiro runCommand hooks don't receive file context.`
+
+      return {
+        hookFile: {
+          enabled: true,
+          name,
+          description,
+          version: "1",
+          when,
+          then: { type: "askAgent", prompt },
+        },
+        scripts,
+        warnings,
+      }
+    }
+
+    // Inline command — no script reference, safe as runCommand
+    let description = `Runs ${scriptName} on ${eventName}.`
+    if (matcherLabel) description += ` Converted from Claude Code ${eventName} hook${matcherLabel}.`
+
+    const hookFile: KiroHookFile = {
+      enabled: true,
+      name,
+      description,
+      version: "1",
+      when,
+      then: { type: "runCommand", command, timeout: hook.timeout ?? 0 },
+    }
+
+    return { hookFile, scripts, warnings }
+  }
+
+  if (hook.type === "prompt") {
+    const name = `${eventName} ${when.toolTypes?.join("/") ?? "all"} - prompt`
+    const description = `Agent prompt on ${eventName}.${matcherLabel ? ` Converted from Claude Code ${eventName} hook${matcherLabel}.` : ""}`
+
+    return {
+      hookFile: {
+        enabled: true,
+        name,
+        description,
+        version: "1",
+        when,
+        then: { type: "askAgent", prompt: hook.prompt },
+      },
+      scripts,
+      warnings,
+    }
+  }
+
+  if (hook.type === "agent") {
+    const agentRef = hook.agent
+    const matchedAgent = agents.find(
+      (a) => normalizeName(a.name) === normalizeName(agentRef),
+    )
+    let prompt: string
+    if (matchedAgent) {
+      const desc = matchedAgent.description ?? matchedAgent.name
+      const capabilities = matchedAgent.capabilities?.length
+        ? ` Capabilities: ${matchedAgent.capabilities.join(", ")}.`
+        : ""
+      prompt = `Acting as the ${matchedAgent.name} agent (${desc}), review this action.${capabilities}`
+    } else {
+      prompt = `Acting as the ${agentRef} agent, review this action.`
+      warnings.push(`Warning: Hook references agent "${agentRef}" which was not found in the plugin. Using fallback prompt.`)
+    }
+
+    const name = `${eventName} ${when.toolTypes?.join("/") ?? "all"} - ${normalizeName(agentRef)} agent`
+    const description = `Delegates to ${agentRef} agent on ${eventName}. Lossy: converted from Claude Code agent hook to askAgent.${matcherLabel ? ` Original matcher: ${matcher}.` : ""}`
+
+    return {
+      hookFile: {
+        enabled: true,
+        name,
+        description,
+        version: "1",
+        when,
+        then: { type: "askAgent", prompt },
+      },
+      scripts,
+      warnings,
+    }
+  }
+
+  warnings.push(`Warning: Unknown hook type. Skipped.`)
+  return { hookFile: null, scripts, warnings }
+}
+
+function mapMatcherToToolTypes(matcher: string | undefined, warnings: string[] = []): string[] {
+  if (!matcher || matcher === "*" || matcher === "") return []
+
+  const parts = matcher.split("|").map((p) => p.trim()).filter(Boolean)
+  const types = new Set<string>()
+  for (const part of parts) {
+    const mapped = CLAUDE_TOOL_TO_KIRO_TYPE[part]
+    if (mapped) {
+      if (mapped === "*") return [] // Wildcard — match all, omit toolTypes
+      types.add(mapped)
+    } else {
+      const lower = part.toLowerCase()
+      if (VALID_KIRO_TOOL_TYPES.has(lower)) {
+        types.add(lower)
+      } else {
+        warnings.push(`Warning: Tool matcher "${part}" has no known Kiro toolType mapping. Skipped.`)
+      }
+    }
+  }
+  return [...types].sort()
+}
+
+function rewriteCommand(command: string, pluginRoot: string): RewriteResult {
+  const scripts: ScriptRef[] = []
+  const scriptPaths: string[] = []
+  const commandWarnings: string[] = []
+  let rewritten = command
+  let referencesScript = false
+
+  // Rewrite ${CLAUDE_PLUGIN_ROOT}/path → .kiro/hooks/scripts/<basename> and collect scripts
+  const pluginRootPattern = /\$\{?CLAUDE_PLUGIN_ROOT\}?\/([^\s"']+)/g
+  rewritten = rewritten.replace(pluginRootPattern, (_match, relativePath: string) => {
+    const sourcePath = path.join(pluginRoot, relativePath)
+    const scriptBasename = path.basename(relativePath)
+    scripts.push({ name: relativePath, sourcePath })
+    const kiroPath = `.kiro/hooks/scripts/${scriptBasename}`
+    scriptPaths.push(kiroPath)
+    referencesScript = true
+    return kiroPath
+  })
+
+  // Rewrite $CLAUDE_PROJECT_DIR/path → relative path
+  const projectDirPattern = /\$\{?CLAUDE_PROJECT_DIR\}?\/([^\s"']+)/g
+  rewritten = rewritten.replace(projectDirPattern, (_match, relativePath: string) => {
+    const projectPath = `./${relativePath}`
+    scriptPaths.push(projectPath)
+    referencesScript = true
+    return projectPath
+  })
+
+  // Warn about other unrecognized $CLAUDE_* env vars
+  const otherClaudeVars = rewritten.match(/\$\{?CLAUDE_[A-Z_]+\}?/g)
+  if (otherClaudeVars) {
+    for (const v of otherClaudeVars) {
+      commandWarnings.push(`Warning: Command contains unrecognized env var "${v}" which may not work in Kiro.`)
+    }
+  }
+
+  return { command: rewritten, referencedScripts: scripts, scriptPaths, referencesScript, commandWarnings }
+}
+
+function extractScriptName(command: string): string {
+  // Get the basename of the first path-like token, or first word
+  const firstToken = command.split(/\s+/)[0]
+  const basename = path.basename(firstToken)
+  return basename || firstToken
+}
+
+function slugify(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1-$2")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+}
+
