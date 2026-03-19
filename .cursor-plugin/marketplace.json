@@ -7,7 +7,7 @@
   },
   "metadata": {
     "description": "Cursor plugin marketplace for Every Inc plugins",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "pluginRoot": "plugins"
   },
   "plugins": [
