@@ -434,13 +434,13 @@ For plans where token conservation matters, delegate code implementation to Code
 
 ### Enabling Codex Delegation
 
-To trigger, say:
-
-> "Use codex for this work"
-
-Or: "delegate to codex", "codex mode"
+Codex delegation activates when any of these conditions are met:
+- The user says "use codex for this work", "delegate to codex", or "codex mode"
+- A plan implementation unit contains `Execution target: codex` in its Execution note (set by ce:plan-beta or ce:plan)
 
 ### Codex Delegation Workflow
+
+When Codex delegation is active, follow this workflow for each task. Do not skip delegation because a task seems "small", "simple", or "faster inline". The user or plan explicitly requested delegation.
 
 1. **Check availability**
    ```bash
