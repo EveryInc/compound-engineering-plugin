@@ -448,20 +448,16 @@ Or: "delegate to codex", "codex mode"
    ```
    If not found, print "Codex CLI not installed - continuing with standard mode." and proceed normally.
 
-2. **Extract credentials** — Codex's sandbox blocks keychain access, so extract the GitHub token before delegating:
+2. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `compound-engineering.local.md`). Include rules: no git commits, no PRs, run `git status` and `git diff --stat` when done. Do not embed credentials in the prompt.
+
+3. **Write prompt to file** — Save the assembled prompt to a temporary file to avoid shell quoting issues with long content:
    ```bash
-   CODEX_GH_TOKEN=$(gh auth token 2>/dev/null)
+   echo "$CODEX_PROMPT" > /tmp/codex-prompt.txt
    ```
 
-3. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `compound-engineering.local.md`). Include the GH token export and rules: no git commits, no PRs, run `git status && git diff --stat` when done.
-
-4. **Delegate** — Pipe the prompt via stdin to handle long multi-line content without shell quoting issues:
+4. **Delegate** — Run Codex from the working directory, reading the prompt from the file:
    ```bash
-   cd "$WORKDIR" && echo "$CODEX_PROMPT" | codex exec \
-     -c 'sandbox_permissions=["disk-write"]' \
-     -c 'model_reasoning_effort="medium"' \
-     -m "gpt-5.3-codex" \
-     -
+   codex exec -c 'sandbox_permissions=["disk-write"]' -c 'model_reasoning_effort="medium"' -m "gpt-5.3-codex" - < /tmp/codex-prompt.txt
    ```
 
 5. **Review diff** — After Codex finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
