@@ -419,6 +419,59 @@ Most plans should use subagent dispatch from standard mode. Agent teams add sign
 
 ---
 
+## Codex Delegation (Optional)
+
+For plans where token conservation matters, delegate code implementation to Codex CLI while keeping planning, review, and git operations in the current agent.
+
+### When to Use Codex Delegation
+
+| Codex Delegation | Standard Mode |
+|------------------|---------------|
+| Task is pure code implementation | Task requires research or exploration |
+| Plan has clear acceptance criteria | Task is ambiguous or needs iteration |
+| Token conservation matters (e.g., Max20 plan) | Unlimited plan or small task |
+| Files to change are well-scoped | Changes span many interconnected files |
+
+### Enabling Codex Delegation
+
+To trigger, say:
+
+> "Use codex for this work"
+
+Or: "delegate to codex", "codex mode"
+
+### Codex Delegation Workflow
+
+1. **Check availability**
+   ```bash
+   command -v codex >/dev/null 2>&1
+   ```
+   If not found, print "Codex CLI not installed - continuing with standard mode." and proceed normally.
+
+2. **Extract credentials** — Codex's sandbox blocks keychain access, so extract the GitHub token before delegating:
+   ```bash
+   CODEX_GH_TOKEN=$(gh auth token 2>/dev/null)
+   ```
+
+3. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `compound-engineering.local.md`). Include the GH token export and rules: no git commits, no PRs, run `git status && git diff --stat` when done.
+
+4. **Delegate** — Pipe the prompt via stdin to handle long multi-line content without shell quoting issues:
+   ```bash
+   cd "$WORKDIR" && echo "$CODEX_PROMPT" | codex exec \
+     -c 'sandbox_permissions=["disk-write"]' \
+     -c 'model_reasoning_effort="medium"' \
+     -m "gpt-5.3-codex" \
+     -
+   ```
+
+5. **Review diff** — After Codex finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
+
+6. **Commit** — The current agent handles all git operations. Codex's sandbox blocks `.git/index.lock` writes, so Codex cannot commit. Stage changes and commit with a conventional message.
+
+7. **Error handling** — On any Codex failure (rate limit, error, empty diff), fall back to standard mode for that task. One failure does not disable Codex for remaining tasks.
+
+---
+
 ## Key Principles
 
 ### Start Fast, Execute Faster
