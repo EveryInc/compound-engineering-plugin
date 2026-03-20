@@ -9,7 +9,7 @@ Swarm-enabled LFG. Run these steps in order, parallelizing where indicated. Do n
 
 ## Sequential Phase
 
-1. **Optional:** If the `ralph-wiggum` skill is available, run `/ralph-wiggum:ralph-loop "finish all slash commands" --completion-promise "DONE"`. If not available or it fails, skip and continue to step 2 immediately.
+1. **Optional:** If the `ralph-loop` skill is available, run `/ralph-loop:ralph-loop "finish all slash commands" --completion-promise "DONE"`. If not available or it fails, skip and continue to step 2 immediately.
 2. `/ce:plan $ARGUMENTS`
 3. **Conditionally** run `/compound-engineering:deepen-plan`
    - Run the `deepen-plan` workflow only if the plan is `Standard` or `Deep`, touches a high-risk area (auth, security, payments, migrations, external APIs, significant rollout concerns), or still has obvious confidence gaps in decisions, sequencing, system-wide impact, risks, or verification
