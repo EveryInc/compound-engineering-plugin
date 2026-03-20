@@ -450,15 +450,17 @@ When Codex delegation is active, follow this workflow for each task. Do not skip
 
 2. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `compound-engineering.local.md`). Include rules: no git commits, no PRs, run `git status` and `git diff --stat` when done. Do not embed credentials in the prompt.
 
-3. **Write prompt to file** — Save the assembled prompt to a temporary file to avoid shell quoting issues with long content:
+3. **Write prompt to file** — Save the assembled prompt to a unique temporary file to avoid shell quoting issues and cross-task races:
    ```bash
-   echo "$CODEX_PROMPT" > /tmp/codex-prompt.txt
+   CODEX_PROMPT_FILE=$(mktemp /tmp/codex-prompt-XXXXXX.txt)
    ```
+   Then write the prompt content to that file.
 
-4. **Delegate** — Run Codex from the working directory, reading the prompt from the file:
+4. **Delegate** — Run Codex, passing the prompt file path as stdin. Use the working directory as the current directory:
    ```bash
-   codex exec -c 'sandbox_permissions=["disk-write"]' -c 'model_reasoning_effort="medium"' -m "gpt-5.3-codex" - < /tmp/codex-prompt.txt
+   codex exec -c 'sandbox_permissions=["disk-write"]' -c 'model_reasoning_effort="medium"' -m "gpt-5.3-codex" "$(cat $CODEX_PROMPT_FILE)"
    ```
+   Clean up the temporary file after Codex finishes.
 
 5. **Review diff** — After Codex finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
 
