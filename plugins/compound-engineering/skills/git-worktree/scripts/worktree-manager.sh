@@ -65,20 +65,56 @@ copy_env_files() {
   echo -e "  ${GREEN}✓ Copied $copied environment file(s)${NC}"
 }
 
+# Resolve the repository default branch, falling back to main when origin/HEAD
+# is unavailable (for example in single-branch clones).
+get_default_branch() {
+  local head_ref
+  head_ref=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null || true)
+
+  if [[ -n "$head_ref" ]]; then
+    echo "${head_ref#refs/remotes/origin/}"
+  else
+    echo "main"
+  fi
+}
+
+# Auto-trust is only safe when the worktree is created from a long-lived branch
+# the developer already controls. Review/PR branches should fall back to the
+# default branch baseline and require manual direnv approval.
+is_trusted_base_branch() {
+  local branch="$1"
+  local default_branch="$2"
+
+  [[ "$branch" == "$default_branch" ]] && return 0
+
+  case "$branch" in
+    develop|dev|trunk|staging|release/*)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
 # Trust development tool configs in a new worktree.
 # Worktrees get a new filesystem path that tools like mise and direnv
 # have never seen. Without trusting, these tools block with interactive
 # prompts or refuse to load configs, which breaks hooks and scripts.
 #
-# Safety: only auto-trusts configs that are unchanged from the default branch.
-# Modified configs (e.g., from a PR) are flagged for manual review.
+# Safety: auto-trusts only configs unchanged from a trusted baseline branch.
+# Review/PR branches fall back to the default-branch baseline, and direnv
+# auto-allow is limited to trusted base branches because .envrc can source
+# additional files that direnv does not validate.
 #
 # TOCTOU between hash-check and trust is acceptable for local dev use.
 trust_dev_tools() {
   local worktree_path="$1"
   local base_ref="$2"
+  local allow_direnv_auto="$3"
   local trusted=0
-  local skipped=()
+  local skipped_messages=()
+  local manual_commands=()
 
   # mise: trust the specific config file if present and unchanged
   if command -v mise &>/dev/null; then
@@ -91,7 +127,8 @@ trust_dev_tools() {
             echo -e "  ${YELLOW}Warning: 'mise trust $f' failed -- run manually in $worktree_path${NC}"
           fi
         else
-          skipped+=("mise trust $f")
+          skipped_messages+=("mise trust $f (config differs from $base_ref)")
+          manual_commands+=("mise trust $f")
         fi
         break
       fi
@@ -101,14 +138,18 @@ trust_dev_tools() {
   # direnv: allow .envrc
   if command -v direnv &>/dev/null; then
     if [[ -f "$worktree_path/.envrc" ]]; then
-      if _config_unchanged ".envrc" "$base_ref" "$worktree_path"; then
+      if [[ "$allow_direnv_auto" != "true" ]]; then
+        skipped_messages+=("direnv allow (.envrc auto-allow is disabled for non-trusted base branches)")
+        manual_commands+=("direnv allow")
+      elif _config_unchanged ".envrc" "$base_ref" "$worktree_path"; then
         if (cd "$worktree_path" && direnv allow); then
           trusted=$((trusted + 1))
         else
           echo -e "  ${YELLOW}Warning: 'direnv allow' failed -- run manually in $worktree_path${NC}"
         fi
       else
-        skipped+=("direnv allow")
+        skipped_messages+=("direnv allow (.envrc differs from $base_ref)")
+        manual_commands+=("direnv allow")
       fi
     fi
   fi
@@ -117,14 +158,16 @@ trust_dev_tools() {
     echo -e "  ${GREEN}✓ Trusted $trusted dev tool config(s)${NC}"
   fi
 
-  if [[ ${#skipped[@]} -gt 0 ]]; then
-    echo -e "  ${YELLOW}Skipped auto-trust for modified config(s):${NC}"
-    for item in "${skipped[@]}"; do
+  if [[ ${#skipped_messages[@]} -gt 0 ]]; then
+    echo -e "  ${YELLOW}Skipped auto-trust for config(s) requiring manual review:${NC}"
+    for item in "${skipped_messages[@]}"; do
       echo -e "    - $item"
     done
-    local joined
-    joined=$(printf ' && %s' "${skipped[@]}")
-    echo -e "  ${BLUE}Review the diff, then run manually: cd $worktree_path${joined}${NC}"
+    if [[ ${#manual_commands[@]} -gt 0 ]]; then
+      local joined
+      joined=$(printf ' && %s' "${manual_commands[@]}")
+      echo -e "  ${BLUE}Review the diff, then run manually: cd $worktree_path${joined}${NC}"
+    fi
   fi
 }
 
@@ -196,20 +239,26 @@ create_worktree() {
   copy_env_files "$worktree_path"
 
   # Trust dev tool configs (mise, direnv) so hooks and scripts work immediately.
-  # Compare against the default branch (not from_branch) so that passing a PR
-  # branch as from_branch doesn't bypass the safety check.
+  # Long-lived integration branches can use themselves as the trust baseline,
+  # while review/PR branches fall back to the default branch and require manual
+  # direnv approval.
   local default_branch
-  default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
-  default_branch="${default_branch:-main}"
-  # Ensure the ref is fresh -- create_worktree only fetches from_branch
-  if ! git fetch origin "$default_branch" --quiet; then
-    echo -e "  ${YELLOW}Warning: could not fetch origin/$default_branch -- trust check may use stale data${NC}"
+  default_branch=$(get_default_branch)
+  local trust_branch="$default_branch"
+  local allow_direnv_auto="false"
+  if is_trusted_base_branch "$from_branch" "$default_branch"; then
+    trust_branch="$from_branch"
+    allow_direnv_auto="true"
   fi
-  # Skip trust entirely if the ref doesn't exist locally (no baseline to compare)
-  if git rev-parse --verify "origin/$default_branch" &>/dev/null; then
-    trust_dev_tools "$worktree_path" "origin/$default_branch"
+
+  if ! git fetch origin "$trust_branch" --quiet; then
+    echo -e "  ${YELLOW}Warning: could not fetch origin/$trust_branch -- trust check may use stale data${NC}"
+  fi
+  # Skip trust entirely if the baseline ref doesn't exist locally.
+  if git rev-parse --verify "origin/$trust_branch" &>/dev/null; then
+    trust_dev_tools "$worktree_path" "origin/$trust_branch" "$allow_direnv_auto"
   else
-    echo -e "  ${YELLOW}Skipping dev tool trust -- origin/$default_branch not found locally${NC}"
+    echo -e "  ${YELLOW}Skipping dev tool trust -- origin/$trust_branch not found locally${NC}"
   fi
 
   echo -e "${GREEN}✓ Worktree created successfully!${NC}"
@@ -428,8 +477,10 @@ Environment Files:
 
 Dev Tool Trust:
   - Trusts mise config (.mise.toml, mise.toml, .tool-versions) and direnv (.envrc)
-  - Only auto-trusts configs unchanged from the default branch
-  - Modified configs are flagged for manual review (safety for PR reviews)
+  - Uses trusted base branches directly (main, develop, dev, trunk, staging, release/*)
+  - Other branches fall back to the default branch as the trust baseline
+  - direnv auto-allow is skipped on non-trusted base branches; review manually first
+  - Modified configs are flagged for manual review
   - Only runs if the tool is installed and config exists
   - Prevents hooks/scripts from hanging on interactive trust prompts
 
