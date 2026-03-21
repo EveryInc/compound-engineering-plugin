@@ -143,16 +143,14 @@ _config_unchanged() {
   # Reject symlinks -- trust only regular files with verifiable content
   [[ -L "$worktree_path/$file" ]] && return 1
 
-  # Get the blob hash directly from git's object database. This avoids
-  # content round-tripping through shell variables (which strips trailing
-  # newlines) and pipefail issues with git show | git hash-object.
+  # Get the blob hash directly from git's object database via rev-parse
   local base_hash
   base_hash=$(git rev-parse "$base_ref:$file" 2>/dev/null) || return 1
 
   local worktree_hash
-  worktree_hash=$(git hash-object "$worktree_path/$file")
+  worktree_hash=$(git hash-object "$worktree_path/$file") || return 1
 
-  [[ -n "$base_hash" && -n "$worktree_hash" && "$base_hash" == "$worktree_hash" ]]
+  [[ "$base_hash" == "$worktree_hash" ]]
 }
 
 # Create a new worktree
@@ -430,7 +428,7 @@ Environment Files:
 
 Dev Tool Trust:
   - Trusts mise config (.mise.toml, mise.toml, .tool-versions) and direnv (.envrc)
-  - Only auto-trusts configs unchanged from the base branch
+  - Only auto-trusts configs unchanged from the default branch
   - Modified configs are flagged for manual review (safety for PR reviews)
   - Only runs if the tool is installed and config exists
   - Prevents hooks/scripts from hanging on interactive trust prompts
