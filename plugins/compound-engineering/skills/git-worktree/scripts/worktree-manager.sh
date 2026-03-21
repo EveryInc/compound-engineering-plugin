@@ -73,9 +73,7 @@ copy_env_files() {
 # Safety: only auto-trusts configs that are unchanged from the default branch.
 # Modified configs (e.g., from a PR) are flagged for manual review.
 #
-# Note: there is an inherent TOCTOU gap between the hash check and the trust
-# command. Exploiting it requires local filesystem write access + timing,
-# which is acceptable for single-user dev machines.
+# TOCTOU between hash-check and trust is acceptable for local dev use.
 trust_dev_tools() {
   local worktree_path="$1"
   local base_ref="$2"
@@ -134,13 +132,16 @@ trust_dev_tools() {
 # Returns 0 (true) if the file is identical to the base branch version.
 # Returns 1 (false) if the file was added or modified by this branch.
 #
-# Note: git hash-object on a file path applies gitattributes filters (e.g.,
-# line-ending normalization) while git show pipes raw bytes. A mismatch
-# would cause a false negative (trust skipped), which is the safe direction.
+# Note: rev-parse returns the stored blob hash; hash-object on a path applies
+# gitattributes filters. A mismatch causes a false negative (trust skipped),
+# which is the safe direction.
 _config_unchanged() {
   local file="$1"
   local base_ref="$2"
   local worktree_path="$3"
+
+  # Reject symlinks -- trust only regular files with verifiable content
+  [[ -L "$worktree_path/$file" ]] && return 1
 
   # Get the blob hash directly from git's object database. This avoids
   # content round-tripping through shell variables (which strips trailing
@@ -151,7 +152,7 @@ _config_unchanged() {
   local worktree_hash
   worktree_hash=$(git hash-object "$worktree_path/$file")
 
-  [[ "$base_hash" == "$worktree_hash" ]]
+  [[ -n "$base_hash" && -n "$worktree_hash" && "$base_hash" == "$worktree_hash" ]]
 }
 
 # Create a new worktree
@@ -203,7 +204,7 @@ create_worktree() {
   default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's|refs/remotes/origin/||')
   default_branch="${default_branch:-main}"
   # Ensure the ref is fresh -- create_worktree only fetches from_branch
-  if ! git fetch origin "$default_branch" --quiet 2>/dev/null; then
+  if ! git fetch origin "$default_branch" --quiet; then
     echo -e "  ${YELLOW}Warning: could not fetch origin/$default_branch -- trust check may use stale data${NC}"
   fi
   # Skip trust entirely if the ref doesn't exist locally (no baseline to compare)
