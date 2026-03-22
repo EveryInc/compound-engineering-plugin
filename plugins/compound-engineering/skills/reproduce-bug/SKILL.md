@@ -127,12 +127,13 @@ Dig deeper into the root cause using whatever observability the project offers.
 
 ### Check logs and traces
 
-Search application logs for errors, warnings, or unexpected behavior around the time of reproduction. The specific approach depends on the project:
+Search for errors, warnings, or unexpected behavior around the time of reproduction. What to check depends on the bug and what the project has available:
 
-- **Log files** -- search local log output for error patterns using the native content-search tool
-- **Error tracking services** -- if the project uses an error tracker (Sentry, AppSignal, Bugsnag, etc.), check for related exceptions
-- **Application console** -- for web apps, check browser developer console output for JavaScript errors
-- **Database queries** -- if the bug involves data, inspect relevant records
+- **Application logs** -- search local log output (dev server stdout, log files) for error patterns, stack traces, or warnings using the native content-search tool
+- **Error tracking** -- check for related exceptions in the project's error tracker (Sentry, AppSignal, Bugsnag, Datadog, etc.)
+- **Browser console** -- for UI bugs, check developer console output for JavaScript errors, failed network requests, or CORS issues
+- **Database state** -- if the bug involves data, inspect relevant records for unexpected values, missing associations, or constraint violations
+- **Request/response cycle** -- check server logs for the specific request: status codes, params, timing, middleware behavior
 
 ### Trace the code path
 
