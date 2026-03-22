@@ -1,6 +1,6 @@
 {
   "name": "@every-env/compound-plugin",
-  "version": "2.47.0",
+  "version": "2.48.0",
   "type": "module",
   "private": false,
   "bin": {
