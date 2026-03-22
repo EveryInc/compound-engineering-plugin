@@ -8,7 +8,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 |-----------|-------|
 | Agents | 29 |
 | Commands | 22 |
-| Skills | 20 |
+| Skills | 21 |
 | MCP Servers | 1 |
 
 ## Agents
@@ -114,6 +114,12 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | Skill | Description |
 |-------|-------------|
 | `agent-native-architecture` | Build AI agents using prompt-native architecture |
+
+### Development Workflows
+
+| Skill | Description |
+|-------|-------------|
+| `go` | Unified development workflow — plan, implement, review, fix, push. Accepts a mode parameter (`ham`, `lite`, `lite-noweb`, `bug`, `bug-parallel`) and optional `-auto` suffix for autonomous brainstorm |
 
 ### Development Tools
 

@@ -1,11 +1,11 @@
 #!/bin/bash
-# setup.sh — Symlink go-* workflow skills into OpenCode commands directory
+# setup.sh — Symlink the /go workflow skill into OpenCode commands directory
 #
 # Usage: ./setup.sh
 #
-# Symlinks each SKILL.md from plugins/compound-engineering/skills/go-*/
-# into ~/.config/opencode/commands/ so they appear as /go-lite, /go-ham,
-# and /go-lite-noweb in the OpenCode UI.
+# Symlinks plugins/compound-engineering/skills/go/SKILL.md
+# into ~/.config/opencode/commands/go.md so it appears as /go
+# in the OpenCode UI.
 #
 # Note: This repo IS compound-engineering (extended). For Claude Code,
 # use the plugin marketplace instead:
@@ -20,35 +20,40 @@ OPENCODE_DIR="$HOME/.config/opencode/commands"
 
 mkdir -p "$OPENCODE_DIR"
 
-echo "Setting up go-* workflow skills for OpenCode..."
+echo "Setting up /go workflow skill for OpenCode..."
 echo "Linking from: $PLUGIN_DIR"
 echo "Linking into: $OPENCODE_DIR"
 echo ""
 
-linked=0
-for skill_dir in "$PLUGIN_DIR"/go-*; do
-    skill_name=$(basename "$skill_dir")
-    skill_file="$skill_dir/SKILL.md"
-    target="$OPENCODE_DIR/$skill_name.md"
+skill_file="$PLUGIN_DIR/go/SKILL.md"
+target="$OPENCODE_DIR/go.md"
 
-    [ -f "$skill_file" ] || continue
+if [ ! -f "$skill_file" ]; then
+    echo "Error: skill file not found: $skill_file"
+    exit 1
+fi
 
-    # Remove existing file or symlink if present
-    rm -f "$target"
+# Remove existing file or symlink if present
+rm -f "$target"
 
-    ln -s "$skill_file" "$target"
-    echo "  Linked: $skill_name.md -> $skill_file"
-    linked=$((linked + 1))
-done
+ln -s "$skill_file" "$target"
+echo "  Linked: go.md -> $skill_file"
 
 echo ""
-echo "Done. Linked $linked skill(s)."
+echo "Done. Linked 1 skill."
 echo ""
-echo "Available commands in OpenCode:"
-echo "  /go-lite        — Balanced workflow (plan, work, review, fix)"
-echo "  /go-ham         — Full workflow with research and browser testing"
-echo "  /go-lite-noweb  — Fast workflow, no web research or browser testing"
+echo "Available command in OpenCode:"
+echo "  /go <mode> [args]   — Unified development workflow"
 echo ""
-echo "This repo includes compound-engineering. The go-* workflows use"
+echo "Modes:"
+echo "  lite         — Balanced workflow (plan, work, review, fix, push)"
+echo "  ham          — Full workflow with research and browser testing"
+echo "  lite-noweb   — Fast workflow, no web research or browser testing"
+echo "  bug          — Single-issue bug fix"
+echo "  bug-parallel — Multiple bugs fixed in parallel"
+echo ""
+echo "Append -auto to any mode for autonomous brainstorm before planning."
+echo ""
+echo "This repo includes compound-engineering. The /go workflow uses"
 echo "ce:plan, ce:review, ce:compound, and deepen-plan skills from"
 echo "the same plugin."

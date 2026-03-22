@@ -1,12 +1,12 @@
 # t851029/skills-repo
 
-Fork of [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) with three custom workflow skills added: `go-lite`, `go-ham`, and `go-lite-noweb`.
+Fork of [EveryInc/compound-engineering-plugin](https://github.com/EveryInc/compound-engineering-plugin) with a unified `/go` workflow skill added.
 
 ## What this is
 
-This is the [compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) plugin marketplace, extended with three opinionated development workflow skills. The plugin name stays `compound-engineering` because this IS the compound-engineering plugin — just with extra workflows baked in.
+This is the [compound-engineering](https://github.com/EveryInc/compound-engineering-plugin) plugin marketplace, extended with a unified `/go` development workflow skill. The plugin name stays `compound-engineering` because this IS the compound-engineering plugin — just with the extra workflow baked in.
 
-A friend runs two commands and gets all compound-engineering skills plus the custom workflows:
+A friend runs two commands and gets all compound-engineering skills plus the custom workflow:
 
 ```bash
 /plugin marketplace add t851029/skills-repo
@@ -30,7 +30,7 @@ cd ~/.config/opencode/skills/skills-repo
 ./setup.sh
 ```
 
-`setup.sh` symlinks the go-* SKILL.md files directly into `~/.config/opencode/commands/`.
+`setup.sh` symlinks the `go` SKILL.md file directly into `~/.config/opencode/commands/`.
 
 ## Plugin Collision Warning
 
@@ -45,22 +45,30 @@ If you already have `compound-engineering` installed from upstream, uninstall it
 
 Installing both will cause a name collision since both use the `compound-engineering` plugin name.
 
-## Three Workflows
+## Unified /go Workflow
 
-| Workflow | Speed | Web Research | Browser Testing | Best For |
-|----------|-------|-------------|-----------------|----------|
-| `go-lite-noweb` | Fastest | No | No | Straightforward features, hotfixes |
-| `go-lite` | Fast | No | Conditional | Most features, UI work |
-| `go-ham` | Thorough | Yes (deepen-plan) | Conditional | Complex features, unknown territory |
+A single `/go` skill replaces the three separate `go-lite`, `go-ham`, and `go-lite-noweb` skills. Pass a mode as the first argument:
 
-All three share the same core loop: plan → work → review → fix → push.
+| Mode | Speed | Web Research | Browser Testing | Best For |
+|------|-------|-------------|-----------------|----------|
+| `lite-noweb` | Fastest | No | No | Straightforward features, hotfixes |
+| `lite` | Fast | No | Conditional | Most features, UI work |
+| `ham` | Thorough | Yes (deepen-plan) | Conditional | Complex features, unknown territory |
+| `bug` | Fast | No | No | Single-issue bug fixes |
+| `bug-parallel` | Fast | No | No | Multiple bugs fixed in parallel |
+
+All modes share the same core loop: plan → work → review → fix → push.
+
+Append `-auto` to any mode for autonomous brainstorm before planning.
 
 Usage in Claude Code:
 
 ```
-/compound-engineering:go-lite #123 add dark mode toggle
-/compound-engineering:go-ham #456 redesign auth flow
-/compound-engineering:go-lite-noweb fix null pointer in user service
+/compound-engineering:go lite #123 add dark mode toggle
+/compound-engineering:go ham #456 redesign auth flow
+/compound-engineering:go lite-noweb fix null pointer in user service
+/compound-engineering:go bug #789 fix session expiry
+/compound-engineering:go ham-auto #101 explore caching strategy
 ```
 
 ## Model Routing
@@ -68,7 +76,7 @@ Usage in Claude Code:
 | Phase | Model | Tool |
 |-------|-------|------|
 | Planning (ce:plan) | Opus | Skill tool |
-| Deepen plan (go-ham only) | Opus | Skill tool |
+| Deepen plan (ham mode only) | Opus | Skill tool |
 | Implementation | Sonnet | Task tool (work-executor agent) |
 | Review (ce:review) | Opus | Skill tool |
 | Fix TODOs | Sonnet | Task tool |
@@ -92,16 +100,16 @@ field_updater.sh set-status "$PROJECT_ID" "$ITEM_ID" "Implementation"
 
 **How to add your own:**
 
-Option 1 — Project-level override. Create `.claude/commands/go-lite.md` in your repo:
+Option 1 — Project-level override. Create `.claude/commands/go.md` in your repo:
 
 ```markdown
 ---
-description: go-lite with our task tracking
+description: /go with our task tracking
 ---
 
-# /go-lite
+# /go
 
-1. Load the `compound-engineering:go-lite` skill.
+1. Load the `compound-engineering:go` skill.
 2. Before Phase 1, run our task tracking setup.
 3. Pass $ARGUMENTS.
 ```
@@ -110,7 +118,7 @@ Option 2 — CLAUDE.md hook. Add a pre-workflow instruction to your project's `C
 
 Option 3 — Fork this repo and add Step 0.1 back with your own values.
 
-The BYO section in each SKILL.md includes a commented template showing the original pattern.
+The BYO section in the `/go` SKILL.md includes a commented template showing the original pattern with the GitHub Projects v2 example.
 
 ## Upstream Sync
 
@@ -127,22 +135,22 @@ git fetch upstream
 git merge upstream/main
 ```
 
-If upstream changes conflict with the go-* skills or marketplace.json name, resolve manually. The go-* skill directories are new files not present in upstream, so conflicts are unlikely.
+If upstream changes conflict with the `go` skill or marketplace.json name, resolve manually. The `go` skill directory is a new file not present in upstream, so conflicts are unlikely.
 
 ## Customization
 
-All three workflows support project-level overrides via `.claude/commands/`. Create a file at `.claude/commands/go-lite.md` (or `go-ham.md`, `go-lite-noweb.md`) in your project repo to override or extend the shared skill for that project.
+The unified `/go` workflow supports project-level overrides via `.claude/commands/`. Create a file at `.claude/commands/go.md` in your project repo to override or extend the shared skill for that project.
 
 Example: adding a smoke test phase back for a specific project:
 
 ```markdown
 ---
-description: go-lite with smoke tests
+description: /go with smoke tests
 ---
 
-# /go-lite
+# /go
 
-1. Load the `compound-engineering:go-lite` skill using the Skill tool.
+1. Load the `compound-engineering:go` skill using the Skill tool.
 2. After Phase 7 (Commit & Push), run: `python -m pytest tests/ -v`
 3. Pass $ARGUMENTS.
 ```
@@ -153,12 +161,12 @@ These workflows depend on skills from the compound-engineering plugin:
 
 | Dependency | Used by | Purpose |
 |------------|---------|---------|
-| `ce:plan` | All three | Creates plan file in docs/plans/ |
-| `ce:review` | All three | Reviews implementation, creates todo files |
-| `ce:compound` | All three (conditional) | Documents solutions in docs/solutions/ |
-| `deepen-plan` | go-ham only | Web research to enhance the plan |
-| `git-worktree` | All three | Creates isolated worktrees via worktree-manager.sh |
-| `agent-browser` | go-lite, go-ham (conditional) | Browser testing for dashboard changes |
+| `ce:plan` | All modes | Creates plan file in docs/plans/ |
+| `ce:review` | All modes | Reviews implementation, creates todo files |
+| `ce:compound` | All modes (conditional) | Documents solutions in docs/solutions/ |
+| `deepen-plan` | ham mode only | Web research to enhance the plan |
+| `git-worktree` | All modes | Creates isolated worktrees via worktree-manager.sh |
+| `agent-browser` | lite, ham modes (conditional) | Browser testing for dashboard changes |
 
 Optional (not in compound-engineering, skip if absent):
 

@@ -5,6 +5,23 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.39.0] - 2026-03-21
+
+### Changed
+- **Unified /go workflow skill** — Replaced three separate skills (go-ham, go-lite, go-lite-noweb) with a single `/go` skill that accepts a mode parameter (`ham`, `lite`, `lite-noweb`, `bug`, `bug-parallel`)
+- Added `-auto` suffix support for autonomous brainstorm on any mode
+- Added auto-detection for test command (npm, pytest, rspec, go test, cargo test, make test) and frontend directory
+- Added config override via `compound-engineering.local.md` frontmatter (`test_command`, `frontend_dir`)
+- Removed all hardcoded project-specific references (usernames, repos, auth scripts)
+- Added BYO task tracking documentation with GitHub Projects v2 example template
+
+### Removed
+- `go-ham` skill (replaced by `/go ham`)
+- `go-lite` skill (replaced by `/go lite`)
+- `go-lite-noweb` skill (replaced by `/go lite-noweb`)
+
+---
+
 ## [2.38.1] - 2026-03-01
 
 ### Fixed
