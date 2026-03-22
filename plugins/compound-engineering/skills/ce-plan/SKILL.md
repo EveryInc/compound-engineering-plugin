@@ -153,7 +153,7 @@ Think like a product manager - what would make this issue clear and actionable? 
 
 **Execution Posture:**
 
-- [ ] If the user asks for Codex delegation, says "use codex", or mentions token conservation, add `Execution note: Execution target: codex` to implementation-heavy tasks in the plan
+- [ ] If the user asks for external delegation, says "use codex", "delegate mode", or mentions token conservation, add `Execution note: Execution target: external-delegate` to implementation-heavy tasks in the plan
 
 **Content Planning:**
 

@@ -419,54 +419,67 @@ Most plans should use subagent dispatch from standard mode. Agent teams add sign
 
 ---
 
-## Codex Delegation (Optional)
+## External Delegate Mode (Optional)
 
-For plans where token conservation matters, delegate code implementation to Codex CLI while keeping planning, review, and git operations in the current agent.
+For plans where token conservation matters, delegate code implementation to an external delegate (currently Codex CLI) while keeping planning, review, and git operations in the current agent.
 
-### When to Use Codex Delegation
+This mode integrates with the existing Phase 1 Step 4 strategy selection as a **task-level modifier** - the strategy (inline/serial/parallel) still applies, but the implementation step within each tagged task delegates to the external tool instead of executing directly.
 
-| Codex Delegation | Standard Mode |
-|------------------|---------------|
+### When to Use External Delegation
+
+| External Delegation | Standard Mode |
+|---------------------|---------------|
 | Task is pure code implementation | Task requires research or exploration |
 | Plan has clear acceptance criteria | Task is ambiguous or needs iteration |
 | Token conservation matters (e.g., Max20 plan) | Unlimited plan or small task |
 | Files to change are well-scoped | Changes span many interconnected files |
 
-### Enabling Codex Delegation
+### Enabling External Delegation
 
-Codex delegation activates when any of these conditions are met:
-- The user says "use codex for this work", "delegate to codex", or "codex mode"
-- A plan implementation unit contains `Execution target: codex` in its Execution note (set by ce:plan-beta or ce:plan)
+External delegation activates when any of these conditions are met:
+- The user says "use codex for this work", "delegate to codex", or "delegate mode"
+- A plan implementation unit contains `Execution target: external-delegate` in its Execution note (set by ce:plan-beta or ce:plan)
 
-### Codex Delegation Workflow
+The specific delegate tool is resolved at execution time. Currently the only supported delegate is Codex CLI. Future delegates can be added without changing plan files.
 
-When Codex delegation is active, follow this workflow for each task. Do not skip delegation because a task seems "small", "simple", or "faster inline". The user or plan explicitly requested delegation.
+### Environment Guard
+
+Before attempting delegation, check whether the current agent is already running inside a delegate's sandbox. Delegation from within a sandbox will fail silently or recurse.
+
+Check for known sandbox indicators:
+- `CODEX_SANDBOX` environment variable is set
+- `CODEX_SESSION_ID` environment variable is set
+- The filesystem is read-only at `.git/` (Codex sandbox blocks git writes)
+
+If any indicator is detected, print "Already running inside a delegate sandbox - using standard mode." and proceed with standard execution for that task.
+
+### External Delegation Workflow
+
+When external delegation is active, follow this workflow for each tagged task. Do not skip delegation because a task seems "small", "simple", or "faster inline". The user or plan explicitly requested delegation.
 
 1. **Check availability**
-   ```bash
-   command -v codex >/dev/null 2>&1
-   ```
-   If not found, print "Codex CLI not installed - continuing with standard mode." and proceed normally.
 
-2. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `compound-engineering.local.md`). Include rules: no git commits, no PRs, run `git status` and `git diff --stat` when done. Do not embed credentials in the prompt.
+   Verify the delegate CLI is installed. If not found, print "Delegate CLI not installed - continuing with standard mode." and proceed normally.
 
-3. **Write prompt to file** — Save the assembled prompt to a unique temporary file to avoid shell quoting issues and cross-task races:
-   ```bash
-   CODEX_PROMPT_FILE=$(mktemp /tmp/codex-prompt-XXXXXX.txt)
-   ```
-   Then write the prompt content to that file.
+2. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `compound-engineering.local.md`). Include rules: no git commits, no PRs, run `git status` and `git diff --stat` when done. Never embed credentials or tokens in the prompt - pass auth through environment variables.
 
-4. **Delegate** — Run Codex, passing the prompt file path as stdin. Use the working directory as the current directory:
-   ```bash
-   codex exec -c 'sandbox_permissions=["disk-write"]' -c 'model_reasoning_effort="medium"' -m "gpt-5.3-codex" "$(cat $CODEX_PROMPT_FILE)"
-   ```
-   Clean up the temporary file after Codex finishes.
+3. **Write prompt to file** — Save the assembled prompt to a unique temporary file to avoid shell quoting issues and cross-task races. Use a unique filename per task.
 
-5. **Review diff** — After Codex finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
+4. **Delegate** — Run the delegate CLI, piping the prompt file via stdin (not argv expansion, which hits `ARG_MAX` on large prompts). Omit the model flag to use the delegate's default model, which stays current without manual updates.
 
-6. **Commit** — The current agent handles all git operations. Codex's sandbox blocks `.git/index.lock` writes, so Codex cannot commit. Stage changes and commit with a conventional message.
+5. **Review diff** — After the delegate finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
 
-7. **Error handling** — On any Codex failure (rate limit, error, empty diff), fall back to standard mode for that task. One failure does not disable Codex for remaining tasks.
+6. **Commit** — The current agent handles all git operations. The delegate's sandbox blocks `.git/index.lock` writes, so the delegate cannot commit. Stage changes and commit with a conventional message.
+
+7. **Error handling** — On any delegate failure (rate limit, error, empty diff), fall back to standard mode for that task. Track consecutive failures - after 3 consecutive failures, disable delegation for remaining tasks and print "Delegate disabled after 3 consecutive failures - completing remaining tasks in standard mode."
+
+### Mixed-Model Attribution
+
+When some tasks are executed by the delegate and others by the current agent, use the following attribution in Phase 4:
+
+- If all tasks used the delegate: attribute to the delegate model
+- If all tasks used standard mode: attribute to the current agent's model
+- If mixed: use `Generated with [CURRENT_MODEL] + [DELEGATE_MODEL] via [HARNESS]` and note which tasks were delegated in the PR description
 
 ---
 
