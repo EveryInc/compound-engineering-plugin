@@ -151,10 +151,6 @@ Think like a product manager - what would make this issue clear and actionable? 
 - [ ] Identify who will be affected by this issue (end users, developers, operations)
 - [ ] Consider implementation complexity and required expertise
 
-**Execution Posture:**
-
-- [ ] If the user asks for external delegation, says "use codex", "delegate mode", or mentions token conservation, add `Execution note: Execution target: external-delegate` to implementation-heavy tasks in the plan
-
 **Content Planning:**
 
 - [ ] Choose appropriate detail level based on issue complexity and audience
