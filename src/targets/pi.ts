@@ -1,14 +1,13 @@
 import path from "path"
 import {
   backupFile,
-  copySkillDir,
   ensureDir,
   pathExists,
   readText,
   writeJson,
   writeText,
 } from "../utils/files"
-import { transformContentForPi } from "../converters/claude-to-pi"
+import { copySkillDirForPi } from "../utils/pi-skills"
 import type { PiBundle } from "../types/pi"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
@@ -19,8 +18,8 @@ const PI_AGENTS_BLOCK_BODY = `## Compound Engineering (Pi compatibility)
 This block is managed by compound-plugin.
 
 Compatibility notes:
-- Claude Task(agent, args) maps to the subagent extension tool
-- For parallel agent runs, batch multiple subagent calls with multi_tool_use.parallel
+- Claude Task(agent, args) maps to the ce_subagent extension tool
+- Use ce_subagent for Compound Engineering workflows even when another extension also provides a generic subagent tool
 - AskUserQuestion maps to the ask_user_question extension tool
 - MCP access uses MCPorter via mcporter_list and mcporter_call extension tools
 - MCPorter config path: .pi/compound-engineering/mcporter.json (project) or ~/.pi/agent/compound-engineering/mcporter.json (global)
@@ -38,7 +37,7 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   }
 
   for (const skill of bundle.skillDirs) {
-    await copySkillDir(skill.sourceDir, path.join(paths.skillsDir, skill.name), transformContentForPi)
+    await copySkillDirForPi(skill.sourceDir, path.join(paths.skillsDir, skill.name), skill.name, bundle.nameMaps)
   }
 
   for (const skill of bundle.generatedSkills) {

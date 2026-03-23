@@ -245,9 +245,9 @@ export default function (pi: ExtensionAPI) {
   })
 
   pi.registerTool({
-    name: "subagent",
-    label: "Subagent",
-    description: "Run one or more skill-based subagent tasks. Supports single, parallel, and chained execution.",
+    name: "ce_subagent",
+    label: "Compound Engineering Subagent",
+    description: "Run one or more Compound Engineering skill-based subagent tasks. Supports single, parallel, and chained execution.",
     parameters: Type.Object({
       agent: Type.Optional(Type.String({ description: "Single subagent name" })),
       task: Type.Optional(Type.String({ description: "Single subagent task" })),

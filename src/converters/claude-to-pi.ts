@@ -1,4 +1,5 @@
 import { formatFrontmatter } from "../utils/frontmatter"
+import { appendCompatibilityNoteIfNeeded, normalizePiSkillName, transformPiBodyContent, uniquePiSkillName, type PiNameMaps } from "../utils/pi-skills"
 import type { ClaudeAgent, ClaudeCommand, ClaudeMcpServer, ClaudePlugin } from "../types/claude"
 import type {
   PiBundle,
@@ -18,13 +19,41 @@ export function convertClaudeToPi(
   _options: ClaudeToPiOptions,
 ): PiBundle {
   const promptNames = new Set<string>()
-  const usedSkillNames = new Set<string>(plugin.skills.map((skill) => normalizeName(skill.name)))
+  const usedSkillNames = new Set<string>()
 
-  const prompts = plugin.commands
+  const sortedSkills = [...plugin.skills].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+  const sortedAgents = [...plugin.agents].sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+
+  const skillDirs = sortedSkills.map((skill) => ({
+    name: uniquePiSkillName(normalizePiSkillName(skill.name), usedSkillNames),
+    sourceDir: skill.sourceDir,
+  }))
+
+  const agentNames = sortedAgents.map((agent) =>
+    uniquePiSkillName(normalizePiSkillName(agent.name), usedSkillNames),
+  )
+
+  const agentMap: Record<string, string> = {}
+  sortedAgents.forEach((agent, i) => { agentMap[agent.name] = agentNames[i] })
+
+  const skillMap: Record<string, string> = {}
+  sortedSkills.forEach((skill, i) => { skillMap[skill.name] = skillDirs[i].name })
+
+  const convertibleCommands = [...plugin.commands]
     .filter((command) => !command.disableModelInvocation)
-    .map((command) => convertPrompt(command, promptNames))
+    .sort((a, b) => a.name < b.name ? -1 : a.name > b.name ? 1 : 0)
+  const promptTargetNames = convertibleCommands.map((command) =>
+    uniquePiSkillName(normalizePiSkillName(command.name), promptNames),
+  )
 
-  const generatedSkills = plugin.agents.map((agent) => convertAgent(agent, usedSkillNames))
+  const promptMap: Record<string, string> = {}
+  convertibleCommands.forEach((command, i) => { promptMap[command.name] = promptTargetNames[i] })
+
+  const nameMaps: PiNameMaps = { agents: agentMap, skills: skillMap, prompts: promptMap }
+
+  const prompts = convertibleCommands.map((command, i) => convertPrompt(command, promptTargetNames[i], nameMaps))
+
+  const generatedSkills = sortedAgents.map((agent, i) => convertAgent(agent, agentNames[i], nameMaps))
 
   const extensions = [
     {
@@ -35,25 +64,21 @@ export function convertClaudeToPi(
 
   return {
     prompts,
-    skillDirs: plugin.skills.map((skill) => ({
-      name: skill.name,
-      sourceDir: skill.sourceDir,
-    })),
+    skillDirs,
     generatedSkills,
     extensions,
     mcporterConfig: plugin.mcpServers ? convertMcpToMcporter(plugin.mcpServers) : undefined,
+    nameMaps,
   }
 }
 
-function convertPrompt(command: ClaudeCommand, usedNames: Set<string>) {
-  const name = uniqueName(normalizeName(command.name), usedNames)
+function convertPrompt(command: ClaudeCommand, name: string, nameMaps: PiNameMaps) {
   const frontmatter: Record<string, unknown> = {
     description: command.description,
     "argument-hint": command.argumentHint,
   }
 
-  let body = transformContentForPi(command.body)
-  body = appendCompatibilityNoteIfNeeded(body)
+  const body = appendCompatibilityNoteIfNeeded(transformPiBodyContent(command.body, nameMaps))
 
   return {
     name,
@@ -61,8 +86,7 @@ function convertPrompt(command: ClaudeCommand, usedNames: Set<string>) {
   }
 }
 
-function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): PiGeneratedSkill {
-  const name = uniqueName(normalizeName(agent.name), usedNames)
+function convertAgent(agent: ClaudeAgent, name: string, nameMaps: PiNameMaps): PiGeneratedSkill {
   const description = sanitizeDescription(
     agent.description ?? `Converted from Claude agent ${agent.name}`,
   )
@@ -77,75 +101,17 @@ function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): PiGeneratedSk
     sections.push(`## Capabilities\n${agent.capabilities.map((capability) => `- ${capability}`).join("\n")}`)
   }
 
-  const body = [
+  const body = transformPiBodyContent([
     ...sections,
     agent.body.trim().length > 0
       ? agent.body.trim()
       : `Instructions converted from the ${agent.name} agent.`,
-  ].join("\n\n")
+  ].join("\n\n"), nameMaps)
 
   return {
     name,
     content: formatFrontmatter(frontmatter, body),
   }
-}
-
-export function transformContentForPi(body: string): string {
-  let result = body
-
-  // Task repo-research-analyst(feature_description) or Task compound-engineering:research:repo-research-analyst(args)
-  // -> Run subagent with agent="repo-research-analyst" and task="feature_description"
-  const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9:-]*)\(([^)]*)\)/gm
-  result = result.replace(taskPattern, (_match, prefix: string, agentName: string, args: string) => {
-    const finalSegment = agentName.includes(":") ? agentName.split(":").pop()! : agentName
-    const skillName = normalizeName(finalSegment)
-    const trimmedArgs = args.trim().replace(/\s+/g, " ")
-    return trimmedArgs
-      ? `${prefix}Run subagent with agent=\"${skillName}\" and task=\"${trimmedArgs}\".`
-      : `${prefix}Run subagent with agent=\"${skillName}\".`
-  })
-
-  // Claude-specific tool references
-  result = result.replace(/\bAskUserQuestion\b/g, "ask_user_question")
-  result = result.replace(/\bTodoWrite\b/g, "file-based todos (todos/ + /skill:todo-create)")
-  result = result.replace(/\bTodoRead\b/g, "file-based todos (todos/ + /skill:todo-create)")
-
-  // /command-name or /workflows:command-name -> /workflows-command-name
-  const slashCommandPattern = /(?<![:\w])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
-  result = result.replace(slashCommandPattern, (match, commandName: string) => {
-    if (commandName.includes("/")) return match
-    if (["dev", "tmp", "etc", "usr", "var", "bin", "home"].includes(commandName)) {
-      return match
-    }
-
-    if (commandName.startsWith("skill:")) {
-      const skillName = commandName.slice("skill:".length)
-      return `/skill:${normalizeName(skillName)}`
-    }
-
-    const withoutPrefix = commandName.startsWith("prompts:")
-      ? commandName.slice("prompts:".length)
-      : commandName
-
-    return `/${normalizeName(withoutPrefix)}`
-  })
-
-  return result
-}
-
-function appendCompatibilityNoteIfNeeded(body: string): string {
-  if (!/\bmcp\b/i.test(body)) return body
-
-  const note = [
-    "",
-    "## Pi + MCPorter note",
-    "For MCP access in Pi, use MCPorter via the generated tools:",
-    "- `mcporter_list` to inspect available MCP tools",
-    "- `mcporter_call` to invoke a tool",
-    "",
-  ].join("\n")
-
-  return body + note
 }
 
 function convertMcpToMcporter(servers: Record<string, ClaudeMcpServer>): PiMcporterConfig {
@@ -173,36 +139,9 @@ function convertMcpToMcporter(servers: Record<string, ClaudeMcpServer>): PiMcpor
   return { mcpServers }
 }
 
-function normalizeName(value: string): string {
-  const trimmed = value.trim()
-  if (!trimmed) return "item"
-  const normalized = trimmed
-    .toLowerCase()
-    .replace(/[\\/]+/g, "-")
-    .replace(/[:\s]+/g, "-")
-    .replace(/[^a-z0-9_-]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-+|-+$/g, "")
-  return normalized || "item"
-}
-
 function sanitizeDescription(value: string, maxLength = PI_DESCRIPTION_MAX_LENGTH): string {
   const normalized = value.replace(/\s+/g, " ").trim()
   if (normalized.length <= maxLength) return normalized
   const ellipsis = "..."
   return normalized.slice(0, Math.max(0, maxLength - ellipsis.length)).trimEnd() + ellipsis
-}
-
-function uniqueName(base: string, used: Set<string>): string {
-  if (!used.has(base)) {
-    used.add(base)
-    return base
-  }
-  let index = 2
-  while (used.has(`${base}-${index}`)) {
-    index += 1
-  }
-  const name = `${base}-${index}`
-  used.add(name)
-  return name
 }
