@@ -36,7 +36,7 @@ export function convertClaudeToPi(
   return {
     prompts,
     skillDirs: plugin.skills.map((skill) => ({
-      name: skill.name,
+      name: normalizeName(skill.name),
       sourceDir: skill.sourceDir,
     })),
     generatedSkills,
@@ -180,7 +180,7 @@ function normalizeName(value: string): string {
     .toLowerCase()
     .replace(/[\\/]+/g, "-")
     .replace(/[:\s]+/g, "-")
-    .replace(/[^a-z0-9_-]+/g, "-")
+    .replace(/[^a-z0-9-]+/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-+|-+$/g, "")
   return normalized || "item"

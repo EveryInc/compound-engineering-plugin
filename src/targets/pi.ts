@@ -38,7 +38,12 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   }
 
   for (const skill of bundle.skillDirs) {
-    await copySkillDir(skill.sourceDir, path.join(paths.skillsDir, skill.name), transformContentForPi)
+    await copySkillDir(skill.sourceDir, path.join(paths.skillsDir, skill.name), (content) => {
+      let result = transformContentForPi(content)
+      // Normalize the name field in frontmatter to match the pi-safe directory name
+      result = result.replace(/^(name:\s*).+$/m, `$1${skill.name}`)
+      return result
+    })
   }
 
   for (const skill of bundle.generatedSkills) {

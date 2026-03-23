@@ -18,7 +18,7 @@ describe("convertClaudeToPi", () => {
 
     // Prompts are normalized command names
     expect(bundle.prompts.some((prompt) => prompt.name === "workflows-review")).toBe(true)
-    expect(bundle.prompts.some((prompt) => prompt.name === "plan_review")).toBe(true)
+    expect(bundle.prompts.some((prompt) => prompt.name === "plan-review")).toBe(true)
 
     // Commands with disable-model-invocation are excluded
     expect(bundle.prompts.some((prompt) => prompt.name === "deploy-docs")).toBe(false)
