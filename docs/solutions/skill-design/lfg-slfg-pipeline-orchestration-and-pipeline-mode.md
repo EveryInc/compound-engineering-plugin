@@ -88,7 +88,7 @@ Both skills now assess task complexity in Phase 0 before invoking any downstream
 
 The routing biases toward under-routing -- when the boundary between tiers is unclear, it prefers the cheaper path (Direct over Lightweight, Full Pipeline over Lightweight when ambiguity exists).
 
-The fast paths do **not** skip git safety or PR creation. They still preserve the same branch/worktree safety and branch-to-PR completion contract that previously lived inside `ce:work`; they only skip planning/review ceremony.
+The fast paths do **not** skip git safety or PR creation. They still preserve the workflow's branch/worktree safety and branch-to-PR completion contract; they only skip planning/review ceremony.
 
 Within the Full Pipeline path, `/ce:brainstorm $ARGUMENTS` runs as step 1 (before optional ralph-loop). Ralph-loop is repositioned to step 2 -- after brainstorm (which may need user interaction) but before plan (which is autonomous).
 

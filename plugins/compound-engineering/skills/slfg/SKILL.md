@@ -26,9 +26,9 @@ Then execute immediately. Do not wait for confirmation about the routing decisio
 
 The fix is obvious and self-contained. No planning or multi-agent review needed.
 
-Before changing files, preserve the same branch/worktree safety as `ce:work` Phase 1: choose the right branch first, and never commit directly to the default branch without explicit user permission.
+Before changing files, preserve the workflow's branch/worktree safety: choose the right branch first, and never commit directly to the default branch without explicit user permission.
 
-Make the change, verify it works (typecheck, lint, or test if applicable), then preserve the same wrap-up contract as `ce:work` Phase 4: commit it, push it, and create or update the PR before outputting `<promise>DONE</promise>`.
+Make the change, verify it works (typecheck, lint, or test if applicable), then preserve the workflow's wrap-up contract: commit it, push it, and create or update the PR before outputting `<promise>DONE</promise>`.
 
 ---
 
@@ -36,9 +36,9 @@ Make the change, verify it works (typecheck, lint, or test if applicable), then 
 
 The task is clear and bounded -- requirements and expected behavior are already in the description. Loading brainstorm, plan, and multi-agent review would add ceremony without improving the outcome.
 
-Before changing files, preserve the same branch/worktree safety as `ce:work` Phase 1: choose the right branch first, and never commit directly to the default branch without explicit user permission.
+Before changing files, preserve the workflow's branch/worktree safety: choose the right branch first, and never commit directly to the default branch without explicit user permission.
 
-Do the work directly. Verify it works (typecheck, lint, or test if applicable), give it a quick self-review for obvious issues, then preserve the same wrap-up contract as `ce:work` Phase 4: commit it, push it, and create or update the PR before outputting `<promise>DONE</promise>`.
+Do the work directly. Verify it works (typecheck, lint, or test if applicable), give it a quick self-review for obvious issues, then preserve the workflow's wrap-up contract: commit it, push it, and create or update the PR before outputting `<promise>DONE</promise>`.
 
 ---
 
