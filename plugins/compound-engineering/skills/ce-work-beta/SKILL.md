@@ -222,7 +222,7 @@ This command takes a work document (plan, specification, or todo file) and execu
 
    - Load the `frontend-design` skill before implementing
    - Follow its detection, guidance, and verification flow
-   - The skill's verification screenshot satisfies Phase 4's screenshot requirement -- no need to capture separately
+   - If the skill produced a verification screenshot, it satisfies Phase 4's screenshot requirement -- no need to capture separately. If the skill fell back to mental review (no browser access), Phase 4's screenshot capture still applies
 
 8. **Track Progress**
    - Keep the task list updated as you complete tasks

@@ -248,7 +248,7 @@ Use the first available option:
 
 One iteration. Take a screenshot, assess against the litmus checks, fix any glaring issues, and move on. Include the screenshot in the deliverable (PR description, conversation output, etc.).
 
-For iterative refinement beyond a single pass (multiple rounds of screenshot-assess-fix), see the `design-iterator` agent.
+For iterative refinement beyond a single pass (multiple rounds of screenshot-assess-fix), see the `compound-engineering:design:design-iterator` agent.
 
 ---
 
