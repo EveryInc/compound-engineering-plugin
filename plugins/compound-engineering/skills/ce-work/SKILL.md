@@ -124,7 +124,9 @@ This command takes a work document (plan, specification, or todo file) and execu
      - Write tests for new functionality
      - Run System-Wide Test Check (see below)
      - Run tests after changes
-     - Mark task as completed
+     - Mark task as completed in TodoWrite
+     - Mark off the corresponding checkbox in the plan file ([ ] → [x])
+     - Run Scope Check (see below)
      - Evaluate for incremental commit (see below)
    ```
 
@@ -150,6 +152,35 @@ This command takes a work document (plan, specification, or todo file) and execu
 
    **When this matters most:** Any change that touches models with callbacks, error handling with fallback/retry, or functionality exposed through multiple interfaces.
 
+
+   **Scope Check** — After completing each task, measure total branch size to catch scope creep before the PR becomes unreviewable:
+
+   ```bash
+   default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
+   [ -z "$default_branch" ] && default_branch=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo "main" || echo "master")
+   merge_base=$(git merge-base HEAD "origin/$default_branch")
+   git diff "$merge_base"..HEAD --stat | tail -1
+   ```
+
+   Read thresholds from `compound-engineering.local.md` frontmatter `reviewability` section. Defaults: soft warning = 300 effective lines or 5 files, hard warning = 500 effective lines or 10 files.
+
+   | Branch Size | Action |
+   |-------------|--------|
+   | Under soft threshold | Continue silently |
+   | At soft threshold (~300 lines, ~5 files) | Inform: "Scope check: ~X lines across Y files. Consider checkpointing before the PR gets too large." |
+   | At hard threshold (~500 lines, ~10 files) | Recommend: "This branch has grown to ~X lines across Y files. Recommend creating a checkpoint PR now." Offer two options: (1) Create checkpoint commit, push, and start a new stacked branch for remaining tasks. (2) Continue anyway. |
+
+   **After user declines a hard warning:** Suppress further warnings until 100+ additional effective lines accumulate. Do not warn on every task completion — warning fatigue erodes trust.
+
+   **Checkpoint flow (if accepted):**
+   1. Create an incremental commit with current changes
+   2. Push the branch: `git push -u origin <branch>`
+   3. Note the branch name for PR creation later
+   4. Create a new branch from current HEAD: `git checkout -b <branch>-part-2`
+   5. Continue remaining tasks on the new branch
+   6. At Phase 4, create stacked PRs: first PR targets default branch, second PR targets first branch
+
+   **In swarm mode:** Skip scope checks. The team lead agent should monitor branch size periodically instead.
 
 2. **Incremental Commits**
 

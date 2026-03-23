@@ -60,6 +60,36 @@ The following paths are compound-engineering pipeline artifacts and must never b
 If a review agent flags any file in these directories for cleanup or removal, discard that finding during synthesis. Do not create a todo for it.
 </protected_artifacts>
 
+### 1.5. Pre-Flight Reviewability Check (Always Runs)
+
+Before dispatching review agents, run a quick reviewability analysis to detect oversized or multi-concern PRs:
+
+- Task compound-engineering:review:pr-reviewability-analyst(PR metadata + file list + diff stats from Step 1)
+
+**Read thresholds** from `compound-engineering.local.md` frontmatter `reviewability` section. If not configured, use defaults: 400 effective lines, 7 files, 2 concerns.
+
+**Threshold overrides (pass to agent):**
+```yaml
+# Example compound-engineering.local.md reviewability section
+reviewability:
+  line_threshold: 400
+  file_threshold: 7
+  concern_threshold: 2
+  exclude_patterns: ["*.lock", "db/schema.rb"]
+  test_weight: 0.5
+  deletion_weight: 0.1
+```
+
+**If score >= 60 (PASS):** Log `"Reviewability: [SCORE]/100 — PASS"` and proceed to agent dispatch.
+
+**If score < 60 (FAIL):**
+- Display the full reviewability report (score, metrics, concern breakdown, split proposal)
+- **Continue running all review agents** — do NOT gate or block the review
+- Carry the split recommendation forward as a **P2 finding** during synthesis (Step 5)
+- In the summary report (Step 5, Step 3), add a "Reviewability" section before the findings breakdown
+
+This check is a **hardcoded system step**, not part of the user-configured `review_agents` list. It always runs regardless of agent configuration.
+
 #### Load Review Agents
 
 Read `compound-engineering.local.md` in the project root. If found, use `review_agents` from YAML frontmatter. If the markdown body contains review context, pass it to each agent as additional instructions.
@@ -390,11 +420,14 @@ After creating all todo files, present comprehensive summary:
 
 **Review Target:** PR #XXXX - [PR Title] **Branch:** [branch-name]
 
+### Reviewability: [SCORE]/100 — [PASS/FAIL]
+[If FAIL: brief summary of concerns and link to split proposal below]
+
 ### Findings Summary:
 
 - **Total Findings:** [X]
 - **🔴 CRITICAL (P1):** [count] - BLOCKS MERGE
-- **🟡 IMPORTANT (P2):** [count] - Should Fix
+- **🟡 IMPORTANT (P2):** [count] - Should Fix (includes reviewability finding if score < 60)
 - **🔵 NICE-TO-HAVE (P3):** [count] - Enhancements
 
 ### Created Todo Files:
