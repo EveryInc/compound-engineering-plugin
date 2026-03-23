@@ -72,8 +72,9 @@ The primary entry points for engineering work, invoked as slash commands:
 | Skill | Description |
 |-------|-------------|
 | `claude-permissions-optimizer` | Optimize Claude Code permissions from session history |
+| `doctor` | Diagnose Compound Engineering environment health, including CLI deps, MCP servers, env vars, plugin version, and gitignore guidance |
 | `document-review` | Review documents using parallel persona agents for role-specific feedback |
-| `setup` | Reserved for future project-level workflow configuration; code review agent selection is automatic |
+| `setup` | Configure environment dependencies and guided installs; code review agent selection is automatic |
 
 ### Content & Collaboration
 
@@ -180,6 +181,24 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | Agent | Description |
 |-------|-------------|
 | `ankane-readme-writer` | Create READMEs following Ankane-style template for Ruby gems |
+
+## MCP Servers
+
+| Server | Description |
+|--------|-------------|
+| `context7` | Framework documentation lookup via Context7 |
+
+### Context7
+
+**Tools provided:**
+- `resolve-library-id` - Find library ID for a framework/package
+- `get-library-docs` - Get documentation for a specific library
+
+Supports 100+ frameworks including Rails, React, Next.js, Vue, Django, Laravel, and more.
+
+MCP servers start automatically when the plugin is enabled.
+
+**Authentication:** To avoid anonymous rate limits, set the `CONTEXT7_API_KEY` environment variable with your Context7 API key. The plugin passes this automatically via the `x-api-key` header. Without it, requests go unauthenticated and will quickly hit the anonymous quota limit.
 
 ## Browser Automation
 

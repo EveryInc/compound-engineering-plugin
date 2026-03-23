@@ -1,0 +1,161 @@
+#!/usr/bin/env bash
+# Compound Engineering environment health check
+# Outputs a formatted diagnostic report in one pass
+
+set -o pipefail
+
+# --- Args ---
+# --version VERSION  (optional) plugin version to display (passed by the agent)
+
+plugin_version=""
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --version) plugin_version="$2"; shift 2 ;;
+    *) shift ;;
+  esac
+done
+
+# --- Helpers ---
+
+check_cli() {
+  command -v "$1" >/dev/null 2>&1 && echo "ok" || echo "missing"
+}
+
+check_env() {
+  printenv "$1" >/dev/null 2>&1 && echo "ok" || echo "missing"
+}
+
+ok()      { echo "  🟢  $1"; }
+fail()    { echo "  🔴  $1"; }
+warn()    { echo "  🟡  $1"; }
+skip()    { echo "  ➖  $1"; }
+detail()  { echo "       $1"; }
+section() { echo ""; echo " $1"; }
+
+has_brew=$(check_cli brew)
+
+# --- Collect all results ---
+
+ab=$(check_cli agent-browser)
+gh_s=$(check_cli gh)
+jq_s=$(check_cli jq)
+rtk_s=$(check_cli rtk)
+ffmpeg_s=$(check_cli ffmpeg)
+ctx7_s=$(check_cli ctx7)
+
+env_c7=$(check_env CONTEXT7_API_KEY)
+env_gemini=$(check_env GEMINI_API_KEY)
+
+gi="skip"
+if [ -f .gitignore ]; then
+  grep -q '\.context' .gitignore 2>/dev/null && gi="ok" || gi="missing"
+fi
+
+# --- Counts ---
+
+cli_ok=0; cli_total=0
+for s in "$ab" "$gh_s" "$jq_s" "$rtk_s" "$ffmpeg_s" "$ctx7_s"; do
+  cli_total=$((cli_total + 1))
+  [ "$s" = "ok" ] && cli_ok=$((cli_ok + 1))
+done
+
+env_ok=0; env_total=0
+for s in "$env_c7" "$env_gemini"; do
+  env_total=$((env_total + 1))
+  [ "$s" = "ok" ] && env_ok=$((env_ok + 1))
+done
+
+issues=0
+
+# =====================================================
+#  Output
+# =====================================================
+
+echo ""
+echo " Compound Engineering Doctor"
+echo " ────────────────────────────────────────"
+
+# --- Plugin version (if provided by the agent) ---
+
+if [ -n "$plugin_version" ]; then
+  ok "Latest version installed (v${plugin_version})"
+fi
+
+# --- CLI Tools ---
+
+section "Tools  ${cli_ok}/${cli_total}"
+
+for pair in "agent-browser:$ab:recommended" "gh:$gh_s:recommended" "jq:$jq_s:recommended" \
+            "rtk:$rtk_s:optional" "ffmpeg:$ffmpeg_s:optional" "ctx7:$ctx7_s:optional"; do
+  name="${pair%%:*}"; rest="${pair#*:}"; status="${rest%%:*}"; tier="${rest##*:}"
+  if [ "$status" = "ok" ]; then
+    ok "$name"
+  elif [ "$tier" = "recommended" ]; then
+    fail "$name"
+    issues=$((issues + 1))
+    case "$name" in
+      agent-browser) detail "npm install -g agent-browser && agent-browser install"
+                     detail "https://github.com/nichochar/agent-browser" ;;
+      gh)  if [ "$has_brew" = "ok" ]; then detail "brew install gh"
+           else detail "https://cli.github.com"; fi ;;
+      jq)  if [ "$has_brew" = "ok" ]; then detail "brew install jq"
+           else detail "https://jqlang.github.io/jq/"; fi ;;
+    esac
+  else
+    skip "$name  (optional)"
+    case "$name" in
+      rtk)    if [ "$has_brew" = "ok" ]; then detail "brew install rtk"
+              else detail "https://github.com/rtk-ai/rtk"; fi ;;
+      ffmpeg) if [ "$has_brew" = "ok" ]; then detail "brew install ffmpeg"
+              else detail "https://ffmpeg.org"; fi ;;
+      ctx7)   detail "npm install -g ctx7  |  https://context7.com" ;;
+    esac
+  fi
+done
+
+# --- Environment ---
+
+section "Environment  ${env_ok}/${env_total}"
+
+if [ "$env_c7" = "ok" ]; then
+  ok "CONTEXT7_API_KEY"
+else
+  warn "CONTEXT7_API_KEY not set"
+  detail "Prevents rate limiting -- https://context7.com"
+  issues=$((issues + 1))
+fi
+
+if [ "$env_gemini" = "ok" ]; then
+  ok "GEMINI_API_KEY"
+else
+  skip "GEMINI_API_KEY not set  (needed for image generation)"
+  detail "https://aistudio.google.com/apikey"
+fi
+
+# --- Project ---
+
+section "Project"
+
+if [ "$gi" = "ok" ]; then
+  ok ".gitignore includes .context"
+elif [ "$gi" = "missing" ]; then
+  warn ".context/compound-engineering not in .gitignore"
+  issues=$((issues + 1))
+else
+  skip "No .gitignore found"
+fi
+
+# --- Bottom line ---
+
+echo ""
+echo " ────────────────────────────────────────"
+
+if [ "$issues" -eq 0 ]; then
+  echo " ✅  All clear  ${cli_ok}/${cli_total} tools  ${env_ok}/${env_total} env"
+else
+  echo " ⚠️   ${issues} issue(s) found  ${cli_ok}/${cli_total} tools  ${env_ok}/${env_total} env"
+  echo ""
+  echo " Run /setup to resolve."
+fi
+
+echo ""
