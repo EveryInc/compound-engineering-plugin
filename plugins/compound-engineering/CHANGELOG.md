@@ -9,6 +9,42 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.49.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.48.0...compound-engineering-v2.49.0) (2026-03-22)
+
+
+### Features
+
+* add execution mode toggle and context pressure bounds to parallel skills ([#336](https://github.com/EveryInc/compound-engineering-plugin/issues/336)) ([216d6df](https://github.com/EveryInc/compound-engineering-plugin/commit/216d6dfb2c9320c3354f8c9f30e831fca74865cd))
+* fix skill transformation pipeline across all targets ([#334](https://github.com/EveryInc/compound-engineering-plugin/issues/334)) ([4087e1d](https://github.com/EveryInc/compound-engineering-plugin/commit/4087e1df82138f462a64542831224e2718afafa7))
+* improve reproduce-bug skill, sync agent-browser, clean up redundant skills ([#333](https://github.com/EveryInc/compound-engineering-plugin/issues/333)) ([affba1a](https://github.com/EveryInc/compound-engineering-plugin/commit/affba1a6a0d9320b529d429ad06fd5a3b5200bd8))
+
+## [2.48.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.47.0...compound-engineering-v2.48.0) (2026-03-22)
+
+
+### Features
+
+* **git-worktree:** auto-trust mise and direnv configs in new worktrees ([#312](https://github.com/EveryInc/compound-engineering-plugin/issues/312)) ([cfbfb67](https://github.com/EveryInc/compound-engineering-plugin/commit/cfbfb6710a846419cc07ad17d9dbb5b5a065801c))
+* make skills platform-agnostic across coding agents ([#330](https://github.com/EveryInc/compound-engineering-plugin/issues/330)) ([52df90a](https://github.com/EveryInc/compound-engineering-plugin/commit/52df90a16688ee023bbdb203969adcc45d7d2ba2))
+
+## [2.47.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.46.0...compound-engineering-v2.47.0) (2026-03-20)
+
+
+### Features
+
+* improve `repo-research-analyst` by adding a structured technology scan ([#327](https://github.com/EveryInc/compound-engineering-plugin/issues/327)) ([1c28d03](https://github.com/EveryInc/compound-engineering-plugin/commit/1c28d0321401ad50a51989f5e6293d773ac1a477))
+
+
+### Bug Fixes
+
+* **skills:** update ralph-wiggum references to ralph-loop in lfg/slfg ([#324](https://github.com/EveryInc/compound-engineering-plugin/issues/324)) ([ac756a2](https://github.com/EveryInc/compound-engineering-plugin/commit/ac756a267c5e3d5e4ceb2f99939dbb93491ac4d2))
+
+## [2.46.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.45.0...compound-engineering-v2.46.0) (2026-03-20)
+
+
+### Features
+
+* add optional high-level technical design to plan-beta skills ([#322](https://github.com/EveryInc/compound-engineering-plugin/issues/322)) ([3ba4935](https://github.com/EveryInc/compound-engineering-plugin/commit/3ba4935926b05586da488119f215057164d97489))
+
 ## [2.45.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.44.0...compound-engineering-v2.45.0) (2026-03-19)
 
 

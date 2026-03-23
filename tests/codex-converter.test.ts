@@ -248,6 +248,35 @@ Task compound-engineering:review:security-reviewer(code_diff)`,
     expect(parsed.body).not.toContain("Task compound-engineering:")
   })
 
+  test("transforms zero-argument Task calls", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "review",
+          description: "Review code",
+          body: `- Task compound-engineering:review:code-simplicity-reviewer()`,
+          sourcePath: "/tmp/plugin/commands/review.md",
+        },
+      ],
+      agents: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCodex(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const commandSkill = bundle.generatedSkills.find((s) => s.name === "review")
+    expect(commandSkill).toBeDefined()
+    const parsed = parseFrontmatter(commandSkill!.content)
+    expect(parsed.body).toContain("Use the $code-simplicity-reviewer skill")
+    expect(parsed.body).not.toContain("compound-engineering:")
+    expect(parsed.body).not.toContain("skill to:")
+  })
+
   test("transforms slash commands to prompts syntax", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,

@@ -1,5 +1,6 @@
 import path from "path"
-import { backupFile, copyDir, ensureDir, writeJson, writeText } from "../utils/files"
+import { backupFile, copySkillDir, ensureDir, writeJson, writeText } from "../utils/files"
+import { transformContentForCopilot } from "../converters/claude-to-copilot"
 import type { CopilotBundle } from "../types/copilot"
 
 export async function writeCopilotBundle(outputRoot: string, bundle: CopilotBundle): Promise<void> {
@@ -23,7 +24,7 @@ export async function writeCopilotBundle(outputRoot: string, bundle: CopilotBund
   if (bundle.skillDirs.length > 0) {
     const skillsDir = path.join(paths.githubDir, "skills")
     for (const skill of bundle.skillDirs) {
-      await copyDir(skill.sourceDir, path.join(skillsDir, skill.name))
+      await copySkillDir(skill.sourceDir, path.join(skillsDir, skill.name), transformContentForCopilot)
     }
   }
 

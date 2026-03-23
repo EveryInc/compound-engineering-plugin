@@ -42,7 +42,7 @@ Before going online, check if curated knowledge already exists in skills:
    - Rails/Ruby → `dhh-rails-style`, `andrew-kane-gem-writer`, `dspy-ruby`
    - Frontend/Design → `frontend-design`, `swiss-design`
    - TypeScript/React → `react-best-practices`
-   - AI/Agents → `agent-native-architecture`, `create-agent-skills`
+   - AI/Agents → `agent-native-architecture`
    - Documentation → `compound-docs`, `every-style-editor`
    - File operations → `rclone`, `git-worktree`
    - Image generation → `gemini-imagegen`

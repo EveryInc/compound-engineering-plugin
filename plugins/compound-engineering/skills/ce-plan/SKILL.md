@@ -83,11 +83,11 @@ First, I need to understand the project's conventions, existing patterns, and an
 
 Run these agents **in parallel** to gather local context:
 
-- Task compound-engineering:research:repo-research-analyst(feature_description)
+- Task compound-engineering:research:repo-research-analyst(Scope: technology, architecture, patterns. {feature_description})
 - Task compound-engineering:research:learnings-researcher(feature_description)
 
 **What to look for:**
-- **Repo research:** existing patterns, AGENTS.md guidance, technology familiarity, pattern consistency
+- **Repo research:** technology stack and versions (informs research decisions), architectural patterns, and implementation patterns relevant to the feature
 - **Learnings:** documented solutions in `docs/solutions/` that might apply (gotchas, patterns, lessons learned)
 
 These findings inform the next step.

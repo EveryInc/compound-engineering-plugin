@@ -177,6 +177,7 @@ Run these research agents:
 Also run bare agents:
 
 - Task best-practices-researcher(topic)
+- Task compound-engineering:review:code-simplicity-reviewer()
 `,
     )
 
@@ -205,6 +206,10 @@ Also run bare agents:
     // Bare Task calls should still be rewritten
     expect(installedSkill).toContain("Use the $best-practices-researcher skill to: topic")
     expect(installedSkill).not.toContain("Task best-practices-researcher")
+
+    // Zero-arg Task calls should be rewritten without trailing "to:"
+    expect(installedSkill).toContain("Use the $code-simplicity-reviewer skill")
+    expect(installedSkill).not.toContain("code-simplicity-reviewer skill to:")
   })
 
   test("preserves unknown slash text in copied SKILL.md files", async () => {

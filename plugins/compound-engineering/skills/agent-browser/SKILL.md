@@ -1,25 +1,12 @@
 ---
 name: agent-browser
-description: Browser automation using Vercel's agent-browser CLI. Use when you need to interact with web pages, fill forms, take screenshots, or scrape data. Alternative to Playwright MCP - uses Bash commands with ref-based element selection. Triggers on "browse website", "fill form", "click button", "take screenshot", "scrape page", "web automation".
+description: Browser automation CLI for AI agents. Use when the user needs to interact with websites, including navigating pages, filling forms, clicking buttons, taking screenshots, extracting data, testing web apps, or automating any browser task. Triggers include requests to "open a website", "fill out a form", "click a button", "take a screenshot", "scrape data from a page", "test this web app", "login to a site", "automate browser actions", or any task requiring programmatic web interaction.
+allowed-tools: Bash(npx agent-browser:*), Bash(agent-browser:*)
 ---
 
 # Browser Automation with agent-browser
 
-The CLI uses Chrome/Chromium via CDP directly. Install via `npm i -g agent-browser`, `brew install agent-browser`, or `cargo install agent-browser`. Run `agent-browser install` to download Chrome.
-
-## Setup Check
-
-```bash
-# Check installation
-command -v agent-browser >/dev/null 2>&1 && echo "Installed" || echo "NOT INSTALLED - run: npm install -g agent-browser && agent-browser install"
-```
-
-### Install if needed
-
-```bash
-npm install -g agent-browser
-agent-browser install  # Downloads Chromium
-```
+The CLI uses Chrome/Chromium via CDP directly. Install via `npm i -g agent-browser`, `brew install agent-browser`, or `cargo install agent-browser`. Run `agent-browser install` to download Chrome. Run `agent-browser upgrade` to update to the latest version.
 
 ## Core Workflow
 
@@ -103,6 +90,8 @@ echo "$PASSWORD" | agent-browser auth save myapp --url https://app.example.com/l
 agent-browser auth login myapp
 ```
 
+`auth login` navigates with `load` and then waits for login form selectors to appear before filling/clicking, which is more reliable on delayed SPA login screens.
+
 **Option 5: State file (manual save/load)**
 
 ```bash
@@ -160,6 +149,12 @@ agent-browser download @e1 ./file.pdf          # Click element to trigger downlo
 agent-browser wait --download ./output.zip     # Wait for any download to complete
 agent-browser --download-path ./downloads open <url>  # Set default download directory
 
+# Network
+agent-browser network requests                 # Inspect tracked requests
+agent-browser network route "**/api/*" --abort  # Block matching requests
+agent-browser network har start                # Start HAR recording
+agent-browser network har stop ./capture.har   # Stop and save HAR file
+
 # Viewport & Device Emulation
 agent-browser set viewport 1920 1080          # Set viewport size (default: 1280x720)
 agent-browser set viewport 1920 1080 2        # 2x retina (same CSS size, higher res screenshots)
@@ -187,6 +182,24 @@ agent-browser diff url <url1> <url2>                 # Compare two pages
 agent-browser diff url <url1> <url2> --wait-until networkidle  # Custom wait strategy
 agent-browser diff url <url1> <url2> --selector "#main"  # Scope to element
 ```
+
+## Batch Execution
+
+Execute multiple commands in a single invocation by piping a JSON array of string arrays to `batch`. This avoids per-command process startup overhead when running multi-step workflows.
+
+```bash
+echo '[
+  ["open", "https://example.com"],
+  ["snapshot", "-i"],
+  ["click", "@e1"],
+  ["screenshot", "result.png"]
+]' | agent-browser batch --json
+
+# Stop on first error
+agent-browser batch --bail < commands.json
+```
+
+Use `batch` when you have a known sequence of commands that don't depend on intermediate output. Use separate commands or `&&` chaining when you need to parse output between steps (e.g., snapshot to discover refs, then interact).
 
 ## Common Patterns
 
@@ -218,6 +231,8 @@ agent-browser auth list
 agent-browser auth show github
 agent-browser auth delete github
 ```
+
+`auth login` waits for username/password/submit selectors before interacting, with a timeout tied to the default action timeout.
 
 ### Authentication with State Persistence
 
@@ -258,6 +273,30 @@ agent-browser state clear myapp
 agent-browser state clean --older-than 7
 ```
 
+### Working with Iframes
+
+Iframe content is automatically inlined in snapshots. Refs inside iframes carry frame context, so you can interact with them directly.
+
+```bash
+agent-browser open https://example.com/checkout
+agent-browser snapshot -i
+# @e1 [heading] "Checkout"
+# @e2 [Iframe] "payment-frame"
+#   @e3 [input] "Card number"
+#   @e4 [input] "Expiry"
+#   @e5 [button] "Pay"
+
+# Interact directly — no frame switch needed
+agent-browser fill @e3 "4111111111111111"
+agent-browser fill @e4 "12/28"
+agent-browser click @e5
+
+# To scope a snapshot to one iframe:
+agent-browser frame @e2
+agent-browser snapshot -i         # Only iframe content
+agent-browser frame main          # Return to main frame
+```
+
 ### Data Extraction
 
 ```bash
@@ -293,6 +332,8 @@ agent-browser --auto-connect snapshot
 # Or with explicit CDP port
 agent-browser --cdp 9222 snapshot
 ```
+
+Auto-connect discovers Chrome via `DevToolsActivePort`, common debugging ports (9222, 9229), and falls back to a direct WebSocket connection if HTTP-based CDP discovery fails.
 
 ### Color Scheme (Dark Mode)
 
@@ -596,6 +637,18 @@ Create `agent-browser.json` in the project root for persistent settings:
 
 Priority (lowest to highest): `~/.agent-browser/config.json` < `./agent-browser.json` < env vars < CLI flags. Use `--config <path>` or `AGENT_BROWSER_CONFIG` env var for a custom config file (exits with error if missing/invalid). All CLI options map to camelCase keys (e.g., `--executable-path` -> `"executablePath"`). Boolean flags accept `true`/`false` values (e.g., `--headed false` overrides config). Extensions from user and project configs are merged, not replaced.
 
+## Deep-Dive Documentation
+
+| Reference                                                            | When to Use                                               |
+| -------------------------------------------------------------------- | --------------------------------------------------------- |
+| [references/commands.md](references/commands.md)                     | Full command reference with all options                   |
+| [references/snapshot-refs.md](references/snapshot-refs.md)           | Ref lifecycle, invalidation rules, troubleshooting        |
+| [references/session-management.md](references/session-management.md) | Parallel sessions, state persistence, concurrent scraping |
+| [references/authentication.md](references/authentication.md)         | Login flows, OAuth, 2FA handling, state reuse             |
+| [references/video-recording.md](references/video-recording.md)       | Recording workflows for debugging and documentation       |
+| [references/profiling.md](references/profiling.md)                   | Chrome DevTools profiling for performance analysis        |
+| [references/proxy-support.md](references/proxy-support.md)           | Proxy configuration, geo-testing, rotating proxies        |
+
 ## Browser Engine Selection
 
 Use `--engine` to choose a local browser engine. The default is `chrome`.
@@ -618,18 +671,6 @@ Supported engines:
 
 Lightpanda does not support `--extension`, `--profile`, `--state`, or `--allow-file-access`. Install Lightpanda from https://lightpanda.io/docs/open-source/installation.
 
-## Deep-Dive Documentation
-
-| Reference                                                            | When to Use                                               |
-| -------------------------------------------------------------------- | --------------------------------------------------------- |
-| [references/commands.md](references/commands.md)                     | Full command reference with all options                   |
-| [references/snapshot-refs.md](references/snapshot-refs.md)           | Ref lifecycle, invalidation rules, troubleshooting        |
-| [references/session-management.md](references/session-management.md) | Parallel sessions, state persistence, concurrent scraping |
-| [references/authentication.md](references/authentication.md)         | Login flows, OAuth, 2FA handling, state reuse             |
-| [references/video-recording.md](references/video-recording.md)       | Recording workflows for debugging and documentation       |
-| [references/profiling.md](references/profiling.md)                   | Chrome DevTools profiling for performance analysis        |
-| [references/proxy-support.md](references/proxy-support.md)           | Proxy configuration, geo-testing, rotating proxies        |
-
 ## Ready-to-Use Templates
 
 | Template                                                                 | Description                         |
@@ -643,23 +684,3 @@ Lightpanda does not support `--extension`, `--profile`, `--state`, or `--allow-f
 ./templates/authenticated-session.sh https://app.example.com/login
 ./templates/capture-workflow.sh https://example.com ./output
 ```
-
-## vs Playwright MCP
-
-| Feature | agent-browser (CLI) | Playwright MCP |
-|---------|---------------------|----------------|
-| Interface | Bash commands | MCP tools |
-| Selection | Refs (@e1) | Refs (e1) |
-| Output | Text/JSON | Tool responses |
-| Parallel | Sessions | Tabs |
-| Best for | Quick automation | Tool integration |
-
-Use agent-browser when:
-- You prefer Bash-based workflows
-- You want simpler CLI commands
-- You need quick one-off automation
-
-Use Playwright MCP when:
-- You need deep MCP tool integration
-- You want tool-based responses
-- You're building complex automation

@@ -4,56 +4,45 @@ description: Run browser tests on pages affected by current PR or branch
 argument-hint: "[PR number, branch name, 'current', or --port PORT]"
 ---
 
-# Browser Test Command
+# Browser Test Skill
 
-<command_purpose>Run end-to-end browser tests on pages affected by a PR or branch changes using agent-browser CLI.</command_purpose>
+Run end-to-end browser tests on pages affected by a PR or branch changes using the `agent-browser` CLI.
 
-## CRITICAL: Use agent-browser CLI Only
+## Use `agent-browser` Only For Browser Automation
 
-**DO NOT use Chrome MCP tools (mcp__claude-in-chrome__*).**
+This workflow uses the `agent-browser` CLI exclusively. Do not use any alternative browser automation system, browser MCP integration, or built-in browser-control tool. If the platform offers multiple ways to control a browser, always choose `agent-browser`.
 
-This command uses the `agent-browser` CLI exclusively. The agent-browser CLI is a Bash-based tool from Vercel that runs headless Chromium. It is NOT the same as Chrome browser automation via MCP.
+Use `agent-browser` for: opening pages, clicking elements, filling forms, taking screenshots, and scraping rendered content.
 
-If you find yourself calling `mcp__claude-in-chrome__*` tools, STOP. Use `agent-browser` Bash commands instead.
-
-## Introduction
-
-<role>QA Engineer specializing in browser-based end-to-end testing</role>
-
-This command tests affected pages in a real browser, catching issues that unit tests miss:
-- JavaScript integration bugs
-- CSS/layout regressions
-- User workflow breakages
-- Console errors
+Platform-specific hints:
+- In Claude Code, do not use Chrome MCP tools (`mcp__claude-in-chrome__*`).
+- In Codex, do not substitute unrelated browsing tools.
 
 ## Prerequisites
 
-<requirements>
 - Local development server running (e.g., `bin/dev`, `rails server`, `npm run dev`)
-- agent-browser CLI installed (see Setup below)
+- `agent-browser` CLI installed (see Setup below)
 - Git repository with changes to test
-</requirements>
 
 ## Setup
 
-**Check installation:**
 ```bash
 command -v agent-browser >/dev/null 2>&1 && echo "Installed" || echo "NOT INSTALLED"
 ```
 
-**Install if needed:**
+Install if needed:
 ```bash
 npm install -g agent-browser
-agent-browser install  # Downloads Chromium (~160MB)
+agent-browser install
 ```
 
 See the `agent-browser` skill for detailed usage.
 
-## Main Tasks
+## Workflow
 
-### 0. Verify agent-browser Installation
+### 1. Verify Installation
 
-Before starting ANY browser testing, verify agent-browser is installed:
+Before starting, verify `agent-browser` is available:
 
 ```bash
 command -v agent-browser >/dev/null 2>&1 && echo "Ready" || (echo "Installing..." && npm install -g agent-browser && agent-browser install)
@@ -61,27 +50,20 @@ command -v agent-browser >/dev/null 2>&1 && echo "Ready" || (echo "Installing...
 
 If installation fails, inform the user and stop.
 
-### 1. Ask Browser Mode
+### 2. Ask Browser Mode
 
-<ask_browser_mode>
+Ask the user whether to run headed or headless (using the platform's question tool — e.g., `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini — or present options and wait for a reply):
 
-Before starting tests, ask user if they want to watch the browser:
+```
+Do you want to watch the browser tests run?
 
-Use AskUserQuestion with:
-- Question: "Do you want to watch the browser tests run?"
-- Options:
-  1. **Headed (watch)** - Opens visible browser window so you can see tests run
-  2. **Headless (faster)** - Runs in background, faster but invisible
+1. Headed (watch) - Opens visible browser window so you can see tests run
+2. Headless (faster) - Runs in background, faster but invisible
+```
 
-Store the choice and use `--headed` flag when user selects "Headed".
+Store the choice and use the `--headed` flag when the user selects option 1.
 
-</ask_browser_mode>
-
-### 2. Determine Test Scope
-
-<test_target> $ARGUMENTS </test_target>
-
-<determine_scope>
+### 3. Determine Test Scope
 
 **If PR number provided:**
 ```bash
@@ -98,11 +80,7 @@ git diff --name-only main...HEAD
 git diff --name-only main...[branch]
 ```
 
-</determine_scope>
-
-### 3. Map Files to Routes
-
-<file_to_route_mapping>
+### 4. Map Files to Routes
 
 Map changed files to testable routes:
 
@@ -120,43 +98,17 @@ Map changed files to testable routes:
 
 Build a list of URLs to test based on the mapping.
 
-</file_to_route_mapping>
+### 5. Detect Dev Server Port
 
-### 4. Detect Dev Server Port
+Determine the dev server port using this priority:
 
-<detect_port>
-
-Determine the dev server port using this priority order:
-
-**Priority 1: Explicit argument**
-If the user passed a port number (e.g., `/test-browser 5000` or `/test-browser --port 5000`), use that port directly.
-
-**Priority 2: AGENTS.md / project instructions**
-```bash
-# Check AGENTS.md first for port references, then CLAUDE.md as compatibility fallback
-grep -Eio '(port\s*[:=]\s*|localhost:)([0-9]{4,5})' AGENTS.md 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1
-grep -Eio '(port\s*[:=]\s*|localhost:)([0-9]{4,5})' CLAUDE.md 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1
-```
-
-**Priority 3: package.json scripts**
-```bash
-# Check dev/start scripts for --port flags
-grep -Eo '\-\-port[= ]+[0-9]{4,5}' package.json 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1
-```
-
-**Priority 4: Environment files**
-```bash
-# Check .env, .env.local, .env.development for PORT=
-grep -h '^PORT=' .env .env.local .env.development 2>/dev/null | tail -1 | cut -d= -f2
-```
-
-**Priority 5: Default fallback**
-If none of the above yields a port, default to `3000`.
-
-Store the result in a `PORT` variable for use in all subsequent steps.
+1. **Explicit argument** — if the user passed `--port 5000`, use that directly
+2. **Project instructions** — check `AGENTS.md`, `CLAUDE.md`, or other instruction files for port references
+3. **package.json** — check dev/start scripts for `--port` flags
+4. **Environment files** — check `.env`, `.env.local`, `.env.development` for `PORT=`
+5. **Default** — fall back to `3000`
 
 ```bash
-# Combined detection (run this)
 PORT="${EXPLICIT_PORT:-}"
 if [ -z "$PORT" ]; then
   PORT=$(grep -Eio '(port\s*[:=]\s*|localhost:)([0-9]{4,5})' AGENTS.md 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1)
@@ -174,77 +126,64 @@ PORT="${PORT:-3000}"
 echo "Using dev server port: $PORT"
 ```
 
-</detect_port>
-
-### 5. Verify Server is Running
-
-<check_server>
-
-Before testing, verify the local server is accessible using the detected port:
+### 6. Verify Server is Running
 
 ```bash
 agent-browser open http://localhost:${PORT}
 agent-browser snapshot -i
 ```
 
-If server is not running, inform user:
-```markdown
-**Server not running on port ${PORT}**
+If the server is not running, inform the user:
+
+```
+Server not running on port ${PORT}
 
 Please start your development server:
 - Rails: `bin/dev` or `rails server`
 - Node/Next.js: `npm run dev`
-- Custom port: `/test-browser --port <your-port>`
+- Custom port: run this skill again with `--port <your-port>`
 
-Then run `/test-browser` again.
+Then re-run this skill.
 ```
 
-</check_server>
+### 7. Test Each Affected Page
 
-### 6. Test Each Affected Page
+For each affected route:
 
-<test_pages>
-
-For each affected route, use agent-browser CLI commands (NOT Chrome MCP):
-
-**Step 1: Navigate and capture snapshot**
+**Navigate and capture snapshot:**
 ```bash
 agent-browser open "http://localhost:${PORT}/[route]"
 agent-browser snapshot -i
 ```
 
-**Step 2: For headed mode (visual debugging)**
+**For headed mode:**
 ```bash
 agent-browser --headed open "http://localhost:${PORT}/[route]"
 agent-browser --headed snapshot -i
 ```
 
-**Step 3: Verify key elements**
+**Verify key elements:**
 - Use `agent-browser snapshot -i` to get interactive elements with refs
 - Page title/heading present
 - Primary content rendered
 - No error messages visible
 - Forms have expected fields
 
-**Step 4: Test critical interactions**
+**Test critical interactions:**
 ```bash
-agent-browser click @e1  # Use ref from snapshot
+agent-browser click @e1
 agent-browser snapshot -i
 ```
 
-**Step 5: Take screenshots**
+**Take screenshots:**
 ```bash
 agent-browser screenshot page-name.png
-agent-browser screenshot --full page-name-full.png  # Full page
+agent-browser screenshot --full page-name-full.png
 ```
 
-</test_pages>
+### 8. Human Verification (When Required)
 
-### 7. Human Verification (When Required)
-
-<human_verification>
-
-Pause for human input when testing touches:
+Pause for human input when testing touches flows that require external interaction:
 
 | Flow Type | What to Ask |
 |-----------|-------------|
@@ -254,11 +193,12 @@ Pause for human input when testing touches:
 | SMS | "Verify you received the SMS code" |
 | External APIs | "Confirm the [service] integration is working" |
 
-Use AskUserQuestion:
-```markdown
-**Human Verification Needed**
+Ask the user (using the platform's question tool, or present numbered options and wait):
 
-This test touches the [flow type]. Please:
+```
+Human Verification Needed
+
+This test touches [flow type]. Please:
 1. [Action to take]
 2. [What to verify]
 
@@ -267,11 +207,7 @@ Did it work correctly?
 2. No - describe the issue
 ```
 
-</human_verification>
-
-### 8. Handle Failures
-
-<failure_handling>
+### 9. Handle Failures
 
 When a test fails:
 
@@ -279,9 +215,10 @@ When a test fails:
    - Screenshot the error state: `agent-browser screenshot error.png`
    - Note the exact reproduction steps
 
-2. **Ask user how to proceed:**
-   ```markdown
-   **Test Failed: [route]**
+2. **Ask the user how to proceed:**
+
+   ```
+   Test Failed: [route]
 
    Issue: [description]
    Console errors: [if any]
@@ -292,27 +229,13 @@ When a test fails:
    3. Skip - Continue testing other pages
    ```
 
-3. **If "Fix now":**
-   - Investigate the issue
-   - Propose a fix
-   - Apply fix
-   - Re-run the failing test
+3. **If "Fix now":** investigate, propose a fix, apply, re-run the failing test
+4. **If "Create todo":** create `{id}-pending-p1-browser-test-{description}.md`, continue
+5. **If "Skip":** log as skipped, continue
 
-4. **If "Create todo":**
-   - Create `{id}-pending-p1-browser-test-{description}.md`
-   - Continue testing
+### 10. Test Summary
 
-5. **If "Skip":**
-   - Log as skipped
-   - Continue testing
-
-</failure_handling>
-
-### 9. Test Summary
-
-<test_summary>
-
-After all tests complete, present summary:
+After all tests complete, present a summary:
 
 ```markdown
 ## Browser Test Results
@@ -345,8 +268,6 @@ After all tests complete, present summary:
 ### Result: [PASS / FAIL / PARTIAL]
 ```
 
-</test_summary>
-
 ## Quick Usage Examples
 
 ```bash
@@ -364,8 +285,6 @@ After all tests complete, present summary:
 ```
 
 ## agent-browser CLI Reference
-
-**ALWAYS use these Bash commands. NEVER use mcp__claude-in-chrome__* tools.**
 
 ```bash
 # Navigation

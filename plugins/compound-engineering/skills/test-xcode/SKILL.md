@@ -5,167 +5,81 @@ argument-hint: "[scheme name or 'current' to use default]"
 disable-model-invocation: true
 ---
 
-# Xcode Test Command
+# Xcode Test Skill
 
-<command_purpose>Build, install, and test iOS apps on the simulator using XcodeBuildMCP. Captures screenshots, logs, and verifies app behavior.</command_purpose>
-
-## Introduction
-
-<role>iOS QA Engineer specializing in simulator-based testing</role>
-
-This command tests iOS/macOS apps by:
-- Building for simulator
-- Installing and launching the app
-- Taking screenshots of key screens
-- Capturing console logs for errors
-- Supporting human verification for external flows
+Build, install, and test iOS apps on the simulator using XcodeBuildMCP. Captures screenshots, logs, and verifies app behavior.
 
 ## Prerequisites
 
-<requirements>
 - Xcode installed with command-line tools
-- XcodeBuildMCP server connected
+- XcodeBuildMCP MCP server connected
 - Valid Xcode project or workspace
 - At least one iOS Simulator available
-</requirements>
 
-## Main Tasks
+## Workflow
 
-### 0. Verify XcodeBuildMCP is Installed
+### 0. Verify XcodeBuildMCP is Available
 
-<check_mcp_installed>
+Check that the XcodeBuildMCP MCP server is connected by calling its `list_simulators` tool.
 
-**First, check if XcodeBuildMCP tools are available.**
+MCP tool names vary by platform:
+- Claude Code: `mcp__xcodebuildmcp__list_simulators`
+- Other platforms: use the equivalent MCP tool call for the `XcodeBuildMCP` server's `list_simulators` method
 
-Try calling:
+If the tool is not found or errors, inform the user they need to add the XcodeBuildMCP MCP server:
+
 ```
-mcp__xcodebuildmcp__list_simulators({})
-```
+XcodeBuildMCP not installed
 
-**If the tool is not found or errors:**
+Install via Homebrew:
+  brew tap getsentry/xcodebuildmcp && brew install xcodebuildmcp
 
-Tell the user:
-```markdown
-**XcodeBuildMCP not installed**
+Or via npx (no global install needed):
+  npx -y xcodebuildmcp@latest mcp
 
-Please install the XcodeBuildMCP server first:
-
-\`\`\`bash
-claude mcp add XcodeBuildMCP -- npx xcodebuildmcp@latest
-\`\`\`
-
-Then restart Claude Code and run `/xcode-test` again.
+Then add "XcodeBuildMCP" as an MCP server in your agent configuration
+and restart your agent.
 ```
 
-**Do NOT proceed** until XcodeBuildMCP is confirmed working.
-
-</check_mcp_installed>
+Do NOT proceed until XcodeBuildMCP is confirmed working.
 
 ### 1. Discover Project and Scheme
 
-<discover_project>
+Call XcodeBuildMCP's `discover_projs` tool to find available projects, then `list_schemes` with the project path to get available schemes.
 
-**Find available projects:**
-```
-mcp__xcodebuildmcp__discover_projs({})
-```
-
-**List schemes for the project:**
-```
-mcp__xcodebuildmcp__list_schemes({ project_path: "/path/to/Project.xcodeproj" })
-```
-
-**If argument provided:**
-- Use the specified scheme name
-- Or "current" to use the default/last-used scheme
-
-</discover_project>
+If an argument was provided, use that scheme name. If "current", use the default/last-used scheme.
 
 ### 2. Boot Simulator
 
-<boot_simulator>
+Call `list_simulators` to find available simulators. Boot the preferred simulator (iPhone 15 Pro recommended) using `boot_simulator` with the simulator's UUID.
 
-**List available simulators:**
-```
-mcp__xcodebuildmcp__list_simulators({})
-```
-
-**Boot preferred simulator (iPhone 15 Pro recommended):**
-```
-mcp__xcodebuildmcp__boot_simulator({ simulator_id: "[uuid]" })
-```
-
-**Wait for simulator to be ready:**
-Check simulator state before proceeding with installation.
-
-</boot_simulator>
+Wait for the simulator to be ready before proceeding.
 
 ### 3. Build the App
 
-<build_app>
+Call `build_ios_sim_app` with the project path and scheme name.
 
-**Build for iOS Simulator:**
-```
-mcp__xcodebuildmcp__build_ios_sim_app({
-  project_path: "/path/to/Project.xcodeproj",
-  scheme: "[scheme_name]"
-})
-```
-
-**Handle build failures:**
+**On failure:**
 - Capture build errors
-- Create P1 todo for each build error
+- Create a P1 todo for each build error
 - Report to user with specific error details
 
 **On success:**
 - Note the built app path for installation
-- Proceed to installation step
-
-</build_app>
+- Proceed to step 4
 
 ### 4. Install and Launch
 
-<install_launch>
-
-**Install app on simulator:**
-```
-mcp__xcodebuildmcp__install_app_on_simulator({
-  app_path: "/path/to/built/App.app",
-  simulator_id: "[uuid]"
-})
-```
-
-**Launch the app:**
-```
-mcp__xcodebuildmcp__launch_app_on_simulator({
-  bundle_id: "[app.bundle.id]",
-  simulator_id: "[uuid]"
-})
-```
-
-**Start capturing logs:**
-```
-mcp__xcodebuildmcp__capture_sim_logs({
-  simulator_id: "[uuid]",
-  bundle_id: "[app.bundle.id]"
-})
-```
-
-</install_launch>
+1. Call `install_app_on_simulator` with the built app path and simulator UUID
+2. Call `launch_app_on_simulator` with the bundle ID and simulator UUID
+3. Call `capture_sim_logs` with the simulator UUID and bundle ID to start log capture
 
 ### 5. Test Key Screens
-
-<test_screens>
 
 For each key screen in the app:
 
 **Take screenshot:**
-```
-mcp__xcodebuildmcp__take_screenshot({
-  simulator_id: "[uuid]",
-  filename: "screen-[name].png"
-})
-```
+Call `take_screenshot` with the simulator UUID and a descriptive filename (e.g., `screen-home.png`).
 
 **Review screenshot for:**
 - UI elements rendered correctly
@@ -174,23 +88,15 @@ mcp__xcodebuildmcp__take_screenshot({
 - Layout looks correct
 
 **Check logs for errors:**
-```
-mcp__xcodebuildmcp__get_sim_logs({ simulator_id: "[uuid]" })
-```
-
-Look for:
+Call `get_sim_logs` with the simulator UUID. Look for:
 - Crashes
 - Exceptions
 - Error-level log messages
 - Failed network requests
 
-</test_screens>
-
 ### 6. Human Verification (When Required)
 
-<human_verification>
-
-Pause for human input when testing touches:
+Pause for human input when testing touches flows that require device interaction.
 
 | Flow Type | What to Ask |
 |-----------|-------------|
@@ -200,9 +106,10 @@ Pause for human input when testing touches:
 | Camera/Photos | "Grant permissions and verify camera works" |
 | Location | "Allow location access and verify map updates" |
 
-Use AskUserQuestion:
-```markdown
-**Human Verification Needed**
+Ask the user (using the platform's question tool — e.g., `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini — or present numbered options and wait):
+
+```
+Human Verification Needed
 
 This test requires [flow type]. Please:
 1. [Action to take on simulator]
@@ -213,11 +120,7 @@ Did it work correctly?
 2. No - describe the issue
 ```
 
-</human_verification>
-
 ### 7. Handle Failures
-
-<failure_handling>
 
 When a test fails:
 
@@ -226,9 +129,10 @@ When a test fails:
    - Capture console logs
    - Note reproduction steps
 
-2. **Ask user how to proceed:**
-   ```markdown
-   **Test Failed: [screen/feature]**
+2. **Ask the user how to proceed:**
+
+   ```
+   Test Failed: [screen/feature]
 
    Issue: [description]
    Logs: [relevant error messages]
@@ -239,47 +143,38 @@ When a test fails:
    3. Skip - Continue testing other screens
    ```
 
-3. **If "Fix now":**
-   - Investigate the issue in code
-   - Propose a fix
-   - Rebuild and retest
-
-4. **If "Create todo":**
-   - Create `{id}-pending-p1-xcode-{description}.md`
-   - Continue testing
-
-</failure_handling>
+3. **If "Fix now":** investigate, propose a fix, rebuild and retest
+4. **If "Create todo":** create `{id}-pending-p1-xcode-{description}.md`, continue
+5. **If "Skip":** log as skipped, continue
 
 ### 8. Test Summary
 
-<test_summary>
-
-After all tests complete, present summary:
+After all tests complete, present a summary:
 
 ```markdown
-## 📱 Xcode Test Results
+## Xcode Test Results
 
 **Project:** [project name]
 **Scheme:** [scheme name]
 **Simulator:** [simulator name]
 
-### Build: ✅ Success / ❌ Failed
+### Build: Success / Failed
 
 ### Screens Tested: [count]
 
 | Screen | Status | Notes |
 |--------|--------|-------|
-| Launch | ✅ Pass | |
-| Home | ✅ Pass | |
-| Settings | ❌ Fail | Crash on tap |
-| Profile | ⏭️ Skip | Requires login |
+| Launch | Pass | |
+| Home | Pass | |
+| Settings | Fail | Crash on tap |
+| Profile | Skip | Requires login |
 
 ### Console Errors: [count]
 - [List any errors found]
 
 ### Human Verifications: [count]
-- Sign in with Apple: ✅ Confirmed
-- Push notifications: ✅ Confirmed
+- Sign in with Apple: Confirmed
+- Push notifications: Confirmed
 
 ### Failures: [count]
 - Settings screen - crash on navigation
@@ -290,43 +185,26 @@ After all tests complete, present summary:
 ### Result: [PASS / FAIL / PARTIAL]
 ```
 
-</test_summary>
-
 ### 9. Cleanup
-
-<cleanup>
 
 After testing:
 
-**Stop log capture:**
-```
-mcp__xcodebuildmcp__stop_log_capture({ simulator_id: "[uuid]" })
-```
-
-**Optionally shut down simulator:**
-```
-mcp__xcodebuildmcp__shutdown_simulator({ simulator_id: "[uuid]" })
-```
-
-</cleanup>
+1. Call `stop_log_capture` with the simulator UUID
+2. Optionally call `shutdown_simulator` with the simulator UUID
 
 ## Quick Usage Examples
 
 ```bash
 # Test with default scheme
-/xcode-test
+/test-xcode
 
 # Test specific scheme
-/xcode-test MyApp-Debug
+/test-xcode MyApp-Debug
 
 # Test after making changes
-/xcode-test current
+/test-xcode current
 ```
 
-## Integration with /ce:review
+## Integration with ce:review
 
-When reviewing PRs that touch iOS code, the `/ce:review` command can spawn this as a subagent:
-
-```
-Task general-purpose("Run /xcode-test for scheme [name]. Build, install on simulator, test key screens, check for crashes.")
-```
+When reviewing PRs that touch iOS code, the `ce:review` workflow can spawn an agent to run this skill, build on the simulator, test key screens, and check for crashes.

@@ -1,17 +1,17 @@
 ---
-name: report-bug
+name: report-bug-ce
 description: Report a bug in the compound-engineering plugin
 argument-hint: "[optional: brief description of the bug]"
 disable-model-invocation: true
 ---
 
-# Report a Compounding Engineering Plugin Bug
+# Report a Compound Engineering Plugin Bug
 
-Report bugs encountered while using the compound-engineering plugin. This command gathers structured information and creates a GitHub issue for the maintainer.
+Report bugs encountered while using the compound-engineering plugin. This skill gathers structured information and creates a GitHub issue for the maintainer.
 
 ## Step 1: Gather Bug Information
 
-Use the AskUserQuestion tool to collect the following information:
+Ask the user the following questions (using the platform's blocking question tool — e.g., `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini — or present numbered options and wait for a reply):
 
 **Question 1: Bug Category**
 - What type of issue are you experiencing?
@@ -39,17 +39,24 @@ Use the AskUserQuestion tool to collect the following information:
 
 ## Step 2: Collect Environment Information
 
-Automatically gather:
+Automatically gather environment details. Detect the coding agent platform and collect what is available:
+
+**OS info (all platforms):**
 ```bash
-# Get plugin version
-cat ~/.claude/plugins/installed_plugins.json 2>/dev/null | grep -A5 "compound-engineering" | head -10 || echo "Plugin info not found"
-
-# Get Claude Code version
-claude --version 2>/dev/null || echo "Claude CLI version unknown"
-
-# Get OS info
 uname -a
 ```
+
+**Plugin version:** Read the plugin manifest or installed plugin metadata. Common locations:
+- Claude Code: `~/.claude/plugins/installed_plugins.json`
+- Codex: `.codex/plugins/` or project config
+- Other platforms: check the platform's plugin registry
+
+**Agent CLI version:** Run the platform's version command:
+- Claude Code: `claude --version`
+- Codex: `codex --version`
+- Other platforms: use the appropriate CLI version flag
+
+If any of these fail, note "unknown" and continue — do not block the report.
 
 ## Step 3: Format the Bug Report
 
@@ -63,8 +70,9 @@ Create a well-structured bug report with:
 
 ## Environment
 
-- **Plugin Version:** [from installed_plugins.json]
-- **Claude Code Version:** [from claude --version]
+- **Plugin Version:** [from plugin manifest/registry]
+- **Agent Platform:** [e.g., Claude Code, Codex, Copilot, Pi, Kilo]
+- **Agent Version:** [from CLI version command]
 - **OS:** [from uname]
 
 ## What Happened
@@ -83,16 +91,14 @@ Create a well-structured bug report with:
 
 ## Error Messages
 
-```
 [Any error output]
-```
 
 ## Additional Context
 
 [Any other relevant information]
 
 ---
-*Reported via `/report-bug` command*
+*Reported via `/report-bug-ce` skill*
 ```
 
 ## Step 4: Create GitHub Issue
@@ -125,7 +131,7 @@ After the issue is created:
 ## Output Format
 
 ```
-✅ Bug report submitted successfully!
+Bug report submitted successfully!
 
 Issue: https://github.com/EveryInc/compound-engineering-plugin/issues/[NUMBER]
 Title: [compound-engineering] Bug: [description]
@@ -136,16 +142,16 @@ The maintainer will review your report and respond as soon as possible.
 
 ## Error Handling
 
-- If `gh` CLI is not authenticated: Prompt user to run `gh auth login` first
-- If issue creation fails: Display the formatted report so user can manually create the issue
-- If required information is missing: Re-prompt for that specific field
+- If `gh` CLI is not installed or not authenticated: prompt the user to install/authenticate first
+- If issue creation fails: display the formatted report so the user can manually create the issue
+- If required information is missing: re-prompt for that specific field
 
 ## Privacy Notice
 
-This command does NOT collect:
+This skill does NOT collect:
 - Personal information
 - API keys or credentials
-- Private code from your projects
+- Private code from projects
 - File paths beyond basic OS info
 
 Only technical information about the bug is included in the report.

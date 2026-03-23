@@ -508,6 +508,27 @@ Task best-practices-researcher(topic)`
     expect(result).not.toContain("Task repo-research-analyst")
   })
 
+  test("transforms namespaced Task agent calls using final segment", () => {
+    const input = `Run agents:
+
+- Task compound-engineering:research:repo-research-analyst(feature_description)
+- Task compound-engineering:review:security-reviewer(code_diff)`
+
+    const result = transformContentForWindsurf(input)
+    expect(result).toContain("Use the @repo-research-analyst skill: feature_description")
+    expect(result).toContain("Use the @security-reviewer skill: code_diff")
+    expect(result).not.toContain("compound-engineering:")
+  })
+
+  test("transforms zero-argument Task calls", () => {
+    const input = `- Task compound-engineering:review:code-simplicity-reviewer()`
+
+    const result = transformContentForWindsurf(input)
+    expect(result).toContain("Use the @code-simplicity-reviewer skill")
+    expect(result).not.toContain("compound-engineering:")
+    expect(result).not.toContain("code-simplicity-reviewer skill:")
+  })
+
   test("keeps @agent references as-is for known agents (Windsurf skill invocation syntax)", () => {
     const result = transformContentForWindsurf("Ask @security-sentinel for a review.", ["security-sentinel"])
     expect(result).toContain("@security-sentinel")

@@ -106,11 +106,15 @@ function convertCommandToSkill(
 export function transformContentForCopilot(body: string): string {
   let result = body
 
-  // 1. Transform Task agent calls
-  const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9-]*)\(([^)]+)\)/gm
+  // 1. Transform Task agent calls (supports namespaced names like compound-engineering:research:agent-name)
+  const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9:-]*)\(([^)]*)\)/gm
   result = result.replace(taskPattern, (_match, prefix: string, agentName: string, args: string) => {
-    const skillName = normalizeName(agentName)
-    return `${prefix}Use the ${skillName} skill to: ${args.trim()}`
+    const finalSegment = agentName.includes(":") ? agentName.split(":").pop()! : agentName
+    const skillName = normalizeName(finalSegment)
+    const trimmedArgs = args.trim()
+    return trimmedArgs
+      ? `${prefix}Use the ${skillName} skill to: ${trimmedArgs}`
+      : `${prefix}Use the ${skillName} skill`
   })
 
   // 2. Transform slash command references (replace colons with hyphens)

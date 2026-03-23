@@ -1,13 +1,14 @@
 import path from "path"
 import {
   backupFile,
-  copyDir,
+  copySkillDir,
   ensureDir,
   pathExists,
   readText,
   writeJson,
   writeText,
 } from "../utils/files"
+import { transformContentForPi } from "../converters/claude-to-pi"
 import type { PiBundle } from "../types/pi"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
@@ -37,7 +38,7 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   }
 
   for (const skill of bundle.skillDirs) {
-    await copyDir(skill.sourceDir, path.join(paths.skillsDir, skill.name))
+    await copySkillDir(skill.sourceDir, path.join(paths.skillsDir, skill.name), transformContentForPi)
   }
 
   for (const skill of bundle.generatedSkills) {

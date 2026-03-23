@@ -148,6 +148,63 @@ Task best-practices-researcher(topic)`,
     expect(parsed.body).not.toContain("Task repo-research-analyst(")
   })
 
+  test("transforms namespaced Task agent calls using final segment", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "plan",
+          description: "Planning with namespaced agents",
+          body: `Run agents:
+
+- Task compound-engineering:research:repo-research-analyst(feature_description)
+- Task compound-engineering:review:security-reviewer(code_diff)`,
+          sourcePath: "/tmp/plugin/commands/plan.md",
+        },
+      ],
+      agents: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToDroid(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const parsed = parseFrontmatter(bundle.commands[0].content)
+    expect(parsed.body).toContain("Task repo-research-analyst: feature_description")
+    expect(parsed.body).toContain("Task security-reviewer: code_diff")
+    expect(parsed.body).not.toContain("compound-engineering:")
+  })
+
+  test("transforms zero-argument Task calls", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "review",
+          description: "Review code",
+          body: `- Task compound-engineering:review:code-simplicity-reviewer()`,
+          sourcePath: "/tmp/plugin/commands/review.md",
+        },
+      ],
+      agents: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToDroid(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const parsed = parseFrontmatter(bundle.commands[0].content)
+    expect(parsed.body).toContain("Task code-simplicity-reviewer")
+    expect(parsed.body).not.toContain("compound-engineering:")
+    expect(parsed.body).not.toContain("()")
+  })
+
   test("transforms slash commands by flattening namespaces", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,

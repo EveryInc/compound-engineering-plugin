@@ -66,6 +66,44 @@ describe("writeGeminiBundle", () => {
     expect(settingsContent.mcpServers.playwright.command).toBe("npx")
   })
 
+  test("transforms Task calls in copied SKILL.md files", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-skill-transform-"))
+    const sourceSkillDir = path.join(tempRoot, "source-skill")
+    await fs.mkdir(sourceSkillDir, { recursive: true })
+    await fs.writeFile(
+      path.join(sourceSkillDir, "SKILL.md"),
+      `---
+name: ce:plan
+description: Planning workflow
+---
+
+Run these research agents:
+
+- Task compound-engineering:research:repo-research-analyst(feature_description)
+- Task compound-engineering:research:learnings-researcher(feature_description)
+- Task compound-engineering:review:code-simplicity-reviewer()
+`,
+    )
+
+    const bundle: GeminiBundle = {
+      generatedSkills: [],
+      skillDirs: [{ name: "ce:plan", sourceDir: sourceSkillDir }],
+      commands: [],
+    }
+
+    await writeGeminiBundle(tempRoot, bundle)
+
+    const installedSkill = await fs.readFile(
+      path.join(tempRoot, ".gemini", "skills", "ce:plan", "SKILL.md"),
+      "utf8",
+    )
+
+    expect(installedSkill).toContain("Use the repo-research-analyst skill to: feature_description")
+    expect(installedSkill).toContain("Use the learnings-researcher skill to: feature_description")
+    expect(installedSkill).toContain("Use the code-simplicity-reviewer skill")
+    expect(installedSkill).not.toContain("Task compound-engineering:")
+  })
+
   test("namespaced commands create subdirectories", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-ns-"))
     const bundle: GeminiBundle = {

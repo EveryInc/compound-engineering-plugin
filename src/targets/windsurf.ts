@@ -1,6 +1,7 @@
 import path from "path"
-import { backupFile, copyDir, ensureDir, pathExists, readJson, writeJsonSecure, writeText } from "../utils/files"
+import { backupFile, copySkillDir, ensureDir, pathExists, readJson, writeJsonSecure, writeText } from "../utils/files"
 import { formatFrontmatter } from "../utils/frontmatter"
+import { transformContentForWindsurf } from "../converters/claude-to-windsurf"
 import type { WindsurfBundle } from "../types/windsurf"
 import type { TargetScope } from "./index"
 
@@ -58,7 +59,10 @@ export async function writeWindsurfBundle(outputRoot: string, bundle: WindsurfBu
         continue
       }
 
-      await copyDir(skill.sourceDir, destDir)
+      const knownAgentNames = bundle.agentSkills.map((s) => s.name)
+      await copySkillDir(skill.sourceDir, destDir, (content) =>
+        transformContentForWindsurf(content, knownAgentNames),
+      )
     }
   }
 

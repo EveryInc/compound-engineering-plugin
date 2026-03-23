@@ -85,6 +85,70 @@ describe("convertClaudeToPi", () => {
     expect(parsedPrompt.body).toContain("file-based todos (todos/ + /skill:file-todos)")
   })
 
+  test("transforms namespaced Task agent calls using final segment", () => {
+    const plugin: ClaudePlugin = {
+      root: "/tmp/plugin",
+      manifest: { name: "fixture", version: "1.0.0" },
+      agents: [],
+      commands: [
+        {
+          name: "plan",
+          description: "Planning with namespaced agents",
+          body: [
+            "Run agents:",
+            "- Task compound-engineering:research:repo-research-analyst(feature_description)",
+            "- Task compound-engineering:review:security-reviewer(code_diff)",
+          ].join("\n"),
+          sourcePath: "/tmp/plugin/commands/plan.md",
+        },
+      ],
+      skills: [],
+      hooks: undefined,
+      mcpServers: undefined,
+    }
+
+    const bundle = convertClaudeToPi(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const parsedPrompt = parseFrontmatter(bundle.prompts[0].content)
+    expect(parsedPrompt.body).toContain('Run subagent with agent="repo-research-analyst" and task="feature_description".')
+    expect(parsedPrompt.body).toContain('Run subagent with agent="security-reviewer" and task="code_diff".')
+    expect(parsedPrompt.body).not.toContain("compound-engineering:")
+  })
+
+  test("transforms zero-argument Task calls", () => {
+    const plugin: ClaudePlugin = {
+      root: "/tmp/plugin",
+      manifest: { name: "fixture", version: "1.0.0" },
+      agents: [],
+      commands: [
+        {
+          name: "review",
+          description: "Review code",
+          body: "- Task compound-engineering:review:code-simplicity-reviewer()",
+          sourcePath: "/tmp/plugin/commands/review.md",
+        },
+      ],
+      skills: [],
+      hooks: undefined,
+      mcpServers: undefined,
+    }
+
+    const bundle = convertClaudeToPi(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const parsedPrompt = parseFrontmatter(bundle.prompts[0].content)
+    expect(parsedPrompt.body).toContain('Run subagent with agent="code-simplicity-reviewer".')
+    expect(parsedPrompt.body).not.toContain("compound-engineering:")
+    expect(parsedPrompt.body).not.toContain("()")
+  })
+
   test("appends MCPorter compatibility note when command references MCP", () => {
     const plugin: ClaudePlugin = {
       root: "/tmp/plugin",

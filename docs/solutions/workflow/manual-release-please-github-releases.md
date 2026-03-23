@@ -46,11 +46,12 @@ Move the repo to a manual `release-please` model with one standing release PR an
 
 Key decisions:
 
-- Use `release-please` manifest mode for four release components:
+- Use `release-please` manifest mode for five release components:
   - `cli`
   - `compound-engineering`
   - `coding-tutor`
-  - `marketplace`
+  - `marketplace` (Claude marketplace, `.claude-plugin/`)
+  - `cursor-marketplace` (Cursor marketplace, `.cursor-plugin/`)
 - Keep release timing manual: the actual release happens when the generated release PR is merged.
 - Keep release PR maintenance automatic on pushes to `main`.
 - Use GitHub release PRs and GitHub Releases as the canonical release-notes surface for new releases.
@@ -101,6 +102,7 @@ After the migration:
   - `plugins/compound-engineering/**` => `compound-engineering`
   - `plugins/coding-tutor/**` => `coding-tutor`
   - `.claude-plugin/marketplace.json` => `marketplace`
+  - `.cursor-plugin/marketplace.json` => `cursor-marketplace`
 - Optional title scopes are advisory only.
 
 This keeps titles simple while still letting the release system decide the correct component bump.
@@ -147,6 +149,7 @@ This keeps titles simple while still letting the release system decide the corre
   - `compound-engineering-vX.Y.Z`
   - `coding-tutor-vX.Y.Z`
   - `marketplace-vX.Y.Z`
+  - `cursor-marketplace-vX.Y.Z`
 - Root `CHANGELOG.md` is only a pointer to GitHub Releases and is not the canonical source for new releases.
 
 ## Key Files

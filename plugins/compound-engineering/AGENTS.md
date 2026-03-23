@@ -84,6 +84,18 @@ When adding or modifying skills, verify compliance with the skill spec:
 - [ ] When a skill needs to ask the user a question, instruct use of the platform's blocking question tool and name the known equivalents (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini)
 - [ ] Include a fallback for environments without a question tool (e.g., present numbered options and wait for the user's reply before proceeding)
 
+### Cross-Platform Task Tracking
+
+- [ ] When a skill needs to create or track tasks, describe the intent (e.g., "create a task list") and name the known equivalents (`TaskCreate`/`TaskUpdate`/`TaskList` in Claude Code, `update_plan` in Codex)
+- [ ] Do not reference `TodoWrite` or `TodoRead` — these are legacy Claude Code tools replaced by `TaskCreate`/`TaskUpdate`/`TaskList`
+- [ ] When a skill dispatches sub-agents, prefer parallel execution but include a sequential fallback for platforms that do not support parallel dispatch
+
+### Script Path References in Skills
+
+- [ ] In bash code blocks, reference co-located scripts using relative paths (e.g., `bash scripts/my-script ARG`) — not `${CLAUDE_PLUGIN_ROOT}` or other platform-specific variables
+- [ ] All platforms resolve script paths relative to the skill's directory; no env var prefix is needed
+- [ ] Always also include a markdown link to the script (e.g., `[scripts/my-script](scripts/my-script)`) so the agent can locate and read it
+
 ### Cross-Platform Reference Rules
 
 This plugin is authored once, then converted for other agent platforms. Commands and agents are transformed during that conversion, but `plugin.skills` are usually copied almost exactly as written.
@@ -120,6 +132,14 @@ grep -E '^description:' skills/*/SKILL.md
 
 - **New skill:** Create `skills/<name>/SKILL.md` with required YAML frontmatter (`name`, `description`). Reference files go in `skills/<name>/references/`. Add the skill to the appropriate category table in `README.md` and update the skill count.
 - **New agent:** Create `agents/<category>/<name>.md` with frontmatter. Categories: `review`, `research`, `design`, `docs`, `workflow`. Add the agent to `README.md` and update the agent count.
+
+## Upstream-Sourced Skills
+
+Some skills are exact copies from external upstream repositories, vendored locally so the plugin is self-contained. Do not add local modifications -- sync from upstream instead.
+
+| Skill | Upstream |
+|-------|----------|
+| `agent-browser` | `github.com/vercel-labs/agent-browser` (`skills/agent-browser/SKILL.md`) |
 
 ## Beta Skills
 

@@ -119,15 +119,19 @@ function mapAgentTools(agent: ClaudeAgent): string[] | undefined {
  * 2. Task agent calls: Task agent-name(args) → Task agent-name: args
  * 3. Agent references: @agent-name → the agent-name droid
  */
-function transformContentForDroid(body: string): string {
+export function transformContentForDroid(body: string): string {
   let result = body
 
   // 1. Transform Task agent calls
-  // Match: Task repo-research-analyst(feature_description)
-  const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9-]*)\(([^)]+)\)/gm
+  // Match: Task repo-research-analyst(args) or Task compound-engineering:research:repo-research-analyst(args)
+  const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9:-]*)\(([^)]*)\)/gm
   result = result.replace(taskPattern, (_match, prefix: string, agentName: string, args: string) => {
-    const name = normalizeName(agentName)
-    return `${prefix}Task ${name}: ${args.trim()}`
+    const finalSegment = agentName.includes(":") ? agentName.split(":").pop()! : agentName
+    const name = normalizeName(finalSegment)
+    const trimmedArgs = args.trim()
+    return trimmedArgs
+      ? `${prefix}Task ${name}: ${trimmedArgs}`
+      : `${prefix}Task ${name}`
   })
 
   // 2. Transform slash command references

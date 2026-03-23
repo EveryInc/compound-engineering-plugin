@@ -135,10 +135,15 @@ function convertCommandToSkill(
 export function transformContentForKiro(body: string, knownAgentNames: string[] = []): string {
   let result = body
 
-  // 1. Transform Task agent calls
-  const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9-]*)\(([^)]+)\)/gm
+  // 1. Transform Task agent calls (supports namespaced names like compound-engineering:research:agent-name)
+  const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9:-]*)\(([^)]*)\)/gm
   result = result.replace(taskPattern, (_match, prefix: string, agentName: string, args: string) => {
-    return `${prefix}Use the use_subagent tool to delegate to the ${normalizeName(agentName)} agent: ${args.trim()}`
+    const finalSegment = agentName.includes(":") ? agentName.split(":").pop()! : agentName
+    const agentRef = normalizeName(finalSegment)
+    const trimmedArgs = args.trim()
+    return trimmedArgs
+      ? `${prefix}Use the use_subagent tool to delegate to the ${agentRef} agent: ${trimmedArgs}`
+      : `${prefix}Use the use_subagent tool to delegate to the ${agentRef} agent`
   })
 
   // 2. Rewrite .claude/ paths to .kiro/ (with word-boundary-like lookbehind)

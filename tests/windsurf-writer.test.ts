@@ -85,6 +85,43 @@ describe("writeWindsurfBundle", () => {
     expect(mcpContent.mcpServers.local).toEqual({ command: "echo", args: ["hello"] })
   })
 
+  test("transforms Task calls in copied SKILL.md files", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "windsurf-skill-transform-"))
+    const sourceSkillDir = path.join(tempRoot, "source-skill")
+    await fs.mkdir(sourceSkillDir, { recursive: true })
+    await fs.writeFile(
+      path.join(sourceSkillDir, "SKILL.md"),
+      `---
+name: ce:plan
+description: Planning workflow
+---
+
+Run these research agents:
+
+- Task compound-engineering:research:repo-research-analyst(feature_description)
+- Task compound-engineering:research:learnings-researcher(feature_description)
+- Task compound-engineering:review:code-simplicity-reviewer()
+`,
+    )
+
+    const bundle: WindsurfBundle = {
+      ...emptyBundle,
+      skillDirs: [{ name: "ce:plan", sourceDir: sourceSkillDir }],
+    }
+
+    await writeWindsurfBundle(tempRoot, bundle)
+
+    const installedSkill = await fs.readFile(
+      path.join(tempRoot, "skills", "ce:plan", "SKILL.md"),
+      "utf8",
+    )
+
+    expect(installedSkill).toContain("Use the @repo-research-analyst skill: feature_description")
+    expect(installedSkill).toContain("Use the @learnings-researcher skill: feature_description")
+    expect(installedSkill).toContain("Use the @code-simplicity-reviewer skill")
+    expect(installedSkill).not.toContain("Task compound-engineering:")
+  })
+
   test("writes directly into outputRoot without nesting", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "windsurf-direct-"))
     const bundle: WindsurfBundle = {

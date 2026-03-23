@@ -13,21 +13,22 @@ root_cause: architectural_pattern
 
 ## Problem
 
-When adding support for a new AI platform (e.g., Devin, Cursor, Copilot), the converter CLI architecture requires consistent implementation across types, converters, writers, CLI integration, and tests. Without documented patterns and learnings, new targets take longer to implement and risk architectural inconsistency.
+When adding support for a new AI platform (e.g., Copilot, Windsurf, Qwen), the converter CLI architecture requires consistent implementation across types, converters, writers, CLI integration, and tests. Without documented patterns and learnings, new targets take longer to implement and risk architectural inconsistency.
 
 ## Solution
 
-The compound-engineering-plugin uses a proven **6-phase target provider pattern** that has been successfully applied to 8 targets:
+The compound-engineering-plugin uses a proven **6-phase target provider pattern** that has been successfully applied to 10 targets:
 
 1. **OpenCode** (primary target, reference implementation)
 2. **Codex** (second target, established pattern)
 3. **Droid/Factory** (workflow/agent conversion)
 4. **Pi** (MCPorter ecosystem)
 5. **Gemini CLI** (content transformation patterns)
-6. **Cursor** (command flattening, rule formats)
-7. **Copilot** (GitHub native, MCP prefixing)
-8. **Kiro** (limited MCP support)
-9. **Devin** (playbook conversion, knowledge entries)
+6. **Copilot** (GitHub native, MCP prefixing)
+7. **Kiro** (limited MCP support)
+8. **Windsurf** (rules-based format)
+9. **OpenClaw** (open agent format)
+10. **Qwen** (Qwen agent format)
 
 Each implementation follows this architecture precisely, ensuring consistency and maintainability.
 
@@ -63,14 +64,14 @@ export type {TargetName}Agent = {
 **Key Learnings:**
 
 - Always include a `content` field (full file text) rather than decomposed fields — it's simpler and matches how files are written
-- Use intermediate types for complex sections (e.g., `DevinPlaybookSections` in Devin converter) to make section building independently testable
+- Use intermediate types for complex sections to make section building independently testable
 - Avoid target-specific fields in the base bundle unless essential — aim for shared structure across targets
 - Include a `category` field if the target has file-type variants (agents vs. commands vs. rules)
 
 **Reference Implementations:**
 - OpenCode: `src/types/opencode.ts` (command + agent split)
-- Devin: `src/types/devin.ts` (playbooks + knowledge entries)
 - Copilot: `src/types/copilot.ts` (agents + skills + MCP)
+- Windsurf: `src/types/windsurf.ts` (rules-based format)
 
 ---
 
@@ -158,7 +159,7 @@ export function transformContentFor{Target}(body: string): string {
 
 **Deduplication Pattern (`uniqueName`):**
 
-Used when target has flat namespaces (Cursor, Copilot, Devin) or when name collisions occur:
+Used when target has flat namespaces (Copilot, Windsurf) or when name collisions occur:
 
 ```typescript
 function uniqueName(base: string, used: Set<string>): string {
@@ -197,7 +198,7 @@ function flattenCommandName(name: string): string {
 
 **Key Learnings:**
 
-1. **Pre-scan for cross-references** — If target requires reference names (macros, URIs, IDs), build a map before conversion. Example: Devin needs macro names like `agent_kieran_rails_reviewer`, so pre-scan builds the map.
+1. **Pre-scan for cross-references** — If target requires reference names (macros, URIs, IDs), build a map before conversion to avoid name collisions and enable deduplication.
 
 2. **Content transformation is fragile** — Test extensively. Patterns that work for slash commands might false-match on file paths. Use negative lookahead to skip `/etc`, `/usr`, `/var`, etc.
 
@@ -208,15 +209,15 @@ function flattenCommandName(name: string): string {
 5. **MCP servers need target-specific handling:**
    - **OpenCode:** Merge into `opencode.json` (preserve user keys)
    - **Copilot:** Prefix env vars with `COPILOT_MCP_`, emit JSON
-   - **Devin:** Write setup instructions file (config is via web UI)
-   - **Cursor:** Pass through as-is
+   - **Windsurf:** Write MCP config in target-specific format
+   - **Kiro:** Limited MCP support, check compatibility
 
 6. **Warn on unsupported features** — Hooks, Gemini extensions, Kiro-incompatible MCP types. Emit to stderr and continue conversion.
 
 **Reference Implementations:**
 - OpenCode: `src/converters/claude-to-opencode.ts` (most comprehensive)
-- Devin: `src/converters/claude-to-devin.ts` (content transformation + cross-references)
 - Copilot: `src/converters/claude-to-copilot.ts` (MCP prefixing pattern)
+- Windsurf: `src/converters/claude-to-windsurf.ts` (rules-based conversion)
 
 ---
 
@@ -328,8 +329,7 @@ export async function backupFile(filePath: string): Promise<string | null> {
 
 5. **File extensions matter** — Match target conventions exactly:
    - Copilot: `.agent.md` (note the dot)
-   - Cursor: `.mdc` for rules
-   - Devin: `.devin.md` for playbooks
+   - Windsurf: `.md` for rules
    - OpenCode: `.md` for commands
 
 6. **Permissions for sensitive files** — MCP config with API keys should use `0o600`:
@@ -340,7 +340,7 @@ export async function backupFile(filePath: string): Promise<string | null> {
 **Reference Implementations:**
 - Droid: `src/targets/droid.ts` (simpler pattern, good for learning)
 - Copilot: `src/targets/copilot.ts` (double-nesting pattern)
-- Devin: `src/targets/devin.ts` (setup instructions file)
+- Windsurf: `src/targets/windsurf.ts` (rules-based output)
 
 ---
 
@@ -377,7 +377,7 @@ if (targetName === "{target}") {
 }
 
 // Update --to flag description
-const toDescription = "Target format (opencode | codex | droid | cursor | copilot | kiro | {target})"
+const toDescription = "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro | windsurf | openclaw | qwen | all)"
 ```
 
 ---
@@ -427,7 +427,7 @@ export async function syncTo{Target}(outputRoot: string): Promise<void> {
 
 ```typescript
 // Add to validTargets array
-const validTargets = ["opencode", "codex", "droid", "cursor", "pi", "{target}"] as const
+const validTargets = ["opencode", "codex", "droid", "pi", "copilot", "gemini", "kiro", "windsurf", "openclaw", "qwen", "{target}"] as const
 
 // In resolveOutputRoot()
 case "{target}":
@@ -614,7 +614,7 @@ Add to supported targets list and include usage examples.
 
 | Pitfall | Solution |
 |---------|----------|
-| **Double-nesting** (`.cursor/.cursor/`) | Check `path.basename(outputRoot)` before nesting |
+| **Double-nesting** (`.copilot/.copilot/`) | Check `path.basename(outputRoot)` before nesting |
 | **Inconsistent name normalization** | Use single `normalizeName()` function everywhere |
 | **Fragile content transformation** | Test regex patterns against edge cases (file paths, URLs) |
 | **Heuristic section extraction fails** | Use structural mapping (description → Overview, body → Procedure) instead |
@@ -667,7 +667,7 @@ Use this checklist when adding a new target provider:
 
 1. **Droid** (`src/targets/droid.ts`, `src/converters/claude-to-droid.ts`) — Simplest pattern, good learning baseline
 2. **Copilot** (`src/targets/copilot.ts`, `src/converters/claude-to-copilot.ts`) — MCP prefixing, double-nesting guard
-3. **Devin** (`src/converters/claude-to-devin.ts`) — Content transformation, cross-references, intermediate types
+3. **Windsurf** (`src/targets/windsurf.ts`, `src/converters/claude-to-windsurf.ts`) — Rules-based conversion
 4. **OpenCode** (`src/converters/claude-to-opencode.ts`) — Most comprehensive, handles command structure and config merging
 
 ### Key Utilities
@@ -678,7 +678,6 @@ Use this checklist when adding a new target provider:
 
 ### Existing Tests
 
-- `tests/cursor-converter.test.ts` — Comprehensive converter tests
 - `tests/copilot-writer.test.ts` — Writer tests with temp directories
 - `tests/sync-copilot.test.ts` — Sync pattern with symlinks and config merge
 

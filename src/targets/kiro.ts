@@ -1,5 +1,6 @@
 import path from "path"
-import { backupFile, copyDir, ensureDir, pathExists, readJson, writeJson, writeText } from "../utils/files"
+import { backupFile, copySkillDir, ensureDir, pathExists, readJson, writeJson, writeText } from "../utils/files"
+import { transformContentForKiro } from "../converters/claude-to-kiro"
 import type { KiroBundle } from "../types/kiro"
 
 export async function writeKiroBundle(outputRoot: string, bundle: KiroBundle): Promise<void> {
@@ -50,7 +51,10 @@ export async function writeKiroBundle(outputRoot: string, bundle: KiroBundle): P
         continue
       }
 
-      await copyDir(skill.sourceDir, destDir)
+      const knownAgentNames = bundle.agents.map((a) => a.name)
+      await copySkillDir(skill.sourceDir, destDir, (content) =>
+        transformContentForKiro(content, knownAgentNames),
+      )
     }
   }
 

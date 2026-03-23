@@ -444,6 +444,27 @@ Task best-practices-researcher(topic)`
     expect(result).not.toContain("Task repo-research-analyst(")
   })
 
+  test("transforms namespaced Task agent calls using final segment", () => {
+    const input = `Run agents:
+
+- Task compound-engineering:research:repo-research-analyst(feature_description)
+- Task compound-engineering:review:security-reviewer(code_diff)`
+
+    const result = transformContentForCopilot(input)
+    expect(result).toContain("Use the repo-research-analyst skill to: feature_description")
+    expect(result).toContain("Use the security-reviewer skill to: code_diff")
+    expect(result).not.toContain("compound-engineering:")
+  })
+
+  test("transforms zero-argument Task calls", () => {
+    const input = `- Task compound-engineering:review:code-simplicity-reviewer()`
+
+    const result = transformContentForCopilot(input)
+    expect(result).toContain("Use the code-simplicity-reviewer skill")
+    expect(result).not.toContain("compound-engineering:")
+    expect(result).not.toContain("skill to:")
+  })
+
   test("replaces colons with hyphens in slash commands", () => {
     const input = `1. Run /deepen-plan to enhance
 2. Start /workflows:work to implement

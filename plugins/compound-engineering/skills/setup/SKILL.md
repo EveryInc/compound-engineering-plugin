@@ -8,26 +8,20 @@ disable-model-invocation: true
 
 ## Interaction Method
 
-If `AskUserQuestion` is available, use it for all prompts below.
+Ask the user each question below using the platform's blocking question tool (e.g., `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no structured question tool is available, present each question as a numbered list and wait for a reply before proceeding. For multiSelect questions, accept comma-separated numbers (e.g. `1, 3`). Never skip or auto-configure.
 
-If not, present each question as a numbered list and wait for a reply before proceeding to the next step. For multiSelect questions, accept comma-separated numbers (e.g. `1, 3`). Never skip or auto-configure.
-
-Interactive setup for `compound-engineering.local.md` — configures which agents run during `/ce:review` and `/ce:work`.
+Interactive setup for `compound-engineering.local.md` — configures which agents run during `ce:review` and `ce:work`.
 
 ## Step 1: Check Existing Config
 
-Read `compound-engineering.local.md` in the project root. If it exists, display current settings summary and use AskUserQuestion:
+Read `compound-engineering.local.md` in the project root. If it exists, display current settings and ask:
 
 ```
-question: "Settings file already exists. What would you like to do?"
-header: "Config"
-options:
-  - label: "Reconfigure"
-    description: "Run the interactive setup again from scratch"
-  - label: "View current"
-    description: "Show the file contents, then stop"
-  - label: "Cancel"
-    description: "Keep current settings"
+Settings file already exists. What would you like to do?
+
+1. Reconfigure - Run the interactive setup again from scratch
+2. View current - Show the file contents, then stop
+3. Cancel - Keep current settings
 ```
 
 If "View current": read and display the file, then stop.
@@ -47,16 +41,13 @@ test -f requirements.txt && echo "python" || \
 echo "general"
 ```
 
-Use AskUserQuestion:
+Ask:
 
 ```
-question: "Detected {type} project. How would you like to configure?"
-header: "Setup"
-options:
-  - label: "Auto-configure (Recommended)"
-    description: "Use smart defaults for {type}. Done in one click."
-  - label: "Customize"
-    description: "Choose stack, focus areas, and review depth."
+Detected {type} project. How would you like to configure?
+
+1. Auto-configure (Recommended) - Use smart defaults for {type}. Done in one click.
+2. Customize - Choose stack, focus areas, and review depth.
 ```
 
 ### If Auto-configure → Skip to Step 4 with defaults:
@@ -73,50 +64,35 @@ options:
 **a. Stack** — confirm or override:
 
 ```
-question: "Which stack should we optimize for?"
-header: "Stack"
-options:
-  - label: "{detected_type} (Recommended)"
-    description: "Auto-detected from project files"
-  - label: "Rails"
-    description: "Ruby on Rails — adds DHH-style and Rails-specific reviewers"
-  - label: "Python"
-    description: "Python — adds Pythonic pattern reviewer"
-  - label: "TypeScript"
-    description: "TypeScript — adds type safety reviewer"
+Which stack should we optimize for?
+
+1. {detected_type} (Recommended) - Auto-detected from project files
+2. Rails - Ruby on Rails, adds DHH-style and Rails-specific reviewers
+3. Python - Adds Pythonic pattern reviewer
+4. TypeScript - Adds type safety reviewer
 ```
 
 Only show options that differ from the detected type.
 
-**b. Focus areas** — multiSelect:
+**b. Focus areas** — multiSelect (user picks one or more):
 
 ```
-question: "Which review areas matter most?"
-header: "Focus"
-multiSelect: true
-options:
-  - label: "Security"
-    description: "Vulnerability scanning, auth, input validation (security-sentinel)"
-  - label: "Performance"
-    description: "N+1 queries, memory leaks, complexity (performance-oracle)"
-  - label: "Architecture"
-    description: "Design patterns, SOLID, separation of concerns (architecture-strategist)"
-  - label: "Code simplicity"
-    description: "Over-engineering, YAGNI violations (code-simplicity-reviewer)"
+Which review areas matter most? (comma-separated, e.g. 1, 3)
+
+1. Security - Vulnerability scanning, auth, input validation (security-sentinel)
+2. Performance - N+1 queries, memory leaks, complexity (performance-oracle)
+3. Architecture - Design patterns, SOLID, separation of concerns (architecture-strategist)
+4. Code simplicity - Over-engineering, YAGNI violations (code-simplicity-reviewer)
 ```
 
 **c. Depth:**
 
 ```
-question: "How thorough should reviews be?"
-header: "Depth"
-options:
-  - label: "Thorough (Recommended)"
-    description: "Stack reviewers + all selected focus agents."
-  - label: "Fast"
-    description: "Stack reviewers + code simplicity only. Less context, quicker."
-  - label: "Comprehensive"
-    description: "All above + git history, data integrity, agent-native checks."
+How thorough should reviews be?
+
+1. Thorough (Recommended) - Stack reviewers + all selected focus agents.
+2. Fast - Stack reviewers + code simplicity only. Less context, quicker.
+3. Comprehensive - All above + git history, data integrity, agent-native checks.
 ```
 
 ## Step 4: Build Agent List and Write File
@@ -151,7 +127,7 @@ plan_review_agents: [{computed plan agent list}]
 # Review Context
 
 Add project-specific review instructions here.
-These notes are passed to all review agents during /ce:review and /ce:work.
+These notes are passed to all review agents during ce:review and ce:work.
 
 Examples:
 - "We use Turbo Frames heavily — check for frame-busting issues"

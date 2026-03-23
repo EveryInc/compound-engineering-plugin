@@ -30,7 +30,7 @@ Do not proceed until you have a clear planning input.
 ## Core Principles
 
 1. **Use requirements as the source of truth** - If `ce:brainstorm` produced a requirements document, planning should build from it rather than re-inventing behavior.
-2. **Decisions, not code** - Capture approach, boundaries, files, dependencies, risks, and test scenarios. Do not pre-write implementation code or shell command choreography.
+2. **Decisions, not code** - Capture approach, boundaries, files, dependencies, risks, and test scenarios. Do not pre-write implementation code or shell command choreography. Pseudo-code sketches or DSL grammars that communicate high-level technical design are welcome when they help a reviewer validate direction — but they must be explicitly framed as directional guidance, not implementation specification.
 3. **Research before structuring** - Explore the codebase, institutional learnings, and external guidance when warranted before finalizing the plan.
 4. **Right-size the artifact** - Small work gets a compact plan. Large work gets more structure. The philosophy stays the same at every depth.
 5. **Separate planning from execution discovery** - Resolve planning-time questions here. Explicitly defer execution-time unknowns to implementation.
@@ -145,12 +145,13 @@ Prepare a concise planning context summary (a paragraph or two) to pass as input
 
 Run these agents in parallel:
 
-- Task compound-engineering:research:repo-research-analyst(planning context summary)
+- Task compound-engineering:research:repo-research-analyst(Scope: technology, architecture, patterns. {planning context summary})
 - Task compound-engineering:research:learnings-researcher(planning context summary)
 
 Collect:
-- Existing patterns and conventions to follow
-- Relevant files, modules, and tests
+- Technology stack and versions (used in section 1.2 to make sharper external research decisions)
+- Architectural patterns and conventions to follow
+- Implementation patterns, relevant files, modules, and tests
 - AGENTS.md guidance that materially affects the plan, with CLAUDE.md used only as compatibility fallback when present
 - Institutional learnings from `docs/solutions/`
 
@@ -162,6 +163,7 @@ Look for signals such as:
 - The user explicitly asks for TDD, test-first, or characterization-first work
 - The origin document calls for test-first implementation or exploratory hardening of legacy code
 - Local research shows the target area is legacy, weakly tested, or historically fragile, suggesting characterization coverage before changing behavior
+- The user asks for external delegation, says "use codex", "delegate mode", or mentions token conservation -- add `Execution target: external-delegate` to implementation units that are pure code writing
 
 When the signal is clear, carry it forward silently in the relevant implementation units.
 
@@ -177,15 +179,27 @@ Based on the origin document, user signals, and local findings, decide whether e
 - **Topic risk** — Security, payments, external APIs warrant more caution regardless of user signals.
 - **Uncertainty level** — Is the approach clear or still open-ended?
 
+**Leverage repo-research-analyst's technology context:**
+
+The repo-research-analyst output includes a structured Technology & Infrastructure summary. Use it to make sharper external research decisions:
+
+- If specific frameworks and versions were detected (e.g., Rails 7.2, Next.js 14, Go 1.22), pass those exact identifiers to framework-docs-researcher so it fetches version-specific documentation
+- If the feature touches a technology layer the scan found well-established in the repo (e.g., existing Sidekiq jobs when planning a new background job), lean toward skipping external research -- local patterns are likely sufficient
+- If the feature touches a technology layer the scan found absent or thin (e.g., no existing proto files when planning a new gRPC service), lean toward external research -- there are no local patterns to follow
+- If the scan detected deployment infrastructure (Docker, K8s, serverless), note it in the planning context passed to downstream agents so they can account for deployment constraints
+- If the scan detected a monorepo and scoped to a specific service, pass that service's tech context to downstream research agents -- not the aggregate of all services. If the scan surfaced the workspace map without scoping, use the feature description to identify the relevant service before proceeding with research
+
 **Always lean toward external research when:**
 - The topic is high-risk: security, payments, privacy, external APIs, migrations, compliance
 - The codebase lacks relevant local patterns
 - The user is exploring unfamiliar territory
+- The technology scan found the relevant layer absent or thin in the codebase
 
 **Skip external research when:**
 - The codebase already shows a strong local pattern
 - The user already knows the intended shape
 - Additional external context would add little practical value
+- The technology scan found the relevant layer well-established with existing examples to follow
 
 Announce the decision briefly before continuing. Examples:
 - "Your codebase has solid patterns for this. Proceeding without external research."
@@ -267,7 +281,33 @@ Avoid:
 - Units that span multiple unrelated concerns
 - Units that are so vague an implementer still has to invent the plan
 
-#### 3.4 Define Each Implementation Unit
+#### 3.4 High-Level Technical Design (Optional)
+
+Before detailing implementation units, decide whether an overview would help a reviewer validate the intended approach. This section communicates the *shape* of the solution — how pieces fit together — without dictating implementation.
+
+**When to include it:**
+
+| Work involves... | Best overview form |
+|---|---|
+| DSL or API surface design | Pseudo-code grammar or contract sketch |
+| Multi-component integration | Mermaid sequence or component diagram |
+| Data pipeline or transformation | Data flow sketch |
+| State-heavy lifecycle | State diagram |
+| Complex branching logic | Flowchart |
+| Single-component with non-obvious shape | Pseudo-code sketch |
+
+**When to skip it:**
+- Well-patterned work where prose and file paths tell the whole story
+- Straightforward CRUD or convention-following changes
+- Lightweight plans where the approach is obvious
+
+Choose the medium that fits the work. Do not default to pseudo-code when a diagram communicates better, and vice versa.
+
+Frame every sketch with: *"This illustrates the intended approach and is directional guidance for review, not implementation specification. The implementing agent should treat it as context, not code to reproduce."*
+
+Keep sketches concise — enough to validate direction, not enough to copy-paste into production.
+
+#### 3.5 Define Each Implementation Unit
 
 For each unit, include:
 - **Goal** - what this unit accomplishes
@@ -275,7 +315,8 @@ For each unit, include:
 - **Dependencies** - what must exist first
 - **Files** - exact file paths to create, modify, or test
 - **Approach** - key decisions, data flow, component boundaries, or integration notes
-- **Execution note** - optional, only when the unit benefits from a non-default execution posture such as test-first or characterization-first work
+- **Execution note** - optional, only when the unit benefits from a non-default execution posture such as test-first, characterization-first, or external delegation
+- **Technical design** - optional pseudo-code or diagram when the unit's approach is non-obvious and prose alone would leave it ambiguous. Frame explicitly as directional guidance, not implementation specification
 - **Patterns to follow** - existing code or conventions to mirror
 - **Test scenarios** - specific behaviors, edge cases, and failure paths to cover
 - **Verification** - how an implementer should know the unit is complete, expressed as outcomes rather than shell command scripts
@@ -286,10 +327,11 @@ Use `Execution note` sparingly. Good uses include:
 - `Execution note: Start with a failing integration test for the request/response contract.`
 - `Execution note: Add characterization coverage before modifying this legacy parser.`
 - `Execution note: Implement new domain behavior test-first.`
+- `Execution note: Execution target: external-delegate`
 
 Do not expand units into literal `RED/GREEN/REFACTOR` substeps.
 
-#### 3.5 Keep Planning-Time and Implementation-Time Unknowns Separate
+#### 3.6 Keep Planning-Time and Implementation-Time Unknowns Separate
 
 If something is important but not knowable yet, record it explicitly under deferred implementation notes rather than pretending to resolve it in the plan.
 
@@ -311,12 +353,12 @@ Use one planning philosophy across all depths. Change the amount of detail, not 
 - Omit optional sections that add little value
 
 **Standard**
-- Use the full core template
+- Use the full core template, omitting optional sections (including High-Level Technical Design) that add no value for this particular work
 - Usually 3-6 implementation units
 - Include risks, deferred questions, and system-wide impact when relevant
 
 **Deep**
-- Use the full core template plus optional analysis sections
+- Use the full core template plus optional analysis sections where warranted
 - Usually 4-8 implementation units
 - Group units into phases when that improves clarity
 - Include alternatives considered, documentation impacts, and deeper risk treatment when warranted
@@ -396,6 +438,16 @@ deepened: YYYY-MM-DD  # optional, set later by deepen-plan-beta when the plan is
 
 - [Question or unknown]: [Why it is intentionally deferred]
 
+<!-- Optional: Include this section only when the work involves DSL design, multi-component
+     integration, complex data flow, state-heavy lifecycle, or other cases where prose alone
+     would leave the approach shape ambiguous. Omit it entirely for well-patterned or
+     straightforward work. -->
+## High-Level Technical Design
+
+> *This illustrates the intended approach and is directional guidance for review, not implementation specification. The implementing agent should treat it as context, not code to reproduce.*
+
+[Pseudo-code grammar, mermaid diagram, data flow sketch, or state diagram — choose the medium that best communicates the solution shape for this work.]
+
 ## Implementation Units
 
 - [ ] **Unit 1: [Name]**
@@ -414,7 +466,9 @@ deepened: YYYY-MM-DD  # optional, set later by deepen-plan-beta when the plan is
 **Approach:**
 - [Key design or sequencing decision]
 
-**Execution note:** [Optional test-first, characterization-first, or other execution posture signal]
+**Execution note:** [Optional test-first, characterization-first, external-delegate, or other execution posture signal]
+
+**Technical design:** *(optional -- pseudo-code or diagram when the unit's approach is non-obvious. Directional guidance, not implementation specification.)*
 
 **Patterns to follow:**
 - [Existing file, class, or pattern]
@@ -490,11 +544,12 @@ For larger `Deep` plans, extend the core template only when useful with sections
 
 - Prefer path plus class/component/pattern references over brittle line numbers
 - Keep implementation units checkable with `- [ ]` syntax for progress tracking
-- Do not include fenced implementation code blocks unless the plan itself is about code shape as a design artifact
+- Do not include implementation code — no imports, exact method signatures, or framework-specific syntax
+- Pseudo-code sketches and DSL grammars are allowed in the High-Level Technical Design section and per-unit technical design fields when they communicate design direction. Frame them explicitly as directional guidance, not implementation specification
+- Mermaid diagrams are encouraged when they clarify relationships or flows that prose alone would make hard to follow — ERDs for data model changes, sequence diagrams for multi-service interactions, state diagrams for lifecycle transitions, flowcharts for complex branching logic
 - Do not include git commands, commit messages, or exact test command recipes
 - Do not expand implementation units into micro-step `RED/GREEN/REFACTOR` instructions
 - Do not pretend an execution-time question is settled just to make the plan look complete
-- Include mermaid diagrams when they clarify relationships or flows that prose alone would make hard to follow — ERDs for data model changes, sequence diagrams for multi-service interactions, state diagrams for lifecycle transitions, flowcharts for complex branching logic
 
 ### Phase 5: Final Review, Write File, and Handoff
 
@@ -508,6 +563,8 @@ Before finalizing, check:
 - If test-first or characterization-first posture was explicit or strongly implied, the relevant units carry it forward with a lightweight `Execution note`
 - Test scenarios are specific without becoming test code
 - Deferred items are explicit and not hidden as fake certainty
+- If a High-Level Technical Design section is included, it uses the right medium for the work, carries the non-prescriptive framing, and does not contain implementation code (no imports, exact signatures, or framework-specific syntax)
+- Per-unit technical design fields, if present, are concise and directional rather than copy-paste-ready
 
 If the plan originated from a requirements document, re-read that document and verify:
 - The chosen approach still matches the product intent
