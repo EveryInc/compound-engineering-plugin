@@ -27,13 +27,19 @@ Parse the input:
 - First argument: PR number or "current" (defaults to current branch's PR)
 - Second argument: Base URL (defaults to `http://localhost:3000`)
 
-Check if a PR exists for the current branch:
+If an explicit PR number was provided, verify it exists and use it directly:
+
+```bash
+gh pr view [number] --json number -q '.number'
+```
+
+If no explicit PR number was provided (or "current" was specified), check if a PR exists for the current branch:
 
 ```bash
 gh pr view --json number -q '.number'
 ```
 
-If no PR exists, ask the user how to proceed. **Use the platform's blocking question tool** (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini):
+If no PR exists for the current branch, ask the user how to proceed. **Use the platform's blocking question tool** (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini):
 
 ```
 No PR found for the current branch.
@@ -49,11 +55,11 @@ If option 1: create a draft PR with a placeholder title derived from the branch 
 gh pr create --draft --title "[branch-name-humanized]" --body "Draft PR for video walkthrough"
 ```
 
-If option 2: proceed through Steps 2-5 (record and encode), skip Steps 6-7 (upload and PR update), and report the local video path at the end. The user can re-run the skill after creating a PR to upload.
+If option 2: set `RECORD_ONLY=true`. Proceed through Steps 2-5 (record and encode), skip Steps 6-7 (upload and PR update), and report the local video path at the end. The user can re-run the skill after creating a PR to upload.
 
 ### 2. Gather Feature Context
 
-Get PR details and changed files to determine what to demonstrate:
+**If a PR is available**, get PR details and changed files:
 
 ```bash
 gh pr view [number] --json title,body,files,headRefName -q '.'
@@ -61,6 +67,18 @@ gh pr view [number] --json title,body,files,headRefName -q '.'
 
 ```bash
 gh pr view [number] --json files -q '.files[].path'
+```
+
+**If in record-only mode (no PR)**, derive context from the branch diff against the base branch:
+
+```bash
+git diff --name-only main...HEAD
+```
+
+Use the branch name and commit messages to infer the feature title:
+
+```bash
+git log --oneline main...HEAD
 ```
 
 Map changed files to routes/pages that should be demonstrated. Examine the project's routing configuration (e.g., `routes.rb`, `next.config.js`, `app/` directory structure) to determine which URLs correspond to the changed files.
@@ -99,11 +117,12 @@ Estimated duration: ~[X] seconds
 
 ### 4. Record the Walkthrough
 
-Create output directories:
+Generate a unique run ID (e.g., timestamp) and create per-run output directories. This prevents stale screenshots from prior runs being spliced into the new video:
 
 ```bash
-mkdir -p .context/compound-engineering/feature-video/screenshots
-mkdir -p .context/compound-engineering/feature-video/videos
+RUN_ID=$(date +%s)
+mkdir -p .context/compound-engineering/feature-video/$RUN_ID/screenshots
+mkdir -p .context/compound-engineering/feature-video/$RUN_ID/videos
 ```
 
 Execute the planned flow, capturing each step with agent-browser. Number screenshots sequentially for correct frame ordering:
@@ -111,36 +130,36 @@ Execute the planned flow, capturing each step with agent-browser. Number screens
 ```bash
 agent-browser open "[base-url]/[start-route]"
 agent-browser wait 2000
-agent-browser screenshot .context/compound-engineering/feature-video/screenshots/01-start.png
+agent-browser screenshot .context/compound-engineering/feature-video/$RUN_ID/screenshots/01-start.png
 ```
 
 ```bash
 agent-browser snapshot -i
 agent-browser click @e1
 agent-browser wait 1000
-agent-browser screenshot .context/compound-engineering/feature-video/screenshots/02-navigate.png
+agent-browser screenshot .context/compound-engineering/feature-video/$RUN_ID/screenshots/02-navigate.png
 ```
 
 ```bash
 agent-browser snapshot -i
 agent-browser click @e2
 agent-browser wait 1000
-agent-browser screenshot .context/compound-engineering/feature-video/screenshots/03-feature.png
+agent-browser screenshot .context/compound-engineering/feature-video/$RUN_ID/screenshots/03-feature.png
 ```
 
 ```bash
 agent-browser wait 2000
-agent-browser screenshot .context/compound-engineering/feature-video/screenshots/04-result.png
+agent-browser screenshot .context/compound-engineering/feature-video/$RUN_ID/screenshots/04-result.png
 ```
 
 ### 5. Create Video
 
-Stitch screenshots into an MP4:
+Stitch screenshots into an MP4 using the same `$RUN_ID` from Step 4:
 
 ```bash
-ffmpeg -y -framerate 0.5 -pattern_type glob -i '.context/compound-engineering/feature-video/screenshots/*.png' \
+ffmpeg -y -framerate 0.5 -pattern_type glob -i '.context/compound-engineering/feature-video/$RUN_ID/screenshots/*.png' \
   -c:v libx264 -pix_fmt yuv420p -vf "scale=1280:-2" \
-  .context/compound-engineering/feature-video/videos/feature-demo.mp4
+  .context/compound-engineering/feature-video/$RUN_ID/videos/feature-demo.mp4
 ```
 
 Notes:
@@ -200,8 +219,16 @@ Navigate to the PR comment form and upload via the hidden file input:
 ```bash
 agent-browser open "https://github.com/[owner]/[repo]/pull/[number]"
 agent-browser scroll down 5000
-agent-browser upload '#fc-new_comment_field' .context/compound-engineering/feature-video/videos/feature-demo.mp4
+agent-browser upload '#fc-new_comment_field' .context/compound-engineering/feature-video/$RUN_ID/videos/feature-demo.mp4
 ```
+
+Before uploading, save any existing textarea content so it can be restored afterwards (the comment box may contain an unsent draft):
+
+```bash
+agent-browser eval "document.getElementById('new_comment_field').value"
+```
+
+Store this value as `SAVED_TEXTAREA`. If non-empty, it will be restored after extracting the upload URL.
 
 Wait for GitHub to process the upload (typically 3-5 seconds), then read the textarea value:
 
@@ -210,12 +237,16 @@ agent-browser wait 5000
 agent-browser eval "document.getElementById('new_comment_field').value"
 ```
 
-The textarea will contain a URL like `https://github.com/user-attachments/assets/[uuid]`. Extract this URL -- it is the VIDEO_URL for embedding.
+**Validate the extracted URL.** The value must contain `user-attachments/assets/` to confirm a successful native upload. If the textarea is empty, contains only placeholder text, or the URL does not match, do not proceed to Step 7. Instead:
 
-Clear the textarea without submitting (the upload is already persisted server-side):
+1. Check `agent-browser get url` -- if it shows `github.com/login`, the session expired. Re-run auth setup.
+2. If still on the PR page, wait an additional 5 seconds and re-read the textarea (GitHub processing can be slow).
+3. If validation still fails after retry, report the failure and the local video path so the user can upload manually.
+
+Restore the original textarea content (or clear if it was empty):
 
 ```bash
-agent-browser eval "const ta = document.getElementById('new_comment_field'); ta.value = ''; ta.dispatchEvent(new Event('input', { bubbles: true }))"
+agent-browser eval "const ta = document.getElementById('new_comment_field'); ta.value = '[SAVED_TEXTAREA]'; ta.dispatchEvent(new Event('input', { bubbles: true }))"
 ```
 
 ### 7. Update PR Description
