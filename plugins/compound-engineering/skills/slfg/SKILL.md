@@ -1,20 +1,57 @@
 ---
 name: slfg
-description: Run the complete engineering pipeline from idea to PR with parallel execution via swarm agents. Same pipeline as lfg but parallelizes work and review phases for speed.
+description: Right-sized engineering pipeline from idea to PR with parallel execution via swarm agents. Same routing as lfg but parallelizes work and review phases for speed on standard/complex tasks.
 argument-hint: "[feature description]"
 disable-model-invocation: true
 ---
 
-Swarm-enabled LFG. Run these steps in order, parallelizing where indicated. Skills run in pipeline mode: skip workflow prompts (handoff menus, "what next?" options) but still ask content questions when requirements or scope are unclear.
+Swarm-enabled LFG. Assess the task, choose the right execution path, and get it done -- parallelizing where it helps.
 
-## Brainstorm Phase
+## Phase 0: Assess and Route
+
+Read the feature description and choose the cheapest execution path that will handle it well.
+
+**Bias toward under-routing.** Running too little ceremony and having the user ask for more is far cheaper than running a full pipeline for a one-line fix. When the boundary between direct and lightweight is unclear, prefer direct. When the boundary between lightweight and full pipeline is unclear, prefer full pipeline -- it has internal short-circuits that right-size themselves.
+
+Announce the routing decision in one line before proceeding:
+- "**Direct** -- [what and why]"
+- "**Lightweight** -- [what and why]"
+- "**Full pipeline** -- [why this needs structured planning and review]"
+
+Then execute immediately. Do not wait for confirmation.
+
+---
+
+### Direct
+
+The fix is obvious and self-contained. No planning needed, no review needed, no skills loaded.
+
+Make the change, verify it works (typecheck, lint, or test if applicable), and output `<promise>DONE</promise>`.
+
+---
+
+### Lightweight
+
+The task is clear and bounded -- requirements and expected behavior are already in the description. Loading brainstorm, plan, and multi-agent review would add ceremony without improving the outcome.
+
+Do the work directly. Verify it works (typecheck, lint, or test if applicable) and give it a quick self-review for obvious issues. Output `<promise>DONE</promise>`.
+
+---
+
+### Full Pipeline
+
+The task has enough scope, ambiguity, or risk that structured planning prevents wasted work. This is the default when the task is not clearly trivial or simple.
+
+Skills run in pipeline mode: skip workflow prompts (handoff menus, "what next?" options) but still ask content questions when requirements or scope are unclear.
+
+#### Brainstorm Phase
 
 1. `/ce:brainstorm $ARGUMENTS`
    - Brainstorm runs in pipeline mode: it assesses whether requirements exploration is needed and either skips (if requirements are already clear) or runs brainstorm with content questions as needed and writes a requirements document. It will not present handoff options or invoke `/ce:plan` -- control returns here.
 
 2. **Optional:** If the `ralph-loop` skill is available, run `/ralph-loop:ralph-loop "finish all slash commands" --completion-promise "DONE"` to iterate autonomously through the remaining steps. Brainstorm ran first because it may need user interaction; everything from here on is autonomous and benefits from ralph's fresh-context iteration. If not available or it fails, continue to step 3.
 
-## Sequential Phase
+#### Sequential Phase
 
 3. `/ce:plan $ARGUMENTS`
 
@@ -29,7 +66,7 @@ Swarm-enabled LFG. Run these steps in order, parallelizing where indicated. Skil
 
    GATE: Verify that implementation work was performed -- files were created or modified beyond the plan. Do NOT proceed if no code changes were made.
 
-## Parallel Phase
+#### Parallel Phase
 
 After work completes, read `compound-engineering.local.md` frontmatter for `autopilot_features` settings (if missing, assume all enabled). Launch steps 6 and 7 as **parallel swarm agents** (both only need code to be written):
 
@@ -38,10 +75,10 @@ After work completes, read `compound-engineering.local.md` frontmatter for `auto
 
 Wait for both to complete before continuing.
 
-## Finalize Phase
+#### Finalize Phase
 
 8. `/compound-engineering:resolve-todo-parallel` -- resolve findings from review and testing, compound on learnings, clean up completed todos
 9. **Conditionally** run `/compound-engineering:feature-video` -- record a walkthrough and add to the PR. Skip if `autopilot_features.feature_video` is `false`. If the setting is missing, assume enabled. Also skip if the project has no browser-based UI (e.g., CLI tools, plugins, libraries, APIs).
 10. Output `<promise>DONE</promise>` when all preceding steps are complete
 
-Start with step 1 now.
+Start now.

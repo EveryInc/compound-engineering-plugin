@@ -188,21 +188,25 @@ Run a complete engineering workflow from feature description to PR:
 
 | Command | Description |
 |---------|-------------|
-| `/lfg [description]` | Full autonomous workflow: brainstorm, plan, implement, review, and record |
-| `/slfg [description]` | Same workflow with parallel execution via swarm mode |
+| `/lfg [description]` | Right-sized workflow: routes to direct edit, lightweight execution, or full pipeline based on task complexity |
+| `/slfg [description]` | Same routing with parallel execution via swarm mode for standard/complex tasks |
 
 ```
-/lfg add dark mode support to the settings page
+/lfg fix the typo on line 42 of foo.ts          # → Direct: just fixes it
+/lfg add input validation to the email field     # → Lightweight: does the work, verifies, done
+/lfg add dark mode support to the settings page  # → Full pipeline: brainstorm → plan → work → review → test → video
 ```
 
-Both run the full pipeline: brainstorm (if needed) → plan → work → review → resolve todos → test → video. `/slfg` parallelizes where possible using swarm agents.
+Both assess task complexity and choose the right amount of ceremony. `/slfg` parallelizes where possible using swarm agents.
 
 ### Step-by-step
 
 Use individual commands when you want control over specific phases:
 
 ```
-Ideate → Brainstorm → Plan → Work → Review → Compound
+Brainstorm → Plan → Work → Review → Compound → Repeat
+    ↑
+  Ideate (optional — when you need ideas)
 ```
 
 | Command | Purpose |

@@ -78,11 +78,19 @@ Added a `## Pipeline Mode` section that defines behavior when invoked from LFG/S
 - **Content prompts** (clarifying what to build, resolving ambiguity, scoping questions): Still ask. The user is present and bad requirements waste every downstream step.
 - **Phase 4 handoff:** Skip entirely. Do not invoke `ce:plan`, do not present options. Write the requirements doc and return control to the calling pipeline.
 
-### 2. Added brainstorm step to lfg and slfg
+### 2. Added complexity-aware routing to lfg and slfg
 
-Inserted `/ce:brainstorm $ARGUMENTS` as step 1 in both skills (before optional ralph-loop). Ralph-loop is repositioned to step 2 -- after brainstorm (which may need user interaction) but before plan (which is autonomous). Renumbered all subsequent steps and updated cross-references.
+Both skills now assess task complexity in Phase 0 before invoking any downstream skills:
 
-In slfg specifically: brainstorm runs in the Sequential Phase without swarm mode -- only `ce:work` uses swarm.
+- **Direct:** Trivial, obvious fixes (typos, renames). Makes the change, verifies, done. No skills loaded.
+- **Lightweight:** Clear, bounded tasks where requirements are already in the description. Does the work directly with verification and self-review. Skips brainstorm, plan, and multi-agent review.
+- **Full Pipeline:** Tasks with enough scope, ambiguity, or risk that structured planning prevents wasted work. Runs the complete skill chain including brainstorm.
+
+The routing biases toward under-routing -- when the boundary between tiers is unclear, it prefers the cheaper path (Direct over Lightweight, Full Pipeline over Lightweight when ambiguity exists).
+
+Within the Full Pipeline path, `/ce:brainstorm $ARGUMENTS` runs as step 1 (before optional ralph-loop). Ralph-loop is repositioned to step 2 -- after brainstorm (which may need user interaction) but before plan (which is autonomous).
+
+In slfg specifically: brainstorm runs in the Brainstorm Phase without swarm mode -- only `ce:work` uses swarm.
 
 ### 3. Documented Pipeline Mode Convention in AGENTS.md
 
@@ -94,9 +102,9 @@ Added a `## Pipeline Mode Convention` section to `plugins/compound-engineering/A
 
 ## Key Design Decisions
 
-### Brainstorm is always invoked, not conditional
+### Full Pipeline always invokes brainstorm, not conditionally
 
-Rather than duplicating brainstorm's skip criteria in lfg/slfg (e.g., "if requirements seem clear, skip brainstorm"), brainstorm is always invoked and its own Phase 0.2 handles the skip assessment internally. This keeps the decision logic in one place and avoids the pipeline second-guessing the skill.
+Within the Full Pipeline path, brainstorm is always invoked rather than duplicating its skip criteria in the router. Brainstorm's own Phase 0.2 handles the skip assessment internally -- this keeps the decision logic in one place and avoids the pipeline second-guessing the skill. The Direct and Lightweight paths bypass brainstorm entirely because those tasks have clear, specified requirements by definition.
 
 ### Pipeline mode is skill-internal
 

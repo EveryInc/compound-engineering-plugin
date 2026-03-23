@@ -95,10 +95,10 @@ Run a complete engineering workflow from feature description to PR:
 
 | Command | Description |
 |---------|-------------|
-| `/lfg [description]` | Full autonomous workflow: brainstorm, plan, implement, review, and record |
-| `/slfg [description]` | Same workflow with parallel execution via swarm mode |
+| `/lfg [description]` | Right-sized workflow: routes to direct edit, lightweight execution, or full pipeline based on task complexity |
+| `/slfg [description]` | Same routing with parallel execution via swarm mode for standard/complex tasks |
 
-Both run the full pipeline: `brainstorm (if needed) → plan → work → review → resolve todos → test → video`. `/slfg` parallelizes where possible using swarm agents. Brainstorm automatically skips when requirements are already clear.
+Both assess task complexity and choose the right amount of ceremony. Trivial fixes (typos, renames) execute directly. Bounded tasks with clear requirements skip planning and review. Complex or ambiguous tasks run the full pipeline: `brainstorm → plan → work → review → resolve todos → test → video`. `/slfg` parallelizes where possible using swarm agents.
 
 ### Step-by-Step Workflow
 

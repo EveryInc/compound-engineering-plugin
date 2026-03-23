@@ -1,11 +1,48 @@
 ---
 name: lfg
-description: Run the complete engineering pipeline from idea to PR -- brainstorm, plan, implement, review, test, and record. Use when you have a feature description and want end-to-end execution.
+description: Right-sized engineering pipeline from idea to PR -- assesses task complexity and runs the appropriate amount of ceremony, from direct edits for trivial fixes to full brainstorm-plan-implement-review-test for complex features.
 argument-hint: "[feature description]"
 disable-model-invocation: true
 ---
 
-Execute every step below in order. The early phases (brainstorm, plan) exist to prevent wasted implementation work, so they must complete before coding begins. Skills run in pipeline mode: skip workflow prompts (handoff menus, "what next?" options) but still ask content questions when requirements or scope are unclear.
+Assess the task, choose the right execution path, and get it done. Not every task needs a 10-step pipeline -- a typo fix should not generate a plan file, and a complex feature should not skip requirements exploration.
+
+## Phase 0: Assess and Route
+
+Read the feature description and choose the cheapest execution path that will handle it well.
+
+**Bias toward under-routing.** Running too little ceremony and having the user ask for more is far cheaper than running a full pipeline for a one-line fix. When the boundary between direct and lightweight is unclear, prefer direct. When the boundary between lightweight and full pipeline is unclear, prefer full pipeline -- it has internal short-circuits that right-size themselves.
+
+Announce the routing decision in one line before proceeding:
+- "**Direct** -- [what and why]"
+- "**Lightweight** -- [what and why]"
+- "**Full pipeline** -- [why this needs structured planning and review]"
+
+Then execute immediately. Do not wait for confirmation.
+
+---
+
+### Direct
+
+The fix is obvious and self-contained. No planning needed, no review needed, no skills loaded.
+
+Make the change, verify it works (typecheck, lint, or test if applicable), and output `<promise>DONE</promise>`.
+
+---
+
+### Lightweight
+
+The task is clear and bounded -- requirements and expected behavior are already in the description. Loading brainstorm, plan, and multi-agent review would add ceremony without improving the outcome.
+
+Do the work directly. Verify it works (typecheck, lint, or test if applicable) and give it a quick self-review for obvious issues. Output `<promise>DONE</promise>`.
+
+---
+
+### Full Pipeline
+
+The task has enough scope, ambiguity, or risk that structured planning prevents wasted work. This is the default when the task is not clearly trivial or simple.
+
+Skills run in pipeline mode: skip workflow prompts (handoff menus, "what next?" options) but still ask content questions when requirements or scope are unclear.
 
 1. `/ce:brainstorm $ARGUMENTS`
 
@@ -37,4 +74,4 @@ Execute every step below in order. The early phases (brainstorm, plan) exist to 
 
 10. Output `<promise>DONE</promise>` when all preceding steps are complete
 
-Start with step 1 now.
+Start now.
