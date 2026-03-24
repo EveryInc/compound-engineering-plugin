@@ -477,10 +477,11 @@ When external delegation is active, follow this workflow for each tagged task. D
    **Use `cat ... | codex`, not shell redirects.** Codex CLI rejects `< file` with "stdin is not a terminal". Always pipe:
 
    ```bash
-   cat /tmp/codex-task-XXXXX.txt | codex exec --approval-mode full-auto --quiet 2>&1
+   cat /tmp/codex-task-XXXXX.txt | codex --approval-mode full-auto --quiet 2>&1
    ```
 
-   Do not use: `codex exec ... < /tmp/codex-task-XXXXX.txt` (fails immediately).
+   Do not use `exec` subcommand with piped stdin — `codex exec` does not accept `--approval-mode`.
+   Do not use shell redirects (`< file`) — Codex rejects them with "stdin is not a terminal".
 
    Piping also avoids `ARG_MAX` limits that would occur if passing the prompt as a CLI argument.
 
