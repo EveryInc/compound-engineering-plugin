@@ -52,7 +52,7 @@ ls -la docs/brainstorms/*-requirements.md 2>/dev/null | head -10
 8. **If `Resolve Before Planning` contains any items, stop.** Do not proceed with planning. Tell the user planning is blocked by unanswered brainstorm questions and direct them to resume `/ce:brainstorm` or answer those questions first.
 
 **If multiple source documents could match:**
-- **In pipeline mode:** use the most recent matching document automatically.
+- **In pipeline mode:** prefer the document whose topic and problem frame most closely match the current feature description (`$ARGUMENTS`), not just the most recent. If two or more documents are equally close matches (genuine ambiguity), ask the user which one to use -- this is a content clarification, not routing, so it should not be skipped automatically.
 - **Otherwise:** Use **AskUserQuestion tool** to ask which source document to use, or whether to proceed without one.
 
 **If no requirements document is found (or not relevant), run idea refinement:**
