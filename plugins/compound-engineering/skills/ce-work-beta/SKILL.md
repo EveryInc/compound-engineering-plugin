@@ -470,17 +470,27 @@ When external delegation is active, follow this workflow for each tagged task. D
 
    Verify the delegate CLI is installed. If not found, print "Delegate CLI not installed - continuing with standard mode." and proceed normally.
 
-2. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `compound-engineering.local.md`). Include rules: no git commits, no PRs, run `git status` and `git diff --stat` when done. Never embed credentials or tokens in the prompt - pass auth through environment variables.
+2. **Select security posture** — Ask the user once per delegation session (not per task) to choose a Codex sandbox and approval policy. Use the platform's blocking question tool (e.g., `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no structured question tool is available, present the options as a numbered list and wait for a reply before proceeding.
 
-3. **Write prompt to file** — Save the assembled prompt to a unique temporary file to avoid shell quoting issues and cross-task races. Use a unique filename per task.
+   | Option | Flags | What it allows | Risks |
+   |--------|-------|---------------|-------|
+   | **Default (no flags)** | *(none)* | Codex defaults: read-only sandbox, approval prompts enabled. | Will almost certainly fail in `exec` mode -- there is no interactive user to approve operations, so Codex gives up on the first command that needs approval (e.g., `npm install`). Only works if the user has permissive settings in `~/.codex/config.toml`. |
+   | **Workspace write** (`--full-auto`) | `-s workspace-write -a on-request` | Grants disk writes inside the workspace directory and network access. Approval is set to `on-request`. | May still fail if the task needs system-level access outside the workspace directory. Moderate risk. |
+   | **Full access** (`--yolo`) | `--dangerously-bypass-approvals-and-sandbox` | Disables ALL sandbox restrictions and ALL approval prompts. The delegate can read/write anywhere on disk, make network requests, and execute arbitrary commands without confirmation. | **High risk.** The delegate can delete files outside the workspace, leak secrets via network requests, install packages globally, and run destructive commands -- all without asking. Only use in disposable environments or when the prompt is fully trusted. This is the only option likely to produce a complete solution in `exec` mode for non-trivial tasks. |
 
-4. **Delegate** — Run the delegate CLI, piping the prompt file via stdin (not argv expansion, which hits `ARG_MAX` on large prompts). Omit the model flag to use the delegate's default model, which stays current without manual updates.
+   Store the user's choice for the session. Apply the corresponding flags in step 5 below.
 
-5. **Review diff** — After the delegate finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
+3. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `compound-engineering.local.md`). Include rules: no git commits, no PRs, run `git status` and `git diff --stat` when done. Never embed credentials or tokens in the prompt - pass auth through environment variables.
 
-6. **Commit** — The current agent handles all git operations. The delegate's sandbox blocks `.git/index.lock` writes, so the delegate cannot commit. Stage changes and commit with a conventional message.
+4. **Write prompt to file** — Save the assembled prompt to a unique temporary file to avoid shell quoting issues and cross-task races. Use a unique filename per task.
 
-7. **Error handling** — On any delegate failure (rate limit, error, empty diff), fall back to standard mode for that task. Track consecutive failures - after 3 consecutive failures, disable delegation for remaining tasks and print "Delegate disabled after 3 consecutive failures - completing remaining tasks in standard mode."
+5. **Delegate** — Run the delegate CLI with the flags from step 2, piping the prompt file via stdin (not argv expansion, which hits `ARG_MAX` on large prompts). Omit the model flag to use the delegate's default model, which stays current without manual updates.
+
+6. **Review diff** — After the delegate finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
+
+7. **Commit** — The current agent handles all git operations. The delegate's sandbox blocks `.git/index.lock` writes, so the delegate cannot commit. Stage changes and commit with a conventional message.
+
+8. **Error handling** — On any delegate failure (rate limit, error, empty diff), fall back to standard mode for that task. Track consecutive failures - after 3 consecutive failures, disable delegation for remaining tasks and print "Delegate disabled after 3 consecutive failures - completing remaining tasks in standard mode."
 
 ### Mixed-Model Attribution
 
