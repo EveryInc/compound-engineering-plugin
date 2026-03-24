@@ -16,18 +16,13 @@ Transform feature descriptions, bug reports, or improvement ideas into well-stru
 
 <feature_description> #$ARGUMENTS </feature_description>
 
-**If the feature description above is empty:**
-- First, look for a recent relevant requirements document in `docs/brainstorms/`.
-- If one exists, use it as the source of truth and do not ask the user to repeat the description.
-- Ask the user "What would you like to plan? Please describe the feature, bug fix, or improvement you have in mind." only if no relevant requirements document exists.
+**If the feature description above is empty, ask the user:** "What would you like to plan? Please describe the feature, bug fix, or improvement you have in mind."
 
-Do not proceed until you have either a clear feature description from the user or a relevant requirements document to plan from.
+Do not proceed until you have a clear feature description from the user.
 
 ### 0. Idea Refinement
 
 **Check for requirements document first:**
-
-If the feature description is empty, this check still runs before asking the user anything. This is how upstream workflows such as `/lfg` and `/slfg` hand off from brainstorm to planning without a duplicate prompt.
 
 Before asking questions, look for recent requirements documents in `docs/brainstorms/` that match this feature:
 
@@ -39,8 +34,6 @@ ls -la docs/brainstorms/*-requirements.md 2>/dev/null | head -10
 - The topic (from filename or YAML frontmatter) semantically matches the feature description
 - Created within the last 14 days
 - If multiple candidates match, use the most recent one
-
-**When the feature description is empty:** this is an upstream handoff case. Use the most recent `docs/brainstorms/*-requirements.md` file from the last 14 days as the candidate source document before asking the user anything. If none exists, ask the user for the description.
 
 **If a relevant requirements document exists:**
 1. Read the source document **thoroughly** — every section matters

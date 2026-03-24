@@ -66,7 +66,7 @@ Skills run in pipeline mode: skip workflow prompts (handoff menus, "what next?" 
 #### Sequential Phase
 
 3. `/ce:plan $ARGUMENTS`
-   - If brainstorm collected the feature description because `$ARGUMENTS` was empty, do not ask the user for the same description again. Let `ce:plan` use the requirements document created by brainstorm as the source of truth.
+   - If brainstorm collected the feature description because `$ARGUMENTS` was empty, carry that clarified description forward into the `ce:plan` invocation instead of calling it with empty arguments. Do not ask the user for the same description twice.
 
    GATE: Verify that `ce:plan` produced a plan file in `docs/plans/`. If no plan file was created, run `/ce:plan $ARGUMENTS` again. Do NOT proceed until a written plan exists.
 
