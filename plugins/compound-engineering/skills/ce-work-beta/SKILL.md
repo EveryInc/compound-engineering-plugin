@@ -470,7 +470,7 @@ When external delegation is active, follow this workflow for each tagged task. D
 
 6. **Review diff** — After the delegate finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
 
-7. **Commit** — The current agent handles all git operations. The delegate's sandbox blocks `.git/index.lock` writes, so the delegate cannot commit. Stage changes and commit with a conventional message.
+7. **Commit** — The current agent handles all git operations. In default and workspace-write modes the delegate's sandbox blocks `.git/index.lock` writes, so the delegate cannot commit. In `--yolo` mode the sandbox is disabled and the delegate *could* commit, but the prompt in step 3 already instructs it not to. Stage changes and commit with a conventional message.
 
 8. **Error handling** — On any delegate failure (rate limit, error, empty diff), fall back to standard mode for that task. Track consecutive failures - after 3 consecutive failures, disable delegation for remaining tasks and print "Delegate disabled after 3 consecutive failures - completing remaining tasks in standard mode."
 
