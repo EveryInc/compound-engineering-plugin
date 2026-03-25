@@ -18,9 +18,9 @@ A Claude Code plugin marketplace featuring the **Compound Engineering Plugin** â
 /add-plugin compound-engineering
 ```
 
-## OpenCode, Codex, Droid, Pi, Gemini, Copilot, Kiro, Windsurf, OpenClaw & Qwen (experimental) Install
+## OpenCode, Codex, Droid, Pi, Gemini, Copilot, Kiro, KiloCode, Windsurf, OpenClaw & Qwen (experimental) Install
 
-This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Pi, Gemini CLI, GitHub Copilot, Kiro CLI, Windsurf, OpenClaw, and Qwen Code.
+This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Pi, Gemini CLI, GitHub Copilot, Kiro CLI, KiloCode, Windsurf, OpenClaw, and Qwen Code.
 
 ```bash
 # convert the compound-engineering plugin into OpenCode format
@@ -43,6 +43,9 @@ bunx @every-env/compound-plugin install compound-engineering --to copilot
 
 # convert to Kiro CLI format
 bunx @every-env/compound-plugin install compound-engineering --to kiro
+
+# convert to KiloCode format
+bunx @every-env/compound-plugin install compound-engineering --to kilocode
 
 # convert to OpenClaw format
 bunx @every-env/compound-plugin install compound-engineering --to openclaw
@@ -103,6 +106,7 @@ bun run src/index.ts install ./plugins/compound-engineering --to opencode
 | `gemini` | `.gemini/` | Skills from agents; commands as `.toml`; namespaced commands become directories (`workflows:plan` â†’ `commands/workflows/plan.toml`) |
 | `copilot` | `.github/` | Agents as `.agent.md` with Copilot frontmatter; MCP env vars prefixed with `COPILOT_MCP_` |
 | `kiro` | `.kiro/` | Agents as JSON configs + prompt `.md` files; only stdio MCP servers supported |
+| `kilocode` | `.kilocode/` | Agents as `.md` with YAML frontmatter; MCP servers in `kilo.json`; both stdio and HTTP supported |
 | `openclaw` | `~/.openclaw/extensions/<plugin>/` | Entry-point TypeScript skill file; `openclaw-extension.json` for MCP servers |
 | `windsurf` | `~/.codeium/windsurf/` (global) or `.windsurf/` (workspace) | Agents become skills; commands become flat workflows; `mcp_config.json` merged |
 | `qwen` | `~/.qwen/extensions/<plugin>/` | Agents as `.yaml`; env vars with placeholders extracted as settings; colon separator for nested commands |
@@ -143,6 +147,9 @@ bunx @every-env/compound-plugin sync --target windsurf
 # Sync to Kiro
 bunx @every-env/compound-plugin sync --target kiro
 
+# Sync to KiloCode
+bunx @every-env/compound-plugin sync --target kilocode
+
 # Sync to Qwen
 bunx @every-env/compound-plugin sync --target qwen
 
@@ -169,6 +176,7 @@ Supported sync targets:
 - `gemini`
 - `windsurf`
 - `kiro`
+- `kilocode`
 - `qwen`
 - `openclaw`
 

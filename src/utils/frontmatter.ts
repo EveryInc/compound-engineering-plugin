@@ -48,6 +48,12 @@ function formatYamlLine(key: string, value: unknown): string {
     const items = value.map((item) => `  - ${formatYamlValue(item)}`)
     return [key + ":", ...items].join("\n")
   }
+  if (typeof value === "object" && value !== null && !Array.isArray(value)) {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== undefined)
+      .map(([k, v]) => `  ${k}: ${formatYamlValue(v)}`)
+    return [key + ":", ...entries].join("\n")
+  }
   return `${key}: ${formatYamlValue(value)}`
 }
 
