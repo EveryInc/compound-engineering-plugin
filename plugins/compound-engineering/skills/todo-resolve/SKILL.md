@@ -6,15 +6,23 @@ argument-hint: "[optional: specific todo ID or pattern]"
 
 Resolve approved todos using parallel processing, document lessons learned, then clean up.
 
+Only `ready` todos are resolved. `pending` todos are skipped — they haven't been triaged yet. If pending todos exist, list them at the end so the user knows what was left behind.
+
 ## Workflow
 
 ### 1. Analyze
 
-Get all unresolved todos from `.context/compound-engineering/todos/*.md` and legacy `todos/*.md`.
+Scan `.context/compound-engineering/todos/*.md` and legacy `todos/*.md`. Partition by status:
 
-Residual actionable work may come from `ce:review-beta mode:autonomous` after its `safe_auto` pass. Treat those todos as normal unresolved items.
+- **`ready`** (status field or `-ready-` in filename): resolve these.
+- **`pending`**: skip. Report them at the end.
+- **`complete`**: ignore, already done.
 
-If any todo recommends deleting, removing, or gitignoring files in `docs/brainstorms/`, `docs/plans/`, or `docs/solutions/`, skip it and mark as `wont_fix`. These are intentional pipeline artifacts.
+If a specific todo ID or pattern was passed as an argument, filter to matching todos only (still must be `ready`).
+
+Residual actionable work from `ce:review-beta mode:autonomous` after its `safe_auto` pass will already be `ready`.
+
+Skip any todo that recommends deleting, removing, or gitignoring files in `docs/brainstorms/`, `docs/plans/`, or `docs/solutions/` — these are intentional pipeline artifacts.
 
 ### 2. Plan
 
@@ -46,6 +54,15 @@ Delete completed/resolved todo files from both paths. If a scratch directory was
 
 ```
 Todos resolved: [count]
+Pending (skipped): [count, or "none"]
 Lessons documented: [path to solution doc, or "skipped"]
 Todos cleaned up: [count deleted]
+```
+
+If pending todos were skipped, list them:
+
+```
+Skipped pending todos (run /todo-triage to approve):
+  - 003-pending-p2-missing-index.md
+  - 005-pending-p3-rename-variable.md
 ```
