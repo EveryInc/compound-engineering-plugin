@@ -94,6 +94,7 @@ Routing rules:
 | `compound-engineering:review:api-contract-reviewer` | Routes, serializers, type signatures, versioning |
 | `compound-engineering:review:data-migrations-reviewer` | Migrations, schema changes, backfills |
 | `compound-engineering:review:reliability-reviewer` | Error handling, retries, timeouts, background jobs |
+| `compound-engineering:review:codex-reviewer` | Cross-model validation requested, or security/correctness-critical changes |
 
 **Stack-specific conditional (selected per diff):**
 

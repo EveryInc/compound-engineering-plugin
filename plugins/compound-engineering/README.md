@@ -107,6 +107,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `cli-agent-readiness-reviewer` | Evaluate CLI agent-friendliness against 7 core principles |
 | `architecture-strategist` | Analyze architectural decisions and compliance |
 | `code-simplicity-reviewer` | Final pass for simplicity and minimalism |
+| `codex-reviewer` | Cross-model validation via OpenAI Codex CLI |
 | `correctness-reviewer` | Logic errors, edge cases, state bugs |
 | `data-integrity-guardian` | Database migrations and data integrity |
 | `data-migration-expert` | Validate ID mappings match production, check for swapped values |

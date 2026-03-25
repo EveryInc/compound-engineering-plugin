@@ -32,6 +32,7 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 | `api-contract` | `compound-engineering:review:api-contract-reviewer` | Route definitions, serializer/interface changes, event schemas, exported type signatures, API versioning |
 | `data-migrations` | `compound-engineering:review:data-migrations-reviewer` | Migration files, schema changes, backfill scripts, data transformations |
 | `reliability` | `compound-engineering:review:reliability-reviewer` | Error handling, retry logic, circuit breakers, timeouts, background jobs, async handlers, health checks |
+| `codex` | `compound-engineering:review:codex-reviewer` | Cross-model validation requested, or diff includes security-sensitive or correctness-critical changes where model blind spots matter |
 
 ## Stack-Specific Conditional (5 personas)
 
