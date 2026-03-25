@@ -20,7 +20,7 @@ Tool mapping:
 - WebFetch/WebSearch: use curl or Context7 for library docs
 - AskUserQuestion/Question: present choices as a numbered list in chat and wait for a reply number. For multi-select (multiSelect: true), accept comma-separated numbers. Never skip or auto-configure — always wait for the user's response before proceeding.
 - Task/Subagent/Parallel: run sequentially in main thread; use multi_tool_use.parallel for tool calls
-- TodoWrite/TodoRead: use file-based todos in todos/ with file-todos skill
+- TodoWrite/TodoRead: use file-based todos in todos/ with todo-create skill
 - Skill: open the referenced SKILL.md and follow it
 - ExitPlanMode: ignore
 `

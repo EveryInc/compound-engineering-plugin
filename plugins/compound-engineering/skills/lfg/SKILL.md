@@ -25,7 +25,7 @@ CRITICAL: You MUST execute every step below IN ORDER. Do NOT skip any required s
 
 5. `/ce:review`
 
-6. `/compound-engineering:resolve-todo-parallel`
+6. `/compound-engineering:todo-resolve`
 
 7. `/compound-engineering:test-browser`
 

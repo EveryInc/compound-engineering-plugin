@@ -32,7 +32,7 @@ Check `$ARGUMENTS` for `mode:autonomous` or `mode:report-only`. If either token 
 - **Skip all user questions.** Never pause for approval or clarification once scope has been established.
 - **Apply only `safe_auto -> review-fixer` findings.** Leave `gated_auto`, `manual`, `human`, and `release` work unresolved.
 - **Write a run artifact** under `.context/compound-engineering/ce-review-beta/<run-id>/` summarizing findings, applied fixes, residual actionable work, and advisory outputs.
-- **Create durable todo files only for unresolved actionable findings** whose final owner is `downstream-resolver`. Load the `file-todos` skill for the canonical directory path and naming convention.
+- **Create durable todo files only for unresolved actionable findings** whose final owner is `downstream-resolver`. Load the `todo-create` skill for the canonical directory path and naming convention.
 - **Never commit, push, or create a PR** from autonomous mode. Parent workflows own those decisions.
 
 ### Report-only mode rules
@@ -476,7 +476,7 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
   - applied fixes
   - residual actionable work
   - advisory-only outputs
-- In autonomous mode, create durable todo files only for unresolved actionable findings whose final owner is `downstream-resolver`. Load the `file-todos` skill for the canonical directory path, naming convention, YAML frontmatter structure, and template. Each todo should map the finding's severity to the todo priority (`P0`/`P1` -> `p1`, `P2` -> `p2`, `P3` -> `p3`) and set `status: ready` since these findings have already been triaged by synthesis.
+- In autonomous mode, create durable todo files only for unresolved actionable findings whose final owner is `downstream-resolver`. Load the `todo-create` skill for the canonical directory path, naming convention, YAML frontmatter structure, and template. Each todo should map the finding's severity to the todo priority (`P0`/`P1` -> `p1`, `P2` -> `p2`, `P3` -> `p3`) and set `status: ready` since these findings have already been triaged by synthesis.
 - Do not create todos for `advisory` findings, `owner: human`, `owner: release`, or protected-artifact cleanup suggestions.
 - If only advisory outputs remain, create no todos.
 - Interactive mode may offer to externalize residual actionable work after fixes, but it is not required to finish the review.

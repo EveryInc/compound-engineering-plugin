@@ -116,8 +116,8 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `/report-bug-ce` | Report a bug in the compound-engineering plugin |
 | `/reproduce-bug` | Reproduce bugs using logs and console |
 | `/resolve-pr-parallel` | Resolve PR comments in parallel |
-| `/resolve-todo-parallel` | Resolve todos in parallel |
-| `/triage` | Triage and prioritize issues |
+| `/todo-resolve` | Resolve todos in parallel |
+| `/todo-triage` | Triage and prioritize pending todos |
 | `/test-browser` | Run browser tests on PR-affected pages |
 | `/test-xcode` | Build and test iOS apps on simulator |
 | `/feature-video` | Record video walkthroughs and add to PR description |
@@ -147,7 +147,7 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 |-------|-------------|
 | `document-review` | Review documents using parallel persona agents for role-specific feedback |
 | `every-style-editor` | Review copy for Every's style guide compliance |
-| `file-todos` | File-based todo tracking system |
+| `todo-create` | File-based todo tracking system |
 | `git-worktree` | Manage Git worktrees for parallel development |
 | `proof` | Create, edit, and share documents via Proof collaborative editor |
 | `claude-permissions-optimizer` | Optimize Claude Code permissions from session history |

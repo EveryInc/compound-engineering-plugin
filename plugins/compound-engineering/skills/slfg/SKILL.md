@@ -28,7 +28,7 @@ Wait for both to complete before continuing.
 
 ## Finalize Phase
 
-7. `/compound-engineering:resolve-todo-parallel` — resolve findings, compound on learnings, clean up completed todos
+7. `/compound-engineering:todo-resolve` — resolve findings, compound on learnings, clean up completed todos
 8. `/compound-engineering:feature-video` — record the final walkthrough and add to PR
 9. Output `<promise>DONE</promise>` when video is in PR
 

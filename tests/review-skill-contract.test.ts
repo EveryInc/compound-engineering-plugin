@@ -82,11 +82,11 @@ describe("ce-review-beta contract", () => {
     expect(schema.properties.findings.items.properties.requires_verification.type).toBe("boolean")
     expect(schema._meta.confidence_thresholds.suppress).toContain("0.60")
 
-    const fileTodos = await readRepoFile("plugins/compound-engineering/skills/file-todos/SKILL.md")
+    const fileTodos = await readRepoFile("plugins/compound-engineering/skills/todo-create/SKILL.md")
     expect(fileTodos).toContain("/ce:review-beta mode:autonomous")
-    expect(fileTodos).toContain("/resolve-todo-parallel")
+    expect(fileTodos).toContain("/todo-resolve")
 
-    const resolveTodos = await readRepoFile("plugins/compound-engineering/skills/resolve-todo-parallel/SKILL.md")
+    const resolveTodos = await readRepoFile("plugins/compound-engineering/skills/todo-resolve/SKILL.md")
     expect(resolveTodos).toContain("ce:review-beta mode:autonomous")
     expect(resolveTodos).toContain("safe_auto")
   })

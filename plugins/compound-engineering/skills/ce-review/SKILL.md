@@ -239,9 +239,9 @@ Complete system context map with component interactions
 
 Run the Task compound-engineering:review:code-simplicity-reviewer() to see if we can simplify the code.
 
-### 5. Findings Synthesis and Todo Creation Using file-todos Skill
+### 5. Findings Synthesis and Todo Creation Using todo-create Skill
 
-<critical_requirement> ALL findings MUST be stored as todo files using the file-todos skill. Load the `file-todos` skill for the canonical directory path, naming convention, and template. Create todo files immediately after synthesis - do NOT present findings for user approval first. </critical_requirement>
+<critical_requirement> ALL findings MUST be stored as todo files using the todo-create skill. Load the `todo-create` skill for the canonical directory path, naming convention, and template. Create todo files immediately after synthesis - do NOT present findings for user approval first. </critical_requirement>
 
 #### Step 1: Synthesize All Findings
 
@@ -262,9 +262,9 @@ Remove duplicates, prioritize by severity and impact.
 
 </synthesis_tasks>
 
-#### Step 2: Create Todo Files Using file-todos Skill
+#### Step 2: Create Todo Files Using todo-create Skill
 
-<critical_instruction> Use the file-todos skill to create todo files for ALL findings immediately. Do NOT present findings one-by-one asking for user approval. Create all todo files in parallel using the skill, then summarize results to user. </critical_instruction>
+<critical_instruction> Use the todo-create skill to create todo files for ALL findings immediately. Do NOT present findings one-by-one asking for user approval. Create all todo files in parallel using the skill, then summarize results to user. </critical_instruction>
 
 **Implementation Options:**
 
@@ -272,7 +272,7 @@ Remove duplicates, prioritize by severity and impact.
 
 - Create todo files directly using Write tool
 - All findings in parallel for speed
-- Use standard template from the `file-todos` skill's [todo-template.md](../file-todos/assets/todo-template.md)
+- Use standard template from the `todo-create` skill's [todo-template.md](../todo-create/assets/todo-template.md)
 - Follow naming convention: `{issue_id}-pending-{priority}-{description}.md`
 
 **Option B: Sub-Agents in Parallel (Recommended for Scale)** For large PRs with 15+ findings, use sub-agents to create finding files in parallel:
@@ -299,10 +299,10 @@ Sub-agents can:
 1. Synthesize all findings into categories (P1/P2/P3)
 2. Group findings by severity
 3. Launch 3 parallel sub-agents (one per severity level)
-4. Each sub-agent creates its batch of todos using the file-todos skill
+4. Each sub-agent creates its batch of todos using the todo-create skill
 5. Consolidate results and present summary
 
-**Process (Using file-todos Skill):**
+**Process (Using todo-create Skill):**
 
 1. For each finding:
 
@@ -312,15 +312,15 @@ Sub-agents can:
    - Estimate effort (Small/Medium/Large)
    - Add acceptance criteria and work log
 
-2. Use file-todos skill for structured todo management:
+2. Use todo-create skill for structured todo management:
 
    ```bash
-   skill: file-todos
+   skill: todo-create
    ```
 
    The skill provides:
 
-   - Template location: the `file-todos` skill's [todo-template.md](../file-todos/assets/todo-template.md)
+   - Template location: the `todo-create` skill's [todo-template.md](../todo-create/assets/todo-template.md)
    - Naming convention: `{issue_id}-{status}-{priority}-{description}.md`
    - YAML frontmatter structure: status, priority, issue_id, tags, dependencies
    - All required sections: Problem Statement, Findings, Solutions, etc.
@@ -340,7 +340,7 @@ Sub-agents can:
    004-pending-p3-unused-parameter.md
    ```
 
-5. Follow template structure from file-todos skill: the `file-todos` skill's [todo-template.md](../file-todos/assets/todo-template.md)
+5. Follow template structure from todo-create skill: the `todo-create` skill's [todo-template.md](../todo-create/assets/todo-template.md)
 
 **Todo File Structure (from template):**
 
@@ -433,13 +433,13 @@ After creating all todo files, present comprehensive summary:
 2. **Triage All Todos**:
    ```bash
    ls .context/compound-engineering/todos/*-pending-*.md todos/*-pending-*.md 2>/dev/null  # View all pending todos
-   /triage                  # Use slash command for interactive triage
+   /todo-triage             # Use slash command for interactive triage
    ```
 
 3. **Work on Approved Todos**:
 
    ```bash
-   /resolve-todo-parallel  # Fix all approved items efficiently
+   /todo-resolve  # Fix all approved items efficiently
    ```
 
 4. **Track Progress**:

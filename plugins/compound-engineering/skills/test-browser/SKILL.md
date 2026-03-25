@@ -225,12 +225,12 @@ When a test fails:
 
    How to proceed?
    1. Fix now - I'll help debug and fix
-   2. Create todo - Add a todo for later (using the file-todos skill)
+   2. Create todo - Add a todo for later (using the todo-create skill)
    3. Skip - Continue testing other pages
    ```
 
 3. **If "Fix now":** investigate, propose a fix, apply, re-run the failing test
-4. **If "Create todo":** load the `file-todos` skill and create a todo with priority p1 and description `browser-test-{description}`, continue
+4. **If "Create todo":** load the `todo-create` skill and create a todo with priority p1 and description `browser-test-{description}`, continue
 5. **If "Skip":** log as skipped, continue
 
 ### 10. Test Summary

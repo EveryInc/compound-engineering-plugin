@@ -1,64 +1,48 @@
 ---
-name: resolve-todo-parallel
-description: Resolve all pending CLI todos using parallel processing, compound on lessons learned, then clean up completed todos.
+name: todo-resolve
+description: Use when batch-resolving approved todos, especially after code review or triage sessions
 argument-hint: "[optional: specific todo ID or pattern]"
 ---
 
-Resolve all TODO comments using parallel processing, document lessons learned, then clean up completed todos.
+Resolve approved todos using parallel processing, document lessons learned, then clean up.
 
 ## Workflow
 
 ### 1. Analyze
 
-Get all unresolved TODOs from `.context/compound-engineering/todos/*.md` and legacy `todos/*.md`
+Get all unresolved todos from `.context/compound-engineering/todos/*.md` and legacy `todos/*.md`.
 
-Residual actionable work may come from `ce:review-beta mode:autonomous` after its in-skill `safe_auto` pass. Treat those todos as normal unresolved work items; the review skill has already decided they should not be auto-fixed inline.
+Residual actionable work may come from `ce:review-beta mode:autonomous` after its `safe_auto` pass. Treat those todos as normal unresolved items.
 
-If any todo recommends deleting, removing, or gitignoring files in `docs/brainstorms/`, `docs/plans/`, or `docs/solutions/`, skip it and mark it as `wont_fix`. These are compound-engineering pipeline artifacts that are intentional and permanent.
+If any todo recommends deleting, removing, or gitignoring files in `docs/brainstorms/`, `docs/plans/`, or `docs/solutions/`, skip it and mark as `wont_fix`. These are intentional pipeline artifacts.
 
 ### 2. Plan
 
-Create a task list of all unresolved items grouped by type (e.g., `TaskCreate` in Claude Code, `update_plan` in Codex). Analyze dependencies and prioritize items that others depend on. For example, if a rename is needed, it must complete before dependent items. Output a mermaid flow diagram showing execution order — what can run in parallel, and what must run first.
+Create a task list grouped by type (e.g., `TaskCreate` in Claude Code, `update_plan` in Codex). Analyze dependencies -- items that others depend on run first. Output a mermaid diagram showing execution order and parallelism.
 
 ### 3. Implement (PARALLEL)
 
-Spawn a `compound-engineering:workflow:pr-comment-resolver` agent for each unresolved item.
+Spawn a `compound-engineering:workflow:pr-comment-resolver` agent per item. Prefer parallel; fall back to sequential respecting dependency order.
 
-If there are 3 items, spawn 3 agents — one per item. Prefer running all agents in parallel; if the platform does not support parallel dispatch, run them sequentially respecting the dependency order from step 2.
+**Batching:** 1-4 items: direct parallel returns. 5+ items: batches of 4, each returning only a short status summary (todo handled, files changed, tests run/skipped, blockers).
 
-Keep parent-context pressure bounded:
-- If there are 1-4 unresolved items, direct parallel returns are fine
-- If there are 5+ unresolved items, launch in batches of at most 4 agents at a time
-- Require each resolver agent to return only a short status summary to the parent: todo handled, files changed, tests run or skipped, and any blocker that still needs follow-up
-
-If the todo set is large enough that even batched short returns are likely to get noisy, use a per-run scratch directory such as `.context/compound-engineering/resolve-todo-parallel/<run-id>/`:
-- Have each resolver write a compact artifact for its todo there
-- Return only a completion summary to the parent
-- Re-read only the artifacts that are needed to summarize outcomes, document learnings, or decide whether a todo is truly resolved
+For large sets, use a scratch directory at `.context/compound-engineering/todo-resolve/<run-id>/` for per-resolver artifacts. Return only completion summaries to parent.
 
 ### 4. Commit & Resolve
 
-- Commit changes
-- Remove the TODO from the file, and mark it as resolved.
-- Push to remote
+Commit changes, mark todos resolved, push to remote.
 
-GATE: STOP. Verify that todos have been resolved and changes committed. Do NOT proceed to step 5 if no todos were resolved.
+GATE: STOP. Verify todos resolved and changes committed before proceeding.
 
 ### 5. Compound on Lessons Learned
 
-Load the `ce:compound` skill to document what was learned from resolving the todos.
+Load the `ce:compound` skill to document what was learned. Todo resolutions often surface patterns and architectural insights worth capturing.
 
-The todo resolutions often surface patterns, recurring issues, or architectural insights worth capturing. This step ensures that knowledge compounds rather than being lost.
+GATE: STOP. Verify the compound skill produced a solution document in `docs/solutions/`. If none (user declined or no learnings), continue.
 
-GATE: STOP. Verify that the compound skill produced a solution document in `docs/solutions/`. If no document was created (user declined or no non-trivial learnings), continue to step 6.
+### 6. Clean Up
 
-### 6. Clean Up Completed Todos
-
-Search both `.context/compound-engineering/todos/` and legacy `todos/` for files with `done`, `resolved`, or `complete` status, then delete them to keep the todo list clean and actionable.
-
-If a per-run scratch directory was created at `.context/compound-engineering/resolve-todo-parallel/<run-id>/`, and the user did not ask to inspect it, delete that specific `<run-id>/` directory after todo cleanup succeeds. Do not delete any other `.context/` subdirectories.
-
-After cleanup, output a summary:
+Delete completed/resolved todo files from both paths. If a scratch directory was created at `.context/compound-engineering/todo-resolve/<run-id>/`, delete it (unless user asked to inspect).
 
 ```
 Todos resolved: [count]
