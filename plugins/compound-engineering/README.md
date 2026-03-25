@@ -152,7 +152,8 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `proof` | Create, edit, and share documents via Proof collaborative editor |
 | `claude-permissions-optimizer` | Optimize Claude Code permissions from session history |
 | `resolve-pr-parallel` | Resolve PR review comments in parallel |
-| `setup` | Configure which review agents run for your project |
+| `doctor` | Diagnose Compound Engineering plugin environment health -- checks CLI deps, MCP servers, env vars, plugin version |
+| `setup` | Configure environment dependencies and review agents for your project |
 
 ### Multi-Agent Orchestration
 
