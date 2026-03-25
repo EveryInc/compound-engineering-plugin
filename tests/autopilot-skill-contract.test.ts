@@ -103,7 +103,6 @@ describe("autopilot skill contract", () => {
 
   test("utility skills and review utility use the shared autopilot contract", async () => {
     const review = await readRepoFile("plugins/compound-engineering/skills/ce-review/SKILL.md")
-    const reviewBeta = await readRepoFile("plugins/compound-engineering/skills/ce-review-beta/SKILL.md")
     const setup = await readRepoFile("plugins/compound-engineering/skills/setup/SKILL.md")
     const documentReview = await readRepoFile("plugins/compound-engineering/skills/document-review/SKILL.md")
     const schema = await readRepoFile(
@@ -115,14 +114,10 @@ describe("autopilot skill contract", () => {
     const readme = await readRepoFile("plugins/compound-engineering/README.md")
 
     expect(review).toContain("[ce-autopilot manifest=.context/compound-engineering/autopilot/<run-id>/session.json] ::")
-    expect(review).toContain("If no settings file exists:")
-    expect(review).toContain("In autopilot mode, skip this section entirely. `lfg` owns the verification step")
+    expect(review).toContain("Default to `mode:autofix` when no explicit mode token remains")
     expect(review).toContain("owner of `gates.review`")
     expect(review).toContain("`gates.review.state = complete`")
     expect(review).toContain("`gates.review.ref = current HEAD`")
-
-    expect(reviewBeta).toContain("[ce-autopilot manifest=.context/compound-engineering/autopilot/<run-id>/session.json] ::")
-    expect(reviewBeta).toContain("Default to `mode:autofix` when no explicit mode token remains")
 
     expect(setup).toContain("preserve the current `implementation_mode` unless the user explicitly changes it during setup")
     expect(setup).toContain("implementation_mode: {existing value or chosen value, default standard}")
