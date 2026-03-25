@@ -182,6 +182,27 @@ Notes:
 
 ## Workflow
 
+### Autopilot
+
+Run a complete engineering workflow from feature description to PR:
+
+| Command | Description |
+|---------|-------------|
+| `/lfg [description]` | Right-sized autopilot workflow: routes to direct edit, lightweight execution, or the full pipeline based on task complexity |
+| `/slfg [description]` | Deprecated wrapper -- routes to `/lfg` with swarm mode enabled |
+
+```
+/lfg fix the typo on line 42 of foo.ts          # → Direct: fixes it, verifies it, opens/updates the PR
+/lfg add input validation to the email field     # → Lightweight: does the work, verifies it, opens/updates the PR
+/lfg add dark mode support to the settings page  # → Full pipeline in autopilot mode: brainstorm → plan → work → review → test → video
+```
+
+`/lfg` assesses task complexity and chooses the right amount of ceremony while preserving the branch/commit/PR lifecycle. Complex work runs the full pipeline in autopilot mode. `/slfg` is a deprecated compatibility wrapper that routes to `/lfg` with swarm mode enabled.
+
+### Step-by-step
+
+Use individual commands when you want control over specific phases:
+
 ```
 Brainstorm → Plan → Work → Review → Compound → Repeat
     ↑
@@ -190,14 +211,18 @@ Brainstorm → Plan → Work → Review → Compound → Repeat
 
 | Command | Purpose |
 |---------|---------|
-| `/ce:ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
+| `/ce:ideate` | Surface high-impact improvement ideas |
 | `/ce:brainstorm` | Explore requirements and approaches before planning |
 | `/ce:plan` | Turn feature ideas into detailed implementation plans |
 | `/ce:work` | Execute plans with worktrees and task tracking |
 | `/ce:review` | Multi-agent code review before merging |
 | `/ce:compound` | Document learnings to make future work easier |
 
-The `/ce:ideate` skill proactively surfaces strong improvement ideas, and `/ce:brainstorm` then clarifies the selected one before committing to a plan.
+Step-by-step is useful when you want to:
+- Brainstorm now and plan later
+- Create a plan from an existing requirements doc or ticket
+- Run just a code review on changes you've already made
+- Document a solved problem without the full workflow
 
 Each cycle compounds: brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented.
 

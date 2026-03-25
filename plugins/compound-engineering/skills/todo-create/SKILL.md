@@ -94,7 +94,7 @@ To check blockers: search for `{dep_id}-complete-*.md` in both paths. Missing ma
 | Trigger | Flow |
 |---------|------|
 | Code review | `/ce:review` -> Findings -> `/todo-triage` -> Todos |
-| Autonomous review | `/ce:review mode:autofix` -> Residual todos -> `/todo-resolve` |
+| Autofix review | `/ce:review mode:autofix` -> Residual todos -> `/todo-resolve` |
 | Code TODOs | `/todo-resolve` -> Fixes + Complex todos |
 | Planning | Brainstorm -> Create todo -> Work -> Complete |
 

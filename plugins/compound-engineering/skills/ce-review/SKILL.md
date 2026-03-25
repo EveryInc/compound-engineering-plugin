@@ -20,6 +20,29 @@ Reviews code changes using dynamically selected reviewer personas. Spawns parall
 
 Check `$ARGUMENTS` for `mode:autofix` or `mode:report-only`. If either token is present, strip it from the remaining arguments before interpreting the rest as the PR number, GitHub URL, or branch name.
 
+## Autopilot Mode
+
+Autopilot is active only when the input begins with:
+
+- `[ce-autopilot manifest=.context/compound-engineering/autopilot/<run-id>/session.json] ::`
+
+When that marker is present:
+
+- Strip the marker before mode detection and review-target interpretation
+- Read the manifest path from the marker
+- Validate that the manifest describes an active autopilot run
+- Default to `mode:autofix` when no explicit mode token remains
+- Prefer reviewing the current checkout (`current` or empty target) instead of switching branches
+- Skip user questions, worktree prompts, and optional browser-test handoff prompts
+- Do not invoke `setup`; if `compound-engineering.local.md` is missing, use the built-in always-on reviewers plus conditionals selected per diff
+- Treat this skill as the owner of `gates.review` for the active run
+- When review completes in autopilot mode, set `gates.review.state = complete`, record brief evidence, and set `gates.review.ref = current HEAD`
+- Review may still be complete when findings were externalized as todos; unresolved follow-up work does not mean the inspection itself is incomplete
+- Mark `gates.review.state = blocked` only when the review could not actually run on the current checkout
+- Return control to the caller after the autofix/report-only pass finishes; do not add extra workflow prompts
+
+Autopilot mode in `ce:review` is non-interactive review orchestration on the current checkout, not a commit/push/PR workflow.
+
 | Mode | When | Behavior |
 |------|------|----------|
 | **Interactive** (default) | No mode token present | Review, present findings, ask for policy decisions when needed, and optionally continue into fix/push/PR next steps |

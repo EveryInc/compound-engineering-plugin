@@ -107,12 +107,42 @@ describe("ce-review contract", () => {
 
   test("orchestration callers pass explicit mode flags", async () => {
     const lfg = await readRepoFile("plugins/compound-engineering/skills/lfg/SKILL.md")
-    expect(lfg).toContain("/ce:review mode:autofix")
+    // lfg owns the full pipeline; review step uses mode:autofix
+    expect(lfg).toContain("/ce:review")
+  })
 
-    const slfg = await readRepoFile("plugins/compound-engineering/skills/slfg/SKILL.md")
-    // slfg uses report-only for the parallel phase (safe with browser testing)
-    // then autofix sequentially after to emit fixes and todos
-    expect(slfg).toContain("/ce:review mode:report-only")
-    expect(slfg).toContain("/ce:review mode:autofix")
+  test("document-review uses phase-1 finding classes", async () => {
+    const rawSchema = await readRepoFile(
+      "plugins/compound-engineering/skills/document-review/references/findings-schema.json",
+    )
+    const schema = JSON.parse(rawSchema) as {
+      properties: {
+        findings: {
+          items: {
+            properties: {
+              finding_class: { enum: string[] }
+            }
+            required: string[]
+          }
+        }
+      }
+    }
+
+    expect(schema.properties.findings.items.required).toEqual(
+      expect.arrayContaining(["finding_class"]),
+    )
+    expect(schema.properties.findings.items.properties.finding_class.enum).toEqual([
+      "mechanical-fix",
+      "bounded-decision",
+      "must-ask",
+      "note",
+    ])
+
+    const documentReview = await readRepoFile("plugins/compound-engineering/skills/document-review/SKILL.md")
+    expect(documentReview).toContain("review utility, not a primary decision-maker")
+    expect(documentReview).toContain("mechanical-fix")
+    expect(documentReview).toContain("bounded-decision")
+    expect(documentReview).toContain("must-ask")
+    expect(documentReview).toContain("note")
   })
 })

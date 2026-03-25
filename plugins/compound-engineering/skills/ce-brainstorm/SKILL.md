@@ -34,6 +34,78 @@ This skill does not implement code. It explores, clarifies, and documents decisi
 
 - **Keep outputs concise** - Prefer short sections, brief bullets, and only enough detail to support the next decision.
 
+## Role Rubric
+
+This skill uses these roles in both normal and autopilot modes:
+
+- `Product Manager` -- optimize for user value, scope coherence, success criteria, and priority alignment
+- `Designer` -- optimize for user experience broadly: flow, defaults, terminology, state coverage, error recovery, and clarity
+- `Engineer` -- optimize for correctness, reuse, maintainability, and repo fit as a constraint on product choices
+
+Ordered weighting:
+- `Product Manager > Designer > Engineer`
+
+Dominant decision criteria:
+- `User Value`
+- `Completeness`
+- `Clarity`
+- `Reuse`
+- `Momentum`
+
+Orchestration bias:
+- `low`
+
+Normal mode uses this rubric to recommend options and frame follow-up questions.
+Autopilot mode uses the same rubric for bounded autonomous decisions only.
+
+## Autopilot Mode
+
+Autopilot is active only when the input begins with:
+
+- `[ce-autopilot manifest=.context/compound-engineering/autopilot/<run-id>/session.json] ::`
+
+When that marker is present:
+- Strip the marker before processing the feature description
+- Read the manifest path from the marker
+- Validate that the manifest describes an active autopilot run
+- Treat the run as part of an `lfg`-owned workflow, not a standalone brainstorm
+
+Then distinguish between two kinds of prompts:
+
+- **Workflow prompts** (handoff menus, "what do you want to do next?", "resume or start fresh?", post-generation options) → skip. These control routing, and the pipeline handles routing.
+- **Content prompts** (clarifying what to build, resolving ambiguity, scoping questions) → still ask. Getting requirements wrong wastes every downstream step.
+
+Decision boundaries in autopilot mode:
+
+- **May decide automatically**
+  - bounded requirement defaults already strongly implied by the request or existing requirements doc
+  - small scope/behavior clarifications needed to make the requirements doc plan-ready
+- **Must ask**
+  - materially different product behaviors
+  - changes that would expand or narrow core scope in a meaningful way
+  - unresolved success-criteria tradeoffs
+- **Must log**
+  - any substantive autonomous product decision written into the requirements doc without asking first
+
+When a requirements document is created or updated in autopilot mode, update the manifest's `artifacts.requirements_doc` path, set `gates.requirements.state = complete` with brief evidence, and append any substantive autonomous decisions to the run-scoped `decisions.md` table.
+
+Specific phase behavior:
+
+- **Phase 0.1:** If a relevant requirements document already exists, read it. Skip it (proceed to Phase 0.2 to reassess the current `$ARGUMENTS`) if: a plan in `docs/plans/` has an `origin:` frontmatter field pointing to this requirements doc and `status: completed` (the doc was already fully consumed), or its problem frame and requirements meaningfully diverge from the current feature description (`$ARGUMENTS`). If the doc is still relevant (no completed plan referencing it and scope matches), check for `Resolve Before Planning` items. If the document is plan-ready (no blocking questions), note it and return control immediately. If it still has `Resolve Before Planning` items, resume the brainstorm to resolve them (proceed to Phase 1.3) rather than returning control -- otherwise the pipeline dead-ends because `ce:plan` will block and re-invoking `ce:brainstorm` will hit this same check. Do not ask whether to resume or start fresh.
+- **Phase 0.2 short-circuit is a genuine skip.** If requirements are already clear (specific acceptance criteria, exact expected behavior, well-defined scope), skip brainstorm entirely. Note "requirements clear, skipping brainstorm", and in autopilot mode set `gates.requirements.state = complete` with brief evidence before returning control to the calling workflow. Do not proceed to Phase 1.3 or Phase 3.
+- **Phases 1.3 and 2:** Content questions to clarify vague or ambiguous requirements are still permitted. The user is present and getting requirements right is more valuable than speed.
+- **Phase 4 handoff is skipped.** Do not present handoff options or invoke `/ce:plan`. Write the requirements document (if warranted) and return control to the calling workflow.
+
+## Durable Output Safety
+
+This skill may create or update durable requirements documents in `docs/brainstorms/`.
+
+- **In autopilot mode (active `lfg` run with marker/manifest)** — inherit the current branch/worktree context and continue without branch prompts.
+- **In standalone use on a clean worktree** — proceed normally.
+- **In standalone use on a dirty worktree** — continue only when the existing uncommitted changes clearly belong to the same brainstorm topic. If they appear unrelated, or you are not confident, ask before writing or updating a durable document.
+- **Being in a worktree does not by itself prove the task context is correct** — use the same clean-vs-dirty and related-vs-unrelated judgment there.
+- **Do not create or switch branches from this skill** — branch/worktree orchestration belongs to the calling workflow or to `ce:work` when execution begins.
+
 ## Feature Description
 
 <feature_description> #$ARGUMENTS </feature_description>
@@ -50,7 +122,8 @@ Do not proceed until you have a feature description from the user.
 
 If the user references an existing brainstorm topic or document, or there is an obvious recent matching `*-requirements.md` file in `docs/brainstorms/`:
 - Read the document
-- Confirm with the user before resuming: "Found an existing requirements doc for [topic]. Should I continue from this, or start fresh?"
+- **In autopilot mode:** skip the document (proceed to Phase 0.2 to reassess whether brainstorming is needed for the current input) if a plan in `docs/plans/` has `origin:` pointing to this doc and `status: completed` (already fully consumed), or its scope meaningfully diverges from the current feature description. If the doc is still relevant (no completed plan referencing it and scope matches), check for `Resolve Before Planning` items. If none exist, note the existing document and return control immediately (see Autopilot Mode above). If blocking questions remain, resume the brainstorm to resolve them (proceed to Phase 1.3) rather than returning control. Do not ask the user whether to resume or start fresh.
+- **Otherwise:** Confirm with the user before resuming: "Found an existing requirements doc for [topic]. Should I continue from this, or start fresh?"
 - If resuming, summarize the current state briefly, continue from its existing decisions and outstanding questions, and update the existing document instead of creating a duplicate
 
 #### 0.2 Assess Whether Brainstorming Is Needed
@@ -62,7 +135,8 @@ If the user references an existing brainstorm topic or document, or there is an 
 - Constrained, well-defined scope
 
 **If requirements are already clear:**
-Keep the interaction brief. Confirm understanding and present concise next-step options rather than forcing a long brainstorm. Only write a short requirements document when a durable handoff to planning or later review would be valuable. Skip Phase 1.1 and 1.2 entirely — go straight to Phase 1.3 or Phase 3.
+- **In autopilot mode:** skip brainstorm entirely and return control to the calling workflow (see Autopilot Mode above). Do not proceed to Phase 1.3 or Phase 3.
+- **Otherwise:** Keep the interaction brief. Confirm understanding and present concise next-step options rather than forcing a long brainstorm. Only write a short requirements document when a durable handoff to planning or later review would be valuable. Skip Phase 1.1 and 1.2 entirely — go straight to Phase 1.3 or Phase 3.
 
 #### 0.3 Assess Scope
 
@@ -247,7 +321,9 @@ If a document contains outstanding questions:
 
 #### 4.1 Present Next-Step Options
 
-Present next steps using the platform's blocking question tool when available (see Interaction Rules). Otherwise present numbered options in chat and end the turn.
+**In autopilot mode:** skip Phase 4 entirely. Write the requirements document (if warranted by the brainstorm), update the manifest with the document path when one exists, and return control to the calling workflow. Do not present handoff options or invoke `/ce:plan`.
+
+**Otherwise:** Present next steps using the platform's blocking question tool when available (see Interaction Rules). Otherwise present numbered options in chat and end the turn.
 
 If `Resolve Before Planning` contains any items:
 - Ask the blocking questions now, one at a time, by default

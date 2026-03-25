@@ -5,7 +5,16 @@ description: Review requirements or plan documents using parallel persona agents
 
 # Document Review
 
-Review requirements or plan documents through multi-persona analysis. Dispatches specialized reviewer agents in parallel, auto-fixes quality issues, and presents strategic questions for user decision.
+Review requirements or plan documents through multi-persona analysis. Dispatch specialized reviewer agents in parallel, apply deterministic document-quality fixes, and classify substantive findings so the owning workflow skill or user can decide how to resolve them.
+
+## Autopilot Utility Contract
+
+`document-review` is a review utility, not a primary decision-maker.
+
+- It may apply `mechanical-fix` findings automatically when the fix is deterministic and meaning-preserving.
+- It may return `bounded-decision`, `must-ask`, and `note` findings.
+- It must not resolve substantive product or implementation decisions on its own.
+- In autopilot workflows, the owning skill (`ce:brainstorm`, `ce:plan`, `deepen-plan`, or another future decision owner) is responsible for deciding whether to auto-resolve a `bounded-decision`, escalate a `must-ask`, or leave a `note` in place.
 
 ## Phase 1: Get and Analyze Document
 
@@ -125,7 +134,7 @@ Scan the residual concerns (findings suppressed in 3.2) for:
 
 When personas disagree on the same section:
 - Create a **combined finding** presenting both perspectives
-- Set `autofix_class: present`
+- Set `finding_class: must-ask`
 - Frame as a tradeoff, not a verdict
 
 Specific conflict patterns:
@@ -133,14 +142,16 @@ Specific conflict patterns:
 - Feasibility says "this is impossible" + product-lens says "this is essential" -> P1 finding framed as a tradeoff
 - Multiple personas flag the same issue -> merge into single finding, note consensus, increase confidence
 
-### 3.6 Route by Autofix Class
+### 3.6 Route by Finding Class
 
-| Autofix Class | Route |
+| Finding Class | Route |
 |---------------|-------|
-| `auto` | Apply automatically -- local deterministic fix (terminology, formatting, cross-references) |
-| `present` | Present to user for judgment |
+| `mechanical-fix` | Apply automatically -- local deterministic fix (terminology, formatting, cross-references) |
+| `bounded-decision` | Present to the owning workflow skill or user for judgment |
+| `must-ask` | Present as requiring user judgment |
+| `note` | Present as non-blocking context |
 
-Demote any `auto` finding that lacks a `suggested_fix` to `present` -- the orchestrator cannot apply a fix without concrete replacement text.
+Demote any `mechanical-fix` finding that lacks a `suggested_fix` to `note` -- the orchestrator cannot apply a fix without concrete replacement text.
 
 ### 3.7 Sort
 
@@ -150,7 +161,7 @@ Sort findings for presentation: P0 -> P1 -> P2 -> P3, then by confidence (descen
 
 ### Apply Auto-fixes
 
-Apply all `auto` findings to the document in a **single pass**:
+Apply all `mechanical-fix` findings to the document in a **single pass**:
 - Edit the document inline using the platform's edit tool
 - Track what was changed for the "Auto-fixes Applied" section
 - Do not ask for approval -- these are unambiguously correct (terminology fixes, formatting, cross-references)
@@ -160,10 +171,10 @@ Apply all `auto` findings to the document in a **single pass**:
 Present all other findings to the user using the format from [review-output-template.md](./references/review-output-template.md):
 - Group by severity (P0 -> P3)
 - Include the Coverage table showing which personas ran
-- Show auto-fixes that were applied
+- Show mechanical fixes that were applied
 - Include residual concerns and deferred questions if any
 
-Brief summary at the top: "Applied N auto-fixes. M findings to consider (X at P0/P1)."
+Brief summary at the top: "Applied N mechanical fixes. M findings to consider (X at P0/P1)."
 
 ### Protected Artifacts
 
@@ -193,8 +204,9 @@ Return "Review complete" as the terminal signal for callers.
 - Do not add new sections or requirements the user didn't discuss
 - Do not over-engineer or add complexity
 - Do not create separate review files or add metadata sections
-- Do not modify any of the 4 caller skills (ce-brainstorm, ce-plan, ce-plan-beta, deepen-plan-beta)
+- Do not modify any of the caller skills (ce-brainstorm, ce-plan, deepen-plan)
+ - Do not resolve substantive product or implementation questions on behalf of an autopilot caller
 
 ## Iteration Guidance
 
-On subsequent passes, re-dispatch personas and re-synthesize. The auto-fix mechanism and confidence gating prevent the same findings from recurring once fixed. If findings are repetitive across passes, recommend completion.
+On subsequent passes, re-dispatch personas and re-synthesize. The mechanical-fix mechanism and confidence gating prevent the same findings from recurring once fixed. If findings are repetitive across passes, recommend completion.

@@ -26,13 +26,71 @@ Use the platform's question tool when available. When asking the user a question
 
 Ask one question at a time. Prefer a concise single-select choice when natural options exist.
 
+## Role Rubric
+
+This skill uses these roles in both normal and autopilot modes:
+
+- `Engineer` -- optimize for correctness, reuse, maintainability, verification strength, and technical fit
+- `Product Manager` -- preserve product intent, scope boundaries, and success criteria from the origin document
+- `Designer` -- preserve user experience, state coverage, and flow clarity when deepening touches user-facing behavior
+
+Ordered weighting:
+- `Engineer > Product Manager > Designer`
+
+Dominant decision criteria:
+- `Completeness`
+- `Clarity`
+- `Reuse`
+- `User Value`
+- `Momentum`
+
+Orchestration bias:
+- `low-medium`
+
+Normal mode uses this rubric to recommend which weak sections to strengthen.
+Autopilot mode uses the same rubric for bounded plan-strengthening decisions only.
+
+## Autopilot Mode
+
+Autopilot is active only when the input begins with:
+
+- `[ce-autopilot manifest=.context/compound-engineering/autopilot/<run-id>/session.json] ::`
+
+When that marker is present:
+- Strip the marker before processing the plan path
+- Read the manifest path from the marker
+- Validate that the manifest describes an active autopilot run
+- Treat the run as part of an `lfg`-owned workflow, not a standalone deepen-plan session
+
+Then skip workflow prompts and return control to the caller.
+
+Specific behavior:
+
+- If the caller did not pass a plan path, fall back to the manifest's `artifacts.plan_doc` when present. If neither the caller nor the manifest provides a plan path, treat that as a pipeline invocation error. Report it briefly and stop rather than asking the user to choose a plan.
+- If the plan already appears sufficiently grounded, note that briefly and return control. Do not offer next-step options.
+- If the plan is strengthened, briefly summarize which sections were improved and return control. Do not offer next-step options.
+- If deepening reveals a true product-level blocker that would change behavior, scope, or success criteria, surface it clearly and stop so the caller can route back to `ce:brainstorm` or ask the user.
+- If deepening reveals only technical uncertainty, strengthen the plan in place and continue returning control as normal.
+
+Decision boundaries in autopilot mode:
+
+- **May decide automatically**
+  - how to strengthen weak sections of an existing plan
+  - bounded technical uncertainty that does not change product behavior or scope
+  - verification, sequencing, and risk-treatment improvements grounded in the current plan and research
+- **Must ask**
+  - product blockers that would change behavior, scope, or success criteria
+  - materially different architecture choices that the existing plan did not constrain
+- **Must log**
+  - any substantive decision that changes implementation direction, sequencing, verification strategy, or risk handling in the plan
+
 ## Plan File
 
 <plan_path> #$ARGUMENTS </plan_path>
 
 If the plan path above is empty:
 1. Check `docs/plans/` for recent files
-2. Ask the user which plan to deepen using the platform's blocking question tool when available (see Interaction Method). Otherwise, present numbered options in chat and wait for the user's reply before proceeding
+2. In autopilot mode, first check whether the manifest already points to `artifacts.plan_doc` and use that path when available. If the manifest does not provide a plan path either, stop and report that the caller must provide one. Otherwise, ask the user which plan to deepen using the platform's blocking question tool when available (see Interaction Method). Otherwise, present numbered options in chat and wait for the user's reply before proceeding
 
 Do not proceed until you have a valid plan file path.
 
@@ -84,6 +142,7 @@ Use this default:
 If the plan already appears sufficiently grounded:
 - Say so briefly
 - Recommend moving to `/ce:work` or the `document-review` skill
+- In autopilot mode, return control immediately after the brief note
 - If the user explicitly asked to deepen anyway, continue with a light pass and deepen at most 1-2 sections
 
 ### Phase 1: Parse the Current `ce:plan` Structure
@@ -385,6 +444,14 @@ If artifact-backed mode was used and the user did not ask to inspect the scratch
 - if cleanup is not practical on the current platform, say where the artifacts were left and that they are temporary workflow output
 
 ## Post-Enhancement Options
+
+In autopilot mode, skip this section entirely. After updating the plan:
+- if substantive changes were made, briefly summarize which sections were strengthened and return control
+- if no substantive changes were warranted, briefly note that the plan already appears sufficiently grounded and return control
+
+When substantive changes are made in autopilot mode:
+- keep the canonical decision rows in the run-scoped `decisions.md`
+- ensure the plan's `## Autopilot Decisions` section reflects the applicable promoted subset using the shared row schema
 
 If substantive changes were made, present next steps using the platform's blocking question tool when available (see Interaction Method). Otherwise, present numbered options in chat and wait for the user's reply before proceeding.
 

@@ -59,6 +59,33 @@ skills/
 
 **Why `ce:`?** Claude Code has built-in `/plan` and `/review` commands. The `ce:` namespace (short for compound-engineering) makes it immediately clear these commands belong to this plugin.
 
+## Autopilot Mode Convention
+
+Skills with interactive handoff menus, post-generation options, or optional wrap-up flows must support **autopilot mode** during an active `lfg` run. Do not rely on beta-only frontmatter or caller prose to define autopilot mode.
+
+The runtime contract is:
+- `lfg` is the only top-level autopilot entrypoint
+- `slfg` is a deprecated wrapper that routes to `lfg` with swarm mode enabled
+- downstream skills detect autopilot from an explicit marker plus manifest path, not by guessing from "called from lfg/slfg"
+- swarm selection for implementation should come from explicit user intent first, then `compound-engineering.local.md` frontmatter `implementation_mode: standard | swarm`; if the setting is missing, assume `standard`
+- execution skills must honor the active manifest's `implementation_mode` during autopilot instead of requiring a second handoff-only swarm token
+- marker format:
+  - `[ce-autopilot manifest=.context/compound-engineering/autopilot/<run-id>/session.json] :: <normal input>`
+- manifest directory:
+  - `.context/compound-engineering/autopilot/<run-id>/`
+- direct and lightweight routes still create lightweight manifests; absent requirements/plan artifacts are intentional there
+- late-stage gate completions may carry a HEAD `ref` so `lfg` can invalidate stale review/verification/wrap-up state after code changes
+
+The core rule: **skip workflow prompts, keep only truly necessary content prompts.**
+
+- Skip workflow prompts such as handoff menus, post-generation options, "what next?" routing questions, browser-mode pickers, and best-effort artifact choices. The pipeline controls flow.
+- Keep content prompts only when proceeding would require inventing product behavior, scope, success criteria, or another user decision that materially changes the work.
+- For execution and wrap-up skills, prefer safe automatic defaults over interactive choice menus.
+- When autopilot mode skips, downgrades, or best-effort-skips a material step, inform the user briefly and continue. Do not block on the prompt. Record the skip reason in the manifest gate evidence when the skill owns that gate.
+- Skills must write durable outputs when applicable and return control without chaining into the next step.
+
+Skills with autopilot mode: `ce:brainstorm`, `ce:plan`, `deepen-plan`, `ce:work`, `ce:work-beta`, `ce:review`, `ce:review-beta`, `test-browser`, `feature-video`. Document behavioral changes in a `## Autopilot Mode` section within the skill's SKILL.md and describe how the skill handles the marker/manifest contract when relevant.
+
 ## Skill Compliance Checklist
 
 When adding or modifying skills, verify compliance with the skill spec:

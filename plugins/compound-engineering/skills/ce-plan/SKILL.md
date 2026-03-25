@@ -50,6 +50,67 @@ Every plan should contain:
 
 A plan is ready when an implementer can start confidently without needing the plan to write the code for them.
 
+## Role Rubric
+
+This skill uses these roles in both normal and autopilot modes:
+
+- `Engineer` -- optimize for correctness, reuse, maintainability, implementation clarity, and repo fit
+- `Product Manager` -- preserve user value, scope coherence, and success criteria from the origin document
+- `Designer` -- preserve user experience, state coverage, terminology, and flow clarity when the plan affects user-facing behavior
+
+Ordered weighting:
+- `Engineer > Product Manager > Designer`
+
+Dominant decision criteria:
+- `Clarity`
+- `Reuse`
+- `Completeness`
+- `User Value`
+- `Momentum`
+
+Orchestration bias:
+- `medium`
+
+Normal mode uses this rubric to recommend planning choices.
+Autopilot mode uses the same rubric for bounded technical or plan-structure decisions only.
+
+## Autopilot Mode
+
+Autopilot is active only when the input begins with:
+
+- `[ce-autopilot manifest=.context/compound-engineering/autopilot/<run-id>/session.json] ::`
+
+When that marker is present:
+- Strip the marker before processing the planning input
+- Read the manifest path from the marker
+- Validate that the manifest describes an active autopilot run
+- Use the manifest as the source of truth for upstream artifacts and gate state instead of guessing from caller prose
+
+Decision boundaries in autopilot mode:
+
+- **May decide automatically**
+  - bounded implementation-direction choices already constrained by the requirements doc, repo patterns, or research
+  - how to structure the plan so it is implementation-ready
+  - which relevant source document to use when one candidate is clearly the best match
+- **Must ask**
+  - materially different product behaviors
+  - architecture or scope forks that would meaningfully change rollout risk or user-visible behavior
+  - equally plausible origin documents when the choice would change the plan materially
+- **Must log**
+  - any substantive autonomous decision that changes implementation direction, sequencing, verification strategy, or explicit assumptions
+
+When the plan file is written in autopilot mode, update the manifest's `artifacts.plan_doc`, `current_gate`, and relevant gate states, then promote the applicable subset of `decisions.md` rows into an `## Autopilot Decisions` section using the same row schema.
+
+## Durable Output Safety
+
+This skill writes durable plan artifacts in `docs/plans/`.
+
+- **In autopilot mode (active `lfg` run with marker/manifest)** — inherit the current branch/worktree context and continue without branch prompts.
+- **In standalone use on a clean worktree** — proceed normally.
+- **In standalone use on a dirty worktree** — continue only when the existing uncommitted changes clearly belong to the same plan topic. If they appear unrelated, or you are not confident, ask before writing or updating a durable plan file.
+- **Being in a worktree does not by itself prove the task context is correct** — use the same clean-vs-dirty and related-vs-unrelated judgment there.
+- **Do not create or switch branches from this skill** — branch/worktree orchestration belongs to the calling workflow or to `ce:work` when execution begins.
+
 ## Workflow
 
 ### Phase 0: Resume, Source, and Scope
@@ -70,7 +131,11 @@ Before asking planning questions, search `docs/brainstorms/` for files matching 
 - It was created within the last 30 days (use judgment to override if the document is clearly still relevant or clearly stale)
 - It appears to cover the same user problem or scope
 
-If multiple source documents match, ask which one to use using the platform's blocking question tool when available (see Interaction Method). Otherwise, present numbered options in chat and wait for the user's reply before proceeding.
+When evaluating candidates, skip any requirements document that already has a completed plan referencing it (a plan in `docs/plans/` with `origin:` pointing to the doc and `status: completed`).
+
+If multiple source documents could match:
+- **In autopilot mode** — prefer the document whose topic and problem frame most closely match the current feature description, not just the most recent. If two or more documents are equally close matches, ask the user which one to use.
+- **Otherwise** — ask which one to use using the platform's blocking question tool when available (see Interaction Method). Otherwise, present numbered options in chat and wait for the user's reply before proceeding.
 
 #### 0.3 Use the Source Document as Primary Input
 
@@ -575,7 +640,6 @@ If the plan originated from a requirements document, re-read that document and v
 **REQUIRED: Write the plan file to disk before presenting any options.**
 
 Use the Write tool to save the complete plan to:
-
 ```text
 docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md
 ```
@@ -586,9 +650,11 @@ Confirm:
 Plan written to docs/plans/[filename]
 ```
 
-**Pipeline mode:** If invoked from an automated workflow such as LFG, SLFG, or any `disable-model-invocation` context, skip interactive questions. Make the needed choices automatically and proceed to writing the plan.
+**In autopilot mode**, skip workflow prompts after writing the plan. Confirm the plan path, update the manifest's `artifacts.plan_doc` and gate state, then return control to the calling workflow.
 
 #### 5.3 Post-Generation Options
+
+In autopilot mode, skip this section entirely and return control to the calling workflow.
 
 After writing the plan file, present the options using the platform's blocking question tool when available (see Interaction Method). Otherwise present numbered options in chat and wait for the user's reply before proceeding.
 

@@ -113,7 +113,7 @@
       "P3": "Low-impact, narrow scope, minor improvement. User's discretion."
     },
     "autofix_classes": {
-      "safe_auto": "Local, deterministic code or test fix suitable for the in-skill fixer in autonomous mode.",
+      "safe_auto": "Local, deterministic code or test fix suitable for the in-skill fixer in autofix mode.",
       "gated_auto": "Concrete fix exists, but it changes behavior, permissions, contracts, or other sensitive areas that deserve explicit approval.",
       "manual": "Actionable issue that should become residual work rather than an in-skill autofix.",
       "advisory": "Informational or operational item that should be surfaced in the report only."

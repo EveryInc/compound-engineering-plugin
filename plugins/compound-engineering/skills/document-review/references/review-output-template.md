@@ -15,35 +15,35 @@ Use this **exact format** when presenting synthesized review findings. Findings 
 - security-lens -- plan adds public API endpoint with auth flow
 - scope-guardian -- plan has 15 requirements across 3 priority levels
 
-### Auto-fixes Applied
+### Mechanical Fixes Applied
 
-- Standardized "pipeline"/"workflow" terminology to "pipeline" throughout (coherence, auto)
-- Fixed cross-reference: Section 4 referenced "Section 3.2" which is actually "Section 3.1" (coherence, auto)
+- Standardized "pipeline"/"workflow" terminology to "pipeline" throughout (coherence, mechanical-fix)
+- Fixed cross-reference: Section 4 referenced "Section 3.2" which is actually "Section 3.1" (coherence, mechanical-fix)
 
 ### P0 -- Must Fix
 
-| # | Section | Issue | Reviewer | Confidence | Route |
+| # | Section | Issue | Reviewer | Confidence | Class |
 |---|---------|-------|----------|------------|-------|
-| 1 | Requirements Trace | Goal states "offline support" but technical approach assumes persistent connectivity | coherence | 0.92 | `present` |
+| 1 | Requirements Trace | Goal states "offline support" but technical approach assumes persistent connectivity | coherence | 0.92 | `must-ask` |
 
 ### P1 -- Should Fix
 
-| # | Section | Issue | Reviewer | Confidence | Route |
+| # | Section | Issue | Reviewer | Confidence | Class |
 |---|---------|-------|----------|------------|-------|
-| 2 | Implementation Unit 3 | Plan proposes custom auth when codebase already uses Devise | feasibility | 0.85 | `present` |
-| 3 | Scope Boundaries | 8 of 12 units build admin infrastructure; only 2 touch stated goal | scope-guardian | 0.80 | `present` |
+| 2 | Implementation Unit 3 | Plan proposes custom auth when codebase already uses Devise | feasibility | 0.85 | `bounded-decision` |
+| 3 | Scope Boundaries | 8 of 12 units build admin infrastructure; only 2 touch stated goal | scope-guardian | 0.80 | `must-ask` |
 
 ### P2 -- Consider Fixing
 
-| # | Section | Issue | Reviewer | Confidence | Route |
+| # | Section | Issue | Reviewer | Confidence | Class |
 |---|---------|-------|----------|------------|-------|
-| 4 | API Design | Public webhook endpoint has no rate limiting mentioned | security-lens | 0.75 | `present` |
+| 4 | API Design | Public webhook endpoint has no rate limiting mentioned | security-lens | 0.75 | `bounded-decision` |
 
 ### P3 -- Minor
 
-| # | Section | Issue | Reviewer | Confidence | Route |
+| # | Section | Issue | Reviewer | Confidence | Class |
 |---|---------|-------|----------|------------|-------|
-| 5 | Overview | "Service" used to mean both microservice and business class | coherence | 0.65 | `auto` |
+| 5 | Overview | "Service" used to mean both microservice and business class | coherence | 0.65 | `mechanical-fix` |
 
 ### Residual Concerns
 
@@ -71,7 +71,7 @@ Use this **exact format** when presenting synthesized review findings. Findings 
 
 ## Section Rules
 
-- **Auto-fixes Applied**: List fixes that were applied automatically (auto class). Omit section if none.
+- **Mechanical Fixes Applied**: List fixes that were applied automatically (`mechanical-fix` class). Omit section if none.
 - **P0-P3 sections**: Only include sections that have findings. Omit empty severity levels.
 - **Residual Concerns**: Findings below confidence threshold that were promoted by cross-persona corroboration, plus unpromoted residual risks. Omit if none.
 - **Deferred Questions**: Questions for later workflow stages. Omit if none.

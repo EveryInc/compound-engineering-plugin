@@ -19,7 +19,7 @@
           "severity",
           "section",
           "why_it_matters",
-          "autofix_class",
+          "finding_class",
           "confidence",
           "evidence"
         ],
@@ -42,10 +42,10 @@
             "type": "string",
             "description": "Impact statement -- not 'what is wrong' but 'what goes wrong if not addressed'"
           },
-          "autofix_class": {
+          "finding_class": {
             "type": "string",
-            "enum": ["auto", "present"],
-            "description": "How this issue should be handled. auto = local deterministic fix the orchestrator can apply without asking (terminology, formatting, cross-references). present = requires user judgment."
+            "enum": ["mechanical-fix", "bounded-decision", "must-ask", "note"],
+            "description": "How this issue should be handled. mechanical-fix = local deterministic document fix. bounded-decision = substantive issue the owning workflow skill may auto-decide within its rubric. must-ask = exceeds decision authority and requires user judgment. note = non-blocking context worth surfacing."
           },
           "suggested_fix": {
             "type": ["string", "null"],
@@ -90,9 +90,11 @@
       "P2": "Moderate issue with meaningful downside. Fix if straightforward.",
       "P3": "Minor improvement. User's discretion."
     },
-    "autofix_classes": {
-      "auto": "Local, deterministic document fix: terminology consistency, formatting, cross-reference correction. Must be unambiguous and not change the document's meaning.",
-      "present": "Requires user judgment -- strategic questions, tradeoffs, meaning-changing fixes, or informational findings."
+    "finding_classes": {
+      "mechanical-fix": "Local, deterministic document fix: terminology consistency, formatting, cross-reference correction. Must be unambiguous and not change the document's meaning.",
+      "bounded-decision": "Substantive issue with a bounded set of plausible resolutions. The owning workflow skill may auto-decide it within its documented role rubric.",
+      "must-ask": "Requires user judgment because it exceeds the owning skill's decision authority or would materially change scope, behavior, or risk.",
+      "note": "Non-blocking context or advisory observation worth surfacing without forcing immediate resolution."
     }
   }
 }

@@ -17,6 +17,31 @@ Record browser interactions demonstrating a feature, stitch screenshots into an 
 - Git repository on a feature branch (PR optional -- skill can create a draft or record-only)
 - One-time GitHub browser auth (see Step 6 auth check)
 
+## Autopilot Mode
+
+Autopilot is active only when the input begins with:
+
+- `[ce-autopilot manifest=.context/compound-engineering/autopilot/<run-id>/session.json] ::`
+
+When that marker is present:
+- Strip the marker before processing the normal argument
+- Read the manifest path from the marker
+- Validate that the manifest describes an active autopilot run
+- Treat this skill as an autopilot contract consumer, not a substantive decision owner
+- Treat `wrap_up` as best-effort by default; ordinary PR, auth, upload, or environment issues should not derail the run
+
+Then treat feature video as best effort and prefer continuing the pipeline over blocking on interaction.
+
+Specific behavior:
+
+- If no PR exists for the current branch, first try creating a draft PR automatically. If that fails, set `gates.wrap_up.state = skipped` with a brief reason and return control to the caller.
+- If required tools are missing, the dev server is unavailable, or the app cannot be exercised, set `gates.wrap_up.state = skipped` with a brief reason and return control to the caller.
+- Plan the video flow automatically. Do not ask for shot-list confirmation.
+- If GitHub browser auth is required and a saved authenticated session is unavailable, set `gates.wrap_up.state = skipped` with a brief reason and return control to the caller rather than waiting for manual login.
+- Briefly inform the user when the video step is skipped or downgraded. Do not block on the prompt.
+- Do not append substantive product or implementation decisions to the autopilot decision log. This skill only emits operational notes and artifacts.
+- When wrap-up succeeds in autopilot mode, set `gates.wrap_up.state = complete`, record brief evidence, and set `gates.wrap_up.ref = current HEAD`.
+
 ## Main Tasks
 
 ### 1. Parse Arguments & Resolve PR
@@ -41,7 +66,10 @@ If no explicit PR number was provided (or "current" was specified), check if a P
 gh pr view --json number -q '.number'
 ```
 
-If no PR exists for the current branch, ask the user how to proceed. **Use the platform's blocking question tool** (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini):
+If no PR exists for the current branch:
+
+- In autopilot mode, try creating a draft PR automatically and continue if successful. If draft PR creation fails, set `gates.wrap_up.state = skipped` with a brief reason and return control to the caller.
+- Otherwise, ask the user how to proceed. **Use the platform's blocking question tool** (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini):
 
 ```
 No PR found for the current branch.
@@ -77,12 +105,15 @@ command -v agent-browser
 command -v gh
 ```
 
-If any tool is missing, stop and report which tools need to be installed:
+If any tool is missing:
+
+- In autopilot mode, set `gates.wrap_up.state = skipped` with a brief reason and return control to the caller.
+- Otherwise, stop and report which tools need to be installed:
 - `ffmpeg`: `brew install ffmpeg` (macOS) or equivalent
 - `agent-browser`: load the `agent-browser` skill for installation instructions
 - `gh`: `brew install gh` (macOS) or see https://cli.github.com
 
-Do not proceed to Step 2 until all tools are available.
+Do not proceed to Step 2 until all tools are available unless autopilot mode already returned control.
 
 ### 2. Gather Feature Context
 
@@ -114,7 +145,9 @@ Before recording, create a shot list:
 4. **Edge cases**: Error states, validation, etc. (if applicable)
 5. **Success state**: Completed action/result
 
-Present the proposed flow to the user for confirmation before recording.
+In autopilot mode, create the proposed flow automatically and proceed to recording without asking for confirmation.
+
+Otherwise, present the proposed flow to the user for confirmation before recording.
 
 **Use the platform's blocking question tool when available** (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). Otherwise, present numbered options and wait for the user's reply before proceeding:
 
@@ -223,7 +256,9 @@ agent-browser close
 agent-browser --engine chrome --headed --session-name github open https://github.com/login
 ```
 
-The user must log in manually in the browser window (handles 2FA, SSO, OAuth -- any login method). **Use the platform's blocking question tool** (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). Otherwise, present the message and wait for the user's reply before proceeding:
+In autopilot mode, if manual login is required because the saved session is missing or expired, set `gates.wrap_up.state = skipped` with a brief reason and return control to the caller.
+
+Otherwise, the user must log in manually in the browser window (handles 2FA, SSO, OAuth -- any login method). **Use the platform's blocking question tool** (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). Otherwise, present the message and wait for the user's reply before proceeding:
 
 ```
 GitHub login required for video upload.
@@ -314,7 +349,14 @@ gh pr edit [number] --body "[updated body with demo section]"
 
 ### 8. Cleanup
 
-Ask the user before removing temporary files. If confirmed, clean up only the current run's scratch directory (other runs may still be in progress or awaiting upload).
+In autopilot mode, do not ask for cleanup confirmation:
+
+- If the video was successfully uploaded from the current run, remove only that run's scratch directory automatically.
+- If in record-only mode or upload failed, remove only that run's screenshots and preserve the `.mp4` so the caller can upload later.
+- If this was upload-only resume mode with a caller-provided `.mp4`, do not delete the caller's file.
+- Briefly note what was removed and what was preserved, then return control to the caller.
+
+Outside autopilot mode, ask the user before removing temporary files. If confirmed, clean up only the current run's scratch directory (other runs may still be in progress or awaiting upload).
 
 **If the video was successfully uploaded**, remove the entire run directory:
 

@@ -13,6 +13,31 @@ Execute a work plan efficiently while maintaining quality and finishing features
 
 This command takes a work document (plan, specification, or todo file) and executes it systematically. The focus is on **shipping complete features** by understanding requirements quickly, following existing patterns, and maintaining quality throughout.
 
+## Autopilot Mode
+
+Autopilot is active only when the input begins with:
+
+- `[ce-autopilot manifest=.context/compound-engineering/autopilot/<run-id>/session.json] ::`
+
+When that marker is present:
+- Strip the marker before processing the input document path
+- Read the manifest path from the marker
+- Validate that the manifest describes an active autopilot run
+- Use the manifest's artifacts and gate state as part of execution context
+- Treat `manifest.implementation_mode=swarm` as the explicit swarm opt-in for this run's implementation gate
+
+Then use the same safe defaults described below and avoid workflow prompts.
+
+Specific behavior:
+
+- Do not ask for generic approval to proceed.
+- Respect explicit user instructions about branch strategy, such as "use `main`", "create a new branch", or "use a worktree".
+- In autopilot mode, if already on a non-default branch, continue there and note it briefly.
+- In autopilot mode, if on the default branch and the user did not explicitly authorize staying there, create a feature branch automatically. Prefer a worktree only when the user explicitly asked for it or the environment clearly calls for it.
+- Never commit directly to the default branch without explicit user permission.
+- Stop only for true blockers: contradictory requirements, missing credentials, broken environment/setup, or another consent boundary that cannot be inferred safely.
+- When using a fallback or skipping a non-critical step, inform the user briefly and continue.
+
 ## Input Document
 
 <input_document> #$ARGUMENTS </input_document>
@@ -32,8 +57,8 @@ This command takes a work document (plan, specification, or todo file) and execu
    - Review any references or links provided in the plan
    - If the user explicitly asks for TDD, test-first, or characterization-first execution in this session, honor that request even if the plan has no `Execution note`
    - If anything is unclear or ambiguous, ask clarifying questions now
-   - Get user approval to proceed
-   - **Do not skip this** - better to ask questions now than build the wrong thing
+   - Do not ask for generic approval to proceed once the plan is clear enough to execute
+   - Ask only when a real ambiguity or blocker would materially change the work
 
 2. **Setup Environment**
 
@@ -49,35 +74,51 @@ This command takes a work document (plan, specification, or todo file) and execu
    fi
    ```
 
-   **If already on a feature branch** (not the default branch):
-   - Ask: "Continue working on `[current_branch]`, or create a new branch?"
-   - If continuing, proceed to step 3
-   - If creating new, follow Option A or B below
+   Choose the branch strategy using this precedence:
 
-   **If on the default branch**, choose how to proceed:
+   - **Explicit user instruction wins** — if the user asked to use `main`, create a new branch, or use a worktree, do that.
+   - **Autopilot mode (active `lfg` run with marker/manifest)** — if already on a non-default branch, continue on `current_branch` and note that choice briefly. If on the default branch without explicit permission to stay there, create a feature branch automatically.
+   - **Standalone `/ce:work-beta` on a non-default branch** — do not silently reuse the branch. Ask whether to continue on `current_branch`, create a new feature branch, or use a worktree instead.
+   - **Standalone `/ce:work-beta` on the default branch without explicit permission to stay there** — ask whether to create a feature branch or use a worktree. Continuing on the default branch still requires explicit authorization.
+   - **Use a worktree** when the user explicitly asked for it or the environment clearly calls for isolated parallel development.
 
-   **Option A: Create a new branch**
-   ```bash
-   git pull origin [default_branch]
-   git checkout -b feature-branch-name
+   Never commit directly to the default branch without explicit permission.
+
+   For standalone `/ce:work-beta`, use the platform's blocking question tool when available. Otherwise, present numbered options and wait. Suggested prompts:
+
+   If already on a non-default branch:
+
    ```
+   Branch safety check: you're on `[current_branch]`.
+
+   1. Continue on `[current_branch]`
+   2. Create a new feature branch (recommended)
+   3. Use a worktree instead
+   4. Cancel
+   ```
+
+   If on the default branch:
+
+   ```
+   Branch safety check: you're on the default branch `[default_branch]`.
+
+   1. Create a new feature branch (recommended)
+   2. Use a worktree instead
+   3. Continue on `[default_branch]` (only if explicitly requested)
+   4. Cancel
+   ```
+
+   When creating a branch automatically:
+   ```bash
+   if [ -n "$(git status --porcelain)" ]; then
+     git checkout -b feature-branch-name
+   else
+     git pull origin [default_branch]
+     git checkout -b feature-branch-name
+   fi
+   ```
+   If the worktree is dirty, branch first so local artifacts such as a newly written plan file carry forward safely. Only pull before branching when the worktree is clean.
    Use a meaningful name based on the work (e.g., `feat/user-authentication`, `fix/email-validation`).
-
-   **Option B: Use a worktree (recommended for parallel development)**
-   ```bash
-   skill: git-worktree
-   # The skill will create a new branch from the default branch in an isolated worktree
-   ```
-
-   **Option C: Continue on the default branch**
-   - Requires explicit user confirmation
-   - Only proceed after user explicitly says "yes, commit to [default_branch]"
-   - Never commit directly to the default branch without explicit permission
-
-   **Recommendation**: Use worktree if:
-   - You want to work on multiple features simultaneously
-   - You want to keep the default branch clean while experimenting
-   - You plan to switch between branches frequently
 
 3. **Create Todo List**
    - Use your available task tracking tool (e.g., TodoWrite, task lists) to break the plan into actionable tasks
@@ -405,7 +446,7 @@ This command takes a work document (plan, specification, or todo file) and execu
 
 For genuinely large plans where agents need to communicate with each other, challenge approaches, or coordinate across 10+ tasks with persistent specialized roles, use agent team capabilities if available (e.g., Agent Teams in Claude Code, multi-agent workflows in Codex).
 
-**Agent teams are typically experimental and require opt-in.** Do not attempt to use agent teams unless the user explicitly requests swarm mode or agent teams, and the platform supports it.
+**Agent teams are typically experimental and require opt-in.** Do not attempt to use agent teams unless the user explicitly requests swarm mode or agent teams, or the active autopilot manifest sets `implementation_mode=swarm`, and the platform supports it.
 
 ### When to Use Agent Teams vs Subagents
 
@@ -414,7 +455,7 @@ For genuinely large plans where agents need to communicate with each other, chal
 | Agents need to discuss and challenge each other's approaches | Each task is independent — only the result matters |
 | Persistent specialized roles (e.g., dedicated tester running continuously) | Workers report back and finish |
 | 10+ tasks with complex cross-cutting coordination | 3-8 tasks with clear dependency chains |
-| User explicitly requests "swarm mode" or "agent teams" | Default for most plans |
+| User explicitly requests "swarm mode" or "agent teams", or the active autopilot manifest sets `implementation_mode=swarm` | Default for most plans |
 
 Most plans should use subagent dispatch from standard mode. Agent teams add significant token cost and coordination overhead — use them when the inter-agent communication genuinely improves the outcome.
 

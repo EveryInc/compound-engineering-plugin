@@ -89,9 +89,22 @@ Agents are organized into categories for easier discovery.
 
 ## Commands
 
-### Workflow Commands
+### Autopilot Workflow
 
-Core workflow commands use `ce:` prefix to unambiguously identify them as compound-engineering commands:
+Run a complete engineering workflow from feature description to PR:
+
+| Command | Description |
+|---------|-------------|
+| `/lfg [description]` | Right-sized autopilot workflow: routes to direct edit, lightweight execution, or the full pipeline based on task complexity, and can resume from the current workflow gate when work is already in progress |
+| `/slfg [description]` | Deprecated compatibility wrapper that routes to `/lfg` with swarm mode enabled |
+
+`/lfg` assesses task complexity and chooses the right amount of ceremony. Trivial fixes (typos, renames) execute directly. Bounded tasks with clear requirements skip planning and multi-agent review. Complex or ambiguous tasks run the full pipeline in autopilot mode: `brainstorm → plan → work → review → resolve todos → test → video`. Autopilot skips workflow menus, but it still asks content questions when it would otherwise need to invent product behavior, scope, or success criteria. All three routes are resumable: direct and lightweight runs create lightweight manifests that intentionally mark requirements/plan as skipped, while full-pipeline runs attach durable requirements and plan artifacts. `/lfg` resumes from the first unmet workflow gate using that manifest when present and falls back to conservative reconstruction from durable artifacts, repo state, PR state, and todos when it is not. Review, browser verification, and wrap-up completions are revalidated conservatively against the current HEAD so stale late-stage state does not get reused after code changes. Browser testing and feature-video remain best-effort by default: if the environment is unavailable, `/lfg` records the skip and continues instead of failing the whole run. Swarm is now an execution mode behind `/lfg`; `/slfg` remains only as a migration path.
+
+When `lfg` reaches implementation, explicit user requests for swarm/agent teams win. Otherwise it may read `implementation_mode: standard | swarm` from `compound-engineering.local.md`. If that flag is absent, `lfg` assumes `standard`.
+
+### Step-by-Step Workflow
+
+Use individual commands when you want control over specific phases. Core workflow commands use the `ce:` prefix:
 
 | Command | Description |
 |---------|-------------|
@@ -103,12 +116,12 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | `/ce:compound` | Document solved problems to compound team knowledge |
 | `/ce:compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
 
+Step-by-step is useful when you want to brainstorm now and plan later, build a plan from an existing requirements doc, run just a review, or document a fix.
+
 ### Utility Commands
 
 | Command | Description |
 |---------|-------------|
-| `/lfg` | Full autonomous engineering workflow |
-| `/slfg` | Full autonomous workflow with swarm mode for parallel execution |
 | `/deepen-plan` | Stress-test plans and deepen weak sections with targeted research |
 | `/changelog` | Create engaging changelogs for recent merges |
 | `/generate_command` | Generate new slash commands |

@@ -22,10 +22,12 @@ Rules:
 - Suppress any finding below your stated confidence floor (see your Confidence calibration section).
 - Every finding MUST include at least one evidence item -- a direct quote from the document.
 - You are operationally read-only. Analyze the document and produce findings. Do not edit the document, create files, or make changes. You may use non-mutating tools (file reads, glob, grep, git log) to gather context about the codebase when evaluating feasibility or existing patterns.
-- Set `autofix_class` conservatively:
-  - `auto`: Only for local, deterministic fixes -- terminology corrections, formatting fixes, cross-reference repairs. The fix must be unambiguous and not change the document's meaning.
-  - `present`: Everything else -- strategic questions, tradeoffs, meaning-changing fixes, informational findings.
-- `suggested_fix` is optional. Only include it when the fix is obvious and correct. For `present` findings, frame as a question instead.
+- Set `finding_class` conservatively:
+  - `mechanical-fix`: Only for local, deterministic fixes -- terminology corrections, formatting fixes, cross-reference repairs. The fix must be unambiguous and not change the document's meaning.
+  - `bounded-decision`: A substantive issue with a bounded set of plausible resolutions that the owning workflow skill could decide within its rubric.
+  - `must-ask`: Requires user judgment because it would materially change scope, behavior, or risk.
+  - `note`: Non-blocking context worth surfacing without forcing immediate resolution.
+- `suggested_fix` is optional. Only include it when the fix is obvious and correct. For `bounded-decision` and `must-ask` findings, frame the suggestion as a decision or question rather than pretending the orchestrator should apply it.
 - If you find no issues, return an empty findings array. Still populate residual_risks and deferred_questions if applicable.
 - Use your suppress conditions. Do not flag issues that belong to other personas.
 </output-contract>
