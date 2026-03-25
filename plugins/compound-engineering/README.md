@@ -171,6 +171,8 @@ Core workflow commands use `ce:` prefix to unambiguously identify them as compou
 | Skill | Description |
 |-------|-------------|
 | `agent-browser` | CLI-based browser automation using Vercel's agent-browser |
+| `user-test` | Exploratory browser testing via claude-in-chrome with quality scoring and compounding test files |
+| `user-test-eval` | Grade user-test skill output against binary evals and propose targeted mutations |
 
 ### Image Generation
 
