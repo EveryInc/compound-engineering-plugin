@@ -20,6 +20,13 @@ command git fetch --prune 2>/dev/null
 gone_branches=()
 
 while IFS= read -r line; do
+  # Skip the currently checked-out branch (marked with '*').
+  # git branch -D cannot delete the active branch, and attempting it
+  # would halt cleanup before other stale branches are processed.
+  if [[ "$line" =~ ^\* ]]; then
+    continue
+  fi
+
   # Strip the leading marker character(s) and whitespace
   # The branch name is the first non-whitespace token after the marker
   branch_name=$(echo "$line" | sed 's/^[+* ]*//' | awk '{print $1}')
