@@ -262,13 +262,14 @@ async function detectLanguagesAndFrameworks() {
     for (const [dep, name] of Object.entries(NODE_TEST_FRAMEWORKS)) {
       if (allDeps[dep]) { testFramework = name; break; }
     }
-
-    // Package manager detection
-    if (rootFiles.includes("bun.lockb") || rootFiles.includes("bun.lock")) packageManager = "bun";
-    else if (rootFiles.includes("pnpm-lock.yaml")) packageManager = "pnpm";
-    else if (rootFiles.includes("yarn.lock")) packageManager = "yarn";
-    else if (rootFiles.includes("package-lock.json")) packageManager = "npm";
   }
+
+  // Package manager detection -- runs independently of package.json
+  // so workspace roots with only a lockfile are still detected.
+  if (rootFiles.includes("bun.lockb") || rootFiles.includes("bun.lock")) packageManager = "bun";
+  else if (rootFiles.includes("pnpm-lock.yaml")) packageManager = "pnpm";
+  else if (rootFiles.includes("yarn.lock")) packageManager = "yarn";
+  else if (rootFiles.includes("package-lock.json")) packageManager = "npm";
 
   // Ruby framework detection
   if (languages.has("Ruby")) {

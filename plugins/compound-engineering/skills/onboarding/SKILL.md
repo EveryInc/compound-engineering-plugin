@@ -31,7 +31,7 @@ If a focus hint is provided, use it to prioritize which parts of the codebase to
 
 ### Phase 1: Gather Inventory
 
-Run the bundled inventory script to get a structural map of the repository without reading every file:
+Run the bundled inventory script ([scripts/inventory.mjs](./scripts/inventory.mjs)) to get a structural map of the repository without reading every file:
 
 ```bash
 node scripts/inventory.mjs --root .
