@@ -151,7 +151,7 @@ Format: `[sanitized-symptom]-[module]-[YYYYMMDD].md`
 <validation_gate name="yaml-schema" blocking="true">
 
 **Validate against schema:**
-Load `schema.yaml` and classify the problem against the enum values defined in [yaml-schema.md](./references/yaml-schema.md). Ensure all required fields are present and match allowed values exactly.
+Load `schema.yaml` and classify the problem against the enum values defined in [yaml-schema.md](${CLAUDE_PLUGIN_ROOT}/skills/compound-docs/references/yaml-schema.md). Ensure all required fields are present and match allowed values exactly.
 
 **BLOCK if validation fails:**
 
@@ -174,7 +174,7 @@ Please provide corrected values.
 <step number="6" required="true" depends_on="5">
 ### Step 6: Create Documentation
 
-**Determine category from problem_type:** Use the category mapping defined in [yaml-schema.md](./references/yaml-schema.md) (lines 49-61).
+**Determine category from problem_type:** Use the category mapping defined in [yaml-schema.md](${CLAUDE_PLUGIN_ROOT}/skills/compound-docs/references/yaml-schema.md) (lines 49-61).
 
 **Create documentation file:**
 

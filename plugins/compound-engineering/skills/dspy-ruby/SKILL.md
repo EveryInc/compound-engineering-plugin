@@ -647,14 +647,14 @@ end
 
 ## Resources
 
-- [core-concepts.md](./references/core-concepts.md) — Signatures, modules, predictors, type system deep-dive
-- [toolsets.md](./references/toolsets.md) — Tools::Base, Tools::Toolset DSL, type safety, testing
-- [providers.md](./references/providers.md) — Provider adapters, RubyLLM, fiber-local LM context, compatibility matrix
-- [optimization.md](./references/optimization.md) — MIPROv2, GEPA, evaluation framework, storage system
-- [observability.md](./references/observability.md) — Event system, dspy-o11y gems, Langfuse, score reporting
-- [signature-template.rb](./assets/signature-template.rb) — Signature scaffold with T::Enum, Date/Time, defaults, union types
-- [module-template.rb](./assets/module-template.rb) — Module scaffold with .call(), lifecycle callbacks, fiber-local LM
-- [config-template.rb](./assets/config-template.rb) — Rails initializer with RubyLLM, observability, feature flags
+- [core-concepts.md](${CLAUDE_PLUGIN_ROOT}/skills/dspy-ruby/references/core-concepts.md) — Signatures, modules, predictors, type system deep-dive
+- [toolsets.md](${CLAUDE_PLUGIN_ROOT}/skills/dspy-ruby/references/toolsets.md) — Tools::Base, Tools::Toolset DSL, type safety, testing
+- [providers.md](${CLAUDE_PLUGIN_ROOT}/skills/dspy-ruby/references/providers.md) — Provider adapters, RubyLLM, fiber-local LM context, compatibility matrix
+- [optimization.md](${CLAUDE_PLUGIN_ROOT}/skills/dspy-ruby/references/optimization.md) — MIPROv2, GEPA, evaluation framework, storage system
+- [observability.md](${CLAUDE_PLUGIN_ROOT}/skills/dspy-ruby/references/observability.md) — Event system, dspy-o11y gems, Langfuse, score reporting
+- [signature-template.rb](${CLAUDE_PLUGIN_ROOT}/skills/dspy-ruby/assets/signature-template.rb) — Signature scaffold with T::Enum, Date/Time, defaults, union types
+- [module-template.rb](${CLAUDE_PLUGIN_ROOT}/skills/dspy-ruby/assets/module-template.rb) — Module scaffold with .call(), lifecycle callbacks, fiber-local LM
+- [config-template.rb](${CLAUDE_PLUGIN_ROOT}/skills/dspy-ruby/assets/config-template.rb) — Rails initializer with RubyLLM, observability, feature flags
 
 ## Key URLs
 
