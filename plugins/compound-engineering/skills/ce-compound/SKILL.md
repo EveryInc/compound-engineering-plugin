@@ -23,17 +23,13 @@ Captures problem solutions while context is fresh, creating structured documenta
 
 ## Support Files
 
-Before documenting, load these files as the durable contract for the workflow:
+These files are the durable contract for the workflow. Read them on-demand at the step that needs them — do not bulk-load at skill start.
 
-@./references/schema.yaml
+- `references/schema.yaml` — canonical frontmatter fields and enum values (read when validating YAML)
+- `references/yaml-schema.md` — category mapping from problem_type to directory (read when classifying)
+- `assets/resolution-template.md` — section structure for new docs (read when assembling)
 
-@./references/yaml-schema.md
-
-@./assets/resolution-template.md
-
-If the rest of this skill ever drifts from the loaded files above, update the skill to match them or update the files and the skill together in the same change.
-
-Before launching any subagents in full mode, treat the loaded schema and template content above as shared context for the workflow. Pass the relevant schema/template details into any subagent that classifies or writes solution docs.
+When spawning subagents, pass the relevant file contents into the task prompt so they have the contract without needing cross-skill paths.
 
 ## Execution Strategy
 
@@ -82,11 +78,11 @@ Launch these subagents IN PARALLEL. Each returns text data to the orchestrator.
    - Extracts conversation history
    - Identifies problem type, component, symptoms
    - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence when identifying problem type, component, and symptoms
-   - Uses the already-loaded `references/schema.yaml` as the authority for enum validation
-   - Uses the already-loaded `references/yaml-schema.md` for category mapping into `docs/solutions/`
+   - Reads `references/schema.yaml` for enum validation
+   - Reads `references/yaml-schema.md` for category mapping into `docs/solutions/`
    - Suggests a filename using the pattern `[sanitized-problem-slug]-[date].md`
    - Returns: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, and suggested filename
-   - Does not invent enum values, categories, or frontmatter fields from memory; uses the loaded schema and mapping above
+   - Does not invent enum values, categories, or frontmatter fields from memory; reads the schema and mapping files above
 
 #### 2. **Solution Extractor**
    - Analyzes all investigation steps
@@ -158,7 +154,7 @@ The orchestrating agent (main conversation) performs these steps:
 
    When updating an existing doc, preserve its file path and frontmatter structure. Update the solution, code examples, prevention tips, and any stale references. Add a `last_updated: YYYY-MM-DD` field to the frontmatter. Do not change the title unless the problem framing has materially shifted.
 
-3. Assemble complete markdown file from the collected pieces using the already-loaded `assets/resolution-template.md` for new docs
+3. Assemble complete markdown file from the collected pieces, reading `assets/resolution-template.md` for the section structure of new docs
 4. Validate YAML frontmatter against `references/schema.yaml`
 5. Create directory if needed: `mkdir -p docs/solutions/[category]/`
 6. Write the file: either the updated existing doc or the new `docs/solutions/[category]/[filename].md`
