@@ -330,8 +330,7 @@ After writing, inform the user that `ONBOARDING.md` has been generated. Offer ne
 Options:
 1. Open the file for review
 2. Share to Proof
-3. Commit the file
-4. Done
+3. Done
 
 Based on selection:
 - **Open for review** -> Open `ONBOARDING.md` using the current platform's file-open or editor mechanism
@@ -345,5 +344,4 @@ Based on selection:
   PROOF_URL=$(echo "$RESPONSE" | jq -r '.tokenUrl')
   ```
   Display `View & collaborate in Proof: <PROOF_URL>` if successful, then return to the options
-- **Commit** -> Load the `git-commit` skill if available; otherwise stage and commit `ONBOARDING.md` with a conventional commit message
 - **Done** -> No further action
