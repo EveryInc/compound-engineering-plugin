@@ -180,6 +180,46 @@ describe("CLI", () => {
     expect(await exists(path.join(tempRoot, ".config", "opencode", "agents", "repo-research-analyst.md"))).toBe(true)
   })
 
+  test("install uses bundled compound-engineering plugin for codex output", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-bundled-codex-home-"))
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-bundled-codex-workspace-"))
+    const projectRoot = path.join(import.meta.dir, "..")
+    const codexRoot = path.join(tempRoot, ".codex")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(projectRoot, "src", "index.ts"),
+      "install",
+      "compound-engineering",
+      "--to",
+      "codex",
+    ], {
+      cwd: workspaceRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempRoot,
+        COMPOUND_PLUGIN_GITHUB_SOURCE: "/definitely-not-a-valid-plugin-source",
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering")
+    expect(stdout).toContain(codexRoot)
+    expect(await exists(path.join(codexRoot, "prompts", "ce-plan.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "skills", "ce:plan", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
+  })
+
   test("install by name ignores same-named local directory", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-shadow-"))
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-shadow-workspace-"))

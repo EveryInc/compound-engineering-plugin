@@ -2,6 +2,7 @@ import { defineCommand } from "citty"
 import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
+import { fileURLToPath } from "url"
 import { loadClaudePlugin } from "../parsers/claude"
 import { targets, validateScope } from "../targets"
 import { pathExists } from "../utils/files"
@@ -233,7 +234,12 @@ async function resolvePluginPath(input: string): Promise<ResolvedPluginPath> {
     throw new Error(`Local plugin path not found: ${directPath}`)
   }
 
-  // Otherwise, always fetch the latest from GitHub
+  const bundledPluginPath = await resolveBundledPluginPath(input)
+  if (bundledPluginPath) {
+    return { path: bundledPluginPath }
+  }
+
+  // Otherwise, fetch the latest from GitHub
   return await resolveGitHubPluginPath(input)
 }
 
@@ -253,6 +259,16 @@ function resolveOutputRoot(value: unknown): string {
   // OpenCode global config lives at ~/.config/opencode per XDG spec
   // See: https://opencode.ai/docs/config/
   return path.join(os.homedir(), ".config", "opencode")
+}
+
+async function resolveBundledPluginPath(pluginName: string): Promise<string | null> {
+  const bundledRoot = fileURLToPath(new URL("../../plugins/", import.meta.url))
+  const pluginPath = path.join(bundledRoot, pluginName)
+  const manifestPath = path.join(pluginPath, ".claude-plugin", "plugin.json")
+  if (await pathExists(manifestPath)) {
+    return pluginPath
+  }
+  return null
 }
 
 async function resolveGitHubPluginPath(pluginName: string): Promise<ResolvedPluginPath> {
