@@ -43,7 +43,7 @@ async function createTestRepo(): Promise<string> {
   await fs.mkdir(path.dirname(pluginRoot), { recursive: true })
   await fs.cp(fixtureRoot, pluginRoot, { recursive: true })
 
-  await runGit(["init"], repoRoot, gitEnv)
+  await runGit(["init", "-b", "main"], repoRoot, gitEnv)
   await runGit(["add", "."], repoRoot, gitEnv)
   await runGit(["commit", "-m", "initial"], repoRoot, gitEnv)
   return repoRoot

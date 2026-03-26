@@ -299,7 +299,7 @@ describe("CLI", () => {
       GIT_COMMITTER_EMAIL: "test@example.com",
     }
 
-    await runGit(["init"], repoRoot, gitEnv)
+    await runGit(["init", "-b", "main"], repoRoot, gitEnv)
     await runGit(["add", "."], repoRoot, gitEnv)
     await runGit(["commit", "-m", "initial"], repoRoot, gitEnv)
     await runGit(["checkout", "-b", "feat/test-branch"], repoRoot, gitEnv)
