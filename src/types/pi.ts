@@ -37,4 +37,5 @@ export type PiBundle = {
   generatedSkills: PiGeneratedSkill[]
   extensions: PiExtensionFile[]
   mcporterConfig?: PiMcporterConfig
+  nameMaps?: import("../utils/pi-skills").PiNameMaps
 }
