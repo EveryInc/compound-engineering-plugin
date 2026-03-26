@@ -237,11 +237,9 @@ This command takes a work document (plan, specification, or todo file) and execu
    # Use linting-agent before pushing to origin
    ```
 
-2. **Consider Reviewer Agents** (Optional)
+2. **Consider Code Review** (Optional)
 
-   Use for complex, risky, or large changes. Read agents from `compound-engineering.local.md` frontmatter (`review_agents`). If no settings file, invoke the `setup` skill to create one.
-
-   Run configured agents in parallel with Task tool. Present findings and address critical issues.
+   Use for complex, risky, or large changes. Load the `ce:review` skill with `mode:autofix` to fix safe issues and flag the rest before shipping.
 
 3. **Final Validation**
    - All tasks marked completed

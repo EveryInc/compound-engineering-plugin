@@ -70,10 +70,10 @@ When adding or modifying skills, verify compliance with the skill spec:
 
 ### Reference Links (Required if references/ exists)
 
-- [ ] All files in `references/` are linked as `[filename.md](./references/filename.md)`
-- [ ] All files in `assets/` are linked as `[filename](./assets/filename)`
-- [ ] All files in `scripts/` are linked as `[filename](./scripts/filename)`
-- [ ] No bare backtick references like `` `references/file.md` `` - use proper markdown links
+- [ ] All files in `references/` that the agent should read into context are linked as `[filename.md](./references/filename.md)`
+- [ ] All files in `assets/` that the agent should read into context are linked as `[filename](./assets/filename)`
+- [ ] For files the agent needs to *read* (references, assets), use markdown links -- these signal "load this into context"
+- [ ] For files the agent needs to *execute* (scripts), backtick paths are sufficient (e.g., `` `scripts/my-script` ``) since the bash code block already provides the invocation
 
 ### Writing Style
 
@@ -95,7 +95,7 @@ When adding or modifying skills, verify compliance with the skill spec:
 
 - [ ] In bash code blocks, reference co-located scripts using relative paths (e.g., `bash scripts/my-script ARG`) — not `${CLAUDE_PLUGIN_ROOT}` or other platform-specific variables
 - [ ] All platforms resolve script paths relative to the skill's directory; no env var prefix is needed
-- [ ] Always also include a markdown link to the script (e.g., `[scripts/my-script](scripts/my-script)`) so the agent can locate and read it
+- [ ] Reference the script with a backtick path (e.g., `` `scripts/my-script` ``) so agents can locate it; a markdown link is not needed since the bash code block already provides the invocation
 
 ### Cross-Platform Reference Rules
 
@@ -114,7 +114,7 @@ Why: shell-heavy exploration causes avoidable permission prompts in sub-agent wo
 
 - [ ] Never instruct agents to use `find`, `ls`, `cat`, `head`, `tail`, `grep`, `rg`, `wc`, or `tree` through a shell for routine file discovery, content search, or file reading
 - [ ] Describe tools by capability class with platform hints — e.g., "Use the native file-search/glob tool (e.g., Glob in Claude Code)" — not by Claude Code-specific tool names alone
-- [ ] When shell is the only option (e.g., `ast-grep`, `bundle show`, git commands), instruct one simple command at a time — no chaining (`&&`, `||`, `;`), pipes, or redirects
+- [ ] When shell is the only option (e.g., `ast-grep`, `bundle show`, git commands), instruct one simple command at a time — no chaining (`&&`, `||`, `;`) and no error suppression (`2>/dev/null`, `|| true`). Simple pipes (e.g., `| jq .field`) and output redirection (e.g., `> file`) are acceptable when they don't obscure failures
 - [ ] Do not encode shell recipes for routine exploration when native tools can do the job; encode intent and preferred tool classes instead
 - [ ] For shell-only workflows (e.g., `gh`, `git`, `bundle show`, project CLIs), explicit command examples are acceptable when they are simple, task-scoped, and not chained together
 

@@ -1,7 +1,7 @@
 ---
 title: "feat: Add issue-grounded ideation mode to ce:ideate"
 type: feat
-status: active
+status: complete
 date: 2026-03-16
 origin: docs/brainstorms/2026-03-16-issue-grounded-ideation-requirements.md
 ---

@@ -1,6 +1,6 @@
 # Persona Catalog
 
-8 reviewer personas organized in two tiers, plus CE-specific agents. The orchestrator uses this catalog to select which reviewers to spawn for each review.
+13 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific agents. The orchestrator uses this catalog to select which reviewers to spawn for each review.
 
 ## Always-on (3 personas + 2 CE agents)
 
@@ -33,6 +33,18 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 | `data-migrations` | `compound-engineering:review:data-migrations-reviewer` | Migration files, schema changes, backfill scripts, data transformations |
 | `reliability` | `compound-engineering:review:reliability-reviewer` | Error handling, retry logic, circuit breakers, timeouts, background jobs, async handlers, health checks |
 
+## Stack-Specific Conditional (5 personas)
+
+These reviewers keep their original opinionated lens. They are additive with the cross-cutting personas above, not replacements for them.
+
+| Persona | Agent | Select when diff touches... |
+|---------|-------|---------------------------|
+| `dhh-rails` | `compound-engineering:review:dhh-rails-reviewer` | Rails architecture, service objects, authentication/session choices, Hotwire-vs-SPA boundaries, or abstractions that may fight Rails conventions |
+| `kieran-rails` | `compound-engineering:review:kieran-rails-reviewer` | Rails controllers, models, views, jobs, components, routes, or other application-layer Ruby code where clarity and conventions matter |
+| `kieran-python` | `compound-engineering:review:kieran-python-reviewer` | Python modules, endpoints, services, scripts, or typed domain code |
+| `kieran-typescript` | `compound-engineering:review:kieran-typescript-reviewer` | TypeScript components, services, hooks, utilities, or shared types |
+| `julik-frontend-races` | `compound-engineering:review:julik-frontend-races-reviewer` | Stimulus/Turbo controllers, DOM event wiring, timers, async UI flows, animations, or frontend state transitions with race potential |
+
 ## CE Conditional Agents (migration-specific)
 
 These CE-native agents provide specialized analysis beyond what the persona agents cover. Spawn them when the diff includes database migrations, schema.rb, or data backfills.
@@ -45,6 +57,7 @@ These CE-native agents provide specialized analysis beyond what the persona agen
 ## Selection rules
 
 1. **Always spawn all 3 always-on personas** plus the 2 CE always-on agents.
-2. **For each conditional persona**, the orchestrator reads the diff and decides whether the persona's domain is relevant. This is a judgment call, not a keyword match.
-3. **For CE conditional agents**, spawn when the diff includes migration files (`db/migrate/*.rb`, `db/schema.rb`) or data backfill scripts.
-4. **Announce the team** before spawning with a one-line justification per conditional reviewer selected.
+2. **For each cross-cutting conditional persona**, the orchestrator reads the diff and decides whether the persona's domain is relevant. This is a judgment call, not a keyword match.
+3. **For each stack-specific conditional persona**, use file types and changed patterns as a starting point, then decide whether the diff actually introduces meaningful work for that reviewer. Do not spawn language-specific reviewers just because one config or generated file happens to match the extension.
+4. **For CE conditional agents**, spawn when the diff includes migration files (`db/migrate/*.rb`, `db/schema.rb`) or data backfill scripts.
+5. **Announce the team** before spawning with a one-line justification per conditional reviewer selected.

@@ -13,7 +13,7 @@ severity: medium
 description: "Pattern for trialing new skill versions alongside stable ones using a -beta suffix. Covers naming, plan file naming, internal references, and promotion path."
 related:
   - docs/solutions/skill-design/compound-refresh-skill-improvements.md
-  - docs/solutions/skill-design/review-skill-promotion-orchestration-contract.md
+  - docs/solutions/skill-design/beta-promotion-orchestration-contract.md
 ---
 
 ## Problem
@@ -80,7 +80,7 @@ When the beta version is validated:
 8. Verify `lfg`/`slfg` work with the promoted skill
 9. Verify `ce:work` consumes plans from the promoted skill
 
-If the beta skill changed its invocation contract, promotion must also update all orchestration callers in the same PR instead of relying on the stable default behavior. See [review-skill-promotion-orchestration-contract.md](./review-skill-promotion-orchestration-contract.md) for the concrete review-skill example.
+If the beta skill changed its invocation contract, promotion must also update all orchestration callers in the same PR instead of relying on the stable default behavior. See [beta-promotion-orchestration-contract.md](./beta-promotion-orchestration-contract.md) for the concrete review-skill example.
 
 ## Validation
 

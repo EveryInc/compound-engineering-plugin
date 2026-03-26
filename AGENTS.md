@@ -25,7 +25,10 @@ bun run release:validate  # check plugin/marketplace consistency
 - **Release versioning:** Releases are prepared by release automation, not normal feature PRs. The repo now has multiple release components (`cli`, `compound-engineering`, `coding-tutor`, `marketplace`). GitHub release PRs and GitHub Releases are the canonical release-notes surface for new releases; root `CHANGELOG.md` is only a pointer to that history. Use conventional titles such as `feat:` and `fix:` so release automation can classify change intent, but do not hand-bump release-owned versions or hand-author release notes in routine PRs.
 - **Output Paths:** Keep OpenCode output at `opencode.json` and `.opencode/{agents,skills,plugins}`. For OpenCode, command go to `~/.config/opencode/commands/<name>.md`; `opencode.json` is deep-merged (never overwritten wholesale).
 - **Scratch Space:** When authoring or editing skills and agents that need repo-local scratch space, instruct them to use `.context/` for ephemeral collaboration artifacts. Namespace compound-engineering workflow state under `.context/compound-engineering/<workflow-or-skill-name>/`, add a per-run subdirectory when concurrent runs are plausible, and clean scratch artifacts up after successful completion unless the user asked to inspect them or another agent still needs them. Durable outputs like plans, specs, learnings, and docs do not belong in `.context/`.
-- **ASCII-first:** Use ASCII unless the file already contains Unicode.
+- **Character encoding:**
+  - **Identifiers** (file names, agent names, command names): ASCII only -- converters and regex patterns depend on it.
+  - **Markdown tables:** Use pipe-delimited (`| col | col |`), never box-drawing characters.
+  - **Prose and skill content:** Unicode is fine (emoji, punctuation, etc.). Prefer ASCII arrows (`->`, `<-`) over Unicode arrows in code blocks and terminal examples.
 
 ## Directory Layout
 

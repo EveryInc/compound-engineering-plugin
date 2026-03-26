@@ -53,33 +53,33 @@ If the feature type is clear, narrow the search to relevant category directories
 | Integration | `docs/solutions/integration-issues/` |
 | General/unclear | `docs/solutions/` (all) |
 
-### Step 3: Grep Pre-Filter (Critical for Efficiency)
+### Step 3: Content-Search Pre-Filter (Critical for Efficiency)
 
-**Use Grep to find candidate files BEFORE reading any content.** Run multiple Grep calls in parallel:
+**Use the native content-search tool (e.g., Grep in Claude Code) to find candidate files BEFORE reading any content.** Run multiple searches in parallel, case-insensitive, returning only matching file paths:
 
-```bash
+```
 # Search for keyword matches in frontmatter fields (run in PARALLEL, case-insensitive)
-Grep: pattern="title:.*email" path=docs/solutions/ output_mode=files_with_matches -i=true
-Grep: pattern="tags:.*(email|mail|smtp)" path=docs/solutions/ output_mode=files_with_matches -i=true
-Grep: pattern="module:.*(Brief|Email)" path=docs/solutions/ output_mode=files_with_matches -i=true
-Grep: pattern="component:.*background_job" path=docs/solutions/ output_mode=files_with_matches -i=true
+content-search: pattern="title:.*email" path=docs/solutions/ files_only=true case_insensitive=true
+content-search: pattern="tags:.*(email|mail|smtp)" path=docs/solutions/ files_only=true case_insensitive=true
+content-search: pattern="module:.*(Brief|Email)" path=docs/solutions/ files_only=true case_insensitive=true
+content-search: pattern="component:.*background_job" path=docs/solutions/ files_only=true case_insensitive=true
 ```
 
 **Pattern construction tips:**
 - Use `|` for synonyms: `tags:.*(payment|billing|stripe|subscription)`
 - Include `title:` - often the most descriptive field
-- Use `-i=true` for case-insensitive matching
+- Search case-insensitively
 - Include related terms the user might not have mentioned
 
-**Why this works:** Grep scans file contents without reading into context. Only matching filenames are returned, dramatically reducing the set of files to examine.
+**Why this works:** Content search scans file contents without reading into context. Only matching filenames are returned, dramatically reducing the set of files to examine.
 
-**Combine results** from all Grep calls to get candidate files (typically 5-20 files instead of 200).
+**Combine results** from all searches to get candidate files (typically 5-20 files instead of 200).
 
-**If Grep returns >25 candidates:** Re-run with more specific patterns or combine with category narrowing.
+**If search returns >25 candidates:** Re-run with more specific patterns or combine with category narrowing.
 
-**If Grep returns <3 candidates:** Do a broader content search (not just frontmatter fields) as fallback:
-```bash
-Grep: pattern="email" path=docs/solutions/ output_mode=files_with_matches -i=true
+**If search returns <3 candidates:** Do a broader content search (not just frontmatter fields) as fallback:
+```
+content-search: pattern="email" path=docs/solutions/ files_only=true case_insensitive=true
 ```
 
 ### Step 3b: Always Check Critical Patterns
@@ -228,26 +228,26 @@ Structure your findings as:
 ## Efficiency Guidelines
 
 **DO:**
-- Use Grep to pre-filter files BEFORE reading any content (critical for 100+ files)
-- Run multiple Grep calls in PARALLEL for different keywords
-- Include `title:` in Grep patterns - often the most descriptive field
+- Use the native content-search tool to pre-filter files BEFORE reading any content (critical for 100+ files)
+- Run multiple content searches in PARALLEL for different keywords
+- Include `title:` in search patterns - often the most descriptive field
 - Use OR patterns for synonyms: `tags:.*(payment|billing|stripe)`
 - Use `-i=true` for case-insensitive matching
 - Use category directories to narrow scope when feature type is clear
-- Do a broader content Grep as fallback if <3 candidates found
+- Do a broader content search as fallback if <3 candidates found
 - Re-narrow with more specific patterns if >25 candidates found
 - Always read the critical patterns file (Step 3b)
-- Only read frontmatter of Grep-matched candidates (not all files)
+- Only read frontmatter of search-matched candidates (not all files)
 - Filter aggressively - only fully read truly relevant files
 - Prioritize high-severity and critical patterns
 - Extract actionable insights, not just summaries
 - Note when no relevant learnings exist (this is valuable information too)
 
 **DON'T:**
-- Read frontmatter of ALL files (use Grep to pre-filter first)
-- Run Grep calls sequentially when they can be parallel
+- Read frontmatter of ALL files (use content-search to pre-filter first)
+- Run searches sequentially when they can be parallel
 - Use only exact keyword matches (include synonyms)
-- Skip the `title:` field in Grep patterns
+- Skip the `title:` field in search patterns
 - Proceed with >25 candidates without narrowing first
 - Read every file in full (wasteful)
 - Return raw document contents (distill instead)

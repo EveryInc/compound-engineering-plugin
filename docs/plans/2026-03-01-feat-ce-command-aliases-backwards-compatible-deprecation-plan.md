@@ -1,7 +1,7 @@
 ---
 title: "feat: Add ce:* command aliases with backwards-compatible deprecation of workflows:*"
 type: feat
-status: active
+status: complete
 date: 2026-03-01
 ---
 

@@ -11,7 +11,7 @@ Use this **exact format** when presenting synthesized review findings. Findings 
 
 **Scope:** merge-base with the review base branch -> working tree (14 files, 342 lines)
 **Intent:** Add order export endpoint with CSV and JSON format support
-**Mode:** autonomous
+**Mode:** autofix
 
 **Reviewers:** correctness, testing, maintainability, security, api-contract
 - security -- new public endpoint accepts user-provided format parameter
@@ -101,7 +101,7 @@ Use this **exact format** when presenting synthesized review findings. Findings 
 - **Confidence column** shows the finding's confidence score
 - **Route column** shows the synthesized handling decision as ``<autofix_class> -> <owner>``.
 - **Header includes** scope, intent, and reviewer team with per-conditional justifications
-- **Mode line** -- include `interactive`, `autonomous`, or `report-only`
+- **Mode line** -- include `interactive`, `autofix`, or `report-only`
 - **Applied Fixes section** -- include only when a fix phase ran in this review invocation
 - **Residual Actionable Work section** -- include only when unresolved actionable findings were handed off for later work
 - **Pre-existing section** -- separate table, no confidence column (these are informational)

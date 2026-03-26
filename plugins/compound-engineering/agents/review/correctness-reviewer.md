@@ -1,6 +1,6 @@
 ---
 name: correctness-reviewer
-description: Always-on code-review persona. Reviews code for logic errors, edge cases, state management bugs, error propagation failures, and intent-vs-implementation mismatches. Spawned by the ce:review-beta skill as part of a reviewer ensemble.
+description: Always-on code-review persona. Reviews code for logic errors, edge cases, state management bugs, error propagation failures, and intent-vs-implementation mismatches.
 model: inherit
 tools: Read, Grep, Glob, Bash
 color: blue

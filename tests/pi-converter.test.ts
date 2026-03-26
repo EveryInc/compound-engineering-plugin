@@ -82,7 +82,7 @@ describe("convertClaudeToPi", () => {
     expect(parsedPrompt.body).toContain("ask_user_question")
     expect(parsedPrompt.body).toContain("/workflows-work")
     expect(parsedPrompt.body).toContain("/deepen-plan")
-    expect(parsedPrompt.body).toContain("file-based todos (todos/ + /skill:file-todos)")
+    expect(parsedPrompt.body).toContain("file-based todos (todos/ + /skill:todo-create)")
   })
 
   test("transforms namespaced Task agent calls using final segment", () => {

@@ -23,9 +23,9 @@ CRITICAL: You MUST execute every step below IN ORDER. Do NOT skip any required s
 
    GATE: STOP. Verify that implementation work was performed - files were created or modified beyond the plan. Do NOT proceed to step 5 if no code changes were made.
 
-5. `/ce:review`
+5. `/ce:review mode:autofix`
 
-6. `/compound-engineering:resolve-todo-parallel`
+6. `/compound-engineering:todo-resolve`
 
 7. `/compound-engineering:test-browser`
 
