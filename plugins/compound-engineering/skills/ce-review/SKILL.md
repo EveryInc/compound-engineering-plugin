@@ -73,7 +73,7 @@ Routing rules:
 
 ## Reviewers
 
-13 reviewer personas in layered conditionals, plus CE-specific agents. See [persona-catalog.md](./references/persona-catalog.md) for the full catalog.
+13 reviewer personas in layered conditionals, plus CE-specific agents. See [persona-catalog.md](${CLAUDE_PLUGIN_ROOT}/skills/ce-review/references/persona-catalog.md) for the full catalog.
 
 **Always-on (every review):**
 
@@ -324,7 +324,7 @@ Pass this to every reviewer in their spawn prompt. Intent shapes *how hard each 
 
 ### Stage 3: Select reviewers
 
-Read the diff and file list from Stage 1. The 3 always-on personas and 2 CE always-on agents are automatic. For each cross-cutting and stack-specific conditional persona in [persona-catalog.md](./references/persona-catalog.md), decide whether the diff warrants it. This is agent judgment, not keyword matching.
+Read the diff and file list from Stage 1. The 3 always-on personas and 2 CE always-on agents are automatic. For each cross-cutting and stack-specific conditional persona in [persona-catalog.md](${CLAUDE_PLUGIN_ROOT}/skills/ce-review/references/persona-catalog.md), decide whether the diff warrants it. This is agent judgment, not keyword matching.
 
 Stack-specific personas are additive. A Rails UI change may warrant `kieran-rails` plus `julik-frontend-races`; a TypeScript API diff may warrant `kieran-typescript` plus `api-contract` and `reliability`.
 
@@ -350,18 +350,18 @@ This is progress reporting, not a blocking confirmation.
 
 ### Stage 4: Spawn sub-agents
 
-Spawn each selected persona reviewer as a parallel sub-agent using the template in [subagent-template.md](./references/subagent-template.md). Each persona sub-agent receives:
+Spawn each selected persona reviewer as a parallel sub-agent using the template in [subagent-template.md](${CLAUDE_PLUGIN_ROOT}/skills/ce-review/references/subagent-template.md). Each persona sub-agent receives:
 
 1. Their persona file content (identity, failure modes, calibration, suppress conditions)
-2. Shared diff-scope rules from [diff-scope.md](./references/diff-scope.md)
-3. The JSON output contract from [findings-schema.json](./references/findings-schema.json)
+2. Shared diff-scope rules from [diff-scope.md](${CLAUDE_PLUGIN_ROOT}/skills/ce-review/references/diff-scope.md)
+3. The JSON output contract from [findings-schema.json](${CLAUDE_PLUGIN_ROOT}/skills/ce-review/references/findings-schema.json)
 4. Review context: intent summary, file list, diff
 
 Persona sub-agents are **read-only**: they review and return structured JSON. They do not edit files or propose refactors.
 
 Read-only here means **non-mutating**, not "no shell access." Reviewer sub-agents may use non-mutating inspection commands when needed to gather evidence or verify scope, including read-oriented `git` / `gh` usage such as `git diff`, `git show`, `git blame`, `git log`, and `gh pr view`. They must not edit files, change branches, commit, push, create PRs, or otherwise mutate the checkout or repository state.
 
-Each persona sub-agent returns JSON matching [findings-schema.json](./references/findings-schema.json):
+Each persona sub-agent returns JSON matching [findings-schema.json](${CLAUDE_PLUGIN_ROOT}/skills/ce-review/references/findings-schema.json):
 
 ```json
 {
@@ -395,7 +395,7 @@ Convert multiple reviewer JSON payloads into one deduplicated, confidence-gated 
 
 ### Stage 6: Synthesize and present
 
-Assemble the final report using the template in [review-output-template.md](./references/review-output-template.md):
+Assemble the final report using the template in [review-output-template.md](${CLAUDE_PLUGIN_ROOT}/skills/ce-review/references/review-output-template.md):
 
 1. **Header.** Scope, intent, mode, reviewer team with per-conditional justifications.
 2. **Findings.** Grouped by severity (P0, P1, P2, P3). Each finding shows file, issue, reviewer(s), confidence, and synthesized route.

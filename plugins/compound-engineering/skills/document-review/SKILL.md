@@ -76,12 +76,12 @@ Add activated conditional personas:
 
 ### Dispatch
 
-Dispatch all agents in **parallel** using the platform's task/agent tool (e.g., Agent tool in Claude Code, spawn in Codex). Each agent receives the prompt built from the [subagent template](./references/subagent-template.md) with these variables filled:
+Dispatch all agents in **parallel** using the platform's task/agent tool (e.g., Agent tool in Claude Code, spawn in Codex). Each agent receives the prompt built from the [subagent template](${CLAUDE_PLUGIN_ROOT}/skills/document-review/references/subagent-template.md) with these variables filled:
 
 | Variable | Value |
 |----------|-------|
 | `{persona_file}` | Full content of the agent's markdown file |
-| `{schema}` | Content of [findings-schema.json](./references/findings-schema.json) |
+| `{schema}` | Content of [findings-schema.json](${CLAUDE_PLUGIN_ROOT}/skills/document-review/references/findings-schema.json) |
 | `{document_type}` | "requirements" or "plan" from Phase 1 classification |
 | `{document_path}` | Path to the document |
 | `{document_content}` | Full text of the document |
@@ -98,7 +98,7 @@ Process findings from all agents through this pipeline. **Order matters** -- eac
 
 ### 3.1 Validate
 
-Check each agent's returned JSON against [findings-schema.json](./references/findings-schema.json):
+Check each agent's returned JSON against [findings-schema.json](${CLAUDE_PLUGIN_ROOT}/skills/document-review/references/findings-schema.json):
 - Drop findings missing any required field defined in the schema
 - Drop findings with invalid enum values
 - Note the agent name for any malformed output in the Coverage section
@@ -157,7 +157,7 @@ Apply all `auto` findings to the document in a **single pass**:
 
 ### Present Remaining Findings
 
-Present all other findings to the user using the format from [review-output-template.md](./references/review-output-template.md):
+Present all other findings to the user using the format from [review-output-template.md](${CLAUDE_PLUGIN_ROOT}/skills/document-review/references/review-output-template.md):
 - Group by severity (P0 -> P3)
 - Include the Coverage table showing which personas ran
 - Show auto-fixes that were applied

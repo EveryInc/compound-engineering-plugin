@@ -34,7 +34,7 @@ The `.context/compound-engineering/todos/` directory is a file-based tracking sy
 
 ## File Structure
 
-Each todo has YAML frontmatter and structured sections. Use the template at [todo-template.md](./assets/todo-template.md) when creating new todos.
+Each todo has YAML frontmatter and structured sections. Use the template at [todo-template.md](${CLAUDE_PLUGIN_ROOT}/skills/todo-create/assets/todo-template.md) when creating new todos.
 
 ```yaml
 ---
@@ -58,7 +58,7 @@ dependencies: ["001"]     # Issue IDs this is blocked by
 
 1. `mkdir -p .context/compound-engineering/todos/`
 2. Search both paths for `[0-9]*-*.md`, find the highest numeric prefix, increment, zero-pad to 3 digits.
-3. Read [todo-template.md](./assets/todo-template.md), write to canonical path as `{NEXT_ID}-pending-{priority}-{description}.md`.
+3. Read [todo-template.md](${CLAUDE_PLUGIN_ROOT}/skills/todo-create/assets/todo-template.md), write to canonical path as `{NEXT_ID}-pending-{priority}-{description}.md`.
 4. Fill Problem Statement, Findings, Proposed Solutions, Acceptance Criteria, and initial Work Log entry.
 5. Set status: `pending` (needs triage) or `ready` (pre-approved).
 
