@@ -18,10 +18,10 @@ command git status
 command git diff HEAD
 command git branch --show-current
 command git log --oneline -10
-command git rev-parse --abbrev-ref origin/HEAD 2>/dev/null
+command git rev-parse --abbrev-ref origin/HEAD | sed 's@^origin/@@'
 ```
 
-The last command returns the remote default branch (e.g., `origin/main`). Strip the `origin/` prefix to get the default branch name. If it fails, fall back to `main`.
+The last command returns the repo's default branch name (e.g., `main`). If it fails, fall back to `main`.
 
 If there are no changes (nothing staged, nothing modified), report that and stop.
 
