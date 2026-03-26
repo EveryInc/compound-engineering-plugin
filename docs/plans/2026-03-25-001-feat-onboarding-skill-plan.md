@@ -1,7 +1,7 @@
 ---
 title: "feat: Add onboarding skill to generate ONBOARDING.md from repo crawl"
 type: feat
-status: active
+status: complete
 date: 2026-03-25
 origin: docs/brainstorms/2026-03-25-vonboarding-skill-requirements.md
 ---
