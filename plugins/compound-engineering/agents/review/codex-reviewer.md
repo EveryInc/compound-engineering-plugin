@@ -32,7 +32,7 @@ If either `CODEX_SANDBOX` or `CODEX_SESSION_ID` is set, return this JSON and sto
 ## Step 2: Verify codex CLI availability
 
 ```bash
-which codex 2>/dev/null
+which codex
 ```
 
 If codex is not found, return this JSON and stop:
@@ -48,15 +48,18 @@ If codex is not found, return this JSON and stop:
 
 ## Step 3: Determine the diff target
 
-Extract the base branch from the review context passed by ce:review.
+Extract the base branch from the review context passed by ce:review. The orchestrator passes the base branch as part of the subagent dispatch context.
 
-Fallback resolution order:
-1. Base branch from PR metadata (if reviewing a PR)
-2. Detect from remote HEAD:
+Resolution order (stop at the first success):
+1. Base branch from the review context (ce:review always provides this for PR reviews)
+2. If no context is available (standalone invocation), detect from remote HEAD:
    ```bash
-   git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@'
+   git symbolic-ref refs/remotes/origin/HEAD
    ```
-3. Fall back to `main`
+   Then strip the `refs/remotes/origin/` prefix from the result.
+3. If the above command fails (no remote HEAD configured), default to `main`
+
+Do not fall back to `git rev-parse --verify` against local branch names. A local branch with the same name as the PR base may track a different remote or point at a different lineage, producing misleading diffs. Fail closed instead of guessing.
 
 Store the resolved branch in `BASE_BRANCH`.
 
