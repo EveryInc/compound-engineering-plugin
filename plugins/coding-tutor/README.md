@@ -1,5 +1,9 @@
 # Coding Tutor
 
+## Codex
+
+Codex can install this plugin from the repo-local marketplace in [`../../.agents/plugins/marketplace.json`](../../.agents/plugins/marketplace.json). The Codex manifest lives at [`plugins/coding-tutor/.codex-plugin/plugin.json`](./.codex-plugin/plugin.json).
+
 Your personal AI tutor that creates tutorials tailored to you - using real code from your projects, building on what you already know, and tracking your progress over time.
 
 ## Why

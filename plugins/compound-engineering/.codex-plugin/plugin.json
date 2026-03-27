@@ -1,0 +1,37 @@
+{
+  "name": "compound-engineering",
+  "version": "2.54.1",
+  "description": "AI-powered development tools for code review, research, design, and workflow automation.",
+  "author": {
+    "name": "Kieran Klaassen",
+    "email": "kieran@every.to",
+    "url": "https://github.com/kieranklaassen"
+  },
+  "homepage": "https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it",
+  "repository": "https://github.com/EveryInc/compound-engineering-plugin",
+  "license": "MIT",
+  "keywords": [
+    "ai-powered",
+    "compound-engineering",
+    "workflow-automation",
+    "code-review",
+    "rails",
+    "ruby",
+    "python",
+    "typescript",
+    "knowledge-management",
+    "image-generation",
+    "agent-browser",
+    "browser-automation"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Compound Engineering",
+    "shortDescription": "AI-powered development workflows for review, research, design, and execution.",
+    "developerName": "Kieran Klaassen",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write"],
+    "websiteURL": "https://github.com/EveryInc/compound-engineering-plugin"
+  }
+}

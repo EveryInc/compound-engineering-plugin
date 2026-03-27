@@ -209,6 +209,18 @@ The `agent-browser` skill provides comprehensive documentation on usage.
 claude /plugin install compound-engineering
 ```
 
+### Codex
+
+Codex can install this plugin from the repo-local marketplace. From the repo root:
+
+```bash
+codex
+```
+
+Then open `/plugins`, browse the `Compound Engineering` marketplace from [`.agents/plugins/marketplace.json`](../../.agents/plugins/marketplace.json), and install `compound-engineering`.
+
+Codex reads the plugin manifest from [`plugins/compound-engineering/.codex-plugin/plugin.json`](./.codex-plugin/plugin.json).
+
 ## Known Issues
 
 ### MCP Servers Not Auto-Loading
