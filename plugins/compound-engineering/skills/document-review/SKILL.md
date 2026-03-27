@@ -48,6 +48,12 @@ Analyze the document content to determine which conditional personas to activate
 - Scope boundary language that seems misaligned with stated goals
 - Goals that don't clearly connect to requirements
 
+**adversarial** -- activate when the document contains:
+- More than 5 distinct requirements or implementation units
+- Explicit architectural or scope decisions with stated rationale
+- High-stakes domains (auth, payments, data migrations, external integrations)
+- Proposals of new abstractions, frameworks, or significant architectural patterns
+
 ## Phase 2: Announce and Dispatch Personas
 
 ### Announce the Review Team
@@ -73,15 +79,16 @@ Add activated conditional personas:
 - `compound-engineering:document-review:design-lens-reviewer`
 - `compound-engineering:document-review:security-lens-reviewer`
 - `compound-engineering:document-review:scope-guardian-reviewer`
+- `compound-engineering:document-review:adversarial-document-reviewer`
 
 ### Dispatch
 
-Dispatch all agents in **parallel** using the platform's task/agent tool (e.g., Agent tool in Claude Code, spawn in Codex). Each agent receives the prompt built from the [subagent template](./references/subagent-template.md) with these variables filled:
+Dispatch all agents in **parallel** using the platform's task/agent tool (e.g., Agent tool in Claude Code, spawn in Codex). Each agent receives the prompt built from the subagent template included below with these variables filled:
 
 | Variable | Value |
 |----------|-------|
 | `{persona_file}` | Full content of the agent's markdown file |
-| `{schema}` | Content of [findings-schema.json](./references/findings-schema.json) |
+| `{schema}` | Content of the findings schema included below |
 | `{document_type}` | "requirements" or "plan" from Phase 1 classification |
 | `{document_path}` | Path to the document |
 | `{document_content}` | Full text of the document |
@@ -90,7 +97,7 @@ Pass each agent the **full document** -- do not split into sections.
 
 **Error handling:** If an agent fails or times out, proceed with findings from agents that completed. Note the failed agent in the Coverage section. Do not block the entire review on a single agent failure.
 
-**Dispatch limit:** Even at maximum (6 agents), use parallel dispatch. These are document reviewers with bounded scope reading a single document -- parallel is safe and fast.
+**Dispatch limit:** Even at maximum (7 agents), use parallel dispatch. These are document reviewers with bounded scope reading a single document -- parallel is safe and fast.
 
 ## Phase 3: Synthesize Findings
 
@@ -98,7 +105,7 @@ Process findings from all agents through this pipeline. **Order matters** -- eac
 
 ### 3.1 Validate
 
-Check each agent's returned JSON against [findings-schema.json](./references/findings-schema.json):
+Check each agent's returned JSON against the findings schema included below:
 - Drop findings missing any required field defined in the schema
 - Drop findings with invalid enum values
 - Note the agent name for any malformed output in the Coverage section
@@ -118,14 +125,15 @@ When fingerprints match across personas:
 ### 3.4 Promote Residual Concerns
 
 Scan the residual concerns (findings suppressed in 3.2) for:
-- **Cross-persona corroboration**: A residual concern from Persona A overlaps with an above-threshold finding from Persona B. Promote at P2 with confidence 0.55-0.65.
-- **Concrete blocking risks**: A residual concern describes a specific, concrete risk that would block implementation. Promote at P2 with confidence 0.55.
+- **Cross-persona corroboration**: A residual concern from Persona A overlaps with an above-threshold finding from Persona B. Promote at P2 with confidence 0.55-0.65. Inherit `finding_type` from the corroborating above-threshold finding.
+- **Concrete blocking risks**: A residual concern describes a specific, concrete risk that would block implementation. Promote at P2 with confidence 0.55. Set `finding_type: omission` (blocking risks surfaced as residual concerns are inherently about something the document failed to address).
 
 ### 3.5 Resolve Contradictions
 
 When personas disagree on the same section:
 - Create a **combined finding** presenting both perspectives
 - Set `autofix_class: present`
+- Set `finding_type: error` (contradictions are by definition about conflicting things the document says, not things it omits)
 - Frame as a tradeoff, not a verdict
 
 Specific conflict patterns:
@@ -137,14 +145,17 @@ Specific conflict patterns:
 
 | Autofix Class | Route |
 |---------------|-------|
-| `auto` | Apply automatically -- local deterministic fix (terminology, formatting, cross-references) |
-| `present` | Present to user for judgment |
+| `auto` | Apply automatically -- local deterministic fix (terminology, formatting, cross-references, completeness corrections where the correct value is verifiable from the document itself) |
+| `batch_confirm` | Group for single batch approval -- obvious fixes that touch meaning but have one clear correct answer |
+| `present` | Present individually for user judgment |
 
-Demote any `auto` finding that lacks a `suggested_fix` to `present` -- the orchestrator cannot apply a fix without concrete replacement text.
+Demote any `auto` finding that lacks a `suggested_fix` to `batch_confirm`. Demote any `batch_confirm` finding that lacks a `suggested_fix` to `present`.
+
+**Completeness corrections eligible for `auto`:** A finding qualifies when the correct fix is deterministically derivable from other content in the document. Examples: a count says "6 units" but the document lists 7, a summary omits an item that appears in the detailed list, a cross-reference points to a renamed section. If the fix requires judgment about *what* to add (not just *that* something is missing), it belongs in `batch_confirm` or `present`.
 
 ### 3.7 Sort
 
-Sort findings for presentation: P0 -> P1 -> P2 -> P3, then by confidence (descending), then by document order (section position).
+Sort findings for presentation: P0 -> P1 -> P2 -> P3, then by finding type (errors before omissions), then by confidence (descending), then by document order (section position).
 
 ## Phase 4: Apply and Present
 
@@ -153,17 +164,28 @@ Sort findings for presentation: P0 -> P1 -> P2 -> P3, then by confidence (descen
 Apply all `auto` findings to the document in a **single pass**:
 - Edit the document inline using the platform's edit tool
 - Track what was changed for the "Auto-fixes Applied" section
-- Do not ask for approval -- these are unambiguously correct (terminology fixes, formatting, cross-references)
+- Do not ask for approval -- these are unambiguously correct
+
+### Batch Confirm
+
+If any `batch_confirm` findings exist, present them as a group for a single approval:
+- List the proposed fixes in a numbered table
+- Use the platform's blocking question tool (AskUserQuestion in Claude Code, request_user_input in Codex, ask_user in Gemini) to ask: "Apply these N fixes? (yes/no/select)". If no blocking question tool is available, present the table with numbered options and wait for the user's reply before proceeding.
+- If approved, apply all in a single pass
+- If "select", let the user pick which to apply
+- If rejected, demote remaining to the `present` findings list
+
+This turns N obvious-but-meaning-touching fixes into 1 interaction instead of N.
 
 ### Present Remaining Findings
 
-Present all other findings to the user using the format from [review-output-template.md](./references/review-output-template.md):
-- Group by severity (P0 -> P3)
-- Include the Coverage table showing which personas ran
-- Show auto-fixes that were applied
-- Include residual concerns and deferred questions if any
+Present `present` findings using the review output template included below. Within each severity level, separate findings by type:
+- **Errors** (design tensions, contradictions, incorrect statements) first -- these need resolution
+- **Omissions** (missing steps, absent details, forgotten entries) second -- these need additions
 
-Brief summary at the top: "Applied N auto-fixes. M findings to consider (X at P0/P1)."
+Brief summary at the top: "Applied N auto-fixes. Batched M fixes for approval. K findings to consider (X errors, Y omissions)."
+
+Include the Coverage table, auto-fixes applied, residual concerns, and deferred questions.
 
 ### Protected Artifacts
 
@@ -193,8 +215,24 @@ Return "Review complete" as the terminal signal for callers.
 - Do not add new sections or requirements the user didn't discuss
 - Do not over-engineer or add complexity
 - Do not create separate review files or add metadata sections
-- Do not modify any of the 4 caller skills (ce-brainstorm, ce-plan, ce-plan-beta, deepen-plan-beta)
+- Do not modify any of the 2 caller skills (ce-brainstorm, ce-plan)
 
 ## Iteration Guidance
 
 On subsequent passes, re-dispatch personas and re-synthesize. The auto-fix mechanism and confidence gating prevent the same findings from recurring once fixed. If findings are repetitive across passes, recommend completion.
+
+---
+
+## Included References
+
+### Subagent Template
+
+@./references/subagent-template.md
+
+### Findings Schema
+
+@./references/findings-schema.json
+
+### Review Output Template
+
+@./references/review-output-template.md

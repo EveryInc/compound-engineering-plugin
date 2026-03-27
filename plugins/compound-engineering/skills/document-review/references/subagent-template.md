@@ -22,9 +22,13 @@ Rules:
 - Suppress any finding below your stated confidence floor (see your Confidence calibration section).
 - Every finding MUST include at least one evidence item -- a direct quote from the document.
 - You are operationally read-only. Analyze the document and produce findings. Do not edit the document, create files, or make changes. You may use non-mutating tools (file reads, glob, grep, git log) to gather context about the codebase when evaluating feasibility or existing patterns.
+- Set `finding_type` for every finding:
+  - `error`: Something the document says that is wrong -- contradictions, incorrect statements, design tensions, incoherent tradeoffs.
+  - `omission`: Something the document forgot to say -- missing mechanical steps, absent list entries, undefined thresholds, forgotten cross-references.
 - Set `autofix_class` conservatively:
-  - `auto`: Only for local, deterministic fixes -- terminology corrections, formatting fixes, cross-reference repairs. The fix must be unambiguous and not change the document's meaning.
-  - `present`: Everything else -- strategic questions, tradeoffs, meaning-changing fixes, informational findings.
+  - `auto`: Deterministic fixes where the correct value is verifiable from the document itself -- terminology corrections, formatting fixes, cross-reference repairs, wrong counts, missing list entries where the correct entry exists elsewhere in the document. The fix must be unambiguous.
+  - `batch_confirm`: Obvious fix with one clear correct answer, but it touches document meaning. Examples: adding a missing implementation step that is mechanically implied by other content, updating a summary to match its own details. Use when reasonable people would agree on the fix but it goes beyond cosmetic correction.
+  - `present`: Everything else -- strategic questions, tradeoffs, design tensions where reasonable people could disagree, informational findings.
 - `suggested_fix` is optional. Only include it when the fix is obvious and correct. For `present` findings, frame as a question instead.
 - If you find no issues, return an empty findings array. Still populate residual_risks and deferred_questions if applicable.
 - Use your suppress conditions. Do not flag issues that belong to other personas.

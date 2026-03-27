@@ -20,12 +20,11 @@ The primary entry points for engineering work, invoked as slash commands:
 |-------|-------------|
 | `/ce:ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
 | `/ce:brainstorm` | Explore requirements and approaches before planning |
-| `/ce:plan` | Transform features into structured implementation plans grounded in repo patterns |
+| `/ce:plan` | Transform features into structured implementation plans grounded in repo patterns, with automatic confidence checking |
 | `/ce:review` | Structured code review with tiered persona agents, confidence gating, and dedup pipeline |
 | `/ce:work` | Execute work items systematically |
 | `/ce:compound` | Document solved problems to compound team knowledge |
 | `/ce:compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
-| `/deepen-plan` | Stress-test plans and deepen weak sections with targeted research |
 
 ### Git Workflow
 
@@ -74,7 +73,6 @@ The primary entry points for engineering work, invoked as slash commands:
 
 | Skill | Description |
 |-------|-------------|
-| `compound-docs` | Capture solved problems as categorized documentation |
 | `every-style-editor` | Review copy for Every's style guide compliance |
 | `proof` | Create, edit, and share documents via Proof collaborative editor |
 | `todo-create` | File-based todo tracking system |
@@ -105,6 +103,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 |-------|-------------|
 | `agent-native-reviewer` | Verify features are agent-native (action + context parity) |
 | `api-contract-reviewer` | Detect breaking API contract changes |
+| `cli-agent-readiness-reviewer` | Evaluate CLI agent-friendliness against 7 core principles |
 | `architecture-strategist` | Analyze architectural decisions and compliance |
 | `code-simplicity-reviewer` | Final pass for simplicity and minimalism |
 | `correctness-reviewer` | Logic errors, edge cases, state bugs |
@@ -126,6 +125,8 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `security-reviewer` | Exploitable vulnerabilities with confidence calibration |
 | `security-sentinel` | Security audits and vulnerability assessments |
 | `testing-reviewer` | Test coverage gaps, weak assertions |
+| `project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance |
+| `adversarial-reviewer` | Construct failure scenarios to break implementations across component boundaries |
 
 ### Document Review
 
@@ -137,6 +138,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `product-lens-reviewer` | Challenge problem framing, evaluate scope decisions, surface goal misalignment |
 | `scope-guardian-reviewer` | Challenge unjustified complexity, scope creep, and premature abstractions |
 | `security-lens-reviewer` | Evaluate plans for security gaps at the plan level (auth, data, APIs) |
+| `adversarial-document-reviewer` | Challenge premises, surface unstated assumptions, and stress-test decisions |
 
 ### Research
 

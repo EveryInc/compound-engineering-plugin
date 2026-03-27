@@ -154,7 +154,7 @@ describe("ce-review contract", () => {
     }
   })
 
-  test("leaves data-migration-expert as the unstructured deepen-plan reviewer", async () => {
+  test("leaves data-migration-expert as the unstructured review format", async () => {
     const content = await readRepoFile(
       "plugins/compound-engineering/agents/review/data-migration-expert.md",
     )

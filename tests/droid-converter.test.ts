@@ -214,7 +214,7 @@ Task best-practices-researcher(topic)`,
           description: "Planning with commands",
           body: `After planning, you can:
 
-1. Run /deepen-plan to enhance
+1. Run /todo-resolve to enhance
 2. Run /plan_review for feedback
 3. Start /workflows:work to implement
 
@@ -233,7 +233,7 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
     })
 
     const parsed = parseFrontmatter(bundle.commands[0].content)
-    expect(parsed.body).toContain("/deepen-plan")
+    expect(parsed.body).toContain("/todo-resolve")
     expect(parsed.body).toContain("/plan_review")
     expect(parsed.body).toContain("/work")
     expect(parsed.body).not.toContain("/workflows:work")

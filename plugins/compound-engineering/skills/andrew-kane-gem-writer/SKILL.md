@@ -177,8 +177,8 @@ end
 ## Reference Files
 
 For deeper patterns, see:
-- **[references/module-organization.md](references/module-organization.md)** - Directory layouts, method decomposition
-- **[references/rails-integration.md](references/rails-integration.md)** - Railtie, Engine, on_load patterns
-- **[references/database-adapters.md](references/database-adapters.md)** - Multi-database support patterns
-- **[references/testing-patterns.md](references/testing-patterns.md)** - Multi-version testing, CI setup
-- **[references/resources.md](references/resources.md)** - Links to Kane's repos and articles
+- `references/module-organization.md` - Directory layouts, method decomposition
+- `references/rails-integration.md` - Railtie, Engine, on_load patterns
+- `references/database-adapters.md` - Multi-database support patterns
+- `references/testing-patterns.md` - Multi-version testing, CI setup
+- `references/resources.md` - Links to Kane's repos and articles

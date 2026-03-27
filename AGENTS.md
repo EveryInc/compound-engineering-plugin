@@ -123,3 +123,13 @@ This prevents resolution failures when the plugin is installed alongside other p
 - **Plans** live in `docs/plans/` — implementation plans and progress tracking.
 - **Solutions** live in `docs/solutions/` — documented decisions and patterns.
 - **Specs** live in `docs/specs/` — target platform format specifications.
+
+### Solution categories (`docs/solutions/`)
+
+This repo builds a plugin *for* developers. Categorize solutions from the perspective of the end user (a developer using the plugin), not a contributor to this repo.
+
+- **`developer-experience/`** — Issues with contributing to *this repo*: local dev setup, shell aliases, test ergonomics, CI friction. If the fix only matters to someone with a checkout of this repo, it belongs here.
+- **`integrations/`** — Issues where plugin output doesn't work correctly on a target platform or OS. Cross-platform bugs, target writer output problems, and converter compatibility issues go here.
+- **`workflow/`**, **`skill-design/`** — Plugin skill and agent design patterns, workflow improvements.
+
+When in doubt: if the bug affects someone running `bun install compound-engineering` or `bun convert`, it's an integration or product issue, not developer-experience.

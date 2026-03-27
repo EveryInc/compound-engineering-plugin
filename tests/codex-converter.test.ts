@@ -286,7 +286,7 @@ Task compound-engineering:review:security-reviewer(code_diff)`,
           description: "Planning with commands",
           body: `After planning, you can:
 
-1. Run /deepen-plan to enhance
+1. Run /todo-resolve to enhance
 2. Run /plan_review for feedback
 3. Start /workflows:work to implement
 
@@ -309,7 +309,7 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
     const parsed = parseFrontmatter(commandSkill!.content)
 
     // Slash commands should be transformed to /prompts: syntax
-    expect(parsed.body).toContain("/prompts:deepen-plan")
+    expect(parsed.body).toContain("/prompts:todo-resolve")
     expect(parsed.body).toContain("/prompts:plan_review")
     expect(parsed.body).toContain("/prompts:workflows-work")
 

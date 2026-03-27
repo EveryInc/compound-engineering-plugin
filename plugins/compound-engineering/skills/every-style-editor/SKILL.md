@@ -44,7 +44,7 @@ Review each paragraph systematically, checking for:
 - Word choice and usage (overused words, passive voice)
 - Adherence to Every style guide rules
 
-Reference the complete [EVERY_WRITE_STYLE.md](./references/EVERY_WRITE_STYLE.md) for specific rules when in doubt.
+Reference the complete style guide at `references/EVERY_WRITE_STYLE.md` for specific rules when in doubt.
 
 ### Step 3: Mechanical Review
 
@@ -99,7 +99,7 @@ FINAL RECOMMENDATIONS
 
 ## Style Guide Reference
 
-The complete Every style guide is included in [EVERY_WRITE_STYLE.md](./references/EVERY_WRITE_STYLE.md). Key areas to focus on:
+The complete Every style guide is at `references/EVERY_WRITE_STYLE.md`. Key areas to focus on:
 
 - **Quick Rules**: Title case for headlines, sentence case elsewhere
 - **Tone**: Active voice, avoid overused words (actually, very, just), be specific
@@ -132,3 +132,4 @@ Based on Every's style guide, pay special attention to:
 - Word usage (fewer vs. less, they vs. them)
 - Company references (singular "it", teams as plural "they")
 - Job title capitalization
+

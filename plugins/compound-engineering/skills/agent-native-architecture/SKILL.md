@@ -176,19 +176,19 @@ The improvement mechanisms are still being discovered. Context and prompt refine
 <routing>
 | Response | Action |
 |----------|--------|
-| 1, "design", "architecture", "plan" | Read [architecture-patterns.md](./references/architecture-patterns.md), then apply Architecture Checklist below |
-| 2, "files", "workspace", "filesystem" | Read [files-universal-interface.md](./references/files-universal-interface.md) and [shared-workspace-architecture.md](./references/shared-workspace-architecture.md) |
-| 3, "tool", "mcp", "primitive", "crud" | Read [mcp-tool-design.md](./references/mcp-tool-design.md) |
-| 4, "domain tool", "when to add" | Read [from-primitives-to-domain-tools.md](./references/from-primitives-to-domain-tools.md) |
-| 5, "execution", "completion", "loop" | Read [agent-execution-patterns.md](./references/agent-execution-patterns.md) |
-| 6, "prompt", "system prompt", "behavior" | Read [system-prompt-design.md](./references/system-prompt-design.md) |
-| 7, "context", "inject", "runtime", "dynamic" | Read [dynamic-context-injection.md](./references/dynamic-context-injection.md) |
-| 8, "parity", "ui action", "capability map" | Read [action-parity-discipline.md](./references/action-parity-discipline.md) |
-| 9, "self-modify", "evolve", "git" | Read [self-modification.md](./references/self-modification.md) |
-| 10, "product", "progressive", "approval", "latent demand" | Read [product-implications.md](./references/product-implications.md) |
-| 11, "mobile", "ios", "android", "background", "checkpoint" | Read [mobile-patterns.md](./references/mobile-patterns.md) |
-| 12, "test", "testing", "verify", "validate" | Read [agent-native-testing.md](./references/agent-native-testing.md) |
-| 13, "review", "refactor", "existing" | Read [refactoring-to-prompt-native.md](./references/refactoring-to-prompt-native.md) |
+| 1, "design", "architecture", "plan" | Read `references/architecture-patterns.md`, then apply Architecture Checklist below |
+| 2, "files", "workspace", "filesystem" | Read `references/files-universal-interface.md` and `references/shared-workspace-architecture.md` |
+| 3, "tool", "mcp", "primitive", "crud" | Read `references/mcp-tool-design.md` |
+| 4, "domain tool", "when to add" | Read `references/from-primitives-to-domain-tools.md` |
+| 5, "execution", "completion", "loop" | Read `references/agent-execution-patterns.md` |
+| 6, "prompt", "system prompt", "behavior" | Read `references/system-prompt-design.md` |
+| 7, "context", "inject", "runtime", "dynamic" | Read `references/dynamic-context-injection.md` |
+| 8, "parity", "ui action", "capability map" | Read `references/action-parity-discipline.md` |
+| 9, "self-modify", "evolve", "git" | Read `references/self-modification.md` |
+| 10, "product", "progressive", "approval", "latent demand" | Read `references/product-implications.md` |
+| 11, "mobile", "ios", "android", "background", "checkpoint" | Read `references/mobile-patterns.md` |
+| 12, "test", "testing", "verify", "validate" | Read `references/agent-native-testing.md` |
+| 13, "review", "refactor", "existing" | Read `references/refactoring-to-prompt-native.md` |
 
 **After reading the reference, apply those patterns to the user's specific context.**
 </routing>
@@ -281,24 +281,24 @@ const result = await agent.run({
 All references in `references/`:
 
 **Core Patterns:**
-- [architecture-patterns.md](./references/architecture-patterns.md) - Event-driven, unified orchestrator, agent-to-UI
-- [files-universal-interface.md](./references/files-universal-interface.md) - Why files, organization patterns, context.md
-- [mcp-tool-design.md](./references/mcp-tool-design.md) - Tool design, dynamic capability discovery, CRUD
-- [from-primitives-to-domain-tools.md](./references/from-primitives-to-domain-tools.md) - When to add domain tools, graduating to code
-- [agent-execution-patterns.md](./references/agent-execution-patterns.md) - Completion signals, partial completion, context limits
-- [system-prompt-design.md](./references/system-prompt-design.md) - Features as prompts, judgment criteria
+- `references/architecture-patterns.md` - Event-driven, unified orchestrator, agent-to-UI
+- `references/files-universal-interface.md` - Why files, organization patterns, context.md
+- `references/mcp-tool-design.md` - Tool design, dynamic capability discovery, CRUD
+- `references/from-primitives-to-domain-tools.md` - When to add domain tools, graduating to code
+- `references/agent-execution-patterns.md` - Completion signals, partial completion, context limits
+- `references/system-prompt-design.md` - Features as prompts, judgment criteria
 
 **Agent-Native Disciplines:**
-- [dynamic-context-injection.md](./references/dynamic-context-injection.md) - Runtime context, what to inject
-- [action-parity-discipline.md](./references/action-parity-discipline.md) - Capability mapping, parity workflow
-- [shared-workspace-architecture.md](./references/shared-workspace-architecture.md) - Shared data space, UI integration
-- [product-implications.md](./references/product-implications.md) - Progressive disclosure, latent demand, approval
-- [agent-native-testing.md](./references/agent-native-testing.md) - Testing outcomes, parity tests
+- `references/dynamic-context-injection.md` - Runtime context, what to inject
+- `references/action-parity-discipline.md` - Capability mapping, parity workflow
+- `references/shared-workspace-architecture.md` - Shared data space, UI integration
+- `references/product-implications.md` - Progressive disclosure, latent demand, approval
+- `references/agent-native-testing.md` - Testing outcomes, parity tests
 
 **Platform-Specific:**
-- [mobile-patterns.md](./references/mobile-patterns.md) - iOS storage, checkpoint/resume, cost awareness
-- [self-modification.md](./references/self-modification.md) - Git-based evolution, guardrails
-- [refactoring-to-prompt-native.md](./references/refactoring-to-prompt-native.md) - Migrating existing code
+- `references/mobile-patterns.md` - iOS storage, checkpoint/resume, cost awareness
+- `references/self-modification.md` - Git-based evolution, guardrails
+- `references/refactoring-to-prompt-native.md` - Migrating existing code
 </reference_index>
 
 <anti_patterns>
@@ -433,3 +433,4 @@ If yes, you've built something agent-native.
 
 If it says "I don't have a feature for that"—your architecture is still too constrained.
 </success_criteria>
+

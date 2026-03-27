@@ -78,6 +78,10 @@ export default defineCommand({
       default: true,
       description: "Infer agent temperature from name/description",
     },
+    branch: {
+      type: "string",
+      description: "Git branch to clone from (e.g. feat/new-agents)",
+    },
   },
   async run({ args }) {
     const targetName = String(args.to)
@@ -87,7 +91,8 @@ export default defineCommand({
       throw new Error(`Unknown permissions mode: ${permissions}`)
     }
 
-    const resolvedPlugin = await resolvePluginPath(String(args.plugin))
+    const branch = args.branch ? String(args.branch) : undefined
+    const resolvedPlugin = await resolvePluginPath(String(args.plugin), branch)
 
     try {
       const plugin = await loadClaudePlugin(resolvedPlugin.path)
@@ -225,7 +230,7 @@ type ResolvedPluginPath = {
   cleanup?: () => Promise<void>
 }
 
-async function resolvePluginPath(input: string): Promise<ResolvedPluginPath> {
+async function resolvePluginPath(input: string, branch?: string): Promise<ResolvedPluginPath> {
   // Only treat as a local path if it explicitly looks like one
   if (input.startsWith(".") || input.startsWith("/") || input.startsWith("~")) {
     const expanded = expandHome(input)
@@ -234,13 +239,16 @@ async function resolvePluginPath(input: string): Promise<ResolvedPluginPath> {
     throw new Error(`Local plugin path not found: ${directPath}`)
   }
 
-  const bundledPluginPath = await resolveBundledPluginPath(input)
-  if (bundledPluginPath) {
-    return { path: bundledPluginPath }
+  // Skip bundled plugins when a branch is specified — the user wants a specific remote version
+  if (!branch) {
+    const bundledPluginPath = await resolveBundledPluginPath(input)
+    if (bundledPluginPath) {
+      return { path: bundledPluginPath }
+    }
   }
 
-  // Otherwise, fetch the latest from GitHub
-  return await resolveGitHubPluginPath(input)
+  // Otherwise, fetch from GitHub (optionally from a specific branch)
+  return await resolveGitHubPluginPath(input, branch)
 }
 
 function parseExtraTargets(value: unknown): string[] {
@@ -271,11 +279,11 @@ async function resolveBundledPluginPath(pluginName: string): Promise<string | nu
   return null
 }
 
-async function resolveGitHubPluginPath(pluginName: string): Promise<ResolvedPluginPath> {
+async function resolveGitHubPluginPath(pluginName: string, branch?: string): Promise<ResolvedPluginPath> {
   const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "compound-plugin-"))
   const source = resolveGitHubSource()
   try {
-    await cloneGitHubRepo(source, tempRoot)
+    await cloneGitHubRepo(source, tempRoot, branch)
   } catch (error) {
     await fs.rm(tempRoot, { recursive: true, force: true })
     throw error
@@ -301,8 +309,11 @@ function resolveGitHubSource(): string {
   return "https://github.com/EveryInc/compound-engineering-plugin"
 }
 
-async function cloneGitHubRepo(source: string, destination: string): Promise<void> {
-  const proc = Bun.spawn(["git", "clone", "--depth", "1", source, destination], {
+async function cloneGitHubRepo(source: string, destination: string, branch?: string): Promise<void> {
+  const args = ["git", "clone", "--depth", "1"]
+  if (branch) args.push("--branch", branch)
+  args.push(source, destination)
+  const proc = Bun.spawn(args, {
     stdout: "pipe",
     stderr: "pipe",
   })

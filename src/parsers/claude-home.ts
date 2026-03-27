@@ -44,7 +44,7 @@ async function loadPersonalSkills(skillsDir: string): Promise<ClaudeSkill[]> {
         let data: Record<string, unknown> = {}
         try {
           const raw = await fs.readFile(skillPath, "utf8")
-          data = parseFrontmatter(raw).data
+          data = parseFrontmatter(raw, skillPath).data
         } catch {
           // Keep syncing the skill even if frontmatter is malformed.
         }
@@ -87,7 +87,7 @@ async function loadPersonalCommands(commandsDir: string): Promise<ClaudeCommand[
     const commands: ClaudeCommand[] = []
     for (const file of files) {
       const raw = await fs.readFile(file, "utf8")
-      const { data, body } = parseFrontmatter(raw)
+      const { data, body } = parseFrontmatter(raw, file)
       commands.push({
         name: typeof data.name === "string" ? data.name : deriveCommandName(commandsDir, file),
         description: data.description as string | undefined,

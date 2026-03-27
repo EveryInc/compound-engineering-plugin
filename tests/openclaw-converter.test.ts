@@ -113,7 +113,7 @@ describe("convertClaudeToOpenClaw", () => {
       properties: {},
     })
     expect(bundle.manifest.skills).toContain("skills/agent-security-reviewer")
-    expect(bundle.manifest.skills).toContain("skills/cmd-workflows:plan")
+    expect(bundle.manifest.skills).toContain("skills/cmd-workflows-plan")
     expect(bundle.manifest.skills).toContain("skills/existing-skill")
   })
 
@@ -200,5 +200,28 @@ describe("convertClaudeToOpenClaw", () => {
     const plugin: ClaudePlugin = { ...fixturePlugin, mcpServers: undefined }
     const bundle = convertClaudeToOpenClaw(plugin, defaultOptions)
     expect(bundle.openclawConfig).toBeUndefined()
+  })
+
+  test("manifest skill paths use sanitized names matching filesystem output", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      skills: [
+        {
+          name: "ce:plan",
+          description: "Planning skill",
+          sourceDir: "/tmp/plugin/skills/ce-plan",
+          skillPath: "/tmp/plugin/skills/ce-plan/SKILL.md",
+        },
+      ],
+    }
+
+    const bundle = convertClaudeToOpenClaw(plugin, defaultOptions)
+
+    // Manifest paths must not contain colons
+    for (const skillPath of bundle.manifest.skills) {
+      expect(skillPath).not.toContain(":")
+    }
+    expect(bundle.manifest.skills).toContain("skills/ce-plan")
+    expect(bundle.manifest.skills).toContain("skills/cmd-workflows-plan")
   })
 })

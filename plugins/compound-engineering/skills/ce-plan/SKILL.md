@@ -61,6 +61,12 @@ If the user references an existing plan file or there is an obvious recent match
 - Confirm whether to update it in place or create a new plan
 - If updating, preserve completed checkboxes and revise only the still-relevant sections
 
+**Re-deepen fast path:** If the plan appears complete (all major sections present, implementation units defined, `status: active`) and the user's request is specifically about deepening or strengthening the plan — detected by signal words like "deepen", "strengthen", "confidence", "gaps", or an explicit request to re-deepen — short-circuit directly to Phase 5.3 (Confidence Check and Deepening). This avoids re-running the full planning workflow just to evaluate deepening.
+
+Normal editing requests (e.g., "update the test scenarios", "add a new implementation unit") should NOT trigger the fast path — they follow the standard resume flow.
+
+If the plan already has a `deepened: YYYY-MM-DD` frontmatter field and there is no explicit user request to re-deepen, the fast path still applies the same confidence-gap evaluation — it does not force deepening.
+
 #### 0.2 Find Upstream Requirements Document
 
 Before asking planning questions, search `docs/brainstorms/` for files matching `*-requirements.md`.
@@ -190,12 +196,13 @@ The repo-research-analyst output includes a structured Technology & Infrastructu
 
 **Always lean toward external research when:**
 - The topic is high-risk: security, payments, privacy, external APIs, migrations, compliance
-- The codebase lacks relevant local patterns
+- The codebase lacks relevant local patterns -- fewer than 3 direct examples of the pattern this plan needs
+- Local patterns exist for an adjacent domain but not the exact one -- e.g., the codebase has HTTP clients but not webhook receivers, or has background jobs but not event-driven pub/sub. Adjacent patterns suggest the team is comfortable with the technology layer but may not know domain-specific pitfalls. When this signal is present, frame the external research query around the domain gap specifically, not the general technology
 - The user is exploring unfamiliar territory
 - The technology scan found the relevant layer absent or thin in the codebase
 
 **Skip external research when:**
-- The codebase already shows a strong local pattern
+- The codebase already shows a strong local pattern -- multiple direct examples (not adjacent-domain), recently touched, following current conventions
 - The user already knows the intended shape
 - Additional external context would add little practical value
 - The technology scan found the relevant layer well-established with existing examples to follow
@@ -219,6 +226,18 @@ Summarize:
 - External references and best practices, if gathered
 - Related issues, PRs, or prior art
 - Any constraints that should materially shape the plan
+
+#### 1.4b Reclassify Depth When Research Reveals External Contract Surfaces
+
+If the current classification is **Lightweight** and Phase 1 research found that the work touches any of these external contract surfaces, reclassify to **Standard**:
+
+- Environment variables consumed by external systems, CI, or other repositories
+- Exported public APIs, CLI flags, or command-line interface contracts
+- CI/CD configuration files (`.github/workflows/`, `Dockerfile`, deployment scripts)
+- Shared types or interfaces imported by downstream consumers
+- Documentation referenced by external URLs or linked from other systems
+
+This ensures flow analysis (Phase 1.5) runs and the confidence check (Phase 5.3) applies critical-section bonuses. Announce the reclassification briefly: "Reclassifying to Standard — this change touches [environment variables / exported APIs / CI config] with external consumers."
 
 #### 1.5 Flow and Edge-Case Analysis (Conditional)
 
@@ -386,7 +405,7 @@ type: [feat|fix|refactor]
 status: active
 date: YYYY-MM-DD
 origin: docs/brainstorms/YYYY-MM-DD-<topic>-requirements.md  # include when planning from a requirements doc
-deepened: YYYY-MM-DD  # optional, set later by deepen-plan when the plan is substantively strengthened
+deepened: YYYY-MM-DD  # optional, set when the confidence check substantively strengthens the plan
 ---
 
 # [Plan Title]
@@ -588,24 +607,297 @@ Plan written to docs/plans/[filename]
 
 **Pipeline mode:** If invoked from an automated workflow such as LFG, SLFG, or any `disable-model-invocation` context, skip interactive questions. Make the needed choices automatically and proceed to writing the plan.
 
-#### 5.3 Post-Generation Options
+#### 5.3 Confidence Check and Deepening
 
-After writing the plan file, present the options using the platform's blocking question tool when available (see Interaction Method). Otherwise present numbered options in chat and wait for the user's reply before proceeding.
+After writing the plan file, automatically evaluate whether the plan needs strengthening. This phase runs without asking the user for approval. The user sees what is being strengthened but does not need to make a decision.
+
+`document-review` and this confidence check are different:
+- Use the `document-review` skill when the document needs clarity, simplification, completeness, or scope control
+- This confidence check strengthens rationale, sequencing, risk treatment, and system-wide thinking when the plan is structurally sound but still needs stronger grounding
+
+**Pipeline mode:** This phase runs in pipeline/disable-model-invocation mode using the same gate logic described below. No user interaction needed.
+
+##### 5.3.1 Classify Plan Depth and Topic Risk
+
+Determine the plan depth from the document:
+- **Lightweight** - small, bounded, low ambiguity, usually 2-4 implementation units
+- **Standard** - moderate complexity, some technical decisions, usually 3-6 units
+- **Deep** - cross-cutting, high-risk, or strategically important work, usually 4-8 units or phased delivery
+
+Build a risk profile. Treat these as high-risk signals:
+- Authentication, authorization, or security-sensitive behavior
+- Payments, billing, or financial flows
+- Data migrations, backfills, or persistent data changes
+- External APIs or third-party integrations
+- Privacy, compliance, or user data handling
+- Cross-interface parity or multi-surface behavior
+- Significant rollout, monitoring, or operational concerns
+
+##### 5.3.2 Gate: Decide Whether to Deepen
+
+- **Lightweight** plans usually do not need deepening unless they are high-risk
+- **Standard** plans often benefit when one or more important sections still look thin
+- **Deep** or high-risk plans often benefit from a targeted second pass
+- **Thin local grounding override:** If Phase 1.2 triggered external research because local patterns were thin (fewer than 3 direct examples or adjacent-domain match), always proceed to scoring regardless of how grounded the plan appears. When the plan was built on unfamiliar territory, claims about system behavior are more likely to be assumptions than verified facts. The scoring pass is cheap — if the plan is genuinely solid, scoring finds nothing and exits quickly
+
+If the plan already appears sufficiently grounded and the thin-grounding override does not apply, report "Confidence check passed — no sections need strengthening" and proceed to Phase 5.4.
+
+##### 5.3.3 Score Confidence Gaps
+
+Use a checklist-first, risk-weighted scoring pass.
+
+For each section, compute:
+- **Trigger count** - number of checklist problems that apply
+- **Risk bonus** - add 1 if the topic is high-risk and this section is materially relevant to that risk
+- **Critical-section bonus** - add 1 for `Key Technical Decisions`, `Implementation Units`, `System-Wide Impact`, `Risks & Dependencies`, or `Open Questions` in `Standard` or `Deep` plans
+
+Treat a section as a candidate if:
+- it hits **2+ total points**, or
+- it hits **1+ point** in a high-risk domain and the section is materially important
+
+Choose only the top **2-5** sections by score. If deepening a lightweight plan (high-risk exception), cap at **1-2** sections.
+
+If the plan already has a `deepened:` date:
+- Prefer sections that have not yet been substantially strengthened, if their scores are comparable
+- Revisit an already-deepened section only when it still scores clearly higher than alternatives
+
+**Section Checklists:**
+
+**Requirements Trace**
+- Requirements are vague or disconnected from implementation units
+- Success criteria are missing or not reflected downstream
+- Units do not clearly advance the traced requirements
+- Origin requirements are not clearly carried forward
+
+**Context & Research / Sources & References**
+- Relevant repo patterns are named but never used in decisions or implementation units
+- Cited learnings or references do not materially shape the plan
+- High-risk work lacks appropriate external or internal grounding
+- Research is generic instead of tied to this repo or this plan
+
+**Key Technical Decisions**
+- A decision is stated without rationale
+- Rationale does not explain tradeoffs or rejected alternatives
+- The decision does not connect back to scope, requirements, or origin context
+- An obvious design fork exists but the plan never addresses why one path won
+
+**Open Questions**
+- Product blockers are hidden as assumptions
+- Planning-owned questions are incorrectly deferred to implementation
+- Resolved questions have no clear basis in repo context, research, or origin decisions
+- Deferred items are too vague to be useful later
+
+**High-Level Technical Design (when present)**
+- The sketch uses the wrong medium for the work
+- The sketch contains implementation code rather than pseudo-code
+- The non-prescriptive framing is missing or weak
+- The sketch does not connect to the key technical decisions or implementation units
+
+**High-Level Technical Design (when absent)** *(Standard or Deep plans only)*
+- The work involves DSL design, API surface design, multi-component integration, complex data flow, or state-heavy lifecycle
+- Key technical decisions would be easier to validate with a visual or pseudo-code representation
+- The approach section of implementation units is thin and a higher-level technical design would provide context
+
+**Implementation Units**
+- Dependency order is unclear or likely wrong
+- File paths or test file paths are missing where they should be explicit
+- Units are too large, too vague, or broken into micro-steps
+- Approach notes are thin or do not name the pattern to follow
+- Test scenarios or verification outcomes are vague
+
+**System-Wide Impact**
+- Affected interfaces, callbacks, middleware, entry points, or parity surfaces are missing
+- Failure propagation is underexplored
+- State lifecycle, caching, or data integrity risks are absent where relevant
+- Integration coverage is weak for cross-layer work
+
+**Risks & Dependencies / Documentation / Operational Notes**
+- Risks are listed without mitigation
+- Rollout, monitoring, migration, or support implications are missing when warranted
+- External dependency assumptions are weak or unstated
+- Security, privacy, performance, or data risks are absent where they obviously apply
+
+Use the plan's own `Context & Research` and `Sources & References` as evidence. If those sections cite a pattern, learning, or risk that never affects decisions, implementation units, or verification, treat that as a confidence gap.
+
+##### 5.3.4 Report and Dispatch Targeted Research
+
+Before dispatching agents, report what sections are being strengthened and why:
+
+```text
+Strengthening [section names] — [brief reason for each, e.g., "decision rationale is thin", "cross-boundary effects aren't mapped"]
+```
+
+For each selected section, choose the smallest useful agent set. Do **not** run every agent. Use at most **1-3 agents per section** and usually no more than **8 agents total**.
+
+Use fully-qualified agent names inside Task calls.
+
+**Deterministic Section-to-Agent Mapping:**
+
+**Requirements Trace / Open Questions classification**
+- `compound-engineering:workflow:spec-flow-analyzer` for missing user flows, edge cases, and handoff gaps
+- `compound-engineering:research:repo-research-analyst` (Scope: `architecture, patterns`) for repo-grounded patterns, conventions, and implementation reality checks
+
+**Context & Research / Sources & References gaps**
+- `compound-engineering:research:learnings-researcher` for institutional knowledge and past solved problems
+- `compound-engineering:research:framework-docs-researcher` for official framework or library behavior
+- `compound-engineering:research:best-practices-researcher` for current external patterns and industry guidance
+- Add `compound-engineering:research:git-history-analyzer` only when historical rationale or prior art is materially missing
+
+**Key Technical Decisions**
+- `compound-engineering:review:architecture-strategist` for design integrity, boundaries, and architectural tradeoffs
+- Add `compound-engineering:research:framework-docs-researcher` or `compound-engineering:research:best-practices-researcher` when the decision needs external grounding beyond repo evidence
+
+**High-Level Technical Design**
+- `compound-engineering:review:architecture-strategist` for validating that the technical design accurately represents the intended approach and identifying gaps
+- `compound-engineering:research:repo-research-analyst` (Scope: `architecture, patterns`) for grounding the technical design in existing repo patterns and conventions
+- Add `compound-engineering:research:best-practices-researcher` when the technical design involves a DSL, API surface, or pattern that benefits from external validation
+
+**Implementation Units / Verification**
+- `compound-engineering:research:repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, and repo-specific sequencing clues
+- `compound-engineering:review:pattern-recognition-specialist` for consistency, duplication risks, and alignment with existing patterns
+- Add `compound-engineering:workflow:spec-flow-analyzer` when sequencing depends on user flow or handoff completeness
+
+**System-Wide Impact**
+- `compound-engineering:review:architecture-strategist` for cross-boundary effects, interface surfaces, and architectural knock-on impact
+- Add the specific specialist that matches the risk:
+  - `compound-engineering:review:performance-oracle` for scalability, latency, throughput, and resource-risk analysis
+  - `compound-engineering:review:security-sentinel` for auth, validation, exploit surfaces, and security boundary review
+  - `compound-engineering:review:data-integrity-guardian` for migrations, persistent state safety, consistency, and data lifecycle risks
+
+**Risks & Dependencies / Operational Notes**
+- Use the specialist that matches the actual risk:
+  - `compound-engineering:review:security-sentinel` for security, auth, privacy, and exploit risk
+  - `compound-engineering:review:data-integrity-guardian` for persistent data safety, constraints, and transaction boundaries
+  - `compound-engineering:review:data-migration-expert` for migration realism, backfills, and production data transformation risk
+  - `compound-engineering:review:deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
+  - `compound-engineering:review:performance-oracle` for capacity, latency, and scaling concerns
+
+**Agent Prompt Shape:**
+
+For each selected section, pass:
+- The scope prefix from the mapping above when the agent supports scoped invocation
+- A short plan summary
+- The exact section text
+- Why the section was selected, including which checklist triggers fired
+- The plan depth and risk profile
+- A specific question to answer
+
+Instruct the agent to return:
+- findings that change planning quality
+- stronger rationale, sequencing, verification, risk treatment, or references
+- no implementation code
+- no shell commands
+
+##### 5.3.5 Choose Research Execution Mode
+
+Use the lightest mode that will work:
+
+- **Direct mode** - Default. Use when the selected section set is small and the parent can safely read the agent outputs inline.
+- **Artifact-backed mode** - Use only when the selected research scope is large enough that inline returns would create unnecessary context pressure.
+
+Signals that justify artifact-backed mode:
+- More than 5 agents are likely to return meaningful findings
+- The selected section excerpts are long enough that repeating them in multiple agent outputs would be wasteful
+- The topic is high-risk and likely to attract bulky source-backed analysis
+
+If artifact-backed mode is not clearly warranted, stay in direct mode.
+
+Artifact-backed mode uses a per-run scratch directory under `.context/compound-engineering/ce-plan/deepen/`.
+
+##### 5.3.6 Run Targeted Research
+
+Launch the selected agents in parallel using the execution mode chosen above. If the current platform does not support parallel dispatch, run them sequentially instead.
+
+Prefer local repo and institutional evidence first. Use external research only when the gap cannot be closed responsibly from repo context or already-cited sources.
+
+If a selected section can be improved by reading the origin document more carefully, do that before dispatching external agents.
+
+**Direct mode:** Have each selected agent return its findings directly to the parent. Keep the return payload focused: strongest findings only, the evidence or sources that matter, the concrete planning improvement implied by the finding.
+
+**Artifact-backed mode:** For each selected agent, instruct it to write one compact artifact file in the scratch directory and return only a short completion summary. Each artifact should contain: target section, why selected, 3-7 findings, source-backed rationale, the specific plan change implied by each finding. No implementation code, no shell commands.
+
+If an artifact is missing or clearly malformed, re-run that agent or fall back to direct-mode reasoning for that section.
+
+If agent outputs conflict:
+- Prefer repo-grounded and origin-grounded evidence over generic advice
+- Prefer official framework documentation over secondary best-practice summaries when the conflict is about library behavior
+- If a real tradeoff remains, record it explicitly in the plan
+
+##### 5.3.7 Synthesize and Update the Plan
+
+Strengthen only the selected sections. Keep the plan coherent and preserve its overall structure.
+
+Allowed changes:
+- Clarify or strengthen decision rationale
+- Tighten requirements trace or origin fidelity
+- Reorder or split implementation units when sequencing is weak
+- Add missing pattern references, file/test paths, or verification outcomes
+- Expand system-wide impact, risks, or rollout treatment where justified
+- Reclassify open questions between `Resolved During Planning` and `Deferred to Implementation` when evidence supports the change
+- Strengthen, replace, or add a High-Level Technical Design section when the work warrants it and the current representation is weak
+- Strengthen or add per-unit technical design fields where the unit's approach is non-obvious
+- Add or update `deepened: YYYY-MM-DD` in frontmatter when the plan was substantively improved
+
+Do **not**:
+- Add implementation code — no imports, exact method signatures, or framework-specific syntax. Pseudo-code sketches and DSL grammars are allowed
+- Add git commands, commit choreography, or exact test command recipes
+- Add generic `Research Insights` subsections everywhere
+- Rewrite the entire plan from scratch
+- Invent new product requirements, scope changes, or success criteria without surfacing them explicitly
+
+If research reveals a product-level ambiguity that should change behavior or scope:
+- Do not silently decide it here
+- Record it under `Open Questions`
+- Recommend `ce:brainstorm` if the gap is truly product-defining
+
+##### 5.3.8 Final Checks and Cleanup
+
+Before proceeding to post-generation options:
+- Confirm the plan is stronger in specific ways, not merely longer
+- Confirm the planning boundary is intact
+- Confirm origin decisions were preserved when an origin document exists
+
+If artifact-backed mode was used:
+- Clean up the temporary scratch directory after the plan is safely updated
+- If cleanup is not practical on the current platform, note where the artifacts were left
+
+#### 5.4 Post-Generation Options
+
+**Pipeline mode:** If invoked from an automated workflow such as LFG, SLFG, or any `disable-model-invocation` context, skip the interactive menu below and return control to the caller immediately. The plan file has already been written and the confidence check has already run — the caller (e.g., lfg, slfg) determines the next step.
+
+After the confidence check completes (or is skipped), present the options using the platform's blocking question tool when available (see Interaction Method). Otherwise present numbered options in chat and wait for the user's reply before proceeding.
 
 **Question:** "Plan ready at `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md`. What would you like to do next?"
 
-**Options:**
+**Option ordering depends on plan characteristics.** Lead with document-review when any of these conditions are met:
+
+- **Deep** plan
+- High-risk signals present
+- The confidence check deepened 3+ sections
+- **Standard** plan where Phase 1.2 triggered external research due to thin local grounding (fewer than 3 direct examples or adjacent-domain match) — when the plan was built on unfamiliar territory, the adversarial reviewer's assumption surfacing catches factual claims about system behavior that structural scoring cannot verify
+
+Include a recommendation explaining why:
+
+"This plan has [significant architectural decisions / high-risk security concerns / cross-cutting impact / thin local grounding for a key domain]. Its adversarial reviewer will stress-test the premises and decisions before implementation."
+
+**Options when document-review is recommended:**
+1. **Run `document-review` skill** - Stress-test premises and decisions through structured document review (recommended)
+2. **Open plan in editor** - Open the plan file for review
+3. **Share to Proof** - Upload the plan for collaborative review and sharing
+4. **Start `/ce:work`** - Begin implementing this plan in the current environment
+5. **Start `/ce:work` in another session** - Begin implementing in a separate agent session when the current platform supports it
+6. **Create Issue** - Create an issue in the configured tracker
+
+**Options for Standard or Lightweight plans:**
 1. **Open plan in editor** - Open the plan file for review
-2. **Run `/deepen-plan`** - Stress-test weak sections with targeted research when the plan needs more confidence
-3. **Run `document-review` skill** - Improve the plan through structured document review
-4. **Share to Proof** - Upload the plan for collaborative review and sharing
-5. **Start `/ce:work`** - Begin implementing this plan in the current environment
-6. **Start `/ce:work` in another session** - Begin implementing in a separate agent session when the current platform supports it
-7. **Create Issue** - Create an issue in the configured tracker
+2. **Run `document-review` skill** - Improve the plan through structured document review
+3. **Share to Proof** - Upload the plan for collaborative review and sharing
+4. **Start `/ce:work`** - Begin implementing this plan in the current environment
+5. **Start `/ce:work` in another session** - Begin implementing in a separate agent session when the current platform supports it
+6. **Create Issue** - Create an issue in the configured tracker
 
 Based on selection:
 - **Open plan in editor** → Open `docs/plans/<plan_filename>.md` using the current platform's file-open or editor mechanism (e.g., `open` on macOS, `xdg-open` on Linux, or the IDE's file-open API)
-- **`/deepen-plan`** → Call `/deepen-plan` with the plan path
 - **`document-review` skill** → Load the `document-review` skill with the plan path
 - **Share to Proof** → Upload the plan:
   ```bash
@@ -621,8 +913,6 @@ Based on selection:
 - **`/ce:work` in another session** → If the current platform supports launching a separate agent session, start `/ce:work` with the plan path there. Otherwise, explain the limitation briefly and offer to run `/ce:work` in the current session instead.
 - **Create Issue** → Follow the Issue Creation section below
 - **Other** → Accept free text for revisions and loop back to options
-
-If running with ultrathink enabled, or the platform's reasoning/effort level is set to max or extra-high, automatically run `/deepen-plan` only when the plan is `Standard` or `Deep`, high-risk, or still shows meaningful confidence gaps in decisions, sequencing, system-wide impact, risks, or verification.
 
 ## Issue Creation
 

@@ -1,4 +1,5 @@
 import { formatFrontmatter } from "../utils/frontmatter"
+import { sanitizePathName } from "../utils/files"
 import type {
   ClaudeAgent,
   ClaudeCommand,
@@ -33,9 +34,9 @@ export function convertClaudeToOpenClaw(
   }))
 
   const allSkillDirs = [
-    ...agentSkills.map((s) => s.dir),
-    ...commandSkills.map((s) => s.dir),
-    ...plugin.skills.map((s) => s.name),
+    ...agentSkills.map((s) => sanitizePathName(s.dir)),
+    ...commandSkills.map((s) => sanitizePathName(s.dir)),
+    ...plugin.skills.map((s) => sanitizePathName(s.name)),
   ]
 
   const manifest = buildManifest(plugin, allSkillDirs)

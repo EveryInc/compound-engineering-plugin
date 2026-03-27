@@ -592,3 +592,42 @@ describe("normalizeName", () => {
     expect(normalizeName("123-agent")).toBe("item")
   })
 })
+
+describe("convertClaudeToWindsurf dedupe", () => {
+  test("agent skill deduplicates against sanitized pass-through skill names", () => {
+    const { convertClaudeToWindsurf } = require("../src/converters/claude-to-windsurf")
+    const plugin: import("../src/types/claude").ClaudePlugin = {
+      root: "/tmp/plugin",
+      manifest: { name: "fixture", version: "1.0.0" },
+      agents: [
+        {
+          name: "ce:plan",
+          description: "Planning agent",
+          body: "Plan things.",
+          sourcePath: "/tmp/plugin/agents/ce-plan.md",
+        },
+      ],
+      commands: [],
+      skills: [
+        {
+          name: "ce:plan",
+          description: "Planning skill",
+          sourceDir: "/tmp/plugin/skills/ce-plan",
+          skillPath: "/tmp/plugin/skills/ce-plan/SKILL.md",
+        },
+      ],
+      hooks: undefined,
+      mcpServers: undefined,
+    }
+
+    const bundle = convertClaudeToWindsurf(plugin, {
+      agentMode: "subagent" as const,
+      inferTemperature: false,
+      permissions: "none" as const,
+    })
+
+    // The agent skill should get a deduplicated name since "ce:plan" normalizes
+    // to "ce-plan" which collides with the pass-through skill on disk
+    expect(bundle.agentSkills[0].name).not.toBe("ce-plan")
+  })
+})

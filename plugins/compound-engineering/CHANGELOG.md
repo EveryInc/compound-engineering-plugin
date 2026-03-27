@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.54.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.54.0...compound-engineering-v2.54.1) (2026-03-26)
+
+
+### Bug Fixes
+
+* prevent orphaned opening paragraphs in PR descriptions ([#393](https://github.com/EveryInc/compound-engineering-plugin/issues/393)) ([4b44a94](https://github.com/EveryInc/compound-engineering-plugin/commit/4b44a94e23c8621771b8813caebce78060a61611))
+
 ## [2.54.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.53.0...compound-engineering-v2.54.0) (2026-03-26)
 
 

@@ -216,7 +216,7 @@ describe("CLI", () => {
     expect(stdout).toContain("Installed compound-engineering")
     expect(stdout).toContain(codexRoot)
     expect(await exists(path.join(codexRoot, "prompts", "ce-plan.md"))).toBe(true)
-    expect(await exists(path.join(codexRoot, "skills", "ce:plan", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "skills", "ce-plan", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
   })
 
@@ -278,6 +278,68 @@ describe("CLI", () => {
     }
 
     // Should succeed by fetching from GitHub, NOT failing on the local shadow directory
+    expect(stdout).toContain("Installed compound-engineering")
+    expect(await exists(path.join(tempRoot, "opencode.json"))).toBe(true)
+  })
+
+  test("install --branch clones a specific branch for non-Claude targets", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-branch-install-"))
+    const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-branch-repo-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const pluginRoot = path.join(repoRoot, "plugins", "compound-engineering")
+
+    await fs.mkdir(path.dirname(pluginRoot), { recursive: true })
+    await fs.cp(fixtureRoot, pluginRoot, { recursive: true })
+
+    const gitEnv = {
+      ...process.env,
+      GIT_AUTHOR_NAME: "Test",
+      GIT_AUTHOR_EMAIL: "test@example.com",
+      GIT_COMMITTER_NAME: "Test",
+      GIT_COMMITTER_EMAIL: "test@example.com",
+    }
+
+    await runGit(["init", "-b", "main"], repoRoot, gitEnv)
+    await runGit(["add", "."], repoRoot, gitEnv)
+    await runGit(["commit", "-m", "initial"], repoRoot, gitEnv)
+    await runGit(["checkout", "-b", "feat/test-branch"], repoRoot, gitEnv)
+    await fs.writeFile(path.join(pluginRoot, "BRANCH_MARKER.txt"), "from-branch")
+    await runGit(["add", "."], repoRoot, gitEnv)
+    await runGit(["commit", "-m", "branch commit"], repoRoot, gitEnv)
+    await runGit(["checkout", "main"], repoRoot, gitEnv)
+
+    const projectRoot = path.join(import.meta.dir, "..")
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(projectRoot, "src", "index.ts"),
+      "install",
+      "compound-engineering",
+      "--to",
+      "opencode",
+      "--output",
+      tempRoot,
+      "--branch",
+      "feat/test-branch",
+    ], {
+      cwd: tempRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempRoot,
+        COMPOUND_PLUGIN_GITHUB_SOURCE: repoRoot,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
     expect(stdout).toContain("Installed compound-engineering")
     expect(await exists(path.join(tempRoot, "opencode.json"))).toBe(true)
   })
@@ -628,7 +690,7 @@ describe("CLI", () => {
     expect(stdout).toContain("Synced to gemini")
     expect(stdout).not.toContain("cursor")
 
-    expect(await exists(path.join(tempHome, ".config", "opencode", "commands", "workflows:plan.md"))).toBe(true)
+    expect(await exists(path.join(tempHome, ".config", "opencode", "commands", "workflows", "plan.md"))).toBe(true)
     expect(await exists(path.join(tempHome, ".codex", "config.toml"))).toBe(true)
     expect(await exists(path.join(tempHome, ".codex", "prompts", "workflows-plan.md"))).toBe(true)
     expect(await exists(path.join(tempHome, ".codex", "skills", "workflows-plan", "SKILL.md"))).toBe(true)

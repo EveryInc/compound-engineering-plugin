@@ -2,6 +2,7 @@ import fs from "fs/promises"
 import path from "path"
 import type { ClaudeHomeConfig } from "../parsers/claude-home"
 import type { ClaudeMcpServer } from "../types/claude"
+import { sanitizePathName } from "../utils/files"
 import { syncGeminiCommands } from "./commands"
 import { mergeJsonConfigAtKey } from "./json-config"
 import { syncSkills } from "./skills"
@@ -85,7 +86,7 @@ async function removeGeminiMirrorConflicts(
   sharedSkillsDir: string,
 ): Promise<void> {
   for (const skill of skills) {
-    const duplicatePath = path.join(skillsDir, skill.name)
+    const duplicatePath = path.join(skillsDir, sanitizePathName(skill.name))
 
     let stat
     try {

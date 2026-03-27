@@ -1,4 +1,5 @@
 import { formatFrontmatter } from "../utils/frontmatter"
+import { sanitizePathName } from "../utils/files"
 import type { ClaudeAgent, ClaudeCommand, ClaudeMcpServer, ClaudePlugin } from "../types/claude"
 import type {
   CopilotAgent,
@@ -21,9 +22,9 @@ export function convertClaudeToCopilot(
 
   const agents = plugin.agents.map((agent) => convertAgent(agent, usedAgentNames))
 
-  // Reserve skill names first so generated skills (from commands) don't collide
+  // Reserve sanitized skill names so generated skills (from commands) don't collide on disk
   const skillDirs = plugin.skills.map((skill) => {
-    usedSkillNames.add(skill.name)
+    usedSkillNames.add(sanitizePathName(skill.name))
     return {
       name: skill.name,
       sourceDir: skill.sourceDir,

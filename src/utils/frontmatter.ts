@@ -5,7 +5,7 @@ export type FrontmatterResult = {
   body: string
 }
 
-export function parseFrontmatter(raw: string): FrontmatterResult {
+export function parseFrontmatter(raw: string, sourcePath?: string): FrontmatterResult {
   const lines = raw.split(/\r?\n/)
   if (lines.length === 0 || lines[0].trim() !== "---") {
     return { data: {}, body: raw }
@@ -25,9 +25,15 @@ export function parseFrontmatter(raw: string): FrontmatterResult {
 
   const yamlText = lines.slice(1, endIndex).join("\n")
   const body = lines.slice(endIndex + 1).join("\n")
-  const parsed = load(yamlText)
-  const data = (parsed && typeof parsed === "object") ? (parsed as Record<string, unknown>) : {}
-  return { data, body }
+  try {
+    const parsed = load(yamlText)
+    const data = (parsed && typeof parsed === "object") ? (parsed as Record<string, unknown>) : {}
+    return { data, body }
+  } catch (err) {
+    const location = sourcePath ? ` in ${sourcePath}` : ""
+    const hint = "Tip: quote frontmatter values containing colons (e.g. description: 'Use for X: Y')"
+    throw new Error(`Invalid YAML frontmatter${location}: ${err instanceof Error ? err.message : err}\n${hint}`)
+  }
 }
 
 export function formatFrontmatter(data: Record<string, unknown>, body: string): string {

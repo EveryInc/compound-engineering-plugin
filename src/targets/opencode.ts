@@ -1,5 +1,5 @@
 import path from "path"
-import { backupFile, copyDir, ensureDir, pathExists, readJson, resolveCommandPath, writeJson, writeText } from "../utils/files"
+import { backupFile, copyDir, ensureDir, pathExists, readJson, resolveCommandPath, sanitizePathName, writeJson, writeText } from "../utils/files"
 import type { OpenCodeBundle, OpenCodeConfig } from "../types/opencode"
 
 // Merges plugin config into existing opencode.json. User keys win on conflict. See ADR-002.
@@ -70,8 +70,15 @@ export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBu
   }
 
   const agentsDir = openCodePaths.agentsDir
+  const seenAgents = new Set<string>()
   for (const agent of bundle.agents) {
-    await writeText(path.join(agentsDir, `${agent.name}.md`), agent.content + "\n")
+    const safeName = sanitizePathName(agent.name)
+    if (seenAgents.has(safeName)) {
+      console.warn(`Skipping agent "${agent.name}": sanitized name "${safeName}" collides with another agent`)
+      continue
+    }
+    seenAgents.add(safeName)
+    await writeText(path.join(agentsDir, `${safeName}.md`), agent.content + "\n")
   }
 
   for (const commandFile of bundle.commandFiles) {
@@ -93,7 +100,7 @@ export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBu
   if (bundle.skillDirs.length > 0) {
     const skillsRoot = openCodePaths.skillsDir
     for (const skill of bundle.skillDirs) {
-      await copyDir(skill.sourceDir, path.join(skillsRoot, skill.name))
+      await copyDir(skill.sourceDir, path.join(skillsRoot, sanitizePathName(skill.name)))
     }
   }
 }

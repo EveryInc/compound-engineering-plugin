@@ -119,7 +119,7 @@ description: Brainstorm workflow
 
 Continue with /ce:plan when ready.
 Or use /workflows:plan if you're following an older doc.
-Use /deepen-plan for deeper research.
+Use /todo-resolve for deeper research.
 `,
     )
     await fs.writeFile(
@@ -135,7 +135,7 @@ Use /deepen-plan for deeper research.
         promptTargets: {
           "ce-plan": "ce-plan",
           "workflows-plan": "ce-plan",
-          "deepen-plan": "deepen-plan",
+          "todo-resolve": "todo-resolve",
         },
         skillTargets: {},
       },
@@ -144,15 +144,15 @@ Use /deepen-plan for deeper research.
     await writeCodexBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, ".codex", "skills", "ce:brainstorm", "SKILL.md"),
+      path.join(tempRoot, ".codex", "skills", "ce-brainstorm", "SKILL.md"),
       "utf8",
     )
     expect(installedSkill).toContain("/prompts:ce-plan")
     expect(installedSkill).not.toContain("/workflows:plan")
-    expect(installedSkill).toContain("/prompts:deepen-plan")
+    expect(installedSkill).toContain("/prompts:todo-resolve")
 
     const notes = await fs.readFile(
-      path.join(tempRoot, ".codex", "skills", "ce:brainstorm", "notes.md"),
+      path.join(tempRoot, ".codex", "skills", "ce-brainstorm", "notes.md"),
       "utf8",
     )
     expect(notes).toContain("/ce:plan")
@@ -194,7 +194,7 @@ Also run bare agents:
     await writeCodexBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, ".codex", "skills", "ce:plan", "SKILL.md"),
+      path.join(tempRoot, ".codex", "skills", "ce-plan", "SKILL.md"),
       "utf8",
     )
 

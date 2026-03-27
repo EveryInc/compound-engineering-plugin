@@ -1,5 +1,5 @@
 import path from "path"
-import { copySkillDir, ensureDir, resolveCommandPath, writeText } from "../utils/files"
+import { copySkillDir, ensureDir, resolveCommandPath, sanitizePathName, writeText } from "../utils/files"
 import { transformContentForDroid } from "../converters/claude-to-droid"
 import type { DroidBundle } from "../types/droid"
 
@@ -18,14 +18,14 @@ export async function writeDroidBundle(outputRoot: string, bundle: DroidBundle):
   if (bundle.droids.length > 0) {
     await ensureDir(paths.droidsDir)
     for (const droid of bundle.droids) {
-      await writeText(path.join(paths.droidsDir, `${droid.name}.md`), droid.content + "\n")
+      await writeText(path.join(paths.droidsDir, `${sanitizePathName(droid.name)}.md`), droid.content + "\n")
     }
   }
 
   if (bundle.skillDirs.length > 0) {
     await ensureDir(paths.skillsDir)
     for (const skill of bundle.skillDirs) {
-      await copySkillDir(skill.sourceDir, path.join(paths.skillsDir, skill.name), transformContentForDroid)
+      await copySkillDir(skill.sourceDir, path.join(paths.skillsDir, sanitizePathName(skill.name)), transformContentForDroid)
     }
   }
 }

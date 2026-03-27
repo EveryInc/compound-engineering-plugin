@@ -466,12 +466,12 @@ Task best-practices-researcher(topic)`
   })
 
   test("replaces colons with hyphens in slash commands", () => {
-    const input = `1. Run /deepen-plan to enhance
+    const input = `1. Run /todo-resolve to enhance
 2. Start /workflows:work to implement
 3. File at /tmp/output.md`
 
     const result = transformContentForCopilot(input)
-    expect(result).toContain("/deepen-plan")
+    expect(result).toContain("/todo-resolve")
     expect(result).toContain("/workflows-work")
     expect(result).not.toContain("/workflows:work")
     // File paths preserved
@@ -484,5 +484,36 @@ Task best-practices-researcher(topic)`
     expect(result).toContain("the security-sentinel agent")
     expect(result).toContain("the dhh-rails-reviewer agent")
     expect(result).not.toContain("@security-sentinel")
+  })
+
+  test("generated skill deduplicates against sanitized pass-through skill names", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [],
+      commands: [
+        {
+          name: "ce:plan",
+          description: "Planning command",
+          model: "inherit",
+          allowedTools: [],
+          body: "Plan the work.",
+          sourcePath: "/tmp/plugin/commands/ce-plan.md",
+        },
+      ],
+      skills: [
+        {
+          name: "ce:plan",
+          description: "Planning skill",
+          sourceDir: "/tmp/plugin/skills/ce-plan",
+          skillPath: "/tmp/plugin/skills/ce-plan/SKILL.md",
+        },
+      ],
+    }
+
+    const bundle = convertClaudeToCopilot(plugin, defaultOptions)
+
+    // The generated skill from the command should get a deduplicated name
+    // since "ce:plan" and "ce-plan" both map to "ce-plan" on disk
+    expect(bundle.generatedSkills[0].name).not.toBe("ce-plan")
   })
 })

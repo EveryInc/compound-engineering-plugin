@@ -1,5 +1,5 @@
 import path from "path"
-import { backupFile, copyDir, ensureDir, resolveCommandPath, writeJson, writeText } from "../utils/files"
+import { backupFile, copyDir, ensureDir, resolveCommandPath, sanitizePathName, writeJson, writeText } from "../utils/files"
 import type { QwenBundle, QwenExtensionConfig } from "../types/qwen"
 
 export async function writeQwenBundle(outputRoot: string, bundle: QwenBundle): Promise<void> {
@@ -24,7 +24,7 @@ export async function writeQwenBundle(outputRoot: string, bundle: QwenBundle): P
   await ensureDir(agentsDir)
   for (const agent of bundle.agents) {
     const ext = agent.format === "yaml" ? "yaml" : "md"
-    await writeText(path.join(agentsDir, `${agent.name}.${ext}`), agent.content + "\n")
+    await writeText(path.join(agentsDir, `${sanitizePathName(agent.name)}.${ext}`), agent.content + "\n")
   }
 
   // Write commands
@@ -40,7 +40,7 @@ export async function writeQwenBundle(outputRoot: string, bundle: QwenBundle): P
     const skillsRoot = qwenPaths.skillsDir
     await ensureDir(skillsRoot)
     for (const skill of bundle.skillDirs) {
-      await copyDir(skill.sourceDir, path.join(skillsRoot, skill.name))
+      await copyDir(skill.sourceDir, path.join(skillsRoot, sanitizePathName(skill.name)))
     }
   }
 }

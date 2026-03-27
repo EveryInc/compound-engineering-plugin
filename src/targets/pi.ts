@@ -5,6 +5,7 @@ import {
   ensureDir,
   pathExists,
   readText,
+  sanitizePathName,
   writeJson,
   writeText,
 } from "../utils/files"
@@ -34,15 +35,15 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   await ensureDir(paths.extensionsDir)
 
   for (const prompt of bundle.prompts) {
-    await writeText(path.join(paths.promptsDir, `${prompt.name}.md`), prompt.content + "\n")
+    await writeText(path.join(paths.promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
   }
 
   for (const skill of bundle.skillDirs) {
-    await copySkillDir(skill.sourceDir, path.join(paths.skillsDir, skill.name), transformContentForPi)
+    await copySkillDir(skill.sourceDir, path.join(paths.skillsDir, sanitizePathName(skill.name)), transformContentForPi)
   }
 
   for (const skill of bundle.generatedSkills) {
-    await writeText(path.join(paths.skillsDir, skill.name, "SKILL.md"), skill.content + "\n")
+    await writeText(path.join(paths.skillsDir, sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
   }
 
   for (const extension of bundle.extensions) {

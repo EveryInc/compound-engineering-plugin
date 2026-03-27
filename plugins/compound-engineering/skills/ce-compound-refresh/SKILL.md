@@ -503,13 +503,22 @@ If a doc cluster has 3+ overlapping docs, process pairwise: consolidate the two 
 
 Process Replace candidates **one at a time, sequentially**. Each replacement is written by a subagent to protect the main context window.
 
+When a replacement is needed, read the documentation contract files and pass their contents into the replacement subagent's task prompt:
+
+- `references/schema.yaml` — frontmatter fields and enum values
+- `references/yaml-schema.md` — category mapping
+- `assets/resolution-template.md` — section structure
+
+Do not let replacement subagents invent frontmatter fields, enum values, or section order from memory.
+
 **When evidence is sufficient:**
 
 1. Spawn a single subagent to write the replacement learning. Pass it:
    - The old learning's full content
    - A summary of the investigation evidence (what changed, what the current code does, why the old guidance is misleading)
    - The target path and category (same category as the old learning unless the category itself changed)
-2. The subagent writes the new learning following `ce:compound`'s document format: YAML frontmatter (title, category, date, module, component, tags), problem description, root cause, current solution with code examples, and prevention tips. It should use dedicated file search and read tools if it needs additional context beyond what was passed.
+   - The relevant contents of the three support files listed above
+2. The subagent writes the new learning using the support files as the source of truth: `references/schema.yaml` for frontmatter fields and enum values, `references/yaml-schema.md` for category mapping, and `assets/resolution-template.md` for section order. It should use dedicated file search and read tools if it needs additional context beyond what was passed.
 3. After the subagent completes, the orchestrator deletes the old learning file. The new learning's frontmatter may include `supersedes: [old learning filename]` for traceability, but this is optional — the git history and commit message provide the same information.
 
 **When evidence is insufficient:**

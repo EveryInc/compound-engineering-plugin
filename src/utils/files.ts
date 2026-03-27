@@ -76,6 +76,16 @@ export async function walkFiles(root: string): Promise<string[]> {
 }
 
 /**
+ * Sanitize a name for use as a filesystem path component.
+ * Replaces colons with hyphens so colon-namespaced names
+ * (e.g. "ce:brainstorm") become flat directory names ("ce-brainstorm")
+ * instead of failing on Windows where colons are illegal in filenames.
+ */
+export function sanitizePathName(name: string): string {
+  return name.replace(/:/g, "-")
+}
+
+/**
  * Resolve a colon-separated command name into a filesystem path.
  * e.g. resolveCommandPath("/commands", "ce:plan", ".md") -> "/commands/ce/plan.md"
  * Creates intermediate directories as needed.

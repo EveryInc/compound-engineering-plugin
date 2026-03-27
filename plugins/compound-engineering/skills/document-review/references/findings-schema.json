@@ -19,6 +19,7 @@
           "severity",
           "section",
           "why_it_matters",
+          "finding_type",
           "autofix_class",
           "confidence",
           "evidence"
@@ -44,8 +45,13 @@
           },
           "autofix_class": {
             "type": "string",
-            "enum": ["auto", "present"],
-            "description": "How this issue should be handled. auto = local deterministic fix the orchestrator can apply without asking (terminology, formatting, cross-references). present = requires user judgment."
+            "enum": ["auto", "batch_confirm", "present"],
+            "description": "How this issue should be handled. auto = local deterministic fix applied silently (terminology, formatting, cross-references, completeness corrections). batch_confirm = obvious fix with a clear correct answer, but touches meaning enough to warrant grouped approval. present = requires individual user judgment."
+          },
+          "finding_type": {
+            "type": "string",
+            "enum": ["error", "omission"],
+            "description": "Whether the finding is a mistake in what the document says (error) or something the document forgot to say (omission). Errors are design tensions, contradictions, or incorrect statements. Omissions are missing mechanical steps, forgotten list entries, or absent details."
           },
           "suggested_fix": {
             "type": ["string", "null"],
@@ -91,8 +97,13 @@
       "P3": "Minor improvement. User's discretion."
     },
     "autofix_classes": {
-      "auto": "Local, deterministic document fix: terminology consistency, formatting, cross-reference correction. Must be unambiguous and not change the document's meaning.",
-      "present": "Requires user judgment -- strategic questions, tradeoffs, meaning-changing fixes, or informational findings."
+      "auto": "Local, deterministic document fix: terminology consistency, formatting, cross-reference correction, completeness corrections (wrong counts, missing list entries, undefined values where the correct value is verifiable from elsewhere in the document). Must be unambiguous.",
+      "batch_confirm": "Obvious fix with a clear correct answer, but touches document meaning enough to warrant user awareness. Grouped with other batch_confirm findings for a single approval rather than individual review. Examples: adding a missing implementation step that is mechanically implied, updating a section summary to reflect its own contents.",
+      "present": "Requires individual user judgment -- strategic questions, design tradeoffs, meaning-changing fixes, or findings where reasonable people could disagree on the right action."
+    },
+    "finding_types": {
+      "error": "Something the document says that is wrong -- contradictions, incorrect statements, design tensions, incoherent tradeoffs. These are mistakes in what exists.",
+      "omission": "Something the document forgot to say -- missing mechanical steps, absent list entries, undefined thresholds, forgotten cross-references. These are gaps in completeness."
     }
   }
 }

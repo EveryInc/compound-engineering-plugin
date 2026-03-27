@@ -1,6 +1,6 @@
 import path from "path"
 import { promises as fs } from "fs"
-import { backupFile, copyDir, ensureDir, pathExists, readJson, walkFiles, writeJson, writeText } from "../utils/files"
+import { backupFile, copyDir, ensureDir, pathExists, readJson, sanitizePathName, walkFiles, writeJson, writeText } from "../utils/files"
 import type { OpenClawBundle } from "../types/openclaw"
 
 export async function writeOpenClawBundle(outputRoot: string, bundle: OpenClawBundle): Promise<void> {
@@ -18,7 +18,7 @@ export async function writeOpenClawBundle(outputRoot: string, bundle: OpenClawBu
 
   // Write generated skills (agents + commands converted to SKILL.md)
   for (const skill of bundle.skills) {
-    const skillDir = path.join(paths.skillsDir, skill.dir)
+    const skillDir = path.join(paths.skillsDir, sanitizePathName(skill.dir))
     await ensureDir(skillDir)
     await writeText(path.join(skillDir, "SKILL.md"), skill.content + "\n")
   }
@@ -26,7 +26,7 @@ export async function writeOpenClawBundle(outputRoot: string, bundle: OpenClawBu
   // Copy original skill directories (preserving references/, assets/, scripts/)
   // and rewrite .claude/ paths to .openclaw/ in markdown files
   for (const skill of bundle.skillDirCopies) {
-    const destDir = path.join(paths.skillsDir, skill.name)
+    const destDir = path.join(paths.skillsDir, sanitizePathName(skill.name))
     await copyDir(skill.sourceDir, destDir)
     await rewritePathsInDir(destDir)
   }

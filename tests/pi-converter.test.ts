@@ -57,7 +57,7 @@ describe("convertClaudeToPi", () => {
             "- Task repo-research-analyst(feature_description)",
             "- Task learnings-researcher(feature_description)",
             "Use AskUserQuestion tool for follow-up.",
-            "Then use /workflows:work and /prompts:deepen-plan.",
+            "Then use /workflows:work and /prompts:todo-resolve.",
             "Track progress with TodoWrite and TodoRead.",
           ].join("\n"),
           sourcePath: "/tmp/plugin/commands/plan.md",
@@ -81,7 +81,7 @@ describe("convertClaudeToPi", () => {
     expect(parsedPrompt.body).toContain("Run subagent with agent=\"learnings-researcher\" and task=\"feature_description\".")
     expect(parsedPrompt.body).toContain("ask_user_question")
     expect(parsedPrompt.body).toContain("/workflows-work")
-    expect(parsedPrompt.body).toContain("/deepen-plan")
+    expect(parsedPrompt.body).toContain("/todo-resolve")
     expect(parsedPrompt.body).toContain("file-based todos (todos/ + /skill:todo-create)")
   })
 

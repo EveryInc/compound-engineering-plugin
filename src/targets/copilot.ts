@@ -1,5 +1,5 @@
 import path from "path"
-import { backupFile, copySkillDir, ensureDir, writeJson, writeText } from "../utils/files"
+import { backupFile, copySkillDir, ensureDir, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformContentForCopilot } from "../converters/claude-to-copilot"
 import type { CopilotBundle } from "../types/copilot"
 
@@ -10,21 +10,21 @@ export async function writeCopilotBundle(outputRoot: string, bundle: CopilotBund
   if (bundle.agents.length > 0) {
     const agentsDir = path.join(paths.githubDir, "agents")
     for (const agent of bundle.agents) {
-      await writeText(path.join(agentsDir, `${agent.name}.agent.md`), agent.content + "\n")
+      await writeText(path.join(agentsDir, `${sanitizePathName(agent.name)}.agent.md`), agent.content + "\n")
     }
   }
 
   if (bundle.generatedSkills.length > 0) {
     const skillsDir = path.join(paths.githubDir, "skills")
     for (const skill of bundle.generatedSkills) {
-      await writeText(path.join(skillsDir, skill.name, "SKILL.md"), skill.content + "\n")
+      await writeText(path.join(skillsDir, sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
     }
   }
 
   if (bundle.skillDirs.length > 0) {
     const skillsDir = path.join(paths.githubDir, "skills")
     for (const skill of bundle.skillDirs) {
-      await copySkillDir(skill.sourceDir, path.join(skillsDir, skill.name), transformContentForCopilot)
+      await copySkillDir(skill.sourceDir, path.join(skillsDir, sanitizePathName(skill.name)), transformContentForCopilot)
     }
   }
 
