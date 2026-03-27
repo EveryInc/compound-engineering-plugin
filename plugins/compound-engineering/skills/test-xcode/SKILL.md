@@ -94,6 +94,9 @@ Call `get_sim_logs` with the simulator UUID. Look for:
 - Error-level log messages
 - Failed network requests
 
+**Known automation limitation — SwiftUI Text links:**
+Simulated taps (via XcodeBuildMCP or any simulator automation tool) do not trigger gesture recognizers on SwiftUI `Text` views with inline `AttributedString` links. Taps report success but have no effect. This is a platform limitation — inline links are not exposed as separate elements in the accessibility tree. When a tap on a Text link has no visible effect, prompt the user to tap manually in the simulator. If the target URL is known, `xcrun simctl openurl <device> <URL>` can open it directly as a fallback.
+
 ### 6. Human Verification (When Required)
 
 Pause for human input when testing touches flows that require device interaction.
@@ -105,6 +108,7 @@ Pause for human input when testing touches flows that require device interaction
 | In-app purchases | "Complete a sandbox purchase" |
 | Camera/Photos | "Grant permissions and verify camera works" |
 | Location | "Allow location access and verify map updates" |
+| SwiftUI Text links | "Please tap on [element description] manually — automated taps cannot trigger inline text links" |
 
 Ask the user (using the platform's question tool — e.g., `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini — or present numbered options and wait):
 
