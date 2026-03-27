@@ -196,12 +196,13 @@ The repo-research-analyst output includes a structured Technology & Infrastructu
 
 **Always lean toward external research when:**
 - The topic is high-risk: security, payments, privacy, external APIs, migrations, compliance
-- The codebase lacks relevant local patterns
+- The codebase lacks relevant local patterns -- fewer than 3 direct examples of the pattern this plan needs
+- Local patterns exist for an adjacent domain but not the exact one -- e.g., the codebase has HTTP clients but not webhook receivers, or has background jobs but not event-driven pub/sub. Adjacent patterns suggest the team is comfortable with the technology layer but may not know domain-specific pitfalls. When this signal is present, frame the external research query around the domain gap specifically, not the general technology
 - The user is exploring unfamiliar territory
 - The technology scan found the relevant layer absent or thin in the codebase
 
 **Skip external research when:**
-- The codebase already shows a strong local pattern
+- The codebase already shows a strong local pattern -- multiple direct examples (not adjacent-domain), recently touched, following current conventions
 - The user already knows the intended shape
 - Additional external context would add little practical value
 - The technology scan found the relevant layer well-established with existing examples to follow
@@ -225,6 +226,18 @@ Summarize:
 - External references and best practices, if gathered
 - Related issues, PRs, or prior art
 - Any constraints that should materially shape the plan
+
+#### 1.4b Reclassify Depth When Research Reveals External Contract Surfaces
+
+If the current classification is **Lightweight** and Phase 1 research found that the work touches any of these external contract surfaces, reclassify to **Standard**:
+
+- Environment variables consumed by external systems, CI, or other repositories
+- Exported public APIs, CLI flags, or command-line interface contracts
+- CI/CD configuration files (`.github/workflows/`, `Dockerfile`, deployment scripts)
+- Shared types or interfaces imported by downstream consumers
+- Documentation referenced by external URLs or linked from other systems
+
+This ensures flow analysis (Phase 1.5) runs and the confidence check (Phase 5.3) applies critical-section bonuses. Announce the reclassification briefly: "Reclassifying to Standard — this change touches [environment variables / exported APIs / CI config] with external consumers."
 
 #### 1.5 Flow and Edge-Case Analysis (Conditional)
 
@@ -625,8 +638,9 @@ Build a risk profile. Treat these as high-risk signals:
 - **Lightweight** plans usually do not need deepening unless they are high-risk
 - **Standard** plans often benefit when one or more important sections still look thin
 - **Deep** or high-risk plans often benefit from a targeted second pass
+- **Thin local grounding override:** If Phase 1.2 triggered external research because local patterns were thin (fewer than 3 direct examples or adjacent-domain match), always proceed to scoring regardless of how grounded the plan appears. When the plan was built on unfamiliar territory, claims about system behavior are more likely to be assumptions than verified facts. The scoring pass is cheap — if the plan is genuinely solid, scoring finds nothing and exits quickly
 
-If the plan already appears sufficiently grounded, report "Confidence check passed — no sections need strengthening" and proceed to Phase 5.4.
+If the plan already appears sufficiently grounded and the thin-grounding override does not apply, report "Confidence check passed — no sections need strengthening" and proceed to Phase 5.4.
 
 ##### 5.3.3 Score Confidence Gaps
 
@@ -855,7 +869,26 @@ After the confidence check completes (or is skipped), present the options using 
 
 **Question:** "Plan ready at `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md`. What would you like to do next?"
 
-**Options:**
+**Option ordering depends on plan characteristics.** Lead with document-review when any of these conditions are met:
+
+- **Deep** plan
+- High-risk signals present
+- The confidence check deepened 3+ sections
+- **Standard** plan where Phase 1.2 triggered external research due to thin local grounding (fewer than 3 direct examples or adjacent-domain match) — when the plan was built on unfamiliar territory, the adversarial reviewer's assumption surfacing catches factual claims about system behavior that structural scoring cannot verify
+
+Include a recommendation explaining why:
+
+"This plan has [significant architectural decisions / high-risk security concerns / cross-cutting impact / thin local grounding for a key domain]. Its adversarial reviewer will stress-test the premises and decisions before implementation."
+
+**Options when document-review is recommended:**
+1. **Run `document-review` skill** - Stress-test premises and decisions through structured document review (recommended)
+2. **Open plan in editor** - Open the plan file for review
+3. **Share to Proof** - Upload the plan for collaborative review and sharing
+4. **Start `/ce:work`** - Begin implementing this plan in the current environment
+5. **Start `/ce:work` in another session** - Begin implementing in a separate agent session when the current platform supports it
+6. **Create Issue** - Create an issue in the configured tracker
+
+**Options for Standard or Lightweight plans:**
 1. **Open plan in editor** - Open the plan file for review
 2. **Run `document-review` skill** - Improve the plan through structured document review
 3. **Share to Proof** - Upload the plan for collaborative review and sharing
