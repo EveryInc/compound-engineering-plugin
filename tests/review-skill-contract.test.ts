@@ -188,4 +188,40 @@ describe("ce-review contract", () => {
     expect(slfg).toContain("/ce:review mode:report-only")
     expect(slfg).toContain("/ce:review mode:autofix")
   })
+
+  test("codex-reviewer agent references stable ce:review skill", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/agents/review/codex-reviewer.md")
+    const parsed = parseFrontmatter(content)
+
+    expect(String(parsed.data.description)).toContain("ce:review skill")
+    expect(content).toContain("ce:review pipeline")
+    expect(content).toContain("passed by ce:review")
+    expect(content).not.toContain("ce:review-beta")
+
+    const tools = String(parsed.data.tools ?? "")
+    expect(tools).toContain("Read")
+    expect(tools).toContain("Grep")
+    expect(tools).toContain("Glob")
+    expect(tools).toContain("Bash")
+  })
+
+  test("codex-reviewer is registered in stable persona catalog and SKILL.md", async () => {
+    const catalog = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-review/references/persona-catalog.md",
+    )
+    expect(catalog).toContain("compound-engineering:review:codex-reviewer")
+    expect(catalog).toContain("Cross-model validation")
+
+    const skill = await readRepoFile("plugins/compound-engineering/skills/ce-review/SKILL.md")
+    expect(skill).toContain("compound-engineering:review:codex-reviewer")
+  })
+
+  test("codex-reviewer follows the structured findings contract", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/agents/review/codex-reviewer.md")
+
+    expect(content).toContain("## Confidence calibration")
+    expect(content).toContain("## What you don't flag")
+    expect(content).toContain("Return your findings as JSON matching the findings schema. No prose outside the JSON.")
+    expect(content).toContain('"reviewer": "codex"')
+  })
 })
