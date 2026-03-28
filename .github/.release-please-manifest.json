@@ -1,6 +1,6 @@
 {
-  ".": "2.57.1",
-  "plugins/compound-engineering": "2.56.1",
+  ".": "2.58.0",
+  "plugins/compound-engineering": "2.57.0",
   "plugins/coding-tutor": "1.2.1",
   ".claude-plugin": "1.0.2",
   ".cursor-plugin": "1.0.1"

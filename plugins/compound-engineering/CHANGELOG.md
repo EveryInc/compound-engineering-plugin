@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.57.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.56.1...compound-engineering-v2.57.0) (2026-03-28)
+
+
+### Features
+
+* **document-review:** add headless mode for programmatic callers ([#425](https://github.com/EveryInc/compound-engineering-plugin/issues/425)) ([4e4a656](https://github.com/EveryInc/compound-engineering-plugin/commit/4e4a6563b4aa7375e9d1c54bd73442f3b675f100))
+
 ## [2.56.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.56.0...compound-engineering-v2.56.1) (2026-03-28)
 
 
