@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.58.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.58.0...cli-v2.58.1) (2026-03-28)
+
+
+### Bug Fixes
+
+* **release:** align cli and compound-engineering versions with linked-versions plugin ([0bd29c7](https://github.com/EveryInc/compound-engineering-plugin/commit/0bd29c7f2e930fc1198cc7ae833394bfabd47c40))
+
 ## [2.58.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.57.1...cli-v2.58.0) (2026-03-28)
 
 
