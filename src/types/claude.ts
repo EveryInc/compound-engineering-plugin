@@ -28,6 +28,7 @@ export type ClaudeAgent = {
   name: string
   description?: string
   capabilities?: string[]
+  tools?: string[]
   model?: string
   body: string
   sourcePath: string

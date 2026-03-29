@@ -66,6 +66,7 @@ async function loadAgents(agentsDirs: string[]): Promise<ClaudeAgent[]> {
       name,
       description: data.description as string | undefined,
       capabilities: data.capabilities as string[] | undefined,
+      tools: parseAllowedTools(data.tools),
       model: data.model as string | undefined,
       body: body.trim(),
       sourcePath: file,

@@ -11,6 +11,7 @@ const fixturePlugin: ClaudePlugin = {
       name: "security-sentinel",
       description: "Security-focused agent",
       capabilities: ["Threat modeling", "OWASP"],
+      tools: ["Read", "Grep", "Glob", "Bash"],
       model: "claude-sonnet-4-20250514",
       body: "Focus on vulnerabilities in ~/.claude/settings.",
       sourcePath: "/tmp/plugin/agents/security-sentinel.md",
@@ -74,6 +75,7 @@ describe("convertClaudeToQwen", () => {
     expect(parsed.data.name).toBe("security-sentinel")
     expect(parsed.data.description).toBe("Security-focused agent")
     expect(parsed.data.model).toBe("anthropic/claude-sonnet-4-20250514")
+    expect(parsed.data.allowedTools).toEqual(["Read", "Grep", "Glob", "Bash"])
     expect(parsed.body).toContain("Focus on vulnerabilities")
   })
 

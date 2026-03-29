@@ -11,6 +11,7 @@ const fixturePlugin: ClaudePlugin = {
       name: "Security Reviewer",
       description: "Security-focused agent",
       capabilities: ["Threat modeling", "OWASP"],
+      tools: ["Read", "Grep", "Glob", "Bash"],
       model: "claude-sonnet-4-20250514",
       body: "Focus on vulnerabilities.",
       sourcePath: "/tmp/plugin/agents/security-reviewer.md",
@@ -68,16 +69,17 @@ describe("convertClaudeToCodex", () => {
     const parsedCommandSkill = parseFrontmatter(commandSkill!.content)
     expect(parsedCommandSkill.data.name).toBe("workflows-plan")
     expect(parsedCommandSkill.data.description).toBe("Planning command")
-    expect(parsedCommandSkill.body).toContain("Allowed tools")
-
     const agentSkill = bundle.generatedSkills.find((skill) => skill.name === "security-reviewer")
     expect(agentSkill).toBeDefined()
     const parsedSkill = parseFrontmatter(agentSkill!.content)
     expect(parsedSkill.data.name).toBe("security-reviewer")
     expect(parsedSkill.data.description).toBe("Security-focused agent")
+    expect(parsedSkill.data.tools).toBeUndefined()
+    expect(parsedSkill.body).not.toContain("## Tool guidance")
     expect(parsedSkill.body).toContain("Capabilities")
     expect(parsedSkill.body).toContain("Threat modeling")
   })
+
 
   test("generates prompt wrappers for canonical ce workflow skills and omits workflows aliases", () => {
     const plugin: ClaudePlugin = {

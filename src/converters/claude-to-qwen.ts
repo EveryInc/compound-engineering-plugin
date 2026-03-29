@@ -52,6 +52,9 @@ function convertAgent(agent: ClaudeAgent, options: ClaudeToQwenOptions): QwenAge
     name: agent.name,
     description: agent.description,
   }
+  if (agent.tools && agent.tools.length > 0) {
+    frontmatter.allowedTools = agent.tools
+  }
 
   if (agent.model && agent.model !== "inherit") {
     frontmatter.model = normalizeModel(agent.model)

@@ -1,5 +1,6 @@
 import { formatFrontmatter } from "../utils/frontmatter"
 import type { ClaudeAgent, ClaudeCommand, ClaudePlugin } from "../types/claude"
+import { composeAgentBody, formatToolMappingWarning, mapToolSpecifiers } from "../utils/agent-content"
 import type { DroidBundle, DroidCommandFile, DroidAgentFile } from "../types/droid"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 
@@ -72,6 +73,7 @@ function convertCommand(command: ClaudeCommand): DroidCommandFile {
 
 function convertAgent(agent: ClaudeAgent): DroidAgentFile {
   const name = normalizeName(agent.name)
+  const tools = mapAgentTools(agent)
   const frontmatter: Record<string, unknown> = {
     name,
     description: agent.description,
@@ -81,27 +83,40 @@ function convertAgent(agent: ClaudeAgent): DroidAgentFile {
     frontmatter.model = agent.model
   }
 
-  const tools = mapAgentTools(agent)
   if (tools) {
     frontmatter.tools = tools
   }
 
-  let body = agent.body.trim()
-  if (agent.capabilities && agent.capabilities.length > 0) {
-    const capabilities = agent.capabilities.map((c) => `- ${c}`).join("\n")
-    body = `## Capabilities\n${capabilities}\n\n${body}`.trim()
-  }
-  if (body.length === 0) {
-    body = `Instructions converted from the ${agent.name} agent.`
-  }
-
-  body = transformContentForDroid(body)
+  const body = transformContentForDroid(
+    composeAgentBody({
+      body: agent.body.trim(),
+      fallback: `Instructions converted from the ${agent.name} agent.`,
+      capabilities: agent.capabilities,
+    }),
+  )
 
   const content = formatFrontmatter(frontmatter, body)
   return { name, content }
 }
 
 function mapAgentTools(agent: ClaudeAgent): string[] | undefined {
+  if (agent.tools) {
+    const { mappedTools, unmappedTools } = mapToolSpecifiers(agent.tools, CLAUDE_TO_DROID_TOOLS)
+    if (mappedTools && mappedTools.length > 0 && unmappedTools.length === 0) {
+      return mappedTools
+    }
+
+    console.warn(
+      formatToolMappingWarning({
+        sourceTools: agent.tools,
+        unmappedTools,
+        target: "Droid",
+        fallback: "Omitting the Droid tools field so the converted agent remains usable.",
+      }),
+    )
+    return undefined
+  }
+
   const bodyLower = `${agent.name} ${agent.description ?? ""} ${agent.body}`.toLowerCase()
 
   const mentionedTools = new Set<string>()

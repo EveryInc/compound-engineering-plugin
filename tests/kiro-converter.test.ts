@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync, writeFileSync } from "fs"
 import os from "os"
 import path from "path"
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import { convertClaudeToKiro, transformContentForKiro } from "../src/converters/claude-to-kiro"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 import type { ClaudePlugin } from "../src/types/claude"
@@ -14,6 +14,7 @@ const fixturePlugin: ClaudePlugin = {
       name: "Security Reviewer",
       description: "Security-focused agent",
       capabilities: ["Threat modeling", "OWASP"],
+      tools: ["Read", "Grep", "Glob", "Bash"],
       model: "claude-sonnet-4-20250514",
       body: "Focus on vulnerabilities.",
       sourcePath: "/tmp/plugin/agents/security-reviewer.md",
@@ -59,7 +60,7 @@ describe("convertClaudeToKiro", () => {
     expect(agent!.config.name).toBe("security-reviewer")
     expect(agent!.config.description).toBe("Security-focused agent")
     expect(agent!.config.prompt).toBe("file://./prompts/security-reviewer.md")
-    expect(agent!.config.tools).toEqual(["*"])
+    expect(agent!.config.tools).toEqual(["read", "grep", "glob", "shell"])
     expect(agent!.config.includeMcpJson).toBe(true)
     expect(agent!.config.resources).toContain("file://.kiro/steering/**/*.md")
     expect(agent!.config.resources).toContain("skill://.kiro/skills/**/SKILL.md")
@@ -79,6 +80,80 @@ describe("convertClaudeToKiro", () => {
     expect(agent!.promptContent).toContain("## Capabilities")
     expect(agent!.promptContent).toContain("- Threat modeling")
     expect(agent!.promptContent).toContain("- OWASP")
+  })
+
+  test("agent tool mapping includes web_search", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "web-agent",
+          description: "Needs search access",
+          tools: ["WebSearch", "WebFetch"],
+          body: "Browse for context.",
+          sourcePath: "/tmp/plugin/agents/web-agent.md",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.agents[0].config.tools).toEqual(["web_search", "web_fetch"])
+  })
+
+  test("falls back to [*] when Claude tool restrictions have no Kiro mapping", () => {
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {})
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "question-agent",
+          description: "Needs an unmapped Claude-only tool",
+          tools: ["Question"],
+          body: "Ask follow-up questions.",
+          sourcePath: "/tmp/plugin/agents/question-agent.md",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.agents[0].config.tools).toEqual(["*"])
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Warning: Kiro has no mapping for Claude agent tools [Question]. Falling back to ["*"] so the converted agent remains usable.',
+    )
+
+    warnSpy.mockRestore()
+  })
+
+  test("falls back to [*] when only part of a Claude tool list maps to Kiro", () => {
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {})
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "mixed-agent",
+          description: "Needs one mapped and one unmapped tool",
+          tools: ["Read", "NotebookRead"],
+          body: "Inspect code and notebooks.",
+          sourcePath: "/tmp/plugin/agents/mixed-agent.md",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToKiro(plugin, defaultOptions)
+    expect(bundle.agents[0].config.tools).toEqual(["*"])
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Warning: Kiro cannot preserve Claude agent tools [NotebookRead] from [Read, NotebookRead]. Falling back to ["*"] so the converted agent remains usable.',
+    )
+
+    warnSpy.mockRestore()
   })
 
   test("agent with empty description gets default description", () => {
