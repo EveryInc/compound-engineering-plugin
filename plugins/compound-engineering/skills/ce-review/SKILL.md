@@ -287,6 +287,11 @@ echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:"
 
 Using `git diff $BASE` (without `..HEAD`) diffs the merge-base against the working tree, which includes committed, staged, and unstaged changes together.
 
+**Large diff handling:** If the diff exceeds ~8,000 lines, the full diff may degrade reviewer quality (context window pressure, attention dilution). Handle this by:
+1. Pass the full file list to all reviewers so they understand the change scope.
+2. Split the diff into logical chunks by directory or module (e.g., `app/models/`, `app/controllers/`, `tests/`). Spawn each persona reviewer once per chunk rather than once with the entire diff.
+3. If chunking would create more than 3 chunks per reviewer, warn the user that the diff is unusually large and suggest reviewing in smaller PRs. In headless/autofix mode, proceed with chunking but note the size in the Coverage section.
+
 **Untracked file handling:** Always inspect the `UNTRACKED:` list, even when `FILES:`/`DIFF:` are non-empty. Untracked files are outside review scope until staged. If the list is non-empty, tell the user which files are excluded. If any of them should be reviewed, stop and tell the user to `git add` them first and rerun. Only continue when the user is intentionally reviewing tracked changes only. In `mode:headless` or `mode:autofix`, do not stop to ask — proceed with tracked changes only and note the excluded untracked files in the Coverage section of the output.
 
 ### Stage 2: Intent discovery
