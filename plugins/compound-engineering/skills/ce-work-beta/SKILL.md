@@ -446,7 +446,23 @@ When external delegation is active, follow this workflow for each tagged task. D
 
 3. **Write prompt to file** — Save the assembled prompt to a unique temporary file to avoid shell quoting issues and cross-task races. Use a unique filename per task.
 
-4. **Delegate** — Run the delegate CLI, piping the prompt file via stdin (not argv expansion, which hits `ARG_MAX` on large prompts). Omit the model flag to use the delegate's default model, which stays current without manual updates.
+4. **Delegate** — Run `codex exec` with the prompt piped via stdin. Use `exec` (not bare `codex`) for non-interactive delegation. Omit the model flag to use the delegate's default model, which stays current without manual updates.
+
+   ```bash
+   cat /tmp/codex-task-XXXXX.txt | codex exec --skip-git-repo-check - 2>&1
+   ```
+
+   **Codex exec pitfalls (all discovered during testing):**
+
+   | Pitfall | Error you get | Fix |
+   |---------|--------------|-----|
+   | Shell redirect `< file` instead of pipe | "stdin is not a terminal" | Use `cat file \| codex exec ...` |
+   | Bare `codex` instead of `codex exec` | Enters interactive mode, hangs | Use `codex exec` for non-interactive delegation |
+   | `--approval-mode` flag on `exec` | "unexpected argument" | `exec` has its own flags; `--approval-mode` is for bare `codex` only |
+   | Running outside a git repo | "Not inside a trusted directory" | Add `--skip-git-repo-check` flag |
+   | Forgetting `-` at end | Prompt not read from stdin | Trailing `-` tells `codex exec` to read the prompt from stdin |
+
+   Piping also avoids `ARG_MAX` limits that would occur if passing the prompt as a CLI argument.
 
 5. **Review diff** — After the delegate finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
 
