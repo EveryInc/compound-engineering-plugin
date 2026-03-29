@@ -79,7 +79,7 @@ Each converter now uses the appropriate shared utility:
 | Qwen | Resolve alias + add provider prefix | `anthropic/claude-sonnet-4-6` |
 | OpenClaw | Resolve alias + add provider prefix | `anthropic/claude-sonnet-4-6` |
 | Droid | Pass through as-is | `sonnet` |
-| Copilot | Pass through as-is | `claude-sonnet-4-20250514` |
+| Copilot | Drop entirely | (omitted) |
 | Codex | Drop entirely | (omitted) |
 
 ---
@@ -92,7 +92,7 @@ Each platform has fundamentally different model handling requirements:
 
 **Droid (Factory) — pass-through:** Factory is multi-provider but natively resolves Claude's bare aliases (`sonnet`, `opus`, `haiku`) internally. Pass-through is correct and simpler than normalizing to a format Factory would also accept but doesn't require. Factory also accepts full dated model IDs like `claude-sonnet-4-5-20250929` and non-Anthropic models prefixed with `custom:`.
 
-**Copilot — pass-through:** Copilot supports a `model` field in `.agent.md` frontmatter (documented in `docs/specs/copilot.md`). The format may be display names ("Claude Opus 4.5") rather than model IDs, and the spec notes it "may be ignored on github.com". Since the field is supported and the exact format expectations are unclear, pass-through preserves user intent — if someone explicitly sets a model, that choice should survive conversion.
+**Copilot — drop:** Copilot supports a `model` field in `.agent.md` frontmatter (documented in `docs/specs/copilot.md`), but the expected values are Copilot-specific display names like "Claude Opus 4.5" — not Claude model IDs like `claude-sonnet-4-20250514` or bare aliases like `sonnet`. Passing through Claude-specific values would emit a field Copilot can't use. Unlike Droid (which natively resolves `sonnet`), Copilot has no documented resolution for Claude model IDs. Dropping is safer: the spec says "If unset, inherits the default model."
 
 **Codex — drop:** Codex skill frontmatter (`SKILL.md`) only supports `name` and `description` fields. This was confirmed by examining the Rust source code (`SkillFrontmatter` struct in `codex-rs/core-skills/src/loader.rs`). Model selection in Codex is global via `config.toml` or runtime `/model` command, not per-skill.
 
@@ -122,7 +122,7 @@ This reference captures research findings as of 2026-03-29.
 ### Copilot
 - **Model format:** Display names (e.g., "Claude Opus 4.5", "GPT-5.2"), possibly array syntax `model: ['Claude Opus 4.5', 'GPT-5.2']`
 - **Multi-provider:** Yes — supports Claude and GPT models
-- **Current converter behavior:** Pass-through (field is supported per spec; format uncertain but user intent preserved)
+- **Current converter behavior:** Drop (Claude model IDs don't map to Copilot's expected format)
 - **Note:** Spec says "may be ignored on github.com" — model selection works in IDE but may not apply on the GitHub web platform
 - **Docs:** Agents defined in `.github/agents/*.agent.md`
 

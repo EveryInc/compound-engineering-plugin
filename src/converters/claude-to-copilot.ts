@@ -54,10 +54,6 @@ function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): CopilotAgent 
     infer: true,
   }
 
-  if (agent.model && agent.model !== "inherit") {
-    frontmatter.model = agent.model
-  }
-
   let body = transformContentForCopilot(agent.body.trim())
   if (agent.capabilities && agent.capabilities.length > 0) {
     const capabilities = agent.capabilities.map((c) => `- ${c}`).join("\n")
