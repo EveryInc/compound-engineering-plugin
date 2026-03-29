@@ -22,6 +22,7 @@ describe("loadClaudePlugin", () => {
 
     const researchAgent = plugin.agents.find((agent) => agent.name === "repo-research-analyst")
     expect(researchAgent?.capabilities).toEqual(["Capability A", "Capability B"])
+    expect(researchAgent?.tools).toEqual(["Read", "Grep", "Glob"])
 
     const reviewCommand = plugin.commands.find((command) => command.name === "workflows:review")
     expect(reviewCommand?.allowedTools).toEqual([

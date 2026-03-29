@@ -2,6 +2,11 @@ import { readFileSync, existsSync } from "fs"
 import path from "path"
 import { formatFrontmatter } from "../utils/frontmatter"
 import type { ClaudeAgent, ClaudeCommand, ClaudeMcpServer, ClaudePlugin } from "../types/claude"
+import {
+  composeAgentBody,
+  mapToolSpecifiers,
+  resolveStructuredAgentTools,
+} from "../utils/agent-content"
 import type {
   KiroAgent,
   KiroAgentConfig,
@@ -19,14 +24,15 @@ const KIRO_SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]*$/
 const KIRO_DESCRIPTION_MAX_LENGTH = 1024
 
 const CLAUDE_TO_KIRO_TOOLS: Record<string, string> = {
-  Bash: "shell",
-  Write: "write",
-  Read: "read",
-  Edit: "write", // NOTE: Kiro write is full-file, not surgical edit. Lossy mapping.
-  Glob: "glob",
-  Grep: "grep",
-  WebFetch: "web_fetch",
-  Task: "use_subagent",
+  bash: "shell",
+  edit: "write", // NOTE: Kiro write is full-file, not surgical edit. Lossy mapping.
+  glob: "glob",
+  grep: "grep",
+  read: "read",
+  task: "use_subagent",
+  webfetch: "web_fetch",
+  websearch: "web_search",
+  write: "write",
 }
 
 export function convertClaudeToKiro(
@@ -74,12 +80,18 @@ function convertAgentToKiroAgent(agent: ClaudeAgent, knownAgentNames: string[]):
   const description = sanitizeDescription(
     agent.description ?? `Use this agent for ${agent.name} tasks`,
   )
+  const { mappedTools, unmappedTools } = mapToolSpecifiers(agent.tools, CLAUDE_TO_KIRO_TOOLS)
 
   const config: KiroAgentConfig = {
     name,
     description,
     prompt: `file://./prompts/${name}.md`,
-    tools: ["*"],
+    tools: resolveStructuredAgentTools({
+      sourceTools: agent.tools,
+      mappedTools,
+      unmappedTools,
+      target: "Kiro",
+    }),
     resources: [
       "file://.kiro/steering/**/*.md",
       "skill://.kiro/skills/**/SKILL.md",
@@ -88,14 +100,11 @@ function convertAgentToKiroAgent(agent: ClaudeAgent, knownAgentNames: string[]):
     welcomeMessage: `Switching to the ${name} agent. ${description}`,
   }
 
-  let body = transformContentForKiro(agent.body.trim(), knownAgentNames)
-  if (agent.capabilities && agent.capabilities.length > 0) {
-    const capabilities = agent.capabilities.map((c) => `- ${c}`).join("\n")
-    body = `## Capabilities\n${capabilities}\n\n${body}`.trim()
-  }
-  if (body.length === 0) {
-    body = `Instructions converted from the ${agent.name} agent.`
-  }
+  const body = composeAgentBody({
+    body: transformContentForKiro(agent.body.trim(), knownAgentNames),
+    fallback: `Instructions converted from the ${agent.name} agent.`,
+    capabilities: agent.capabilities,
+  })
 
   return { name, config, promptContent: body }
 }
@@ -159,7 +168,7 @@ export function transformContentForKiro(body: string, knownAgentNames: string[] 
   // 4. Claude tool names -> Kiro tool names
   for (const [claudeTool, kiroTool] of Object.entries(CLAUDE_TO_KIRO_TOOLS)) {
     // Match tool name references: "the X tool", "using X", "use X to"
-    const toolPattern = new RegExp(`\\b${claudeTool}\\b(?=\\s+tool|\\s+to\\s)`, "g")
+    const toolPattern = new RegExp(`\\b${claudeTool}\\b(?=\\s+tool|\\s+to\\s)`, "gi")
     result = result.replace(toolPattern, kiroTool)
   }
 

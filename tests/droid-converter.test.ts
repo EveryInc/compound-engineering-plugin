@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, spyOn, test } from "bun:test"
 import { convertClaudeToDroid } from "../src/converters/claude-to-droid"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 import type { ClaudePlugin } from "../src/types/claude"
@@ -11,6 +11,7 @@ const fixturePlugin: ClaudePlugin = {
       name: "Security Reviewer",
       description: "Security-focused agent",
       capabilities: ["Threat modeling", "OWASP"],
+      tools: ["Read", "Grep", "Glob", "Bash"],
       model: "claude-sonnet-4-20250514",
       body: "Focus on vulnerabilities.",
       sourcePath: "/tmp/plugin/agents/security-reviewer.md",
@@ -72,9 +73,76 @@ describe("convertClaudeToDroid", () => {
     expect(parsed.data.name).toBe("security-reviewer")
     expect(parsed.data.description).toBe("Security-focused agent")
     expect(parsed.data.model).toBe("claude-sonnet-4-20250514")
+    expect(parsed.data.tools).toEqual(["Read", "Grep", "Glob", "Execute"])
     expect(parsed.body).toContain("Capabilities")
     expect(parsed.body).toContain("Threat modeling")
     expect(parsed.body).toContain("Focus on vulnerabilities.")
+  })
+
+  test("omits tools when Claude restrictions have no Droid mapping", () => {
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {})
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "notebook-agent",
+          description: "Needs an unmapped Claude-only tool",
+          tools: ["NotebookRead"],
+          body: "Inspect notebooks.",
+          sourcePath: "/tmp/plugin/agents/notebook-agent.md",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToDroid(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const parsed = parseFrontmatter(bundle.droids[0].content)
+    expect(parsed.data.tools).toBeUndefined()
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Warning: Droid has no mapping for Claude agent tools [NotebookRead]. Omitting the Droid tools field so the converted agent remains usable.",
+    )
+
+    warnSpy.mockRestore()
+  })
+
+  test("omits tools when only part of a Claude tool list maps to Droid", () => {
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {})
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "mixed-agent",
+          description: "Needs one mapped and one unmapped tool",
+          tools: ["Read", "NotebookRead"],
+          body: "Inspect code and notebooks.",
+          sourcePath: "/tmp/plugin/agents/mixed-agent.md",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToDroid(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const parsed = parseFrontmatter(bundle.droids[0].content)
+    expect(parsed.data.tools).toBeUndefined()
+    expect(warnSpy).toHaveBeenCalledWith(
+      "Warning: Droid cannot preserve Claude agent tools [NotebookRead] from [Read, NotebookRead]. Omitting the Droid tools field so the converted agent remains usable.",
+    )
+
+    warnSpy.mockRestore()
   })
 
   test("passes through skill directories", () => {

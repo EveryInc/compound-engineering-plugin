@@ -2,6 +2,7 @@ import { formatFrontmatter } from "../utils/frontmatter"
 import type { ClaudeAgent, ClaudeCommand, ClaudePlugin, ClaudeSkill } from "../types/claude"
 import type { CodexBundle, CodexGeneratedSkill } from "../types/codex"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
+import { composeAgentBody } from "../utils/agent-content"
 import {
   normalizeCodexName,
   transformContentForCodex,
@@ -111,14 +112,15 @@ function convertAgent(
   )
   const frontmatter: Record<string, unknown> = { name, description }
 
-  let body = transformContentForCodex(agent.body.trim(), invocationTargets)
-  if (agent.capabilities && agent.capabilities.length > 0) {
-    const capabilities = agent.capabilities.map((capability) => `- ${capability}`).join("\n")
-    body = `## Capabilities\n${capabilities}\n\n${body}`.trim()
-  }
-  if (body.length === 0) {
-    body = `Instructions converted from the ${agent.name} agent.`
-  }
+  const body = [
+    composeAgentBody({
+      body: transformContentForCodex(agent.body.trim(), invocationTargets),
+      fallback: `Instructions converted from the ${agent.name} agent.`,
+      capabilities: agent.capabilities,
+    }),
+  ]
+    .filter(Boolean)
+    .join("\n\n")
 
   const content = formatFrontmatter(frontmatter, body)
   return { name, content }
@@ -139,9 +141,6 @@ function convertCommandSkill(
   const sections: string[] = []
   if (command.argumentHint) {
     sections.push(`## Arguments\n${command.argumentHint}`)
-  }
-  if (command.allowedTools && command.allowedTools.length > 0) {
-    sections.push(`## Allowed tools\n${command.allowedTools.map((tool) => `- ${tool}`).join("\n")}`)
   }
   const transformedBody = transformContentForCodex(command.body.trim(), invocationTargets)
   sections.push(transformedBody)

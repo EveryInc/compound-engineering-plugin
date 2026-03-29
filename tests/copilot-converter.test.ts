@@ -11,6 +11,7 @@ const fixturePlugin: ClaudePlugin = {
       name: "Security Reviewer",
       description: "Security-focused code review agent",
       capabilities: ["Threat modeling", "OWASP"],
+      tools: ["Read", "Grep", "Glob", "Bash"],
       model: "claude-sonnet-4-20250514",
       body: "Focus on vulnerabilities.",
       sourcePath: "/tmp/plugin/agents/security-reviewer.md",
@@ -55,7 +56,7 @@ describe("convertClaudeToCopilot", () => {
 
     const parsed = parseFrontmatter(agent.content)
     expect(parsed.data.description).toBe("Security-focused code review agent")
-    expect(parsed.data.tools).toEqual(["*"])
+    expect(parsed.data.tools).toEqual(["read", "search", "execute"])
     expect(parsed.data.infer).toBe(true)
     expect(parsed.body).toContain("Capabilities")
     expect(parsed.body).toContain("Threat modeling")
@@ -127,10 +128,96 @@ describe("convertClaudeToCopilot", () => {
     expect(parsed.data.model).toBeUndefined()
   })
 
-  test("agent tools defaults to [*]", () => {
-    const bundle = convertClaudeToCopilot(fixturePlugin, defaultOptions)
+  test("agent tools default to [*] when source agent has no tool restrictions", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "unrestricted-agent",
+          description: "No explicit tools",
+          body: "Do things.",
+          sourcePath: "/tmp/plugin/agents/unrestricted.md",
+        },
+      ],
+    }
+    const bundle = convertClaudeToCopilot(plugin, defaultOptions)
     const parsed = parseFrontmatter(bundle.agents[0].content)
     expect(parsed.data.tools).toEqual(["*"])
+  })
+
+  test("agent tool mapping includes agent and web access", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "delegating-agent",
+          description: "Needs delegation and web access",
+          tools: ["Task", "WebFetch", "WebSearch"],
+          body: "Delegate and browse.",
+          sourcePath: "/tmp/plugin/agents/delegating.md",
+        },
+      ],
+    }
+
+    const bundle = convertClaudeToCopilot(plugin, defaultOptions)
+    const parsed = parseFrontmatter(bundle.agents[0].content)
+    expect(parsed.data.tools).toEqual(["agent", "web"])
+  })
+
+  test("falls back to [*] when Claude tool restrictions have no Copilot mapping", () => {
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {})
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "question-agent",
+          description: "Needs an unmapped Claude-only tool",
+          tools: ["Question"],
+          body: "Ask follow-up questions.",
+          sourcePath: "/tmp/plugin/agents/question-agent.md",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCopilot(plugin, defaultOptions)
+    const parsed = parseFrontmatter(bundle.agents[0].content)
+    expect(parsed.data.tools).toEqual(["*"])
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Warning: Copilot has no mapping for Claude agent tools [Question]. Falling back to ["*"] so the converted agent remains usable.',
+    )
+
+    warnSpy.mockRestore()
+  })
+
+  test("falls back to [*] when only part of a Claude tool list maps to Copilot", () => {
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => {})
+
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "mixed-agent",
+          description: "Needs one mapped and one unmapped tool",
+          tools: ["Read", "Question"],
+          body: "Inspect and ask follow-up questions.",
+          sourcePath: "/tmp/plugin/agents/mixed-agent.md",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCopilot(plugin, defaultOptions)
+    const parsed = parseFrontmatter(bundle.agents[0].content)
+    expect(parsed.data.tools).toEqual(["*"])
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Warning: Copilot cannot preserve Claude agent tools [Question] from [Read, Question]. Falling back to ["*"] so the converted agent remains usable.',
+    )
+
+    warnSpy.mockRestore()
   })
 
   test("agent infer defaults to true", () => {

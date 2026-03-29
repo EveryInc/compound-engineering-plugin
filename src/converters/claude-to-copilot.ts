@@ -1,6 +1,11 @@
 import { formatFrontmatter } from "../utils/frontmatter"
 import { sanitizePathName } from "../utils/files"
 import type { ClaudeAgent, ClaudeCommand, ClaudeMcpServer, ClaudePlugin } from "../types/claude"
+import {
+  composeAgentBody,
+  mapToolSpecifiers,
+  resolveStructuredAgentTools,
+} from "../utils/agent-content"
 import type {
   CopilotAgent,
   CopilotBundle,
@@ -12,6 +17,20 @@ import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 export type ClaudeToCopilotOptions = ClaudeToOpenCodeOptions
 
 const COPILOT_BODY_CHAR_LIMIT = 30_000
+const CLAUDE_TO_COPILOT_TOOLS: Record<string, string> = {
+  task: "agent",
+  bash: "execute",
+  edit: "edit",
+  glob: "search",
+  grep: "search",
+  multiedit: "edit",
+  notebookedit: "edit",
+  notebookread: "read",
+  read: "read",
+  webfetch: "web",
+  websearch: "web",
+  write: "edit",
+}
 
 export function convertClaudeToCopilot(
   plugin: ClaudePlugin,
@@ -47,10 +66,16 @@ export function convertClaudeToCopilot(
 function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): CopilotAgent {
   const name = uniqueName(normalizeName(agent.name), usedNames)
   const description = agent.description ?? `Converted from Claude agent ${agent.name}`
+  const { mappedTools, unmappedTools } = mapToolSpecifiers(agent.tools, CLAUDE_TO_COPILOT_TOOLS)
 
   const frontmatter: Record<string, unknown> = {
     description,
-    tools: ["*"],
+    tools: resolveStructuredAgentTools({
+      sourceTools: agent.tools,
+      mappedTools,
+      unmappedTools,
+      target: "Copilot",
+    }),
     infer: true,
   }
 
@@ -58,14 +83,11 @@ function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): CopilotAgent 
     frontmatter.model = agent.model
   }
 
-  let body = transformContentForCopilot(agent.body.trim())
-  if (agent.capabilities && agent.capabilities.length > 0) {
-    const capabilities = agent.capabilities.map((c) => `- ${c}`).join("\n")
-    body = `## Capabilities\n${capabilities}\n\n${body}`.trim()
-  }
-  if (body.length === 0) {
-    body = `Instructions converted from the ${agent.name} agent.`
-  }
+  const body = composeAgentBody({
+    body: transformContentForCopilot(agent.body.trim()),
+    fallback: `Instructions converted from the ${agent.name} agent.`,
+    capabilities: agent.capabilities,
+  })
 
   if (body.length > COPILOT_BODY_CHAR_LIMIT) {
     console.warn(

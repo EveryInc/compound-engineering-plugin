@@ -8,7 +8,7 @@ export type KiroAgentConfig = {
   name: string
   description: string
   prompt: `file://${string}`
-  tools: ["*"]
+  tools: string[]
   resources: string[]
   includeMcpJson: true
   welcomeMessage?: string
