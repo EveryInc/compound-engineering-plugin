@@ -446,7 +446,7 @@ When external delegation is active, follow this workflow for each tagged task. D
 
 3. **Write prompt to file** — Save the assembled prompt to a unique temporary file to avoid shell quoting issues and cross-task races. Use a unique filename per task.
 
-4. **Delegate** — Run the delegate CLI, piping the prompt file via stdin (not argv expansion, which hits `ARG_MAX` on large prompts). Omit the model flag to use the delegate's default model, which stays current without manual updates.
+4. **Delegate** — Run the delegate CLI with `-s danger-full-access -a never`, piping the prompt file via stdin (not argv expansion, which hits `ARG_MAX` on large prompts). The `-s danger-full-access` flag grants full filesystem and network access, which is needed because delegated tasks often run `npm install`, `pip install`, or other dependency-fetching commands that require outbound network. The `workspace-write` sandbox does not guarantee network access across all Codex versions and configurations. The `-a never` flag disables approval prompts, which is required because `exec` mode is non-interactive and has no user to prompt. Without these flags, users whose global Codex config does not set `approval_policy` and `sandbox_mode` will see delegation fail on any network operation. Omit the model flag to use the delegate's default model, which stays current without manual updates.
 
 5. **Review diff** — After the delegate finishes, verify the diff is non-empty and in-scope. Run the project's test/lint commands. If the diff is empty or out-of-scope, fall back to standard mode for that task.
 
