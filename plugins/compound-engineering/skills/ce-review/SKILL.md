@@ -36,7 +36,7 @@ All tokens are optional. Each one present means one less thing to infer. When ab
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Interactive** (default) | No mode token present | Review, present findings, ask for policy decisions when needed, and optionally continue into fix/push/PR next steps |
+| **Interactive** (default) | No mode token present | Review, apply safe_auto fixes automatically, present findings, ask for policy decisions on gated/manual findings, and optionally continue into fix/push/PR next steps |
 | **Autofix** | `mode:autofix` in arguments | No user interaction. Review, apply only policy-allowed `safe_auto` fixes, re-review in bounded rounds, write a run artifact, and emit residual downstream work when needed |
 | **Report-only** | `mode:report-only` in arguments | Strictly read-only. Review and report only, then stop with no edits, artifacts, todos, commits, pushes, or PR actions |
 | **Headless** | `mode:headless` in arguments | Programmatic mode for skill-to-skill invocation. Apply `safe_auto` fixes silently (single pass), return all other findings as structured text output, write run artifacts, skip todos, and return "Review complete" signal. No interactive prompts. |
@@ -546,17 +546,17 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 
 **Interactive mode**
 
-- Ask a single policy question only when actionable work exists.
-- Recommended default:
+- Apply `safe_auto -> review-fixer` findings automatically without asking. These are safe by definition.
+- Ask a policy question only when `gated_auto` or `manual` findings remain after safe fixes:
 
   ```
-  What should I do with the actionable findings?
-  1. Apply safe_auto fixes and leave the rest as residual work (Recommended)
-  2. Apply safe_auto fixes only
-  3. Review report only
+  Safe fixes have been applied. What should I do with the remaining findings?
+  1. Review and approve specific gated fixes (Recommended)
+  2. Leave as residual work
+  3. Report only -- no further action
   ```
 
-- Tailor the prompt to the actual action sets. If the fixer queue is empty, do not offer "Apply safe_auto fixes" options. Ask whether to externalize the residual actionable work or keep the review report-only instead.
+- If no `gated_auto` or `manual` findings remain after safe fixes, skip the policy question entirely — report what was fixed and proceed to next steps.
 - Only include `gated_auto` findings in the fixer queue after the user explicitly approves the specific items. Do not widen the queue based on severity alone.
 
 **Autofix mode**

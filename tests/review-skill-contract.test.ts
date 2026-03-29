@@ -78,7 +78,7 @@ describe("ce-review contract", () => {
       "Only include `gated_auto` findings in the fixer queue after the user explicitly approves the specific items.",
     )
     expect(content).toContain(
-      'If the fixer queue is empty, do not offer "Apply safe_auto fixes" options.',
+      "If no `gated_auto` or `manual` findings remain after safe fixes, skip the policy question entirely",
     )
     expect(content).toContain(
       "In autofix mode, create durable todo files only for unresolved actionable findings whose final owner is `downstream-resolver`.",

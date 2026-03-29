@@ -250,6 +250,14 @@ If a document contains outstanding questions:
 - Use tags like `[Needs research]` when the planner should likely investigate the question rather than answer it from repo context alone
 - Carry deferred questions forward explicitly rather than treating them as a failure to finish the requirements doc
 
+### Phase 3.5: Document Review
+
+When a requirements document was created or updated, run the `document-review` skill on it before presenting handoff options. Pass the document path as the argument.
+
+If document-review returns findings that were auto-applied, note them briefly when presenting handoff options. If residual P0/P1 findings were surfaced, mention them so the user can decide whether to address them before proceeding.
+
+When document-review returns "Review complete", proceed to Phase 4.
+
 ### Phase 4: Handoff
 
 #### 4.1 Present Next-Step Options
@@ -269,7 +277,7 @@ If `Resolve Before Planning` contains any items:
 Present only the options that apply:
 - **Proceed to planning (Recommended)** - Run `/ce:plan` for structured implementation planning
 - **Proceed directly to work** - Only offer this when scope is lightweight, success criteria are clear, scope boundaries are clear, and no meaningful technical or research questions remain
-- **Review and refine** - Offer this only when a requirements document exists and can be improved through structured review
+- **Run additional document review** - Offer this only when a requirements document exists. Runs another pass for further refinement
 - **Ask more questions** - Continue clarifying scope, preferences, or edge cases
 - **Share to Proof** - Offer this only when a requirements document exists
 - **Done for now** - Return later
@@ -303,9 +311,9 @@ If the curl fails, skip silently. Then return to the Phase 4 options.
 
 **If user selects "Ask more questions":** Return to Phase 1.3 (Collaborative Dialogue) and continue asking the user questions one at a time to further refine the design. Probe deeper into edge cases, constraints, preferences, or areas not yet explored. Continue until the user is satisfied, then return to Phase 4. Do not show the closing summary yet.
 
-**If user selects "Review and refine":**
+**If user selects "Run additional document review":**
 
-Load the `document-review` skill and apply it to the requirements document.
+Load the `document-review` skill and apply it to the requirements document for another pass.
 
 When document-review returns "Review complete", return to the normal Phase 4 options and present only the options that still apply. Do not show the closing summary yet.
 
