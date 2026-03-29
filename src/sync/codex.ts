@@ -20,7 +20,7 @@ export async function syncToCodex(
   // Write MCP servers to config.toml (TOML format)
   if (Object.keys(config.mcpServers).length > 0) {
     const configPath = path.join(outputRoot, "config.toml")
-    const mcpToml = renderCodexConfig(config.mcpServers)
+    const mcpToml = renderCodexConfig({ mcpServers: config.mcpServers })
     if (!mcpToml) {
       return
     }

@@ -3,7 +3,7 @@ import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
 import { writeCodexBundle } from "../src/targets/codex"
-import type { CodexBundle } from "../src/types/codex"
+import type { CodexBundle, CodexHooks } from "../src/types/codex"
 
 async function exists(filePath: string): Promise<boolean> {
   try {
@@ -263,5 +263,143 @@ Workflow handoff:
     expect(installedSkill).not.toContain("/prompts:users")
     expect(installedSkill).not.toContain("/prompts:settings")
     expect(installedSkill).not.toContain("https://prompts:www.proofeditor.ai")
+  })
+
+  test("writes hooks.json when hooks present", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-hooks-"))
+    const hooks: CodexHooks = {
+      PreToolUse: [{ hooks: [{ type: "command", command: "echo before" }] }],
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: "echo prompt" }] }],
+    }
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      hooks,
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const hooksPath = path.join(tempRoot, ".codex", "hooks.json")
+    expect(await exists(hooksPath)).toBe(true)
+
+    const parsed = JSON.parse(await fs.readFile(hooksPath, "utf8"))
+    expect(parsed.hooks.PreToolUse).toHaveLength(1)
+    expect(parsed.hooks.PreToolUse[0].hooks[0].command).toBe("echo before")
+    expect(parsed.hooks.UserPromptSubmit).toHaveLength(1)
+    expect(parsed.hooks.UserPromptSubmit[0].hooks[0].command).toBe("echo prompt")
+  })
+
+  test("does not write hooks.json when hooks undefined", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-no-hooks-"))
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const hooksPath = path.join(tempRoot, ".codex", "hooks.json")
+    expect(await exists(hooksPath)).toBe(false)
+  })
+
+  test("backs up existing hooks.json before overwriting", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-hooks-backup-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+    const hooksPath = path.join(codexRoot, "hooks.json")
+
+    // Create existing hooks.json
+    await fs.mkdir(codexRoot, { recursive: true })
+    const originalContent = '{"hooks":{"Stop":[{"hooks":[{"type":"command","command":"echo old"}]}]}}\n'
+    await fs.writeFile(hooksPath, originalContent)
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      hooks: {
+        PreToolUse: [{ hooks: [{ type: "command", command: "echo new" }] }],
+      },
+    }
+
+    await writeCodexBundle(codexRoot, bundle)
+
+    // New hooks.json should be written
+    const newContent = await fs.readFile(hooksPath, "utf8")
+    expect(newContent).toContain("echo new")
+
+    // Backup should exist with original content
+    const files = await fs.readdir(codexRoot)
+    const backupFileName = files.find((f) => f.startsWith("hooks.json.bak."))
+    expect(backupFileName).toBeDefined()
+
+    const backupContent = await fs.readFile(path.join(codexRoot, backupFileName!), "utf8")
+    expect(backupContent).toBe(originalContent)
+  })
+
+  test("writes feature gate in config.toml when hooks present", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-hooks-gate-"))
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      hooks: {
+        PreToolUse: [{ hooks: [{ type: "command", command: "echo test" }] }],
+      },
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const configPath = path.join(tempRoot, ".codex", "config.toml")
+    expect(await exists(configPath)).toBe(true)
+
+    const config = await fs.readFile(configPath, "utf8")
+    expect(config).toContain("[features]")
+    expect(config).toContain("codex_hooks = true")
+  })
+
+  test("writes config.toml with both feature gate and MCP servers", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-hooks-mcp-"))
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      hooks: {
+        PreToolUse: [{ hooks: [{ type: "command", command: "echo test" }] }],
+      },
+      mcpServers: {
+        local: { command: "echo", args: ["hello"] },
+      },
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const configPath = path.join(tempRoot, ".codex", "config.toml")
+    expect(await exists(configPath)).toBe(true)
+
+    const config = await fs.readFile(configPath, "utf8")
+    expect(config).toContain("[features]")
+    expect(config).toContain("codex_hooks = true")
+    expect(config).toContain("[mcp_servers.local]")
+
+    // Feature gate should come before MCP servers
+    const featuresIndex = config.indexOf("[features]")
+    const mcpIndex = config.indexOf("[mcp_servers.local]")
+    expect(featuresIndex).toBeLessThan(mcpIndex)
+  })
+
+  test("does not write config.toml when no hooks and no MCP servers", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-no-config-"))
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const configPath = path.join(tempRoot, ".codex", "config.toml")
+    expect(await exists(configPath)).toBe(false)
   })
 })

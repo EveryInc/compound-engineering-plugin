@@ -502,4 +502,260 @@ Run \`/compound-engineering-setup\` to create a settings file.`,
     expect(description).not.toContain("\n")
     expect(description.endsWith("...")).toBe(true)
   })
+
+  // -- Hook conversion tests --
+
+  const defaultOpts = { agentMode: "subagent" as const, inferTemperature: false, permissions: "none" as const }
+
+  function pluginWithHooks(hooks: Record<string, Array<{ matcher?: string; hooks: Array<{ type: string; command?: string; timeout?: number; prompt?: string; agent?: string }> }>>): ClaudePlugin {
+    return {
+      ...fixturePlugin,
+      commands: [],
+      agents: [],
+      skills: [],
+      hooks: { hooks: hooks as any },
+    }
+  }
+
+  test("converts PreToolUse Bash hooks to Codex format", () => {
+    const plugin = pluginWithHooks({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo before", timeout: 30 }] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(plugin, defaultOpts)
+      expect(bundle.hooks?.PreToolUse).toHaveLength(1)
+      expect(bundle.hooks!.PreToolUse![0].matcher).toBe("Bash")
+      expect(bundle.hooks!.PreToolUse![0].hooks).toHaveLength(1)
+      expect(bundle.hooks!.PreToolUse![0].hooks[0].command).toBe("echo before")
+      expect(bundle.hooks!.PreToolUse![0].hooks[0].timeout).toBe(30)
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("converts non-tool-scoped events without matcher", () => {
+    const plugin = pluginWithHooks({
+      UserPromptSubmit: [{ matcher: "*", hooks: [{ type: "command", command: "echo prompt" }] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(plugin, defaultOpts)
+      expect(bundle.hooks?.UserPromptSubmit).toHaveLength(1)
+      expect(bundle.hooks!.UserPromptSubmit![0].matcher).toBeUndefined()
+      expect(bundle.hooks!.UserPromptSubmit![0].hooks).toHaveLength(1)
+      expect(bundle.hooks!.UserPromptSubmit![0].hooks[0].command).toBe("echo prompt")
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("converts all 5 supported events", () => {
+    const plugin = pluginWithHooks({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo pre" }] }],
+      PostToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo post" }] }],
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: "echo prompt" }] }],
+      SessionStart: [{ hooks: [{ type: "command", command: "echo start" }] }],
+      Stop: [{ hooks: [{ type: "command", command: "echo stop" }] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(plugin, defaultOpts)
+      expect(bundle.hooks?.PreToolUse).toBeDefined()
+      expect(bundle.hooks?.PostToolUse).toBeDefined()
+      expect(bundle.hooks?.UserPromptSubmit).toBeDefined()
+      expect(bundle.hooks?.SessionStart).toBeDefined()
+      expect(bundle.hooks?.Stop).toBeDefined()
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("skips non-Bash matcher on tool-scoped event with warning", () => {
+    const plugin = pluginWithHooks({
+      PreToolUse: [{ matcher: "Write|Edit", hooks: [{ type: "command", command: "echo test" }] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(plugin, defaultOpts)
+      expect(bundle.hooks).toBeUndefined()
+      expect(warnings.some((w) => w.includes("Write|Edit"))).toBe(true)
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("skips prompt and agent type hooks with warnings", () => {
+    const plugin = pluginWithHooks({
+      PostToolUse: [{ matcher: "Bash", hooks: [
+        { type: "prompt", prompt: "review" },
+        { type: "agent", agent: "reviewer" },
+        { type: "command", command: "echo test" },
+      ] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(plugin, defaultOpts)
+      expect(bundle.hooks?.PostToolUse).toHaveLength(1)
+      expect(bundle.hooks!.PostToolUse![0].hooks).toHaveLength(1)
+      expect(bundle.hooks!.PostToolUse![0].hooks[0].command).toBe("echo test")
+      expect(warnings.some((w) => w.includes("prompt"))).toBe(true)
+      expect(warnings.some((w) => w.includes("agent"))).toBe(true)
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("skips unsupported events with warnings", () => {
+    const plugin = pluginWithHooks({
+      PostToolUseFailure: [{ hooks: [{ type: "command", command: "echo fail" }] }],
+      PermissionRequest: [{ hooks: [{ type: "command", command: "echo perm" }] }],
+      Notification: [{ hooks: [{ type: "command", command: "echo notify" }] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(plugin, defaultOpts)
+      expect(bundle.hooks).toBeUndefined()
+      const unsupportedWarnings = warnings.filter((w) => w.includes("does not support"))
+      expect(unsupportedWarnings).toHaveLength(3)
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("returns undefined hooks when plugin has no hooks", () => {
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(fixturePlugin, defaultOpts)
+      expect(bundle.hooks).toBeUndefined()
+      expect(warnings).toHaveLength(0)
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("returns undefined hooks when all hooks are unconvertible", () => {
+    const plugin = pluginWithHooks({
+      Notification: [{ hooks: [{ type: "prompt", prompt: "notify" }] }],
+      SubagentStart: [{ hooks: [{ type: "agent", agent: "sub" }] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(plugin, defaultOpts)
+      expect(bundle.hooks).toBeUndefined()
+      expect(warnings.length).toBeGreaterThan(0)
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("preserves timeout field", () => {
+    const plugin = pluginWithHooks({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo timed", timeout: 30 }] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(plugin, defaultOpts)
+      expect(bundle.hooks?.PreToolUse?.[0]?.hooks[0]?.timeout).toBe(30)
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("converts wildcard matcher on tool-scoped event", () => {
+    const plugin = pluginWithHooks({
+      PreToolUse: [{ matcher: "*", hooks: [{ type: "command", command: "echo test" }] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      const bundle = convertClaudeToCodex(plugin, defaultOpts)
+      expect(bundle.hooks?.PreToolUse).toBeDefined()
+      expect(bundle.hooks!.PreToolUse![0].matcher).toBe("Bash")
+    } finally {
+      console.warn = originalWarn
+    }
+  })
+
+  test("isBashCompatibleMatcher allows compatible matchers and rejects others", () => {
+    const compatibleMatchers = [undefined, "*", "", "Bash", "^Bash$"]
+    const incompatibleMatchers = ["Write|Edit", "Bash|Write", "Read"]
+
+    for (const matcher of compatibleMatchers) {
+      const plugin = pluginWithHooks({
+        PreToolUse: [{ matcher, hooks: [{ type: "command", command: "echo test" }] }],
+      })
+
+      const warnings: string[] = []
+      const originalWarn = console.warn
+      console.warn = (msg: string) => warnings.push(msg)
+      try {
+        const bundle = convertClaudeToCodex(plugin, defaultOpts)
+        expect(bundle.hooks?.PreToolUse).toBeDefined()
+      } finally {
+        console.warn = originalWarn
+      }
+    }
+
+    for (const matcher of incompatibleMatchers) {
+      const plugin = pluginWithHooks({
+        PreToolUse: [{ matcher, hooks: [{ type: "command", command: "echo test" }] }],
+      })
+
+      const warnings: string[] = []
+      const originalWarn = console.warn
+      console.warn = (msg: string) => warnings.push(msg)
+      try {
+        const bundle = convertClaudeToCodex(plugin, defaultOpts)
+        expect(bundle.hooks).toBeUndefined()
+        expect(warnings.some((w) => w.includes(matcher))).toBe(true)
+      } finally {
+        console.warn = originalWarn
+      }
+    }
+  })
+
+  test("emits PreToolUse deny-only warning", () => {
+    const plugin = pluginWithHooks({
+      PreToolUse: [{ matcher: "Bash", hooks: [{ type: "command", command: "echo check" }] }],
+    })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (msg: string) => warnings.push(msg)
+    try {
+      convertClaudeToCodex(plugin, defaultOpts)
+      expect(warnings.some((w) => w.includes("deny decisions"))).toBe(true)
+    } finally {
+      console.warn = originalWarn
+    }
+  })
 })

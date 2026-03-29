@@ -1,6 +1,6 @@
 import { formatFrontmatter } from "../utils/frontmatter"
-import type { ClaudeAgent, ClaudeCommand, ClaudePlugin, ClaudeSkill } from "../types/claude"
-import type { CodexBundle, CodexGeneratedSkill } from "../types/codex"
+import type { ClaudeAgent, ClaudeCommand, ClaudeHooks, ClaudePlugin, ClaudeSkill } from "../types/claude"
+import type { CodexBundle, CodexGeneratedSkill, CodexHookEventName, CodexHooks } from "../types/codex"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 import {
   normalizeCodexName,
@@ -91,12 +91,15 @@ export function convertClaudeToCodex(
   )
   const generatedSkills = [...commandSkills, ...agentSkills]
 
+  const hooks = plugin.hooks ? convertHooksForCodex(plugin.hooks) : undefined
+
   return {
     prompts: [...prompts, ...workflowPrompts],
     skillDirs,
     generatedSkills,
     invocationTargets,
     mcpServers: plugin.mcpServers,
+    ...(hooks ? { hooks } : {}),
   }
 }
 
@@ -213,4 +216,92 @@ function uniqueName(base: string, used: Set<string>): string {
   const name = `${base}-${index}`
   used.add(name)
   return name
+}
+
+const CODEX_EVENTS: Record<string, { codexName: CodexHookEventName; toolScoped: boolean }> = {
+  PreToolUse: { codexName: "PreToolUse", toolScoped: true },
+  PostToolUse: { codexName: "PostToolUse", toolScoped: true }, // TODO: depends on openai/codex#15531 merging
+  UserPromptSubmit: { codexName: "UserPromptSubmit", toolScoped: false },
+  SessionStart: { codexName: "SessionStart", toolScoped: false },
+  Stop: { codexName: "Stop", toolScoped: false },
+}
+
+function isBashCompatibleMatcher(matcher: string | undefined): boolean {
+  return matcher === undefined || matcher === "*" || matcher === "" || matcher === "Bash" || matcher === "^Bash$"
+}
+
+function convertHooksForCodex(hooks: ClaudeHooks): CodexHooks | undefined {
+  const result: CodexHooks = {}
+  let hasConvertibleHooks = false
+  let hasPreToolUse = false
+  let warnedPluginRoot = false
+
+  for (const [eventName, matchers] of Object.entries(hooks.hooks)) {
+    const eventDef = CODEX_EVENTS[eventName]
+    if (!eventDef) {
+      console.warn(`Warning: Codex does not support ${eventName} hooks. Skipped.`)
+      continue
+    }
+
+    const codexMatchers = []
+
+    for (const matcherGroup of matchers) {
+      if (eventDef.toolScoped && !isBashCompatibleMatcher(matcherGroup.matcher)) {
+        console.warn(`Warning: Codex only supports Bash hooks for ${eventName}. Matcher '${matcherGroup.matcher}' skipped.`)
+        continue
+      }
+
+      const commandEntries = []
+      for (const entry of matcherGroup.hooks) {
+        if (entry.type !== "command") {
+          console.warn(`Warning: Codex only supports command-type hooks. Skipped ${entry.type} hook in ${eventName}.`)
+          continue
+        }
+        commandEntries.push(entry)
+      }
+
+      if (commandEntries.length === 0) continue
+
+      const codexHookCommands = commandEntries.map((entry) => {
+        if (!warnedPluginRoot && entry.command.includes("$" + "{CLAUDE_PLUGIN_ROOT}")) {
+          console.warn("Warning: Codex hooks do not support $" + "{CLAUDE_PLUGIN_ROOT}. Command may not work as expected.")
+          warnedPluginRoot = true
+        }
+        const cmd: { type: "command"; command: string; timeout?: number } = {
+          type: "command",
+          command: entry.command,
+        }
+        if (entry.timeout !== undefined) {
+          cmd.timeout = entry.timeout
+        }
+        return cmd
+      })
+
+      const codexMatcher: { matcher?: string; hooks: typeof codexHookCommands } = {
+        hooks: codexHookCommands,
+      }
+      if (eventDef.toolScoped) {
+        codexMatcher.matcher = isBashCompatibleMatcher(matcherGroup.matcher) && (matcherGroup.matcher === undefined || matcherGroup.matcher === "*" || matcherGroup.matcher === "")
+          ? "Bash"
+          : matcherGroup.matcher!
+      }
+
+      codexMatchers.push(codexMatcher)
+    }
+
+    if (codexMatchers.length > 0) {
+      result[eventDef.codexName] = codexMatchers
+      hasConvertibleHooks = true
+      if (eventDef.codexName === "PreToolUse") {
+        hasPreToolUse = true
+      }
+    }
+  }
+
+  if (hasPreToolUse) {
+    console.warn("Warning: Codex PreToolUse hooks only support deny decisions. Allow/ask/updatedInput are not available.")
+  }
+
+  if (!hasConvertibleHooks) return undefined
+  return result
 }
