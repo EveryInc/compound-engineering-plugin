@@ -942,10 +942,36 @@ AutoResearch is designed for ML training on a single GPU. CE's version needs to 
 - A human reviewing the experiment log can understand what was tried and why
 - The skill handles failures gracefully (bad experiments don't corrupt state)
 
+## Lessons from First Run (2026-03-30)
+
+The skill was tested on the clustering problem for ~90 minutes. Results:
+
+**What worked:**
+- Ran 16 experiments, improved multi_member_pct from 31.4% to 72.1%
+- Explored multiple algorithm modes (basic, refine, bounded union-find)
+- Correctly identified size-bounded union-find as the winning approach
+- Hypothesis diversity across parameter sweeps was reasonable
+
+**What failed:**
+
+1. **No LLM-as-judge evaluation** -- The skill defaulted to `type: hard` and optimized `multi_member_pct` as the primary metric. This is a proxy metric that can mislead. A solution that puts 72% of items in clusters is useless if the clusters are incoherent. The Phase 0.2 interactive spec creation did not actively probe whether the target was qualitative or guide toward judge mode.
+
+   **Fix applied**: Phase 0.2 now includes explicit qualitative vs quantitative detection, concrete examples of when to use each type, sampling strategy guidance with walkthrough questions, and rubric design guidance. The skill now strongly recommends `type: judge` for qualitative targets.
+
+2. **No disk persistence** -- Experiment results existed only in the conversation context (as a table dumped to chat). If the session had been compacted or crashed, all 90 minutes of results would have been lost. This directly contradicts the Karpathy model where `results.tsv` is written after every single experiment.
+
+   **Fix applied**: Added mandatory disk checkpoints (CP-0 through CP-5) at every phase boundary. Each checkpoint requires a write-then-verify cycle: write the file, read it back, confirm the content is present. The persistence discipline section now explicitly states "If you produce a results table in the conversation without writing those results to disk first, you have a bug."
+
+3. **Sampling strategy not prompted** -- Even if `type: judge` had been used, the skill didn't guide the user through designing a sampling strategy. For clustering, the user wants stratified sampling across: top clusters by size (check for mega-clusters), mid-range clusters (representative quality), small clusters (check if connections are real), and singletons (check for false negatives). This domain-specific guidance was missing.
+
+   **Fix applied**: Phase 0.2 now walks through sampling strategy design with concrete questions and domain-specific examples.
+
+**Key takeaway**: The skill had all the right machinery in the schema and templates but the SKILL.md instructions didn't forcefully enough guide the agent toward using that machinery. Instructions that say "if judge type, do X" are ignored when the skill silently defaults to hard type. Instructions need to actively detect the right path and guide toward it.
+
 ## Next Steps
 
-1. `/ce:brainstorm` this further to refine the spec format and phase gates
-2. Build a prototype with the clustering use case as the driving example
+1. Re-test with the clustering use case using `type: judge` to validate the judge loop works end-to-end
+2. Verify disk persistence works on a long run (2+ hours) with context compaction
 3. Test with a second use case (e.g., prompt optimization, build performance) to validate generality
-4. Design the measurement harness validation checks
-5. Decide on the v1 branch/git strategy
+4. Consider adding anchor samples for judge calibration across experiments (Open Question #2)
+5. Consider judge cost budgets (Open Question #8)

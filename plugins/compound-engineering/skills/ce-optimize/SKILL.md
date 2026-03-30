@@ -34,30 +34,55 @@ Reference the experiment log schema for state management:
 
 ## Persistence Discipline
 
-**The experiment log on disk is the single source of truth. The agent's in-memory context is expendable.**
+**CRITICAL: The experiment log on disk is the single source of truth. The conversation context is NOT durable storage. Results that exist only in the conversation WILL be lost.**
 
-This skill runs for hours. Context windows compact, sessions crash, and agents restart. Every piece of state that matters must live on disk, not in the agent's memory.
+This skill runs for hours. Context windows compact, sessions crash, and agents restart. Every piece of state that matters MUST live on disk, not in the agent's memory.
+
+**If you produce a results table in the conversation without writing those results to disk first, you have a bug.** The conversation is for the user's benefit. The experiment log file is for durability.
 
 ### Core Rules
 
 1. **Write each experiment result to disk IMMEDIATELY after measurement** — not after the batch, not after evaluation, IMMEDIATELY. Append the experiment entry to the experiment log file the moment its metrics are known, before evaluating the next experiment. This is the #1 crash-safety rule.
 
-2. **Re-read from disk at every phase boundary and before every decision** — never trust in-memory state across phase transitions, batch boundaries, or after any operation that might have taken significant time. Re-read the experiment log and strategy digest from disk.
+2. **VERIFY every critical write** — after writing the experiment log, read the file back and confirm the entry is present. This catches silent write failures. Do not proceed to the next experiment until verification passes.
 
-3. **The experiment log is append-only during Phase 3** — never rewrite the full file. Append new experiment entries. Update the `best` section in place only when a new best is found. This prevents data loss if a write is interrupted.
+3. **Re-read from disk at every phase boundary and before every decision** — never trust in-memory state across phase transitions, batch boundaries, or after any operation that might have taken significant time. Re-read the experiment log and strategy digest from disk.
 
-4. **Per-experiment result markers for crash recovery** — each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments that were measured but not yet logged.
+4. **The experiment log is append-only during Phase 3** — never rewrite the full file. Append new experiment entries. Update the `best` section in place only when a new best is found. This prevents data loss if a write is interrupted.
 
-5. **Strategy digest is written after every batch, before generating new hypotheses** — the agent reads the digest (not its memory) when deciding what to try next.
+5. **Per-experiment result markers for crash recovery** — each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments that were measured but not yet logged.
+
+6. **Strategy digest is written after every batch, before generating new hypotheses** — the agent reads the digest (not its memory) when deciding what to try next.
+
+7. **Never present results to the user without writing them to disk first** — the pattern is: measure -> write to disk -> verify -> THEN show the user. Not the reverse.
+
+### Mandatory Disk Checkpoints
+
+These are non-negotiable write-then-verify steps. At each checkpoint, the agent MUST write the specified file and then read it back to confirm the write succeeded.
+
+| Checkpoint | File Written | Phase |
+|---|---|---|
+| CP-0: Spec saved | `spec.yaml` | Phase 0, after user approval |
+| CP-1: Baseline recorded | `experiment-log.yaml` (initial with baseline) | Phase 1, after baseline measurement |
+| CP-2: Hypothesis backlog saved | `experiment-log.yaml` (hypothesis_backlog section) | Phase 2, after hypothesis generation |
+| CP-3: Each experiment result | `experiment-log.yaml` (append experiment entry) | Phase 3.3, immediately after each measurement |
+| CP-4: Batch summary | `experiment-log.yaml` (outcomes + best) + `strategy-digest.md` | Phase 3.5, after batch evaluation |
+| CP-5: Final summary | `experiment-log.yaml` (final state) | Phase 4, at wrap-up |
+
+**Format of a verification step:**
+1. Write the file using the native file-write tool
+2. Read the file back using the native file-read tool
+3. Confirm the expected content is present
+4. If verification fails, retry the write. If it fails twice, alert the user.
 
 ### File Locations (all under `.context/compound-engineering/ce-optimize/<spec-name>/`)
 
 | File | Purpose | Written When |
 |------|---------|-------------|
-| `spec.yaml` | Optimization spec (immutable during run) | Phase 0 |
-| `experiment-log.yaml` | Full history of all experiments | Appended after EACH experiment measurement |
-| `strategy-digest.md` | Compressed learnings for hypothesis generation | After each batch completes |
-| `<worktree>/result.yaml` | Per-experiment crash-recovery marker | Immediately after measurement, before log append |
+| `spec.yaml` | Optimization spec (immutable during run) | Phase 0 (CP-0) |
+| `experiment-log.yaml` | Full history of all experiments | Initialized at CP-1, appended at CP-3, updated at CP-4 |
+| `strategy-digest.md` | Compressed learnings for hypothesis generation | Written at CP-4 after each batch |
+| `<worktree>/result.yaml` | Per-experiment crash-recovery marker | Immediately after measurement, before CP-3 |
 
 ### On Resume
 
@@ -94,15 +119,81 @@ Check whether the input is:
 
 **If description provided:**
 1. Analyze the project to understand what can be measured
-2. Guide the user through creating a spec:
-   - What is the optimization target? (metric name, direction, type)
-   - What degenerate cases should be rejected? (gates)
-   - If judge type: what rubric should the judge use?
+2. **Detect whether the optimization target is qualitative or quantitative** — this determines `type: hard` vs `type: judge` and is the single most important spec decision:
+
+   **Use `type: hard`** when:
+   - The metric is a scalar number with a clear "better" direction
+   - The metric is objectively measurable (build time, test pass rate, latency, memory usage)
+   - No human judgment is needed to evaluate "is this result actually good?"
+   - Examples: reduce build time, increase test coverage, reduce API latency, decrease bundle size
+
+   **Use `type: judge`** when:
+   - The quality of the output requires semantic understanding to evaluate
+   - A human reviewer would need to look at the results to say "this is better"
+   - Proxy metrics exist but can mislead (e.g., "more clusters" does not mean "better clusters")
+   - The optimization could produce degenerate solutions that look good on paper
+   - Examples: clustering quality, search relevance, summarization quality, code readability, UX copy, recommendation relevance
+
+   **IMPORTANT**: If the target is qualitative, **strongly recommend `type: judge`**. Explain that hard metrics alone will optimize proxy numbers without checking actual quality. Show the user the three-tier approach:
+   - **Degenerate gates** (hard, cheap, fast): catch obviously broken solutions — e.g., "all items in 1 cluster" or "0% coverage". Run first. If gates fail, skip the expensive judge step.
+   - **LLM-as-judge** (the actual optimization target): sample outputs, score them against a rubric, aggregate. This is what the loop optimizes.
+   - **Diagnostics** (logged, not gated): distribution stats, counts, timing — useful for understanding WHY a judge score changed.
+
+   If the user insists on `type: hard` for a qualitative target, proceed but warn that the results may optimize a misleading proxy.
+
+3. **Design the sampling strategy** (for `type: judge`):
+
+   Guide the user through defining stratified sampling. The key question is: "What parts of the output space do you need to check quality on?"
+
+   Walk through these questions:
+   - **What does one "item" look like?** (a cluster, a search result page, a summary, etc.)
+   - **What are the natural size/quality strata?** (e.g., large clusters vs small clusters vs singletons)
+   - **Where are quality failures most likely?** (e.g., very large clusters may be degenerate merges; singletons may be missed groupings)
+   - **What total sample size balances cost vs signal?** (default: 30 items, adjust based on output volume)
+
+   Example stratified sampling for clustering:
+   ```yaml
+   stratification:
+     - bucket: "top_by_size"     # largest clusters — check for degenerate mega-clusters
+       count: 10
+     - bucket: "mid_range"       # middle of non-solo cluster size range — representative quality
+       count: 10
+     - bucket: "small_clusters"  # clusters with 2-3 items — check if connections are real
+       count: 10
+   singleton_sample: 15          # singletons — check for false negatives (items that should cluster)
+   ```
+
+   The sampling strategy is domain-specific. For search relevance, strata might be "top-3 results", "results 4-10", "tail results". For summarization, strata might be "short documents", "long documents", "multi-topic documents".
+
+   **Singleton evaluation is critical when the goal involves coverage** — sampling singletons with the singleton rubric checks whether the system is missing obvious groupings.
+
+4. **Design the rubric** (for `type: judge`):
+
+   Help the user define the scoring rubric. A good rubric:
+   - Has a 1-5 scale (or similar) with concrete descriptions for each level
+   - Includes supplementary fields that help diagnose issues (e.g., `distinct_topics`, `outlier_count`)
+   - Is specific enough that two judges would give similar scores
+   - Does NOT assume bigger/more is better — "3 items per cluster average" is not inherently good or bad
+
+   Example for clustering:
+   ```yaml
+   rubric: |
+     Rate this cluster 1-5:
+     - 5: All items clearly about the same issue/feature
+     - 4: Strong theme, minor outliers
+     - 3: Related but covers 2-3 sub-topics that could reasonably be split
+     - 2: Weak connection — items share superficial similarity only
+     - 1: Unrelated items grouped together
+     Also report: distinct_topics (integer), outlier_count (integer)
+   ```
+
+5. Guide the user through the remaining spec fields:
+   - What degenerate cases should be rejected? (gates — e.g., "solo_pct <= 0.95" catches all-singletons, "max_cluster_size <= 500" catches mega-clusters)
    - What command runs the measurement?
    - What files can be modified? What is immutable?
    - Any constraints or dependencies?
-3. Write the spec to `.context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
-4. Present the spec to the user for approval before proceeding
+6. Write the spec to `.context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
+7. Present the spec to the user for approval before proceeding
 
 ### 0.3 Search Prior Learnings
 
@@ -217,11 +308,21 @@ If count + `execution.max_concurrent` would exceed 12:
 - Suggest cleaning up existing worktrees or reducing `max_concurrent`
 - Do NOT block -- the user may proceed at their own risk
 
-### 1.6 User Approval Gate
+### 1.6 Write Baseline to Disk (CP-1)
+
+**MANDATORY CHECKPOINT.** Before presenting results to the user, write the initial experiment log with baseline metrics to disk:
+
+1. Create the experiment log file at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`
+2. Include: spec name, run_id, started_at, baseline section with all gate values, diagnostic values, and judge scores (if applicable)
+3. **Verify**: read the file back and confirm the baseline section is present and values match
+4. Only THEN present results to the user
+
+### 1.7 User Approval Gate
 
 Present to the user via the platform question tool:
 
 - **Baseline metrics**: all gate values, diagnostic values, and judge scores (if applicable)
+- **Experiment log location**: show the file path so the user knows where results are saved
 - **Parallel readiness**: probe results, any blockers, mitigations applied
 - **Clean-tree status**: confirmed clean
 - **Worktree budget**: current count and projected usage
@@ -271,9 +372,9 @@ If any hypotheses require new dependencies:
 
 Hypotheses with unapproved dependencies remain in the backlog but are skipped during batch selection. They are re-presented at wrap-up for potential approval.
 
-### 2.4 Record Hypothesis Backlog
+### 2.4 Record Hypothesis Backlog (CP-2)
 
-Write the initial backlog to the experiment log file:
+**MANDATORY CHECKPOINT.** Write the initial backlog to the experiment log file and verify:
 ```yaml
 hypothesis_backlog:
   - description: "Remove template boilerplate before embedding"
@@ -370,9 +471,11 @@ For each completed experiment, **immediately**:
 6. **If gates pass AND primary type is `hard`**:
    - Use the metric value directly from the measurement output
 
-7. **IMMEDIATELY append to experiment log on disk** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. The outcome may be preliminary (e.g., `gates_passed` but not yet compared to best) — that is fine. Update the outcome to `kept` or `reverted` in the evaluation step, but the raw metrics are on disk and safe from context compaction.
+7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. The outcome may be preliminary (e.g., `gates_passed` but not yet compared to best) — that is fine. Update the outcome to `kept` or `reverted` in the evaluation step, but the raw metrics are on disk and safe from context compaction.
 
-**Why immediately?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs. If results only exist in the agent's memory, they are lost. Karpathy's autoresearch writes to `results.tsv` after every single experiment — this skill must do the same with the experiment log.
+8. **VERIFY the write (CP-3 verification)** — read the experiment log back from disk and confirm the entry just written is present. If verification fails, retry the write. Do NOT proceed to the next experiment until this entry is confirmed on disk.
+
+**Why immediately + verify?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs. If results only exist in the agent's memory, they are lost. Karpathy's autoresearch writes to `results.tsv` after every single experiment — this skill must do the same with the experiment log. The verification step catches silent write failures that would otherwise lose data.
 
 ### 3.4 Evaluate Batch
 
@@ -401,9 +504,9 @@ After all experiments in the batch have been measured:
 
 6. **Revert all others**: cleanup worktrees, log as `reverted`
 
-### 3.5 Update State
+### 3.5 Update State (CP-4)
 
-By this point, individual experiment results are already on disk (written in step 3.3). This step updates aggregate state.
+**MANDATORY CHECKPOINT.** By this point, individual experiment results are already on disk (written in step 3.3). This step updates aggregate state and verifies.
 
 1. **Re-read the experiment log from disk** — do not trust in-memory state. The log is the source of truth.
 
@@ -424,6 +527,8 @@ By this point, individual experiment results are already on disk (written in ste
    - Add new hypotheses to the backlog and write the updated backlog to disk
 
 6. **Write updated hypothesis backlog to disk** — the backlog section of the experiment log must reflect newly added hypotheses and removed (tested) ones.
+
+**CP-4 Verification:** Read the experiment log back from disk. Confirm: (a) all experiment outcomes from this batch are finalized, (b) the `best` section reflects the current best, (c) the hypothesis backlog is updated. Read `strategy-digest.md` back and confirm it exists. Only THEN proceed to the next batch or stopping criteria check.
 
 **Checkpoint: at this point, all state for this batch is on disk. If the agent crashes and restarts, it can resume from the experiment log without loss.**
 
