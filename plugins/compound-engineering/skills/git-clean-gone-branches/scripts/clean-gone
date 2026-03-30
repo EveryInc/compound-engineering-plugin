@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
 # clean-gone: List local branches whose remote tracking branch is gone.
 # Outputs one branch name per line, or nothing if none found.
-# Uses `command git` to bypass aliases and RTK proxies.
 
 set -euo pipefail
 
 # Ensure we have current remote state
-command git fetch --prune 2>/dev/null
+git fetch --prune 2>/dev/null
 
 # Find branches marked [gone] in tracking info.
 # `git branch -vv` output format:
@@ -37,7 +36,7 @@ while IFS= read -r line; do
   fi
 
   gone_branches+=("$branch_name")
-done < <(command git branch -vv 2>/dev/null | grep ': gone]')
+done < <(git branch -vv 2>/dev/null | grep ': gone]')
 
 if [[ ${#gone_branches[@]} -eq 0 ]]; then
   echo "__NONE__"

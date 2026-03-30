@@ -89,6 +89,30 @@ describe("convertClaudeToDroid", () => {
     expect(bundle.skillDirs[0].sourceDir).toBe("/tmp/plugin/skills/existing-skill")
   })
 
+  test("passes through model as-is (Factory resolves bare aliases natively)", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "fast-agent",
+          description: "Fast agent",
+          model: "sonnet",
+          body: "Do things quickly.",
+          sourcePath: "/tmp/plugin/agents/fast.md",
+        },
+      ],
+    }
+
+    const bundle = convertClaudeToDroid(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const parsed = parseFrontmatter(bundle.droids[0].content)
+    expect(parsed.data.model).toBe("sonnet")
+  })
+
   test("omits model when set to inherit", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,

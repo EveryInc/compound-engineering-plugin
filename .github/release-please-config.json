@@ -3,6 +3,13 @@
   "include-component-in-tag": true,
   "release-search-depth": 20,
   "commit-search-depth": 50,
+  "plugins": [
+    {
+      "type": "linked-versions",
+      "groupName": "compound-engineering",
+      "components": ["cli", "compound-engineering"]
+    }
+  ],
   "packages": {
     ".": {
       "release-type": "simple",

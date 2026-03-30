@@ -158,6 +158,10 @@ Some skills are exact copies from external upstream repositories, vendored local
 
 Beta skills use a `-beta` suffix and `disable-model-invocation: true` to prevent accidental auto-triggering. See `docs/solutions/skill-design/beta-skills-framework.md` for naming, validation, and promotion rules.
 
+### Stable/Beta Sync
+
+When modifying a skill that has a `-beta` counterpart (or vice versa), always check the other version and **state your sync decision explicitly** before committing — e.g., "Propagated to beta — shared test guidance" or "Not propagating — this is the experimental delegate mode beta exists to test." Syncing to both, stable-only, and beta-only are all valid outcomes. The goal is deliberate reasoning, not a default rule.
+
 ## Documentation
 
 See `docs/solutions/plugin-versioning-requirements.md` for detailed versioning workflow.

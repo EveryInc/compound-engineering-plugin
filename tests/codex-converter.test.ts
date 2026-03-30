@@ -79,6 +79,32 @@ describe("convertClaudeToCodex", () => {
     expect(parsedSkill.body).toContain("Threat modeling")
   })
 
+  test("drops model field (Codex skill frontmatter does not support model)", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "fast-agent",
+          description: "Fast agent",
+          model: "sonnet",
+          body: "Do things quickly.",
+          sourcePath: "/tmp/plugin/agents/fast.md",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCodex(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const skill = bundle.generatedSkills.find((s) => s.name === "fast-agent")
+    expect(parseFrontmatter(skill!.content).data.model).toBeUndefined()
+  })
+
   test("generates prompt wrappers for canonical ce workflow skills and omits workflows aliases", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,

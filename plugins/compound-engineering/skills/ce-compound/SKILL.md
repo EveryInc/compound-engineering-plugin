@@ -1,7 +1,6 @@
 ---
 name: ce:compound
 description: Document a recently solved problem to compound your team's knowledge
-argument-hint: "[optional: brief context about the fix]"
 ---
 
 # /compound
@@ -76,24 +75,24 @@ Launch these subagents IN PARALLEL. Each returns text data to the orchestrator.
 
 #### 1. **Context Analyzer**
    - Extracts conversation history
-   - Identifies problem type, component, symptoms
-   - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence when identifying problem type, component, and symptoms
-   - Reads `references/schema.yaml` for enum validation
+   - Reads `references/schema.yaml` for enum validation and **track classification**
+   - Determines the track (bug or knowledge) from the problem_type
+   - Identifies problem type, component, and track-appropriate fields:
+     - **Bug track**: symptoms, root_cause, resolution_type
+     - **Knowledge track**: applies_when (symptoms/root_cause/resolution_type optional)
+   - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence
    - Reads `references/yaml-schema.md` for category mapping into `docs/solutions/`
    - Suggests a filename using the pattern `[sanitized-problem-slug]-[date].md`
-   - Returns: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, and suggested filename
+   - Returns: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, suggested filename, and which track applies
    - Does not invent enum values, categories, or frontmatter fields from memory; reads the schema and mapping files above
+   - Does not force bug-track fields onto knowledge-track learnings or vice versa
 
 #### 2. **Solution Extractor**
-   - Analyzes all investigation steps
-   - Identifies root cause
-   - Extracts working solution with code examples
+   - Reads `references/schema.yaml` for track classification (bug vs knowledge)
+   - Adapts output structure based on the problem_type track
    - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence -- conversation history and the verified fix take priority; if memory notes contradict the conversation, note the contradiction as cautionary context
-   - Develops prevention strategies and best practices guidance
-   - Generates test cases if applicable
-   - Returns: Solution content block including prevention section
 
-   **Expected output sections (follow this structure):**
+   **Bug track output sections:**
 
    - **Problem**: 1-2 sentence description of the issue
    - **Symptoms**: Observable symptoms (error messages, behavior)
@@ -101,6 +100,14 @@ Launch these subagents IN PARALLEL. Each returns text data to the orchestrator.
    - **Solution**: The actual fix with code examples (before/after when applicable)
    - **Why This Works**: Root cause explanation and why the solution addresses it
    - **Prevention**: Strategies to avoid recurrence, best practices, and test cases. Include concrete code examples where applicable (e.g., gem configurations, test assertions, linting rules)
+
+   **Knowledge track output sections:**
+
+   - **Context**: What situation, gap, or friction prompted this guidance
+   - **Guidance**: The practice, pattern, or recommendation with code examples when useful
+   - **Why This Matters**: Rationale and impact of following or not following this guidance
+   - **When to Apply**: Conditions or situations where this applies
+   - **Examples**: Concrete before/after or usage examples showing the practice in action
 
 #### 3. **Related Docs Finder**
    - Searches `docs/solutions/` for related documentation
@@ -239,14 +246,12 @@ When context budget is tight, this mode skips parallel subagents entirely. The o
 
 The orchestrator (main conversation) performs ALL of the following in one sequential pass:
 
-1. **Extract from conversation**: Identify the problem, root cause, and solution from conversation history. Also read MEMORY.md from the auto memory directory if it exists -- use any relevant notes as supplementary context alongside conversation history. Tag any memory-sourced content incorporated into the final doc with "(auto memory [claude])"
-2. **Classify**: Read `references/schema.yaml` and `references/yaml-schema.md`, then determine category and filename from them
-3. **Write minimal doc**: Create `docs/solutions/[category]/[filename].md` using `assets/resolution-template.md` as the base structure, with:
-   - YAML frontmatter (title, category, date, tags)
-   - Problem description (1-2 sentences)
-   - Root cause (1-2 sentences)
-   - Solution with key code snippets
-   - One prevention tip
+1. **Extract from conversation**: Identify the problem and solution from conversation history. Also read MEMORY.md from the auto memory directory if it exists -- use any relevant notes as supplementary context alongside conversation history. Tag any memory-sourced content incorporated into the final doc with "(auto memory [claude])"
+2. **Classify**: Read `references/schema.yaml` and `references/yaml-schema.md`, then determine track (bug vs knowledge), category, and filename
+3. **Write minimal doc**: Create `docs/solutions/[category]/[filename].md` using the appropriate track template from `assets/resolution-template.md`, with:
+   - YAML frontmatter with track-appropriate fields
+   - Bug track: Problem, root cause, solution with key code snippets, one prevention tip
+   - Knowledge track: Context, guidance with key examples, one applicability note
 4. **Skip specialized agent reviews** (Phase 3) to conserve context
 
 **Compact-safe output:**

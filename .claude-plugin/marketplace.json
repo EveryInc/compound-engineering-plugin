@@ -5,7 +5,7 @@
     "url": "https://github.com/kieranklaassen"
   },
   "metadata": {
-    "description": "Plugin marketplace for Claude Code extensions",
+    "description": "Plugin marketplace for Claude Code and Codex extensions",
     "version": "1.0.2"
   },
   "plugins": [

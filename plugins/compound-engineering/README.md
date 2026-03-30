@@ -32,7 +32,7 @@ The primary entry points for engineering work, invoked as slash commands:
 |-------|-------------|
 | `git-clean-gone-branches` | Clean up local branches whose remote tracking branch is gone |
 | `git-commit` | Create a git commit with a value-communicating message |
-| `git-commit-push-pr` | Commit, push, and open a PR with an adaptive, value-first description |
+| `git-commit-push-pr` | Commit, push, and open a PR with an adaptive description; also update an existing PR description |
 | `git-worktree` | Manage Git worktrees for parallel development |
 
 ### Workflow Utilities

@@ -296,10 +296,15 @@ Treat fixed thresholds as heuristics, not laws. A default above roughly 500 line
 
 [repeat for each principle]
 
-### Highest-Impact Improvements
+### Prioritized Improvements
 
-1. <highest-impact improvement with framework-specific implementation guidance>
+Include every finding from the detailed section, ordered by impact. Do not cap at 5 — list all actionable improvements. Each item should be self-contained enough to act on: the problem, the affected files or commands, and the specific fix.
+
+1. **<short title>**
+   <affected files or commands>. <what to change and how, using framework-idiomatic guidance>
 2. ...
+
+...continue until all findings are listed
 
 ### What's Working Well
 

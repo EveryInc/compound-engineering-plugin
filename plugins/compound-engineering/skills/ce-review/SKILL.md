@@ -1,7 +1,7 @@
 ---
 name: ce:review
 description: "Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR."
-argument-hint: "[mode:autofix|mode:report-only] [PR number, GitHub URL, or branch name]"
+argument-hint: "[blank to review current branch, or provide PR link]"
 ---
 
 # Code Review
@@ -16,15 +16,30 @@ Reviews code changes using dynamically selected reviewer personas. Spawns parall
 - Can be invoked standalone
 - Can run as a read-only or autofix review step inside larger workflows
 
-## Mode Detection
+## Argument Parsing
 
-Check `$ARGUMENTS` for `mode:autofix` or `mode:report-only`. If either token is present, strip it from the remaining arguments before interpreting the rest as the PR number, GitHub URL, or branch name.
+Parse `$ARGUMENTS` for the following optional tokens. Strip each recognized token before interpreting the remainder as the PR number, GitHub URL, or branch name.
+
+| Token | Example | Effect |
+|-------|---------|--------|
+| `mode:autofix` | `mode:autofix` | Select autofix mode (see Mode Detection below) |
+| `mode:report-only` | `mode:report-only` | Select report-only mode |
+| `mode:headless` | `mode:headless` | Select headless mode for programmatic callers (see Mode Detection below) |
+| `base:<sha-or-ref>` | `base:abc1234` or `base:origin/main` | Skip scope detection — use this as the diff base directly |
+| `plan:<path>` | `plan:docs/plans/2026-03-25-001-feat-foo-plan.md` | Load this plan for requirements verification |
+
+All tokens are optional. Each one present means one less thing to infer. When absent, fall back to existing behavior for that stage.
+
+**Conflicting mode flags:** If multiple mode tokens appear in arguments, stop and do not dispatch agents. If `mode:headless` is one of the conflicting tokens, emit the headless error envelope: `Review failed (headless mode). Reason: conflicting mode flags — <mode_a> and <mode_b> cannot be combined.` Otherwise emit the generic form: `Review failed. Reason: conflicting mode flags — <mode_a> and <mode_b> cannot be combined.`
+
+## Mode Detection
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Interactive** (default) | No mode token present | Review, present findings, ask for policy decisions when needed, and optionally continue into fix/push/PR next steps |
+| **Interactive** (default) | No mode token present | Review, apply safe_auto fixes automatically, present findings, ask for policy decisions on gated/manual findings, and optionally continue into fix/push/PR next steps |
 | **Autofix** | `mode:autofix` in arguments | No user interaction. Review, apply only policy-allowed `safe_auto` fixes, re-review in bounded rounds, write a run artifact, and emit residual downstream work when needed |
 | **Report-only** | `mode:report-only` in arguments | Strictly read-only. Review and report only, then stop with no edits, artifacts, todos, commits, pushes, or PR actions |
+| **Headless** | `mode:headless` in arguments | Programmatic mode for skill-to-skill invocation. Apply `safe_auto` fixes silently (single pass), return all other findings as structured text output, write run artifacts, skip todos, and return "Review complete" signal. No interactive prompts. |
 
 ### Autofix mode rules
 
@@ -41,6 +56,19 @@ Check `$ARGUMENTS` for `mode:autofix` or `mode:report-only`. If either token is 
 - **Safe for parallel read-only verification.** `mode:report-only` is the only mode that is safe to run concurrently with browser testing on the same checkout.
 - **Do not switch the shared checkout.** If the caller passes an explicit PR or branch target, `mode:report-only` must run in an isolated checkout/worktree or stop instead of running `gh pr checkout` / `git checkout`.
 - **Do not overlap mutating review with browser testing on the same checkout.** If a future orchestrator wants fixes, run the mutating review phase after browser testing or in an isolated checkout/worktree.
+
+### Headless mode rules
+
+- **Skip all user questions.** Never use the platform question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini) or other interactive prompts. Infer intent conservatively if the diff metadata is thin.
+- **Require a determinable diff scope.** If headless mode cannot determine a diff scope (no branch, PR, or `base:` ref determinable without user interaction), emit `Review failed (headless mode). Reason: no diff scope detected. Re-invoke with a branch name, PR number, or base:<ref>.` and stop without dispatching agents.
+- **Apply only `safe_auto -> review-fixer` findings in a single pass.** No bounded re-review rounds. Leave `gated_auto`, `manual`, `human`, and `release` work unresolved and return them in the structured output.
+- **Return all non-auto findings as structured text output.** Use the headless output envelope format (see Stage 6 below) preserving severity, autofix_class, owner, requires_verification, confidence, evidence[], and pre_existing per finding.
+- **Write a run artifact** under `.context/compound-engineering/ce-review/<run-id>/` summarizing findings, applied fixes, and advisory outputs. Include the artifact path in the structured output.
+- **Do not create todo files.** The caller receives structured findings and routes downstream work itself.
+- **Do not switch the shared checkout.** If the caller passes an explicit PR or branch target, `mode:headless` must run in an isolated checkout/worktree or stop instead of running `gh pr checkout` / `git checkout`. When stopping, emit `Review failed (headless mode). Reason: cannot switch shared checkout. Re-invoke with base:<ref> to review the current checkout, or run from an isolated worktree.`
+- **Not safe for concurrent use on a shared checkout.** Unlike `mode:report-only`, headless mutates files (applies `safe_auto` fixes). Callers must not run headless concurrently with other mutating operations on the same checkout.
+- **Never commit, push, or create a PR** from headless mode. The caller owns those decisions.
+- **End with "Review complete" as the terminal signal** so callers can detect completion. If all reviewers fail or time out, emit `Code review degraded (headless mode). Reason: 0 of N reviewers returned results.` followed by "Review complete".
 
 ## Severity Scale
 
@@ -73,7 +101,7 @@ Routing rules:
 
 ## Reviewers
 
-15 reviewer personas in layered conditionals, plus CE-specific agents. See the persona catalog included below for the full catalog.
+16 reviewer personas in layered conditionals, plus CE-specific agents. See the persona catalog included below for the full catalog.
 
 **Always-on (every review):**
 
@@ -96,6 +124,7 @@ Routing rules:
 | `compound-engineering:review:data-migrations-reviewer` | Migrations, schema changes, backfills |
 | `compound-engineering:review:reliability-reviewer` | Error handling, retries, timeouts, background jobs |
 | `compound-engineering:review:adversarial-reviewer` | Diff >=50 changed non-test/non-generated/non-lockfile lines, or auth, payments, data mutations, external APIs |
+| `compound-engineering:review:previous-comments-reviewer` | Reviewing a PR that has existing review comments or threads |
 
 **Stack-specific conditional (selected per diff):**
 
@@ -134,9 +163,26 @@ If a reviewer flags any file in these directories for cleanup or removal, discar
 
 Compute the diff range, file list, and diff. Minimize permission prompts by combining into as few commands as possible.
 
+**If `base:` argument is provided (fast path):**
+
+The caller already knows the diff base. Skip all base-branch detection, remote resolution, and merge-base computation. Use the provided value directly:
+
+```
+BASE_ARG="{base_arg}"
+BASE=$(git merge-base HEAD "$BASE_ARG" 2>/dev/null) || BASE="$BASE_ARG"
+```
+
+Then produce the same output as the other paths:
+
+```
+echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard
+```
+
+This path works with any ref — a SHA, `origin/main`, a branch name. Automated callers (ce:work, lfg, slfg) should prefer this to avoid the detection overhead. **Do not combine `base:` with a PR number or branch target.** If both are present, stop with an error: "Cannot use `base:` with a PR number or branch target — `base:` implies the current checkout is already the correct branch. Pass `base:` alone, or pass the target alone and let scope detection resolve the base." This avoids scope/intent mismatches where the diff base comes from one source but the code and metadata come from another.
+
 **If a PR number or GitHub URL is provided as an argument:**
 
-If `mode:report-only` is active, do **not** run `gh pr checkout <number-or-url>` on the shared checkout. Tell the caller: "mode:report-only cannot switch the shared checkout to review a PR target. Run it from an isolated worktree/checkout for that PR, or run report-only with no target argument on the already checked out branch." Stop here unless the review is already running in an isolated checkout.
+If `mode:report-only` or `mode:headless` is active, do **not** run `gh pr checkout <number-or-url>` on the shared checkout. For `mode:report-only`, tell the caller: "mode:report-only cannot switch the shared checkout to review a PR target. Run it from an isolated worktree/checkout for that PR, or run report-only with no target argument on the already checked out branch." For `mode:headless`, emit `Review failed (headless mode). Reason: cannot switch shared checkout. Re-invoke with base:<ref> to review the current checkout, or run from an isolated worktree.` Stop here unless the review is already running in an isolated checkout.
 
 First, verify the worktree is clean before switching branches:
 
@@ -190,7 +236,7 @@ Extract PR title/body, base branch, and PR URL from `gh pr view`, then extract t
 
 Check out the named branch, then diff it against the base branch. Substitute the provided branch name (shown here as `<branch>`).
 
-If `mode:report-only` is active, do **not** run `git checkout <branch>` on the shared checkout. Tell the caller: "mode:report-only cannot switch the shared checkout to review another branch. Run it from an isolated worktree/checkout for `<branch>`, or run report-only on the current checkout with no target argument." Stop here unless the review is already running in an isolated checkout.
+If `mode:report-only` or `mode:headless` is active, do **not** run `git checkout <branch>` on the shared checkout. For `mode:report-only`, tell the caller: "mode:report-only cannot switch the shared checkout to review another branch. Run it from an isolated worktree/checkout for `<branch>`, or run report-only on the current checkout with no target argument." For `mode:headless`, emit `Review failed (headless mode). Reason: cannot switch shared checkout. Re-invoke with base:<ref> to review the current checkout, or run from an isolated worktree.` Stop here unless the review is already running in an isolated checkout.
 
 First, verify the worktree is clean before switching branches:
 
@@ -204,97 +250,45 @@ If the output is non-empty, inform the user: "You have uncommitted changes on th
 git checkout <branch>
 ```
 
-Then detect the review base branch before computing the merge-base. When the branch has an open PR, resolve the base ref from the PR's actual base repository (not just `origin`), mirroring the PR-mode logic for fork safety. Fall back to `origin/HEAD`, GitHub metadata, then common branch names:
+Then detect the review base branch and compute the merge-base. Run the `references/resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names):
 
 ```
-REVIEW_BASE_BRANCH=""
-PR_BASE_REPO=""
-if command -v gh >/dev/null 2>&1; then
-  PR_META=$(gh pr view --json baseRefName,url 2>/dev/null || true)
-  if [ -n "$PR_META" ]; then
-    REVIEW_BASE_BRANCH=$(echo "$PR_META" | jq -r '.baseRefName // empty')
-    PR_BASE_REPO=$(echo "$PR_META" | jq -r '.url // empty' | sed -n 's#https://github.com/\([^/]*/[^/]*\)/pull/.*#\1#p')
-  fi
-fi
-if [ -z "$REVIEW_BASE_BRANCH" ]; then REVIEW_BASE_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'); fi
-if [ -z "$REVIEW_BASE_BRANCH" ] && command -v gh >/dev/null 2>&1; then REVIEW_BASE_BRANCH=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null); fi
-if [ -z "$REVIEW_BASE_BRANCH" ]; then
-  for candidate in main master develop trunk; do
-    if git rev-parse --verify "origin/$candidate" >/dev/null 2>&1 || git rev-parse --verify "$candidate" >/dev/null 2>&1; then
-      REVIEW_BASE_BRANCH="$candidate"
-      break
-    fi
-  done
-fi
-if [ -n "$REVIEW_BASE_BRANCH" ]; then
-  if [ -n "$PR_BASE_REPO" ]; then
-    PR_BASE_REMOTE=$(git remote -v | awk "index(\$2, \"github.com:$PR_BASE_REPO\") || index(\$2, \"github.com/$PR_BASE_REPO\") {print \$1; exit}")
-    if [ -n "$PR_BASE_REMOTE" ]; then
-      git rev-parse --verify "$PR_BASE_REMOTE/$REVIEW_BASE_BRANCH" >/dev/null 2>&1 || git fetch --no-tags "$PR_BASE_REMOTE" "$REVIEW_BASE_BRANCH" 2>/dev/null || true
-      BASE_REF=$(git rev-parse --verify "$PR_BASE_REMOTE/$REVIEW_BASE_BRANCH" 2>/dev/null || true)
-    fi
-  fi
-  if [ -z "$BASE_REF" ]; then
-    git rev-parse --verify "origin/$REVIEW_BASE_BRANCH" >/dev/null 2>&1 || git fetch --no-tags origin "$REVIEW_BASE_BRANCH" 2>/dev/null || true
-    BASE_REF=$(git rev-parse --verify "origin/$REVIEW_BASE_BRANCH" 2>/dev/null || git rev-parse --verify "$REVIEW_BASE_BRANCH" 2>/dev/null || true)
-  fi
-  if [ -n "$BASE_REF" ]; then BASE=$(git merge-base HEAD "$BASE_REF" 2>/dev/null) || BASE=""; else BASE=""; fi
-else BASE=""; fi
+RESOLVE_OUT=$(bash references/resolve-base.sh) || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
+BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
+If the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
+
+On success, produce the diff:
+
 ```
-if [ -n "$BASE" ]; then echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard; else echo "ERROR: Unable to resolve review base branch locally. Fetch the base branch and rerun, or provide a PR number so the review scope can be determined from PR metadata."; fi
+echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard
 ```
 
-If the branch has an open PR, the detection above uses the PR's base repository to resolve the merge-base, which handles fork workflows correctly. You may still fetch additional PR metadata with `gh pr view` for title, body, and linked issues, but do not fail if no PR exists. If the base branch still cannot be resolved after the detection and fetch attempts, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
+You may still fetch additional PR metadata with `gh pr view` for title, body, and linked issues, but do not fail if no PR exists.
 
 **If no argument (standalone on current branch):**
 
-Detect the review base branch before computing the merge-base. When the current branch has an open PR, resolve the base ref from the PR's actual base repository (not just `origin`), mirroring the PR-mode logic for fork safety. Fall back to `origin/HEAD`, GitHub metadata, then common branch names:
+Detect the review base branch and compute the merge-base using the same `references/resolve-base.sh` script as branch mode:
 
 ```
-REVIEW_BASE_BRANCH=""
-PR_BASE_REPO=""
-if command -v gh >/dev/null 2>&1; then
-  PR_META=$(gh pr view --json baseRefName,url 2>/dev/null || true)
-  if [ -n "$PR_META" ]; then
-    REVIEW_BASE_BRANCH=$(echo "$PR_META" | jq -r '.baseRefName // empty')
-    PR_BASE_REPO=$(echo "$PR_META" | jq -r '.url // empty' | sed -n 's#https://github.com/\([^/]*/[^/]*\)/pull/.*#\1#p')
-  fi
-fi
-if [ -z "$REVIEW_BASE_BRANCH" ]; then REVIEW_BASE_BRANCH=$(git symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##'); fi
-if [ -z "$REVIEW_BASE_BRANCH" ] && command -v gh >/dev/null 2>&1; then REVIEW_BASE_BRANCH=$(gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name' 2>/dev/null); fi
-if [ -z "$REVIEW_BASE_BRANCH" ]; then
-  for candidate in main master develop trunk; do
-    if git rev-parse --verify "origin/$candidate" >/dev/null 2>&1 || git rev-parse --verify "$candidate" >/dev/null 2>&1; then
-      REVIEW_BASE_BRANCH="$candidate"
-      break
-    fi
-  done
-fi
-if [ -n "$REVIEW_BASE_BRANCH" ]; then
-  if [ -n "$PR_BASE_REPO" ]; then
-    PR_BASE_REMOTE=$(git remote -v | awk "index(\$2, \"github.com:$PR_BASE_REPO\") || index(\$2, \"github.com/$PR_BASE_REPO\") {print \$1; exit}")
-    if [ -n "$PR_BASE_REMOTE" ]; then
-      git rev-parse --verify "$PR_BASE_REMOTE/$REVIEW_BASE_BRANCH" >/dev/null 2>&1 || git fetch --no-tags "$PR_BASE_REMOTE" "$REVIEW_BASE_BRANCH" 2>/dev/null || true
-      BASE_REF=$(git rev-parse --verify "$PR_BASE_REMOTE/$REVIEW_BASE_BRANCH" 2>/dev/null || true)
-    fi
-  fi
-  if [ -z "$BASE_REF" ]; then
-    git rev-parse --verify "origin/$REVIEW_BASE_BRANCH" >/dev/null 2>&1 || git fetch --no-tags origin "$REVIEW_BASE_BRANCH" 2>/dev/null || true
-    BASE_REF=$(git rev-parse --verify "origin/$REVIEW_BASE_BRANCH" 2>/dev/null || git rev-parse --verify "$REVIEW_BASE_BRANCH" 2>/dev/null || true)
-  fi
-  if [ -n "$BASE_REF" ]; then BASE=$(git merge-base HEAD "$BASE_REF" 2>/dev/null) || BASE=""; else BASE=""; fi
-else BASE=""; fi
+RESOLVE_OUT=$(bash references/resolve-base.sh) || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
+BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
+If the script outputs an error, stop instead of falling back to `git diff HEAD`; a standalone review without the base branch would only show uncommitted changes and silently miss all committed work on the branch.
+
+On success, produce the diff:
+
 ```
-if [ -n "$BASE" ]; then echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard; else echo "ERROR: Unable to resolve review base branch locally. Fetch the base branch and rerun, or provide a PR number so the review scope can be determined from PR metadata."; fi
+echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard
 ```
 
-Parse: `BASE:` = merge-base SHA, `FILES:` = file list, `DIFF:` = diff, `UNTRACKED:` = files excluded from review scope because they are not staged. Using `git diff $BASE` (without `..HEAD`) diffs the merge-base against the working tree, which includes committed, staged, and unstaged changes together. If the base branch cannot be resolved after the detection and fetch attempts, stop instead of falling back to `git diff HEAD`; a standalone review without the base branch would only show uncommitted changes and silently miss all committed work on the branch.
+Using `git diff $BASE` (without `..HEAD`) diffs the merge-base against the working tree, which includes committed, staged, and unstaged changes together.
 
-**Untracked file handling:** Always inspect the `UNTRACKED:` list, even when `FILES:`/`DIFF:` are non-empty. Untracked files are outside review scope until staged. If the list is non-empty, tell the user which files are excluded. If any of them should be reviewed, stop and tell the user to `git add` them first and rerun. Only continue when the user is intentionally reviewing tracked changes only.
+**Untracked file handling:** Always inspect the `UNTRACKED:` list, even when `FILES:`/`DIFF:` are non-empty. Untracked files are outside review scope until staged. If the list is non-empty, tell the user which files are excluded. If any of them should be reviewed, stop and tell the user to `git add` them first and rerun. Only continue when the user is intentionally reviewing tracked changes only. In `mode:headless` or `mode:autofix`, do not stop to ask — proceed with tracked changes only and note the excluded untracked files in the Coverage section of the output.
 
 ### Stage 2: Intent discovery
 
@@ -310,7 +304,7 @@ Understand what the change is trying to accomplish. The source of intent depends
 echo "BRANCH:" && git rev-parse --abbrev-ref HEAD && echo "COMMITS:" && git log --oneline ${BASE}..HEAD
 ```
 
-Combined with conversation context (plan section summary, PR description, caller-provided description), write a 2-3 line intent summary:
+Combined with conversation context (plan section summary, PR description), write a 2-3 line intent summary:
 
 ```
 Intent: Simplify tax calculation by replacing the multi-tier rate lookup
@@ -322,7 +316,23 @@ Pass this to every reviewer in their spawn prompt. Intent shapes *how hard each 
 **When intent is ambiguous:**
 
 - **Interactive mode:** Ask one question using the platform's interactive question tool (AskUserQuestion in Claude Code, request_user_input in Codex): "What is the primary goal of these changes?" Do not spawn reviewers until intent is established.
-- **Autofix/report-only modes:** Infer intent conservatively from the branch name, diff, PR metadata, and caller context. Note the uncertainty in Coverage or Verdict reasoning instead of blocking.
+- **Autofix/report-only/headless modes:** Infer intent conservatively from the branch name, diff, PR metadata, and caller context. Note the uncertainty in Coverage or Verdict reasoning instead of blocking.
+
+### Stage 2b: Plan discovery (requirements verification)
+
+Locate the plan document so Stage 6 can verify requirements completeness. Check these sources in priority order — stop at the first hit:
+
+1. **`plan:` argument.** If the caller passed a plan path, use it directly. Read the file to confirm it exists.
+2. **PR body.** If PR metadata was fetched in Stage 1, scan the body for paths matching `docs/plans/*.md`. If exactly one match is found and the file exists, use it as `plan_source: explicit`. If multiple plan paths appear, treat as ambiguous — demote to `plan_source: inferred` for the most recent match that exists on disk, or skip if none exist or none clearly relate to the PR title/intent. Always verify the selected file exists before using it — stale or copied plan links in PR descriptions are common.
+3. **Auto-discover.** Extract 2-3 keywords from the branch name (e.g., `feat/onboarding-skill` -> `onboarding`, `skill`). Glob `docs/plans/*` and filter filenames containing those keywords. If exactly one match, use it. If multiple matches or the match looks ambiguous (e.g., generic keywords like `review`, `fix`, `update` that could hit many plans), **skip auto-discovery** — a wrong plan is worse than no plan. If zero matches, skip.
+
+**Confidence tagging:** Record how the plan was found:
+- `plan:` argument -> `plan_source: explicit` (high confidence)
+- Single unambiguous PR body match -> `plan_source: explicit` (high confidence)
+- Multiple/ambiguous PR body matches -> `plan_source: inferred` (lower confidence)
+- Auto-discover with single unambiguous match -> `plan_source: inferred` (lower confidence)
+
+If a plan is found, read its **Requirements Trace** (R1, R2, etc.) and **Implementation Units** (checkbox items). Store the extracted requirements list and `plan_source` for Stage 6. Do not block the review if no plan is found — requirements verification is additive, not required.
 
 ### Stage 3: Select reviewers
 
@@ -362,13 +372,30 @@ Pass the resulting path list to the `project-standards` persona inside a `<stand
 
 ### Stage 4: Spawn sub-agents
 
+#### Model tiering
+
+Persona sub-agents do focused, scoped work and should use cheaper/faster models to reduce cost and latency. The orchestrator itself stays on the default (most capable) model.
+
+| Platform | Persona agent model | How to set |
+|----------|-------------------|------------|
+| **Claude Code** | Haiku | Pass `model: "haiku"` in the Agent tool call |
+| **Codex** | GPT-4o mini | Set the model parameter to `gpt-4o-mini` in the agent spawn config |
+| **Other platforms** | Cheapest capable model available | Use the platform's equivalent of a fast/cheap tier |
+
+CE always-on agents (agent-native-reviewer, learnings-researcher) and CE conditional agents (schema-drift-detector, deployment-verification-agent) also use the cheaper model tier since they perform scoped, focused work.
+
+The orchestrator (this skill) stays on the default model because it handles intent discovery, reviewer selection, finding merge/dedup, and synthesis -- tasks that benefit from stronger reasoning.
+
+#### Spawning
+
 Spawn each selected persona reviewer as a parallel sub-agent using the subagent template included below. Each persona sub-agent receives:
 
 1. Their persona file content (identity, failure modes, calibration, suppress conditions)
 2. Shared diff-scope rules from the diff-scope reference included below
 3. The JSON output contract from the findings schema included below
-4. Review context: intent summary, file list, diff
-5. **For `project-standards` only:** the standards file path list from Stage 3b, wrapped in a `<standards-paths>` block appended to the review context
+4. PR metadata: title, body, and URL when reviewing a PR (empty string otherwise). Passed in a `<pr-context>` block so reviewers can verify code against stated intent
+5. Review context: intent summary, file list, diff
+6. **For `project-standards` only:** the standards file path list from Stage 3b, wrapped in a `<standards-paths>` block appended to the review context
 
 Persona sub-agents are **read-only**: they review and return structured JSON. They do not edit files or propose refactors.
 
@@ -394,17 +421,19 @@ Each persona sub-agent returns JSON matching the findings schema included below:
 Convert multiple reviewer JSON payloads into one deduplicated, confidence-gated finding set.
 
 1. **Validate.** Check each output against the schema. Drop malformed findings (missing required fields). Record the drop count.
-2. **Confidence gate.** Suppress findings below 0.60 confidence. Record the suppressed count. This matches the persona instructions: findings below 0.60 are noise and should not survive synthesis.
+2. **Confidence gate.** Suppress findings below 0.60 confidence. Exception: P0 findings at 0.50+ confidence survive the gate -- critical-but-uncertain issues must not be silently dropped. Record the suppressed count. This matches the persona instructions and the schema's confidence thresholds.
 3. **Deduplicate.** Compute fingerprint: `normalize(file) + line_bucket(line, +/-3) + normalize(title)`. When fingerprints match, merge: keep highest severity, keep highest confidence with strongest evidence, union evidence, note which reviewers flagged it.
-4. **Separate pre-existing.** Pull out findings with `pre_existing: true` into a separate list.
-5. **Normalize routing.** For each merged finding, set the final `autofix_class`, `owner`, and `requires_verification`. If reviewers disagree, keep the most conservative route. Synthesis may narrow a finding from `safe_auto` to `gated_auto` or `manual`, but must not widen it without new evidence.
-6. **Partition the work.** Build three sets:
+4. **Cross-reviewer agreement.** When 2+ independent reviewers flag the same issue (same fingerprint), boost the merged confidence by 0.10 (capped at 1.0). Cross-reviewer agreement is strong signal -- independent reviewers converging on the same issue is more reliable than any single reviewer's confidence. Note the agreement in the Reviewer column of the output (e.g., "security, correctness").
+5. **Separate pre-existing.** Pull out findings with `pre_existing: true` into a separate list.
+5. **Resolve disagreements.** When reviewers flag the same code region but disagree on severity, autofix_class, or owner, record the disagreement in the finding's evidence (e.g., "security rated P0, correctness rated P1 -- keeping P0"). This transparency helps the user understand why a finding was routed the way it was.
+6. **Normalize routing.** For each merged finding, set the final `autofix_class`, `owner`, and `requires_verification`. If reviewers disagree, keep the most conservative route. Synthesis may narrow a finding from `safe_auto` to `gated_auto` or `manual`, but must not widen it without new evidence.
+7. **Partition the work.** Build three sets:
    - in-skill fixer queue: only `safe_auto -> review-fixer`
    - residual actionable queue: unresolved `gated_auto` or `manual` findings whose owner is `downstream-resolver`
    - report-only queue: `advisory` findings plus anything owned by `human` or `release`
-7. **Sort.** Order by severity (P0 first) -> confidence (descending) -> file path -> line number.
-8. **Collect coverage data.** Union residual_risks and testing_gaps across reviewers.
-9. **Preserve CE agent artifacts.** Keep the learnings, agent-native, schema-drift, and deployment-verification outputs alongside the merged finding set. Do not drop unstructured agent output just because it does not match the persona JSON schema.
+8. **Sort.** Order by severity (P0 first) -> confidence (descending) -> file path -> line number.
+9. **Collect coverage data.** Union residual_risks and testing_gaps across reviewers.
+10. **Preserve CE agent artifacts.** Keep the learnings, agent-native, schema-drift, and deployment-verification outputs alongside the merged finding set. Do not drop unstructured agent output just because it does not match the persona JSON schema.
 
 ### Stage 6: Synthesize and present
 
@@ -412,17 +441,95 @@ Assemble the final report using the review output template included below:
 
 1. **Header.** Scope, intent, mode, reviewer team with per-conditional justifications.
 2. **Findings.** Grouped by severity (P0, P1, P2, P3). Each finding shows file, issue, reviewer(s), confidence, and synthesized route.
-3. **Applied Fixes.** Include only if a fix phase ran in this invocation.
-4. **Residual Actionable Work.** Include when unresolved actionable findings were handed off or should be handed off.
-5. **Pre-existing.** Separate section, does not count toward verdict.
-6. **Learnings & Past Solutions.** Surface learnings-researcher results: if past solutions are relevant, flag them as "Known Pattern" with links to docs/solutions/ files.
-7. **Agent-Native Gaps.** Surface agent-native-reviewer results. Omit section if no gaps found.
-8. **Schema Drift Check.** If schema-drift-detector ran, summarize whether drift was found. If drift exists, list the unrelated schema objects and the required cleanup command. If clean, say so briefly.
-9. **Deployment Notes.** If deployment-verification-agent ran, surface the key Go/No-Go items: blocking pre-deploy checks, the most important verification queries, rollback caveats, and monitoring focus areas. Keep the checklist actionable rather than dropping it into Coverage.
-10. **Coverage.** Suppressed count, residual risks, testing gaps, failed/timed-out reviewers, and any intent uncertainty carried by non-interactive modes.
-11. **Verdict.** Ready to merge / Ready with fixes / Not ready. Fix order if applicable.
+3. **Requirements Completeness.** Include only when a plan was found in Stage 2b. For each requirement (R1, R2, etc.) and implementation unit in the plan, report whether corresponding work appears in the diff. Use a simple checklist: met / not addressed / partially addressed. Routing depends on `plan_source`:
+   - **`explicit`** (caller-provided or PR body): Flag unaddressed requirements as P1 findings with `autofix_class: manual`, `owner: downstream-resolver`. These enter the residual actionable queue and can become todos.
+   - **`inferred`** (auto-discovered): Flag unaddressed requirements as P3 findings with `autofix_class: advisory`, `owner: human`. These stay in the report only — no todos, no autonomous follow-up. An inferred plan match is a hint, not a contract.
+   Omit this section entirely when no plan was found — do not mention the absence of a plan.
+4. **Applied Fixes.** Include only if a fix phase ran in this invocation.
+5. **Residual Actionable Work.** Include when unresolved actionable findings were handed off or should be handed off.
+6. **Pre-existing.** Separate section, does not count toward verdict.
+7. **Learnings & Past Solutions.** Surface learnings-researcher results: if past solutions are relevant, flag them as "Known Pattern" with links to docs/solutions/ files.
+8. **Agent-Native Gaps.** Surface agent-native-reviewer results. Omit section if no gaps found.
+9. **Schema Drift Check.** If schema-drift-detector ran, summarize whether drift was found. If drift exists, list the unrelated schema objects and the required cleanup command. If clean, say so briefly.
+10. **Deployment Notes.** If deployment-verification-agent ran, surface the key Go/No-Go items: blocking pre-deploy checks, the most important verification queries, rollback caveats, and monitoring focus areas. Keep the checklist actionable rather than dropping it into Coverage.
+11. **Coverage.** Suppressed count, residual risks, testing gaps, failed/timed-out reviewers, and any intent uncertainty carried by non-interactive modes.
+12. **Verdict.** Ready to merge / Ready with fixes / Not ready. Fix order if applicable. When an `explicit` plan has unaddressed requirements, the verdict must reflect it — a PR that's code-clean but missing planned requirements is "Not ready" unless the omission is intentional. When an `inferred` plan has unaddressed requirements, note it in the verdict reasoning but do not block on it alone.
 
 Do not include time estimates.
+
+### Headless output format
+
+In `mode:headless`, replace the interactive pipe-delimited table report with a structured text envelope. The envelope follows the same structural pattern as document-review's headless output (completion header, metadata block, findings grouped by autofix_class, trailing sections) while using ce:review's own section headings and per-finding fields.
+
+```
+Code review complete (headless mode).
+
+Scope: <scope-line>
+Intent: <intent-summary>
+Reviewers: <reviewer-list with conditional justifications>
+Verdict: <Ready to merge | Ready with fixes | Not ready>
+Artifact: .context/compound-engineering/ce-review/<run-id>/
+
+Applied N safe_auto fixes.
+
+Gated-auto findings (concrete fix, changes behavior/contracts):
+
+[P1][gated_auto -> downstream-resolver][needs-verification] File: <file:line> -- <title> (<reviewer>, confidence <N>)
+  Why: <why_it_matters>
+  Suggested fix: <suggested_fix or "none">
+  Evidence: <evidence[0]>
+  Evidence: <evidence[1]>
+
+Manual findings (actionable, needs handoff):
+
+[P1][manual -> downstream-resolver] File: <file:line> -- <title> (<reviewer>, confidence <N>)
+  Why: <why_it_matters>
+  Evidence: <evidence[0]>
+
+Advisory findings (report-only):
+
+[P2][advisory -> human] File: <file:line> -- <title> (<reviewer>, confidence <N>)
+  Why: <why_it_matters>
+
+Pre-existing issues:
+[P2][gated_auto -> downstream-resolver] File: <file:line> -- <title> (<reviewer>, confidence <N>)
+  Why: <why_it_matters>
+
+Residual risks:
+- <risk>
+
+Learnings & Past Solutions:
+- <learning>
+
+Agent-Native Gaps:
+- <gap description>
+
+Schema Drift Check:
+- <drift status>
+
+Deployment Notes:
+- <deployment note>
+
+Testing gaps:
+- <gap>
+
+Coverage:
+- Suppressed: <N> findings below 0.60 confidence (P0 at 0.50+ retained)
+- Untracked files excluded: <file1>, <file2>
+- Failed reviewers: <reviewer>
+
+Review complete
+```
+
+**Formatting rules:**
+- The `[needs-verification]` marker appears only on findings where `requires_verification: true`.
+- The `Artifact:` line gives callers the path to the full run artifact for machine-readable access to the complete findings schema. The text envelope is the primary handoff; the artifact is for debugging and full-fidelity access.
+- Findings with `owner: release` appear in the Advisory section (they are operational/rollout items, not code fixes).
+- Findings with `pre_existing: true` appear in the Pre-existing section regardless of autofix_class.
+- The Verdict appears in the metadata header (deliberately reordered from the interactive format where it appears at the bottom) so programmatic callers get the verdict first.
+- Omit any section with zero items.
+- If all reviewers fail or time out, emit `Code review degraded (headless mode). Reason: 0 of N reviewers returned results.` followed by "Review complete".
+- End with "Review complete" as the terminal signal so callers can detect completion.
 
 ## Quality Gates
 
@@ -459,17 +566,17 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 
 **Interactive mode**
 
-- Ask a single policy question only when actionable work exists.
-- Recommended default:
+- Apply `safe_auto -> review-fixer` findings automatically without asking. These are safe by definition.
+- Ask a policy question only when `gated_auto` or `manual` findings remain after safe fixes:
 
   ```
-  What should I do with the actionable findings?
-  1. Apply safe_auto fixes and leave the rest as residual work (Recommended)
-  2. Apply safe_auto fixes only
-  3. Review report only
+  Safe fixes have been applied. What should I do with the remaining findings?
+  1. Review and approve specific gated fixes (Recommended)
+  2. Leave as residual work
+  3. Report only -- no further action
   ```
 
-- Tailor the prompt to the actual action sets. If the fixer queue is empty, do not offer "Apply safe_auto fixes" options. Ask whether to externalize the residual actionable work or keep the review report-only instead.
+- If no `gated_auto` or `manual` findings remain after safe fixes, skip the policy question entirely — report what was fixed and proceed to next steps.
 - Only include `gated_auto` findings in the fixer queue after the user explicitly approves the specific items. Do not widen the queue based on severity alone.
 
 **Autofix mode**
@@ -486,6 +593,15 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 - Do not create residual todos or `.context` artifacts.
 - Stop after Stage 6. Everything remains in the report.
 
+**Headless mode**
+
+- Ask no questions.
+- Apply only the `safe_auto -> review-fixer` queue in a single pass. Do not enter the bounded re-review loop (Step 3). Spawn one fixer subagent, apply fixes, then proceed directly to Step 4.
+- Leave `gated_auto`, `manual`, `human`, and `release` items unresolved — they appear in the structured text output.
+- Output the headless output envelope (see Stage 6) instead of the interactive report.
+- Write a run artifact (Step 4) but do not create todo files.
+- Stop after the structured text output and "Review complete" signal. No commit/push/PR.
+
 #### Step 3: Apply fixes with one fixer and bounded rounds
 
 - Spawn exactly one fixer subagent for the current fixer queue in the current checkout. That fixer applies all approved changes and runs the relevant targeted tests in one pass against a consistent tree.
@@ -497,7 +613,7 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 
 #### Step 4: Emit artifacts and downstream handoff
 
-- In interactive and autofix modes, write a per-run artifact under `.context/compound-engineering/ce-review/<run-id>/` containing:
+- In interactive, autofix, and headless modes, write a per-run artifact under `.context/compound-engineering/ce-review/<run-id>/` containing:
   - synthesized findings
   - applied fixes
   - residual actionable work
@@ -525,7 +641,7 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 If "Create a PR": first publish the branch with `git push --set-upstream origin HEAD`, then use `gh pr create` with a title and summary derived from the branch changes.
 If "Push fixes": push the branch with `git push` to update the existing PR.
 
-**Autofix and report-only modes:** stop after the report, artifact emission, and residual-work handoff. Do not commit, push, or create a PR.
+**Autofix, report-only, and headless modes:** stop after the report, artifact emission, and residual-work handoff. Do not commit, push, or create a PR.
 
 ## Fallback
 

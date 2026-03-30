@@ -11,13 +11,15 @@ CRITICAL: You MUST execute every step below IN ORDER. Do NOT skip any required s
 
 2. `/ce:plan $ARGUMENTS`
 
-   GATE: STOP. Verify that the `ce:plan` workflow produced a plan file in `docs/plans/`. If no plan file was created, run `/ce:plan $ARGUMENTS` again. Do NOT proceed to step 3 until a written plan exists.
+   GATE: STOP. Verify that the `ce:plan` workflow produced a plan file in `docs/plans/`. If no plan file was created, run `/ce:plan $ARGUMENTS` again. Do NOT proceed to step 3 until a written plan exists. **Record the plan file path** — it will be passed to ce:review in step 4.
 
 3. `/ce:work`
 
    GATE: STOP. Verify that implementation work was performed - files were created or modified beyond the plan. Do NOT proceed to step 4 if no code changes were made.
 
-4. `/ce:review mode:autofix`
+4. `/ce:review mode:autofix plan:<plan-path-from-step-2>`
+
+   Pass the plan file path from step 2 so ce:review can verify requirements completeness.
 
 5. `/compound-engineering:todo-resolve`
 

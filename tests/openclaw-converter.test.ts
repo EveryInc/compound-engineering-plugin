@@ -67,8 +67,28 @@ describe("convertClaudeToOpenClaw", () => {
     const parsed = parseFrontmatter(skill!.content)
     expect(parsed.data.name).toBe("security-reviewer")
     expect(parsed.data.description).toBe("Security-focused agent")
-    expect(parsed.data.model).toBe("claude-sonnet-4-20250514")
+    expect(parsed.data.model).toBe("anthropic/claude-sonnet-4-20250514")
     expect(parsed.body).toContain("Focus on vulnerabilities")
+  })
+
+  test("resolves bare model aliases to provider-prefixed IDs", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "fast-agent",
+          description: "Fast agent",
+          model: "sonnet",
+          body: "Do things quickly.",
+          sourcePath: "/tmp/plugin/agents/fast.md",
+        },
+      ],
+    }
+
+    const bundle = convertClaudeToOpenClaw(plugin, defaultOptions)
+    const skill = bundle.skills.find((s) => s.name === "fast-agent")
+    const parsed = parseFrontmatter(skill!.content)
+    expect(parsed.data.model).toBe("anthropic/claude-sonnet-4-6")
   })
 
   test("converts commands to skill files (excluding disableModelInvocation)", () => {

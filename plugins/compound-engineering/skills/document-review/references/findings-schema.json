@@ -45,8 +45,8 @@
           },
           "autofix_class": {
             "type": "string",
-            "enum": ["auto", "batch_confirm", "present"],
-            "description": "How this issue should be handled. auto = local deterministic fix applied silently (terminology, formatting, cross-references, completeness corrections). batch_confirm = obvious fix with a clear correct answer, but touches meaning enough to warrant grouped approval. present = requires individual user judgment."
+            "enum": ["auto", "present"],
+            "description": "How this issue should be handled. auto = one clear correct fix that can be applied silently (terminology, formatting, cross-references, completeness corrections, additions mechanically implied by other content). present = requires individual user judgment."
           },
           "finding_type": {
             "type": "string",
@@ -97,9 +97,9 @@
       "P3": "Minor improvement. User's discretion."
     },
     "autofix_classes": {
-      "auto": "Local, deterministic document fix: terminology consistency, formatting, cross-reference correction, completeness corrections (wrong counts, missing list entries, undefined values where the correct value is verifiable from elsewhere in the document). Must be unambiguous.",
-      "batch_confirm": "Obvious fix with a clear correct answer, but touches document meaning enough to warrant user awareness. Grouped with other batch_confirm findings for a single approval rather than individual review. Examples: adding a missing implementation step that is mechanically implied, updating a section summary to reflect its own contents.",
-      "present": "Requires individual user judgment -- strategic questions, design tradeoffs, meaning-changing fixes, or findings where reasonable people could disagree on the right action."
+      "_principle": "Autofix class is independent of severity. A P1 finding can be auto if the fix is obvious. The test: is there one clear correct fix, or does resolving this require judgment?",
+      "auto": "One clear correct fix -- applied silently. Includes both internal reconciliation (summary/detail mismatches, wrong counts, stale cross-references, terminology drift) and additions mechanically implied by other content (missing steps, unstated thresholds, completeness gaps where the correct content is obvious). Must include suggested_fix.",
+      "present": "Requires individual user judgment -- strategic questions, design tradeoffs, or findings where reasonable people could disagree on the right action."
     },
     "finding_types": {
       "error": "Something the document says that is wrong -- contradictions, incorrect statements, design tensions, incoherent tradeoffs. These are mistakes in what exists.",

@@ -186,8 +186,13 @@ topic: <kebab-case-topic>
 [Who is affected, what is changing, and why it matters]
 
 ## Requirements
-- R1. [Concrete user-facing behavior or requirement]
-- R2. [Concrete user-facing behavior or requirement]
+
+**[Group Header]**
+- R1. [Concrete requirement in this group]
+- R2. [Concrete requirement in this group]
+
+**[Group Header]**
+- R3. [Concrete requirement in this group]
 
 ## Success Criteria
 - [How we will know this solved the right problem]
@@ -215,11 +220,41 @@ topic: <kebab-case-topic>
 [If `Resolve Before Planning` is not empty: `→ Resume /ce:brainstorm` to resolve blocking questions before planning]
 ```
 
+**Visual communication** — Include a visual aid when the requirements would be significantly easier to understand with one. Visual aids are conditional on content patterns, not on depth classification — a Lightweight brainstorm about a complex workflow may warrant a diagram; a Deep brainstorm about a straightforward feature may not.
+
+**When to include:**
+
+| Requirements describe... | Visual aid | Placement |
+|---|---|---|
+| A multi-step user workflow or process | Mermaid flow diagram or ASCII flow with annotations | After Problem Frame, or under its own `## User Flow` heading for substantial flows (>10 nodes) |
+| 3+ behavioral modes, variants, or states | Markdown comparison table | Within the Requirements section |
+| 3+ interacting participants (user roles, system components, external services) | Mermaid or ASCII relationship diagram | After Problem Frame, or under its own `## Architecture` heading |
+| Multiple competing approaches being compared | Comparison table | Within Phase 2 approach exploration |
+
+**When to skip:**
+- Prose already communicates the concept clearly
+- The diagram would just restate the requirements in visual form without adding comprehension value
+- The visual describes implementation architecture, data schemas, state machines, or code structure (that belongs in `ce:plan`)
+- The brainstorm is simple and linear with no multi-step flows, mode comparisons, or multi-participant interactions
+
+**Format selection:**
+- **Mermaid** (default) for simple flows — 5-15 nodes, no in-box annotations, standard flowchart shapes. Use `TB` (top-to-bottom) direction so diagrams stay narrow in both rendered and source form. Source should be readable as fallback in diff views and terminals.
+- **ASCII/box-drawing diagrams** for annotated flows that need rich in-box content — CLI commands at each step, decision logic branches, file path layouts, multi-column spatial arrangements. More expressive than mermaid when the diagram's value comes from annotations within steps. Follow 80-column max for code blocks, use vertical stacking.
+- **Markdown tables** for mode/variant comparisons and approach comparisons.
+- Keep diagrams proportionate to the content. A simple 5-step workflow gets 5-10 nodes. A complex workflow with decision branches and annotations at each step may need 15-20 nodes — that is fine if every node earns its place.
+- Place inline at the point of relevance, not in a separate section.
+- Conceptual level only — user flows, information flows, mode comparisons, component responsibilities. Not implementation architecture, data schemas, or code structure.
+- Prose is authoritative: when a visual aid and surrounding prose disagree, the prose governs.
+
+After generating a visual aid, verify it accurately represents the prose requirements — correct sequence, no missing branches, no merged steps. Diagrams without code to validate against carry higher inaccuracy risk than code-backed diagrams.
+
 For **Standard** and **Deep** brainstorms, a requirements document is usually warranted.
 
 For **Lightweight** brainstorms, keep the document compact. Skip document creation when the user only needs brief alignment and no durable decisions need to be preserved.
 
 For very small requirements docs with only 1-3 simple requirements, plain bullet requirements are acceptable. For **Standard** and **Deep** requirements docs, use stable IDs like `R1`, `R2`, `R3` so planning and later review can refer to them unambiguously.
+
+When requirements span multiple distinct concerns, group them under bold topic headers within the Requirements section. The trigger for grouping is distinct logical areas, not item count — even four requirements benefit from headers if they cover three different topics. Group by logical theme (e.g., "Packaging", "Migration and Compatibility", "Contributor Workflow"), not by the order they were discussed. Requirements keep their original stable IDs — numbering does not restart per group. A requirement belongs to whichever group it fits best; do not duplicate it across groups. Skip grouping only when all requirements are about the same thing.
 
 When the work is simple, combine sections rather than padding them. A short requirements document is better than a bloated one.
 
@@ -229,6 +264,7 @@ Before finalizing, check:
 - Are any unresolved items actually product decisions rather than planning questions?
 - Did implementation details leak in when they shouldn't have?
 - Is there a low-cost change that would make this materially more useful?
+- Would a visual aid (flow diagram, comparison table, relationship diagram) help a reader grasp the requirements faster than prose alone?
 
 If planning would need to invent product behavior, scope boundaries, or success criteria, the brainstorm is not complete yet.
 
@@ -242,6 +278,14 @@ If a document contains outstanding questions:
 - Put technical questions, or questions that require validation or research, under `Deferred to Planning` when they are better answered there
 - Use tags like `[Needs research]` when the planner should likely investigate the question rather than answer it from repo context alone
 - Carry deferred questions forward explicitly rather than treating them as a failure to finish the requirements doc
+
+### Phase 3.5: Document Review
+
+When a requirements document was created or updated, run the `document-review` skill on it before presenting handoff options. Pass the document path as the argument.
+
+If document-review returns findings that were auto-applied, note them briefly when presenting handoff options. If residual P0/P1 findings were surfaced, mention them so the user can decide whether to address them before proceeding.
+
+When document-review returns "Review complete", proceed to Phase 4.
 
 ### Phase 4: Handoff
 
@@ -262,7 +306,7 @@ If `Resolve Before Planning` contains any items:
 Present only the options that apply:
 - **Proceed to planning (Recommended)** - Run `/ce:plan` for structured implementation planning
 - **Proceed directly to work** - Only offer this when scope is lightweight, success criteria are clear, scope boundaries are clear, and no meaningful technical or research questions remain
-- **Review and refine** - Offer this only when a requirements document exists and can be improved through structured review
+- **Run additional document review** - Offer this only when a requirements document exists. Runs another pass for further refinement
 - **Ask more questions** - Continue clarifying scope, preferences, or edge cases
 - **Share to Proof** - Offer this only when a requirements document exists
 - **Done for now** - Return later
@@ -296,9 +340,9 @@ If the curl fails, skip silently. Then return to the Phase 4 options.
 
 **If user selects "Ask more questions":** Return to Phase 1.3 (Collaborative Dialogue) and continue asking the user questions one at a time to further refine the design. Probe deeper into edge cases, constraints, preferences, or areas not yet explored. Continue until the user is satisfied, then return to Phase 4. Do not show the closing summary yet.
 
-**If user selects "Review and refine":**
+**If user selects "Run additional document review":**
 
-Load the `document-review` skill and apply it to the requirements document.
+Load the `document-review` skill and apply it to the requirements document for another pass.
 
 When document-review returns "Review complete", return to the normal Phase 4 options and present only the options that still apply. Do not show the closing summary yet.
 

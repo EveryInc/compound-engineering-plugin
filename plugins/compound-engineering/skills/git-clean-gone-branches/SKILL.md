@@ -19,7 +19,7 @@ bash scripts/clean-gone
 
 [scripts/clean-gone](./scripts/clean-gone)
 
-The script runs `git fetch --prune` first, then parses `git branch -vv` for branches marked `: gone]`. It uses `command git` to bypass shell aliases and RTK proxies.
+The script runs `git fetch --prune` first, then parses `git branch -vv` for branches marked `: gone]`.
 
 If the script outputs `__NONE__`, report that no stale branches were found and stop.
 
@@ -45,9 +45,9 @@ This is a yes-or-no decision on the entire list -- do not offer multi-selection 
 
 If the user confirms, delete each branch. For each branch:
 
-1. Check if it has an associated worktree (`command git worktree list | grep "\\[$branch\\]"`)
-2. If a worktree exists and is not the main repo root, remove it first: `command git worktree remove --force "$worktree_path"`
-3. Delete the branch: `command git branch -D "$branch"`
+1. Check if it has an associated worktree (`git worktree list | grep "\\[$branch\\]"`)
+2. If a worktree exists and is not the main repo root, remove it first: `git worktree remove --force "$worktree_path"`
+3. Delete the branch: `git branch -D "$branch"`
 
 Report results as you go:
 
@@ -61,7 +61,3 @@ Cleaned up 3 branches.
 ```
 
 If the user declines, acknowledge and stop without deleting anything.
-
-## Important: Use `command git`
-
-Always invoke git as `command git` in shell commands. This bypasses shell aliases and tools like RTK (Rust Token Killer) that proxy git commands, ensuring consistent behavior and output parsing.

@@ -1,3 +1,14 @@
+# Resolution Templates
+
+Choose the template matching the problem_type track (see `references/schema.yaml`).
+
+---
+
+## Bug Track Template
+
+Use for: `build_error`, `test_failure`, `runtime_error`, `performance_issue`, `database_issue`, `security_issue`, `ui_bug`, `integration_issue`, `logic_error`
+
+```markdown
 ---
 title: [Clear problem title]
 date: [YYYY-MM-DD]
@@ -35,3 +46,45 @@ tags: [keyword-one, keyword-two]
 
 ## Related Issues
 - [Related docs or issues, if any]
+```
+
+---
+
+## Knowledge Track Template
+
+Use for: `best_practice`, `documentation_gap`, `workflow_issue`, `developer_experience`
+
+```markdown
+---
+title: [Clear, descriptive title]
+date: [YYYY-MM-DD]
+category: [docs/solutions subdirectory]
+module: [Module or area]
+problem_type: [schema enum]
+component: [schema enum]
+severity: [schema enum]
+applies_when:
+  - [Condition where this applies]
+tags: [keyword-one, keyword-two]
+---
+
+# [Clear, descriptive title]
+
+## Context
+[What situation, gap, or friction prompted this guidance]
+
+## Guidance
+[The practice, pattern, or recommendation with code examples when useful]
+
+## Why This Matters
+[Rationale and impact of following or not following this guidance]
+
+## When to Apply
+- [Conditions or situations where this applies]
+
+## Examples
+[Concrete before/after or usage examples showing the practice in action]
+
+## Related
+- [Related docs or issues, if any]
+```

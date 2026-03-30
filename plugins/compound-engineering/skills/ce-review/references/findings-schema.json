@@ -102,9 +102,10 @@
 
   "_meta": {
     "confidence_thresholds": {
-      "suppress": "Below 0.60 -- do not report. Finding is speculative noise.",
-      "flag": "0.60-0.69 -- include only when the persona's calibration says the issue is actionable at that confidence.",
-      "report": "0.70+ -- report with full confidence."
+      "suppress": "Below 0.60 -- do not report. Finding is speculative noise. Exception: P0 findings at 0.50+ may be reported.",
+      "flag": "0.60-0.69 -- include only when the issue is clearly actionable with concrete evidence.",
+      "confident": "0.70-0.84 -- real and important. Report with full evidence.",
+      "certain": "0.85-1.00 -- verifiable from the code alone. Report."
     },
     "severity_definitions": {
       "P0": "Critical breakage, exploitable vulnerability, data loss/corruption. Must fix before merge.",

@@ -11,27 +11,30 @@ Create a single, well-crafted git commit from the current working tree changes.
 
 ### Step 1: Gather context
 
-Run these commands to understand the current state. Use `command git` to bypass aliases and RTK proxies.
+Run these commands to understand the current state.
 
 ```bash
-command git status
-command git diff HEAD
-command git branch --show-current
-command git log --oneline -10
-command git rev-parse --abbrev-ref origin/HEAD
+git status
+git diff HEAD
+git branch --show-current
+git log --oneline -10
+git rev-parse --abbrev-ref origin/HEAD
 ```
 
 The last command returns the remote default branch (e.g., `origin/main`). Strip the `origin/` prefix to get the branch name. If the command fails or returns a bare `HEAD`, try:
 
 ```bash
-command gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
+gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'
 ```
 
 If both fail, fall back to `main`.
 
-If there are no changes (nothing staged, nothing modified), report that and stop.
+If the `git status` result from this step shows a clean working tree (no staged, modified, or untracked files), report that there is nothing to commit and stop.
 
-If the current branch matches `main`, `master`, or the resolved default branch name, warn the user and ask whether to continue committing here or create a feature branch first. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply before proceeding. If the user chooses to create a branch, derive the name from the change content and switch to it before continuing.
+Run `git branch --show-current`. If it returns an empty result, the repository is in detached HEAD state. Explain that a branch is required before committing if the user wants this work attached to a branch. Ask whether to create a feature branch now. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply before proceeding.
+
+- If the user chooses to create a branch, derive the name from the change content, create it with `git checkout -b <branch-name>`, then run `git branch --show-current` again and use that result as the current branch name for the rest of the workflow.
+- If the user declines, continue with the detached HEAD commit.
 
 ### Step 2: Determine commit message convention
 
@@ -52,6 +55,8 @@ Keep this lightweight:
 
 ### Step 4: Stage and commit
 
+Run `git branch --show-current`. If it returns `main`, `master`, or the resolved default branch from Step 1, warn the user and ask whether to continue committing here or create a feature branch first. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply before proceeding. If the user chooses to create a branch, derive the name from the change content, create it with `git checkout -b <branch-name>`, then run `git branch --show-current` again and use that result as the current branch name for the rest of the workflow.
+
 Stage the relevant files. Prefer staging specific files by name over `git add -A` or `git add .` to avoid accidentally including sensitive files (.env, credentials) or unrelated changes.
 
 Write the commit message:
@@ -61,7 +66,7 @@ Write the commit message:
 Use a heredoc to preserve formatting:
 
 ```bash
-command git commit -m "$(cat <<'EOF'
+git commit -m "$(cat <<'EOF'
 type(scope): subject line here
 
 Optional body explaining why this change was made,
@@ -72,8 +77,4 @@ EOF
 
 ### Step 5: Confirm
 
-Run `command git status` after the commit to verify success. Report the commit hash(es) and subject line(s).
-
-## Important: Use `command git`
-
-Always invoke git as `command git` in shell commands. This bypasses shell aliases and tools like RTK (Rust Token Killer) that proxy git commands.
+Run `git status` after the commit to verify success. Report the commit hash(es) and subject line(s).

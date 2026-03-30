@@ -7,23 +7,56 @@ Use this file as the quick reference for:
 - enum values
 - validation expectations
 - category mapping
+- track classification (bug vs knowledge)
 
-## Required Fields
+## Tracks
 
-- **module**: Module or area affected by the problem
+The `problem_type` determines which **track** applies. Each track has different required and optional fields.
+
+| Track | problem_types | Description |
+|-------|--------------|-------------|
+| **Bug** | `build_error`, `test_failure`, `runtime_error`, `performance_issue`, `database_issue`, `security_issue`, `ui_bug`, `integration_issue`, `logic_error` | Defects and failures that were diagnosed and fixed |
+| **Knowledge** | `best_practice`, `documentation_gap`, `workflow_issue`, `developer_experience` | Practices, patterns, workflow improvements, and documentation |
+
+## Required Fields (both tracks)
+
+- **module**: Module or area affected
 - **date**: ISO date in `YYYY-MM-DD`
-- **problem_type**: One of `build_error`, `test_failure`, `runtime_error`, `performance_issue`, `database_issue`, `security_issue`, `ui_bug`, `integration_issue`, `logic_error`, `developer_experience`, `workflow_issue`, `best_practice`, `documentation_gap`
+- **problem_type**: One of the values listed in the Tracks table above
 - **component**: One of `rails_model`, `rails_controller`, `rails_view`, `service_object`, `background_job`, `database`, `frontend_stimulus`, `hotwire_turbo`, `email_processing`, `brief_system`, `assistant`, `authentication`, `payments`, `development_workflow`, `testing_framework`, `documentation`, `tooling`
-- **symptoms**: YAML array with 1-5 concrete symptoms
-- **root_cause**: One of `missing_association`, `missing_include`, `missing_index`, `wrong_api`, `scope_issue`, `thread_violation`, `async_timing`, `memory_leak`, `config_error`, `logic_error`, `test_isolation`, `missing_validation`, `missing_permission`, `missing_workflow_step`, `inadequate_documentation`, `missing_tooling`, `incomplete_setup`
-- **resolution_type**: One of `code_fix`, `migration`, `config_change`, `test_fix`, `dependency_update`, `environment_setup`, `workflow_improvement`, `documentation_update`, `tooling_addition`, `seed_data_update`
 - **severity**: One of `critical`, `high`, `medium`, `low`
 
-## Optional Fields
+## Bug Track Fields
 
-- **rails_version**: Rails version in `X.Y.Z` format
+Required:
+- **symptoms**: YAML array with 1-5 observable symptoms (errors, broken behavior)
+- **root_cause**: One of `missing_association`, `missing_include`, `missing_index`, `wrong_api`, `scope_issue`, `thread_violation`, `async_timing`, `memory_leak`, `config_error`, `logic_error`, `test_isolation`, `missing_validation`, `missing_permission`, `missing_workflow_step`, `inadequate_documentation`, `missing_tooling`, `incomplete_setup`
+- **resolution_type**: One of `code_fix`, `migration`, `config_change`, `test_fix`, `dependency_update`, `environment_setup`, `workflow_improvement`, `documentation_update`, `tooling_addition`, `seed_data_update`
+
+## Knowledge Track Fields
+
+No additional required fields beyond the shared ones. All fields below are optional:
+
+- **applies_when**: Conditions or situations where this guidance applies
+- **symptoms**: Observable gaps or friction that prompted this guidance
+- **root_cause**: Underlying cause, if there is a specific one
+- **resolution_type**: Type of change, if applicable
+
+## Optional Fields (both tracks)
+
 - **related_components**: Other components involved
 - **tags**: Search keywords, lowercase and hyphen-separated
+
+## Optional Fields (bug track only)
+
+- **rails_version**: Rails version in `X.Y.Z` format
+
+## Backward Compatibility
+
+Docs created before the track system may have `symptoms`/`root_cause`/`resolution_type` on knowledge-type problem_types. These are valid legacy docs:
+
+- Bug-track fields present on a knowledge-track doc are harmless. Do not strip them during refresh unless the doc is being rewritten for other reasons.
+- When creating **new** docs, follow the track rules above.
 
 ## Category Mapping
 
@@ -43,8 +76,12 @@ Use this file as the quick reference for:
 
 ## Validation Rules
 
-1. All required fields must be present.
-2. Enum fields must match the allowed values exactly.
-3. `symptoms` must be a YAML array with 1-5 items.
-4. `date` must match `YYYY-MM-DD`.
-5. `rails_version`, if present, must match `X.Y.Z`.
+1. Determine the track from `problem_type` using the Tracks table.
+2. All shared required fields must be present.
+3. Bug-track required fields (`symptoms`, `root_cause`, `resolution_type`) must be present on bug-track docs.
+4. Knowledge-track docs have no additional required fields beyond the shared ones.
+5. Bug-track fields on existing knowledge-track docs are harmless (see Backward Compatibility).
+6. Enum fields must match the allowed values exactly.
+7. Array fields must respect min/max item counts.
+8. `date` must match `YYYY-MM-DD`.
+9. `rails_version`, if present, must match `X.Y.Z` and only applies to bug-track docs.

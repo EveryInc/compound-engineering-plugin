@@ -1,4 +1,5 @@
 import { formatFrontmatter } from "../utils/frontmatter"
+import { normalizeModelWithProvider } from "../utils/model"
 import type {
   ClaudeAgent,
   ClaudeCommand,
@@ -93,7 +94,7 @@ function convertAgent(agent: ClaudeAgent, options: ClaudeToOpenCodeOptions) {
   }
 
   if (agent.model && agent.model !== "inherit") {
-    frontmatter.model = normalizeModel(agent.model)
+    frontmatter.model = normalizeModelWithProvider(agent.model)
   }
 
   if (options.inferTemperature) {
@@ -121,7 +122,7 @@ function convertCommands(commands: ClaudeCommand[]): OpenCodeCommandFile[] {
       description: command.description,
     }
     if (command.model && command.model !== "inherit") {
-      frontmatter.model = normalizeModel(command.model)
+      frontmatter.model = normalizeModelWithProvider(command.model)
     }
     const content = formatFrontmatter(frontmatter, rewriteClaudePaths(command.body))
     files.push({ name: command.name, content })
@@ -258,30 +259,6 @@ function rewriteClaudePaths(body: string): string {
   return body
     .replace(/~\/\.claude\//g, "~/.config/opencode/")
     .replace(/\.claude\//g, ".opencode/")
-}
-
-// Bare Claude family aliases used in Claude Code (e.g. `model: haiku`).
-// Update these when new model generations are released.
-const CLAUDE_FAMILY_ALIASES: Record<string, string> = {
-  haiku: "claude-haiku-4-5",
-  sonnet: "claude-sonnet-4-6",
-  opus: "claude-opus-4-6",
-}
-
-function normalizeModel(model: string): string {
-  if (model.includes("/")) return model
-  if (CLAUDE_FAMILY_ALIASES[model]) {
-    const resolved = `anthropic/${CLAUDE_FAMILY_ALIASES[model]}`
-    console.warn(
-      `Warning: bare model alias "${model}" mapped to "${resolved}". ` +
-        `Update CLAUDE_FAMILY_ALIASES if a newer version is available.`,
-    )
-    return resolved
-  }
-  if (/^claude-/.test(model)) return `anthropic/${model}`
-  if (/^(gpt-|o1-|o3-)/.test(model)) return `openai/${model}`
-  if (/^gemini-/.test(model)) return `google/${model}`
-  return `anthropic/${model}`
 }
 
 function inferTemperature(agent: ClaudeAgent): number | undefined {

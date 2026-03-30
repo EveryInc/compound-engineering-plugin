@@ -216,7 +216,17 @@ describe("convertClaudeToQwen", () => {
     expect(skill!.sourceDir).toBe("/tmp/plugin/skills/existing-skill")
   })
 
-  test("normalizeModel prefixes claude models with anthropic/", () => {
+  test("normalizes bare aliases to provider-prefixed model IDs", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [{ name: "a", description: "d", model: "sonnet", body: "b", sourcePath: "/tmp/a.md" }],
+    }
+    const bundle = convertClaudeToQwen(plugin, defaultOptions)
+    const parsed = parseFrontmatter(bundle.agents[0].content)
+    expect(parsed.data.model).toBe("anthropic/claude-sonnet-4-6")
+  })
+
+  test("prefixes claude models with anthropic/", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
       agents: [{ name: "a", description: "d", model: "claude-opus-4-5", body: "b", sourcePath: "/tmp/a.md" }],
@@ -226,7 +236,17 @@ describe("convertClaudeToQwen", () => {
     expect(parsed.data.model).toBe("anthropic/claude-opus-4-5")
   })
 
-  test("normalizeModel passes through already-namespaced models unchanged", () => {
+  test("prefixes qwen models with qwen/ provider", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [{ name: "a", description: "d", model: "qwen-max", body: "b", sourcePath: "/tmp/a.md" }],
+    }
+    const bundle = convertClaudeToQwen(plugin, defaultOptions)
+    const parsed = parseFrontmatter(bundle.agents[0].content)
+    expect(parsed.data.model).toBe("qwen/qwen-max")
+  })
+
+  test("passes through already-namespaced models unchanged", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
       agents: [{ name: "a", description: "d", model: "google/gemini-2.0", body: "b", sourcePath: "/tmp/a.md" }],
