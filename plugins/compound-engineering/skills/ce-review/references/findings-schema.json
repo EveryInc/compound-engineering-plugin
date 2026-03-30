@@ -114,10 +114,10 @@
       "P3": "Low-impact, narrow scope, minor improvement. User's discretion."
     },
     "autofix_classes": {
-      "safe_auto": "Local, deterministic code or test fix suitable for the in-skill fixer in autonomous mode.",
-      "gated_auto": "Concrete fix exists, but it changes behavior, permissions, contracts, or other sensitive areas that deserve explicit approval.",
-      "manual": "Actionable issue that should become residual work rather than an in-skill autofix.",
-      "advisory": "Informational or operational item that should be surfaced in the report only."
+      "safe_auto": "Local, deterministic code or test fix suitable for the in-skill fixer. Examples: extract duplicated helper, add missing nil check, fix off-by-one, add missing test, remove dead code. Do not default to advisory when a concrete safe fix exists.",
+      "gated_auto": "Concrete fix exists, but it changes behavior, permissions, contracts, or other sensitive areas that deserve explicit approval. Examples: add auth to unprotected endpoint, change API response shape.",
+      "manual": "Actionable issue that requires design decisions or cross-cutting changes. Examples: redesign data model, add pagination strategy, choose between architectural approaches.",
+      "advisory": "Informational or operational item that should be surfaced in the report only. Examples: design asymmetry the PR improves but does not fully resolve, residual risk notes, deployment considerations."
     },
     "owners": {
       "review-fixer": "The in-skill fixer can own this when policy allows.",

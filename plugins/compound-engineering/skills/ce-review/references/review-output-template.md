@@ -92,9 +92,30 @@ Use this **exact format** when presenting synthesized review findings. Findings 
 > **Fix order:** P0 auth bypass -> P1 memory/pagination -> P2 error handling if straightforward
 ```
 
+## Anti-patterns
+
+Do NOT produce output like this. The following is wrong:
+
+```markdown
+Findings
+
+Sev: P1
+File: foo.go:42
+Issue: Some problem description
+Reviewer(s): adversarial
+Confidence: 0.85
+Route: advisory -> human
+────────────────────────────────────────
+Sev: P2
+File: bar.go:99
+Issue: Another problem
+```
+
+This fails because: no pipe-delimited tables, no severity-grouped `###` headers, uses box-drawing horizontal rules, no numbered findings, no `## Code Review Results` title, and the verdict is not in a blockquote. Always use the table format from the example above.
+
 ## Formatting Rules
 
-- **Pipe-delimited markdown tables** -- never ASCII box-drawing characters
+- **Pipe-delimited markdown tables** -- never ASCII box-drawing characters or horizontal-rule-separated text blocks
 - **Severity-grouped sections** -- `### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`. Omit empty severity levels.
 - **Always include file:line location** for code review issues
 - **Reviewer column** shows which persona(s) flagged the issue. Multiple reviewers = cross-reviewer agreement.

@@ -44,7 +44,12 @@ Rules:
 - Every finding MUST include at least one evidence item grounded in the actual code.
 - Set pre_existing to true ONLY for issues in unchanged code that are unrelated to this diff. If the diff makes the issue newly relevant, it is NOT pre-existing.
 - You are operationally read-only. You may use non-mutating inspection commands, including read-oriented `git` / `gh` commands, to gather evidence. Do not edit files, change branches, commit, push, create PRs, or otherwise mutate the checkout or repository state.
-- Set `autofix_class` conservatively. Use `safe_auto` only when the fix is local, deterministic, and low-risk. Use `gated_auto` when a concrete fix exists but changes behavior/contracts/permissions. Use `manual` for actionable residual work. Use `advisory` for report-only items that should not become code-fix work.
+- Set `autofix_class` accurately -- not every finding is `advisory`. Use this decision guide:
+  - `safe_auto`: The fix is local and deterministic — the fixer can apply it mechanically without design judgment. Examples: extracting a duplicated helper, adding a missing nil/null check, fixing an off-by-one, adding a missing test for an untested code path, removing dead code.
+  - `gated_auto`: A concrete fix exists but it changes contracts, permissions, or crosses a module boundary in a way that deserves explicit approval. Examples: adding authentication to an unprotected endpoint, changing a public API response shape, switching from soft-delete to hard-delete.
+  - `manual`: Actionable work that requires design decisions or cross-cutting changes. Examples: redesigning a data model, choosing between two valid architectural approaches, adding pagination to an unbounded query.
+  - `advisory`: Report-only items that should not become code-fix work. Examples: noting a design asymmetry the PR improves but doesn't fully resolve, flagging a residual risk, deployment notes.
+  Do not default to `advisory` when uncertain -- if a concrete fix is obvious, classify it as `safe_auto` or `gated_auto`.
 - Set `owner` to the default next actor for this finding: `review-fixer`, `downstream-resolver`, `human`, or `release`.
 - Set `requires_verification` to true whenever the likely fix needs targeted tests, a focused re-review, or operational validation before it should be trusted.
 - suggested_fix is optional. Only include it when the fix is obvious and correct. A bad suggestion is worse than none.
