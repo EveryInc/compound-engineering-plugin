@@ -41,7 +41,47 @@ cd "$WORKDIR" || {
   exit 1
 }
 
+run_with_timeout() {
+  if command -v timeout >/dev/null 2>&1; then
+    timeout "$TIMEOUT" bash -c "$COMMAND"
+    return
+  fi
+
+  if command -v gtimeout >/dev/null 2>&1; then
+    gtimeout "$TIMEOUT" bash -c "$COMMAND"
+    return
+  fi
+
+  if command -v python3 >/dev/null 2>&1; then
+    python3 - "$TIMEOUT" "$COMMAND" <<'PY'
+import os
+import signal
+import subprocess
+import sys
+
+timeout_seconds = int(sys.argv[1])
+command = sys.argv[2]
+proc = subprocess.Popen(["bash", "-c", command], start_new_session=True)
+
+try:
+    sys.exit(proc.wait(timeout=timeout_seconds))
+except subprocess.TimeoutExpired:
+    os.killpg(proc.pid, signal.SIGTERM)
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.wait()
+    sys.exit(124)
+PY
+    return
+  fi
+
+  echo "Error: no timeout implementation available (tried timeout, gtimeout, python3)" >&2
+  exit 1
+}
+
 # Run the measurement command with timeout
 # timeout returns 124 if the command times out
 # We pass stdout and stderr through directly
-timeout "$TIMEOUT" bash -c "$COMMAND"
+run_with_timeout

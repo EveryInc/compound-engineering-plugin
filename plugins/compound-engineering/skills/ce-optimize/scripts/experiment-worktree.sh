@@ -11,7 +11,7 @@
 #   experiment-worktree.sh count
 #
 # Worktrees are created at: .worktrees/optimize-<spec>-exp-<NNN>/
-# Branches are named: optimize/<spec>/exp-<NNN>
+# Branches are named: optimize-exp/<spec>/exp-<NNN>
 
 set -euo pipefail
 
@@ -27,6 +27,15 @@ GIT_ROOT=$(git rev-parse --show-toplevel 2>/dev/null) || {
 }
 
 WORKTREE_DIR="$GIT_ROOT/.worktrees"
+
+experiment_branch_name() {
+  local spec_name="${1:?Error: spec_name required}"
+  local padded_index="${2:?Error: padded_index required}"
+
+  # Keep experiment refs outside optimize/<spec> so they do not collide
+  # with the long-lived optimization branch namespace.
+  echo "optimize-exp/${spec_name}/exp-${padded_index}"
+}
 
 ensure_gitignore() {
   if ! grep -q "^\.worktrees$" "$GIT_ROOT/.gitignore" 2>/dev/null; then
@@ -44,7 +53,8 @@ create_worktree() {
   local padded_index
   padded_index=$(printf "%03d" "$exp_index")
   local worktree_name="optimize-${spec_name}-exp-${padded_index}"
-  local branch_name="optimize/${spec_name}/exp-${padded_index}"
+  local branch_name
+  branch_name=$(experiment_branch_name "$spec_name" "$padded_index")
   local worktree_path="$WORKTREE_DIR/$worktree_name"
 
   # Check if worktree already exists
@@ -101,7 +111,8 @@ cleanup_worktree() {
   local padded_index
   padded_index=$(printf "%03d" "$exp_index")
   local worktree_name="optimize-${spec_name}-exp-${padded_index}"
-  local branch_name="optimize/${spec_name}/exp-${padded_index}"
+  local branch_name
+  branch_name=$(experiment_branch_name "$spec_name" "$padded_index")
   local worktree_path="$WORKTREE_DIR/$worktree_name"
 
   if [[ -d "$worktree_path" ]]; then
@@ -141,7 +152,8 @@ cleanup_all() {
       }
 
       # Delete the branch
-      local branch_name="optimize/${spec_name}/exp-${index_str}"
+      local branch_name
+      branch_name=$(experiment_branch_name "$spec_name" "$index_str")
       git branch -D "$branch_name" 2>/dev/null || true
 
       count=$((count + 1))
@@ -208,7 +220,7 @@ Commands:
   count        Count total active worktrees (for budget checking)
 
 Worktrees:  .worktrees/optimize-<spec>-exp-<NNN>/
-Branches:   optimize/<spec>/exp-<NNN>
+Branches:   optimize-exp/<spec>/exp-<NNN>
 EOF
       ;;
     *)

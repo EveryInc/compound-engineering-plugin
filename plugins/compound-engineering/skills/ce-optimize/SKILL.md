@@ -211,7 +211,7 @@ git rev-parse --verify "optimize/<spec-name>" 2>/dev/null
 
 Present the user with a choice via the platform question tool:
 - **Resume**: read ALL state from the experiment log on disk (do not rely on any in-memory context from a prior session). Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Continue from the last iteration number in the log.
-- **Fresh start**: archive the old branch to `optimize/<spec-name>/archived-<timestamp>`, clear the experiment log, start from scratch
+- **Fresh start**: archive the old branch to `optimize-archive/<spec-name>/archived-<timestamp>`, clear the experiment log, start from scratch
 
 ### 0.5 Create Optimization Branch and Scratch Space
 
@@ -412,7 +412,7 @@ For each hypothesis in the batch, dispatch in parallel:
 **Worktree backend:**
 1. Create experiment worktree:
    ```bash
-   WORKTREE_PATH=$(bash scripts/experiment-worktree.sh create "<spec_name>" <exp_index> "optimize/<spec_name>" <shared_files...>)
+   WORKTREE_PATH=$(bash scripts/experiment-worktree.sh create "<spec_name>" <exp_index> "optimize/<spec_name>" <shared_files...>)  # creates optimize-exp/<spec_name>/exp-<NNN>
    ```
 2. Apply port parameterization if configured (set env vars for the measurement script)
 3. Fill the experiment prompt template (`references/experiment-prompt-template.md`) with:
