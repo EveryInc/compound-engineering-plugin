@@ -1,13 +1,25 @@
 # Experiment Log Schema
 # This is the canonical schema for the experiment log file that accumulates
-# across an optimization run. The orchestrating agent reads and writes this
-# file after each batch.
+# across an optimization run.
 #
 # Location: .context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml
 #
-# The experiment log is the durable ground truth for all experiments run.
-# The orchestrator does NOT read it in full each iteration -- it uses a
-# rolling window (last 10 experiments) + a strategy digest file.
+# PERSISTENCE MODEL:
+# The experiment log on disk is the SINGLE SOURCE OF TRUTH. The agent's
+# in-memory context is expendable and will be compacted during long runs.
+#
+# Write discipline:
+# - Each experiment entry is APPENDED immediately after its measurement
+#   completes (SKILL.md step 3.3), before batch evaluation
+# - Outcome fields may be updated in-place after batch evaluation (step 3.5)
+# - The `best` section is updated after each batch if a new best is found
+# - The `hypothesis_backlog` is updated after each batch
+# - The agent re-reads this file from disk at every phase boundary
+#
+# The orchestrator does NOT read the full log each iteration -- it uses a
+# rolling window (last 10 experiments) + a strategy digest file for
+# hypothesis generation. But the full log exists on disk for resume,
+# crash recovery, and post-run analysis.
 
 # ============================================================================
 # TOP-LEVEL STRUCTURE

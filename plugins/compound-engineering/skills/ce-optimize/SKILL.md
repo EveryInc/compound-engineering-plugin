@@ -32,6 +32,43 @@ Reference the experiment log schema for state management:
 
 ---
 
+## Persistence Discipline
+
+**The experiment log on disk is the single source of truth. The agent's in-memory context is expendable.**
+
+This skill runs for hours. Context windows compact, sessions crash, and agents restart. Every piece of state that matters must live on disk, not in the agent's memory.
+
+### Core Rules
+
+1. **Write each experiment result to disk IMMEDIATELY after measurement** — not after the batch, not after evaluation, IMMEDIATELY. Append the experiment entry to the experiment log file the moment its metrics are known, before evaluating the next experiment. This is the #1 crash-safety rule.
+
+2. **Re-read from disk at every phase boundary and before every decision** — never trust in-memory state across phase transitions, batch boundaries, or after any operation that might have taken significant time. Re-read the experiment log and strategy digest from disk.
+
+3. **The experiment log is append-only during Phase 3** — never rewrite the full file. Append new experiment entries. Update the `best` section in place only when a new best is found. This prevents data loss if a write is interrupted.
+
+4. **Per-experiment result markers for crash recovery** — each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments that were measured but not yet logged.
+
+5. **Strategy digest is written after every batch, before generating new hypotheses** — the agent reads the digest (not its memory) when deciding what to try next.
+
+### File Locations (all under `.context/compound-engineering/ce-optimize/<spec-name>/`)
+
+| File | Purpose | Written When |
+|------|---------|-------------|
+| `spec.yaml` | Optimization spec (immutable during run) | Phase 0 |
+| `experiment-log.yaml` | Full history of all experiments | Appended after EACH experiment measurement |
+| `strategy-digest.md` | Compressed learnings for hypothesis generation | After each batch completes |
+| `<worktree>/result.yaml` | Per-experiment crash-recovery marker | Immediately after measurement, before log append |
+
+### On Resume
+
+When Phase 0.4 detects an existing run:
+1. Read the experiment log from disk — this is the ground truth
+2. Scan worktree directories for `result.yaml` markers not yet in the log
+3. Recover any measured-but-unlogged experiments
+4. Continue from where the log left off
+
+---
+
 ## Phase 0: Setup
 
 ### 0.1 Determine Input Type
@@ -82,7 +119,7 @@ git rev-parse --verify "optimize/<spec-name>" 2>/dev/null
 **If branch exists**, check for an existing experiment log at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`.
 
 Present the user with a choice via the platform question tool:
-- **Resume**: inherit existing state, continue from the last iteration number
+- **Resume**: read ALL state from the experiment log on disk (do not rely on any in-memory context from a prior session). Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Continue from the last iteration number in the log.
 - **Fresh start**: archive the old branch to `optimize/<spec-name>/archived-<timestamp>`, clear the experiment log, start from scratch
 
 ### 0.5 Create Optimization Branch and Scratch Space
@@ -300,25 +337,27 @@ For each hypothesis in the batch, dispatch in parallel:
    ```
 5. Security posture: use the user's selection (ask once per session if not set in spec)
 
-### 3.3 Collect Results
+### 3.3 Collect and Persist Results
 
-Wait for all experiments in the batch to complete.
+Process experiments as they complete — do NOT wait for the entire batch to finish before writing results.
 
-For each completed experiment:
+For each completed experiment, **immediately**:
 
 1. **Run measurement** in the experiment's worktree:
    ```bash
    bash scripts/measure.sh "<measurement.command>" <timeout_seconds> "<worktree_path>" <env_vars...>
    ```
 
-2. **Read raw JSON output** from the measurement script
+2. **Write crash-recovery marker** — immediately after measurement, write `result.yaml` in the experiment worktree containing the raw metrics. This ensures the measurement is recoverable even if the agent crashes before updating the main log.
 
-3. **Evaluate degenerate gates**:
+3. **Read raw JSON output** from the measurement script
+
+4. **Evaluate degenerate gates**:
    - For each gate in `metric.degenerate_gates`, parse the operator and threshold
    - Compare the metric value against the threshold
    - If ANY gate fails: mark outcome as `degenerate`, skip judge evaluation, save money
 
-4. **If gates pass AND primary type is `judge`**:
+5. **If gates pass AND primary type is `judge`**:
    - Read the experiment's output (cluster assignments, search results, etc.)
    - Apply stratified sampling per `metric.judge.stratification` config (using `sample_seed`)
    - Group samples into batches of `metric.judge.batch_size`
@@ -328,10 +367,12 @@ For each completed experiment:
    - Aggregate scores: compute `scoring.primary` (e.g., mean_score) and `scoring.secondary` values
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
 
-5. **If gates pass AND primary type is `hard`**:
+6. **If gates pass AND primary type is `hard`**:
    - Use the metric value directly from the measurement output
 
-6. **Record results** in the experiment log entry
+7. **IMMEDIATELY append to experiment log on disk** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. The outcome may be preliminary (e.g., `gates_passed` but not yet compared to best) — that is fine. Update the outcome to `kept` or `reverted` in the evaluation step, but the raw metrics are on disk and safe from context compaction.
+
+**Why immediately?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs. If results only exist in the agent's memory, they are lost. Karpathy's autoresearch writes to `results.tsv` after every single experiment — this skill must do the same with the experiment log.
 
 ### 3.4 Evaluate Batch
 
@@ -362,18 +403,29 @@ After all experiments in the batch have been measured:
 
 ### 3.5 Update State
 
-1. **Update experiment log** with ALL results from this batch (kept, reverted, degenerate, error, deferred)
+By this point, individual experiment results are already on disk (written in step 3.3). This step updates aggregate state.
 
-2. **Write strategy digest** to `.context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md`:
+1. **Re-read the experiment log from disk** — do not trust in-memory state. The log is the source of truth.
+
+2. **Finalize outcomes** — update experiment entries from step 3.4 evaluation (mark `kept`, `reverted`, `runner_up_kept`, etc.). Write these outcome updates to disk immediately.
+
+3. **Update the `best` section** in the experiment log if a new best was found. Write to disk.
+
+4. **Write strategy digest** to `.context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md`:
    - Categories tried so far (with success/failure counts)
    - Key learnings from this batch and overall
    - Exploration frontier: what categories and approaches remain untried
    - Current best metrics and improvement from baseline
 
-3. **Generate new hypotheses** based on learnings:
-   - Read the rolling window (last 10 experiments from the log) and the strategy digest
+5. **Generate new hypotheses** based on learnings:
+   - Re-read the strategy digest from disk (not from memory)
+   - Read the rolling window (last 10 experiments from the log on disk)
    - Do NOT read the full experiment log -- use the digest for broad context
-   - Add new hypotheses to the backlog based on what succeeded (explore further in that direction) and what failed (avoid similar approaches)
+   - Add new hypotheses to the backlog and write the updated backlog to disk
+
+6. **Write updated hypothesis backlog to disk** — the backlog section of the experiment log must reflect newly added hypotheses and removed (tested) ones.
+
+**Checkpoint: at this point, all state for this batch is on disk. If the agent crashes and restarts, it can resume from the experiment log without loss.**
 
 ### 3.6 Check Stopping Criteria
 
@@ -402,7 +454,7 @@ If no stopping criterion is met, proceed to the next batch (step 3.1).
 - Current best metric and improvement from baseline
 - Cumulative judge cost (if applicable)
 
-**Crash recovery**: Each experiment should write a small `result.yaml` marker in its worktree upon measurement completion. On resume (Phase 0.4 detects existing branch), scan `.worktrees/` for completed-but-unlogged experiment markers before starting a new batch.
+**Crash recovery**: See Persistence Discipline section. Per-experiment `result.yaml` markers are written in step 3.3. Individual experiment results are appended to the log immediately in step 3.3. Batch-level state (outcomes, best, digest) is written in step 3.5. On resume (Phase 0.4), the log on disk is the ground truth — scan for any `result.yaml` markers not yet reflected in the log.
 
 ---
 
