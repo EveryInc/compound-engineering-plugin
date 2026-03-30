@@ -115,7 +115,7 @@ This fails because: no pipe-delimited tables, no severity-grouped `###` headers,
 
 ## Formatting Rules
 
-- **Pipe-delimited markdown tables** -- never ASCII box-drawing characters or horizontal-rule-separated text blocks
+- **Pipe-delimited markdown tables** for findings -- never ASCII box-drawing characters or per-finding horizontal-rule separators between entries (the report-level `---` before the verdict is still required)
 - **Severity-grouped sections** -- `### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`. Omit empty severity levels.
 - **Always include file:line location** for code review issues
 - **Reviewer column** shows which persona(s) flagged the issue. Multiple reviewers = cross-reviewer agreement.
