@@ -30,6 +30,17 @@ Reference the experiment log schema for state management:
 
 `references/experiment-log-schema.yaml`
 
+## Quick Start
+
+For a first run, optimize for signal and safety, not maximum throughput:
+
+- Start from `references/example-hard-spec.yaml` when the metric is objective and cheap to measure
+- Use `references/example-judge-spec.yaml` only when actual quality requires semantic judgment
+- Prefer `execution.mode: serial` and `execution.max_concurrent: 1`
+- Cap the first run with `stopping.max_iterations: 4` and `stopping.max_hours: 1`
+- Avoid new dependencies until the baseline and measurement harness are trusted
+- For judge mode, start with `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5`
+
 ---
 
 ## Persistence Discipline
@@ -192,6 +203,8 @@ Check whether the input is:
    - What command runs the measurement?
    - What files can be modified? What is immutable?
    - Any constraints or dependencies?
+   - If this is the first run: recommend `execution.mode: serial`, `execution.max_concurrent: 1`, `stopping.max_iterations: 4`, and `stopping.max_hours: 1`
+   - If `type: judge`: recommend `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5` until the rubric and harness are trusted
 6. Write the spec to `.context/compound-engineering/ce-optimize/<spec-name>/spec.yaml`
 7. Present the spec to the user for approval before proceeding
 
@@ -291,10 +304,10 @@ If primary type is `judge`, also run the judge evaluation on baseline output to 
 
 Run the parallelism probe script:
 ```bash
-bash scripts/parallel-probe.sh "<project_directory>" "<measurement.command>"
+bash scripts/parallel-probe.sh "<project_directory>" "<measurement.command>" "<measurement.working_directory>" <shared_files...>
 ```
 
-Read the JSON output. Present any blockers to the user with suggested mitigations.
+Read the JSON output. Present any blockers to the user with suggested mitigations. Treat the probe as intentionally narrow: it should inspect the measurement command, the measurement working directory, and explicitly declared shared files, not the entire repository.
 
 ### 1.5 Worktree Budget Check
 
@@ -326,6 +339,7 @@ Present to the user via the platform question tool:
 - **Parallel readiness**: probe results, any blockers, mitigations applied
 - **Clean-tree status**: confirmed clean
 - **Worktree budget**: current count and projected usage
+- **Judge budget**: estimated per-experiment judge cost and configured `max_total_cost_usd` cap (or an explicit note that spend is uncapped)
 
 **Options:**
 1. **Proceed** -- approve baseline and parallel config, move to Phase 2
@@ -333,6 +347,8 @@ Present to the user via the platform question tool:
 3. **Fix issues** -- user needs to resolve blockers first
 
 Do NOT proceed to Phase 2 until the user explicitly approves.
+
+If primary type is `judge` and `max_total_cost_usd` is null, call that out as uncapped spend and require explicit approval before proceeding.
 
 **State re-read:** After gate approval, re-read the spec and baseline from disk. Do not carry stale in-memory values forward.
 
@@ -538,6 +554,7 @@ Stop the loop if ANY of these are true:
 - **Target reached**: primary metric meets or exceeds `stopping.target` (if set in spec)
 - **Max iterations**: total experiments run >= `stopping.max_iterations`
 - **Max hours**: wall-clock time since Phase 3 start >= `stopping.max_hours`
+- **Judge budget exhausted**: cumulative judge spend >= `metric.judge.max_total_cost_usd` (if set)
 - **Plateau**: no improvement for `stopping.plateau_iterations` consecutive experiments
 - **Manual stop**: user interrupts (save state and proceed to Phase 4)
 - **Empty backlog**: no hypotheses remain and no new ones can be generated

@@ -31,6 +31,8 @@ The primary entry points for engineering work, invoked as slash commands:
 | `/ce:compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
 | `/ce:optimize` | Run iterative optimization loops with parallel experiments, measurement gates, and LLM-as-judge quality scoring |
 
+For `/ce:optimize`, start from the checked-in example specs under `skills/ce-optimize/references/` and keep the first run serial, small, and cheap until the measurement harness is trustworthy.
+
 ### Research & Context
 
 | Skill | Description |

@@ -134,7 +134,7 @@ required_fields:
             description: "Model to use for judge evaluation. Haiku is cheaper and faster; Sonnet is more nuanced."
           sample_size:
             type: integer
-            default: 30
+            default: 10
             description: "Total number of output items to sample for judge evaluation per experiment"
           stratification:
             type: array
@@ -163,12 +163,16 @@ required_fields:
             description: "Fixed seed for reproducible sampling across experiments"
           batch_size:
             type: integer
-            default: 10
+            default: 5
             description: "Number of samples per judge sub-agent batch. Controls parallelism vs overhead."
           minimum_improvement:
             type: number
             default: 0.3
             description: "Minimum judge score improvement required to accept an experiment as 'better'. Accounts for sample-composition variance when output structure changes between experiments. Distinct from measurement.stability.noise_threshold which handles run-to-run flakiness."
+          max_total_cost_usd:
+            type: number
+            default: 5
+            description: "Stop judge evaluation when cumulative judge spend reaches this cap. This is a first-run safety default; raise it only after the rubric and harness are trustworthy. Set to null only with explicit user approval."
 
   measurement:
     type: object
@@ -380,4 +384,5 @@ validation_rules:
   - "execution.max_concurrent must not exceed 6 when execution.backend is 'worktree'"
   - "If parallel.exclusive_resources is non-empty, execution.mode should be 'serial'"
   - "If metric.judge.singleton_sample > 0, metric.judge.singleton_rubric must be present"
+  - "If metric.primary.type is 'judge' and metric.judge.max_total_cost_usd is null, the user should explicitly approve uncapped spend"
   - "stopping must have at least one non-default criterion or use defaults"
