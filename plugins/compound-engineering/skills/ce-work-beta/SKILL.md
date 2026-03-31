@@ -457,12 +457,12 @@ When external delegation is active, follow this workflow for each tagged task. D
    | Option | Flags | What it allows | Risks |
    |--------|-------|---------------|-------|
    | **Default (no flags)** | *(none)* | Codex defaults: read-only sandbox, approval prompts enabled. | Will almost certainly fail in `exec` mode -- there is no interactive user to approve operations, so Codex gives up on the first command that needs approval (e.g., `npm install`). Only works if the user has permissive settings in `~/.codex/config.toml`. |
-   | **Workspace write** (`--full-auto`) | `-s workspace-write -a on-request` | Grants disk writes inside the workspace directory and network access. Approval is set to `on-request`. | May still fail if the task needs system-level access outside the workspace directory. Moderate risk. |
+   | **Workspace write** (`--full-auto`) | `-s workspace-write -a on-request` | Grants disk writes inside the workspace directory. Approval is set to `on-request`. Network access depends on the user's Codex config and may still be disabled. | May still fail if the task needs network access or system-level access outside the workspace directory. Moderate risk. |
    | **Full access** (`--yolo`) | `--dangerously-bypass-approvals-and-sandbox` | Disables ALL sandbox restrictions and ALL approval prompts. The delegate can read/write anywhere on disk, make network requests, and execute arbitrary commands without confirmation. | **High risk.** The delegate can delete files outside the workspace, leak secrets via network requests, install packages globally, and run destructive commands -- all without asking. Only use in disposable environments or when the prompt is fully trusted. This is the only option likely to produce a complete solution in `exec` mode for non-trivial tasks. |
 
    Store the user's choice for the session. Apply the corresponding flags in step 5 below.
 
-3. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `compound-engineering.local.md`). Include rules: no git commits, no PRs, run `git status` and `git diff --stat` when done. Never embed credentials or tokens in the prompt - pass auth through environment variables.
+3. **Build prompt** — For each task, assemble a prompt from the plan's implementation unit (Goal, Files, Approach, Conventions from `AGENTS.md`; use `CLAUDE.md` only if the repo keeps it as a compatibility shim; append any workflow-specific notes from `compound-engineering.local.md`). Include rules: no git commits, no PRs, run `git status` and `git diff --stat` when done. Never embed credentials or tokens in the prompt - pass auth through environment variables.
 
 4. **Write prompt to file** — Save the assembled prompt to a unique temporary file to avoid shell quoting issues and cross-task races. Use a unique filename per task.
 
