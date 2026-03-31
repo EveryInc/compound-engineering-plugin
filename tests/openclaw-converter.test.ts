@@ -91,6 +91,26 @@ describe("convertClaudeToOpenClaw", () => {
     expect(parsed.data.model).toBe("anthropic/claude-sonnet-4-6")
   })
 
+  test("prefixes minimax models with minimax/ provider", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [
+        {
+          name: "minimax-agent",
+          description: "MiniMax agent",
+          model: "minimax-m2.7",
+          body: "Use MiniMax model.",
+          sourcePath: "/tmp/plugin/agents/minimax.md",
+        },
+      ],
+    }
+
+    const bundle = convertClaudeToOpenClaw(plugin, defaultOptions)
+    const skill = bundle.skills.find((s) => s.name === "minimax-agent")
+    const parsed = parseFrontmatter(skill!.content)
+    expect(parsed.data.model).toBe("minimax/minimax-m2.7")
+  })
+
   test("converts commands to skill files (excluding disableModelInvocation)", () => {
     const bundle = convertClaudeToOpenClaw(fixturePlugin, defaultOptions)
 
