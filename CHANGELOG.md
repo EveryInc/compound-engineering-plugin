@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.61.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.60.0...cli-v2.61.0) (2026-03-31)
+
+
+### Features
+
+* **skill-design:** document skill file isolation and platform variable constraints ([#469](https://github.com/EveryInc/compound-engineering-plugin/issues/469)) ([0294652](https://github.com/EveryInc/compound-engineering-plugin/commit/0294652395cb62d5569f73ebfea543cfe8b514d6))
+
 ## [2.60.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.59.0...cli-v2.60.0) (2026-03-31)
 
 
