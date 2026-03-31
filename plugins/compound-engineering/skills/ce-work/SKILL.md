@@ -449,7 +449,7 @@ Before creating PR, verify:
 - [ ] PR description includes Post-Deploy Monitoring & Validation section (or explicit no-impact rationale)
 - [ ] Code review completed (inline self-review or full `ce:review`)
 - [ ] PR description includes summary, testing notes, and screenshots
-- [ ] PR description includes Compound Engineered badge with accurate model, harness, and version
+- [ ] PR description includes Compound Engineered badge with accurate model and harness
 
 ## Code Review Tiers
 
