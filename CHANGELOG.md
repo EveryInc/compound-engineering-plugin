@@ -1,5 +1,18 @@
 # Changelog
 
+## [2.61.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.60.0...cli-v2.61.0) (2026-04-01)
+
+
+### Features
+
+* **release:** document linked-versions policy ([#482](https://github.com/EveryInc/compound-engineering-plugin/issues/482)) ([96345ac](https://github.com/EveryInc/compound-engineering-plugin/commit/96345acf217333726af0dcfdaa24058a149365bb))
+* **skill-design:** document skill file isolation and platform variable constraints ([#469](https://github.com/EveryInc/compound-engineering-plugin/issues/469)) ([0294652](https://github.com/EveryInc/compound-engineering-plugin/commit/0294652395cb62d5569f73ebfea543cfe8b514d6))
+
+
+### Bug Fixes
+
+* **converters:** preserve user config when writing MCP servers ([#479](https://github.com/EveryInc/compound-engineering-plugin/issues/479)) ([c65a698](https://github.com/EveryInc/compound-engineering-plugin/commit/c65a698d932d02e5fb4a948db4d000e21ed6ba4f))
+
 ## [2.60.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.59.0...cli-v2.60.0) (2026-03-31)
 
 

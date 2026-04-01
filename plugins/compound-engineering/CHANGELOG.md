@@ -9,6 +9,20 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.61.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.60.0...compound-engineering-v2.61.0) (2026-04-01)
+
+
+### Features
+
+* **cli-readiness-reviewer:** add conditional review persona for CLI agent readiness ([#471](https://github.com/EveryInc/compound-engineering-plugin/issues/471)) ([c56c766](https://github.com/EveryInc/compound-engineering-plugin/commit/c56c7667dfe45cfd149cf2fbfeddb35e96f8d559))
+* **product-lens-reviewer:** domain-agnostic activation criteria and strategic consequences ([#481](https://github.com/EveryInc/compound-engineering-plugin/issues/481)) ([804d78f](https://github.com/EveryInc/compound-engineering-plugin/commit/804d78fc8463be8101719b263d1f5ef0480755a6))
+* **resolve-pr-feedback:** add cross-invocation cluster analysis ([#480](https://github.com/EveryInc/compound-engineering-plugin/issues/480)) ([7b8265b](https://github.com/EveryInc/compound-engineering-plugin/commit/7b8265bd81410b28a4160657a7c6ac0d7f1f1cb2))
+
+
+### Bug Fixes
+
+* **ce-plan, ce-brainstorm:** enforce repo-relative paths in generated documents ([#473](https://github.com/EveryInc/compound-engineering-plugin/issues/473)) ([33a8d9d](https://github.com/EveryInc/compound-engineering-plugin/commit/33a8d9dc118a53a35cd15e0e6e44b3592f58ac4f))
+
 ## [2.60.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.59.0...compound-engineering-v2.60.0) (2026-03-31)
 
 
