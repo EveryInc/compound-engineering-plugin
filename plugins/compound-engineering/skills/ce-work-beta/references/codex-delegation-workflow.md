@@ -125,14 +125,29 @@ and suggested ordering.]
 - If you discover mid-execution that you need to modify files outside the repo root, complete what you can within the repo and report what you could not do via the result schema issues field
 </constraints>
 
+<testing>
+Before writing tests, check whether the plan's test scenarios cover all
+categories that apply to each unit. Supplement gaps before writing tests:
+- Happy path: core input/output pairs from each unit's goal
+- Edge cases: boundary values, empty/nil inputs, type mismatches
+- Error/failure paths: invalid inputs, permission denials, downstream failures
+- Integration: cross-layer scenarios that mocks alone won't prove
+
+Write tests that name specific inputs and expected outcomes. If your changes
+touch code with callbacks, middleware, or event handlers, verify the
+interaction chain works end-to-end.
+</testing>
+
 <verify>
-After implementing, run the verification commands below. If tests fail,
-fix the issues and re-run until they pass. Do not report status "completed"
-unless verification passes. This is your responsibility -- the orchestrator
-will not re-run verification independently.
+After implementing, run ALL test files together in a single command (not
+per-file). Cross-file contamination (e.g., mocked globals leaking between
+test files) only surfaces when tests run in the same process. If tests
+fail, fix the issues and re-run until they pass. Do not report status
+"completed" unless verification passes. This is your responsibility --
+the orchestrator will not re-run verification independently.
 
 [Test and lint commands from the project. Use the union of all units'
-verification commands.]
+verification commands as a single combined invocation.]
 </verify>
 
 <output_contract>
