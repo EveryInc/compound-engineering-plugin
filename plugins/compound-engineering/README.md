@@ -46,7 +46,7 @@ The primary entry points for engineering work, invoked as slash commands:
 | `/resolve-pr-feedback` | Resolve PR review feedback in parallel |
 | `/sync` | Sync Claude Code config across machines |
 | `/test-browser` | Run browser tests on PR-affected pages |
-| `/test-xcode` | Build and test iOS apps on simulator |
+| `/test-xcode` | Build and test iOS apps on simulator using XcodeBuildMCP |
 | `/onboarding` | Generate `ONBOARDING.md` to help new contributors understand the codebase |
 | `/todo-resolve` | Resolve todos in parallel |
 | `/todo-triage` | Triage and prioritize pending todos |
@@ -104,6 +104,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `agent-native-reviewer` | Verify features are agent-native (action + context parity) |
 | `api-contract-reviewer` | Detect breaking API contract changes |
 | `cli-agent-readiness-reviewer` | Evaluate CLI agent-friendliness against 7 core principles |
+| `cli-readiness-reviewer` | CLI agent-readiness persona for ce:review (conditional, structured JSON) |
 | `architecture-strategist` | Analyze architectural decisions and compliance |
 | `code-simplicity-reviewer` | Final pass for simplicity and minimalism |
 | `correctness-reviewer` | Logic errors, edge cases, state bugs |

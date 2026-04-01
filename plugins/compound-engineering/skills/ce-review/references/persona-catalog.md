@@ -1,6 +1,6 @@
 # Persona Catalog
 
-16 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific agents. The orchestrator uses this catalog to select which reviewers to spawn for each review.
+17 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific agents. The orchestrator uses this catalog to select which reviewers to spawn for each review.
 
 ## Always-on (4 personas + 2 CE agents)
 
@@ -22,7 +22,7 @@ Spawned on every review regardless of diff content.
 | `compound-engineering:review:agent-native-reviewer` | Verify new features are agent-accessible |
 | `compound-engineering:research:learnings-researcher` | Search docs/solutions/ for past issues related to this PR's modules and patterns |
 
-## Conditional (7 personas)
+## Conditional (8 personas)
 
 Spawned when the orchestrator identifies relevant patterns in the diff. The orchestrator reads the full diff and reasons about selection -- this is agent judgment, not keyword matching.
 
@@ -34,6 +34,7 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 | `data-migrations` | `compound-engineering:review:data-migrations-reviewer` | Migration files, schema changes, backfill scripts, data transformations |
 | `reliability` | `compound-engineering:review:reliability-reviewer` | Error handling, retry logic, circuit breakers, timeouts, background jobs, async handlers, health checks |
 | `adversarial` | `compound-engineering:review:adversarial-reviewer` | Diff has >=50 changed non-test, non-generated, non-lockfile lines, OR touches auth, payments, data mutations, external API integrations, or other high-risk domains |
+| `cli-readiness` | `compound-engineering:review:cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
 | `previous-comments` | `compound-engineering:review:previous-comments-reviewer` | **PR-only.** Reviewing a PR that has existing review comments or review threads from prior review rounds. Skip entirely when no PR metadata was gathered in Stage 1. |
 
 ## Stack-Specific Conditional (5 personas)

@@ -246,6 +246,16 @@ describe("convertClaudeToQwen", () => {
     expect(parsed.data.model).toBe("qwen/qwen-max")
   })
 
+  test("prefixes minimax models with minimax/ provider", () => {
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      agents: [{ name: "a", description: "d", model: "minimax-m2.7", body: "b", sourcePath: "/tmp/a.md" }],
+    }
+    const bundle = convertClaudeToQwen(plugin, defaultOptions)
+    const parsed = parseFrontmatter(bundle.agents[0].content)
+    expect(parsed.data.model).toBe("minimax/minimax-m2.7")
+  })
+
   test("passes through already-namespaced models unchanged", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,

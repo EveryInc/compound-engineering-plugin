@@ -48,6 +48,15 @@ skills/
 > `/command-name` slash commands now live under `skills/command-name/SKILL.md`
 > and work identically in Claude Code. Other targets may convert or map these references differently.
 
+## Debugging Plugin Bugs
+
+Developers of this plugin also use it via their marketplace install (`~/.claude/plugins/`). When a developer reports a bug they experienced while using a skill or agent, the installed version may be older than the repo. Glob for the component name under `~/.claude/plugins/` and diff the installed content against the repo version.
+
+- **Repo already has the fix**: The developer's install is stale. Tell them to reinstall the plugin or use `--plugin-dir` to load skills from the repo checkout. No code change needed.
+- **Both versions have the bug**: Proceed with the fix normally.
+
+Important: Just because the developer's installed plugin may be out of date, it's possible both old and current repo versions have the bug. The proper fix is to still fix the repo version.
+
 ## Command Naming Convention
 
 **Workflow commands** use `ce:` prefix to unambiguously identify them as compound-engineering commands:

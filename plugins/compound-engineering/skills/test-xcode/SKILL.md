@@ -1,6 +1,6 @@
 ---
 name: test-xcode
-description: Build and test iOS apps on simulator using XcodeBuildMCP
+description: "Build and test iOS apps on simulator using XcodeBuildMCP. Use after making iOS code changes, before creating a PR, or when verifying app behavior and checking for crashes on simulator."
 argument-hint: "[scheme name or 'current' to use default]"
 disable-model-invocation: true
 ---
