@@ -89,6 +89,145 @@ describe("ce:work review contract", () => {
   })
 })
 
+describe("ce:work codex delegation contract", () => {
+  test("has argument parsing with delegate tokens", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    // Argument parsing section exists with delegation tokens
+    expect(content).toContain("## Argument Parsing")
+    expect(content).toContain("`delegate:codex`")
+    expect(content).toContain("`delegate:local`")
+
+    // Resolution chain present
+    expect(content).toContain("### Settings Resolution Chain")
+    expect(content).toContain("work_delegate")
+    expect(content).toContain("compound-engineering.local.md")
+  })
+
+  test("argument-hint includes delegate:codex for discoverability", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    expect(content).toContain("argument-hint:")
+    expect(content).toContain("delegate:codex")
+  })
+
+  test("has codex delegation mode section with all subsections", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    // Main section
+    expect(content).toContain("## Codex Delegation Mode")
+
+    // Pre-delegation checks
+    expect(content).toContain("### Pre-Delegation Checks")
+    expect(content).toContain("CODEX_SANDBOX")
+    expect(content).toContain("command -v codex")
+
+    // Prompt template
+    expect(content).toContain("### Prompt Template")
+    expect(content).toContain("<task>")
+    expect(content).toContain("<constraints>")
+    expect(content).toContain("<output_contract>")
+
+    // Result schema
+    expect(content).toContain("### Result Schema")
+    expect(content).toContain("result-schema.json")
+
+    // Execution loop
+    expect(content).toContain("### Execution Loop")
+    expect(content).toContain("codex exec")
+
+    // Circuit breaker
+    expect(content).toContain("consecutive_failures")
+    expect(content).toContain("3 consecutive failures")
+  })
+
+  test("delegation routing gate in Phase 1 Step 4", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    // Delegation gate appears before strategy table
+    const gateIdx = content.indexOf("Delegation routing gate")
+    const strategyTableIdx = content.indexOf("| **Inline**")
+    expect(gateIdx).toBeGreaterThan(0)
+    expect(gateIdx).toBeLessThan(strategyTableIdx)
+  })
+
+  test("delegation branches in Phase 2 task loop", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    // Task loop has delegation branch before standard implementation
+    expect(content).toContain("If delegation_active: branch to the Codex Delegation Execution Loop")
+  })
+
+  test("swarm mode has mutual exclusion note", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    expect(content).toContain("Mutual exclusion with delegation mode")
+    expect(content).toContain("Delegation mode and swarm mode are mutually exclusive")
+  })
+
+  test("has clean-baseline preflight and rollback procedure", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    expect(content).toContain("Clean-baseline preflight")
+    expect(content).toContain("git status --short")
+    expect(content).toContain("git checkout -- . && git clean -fd")
+  })
+
+  test("has result classification table with all categories", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    expect(content).toContain("CLI failure")
+    expect(content).toContain("Task failure")
+    expect(content).toContain("Partial success")
+    expect(content).toContain("Verify failure")
+    expect(content).toContain("Success")
+  })
+
+  test("has mixed-model attribution guidance", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    expect(content).toContain("### Mixed-Model Attribution")
+  })
+
+  test("has frontend design guidance ported from beta", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    expect(content).toContain("**Frontend Design Guidance**")
+    expect(content).toContain("`frontend-design` skill")
+  })
+})
+
+describe("ce:work-beta delegation supersession", () => {
+  test("external delegate mode is marked superseded", async () => {
+    const beta = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+
+    expect(beta).toContain("## External Delegate Mode (Superseded)")
+    expect(beta).toContain("delegate:codex")
+    expect(beta).toContain("Superseded")
+  })
+
+  test("enabling section is marked superseded", async () => {
+    const beta = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+
+    expect(beta).toContain("### Enabling External Delegation (Superseded)")
+  })
+})
+
+describe("ce:plan external-delegate removal", () => {
+  test("no longer emits Execution target: external-delegate", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
+
+    // Old tag removed from execution posture signals
+    expect(content).not.toContain("add `Execution target: external-delegate`")
+
+    // Old tag removed from execution note examples
+    expect(content).not.toContain("Execution note: Execution target: external-delegate")
+
+    // Replaced with delegation-aware guidance
+    expect(content).toContain("delegate:codex")
+  })
+})
+
 describe("ce:brainstorm review contract", () => {
   test("requires document review before handoff", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-brainstorm/SKILL.md")

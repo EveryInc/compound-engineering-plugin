@@ -191,7 +191,7 @@ Look for signals such as:
 - The user explicitly asks for TDD, test-first, or characterization-first work
 - The origin document calls for test-first implementation or exploratory hardening of legacy code
 - Local research shows the target area is legacy, weakly tested, or historically fragile, suggesting characterization coverage before changing behavior
-- The user asks for external delegation, says "use codex", "delegate mode", or mentions token conservation -- add `Execution target: external-delegate` to implementation units that are pure code writing
+- The user asks for Codex delegation, says "use codex", "delegate mode", or mentions token conservation -- note this in the plan overview so ce:work can be invoked with `delegate:codex`. Do not add execution-target tags to individual units; delegation is controlled by ce:work's resolution chain at execution time
 
 When the signal is clear, carry it forward silently in the relevant implementation units.
 
@@ -373,7 +373,7 @@ Use `Execution note` sparingly. Good uses include:
 - `Execution note: Start with a failing integration test for the request/response contract.`
 - `Execution note: Add characterization coverage before modifying this legacy parser.`
 - `Execution note: Implement new domain behavior test-first.`
-- `Execution note: Execution target: external-delegate`
+- `Execution note: Pure code-writing task suitable for Codex delegation.`
 
 Do not expand units into literal `RED/GREEN/REFACTOR` substeps.
 
@@ -512,7 +512,7 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 **Approach:**
 - [Key design or sequencing decision]
 
-**Execution note:** [Optional test-first, characterization-first, external-delegate, or other execution posture signal]
+**Execution note:** [Optional test-first, characterization-first, or other execution posture signal]
 
 **Technical design:** *(optional -- pseudo-code or diagram when the unit's approach is non-obvious. Directional guidance, not implementation specification.)*
 

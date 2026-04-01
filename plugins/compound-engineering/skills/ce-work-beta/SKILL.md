@@ -412,7 +412,9 @@ Most plans should use subagent dispatch from standard mode. Agent teams add sign
 
 ---
 
-## External Delegate Mode (Optional)
+## External Delegate Mode (Superseded)
+
+> **Superseded:** This section is replaced by ce:work's Codex Delegation Mode, which uses concrete bash templates instead of prose-based CLI invocations. This section is retained as documentation of the prior approach. Use `delegate:codex` with ce:work for delegation.
 
 For plans where token conservation matters, delegate code implementation to an external delegate (currently Codex CLI) while keeping planning, review, and git operations in the current agent.
 
@@ -427,13 +429,11 @@ This mode integrates with the existing Phase 1 Step 4 strategy selection as a **
 | Token conservation matters (e.g., Max20 plan) | Unlimited plan or small task |
 | Files to change are well-scoped | Changes span many interconnected files |
 
-### Enabling External Delegation
+### Enabling External Delegation (Superseded)
 
-External delegation activates when any of these conditions are met:
-- The user says "use codex for this work", "delegate to codex", or "delegate mode"
-- A plan implementation unit contains `Execution target: external-delegate` in its Execution note (set by ce:plan)
+> **Superseded:** Delegation is now controlled by ce:work's `delegate:codex` argument and resolution chain. The `Execution target: external-delegate` tag is no longer emitted by ce:plan.
 
-The specific delegate tool is resolved at execution time. Currently the only supported delegate is Codex CLI. Future delegates can be added without changing plan files.
+External delegation previously activated when the user said "use codex", "delegate to codex", or "delegate mode", or when a plan unit contained `Execution target: external-delegate` in its Execution note.
 
 ### Environment Guard
 
