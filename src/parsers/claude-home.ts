@@ -53,6 +53,9 @@ async function loadPersonalSkills(skillsDir: string): Promise<ClaudeSkill[]> {
           description: data.description as string | undefined,
           argumentHint: data["argument-hint"] as string | undefined,
           disableModelInvocation: data["disable-model-invocation"] === true ? true : undefined,
+          entryDir: entryPath,
+          trustedRoot: skillsDir,
+          trustedBoundary: sourceDir,
           sourceDir,
           skillPath,
         })

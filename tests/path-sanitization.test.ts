@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import path from "path"
 import { loadClaudePlugin } from "../src/parsers/claude"
-import { sanitizePathName } from "../src/utils/files"
+import { assertSafePathComponent, sanitizePathName } from "../src/utils/files"
 
 const pluginRoot = path.join(process.cwd(), "plugins", "compound-engineering")
 
@@ -17,6 +17,11 @@ describe("sanitizePathName", () => {
 
   test("handles multiple colons", () => {
     expect(sanitizePathName("a:b:c")).toBe("a-b-c")
+  })
+
+  test("still rejects traversal and separators after sanitization", () => {
+    expect(() => assertSafePathComponent(sanitizePathName("../escape"), "artifact name")).toThrow("Unsafe artifact name")
+    expect(() => assertSafePathComponent(sanitizePathName("nested/path"), "artifact name")).toThrow("Unsafe artifact name")
   })
 })
 

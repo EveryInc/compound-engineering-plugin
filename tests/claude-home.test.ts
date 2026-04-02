@@ -79,4 +79,25 @@ describe("loadClaudeHome", () => {
     expect(config.skills[0]?.description).toBeUndefined()
     expect(config.skills[0]?.argumentHint).toBeUndefined()
   })
+
+  test("records personal skill entry dir, lexical trusted root, and canonical trusted boundary separately", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "claude-home-symlink-root-"))
+    const actualSkillsRoot = path.join(tempHome, "actual-skills")
+    const linkedSkillsRoot = path.join(tempHome, "skills")
+    const externalSkillDir = path.join(tempHome, "external-skill")
+
+    await fs.mkdir(actualSkillsRoot, { recursive: true })
+    await fs.mkdir(externalSkillDir, { recursive: true })
+    await fs.writeFile(path.join(externalSkillDir, "SKILL.md"), "---\nname: reviewer\n---\nReview things.\n")
+    await fs.symlink(actualSkillsRoot, linkedSkillsRoot)
+    await fs.symlink(externalSkillDir, path.join(linkedSkillsRoot, "reviewer"))
+
+    const config = await loadClaudeHome(tempHome)
+
+    expect(config.skills).toHaveLength(1)
+    expect(config.skills[0]?.entryDir).toBe(path.join(linkedSkillsRoot, "reviewer"))
+    expect(config.skills[0]?.trustedRoot).toBe(linkedSkillsRoot)
+    expect(config.skills[0]?.trustedBoundary).toBe(externalSkillDir)
+    expect(config.skills[0]?.sourceDir).toBe(externalSkillDir)
+  })
 })

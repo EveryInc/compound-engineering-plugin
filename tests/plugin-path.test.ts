@@ -292,4 +292,70 @@ describe("plugin-path", () => {
     expect(exitCode).not.toBe(0)
     expect(stderr).toContain("Plugin directory not found")
   })
+
+  test("rejects unsafe plugin names before deriving checkout paths", async () => {
+    const repoRoot = await createTestRepo()
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-unsafe-plugin-"))
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(projectRoot, "src", "index.ts"),
+      "plugin-path",
+      "../escape",
+      "--branch",
+      "main",
+    ], {
+      cwd: projectRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...gitEnv,
+        HOME: tempHome,
+        COMPOUND_PLUGIN_GITHUB_SOURCE: repoRoot,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stderr = await new Response(proc.stderr).text()
+    expect(exitCode).not.toBe(0)
+    expect(stderr).toContain("Unsafe plugin name")
+  })
+
+  test("rejects symlinked cache checkouts before running git", async () => {
+    const repoRoot = await createTestRepo()
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-symlink-cache-"))
+    const cacheRoot = path.join(tempHome, ".cache", "compound-engineering", "branches")
+    const externalRoot = path.join(tempHome, "external-checkout")
+    const symlinkedCheckout = path.join(cacheRoot, "compound-engineering-main")
+
+    await fs.mkdir(cacheRoot, { recursive: true })
+    await fs.mkdir(externalRoot, { recursive: true })
+    await fs.symlink(externalRoot, symlinkedCheckout)
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(projectRoot, "src", "index.ts"),
+      "plugin-path",
+      "compound-engineering",
+      "--branch",
+      "main",
+    ], {
+      cwd: projectRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...gitEnv,
+        HOME: tempHome,
+        COMPOUND_PLUGIN_GITHUB_SOURCE: repoRoot,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stderr = await new Response(proc.stderr).text()
+
+    expect(exitCode).not.toBe(0)
+    expect(stderr).toContain("symlink")
+  })
 })

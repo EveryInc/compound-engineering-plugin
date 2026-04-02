@@ -2,6 +2,7 @@ import { defineCommand } from "citty"
 import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
+import { assertNoSymlinkAncestors, assertNoSymlinkTarget, assertPathWithinRoot, assertSafePathComponent, ensureManagedDir } from "../utils/files"
 
 export default defineCommand({
   meta: {
@@ -21,7 +22,7 @@ export default defineCommand({
     },
   },
   async run({ args }) {
-    const pluginName = String(args.plugin)
+    const pluginName = assertSafePathComponent(String(args.plugin), "plugin name")
     const branch = String(args.branch)
 
     // Reversible encoding: / -> ~ (safe because ~ is illegal in git branch names per
@@ -32,9 +33,12 @@ export default defineCommand({
       .replace(/[^a-zA-Z0-9._~-]/g, (ch) => `%${ch.charCodeAt(0).toString(16).padStart(2, "0")}`)
     const dirName = `${pluginName}-${sanitized}`
     const cacheRoot = path.join(os.homedir(), ".cache", "compound-engineering", "branches")
-    await fs.mkdir(cacheRoot, { recursive: true })
+    await ensureManagedDir(cacheRoot)
     const targetDir = path.join(cacheRoot, dirName)
     const source = resolveGitHubSource()
+
+    await assertNoSymlinkAncestors(targetDir)
+    await assertNoSymlinkTarget(targetDir)
 
     if (await dirExists(targetDir)) {
       console.error(`Updating existing checkout at ${targetDir}`)
@@ -45,6 +49,9 @@ export default defineCommand({
     }
 
     const pluginPath = path.join(targetDir, "plugins", pluginName)
+    assertPathWithinRoot(pluginPath, path.join(targetDir, "plugins"), "plugin path")
+    await assertNoSymlinkAncestors(pluginPath)
+    await assertNoSymlinkTarget(pluginPath)
     if (!(await dirExists(pluginPath))) {
       throw new Error(`Plugin directory not found: ${pluginPath}`)
     }
@@ -57,7 +64,10 @@ export default defineCommand({
 
 async function dirExists(p: string): Promise<boolean> {
   try {
-    const stat = await fs.stat(p)
+    const stat = await fs.lstat(p)
+    if (stat.isSymbolicLink()) {
+      throw new Error(`Refusing to use symlinked cache checkout ${p}`)
+    }
     return stat.isDirectory()
   } catch {
     return false

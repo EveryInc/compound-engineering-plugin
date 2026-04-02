@@ -1,7 +1,8 @@
 import path from "path"
 import type { ClaudeHomeConfig } from "../parsers/claude-home"
 import type { ClaudePlugin } from "../types/claude"
-import { backupFile, resolveCommandPath, sanitizePathName, writeText } from "../utils/files"
+import { backupFile, pathExists, readJson, readText, removeFileIfExists, resolveCommandPath, sanitizePathName, writeJson, writeText, writeTextIfChanged } from "../utils/files"
+import { collectPiSameRunDependencies } from "../utils/pi-skills"
 import { convertClaudeToCodex } from "../converters/claude-to-codex"
 import { convertClaudeToCopilot } from "../converters/claude-to-copilot"
 import { convertClaudeToDroid } from "../converters/claude-to-droid"
@@ -12,11 +13,34 @@ import { convertClaudeToPi } from "../converters/claude-to-pi"
 import { convertClaudeToQwen, type ClaudeToQwenOptions } from "../converters/claude-to-qwen"
 import { convertClaudeToWindsurf } from "../converters/claude-to-windsurf"
 import { writeWindsurfBundle } from "../targets/windsurf"
+import type { PiBundle, PiManagedArtifact, PiManagedManifest } from "../types/pi"
+import { resolvePiLayout } from "../utils/pi-layout"
+import { createManagedArtifact } from "../utils/pi-managed"
+import { classifyUnsupportedPiSyncStatus, isUnsupportedPiSyncArtifactError } from "./pi-artifact-status"
 
 type WindsurfSyncScope = "global" | "workspace"
 
-const HOME_SYNC_PLUGIN_ROOT = path.join(process.cwd(), ".compound-sync-home")
+export type PiSyncArtifactStatus = "published" | "retryable" | "blocked-by-policy" | "unsupported-final"
 
+export type SyncPiCommandResult = {
+  sourceName: string
+  emittedName: string
+  status: PiSyncArtifactStatus
+  artifact?: PiManagedArtifact
+  warning?: string
+  sameRunDependencies?: {
+    skills: string[]
+    prompts: string[]
+  }
+}
+
+let piSyncCommandConversionHookForTests: (() => void | Promise<void>) | null = null
+
+export function setPiSyncCommandConversionHookForTests(hook: (() => void | Promise<void>) | null): void {
+  piSyncCommandConversionHookForTests = hook
+}
+
+const HOME_SYNC_PLUGIN_ROOT = path.join(process.cwd(), ".compound-sync-home")
 const DEFAULT_SYNC_OPTIONS: ClaudeToOpenCodeOptions = {
   agentMode: "subagent",
   inferTemperature: false,
@@ -85,17 +109,97 @@ export async function syncCodexCommands(
 export async function syncPiCommands(
   config: ClaudeHomeConfig,
   outputRoot: string,
-): Promise<void> {
-  if (!hasCommands(config)) return
+  extraNameMaps?: PiManagedManifest["nameMaps"],
+  hooks?: {
+    onBeforeMutate?: (targetPath: string) => void | Promise<void>
+  },
+): Promise<SyncPiCommandResult[]> {
+  const layout = resolvePiLayout(outputRoot, "sync")
+  let syncPrompts: SyncPiCommandResult[] = []
+  const commands = [...(config.commands ?? [])].filter((entry) => !entry.disableModelInvocation).sort((a, b) => a.name.localeCompare(b.name))
 
-  const plugin = buildClaudeHomePlugin(config)
-  const bundle = convertClaudeToPi(plugin, DEFAULT_SYNC_OPTIONS)
-  for (const prompt of bundle.prompts) {
-    await writeText(path.join(outputRoot, "prompts", `${prompt.name}.md`), prompt.content + "\n")
+  if (commands.length > 0) {
+    try {
+      const bundle = await convertPiSyncCommandBundle({ ...config, commands }, extraNameMaps)
+      const promptsBySourceName = new Map(bundle.prompts.map((prompt) => [prompt.sourceName ?? prompt.name, prompt]))
+
+      for (const command of commands) {
+        const prompt = promptsBySourceName.get(command.name)
+        if (!prompt) continue
+        const targetPath = path.join(layout.promptsDir, `${prompt.name}.md`)
+        const nextContent = prompt.content + "\n"
+        const existing = await readText(targetPath).catch(() => null)
+        if (existing !== nextContent) {
+          await hooks?.onBeforeMutate?.(targetPath)
+        }
+        await writeTextIfChanged(targetPath, nextContent, { existingContent: existing })
+        syncPrompts.push({
+          sourceName: prompt.sourceName ?? prompt.name,
+          emittedName: prompt.name,
+          status: "published",
+          artifact: createManagedArtifact(layout, "prompt", prompt.sourceName ?? prompt.name, prompt.name),
+          sameRunDependencies: collectPiSameRunDependencies(command.body),
+        })
+      }
+
+      return syncPrompts
+    } catch (error) {
+      if (!isUnsupportedPiSyncArtifactError(error)) {
+        throw error
+      }
+    }
+
+    for (const command of commands) {
+      let bundle: PiBundle
+      try {
+        bundle = await convertPiSyncCommandBundle({ ...config, commands: [command] }, extraNameMaps)
+      } catch (error) {
+        if (!isUnsupportedPiSyncArtifactError(error)) {
+          throw error
+        }
+        syncPrompts.push({
+          sourceName: command.name,
+          emittedName: sanitizePathName(command.name),
+          status: classifyUnsupportedPiSyncStatus(error.message),
+          warning: `Skipping unsupported Pi sync command ${command.name}: ${error.message}`,
+        })
+        continue
+      }
+
+      for (const prompt of bundle.prompts) {
+        const targetPath = path.join(layout.promptsDir, `${prompt.name}.md`)
+        const nextContent = prompt.content + "\n"
+        const existing = await readText(targetPath).catch(() => null)
+        if (existing !== nextContent) {
+          await hooks?.onBeforeMutate?.(targetPath)
+        }
+        await writeTextIfChanged(targetPath, nextContent, { existingContent: existing })
+        syncPrompts.push({
+          sourceName: prompt.sourceName ?? prompt.name,
+          emittedName: prompt.name,
+          status: "published",
+          artifact: createManagedArtifact(layout, "prompt", prompt.sourceName ?? prompt.name, prompt.name),
+          sameRunDependencies: collectPiSameRunDependencies(command.body),
+        })
+      }
+    }
   }
-  for (const extension of bundle.extensions) {
-    await writeText(path.join(outputRoot, "extensions", extension.name), extension.content + "\n")
-  }
+
+  return syncPrompts
+}
+
+async function convertPiSyncCommandBundle(
+  config: ClaudeHomeConfig,
+  extraNameMaps?: PiManagedManifest["nameMaps"],
+): Promise<PiBundle> {
+  await piSyncCommandConversionHookForTests?.()
+  return convertClaudeToPi(buildClaudeHomePlugin({ ...config, skills: [] }), {
+    ...DEFAULT_SYNC_OPTIONS,
+    extraNameMaps,
+    preserveUnknownQualifiedRefs: true,
+    rejectUnknownQualifiedTaskRefs: true,
+    rejectUnresolvedFirstPartyQualifiedRefs: true,
+  })
 }
 
 export async function syncDroidCommands(

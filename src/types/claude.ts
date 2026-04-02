@@ -49,6 +49,9 @@ export type ClaudeSkill = {
   description?: string
   argumentHint?: string
   disableModelInvocation?: boolean
+  entryDir?: string
+  trustedRoot?: string
+  trustedBoundary?: string
   sourceDir: string
   skillPath: string
 }
