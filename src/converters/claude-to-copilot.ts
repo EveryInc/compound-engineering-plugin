@@ -50,8 +50,7 @@ function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): CopilotAgent 
 
   const frontmatter: Record<string, unknown> = {
     description,
-    tools: ["*"],
-    infer: true,
+    "user-invocable": true,
   }
 
   let body = transformContentForCopilot(agent.body.trim())
@@ -123,12 +122,20 @@ export function transformContentForCopilot(body: string): string {
     return `/${normalized}`
   })
 
-  // 3. Rewrite .claude/ paths to .github/ and ~/.claude/ to ~/.copilot/
+  // 3. Replace plugin colon-namespaced command references (e.g. ce:plan → ce-plan, ce:* → ce-*)
+  // Scoped to `ce:` prefix which is the compound-engineering plugin namespace.
+  // The lookbehind ensures we only match at word boundaries or after common delimiters,
+  // avoiding corruption of URLs, code identifiers, or unrelated namespace:value patterns.
+  // Note: / is intentionally excluded — slash commands are already handled in step 2.
+  // Captures colons in the name segment so multi-colon refs like ce:work:beta → ce-work-beta.
+  result = result.replace(/(?<=^|[\s,.()`'"])ce:([a-z*][a-z0-9_*:-]*)/gim, (_, name: string) => `ce-${name.replace(/:/g, "-")}`)
+
+  // 4. Rewrite .claude/ paths to .github/ and ~/.claude/ to ~/.copilot/
   result = result
     .replace(/~\/\.claude\//g, "~/.copilot/")
     .replace(/\.claude\//g, ".github/")
 
-  // 4. Transform @agent-name references
+  // 5. Transform @agent-name references
   const agentRefPattern =
     /@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))/gi
   result = result.replace(agentRefPattern, (_match, agentName: string) => {

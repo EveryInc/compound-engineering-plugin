@@ -21,7 +21,7 @@ describe("writeCopilotBundle", () => {
       agents: [
         {
           name: "security-reviewer",
-          content: "---\ndescription: Security\ntools:\n  - '*'\ninfer: true\n---\n\nReview code.",
+          content: "---\ndescription: Security\nuser-invocable: true\n---\n\nReview code.",
         },
       ],
       generatedSkills: [

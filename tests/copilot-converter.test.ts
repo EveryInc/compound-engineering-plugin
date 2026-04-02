@@ -55,8 +55,9 @@ describe("convertClaudeToCopilot", () => {
 
     const parsed = parseFrontmatter(agent.content)
     expect(parsed.data.description).toBe("Security-focused code review agent")
-    expect(parsed.data.tools).toEqual(["*"])
-    expect(parsed.data.infer).toBe(true)
+    expect(parsed.data.tools).toBeUndefined()
+    expect(parsed.data.infer).toBeUndefined()
+    expect(parsed.data["user-invocable"]).toBe(true)
     expect(parsed.body).toContain("Capabilities")
     expect(parsed.body).toContain("Threat modeling")
     expect(parsed.body).toContain("Focus on vulnerabilities.")
@@ -109,20 +110,21 @@ describe("convertClaudeToCopilot", () => {
     expect(parsed.data.model).toBeUndefined()
   })
 
-  test("agent tools defaults to [*]", () => {
+  test("agent omits tools (Copilot uses defaults when omitted)", () => {
     const bundle = convertClaudeToCopilot(fixturePlugin, defaultOptions)
     const parsed = parseFrontmatter(bundle.agents[0].content)
-    expect(parsed.data.tools).toEqual(["*"])
+    expect(parsed.data.tools).toBeUndefined()
   })
 
-  test("agent infer defaults to true", () => {
+  test("agent replaces infer with user-invocable", () => {
     const bundle = convertClaudeToCopilot(fixturePlugin, defaultOptions)
     const parsed = parseFrontmatter(bundle.agents[0].content)
-    expect(parsed.data.infer).toBe(true)
+    expect(parsed.data.infer).toBeUndefined()
+    expect(parsed.data["user-invocable"]).toBe(true)
   })
 
   test("warns when agent body exceeds 30k characters", () => {
-    const warnSpy = spyOn(console, "warn").mockImplementation(() => {})
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => { })
 
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
@@ -341,7 +343,7 @@ describe("convertClaudeToCopilot", () => {
   })
 
   test("warns when hooks are present", () => {
-    const warnSpy = spyOn(console, "warn").mockImplementation(() => {})
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => { })
 
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
@@ -364,7 +366,7 @@ describe("convertClaudeToCopilot", () => {
   })
 
   test("no warning when hooks are absent", () => {
-    const warnSpy = spyOn(console, "warn").mockImplementation(() => {})
+    const warnSpy = spyOn(console, "warn").mockImplementation(() => { })
 
     convertClaudeToCopilot(fixturePlugin, defaultOptions)
     expect(warnSpy).not.toHaveBeenCalled()
@@ -466,6 +468,35 @@ Task best-practices-researcher(topic)`
     expect(result).toContain("the security-sentinel agent")
     expect(result).toContain("the dhh-rails-reviewer agent")
     expect(result).not.toContain("@security-sentinel")
+  })
+
+  test("replaces ce: namespace with ce- in body text", () => {
+    const input = "prefer ce:brainstorm first. Then run ce:plan and ce:review. Use ce:* skills."
+    const result = transformContentForCopilot(input)
+    expect(result).toBe("prefer ce-brainstorm first. Then run ce-plan and ce-review. Use ce-* skills.")
+    expect(result).not.toContain("ce:")
+  })
+
+  test("replaces multi-colon ce: references fully", () => {
+    const input = "run ce:work:beta and ce:review:deep"
+    const result = transformContentForCopilot(input)
+    expect(result).toBe("run ce-work-beta and ce-review-deep")
+    expect(result).not.toContain(":")
+  })
+
+  test("ce: replacement does not corrupt non-command patterns", () => {
+    const input = "Use source: explicit and Confidence: high. See https://example.com/ace:thing"
+    const result = transformContentForCopilot(input)
+    expect(result).toContain("source: explicit")
+    expect(result).toContain("Confidence: high")
+    expect(result).toContain("ace:thing")
+  })
+
+  test("ce: replacement does not corrupt URLs", () => {
+    const input = "See https://example.com/ce:plan and http://docs.example.com/ce:review/overview"
+    const result = transformContentForCopilot(input)
+    expect(result).toContain("https://example.com/ce:plan")
+    expect(result).toContain("http://docs.example.com/ce:review/overview")
   })
 
   test("generated skill deduplicates against sanitized pass-through skill names", () => {
