@@ -13,7 +13,9 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 ### Core Workflow
 
-The primary entry points for engineering work, invoked as slash commands:
+The primary entry points for engineering work, invoked as slash commands.
+
+OpenClaw note: converted installs currently expose these workflow skills as underscore-normalized native commands such as `/ce_plan`, `/ce_work`, `/ce_review`, and `/ce_brainstorm`.
 
 | Skill | Description |
 |-------|-------------|
@@ -24,6 +26,13 @@ The primary entry points for engineering work, invoked as slash commands:
 | `/ce:work` | Execute work items systematically |
 | `/ce:compound` | Document solved problems to compound team knowledge |
 | `/ce:compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
+
+OpenClaw native command mapping today:
+- `/ce_plan` -> `ce:plan`
+- `/ce_work` -> `ce:work`
+- `/ce_review` -> `ce:review`
+- `/ce_brainstorm` -> `ce:brainstorm`
+- `/ce_compound` -> `ce:compound`
 
 ### Git Workflow
 

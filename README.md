@@ -67,6 +67,8 @@ Each cycle compounds: brainstorms sharpen plans, plans inform future plans, revi
 
 This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Pi, Gemini CLI, GitHub Copilot, Kiro CLI, Windsurf, OpenClaw, and Qwen Code.
 
+OpenClaw note: native skill commands are sanitized by OpenClaw, so CE workflow skills show up as `/ce_plan`, `/ce_work`, `/ce_review`, `/ce_brainstorm`, etc. today.
+
 ```bash
 # convert the compound-engineering plugin into OpenCode format
 bunx @every-env/compound-plugin install compound-engineering --to opencode
@@ -117,7 +119,7 @@ bunx @every-env/compound-plugin install compound-engineering --to all
 | `gemini` | `.gemini/` | Skills from agents; commands as `.toml`; namespaced commands become directories (`workflows:plan` -> `commands/workflows/plan.toml`) |
 | `copilot` | `.github/` | Agents as `.agent.md` with Copilot frontmatter; MCP env vars prefixed with `COPILOT_MCP_` |
 | `kiro` | `.kiro/` | Agents as JSON configs + prompt `.md` files; only stdio MCP servers supported |
-| `openclaw` | `~/.openclaw/extensions/<plugin>/` | Entry-point TypeScript skill file; `openclaw-extension.json` for MCP servers |
+| `openclaw` | `~/.openclaw/extensions/<plugin>/` | Native plugin entry point plus copied skills; `openclaw.json` for MCP servers. OpenClaw native skill commands currently normalize `ce:plan`-style names to `/ce_plan` rather than `/ce-plan`. |
 | `windsurf` | `~/.codeium/windsurf/` (global) or `.windsurf/` (workspace) | Agents become skills; commands become flat workflows; `mcp_config.json` merged |
 | `qwen` | `~/.qwen/extensions/<plugin>/` | Agents as `.yaml`; env vars with placeholders extracted as settings; colon separator for nested commands |
 
