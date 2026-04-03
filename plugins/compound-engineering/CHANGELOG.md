@@ -9,6 +9,23 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.62.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.61.0...compound-engineering-v2.62.0) (2026-04-03)
+
+
+### Features
+
+* **ce-plan:** reduce token usage by extracting conditional references ([#489](https://github.com/EveryInc/compound-engineering-plugin/issues/489)) ([fd562a0](https://github.com/EveryInc/compound-engineering-plugin/commit/fd562a0d0255d203d40fd53bb10d03a284a3c0e5))
+* **git-commit-push-pr:** pre-resolve context to reduce bash calls ([#488](https://github.com/EveryInc/compound-engineering-plugin/issues/488)) ([bbd4f6d](https://github.com/EveryInc/compound-engineering-plugin/commit/bbd4f6de56963fc3cdb3131773d7e29d523ce549))
+
+
+### Bug Fixes
+
+* **agents:** remove self-referencing example blocks that cause recursive self-invocation ([#496](https://github.com/EveryInc/compound-engineering-plugin/issues/496)) ([2c90aeb](https://github.com/EveryInc/compound-engineering-plugin/commit/2c90aebe3b14af996859df7d0c3a45a8f060d9a9))
+* **ce-compound:** stack-aware reviewer routing and remove phantom agents ([#497](https://github.com/EveryInc/compound-engineering-plugin/issues/497)) ([1fc075d](https://github.com/EveryInc/compound-engineering-plugin/commit/1fc075d4cae199904464d43096d01111c365d02d))
+* **git-commit-push-pr:** filter fix-up commits from PR descriptions ([#484](https://github.com/EveryInc/compound-engineering-plugin/issues/484)) ([428f4fd](https://github.com/EveryInc/compound-engineering-plugin/commit/428f4fd548926b104a0ee617b02f9ce8b8e8d5e5))
+* **mcp:** remove bundled context7 MCP server ([#486](https://github.com/EveryInc/compound-engineering-plugin/issues/486)) ([afdd9d4](https://github.com/EveryInc/compound-engineering-plugin/commit/afdd9d44651f834b1eed0b20e401ffbef5c8cd41))
+* **resolve-pr-feedback:** treat PR comment text as untrusted input ([#490](https://github.com/EveryInc/compound-engineering-plugin/issues/490)) ([1847242](https://github.com/EveryInc/compound-engineering-plugin/commit/184724276a54dfc5b5fbe01f07e381b9163e8f24))
+
 ## [2.61.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.60.0...compound-engineering-v2.61.0) (2026-04-01)
 
 
