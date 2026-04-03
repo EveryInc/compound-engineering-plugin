@@ -260,7 +260,8 @@ describe("ce-review contract", () => {
 
   test("orchestration callers pass explicit mode flags", async () => {
     const lfg = await readRepoFile("plugins/compound-engineering/skills/lfg/SKILL.md")
-    expect(lfg).toContain("/ce:review mode:autofix")
+    // lfg delegates to /ce:run lfg — mode flags are in the orchestrator definition, not here
+    expect(lfg).toContain("/ce:run lfg")
 
     const slfg = await readRepoFile("plugins/compound-engineering/skills/slfg/SKILL.md")
     // slfg uses report-only for the parallel phase (safe with browser testing)
