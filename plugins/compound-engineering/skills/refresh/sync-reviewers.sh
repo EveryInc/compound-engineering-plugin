@@ -1,43 +1,46 @@
 #!/usr/bin/env bash
 #
-# sync-reviewers.sh — Fetch reviewer .md files from configured external repos
+# sync-reviewers.sh — Fetch .md files from configured external repos
 #
-# Usage: ./sync-reviewers.sh <default-registry-yaml> <output-dir>
+# Usage: ./sync-reviewers.sh <default-registry-yaml> <output-dir> [<config-name>]
 #
-# Checks for a user-level config at ~/.config/compound-engineering/reviewer-sources.yaml.
+# config-name defaults to "reviewer" — set to "orchestrator" for orchestrator sync.
+# Checks for a user-level config at ~/.config/compound-engineering/<config-name>-sources.yaml.
 # If it doesn't exist, creates it from the default registry. Then reads sources from
 # the user config, fetches .md files, and writes them to the output directory.
 # First-listed source wins on filename conflicts (processed in reverse order).
 
 set -u
 
-DEFAULT_REGISTRY="${1:?Usage: sync-reviewers.sh <default-registry-yaml> <output-dir>}"
-OUTPUT_DIR="${2:?Usage: sync-reviewers.sh <default-registry-yaml> <output-dir>}"
+DEFAULT_REGISTRY="${1:?Usage: sync-reviewers.sh <default-registry-yaml> <output-dir> [<config-name>]}"
+OUTPUT_DIR="${2:?Usage: sync-reviewers.sh <default-registry-yaml> <output-dir> [<config-name>]}"
+CONFIG_NAME="${3:-reviewer}"
 
 USER_CONFIG_DIR="$HOME/.config/compound-engineering"
-USER_CONFIG="$USER_CONFIG_DIR/reviewer-sources.yaml"
+USER_CONFIG="$USER_CONFIG_DIR/${CONFIG_NAME}-sources.yaml"
 
 # --- First-run: seed user config from default ---
 if [ ! -f "$USER_CONFIG" ]; then
   mkdir -p "$USER_CONFIG_DIR"
-  cat > "$USER_CONFIG" << 'YAML'
-# Reviewer Sources
+  CONFIG_LABEL="$(echo "$CONFIG_NAME" | sed 's/.*/\u&/')"
+  cat > "$USER_CONFIG" << YAML
+# ${CONFIG_LABEL} Sources
 #
-# Configure which repos to pull reviewer personas from.
-# Run /ce:refresh to sync reviewers after editing this file.
+# Configure which repos to pull ${CONFIG_NAME} definitions from.
+# Run /ce:refresh to sync after editing this file.
 #
 # Sources listed first have higher priority. If two sources have
 # a file with the same name, the first source's version is kept.
 #
 # To add a source, copy this template and uncomment it:
 #
-#  - name: my-reviewers
+#  - name: my-${CONFIG_NAME}s
 #    repo: owner/repo-name
 #    branch: main
-#    path: reviewers
+#    path: ${CONFIG_NAME}s
 #    except:
-#      - reviewer-to-skip
-#      - another-reviewer-to-skip
+#      - name-to-skip
+#      - another-to-skip
 
 YAML
   # Append the sources from the default registry
@@ -54,7 +57,7 @@ for line in lines:
         print(line, end='')
 " >> "$USER_CONFIG"
   echo "Created $USER_CONFIG"
-  echo "Edit this file to add your own reviewer repos, then run /ce:refresh again."
+  echo "Edit this file to add your own ${CONFIG_NAME} repos, then run /ce:refresh again."
   echo ""
 fi
 
@@ -185,8 +188,8 @@ sources_json=$(parse_sources)
 num_sources=$(echo "$sources_json" | python3 -c "import json,sys; print(len(json.load(sys.stdin)))")
 
 if [ "$num_sources" -eq 0 ]; then
-  echo "No external reviewer sources configured."
-  echo "Add sources to reviewer-registry.yaml and run again."
+  echo "No external ${CONFIG_NAME} sources configured."
+  echo "Add sources to ${CONFIG_NAME}-sources.yaml and run again."
   exit 0
 fi
 
@@ -301,10 +304,11 @@ done
 total=$((added + updated + unchanged))
 
 # Write summary to a file that Claude can Read and show verbatim
-SUMMARY_FILE="${USER_CONFIG_DIR}/last-refresh-summary.md"
+CONFIG_LABEL="$(echo "$CONFIG_NAME" | sed 's/.*/\u&/')"
+SUMMARY_FILE="${USER_CONFIG_DIR}/last-${CONFIG_NAME}-refresh-summary.md"
 
 {
-echo "# Reviewer Refresh Summary"
+echo "# ${CONFIG_LABEL} Refresh Summary"
 echo ""
 
 # Per-source report — compact comma-separated format
@@ -339,7 +343,7 @@ for (( i=0; i<num_sources; i++ )); do
   echo ""
 done
 
-echo "${total} reviewers synced. ${added} added, ${updated} updated, ${unchanged} unchanged."
+echo "${total} ${CONFIG_NAME}s synced. ${added} added, ${updated} updated, ${unchanged} unchanged."
 [ "$skipped" -gt 0 ] && echo "${skipped} excluded by config."
 [ "$conflicts" -gt 0 ] && echo "${conflicts} conflicts resolved (first source wins)."
 } > "$SUMMARY_FILE"

@@ -1,0 +1,19 @@
+# Orchestrator Registry
+#
+# Orchestrator .md files live in external repos and are synced into
+# orchestrators/ via /ce:refresh. Each orchestrator's phases, review
+# preferences, and personality are defined in its own frontmatter
+# and body.
+#
+# To add a custom orchestrator:
+#   1. Add the .md file to your repo (with type: orchestrator in frontmatter)
+#   2. Run /ce:refresh to pull it in
+#   3. Use /ce:run <name> to invoke it
+
+# === External orchestrator sources ===
+
+sources:
+  - name: ce-default
+    repo: JumpstartLab/ce-reviewers-jsl
+    branch: main
+    path: orchestrators
