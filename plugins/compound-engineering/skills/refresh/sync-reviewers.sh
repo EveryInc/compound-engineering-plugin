@@ -34,7 +34,7 @@ if [ ! -f "$USER_CONFIG" ]; then
 #  - name: my-reviewers
 #    repo: owner/repo-name
 #    branch: main
-#    path: .
+#    path: reviewers
 #    except:
 #      - reviewer-to-skip
 #      - another-reviewer-to-skip
