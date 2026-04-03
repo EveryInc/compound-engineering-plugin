@@ -231,9 +231,11 @@ describe("convertClaudeToOpenClaw", () => {
     expect(nameLine).toBeDefined()
   })
 
-  test("generateEntryPoint emits typed skills record", () => {
+  test("generateEntryPoint inlines command bodies for sync registration", () => {
     const bundle = convertClaudeToOpenClaw(fixturePlugin, defaultOptions)
-    expect(bundle.entryPoint).toContain("const skills: Record<string, string> = {}")
+    expect(bundle.entryPoint).not.toContain("const skills: Record<string, string> = {}")
+    expect(bundle.entryPoint).toContain('text: "Plan the work. See ~/.openclaw/settings for config."')
+    expect(bundle.entryPoint).toContain("export default function register(api)")
   })
 
   test("plugin without MCP servers has no openclawConfig", () => {
