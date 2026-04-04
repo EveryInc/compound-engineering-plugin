@@ -38,7 +38,7 @@ Immediately run `/ce:plan` in the current session. Pass the requirements documen
 
 **If user selects "Prototype first":**
 
-Immediately run `/ce:prototype` in the current session. Pass the requirements document path when one exists. The prototype skill will extract testable assumptions from the requirements, validate them, and produce a validation report that feeds into `/ce:plan`. Do not print the closing summary first.
+Immediately run `/ce:prototype` in the current session. Pass the requirements document path when one exists; otherwise pass a concise summary of the finalized brainstorm decisions so the prototype skill has context without re-asking the user. The prototype skill will extract testable assumptions, validate them, and produce a validation report that feeds into `/ce:plan`. Do not print the closing summary first.
 
 **If user selects "Proceed directly to work":**
 

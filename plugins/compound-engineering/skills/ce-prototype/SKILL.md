@@ -14,7 +14,7 @@ Prototyping sits between brainstorm and planning because planning without valida
 
 **This skill does not produce production code.** It produces a throwaway prototype and a durable validation report. The prototype gets deleted. The report feeds into `/ce:plan`.
 
-**IMPORTANT: All file references in generated documents must use repo-relative paths (e.g., `prototypes/stripe-refund-webhooks/`), never absolute paths.**
+**IMPORTANT: All file references in generated documents must use repo-relative paths (e.g., `.context/compound-engineering/prototypes/stripe-refund-webhooks/`), never absolute paths.**
 
 ## Core Principles
 
@@ -55,7 +55,7 @@ If no requirements document exists, proceed from the user's description directly
 
 #### 0.2 Check for Existing Prototypes
 
-Search for existing prototype directories (`prototypes/`, `docs/prototypes/`, or similar patterns in the repo). If a previous prototype for the same topic exists, ask the user whether to build on it or start fresh.
+Search for existing prototype work (`.context/compound-engineering/prototypes/`, `docs/prototypes/`, or similar patterns in the repo). If a previous prototype or validation report for the same topic exists, ask the user whether to build on it or start fresh.
 
 ### Phase 1: Define Validation Goals
 
@@ -99,10 +99,10 @@ Do not proceed until effort is aligned.
 
 #### 2.1 Create Isolated Prototype Directory
 
-Scaffold the prototype in an isolated location:
+Scaffold the prototype under the compound-engineering scratch space:
 
 ```
-prototypes/
+.context/compound-engineering/prototypes/
   <topic-slug>/
     ... prototype files ...
 ```
@@ -171,7 +171,7 @@ If anything is found, flag it to the user with a brief explanation. Let them dec
 
 #### 4.2 Clean Up
 
-Delete the prototype directory. The validation report in `docs/prototypes/` persists.
+Delete the prototype directory under `.context/compound-engineering/prototypes/`. The validation report in `docs/prototypes/` persists.
 
 If the user explicitly asks to keep the prototype, respect that — but note in the validation report that the prototype code still exists and where.
 
@@ -215,7 +215,7 @@ If this prototype was triggered manually (not from a brainstorm recommendation):
 - `docs/prototypes/<topic-slug>-validation-<date>.md` — Validation report
 
 **Temporary output (deleted after report):**
-- `prototypes/<topic-slug>/` — Throwaway prototype code
+- `.context/compound-engineering/prototypes/<topic-slug>/` — Throwaway prototype code
 
 ## Success Output
 
@@ -239,7 +239,7 @@ Report written:
   docs/prototypes/stripe-refund-webhooks-validation-2026-04-04.md
 
 Prototype cleaned up:
-  prototypes/stripe-refund-webhooks/ [deleted]
+  .context/compound-engineering/prototypes/stripe-refund-webhooks/ [deleted]
 
 What's next?
 1. Proceed to /ce:plan with validated constraints
