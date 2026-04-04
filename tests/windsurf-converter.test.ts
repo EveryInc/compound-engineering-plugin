@@ -601,7 +601,7 @@ describe("convertClaudeToWindsurf dedupe", () => {
       manifest: { name: "fixture", version: "1.0.0" },
       agents: [
         {
-          name: "ce:plan",
+          name: "ce-plan",
           description: "Planning agent",
           body: "Plan things.",
           sourcePath: "/tmp/plugin/agents/ce-plan.md",
@@ -610,7 +610,7 @@ describe("convertClaudeToWindsurf dedupe", () => {
       commands: [],
       skills: [
         {
-          name: "ce:plan",
+          name: "ce-plan",
           description: "Planning skill",
           sourceDir: "/tmp/plugin/skills/ce-plan",
           skillPath: "/tmp/plugin/skills/ce-plan/SKILL.md",
@@ -626,7 +626,7 @@ describe("convertClaudeToWindsurf dedupe", () => {
       permissions: "none" as const,
     })
 
-    // The agent skill should get a deduplicated name since "ce:plan" normalizes
+    // The agent skill should get a deduplicated name since "ce-plan" normalizes
     // to "ce-plan" which collides with the pass-through skill on disk
     expect(bundle.agentSkills[0].name).not.toBe("ce-plan")
   })

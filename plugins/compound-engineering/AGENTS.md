@@ -40,7 +40,7 @@ agents/
 └── docs/             # Documentation agents
 
 skills/
-├── ce-*/          # Core workflow skills (ce:plan, ce:review, etc.)
+├── ce-*/          # Core workflow skills (ce-plan, ce-code-review, etc.)
 └── */             # All other skills
 ```
 
@@ -57,16 +57,18 @@ Developers of this plugin also use it via their marketplace install (`~/.claude/
 
 Important: Just because the developer's installed plugin may be out of date, it's possible both old and current repo versions have the bug. The proper fix is to still fix the repo version.
 
-## Command Naming Convention
+## Naming Convention
 
-**Workflow commands** use `ce:` prefix to unambiguously identify them as compound-engineering commands:
-- `/ce:brainstorm` - Explore requirements and approaches before planning
-- `/ce:plan` - Create implementation plans
-- `/ce:review` - Run comprehensive code reviews
-- `/ce:work` - Execute work items systematically
-- `/ce:compound` - Document solved problems
+**All skills and agents** use the `ce-` prefix to unambiguously identify them as compound-engineering components:
+- `/ce-brainstorm` - Explore requirements and approaches before planning
+- `/ce-plan` - Create implementation plans
+- `/ce-code-review` - Run comprehensive code reviews
+- `/ce-work` - Execute work items systematically
+- `/ce-compound` - Document solved problems
 
-**Why `ce:`?** Claude Code has built-in `/plan` and `/review` commands. The `ce:` namespace (short for compound-engineering) makes it immediately clear these commands belong to this plugin.
+**Why `ce-`?** Claude Code has built-in `/plan` and `/review` commands. The `ce-` prefix (short for compound-engineering) makes it immediately clear these components belong to this plugin. The hyphen is used instead of a colon to avoid filesystem issues on Windows and to align directory names with frontmatter names.
+
+**Agents** follow the same convention: `ce-adversarial-reviewer`, `ce-learnings-researcher`, etc. When referencing agents from skills, use the category-qualified format: `<category>:ce-<agent-name>` (e.g., `review:ce-adversarial-reviewer`).
 
 ## Known External Limitations
 
@@ -151,7 +153,7 @@ This plugin is authored once, then converted for other agent platforms. Commands
 - [ ] Because of that, slash references inside command or agent content are acceptable when they point to real published commands; target-specific conversion can remap them.
 - [ ] Inside a pass-through `SKILL.md`, do not assume slash references will be remapped for another platform. Write references according to what will still make sense after the skill is copied as-is.
 - [ ] When one skill refers to another skill, prefer semantic wording such as "load the `document-review` skill" rather than slash syntax.
-- [ ] Use slash syntax only when referring to an actual published command or workflow such as `/ce:work` or `/ce:compound`.
+- [ ] Use slash syntax only when referring to an actual published command or workflow such as `/ce-work` or `/ce-compound`.
 
 ### Tool Selection in Agents and Skills
 

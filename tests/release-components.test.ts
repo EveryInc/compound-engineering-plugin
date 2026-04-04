@@ -61,7 +61,7 @@ describe("release intent parsing", () => {
   })
 
   test("supports conventional titles without scope", () => {
-    const parsed = parseReleaseIntent("fix: adjust ce:plan-beta wording")
+    const parsed = parseReleaseIntent("fix: adjust ce-plan-beta wording")
     expect(parsed.type).toBe("fix")
     expect(parsed.scope).toBeNull()
     expect(parsed.breaking).toBe(false)

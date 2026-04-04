@@ -13,7 +13,7 @@ const SHARED_SUPPORT_FILES = [
 
 const SKILLS_WITH_COPIES = ["ce-compound", "ce-compound-refresh"]
 
-describe("ce:compound support file drift", () => {
+describe("ce-compound support file drift", () => {
   for (const file of SHARED_SUPPORT_FILES) {
     test(`${file} is identical across ${SKILLS_WITH_COPIES.join(", ")}`, async () => {
       const contents = await Promise.all(

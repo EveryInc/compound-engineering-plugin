@@ -47,7 +47,7 @@ async function makeFixtureRoot(): Promise<string> {
   )
   await writeFile(
     path.join(root, "plugins", "compound-engineering", "skills", "ce-plan", "SKILL.md"),
-    "# ce:plan\n",
+    "# ce-plan\n",
   )
   await writeFile(
     path.join(root, "plugins", "compound-engineering", ".mcp.json"),

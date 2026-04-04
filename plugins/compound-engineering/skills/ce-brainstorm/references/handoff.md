@@ -20,8 +20,8 @@ If `Resolve Before Planning` contains any items:
 
 Present only the options that apply, keeping the total at 4 or fewer:
 
-- **Proceed to planning (Recommended)** - Move to `/ce:plan` for structured implementation planning. Shown only when `Resolve Before Planning` is empty.
-- **Proceed directly to work** - Skip planning and move to `/ce:work`; suited to lightweight, well-defined changes. Shown only when `Resolve Before Planning` is empty **and** scope is lightweight, success criteria are clear, scope boundaries are clear, and no meaningful technical or research questions remain (the "direct-to-work gate").
+- **Proceed to planning (Recommended)** - Move to `/ce-plan` for structured implementation planning. Shown only when `Resolve Before Planning` is empty.
+- **Proceed directly to work** - Skip planning and move to `/ce-work`; suited to lightweight, well-defined changes. Shown only when `Resolve Before Planning` is empty **and** scope is lightweight, success criteria are clear, scope boundaries are clear, and no meaningful technical or research questions remain (the "direct-to-work gate").
 - **Continue the brainstorm** - Answer more clarifying questions to tighten scope, edge cases, and preferences. Always shown.
 - **Open in Proof (web app) — review and comment to iterate with the agent** - Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others. Shown only when a requirements document exists **and** the direct-to-work gate is not satisfied (when both conditions collide, `Proceed directly to work` takes priority and Proof becomes reachable via free-form request).
 - **Done for now** - Pause; the requirements doc is saved and can be resumed later. Always shown.
@@ -32,11 +32,11 @@ Present only the options that apply, keeping the total at 4 or fewer:
 
 **If user selects "Proceed to planning (Recommended)":**
 
-Immediately run `/ce:plan` in the current session. Pass the requirements document path when one exists; otherwise pass a concise summary of the finalized brainstorm decisions. Do not print the closing summary first.
+Immediately run `/ce-plan` in the current session. Pass the requirements document path when one exists; otherwise pass a concise summary of the finalized brainstorm decisions. Do not print the closing summary first.
 
 **If user selects "Proceed directly to work":**
 
-Immediately run `/ce:work` in the current session using the finalized brainstorm output as context. If a compact requirements document exists, pass its path. Do not print the closing summary first.
+Immediately run `/ce-work` in the current session using the finalized brainstorm output as context. If a compact requirements document exists, pass its path. Do not print the closing summary first.
 
 **If user selects "Continue the brainstorm":** Return to Phase 1.3 (Collaborative Dialogue) and continue asking the user clarifying questions one at a time to further refine scope, edge cases, constraints, and preferences. Continue until the user is satisfied, then return to Phase 4. Do not show the closing summary yet.
 
@@ -62,7 +62,7 @@ If the initial upload fails (network error, Proof API down), retry once after a 
 
 **If the user asks to run another document review** (either from the contextual prompt when P0/P1 findings remain, or by free-form request):
 
-Load the `document-review` skill and apply it to the requirements document for another pass. When document-review returns "Review complete", return to the normal Phase 4 options and present only the options that still apply. Do not show the closing summary yet.
+Load the `ce-doc-review` skill and apply it to the requirements document for another pass. When ce-doc-review returns "Review complete", return to the normal Phase 4 options and present only the options that still apply. Do not show the closing summary yet.
 
 **If user selects "Done for now":** Display the closing summary (see 4.3) and end the turn.
 
@@ -81,7 +81,7 @@ Key decisions:
 - [Decision 1]
 - [Decision 2]
 
-Recommended next step: `/ce:plan`
+Recommended next step: `/ce-plan`
 ```
 
 If the user pauses with `Resolve Before Planning` still populated, display:
@@ -95,5 +95,5 @@ Planning is blocked by:
 - [Blocking question 1]
 - [Blocking question 2]
 
-Resume with `/ce:brainstorm` when ready to resolve these before planning.
+Resume with `/ce-brainstorm` when ready to resolve these before planning.
 ```

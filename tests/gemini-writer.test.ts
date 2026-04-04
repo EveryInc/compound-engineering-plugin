@@ -73,7 +73,7 @@ describe("writeGeminiBundle", () => {
     await fs.writeFile(
       path.join(sourceSkillDir, "SKILL.md"),
       `---
-name: ce:plan
+name: ce-plan
 description: Planning workflow
 ---
 
@@ -87,7 +87,7 @@ Run these research agents:
 
     const bundle: GeminiBundle = {
       generatedSkills: [],
-      skillDirs: [{ name: "ce:plan", sourceDir: sourceSkillDir }],
+      skillDirs: [{ name: "ce-plan", sourceDir: sourceSkillDir }],
       commands: [],
     }
 

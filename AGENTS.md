@@ -120,10 +120,10 @@ Only add a provider when the target format is stable, documented, and has a clea
 
 ## Agent References in Skills
 
-When referencing agents from within skill SKILL.md files (e.g., via the `Agent` or `Task` tool), always use the **fully-qualified namespace**: `compound-engineering:<category>:<agent-name>`. Never use the short agent name alone.
+When referencing agents from within skill SKILL.md files (e.g., via the `Agent` or `Task` tool), use the **category-qualified namespace** with the `ce-` prefix: `<category>:ce-<agent-name>`. Never use the bare agent name alone.
 
 Example:
-- `compound-engineering:research:learnings-researcher` (correct)
+- `research:ce-learnings-researcher` (correct)
 - `learnings-researcher` (wrong - will fail to resolve at runtime)
 
 This prevents resolution failures when the plugin is installed alongside other plugins that may define agents with the same short name.

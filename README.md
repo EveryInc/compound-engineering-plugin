@@ -33,16 +33,16 @@ Brainstorm -> Plan -> Work -> Review -> Compound -> Repeat
 
 | Command | Purpose |
 |---------|---------|
-| `/ce:ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
-| `/ce:brainstorm` | Explore requirements and approaches before planning |
-| `/ce:plan` | Turn feature ideas into detailed implementation plans |
-| `/ce:work` | Execute plans with worktrees and task tracking |
-| `/ce:review` | Multi-agent code review before merging |
-| `/ce:compound` | Document learnings to make future work easier |
+| `/ce-ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
+| `/ce-brainstorm` | Explore requirements and approaches before planning |
+| `/ce-plan` | Turn feature ideas into detailed implementation plans |
+| `/ce-work` | Execute plans with worktrees and task tracking |
+| `/ce-code-review` | Multi-agent code review before merging |
+| `/ce-compound` | Document learnings to make future work easier |
 
-`/ce:brainstorm` is the main entry point -- it refines ideas into a requirements plan through interactive Q&A, and short-circuits automatically when ceremony isn't needed. `/ce:plan` takes either a requirements doc from brainstorming or a detailed idea and distills it into a technical plan that agents (or humans) can work from.
+`/ce-brainstorm` is the main entry point -- it refines ideas into a requirements plan through interactive Q&A, and short-circuits automatically when ceremony isn't needed. `/ce-plan` takes either a requirements doc from brainstorming or a detailed idea and distills it into a technical plan that agents (or humans) can work from.
 
-`/ce:ideate` is used less often but can be a force multiplier -- it proactively surfaces strong improvement ideas based on your codebase, with optional steering from you.
+`/ce-ideate` is used less often but can be a force multiplier -- it proactively surfaces strong improvement ideas based on your codebase, with optional steering from you.
 
 Each cycle compounds: brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented.
 
@@ -115,7 +115,7 @@ bunx @every-env/compound-plugin install compound-engineering --to all
 | Target | Output path | Notes |
 |--------|------------|-------|
 | `opencode` | `~/.config/opencode/` | Commands as `.md` files; `opencode.json` MCP config deep-merged; backups made before overwriting |
-| `codex` | `~/.codex/prompts` + `~/.codex/skills` | Claude commands become prompt + skill pairs; canonical `ce:*` workflow skills also get prompt wrappers; deprecated `workflows:*` aliases are omitted |
+| `codex` | `~/.codex/prompts` + `~/.codex/skills` | Claude commands become prompt + skill pairs; all skills copied directly; deprecated `workflows:*` aliases are omitted |
 | `droid` | `~/.factory/` | Tool names mapped (`Bash`->`Execute`, `Write`->`Create`); namespace prefixes stripped |
 | `pi` | `~/.pi/agent/` | Prompts, skills, extensions, and `mcporter.json` for MCPorter interoperability |
 | `gemini` | `.gemini/` | Skills from agents; commands as `.toml`; namespaced commands become directories (`workflows:plan` -> `commands/workflows/plan.toml`) |

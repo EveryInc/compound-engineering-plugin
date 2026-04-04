@@ -267,31 +267,32 @@ describe("writeCodexBundle", () => {
     await fs.writeFile(
       path.join(sourceSkillDir, "SKILL.md"),
       `---
-name: ce:brainstorm
+name: ce-brainstorm
 description: Brainstorm workflow
 ---
 
-Continue with /ce:plan when ready.
+Continue with /ce-plan when ready.
 Or use /workflows:plan if you're following an older doc.
 Use /todo-resolve for deeper research.
 `,
     )
     await fs.writeFile(
       path.join(sourceSkillDir, "notes.md"),
-      "Reference docs still mention /ce:plan here.\n",
+      "Reference docs still mention /ce-plan here.\n",
     )
 
     const bundle: CodexBundle = {
       prompts: [],
-      skillDirs: [{ name: "ce:brainstorm", sourceDir: sourceSkillDir }],
+      skillDirs: [{ name: "ce-brainstorm", sourceDir: sourceSkillDir }],
       generatedSkills: [],
       invocationTargets: {
         promptTargets: {
-          "ce-plan": "ce-plan",
-          "workflows-plan": "ce-plan",
           "todo-resolve": "todo-resolve",
         },
-        skillTargets: {},
+        skillTargets: {
+          "ce-plan": "ce-plan",
+          "workflows-plan": "ce-plan",
+        },
       },
     }
 
@@ -301,7 +302,7 @@ Use /todo-resolve for deeper research.
       path.join(tempRoot, ".codex", "skills", "ce-brainstorm", "SKILL.md"),
       "utf8",
     )
-    expect(installedSkill).toContain("/prompts:ce-plan")
+    expect(installedSkill).toContain("the ce-plan skill")
     expect(installedSkill).not.toContain("/workflows:plan")
     expect(installedSkill).toContain("/prompts:todo-resolve")
 
@@ -309,7 +310,7 @@ Use /todo-resolve for deeper research.
       path.join(tempRoot, ".codex", "skills", "ce-brainstorm", "notes.md"),
       "utf8",
     )
-    expect(notes).toContain("/ce:plan")
+    expect(notes).toContain("/ce-plan")
   })
 
   test("transforms namespaced Task calls in copied SKILL.md files", async () => {
@@ -319,7 +320,7 @@ Use /todo-resolve for deeper research.
     await fs.writeFile(
       path.join(sourceSkillDir, "SKILL.md"),
       `---
-name: ce:plan
+name: ce-plan
 description: Planning workflow
 ---
 
@@ -337,7 +338,7 @@ Also run bare agents:
 
     const bundle: CodexBundle = {
       prompts: [],
-      skillDirs: [{ name: "ce:plan", sourceDir: sourceSkillDir }],
+      skillDirs: [{ name: "ce-plan", sourceDir: sourceSkillDir }],
       generatedSkills: [],
       invocationTargets: {
         promptTargets: {},
@@ -386,7 +387,7 @@ API examples:
 - https://www.proofeditor.ai/share/markdown
 
 Workflow handoff:
-- /ce:plan
+- /ce-plan
 `,
     )
 
@@ -395,10 +396,10 @@ Workflow handoff:
       skillDirs: [{ name: "proof", sourceDir: sourceSkillDir }],
       generatedSkills: [],
       invocationTargets: {
-        promptTargets: {
+        promptTargets: {},
+        skillTargets: {
           "ce-plan": "ce-plan",
         },
-        skillTargets: {},
       },
     }
 
@@ -413,7 +414,7 @@ Workflow handoff:
     expect(installedSkill).toContain("/settings")
     expect(installedSkill).toContain("https://www.proofeditor.ai/api/agent/{slug}/state")
     expect(installedSkill).toContain("https://www.proofeditor.ai/share/markdown")
-    expect(installedSkill).toContain("/prompts:ce-plan")
+    expect(installedSkill).toContain("the ce-plan skill")
     expect(installedSkill).not.toContain("/prompts:users")
     expect(installedSkill).not.toContain("/prompts:settings")
     expect(installedSkill).not.toContain("https://prompts:www.proofeditor.ai")

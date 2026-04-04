@@ -54,7 +54,7 @@ describe("writeDroidBundle", () => {
     await fs.writeFile(
       path.join(sourceSkillDir, "SKILL.md"),
       `---
-name: ce:plan
+name: ce-plan
 description: Planning workflow
 ---
 
@@ -69,7 +69,7 @@ Run these research agents:
     const bundle: DroidBundle = {
       commands: [],
       droids: [],
-      skillDirs: [{ name: "ce:plan", sourceDir: sourceSkillDir }],
+      skillDirs: [{ name: "ce-plan", sourceDir: sourceSkillDir }],
     }
 
     await writeDroidBundle(tempRoot, bundle)

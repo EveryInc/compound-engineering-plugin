@@ -5,7 +5,7 @@ describe("release preview", () => {
   test("uses changed files to determine affected components and next versions", async () => {
     const versions = await loadCurrentVersions()
     const preview = await buildReleasePreview({
-      title: "fix: adjust ce:plan-beta wording",
+      title: "fix: adjust ce-plan-beta wording",
       files: ["plugins/compound-engineering/skills/ce-plan-beta/SKILL.md"],
     })
 

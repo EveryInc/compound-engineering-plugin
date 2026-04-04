@@ -6,7 +6,7 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
-describe("ce:work review contract", () => {
+describe("ce-work review contract", () => {
   test("requires code review before shipping", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
     // Review content extracted to references/shipping-workflow.md
@@ -23,11 +23,11 @@ describe("ce:work review contract", () => {
     // Two-tier rubric in reference file
     expect(shipping).toContain("**Tier 1: Inline self-review**")
     expect(shipping).toContain("**Tier 2: Full review (default)**")
-    expect(shipping).toContain("ce:review")
+    expect(shipping).toContain("ce-code-review")
     expect(shipping).toContain("mode:autofix")
 
     // Quality checklist includes review
-    expect(shipping).toContain("Code review completed (inline self-review or full `ce:review`)")
+    expect(shipping).toContain("Code review completed (inline self-review or full `ce-code-review`)")
   })
 
   test("delegates commit and PR to dedicated skills", async () => {
@@ -43,7 +43,7 @@ describe("ce:work review contract", () => {
     expect(content).not.toContain("[HARNESS_URL]")
   })
 
-  test("ce:work-beta mirrors review and commit delegation", async () => {
+  test("ce-work-beta mirrors review and commit delegation", async () => {
     const beta = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
     // Review/commit content extracted to references/shipping-workflow.md
     const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md")
@@ -86,7 +86,7 @@ describe("ce:work review contract", () => {
     expect(shipping).not.toContain("Tests pass (run project's test command)")
   })
 
-  test("ce:work-beta mirrors testing deliberation and checklist changes", async () => {
+  test("ce-work-beta mirrors testing deliberation and checklist changes", async () => {
     const beta = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
     // Checklist extracted to references/shipping-workflow.md
     const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md")
@@ -272,13 +272,13 @@ describe("ce:plan remains neutral during ce:work-beta rollout", () => {
   })
 })
 
-describe("ce:brainstorm review contract", () => {
+describe("ce-brainstorm review contract", () => {
   test("requires document review before handoff", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-brainstorm/SKILL.md")
 
     // Phase 3.5 exists and runs document-review
     expect(content).toContain("### Phase 3.5: Document Review")
-    expect(content).toContain("`document-review` skill")
+    expect(content).toContain("`ce-doc-review` skill")
 
     // Phase 3 and Phase 4 are extracted to references for token optimization
     expect(content).toContain("`references/requirements-capture.md`")
@@ -293,7 +293,7 @@ describe("ce:brainstorm review contract", () => {
   })
 })
 
-describe("ce:plan testing contract", () => {
+describe("ce-plan testing contract", () => {
   test("flags blank test scenarios on feature-bearing units as incomplete", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
 
@@ -306,14 +306,14 @@ describe("ce:plan testing contract", () => {
   })
 })
 
-describe("ce:plan review contract", () => {
+describe("ce-plan review contract", () => {
   test("requires document review after confidence check", async () => {
     // Document review instructions extracted to references/plan-handoff.md
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md")
 
     // Phase 5.3.8 runs document-review before final checks (5.3.9)
     expect(content).toContain("## 5.3.8 Document Review")
-    expect(content).toContain("`document-review` skill")
+    expect(content).toContain("`ce-doc-review` skill")
 
     // Document review must come before final checks so auto-applied edits are validated
     const docReviewIdx = content.indexOf("5.3.8 Document Review")
@@ -333,15 +333,15 @@ describe("ce:plan review contract", () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md")
 
     // Pipeline mode runs document-review headlessly, not skipping it
-    expect(content).toContain("document-review` with `mode:headless`")
+    expect(content).toContain("ce-doc-review` with `mode:headless`")
     expect(content).not.toContain("skip document-review and return control")
   })
 
-  test("handoff options recommend ce:work after review", async () => {
+  test("handoff options recommend ce-work after review", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md")
 
-    // ce:work is recommended (review already happened)
-    expect(content).toContain("**Start `/ce:work`** (recommended) - Begin implementing this plan in the current session")
+    // ce-work is recommended (review already happened)
+    expect(content).toContain("**Start `/ce-work`** (recommended) - Begin implementing this plan in the current session")
 
     // Additional review passes are surfaced contextually (not as a menu fixture) and still
     // route through the document-review skill when requested

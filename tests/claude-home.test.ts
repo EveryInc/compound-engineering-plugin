@@ -51,7 +51,7 @@ describe("loadClaudeHome", () => {
     await fs.mkdir(skillDir, { recursive: true })
     await fs.writeFile(
       path.join(skillDir, "SKILL.md"),
-      "---\nname: ce:plan\ndescription: Reviewer skill\nargument-hint: \"[topic]\"\n---\nReview things.\n",
+      "---\nname: ce-plan\ndescription: Reviewer skill\nargument-hint: \"[topic]\"\n---\nReview things.\n",
     )
 
     const config = await loadClaudeHome(tempHome)
@@ -69,7 +69,7 @@ describe("loadClaudeHome", () => {
     await fs.mkdir(skillDir, { recursive: true })
     await fs.writeFile(
       path.join(skillDir, "SKILL.md"),
-      "---\nname: ce:plan\nfoo: [unterminated\n---\nReview things.\n",
+      "---\nname: ce-plan\nfoo: [unterminated\n---\nReview things.\n",
     )
 
     const config = await loadClaudeHome(tempHome)

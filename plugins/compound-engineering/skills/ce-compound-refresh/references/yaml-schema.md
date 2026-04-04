@@ -1,6 +1,6 @@
 # YAML Frontmatter Schema
 
-`schema.yaml` in this directory is the canonical contract for `docs/solutions/` frontmatter written by `ce:compound`.
+`schema.yaml` in this directory is the canonical contract for `docs/solutions/` frontmatter written by `ce-compound`.
 
 Use this file as the quick reference for:
 - required fields
