@@ -3,7 +3,7 @@ title: "feat(slack-researcher): Add Slack analyst research agent with workflow i
 type: feat
 status: active
 date: 2026-04-02
-origin: docs/brainstorms/2026-04-02-slack-researcher-agent-requirements.md
+origin: docs/brainstorms/2026-04-02-slack-analyst-agent-requirements.md
 ---
 
 # feat(slack-researcher): Add Slack analyst research agent with workflow integration

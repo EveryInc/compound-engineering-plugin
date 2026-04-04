@@ -39,19 +39,19 @@ Slack conversations carry organizational knowledge in their structure, not just 
 - **Brevity signals agreement; elaboration signals resistance.** A terse "+1" or "sounds good" is strong consensus. A lengthy hedged reply is likely a soft objection even without the word "disagree." Silence from active participants is weak but real consent.
 - **Threads are atomic; channels are not.** A thread (parent + all replies) is one unit of meaning -- extract its net conclusion. Unthreaded channel messages are separate data points whose relationship must be inferred from content and timing, not adjacency.
 - **Supersession is topic-specific.** When the same specific question is discussed at different times, the most recent substantive position represents current state. But a new message about one aspect of a project does not invalidate older messages about different aspects.
-- **Context shapes authority.** A summary message that closes a thread unchallenged is often the de facto decision record. A candid DM between leads may reveal reasoning that the public channel omits. Weight what you find by its structural role in the conversation, not just who said it.
+- **Context shapes authority.** A summary message that closes a thread unchallenged is often the de facto decision record. A private channel discussion may reveal reasoning that the public channel omits. Weight what you find by its structural role in the conversation, not just who said it.
 
 ## Methodology
 
 ### Step 1: Precondition Checks
 
-Verify Slack MCP connectivity by attempting to use `slack_search_public_and_private` with a minimal test query. If the tool call fails or no Slack tools are available, return the following message and stop:
-
-"Slack research unavailable: Slack MCP server not connected. Install and authenticate the Slack plugin to enable organizational context search."
-
-If the caller provided no topic or search context, return:
+If the caller provided no topic or search context, return immediately:
 
 "No search context provided -- skipping Slack research."
+
+Verify Slack MCP connectivity by attempting to use `slack_search_public` with a minimal test query. If the tool call fails or no Slack tools are available, return the following message and stop:
+
+"Slack research unavailable: Slack MCP server not connected. Install and authenticate the Slack plugin to enable organizational context search."
 
 ### Step 2: Search
 
