@@ -57,6 +57,23 @@ If no requirements document exists, proceed from the user's description directly
 
 Search for existing prototype work (`.context/compound-engineering/prototypes/`, `docs/prototypes/`, or similar patterns in the repo). If a previous prototype or validation report for the same topic exists, ask the user whether to build on it or start fresh.
 
+#### 0.3 Repo Context Scan
+
+Before suggesting validation goals, do a light scan of the codebase for code that already touches the domain being prototyped (existing API integrations, data models, utility functions, config patterns). This serves two purposes:
+- **Avoid redundant validation** — If the repo already has a working Stripe integration, prototyping "can we connect to Stripe?" is unnecessary. Focus validation goals on what is genuinely unknown.
+- **Inform the build** — Existing patterns, wrappers, or config conventions can speed up the prototype even though prototype code does not need to follow project standards.
+
+Keep the scan proportional to scope — a quick keyword search for Lightweight, a broader pattern scan for Standard/Deep.
+
+#### 0.4 Assess Whether Prototyping Is Needed
+
+Some assumptions can be resolved without building anything:
+- **Documentation answers it** — The API docs clearly specify the data format, rate limits, or behavior in question. Reading is cheaper than coding.
+- **Existing code answers it** — The repo already integrates with the service and the assumption can be verified by reading the existing implementation.
+- **Trivial to verify** — A single curl command or REPL session answers the question without needing a prototype scaffold.
+
+If all assumptions fall into these categories, say so and recommend skipping to `/ce:plan`. Only prototype when the assumption requires building something to test — an interaction flow, a multi-step integration, visual quality judgment, or behavior that cannot be determined from docs alone.
+
 ### Phase 1: Define Validation Goals
 
 This is the most important phase. A prototype without clear goals is aimless.
@@ -119,11 +136,15 @@ For each validation goal, build the minimum artifact that answers the question:
 - **Integration** — Connect to the real service, verify behavior
 - **Performance** — Time real operations, measure what matters
 
-**Critical rule:** Before taking a shortcut on any step, evaluate whether it compromises a validation goal. If there is any doubt, ask the user. For example:
+**External data source discovery:** When a validation goal depends on a real external source (API, CDN, dataset), invest the time needed to find and connect to the right one. Using the real integration is often the entire point of the prototype — hardcoding or faking the data source defeats the validation goal. Search docs, try endpoints, and iterate until the real data flows. Only ask the user for help if you hit an access barrier (authentication, paid tier, private API) that you cannot resolve yourself.
+
+**Shortcut decision rule:** Before taking a shortcut on any step, ask: "Does this shortcut touch the same dimension as any validation goal?" If the answer is yes, do not take the shortcut — use real data, real services, real interactions. If the answer is no, the shortcut is fine. When in doubt, ask the user. Examples:
 - Hardcoding sample data is fine if the goal is testing UX layout
 - Hardcoding sample data is NOT fine if the goal is testing data source quality
 - Using a placeholder image is fine if testing game mechanics
 - Using a placeholder image is NOT fine if testing image recognition quality
+
+**Iteration is expected:** Expect 1-3 build iterations. After each iteration, present the prototype to the user with explicit testing instructions and wait for feedback before proceeding. Broken interactions or wrong layout priorities are normal — fix before moving on. Do not treat the first build as the final build.
 
 #### 2.3 Validate Each Goal
 
@@ -261,6 +282,8 @@ Present the "What's next?" options using the platform's blocking question tool.
 | Recording a validation result without user feedback on subjective goals | Present the prototype and wait for the user to test it before marking proved/disproved |
 | Keeping the prototype directory after the report is written | Delete the prototype; the validation report is the durable artifact |
 | Skipping the effort alignment conversation | Classify scope (Lightweight/Standard/Deep) and confirm with the user before building |
+| Giving up on finding the right external API and using a fake or placeholder instead | Invest the time to find and connect to the real data source — that is what the prototype exists to validate |
+| Prototyping something that could be answered by reading docs or existing code | Scan the repo and API docs first; only prototype what genuinely requires building to test |
 
 ## Related Commands
 
