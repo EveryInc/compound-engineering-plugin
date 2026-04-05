@@ -169,7 +169,7 @@ For each goal, record:
 
 ### Phase 3: Write Validation Report
 
-Read `assets/validation-report-template.md` for the report structure.
+Use the template and schema below to write the validation report.
 
 Write the report to `docs/prototypes/<topic-slug>-validation-<date>.md`. If a report with the same name already exists (e.g., multiple prototype rounds on the same day), append the next available sequence number: `-002`, `-003`, etc.
 
@@ -177,7 +177,9 @@ Create `docs/prototypes/` if it does not exist.
 
 The validation report is the durable output — it survives after the prototype code is deleted. It must contain enough detail that `/ce:plan` (or a future reader) can understand what was tested and what was learned without access to the prototype code.
 
-For detailed field descriptions and frontmatter schema, see `references/validation-report-schema.md`.
+@./assets/validation-report-template.md
+
+@./references/validation-report-schema.md
 
 ### Phase 4: Clean Up and Recommend
 
