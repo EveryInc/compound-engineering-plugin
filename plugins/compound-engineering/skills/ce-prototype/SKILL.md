@@ -14,7 +14,7 @@ Prototyping sits between brainstorm and planning because planning without valida
 
 **This skill does not produce production code.** It produces a throwaway prototype and a durable validation report. The prototype gets deleted. The report feeds into `/ce:plan`.
 
-**IMPORTANT: All file references in generated documents must use repo-relative paths (e.g., `.context/compound-engineering/prototypes/stripe-refund-webhooks/`), never absolute paths.**
+**IMPORTANT: All file references in generated documents must use repo-relative paths (e.g., `.context/compound-engineering/ce-prototype/stripe-refund-webhooks-20260404-143022/`), never absolute paths.**
 
 ## Core Principles
 
@@ -55,7 +55,7 @@ If no requirements document exists, proceed from the user's description directly
 
 #### 0.2 Check for Existing Prototypes
 
-Search for existing prototype work (`.context/compound-engineering/prototypes/`, `docs/prototypes/`, or similar patterns in the repo). If a previous prototype or validation report for the same topic exists, ask the user whether to build on it or start fresh.
+Search for existing prototype work (`.context/compound-engineering/ce-prototype/`, `docs/prototypes/`, or similar patterns in the repo). If a previous prototype or validation report for the same topic exists, ask the user whether to build on it or start fresh.
 
 #### 0.3 Repo Context Scan
 
@@ -116,11 +116,11 @@ Do not proceed until effort is aligned.
 
 #### 2.1 Create Isolated Prototype Directory
 
-Scaffold the prototype under the compound-engineering scratch space:
+Scaffold the prototype under the compound-engineering scratch space with a per-run subdirectory to avoid collisions between concurrent sessions or repeated runs on the same topic:
 
 ```
-.context/compound-engineering/prototypes/
-  <topic-slug>/
+.context/compound-engineering/ce-prototype/
+  <topic-slug>-<YYYYMMDD-HHMMSS>/
     ... prototype files ...
 ```
 
@@ -171,7 +171,7 @@ For each goal, record:
 
 Read `assets/validation-report-template.md` for the report structure.
 
-Write the report to `docs/prototypes/<topic-slug>-validation-<date>.md`.
+Write the report to `docs/prototypes/<topic-slug>-validation-<date>.md`. If a report with the same name already exists (e.g., a second prototype round on the same day), append a sequence number: `<topic-slug>-validation-<date>-002.md`.
 
 Create `docs/prototypes/` if it does not exist.
 
@@ -192,7 +192,7 @@ If anything is found, flag it to the user with a brief explanation. Let them dec
 
 #### 4.2 Clean Up
 
-Delete the prototype directory under `.context/compound-engineering/prototypes/`. The validation report in `docs/prototypes/` persists.
+Delete the prototype directory under `.context/compound-engineering/ce-prototype/`. The validation report in `docs/prototypes/` persists.
 
 If the user explicitly asks to keep the prototype, respect that — but note in the validation report that the prototype code still exists and where.
 
@@ -202,12 +202,14 @@ Based on the validation results, recommend the appropriate next step:
 
 | Result | Recommendation |
 |--------|---------------|
-| All goals proved | Proceed to `/ce:plan` — validated constraints feed directly into planning |
+| All goals proved | Proceed to `/ce:plan` — pass the validation report path so planning can reference validated constraints |
 | Some goals disproved | Revisit requirements with `/ce:brainstorm` — scope or approach may need to change |
 | Inconclusive goals | Run a focused second prototype round on the inconclusive goals |
 | Major surprise discovered | Discuss implications before proceeding — the discovery may reshape the entire approach |
 
 Present as a question using the platform's blocking question tool.
+
+**Handoff to /ce:plan:** When the user selects planning, run `/ce:plan` and pass the validation report path (e.g., `/ce:plan docs/prototypes/<topic-slug>-validation-<date>.md`). If a requirements document also exists, pass both paths. This ensures the plan has direct access to validated constraints and discovered surprises without relying on context window or user re-entry.
 
 ### Phase 5 (Optional): Brainstorm Integration Suggestion
 
@@ -236,7 +238,7 @@ If this prototype was triggered manually (not from a brainstorm recommendation):
 - `docs/prototypes/<topic-slug>-validation-<date>.md` — Validation report
 
 **Temporary output (deleted after report):**
-- `.context/compound-engineering/prototypes/<topic-slug>/` — Throwaway prototype code
+- `.context/compound-engineering/ce-prototype/<topic-slug>-<YYYYMMDD-HHMMSS>/` — Throwaway prototype code
 
 ## Success Output
 
@@ -260,10 +262,10 @@ Report written:
   docs/prototypes/stripe-refund-webhooks-validation-2026-04-04.md
 
 Prototype cleaned up:
-  .context/compound-engineering/prototypes/stripe-refund-webhooks/ [deleted]
+  .context/compound-engineering/ce-prototype/stripe-refund-webhooks-20260404-143022/ [deleted]
 
 What's next?
-1. Proceed to /ce:plan with validated constraints
+1. Proceed to /ce:plan docs/prototypes/stripe-refund-webhooks-validation-2026-04-04.md
 2. Run another prototype round (for inconclusive goals)
 3. Revisit requirements with /ce:brainstorm (for disproved goals)
 4. Update existing requirements document with findings

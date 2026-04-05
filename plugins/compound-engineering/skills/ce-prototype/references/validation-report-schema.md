@@ -37,8 +37,11 @@ Canonical frontmatter fields for prototype validation reports in `docs/prototype
 
 File: `docs/prototypes/<topic-slug>-validation-<YYYY-MM-DD>.md`
 
+If a report with the same name already exists (e.g., a second prototype round on the same day), append a sequence number: `<topic-slug>-validation-<YYYY-MM-DD>-002.md`.
+
 Examples:
 - `docs/prototypes/stripe-refund-webhooks-validation-2026-04-04.md`
+- `docs/prototypes/stripe-refund-webhooks-validation-2026-04-04-002.md` (second round, same day)
 - `docs/prototypes/payment-api-validation-2026-03-15.md`
 - `docs/prototypes/image-recognition-validation-2026-04-01.md`
 
