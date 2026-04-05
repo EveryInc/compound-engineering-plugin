@@ -21,7 +21,7 @@ Canonical frontmatter fields for prototype validation reports in `docs/prototype
 | `origin` | string (repo-relative path) | Path to the upstream requirements document, if any |
 | `tags` | array[string] | Search keywords, lowercase and hyphen-separated. Always include `prototype` and `validation`. Max 8 tags. |
 | `prototype_preserved` | boolean | Whether the prototype code was kept (default: false) |
-| `prototype_path` | string | Path to preserved prototype, if `prototype_preserved: true` |
+| `prototype_path` | string | Path to preserved prototype (e.g., `prototypes/<topic-slug>/`), if `prototype_preserved: true` |
 | `effort_minutes` | integer | Approximate time spent on the prototype |
 | `iterations` | integer | Number of build-feedback iterations before final validation (typically 1-3) |
 

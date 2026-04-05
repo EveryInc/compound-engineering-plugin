@@ -1,6 +1,6 @@
 ---
 name: ce:prototype
-description: "Build a throwaway prototype to validate assumptions before committing to an implementation plan. Use when the user says 'prototype this', 'let me test this idea first', 'spike on this', 'validate this before planning', 'build a quick prototype', 'I want to test if this works', 'try this out before we plan', 'proof of concept', 'quick test', 'throwaway prototype', or 'validate assumptions'. Also use when a brainstorm or requirements document contains untested assumptions about APIs, data sources, UX patterns, or integrations, or when the user wants to de-risk before planning."
+description: "Build a throwaway prototype to validate assumptions before committing to an implementation plan. Use when the user says 'prototype this', 'let me test this idea first', 'spike on this', 'validate this before planning', 'build a quick prototype', 'I want to test if this works', 'try this out before we plan', 'proof of concept', 'quick test', 'throwaway prototype', 'validate assumptions', 'feasibility check', 'experiment with this', or 'will this actually work'. Also use when a brainstorm or requirements document contains untested assumptions about APIs, data sources, UX patterns, or integrations, or when the user wants to de-risk before planning."
 argument-hint: "[optional: feature description, requirements doc path, or specific assumptions to validate]"
 ---
 
@@ -194,7 +194,7 @@ If anything is found, flag it to the user with a brief explanation. Let them dec
 
 Delete the prototype directory under `.context/compound-engineering/ce-prototype/`. The validation report in `docs/prototypes/` persists.
 
-If the user explicitly asks to keep the prototype, respect that — but note in the validation report that the prototype code still exists and where.
+If the user explicitly asks to keep the prototype, move it out of `.context/` (which is ephemeral scratch space subject to cleanup) to a durable location: `prototypes/<topic-slug>/` at the repo root. Note the preserved path in the validation report.
 
 #### 4.3 Recommend Next Step
 
@@ -238,7 +238,7 @@ If this prototype was triggered manually (not from a brainstorm recommendation):
 - `docs/prototypes/<topic-slug>-validation-<date>.md` — Validation report
 
 **Temporary output (deleted after report):**
-- `.context/compound-engineering/ce-prototype/<topic-slug>-<YYYYMMDD-HHMMSS>/` — Throwaway prototype code
+- `.context/compound-engineering/ce-prototype/<topic-slug>-<YYYYMMDD-HHMMSS>/` — Throwaway prototype code (moved to `prototypes/<topic-slug>/` if user chooses to keep it)
 
 ## Success Output
 

@@ -7,7 +7,7 @@ Use this template when writing prototype validation reports to `docs/prototypes/
 title: [Topic] Prototype Validation
 date: YYYY-MM-DD
 topic: <kebab-case-topic>
-origin: <path to requirements doc, if any>
+origin: <path to requirements doc, if any> # optional
 status: complete | partial
 goals_proved: <count>
 goals_disproved: <count>
@@ -67,6 +67,6 @@ tags: [prototype, validation, keyword-one, keyword-two]
 
 **Tech used:** [e.g., Static HTML + fetch API, Python script, curl commands]
 **Time spent:** [Actual effort, e.g., "~25 minutes"]
-**Prototype location:** [Deleted / Preserved at <path>]
+**Prototype location:** [Deleted / Preserved at prototypes/<topic-slug>/]
 **Artifacts preserved:** [List any files moved out of prototype before deletion, or "none"]
 ```
