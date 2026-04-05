@@ -171,7 +171,7 @@ For each goal, record:
 
 Read `assets/validation-report-template.md` for the report structure.
 
-Write the report to `docs/prototypes/<topic-slug>-validation-<date>.md`. If a report with the same name already exists (e.g., a second prototype round on the same day), append a sequence number: `<topic-slug>-validation-<date>-002.md`.
+Write the report to `docs/prototypes/<topic-slug>-validation-<date>.md`. If a report with the same name already exists (e.g., multiple prototype rounds on the same day), append the next available sequence number: `-002`, `-003`, etc.
 
 Create `docs/prototypes/` if it does not exist.
 
@@ -194,7 +194,7 @@ If anything is found, flag it to the user with a brief explanation. Let them dec
 
 Delete the prototype directory under `.context/compound-engineering/ce-prototype/`. The validation report in `docs/prototypes/` persists.
 
-If the user explicitly asks to keep the prototype, move it out of `.context/` (which is ephemeral scratch space subject to cleanup) to a durable location: `prototypes/<topic-slug>/` at the repo root. Note the preserved path in the validation report.
+If the user explicitly asks to keep the prototype, move it out of `.context/` (which is ephemeral scratch space subject to cleanup) to a durable location at the repo root: `prototypes/<topic-slug>/`. If that directory already exists (from a prior preserved prototype), use a timestamped path (`prototypes/<topic-slug>-<YYYYMMDD-HHMMSS>/`) to avoid overwriting earlier work. Note the preserved path in the validation report.
 
 #### 4.3 Recommend Next Step
 
@@ -209,7 +209,7 @@ Based on the validation results, recommend the appropriate next step:
 
 Present as a question using the platform's blocking question tool.
 
-**Handoff to /ce:plan:** When the user selects planning, run `/ce:plan` and pass the validation report path (e.g., `/ce:plan docs/prototypes/<topic-slug>-validation-<date>.md`). If a requirements document also exists, pass both paths. This ensures the plan has direct access to validated constraints and discovered surprises without relying on context window or user re-entry.
+**Handoff to /ce:plan:** When the user selects planning, run `/ce:plan` and pass both the requirements document path (if one exists) and a concise constraints summary extracted from the validation report. The summary should include: proved/disproved goal results, key constraints discovered, and the validation report path for reference. Example: `/ce:plan docs/brainstorms/2026-04-01-topic-requirements.md — Prototype validated: [goals summary]. Constraints: [key constraints]. Full report: docs/prototypes/topic-validation-2026-04-04.md`. This ensures planning starts from validated assumptions even if `/ce:plan` does not auto-discover validation reports.
 
 ### Phase 5 (Optional): Brainstorm Integration Suggestion
 
