@@ -1,0 +1,9 @@
+name: compound-engineering-marketplace
+version: 1.0.0
+description: Plugin marketplace for Claude Code extensions. Includes compound-engineering and coding-tutor plugins.
+author: Kieran Klaassen
+license: MIT
+
+includes:
+  - plugins/compound-engineering/**/*
+  - plugins/coding-tutor/**/*
