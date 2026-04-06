@@ -1,6 +1,6 @@
 ---
 date: 2026-04-02
-topic: slack-researcher-agent
+topic: ce-slack-researcher-agent
 ---
 
 # Slack Analyst Agent
@@ -15,7 +15,7 @@ The official Slack plugin provides user-facing commands (`/slack:find-discussion
 
 **Agent Identity and Placement**
 
-- R1. Create a research-category agent at `agents/research/slack-researcher.md` following the established research agent pattern (frontmatter with name, description, model:inherit; examples block; phased execution).
+- R1. Create a research-category agent at `agents/research/ce-slack-researcher.md` following the established research agent pattern (frontmatter with name, description, model:inherit; examples block; phased execution).
 - R2. The agent's role is analytical: it searches Slack for context relevant to the task at hand and returns a concise, structured digest. It does not send messages, create canvases, or take any write actions in Slack.
 
 ---
@@ -53,9 +53,9 @@ The official Slack plugin provides user-facing commands (`/slack:find-discussion
 **Workflow Integration**
 
 - R12. Integrate into three calling workflows:
-  - **ce:ideate** -- dispatch during Phase 1 (Codebase Scan), alongside learnings-researcher. Slack context enriches ideation by surfacing org discussions about the focus area.
-  - **ce:plan** -- dispatch during the research/context-gathering phase. Slack context surfaces constraints, prior decisions, and ongoing discussions relevant to the implementation.
-  - **ce:brainstorm** -- dispatch during Phase 1.1 (Existing Context Scan). Brainstorming especially benefits from knowing what the org has already discussed about the topic.
+  - **ce-ideate** -- dispatch during Phase 1 (Codebase Scan), alongside learnings-researcher. Slack context enriches ideation by surfacing org discussions about the focus area.
+  - **ce-plan** -- dispatch during the research/context-gathering phase. Slack context surfaces constraints, prior decisions, and ongoing discussions relevant to the implementation.
+  - **ce-brainstorm** -- dispatch during Phase 1.1 (Existing Context Scan). Brainstorming especially benefits from knowing what the org has already discussed about the topic.
 - R13. In all calling workflows, dispatch the Slack analyst agent in parallel with other research agents (learnings-researcher, etc.) to avoid adding latency. Callers wait for all parallel agents to return before consolidating results (this is the existing pattern for parallel research dispatch). The Slack analyst's dispatch condition is MCP availability (R3). The agent itself handles the meaningful-context check (R4) internally.
 - R14. Callers should incorporate the Slack analyst's output into their existing context summary alongside other research results, not as a separate section.
 
@@ -94,7 +94,7 @@ The official Slack plugin provides user-facing commands (`/slack:find-discussion
 
 - [Affects R3][Technical] How exactly should callers detect Slack MCP availability? Claude Code's tool list inspection, checking for any `slack_*` tool prefix, or another mechanism?
 - [Affects R5][Needs research] What is the optimal number of search queries per invocation to balance coverage vs. token cost? Start with 2-3 and tune based on real usage.
-- [Affects R12][Technical] What modifications are needed in ce:ideate, ce:plan, and ce:brainstorm skill files to add the conditional dispatch? Review each skill's research phase to find the right insertion point.
+- [Affects R12][Technical] What modifications are needed in ce-ideate, ce-plan, and ce-brainstorm skill files to add the conditional dispatch? Review each skill's research phase to find the right insertion point.
 
 ## Next Steps
 

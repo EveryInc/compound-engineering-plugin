@@ -58,7 +58,7 @@ When ce:plan receives an origin document from ce:brainstorm, it reads it as prim
 ce:plan always calls `repo-research-analyst` even when a brainstorm document exists. Does ce:brainstorm also call it? No -- brainstorm only does an inline product-focused scan. The calls are not redundant; no change needed.
 
 **Optimization warranted (Slack pattern):**
-Both ce:brainstorm and ce:plan dispatched `slack-researcher`. Fix: when ce:plan finds Slack context in the origin document, pass it to `slack-researcher` so the agent focuses on gaps. The agent is still called -- it starts from a better baseline.
+Both ce-brainstorm and ce-plan dispatched `ce-slack-researcher`. Fix: when ce-plan finds Slack context in the origin document, pass it to `ce-slack-researcher` so the agent focuses on gaps. The agent is still called -- it starts from a better baseline.
 
 **Anti-pattern -- skipping agents incorrectly:**
 Removing `repo-research-analyst` from ce:plan when an origin document exists, reasoning "brainstorm already scanned the repo." The resulting plan lacks architectural patterns, file paths, and convention details. ce:work produces code that ignores existing patterns.
