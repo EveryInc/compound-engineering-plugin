@@ -1,6 +1,6 @@
 ---
 name: ce:plan
-description: "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', or when a brainstorm/requirements document is ready for technical planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. Best when requirements are at least roughly defined; for exploratory or ambiguous requests, prefer ce:brainstorm first."
+description: "Transform feature descriptions or requirements into structured implementation plans. Works for any multi-step task - software, research, content, or strategy. When invoked within a codebase, grounds plans in repo patterns and research. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', or when a brainstorm/requirements document is ready for technical planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. Best when requirements are at least roughly defined; for exploratory or ambiguous requests, prefer ce:brainstorm first."
 argument-hint: "[optional: feature description, requirements doc path, plan path to deepen, or improvement idea]"
 ---
 
@@ -11,6 +11,8 @@ argument-hint: "[optional: feature description, requirements doc path, plan path
 `ce:brainstorm` defines **WHAT** to build. `ce:plan` defines **HOW** to build it. `ce:work` executes the plan.
 
 This workflow produces a durable implementation plan. It does **not** implement code, run tests, or learn from execution-time results. If the answer depends on changing code and seeing what happens, that belongs in `ce:work`, not here.
+
+**Task domain flexibility.** This workflow applies to any multi-step task the user routes through it, not just software engineering. For non-software tasks (research plans, content plans, strategy documents, analysis projects), adapt the workflow: skip code-specific phases (repo research, test scenarios, file paths) and use domain-appropriate equivalents (deliverables instead of files, validation criteria instead of test scenarios, work units instead of implementation units). The structured methodology - problem frame, scope boundaries, unit breakdown, acceptance criteria - is domain-agnostic.
 
 ## Interaction Method
 
@@ -144,11 +146,20 @@ Classify the work into one of these plan depths:
 - **Standard** - normal feature or bounded refactor with some technical decisions to document
 - **Deep** - cross-cutting, strategic, high-risk, or highly ambiguous implementation work
 
+Also classify the **task domain**:
+
+- **Software** - touches code, config, infrastructure, or technical systems. Use the full workflow as written.
+- **Non-software** - research, content, strategy, analysis, or other non-code work. Adapt: skip Phase 1.1 repo research agents, use "deliverables" instead of "files" in units, use "validation criteria" instead of "test scenarios", omit repo-relative path requirements.
+
+If domain is unclear, ask one question and continue. Default to software when running inside a git repository with code files.
+
 If depth is unclear, ask one targeted question and then continue.
 
 ### Phase 1: Gather Context
 
 #### 1.1 Local Research (Always Runs)
+
+**Non-software tasks:** Skip the research agent dispatch below. Instead, gather context from the user's description and any referenced documents. Proceed directly to Phase 1.2 (external research decision).
 
 Prepare a concise planning context summary (a paragraph or two) to pass as input to the research agents:
 - If an origin document exists, summarize the problem frame, requirements, and key decisions from that document
@@ -336,7 +347,7 @@ Keep sketches concise — enough to validate direction, not enough to copy-paste
 
 #### 3.5 Define Each Implementation Unit
 
-For each unit, include:
+For each unit, include the applicable fields below. Non-software tasks use adapted equivalents: **Deliverables** instead of **Files**, **Validation criteria** instead of **Test scenarios**.
 - **Goal** - what this unit accomplishes
 - **Requirements** - which requirements or success criteria it advances
 - **Dependencies** - what must exist first
@@ -579,6 +590,7 @@ For larger `Deep` plans, extend the core template only when useful with sections
 #### 4.3 Planning Rules
 
 - **All file paths must be repo-relative** — never use absolute paths like `/Users/name/Code/project/src/file.ts`. Use `src/file.ts` instead. Absolute paths make plans non-portable across machines, worktrees, and teammates. When a plan targets a different repo than the document's home, state the target repo once at the top of the plan (e.g., `**Target repo:** my-other-project`) and use repo-relative paths throughout
+- Non-software plans may omit repo-relative file paths, test scenarios, and code pattern references. All other rules (portable paths if files are referenced, checkbox syntax, no implementation code) still apply.
 - Prefer path plus class/component/pattern references over brittle line numbers
 - Keep implementation units checkable with `- [ ]` syntax for progress tracking
 - Do not include implementation code — no imports, exact method signatures, or framework-specific syntax
