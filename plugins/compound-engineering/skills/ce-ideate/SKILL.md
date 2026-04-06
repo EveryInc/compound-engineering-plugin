@@ -123,7 +123,7 @@ Consolidate all results into a short grounding summary. When issue intelligence 
 - **Past learnings** — relevant institutional knowledge from docs/solutions/
 - **Issue intelligence** (when present) — theme summaries from the issue intelligence agent, preserving theme titles, descriptions, issue counts, and trend directions
 
-**Slack availability hint** — After dispatching Phase 1 agents, if any `slack_*` tool is available in the tool list, include a brief note in the Phase 1 output: "Slack is connected. Ask me to search Slack for organizational context at any point, or include it in your next prompt." Do not dispatch the slack-researcher agent automatically.
+**Slack context** (opt-in) — If any `slack_*` tool is available in the tool list and the user's prompt explicitly asks for Slack context, dispatch `compound-engineering:research:slack-researcher` with the focus hint in parallel with the other Phase 1 agents. Include its findings in the grounding summary. If the user did not ask for Slack context, include a brief note in the Phase 1 output instead: "Slack is connected. Ask me to search Slack for organizational context at any point, or include it in your next prompt." Do not dispatch the slack-researcher agent automatically when the user has not asked for it.
 
 Do **not** do external research in v1.
 

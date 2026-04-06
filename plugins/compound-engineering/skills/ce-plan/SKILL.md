@@ -165,7 +165,7 @@ Collect:
 - AGENTS.md guidance that materially affects the plan, with CLAUDE.md used only as compatibility fallback when present
 - Institutional learnings from `docs/solutions/`
 
-**Slack availability hint** — After dispatching Phase 1.1 agents, if any `slack_*` tool is available in the tool list, include a brief note in the Phase 1.1 output: "Slack is connected. Ask me to search Slack for organizational context at any point, or include it in your next prompt." Do not dispatch the slack-researcher agent automatically.
+**Slack context** (opt-in) — If any `slack_*` tool is available in the tool list and the user's prompt explicitly asks for Slack context, dispatch `compound-engineering:research:slack-researcher` with the planning context summary in parallel with the other Phase 1.1 agents. If the origin document contains a Slack context section, include it verbatim so the researcher can focus on gaps. Include its findings in the consolidation. If the user did not ask for Slack context, include a brief note in the Phase 1.1 output instead: "Slack is connected. Ask me to search Slack for organizational context at any point, or include it in your next prompt." Do not dispatch the slack-researcher agent automatically when the user has not asked for it.
 
 #### 1.1b Detect Execution Posture Signals
 
