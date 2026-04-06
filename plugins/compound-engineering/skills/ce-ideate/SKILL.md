@@ -38,12 +38,8 @@ If no argument is provided, proceed with open-ended ideation.
 ## Core Principles
 
 1. **Ground before ideating** - Scan the actual codebase first. Do not generate abstract product advice detached from the repository.
-2. **Diverge before judging** - Generate the full idea set before evaluating any individual idea.
-3. **Use adversarial filtering** - The quality mechanism is explicit rejection with reasons, not optimistic ranking.
-4. **Preserve the original prompt mechanism** - Generate many ideas, critique the whole list, then explain only the survivors in detail. Do not let extra process obscure this pattern.
-5. **Use agent diversity to improve the candidate pool** - Parallel sub-agents are a support mechanism for richer idea generation and critique, not the core workflow itself.
-6. **Preserve the artifact early** - Write the ideation document before presenting results so work survives interruptions.
-7. **Route action into brainstorming** - Ideation identifies promising directions; `ce:brainstorm` defines the selected one precisely enough for planning.
+2. **Generate many -> critique all -> explain survivors only** - The quality mechanism is explicit rejection with reasons, not optimistic ranking. Do not let extra process obscure this pattern.
+3. **Route action into brainstorming** - Ideation identifies promising directions; `ce:brainstorm` defines the selected one precisely enough for planning. Do not skip to planning from ideation output.
 
 ## Execution Flow
 
@@ -84,7 +80,7 @@ Do NOT trigger on arguments that merely mention bugs as a focus: `bug in auth`, 
 When combined (e.g., `top 3 bugs in authentication`): detect issue-tracker intent first, volume override second, remainder is the focus hint. The focus narrows which issues matter; the volume override controls survivor count.
 
 Default volume:
-- each ideation sub-agent generates about 7-8 ideas (yielding 30-40 raw ideas across agents, ~20-30 after dedupe)
+- each ideation sub-agent generates about 8-10 ideas (yielding ~30 raw ideas across agents, ~20-25 after dedupe)
 - keep the top 5-7 survivors
 
 Honor clear overrides such as:
@@ -101,7 +97,7 @@ Before generating ideas, gather codebase context.
 
 Run agents in parallel in the **foreground** (do not use background dispatch — the results are needed before proceeding):
 
-1. **Quick context scan** — dispatch a general-purpose sub-agent with this prompt:
+1. **Quick context scan** — dispatch a general-purpose sub-agent using the platform's cheapest capable model (e.g., `model: "haiku"` in Claude Code) with this prompt:
 
    > Read the project's AGENTS.md (or CLAUDE.md only as compatibility fallback, then README.md if neither exists), then discover the top-level directory layout using the native file-search/glob tool (e.g., `Glob` with pattern `*` or `*/*` in Claude Code). Return a concise summary (under 30 lines) covering:
    > - project shape (language, framework, top-level directory layout)
@@ -121,250 +117,39 @@ Run agents in parallel in the **foreground** (do not use background dispatch —
 
    If the agent reports fewer than 5 total issues, note "Insufficient issue signal for theme analysis" and proceed with default ideation frames in Phase 2.
 
+4. **Slack context** (conditional) — if any `slack_*` tool is available in the tool list, dispatch `compound-engineering:research:slack-researcher` with the focus hint as context. Run this in parallel with agents 1-3.
+
+   If the agent returns an error or reports Slack MCP unavailable, log a warning ("Slack context unavailable: {reason}. Proceeding without organizational context.") and continue.
+
 Consolidate all results into a short grounding summary. When issue intelligence is present, keep it as a distinct section so ideation sub-agents can distinguish between code-observed and user-reported signals:
 
 - **Codebase context** — project shape, notable patterns, obvious pain points, likely leverage points
 - **Past learnings** — relevant institutional knowledge from docs/solutions/
 - **Issue intelligence** (when present) — theme summaries from the issue intelligence agent, preserving theme titles, descriptions, issue counts, and trend directions
+- **Slack context** (when present) — relevant organizational context, team discussions, and decisions from Slack channels surfaced by the slack-researcher agent
 
 Do **not** do external research in v1.
 
 ### Phase 2: Divergent Ideation
 
-Follow this mechanism exactly:
+Generate the full candidate list before critiquing any idea.
 
-1. Generate the full candidate list before critiquing any idea.
-2. Each sub-agent targets about 7-8 ideas by default. With 4-6 agents this yields 30-40 raw ideas, which merge and dedupe to roughly 20-30 unique candidates. Adjust the per-agent target when volume overrides apply (e.g., "100 ideas" raises it, "top 3" may lower the survivor count instead).
-3. Push past the safe obvious layer. Each agent's first few ideas tend to be obvious — push past them.
-4. Ground every idea in the Phase 1 scan.
-5. Use this prompting pattern as the backbone:
-   - first generate many ideas
-   - then challenge them systematically
-   - then explain only the survivors in detail
-6. If the platform supports sub-agents, use them to improve diversity in the candidate pool rather than to replace the core mechanism.
-7. Give each ideation sub-agent the same:
-   - grounding summary
-   - focus hint
-   - per-agent volume target (~7-8 ideas by default)
-   - instruction to generate raw candidates only, not critique
-8. When using sub-agents, assign each one a different ideation frame as a **starting bias, not a constraint**. Prompt each agent to begin from its assigned perspective but follow any promising thread wherever it leads — cross-cutting ideas that span multiple frames are valuable, not out of scope.
+Dispatch 3-4 parallel ideation sub-agents on the inherited model (do not tier down -- creative ideation needs the orchestrator's reasoning level). Each targets ~8-10 ideas (yielding ~30 raw ideas, ~20-25 after dedupe). Adjust per-agent targets when volume overrides apply (e.g., "100 ideas" raises it, "top 3" may lower the survivor count instead).
 
-   **Frame selection depends on whether issue intelligence is active:**
+Give each sub-agent: the grounding summary, the focus hint, the per-agent volume target, and an instruction to generate raw candidates only (not critique). Each agent's first few ideas tend to be obvious -- push past them. Ground every idea in the Phase 1 scan.
 
-   **When issue-tracker intent is active and themes were returned:**
-   - Each theme with `confidence: high` or `confidence: medium` becomes an ideation frame. The frame prompt uses the theme title and description as the starting bias.
-   - If fewer than 4 cluster-derived frames, pad with default frames in this order: "leverage and compounding effects", "assumption-breaking or reframing", "inversion, removal, or automation of a painful step". These complement issue-grounded themes by pushing beyond the reported problems.
-   - Cap at 6 total frames. If more than 6 themes qualify, use the top 6 by issue count; note remaining themes in the grounding summary as "minor themes" so sub-agents are still aware of them.
+Assign each sub-agent a different ideation frame as a **starting bias, not a constraint**. Prompt each to begin from its assigned perspective but follow any promising thread -- cross-cutting ideas that span multiple frames are valuable.
 
-   **When issue-tracker intent is NOT active (default):**
-   - user or operator pain and friction
-   - unmet need or missing capability
-   - inversion, removal, or automation of a painful step
-   - assumption-breaking or reframing
-   - leverage and compounding effects
-   - extreme cases, edge cases, or power-user pressure
-9. Ask each ideation sub-agent to return a standardized structure for each idea so the orchestrator can merge and reason over the outputs consistently. Prefer a compact JSON-like structure with:
-   - title
-   - summary
-   - why_it_matters
-   - evidence or grounding hooks
-   - optional local signals such as boldness or focus_fit
-10. Merge and dedupe the sub-agent outputs into one master candidate list.
-11. **Synthesize cross-cutting combinations.** After deduping, scan the merged list for ideas from different frames that together suggest something stronger than either alone. If two or more ideas naturally combine into a higher-leverage proposal, add the combined idea to the list (expect 3-5 additions at most). This synthesis step belongs to the orchestrator because it requires seeing all ideas simultaneously.
-12. Spread ideas across multiple dimensions when justified:
-   - workflow/DX
-   - reliability
-   - extensibility
-   - missing capabilities
-   - docs/knowledge compounding
-   - quality and maintenance
-   - leverage on future work
-13. If a focus was provided, pass it to every ideation sub-agent and weight the merged list toward it without excluding stronger adjacent ideas.
+**Frame selection:**
+- **When issue-tracker intent is active and themes were returned:** Each high/medium-confidence theme becomes a frame. Pad with default frames if fewer than 3 cluster-derived frames. Cap at 4 total.
+- **Default frames (no issue-tracker intent):** (1) user/operator pain and friction, (2) inversion, removal, or automation of a painful step, (3) assumption-breaking or reframing, (4) leverage and compounding effects.
 
-The mechanism to preserve is:
-- generate many ideas first
-- critique the full combined list second
-- explain only the survivors in detail
+Ask each sub-agent to return a compact structure per idea: title, summary, why_it_matters, evidence/grounding hooks, optional boldness or focus_fit signal.
 
-The sub-agent pattern to preserve is:
-- independent ideation with frames as starting biases first
-- orchestrator merge, dedupe, and cross-cutting synthesis second
-- critique only after the combined and synthesized list exists
+After all sub-agents return:
+1. Merge and dedupe into one master candidate list.
+2. Synthesize cross-cutting combinations -- scan for ideas from different frames that combine into something stronger (expect 3-5 additions at most).
+3. If a focus was provided, weight the merged list toward it without excluding stronger adjacent ideas.
+4. Spread ideas across multiple dimensions when justified: workflow/DX, reliability, extensibility, missing capabilities, docs/knowledge compounding, quality/maintenance, leverage on future work.
 
-### Phase 3: Adversarial Filtering
-
-Review every generated idea critically.
-
-Prefer a two-layer critique:
-1. Have one or more skeptical sub-agents attack the merged list from distinct angles.
-2. Have the orchestrator synthesize those critiques, apply the rubric consistently, score the survivors, and decide the final ranking.
-
-Do not let critique agents generate replacement ideas in this phase unless explicitly refining.
-
-Critique agents may provide local judgments, but final scoring authority belongs to the orchestrator so the ranking stays consistent across different frames and perspectives.
-
-For each rejected idea, write a one-line reason.
-
-Use rejection criteria such as:
-- too vague
-- not actionable
-- duplicates a stronger idea
-- not grounded in the current codebase
-- too expensive relative to likely value
-- already covered by existing workflows or docs
-- interesting but better handled as a brainstorm variant, not a product improvement
-
-Use a consistent survivor rubric that weighs:
-- groundedness in the current repo
-- expected value
-- novelty
-- pragmatism
-- leverage on future work
-- implementation burden
-- overlap with stronger ideas
-
-Target output:
-- keep 5-7 survivors by default
-- if too many survive, run a second stricter pass
-- if fewer than 5 survive, report that honestly rather than lowering the bar
-
-### Phase 4: Present the Survivors
-
-Present the surviving ideas to the user before writing the durable artifact.
-
-This first presentation is a review checkpoint, not the final archived result.
-
-Present only the surviving ideas in structured form:
-
-- title
-- description
-- rationale
-- downsides
-- confidence score
-- estimated complexity
-
-Then include a brief rejection summary so the user can see what was considered and cut.
-
-Keep the presentation concise. The durable artifact holds the full record.
-
-Allow brief follow-up questions and lightweight clarification before writing the artifact.
-
-Do not write the ideation doc yet unless:
-- the user indicates the candidate set is good enough to preserve
-- the user asks to refine and continue in a way that should be recorded
-- the workflow is about to hand off to `ce:brainstorm`, Proof sharing, or session end
-
-### Phase 5: Write the Ideation Artifact
-
-Write the ideation artifact after the candidate set has been reviewed enough to preserve.
-
-Always write or update the artifact before:
-- handing off to `ce:brainstorm`
-- sharing to Proof
-- ending the session
-
-To write the artifact:
-
-1. Ensure `docs/ideation/` exists
-2. Choose the file path:
-   - `docs/ideation/YYYY-MM-DD-<topic>-ideation.md`
-   - `docs/ideation/YYYY-MM-DD-open-ideation.md` when no focus exists
-3. Write or update the ideation document
-
-Use this structure and omit clearly irrelevant fields only when necessary:
-
-```markdown
----
-date: YYYY-MM-DD
-topic: <kebab-case-topic>
-focus: <optional focus hint>
----
-
-# Ideation: <Title>
-
-## Codebase Context
-[Grounding summary from Phase 1]
-
-## Ranked Ideas
-
-### 1. <Idea Title>
-**Description:** [Concrete explanation]
-**Rationale:** [Why this improves the project]
-**Downsides:** [Tradeoffs or costs]
-**Confidence:** [0-100%]
-**Complexity:** [Low / Medium / High]
-**Status:** [Unexplored / Explored]
-
-## Rejection Summary
-
-| # | Idea | Reason Rejected |
-|---|------|-----------------|
-| 1 | <Idea> | <Reason rejected> |
-
-## Session Log
-- YYYY-MM-DD: Initial ideation — <candidate count> generated, <survivor count> survived
-```
-
-If resuming:
-- update the existing file in place
-- append to the session log
-- preserve explored markers
-
-### Phase 6: Refine or Hand Off
-
-After presenting the results, ask what should happen next.
-
-Offer these options:
-1. brainstorm a selected idea
-2. refine the ideation
-3. share to Proof
-4. end the session
-
-#### 6.1 Brainstorm a Selected Idea
-
-If the user selects an idea:
-- write or update the ideation doc first
-- mark that idea as `Explored`
-- note the brainstorm date in the session log
-- invoke `ce:brainstorm` with the selected idea as the seed
-
-Do **not** skip brainstorming and go straight to planning from ideation output.
-
-#### 6.2 Refine the Ideation
-
-Route refinement by intent:
-
-- `add more ideas` or `explore new angles` -> return to Phase 2
-- `re-evaluate` or `raise the bar` -> return to Phase 3
-- `dig deeper on idea #N` -> expand only that idea's analysis
-
-After each refinement:
-- update the ideation document before any handoff, sharing, or session end
-- append a session log entry
-
-#### 6.3 Share to Proof
-
-If requested, share the ideation document using the standard Proof markdown upload pattern already used elsewhere in the plugin.
-
-Return to the next-step options after sharing.
-
-#### 6.4 End the Session
-
-When ending:
-- offer to commit only the ideation doc
-- do not create a branch
-- do not push
-- if the user declines, leave the file uncommitted
-
-## Quality Bar
-
-Before finishing, check:
-
-- the idea set is grounded in the actual repo
-- the candidate list was generated before filtering
-- the original many-ideas -> critique -> survivors mechanism was preserved
-- if sub-agents were used, they improved diversity without replacing the core workflow
-- every rejected idea has a reason
-- survivors are materially better than a naive "give me ideas" list
-- the artifact was written before any handoff, sharing, or session end
-- acting on an idea routes to `ce:brainstorm`, not directly to implementation
+After merging and synthesis, read `references/post-ideation-workflow.md` for the adversarial filtering rubric, presentation format, artifact template, handoff options, and quality bar. Do not load this file before Phase 2 agent dispatch completes.

@@ -377,11 +377,11 @@ Pass the resulting path list to the `project-standards` persona inside a `<stand
 
 #### Model tiering
 
-Persona sub-agents do focused, scoped work and should use cheaper/faster models to reduce cost and latency. The orchestrator itself stays on the default (most capable) model.
+Persona sub-agents do focused, scoped work and should use a fast mid-tier model to reduce cost and latency without sacrificing review quality. The orchestrator itself stays on the default (most capable) model.
 
-Use the platform's cheapest capable model for all persona and CE sub-agents. In Claude Code, pass `model: "haiku"` in the Agent tool call. On other platforms, use the equivalent fast/cheap tier (e.g., `gpt-4o-mini` in Codex). If the platform has no model override mechanism or the available model names are unknown, omit the model parameter and let agents inherit the default -- a working review on the parent model is better than a broken dispatch from an unrecognized model name.
+Use the platform's mid-tier model for all persona and CE sub-agents. In Claude Code, pass `model: "sonnet"` in the Agent tool call. On other platforms, use the equivalent mid-tier (e.g., `gpt-4o` in Codex). If the platform has no model override mechanism or the available model names are unknown, omit the model parameter and let agents inherit the default -- a working review on the parent model is better than a broken dispatch from an unrecognized model name.
 
-CE always-on agents (agent-native-reviewer, learnings-researcher) and CE conditional agents (schema-drift-detector, deployment-verification-agent) also use the cheaper model tier since they perform scoped, focused work.
+CE always-on agents (agent-native-reviewer, learnings-researcher) and CE conditional agents (schema-drift-detector, deployment-verification-agent) also use the mid-tier model since they perform scoped, focused work.
 
 The orchestrator (this skill) stays on the default model because it handles intent discovery, reviewer selection, finding merge/dedup, and synthesis -- tasks that benefit from stronger reasoning.
 

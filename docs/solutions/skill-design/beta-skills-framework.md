@@ -18,7 +18,7 @@ related:
 
 ## Problem
 
-Core workflow skills like `ce:plan` and `deepen-plan` are deeply chained (`ce:brainstorm` → `ce:plan` → `deepen-plan` → `ce:work`) and orchestrated by `lfg` and `slfg`. Rewriting these skills risks breaking the entire workflow for all users simultaneously. There was no mechanism to let users trial new skill versions alongside stable ones.
+Core workflow skills like `ce:plan` are deeply chained (`ce:brainstorm` → `ce:plan` → `ce:work`) and orchestrated by `lfg` and `slfg`. Rewriting these skills risks breaking the entire workflow for all users simultaneously. There was no mechanism to let users trial new skill versions alongside stable ones.
 
 Alternatives considered and rejected:
 - **Beta gate in SKILL.md** with config-driven routing (`beta: true` in `compound-engineering.local.md`): relies on prompt-level conditional routing which risks instruction blending, requires setup integration, and adds complexity to the skill files themselves.
@@ -34,9 +34,7 @@ Create separate skill directories alongside the stable ones. Each beta skill is 
 ```
 skills/
 ├── ce-plan/SKILL.md           # Stable (unchanged)
-├── ce-plan-beta/SKILL.md      # New version
-├── deepen-plan/SKILL.md       # Stable (unchanged)
-└── deepen-plan-beta/SKILL.md  # New version
+└── ce-plan-beta/SKILL.md      # New version
 ```
 
 ### Naming and frontmatter conventions
@@ -49,13 +47,13 @@ skills/
 
 ### Internal references
 
-Beta skills must reference each other by their beta names:
-- `ce:plan-beta` references `/deepen-plan-beta` (not `/deepen-plan`)
-- `deepen-plan-beta` references `ce:plan-beta` (not `ce:plan`)
+Beta skills must reference other beta skills by their beta names. For example, if both `ce:plan` and `ce:review` have beta versions:
+- `ce:plan-beta` references `ce:review-beta` (not `ce:review`)
+- `ce:review-beta` references `ce:plan-beta` (not `ce:plan`)
 
 ### What doesn't change
 
-- Stable `ce:plan` and `deepen-plan` are completely untouched
+- Stable skills are completely untouched
 - `lfg`/`slfg` orchestration continues to use stable skills — no modification needed
 - `ce:brainstorm` still hands off to stable `ce:plan` — no modification needed
 - `ce:work` consumes plan files from either version (reads the file, doesn't care which skill wrote it)

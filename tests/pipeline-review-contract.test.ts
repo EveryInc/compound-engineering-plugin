@@ -97,9 +97,14 @@ describe("ce:brainstorm review contract", () => {
     expect(content).toContain("### Phase 3.5: Document Review")
     expect(content).toContain("`document-review` skill")
 
-    // Handoff option is for additional passes, not the first review
-    expect(content).toContain("**Run additional document review**")
-    expect(content).not.toContain("**Review and refine**")
+    // Phase 3 and Phase 4 are extracted to references for token optimization
+    expect(content).toContain("`references/requirements-capture.md`")
+    expect(content).toContain("`references/handoff.md`")
+
+    // Handoff option is for additional passes, not the first review (now in extracted reference)
+    const handoff = await readRepoFile("plugins/compound-engineering/skills/ce-brainstorm/references/handoff.md")
+    expect(handoff).toContain("**Run additional document review**")
+    expect(handoff).not.toContain("**Review and refine**")
   })
 })
 

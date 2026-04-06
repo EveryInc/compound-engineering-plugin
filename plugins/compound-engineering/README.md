@@ -6,7 +6,7 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 | Component | Count |
 |-----------|-------|
-| Agents | 35+ |
+| Agents | 50+ |
 | Skills | 40+ |
 
 ## Skills
@@ -150,6 +150,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `issue-intelligence-analyst` | Analyze GitHub issues to surface recurring themes and pain patterns |
 | `learnings-researcher` | Search institutional learnings for relevant past solutions |
 | `repo-research-analyst` | Research repository structure and conventions |
+| `slack-researcher` | Search Slack for organizational context relevant to the current task |
 
 ### Design
 

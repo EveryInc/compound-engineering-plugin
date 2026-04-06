@@ -3,7 +3,7 @@ import os from "os"
 import path from "path"
 import { loadClaudePlugin } from "../parsers/claude"
 import { targets, validateScope } from "../targets"
-import type { PermissionMode } from "../converters/claude-to-opencode"
+import type { ClaudeToOpenCodeOptions, PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
 import { expandHome, resolveTargetHome } from "../utils/resolve-home"
 import { resolveTargetOutputRoot } from "../utils/resolve-output"
@@ -92,7 +92,7 @@ export default defineCommand({
     const openclawHome = resolveTargetHome(args.openclawHome, path.join(os.homedir(), ".openclaw", "extensions"))
     const qwenHome = resolveTargetHome(args.qwenHome, path.join(os.homedir(), ".qwen", "extensions"))
 
-    const options = {
+    const options: ClaudeToOpenCodeOptions = {
       agentMode: String(args.agentMode) === "primary" ? "primary" : "subagent",
       inferTemperature: Boolean(args.inferTemperature),
       permissions: permissions as PermissionMode,

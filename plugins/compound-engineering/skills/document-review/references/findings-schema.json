@@ -82,28 +82,5 @@
       "description": "Questions that should be resolved in a later workflow stage (planning, implementation)",
       "items": { "type": "string" }
     }
-  },
-
-  "_meta": {
-    "confidence_thresholds": {
-      "suppress": "Below 0.50 -- do not report. Finding is speculative noise.",
-      "flag": "0.50-0.69 -- include only when the persona's calibration says the issue is actionable at that confidence.",
-      "report": "0.70+ -- report with full confidence."
-    },
-    "severity_definitions": {
-      "P0": "Contradictions or gaps that would cause building the wrong thing. Must fix before proceeding.",
-      "P1": "Significant gap likely hit during planning or implementation. Should fix.",
-      "P2": "Moderate issue with meaningful downside. Fix if straightforward.",
-      "P3": "Minor improvement. User's discretion."
-    },
-    "autofix_classes": {
-      "_principle": "Autofix class is independent of severity. A P1 finding can be auto if the fix is obvious. The test: is there one clear correct fix, or does resolving this require judgment?",
-      "auto": "One clear correct fix -- applied silently. Includes both internal reconciliation (summary/detail mismatches, wrong counts, stale cross-references, terminology drift) and additions mechanically implied by other content (missing steps, unstated thresholds, completeness gaps where the correct content is obvious). Must include suggested_fix.",
-      "present": "Requires individual user judgment -- strategic questions, design tradeoffs, or findings where reasonable people could disagree on the right action."
-    },
-    "finding_types": {
-      "error": "Something the document says that is wrong -- contradictions, incorrect statements, design tensions, incoherent tradeoffs. These are mistakes in what exists.",
-      "omission": "Something the document forgot to say -- missing mechanical steps, absent list entries, undefined thresholds, forgotten cross-references. These are gaps in completeness."
-    }
   }
 }

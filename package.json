@@ -1,6 +1,6 @@
 {
   "name": "@every-env/compound-plugin",
-  "version": "2.61.0",
+  "version": "2.62.1",
   "description": "Official Compound Engineering plugin for Claude Code, Codex, and more",
   "type": "module",
   "private": false,
@@ -29,6 +29,7 @@
   "devDependencies": {
     "@semantic-release/changelog": "^6.0.3",
     "@semantic-release/git": "^10.0.1",
+    "@types/js-yaml": "^4.0.9",
     "bun-types": "^1.0.0",
     "semantic-release": "^25.0.3"
   }

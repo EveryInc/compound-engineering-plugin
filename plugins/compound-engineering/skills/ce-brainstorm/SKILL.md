@@ -96,6 +96,8 @@ If nothing obvious appears after a short scan, say so and continue. Two rules go
 
 2. **Defer design decisions to planning** — Implementation details like schemas, migration strategies, endpoint structure, or deployment topology belong in planning, not here — unless the brainstorm is itself about a technical or architectural decision, in which case those details are the subject of the brainstorm and should be explored.
 
+**Slack context** (Standard and Deep only) — If any `slack_*` tool is available in the tool list, dispatch `compound-engineering:research:slack-researcher` with a brief summary of the brainstorm topic. If the agent returns an error or reports Slack MCP unavailable, log a warning ("Slack context unavailable: {reason}. Proceeding without organizational context.") and continue. Coordinate this dispatch at the start of Phase 1.1 alongside the inline Constraint Check and Topic Scan. Wait for all to complete before proceeding to Phase 1.2. Incorporate any Slack findings into the constraint and context awareness for the brainstorm session. Skip for Lightweight scope.
+
 #### 1.2 Product Pressure Test
 
 Before generating approaches, challenge the request to catch misframing. Match depth to scope:
@@ -120,13 +122,9 @@ Before generating approaches, challenge the request to catch misframing. Match d
 
 #### 1.3 Collaborative Dialogue
 
-Use the platform's blocking question tool when available (see Interaction Rules). Otherwise, present numbered options in chat and wait for the user's reply before proceeding.
+Follow the Interaction Rules above. Use the platform's blocking question tool when available.
 
 **Guidelines:**
-- Ask questions **one at a time**
-- Prefer multiple choice when natural options exist
-- Prefer **single-select** when choosing one direction, one priority, or one next step
-- Use **multi-select** only for compatible sets that can all coexist; if prioritization matters, ask which selected item is primary
 - Start broad (problem, users, value) then narrow (constraints, exclusions, edge cases)
 - Clarify the problem frame, validate assumptions, and ask about success criteria
 - Make requirements concrete enough that planning will not need to invent behavior
@@ -160,132 +158,9 @@ If relevant, call out whether the choice is:
 
 ### Phase 3: Capture the Requirements
 
-Write or update a requirements document only when the conversation produced durable decisions worth preserving.
-
-This document should behave like a lightweight PRD without PRD ceremony. Include what planning needs to execute well, and skip sections that add no value for the scope.
-
-The requirements document is for product definition and scope control. Do **not** include implementation details such as libraries, schemas, endpoints, file layouts, or code structure unless the brainstorm is inherently technical and those details are themselves the subject of the decision.
-
-**Required content for non-trivial work:**
-- Problem frame
-- Concrete requirements or intended behavior with stable IDs
-- Scope boundaries
-- Success criteria
-
-**Include when materially useful:**
-- Key decisions and rationale
-- Dependencies or assumptions
-- Outstanding questions
-- Alternatives considered
-- High-level technical direction only when the work is inherently technical and the direction is part of the product/architecture decision
-
-**Document structure:** Use this template and omit clearly inapplicable optional sections:
-
-```markdown
----
-date: YYYY-MM-DD
-topic: <kebab-case-topic>
----
-
-# <Topic Title>
-
-## Problem Frame
-[Who is affected, what is changing, and why it matters]
-
-## Requirements
-
-**[Group Header]**
-- R1. [Concrete requirement in this group]
-- R2. [Concrete requirement in this group]
-
-**[Group Header]**
-- R3. [Concrete requirement in this group]
-
-## Success Criteria
-- [How we will know this solved the right problem]
-
-## Scope Boundaries
-- [Deliberate non-goal or exclusion]
-
-## Key Decisions
-- [Decision]: [Rationale]
-
-## Dependencies / Assumptions
-- [Only include if material]
-
-## Outstanding Questions
-
-### Resolve Before Planning
-- [Affects R1][User decision] [Question that must be answered before planning can proceed]
-
-### Deferred to Planning
-- [Affects R2][Technical] [Question that should be answered during planning or codebase exploration]
-- [Affects R2][Needs research] [Question that likely requires research during planning]
-
-## Next Steps
-[If `Resolve Before Planning` is empty: `→ /ce:plan` for structured implementation planning]
-[If `Resolve Before Planning` is not empty: `→ Resume /ce:brainstorm` to resolve blocking questions before planning]
-```
-
-**Visual communication** — Include a visual aid when the requirements would be significantly easier to understand with one. Visual aids are conditional on content patterns, not on depth classification — a Lightweight brainstorm about a complex workflow may warrant a diagram; a Deep brainstorm about a straightforward feature may not.
-
-**When to include:**
-
-| Requirements describe... | Visual aid | Placement |
-|---|---|---|
-| A multi-step user workflow or process | Mermaid flow diagram or ASCII flow with annotations | After Problem Frame, or under its own `## User Flow` heading for substantial flows (>10 nodes) |
-| 3+ behavioral modes, variants, or states | Markdown comparison table | Within the Requirements section |
-| 3+ interacting participants (user roles, system components, external services) | Mermaid or ASCII relationship diagram | After Problem Frame, or under its own `## Architecture` heading |
-| Multiple competing approaches being compared | Comparison table | Within Phase 2 approach exploration |
-
-**When to skip:**
-- Prose already communicates the concept clearly
-- The diagram would just restate the requirements in visual form without adding comprehension value
-- The visual describes implementation architecture, data schemas, state machines, or code structure (that belongs in `ce:plan`)
-- The brainstorm is simple and linear with no multi-step flows, mode comparisons, or multi-participant interactions
-
-**Format selection:**
-- **Mermaid** (default) for simple flows — 5-15 nodes, no in-box annotations, standard flowchart shapes. Use `TB` (top-to-bottom) direction so diagrams stay narrow in both rendered and source form. Source should be readable as fallback in diff views and terminals.
-- **ASCII/box-drawing diagrams** for annotated flows that need rich in-box content — CLI commands at each step, decision logic branches, file path layouts, multi-column spatial arrangements. More expressive than mermaid when the diagram's value comes from annotations within steps. Follow 80-column max for code blocks, use vertical stacking.
-- **Markdown tables** for mode/variant comparisons and approach comparisons.
-- Keep diagrams proportionate to the content. A simple 5-step workflow gets 5-10 nodes. A complex workflow with decision branches and annotations at each step may need 15-20 nodes — that is fine if every node earns its place.
-- Place inline at the point of relevance, not in a separate section.
-- Conceptual level only — user flows, information flows, mode comparisons, component responsibilities. Not implementation architecture, data schemas, or code structure.
-- Prose is authoritative: when a visual aid and surrounding prose disagree, the prose governs.
-
-After generating a visual aid, verify it accurately represents the prose requirements — correct sequence, no missing branches, no merged steps. Diagrams without code to validate against carry higher inaccuracy risk than code-backed diagrams.
-
-For **Standard** and **Deep** brainstorms, a requirements document is usually warranted.
+Write or update a requirements document only when the conversation produced durable decisions worth preserving. Read `references/requirements-capture.md` for the document template, formatting rules, visual aid guidance, and completeness checks.
 
 For **Lightweight** brainstorms, keep the document compact. Skip document creation when the user only needs brief alignment and no durable decisions need to be preserved.
-
-For very small requirements docs with only 1-3 simple requirements, plain bullet requirements are acceptable. For **Standard** and **Deep** requirements docs, use stable IDs like `R1`, `R2`, `R3` so planning and later review can refer to them unambiguously.
-
-When requirements span multiple distinct concerns, group them under bold topic headers within the Requirements section. The trigger for grouping is distinct logical areas, not item count — even four requirements benefit from headers if they cover three different topics. Group by logical theme (e.g., "Packaging", "Migration and Compatibility", "Contributor Workflow"), not by the order they were discussed. Requirements keep their original stable IDs — numbering does not restart per group. A requirement belongs to whichever group it fits best; do not duplicate it across groups. Skip grouping only when all requirements are about the same thing.
-
-When the work is simple, combine sections rather than padding them. A short requirements document is better than a bloated one.
-
-Before finalizing, check:
-- What would `ce:plan` still have to invent if this brainstorm ended now?
-- Do any requirements depend on something claimed to be out of scope?
-- Are any unresolved items actually product decisions rather than planning questions?
-- Did implementation details leak in when they shouldn't have?
-- Do any requirements claim that infrastructure is absent without that claim having been verified against the codebase? If so, verify now or label as an unverified assumption.
-- Is there a low-cost change that would make this materially more useful?
-- Would a visual aid (flow diagram, comparison table, relationship diagram) help a reader grasp the requirements faster than prose alone?
-
-If planning would need to invent product behavior, scope boundaries, or success criteria, the brainstorm is not complete yet.
-
-Ensure `docs/brainstorms/` directory exists before writing.
-
-If a document contains outstanding questions:
-- Use `Resolve Before Planning` only for questions that truly block planning
-- If `Resolve Before Planning` is non-empty, keep working those questions during the brainstorm by default
-- If the user explicitly wants to proceed anyway, convert each remaining item into an explicit decision, assumption, or `Deferred to Planning` question before proceeding
-- Do not force resolution of technical questions during brainstorming just to remove uncertainty
-- Put technical questions, or questions that require validation or research, under `Deferred to Planning` when they are better answered there
-- Use tags like `[Needs research]` when the planner should likely investigate the question rather than answer it from repo context alone
-- Carry deferred questions forward explicitly rather than treating them as a failure to finish the requirements doc
 
 ### Phase 3.5: Document Review
 
@@ -297,91 +172,4 @@ When document-review returns "Review complete", proceed to Phase 4.
 
 ### Phase 4: Handoff
 
-#### 4.1 Present Next-Step Options
-
-Present next steps using the platform's blocking question tool when available (see Interaction Rules). Otherwise present numbered options in chat and end the turn.
-
-If `Resolve Before Planning` contains any items:
-- Ask the blocking questions now, one at a time, by default
-- If the user explicitly wants to proceed anyway, first convert each remaining item into an explicit decision, assumption, or `Deferred to Planning` question
-- If the user chooses to pause instead, present the handoff as paused or blocked rather than complete
-- Do not offer `Proceed to planning` or `Proceed directly to work` while `Resolve Before Planning` remains non-empty
-
-**Question when no blocking questions remain:** "Brainstorm complete. What would you like to do next?"
-
-**Question when blocking questions remain and user wants to pause:** "Brainstorm paused. Planning is blocked until the remaining questions are resolved. What would you like to do next?"
-
-Present only the options that apply:
-- **Proceed to planning (Recommended)** - Run `/ce:plan` for structured implementation planning
-- **Proceed directly to work** - Only offer this when scope is lightweight, success criteria are clear, scope boundaries are clear, and no meaningful technical or research questions remain
-- **Run additional document review** - Offer this only when a requirements document exists. Runs another pass for further refinement
-- **Ask more questions** - Continue clarifying scope, preferences, or edge cases
-- **Share to Proof** - Offer this only when a requirements document exists
-- **Done for now** - Return later
-
-If the direct-to-work gate is not satisfied, omit that option entirely.
-
-#### 4.2 Handle the Selected Option
-
-**If user selects "Proceed to planning (Recommended)":**
-
-Immediately run `/ce:plan` in the current session. Pass the requirements document path when one exists; otherwise pass a concise summary of the finalized brainstorm decisions. Do not print the closing summary first.
-
-**If user selects "Proceed directly to work":**
-
-Immediately run `/ce:work` in the current session using the finalized brainstorm output as context. If a compact requirements document exists, pass its path. Do not print the closing summary first.
-
-**If user selects "Share to Proof":**
-
-```bash
-CONTENT=$(cat docs/brainstorms/YYYY-MM-DD-<topic>-requirements.md)
-TITLE="Requirements: <topic title>"
-RESPONSE=$(curl -s -X POST https://www.proofeditor.ai/share/markdown \
-  -H "Content-Type: application/json" \
-  -d "$(jq -n --arg title "$TITLE" --arg markdown "$CONTENT" --arg by "ai:compound" '{title: $title, markdown: $markdown, by: $by}')")
-PROOF_URL=$(echo "$RESPONSE" | jq -r '.tokenUrl')
-```
-
-Display the URL prominently: `View & collaborate in Proof: <PROOF_URL>`
-
-If the curl fails, skip silently. Then return to the Phase 4 options.
-
-**If user selects "Ask more questions":** Return to Phase 1.3 (Collaborative Dialogue) and continue asking the user questions one at a time to further refine the design. Probe deeper into edge cases, constraints, preferences, or areas not yet explored. Continue until the user is satisfied, then return to Phase 4. Do not show the closing summary yet.
-
-**If user selects "Run additional document review":**
-
-Load the `document-review` skill and apply it to the requirements document for another pass.
-
-When document-review returns "Review complete", return to the normal Phase 4 options and present only the options that still apply. Do not show the closing summary yet.
-
-#### 4.3 Closing Summary
-
-Use the closing summary only when this run of the workflow is ending or handing off, not when returning to the Phase 4 options.
-
-When complete and ready for planning, display:
-
-```text
-Brainstorm complete!
-
-Requirements doc: docs/brainstorms/YYYY-MM-DD-<topic>-requirements.md  # if one was created
-
-Key decisions:
-- [Decision 1]
-- [Decision 2]
-
-Recommended next step: `/ce:plan`
-```
-
-If the user pauses with `Resolve Before Planning` still populated, display:
-
-```text
-Brainstorm paused.
-
-Requirements doc: docs/brainstorms/YYYY-MM-DD-<topic>-requirements.md  # if one was created
-
-Planning is blocked by:
-- [Blocking question 1]
-- [Blocking question 2]
-
-Resume with `/ce:brainstorm` when ready to resolve these before planning.
-```
+Present next-step options and execute the user's selection. Read `references/handoff.md` for the option logic, dispatch instructions, and closing summary format.

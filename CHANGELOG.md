@@ -1,5 +1,27 @@
 # Changelog
 
+## [2.62.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.62.0...cli-v2.62.1) (2026-04-05)
+
+
+### Bug Fixes
+
+* **ce-brainstorm:** reduce token cost by extracting late-sequence content ([#511](https://github.com/EveryInc/compound-engineering-plugin/issues/511)) ([bdeb793](https://github.com/EveryInc/compound-engineering-plugin/commit/bdeb7935fcdb147b73107177769c2e968463d93f))
+* **cli:** resolve repo-wide tsc --noEmit type errors ([#512](https://github.com/EveryInc/compound-engineering-plugin/issues/512)) ([3fa0c81](https://github.com/EveryInc/compound-engineering-plugin/commit/3fa0c815b286c9e11b28dc04c803529e73b79c1b))
+
+## [2.62.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.61.0...cli-v2.62.0) (2026-04-03)
+
+
+### Features
+
+* **ce-plan:** reduce token usage by extracting conditional references ([#489](https://github.com/EveryInc/compound-engineering-plugin/issues/489)) ([fd562a0](https://github.com/EveryInc/compound-engineering-plugin/commit/fd562a0d0255d203d40fd53bb10d03a284a3c0e5))
+
+
+### Bug Fixes
+
+* **converters:** OpenCode subagent model and FQ agent name resolution ([#483](https://github.com/EveryInc/compound-engineering-plugin/issues/483)) ([577db53](https://github.com/EveryInc/compound-engineering-plugin/commit/577db53a2d2e237e900ef2079817cfe63df2d725))
+* **converters:** remove invalid tools/infer from Copilot agent frontmatter ([#493](https://github.com/EveryInc/compound-engineering-plugin/issues/493)) ([6dcb4a3](https://github.com/EveryInc/compound-engineering-plugin/commit/6dcb4a3c553c94e95cb15b5af59aeb6693e6fd61))
+* **mcp:** remove bundled context7 MCP server ([#486](https://github.com/EveryInc/compound-engineering-plugin/issues/486)) ([afdd9d4](https://github.com/EveryInc/compound-engineering-plugin/commit/afdd9d44651f834b1eed0b20e401ffbef5c8cd41))
+
 ## [2.61.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.60.0...cli-v2.61.0) (2026-04-01)
 
 
