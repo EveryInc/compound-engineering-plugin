@@ -61,6 +61,28 @@ def extract_from_lines(lines):
     return try_claude(lines) or try_codex(lines)
 
 
+TAIL_BYTES = 16384  # Read last 16KB to find final timestamp past trailing metadata
+
+
+def get_last_timestamp(filepath, size):
+    """Read the tail of a file to find the last message with a timestamp."""
+    try:
+        with open(filepath, "rb") as f:
+            f.seek(max(0, size - TAIL_BYTES))
+            tail = f.read().decode("utf-8", errors="ignore")
+            lines = tail.strip().split("\n")
+        for line in reversed(lines):
+            try:
+                obj = json.loads(line.strip())
+                if "timestamp" in obj:
+                    return obj["timestamp"]
+            except (json.JSONDecodeError, KeyError):
+                pass
+    except (OSError, IOError):
+        pass
+    return None
+
+
 def process_file(filepath):
     try:
         size = os.path.getsize(filepath)
@@ -74,6 +96,9 @@ def process_file(filepath):
         if result:
             result["file"] = filepath
             result["size"] = size
+            last_ts = get_last_timestamp(filepath, size)
+            if last_ts:
+                result["last_ts"] = last_ts
             return result, None
         else:
             return None, filepath
