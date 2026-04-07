@@ -1,10 +1,19 @@
-import { readFile } from "fs/promises"
+import { readFile, access } from "fs/promises"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
 async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
+}
+
+async function fileExists(relativePath: string): Promise<boolean> {
+  try {
+    await access(path.join(process.cwd(), relativePath))
+    return true
+  } catch {
+    return false
+  }
 }
 
 describe("ce-review contract", () => {
@@ -138,8 +147,8 @@ describe("ce-review contract", () => {
 
   test("documents stack-specific conditional reviewers for the JSON pipeline", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-review/SKILL.md")
-    const catalog = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-review/references/persona-catalog.md",
+    const registry = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-review/references/reviewer-registry.yaml",
     )
 
     for (const agent of [
@@ -150,14 +159,24 @@ describe("ce-review contract", () => {
       "compound-engineering:review:julik-frontend-races-reviewer",
     ]) {
       expect(content).toContain(agent)
-      expect(catalog).toContain(agent)
     }
+
+    // Registry should have sources configured for external reviewer repos
+    expect(registry).toContain("sources:")
+    expect(registry).toContain("repo:")
 
     expect(content).toContain("## Language-Aware Conditionals")
     expect(content).not.toContain("## Language-Agnostic")
   })
 
   test("stack-specific reviewer agents follow the structured findings contract", async () => {
+    // Reviewer files live in external repos — skip if not synced via /ce:refresh
+    const sampleFile = "plugins/compound-engineering/agents/review/dhh-rails-reviewer.md"
+    if (!(await fileExists(sampleFile))) {
+      console.log("  ⊘ Skipped: reviewer files not present (run /ce:refresh to sync)")
+      return
+    }
+
     const reviewers = [
       {
         path: "plugins/compound-engineering/agents/review/dhh-rails-reviewer.md",
@@ -186,7 +205,8 @@ describe("ce-review contract", () => {
       const parsed = parseFrontmatter(content)
       const tools = String(parsed.data.tools ?? "")
 
-      expect(String(parsed.data.description)).toContain("Conditional code-review persona")
+      // Category is now a dedicated frontmatter field, not embedded in description
+      expect(["conditional", "stack"]).toContain(String(parsed.data.category))
       expect(tools).toContain("Read")
       expect(tools).toContain("Grep")
       expect(tools).toContain("Glob")
@@ -199,9 +219,13 @@ describe("ce-review contract", () => {
   })
 
   test("leaves data-migration-expert as the unstructured review format", async () => {
-    const content = await readRepoFile(
-      "plugins/compound-engineering/agents/review/data-migration-expert.md",
-    )
+    const filePath = "plugins/compound-engineering/agents/review/data-migration-expert.md"
+    if (!(await fileExists(filePath))) {
+      console.log("  ⊘ Skipped: reviewer files not present (run /ce:refresh to sync)")
+      return
+    }
+
+    const content = await readRepoFile(filePath)
 
     expect(content).toContain("## Reviewer Checklist")
     expect(content).toContain("Refuse approval until there is a written verification + rollback plan.")
@@ -248,7 +272,13 @@ describe("ce-review contract", () => {
 
 describe("testing-reviewer contract", () => {
   test("includes behavioral-changes-with-no-test-additions check", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/agents/review/testing-reviewer.md")
+    const filePath = "plugins/compound-engineering/agents/review/testing-reviewer.md"
+    if (!(await fileExists(filePath))) {
+      console.log("  ⊘ Skipped: reviewer files not present (run /ce:refresh to sync)")
+      return
+    }
+
+    const content = await readRepoFile(filePath)
 
     // New check exists in "What you're hunting for" section
     expect(content).toContain("Behavioral changes with no test additions")
@@ -258,5 +288,28 @@ describe("testing-reviewer contract", () => {
 
     // Non-behavioral changes are excluded
     expect(content).toContain("Non-behavioral changes")
+  })
+})
+
+describe("template-reviewer contract", () => {
+  test("template reviewer ships with required structure", async () => {
+    const content = await readRepoFile(
+      "plugins/compound-engineering/agents/review/_template-reviewer.md",
+    )
+    const parsed = parseFrontmatter(content)
+
+    // Frontmatter has required fields
+    expect(parsed.data.name).toBe("template-reviewer")
+    expect(String(parsed.data.tools)).toContain("Read")
+    expect(String(parsed.data.tools)).toContain("Grep")
+    expect(String(parsed.data.tools)).toContain("Glob")
+    expect(String(parsed.data.tools)).toContain("Bash")
+
+    // Body has required sections
+    expect(content).toContain("## What you're hunting for")
+    expect(content).toContain("## Confidence calibration")
+    expect(content).toContain("## What you don't flag")
+    expect(content).toContain("## Output format")
+    expect(content).toContain("Return your findings as JSON matching the findings schema.")
   })
 })

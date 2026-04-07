@@ -1,0 +1,54 @@
+# Reviewer Registry
+#
+# Reviewer .md files live in external repos and are synced into
+# agents/review/ via /ce:refresh. Each reviewer's category and
+# selection criteria are defined in its own frontmatter — no need
+# to list individual reviewers here.
+#
+# To add a custom reviewer:
+#   1. Add the .md file to your reviewer repo (with category and
+#      select_when in frontmatter)
+#   2. Run /ce:refresh to pull it in
+#   3. The orchestrator reads frontmatter to decide when to spawn it
+
+# === External reviewer sources ===
+#
+# List repos that contain reviewer .md files. Sources listed first
+# have higher priority — if two sources have a file with the same
+# name, the first source wins.
+#
+# Fields:
+#   name    — A label for this source (used in status output)
+#   repo    — GitHub owner/repo
+#   branch  — Branch to fetch from (default: main)
+#   path    — Directory within the repo containing .md files (default: .)
+#   except  — List of reviewer filenames (without .md) to skip from this source
+
+sources:
+  - name: ce-default
+    repo: JumpstartLab/ce-reviewers
+    branch: main
+    path: reviewers
+
+# === Selection rules ===
+#
+# The orchestrator reads each reviewer's frontmatter to determine
+# category and select_when. Categories:
+#
+#   always-on      — Spawned on every review
+#   conditional    — Spawned when the orchestrator judges the diff
+#                    touches the reviewer's select_when domain
+#   stack          — Like conditional, scoped to a language/framework
+#   plan-review    — Spawned during plan reviews
+#   synthesis      — Spawned after other reviewers to merge findings
+#   ce-always      — CE-specific, every review (unstructured output)
+#   ce-conditional — CE-specific, migration-related diffs
+#
+# Rules:
+#   1. Always spawn all always-on and ce-always reviewers
+#   2. For conditional/stack reviewers, read the diff and judge whether
+#      select_when criteria are relevant (agent judgment, not keywords)
+#   3. For plan-review reviewers, spawn during plan review phases
+#   4. Spawn synthesis reviewers after all other reviewers complete
+#   5. Announce the selected team before spawning
+#   6. Skip files starting with underscore (_template-reviewer.md)

@@ -92,41 +92,69 @@ The primary entry points for engineering work, invoked as slash commands:
 | `/lfg` | Full autonomous engineering workflow |
 | `/slfg` | Full autonomous workflow with swarm mode for parallel execution |
 
+## Reviewer Personas
+
+Reviewer personas are **pluggable** — they live in external Git repos and are synced into the plugin via `/ce:refresh`. This lets you customize your review team without forking the plugin.
+
+### Setup
+
+```bash
+/ce:refresh
+```
+
+On first run, this creates `~/.config/compound-engineering/reviewer-sources.yaml` with a default source and syncs all reviewer files. Run it again anytime to pull updates.
+
+### How it works
+
+- Each reviewer is a self-contained `.md` file with frontmatter defining its `category` (always-on, conditional, stack, etc.) and `select_when` criteria
+- The orchestrator reads frontmatter to decide which reviewers to spawn for a given diff
+- A `_template-reviewer.md` ships with the plugin as a starting point for writing your own
+
+### Configuring sources
+
+Edit `~/.config/compound-engineering/reviewer-sources.yaml`:
+
+```yaml
+sources:
+  # Your reviewers (higher priority -- listed first)
+  - name: my-team
+    repo: myorg/our-reviewers
+    branch: main
+    path: .
+
+  # Default reviewers
+  - name: ce-default
+    repo: JumpstartLab/ce-reviewers
+    branch: main
+    path: .
+    except:
+      - kieran-python-reviewer
+```
+
+- **Sources listed first win** on filename conflicts
+- **`except`** skips specific reviewers from a source
+- **`branch`** lets one repo host multiple reviewer sets
+
+### Creating a custom reviewer
+
+1. Copy `_template-reviewer.md` from `agents/review/`
+2. Fill in the persona, hunting targets, confidence calibration, and output format
+3. Set `category` and `select_when` in frontmatter
+4. Add to your reviewer repo and run `/ce:refresh`
+
+### Categories
+
+| Category | When spawned |
+|----------|-------------|
+| `always-on` | Every review |
+| `conditional` | When the diff touches the reviewer's domain |
+| `stack` | Like conditional, scoped to a language/framework |
+| `plan-review` | During plan review phases |
+| `synthesis` | After other reviewers, to merge findings |
+
 ## Agents
 
 Agents are specialized subagents invoked by skills — you typically don't call these directly.
-
-### Review
-
-| Agent | Description |
-|-------|-------------|
-| `agent-native-reviewer` | Verify features are agent-native (action + context parity) |
-| `api-contract-reviewer` | Detect breaking API contract changes |
-| `cli-agent-readiness-reviewer` | Evaluate CLI agent-friendliness against 7 core principles |
-| `cli-readiness-reviewer` | CLI agent-readiness persona for ce:review (conditional, structured JSON) |
-| `architecture-strategist` | Analyze architectural decisions and compliance |
-| `code-simplicity-reviewer` | Final pass for simplicity and minimalism |
-| `correctness-reviewer` | Logic errors, edge cases, state bugs |
-| `data-integrity-guardian` | Database migrations and data integrity |
-| `data-migration-expert` | Validate ID mappings match production, check for swapped values |
-| `data-migrations-reviewer` | Migration safety with confidence calibration |
-| `deployment-verification-agent` | Create Go/No-Go deployment checklists for risky data changes |
-| `dhh-rails-reviewer` | Rails review from DHH's perspective |
-| `julik-frontend-races-reviewer` | Review JavaScript/Stimulus code for race conditions |
-| `kieran-rails-reviewer` | Rails code review with strict conventions |
-| `kieran-python-reviewer` | Python code review with strict conventions |
-| `kieran-typescript-reviewer` | TypeScript code review with strict conventions |
-| `maintainability-reviewer` | Coupling, complexity, naming, dead code |
-| `pattern-recognition-specialist` | Analyze code for patterns and anti-patterns |
-| `performance-oracle` | Performance analysis and optimization |
-| `performance-reviewer` | Runtime performance with confidence calibration |
-| `reliability-reviewer` | Production reliability and failure modes |
-| `schema-drift-detector` | Detect unrelated schema.rb changes in PRs |
-| `security-reviewer` | Exploitable vulnerabilities with confidence calibration |
-| `security-sentinel` | Security audits and vulnerability assessments |
-| `testing-reviewer` | Test coverage gaps, weak assertions |
-| `project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance |
-| `adversarial-reviewer` | Construct failure scenarios to break implementations across component boundaries |
 
 ### Document Review
 

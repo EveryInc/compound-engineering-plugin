@@ -57,6 +57,14 @@ Each cycle compounds: brainstorms sharpen plans, plans inform future plans, revi
 /plugin install compound-engineering
 ```
 
+After installing, restart Claude and sync the reviewer personas:
+
+```
+/ce:refresh
+```
+
+This downloads reviewer persona files from the configured source repos. See [Reviewer Personas](plugins/compound-engineering/README.md#reviewer-personas) for how to customize your review team.
+
 ### Cursor
 
 ```text

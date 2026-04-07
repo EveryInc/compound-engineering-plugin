@@ -1,0 +1,6 @@
+# Reviewer persona files are synced from external repos via /ce:refresh
+# They should not be committed to this plugin repo
+*.md
+
+# Template reviewer ships with the plugin as an example and test fixture
+!_template-reviewer.md
