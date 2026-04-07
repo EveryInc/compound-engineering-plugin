@@ -149,6 +149,25 @@ Launch these subagents IN PARALLEL. Each returns text data to the orchestrator.
 
    Prefer the `gh` CLI for searching related issues: `gh issue list --search "<keywords>" --state all --limit 5`. If `gh` is not installed, fall back to the GitHub MCP tools (e.g., `unblocked` data_retrieval) if available. If neither is available, skip GitHub issue search and note it was skipped in the output.
 
+#### 4. **Session History Researcher**
+   - Dispatched as `compound-engineering:research:session-history-researcher`
+   - Searches prior Claude Code and Codex sessions for the same project to find related investigation context
+   - Correlates sessions by git branch (Claude Code) and working directory (Codex)
+   - In the dispatch prompt, pass:
+     - The current problem description, git branch, and working directory
+     - The output format the agent should use:
+
+       ```
+       Structure your response with these sections (omit any with no findings):
+       - Investigation Timeline: chronological arc across sessions
+       - What Didn't Work: failed approaches and why they were abandoned
+       - Key Decisions: choices made and their rationale
+       - User Corrections: moments the user redirected the approach
+       - Files and Components Touched: blast radius across sessions
+       - Cross-Session Patterns: observations that only emerge across sessions
+       ```
+   - Returns: structured digest of findings from prior sessions, or "no relevant prior sessions" if none found
+
 </parallel_tasks>
 
 ### Phase 2: Assembly & Write
@@ -172,10 +191,15 @@ The orchestrating agent (main conversation) performs these steps:
 
    When updating an existing doc, preserve its file path and frontmatter structure. Update the solution, code examples, prevention tips, and any stale references. Add a `last_updated: YYYY-MM-DD` field to the frontmatter. Do not change the title unless the problem framing has materially shifted.
 
-3. Assemble complete markdown file from the collected pieces, reading `assets/resolution-template.md` for the section structure of new docs
-4. Validate YAML frontmatter against `references/schema.yaml`
-5. Create directory if needed: `mkdir -p docs/solutions/[category]/`
-6. Write the file: either the updated existing doc or the new `docs/solutions/[category]/[filename].md`
+3. **Incorporate session history findings** (if available). When the Session History Researcher returned relevant prior-session context:
+   - Fold investigation dead ends and failed approaches into the **What Didn't Work** section (bug track) or **Context** section (knowledge track)
+   - Use cross-session patterns to enrich the **Prevention** or **Why This Matters** sections
+   - Tag session-sourced content with "(session history)" so its origin is clear to future readers
+   - If findings are thin or "no relevant prior sessions," proceed without session context
+4. Assemble complete markdown file from the collected pieces, reading `assets/resolution-template.md` for the section structure of new docs
+5. Validate YAML frontmatter against `references/schema.yaml`
+6. Create directory if needed: `mkdir -p docs/solutions/[category]/`
+7. Write the file: either the updated existing doc or the new `docs/solutions/[category]/[filename].md`
 
 When creating a new doc, preserve the section order from `assets/resolution-template.md` unless the user explicitly asks for a different structure.
 
@@ -392,6 +416,7 @@ Subagent Results:
   ✓ Context Analyzer: Identified performance_issue in brief_system, category: performance-issues/
   ✓ Solution Extractor: 3 code fixes, prevention strategies
   ✓ Related Docs Finder: 2 related issues
+  ✓ Session History: 3 prior sessions on same branch, 2 failed approaches surfaced
 
 Specialized Agent Reviews (Auto-Triggered):
   ✓ performance-oracle: Validated query optimization approach

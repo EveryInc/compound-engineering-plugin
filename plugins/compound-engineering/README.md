@@ -150,6 +150,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `issue-intelligence-analyst` | Analyze GitHub issues to surface recurring themes and pain patterns |
 | `learnings-researcher` | Search institutional learnings for relevant past solutions |
 | `repo-research-analyst` | Research repository structure and conventions |
+| `session-history-researcher` | Search prior Claude Code and Codex sessions for related investigation context |
 | `slack-researcher` | Search Slack for organizational context relevant to the current task |
 
 ### Design
