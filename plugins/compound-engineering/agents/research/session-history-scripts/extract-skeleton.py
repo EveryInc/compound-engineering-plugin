@@ -7,10 +7,11 @@ Auto-detects platform (Claude Code vs Codex) from the JSONL structure.
 Extracts:
   - User messages (text only, no tool results)
   - Assistant text (no thinking/reasoning blocks)
-  - One-line tool call summaries: [tool] target -> ok/error
+  - Collapsed tool call summaries (consecutive same-tool calls grouped)
 
-The tool summaries provide connective tissue between "I'll try X" and
-"That worked" without dumping raw tool inputs/outputs.
+Consecutive tool calls of the same type are collapsed:
+  3+ Read calls -> "[tools] 3x Read (file1, file2, +1 more) -> all ok"
+Codex call/result pairs are deduplicated (only the result with status is kept).
 Outputs a _meta line at the end with processing stats.
 """
 import sys
@@ -18,13 +19,64 @@ import json
 
 stats = {"lines": 0, "parse_errors": 0, "user": 0, "assistant": 0, "tool": 0}
 
+# Buffer for pending tool entries: [{"ts", "name", "target", "status"}]
+pending_tools = []
+
+
+def flush_tools():
+    """Print buffered tool entries, collapsing consecutive same-name groups."""
+    if not pending_tools:
+        return
+
+    # Group consecutive entries by tool name
+    groups = []
+    for entry in pending_tools:
+        if groups and groups[-1][0]["name"] == entry["name"]:
+            groups[-1].append(entry)
+        else:
+            groups.append([entry])
+
+    for group in groups:
+        name = group[0]["name"]
+        if len(group) <= 2:
+            # Print individually
+            for e in group:
+                status = f" -> {e['status']}" if e.get("status") else ""
+                print(f"[{e['ts']}] [tool] {name} {e['target']}{status}")
+                stats["tool"] += 1
+        else:
+            # Collapse
+            ts = group[0]["ts"]
+            targets = [e["target"] for e in group if e.get("target")]
+            ok = sum(1 for e in group if e.get("status") == "ok")
+            err = sum(1 for e in group if e.get("status") and e["status"] != "ok")
+            no_status = len(group) - ok - err
+
+            # Show first 2 targets, then "+N more"
+            if len(targets) > 2:
+                target_str = ", ".join(targets[:2]) + f", +{len(targets) - 2} more"
+            elif targets:
+                target_str = ", ".join(targets)
+            else:
+                target_str = ""
+
+            if no_status == len(group):
+                status_str = ""
+            elif err == 0:
+                status_str = " -> all ok"
+            else:
+                status_str = f" -> {ok} ok, {err} error"
+
+            print(f"[{ts}] [tools] {len(group)}x {name} ({target_str}){status_str}")
+            stats["tool"] += len(group)
+
+    pending_tools.clear()
+
 
 def summarize_claude_tool(block):
-    """Extract a one-line summary from a Claude Code tool_use block."""
+    """Extract name and target from a Claude Code tool_use block."""
     name = block.get("name", "unknown")
     inp = block.get("input", {})
-
-    # Extract the most informative target from common tool inputs
     target = (
         inp.get("file_path")
         or inp.get("path")
@@ -36,8 +88,7 @@ def summarize_claude_tool(block):
     )
     if isinstance(target, str) and len(target) > 120:
         target = target[:120]
-
-    return f"{name} {target}".strip()
+    return name, target
 
 
 def handle_claude(obj):
@@ -48,17 +99,17 @@ def handle_claude(obj):
         msg = obj.get("message", {})
         content = msg.get("content", "")
 
-        # Check for tool results (success/error status for prior tool calls)
         if isinstance(content, list):
             for block in content:
                 if block.get("type") == "tool_result":
                     is_error = block.get("is_error", False)
                     status = "error" if is_error else "ok"
-                    # tool_use_id links back to the tool call but we just need status
-                    print(f"[{ts}] [tool-result] -> {status}")
-                    stats["tool"] += 1
+                    # Apply status to the earliest pending entry without a status
+                    for entry in pending_tools:
+                        if not entry.get("status"):
+                            entry["status"] = status
+                            break
 
-            # Also extract user text from mixed content
             texts = [
                 c.get("text", "")
                 for c in content
@@ -67,6 +118,7 @@ def handle_claude(obj):
             content = " ".join(texts)
 
         if isinstance(content, str) and len(content) > 15:
+            flush_tools()
             print(f"[{ts}] [user] {content[:800]}")
             print("---")
             stats["user"] += 1
@@ -75,15 +127,18 @@ def handle_claude(obj):
         msg = obj.get("message", {})
         content = msg.get("content", [])
         if isinstance(content, list):
+            has_text = False
             for block in content:
                 if block.get("type") == "text" and len(block.get("text", "")) > 20:
+                    if not has_text:
+                        flush_tools()
+                        has_text = True
                     print(f"[{ts}] [assistant] {block['text'][:800]}")
                     print("---")
                     stats["assistant"] += 1
                 elif block.get("type") == "tool_use":
-                    summary = summarize_claude_tool(block)
-                    print(f"[{ts}] [tool] {summary}")
-                    stats["tool"] += 1
+                    name, target = summarize_claude_tool(block)
+                    pending_tools.append({"ts": ts, "name": name, "target": target})
 
 
 def handle_codex(obj):
@@ -98,16 +153,17 @@ def handle_codex(obj):
                 parts = text.split("</system_instruction>")
                 user_text = parts[-1].strip() if parts else text
                 if len(user_text) > 15:
+                    flush_tools()
                     print(f"[{ts}] [user] {user_text[:800]}")
                     print("---")
                     stats["user"] += 1
 
         elif p.get("type") == "exec_command_end":
+            # This is the deduplicated result — has status info
             command = p.get("command", [])
             cmd_str = command[-1] if command else ""
             output = p.get("aggregated_output", "")
 
-            # Determine success/failure
             status = "ok"
             if "Process exited with code " in output:
                 try:
@@ -118,31 +174,21 @@ def handle_codex(obj):
                     pass
 
             if cmd_str:
-                print(f"[{ts}] [tool] exec: {cmd_str[:120]} -> {status}")
-                stats["tool"] += 1
+                # Shorten common patterns for readability
+                short_cmd = cmd_str[:120]
+                pending_tools.append({"ts": ts, "name": "exec", "target": short_cmd, "status": status})
 
     elif msg_type == "response_item":
         p = obj.get("payload", {})
         if p.get("type") == "message" and p.get("role") == "assistant":
             for block in p.get("content", []):
                 if block.get("type") == "output_text" and len(block.get("text", "")) > 20:
+                    flush_tools()
                     print(f"[{ts}] [assistant] {block['text'][:800]}")
                     print("---")
                     stats["assistant"] += 1
 
-        elif p.get("type") == "function_call":
-            name = p.get("name", "unknown")
-            args = p.get("arguments", "")
-            if isinstance(args, str):
-                try:
-                    args_obj = json.loads(args)
-                    target = args_obj.get("cmd", args_obj.get("command", ""))[:120]
-                except (json.JSONDecodeError, AttributeError):
-                    target = args[:80]
-            else:
-                target = str(args)[:80]
-            print(f"[{ts}] [tool] {name}: {target}")
-            stats["tool"] += 1
+        # Skip function_call — exec_command_end is the deduplicated version with status
 
 
 # Auto-detect platform from first few lines, then process all
@@ -173,5 +219,8 @@ for line in buffer:
         handler(json.loads(line))
     except (json.JSONDecodeError, KeyError):
         stats["parse_errors"] += 1
+
+# Flush any remaining buffered tools
+flush_tools()
 
 print(json.dumps({"_meta": True, **stats}))
