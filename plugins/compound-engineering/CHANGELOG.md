@@ -9,6 +9,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.63.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.63.0...compound-engineering-v2.63.1) (2026-04-07)
+
+
+### Bug Fixes
+
+* **ce-review:** add recursion guard to reviewer subagent template ([#527](https://github.com/EveryInc/compound-engineering-plugin/issues/527)) ([bafe9f0](https://github.com/EveryInc/compound-engineering-plugin/commit/bafe9f0968054c78db23e7e7f4d5dbc2ddb4a450))
+* **document-review:** widen autofix classification beyond trivial fixes ([#524](https://github.com/EveryInc/compound-engineering-plugin/issues/524)) ([9a82222](https://github.com/EveryInc/compound-engineering-plugin/commit/9a82222aba25d6e64355053fca5954f3dfbd8285))
+
 ## [2.63.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.62.1...compound-engineering-v2.63.0) (2026-04-06)
 
 
