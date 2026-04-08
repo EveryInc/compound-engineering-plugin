@@ -2,7 +2,7 @@
   "name": "compound-engineering",
   "displayName": "Compound Engineering",
   "version": "2.63.1",
-  "description": "AI-powered development tools for code review, research, design, and workflow automation.",
+  "description": "USER LEVEL: You brainstorm, plan, review, and ship features with structured multi-persona feedback instead of a single pass. PROJECT LEVEL: Knowledge compounds—decisions, reviews, and patterns get captured so the team doesn’t re-discover the same lessons. Agent-native development kit—brainstorm and plan features, run multi-persona code reviews, polish frontend design, and automate Git, CI, PRs, deploys, and docs. BEST SUITED FOR: • Full-stack teams using Rails, Python, or TypeScript • Projects that want structured review before every merge • Teams practicing knowledge management alongside shipping",
   "author": {
     "name": "Kieran Klaassen",
     "email": "kieran@every.to",
