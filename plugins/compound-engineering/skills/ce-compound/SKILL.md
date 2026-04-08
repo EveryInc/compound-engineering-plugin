@@ -47,6 +47,16 @@ Present the user with two options before proceeding, using the platform's blocki
 
 Do NOT pre-select a mode. Do NOT skip this prompt. Wait for the user's choice before proceeding.
 
+**If the user chooses Full**, ask one follow-up question before proceeding. Detect which harness is running (Claude Code, Codex, or Cursor) and ask:
+
+```
+Would you also like to search your [harness name] session history
+for relevant knowledge to help the Compound process? This adds
+time and token usage.
+```
+
+If the user says yes, dispatch the Session Historian in Phase 1. If no, skip it. Do not ask this in lightweight mode.
+
 ---
 
 ### Full Mode
@@ -156,7 +166,8 @@ Launch research subagents. Each returns text data to the orchestrator.
 
 </parallel_tasks>
 
-#### 4. **Session Historian** (foreground, after launching the above)
+#### 4. **Session Historian** (foreground, after launching the above — only if the user opted in)
+   - **Skip entirely** if the user declined session history in the follow-up question
    - Dispatched as `compound-engineering:research:session-historian`
    - Dispatch in **foreground** — this agent reads session files outside the working directory (`~/.claude/projects/`, `~/.codex/sessions/`, `~/.cursor/projects/`) which background agents may not have access to
    - Searches prior Claude Code, Codex, and Cursor sessions for the same project to find related investigation context
