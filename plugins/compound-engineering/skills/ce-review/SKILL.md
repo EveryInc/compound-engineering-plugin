@@ -452,7 +452,16 @@ Detail-tier fields (`why_it_matters`, `evidence`) are in the artifact file only.
 
 Convert multiple reviewer compact JSON returns into one deduplicated, confidence-gated finding set. The compact returns contain merge-tier fields (title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing) plus the optional suggested_fix. Detail-tier fields (why_it_matters, evidence) are on disk in the per-agent artifact files and are not loaded at this stage.
 
-1. **Validate.** Check each compact return for merge-tier required fields: title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing. Drop findings missing any of these. Also validate value constraints: severity must be one of P0/P1/P2/P3, autofix_class must be one of safe_auto/gated_auto/manual/advisory, owner must be one of review-fixer/downstream-resolver/human/release, confidence must be numeric 0.0-1.0, line must be a positive integer, pre_existing and requires_verification must be boolean. Drop findings with invalid values. Do not validate against the full schema here -- the full schema (including why_it_matters and evidence) applies to the artifact files on disk, not the compact returns. Record the drop count.
+1. **Validate.** Check each compact return for merge-tier required fields and value constraints. Drop findings that fail either check. Record the drop count.
+   - **Required fields:** title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing
+   - **Value constraints:**
+     - severity: P0 | P1 | P2 | P3
+     - autofix_class: safe_auto | gated_auto | manual | advisory
+     - owner: review-fixer | downstream-resolver | human | release
+     - confidence: numeric, 0.0-1.0
+     - line: positive integer
+     - pre_existing, requires_verification: boolean
+   - Do not validate against the full schema here -- the full schema (including why_it_matters and evidence) applies to the artifact files on disk, not the compact returns.
 2. **Confidence gate.** Suppress findings below 0.60 confidence. Exception: P0 findings at 0.50+ confidence survive the gate -- critical-but-uncertain issues must not be silently dropped. Record the suppressed count. This matches the persona instructions and the schema's confidence thresholds.
 3. **Deduplicate.** Compute fingerprint: `normalize(file) + line_bucket(line, +/-3) + normalize(title)`. When fingerprints match, merge: keep highest severity, keep highest confidence, note which reviewers flagged it.
 4. **Cross-reviewer agreement.** When 2+ independent reviewers flag the same issue (same fingerprint), boost the merged confidence by 0.10 (capped at 1.0). Cross-reviewer agreement is strong signal -- independent reviewers converging on the same issue is more reliable than any single reviewer's confidence. Note the agreement in the Reviewer column of the output (e.g., "security, correctness").
