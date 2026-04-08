@@ -17,12 +17,15 @@ version, and fix stale marketplace/cache state if it doesn't. Claude Code only.
 
 ## Pre-resolved context
 
-The two sections below contain pre-resolved data. If either shows an error,
+The three sections below contain pre-resolved data. If any shows an error,
 an empty value, or a literal `${CLAUDE_PLUGIN_ROOT}` string, this session is not
 running in Claude Code — tell the user this skill only works in Claude Code and stop.
 
+**Plugin root path:**
+!`echo "${CLAUDE_PLUGIN_ROOT}" 2>/dev/null || echo '__CE_UPDATE_ROOT_FAILED__'`
+
 **Latest released version:**
-!`gh release list --repo Everyinc/compound-engineering-plugin --limit 10 --json tagName --jq '[.[] | select(.tagName | startswith("compound-engineering-v"))][0].tagName | sub("compound-engineering-v";"")' 2>/dev/null || echo '__CE_UPDATE_VERSION_FAILED__'`
+!`gh release list --repo Everyinc/compound-engineering-plugin --limit 30 --json tagName --jq '[.[] | select(.tagName | startswith("compound-engineering-v"))][0].tagName | sub("compound-engineering-v";"")' 2>/dev/null || echo '__CE_UPDATE_VERSION_FAILED__'`
 
 **Cached version folder(s):**
 !`ls "${CLAUDE_PLUGIN_ROOT}/cache/every-marketplace/compound-engineering/" 2>/dev/null || echo '__CE_UPDATE_CACHE_FAILED__'`
@@ -42,13 +45,12 @@ Take the **latest released version** and the **cached folder list**.
 - Tell the user: "compound-engineering **v{version}** is installed and up to date."
 
 **Out of date or corrupted** — multiple cached folders exist, OR the single folder name
-does not match the latest version. Construct the path using the actual resolved
-`CLAUDE_PLUGIN_ROOT` value visible in the pre-resolved sections above — do not use
-`${CLAUDE_PLUGIN_ROOT}` literally, it won't resolve at bash runtime.
+does not match the latest version. Use the **Plugin root path** value from above to
+construct the delete path.
 
 **Clear the stale cache:**
 ```bash
-rm -rf "<resolved-CLAUDE_PLUGIN_ROOT>/cache/every-marketplace/compound-engineering"
+rm -rf "<plugin-root-path>/cache/every-marketplace/compound-engineering"
 ```
 
 Tell the user:
