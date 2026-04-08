@@ -47,7 +47,7 @@ discover_codex() {
 
         # Compute date directories within the scan window
         local i=0
-        while [ "$i" -le "$DAYS" ]; do
+        while [ "$i" -lt "$DAYS" ]; do
             local date_dir
             # macOS date vs GNU date
             if date -v-${i}d +%Y/%m/%d >/dev/null 2>&1; then

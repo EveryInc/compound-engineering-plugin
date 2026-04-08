@@ -126,11 +126,20 @@ def handle_claude(obj):
                 if block.get("type") == "tool_result":
                     is_error = block.get("is_error", False)
                     status = "error" if is_error else "ok"
-                    # Apply status to the earliest pending entry without a status
-                    for entry in pending_tools:
-                        if not entry.get("status"):
-                            entry["status"] = status
-                            break
+                    tool_use_id = block.get("tool_use_id")
+                    matched = False
+                    if tool_use_id:
+                        for entry in pending_tools:
+                            if entry.get("id") == tool_use_id:
+                                entry["status"] = status
+                                matched = True
+                                break
+                    if not matched:
+                        # Fallback: assign to earliest pending entry without a status
+                        for entry in pending_tools:
+                            if not entry.get("status"):
+                                entry["status"] = status
+                                break
 
             texts = [
                 c.get("text", "")
@@ -164,7 +173,11 @@ def handle_claude(obj):
                         stats["assistant"] += 1
                 elif block.get("type") == "tool_use":
                     name, target = summarize_claude_tool(block)
-                    pending_tools.append({"ts": ts, "name": name, "target": target})
+                    entry = {"ts": ts, "name": name, "target": target}
+                    tool_id = block.get("id")
+                    if tool_id:
+                        entry["id"] = tool_id
+                    pending_tools.append(entry)
 
 
 def handle_codex(obj):
