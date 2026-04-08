@@ -161,16 +161,17 @@ Correlate sessions to the current problem using these signals (in priority order
 
 **Exclude the current session** -- its conversation history is already available to the caller.
 
-Select the most relevant sessions (typically 2-5 total across both sources). Prefer sessions that are:
-- Within the scan window determined in the Time Range step
+**Drop sessions outside the scan window before selecting.** Use the `ts` (or `last_ts`) field from metadata extraction and discard any session whose timestamp falls outside the window. Do not carry forward old sessions just because they exist — a 20-day-old session is irrelevant to a "last few days" query regardless of how relevant its branch looks.
+
+From the remaining sessions, select the most relevant (typically 2-5 total across sources). Prefer sessions that are:
 - Strongly correlated (same branch or same CWD)
 - Substantive (file size > 30KB suggests meaningful work)
 
 ### Step 4: Extract conversation skeleton
 
-For each selected session, run the skeleton extraction script. This gives the full conversational narrative with timestamps, filtering out tool calls, tool results, thinking/reasoning blocks, and system messages.
+For each selected session, run the skeleton extraction script. Pipe the output through `head -200` to cap the skeleton at 200 lines per session. Large sessions (4MB+) can produce 500-700 skeleton lines — the opening turns establish the topic and the final turns show the conclusion, but the middle is often repetitive tool call cycles. 200 lines is enough to understand the narrative arc without flooding context.
 
-This is the primary data the agent reasons over. The skeleton captures the narrative arc: what was asked, what was proposed, what was decided.
+If the truncated skeleton doesn't cover the session's conclusion, extract the tail separately: `cat <file> | python3 -c '<script>' | tail -50`.
 
 ### Step 5: Extract error signals (selective)
 
