@@ -5,3 +5,4 @@ node_modules/
 todos/
 .worktrees
 .context/
+.claude/worktrees/

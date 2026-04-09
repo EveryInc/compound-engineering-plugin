@@ -89,7 +89,6 @@ The primary entry points for engineering work, invoked as slash commands:
 |-------|-------------|
 | `agent-browser` | CLI-based browser automation using Vercel's agent-browser |
 | `gemini-imagegen` | Generate and edit images using Google's Gemini API |
-| `orchestrating-swarms` | Comprehensive guide to multi-agent swarm orchestration |
 | `rclone` | Upload files to S3, Cloudflare R2, Backblaze B2, and cloud storage |
 
 ### Beta / Experimental
@@ -97,7 +96,6 @@ The primary entry points for engineering work, invoked as slash commands:
 | Skill | Description |
 |-------|-------------|
 | `/lfg` | Full autonomous engineering workflow |
-| `/slfg` | Full autonomous workflow with swarm mode for parallel execution |
 
 ## Agents
 

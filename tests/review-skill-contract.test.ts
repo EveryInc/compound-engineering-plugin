@@ -238,11 +238,6 @@ describe("ce-review contract", () => {
     const lfg = await readRepoFile("plugins/compound-engineering/skills/lfg/SKILL.md")
     expect(lfg).toContain("/ce:review mode:autofix")
 
-    const slfg = await readRepoFile("plugins/compound-engineering/skills/slfg/SKILL.md")
-    // slfg uses report-only for the parallel phase (safe with browser testing)
-    // then autofix sequentially after to emit fixes and todos
-    expect(slfg).toContain("/ce:review mode:report-only")
-    expect(slfg).toContain("/ce:review mode:autofix")
   })
 })
 
