@@ -71,9 +71,16 @@ Read the current PR description:
 gh pr view --json body --jq '.body'
 ```
 
-Follow the "Detect the base branch and remote" and "Gather the branch scope" sections of Step 6 to get the full branch diff. Use the PR found in DU-2 as the existing PR for base branch detection. Classify commits per the "Classify commits before writing" section -- this is especially important for description updates, where the recent commits that prompted the update are often fix-up work (code review fixes, lint fixes) rather than feature work. Then write a new description following the writing principles in Step 6, driven by the feature commits and the final diff. If the user provided a focus, incorporate it into the description alongside the branch diff context.
+Build the updated description in this order:
 
-Compare the new description against the current one and summarize the substantial changes for the user (e.g., "Added coverage of the new caching layer, updated test plan, removed outdated migration notes"). If the user provided a focus, confirm it was addressed. Ask the user to confirm before applying. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the summary and wait for the user's reply.
+1. **Get the full branch diff** -- follow "Detect the base branch and remote" and "Gather the branch scope" in Step 6. Use the PR found in DU-2 as the existing PR for base branch detection.
+2. **Classify commits** -- follow "Classify commits before writing" in Step 6. This matters especially for description updates, where the recent commits that prompted the update are often fix-up work (code review fixes, lint fixes) rather than feature work.
+3. **Decide on evidence** -- follow "Evidence for PR descriptions" in Step 6. Description-only updates may be specifically intended to add or refresh evidence.
+4. **Write the new description** -- follow the writing principles in Step 6, driven by feature commits, final diff, and evidence decision.
+   - If the user provided a focus, incorporate it alongside the branch diff context.
+5. **Compare and confirm** -- summarize the substantial changes vs the current description (e.g., "Added coverage of the new caching layer, updated test plan, removed outdated migration notes").
+   - If the user provided a focus, confirm it was addressed.
+   - Ask the user to confirm before applying. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the summary and wait for the user's reply.
 
 If confirmed, apply:
 
@@ -107,19 +114,27 @@ If the current branch from the context above is empty, the repository is in deta
 - If the user agrees, derive a descriptive branch name from the change content, create it with `git checkout -b <branch-name>`, then run `git branch --show-current` again and use that result as the current branch name for the rest of the workflow.
 - If the user declines, stop.
 
-If the git status from the context above shows a clean working tree (no staged, modified, or untracked files), check whether there are unpushed commits or a missing PR before stopping. The current branch and existing PR check are already available from the context above. Additionally:
+If the git status from the context above shows a clean working tree (no staged, modified, or untracked files), determine the next action based on upstream state and PR status. The current branch and existing PR check are already available from the context above. Additionally:
 
 1. Run `git rev-parse --abbrev-ref --symbolic-full-name @{u}` to check whether an upstream is configured.
 2. If the command succeeds, run `git log <upstream>..HEAD --oneline` using the upstream name from the previous command.
 
-- If the current branch is `main`, `master`, or the resolved default branch from Step 1 and there is **no upstream** or there are **unpushed commits**, explain that pushing now would use the default branch directly. Ask whether to create a feature branch first. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply.
-- If the user agrees, derive a descriptive branch name from the change content, create it with `git checkout -b <branch-name>`, then continue from Step 5 (push).
-- If the user declines, report that this workflow cannot open a PR from the default branch directly and stop.
-- If there is **no upstream**, treat the branch as needing its first push. Skip Step 4 (commit) and continue from Step 5 (push).
-- If there are **unpushed commits**, skip Step 4 (commit) and continue from Step 5 (push).
-- If all commits are pushed but **no open PR exists** and the current branch is `main`, `master`, or the resolved default branch from Step 1, report that there is no feature branch work to open as a PR and stop.
-- If all commits are pushed but **no open PR exists**, skip Steps 4-5 and continue from Step 6 (write the PR description) and Step 7 (create the PR).
-- If all commits are pushed **and an open PR exists**, report that and stop -- there is nothing to do.
+Then follow this decision tree:
+
+- **On default branch** (`main`, `master`, or the resolved default branch) with no upstream or unpushed commits:
+  - Ask whether to create a feature branch first (pushing the default branch directly is not supported by this workflow). Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply.
+  - If yes -> create branch with `git checkout -b <branch-name>`, continue from Step 5 (push)
+  - If no -> stop
+- **On default branch**, all commits pushed, no open PR:
+  - Report there is no feature branch work to open as a PR. Stop.
+- **No upstream configured** (feature branch, never pushed):
+  - Skip Step 4 (commit), continue from Step 5 (push)
+- **Unpushed commits exist** (feature branch, upstream configured):
+  - Skip Step 4 (commit), continue from Step 5 (push)
+- **All commits pushed, no open PR** (feature branch):
+  - Skip Steps 4-5, continue from Step 6 (PR description) and Step 7 (create PR)
+- **All commits pushed, open PR exists**:
+  - Report that everything is up to date. Stop.
 
 ### Step 2: Determine conventions
 
@@ -203,6 +218,27 @@ MERGE_BASE=$(git merge-base <base-remote>/<base-branch> HEAD) && echo "MERGE_BAS
 ```
 
 Use the full branch diff and commit list as the basis for the PR description -- not the working-tree diff from Step 1.
+
+#### Evidence for PR descriptions
+
+Decide whether evidence capture is possible from the full branch diff before writing the PR description.
+
+**Evidence is possible** when the final diff changes observable product behavior that can be demonstrated from the workspace: UI rendering or interactions, CLI commands and output, API/library behavior with runnable example code, generated artifacts, or workflow behavior with visible output.
+
+**Evidence is not possible** for docs-only, markdown-only, changelog-only, release metadata, CI/config-only, test-only, or pure internal refactors with no observable output change. It is also not possible when the behavior requires unavailable credentials, paid/cloud services, bot tokens, deploy-only infrastructure, or hardware the user has not provided. In those cases, do not ask about capturing evidence; omit the evidence section and, if relevant, mention the skip reason in the final user report.
+
+When evidence is possible, ask whether to include it in the PR description. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply.
+
+**Question:** "This PR has observable behavior. Capture evidence for the PR description?"
+
+**Options:**
+1. **Capture evidence now** -- load the `evidence-capture` skill with a concise target inferred from the diff, then include its returned embed in the PR body
+2. **Use existing evidence** -- ask the user for the URL or markdown embed, then include it in the PR body
+3. **Skip evidence** -- write the PR description without an evidence section
+
+If the user chooses capture and `evidence-capture` returns skipped, failed, or empty output, do not add a placeholder section. Summarize the reason in the final user report.
+
+Place returned evidence markdown before the Compound Engineering badge and near the part of the description it supports, typically after the summary or testing notes. Do not label test output as "Demo" or "Screenshots".
 
 #### Classify commits before writing
 
@@ -363,7 +399,12 @@ Keep the PR title under 72 characters. The title follows the same convention as 
 
 The new commits are already on the PR from the push in Step 5. Report the PR URL, then ask the user whether they want the PR description updated to reflect the new changes. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the option and wait for the user's reply before proceeding.
 
-- If **yes** -- write a new description following the same principles in Step 6 (size the full PR, not just the new commits). Classify commits per "Classify commits before writing" -- the new commits since the last push are often fix-up work (code review fixes, lint fixes) and should not appear as distinct items in the updated description. Describe the PR's net result as if writing it fresh. Include the Compound Engineering badge unless one is already present in the existing description. Apply it:
+- If **yes**:
+  1. Classify commits per "Classify commits before writing" -- the new commits since the last push are often fix-up work (code review fixes, lint fixes) and should not appear as distinct items
+  2. Size the full PR (not just the new commits) using the sizing table in Step 6
+  3. Write the description as if fresh, following Step 6's writing principles -- describe the PR's net result
+  4. Include the Compound Engineering badge unless one is already present
+  5. Apply:
 
   ```bash
   gh pr edit --body "$(cat <<'EOF'
