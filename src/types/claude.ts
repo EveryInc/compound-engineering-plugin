@@ -49,8 +49,17 @@ export type ClaudeSkill = {
   description?: string
   argumentHint?: string
   disableModelInvocation?: boolean
+  ce_platforms?: string[]
   sourceDir: string
   skillPath: string
+}
+
+/**
+ * Filter skills to those available on a given platform.
+ * Skills without a `platforms` field are available everywhere.
+ */
+export function filterSkillsByPlatform(skills: ClaudeSkill[], platform: string): ClaudeSkill[] {
+  return skills.filter((skill) => !skill.ce_platforms || skill.ce_platforms.includes(platform))
 }
 
 export type ClaudePlugin = {

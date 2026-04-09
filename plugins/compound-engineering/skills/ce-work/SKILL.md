@@ -139,6 +139,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
    - Any resolved deferred questions relevant to that unit
    - Instruction to check whether the unit's test scenarios cover all applicable categories (happy paths, edge cases, error paths, integration) and supplement gaps before writing tests
 
+   **Permission mode:** Omit the `mode` parameter when dispatching subagents so the user's configured permission settings apply. Do not pass `mode: "auto"` — it overrides user-level settings like `bypassPermissions`.
+
    After each subagent completes, update the plan checkboxes and task list before dispatching the next dependent unit.
 
    For genuinely large plans needing persistent inter-agent communication (agents challenging each other's approaches, shared coordination across 10+ tasks), see Swarm Mode below which uses Agent Teams.

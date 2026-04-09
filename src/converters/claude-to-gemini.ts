@@ -1,5 +1,5 @@
 import { formatFrontmatter } from "../utils/frontmatter"
-import type { ClaudeAgent, ClaudeCommand, ClaudeMcpServer, ClaudePlugin } from "../types/claude"
+import { type ClaudeAgent, type ClaudeCommand, type ClaudeMcpServer, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
 import type { GeminiBundle, GeminiCommand, GeminiMcpServer, GeminiSkill } from "../types/gemini"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 
@@ -14,7 +14,8 @@ export function convertClaudeToGemini(
   const usedSkillNames = new Set<string>()
   const usedCommandNames = new Set<string>()
 
-  const skillDirs = plugin.skills.map((skill) => ({
+  const platformSkills = filterSkillsByPlatform(plugin.skills, "gemini")
+  const skillDirs = platformSkills.map((skill) => ({
     name: skill.name,
     sourceDir: skill.sourceDir,
   }))

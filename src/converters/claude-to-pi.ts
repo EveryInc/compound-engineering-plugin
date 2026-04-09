@@ -1,5 +1,5 @@
 import { formatFrontmatter } from "../utils/frontmatter"
-import type { ClaudeAgent, ClaudeCommand, ClaudeMcpServer, ClaudePlugin } from "../types/claude"
+import { type ClaudeAgent, type ClaudeCommand, type ClaudeMcpServer, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
 import type {
   PiBundle,
   PiGeneratedSkill,
@@ -17,8 +17,9 @@ export function convertClaudeToPi(
   plugin: ClaudePlugin,
   _options: ClaudeToPiOptions,
 ): PiBundle {
+  const platformSkills = filterSkillsByPlatform(plugin.skills, "pi")
   const promptNames = new Set<string>()
-  const usedSkillNames = new Set<string>(plugin.skills.map((skill) => normalizeName(skill.name)))
+  const usedSkillNames = new Set<string>(platformSkills.map((skill) => normalizeName(skill.name)))
 
   const prompts = plugin.commands
     .filter((command) => !command.disableModelInvocation)
@@ -35,7 +36,7 @@ export function convertClaudeToPi(
 
   return {
     prompts,
-    skillDirs: plugin.skills.map((skill) => ({
+    skillDirs: platformSkills.map((skill) => ({
       name: skill.name,
       sourceDir: skill.sourceDir,
     })),

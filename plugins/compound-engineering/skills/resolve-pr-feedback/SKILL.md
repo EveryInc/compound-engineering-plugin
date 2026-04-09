@@ -92,7 +92,7 @@ If the gate does not fire, proceed to step 4. The common case (first review roun
 
 1. **Assign concern categories** from this fixed list: `error-handling`, `validation`, `type-safety`, `naming`, `performance`, `testing`, `security`, `documentation`, `style`, `architecture`, `other`. Each item (new and previously-resolved) gets exactly one category based on what the feedback is about.
 
-2. **Group by category + spatial proximity**. Two items form a potential cluster when they share a concern category AND are spatially proximate (same file, or files in the same directory subtree). Clusters can span new and previously-resolved threads.
+2. **Group by category + spatial proximity**. Form groups from all categorized items -- new and previously-resolved together, not new items only. Two items form a potential cluster when they share a concern category AND are spatially proximate (same file, or files in the same directory subtree).
 
    | Thematic match | Spatial proximity | Action |
    |---|---|---|

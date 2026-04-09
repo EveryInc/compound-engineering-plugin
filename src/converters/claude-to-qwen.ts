@@ -1,6 +1,6 @@
 import { formatFrontmatter } from "../utils/frontmatter"
 import { normalizeModelWithProvider } from "../utils/model"
-import type { ClaudeAgent, ClaudeCommand, ClaudeMcpServer, ClaudePlugin } from "../types/claude"
+import { type ClaudeAgent, type ClaudeCommand, type ClaudeMcpServer, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
 import type {
   QwenAgentFile,
   QwenBundle,
@@ -16,6 +16,7 @@ export type ClaudeToQwenOptions = {
 }
 
 export function convertClaudeToQwen(plugin: ClaudePlugin, options: ClaudeToQwenOptions): QwenBundle {
+  const platformSkills = filterSkillsByPlatform(plugin.skills, "qwen")
   const agentFiles = plugin.agents.map((agent) => convertAgent(agent, options))
   const cmdFiles = convertCommands(plugin.commands)
   const mcp = plugin.mcpServers ? convertMcp(plugin.mcpServers) : undefined
@@ -43,7 +44,7 @@ export function convertClaudeToQwen(plugin: ClaudePlugin, options: ClaudeToQwenO
     config,
     agents: agentFiles,
     commandFiles: cmdFiles,
-    skillDirs: plugin.skills.map((skill) => ({ sourceDir: skill.sourceDir, name: skill.name })),
+    skillDirs: platformSkills.map((skill) => ({ sourceDir: skill.sourceDir, name: skill.name })),
     contextFile,
   }
 }
@@ -181,10 +182,11 @@ function generateContextFile(plugin: ClaudePlugin): string {
   }
 
   // Skills section
-  if (plugin.skills.length > 0) {
+  const qwenSkills = filterSkillsByPlatform(plugin.skills, "qwen")
+  if (qwenSkills.length > 0) {
     sections.push("## Skills")
     sections.push("")
-    for (const skill of plugin.skills) {
+    for (const skill of qwenSkills) {
       sections.push(`- ${skill.name}`)
     }
     sections.push("")

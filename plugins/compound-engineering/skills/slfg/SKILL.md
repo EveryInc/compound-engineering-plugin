@@ -10,7 +10,7 @@ Swarm-enabled LFG. Run these steps in order, parallelizing where indicated. Do n
 ## Sequential Phase
 
 1. **Optional:** If the `ralph-loop` skill is available, run `/ralph-loop:ralph-loop "finish all slash commands" --completion-promise "DONE"`. If not available or it fails, skip and continue to step 2 immediately.
-2. `/ce:plan $ARGUMENTS` — **Record the plan file path** from `docs/plans/` for steps 4 and 6.
+2. `/ce:plan $ARGUMENTS` — If ce:plan reported the task is non-software and cannot be processed in pipeline mode, stop the pipeline and inform the user that SLFG requires software tasks. Otherwise, **record the plan file path** from `docs/plans/` for steps 4 and 6.
 3. `/ce:work` — **Use swarm mode**: Make a Task list and launch an army of agent swarm subagents to build the plan
 
 ## Parallel Phase

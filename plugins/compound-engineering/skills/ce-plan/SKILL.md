@@ -1,7 +1,7 @@
 ---
 name: ce:plan
-description: "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', or when a brainstorm/requirements document is ready for technical planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. Best when requirements are at least roughly defined; for exploratory or ambiguous requests, prefer ce:brainstorm first."
-argument-hint: "[optional: feature description, requirements doc path, plan path to deepen, or improvement idea]"
+description: "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. For exploratory or ambiguous requests where the user is unsure what to do, prefer ce:brainstorm first."
+argument-hint: "[optional: feature description, requirements doc path, plan path to deepen, or any task to plan]"
 ---
 
 # Create Technical Plan
@@ -22,7 +22,7 @@ Ask one question at a time. Prefer a concise single-select choice when natural o
 
 <feature_description> #$ARGUMENTS </feature_description>
 
-**If the feature description above is empty, ask the user:** "What would you like to plan? Please describe the feature, bug fix, or improvement you have in mind."
+**If the feature description above is empty, ask the user:** "What would you like to plan? Describe the task, goal, or project you have in mind."
 
 Do not proceed until you have a clear planning input.
 
@@ -67,11 +67,23 @@ If the user references an existing plan file or there is an obvious recent match
 
 Words like "strengthen", "confidence", "gaps", and "rigor" are NOT sufficient on their own to trigger deepening. These words appear in normal editing requests ("strengthen that section about the diagram", "there are gaps in the test scenarios") and should not cause a holistic deepening pass. Only treat them as deepening intent when the request clearly targets the plan as a whole and does not name a specific section or content area to change — and even then, prefer to confirm with the user before entering the deepening flow.
 
-Once the plan is identified and appears complete (all major sections present, implementation units defined, `status: active`), short-circuit to Phase 5.3 (Confidence Check and Deepening) in **interactive mode**. This avoids re-running the full planning workflow and gives the user control over which findings are integrated.
+Once the plan is identified and appears complete (all major sections present, implementation units defined, `status: active`):
+- If the plan lacks YAML frontmatter (non-software plans use a simple `# Title` heading with `Created:` date instead of frontmatter), route to `references/universal-planning.md` for editing or deepening instead of Phase 5.3. Non-software plans do not use the software confidence check.
+- Otherwise, short-circuit to Phase 5.3 (Confidence Check and Deepening) in **interactive mode**. This avoids re-running the full planning workflow and gives the user control over which findings are integrated.
 
 Normal editing requests (e.g., "update the test scenarios", "add a new implementation unit", "strengthen the risk section") should NOT trigger the fast path — they follow the standard resume flow.
 
 If the plan already has a `deepened: YYYY-MM-DD` frontmatter field and there is no explicit user request to re-deepen, the fast path still applies the same confidence-gap evaluation — it does not force deepening.
+
+#### 0.1b Classify Task Domain
+
+If the task involves building, modifying, or architecting software (references code, repos, APIs, databases, or asks to build/modify/deploy), continue to Phase 0.2.
+
+If the task is about a non-software domain and describes a multi-step goal worth planning, read `references/universal-planning.md` and follow that workflow instead. Skip all subsequent phases.
+
+If genuinely ambiguous (e.g., "plan a migration" with no other context), ask the user before routing.
+
+For everything else (quick questions, error messages, factual lookups), respond directly without any planning workflow.
 
 #### 0.2 Find Upstream Requirements Document
 
@@ -158,15 +170,18 @@ Run these agents in parallel:
 
 - Task compound-engineering:research:repo-research-analyst(Scope: technology, architecture, patterns. {planning context summary})
 - Task compound-engineering:research:learnings-researcher(planning context summary)
-- (conditional) Task compound-engineering:research:slack-researcher({planning context summary}. If the origin document contains a Slack context section, include it verbatim so the researcher can focus on gaps rather than re-searching.) — if any `slack_*` tool is available in the tool list. If the agent returns an error or reports Slack MCP unavailable, log a warning ("Slack context unavailable: {reason}. Proceeding without organizational context.") and continue.
-
 Collect:
 - Technology stack and versions (used in section 1.2 to make sharper external research decisions)
 - Architectural patterns and conventions to follow
 - Implementation patterns, relevant files, modules, and tests
 - AGENTS.md guidance that materially affects the plan, with CLAUDE.md used only as compatibility fallback when present
 - Institutional learnings from `docs/solutions/`
-- Organizational context from Slack (if the slack-researcher agent ran successfully)
+
+**Slack context** (opt-in) — never auto-dispatch. Route by condition:
+
+- **Tools available + user asked**: Dispatch `compound-engineering:research:slack-researcher` with the planning context summary in parallel with other Phase 1.1 agents. If the origin document has a Slack context section, pass it verbatim so the researcher focuses on gaps. Include findings in consolidation.
+- **Tools available + user didn't ask**: Note in output: "Slack tools detected. Ask me to search Slack for organizational context at any point, or include it in your next prompt."
+- **No tools + user asked**: Note in output: "Slack context was requested but no Slack tools are available. Install and authenticate the Slack plugin to enable organizational context search."
 
 #### 1.1b Detect Execution Posture Signals
 

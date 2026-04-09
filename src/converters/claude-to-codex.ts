@@ -1,5 +1,5 @@
 import { formatFrontmatter } from "../utils/frontmatter"
-import type { ClaudeAgent, ClaudeCommand, ClaudePlugin, ClaudeSkill } from "../types/claude"
+import { type ClaudeAgent, type ClaudeCommand, type ClaudePlugin, type ClaudeSkill, filterSkillsByPlatform } from "../types/claude"
 import type { CodexBundle, CodexGeneratedSkill } from "../types/codex"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 import {
@@ -16,17 +16,18 @@ export function convertClaudeToCodex(
   plugin: ClaudePlugin,
   _options: ClaudeToCodexOptions,
 ): CodexBundle {
+  const platformSkills = filterSkillsByPlatform(plugin.skills, "codex")
   const invocableCommands = plugin.commands.filter((command) => !command.disableModelInvocation)
   const applyCompoundWorkflowModel = shouldApplyCompoundWorkflowModel(plugin)
   const canonicalWorkflowSkills = applyCompoundWorkflowModel
-    ? plugin.skills.filter((skill) => isCanonicalCodexWorkflowSkill(skill.name))
+    ? platformSkills.filter((skill) => isCanonicalCodexWorkflowSkill(skill.name))
     : []
   const deprecatedWorkflowAliases = applyCompoundWorkflowModel
-    ? plugin.skills.filter((skill) => isDeprecatedCodexWorkflowAlias(skill.name))
+    ? platformSkills.filter((skill) => isDeprecatedCodexWorkflowAlias(skill.name))
     : []
   const copiedSkills = applyCompoundWorkflowModel
-    ? plugin.skills.filter((skill) => !isDeprecatedCodexWorkflowAlias(skill.name))
-    : plugin.skills
+    ? platformSkills.filter((skill) => !isDeprecatedCodexWorkflowAlias(skill.name))
+    : platformSkills
   const skillDirs = copiedSkills.map((skill) => ({
     name: skill.name,
     sourceDir: skill.sourceDir,

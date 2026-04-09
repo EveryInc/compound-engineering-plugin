@@ -1,0 +1,6 @@
+{"role":"user","message":{"content":[{"type":"text","text":"<user_query>\nExplain the auth middleware\n</user_query>"}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"[REDACTED]"},{"type":"tool_use","name":"Read","input":{"path":"/Users/test/Code/my-repo/src/auth.ts"}},{"type":"tool_use","name":"Grep","input":{"pattern":"middleware","path":"/Users/test/Code/my-repo/src"}}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"The auth middleware validates JWT tokens on every request. It checks the Authorization header and verifies the token signature against the public key."}]}}
+{"role":"user","message":{"content":[{"type":"text","text":"<user_query>\nwhy was it built this way\n</user_query>"}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"[REDACTED]"},{"type":"tool_use","name":"Read","input":{"path":"/Users/test/Code/my-repo/docs/auth-design.md"}}]}}
+{"role":"assistant","message":{"content":[{"type":"text","text":"It was built this way because the team wanted stateless auth that doesn't require a session store. JWT tokens are self-contained and can be verified without a database lookup."}]}}

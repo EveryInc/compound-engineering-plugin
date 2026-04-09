@@ -56,6 +56,20 @@ If the user references an existing brainstorm topic or document, or there is an 
 - Confirm with the user before resuming: "Found an existing requirements doc for [topic]. Should I continue from this, or start fresh?"
 - If resuming, summarize the current state briefly, continue from its existing decisions and outstanding questions, and update the existing document instead of creating a duplicate
 
+#### 0.1b Classify Task Domain
+
+Before proceeding to Phase 0.2, classify whether this is a software task. The key question is: **does the task involve building, modifying, or architecting software?** -- not whether the task *mentions* software topics.
+
+**Software** (continue to Phase 0.2) -- the task references code, repositories, APIs, databases, or asks to build/modify/debug/deploy software.
+
+**Non-software brainstorming** (route to universal brainstorming) -- BOTH conditions must be true:
+- None of the software signals above are present
+- The task describes something the user wants to explore, decide, or think through in a non-software domain
+
+**Neither** (respond directly, skip all brainstorming phases) -- the input is a quick-help request, error message, factual question, or single-step task that doesn't need a brainstorm.
+
+**If non-software brainstorming is detected:** Read `references/universal-brainstorming.md` and use those facilitation principles to brainstorm with the user naturally. Do not follow the software brainstorming phases below.
+
 #### 0.2 Assess Whether Brainstorming Is Needed
 
 **Clear requirements indicators:**
@@ -96,7 +110,11 @@ If nothing obvious appears after a short scan, say so and continue. Two rules go
 
 2. **Defer design decisions to planning** — Implementation details like schemas, migration strategies, endpoint structure, or deployment topology belong in planning, not here — unless the brainstorm is itself about a technical or architectural decision, in which case those details are the subject of the brainstorm and should be explored.
 
-**Slack context** (Standard and Deep only) — If any `slack_*` tool is available in the tool list, dispatch `compound-engineering:research:slack-researcher` with a brief summary of the brainstorm topic. If the agent returns an error or reports Slack MCP unavailable, log a warning ("Slack context unavailable: {reason}. Proceeding without organizational context.") and continue. Coordinate this dispatch at the start of Phase 1.1 alongside the inline Constraint Check and Topic Scan. Wait for all to complete before proceeding to Phase 1.2. Incorporate any Slack findings into the constraint and context awareness for the brainstorm session. Skip for Lightweight scope.
+**Slack context** (opt-in, Standard and Deep only) — never auto-dispatch. Route by condition:
+
+- **Tools available + user asked**: Dispatch `compound-engineering:research:slack-researcher` with a brief summary of the brainstorm topic alongside Phase 1.1 work. Incorporate findings into constraint and context awareness.
+- **Tools available + user didn't ask**: Note in output: "Slack tools detected. Ask me to search Slack for organizational context at any point, or include it in your next prompt."
+- **No tools + user asked**: Note in output: "Slack context was requested but no Slack tools are available. Install and authenticate the Slack plugin to enable organizational context search."
 
 #### 1.2 Product Pressure Test
 
@@ -125,6 +143,7 @@ Before generating approaches, challenge the request to catch misframing. Match d
 Follow the Interaction Rules above. Use the platform's blocking question tool when available.
 
 **Guidelines:**
+- Ask what the user is already thinking before offering your own ideas. This surfaces hidden context and prevents fixation on AI-generated framings.
 - Start broad (problem, users, value) then narrow (constraints, exclusions, edge cases)
 - Clarify the problem frame, validate assumptions, and ask about success criteria
 - Make requirements concrete enough that planning will not need to invent behavior
@@ -138,6 +157,10 @@ Follow the Interaction Rules above. Use the platform's blocking question tool wh
 
 If multiple plausible directions remain, propose **2-3 concrete approaches** based on research and conversation. Otherwise state the recommended direction directly.
 
+Use at least one non-obvious angle — inversion (what if we did the opposite?), constraint removal (what if X weren't a limitation?), or analogy from how another domain solves this. The first approaches that come to mind are usually variations on the same axis.
+
+Present approaches first, then evaluate. Let the user see all options before hearing which one is recommended — leading with a recommendation before the user has seen alternatives anchors the conversation prematurely.
+
 When useful, include one deliberately higher-upside alternative:
 - Identify what adjacent addition or reframing would most increase usefulness, compounding value, or durability without disproportionate carrying cost. Present it as a challenger option alongside the baseline, not as the default. Omit it when the work is already obviously over-scoped or the baseline request is clearly the right move.
 
@@ -147,7 +170,7 @@ For each approach, provide:
 - Key risks or unknowns
 - When it's best suited
 
-Lead with your recommendation and explain why. Prefer simpler solutions when added complexity creates real carrying cost, but do not reject low-cost, high-value polish just because it is not strictly necessary.
+After presenting all approaches, state your recommendation and explain why. Prefer simpler solutions when added complexity creates real carrying cost, but do not reject low-cost, high-value polish just because it is not strictly necessary.
 
 If one approach is clearly best and alternatives are not meaningful, skip the menu and state the recommendation directly.
 

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import path from "path"
 import { loadClaudePlugin } from "../src/parsers/claude"
+import { filterSkillsByPlatform } from "../src/types/claude"
 
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 const mcpFixtureRoot = path.join(import.meta.dir, "fixtures", "mcp-file")
@@ -16,7 +17,7 @@ describe("loadClaudePlugin", () => {
     expect(plugin.manifest.name).toBe("compound-engineering")
     expect(plugin.agents.length).toBe(2)
     expect(plugin.commands.length).toBe(7)
-    expect(plugin.skills.length).toBe(2)
+    expect(plugin.skills.length).toBe(3)
     expect(plugin.hooks).toBeDefined()
     expect(plugin.mcpServers).toBeDefined()
 
@@ -64,6 +65,34 @@ describe("loadClaudePlugin", () => {
 
     const normalCommand = plugin.commands.find((command) => command.name === "workflows:review")
     expect(normalCommand?.disableModelInvocation).toBeUndefined()
+  })
+
+  test("parses ce_platforms from skills", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+
+    const claudeOnly = plugin.skills.find((skill) => skill.name === "claude-only-skill")
+    expect(claudeOnly).toBeDefined()
+    expect(claudeOnly?.ce_platforms).toEqual(["claude"])
+
+    const normalSkill = plugin.skills.find((skill) => skill.name === "skill-one")
+    expect(normalSkill?.ce_platforms).toBeUndefined()
+  })
+
+  test("filterSkillsByPlatform includes skills without platforms field", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    const codexSkills = filterSkillsByPlatform(plugin.skills, "codex")
+
+    expect(codexSkills.find((s) => s.name === "skill-one")).toBeDefined()
+    expect(codexSkills.find((s) => s.name === "disabled-skill")).toBeDefined()
+    expect(codexSkills.find((s) => s.name === "claude-only-skill")).toBeUndefined()
+  })
+
+  test("filterSkillsByPlatform includes skills matching the platform", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    const claudeSkills = filterSkillsByPlatform(plugin.skills, "claude")
+
+    expect(claudeSkills.find((s) => s.name === "skill-one")).toBeDefined()
+    expect(claudeSkills.find((s) => s.name === "claude-only-skill")).toBeDefined()
   })
 
   test("parses disable-model-invocation from skills", async () => {

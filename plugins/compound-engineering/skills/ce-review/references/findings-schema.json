@@ -124,6 +124,11 @@
       "downstream-resolver": "Turn this into residual work for later resolution.",
       "human": "A person must make a judgment call before code changes should continue.",
       "release": "Operational or rollout follow-up; do not convert into code-fix work automatically."
+    },
+    "return_tiers": {
+      "description": "Finding fields are split into two tiers. The full schema (with all required fields) applies to the artifact file on disk. The compact return to the orchestrator omits detail-tier fields. Both are valid uses of this schema in different contexts.",
+      "merge_tier": "Returned to orchestrator: title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing, suggested_fix (optional). Plus top-level reviewer, residual_risks, testing_gaps.",
+      "detail_tier": "Required in artifact file, omitted from compact return: why_it_matters, evidence. The artifact file must pass full schema validation including all required fields. Headless output depends on why_it_matters and evidence being present in the artifact."
     }
   }
 }

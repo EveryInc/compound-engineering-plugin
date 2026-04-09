@@ -194,6 +194,8 @@ Task({
 - No team membership required
 - Best for: searches, analysis, focused research
 
+**Permission mode:** Omit the `mode` parameter unless you need a specific mode like `mode: "plan"`. Passing `mode: "auto"` overrides the user's configured permission settings (e.g., `bypassPermissions`). Omitting it lets the user's own `defaultMode` apply.
+
 ### Method 2: Task Tool + team_name + name (Teammates)
 
 Use Task with `team_name` and `name` to **spawn persistent teammates**:

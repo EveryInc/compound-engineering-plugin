@@ -33,7 +33,7 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 | `api-contract` | `compound-engineering:review:api-contract-reviewer` | Route definitions, serializer/interface changes, event schemas, exported type signatures, API versioning |
 | `data-migrations` | `compound-engineering:review:data-migrations-reviewer` | Migration files, schema changes, backfill scripts, data transformations |
 | `reliability` | `compound-engineering:review:reliability-reviewer` | Error handling, retry logic, circuit breakers, timeouts, background jobs, async handlers, health checks |
-| `adversarial` | `compound-engineering:review:adversarial-reviewer` | Diff has >=50 changed non-test, non-generated, non-lockfile lines, OR touches auth, payments, data mutations, external API integrations, or other high-risk domains |
+| `adversarial` | `compound-engineering:review:adversarial-reviewer` | Diff has >=50 changed lines of executable code (not prose/instruction Markdown, JSON schemas, or config), OR touches auth, payments, data mutations, external API integrations, or other high-risk domains regardless of file type |
 | `cli-readiness` | `compound-engineering:review:cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
 | `previous-comments` | `compound-engineering:review:previous-comments-reviewer` | **PR-only.** Reviewing a PR that has existing review comments or review threads from prior review rounds. Skip entirely when no PR metadata was gathered in Stage 1. |
 

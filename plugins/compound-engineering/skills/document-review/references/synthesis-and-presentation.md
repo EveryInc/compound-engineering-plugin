@@ -53,6 +53,11 @@ Scan `present` findings for codebase-pattern-resolved auto-eligibility. Promote 
 
 The principle: when a reviewer mentions multiple theoretical approaches but the codebase already has an established pattern that makes one approach clearly correct, the codebase context settles the question. Alternatives mentioned in passing do not create a real tradeoff if the evidence shows the codebase has already chosen.
 
+Additional auto-promotion patterns (promote `present` -> `auto` when):
+- The finding identifies factually incorrect behavior in the document and the suggested fix describes the correct behavior (not a design choice between alternatives)
+- The finding identifies a missing industry-standard security control where the document's own context makes the omission clearly wrong (not a legitimate design choice for the system described), and the suggested fix follows established practice
+- The finding identifies an incomplete technical description and the complete version is directly derivable from the codebase (the reviewer cited specific code showing what the description should say)
+
 Do not promote if the finding involves scope or priority changes where the document author may have weighed tradeoffs invisible to the reviewer.
 
 ### 3.7 Route by Autofix Class
@@ -66,7 +71,7 @@ Do not promote if the finding involves scope or priority changes where the docum
 
 Demote any `auto` finding that lacks a `suggested_fix` to `present`.
 
-**Auto-eligible patterns:** summary/detail mismatch (body is authoritative over overview), wrong counts, missing list entries derivable from elsewhere in the document, stale internal cross-references, terminology drift, prose/diagram contradictions where prose is more detailed, missing steps mechanically implied by other content, unstated thresholds implied by surrounding context, completeness gaps where the correct addition is obvious, codebase-pattern-resolved fixes where the reviewer cites a specific existing pattern and the suggested_fix follows it. If the fix requires judgment about *what* to do (not just *what to write*) and the codebase context does not resolve the ambiguity, it belongs in `present`.
+**Auto-eligible patterns:** summary/detail mismatch (body is authoritative over overview), wrong counts, missing list entries derivable from elsewhere in the document, stale internal cross-references, terminology drift, prose/diagram contradictions where prose is more detailed, missing steps mechanically implied by other content, unstated thresholds implied by surrounding context, completeness gaps where the correct addition is obvious, codebase-pattern-resolved fixes where the reviewer cites a specific existing pattern and the suggested_fix follows it, factually incorrect behavior where the correct behavior is obvious from context or the codebase, missing standard security controls with known implementations, incomplete technical descriptions where the complete version is derivable from the codebase. If the fix requires judgment about *what* to do (not just *what to write*) and the codebase context does not resolve the ambiguity, it belongs in `present`.
 
 ### 3.8 Sort
 

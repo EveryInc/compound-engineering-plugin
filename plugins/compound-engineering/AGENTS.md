@@ -136,13 +136,17 @@ Why: shell-heavy exploration causes avoidable permission prompts in sub-agent wo
 
 - [ ] Never instruct agents to use `find`, `ls`, `cat`, `head`, `tail`, `grep`, `rg`, `wc`, or `tree` through a shell for routine file discovery, content search, or file reading
 - [ ] Describe tools by capability class with platform hints — e.g., "Use the native file-search/glob tool (e.g., Glob in Claude Code)" — not by Claude Code-specific tool names alone
-- [ ] When shell is the only option (e.g., `ast-grep`, `bundle show`, git commands), instruct one simple command at a time — no chaining (`&&`, `||`, `;`) and no error suppression (`2>/dev/null`, `|| true`). Simple pipes (e.g., `| jq .field`) and output redirection (e.g., `> file`) are acceptable when they don't obscure failures
+- [ ] When shell is the only option (e.g., `ast-grep`, `bundle show`, git commands), instruct one simple command at a time — no chaining (`&&`, `||`, `;`) and no error suppression (`2>/dev/null`, `|| true`). Simple pipes (e.g., `| jq .field`) and output redirection (e.g., `> file`) are acceptable when they don't obscure failures. **Exception:** `!` backtick pre-resolution commands may use error suppression and `||` fallbacks to produce clean sentinel values (e.g., `|| echo '__FAILED__'`), since these run at load time and the model needs a parseable signal, not raw stderr
 - [ ] Do not encode shell recipes for routine exploration when native tools can do the job; encode intent and preferred tool classes instead
 - [ ] For shell-only workflows (e.g., `gh`, `git`, `bundle show`, project CLIs), explicit command examples are acceptable when they are simple, task-scoped, and not chained together
 
 ### Passing Reference Material to Sub-Agents
 
 When a skill orchestrates sub-agents that need codebase reference material, prefer passing file paths over file contents. The sub-agent reads only what it needs. Content-passing is fine for small, static material consumed in full (e.g., a JSON schema under ~50 lines).
+
+### Sub-Agent Permission Mode
+
+When dispatching sub-agents, **omit the `mode` parameter** on the Agent/Task tool call unless the skill explicitly needs a specific mode (e.g., `mode: "plan"` for plan-approval workflows). Passing `mode: "auto"` or any other value overrides the user's configured permission settings (e.g., `bypassPermissions` in their user-level config), which is never the intended behavior for routine subagent dispatch. Omitting `mode` lets the user's own `defaultMode` setting apply.
 
 ### Quick Validation Command
 

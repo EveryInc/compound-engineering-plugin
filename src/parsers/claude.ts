@@ -107,11 +107,13 @@ async function loadSkills(skillsDirs: string[]): Promise<ClaudeSkill[]> {
     const { data } = parseFrontmatter(raw, file)
     const name = (data.name as string) ?? path.basename(path.dirname(file))
     const disableModelInvocation = data["disable-model-invocation"] === true ? true : undefined
+    const ce_platforms = Array.isArray(data.ce_platforms) ? (data.ce_platforms as string[]) : undefined
     skills.push({
       name,
       description: data.description as string | undefined,
       argumentHint: data["argument-hint"] as string | undefined,
       disableModelInvocation,
+      ce_platforms,
       sourceDir: path.dirname(file),
       skillPath: file,
     })

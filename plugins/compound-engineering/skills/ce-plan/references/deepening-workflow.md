@@ -168,7 +168,7 @@ Artifact-backed mode uses a per-run scratch directory under `.context/compound-e
 
 ## 5.3.6 Run Targeted Research
 
-Launch the selected agents in parallel using the execution mode chosen above. If the current platform does not support parallel dispatch, run them sequentially instead.
+Launch the selected agents in parallel using the execution mode chosen above. If the current platform does not support parallel dispatch, run them sequentially instead. Omit the `mode` parameter when dispatching so the user's configured permission settings apply.
 
 Prefer local repo and institutional evidence first. Use external research only when the gap cannot be closed responsibly from repo context or already-cited sources.
 

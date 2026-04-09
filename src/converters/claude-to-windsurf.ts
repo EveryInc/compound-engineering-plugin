@@ -1,7 +1,7 @@
 import { formatFrontmatter } from "../utils/frontmatter"
 import { sanitizePathName } from "../utils/files"
 import { findServersWithPotentialSecrets } from "../utils/secrets"
-import type { ClaudeAgent, ClaudeCommand, ClaudeMcpServer, ClaudePlugin } from "../types/claude"
+import { type ClaudeAgent, type ClaudeCommand, type ClaudeMcpServer, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
 import type { WindsurfBundle, WindsurfGeneratedSkill, WindsurfMcpConfig, WindsurfMcpServerEntry, WindsurfWorkflow } from "../types/windsurf"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 
@@ -16,7 +16,7 @@ export function convertClaudeToWindsurf(
   const knownAgentNames = plugin.agents.map((a) => normalizeName(a.name))
 
   // Pass-through skills (collected first so agent skill names can deduplicate against them)
-  const skillDirs = plugin.skills.map((skill) => ({
+  const skillDirs = filterSkillsByPlatform(plugin.skills, "windsurf").map((skill) => ({
     name: skill.name,
     sourceDir: skill.sourceDir,
   }))

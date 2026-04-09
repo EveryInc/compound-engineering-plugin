@@ -1,11 +1,12 @@
 import { formatFrontmatter } from "../utils/frontmatter"
 import { normalizeModelWithProvider } from "../utils/model"
-import type {
-  ClaudeAgent,
-  ClaudeCommand,
-  ClaudeHooks,
-  ClaudePlugin,
-  ClaudeMcpServer,
+import {
+  type ClaudeAgent,
+  type ClaudeCommand,
+  type ClaudeHooks,
+  type ClaudePlugin,
+  type ClaudeMcpServer,
+  filterSkillsByPlatform,
 } from "../types/claude"
 import type {
   OpenCodeBundle,
@@ -83,7 +84,7 @@ export function convertClaudeToOpenCode(
     agents: agentFiles,
     commandFiles: cmdFiles,
     plugins,
-    skillDirs: plugin.skills.map((skill) => ({ sourceDir: skill.sourceDir, name: skill.name })),
+    skillDirs: filterSkillsByPlatform(plugin.skills, "opencode").map((skill) => ({ sourceDir: skill.sourceDir, name: skill.name })),
   }
 }
 

@@ -311,37 +311,31 @@ When referencing actual GitHub issues or PRs, use the full format: `org/repo#123
 
 Append a badge footer to the PR description, separated by a `---` rule. Do not add one if the description already contains a Compound Engineering badge (e.g., added by another skill like ce-work).
 
-**Plugin version (pre-resolved):** !`jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json"`
-
-If the line above resolved to a semantic version (e.g., `2.42.0`), use it as `[VERSION]` in the versioned badge below. Otherwise (empty, a literal command string, or an error), use the versionless badge. Do not attempt to resolve the version at runtime.
-
-**Versioned badge** (when version resolved above):
+**Badge:**
 
 ```markdown
 ---
 
-[![Compound Engineering v[VERSION]](https://img.shields.io/badge/Compound_Engineering-v[VERSION]-6366f1)](https://github.com/EveryInc/compound-engineering-plugin)
-🤖 Generated with [MODEL] ([CONTEXT] context, [THINKING]) via [HARNESS](HARNESS_URL)
+[![Compound Engineering](https://img.shields.io/badge/Built_with-Compound_Engineering-6366f1)](https://github.com/EveryInc/compound-engineering-plugin)
+![HARNESS](https://img.shields.io/badge/HARNESS_SLUG-MODEL_SLUG-COLOR?logo=LOGO&logoColor=white)
 ```
 
-**Versionless badge** (when version is not available):
+Fill in at PR creation time using the harness and model lookup tables below.
 
-```markdown
----
+**Harness lookup:**
 
-[![Compound Engineering](https://img.shields.io/badge/Compound_Engineering-6366f1)](https://github.com/EveryInc/compound-engineering-plugin)
-🤖 Generated with [MODEL] ([CONTEXT] context, [THINKING]) via [HARNESS](HARNESS_URL)
-```
+| Harness | `HARNESS_SLUG` | `LOGO` | `COLOR` |
+|---------|---------------|--------|---------|
+| Claude Code | `Claude_Code` | `claude` | `D97757` |
+| Codex | `Codex` | (omit logo param) | `000000` |
+| Gemini CLI | `Gemini_CLI` | `googlegemini` | `4285F4` |
 
-Fill in at PR creation time:
+**Model slug:** Replace spaces with underscores in the model name. Append context window and thinking level in parentheses if known, separated by commas. Examples:
 
-| Placeholder | Value | Example |
-|-------------|-------|---------|
-| `[MODEL]` | Model name | Claude Opus 4.6, GPT-5.4 |
-| `[CONTEXT]` | Context window (if known) | 200K, 1M |
-| `[THINKING]` | Thinking level (if known) | extended thinking |
-| `[HARNESS]` | Tool running you | Claude Code, Codex, Gemini CLI |
-| `[HARNESS_URL]` | Link to that tool | `https://claude.com/claude-code` |
+- `Opus_4.6_(1M,_Extended_Thinking)`
+- `GPT_5.4_(High)`
+- `Sonnet_4.6_(200K)`
+- `Opus_4.6` (if context and thinking level are unknown)
 
 ### Step 7: Create or update the PR
 
@@ -353,13 +347,13 @@ PR description here
 
 ---
 
-[BADGE LINE FROM BADGE SECTION ABOVE]
-🤖 Generated with [MODEL] ([CONTEXT] context, [THINKING]) via [HARNESS](HARNESS_URL)
+[![Compound Engineering](https://img.shields.io/badge/Built_with-Compound_Engineering-6366f1)](https://github.com/EveryInc/compound-engineering-plugin)
+![Claude Code](https://img.shields.io/badge/Claude_Code-Opus_4.6_(1M,_Extended_Thinking)-D97757?logo=claude&logoColor=white)
 EOF
 )"
 ```
 
-Use the versioned or versionless badge line resolved in the Compound Engineering badge section above.
+Use the badge from the Compound Engineering badge section above. Replace the harness and model badge with values from the lookup tables.
 
 Keep the PR title under 72 characters. The title follows the same convention as commit messages (Step 2).
 
