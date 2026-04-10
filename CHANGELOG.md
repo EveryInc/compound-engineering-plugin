@@ -1,5 +1,21 @@
 # Changelog
 
+## [2.64.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.63.1...cli-v2.64.0) (2026-04-10)
+
+
+### Features
+
+* **ce-demo-reel:** add demo reel skill with Python capture pipeline ([#541](https://github.com/EveryInc/compound-engineering-plugin/issues/541)) ([b979143](https://github.com/EveryInc/compound-engineering-plugin/commit/b979143ad0460a985dd224e7f1858416d79551fb))
+* **ce-update:** add plugin version check skill and ce_platforms filtering ([#532](https://github.com/EveryInc/compound-engineering-plugin/issues/532)) ([d37f0ed](https://github.com/EveryInc/compound-engineering-plugin/commit/d37f0ed16f94aaec2a7b435a0aaa018de5631ed3))
+* **ce-work-beta:** add beta Codex delegation mode ([#476](https://github.com/EveryInc/compound-engineering-plugin/issues/476)) ([31b0686](https://github.com/EveryInc/compound-engineering-plugin/commit/31b0686c2e88808381560314f10ce276c86e11e2))
+* **ce-work:** reduce token usage by extracting late-sequence references ([#540](https://github.com/EveryInc/compound-engineering-plugin/issues/540)) ([bb59547](https://github.com/EveryInc/compound-engineering-plugin/commit/bb59547a2efdd4e7213c149f51abd9c9a17016dd))
+* **session-historian:** cross-platform session history agent and /ce-sessions skill ([#534](https://github.com/EveryInc/compound-engineering-plugin/issues/534)) ([3208ec7](https://github.com/EveryInc/compound-engineering-plugin/commit/3208ec71f8f2209abc76baf97e3967406755317d))
+
+
+### Bug Fixes
+
+* **openclaw:** use sync plugin registration ([#498](https://github.com/EveryInc/compound-engineering-plugin/issues/498)) ([2c05c43](https://github.com/EveryInc/compound-engineering-plugin/commit/2c05c43dc8b66ae37501e42a9747c07d82002185))
+
 ## [2.63.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.63.0...cli-v2.63.1) (2026-04-07)
 
 

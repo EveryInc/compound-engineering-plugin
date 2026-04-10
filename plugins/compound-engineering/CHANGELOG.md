@@ -9,6 +9,27 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.64.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.63.1...compound-engineering-v2.64.0) (2026-04-10)
+
+
+### Features
+
+* **ce-debug:** add systematic debugging skill ([#543](https://github.com/EveryInc/compound-engineering-plugin/issues/543)) ([e38223a](https://github.com/EveryInc/compound-engineering-plugin/commit/e38223ae91921ebacabd10ff7cd1105ba3c10b25))
+* **ce-demo-reel:** add demo reel skill with Python capture pipeline ([#541](https://github.com/EveryInc/compound-engineering-plugin/issues/541)) ([b979143](https://github.com/EveryInc/compound-engineering-plugin/commit/b979143ad0460a985dd224e7f1858416d79551fb))
+* **ce-plan:** add output structure and scope sub-categorization ([#542](https://github.com/EveryInc/compound-engineering-plugin/issues/542)) ([f3cc754](https://github.com/EveryInc/compound-engineering-plugin/commit/f3cc7545e5eca0c3774b2803fa5515ff98a8fc1e))
+* **ce-review:** add compact returns to reduce orchestrator context during merge ([#535](https://github.com/EveryInc/compound-engineering-plugin/issues/535)) ([a5ce094](https://github.com/EveryInc/compound-engineering-plugin/commit/a5ce09477291766ffc03e0ae4e9e1e0f80560c2b))
+* **ce-update:** add plugin version check skill and ce_platforms filtering ([#532](https://github.com/EveryInc/compound-engineering-plugin/issues/532)) ([d37f0ed](https://github.com/EveryInc/compound-engineering-plugin/commit/d37f0ed16f94aaec2a7b435a0aaa018de5631ed3))
+* **ce-work-beta:** add beta Codex delegation mode ([#476](https://github.com/EveryInc/compound-engineering-plugin/issues/476)) ([31b0686](https://github.com/EveryInc/compound-engineering-plugin/commit/31b0686c2e88808381560314f10ce276c86e11e2))
+* **ce-work:** reduce token usage by extracting late-sequence references ([#540](https://github.com/EveryInc/compound-engineering-plugin/issues/540)) ([bb59547](https://github.com/EveryInc/compound-engineering-plugin/commit/bb59547a2efdd4e7213c149f51abd9c9a17016dd))
+* **session-historian:** cross-platform session history agent and /ce-sessions skill ([#534](https://github.com/EveryInc/compound-engineering-plugin/issues/534)) ([3208ec7](https://github.com/EveryInc/compound-engineering-plugin/commit/3208ec71f8f2209abc76baf97e3967406755317d))
+* **slack-researcher:** add /ce-slack-research skill and improve agent ([#538](https://github.com/EveryInc/compound-engineering-plugin/issues/538)) ([042ee73](https://github.com/EveryInc/compound-engineering-plugin/commit/042ee732398d1f41b9b91953569a54e40303332d))
+
+
+### Bug Fixes
+
+* **ce-compound:** explicit mode prompt and lightweight rename ([#528](https://github.com/EveryInc/compound-engineering-plugin/issues/528)) ([0ae91dc](https://github.com/EveryInc/compound-engineering-plugin/commit/0ae91dcc298721e5b2c4ab6d1fc6f76a13b6f67c))
+* **git-commit-push-pr:** remove harness slug from badge table ([#539](https://github.com/EveryInc/compound-engineering-plugin/issues/539)) ([044a035](https://github.com/EveryInc/compound-engineering-plugin/commit/044a035e77298c4b8d2152ac2cba36fc00f5b99a))
+
 ## [2.63.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.63.0...compound-engineering-v2.63.1) (2026-04-07)
 
 
