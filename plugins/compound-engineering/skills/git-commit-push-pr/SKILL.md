@@ -285,6 +285,17 @@ Use this to select the right description depth:
 
 **Brevity matters for small changes.** A 3-line bugfix with a 20-line PR description signals the author didn't calibrate. Match the weight of the description to the weight of the change. When in doubt, shorter is better -- reviewers can read the diff.
 
+#### Writing voice
+
+If the user has documented writing style preferences (in CLAUDE.md, project instructions, or prior feedback), follow those. Otherwise, apply these defaults:
+
+- Use active voice throughout. No em dashes.
+- Vary sentence length deliberately -- mix short punchy sentences with longer ones. Never write three sentences of similar length in a row.
+- Do not make a claim and then immediately explain it in the next sentence. Trust the reader.
+- Write in plain English. If there's a simpler word, that's preferable. Never use business jargon when a common word will do. Technical jargon is fine when it's the clearest term for a developer audience.
+- No filler phrases: "it's worth noting", "importantly", "essentially", "in order to", "leverage", "utilize."
+- Use digits for numbers ("3 files", "7 subcommands"), not words ("three files", "seven subcommands").
+
 #### Writing principles
 
 - **Lead with value**: The first sentence should tell the reviewer *what's now possible or fixed*, not what was moved around. "Fixes timeout errors during batch exports" beats "Updated export_handler.py and config.yaml." The subtler failure is leading with the mechanism: "Replace the hardcoded capture block with a tiered skill" is technically purposeful but still doesn't tell the reviewer what changed for users. "Evidence capture now works for CLI tools and libraries, not just web apps" does.
