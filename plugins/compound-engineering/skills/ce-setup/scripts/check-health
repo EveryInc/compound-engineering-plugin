@@ -12,12 +12,12 @@ set -o pipefail
 # To add a dependency: add a line here. No other changes needed.
 
 deps=(
-  "agent-browser|recommended|npm install -g agent-browser && agent-browser install && npx skills add vercel-labs/agent-browser|https://github.com/vercel-labs/agent-browser"
-  "gh|recommended|brew install gh|https://cli.github.com"
-  "jq|recommended|brew install jq|https://jqlang.github.io/jq/"
-  "vhs|optional|brew install vhs|https://github.com/charmbracelet/vhs"
-  "silicon|optional|brew install silicon|https://github.com/Aloxaf/silicon"
-  "ffmpeg|optional|brew install ffmpeg|https://ffmpeg.org/download.html"
+  "agent-browser|recommended|CI=true npm install -g agent-browser --no-audit --no-fund --loglevel=error && agent-browser install && npx skills add https://github.com/vercel-labs/agent-browser --skill agent-browser -g -y|https://github.com/vercel-labs/agent-browser"
+  "gh|recommended|NONINTERACTIVE=1 brew install gh|https://cli.github.com"
+  "jq|recommended|NONINTERACTIVE=1 brew install jq|https://jqlang.github.io/jq/"
+  "vhs|optional|NONINTERACTIVE=1 brew install vhs|https://github.com/charmbracelet/vhs"
+  "silicon|optional|NONINTERACTIVE=1 brew install silicon|https://github.com/Aloxaf/silicon"
+  "ffmpeg|optional|NONINTERACTIVE=1 brew install ffmpeg|https://ffmpeg.org/download.html"
 )
 
 # =====================================================
@@ -71,6 +71,7 @@ done
 
 legacy_cfg="skip"
 repo_cfg_gitignore="skip"
+example_cfg="skip"
 
 if [ "$in_repo" = "yes" ]; then
   repo_root=$(git rev-parse --show-toplevel 2>/dev/null)
@@ -83,6 +84,17 @@ if [ "$in_repo" = "yes" ]; then
     else
       repo_cfg_gitignore="missing"
     fi
+  fi
+
+  script_dir="$(cd "$(dirname "$0")" && pwd)"
+  template="$script_dir/../references/config-template.yaml"
+  example="$repo_root/.compound-engineering/config.local.example.yaml"
+  if [ ! -f "$example" ]; then
+    example_cfg="missing"
+  elif [ -f "$template" ] && ! diff -q "$template" "$example" >/dev/null 2>&1; then
+    example_cfg="outdated"
+  else
+    example_cfg="ok"
   fi
 fi
 
@@ -141,6 +153,9 @@ if [ "$in_repo" = "yes" ]; then
   if [ "$repo_cfg_gitignore" = "missing" ]; then
     has_project_issues="yes"
   fi
+  if [ "$example_cfg" = "missing" ] || [ "$example_cfg" = "outdated" ]; then
+    has_project_issues="yes"
+  fi
 
   if [ "$has_project_issues" = "yes" ]; then
     section "Project"
@@ -152,6 +167,14 @@ if [ "$in_repo" = "yes" ]; then
 
     if [ "$repo_cfg_gitignore" = "missing" ]; then
       warn "Local config not safely gitignored"
+      issues=$((issues + 1))
+    fi
+
+    if [ "$example_cfg" = "missing" ]; then
+      warn "Example config missing (.compound-engineering/config.local.example.yaml)"
+      issues=$((issues + 1))
+    elif [ "$example_cfg" = "outdated" ]; then
+      warn "Example config outdated (new settings available)"
       issues=$((issues + 1))
     fi
   fi

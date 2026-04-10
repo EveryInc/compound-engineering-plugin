@@ -49,6 +49,7 @@ After the diagnostic report, check whether:
 - any dependencies are missing (reported as red in the script output)
 - `compound-engineering.local.md` is present and needs cleanup
 - `.compound-engineering/config.local.yaml` does not exist or is not safely gitignored
+- `.compound-engineering/config.local.example.yaml` is missing or outdated
 
 If everything is installed, no repo-local cleanup is needed, and `.compound-engineering/config.local.yaml` already exists and is gitignored, display:
 
@@ -73,7 +74,11 @@ If `compound-engineering.local.md` exists, explain that it is obsolete because r
 
 ### Step 5: Bootstrap Project Config
 
-If `.compound-engineering/config.local.yaml` does not exist in the current repo, ask whether to create it:
+Resolve the repository root (`git rev-parse --show-toplevel`). All paths below are relative to the repo root, not the current working directory.
+
+**Example file (always refresh):** Copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.example.yaml`, creating the directory if needed. This file is committed to the repo and always overwritten with the latest template so teammates can see available settings.
+
+**Local config (create once):** If `.compound-engineering/config.local.yaml` does not exist, ask whether to create it:
 
 ```
 Set up a local config file for this project?
@@ -84,18 +89,13 @@ Everything starts commented out -- you only enable what you need.
 2. No thanks
 ```
 
-If the user approves:
-
-1. Resolve the repository root (`git rev-parse --show-toplevel`). All paths below are relative to the repo root, not the current working directory.
-2. Create the `.compound-engineering/` directory at the repo root if it does not exist.
-3. Copy the template from `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.yaml`.
-4. If `.compound-engineering/config.local.yaml` is not already covered by `.gitignore`, offer to add the entry:
+If the user approves, copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.yaml`. If `.compound-engineering/config.local.yaml` is not already covered by `.gitignore`, offer to add the entry:
 
 ```text
-.compound-engineering/config.local.yaml
+.compound-engineering/*.local.yaml
 ```
 
-If the file already exists, check whether it is safely gitignored. If not, offer to add the `.gitignore` entry as above.
+If the local config already exists, check whether it is safely gitignored. If not, offer to add the `.gitignore` entry as above.
 
 ### Step 6: Offer Installation
 
@@ -126,7 +126,7 @@ For each selected dependency, in order:
 
    ```
    Install agent-browser?
-   Command: npm install -g agent-browser && agent-browser install && npx skills add vercel-labs/agent-browser
+   Command: CI=true npm install -g agent-browser --no-audit --no-fund --loglevel=error && agent-browser install && npx skills add https://github.com/vercel-labs/agent-browser --skill agent-browser -g -y
 
    1. Run this command
    2. Skip - I'll install it manually
