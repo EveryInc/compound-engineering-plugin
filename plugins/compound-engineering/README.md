@@ -45,7 +45,7 @@ The primary entry points for engineering work, invoked as slash commands:
 | Skill | Description |
 |-------|-------------|
 | `/changelog` | Create engaging changelogs for recent merges |
-| `/feature-video` | Record video walkthroughs and add to PR description |
+| `/ce-demo-reel` | Capture a visual demo reel (GIF demos, terminal recordings, screenshots) for PRs with project-type-aware tier selection |
 | `/reproduce-bug` | Reproduce bugs using logs and console |
 | `/report-bug-ce` | Report a bug in the compound-engineering plugin |
 | `/resolve-pr-feedback` | Resolve PR review feedback in parallel |

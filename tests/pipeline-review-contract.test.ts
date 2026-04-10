@@ -9,27 +9,34 @@ async function readRepoFile(relativePath: string): Promise<string> {
 describe("ce:work review contract", () => {
   test("requires code review before shipping", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    // Review content extracted to references/shipping-workflow.md
+    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md")
 
-    // Phase 3 has a mandatory code review step (not optional)
-    expect(content).toContain("2. **Code Review**")
+    // SKILL.md should not contain extracted content
+    expect(content).not.toContain("2. **Code Review**")
     expect(content).not.toContain("Consider Code Review")
     expect(content).not.toContain("Code Review** (Optional)")
 
-    // Two-tier rubric
-    expect(content).toContain("**Tier 1: Inline self-review**")
-    expect(content).toContain("**Tier 2: Full review (default)**")
-    expect(content).toContain("ce:review")
-    expect(content).toContain("mode:autofix")
+    // Phase 3 has a mandatory code review step in the reference file
+    expect(shipping).toContain("2. **Code Review**")
+
+    // Two-tier rubric in reference file
+    expect(shipping).toContain("**Tier 1: Inline self-review**")
+    expect(shipping).toContain("**Tier 2: Full review (default)**")
+    expect(shipping).toContain("ce:review")
+    expect(shipping).toContain("mode:autofix")
 
     // Quality checklist includes review
-    expect(content).toContain("Code review completed (inline self-review or full `ce:review`)")
+    expect(shipping).toContain("Code review completed (inline self-review or full `ce:review`)")
   })
 
   test("delegates commit and PR to dedicated skills", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    // Commit/PR delegation content extracted to references/shipping-workflow.md
+    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md")
 
-    expect(content).toContain("`git-commit-push-pr` skill")
-    expect(content).toContain("`git-commit` skill")
+    expect(shipping).toContain("`git-commit-push-pr` skill")
+    expect(shipping).toContain("`git-commit` skill")
 
     // Should not contain inline PR templates or attribution placeholders
     expect(content).not.toContain("gh pr create")
@@ -38,14 +45,16 @@ describe("ce:work review contract", () => {
 
   test("ce:work-beta mirrors review and commit delegation", async () => {
     const beta = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    // Review/commit content extracted to references/shipping-workflow.md
+    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md")
 
-    // Both have mandatory review
-    expect(beta).toContain("2. **Code Review**")
+    // Extracted content in reference file
+    expect(shipping).toContain("2. **Code Review**")
+    expect(shipping).toContain("`git-commit-push-pr` skill")
+    expect(shipping).toContain("`git-commit` skill")
+
+    // Negative assertions stay on SKILL.md
     expect(beta).not.toContain("Consider Code Review")
-
-    // Both delegate to git skills
-    expect(beta).toContain("`git-commit-push-pr` skill")
-    expect(beta).toContain("`git-commit` skill")
     expect(beta).not.toContain("gh pr create")
   })
 
@@ -65,27 +74,57 @@ describe("ce:work review contract", () => {
 
   test("quality checklist says 'Testing addressed' not 'Tests pass'", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    // Quality checklist extracted to references/shipping-workflow.md
+    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md")
 
-    // New language present
-    expect(content).toContain("Testing addressed")
+    // New language present in reference file
+    expect(shipping).toContain("Testing addressed")
 
-    // Old language fully removed
+    // Old language fully removed from both
     expect(content).not.toContain("Tests pass (run project's test command)")
     expect(content).not.toContain("- All tests pass")
+    expect(shipping).not.toContain("Tests pass (run project's test command)")
   })
 
   test("ce:work-beta mirrors testing deliberation and checklist changes", async () => {
     const beta = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    // Checklist extracted to references/shipping-workflow.md
+    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md")
 
-    // Testing deliberation in loop
+    // Testing deliberation stays in SKILL.md (Phase 2 content)
     expect(beta).toContain("Assess testing coverage")
 
-    // New checklist language
-    expect(beta).toContain("Testing addressed")
+    // New checklist language in reference file
+    expect(shipping).toContain("Testing addressed")
 
-    // Old language removed
+    // Old language removed from both
     expect(beta).not.toContain("Tests pass (run project's test command)")
     expect(beta).not.toContain("- All tests pass")
+    expect(shipping).not.toContain("Tests pass (run project's test command)")
+  })
+
+  test("SKILL.md stub points to shipping-workflow reference", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+
+    // Stub references the shipping-workflow file
+    expect(content).toContain("`references/shipping-workflow.md`")
+
+    // Extracted content is not in SKILL.md
+    expect(content).not.toContain("2. **Code Review**")
+    expect(content).not.toContain("## Quality Checklist")
+    expect(content).not.toContain("## Code Review Tiers")
+  })
+
+  test("ce:work-beta SKILL.md stub points to shipping-workflow reference", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+
+    // Stub references the shipping-workflow file
+    expect(content).toContain("`references/shipping-workflow.md`")
+
+    // Extracted content is not in SKILL.md
+    expect(content).not.toContain("2. **Code Review**")
+    expect(content).not.toContain("## Quality Checklist")
+    expect(content).not.toContain("## Code Review Tiers")
   })
 
   test("ce:work remains the stable non-delegating surface", async () => {

@@ -71,9 +71,16 @@ Read the current PR description:
 gh pr view --json body --jq '.body'
 ```
 
-Follow the "Detect the base branch and remote" and "Gather the branch scope" sections of Step 6 to get the full branch diff. Use the PR found in DU-2 as the existing PR for base branch detection. Classify commits per the "Classify commits before writing" section -- this is especially important for description updates, where the recent commits that prompted the update are often fix-up work (code review fixes, lint fixes) rather than feature work. Then write a new description following the writing principles in Step 6, driven by the feature commits and the final diff. If the user provided a focus, incorporate it into the description alongside the branch diff context.
+Build the updated description in this order:
 
-Compare the new description against the current one and summarize the substantial changes for the user (e.g., "Added coverage of the new caching layer, updated test plan, removed outdated migration notes"). If the user provided a focus, confirm it was addressed. Ask the user to confirm before applying. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the summary and wait for the user's reply.
+1. **Get the full branch diff** -- follow "Detect the base branch and remote" and "Gather the branch scope" in Step 6. Use the PR found in DU-2 as the existing PR for base branch detection.
+2. **Classify commits** -- follow "Classify commits before writing" in Step 6. This matters especially for description updates, where the recent commits that prompted the update are often fix-up work (code review fixes, lint fixes) rather than feature work.
+3. **Decide on evidence** -- check if the current PR description already contains evidence (a `## Demo` or `## Screenshots` section with image embeds). If evidence exists, preserve it unless the user's focus specifically asks to refresh or remove it. If no evidence exists, follow "Evidence for PR descriptions" in Step 6. Description-only updates may be specifically intended to add evidence.
+4. **Write the new description** -- follow the writing principles in Step 6, driven by feature commits, final diff, and evidence decision.
+   - If the user provided a focus, incorporate it alongside the branch diff context.
+5. **Compare and confirm** -- summarize the substantial changes vs the current description (e.g., "Added coverage of the new caching layer, updated test plan, removed outdated migration notes").
+   - If the user provided a focus, confirm it was addressed.
+   - Ask the user to confirm before applying. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the summary and wait for the user's reply.
 
 If confirmed, apply:
 
@@ -107,19 +114,27 @@ If the current branch from the context above is empty, the repository is in deta
 - If the user agrees, derive a descriptive branch name from the change content, create it with `git checkout -b <branch-name>`, then run `git branch --show-current` again and use that result as the current branch name for the rest of the workflow.
 - If the user declines, stop.
 
-If the git status from the context above shows a clean working tree (no staged, modified, or untracked files), check whether there are unpushed commits or a missing PR before stopping. The current branch and existing PR check are already available from the context above. Additionally:
+If the git status from the context above shows a clean working tree (no staged, modified, or untracked files), determine the next action based on upstream state and PR status. The current branch and existing PR check are already available from the context above. Additionally:
 
 1. Run `git rev-parse --abbrev-ref --symbolic-full-name @{u}` to check whether an upstream is configured.
 2. If the command succeeds, run `git log <upstream>..HEAD --oneline` using the upstream name from the previous command.
 
-- If the current branch is `main`, `master`, or the resolved default branch from Step 1 and there is **no upstream** or there are **unpushed commits**, explain that pushing now would use the default branch directly. Ask whether to create a feature branch first. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply.
-- If the user agrees, derive a descriptive branch name from the change content, create it with `git checkout -b <branch-name>`, then continue from Step 5 (push).
-- If the user declines, report that this workflow cannot open a PR from the default branch directly and stop.
-- If there is **no upstream**, treat the branch as needing its first push. Skip Step 4 (commit) and continue from Step 5 (push).
-- If there are **unpushed commits**, skip Step 4 (commit) and continue from Step 5 (push).
-- If all commits are pushed but **no open PR exists** and the current branch is `main`, `master`, or the resolved default branch from Step 1, report that there is no feature branch work to open as a PR and stop.
-- If all commits are pushed but **no open PR exists**, skip Steps 4-5 and continue from Step 6 (write the PR description) and Step 7 (create the PR).
-- If all commits are pushed **and an open PR exists**, report that and stop -- there is nothing to do.
+Then follow this decision tree:
+
+- **On default branch** (`main`, `master`, or the resolved default branch) with no upstream or unpushed commits:
+  - Ask whether to create a feature branch first (pushing the default branch directly is not supported by this workflow). Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply.
+  - If yes -> create branch with `git checkout -b <branch-name>`, continue from Step 5 (push)
+  - If no -> stop
+- **On default branch**, all commits pushed, no open PR:
+  - Report there is no feature branch work to open as a PR. Stop.
+- **No upstream configured** (feature branch, never pushed):
+  - Skip Step 4 (commit), continue from Step 5 (push)
+- **Unpushed commits exist** (feature branch, upstream configured):
+  - Skip Step 4 (commit), continue from Step 5 (push)
+- **All commits pushed, no open PR** (feature branch):
+  - Skip Steps 4-5, continue from Step 6 (PR description) and Step 7 (create PR)
+- **All commits pushed, open PR exists**:
+  - Report that everything is up to date. Stop.
 
 ### Step 2: Determine conventions
 
@@ -204,6 +219,27 @@ MERGE_BASE=$(git merge-base <base-remote>/<base-branch> HEAD) && echo "MERGE_BAS
 
 Use the full branch diff and commit list as the basis for the PR description -- not the working-tree diff from Step 1.
 
+#### Evidence for PR descriptions
+
+Decide whether evidence capture is possible from the full branch diff before writing the PR description.
+
+**Evidence is possible** when the final diff changes observable product behavior that can be demonstrated from the workspace: UI rendering or interactions, CLI commands and output, API/library behavior with runnable example code, generated artifacts, or workflow behavior with visible output.
+
+**Evidence is not possible** for docs-only, markdown-only, changelog-only, release metadata, CI/config-only, test-only, or pure internal refactors with no observable output change. It is also not possible when the behavior requires unavailable credentials, paid/cloud services, bot tokens, deploy-only infrastructure, or hardware the user has not provided. In those cases, do not ask about capturing evidence; omit the evidence section and, if relevant, mention the skip reason in the final user report.
+
+When evidence is possible, ask whether to include it in the PR description. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply.
+
+**Question:** "This PR has observable behavior. Capture evidence for the PR description?"
+
+**Options:**
+1. **Capture evidence now**: load the `ce-demo-reel` skill with a target description as the argument (e.g., "the new settings page" or "CLI output of the migrate command"). Infer the target from the branch diff. ce-demo-reel returns `Tier`, `Description`, and `URL`. Use the URL and description to build a `## Demo` or `## Screenshots` section (browser-reel/terminal-recording/screenshot-reel use "Demo", static uses "Screenshots").
+2. **Use existing evidence**: ask the user for the URL or markdown embed, then include it in the PR body.
+3. **Skip evidence**: write the PR description without an evidence section.
+
+If the user chooses capture, check ce-demo-reel's output for failure: `Tier: skipped` or `URL: "none"` means no evidence was captured. Do not add a placeholder section. Summarize the skip reason in the final user report.
+
+Place the evidence embed before the Compound Engineering badge, typically after the summary or within the changes section. Do not label test output as "Demo" or "Screenshots".
+
 #### Classify commits before writing
 
 Before writing the description, scan the commit list and classify each commit:
@@ -213,9 +249,24 @@ Before writing the description, scan the commit list and classify each commit:
 
 Only feature commits inform the description. Fix-up commits are noise -- they describe the iteration process, not the end result. The full diff already includes whatever the fix-up commits changed, so their intent is captured without narrating them. When sizing and writing the description, mentally subtract fix-up commits: a branch with 12 commits but 9 fix-ups is a 3-commit PR in terms of description weight.
 
-This is the most important step. The description must be **adaptive** -- its depth should match the complexity of the change. A one-line bugfix does not need a table of performance results. A large architectural change should not be a bullet list.
+#### Frame the narrative before sizing
+
+After classifying commits, articulate the PR's narrative frame:
+
+1. **Before**: What was broken, limited, or impossible? (One sentence.)
+2. **After**: What's now possible or improved? (One sentence.)
+3. **Scope rationale** (only if the PR touches 2+ separable-looking concerns): Why do these ship together? (One sentence.)
+
+This frame becomes the opening of the description. For small+simple PRs (the sizing table routes to 1-2 sentences), the "after" sentence alone may be the entire description -- that's fine.
+
+Example:
+- Before: "CLI and library PRs got no visual evidence because the capture flow assumed a web app with a dev server."
+- After: "Evidence capture now works for any project type -- CLI tools, libraries, desktop apps."
+- Scope: "Shipped with git-commit-push-pr restructuring because ce-demo-reel integrates into the PR description flow."
 
 #### Sizing the change
+
+The description must be **adaptive** -- its depth should match the complexity of the change. A one-line bugfix does not need a table of performance results. A large architectural change should not be a bullet list.
 
 Assess the PR along two axes before writing, based on the full branch diff:
 
@@ -228,15 +279,26 @@ Use this to select the right description depth:
 |---|---|
 | Small + simple (typo, config, dep bump) | 1-2 sentences, no headers. Total body under ~300 characters. |
 | Small + non-trivial (targeted bugfix, behavioral change) | Short "Problem / Fix" narrative, ~3-5 sentences. Enough for a reviewer to understand *why* without reading the diff. No headers needed unless there are two distinct concerns. |
-| Medium feature or refactor | Summary paragraph, then a section explaining what changed and why. Call out design decisions. |
+| Medium feature or refactor | Open with the narrative frame (before/after/scope), then a section explaining what changed and why. Call out design decisions. |
 | Large or architecturally significant | Full narrative: problem context, approach chosen (and why), key decisions, migration notes or rollback considerations if relevant. |
 | Performance improvement | Include before/after measurements if available. A markdown table is effective here. |
 
 **Brevity matters for small changes.** A 3-line bugfix with a 20-line PR description signals the author didn't calibrate. Match the weight of the description to the weight of the change. When in doubt, shorter is better -- reviewers can read the diff.
 
+#### Writing voice
+
+If the user has documented writing style preferences (in CLAUDE.md, project instructions, or prior feedback), follow those. Otherwise, apply these defaults:
+
+- Use active voice throughout. No em dashes or double-hyphen (`--`) substitutes. Use periods, commas, colons, or parentheses instead.
+- Vary sentence length deliberately -- mix short punchy sentences with longer ones. Never write three sentences of similar length in a row.
+- Do not make a claim and then immediately explain it in the next sentence. Trust the reader.
+- Write in plain English. If there's a simpler word, that's preferable. Never use business jargon when a common word will do. Technical jargon is fine when it's the clearest term for a developer audience.
+- No filler phrases: "it's worth noting", "importantly", "essentially", "in order to", "leverage", "utilize."
+- Use digits for numbers ("3 files", "7 subcommands"), not words ("three files", "seven subcommands").
+
 #### Writing principles
 
-- **Lead with value**: The first sentence should tell the reviewer *why this PR exists*, not *what files changed*. "Fixes timeout errors during batch exports" beats "Updated export_handler.py and config.yaml".
+- **Lead with value**: The first sentence should tell the reviewer *what's now possible or fixed*, not what was moved around. "Fixes timeout errors during batch exports" beats "Updated export_handler.py and config.yaml." The subtler failure is leading with the mechanism: "Replace the hardcoded capture block with a tiered skill" is technically purposeful but still doesn't tell the reviewer what changed for users. "Evidence capture now works for CLI tools and libraries, not just web apps" does.
 - **No orphaned opening paragraphs**: If the description uses `##` section headings anywhere, the opening summary must also be under a heading (e.g., `## Summary`). An untitled paragraph followed by titled sections looks like a missing heading. For short descriptions with no sections, a bare paragraph is fine.
 - **Describe the net result, not the journey**: The PR description is about the end state -- what changed and why. Do not include work-product details like bugs found and fixed during development, intermediate failures, debugging steps, iteration history, or refactoring done along the way. Those are part of getting the work done, not part of the result. If a bug fix happened during development, the fix is already in the diff -- mentioning it in the description implies it's a separate concern the reviewer should evaluate, when really it's just part of the final implementation. Exception: include process details only when they are critical for a reviewer to understand a design choice (e.g., "tried approach X first but it caused Y, so went with Z instead").
 - **When commits conflict, trust the final diff**: The commit list is supporting context, not the source of truth for the final PR description. If commit messages describe intermediate steps that were later revised or reverted (for example, "switch to gh pr list" followed by a later change back to `gh pr view`), describe the end state shown by the full branch diff. Do not narrate contradictory commit history as if all of it shipped.
@@ -252,7 +314,7 @@ Use this to select the right description depth:
   ```
 
 - **No empty sections**: If a section (like "Breaking Changes" or "Migration Guide") doesn't apply, omit it entirely. Do not include it with "N/A" or "None".
-- **Test plan -- only when it adds value**: Include a test plan section when the testing approach is non-obvious: edge cases the reviewer might not think of, verification steps for behavior that's hard to see in the diff, or scenarios that require specific setup. Omit it for straightforward changes where the tests are self-explanatory or where "run the tests" is the only useful guidance. A test plan for "verify the typo is fixed" is noise.
+- **Test plan -- only when it adds value**: Include a test plan section when the testing approach is non-obvious: edge cases the reviewer might not think of, verification steps for behavior that's hard to see in the diff, or scenarios that require specific setup. Omit it for straightforward changes where the tests are self-explanatory or where "run the tests" is the only useful guidance. A test plan for "verify the typo is fixed" is noise. When the branch adds new test files, name them with what they cover -- "`tests/capture-evidence.test.ts` -- 8 tests covering arg validation and ffmpeg stitch integration" is more useful than "bun test passes."
 
 #### Visual communication
 
@@ -363,7 +425,12 @@ Keep the PR title under 72 characters. The title follows the same convention as 
 
 The new commits are already on the PR from the push in Step 5. Report the PR URL, then ask the user whether they want the PR description updated to reflect the new changes. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the option and wait for the user's reply before proceeding.
 
-- If **yes** -- write a new description following the same principles in Step 6 (size the full PR, not just the new commits). Classify commits per "Classify commits before writing" -- the new commits since the last push are often fix-up work (code review fixes, lint fixes) and should not appear as distinct items in the updated description. Describe the PR's net result as if writing it fresh. Include the Compound Engineering badge unless one is already present in the existing description. Apply it:
+- If **yes**:
+  1. Classify commits per "Classify commits before writing" -- the new commits since the last push are often fix-up work (code review fixes, lint fixes) and should not appear as distinct items
+  2. Size the full PR (not just the new commits) using the sizing table in Step 6
+  3. Write the description as if fresh, following Step 6's writing principles -- describe the PR's net result
+  4. Include the Compound Engineering badge unless one is already present
+  5. Apply:
 
   ```bash
   gh pr edit --body "$(cat <<'EOF'

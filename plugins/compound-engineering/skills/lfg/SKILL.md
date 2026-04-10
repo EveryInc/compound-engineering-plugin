@@ -25,8 +25,6 @@ CRITICAL: You MUST execute every step below IN ORDER. Do NOT skip any required s
 
 6. `/compound-engineering:test-browser`
 
-7. `/compound-engineering:feature-video`
-
-8. Output `<promise>DONE</promise>` when video is in PR
+7. Output `<promise>DONE</promise>` when complete
 
 Start with step 2 now (or step 1 if ralph-loop is available). Remember: plan FIRST, then work. Never skip the plan.
