@@ -9,7 +9,8 @@ Subcommands:
   stitch [--duration N] OUTPUT FRAME [FRAME ...]            Stitch frames into animated GIF
   screenshot-reel --output OUT [--duration N] [--lang L] [--theme T] --text F [F ...]   Render text frames via silicon + stitch
   terminal-recording --output OUT --tape TAPE               Run VHS tape file
-  upload FILE                        Upload to catbox.moe (retries once)
+  upload [--userhash H] FILE         Upload to catbox.moe (retries once)
+  delete --userhash H FILE [FILE ...] Delete files from catbox.moe
 """
 import argparse
 import json
@@ -535,16 +536,22 @@ def cmd_upload(args):
     if not check_tool("curl"):
         die("curl is not installed")
 
+    userhash = args.userhash
     size_mb = file_size_mb(file_path)
     print(f"Uploading {file_path} ({size_mb:.1f} MB) to catbox.moe...")
 
     def _try_upload():
+        cmd = [
+            "curl", "-s", "--connect-timeout", "10",
+            "-F", "reqtype=fileupload",
+            "-F", f"fileToUpload=@{file_path}",
+        ]
+        if userhash:
+            cmd += ["-F", f"userhash={userhash}"]
+        cmd.append(CATBOX_API)
         try:
             result = subprocess.run(
-                ["curl", "-s", "--connect-timeout", "10",
-                 "-F", "reqtype=fileupload",
-                 "-F", f"fileToUpload=@{file_path}", CATBOX_API],
-                capture_output=True, text=True, timeout=30, check=False,
+                cmd, capture_output=True, text=True, timeout=30, check=False,
             )
             return result.stdout.strip()
         except subprocess.TimeoutExpired:
@@ -574,6 +581,41 @@ def cmd_upload(args):
         sys.exit(1)
 
 
+# --- Delete ---
+
+def cmd_delete(args):
+    if not check_tool("curl"):
+        die("curl is not installed")
+
+    # Extract just the filename from full URLs or bare filenames
+    filenames = []
+    for f in args.files:
+        if f.startswith("https://"):
+            filenames.append(f.rsplit("/", 1)[-1])
+        else:
+            filenames.append(f)
+
+    files_str = " ".join(filenames)
+    print(f"Deleting from catbox.moe: {files_str}")
+
+    try:
+        result = subprocess.run(
+            ["curl", "-s", "--connect-timeout", "10",
+             "-d", f"reqtype=deletefiles&userhash={args.userhash}&files={files_str}",
+             CATBOX_API],
+            capture_output=True, text=True, timeout=30, check=False,
+        )
+        response = result.stdout.strip()
+        if result.returncode == 0:
+            print(f"Delete response: {response}")
+        else:
+            print(f"ERROR: Delete failed (exit {result.returncode})", file=sys.stderr)
+            if response:
+                print(response, file=sys.stderr)
+    except subprocess.TimeoutExpired:
+        print("ERROR: Delete timed out after 30s", file=sys.stderr)
+
+
 # --- Main ---
 
 def main():
@@ -588,7 +630,8 @@ Commands:
   stitch [--duration N] OUTPUT FRAMES    Stitch frames into animated GIF
   screenshot-reel --output O --text F    Render text via silicon + stitch
   terminal-recording --output O --tape T Run VHS tape
-  upload FILE                            Upload to catbox.moe
+  upload [--userhash H] FILE             Upload to catbox.moe
+  delete --userhash H FILE [FILE ...]    Delete files from catbox.moe
 """,
     )
     sub = parser.add_subparsers(dest="command")
@@ -629,7 +672,13 @@ Commands:
 
     # upload
     p_upload = sub.add_parser("upload", help="Upload to catbox.moe")
+    p_upload.add_argument("--userhash", help="Catbox userhash for file management")
     p_upload.add_argument("file", help="File to upload")
+
+    # delete
+    p_delete = sub.add_parser("delete", help="Delete files from catbox.moe")
+    p_delete.add_argument("--userhash", required=True, help="Catbox userhash used during upload")
+    p_delete.add_argument("files", nargs="+", help="Filenames or URLs to delete")
 
     args = parser.parse_args()
 
@@ -645,6 +694,7 @@ Commands:
         "screenshot-reel": cmd_screenshot_reel,
         "terminal-recording": cmd_terminal_recording,
         "upload": cmd_upload,
+        "delete": cmd_delete,
     }
     dispatch[args.command](args)
 
