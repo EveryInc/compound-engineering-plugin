@@ -73,12 +73,17 @@ def cmd_preflight(_args):
 # --- Detect ---
 
 ELECTRON_DEPS = {"electron", "electron-builder", "electron-forge", "electron-vite", "electron-packager"}
-WEB_NODE_DEPS = {"react", "vue", "svelte", "astro", "next", "nuxt", "@angular/core", "solid-js", "@remix-run/react", "gatsby"}
+WEB_NODE_DEPS = {
+    "react", "vue", "svelte", "astro", "next", "nuxt", "@angular/core", "solid-js",
+    "@remix-run/react", "gatsby", "express", "fastify", "koa", "hono", "@hono/node-server",
+}
 WEB_RUBY_DEPS = {"rails", "sinatra", "hanami", "roda"}
-WEB_GO_DEPS = {"github.com/gin-gonic/gin", "github.com/labstack/echo", "github.com/gofiber/fiber",
-               "github.com/go-chi/chi", "github.com/gorilla/mux"}
-WEB_PYTHON_DEPS = {"flask", "django", "fastapi", "starlette", "tornado"}
-WEB_RUST_DEPS = {"actix-web", "axum", "rocket", "warp"}
+WEB_GO_DEPS = {
+    "github.com/gin-gonic/gin", "github.com/labstack/echo", "github.com/gofiber/fiber",
+    "github.com/go-chi/chi", "github.com/gorilla/mux", "net/http",
+}
+WEB_PYTHON_DEPS = {"flask", "django", "fastapi", "starlette", "tornado", "sanic", "litestar"}
+WEB_RUST_DEPS = {"actix-web", "axum", "rocket", "warp", "poem", "tide"}
 CLI_RUBY_DEPS = {"thor", "gli", "dry-cli"}
 CLI_PYTHON_DEPS = {"click", "typer", "argparse"}
 
