@@ -147,19 +147,22 @@ After the selected tier produces an artifact, read `references/upload-and-approv
 
 ## Output
 
-Return these values to the caller (e.g., shipping-workflow):
+Return these values to the caller (e.g., git-commit-push-pr):
 
 ```
 === Evidence Capture Complete ===
 Tier: [browser-reel / terminal-recording / screenshot-reel / static / skipped]
 URL: [public URL or "none"]
-Label: [Demo / Screenshots / none]
-Embed: [markdown image syntax or empty]
+Embed: [markdown image syntax including heading, or empty]
 === End Evidence ===
 ```
 
-**Labeling rules (strict):**
-- Browser reel, terminal recording, screenshot reel -> **"Demo"**
-- Static screenshots -> **"Screenshots"**
-- No evidence -> nothing
-- Test output is never called "Demo" or "Screenshots"
+The `Embed` field is the deliverable. It contains the full markdown section ready for inclusion in a PR description, including the `## Demo` or `## Screenshots` heading. The caller uses only this field.
+
+- `Tier: skipped`, `URL: "none"`, or empty `Embed` all mean no evidence was captured.
+
+**Heading rules (strict):**
+- Browser reel, terminal recording, screenshot reel: `## Demo`
+- Static screenshots: `## Screenshots`
+- No evidence: no heading, empty Embed
+- Test output is never labeled "Demo" or "Screenshots"

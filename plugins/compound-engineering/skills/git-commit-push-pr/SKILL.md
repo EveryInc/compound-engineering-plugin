@@ -75,7 +75,7 @@ Build the updated description in this order:
 
 1. **Get the full branch diff** -- follow "Detect the base branch and remote" and "Gather the branch scope" in Step 6. Use the PR found in DU-2 as the existing PR for base branch detection.
 2. **Classify commits** -- follow "Classify commits before writing" in Step 6. This matters especially for description updates, where the recent commits that prompted the update are often fix-up work (code review fixes, lint fixes) rather than feature work.
-3. **Decide on evidence** -- follow "Evidence for PR descriptions" in Step 6. Description-only updates may be specifically intended to add or refresh evidence.
+3. **Decide on evidence** -- check if the current PR description already contains evidence (a `## Demo` or `## Screenshots` section with image embeds). If evidence exists, preserve it unless the user's focus specifically asks to refresh or remove it. If no evidence exists, follow "Evidence for PR descriptions" in Step 6. Description-only updates may be specifically intended to add evidence.
 4. **Write the new description** -- follow the writing principles in Step 6, driven by feature commits, final diff, and evidence decision.
    - If the user provided a focus, incorporate it alongside the branch diff context.
 5. **Compare and confirm** -- summarize the substantial changes vs the current description (e.g., "Added coverage of the new caching layer, updated test plan, removed outdated migration notes").
@@ -232,13 +232,13 @@ When evidence is possible, ask whether to include it in the PR description. Use 
 **Question:** "This PR has observable behavior. Capture evidence for the PR description?"
 
 **Options:**
-1. **Capture evidence now** -- load the `ce-demo-reel` skill with a concise target inferred from the diff, then include its returned embed in the PR body
-2. **Use existing evidence** -- ask the user for the URL or markdown embed, then include it in the PR body
-3. **Skip evidence** -- write the PR description without an evidence section
+1. **Capture evidence now** -- load the `ce-demo-reel` skill with a target description as the argument (e.g., "the new settings page" or "CLI output of the migrate command"). Infer the target from the branch diff. ce-demo-reel returns structured output with an `Embed` field containing the markdown image syntax. Use only the `Embed` value in the PR body.
+2. **Use existing evidence** -- ask the user for the URL or markdown embed, then include it in the PR body.
+3. **Skip evidence** -- write the PR description without an evidence section.
 
-If the user chooses capture and `ce-demo-reel` returns skipped, failed, or empty output, do not add a placeholder section. Summarize the reason in the final user report.
+If the user chooses capture, check ce-demo-reel's output for failure: `Tier: skipped`, `URL: "none"`, or an empty `Embed` field all mean no evidence was captured. Do not add a placeholder section. Summarize the skip reason in the final user report.
 
-Place returned evidence markdown before the Compound Engineering badge and near the part of the description it supports, typically after the summary or testing notes. Do not label test output as "Demo" or "Screenshots".
+Place the evidence embed before the Compound Engineering badge, typically after the summary or within the changes section. Do not label test output as "Demo" or "Screenshots".
 
 #### Classify commits before writing
 
@@ -262,7 +262,7 @@ This frame becomes the opening of the description. For small+simple PRs (the siz
 Example:
 - Before: "CLI and library PRs got no visual evidence because the capture flow assumed a web app with a dev server."
 - After: "Evidence capture now works for any project type -- CLI tools, libraries, desktop apps."
-- Scope: "Shipped with git-commit-push-pr restructuring because demo-reel integrates into the PR description flow."
+- Scope: "Shipped with git-commit-push-pr restructuring because ce-demo-reel integrates into the PR description flow."
 
 #### Sizing the change
 
