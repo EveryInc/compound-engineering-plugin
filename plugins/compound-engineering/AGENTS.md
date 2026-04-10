@@ -37,7 +37,9 @@ agents/
 ├── document-review/  # Plan and requirements document review agents
 ├── research/         # Research and analysis agents
 ├── design/           # Design and UI agents
-└── docs/             # Documentation agents
+├── docs/             # Documentation agents
+├── user/             # User personas for scenario-based feature evaluation
+└── workflow/         # Workflow agents
 
 skills/
 ├── ce-*/          # Core workflow skills (ce:plan, ce:review, etc.)
@@ -157,7 +159,8 @@ grep -E '^description:' skills/*/SKILL.md
 ## Adding Components
 
 - **New skill:** Create `skills/<name>/SKILL.md` with required YAML frontmatter (`name`, `description`). Reference files go in `skills/<name>/references/`. Add the skill to the appropriate category table in `README.md` and update the skill count.
-- **New agent:** Create `agents/<category>/<name>.md` with frontmatter. Categories: `review`, `document-review`, `research`, `design`, `docs`, `workflow`. Add the agent to `README.md` and update the agent count.
+- **New agent:** Create `agents/<category>/<name>.md` with frontmatter. Categories: `review`, `document-review`, `research`, `design`, `docs`, `user`, `workflow`. Add the agent to `README.md` and update the agent count.
+- **New user persona:** User personas use `type: user-persona` in frontmatter with a `traits` section (pace, tech-comfort, frustration-trigger, usage-pattern). They produce narrative evaluations, not JSON findings. User personas are synced from external repos into `agents/user/` via `/ce:refresh`, just like reviewers. They are invoked by the `ce:user-scenarios` skill, not by `ce:review`.
 
 ## Upstream-Sourced Skills
 

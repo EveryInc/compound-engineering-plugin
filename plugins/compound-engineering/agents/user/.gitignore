@@ -1,0 +1,6 @@
+# User persona files are synced from external repos via /ce:refresh
+# They should not be committed to this plugin repo
+*.md
+
+# Template persona ships with the plugin as an example
+!_template-user-persona.md

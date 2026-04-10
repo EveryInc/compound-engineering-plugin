@@ -1,0 +1,21 @@
+# User Persona Registry
+#
+# User persona .md files live in external repos and are synced into
+# agents/user/ via /ce:refresh. Each persona's traits and evaluation
+# style are defined in its own frontmatter.
+#
+# To add user personas:
+#   1. Create .md files with type: user-persona in frontmatter
+#   2. Add them to a repo and configure it as a source below
+#   3. Run /ce:refresh to pull them in
+#
+# User personas evaluate features from distinct user perspectives,
+# producing narrative scenarios — not code review findings.
+
+# === External user persona sources ===
+#
+# No default user personas ship with the plugin.
+# Configure your own sources in ~/.config/compound-engineering/user-sources.yaml
+# after running /ce:refresh for the first time.
+
+sources: []

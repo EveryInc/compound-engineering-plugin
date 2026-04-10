@@ -1,11 +1,11 @@
 ---
 name: ce:refresh
-description: "Sync reviewer personas and orchestrator definitions from external Git repos into the local plugin. Use when setting up the plugin for the first time, after updating your repos, or to pull in new reviewers or orchestrators."
+description: "Sync reviewer personas, orchestrator definitions, and user personas from external Git repos into the local plugin. Use when setting up the plugin for the first time, after updating your repos, or to pull in new reviewers, orchestrators, or user personas."
 ---
 
-# Refresh Reviewers & Orchestrators
+# Refresh Reviewers, Orchestrators & User Personas
 
-Syncs reviewer persona files and orchestrator definitions from external Git repositories into the plugin.
+Syncs reviewer persona files, orchestrator definitions, and user persona files from external Git repositories into the plugin.
 
 ## Step 1: Locate plugin
 
@@ -21,17 +21,23 @@ Fall back to relative path if not found (e.g., running from source repo):
 PLUGIN_DIR="${PLUGIN_DIR:-plugins/compound-engineering}"
 ```
 
-Ensure the orchestrators directory exists:
+Ensure the orchestrators and user personas directories exist:
 
 ```bash
 mkdir -p "$PLUGIN_DIR/orchestrators"
+mkdir -p "$PLUGIN_DIR/agents/user"
 ```
 
 ## Step 2: Interactive source configuration
 
-Read the user's reviewer source config at `~/.config/compound-engineering/reviewer-sources.yaml`. If it doesn't exist, the sync script will create it on first run — skip this step and go directly to Step 3.
+Read the user's source configs at `~/.config/compound-engineering/`:
+- `reviewer-sources.yaml`
+- `orchestrator-sources.yaml`
+- `user-sources.yaml`
 
-If the file exists, parse it and present the current sources to the user like this:
+If none exist, the sync script will create them on first run — skip this step and go directly to Step 3.
+
+If any exist, parse them and present the current sources to the user like this:
 
 List the current sources, then present three options using AskUserQuestion:
 
@@ -43,6 +49,9 @@ Current reviewer sources:
 Current orchestrator sources:
   - jsl-orchestrators (JumpstartLab/ce-reviewers-jsl@main, path: orchestrators)
 
+Current user persona sources:
+  - jsl-users (JumpstartLab/ce-reviewers-jsl@main, path: users)
+
 1. Sync now
 2. Edit config files
 3. Or type a request (e.g., "add owner/repo", "remove ce-default")
@@ -50,8 +59,8 @@ Current orchestrator sources:
 
 Handle the response:
 - **1 / Sync now** — proceed to Step 3.
-- **2 / Edit config files** — open both config files in editor. After editing, re-read and present the menu again.
-- **Anything else** — interpret as a natural language request to modify one or both configs. Edit accordingly, then present the menu again.
+- **2 / Edit config files** — open all config files in editor. After editing, re-read and present the menu again.
+- **Anything else** — interpret as a natural language request to modify one or more configs. Edit accordingly, then present the menu again.
 
 ## Step 3: Sync reviewers
 
@@ -76,7 +85,20 @@ bash "$PLUGIN_DIR/skills/refresh/sync-reviewers.sh" \
 
 **Note:** The sync script's third argument tells it which user config to use (`orchestrator-sources.yaml` instead of `reviewer-sources.yaml`). It fetches `.md` files from configured sources regardless of content type.
 
-## Step 5: Generate agent shims
+## Step 5: Sync user personas
+
+Run the same sync script for user personas:
+
+```bash
+bash "$PLUGIN_DIR/skills/refresh/sync-reviewers.sh" \
+  "$PLUGIN_DIR/skills/ce-user-scenarios/references/user-registry.yaml" \
+  "$PLUGIN_DIR/agents/user" \
+  user
+```
+
+**Note:** User personas use `type: user-persona` in their frontmatter and produce narrative evaluations, not code review findings. They are synced and discovered separately from reviewers.
+
+## Step 6: Generate agent shims
 
 Run the shim generation script. This scans synced reviewers and orchestrators for `agent-shim: true` in their frontmatter and generates `_shim-*.md` files in `agents/review/`:
 
@@ -86,17 +108,18 @@ bash "$PLUGIN_DIR/skills/refresh/generate-shims.sh" "$PLUGIN_DIR"
 
 Show the script's output to the user — it lists which shims were generated.
 
-## Step 6: Show results
+## Step 7: Show results
 
 The sync script writes summaries to `~/.config/compound-engineering/`:
 - `last-reviewer-refresh-summary.md` — reviewer sync results
 - `last-orchestrator-refresh-summary.md` — orchestrator sync results
+- `last-user-refresh-summary.md` — user persona sync results
 
 Read all summary files that exist and **output their contents to the user exactly as written**. The summaries are already formatted as markdown — do not summarize, paraphrase, or reformat them.
 
 ## Source YAML Format
 
-Both reviewer and orchestrator source configs use the same format:
+Reviewer, orchestrator, and user persona source configs use the same format:
 
 ```yaml
 sources:
