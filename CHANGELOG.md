@@ -1,5 +1,12 @@
 # Changelog
 
+## [2.65.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.64.0...cli-v2.65.0) (2026-04-11)
+
+
+### Features
+
+* **ce-setup:** unified setup skill with dependency management and config bootstrapping ([#345](https://github.com/EveryInc/compound-engineering-plugin/issues/345)) ([354dbb7](https://github.com/EveryInc/compound-engineering-plugin/commit/354dbb75828f0152f4cbbb3b50ce4511fa6710c7))
+
 ## [2.64.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.63.1...cli-v2.64.0) (2026-04-10)
 
 

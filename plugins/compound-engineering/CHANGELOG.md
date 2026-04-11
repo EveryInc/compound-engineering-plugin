@@ -9,6 +9,19 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.65.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.64.0...compound-engineering-v2.65.0) (2026-04-11)
+
+
+### Features
+
+* **ce-setup:** unified setup skill with dependency management and config bootstrapping ([#345](https://github.com/EveryInc/compound-engineering-plugin/issues/345)) ([354dbb7](https://github.com/EveryInc/compound-engineering-plugin/commit/354dbb75828f0152f4cbbb3b50ce4511fa6710c7))
+
+
+### Bug Fixes
+
+* **ce-demo-reel:** two-stage upload for reviewable approval gate ([#546](https://github.com/EveryInc/compound-engineering-plugin/issues/546)) ([5454053](https://github.com/EveryInc/compound-engineering-plugin/commit/545405380dba78bc0efd35f7675e8c27d99bf8c9))
+* **cleanup:** remove rclone, agent-browser, lint, and bug-reproduction-validator ([#545](https://github.com/EveryInc/compound-engineering-plugin/issues/545)) ([1372b2c](https://github.com/EveryInc/compound-engineering-plugin/commit/1372b2cffd06989dee8eb9df26d7c94ac30f032a))
+
 ## [2.64.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.63.1...compound-engineering-v2.64.0) (2026-04-10)
 
 
