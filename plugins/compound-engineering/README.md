@@ -73,7 +73,7 @@ The primary entry points for engineering work, invoked as slash commands:
 |-------|-------------|
 | `claude-permissions-optimizer` | Optimize Claude Code permissions from session history |
 | `document-review` | Review documents using parallel persona agents for role-specific feedback |
-| `setup` | Reserved for future project-level workflow configuration; code review agent selection is automatic |
+| `ce-setup` | Diagnose and configure environment: checks CLI deps, MCP servers, env vars, plugin version, and repo-local config; offers guided installation for missing tools |
 
 ### Content & Collaboration
 

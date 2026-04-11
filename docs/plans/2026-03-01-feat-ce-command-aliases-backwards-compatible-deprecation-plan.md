@@ -75,7 +75,7 @@ The grep reveals `workflows:*` is referenced in **many more places** than just `
 **Skills (update to new names):**
 - `skills/document-review/SKILL.md` — references `/workflows:brainstorm`, `/workflows:plan`
 - `skills/git-worktree/SKILL.md` — references `/workflows:review`, `/workflows:work` extensively
-- `skills/setup/SKILL.md` — references `/workflows:review`, `/workflows:work`
+- `skills/ce-setup/SKILL.md` — references `/workflows:review`, `/workflows:work`
 - `skills/brainstorming/SKILL.md` — references `/workflows:plan` multiple times
 - `skills/file-todos/SKILL.md` — references `/workflows:review`
 
@@ -209,7 +209,7 @@ NOTE: /workflows:<command> is deprecated. Please use /ce:<command> instead. This
 **Skills:**
 - `skills/document-review/SKILL.md`
 - `skills/git-worktree/SKILL.md`
-- `skills/setup/SKILL.md`
+- `skills/ce-setup/SKILL.md`
 - `skills/brainstorming/SKILL.md`
 - `skills/file-todos/SKILL.md`
 

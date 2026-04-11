@@ -6,3 +6,5 @@ todos/
 .worktrees
 .context/
 .claude/worktrees/
+
+.compound-engineering/*.local.yaml
