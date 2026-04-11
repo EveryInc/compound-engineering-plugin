@@ -37,17 +37,17 @@ Return to the tier execution step. The user's instructions guide what to change 
 
 Set evidence to null and proceed. The preview link expires on its own.
 
-## Step 3: Permanent Upload
+## Step 3: Promote to Permanent Hosting
 
-After the user approves, upload the same local artifact to permanent catbox hosting:
+After the user approves, promote the preview URL to permanent catbox hosting:
 
 ```bash
-python3 scripts/capture-demo.py upload [ARTIFACT_PATH]
+python3 scripts/capture-demo.py upload [PREVIEW_URL]
 ```
 
-The last line of output is the permanent URL (e.g., `https://files.catbox.moe/abc123.gif`). Use this URL in the output, not the preview URL.
+This uses catbox's `urlupload` to copy directly from litterbox without re-uploading the local file. The last line of output is the permanent URL (e.g., `https://files.catbox.moe/abc123.gif`). Use this URL in the output, not the preview URL.
 
-For multiple files, upload each file separately.
+For multiple files, promote each preview URL separately.
 
 ## Step 4: Return Output
 
@@ -56,5 +56,3 @@ Return the structured output defined in the SKILL.md Output section: `Tier`, `De
 ## Step 5: Cleanup
 
 Remove the `[RUN_DIR]` scratch directory and all temporary files. Preserve nothing -- the evidence lives at the permanent URL now.
-
-If the permanent upload failed, preserve `[RUN_DIR]` so the artifact is still accessible for manual upload.

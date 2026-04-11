@@ -10,7 +10,7 @@ Subcommands:
   screenshot-reel --output OUT [--duration N] [--lang L] [--theme T] --text F [F ...]   Render text frames via silicon + stitch
   terminal-recording --output OUT --tape TAPE               Run VHS tape file
   preview FILE                       Upload to litterbox (1h expiry) for preview
-  upload FILE                        Upload to catbox.moe (permanent)
+  upload FILE_OR_URL                 Upload/promote to catbox.moe (permanent)
 """
 import argparse
 import json
@@ -590,11 +590,54 @@ def cmd_preview(args):
 
 # --- Upload (catbox — permanent) ---
 
+def _promote_url(source_url):
+    """Promote a URL (e.g., litterbox preview) to permanent catbox hosting."""
+    if not check_tool("curl"):
+        die("curl is not installed")
+
+    print(f"Promoting {source_url} to catbox.moe...")
+
+    def _try():
+        try:
+            result = subprocess.run(
+                ["curl", "-s", "--connect-timeout", "10",
+                 "-F", "reqtype=urlupload",
+                 "-F", f"url={source_url}", CATBOX_API],
+                capture_output=True, text=True, timeout=30, check=False,
+            )
+            return result.stdout.strip()
+        except subprocess.TimeoutExpired:
+            print("ERROR: Upload timed out after 30s", file=sys.stderr)
+            return ""
+
+    url = _try()
+    if url.startswith("https://"):
+        print(f"Promoted: {url}")
+        print(url)
+        return url
+
+    print(f"ERROR: Promote failed. Response: {url[:200]}", file=sys.stderr)
+    print("Retrying in 2 seconds...", file=sys.stderr)
+    time.sleep(2)
+
+    url = _try()
+    if url.startswith("https://"):
+        print(f"Promoted (retry): {url}")
+        print(url)
+        return url
+
+    print("ERROR: Retry also failed.", file=sys.stderr)
+    sys.exit(1)
+
+
 def cmd_upload(args):
-    file_path = args.file
-    if not Path(file_path).exists():
-        die(f"File not found: {file_path}")
-    _upload_with_retry(CATBOX_API, file_path, "catbox.moe")
+    source = args.source
+    if source.startswith("https://"):
+        _promote_url(source)
+    else:
+        if not Path(source).exists():
+            die(f"File not found: {source}")
+        _upload_with_retry(CATBOX_API, source, "catbox.moe")
 
 
 # --- Main ---
@@ -612,7 +655,7 @@ Commands:
   screenshot-reel --output O --text F    Render text via silicon + stitch
   terminal-recording --output O --tape T Run VHS tape
   preview FILE                           Upload to litterbox (1h expiry)
-  upload FILE                            Upload to catbox.moe (permanent)
+  upload FILE_OR_URL                     Upload/promote to catbox.moe (permanent)
 """,
     )
     sub = parser.add_subparsers(dest="command")
@@ -656,8 +699,8 @@ Commands:
     p_preview.add_argument("file", help="File to upload")
 
     # upload
-    p_upload = sub.add_parser("upload", help="Upload to catbox.moe (permanent)")
-    p_upload.add_argument("file", help="File to upload")
+    p_upload = sub.add_parser("upload", help="Upload or promote to catbox.moe (permanent)")
+    p_upload.add_argument("source", help="Local file path or URL to promote")
 
     args = parser.parse_args()
 
