@@ -16,6 +16,21 @@ This file contains the shipping workflow (Phase 3-4). Load it only when all Phas
    # Use linting-agent before pushing to origin
    ```
 
+1b. **Connection Verification Gate** (`wires_into`)
+
+   If the plan includes `wires_into` entries on any implementation unit, verify each declared connection before proceeding to code review. If no `wires_into` entries exist in the plan (legacy plans or all-leaf-node plans), skip this step.
+
+   Re-read the plan file and extract all `wires_into` entries. For each entry, read the relevant source and target code and confirm the integration is actually wired — the call is made, the endpoint is hit, the event is sent and handled. Trace through intermediary functions, wrappers, or renamed exports as needed. Read unchanged files when one side of the connection is existing code.
+
+   **For each entry:**
+   - Read the source and target code identified by the entry
+   - Trace the connection: confirm the call chain exists, arguments are passed correctly, and the integration is functional — not just that both symbols exist
+   - If the connection is verified, log it briefly: "Verified: [entry summary]"
+   - If the connection is missing or incomplete, fix the wiring before proceeding
+   - If the connection exists but through a different path than the plan described (e.g., via a wrapper or renamed export), that counts as verified — the intent is satisfied
+
+   After all entries are checked, summarize: "Connection verification: N/N verified" or list what was fixed.
+
 2. **Code Review** (REQUIRED)
 
    Every change gets reviewed before shipping. The depth scales with the change's risk profile, but review itself is never skipped.
