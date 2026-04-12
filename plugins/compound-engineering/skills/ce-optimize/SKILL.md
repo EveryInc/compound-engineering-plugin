@@ -125,6 +125,7 @@ Check whether the input is:
 1. Read the YAML spec file. The orchestrating agent parses YAML natively -- no shell script parsing.
 2. Validate against `references/optimize-spec-schema.yaml`:
    - All required fields present
+   - `name` is lowercase kebab-case and safe to use in git refs / worktree paths
    - `metric.primary.type` is `hard` or `judge`
    - If type is `judge`, `metric.judge` section exists with `rubric` and `scoring`
    - At least one degenerate gate defined
@@ -333,9 +334,11 @@ If count + `execution.max_concurrent` would exceed 12:
 **MANDATORY CHECKPOINT.** Before presenting results to the user, write the initial experiment log with baseline metrics to disk:
 
 1. Create the experiment log file at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`
-2. Include: spec name, run_id, started_at, baseline section with all gate values, diagnostic values, and judge scores (if applicable)
-3. **Verify**: read the file back and confirm the baseline section is present and values match
-4. Only THEN present results to the user
+2. Include all required top-level sections from `references/experiment-log-schema.yaml`: `spec`, `run_id`, `started_at`, `baseline`, `experiments`, and `best`
+3. Seed `experiments` as an empty array and seed `best` from the baseline snapshot (use `iteration: 0`, baseline metrics, and baseline judge scores if present) so later phases have a valid current-best state to compare against
+4. Optionally seed `hypothesis_backlog: []` here as well so the log shape is stable before Phase 2 populates it
+5. **Verify**: read the file back and confirm the required sections are present and the baseline values match
+6. Only THEN present results to the user
 
 ### 1.7 User Approval Gate
 

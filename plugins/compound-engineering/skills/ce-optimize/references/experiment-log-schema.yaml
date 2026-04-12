@@ -82,10 +82,10 @@ structure:
     children:
       iteration:
         type: integer
-        description: "Iteration number of the best experiment"
+        description: "Iteration number of the best experiment (use 0 for the baseline snapshot before any experiment is kept)"
       metrics:
         type: object
-        description: "All metric values from the best experiment"
+        description: "All metric values from the current best state (seed with baseline metrics during CP-1)"
       judge:
         type: object
         description: "Judge scores from the best experiment (only when primary type is 'judge')"

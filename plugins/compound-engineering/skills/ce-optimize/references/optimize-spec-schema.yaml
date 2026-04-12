@@ -15,7 +15,8 @@ required_fields:
 
   name:
     type: string
-    description: "Unique identifier for this optimization run (kebab-case)"
+    pattern: "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    description: "Unique identifier for this optimization run (lowercase kebab-case, safe for git refs and worktree paths)"
     example: "improve-issue-clustering"
 
   description:
@@ -375,6 +376,7 @@ optional_fields:
 
 validation_rules:
   - "All required fields must be present"
+  - "name must be lowercase kebab-case (`^[a-z0-9]+(?:-[a-z0-9]+)*$`)"
   - "metric.primary.type must be 'hard' or 'judge'"
   - "If metric.primary.type is 'judge', metric.judge must be present with rubric and scoring"
   - "metric.degenerate_gates must have at least one entry"
