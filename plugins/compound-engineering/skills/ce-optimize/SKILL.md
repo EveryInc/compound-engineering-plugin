@@ -51,6 +51,8 @@ For a friendly overview of what this skill is for, when to use hard metrics vs L
 
 **CRITICAL: The experiment log on disk is the single source of truth. The conversation context is NOT durable storage. Results that exist only in the conversation WILL be lost.**
 
+The files under `.context/compound-engineering/ce-optimize/<spec-name>/` are local scratch state. They are ignored by git, so they survive local resumes on the same machine but are not preserved by commits, branches, or pushes unless the user exports them separately.
+
 This skill runs for hours. Context windows compact, sessions crash, and agents restart. Every piece of state that matters MUST live on disk, not in the agent's memory.
 
 **If you produce a results table in the conversation without writing those results to disk first, you have a bug.** The conversation is for the user's benefit. The experiment log file is for durability.
@@ -630,6 +632,7 @@ Key improvements:
 ### 4.3 Preserve and Offer Next Steps
 
 The optimization branch (`optimize/<spec-name>`) is preserved with all commits from kept experiments.
+The experiment log and strategy digest remain in local `.context/...` scratch space for resume and audit on this machine only; they do not travel with the branch because `.context/` is gitignored.
 
 Present post-completion options via the platform question tool:
 
@@ -643,10 +646,10 @@ Present post-completion options via the platform question tool:
 
 Clean up scratch space:
 ```bash
-# Keep the experiment log (it moves with the branch)
+# Keep the experiment log for local resume/audit on this machine
 # Remove temporary batch artifacts
 rm -f .context/compound-engineering/ce-optimize/<spec-name>/strategy-digest.md
 ```
 
-Do NOT delete the experiment log -- it is part of the optimization branch's history.
+Do NOT delete the experiment log if the user may resume locally or wants a local audit trail. If they need a durable shared artifact, summarize or export the results into a tracked path before cleanup.
 Do NOT delete experiment worktrees that are still being referenced.

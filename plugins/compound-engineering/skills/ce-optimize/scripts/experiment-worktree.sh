@@ -57,6 +57,16 @@ is_registered_worktree() {
   '
 }
 
+is_branch_checked_out() {
+  local branch_name="${1:?Error: branch_name required}"
+  local branch_ref="refs/heads/$branch_name"
+
+  git worktree list --porcelain | awk -v target="$branch_ref" '
+    $1 == "branch" && $2 == target { found = 1 }
+    END { exit(found ? 0 : 1) }
+  '
+}
+
 # Create an experiment worktree
 create_worktree() {
   local spec_name="${1:?Error: spec_name required}"
@@ -91,7 +101,14 @@ create_worktree() {
   # Create worktree from the base branch
   if ! git worktree add -b "$branch_name" "$worktree_path" "$base_branch" --quiet 2>/dev/null; then
     if git show-ref --verify --quiet "refs/heads/$branch_name"; then
-      echo -e "${YELLOW}Reusing existing experiment branch: $branch_name${NC}" >&2
+      if is_branch_checked_out "$branch_name"; then
+        echo -e "${RED}Error: Existing experiment branch is already checked out: $branch_name${NC}" >&2
+        echo -e "${RED}Clean up the stale worktree before rerunning this experiment.${NC}" >&2
+        return 1
+      fi
+
+      echo -e "${YELLOW}Resetting existing experiment branch to base: $branch_name -> $base_branch${NC}" >&2
+      git branch -f "$branch_name" "$base_branch" >/dev/null
       git worktree add "$worktree_path" "$branch_name" --quiet
     else
       echo -e "${RED}Error: Failed to create worktree for $branch_name from $base_branch${NC}" >&2
