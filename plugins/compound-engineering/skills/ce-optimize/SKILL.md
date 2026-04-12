@@ -41,6 +41,10 @@ For a first run, optimize for signal and safety, not maximum throughput:
 - Avoid new dependencies until the baseline and measurement harness are trusted
 - For judge mode, start with `sample_size: 10`, `batch_size: 5`, and `max_total_cost_usd: 5`
 
+For a friendly overview of what this skill is for, when to use hard metrics vs LLM-as-judge, and example kickoff prompts, see:
+
+`references/usage-guide.md`
+
 ---
 
 ## Persistence Discipline
