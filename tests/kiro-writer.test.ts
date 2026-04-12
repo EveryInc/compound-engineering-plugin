@@ -78,13 +78,13 @@ describe("writeKiroBundle", () => {
     expect(promptContent).toContain("Review code for vulnerabilities.")
 
     // Generated skill
-    const skillPath = path.join(tempRoot, ".kiro", "skills", "workflows-plan", "SKILL.md")
+    const skillPath = path.join(tempRoot, ".kiro", "skills", "compound-engineering", "workflows-plan", "SKILL.md")
     expect(await exists(skillPath)).toBe(true)
     const skillContent = await fs.readFile(skillPath, "utf8")
     expect(skillContent).toContain("Plan the work.")
 
     // Copied skill
-    expect(await exists(path.join(tempRoot, ".kiro", "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".kiro", "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
 
     // Steering file
     const steeringPath = path.join(tempRoot, ".kiro", "steering", "compound-engineering.md")
@@ -126,7 +126,7 @@ Run these research agents:
     await writeKiroBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, ".kiro", "skills", "ce-plan", "SKILL.md"),
+      path.join(tempRoot, ".kiro", "skills", "compound-engineering", "ce-plan", "SKILL.md"),
       "utf8",
     )
 

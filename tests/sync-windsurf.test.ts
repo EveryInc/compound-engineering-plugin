@@ -27,7 +27,7 @@ describe("syncToWindsurf", () => {
 
     await syncToWindsurf(config, tempRoot)
 
-    expect((await fs.lstat(path.join(tempRoot, "skills", "skill-one"))).isSymbolicLink()).toBe(true)
+    expect((await fs.lstat(path.join(tempRoot, "skills", "compound-engineering", "skill-one"))).isSymbolicLink()).toBe(true)
 
     const content = JSON.parse(
       await fs.readFile(path.join(tempRoot, "mcp_config.json"), "utf8"),

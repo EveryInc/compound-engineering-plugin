@@ -38,8 +38,8 @@ describe("writeCodexBundle", () => {
     await writeCodexBundle(tempRoot, bundle)
 
     expect(await exists(path.join(tempRoot, ".codex", "prompts", "command-one.md"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".codex", "skills", "skill-one", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".codex", "skills", "agent-skill", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".codex", "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".codex", "skills", "compound-engineering", "agent-skill", "SKILL.md"))).toBe(true)
     const configPath = path.join(tempRoot, ".codex", "config.toml")
     expect(await exists(configPath)).toBe(true)
 
@@ -73,7 +73,7 @@ describe("writeCodexBundle", () => {
     await writeCodexBundle(codexRoot, bundle)
 
     expect(await exists(path.join(codexRoot, "prompts", "command-one.md"))).toBe(true)
-    expect(await exists(path.join(codexRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
   })
 
   test("preserves existing user config when writing MCP servers", async () => {
@@ -266,7 +266,7 @@ Use /todo-resolve for deeper research.
     await writeCodexBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, ".codex", "skills", "ce-brainstorm", "SKILL.md"),
+      path.join(tempRoot, ".codex", "skills", "compound-engineering", "ce-brainstorm", "SKILL.md"),
       "utf8",
     )
     expect(installedSkill).toContain("/prompts:ce-plan")
@@ -274,7 +274,7 @@ Use /todo-resolve for deeper research.
     expect(installedSkill).toContain("/prompts:todo-resolve")
 
     const notes = await fs.readFile(
-      path.join(tempRoot, ".codex", "skills", "ce-brainstorm", "notes.md"),
+      path.join(tempRoot, ".codex", "skills", "compound-engineering", "ce-brainstorm", "notes.md"),
       "utf8",
     )
     expect(notes).toContain("/ce:plan")
@@ -316,7 +316,7 @@ Also run bare agents:
     await writeCodexBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, ".codex", "skills", "ce-plan", "SKILL.md"),
+      path.join(tempRoot, ".codex", "skills", "compound-engineering", "ce-plan", "SKILL.md"),
       "utf8",
     )
 
@@ -373,7 +373,7 @@ Workflow handoff:
     await writeCodexBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, ".codex", "skills", "proof", "SKILL.md"),
+      path.join(tempRoot, ".codex", "skills", "compound-engineering", "proof", "SKILL.md"),
       "utf8",
     )
 
@@ -385,6 +385,40 @@ Workflow handoff:
     expect(installedSkill).not.toContain("/prompts:users")
     expect(installedSkill).not.toContain("/prompts:settings")
     expect(installedSkill).not.toContain("https://prompts:www.proofeditor.ai")
+  })
+
+  test("cleans up legacy flat skill directories on reinstall", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-migrate-skills-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+    const skillsRoot = path.join(codexRoot, "skills")
+
+    // Pre-populate the old flat layout: plugin skill + a user-authored sibling
+    const legacyPluginSkill = path.join(skillsRoot, "skill-one")
+    const userSkill = path.join(skillsRoot, "my-personal-skill")
+    await fs.mkdir(legacyPluginSkill, { recursive: true })
+    await fs.writeFile(path.join(legacyPluginSkill, "SKILL.md"), "old\n")
+    await fs.mkdir(userSkill, { recursive: true })
+    await fs.writeFile(path.join(userSkill, "SKILL.md"), "mine\n")
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [
+        {
+          name: "skill-one",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      generatedSkills: [],
+    }
+
+    await writeCodexBundle(codexRoot, bundle)
+
+    // Namespaced layout exists
+    expect(await exists(path.join(skillsRoot, "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
+    // Legacy flat plugin skill removed
+    expect(await exists(path.join(legacyPluginSkill, "SKILL.md"))).toBe(false)
+    // User's sibling skill untouched
+    expect(await exists(path.join(userSkill, "SKILL.md"))).toBe(true)
   })
 })
 

@@ -49,8 +49,8 @@ describe("writeCopilotBundle", () => {
     await writeCopilotBundle(tempRoot, bundle)
 
     expect(await exists(path.join(tempRoot, ".github", "agents", "security-reviewer.agent.md"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".github", "skills", "plan", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".github", "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".github", "skills", "compound-engineering", "plan", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".github", "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".github", "copilot-mcp-config.json"))).toBe(true)
 
     const agentContent = await fs.readFile(
@@ -60,7 +60,7 @@ describe("writeCopilotBundle", () => {
     expect(agentContent).toContain("Review code.")
 
     const skillContent = await fs.readFile(
-      path.join(tempRoot, ".github", "skills", "plan", "SKILL.md"),
+      path.join(tempRoot, ".github", "skills", "compound-engineering", "plan", "SKILL.md"),
       "utf8",
     )
     expect(skillContent).toContain("Plan the work.")
@@ -98,7 +98,7 @@ describe("writeCopilotBundle", () => {
     await writeCopilotBundle(githubRoot, bundle)
 
     expect(await exists(path.join(githubRoot, "agents", "reviewer.agent.md"))).toBe(true)
-    expect(await exists(path.join(githubRoot, "skills", "plan", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(githubRoot, "skills", "compound-engineering", "plan", "SKILL.md"))).toBe(true)
     // Should NOT double-nest under .github/.github
     expect(await exists(path.join(githubRoot, ".github"))).toBe(false)
   })
@@ -193,7 +193,7 @@ Run these research agents:
     await writeCopilotBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, ".github", "skills", "ce-plan", "SKILL.md"),
+      path.join(tempRoot, ".github", "skills", "compound-engineering", "ce-plan", "SKILL.md"),
       "utf8",
     )
 
@@ -386,7 +386,7 @@ Run these research agents:
 
     await writeCopilotBundle(tempRoot, bundle)
 
-    const skillPath = path.join(tempRoot, ".github", "skills", "deploy", "SKILL.md")
+    const skillPath = path.join(tempRoot, ".github", "skills", "compound-engineering", "deploy", "SKILL.md")
     expect(await exists(skillPath)).toBe(true)
 
     const content = await fs.readFile(skillPath, "utf8")

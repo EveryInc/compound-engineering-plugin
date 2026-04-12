@@ -25,7 +25,7 @@ describe("syncToDroid", () => {
 
     await syncToDroid(config, tempRoot)
 
-    const linkedSkillPath = path.join(tempRoot, "skills", "skill-one")
+    const linkedSkillPath = path.join(tempRoot, "skills", "compound-engineering", "skill-one")
     const linkedStat = await fs.lstat(linkedSkillPath)
     expect(linkedStat.isSymbolicLink()).toBe(true)
 

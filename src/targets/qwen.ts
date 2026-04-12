@@ -1,5 +1,6 @@
 import path from "path"
 import { backupFile, copyDir, ensureDir, readJson, resolveCommandPath, sanitizePathName, pathExists, writeJsonSecure, writeText } from "../utils/files"
+import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
 import type { QwenBundle, QwenExtensionConfig } from "../types/qwen"
 
 export async function writeQwenBundle(outputRoot: string, bundle: QwenBundle): Promise<void> {
@@ -38,8 +39,13 @@ export async function writeQwenBundle(outputRoot: string, bundle: QwenBundle): P
 
   // Copy skills
   if (bundle.skillDirs.length > 0) {
-    const skillsRoot = qwenPaths.skillsDir
-    await ensureDir(skillsRoot)
+    const flatSkillsRoot = qwenPaths.skillsDir
+    await ensureDir(flatSkillsRoot)
+    await removeLegacyFlatSkills(
+      flatSkillsRoot,
+      bundle.skillDirs.map((s) => sanitizePathName(s.name)),
+    )
+    const skillsRoot = namespacedSkillsDir(flatSkillsRoot)
     for (const skill of bundle.skillDirs) {
       await copyDir(skill.sourceDir, path.join(skillsRoot, sanitizePathName(skill.name)))
     }

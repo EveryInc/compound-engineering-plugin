@@ -57,7 +57,7 @@ describe("writeWindsurfBundle", () => {
     expect(await exists(path.join(tempRoot, "AGENTS.md"))).toBe(false)
 
     // Agent skill written as skills/<name>/SKILL.md
-    const agentSkillPath = path.join(tempRoot, "skills", "security-reviewer", "SKILL.md")
+    const agentSkillPath = path.join(tempRoot, "skills", "compound-engineering", "security-reviewer", "SKILL.md")
     expect(await exists(agentSkillPath)).toBe(true)
     const agentContent = await fs.readFile(agentSkillPath, "utf8")
     expect(agentContent).toContain("name: security-reviewer")
@@ -76,7 +76,7 @@ describe("writeWindsurfBundle", () => {
     expect(cmdContent).toContain("Plan the work.")
 
     // Copied skill directly in outputRoot/skills/
-    expect(await exists(path.join(tempRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
 
     // MCP config directly in outputRoot/
     const mcpPath = path.join(tempRoot, "mcp_config.json")
@@ -112,7 +112,7 @@ Run these research agents:
     await writeWindsurfBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, "skills", "ce-plan", "SKILL.md"),
+      path.join(tempRoot, "skills", "compound-engineering", "ce-plan", "SKILL.md"),
       "utf8",
     )
 
@@ -137,7 +137,7 @@ Run these research agents:
     await writeWindsurfBundle(tempRoot, bundle)
 
     // Skill should be directly in outputRoot/skills/reviewer/SKILL.md
-    expect(await exists(path.join(tempRoot, "skills", "reviewer", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, "skills", "compound-engineering", "reviewer", "SKILL.md"))).toBe(true)
     // Should NOT create a .windsurf subdirectory
     expect(await exists(path.join(tempRoot, ".windsurf"))).toBe(false)
   })
@@ -201,7 +201,7 @@ Run these research agents:
 
     await writeWindsurfBundle(tempRoot, bundle)
 
-    const skillPath = path.join(tempRoot, "skills", "test-agent", "SKILL.md")
+    const skillPath = path.join(tempRoot, "skills", "compound-engineering", "test-agent", "SKILL.md")
     const content = await fs.readFile(skillPath, "utf8")
     expect(content).toContain("---")
     expect(content).toContain("name: test-agent")

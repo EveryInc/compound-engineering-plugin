@@ -2,6 +2,7 @@ import path from "path"
 import type { ClaudeHomeConfig } from "../parsers/claude-home"
 import type { ClaudePlugin } from "../types/claude"
 import { backupFile, resolveCommandPath, sanitizePathName, writeText } from "../utils/files"
+import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
 import { convertClaudeToCodex } from "../converters/claude-to-codex"
 import { convertClaudeToCopilot } from "../converters/claude-to-copilot"
 import { convertClaudeToDroid } from "../converters/claude-to-droid"
@@ -77,8 +78,16 @@ export async function syncCodexCommands(
   for (const prompt of bundle.prompts) {
     await writeText(path.join(outputRoot, "prompts", `${prompt.name}.md`), prompt.content + "\n")
   }
-  for (const skill of bundle.generatedSkills) {
-    await writeText(path.join(outputRoot, "skills", sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
+  if (bundle.generatedSkills.length > 0) {
+    const flatSkillsRoot = path.join(outputRoot, "skills")
+    await removeLegacyFlatSkills(
+      flatSkillsRoot,
+      bundle.generatedSkills.map((s) => sanitizePathName(s.name)),
+    )
+    const skillsRoot = namespacedSkillsDir(flatSkillsRoot)
+    for (const skill of bundle.generatedSkills) {
+      await writeText(path.join(skillsRoot, sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
+    }
   }
 }
 
@@ -120,8 +129,16 @@ export async function syncCopilotCommands(
   const plugin = buildClaudeHomePlugin(config)
   const bundle = convertClaudeToCopilot(plugin, DEFAULT_SYNC_OPTIONS)
 
-  for (const skill of bundle.generatedSkills) {
-    await writeText(path.join(outputRoot, "skills", sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
+  if (bundle.generatedSkills.length > 0) {
+    const flatSkillsRoot = path.join(outputRoot, "skills")
+    await removeLegacyFlatSkills(
+      flatSkillsRoot,
+      bundle.generatedSkills.map((s) => sanitizePathName(s.name)),
+    )
+    const skillsRoot = namespacedSkillsDir(flatSkillsRoot)
+    for (const skill of bundle.generatedSkills) {
+      await writeText(path.join(skillsRoot, sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
+    }
   }
 }
 
@@ -146,8 +163,16 @@ export async function syncKiroCommands(
 
   const plugin = buildClaudeHomePlugin(config)
   const bundle = convertClaudeToKiro(plugin, DEFAULT_SYNC_OPTIONS)
-  for (const skill of bundle.generatedSkills) {
-    await writeText(path.join(outputRoot, "skills", sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
+  if (bundle.generatedSkills.length > 0) {
+    const flatSkillsRoot = path.join(outputRoot, "skills")
+    await removeLegacyFlatSkills(
+      flatSkillsRoot,
+      bundle.generatedSkills.map((s) => sanitizePathName(s.name)),
+    )
+    const skillsRoot = namespacedSkillsDir(flatSkillsRoot)
+    for (const skill of bundle.generatedSkills) {
+      await writeText(path.join(skillsRoot, sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
+    }
   }
 }
 

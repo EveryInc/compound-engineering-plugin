@@ -4,6 +4,7 @@ import { backupFile, copySkillDir, ensureDir, sanitizePathName, writeText, write
 import type { CodexBundle } from "../types/codex"
 import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
+import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
 
 const MANAGED_START_MARKER = "# BEGIN Compound Engineering plugin MCP -- do not edit this block"
 const MANAGED_END_MARKER = "# END Compound Engineering plugin MCP"
@@ -23,8 +24,14 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
     }
   }
 
+  const flatSkillsRoot = path.join(codexRoot, "skills")
+  const skillsRoot = namespacedSkillsDir(flatSkillsRoot)
+  const bundledSkillNames = collectSkillNames(bundle)
+  if (bundledSkillNames.length > 0) {
+    await removeLegacyFlatSkills(flatSkillsRoot, bundledSkillNames)
+  }
+
   if (bundle.skillDirs.length > 0) {
-    const skillsRoot = path.join(codexRoot, "skills")
     for (const skill of bundle.skillDirs) {
       await copySkillDir(
         skill.sourceDir,
@@ -37,7 +44,6 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
   }
 
   if (bundle.generatedSkills.length > 0) {
-    const skillsRoot = path.join(codexRoot, "skills")
     for (const skill of bundle.generatedSkills) {
       await writeText(path.join(skillsRoot, sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
     }
@@ -58,6 +64,13 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
 
 function resolveCodexRoot(outputRoot: string): string {
   return path.basename(outputRoot) === ".codex" ? outputRoot : path.join(outputRoot, ".codex")
+}
+
+function collectSkillNames(bundle: CodexBundle): string[] {
+  const names = new Set<string>()
+  for (const skill of bundle.skillDirs) names.add(sanitizePathName(skill.name))
+  for (const skill of bundle.generatedSkills) names.add(sanitizePathName(skill.name))
+  return Array.from(names)
 }
 
 export function renderCodexConfig(mcpServers?: Record<string, ClaudeMcpServer>): string | null {

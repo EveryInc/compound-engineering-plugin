@@ -32,7 +32,7 @@ describe("writeDroidBundle", () => {
 
     expect(await exists(path.join(tempRoot, ".factory", "commands", "plan.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".factory", "droids", "security-reviewer.md"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".factory", "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".factory", "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
 
     const commandContent = await fs.readFile(
       path.join(tempRoot, ".factory", "commands", "plan.md"),
@@ -75,7 +75,7 @@ Run these research agents:
     await writeDroidBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, ".factory", "skills", "ce-plan", "SKILL.md"),
+      path.join(tempRoot, ".factory", "skills", "compound-engineering", "ce-plan", "SKILL.md"),
       "utf8",
     )
 

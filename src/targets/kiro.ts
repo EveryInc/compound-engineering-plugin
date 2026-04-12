@@ -1,6 +1,7 @@
 import path from "path"
 import { backupFile, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformContentForKiro } from "../converters/claude-to-kiro"
+import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
 import type { KiroBundle } from "../types/kiro"
 
 export async function writeKiroBundle(outputRoot: string, bundle: KiroBundle): Promise<void> {
@@ -27,12 +28,21 @@ export async function writeKiroBundle(outputRoot: string, bundle: KiroBundle): P
     }
   }
 
+  const kiroSkillsDir = namespacedSkillsDir(paths.skillsDir)
+  const kiroSkillNames = Array.from(new Set([
+    ...bundle.generatedSkills.map((s) => sanitizePathName(s.name)),
+    ...bundle.skillDirs.map((s) => sanitizePathName(s.name)),
+  ]))
+  if (kiroSkillNames.length > 0) {
+    await removeLegacyFlatSkills(paths.skillsDir, kiroSkillNames)
+  }
+
   // Write generated skills (from commands)
   if (bundle.generatedSkills.length > 0) {
     for (const skill of bundle.generatedSkills) {
       validatePathSafe(skill.name, "skill")
       await writeText(
-        path.join(paths.skillsDir, sanitizePathName(skill.name), "SKILL.md"),
+        path.join(kiroSkillsDir, sanitizePathName(skill.name), "SKILL.md"),
         skill.content + "\n",
       )
     }
@@ -42,11 +52,11 @@ export async function writeKiroBundle(outputRoot: string, bundle: KiroBundle): P
   if (bundle.skillDirs.length > 0) {
     for (const skill of bundle.skillDirs) {
       validatePathSafe(skill.name, "skill directory")
-      const destDir = path.join(paths.skillsDir, sanitizePathName(skill.name))
+      const destDir = path.join(kiroSkillsDir, sanitizePathName(skill.name))
 
       // Validate destination doesn't escape skills directory
       const resolvedDest = path.resolve(destDir)
-      if (!resolvedDest.startsWith(path.resolve(paths.skillsDir))) {
+      if (!resolvedDest.startsWith(path.resolve(kiroSkillsDir))) {
         console.warn(`Warning: Skill name "${skill.name}" escapes .kiro/skills/. Skipping.`)
         continue
       }

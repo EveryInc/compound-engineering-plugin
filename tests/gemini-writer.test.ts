@@ -43,13 +43,13 @@ describe("writeGeminiBundle", () => {
 
     await writeGeminiBundle(tempRoot, bundle)
 
-    expect(await exists(path.join(tempRoot, ".gemini", "skills", "security-reviewer", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".gemini", "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".gemini", "skills", "compound-engineering", "security-reviewer", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".gemini", "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".gemini", "commands", "plan.toml"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".gemini", "settings.json"))).toBe(true)
 
     const skillContent = await fs.readFile(
-      path.join(tempRoot, ".gemini", "skills", "security-reviewer", "SKILL.md"),
+      path.join(tempRoot, ".gemini", "skills", "compound-engineering", "security-reviewer", "SKILL.md"),
       "utf8",
     )
     expect(skillContent).toContain("Review code.")
@@ -94,7 +94,7 @@ Run these research agents:
     await writeGeminiBundle(tempRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(tempRoot, ".gemini", "skills", "ce-plan", "SKILL.md"),
+      path.join(tempRoot, ".gemini", "skills", "compound-engineering", "ce-plan", "SKILL.md"),
       "utf8",
     )
 
@@ -137,7 +137,7 @@ Run these research agents:
 
     await writeGeminiBundle(geminiRoot, bundle)
 
-    expect(await exists(path.join(geminiRoot, "skills", "reviewer", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(geminiRoot, "skills", "compound-engineering", "reviewer", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(geminiRoot, "commands", "plan.toml"))).toBe(true)
     // Should NOT double-nest under .gemini/.gemini
     expect(await exists(path.join(geminiRoot, ".gemini"))).toBe(false)

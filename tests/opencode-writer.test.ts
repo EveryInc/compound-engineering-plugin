@@ -36,7 +36,7 @@ describe("writeOpenCodeBundle", () => {
     expect(await exists(path.join(tempRoot, "opencode.json"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".opencode", "agents", "agent-one.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".opencode", "plugins", "hook.ts"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".opencode", "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".opencode", "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
   })
 
   test("writes directly into a .opencode output root", async () => {
@@ -59,7 +59,7 @@ describe("writeOpenCodeBundle", () => {
 
     expect(await exists(path.join(outputRoot, "opencode.json"))).toBe(true)
     expect(await exists(path.join(outputRoot, "agents", "agent-one.md"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, ".opencode"))).toBe(false)
   })
 
@@ -85,7 +85,7 @@ describe("writeOpenCodeBundle", () => {
     // Should write directly, not nested under .opencode
     expect(await exists(path.join(outputRoot, "opencode.json"))).toBe(true)
     expect(await exists(path.join(outputRoot, "agents", "agent-one.md"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, ".opencode"))).toBe(false)
   })
 
@@ -249,14 +249,14 @@ describe("writeOpenCodeBundle", () => {
     await writeOpenCodeBundle(outputRoot, bundle)
 
     const skillContent = await fs.readFile(
-      path.join(outputRoot, "skills", "test-skill", "SKILL.md"),
+      path.join(outputRoot, "skills", "compound-engineering", "test-skill", "SKILL.md"),
       "utf8"
     )
     expect(skillContent).toContain("`coherence-reviewer`")
     expect(skillContent).not.toContain("compound-engineering:review:coherence-reviewer")
 
     const refContent = await fs.readFile(
-      path.join(outputRoot, "skills", "test-skill", "references", "agents.md"),
+      path.join(outputRoot, "skills", "compound-engineering", "test-skill", "references", "agents.md"),
       "utf8"
     )
     expect(refContent).toContain("`repo-research-analyst`")
@@ -287,7 +287,7 @@ describe("writeOpenCodeBundle", () => {
     await writeOpenCodeBundle(outputRoot, bundle)
 
     const copiedScript = await fs.readFile(
-      path.join(outputRoot, "skills", "test-skill", "scripts", "run.sh"),
+      path.join(outputRoot, "skills", "compound-engineering", "test-skill", "scripts", "run.sh"),
       "utf8"
     )
     // Non-markdown files should be copied verbatim — no FQ rewriting

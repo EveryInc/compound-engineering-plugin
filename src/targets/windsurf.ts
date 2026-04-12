@@ -2,6 +2,7 @@ import path from "path"
 import { backupFile, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJsonSecure, writeText } from "../utils/files"
 import { formatFrontmatter } from "../utils/frontmatter"
 import { transformContentForWindsurf } from "../converters/claude-to-windsurf"
+import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
 import type { WindsurfBundle } from "../types/windsurf"
 import type { TargetScope } from "./index"
 
@@ -14,9 +15,20 @@ import type { TargetScope } from "./index"
 export async function writeWindsurfBundle(outputRoot: string, bundle: WindsurfBundle, scope?: TargetScope): Promise<void> {
   await ensureDir(outputRoot)
 
+  // Legacy cleanup + namespaced skills dir (shared by agent skills and pass-through copies below)
+  const flatSkillsRoot = path.join(outputRoot, "skills")
+  const skillNames = Array.from(new Set([
+    ...bundle.agentSkills.map((s) => sanitizePathName(s.name)),
+    ...bundle.skillDirs.map((s) => sanitizePathName(s.name)),
+  ]))
+  const skillsDir = namespacedSkillsDir(flatSkillsRoot)
+  if (skillNames.length > 0) {
+    await ensureDir(flatSkillsRoot)
+    await removeLegacyFlatSkills(flatSkillsRoot, skillNames)
+  }
+
   // Write agent skills (before pass-through copies so pass-through takes precedence on collision)
   if (bundle.agentSkills.length > 0) {
-    const skillsDir = path.join(outputRoot, "skills")
     await ensureDir(skillsDir)
     for (const skill of bundle.agentSkills) {
       validatePathSafe(skill.name, "agent skill")
@@ -47,7 +59,6 @@ export async function writeWindsurfBundle(outputRoot: string, bundle: WindsurfBu
 
   // Copy pass-through skill directories (after generated skills so copies overwrite on collision)
   if (bundle.skillDirs.length > 0) {
-    const skillsDir = path.join(outputRoot, "skills")
     await ensureDir(skillsDir)
     for (const skill of bundle.skillDirs) {
       validatePathSafe(skill.name, "skill directory")

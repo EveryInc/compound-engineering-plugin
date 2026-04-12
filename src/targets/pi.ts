@@ -10,6 +10,7 @@ import {
   writeText,
 } from "../utils/files"
 import { transformContentForPi } from "../converters/claude-to-pi"
+import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
 import type { PiBundle } from "../types/pi"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
@@ -38,12 +39,21 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
     await writeText(path.join(paths.promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
   }
 
+  const skillsDir = namespacedSkillsDir(paths.skillsDir)
+  const skillNames = Array.from(new Set([
+    ...bundle.skillDirs.map((s) => sanitizePathName(s.name)),
+    ...bundle.generatedSkills.map((s) => sanitizePathName(s.name)),
+  ]))
+  if (skillNames.length > 0) {
+    await removeLegacyFlatSkills(paths.skillsDir, skillNames)
+  }
+
   for (const skill of bundle.skillDirs) {
-    await copySkillDir(skill.sourceDir, path.join(paths.skillsDir, sanitizePathName(skill.name)), transformContentForPi)
+    await copySkillDir(skill.sourceDir, path.join(skillsDir, sanitizePathName(skill.name)), transformContentForPi)
   }
 
   for (const skill of bundle.generatedSkills) {
-    await writeText(path.join(paths.skillsDir, sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
+    await writeText(path.join(skillsDir, sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
   }
 
   for (const extension of bundle.extensions) {

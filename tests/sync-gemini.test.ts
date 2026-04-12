@@ -27,7 +27,7 @@ describe("syncToGemini", () => {
     await syncToGemini(config, tempRoot)
 
     // Check skill symlink
-    const linkedSkillPath = path.join(tempRoot, "skills", "skill-one")
+    const linkedSkillPath = path.join(tempRoot, "skills", "compound-engineering", "skill-one")
     const linkedStat = await fs.lstat(linkedSkillPath)
     expect(linkedStat.isSymbolicLink()).toBe(true)
 
@@ -122,7 +122,7 @@ describe("syncToGemini", () => {
     await syncToGemini(config, tempRoot)
 
     // Skills should still be symlinked
-    const linkedSkillPath = path.join(tempRoot, "skills", "skill-one")
+    const linkedSkillPath = path.join(tempRoot, "skills", "compound-engineering", "skill-one")
     const linkedStat = await fs.lstat(linkedSkillPath)
     expect(linkedStat.isSymbolicLink()).toBe(true)
 

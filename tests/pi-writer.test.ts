@@ -39,8 +39,8 @@ describe("writePiBundle", () => {
     await writePiBundle(outputRoot, bundle)
 
     expect(await exists(path.join(outputRoot, "prompts", "workflows-plan.md"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "skills", "repo-research-analyst", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "skills", "compound-engineering", "repo-research-analyst", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "extensions", "compound-engineering-compat.ts"))).toBe(true)
     expect(await exists(path.join(outputRoot, "compound-engineering", "mcporter.json"))).toBe(true)
 
@@ -80,7 +80,7 @@ Run these research agents:
     await writePiBundle(outputRoot, bundle)
 
     const installedSkill = await fs.readFile(
-      path.join(outputRoot, "skills", "ce-plan", "SKILL.md"),
+      path.join(outputRoot, "skills", "compound-engineering", "ce-plan", "SKILL.md"),
       "utf8",
     )
 
