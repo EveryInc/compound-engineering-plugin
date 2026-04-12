@@ -31,27 +31,7 @@ The primary entry points for engineering work, invoked as slash commands:
 | `/ce:compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
 | `/ce-optimize` | Run iterative optimization loops with parallel experiments, measurement gates, and LLM-as-judge quality scoring |
 
-For `/ce-optimize`, start from the checked-in example specs under `skills/ce-optimize/references/` and keep the first run serial, small, and cheap until the measurement harness is trustworthy.
-
-#### Using `/ce-optimize`
-
-Use `/ce-optimize` for problems where the right move is not obvious, but you can generate several variants and score them with the same evaluation loop.
-
-Good fits:
-- Tuning memory, timeout, concurrency, or batch-size settings where you can measure crashes, latency, throughput, or error rate
-- Improving clustering, ranking, search, or recommendation quality where hard metrics alone can be gamed
-- Optimizing prompts where both quality and token cost matter
-
-Less good fits:
-- One-shot bug fixes with an obvious root cause
-- Changes without a repeatable measurement harness
-- Problems where "better" cannot be expressed as either a hard metric or a judged sample
-
-Practical advice:
-- Start with `skills/ce-optimize/references/example-hard-spec.yaml` for objective targets
-- Start with `skills/ce-optimize/references/example-judge-spec.yaml` when semantics matter and you need LLM-as-judge
-- Keep the first run serial, cap iterations, and use a cheap judge sample until the harness is trustworthy
-- See `skills/ce-optimize/references/usage-guide.md` for example prompts and a "when/how to use this skill" guide
+For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/README.md) for usage guidance, example specs, and links to the schema and workflow docs.
 
 ### Research & Context
 
