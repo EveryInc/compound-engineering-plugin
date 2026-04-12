@@ -24,12 +24,20 @@ MEASUREMENT_CMD="${2:-}"
 MEASUREMENT_WORKDIR="${3:-.}"
 
 shift 3 2>/dev/null || shift $# 2>/dev/null || true
-SHARED_FILES=("$@")
+SHARED_FILES=()
+if [[ $# -gt 0 ]]; then
+  SHARED_FILES=("$@")
+fi
 
 cd "$PROJECT_DIR" || {
   echo '{"mode":"serial","blockers":[{"type":"error","description":"Cannot access project directory","suggestion":"Check path"}]}'
   exit 0
 }
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo '{"mode":"serial","blockers":[{"type":"missing_dependency","description":"python3 is required for structured probe output","suggestion":"Install python3 or skip the probe and review parallel-readiness manually"}],"blocker_count":1}'
+  exit 0
+fi
 
 BLOCKERS="[]"
 SCAN_PATHS=()
@@ -60,9 +68,11 @@ add_scan_path() {
 
 add_scan_path "$MEASUREMENT_WORKDIR"
 
-for shared_file in "${SHARED_FILES[@]}"; do
-  add_scan_path "$shared_file"
-done
+if [[ ${#SHARED_FILES[@]} -gt 0 ]]; then
+  for shared_file in "${SHARED_FILES[@]}"; do
+    add_scan_path "$shared_file"
+  done
+fi
 
 if [[ ${#SCAN_PATHS[@]} -eq 0 ]]; then
   SCAN_PATHS=(".")

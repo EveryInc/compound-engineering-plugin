@@ -37,9 +37,14 @@ experiment_branch_name() {
   echo "optimize-exp/${spec_name}/exp-${padded_index}"
 }
 
-ensure_gitignore() {
-  if ! grep -q "^\.worktrees$" "$GIT_ROOT/.gitignore" 2>/dev/null; then
-    echo ".worktrees" >> "$GIT_ROOT/.gitignore"
+ensure_worktree_exclude() {
+  local exclude_file
+  exclude_file=$(git rev-parse --git-path info/exclude)
+
+  mkdir -p "$(dirname "$exclude_file")"
+
+  if ! grep -q "^\.worktrees$" "$exclude_file" 2>/dev/null; then
+    echo ".worktrees" >> "$exclude_file"
   fi
 }
 
@@ -65,7 +70,7 @@ create_worktree() {
   fi
 
   mkdir -p "$WORKTREE_DIR"
-  ensure_gitignore
+  ensure_worktree_exclude
 
   # Create worktree from the base branch
   git worktree add -b "$branch_name" "$worktree_path" "$base_branch" --quiet 2>/dev/null || {

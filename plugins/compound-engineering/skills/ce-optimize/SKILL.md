@@ -481,7 +481,7 @@ For each completed experiment, **immediately**:
    - Fill the judge prompt template (`references/judge-prompt-template.md`) for each batch
    - Dispatch `ceil(sample_size / batch_size)` parallel judge sub-agents
    - Each sub-agent returns structured JSON scores
-   - Aggregate scores: compute `scoring.primary` (e.g., mean_score) and `scoring.secondary` values
+   - Aggregate scores: compute the configured primary judge field from `metric.judge.scoring.primary` (which should match `metric.primary.name`) plus any `scoring.secondary` values
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
 
 6. **If gates pass AND primary type is `hard`**:
@@ -499,7 +499,7 @@ After all experiments in the batch have been measured:
 
 1. **Rank** experiments by primary metric improvement:
    - For hard metrics: compare to current best value
-   - For judge metrics: compare `mean_score` to current best, must exceed `minimum_improvement`
+   - For judge metrics: compare the configured primary judge score (`metric.judge.scoring.primary` / `metric.primary.name`) to the current best, and require it to exceed `minimum_improvement`
 
 2. **Identify the best experiment** that passes all gates and improves the primary metric
 
