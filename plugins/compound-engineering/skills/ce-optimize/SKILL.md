@@ -509,7 +509,7 @@ For each completed experiment, **immediately**:
 After all experiments in the batch have been measured:
 
 1. **Rank** experiments by primary metric improvement:
-   - For hard metrics: compare to the current best using `metric.primary.direction` (`maximize` means higher is better, `minimize` means lower is better)
+   - For hard metrics: compare to the current best using `metric.primary.direction` (`maximize` means higher is better, `minimize` means lower is better), and require the absolute improvement to exceed `measurement.stability.noise_threshold` before treating it as a real win
    - For judge metrics: compare the configured primary judge score (`metric.judge.scoring.primary` / `metric.primary.name`) to the current best, and require it to exceed `minimum_improvement`
 
 2. **Identify the best experiment** that passes all gates and improves the primary metric
