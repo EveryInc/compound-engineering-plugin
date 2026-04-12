@@ -167,7 +167,7 @@ The optimization loop should compose with existing CE capabilities:
 - **`/ce:compound`** to capture the winning strategy as institutional knowledge after the loop completes
 - **`/ce:review`** optionally on the final winning diff before it's merged
 
-## Proposed Skill: `/ce:optimize`
+## Proposed Skill: `/ce-optimize`
 
 ### Workflow Phases
 
@@ -894,8 +894,8 @@ stopping:
 
 4. **Relationship to `/lfg` and `/slfg`?**
    - `/lfg` is autonomous execution of a single task
-   - `/ce:optimize` is autonomous execution of an iterative search
-   - `/ce:optimize` can delegate each experiment to Codex (decided D5)
+   - `/ce-optimize` is autonomous execution of an iterative search
+   - `/ce-optimize` can delegate each experiment to Codex (decided D5)
    - Local experiments use subagent dispatch similar to `/ce:review`
 
 5. **Branch strategy details?**

@@ -1,9 +1,9 @@
 # Optimization Spec Schema
 # This is the canonical schema for optimization spec files created by users
-# to configure a /ce:optimize run. The orchestrating agent validates specs
+# to configure a /ce-optimize run. The orchestrating agent validates specs
 # against this schema before proceeding.
 #
-# Usage: Create a YAML file matching this schema and pass it to /ce:optimize.
+# Usage: Create a YAML file matching this schema and pass it to /ce-optimize.
 # The agent reads this spec, validates required fields, and uses it to
 # configure the entire optimization run.
 

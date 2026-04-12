@@ -11,7 +11,7 @@ deepened: 2026-03-29
 
 ## Overview
 
-Add a new `/ce:optimize` skill that implements metric-driven iterative optimization — the pattern where you define a measurable goal, build measurement scaffolding first, then run an automated loop that tries many parallel experiments, measures each against hard gates and/or LLM-as-judge quality scores, keeps improvements, and converges toward the best solution. Inspired by Karpathy's autoresearch but generalized for multi-file code changes, complex metrics, and non-ML domains.
+Add a new `/ce-optimize` skill that implements metric-driven iterative optimization — the pattern where you define a measurable goal, build measurement scaffolding first, then run an automated loop that tries many parallel experiments, measures each against hard gates and/or LLM-as-judge quality scores, keeps improvements, and converges toward the best solution. Inspired by Karpathy's autoresearch but generalized for multi-file code changes, complex metrics, and non-ML domains.
 
 ## Problem Frame
 
@@ -80,7 +80,7 @@ CE has knowledge-compounding and quality gates but no skill for systematic exper
 
 ### Resolved During Planning
 
-- **Skill naming**: `ce:optimize` with directory `ce-optimize/`. Uses `ce:` prefix per naming convention.
+- **Skill naming**: `ce-optimize` with directory `ce-optimize/`. The frontmatter name now matches the directory and slash command.
 - **Where does experiment state live**: `.context/compound-engineering/ce-optimize/<spec-name>/` — contains spec, experiment log, strategy digest, and per-batch scratch. Cleaned after successful completion except the final experiment log which moves to the optimization branch.
 - **How are experiment branches named**: `optimize/<spec-name>` for the main optimization branch. Per-experiment worktree branches: `optimize/<spec-name>/exp-<NNN>`. Sanitized with `/` to `~` for filesystem paths.
 - **Judge model selection**: Haiku by default (fast, cheap), Sonnet optional. Specified in spec file.
@@ -405,7 +405,7 @@ CE has knowledge-compounding and quality gates but no skill for systematic exper
 **Approach:**
 
 *Frontmatter:*
-- `name: ce:optimize`
+- `name: ce-optimize`
 - `description:` — rich description covering what it does (iterative optimization), when to use it (measurable improvement goals), and key capabilities (parallel experiments, LLM-as-judge, git-native history)
 - No `disable-model-invocation` — this is a v1 skill, not beta
 
@@ -610,7 +610,7 @@ CE has knowledge-compounding and quality gates but no skill for systematic exper
 - Modify: `plugins/compound-engineering/README.md`
 
 **Approach:**
-- Add `ce:optimize` to the skills table in README.md with description
+- Add `ce-optimize` to the skills table in README.md with description
 - Update skill count in README.md
 - Run `bun run release:validate` to verify plugin consistency
 - Do NOT bump version in plugin.json or marketplace.json (per versioning rules)
