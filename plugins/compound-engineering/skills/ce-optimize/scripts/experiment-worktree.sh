@@ -48,6 +48,15 @@ ensure_worktree_exclude() {
   fi
 }
 
+is_registered_worktree() {
+  local worktree_path="${1:?Error: worktree_path required}"
+
+  git worktree list --porcelain | awk -v target="$worktree_path" '
+    $1 == "worktree" && $2 == target { found = 1 }
+    END { exit(found ? 0 : 1) }
+  '
+}
+
 # Create an experiment worktree
 create_worktree() {
   local spec_name="${1:?Error: spec_name required}"
@@ -64,6 +73,13 @@ create_worktree() {
 
   # Check if worktree already exists
   if [[ -d "$worktree_path" ]]; then
+    if ! git -C "$worktree_path" rev-parse --is-inside-work-tree >/dev/null 2>&1 || \
+       ! is_registered_worktree "$worktree_path"; then
+      echo -e "${RED}Error: Existing path is not a valid registered git worktree: $worktree_path${NC}" >&2
+      echo -e "${RED}Remove or repair that directory before rerunning the experiment.${NC}" >&2
+      return 1
+    fi
+
     echo -e "${YELLOW}Worktree already exists: $worktree_path${NC}" >&2
     echo "$worktree_path"
     return 0
@@ -73,11 +89,15 @@ create_worktree() {
   ensure_worktree_exclude
 
   # Create worktree from the base branch
-  git worktree add -b "$branch_name" "$worktree_path" "$base_branch" --quiet 2>/dev/null || {
-    # Branch might already exist (from a previous partial run)
-    git branch -D "$branch_name" 2>/dev/null || true
-    git worktree add -b "$branch_name" "$worktree_path" "$base_branch" --quiet
-  }
+  if ! git worktree add -b "$branch_name" "$worktree_path" "$base_branch" --quiet 2>/dev/null; then
+    if git show-ref --verify --quiet "refs/heads/$branch_name"; then
+      echo -e "${YELLOW}Reusing existing experiment branch: $branch_name${NC}" >&2
+      git worktree add "$worktree_path" "$branch_name" --quiet
+    else
+      echo -e "${RED}Error: Failed to create worktree for $branch_name from $base_branch${NC}" >&2
+      return 1
+    fi
+  fi
 
   # Copy .env files from main repo
   for f in "$GIT_ROOT"/.env*; do
@@ -101,7 +121,8 @@ create_worktree() {
       local dir
       dir=$(dirname "$worktree_path/$shared_file")
       mkdir -p "$dir"
-      cp -r "$GIT_ROOT/$shared_file" "$worktree_path/$shared_file"
+      rm -rf "$worktree_path/$shared_file"
+      cp -R "$GIT_ROOT/$shared_file" "$worktree_path/$shared_file"
     fi
   done
 

@@ -129,6 +129,7 @@ Check whether the input is:
    - `measurement.command` is non-empty
    - `scope.mutable` and `scope.immutable` each have at least one entry
    - Gate check operators are valid (`>=`, `<=`, `>`, `<`, `==`, `!=`)
+   - `execution.max_concurrent` is at least 1
    - `execution.max_concurrent` does not exceed 6 when backend is `worktree`
 3. If validation fails, report errors and ask the user to fix them
 
@@ -265,7 +266,7 @@ Filter the output against the scope paths. If any in-scope files have uncommitte
 **If user provides a measurement harness** (the `measurement.command` already exists):
 1. Run it once via the measurement script:
    ```bash
-   bash scripts/measure.sh "<measurement.command>" <timeout_seconds> <working_directory>
+   bash scripts/measure.sh "<measurement.command>" <timeout_seconds> "<measurement.working_directory or .>"
    ```
 2. Validate the JSON output:
    - Contains keys for all degenerate gate metric names
@@ -418,16 +419,18 @@ This phase repeats in batches until a stopping criterion is met.
 ### 3.1 Batch Selection
 
 Select hypotheses for this batch:
-- `batch_size = min(backlog_size, execution.max_concurrent)`
-- Skip hypotheses with `dep_status: needs_approval`
+- Build a runnable backlog by excluding hypotheses with `dep_status: needs_approval`
+- If `execution.mode` is `serial`, force `batch_size = 1`
+- Otherwise, `batch_size = min(runnable_backlog_size, execution.max_concurrent)`
 - Prefer diversity: select from different categories when possible
 - Within a category, select by priority (high first)
 
 If the backlog is empty and no new hypotheses can be generated, proceed to Phase 4 (wrap-up).
+If the backlog is non-empty but no runnable hypotheses remain because everything needs approval or is otherwise blocked, proceed to Phase 4 so the user can approve dependencies instead of spinning forever.
 
 ### 3.2 Dispatch Experiments
 
-For each hypothesis in the batch, dispatch in parallel:
+For each hypothesis in the batch, dispatch according to `execution.mode`. In `serial` mode, run exactly one experiment to completion before selecting the next hypothesis. In `parallel` mode, dispatch the full batch concurrently.
 
 **Worktree backend:**
 1. Create experiment worktree:
@@ -466,8 +469,10 @@ For each completed experiment, **immediately**:
 
 1. **Run measurement** in the experiment's worktree:
    ```bash
-   bash scripts/measure.sh "<measurement.command>" <timeout_seconds> "<worktree_path>" <env_vars...>
+   bash scripts/measure.sh "<measurement.command>" <timeout_seconds> "<worktree_path>/<measurement.working_directory or .>" <env_vars...>
    ```
+   - If stability mode is `repeat`, run the measurement harness `repeat_count` times in that working directory and aggregate the results exactly as in Phase 1 before evaluating gates or ranking the experiment.
+   - Use the aggregated metrics as the experiment's score; if variance exceeds `noise_threshold`, record that in learnings so the operator knows the result is noisy.
 
 2. **Write crash-recovery marker** — immediately after measurement, write `result.yaml` in the experiment worktree containing the raw metrics. This ensures the measurement is recoverable even if the agent crashes before updating the main log.
 
@@ -491,7 +496,7 @@ For each completed experiment, **immediately**:
 6. **If gates pass AND primary type is `hard`**:
    - Use the metric value directly from the measurement output
 
-7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. The outcome may be preliminary (e.g., `gates_passed` but not yet compared to best) — that is fine. Update the outcome to `kept` or `reverted` in the evaluation step, but the raw metrics are on disk and safe from context compaction.
+7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use the transitional outcome `measured` once the experiment has valid metrics but has not yet been compared to the current best. Update the outcome to `kept`, `reverted`, or another terminal state in the evaluation step, but the raw metrics are on disk and safe from context compaction.
 
 8. **VERIFY the write (CP-3 verification)** — read the experiment log back from disk and confirm the entry just written is present. If verification fails, retry the write. Do NOT proceed to the next experiment until this entry is confirmed on disk.
 
@@ -502,14 +507,16 @@ For each completed experiment, **immediately**:
 After all experiments in the batch have been measured:
 
 1. **Rank** experiments by primary metric improvement:
-   - For hard metrics: compare to current best value
+   - For hard metrics: compare to the current best using `metric.primary.direction` (`maximize` means higher is better, `minimize` means lower is better)
    - For judge metrics: compare the configured primary judge score (`metric.judge.scoring.primary` / `metric.primary.name`) to the current best, and require it to exceed `minimum_improvement`
 
 2. **Identify the best experiment** that passes all gates and improves the primary metric
 
 3. **If best improves on current best: KEEP**
-   - Merge the experiment branch to the optimization branch
-   - Commit with message: `optimize(<spec-name>): <hypothesis description>`
+   - Commit the experiment branch first so the winning diff exists as a real commit before any merge or cherry-pick
+   - Include only mutable-scope changes in that commit; if no eligible diff remains, treat the experiment as non-improving and revert it
+   - Merge the committed experiment branch into the optimization branch
+   - Use the message `optimize(<spec-name>): <hypothesis description>` for the experiment commit
    - This is now the new baseline for subsequent batches
 
 4. **Check file-disjoint runners-up** (up to `max_runner_up_merges_per_batch`):
@@ -555,7 +562,7 @@ After all experiments in the batch have been measured:
 ### 3.6 Check Stopping Criteria
 
 Stop the loop if ANY of these are true:
-- **Target reached**: primary metric meets or exceeds `stopping.target` (if set in spec)
+- **Target reached**: `stopping.target_reached` is true, `metric.primary.target` is set, and the primary metric reaches that target according to `metric.primary.direction` (`>=` for `maximize`, `<=` for `minimize`)
 - **Max iterations**: total experiments run >= `stopping.max_iterations`
 - **Max hours**: wall-clock time since Phase 3 start >= `stopping.max_hours`
 - **Judge budget exhausted**: cumulative judge spend >= `metric.judge.max_total_cost_usd` (if set)

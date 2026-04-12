@@ -140,6 +140,7 @@ experiment_entry:
     outcome:
       type: enum
       values:
+        - measured                # measurement finished and metrics were persisted, awaiting batch evaluation
         - kept                    # primary metric improved, gates passed -> merged to optimization branch
         - reverted                # primary metric did not improve or was worse -> changes discarded
         - degenerate              # degenerate gate failed -> immediately reverted, no judge evaluation
@@ -150,6 +151,8 @@ experiment_entry:
         - runner_up_reverted      # file-disjoint runner-up that was cherry-picked but combined measurement was not better
       description: >
         Load-bearing state: the loop branches on this value.
+        'measured' is the only non-terminal state and exists so CP-3 can persist
+        raw metrics before batch-level comparison decides the final outcome.
         'kept' and 'runner_up_kept' advance the optimization branch.
         'deferred_needs_approval' items are re-presented at wrap-up.
         All other states are terminal for that experiment.
@@ -225,6 +228,7 @@ experiment_entry:
 #         -> measurement error      -> outcome: error
 #         -> measurement timeout    -> outcome: timeout
 #         -> gates passed
+#           -> persist raw metrics   -> outcome: measured
 #           -> judge evaluated (if type: judge)
 #             -> best in batch, improved  -> outcome: kept
 #             -> runner-up, file-disjoint -> cherry-pick + re-measure

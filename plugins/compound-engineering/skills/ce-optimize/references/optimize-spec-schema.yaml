@@ -277,6 +277,7 @@ optional_fields:
       max_concurrent:
         type: integer
         default: 4
+        minimum: 1
         description: "Maximum experiments to run in parallel. Capped at 6 for worktree backend. 8+ only valid for Codex backend."
       codex_security:
         type: enum
@@ -381,6 +382,7 @@ validation_rules:
   - "scope.mutable must have at least one entry"
   - "scope.immutable must have at least one entry"
   - "Gate check operators must be one of: >=, <=, >, <, ==, !="
+  - "execution.max_concurrent must be >= 1"
   - "execution.max_concurrent must not exceed 6 when execution.backend is 'worktree'"
   - "If parallel.exclusive_resources is non-empty, execution.mode should be 'serial'"
   - "If metric.judge.singleton_sample > 0, metric.judge.singleton_rubric must be present"

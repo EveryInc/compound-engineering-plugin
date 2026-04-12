@@ -23,10 +23,13 @@ set -euo pipefail
 # Parse arguments
 COMMAND="${1:?Error: command argument required}"
 TIMEOUT="${2:?Error: timeout_seconds argument required}"
-WORKDIR="${3:-.}"
+shift 2
 
-# Shift past the first 3 arguments to get env vars
-shift 3 2>/dev/null || shift $# 2>/dev/null || true
+WORKDIR="."
+if [[ $# -gt 0 ]] && [[ "$1" != *=* ]]; then
+  WORKDIR="$1"
+  shift
+fi
 
 # Set any KEY=VALUE environment variables
 for arg in "$@"; do
