@@ -27,6 +27,17 @@ export async function ensureDir(dirPath: string): Promise<void> {
   await fs.mkdir(dirPath, { recursive: true })
 }
 
+export async function readDirSafe(dirPath: string): Promise<import("fs").Dirent[]> {
+  try {
+    return await fs.readdir(dirPath, { withFileTypes: true })
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      return []
+    }
+    throw error
+  }
+}
+
 export async function readText(filePath: string): Promise<string> {
   return fs.readFile(filePath, "utf8")
 }

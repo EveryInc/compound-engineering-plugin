@@ -1,7 +1,7 @@
 import { promises as fs } from "fs"
 import path from "path"
+import { pathExists, readDirSafe } from "../utils/files"
 import { DEFAULT_PLUGIN_NAMESPACE, namespacedSkillsDir } from "../utils/plugin-namespace"
-import type { Dirent } from "fs"
 
 export type StaleFlatSkillType = "symlink" | "directory"
 
@@ -11,9 +11,9 @@ export type StaleFlatSkillEntry = {
 }
 
 export interface CleanupResult {
-  target: string
   skillsRoot: string
   staleEntries: StaleFlatSkillEntry[]
+  protectedEntries: StaleFlatSkillEntry[]
   removed: string[]
   skipped: string[]
 }
@@ -75,12 +75,27 @@ export async function findStaleFlatSkills(
 
 export async function removeStaleFlatSkills(
   skillsRoot: string,
-  options: { dryRun: boolean; pluginNamespace?: string; target?: string },
+  options: {
+    dryRun: boolean
+    pluginNamespace?: string
+    skip?: Iterable<string>
+  },
 ): Promise<CleanupResult> {
-  const staleEntries = await findStaleFlatSkills(
+  const allEntries = await findStaleFlatSkills(
     skillsRoot,
     options.pluginNamespace ?? DEFAULT_PLUGIN_NAMESPACE,
   )
+
+  // Filter out entries whose names the caller explicitly asked to preserve.
+  // Cleanup matches by directory name only -- this is the user's escape hatch
+  // when a plugin skill name collides with a user-authored skill directory.
+  const skipSet = options.skip ? new Set(options.skip) : null
+  const staleEntries = skipSet
+    ? allEntries.filter((entry) => !skipSet.has(path.basename(entry.path)))
+    : allEntries
+  const protectedEntries = skipSet
+    ? allEntries.filter((entry) => skipSet.has(path.basename(entry.path)))
+    : []
 
   const removed: string[] = []
   const skipped: string[] = []
@@ -101,31 +116,11 @@ export async function removeStaleFlatSkills(
   }
 
   return {
-    target: options.target ?? "unknown",
     skillsRoot,
     staleEntries,
+    protectedEntries,
     removed,
     skipped,
-  }
-}
-
-async function readDirSafe(dirPath: string): Promise<Dirent[]> {
-  try {
-    return await fs.readdir(dirPath, { withFileTypes: true })
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-      return []
-    }
-    throw error
-  }
-}
-
-async function pathExists(targetPath: string): Promise<boolean> {
-  try {
-    await fs.access(targetPath)
-    return true
-  } catch {
-    return false
   }
 }
 

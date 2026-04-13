@@ -124,10 +124,23 @@ export const syncTargets: SyncTargetDefinition[] = [
 
 export const syncTargetNames = syncTargets.map((target) => target.name)
 
+// Cleanup scans `<output-root>/skills/` for flat entries whose names collide
+// with the namespaced plugin skills written by install/convert. This is the
+// install-side legacy cleanup path — users who installed with pre-namespace
+// versions end up with flat entries that now coexist with the new
+// `compound-engineering/` namespaced entries, and cleanup removes the flat
+// duplicates.
+//
+// Sync writes user-owned home config which is NOT namespaced, so sync does
+// not contribute to the legacy state cleanup handles. OpenClaw is excluded
+// because its install/convert writes into an isolated
+// `~/.openclaw/extensions/<plugin>/skills/` package that cleanup never
+// scans — there is no shared-root legacy state for openclaw to clean up.
 const legacyFlatSkillCleanupTargets = new Set<SyncTargetName>([
   "opencode",
   "codex",
   "pi",
+  "droid",
   "copilot",
   "gemini",
   "windsurf",

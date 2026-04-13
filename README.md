@@ -294,3 +294,30 @@ Notes:
 - Droid, Windsurf, Kiro, and Qwen sync merge MCP servers into the provider's documented user config.
 - OpenClaw currently syncs skills only. Personal command sync is skipped because this repo does not yet have a documented user-level OpenClaw command surface, and MCP sync is skipped because the current official OpenClaw docs do not clearly document an MCP server config contract.
 
+---
+
+## Cleanup Legacy Flat Skills
+
+Plugin skills used to install directly into each target's shared skills root (e.g. `~/.codex/skills/`). They now install under a `compound-engineering/` subdirectory to avoid sprawling across tools' shared skill roots. (Sync output is unaffected — sync mirrors your personal `~/.claude/skills/` content, which stays user-owned and flat.)
+
+**If you installed a previous version**, the old flat-layout directories still live alongside the new namespaced layout — nothing is removed automatically. Install leaves the legacy entries in place on purpose, so your existing content is never touched without consent. When you're ready to clear them out, run the opt-in `cleanup` command:
+
+```bash
+# Preview what would be removed across all detected targets (default: dry-run)
+bunx @every-env/compound-plugin cleanup
+
+# Preview for a specific target
+bunx @every-env/compound-plugin cleanup --target codex
+
+# Actually delete (interactive confirmation on a TTY)
+bunx @every-env/compound-plugin cleanup --execute
+
+# Preserve specific skill names that collide with your own work
+bunx @every-env/compound-plugin cleanup --execute --skip brainstorming,my-skill
+
+# Non-interactive (for scripts and CI)
+bunx @every-env/compound-plugin cleanup --execute --yes
+```
+
+**Important — name collision behavior.** Cleanup matches flat directories by **name only**, not by content. If you have a user-authored skill whose directory name happens to match a plugin skill (e.g. your own `~/.codex/skills/brainstorming/`), it will be flagged for removal. Always review dry-run output first, and use `--skip name1,name2` to protect anything you care about. The `--execute` flag on a TTY will prompt for `y/N` confirmation; on non-TTY sessions you must explicitly pass `--yes`.
+
