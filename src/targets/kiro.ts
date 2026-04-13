@@ -1,7 +1,7 @@
 import path from "path"
 import { backupFile, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformContentForKiro } from "../converters/claude-to-kiro"
-import { DEFAULT_PLUGIN_NAMESPACE, namespacedSkillsDir } from "../utils/plugin-namespace"
+import { namespacedSkillsDir } from "../utils/plugin-namespace"
 import type { KiroBundle } from "../types/kiro"
 
 export async function writeKiroBundle(outputRoot: string, bundle: KiroBundle): Promise<void> {
@@ -29,7 +29,7 @@ export async function writeKiroBundle(outputRoot: string, bundle: KiroBundle): P
   }
 
   const knownAgentNames = bundle.agents.map((a) => a.name)
-  const kiroSkillsDir = namespacedSkillsDir(paths.skillsDir, bundle.pluginName ?? DEFAULT_PLUGIN_NAMESPACE)
+  const kiroSkillsDir = namespacedSkillsDir(paths.skillsDir, bundle.pluginName)
 
   // Write generated skills (from commands)
   if (bundle.generatedSkills.length > 0) {

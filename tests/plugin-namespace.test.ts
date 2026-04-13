@@ -3,7 +3,6 @@ import {
   DEFAULT_PLUGIN_NAMESPACE,
   KNOWN_PLUGIN_NAMESPACES,
   namespacedSkillsDir,
-  PLUGIN_NAMESPACE,
 } from "../src/utils/plugin-namespace"
 
 describe("KNOWN_PLUGIN_NAMESPACES", () => {
@@ -19,9 +18,8 @@ describe("KNOWN_PLUGIN_NAMESPACES", () => {
 
 describe("namespacedSkillsDir", () => {
   test("joins the default plugin namespace onto the skills root", () => {
-    expect(PLUGIN_NAMESPACE).toBe(DEFAULT_PLUGIN_NAMESPACE)
     expect(namespacedSkillsDir("/tmp/.codex/skills")).toBe(
-      `/tmp/.codex/skills/${PLUGIN_NAMESPACE}`,
+      `/tmp/.codex/skills/${DEFAULT_PLUGIN_NAMESPACE}`,
     )
   })
 

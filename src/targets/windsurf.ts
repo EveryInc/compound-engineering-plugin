@@ -2,7 +2,7 @@ import path from "path"
 import { backupFile, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJsonSecure, writeText } from "../utils/files"
 import { formatFrontmatter } from "../utils/frontmatter"
 import { transformContentForWindsurf } from "../converters/claude-to-windsurf"
-import { DEFAULT_PLUGIN_NAMESPACE, namespacedSkillsDir } from "../utils/plugin-namespace"
+import { namespacedSkillsDir } from "../utils/plugin-namespace"
 import type { WindsurfBundle } from "../types/windsurf"
 import type { TargetScope } from "./index"
 
@@ -15,9 +15,8 @@ import type { TargetScope } from "./index"
 export async function writeWindsurfBundle(outputRoot: string, bundle: WindsurfBundle, scope?: TargetScope): Promise<void> {
   await ensureDir(outputRoot)
 
-  // Legacy cleanup + namespaced skills dir (shared by agent skills and pass-through copies below)
   const flatSkillsRoot = path.join(outputRoot, "skills")
-  const skillsDir = namespacedSkillsDir(flatSkillsRoot, bundle.pluginName ?? DEFAULT_PLUGIN_NAMESPACE)
+  const skillsDir = namespacedSkillsDir(flatSkillsRoot, bundle.pluginName)
   if (bundle.agentSkills.length > 0 || bundle.skillDirs.length > 0) {
     await ensureDir(flatSkillsRoot)
   }

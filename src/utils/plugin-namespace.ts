@@ -1,10 +1,9 @@
 import path from "path"
 
-export const PLUGIN_NAMESPACE = "compound-engineering"
-export const DEFAULT_PLUGIN_NAMESPACE = PLUGIN_NAMESPACE
+export const DEFAULT_PLUGIN_NAMESPACE = "compound-engineering"
 
 export const KNOWN_PLUGIN_NAMESPACES = [
-  "compound-engineering",
+  DEFAULT_PLUGIN_NAMESPACE,
   "coding-tutor",
 ] as const
 

@@ -4,10 +4,7 @@ import { backupFile, copySkillDir, ensureDir, sanitizePathName, writeText, write
 import type { CodexBundle } from "../types/codex"
 import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
-import {
-  DEFAULT_PLUGIN_NAMESPACE,
-  namespacedSkillsDir,
-} from "../utils/plugin-namespace"
+import { namespacedSkillsDir } from "../utils/plugin-namespace"
 
 const MANAGED_START_MARKER = "# BEGIN Compound Engineering plugin MCP -- do not edit this block"
 const MANAGED_END_MARKER = "# END Compound Engineering plugin MCP"
@@ -28,8 +25,7 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
   }
 
   const flatSkillsRoot = path.join(codexRoot, "skills")
-  const pluginName = bundle.pluginName ?? DEFAULT_PLUGIN_NAMESPACE
-  const skillsRoot = namespacedSkillsDir(flatSkillsRoot, pluginName)
+  const skillsRoot = namespacedSkillsDir(flatSkillsRoot, bundle.pluginName)
 
   if (bundle.skillDirs.length > 0) {
     for (const skill of bundle.skillDirs) {

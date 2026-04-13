@@ -10,7 +10,7 @@ import {
   writeText,
 } from "../utils/files"
 import { transformContentForPi } from "../converters/claude-to-pi"
-import { DEFAULT_PLUGIN_NAMESPACE, namespacedSkillsDir } from "../utils/plugin-namespace"
+import { namespacedSkillsDir } from "../utils/plugin-namespace"
 import type { PiBundle } from "../types/pi"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
@@ -39,7 +39,7 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
     await writeText(path.join(paths.promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
   }
 
-  const skillsDir = namespacedSkillsDir(paths.skillsDir, bundle.pluginName ?? DEFAULT_PLUGIN_NAMESPACE)
+  const skillsDir = namespacedSkillsDir(paths.skillsDir, bundle.pluginName)
 
   for (const skill of bundle.skillDirs) {
     await copySkillDir(skill.sourceDir, path.join(skillsDir, sanitizePathName(skill.name)), transformContentForPi)
