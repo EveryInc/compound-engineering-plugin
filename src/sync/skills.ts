@@ -1,7 +1,6 @@
 import path from "path"
 import type { ClaudeSkill } from "../types/claude"
 import { ensureDir, sanitizePathName } from "../utils/files"
-import { namespacedSkillsDir } from "../utils/plugin-namespace"
 import { forceSymlink, isValidSkillName } from "../utils/symlink"
 
 export async function syncSkills(
@@ -11,7 +10,6 @@ export async function syncSkills(
   await ensureDir(skillsDir)
 
   const seen = new Set<string>()
-  const resolved: Array<{ skill: ClaudeSkill; safeName: string }> = []
   for (const skill of skills) {
     if (!isValidSkillName(skill.name)) {
       console.warn(`Skipping skill with invalid name: ${skill.name}`)
@@ -24,16 +22,8 @@ export async function syncSkills(
       continue
     }
     seen.add(safeName)
-    resolved.push({ skill, safeName })
-  }
 
-  if (resolved.length === 0) return
-
-  const namespaced = namespacedSkillsDir(skillsDir)
-  await ensureDir(namespaced)
-
-  for (const { skill, safeName } of resolved) {
-    const target = path.join(namespaced, safeName)
+    const target = path.join(skillsDir, safeName)
     await forceSymlink(skill.sourceDir, target)
   }
 }

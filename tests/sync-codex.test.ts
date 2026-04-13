@@ -44,7 +44,7 @@ describe("syncToCodex", () => {
 
     await syncToCodex(config, tempRoot)
 
-    const skillPath = path.join(tempRoot, "skills", "compound-engineering", "skill-one")
+    const skillPath = path.join(tempRoot, "skills", "skill-one")
     expect((await fs.lstat(skillPath)).isSymbolicLink()).toBe(true)
 
     const content = await fs.readFile(configPath, "utf8")

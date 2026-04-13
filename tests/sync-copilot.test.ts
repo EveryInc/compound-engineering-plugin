@@ -23,7 +23,7 @@ describe("syncToCopilot", () => {
 
     await syncToCopilot(config, tempRoot)
 
-    const linkedSkillPath = path.join(tempRoot, "skills", "compound-engineering", "skill-one")
+    const linkedSkillPath = path.join(tempRoot, "skills", "skill-one")
     const linkedStat = await fs.lstat(linkedSkillPath)
     expect(linkedStat.isSymbolicLink()).toBe(true)
   })
@@ -48,7 +48,7 @@ describe("syncToCopilot", () => {
     await syncToCopilot(config, tempRoot)
 
     const skillContent = await fs.readFile(
-      path.join(tempRoot, "skills", "compound-engineering", "workflows-plan", "SKILL.md"),
+      path.join(tempRoot, "skills", "workflows-plan", "SKILL.md"),
       "utf8",
     )
     expect(skillContent).toContain("name: workflows-plan")
