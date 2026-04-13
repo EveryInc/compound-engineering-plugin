@@ -1,6 +1,6 @@
 {
   "name": "compound-engineering",
-  "version": "2.63.1",
+  "version": "2.65.0",
   "description": "AI-powered development tools for code review, research, design, and workflow automation.",
   "author": {
     "name": "Kieran Klaassen",
@@ -20,8 +20,6 @@
     "python",
     "typescript",
     "knowledge-management",
-    "image-generation",
-    "agent-browser",
-    "browser-automation"
+    "image-generation"
   ]
 }

@@ -46,6 +46,10 @@ Brainstorm -> Plan -> Work -> Review -> Compound -> Repeat
 
 Each cycle compounds: brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented.
 
+### Getting started
+
+After installing, run `/ce-setup` in any project. It checks your environment, installs missing tools (agent-browser, gh, jq, vhs, silicon, ffmpeg), and bootstraps project config.
+
 ---
 
 ## Install

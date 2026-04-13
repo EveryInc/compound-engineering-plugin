@@ -9,7 +9,8 @@ Subcommands:
   stitch [--duration N] OUTPUT FRAME [FRAME ...]            Stitch frames into animated GIF
   screenshot-reel --output OUT [--duration N] [--lang L] [--theme T] --text F [F ...]   Render text frames via silicon + stitch
   terminal-recording --output OUT --tape TAPE               Run VHS tape file
-  upload FILE                        Upload to catbox.moe (retries once)
+  preview FILE                       Upload to litterbox (1h expiry) for preview
+  upload FILE_OR_URL                 Upload/promote to catbox.moe (permanent)
 """
 import argparse
 import json
@@ -27,6 +28,7 @@ from pathlib import Path
 MAX_GIF_SIZE = 10 * 1024 * 1024   # 10 MB — GitHub inline render limit
 TARGET_GIF_SIZE = 5 * 1024 * 1024  # 5 MB — preferred target
 CATBOX_API = "https://catbox.moe/user/api.php"
+LITTERBOX_API = "https://litterbox.catbox.moe/resources/internals/api.php"
 
 
 # --- Helpers ---
@@ -527,23 +529,80 @@ def cmd_terminal_recording(args):
 
 # --- Upload ---
 
-def cmd_upload(args):
-    file_path = args.file
-    if not Path(file_path).exists():
-        die(f"File not found: {file_path}")
-
+def _upload_to(api_url, file_path, extra_fields=None):
+    """Upload a file to a catbox-family API. Returns the URL or empty string."""
     if not check_tool("curl"):
         die("curl is not installed")
 
-    size_mb = file_size_mb(file_path)
-    print(f"Uploading {file_path} ({size_mb:.1f} MB) to catbox.moe...")
+    cmd = [
+        "curl", "-s", "--connect-timeout", "10",
+        "-F", "reqtype=fileupload",
+        "-F", f"fileToUpload=@{file_path}",
+    ]
+    for field in (extra_fields or []):
+        cmd += ["-F", field]
+    cmd.append(api_url)
 
-    def _try_upload():
+    try:
+        result = subprocess.run(
+            cmd, capture_output=True, text=True, timeout=30, check=False,
+        )
+        return result.stdout.strip()
+    except subprocess.TimeoutExpired:
+        print("ERROR: Upload timed out after 30s", file=sys.stderr)
+        return ""
+
+
+def _upload_with_retry(api_url, file_path, label, extra_fields=None):
+    """Upload with one retry. Prints and returns the URL, or exits on failure."""
+    size_mb = file_size_mb(file_path)
+    print(f"Uploading {file_path} ({size_mb:.1f} MB) to {label}...")
+
+    url = _upload_to(api_url, file_path, extra_fields)
+    if url.startswith("https://"):
+        print(f"Uploaded: {url}")
+        print(url)
+        return url
+
+    print(f"ERROR: Upload failed. Response: {url[:200]}", file=sys.stderr)
+    print(f"Local file preserved at: {file_path}", file=sys.stderr)
+    print("Retrying in 2 seconds...", file=sys.stderr)
+    time.sleep(2)
+
+    url = _upload_to(api_url, file_path, extra_fields)
+    if url.startswith("https://"):
+        print(f"Uploaded (retry): {url}")
+        print(url)
+        return url
+
+    print("ERROR: Retry also failed.", file=sys.stderr)
+    sys.exit(1)
+
+
+# --- Preview (litterbox — temporary, 1h expiry) ---
+
+def cmd_preview(args):
+    file_path = args.file
+    if not Path(file_path).exists():
+        die(f"File not found: {file_path}")
+    _upload_with_retry(LITTERBOX_API, file_path, "litterbox (1h expiry)", ["time=1h"])
+
+
+# --- Upload (catbox — permanent) ---
+
+def _promote_url(source_url):
+    """Promote a URL (e.g., litterbox preview) to permanent catbox hosting."""
+    if not check_tool("curl"):
+        die("curl is not installed")
+
+    print(f"Promoting {source_url} to catbox.moe...")
+
+    def _try():
         try:
             result = subprocess.run(
                 ["curl", "-s", "--connect-timeout", "10",
-                 "-F", "reqtype=fileupload",
-                 "-F", f"fileToUpload=@{file_path}", CATBOX_API],
+                 "-F", "reqtype=urlupload",
+                 "-F", f"url={source_url}", CATBOX_API],
                 capture_output=True, text=True, timeout=30, check=False,
             )
             return result.stdout.strip()
@@ -551,27 +610,34 @@ def cmd_upload(args):
             print("ERROR: Upload timed out after 30s", file=sys.stderr)
             return ""
 
-    url = _try_upload()
-
+    url = _try()
     if url.startswith("https://"):
-        print(f"Uploaded: {url}")
+        print(f"Promoted: {url}")
         print(url)
-        return
+        return url
 
-    print(f"ERROR: Upload failed. Response: {url[:200]}", file=sys.stderr)
-    print(f"Local file preserved at: {file_path}", file=sys.stderr)
-
-    # Retry once
+    print(f"ERROR: Promote failed. Response: {url[:200]}", file=sys.stderr)
     print("Retrying in 2 seconds...", file=sys.stderr)
     time.sleep(2)
-    url = _try_upload()
 
+    url = _try()
     if url.startswith("https://"):
-        print(f"Uploaded (retry): {url}")
+        print(f"Promoted (retry): {url}")
         print(url)
+        return url
+
+    print("ERROR: Retry also failed.", file=sys.stderr)
+    sys.exit(1)
+
+
+def cmd_upload(args):
+    source = args.source
+    if source.startswith("https://"):
+        _promote_url(source)
     else:
-        print("ERROR: Retry also failed. Upload manually or commit to branch.", file=sys.stderr)
-        sys.exit(1)
+        if not Path(source).exists():
+            die(f"File not found: {source}")
+        _upload_with_retry(CATBOX_API, source, "catbox.moe")
 
 
 # --- Main ---
@@ -588,7 +654,8 @@ Commands:
   stitch [--duration N] OUTPUT FRAMES    Stitch frames into animated GIF
   screenshot-reel --output O --text F    Render text via silicon + stitch
   terminal-recording --output O --tape T Run VHS tape
-  upload FILE                            Upload to catbox.moe
+  preview FILE                           Upload to litterbox (1h expiry)
+  upload FILE_OR_URL                     Upload/promote to catbox.moe (permanent)
 """,
     )
     sub = parser.add_subparsers(dest="command")
@@ -627,9 +694,13 @@ Commands:
     p_term.add_argument("--output", help="Output GIF path (overrides tape Output directive)")
     p_term.add_argument("--tape", required=True, help="VHS tape file path")
 
+    # preview
+    p_preview = sub.add_parser("preview", help="Upload to litterbox (1h expiry) for preview")
+    p_preview.add_argument("file", help="File to upload")
+
     # upload
-    p_upload = sub.add_parser("upload", help="Upload to catbox.moe")
-    p_upload.add_argument("file", help="File to upload")
+    p_upload = sub.add_parser("upload", help="Upload or promote to catbox.moe (permanent)")
+    p_upload.add_argument("source", help="Local file path or URL to promote")
 
     args = parser.parse_args()
 
@@ -644,6 +715,7 @@ Commands:
         "stitch": cmd_stitch,
         "screenshot-reel": cmd_screenshot_reel,
         "terminal-recording": cmd_terminal_recording,
+        "preview": cmd_preview,
         "upload": cmd_upload,
     }
     dispatch[args.command](args)

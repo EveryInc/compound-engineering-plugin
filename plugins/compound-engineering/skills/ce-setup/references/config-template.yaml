@@ -1,0 +1,12 @@
+# Compound Engineering -- local config
+# Copy to .compound-engineering/config.local.yaml in your project root.
+# All settings are optional. Invalid values fall through to defaults.
+
+# --- Work delegation (Codex) ---
+
+# work_delegate: codex           # codex | false (default: false)
+# work_delegate_consent: true    # true | false (default: false)
+# work_delegate_sandbox: yolo    # yolo | full-auto (default: yolo)
+# work_delegate_decision: auto   # auto | ask (default: auto)
+# work_delegate_model: gpt-5.4  # any valid codex model (default: gpt-5.4)
+# work_delegate_effort: high     # minimal | low | medium | high | xhigh (default: high)

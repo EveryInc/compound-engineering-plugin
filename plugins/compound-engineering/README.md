@@ -2,12 +2,16 @@
 
 AI-powered development tools that get smarter with every use. Make each unit of engineering work easier than the last.
 
+## Getting Started
+
+After installing, run `/ce-setup` in any project. It diagnoses your environment, installs missing tools, and bootstraps project config in one interactive flow.
+
 ## Components
 
 | Component | Count |
 |-----------|-------|
 | Agents | 50+ |
-| Skills | 40+ |
+| Skills | 41+ |
 
 ## Skills
 
@@ -22,8 +26,13 @@ The primary entry points for engineering work, invoked as slash commands:
 | `/ce:plan` | Create structured plans for any multi-step task -- software features, research workflows, events, study plans -- with automatic confidence checking |
 | `/ce:review` | Structured code review with tiered persona agents, confidence gating, and dedup pipeline |
 | `/ce:work` | Execute work items systematically |
+| `/ce-debug` | Systematically find root causes and fix bugs -- traces causal chains, forms testable hypotheses, and implements test-first fixes |
 | `/ce:compound` | Document solved problems to compound team knowledge |
 | `/ce:compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
+| `/ce-optimize` | Run iterative optimization loops with parallel experiments, measurement gates, and LLM-as-judge quality scoring |
+
+For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/README.md) for usage guidance, example specs, and links to the schema and workflow docs.
+
 ### Research & Context
 
 | Skill | Description |
@@ -46,13 +55,13 @@ The primary entry points for engineering work, invoked as slash commands:
 |-------|-------------|
 | `/changelog` | Create engaging changelogs for recent merges |
 | `/ce-demo-reel` | Capture a visual demo reel (GIF demos, terminal recordings, screenshots) for PRs with project-type-aware tier selection |
-| `/reproduce-bug` | Reproduce bugs using logs and console |
 | `/report-bug-ce` | Report a bug in the compound-engineering plugin |
 | `/resolve-pr-feedback` | Resolve PR review feedback in parallel |
 | `/sync` | Sync Claude Code config across machines |
 | `/test-browser` | Run browser tests on PR-affected pages |
 | `/test-xcode` | Build and test iOS apps on simulator using XcodeBuildMCP |
 | `/onboarding` | Generate `ONBOARDING.md` to help new contributors understand the codebase |
+| `/ce-setup` | Diagnose environment, install missing tools, and bootstrap project config |
 | `/ce-update` | Check compound-engineering plugin version and fix stale cache (Claude Code only) |
 | `/todo-resolve` | Resolve todos in parallel |
 | `/todo-triage` | Triage and prioritize pending todos |
@@ -73,7 +82,6 @@ The primary entry points for engineering work, invoked as slash commands:
 |-------|-------------|
 | `claude-permissions-optimizer` | Optimize Claude Code permissions from session history |
 | `document-review` | Review documents using parallel persona agents for role-specific feedback |
-| `setup` | Reserved for future project-level workflow configuration; code review agent selection is automatic |
 
 ### Content & Collaboration
 
@@ -87,9 +95,7 @@ The primary entry points for engineering work, invoked as slash commands:
 
 | Skill | Description |
 |-------|-------------|
-| `agent-browser` | CLI-based browser automation using Vercel's agent-browser |
 | `gemini-imagegen` | Generate and edit images using Google's Gemini API |
-| `rclone` | Upload files to S3, Cloudflare R2, Backblaze B2, and cloud storage |
 
 ### Beta / Experimental
 
@@ -170,8 +176,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 
 | Agent | Description |
 |-------|-------------|
-| `bug-reproduction-validator` | Systematically reproduce and validate bug reports |
-| `lint` | Run linting and code quality checks on Ruby and ERB files |
 | `pr-comment-resolver` | Address PR comments and implement fixes |
 | `spec-flow-analyzer` | Analyze user flows and identify gaps in specifications |
 
@@ -181,22 +185,13 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 |-------|-------------|
 | `ankane-readme-writer` | Create READMEs following Ankane-style template for Ruby gems |
 
-## Browser Automation
-
-This plugin uses **agent-browser CLI** for browser automation tasks. Install it globally:
-
-```bash
-npm install -g agent-browser
-agent-browser install  # Downloads Chromium
-```
-
-The `agent-browser` skill provides comprehensive documentation on usage.
-
 ## Installation
 
 ```bash
 claude /plugin install compound-engineering
 ```
+
+Then run `/ce-setup` to check your environment and install recommended tools.
 
 ## Version History
 

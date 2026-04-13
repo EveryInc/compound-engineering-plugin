@@ -230,7 +230,7 @@ Use the first available option:
 
 1. **Existing project browser tooling** -- if Playwright, Puppeteer, Cypress, or similar is already in the project's dependencies, use it. Do not introduce new dependencies just for verification.
 2. **Browser MCP tools** -- if browser automation tools (e.g., claude-in-chrome) are available in the agent's environment, use them.
-3. **agent-browser CLI** -- if nothing else is available, this is the default. Load the `agent-browser` skill for installation and usage instructions.
+3. **agent-browser CLI** -- if nothing else is available and `agent-browser` is installed, use it. If not installed, inform the user: "`agent-browser` is not installed. Run `/ce-setup` to install required dependencies." Then skip to the next option.
 4. **Mental review** -- if no browser access is possible (headless CI, no permissions to install), apply the litmus checks as a self-review and note that visual verification was skipped.
 
 ### What to Assess

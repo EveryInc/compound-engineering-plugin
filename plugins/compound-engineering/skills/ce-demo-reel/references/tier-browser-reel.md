@@ -7,6 +7,8 @@ Capture 3-5 browser screenshots at key UI states and stitch into an animated GIF
 **Label:** "Demo"
 **Required tools:** agent-browser, ffmpeg
 
+If `agent-browser` is not installed, inform the user: "`agent-browser` is not installed. Run `/ce-setup` to install required dependencies." Then fall back to a lower tier (static screenshots or skip).
+
 ## Step 1: Connect to the Application
 
 **For web apps** -- verify the dev server is accessible:
