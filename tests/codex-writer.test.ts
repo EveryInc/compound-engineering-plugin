@@ -387,39 +387,6 @@ Workflow handoff:
     expect(installedSkill).not.toContain("https://prompts:www.proofeditor.ai")
   })
 
-  test("cleans up legacy flat skill directories on reinstall", async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-migrate-skills-"))
-    const codexRoot = path.join(tempRoot, ".codex")
-    const skillsRoot = path.join(codexRoot, "skills")
-
-    // Pre-populate the old flat layout: plugin skill + a user-authored sibling
-    const legacyPluginSkill = path.join(skillsRoot, "skill-one")
-    const userSkill = path.join(skillsRoot, "my-personal-skill")
-    await fs.mkdir(legacyPluginSkill, { recursive: true })
-    await fs.writeFile(path.join(legacyPluginSkill, "SKILL.md"), "old\n")
-    await fs.mkdir(userSkill, { recursive: true })
-    await fs.writeFile(path.join(userSkill, "SKILL.md"), "mine\n")
-
-    const bundle: CodexBundle = {
-      prompts: [],
-      skillDirs: [
-        {
-          name: "skill-one",
-          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
-        },
-      ],
-      generatedSkills: [],
-    }
-
-    await writeCodexBundle(codexRoot, bundle)
-
-    // Namespaced layout exists
-    expect(await exists(path.join(skillsRoot, "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
-    // Legacy flat plugin skill removed
-    expect(await exists(path.join(legacyPluginSkill, "SKILL.md"))).toBe(false)
-    // User's sibling skill untouched
-    expect(await exists(path.join(userSkill, "SKILL.md"))).toBe(true)
-  })
 })
 
 describe("renderCodexConfig", () => {

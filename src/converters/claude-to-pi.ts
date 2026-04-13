@@ -35,6 +35,7 @@ export function convertClaudeToPi(
   ]
 
   return {
+    pluginName: plugin.manifest.name,
     prompts,
     skillDirs: platformSkills.map((skill) => ({
       name: skill.name,

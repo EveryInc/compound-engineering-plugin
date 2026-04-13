@@ -28,6 +28,7 @@ export type WindsurfMcpConfig = {
 }
 
 export type WindsurfBundle = {
+  pluginName?: string
   agentSkills: WindsurfGeneratedSkill[]
   commandWorkflows: WindsurfWorkflow[]
   skillDirs: WindsurfSkillDir[]

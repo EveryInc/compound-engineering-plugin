@@ -63,6 +63,46 @@ describe("CLI", () => {
     expect(await exists(path.join(tempRoot, ".opencode", "plugins", "converted-hooks.ts"))).toBe(true)
   })
 
+  test("install namespaces skills under the current plugin name", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-opencode-custom-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const customPluginRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-custom-plugin-"))
+
+    await fs.cp(fixtureRoot, customPluginRoot, { recursive: true })
+    const manifestPath = path.join(customPluginRoot, ".claude-plugin", "plugin.json")
+    const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8")) as Record<string, unknown>
+    manifest.name = "coding-tutor"
+    await fs.writeFile(manifestPath, JSON.stringify(manifest, null, 2) + "\n")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      "src/index.ts",
+      "install",
+      customPluginRoot,
+      "--to",
+      "opencode",
+      "--output",
+      tempRoot,
+    ], {
+      cwd: path.join(import.meta.dir, ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed coding-tutor")
+    expect(await exists(path.join(tempRoot, ".opencode", "skills", "coding-tutor", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".opencode", "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(false)
+  })
+
   test("install defaults output to ~/.config/opencode", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-local-default-"))
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")

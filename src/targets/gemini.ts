@@ -1,21 +1,14 @@
 import path from "path"
 import { backupFile, copySkillDir, ensureDir, pathExists, readJson, resolveCommandPath, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformContentForGemini } from "../converters/claude-to-gemini"
-import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
+import { DEFAULT_PLUGIN_NAMESPACE, namespacedSkillsDir } from "../utils/plugin-namespace"
 import type { GeminiBundle } from "../types/gemini"
 
 export async function writeGeminiBundle(outputRoot: string, bundle: GeminiBundle): Promise<void> {
   const paths = resolveGeminiPaths(outputRoot)
   await ensureDir(paths.geminiDir)
 
-  const skillsDir = namespacedSkillsDir(paths.skillsDir)
-  const skillNames = Array.from(new Set([
-    ...bundle.generatedSkills.map((s) => sanitizePathName(s.name)),
-    ...bundle.skillDirs.map((s) => sanitizePathName(s.name)),
-  ]))
-  if (skillNames.length > 0) {
-    await removeLegacyFlatSkills(paths.skillsDir, skillNames)
-  }
+  const skillsDir = namespacedSkillsDir(paths.skillsDir, bundle.pluginName ?? DEFAULT_PLUGIN_NAMESPACE)
 
   if (bundle.generatedSkills.length > 0) {
     for (const skill of bundle.generatedSkills) {

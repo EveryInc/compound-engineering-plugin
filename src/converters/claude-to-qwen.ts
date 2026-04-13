@@ -41,6 +41,7 @@ export function convertClaudeToQwen(plugin: ClaudePlugin, options: ClaudeToQwenO
   const contextFile = generateContextFile(plugin)
 
   return {
+    pluginName: plugin.manifest.name,
     config,
     agents: agentFiles,
     commandFiles: cmdFiles,

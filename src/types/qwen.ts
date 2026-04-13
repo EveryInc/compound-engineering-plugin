@@ -43,6 +43,7 @@ export type QwenCommandFile = {
 }
 
 export type QwenBundle = {
+  pluginName?: string
   config: QwenExtensionConfig
   agents: QwenAgentFile[]
   commandFiles: QwenCommandFile[]

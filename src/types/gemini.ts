@@ -22,6 +22,7 @@ export type GeminiMcpServer = {
 }
 
 export type GeminiBundle = {
+  pluginName?: string
   generatedSkills: GeminiSkill[] // From agents
   skillDirs: GeminiSkillDir[] // From skills (pass-through)
   commands: GeminiCommand[]

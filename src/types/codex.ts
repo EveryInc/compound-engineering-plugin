@@ -17,6 +17,7 @@ export type CodexGeneratedSkill = {
 }
 
 export type CodexBundle = {
+  pluginName?: string
   prompts: CodexPrompt[]
   skillDirs: CodexSkillDir[]
   generatedSkills: CodexGeneratedSkill[]

@@ -32,6 +32,7 @@ export type PiMcporterConfig = {
 }
 
 export type PiBundle = {
+  pluginName?: string
   prompts: PiPrompt[]
   skillDirs: PiSkillDir[]
   generatedSkills: PiGeneratedSkill[]

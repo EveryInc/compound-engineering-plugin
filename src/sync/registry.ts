@@ -124,6 +124,17 @@ export const syncTargets: SyncTargetDefinition[] = [
 
 export const syncTargetNames = syncTargets.map((target) => target.name)
 
+const legacyFlatSkillCleanupTargets = new Set<SyncTargetName>([
+  "opencode",
+  "codex",
+  "pi",
+  "copilot",
+  "gemini",
+  "windsurf",
+  "kiro",
+  "qwen",
+])
+
 export function isSyncTargetName(value: string): value is SyncTargetName {
   return syncTargetNames.includes(value as SyncTargetName)
 }
@@ -134,6 +145,23 @@ export function getSyncTarget(name: SyncTargetName): SyncTargetDefinition {
     throw new Error(`Unknown sync target: ${name}`)
   }
   return target
+}
+
+export function supportsLegacyFlatSkillCleanup(targetName: SyncTargetName): boolean {
+  return legacyFlatSkillCleanupTargets.has(targetName)
+}
+
+export function resolveSyncSkillsRoot(
+  target: SyncTargetDefinition,
+  home: string,
+  cwd: string,
+): string | null {
+  if (!supportsLegacyFlatSkillCleanup(target.name)) {
+    return null
+  }
+
+  const outputRoot = target.resolveOutputRoot(home, cwd)
+  return path.join(outputRoot, "skills")
 }
 
 export function getDefaultSyncRegistryContext(): { home: string; cwd: string } {

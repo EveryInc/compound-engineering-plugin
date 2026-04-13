@@ -38,6 +38,7 @@ export type KiroMcpServer = {
 }
 
 export type KiroBundle = {
+  pluginName?: string
   agents: KiroAgent[]
   generatedSkills: KiroSkill[]
   skillDirs: KiroSkillDir[]

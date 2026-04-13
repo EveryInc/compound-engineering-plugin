@@ -1,7 +1,7 @@
 import path from "path"
 import { backupFile, copySkillDir, ensureDir, pathExists, readJson, resolveCommandPath, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformSkillContentForOpenCode } from "../converters/claude-to-opencode"
-import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
+import { DEFAULT_PLUGIN_NAMESPACE, namespacedSkillsDir } from "../utils/plugin-namespace"
 import type { OpenCodeBundle, OpenCodeConfig } from "../types/opencode"
 
 // Merges plugin config into existing opencode.json. User keys win on conflict. See ADR-002.
@@ -100,10 +100,9 @@ export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBu
   }
 
   if (bundle.skillDirs.length > 0) {
-    const skillsRoot = namespacedSkillsDir(openCodePaths.skillsDir)
-    await removeLegacyFlatSkills(
+    const skillsRoot = namespacedSkillsDir(
       openCodePaths.skillsDir,
-      bundle.skillDirs.map((skill) => sanitizePathName(skill.name)),
+      bundle.pluginName ?? DEFAULT_PLUGIN_NAMESPACE,
     )
     for (const skill of bundle.skillDirs) {
       await copySkillDir(

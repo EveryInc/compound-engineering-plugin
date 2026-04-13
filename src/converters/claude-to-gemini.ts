@@ -35,7 +35,7 @@ export function convertClaudeToGemini(
     console.warn("Warning: Gemini CLI hooks use a different format (BeforeTool/AfterTool with matchers). Hooks were skipped during conversion.")
   }
 
-  return { generatedSkills, skillDirs, commands, mcpServers }
+  return { pluginName: plugin.manifest.name, generatedSkills, skillDirs, commands, mcpServers }
 }
 
 function convertAgentToSkill(agent: ClaudeAgent, usedNames: Set<string>): GeminiSkill {

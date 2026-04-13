@@ -80,6 +80,7 @@ export function convertClaudeToOpenCode(
   applyPermissions(config, plugin.commands, options.permissions)
 
   return {
+    pluginName: plugin.manifest.name,
     config,
     agents: agentFiles,
     commandFiles: cmdFiles,

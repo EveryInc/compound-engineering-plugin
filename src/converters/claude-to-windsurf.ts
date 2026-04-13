@@ -44,7 +44,7 @@ export function convertClaudeToWindsurf(
     )
   }
 
-  return { agentSkills, commandWorkflows, skillDirs, mcpConfig }
+  return { pluginName: plugin.manifest.name, agentSkills, commandWorkflows, skillDirs, mcpConfig }
 }
 
 function convertAgentToSkill(

@@ -1,7 +1,7 @@
 import path from "path"
 import { backupFile, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJsonSecure, writeText } from "../utils/files"
 import { transformContentForCopilot } from "../converters/claude-to-copilot"
-import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
+import { DEFAULT_PLUGIN_NAMESPACE, namespacedSkillsDir } from "../utils/plugin-namespace"
 import type { CopilotBundle } from "../types/copilot"
 
 export async function writeCopilotBundle(outputRoot: string, bundle: CopilotBundle): Promise<void> {
@@ -16,14 +16,7 @@ export async function writeCopilotBundle(outputRoot: string, bundle: CopilotBund
   }
 
   const flatSkillsDir = path.join(paths.githubDir, "skills")
-  const skillsDir = namespacedSkillsDir(flatSkillsDir)
-  const skillNames = Array.from(new Set([
-    ...bundle.generatedSkills.map((s) => sanitizePathName(s.name)),
-    ...bundle.skillDirs.map((s) => sanitizePathName(s.name)),
-  ]))
-  if (skillNames.length > 0) {
-    await removeLegacyFlatSkills(flatSkillsDir, skillNames)
-  }
+  const skillsDir = namespacedSkillsDir(flatSkillsDir, bundle.pluginName ?? DEFAULT_PLUGIN_NAMESPACE)
 
   if (bundle.generatedSkills.length > 0) {
     for (const skill of bundle.generatedSkills) {

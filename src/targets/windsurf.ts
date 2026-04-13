@@ -2,7 +2,7 @@ import path from "path"
 import { backupFile, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJsonSecure, writeText } from "../utils/files"
 import { formatFrontmatter } from "../utils/frontmatter"
 import { transformContentForWindsurf } from "../converters/claude-to-windsurf"
-import { namespacedSkillsDir, removeLegacyFlatSkills } from "../utils/plugin-namespace"
+import { DEFAULT_PLUGIN_NAMESPACE, namespacedSkillsDir } from "../utils/plugin-namespace"
 import type { WindsurfBundle } from "../types/windsurf"
 import type { TargetScope } from "./index"
 
@@ -17,15 +17,12 @@ export async function writeWindsurfBundle(outputRoot: string, bundle: WindsurfBu
 
   // Legacy cleanup + namespaced skills dir (shared by agent skills and pass-through copies below)
   const flatSkillsRoot = path.join(outputRoot, "skills")
-  const skillNames = Array.from(new Set([
-    ...bundle.agentSkills.map((s) => sanitizePathName(s.name)),
-    ...bundle.skillDirs.map((s) => sanitizePathName(s.name)),
-  ]))
-  const skillsDir = namespacedSkillsDir(flatSkillsRoot)
-  if (skillNames.length > 0) {
+  const skillsDir = namespacedSkillsDir(flatSkillsRoot, bundle.pluginName ?? DEFAULT_PLUGIN_NAMESPACE)
+  if (bundle.agentSkills.length > 0 || bundle.skillDirs.length > 0) {
     await ensureDir(flatSkillsRoot)
-    await removeLegacyFlatSkills(flatSkillsRoot, skillNames)
   }
+
+  const knownAgentNames = bundle.agentSkills.map((s) => s.name)
 
   // Write agent skills (before pass-through copies so pass-through takes precedence on collision)
   if (bundle.agentSkills.length > 0) {
@@ -70,7 +67,6 @@ export async function writeWindsurfBundle(outputRoot: string, bundle: WindsurfBu
         continue
       }
 
-      const knownAgentNames = bundle.agentSkills.map((s) => s.name)
       await copySkillDir(skill.sourceDir, destDir, (content) =>
         transformContentForWindsurf(content, knownAgentNames),
       )

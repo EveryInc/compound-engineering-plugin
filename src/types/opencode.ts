@@ -44,6 +44,7 @@ export type OpenCodeCommandFile = {
 }
 
 export type OpenCodeBundle = {
+  pluginName?: string
   config: OpenCodeConfig
   agents: OpenCodeAgentFile[]
   // Commands are written as individual .md files, not in opencode.json. See ADR-001.
