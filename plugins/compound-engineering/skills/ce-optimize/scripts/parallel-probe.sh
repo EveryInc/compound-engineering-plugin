@@ -81,7 +81,7 @@ fi
 # Check 1: Hardcoded ports in measurement command
 if [[ -n "$MEASUREMENT_CMD" ]]; then
   # Look for common port patterns in the command itself
-  if echo "$MEASUREMENT_CMD" | grep -qE '(--port\s+[0-9]+|:\s*[0-9]{4,5}|PORT=[0-9]+|localhost:[0-9]+)'; then
+  if echo "$MEASUREMENT_CMD" | grep -qE '(--port(?:\s+|=)[0-9]+|:\s*[0-9]{4,5}|PORT=[0-9]+|localhost:[0-9]+)'; then
     add_blocker "port" "Measurement command contains hardcoded port reference" "Parameterize port via environment variable (e.g., PORT=\$EVAL_PORT)"
   fi
 fi
