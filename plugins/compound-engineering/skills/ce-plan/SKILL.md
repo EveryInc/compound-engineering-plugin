@@ -85,6 +85,25 @@ If genuinely ambiguous (e.g., "plan a migration" with no other context), ask the
 
 For everything else (quick questions, error messages, factual lookups), respond directly without any planning workflow.
 
+#### 0.1c Check for Architecture Constraints
+
+Before proceeding, check for `architecture-constraints.md` in the project root.
+
+If found:
+- Read `architecture-constraints.md`
+- Announce: "Found architecture-constraints.md from /ce:diagram. Using it to anchor this plan."
+- Treat its contents as an additional source document alongside any requirements doc:
+  - **Layer Ownership table** defines which components own which concerns — do not assign responsibilities to the wrong component
+  - **Data Flow table** defines allowed dependency directions — do not introduce imports or calls that contradict it
+  - **Explicit Constraints** are hard rules — if the plan would violate one, flag it before continuing: "⚠ This would violate constraint: [constraint text]. Confirm to proceed?"
+  - **Visual References** section: reference Stitch IDs when describing UI work
+  - **Out of Scope** section: do not include items listed there without flagging it explicitly
+  - **Open Questions**: treat as blocking questions that must be resolved before or during planning
+
+If not found:
+- Print: "No architecture-constraints.md found. Consider running /ce:diagram first to lock in architectural decisions before planning. Proceeding without constraints."
+- Continue with normal plan generation.
+
 #### 0.2 Find Upstream Requirements Document
 
 Before asking planning questions, search `docs/brainstorms/` for files matching `*-requirements.md`.

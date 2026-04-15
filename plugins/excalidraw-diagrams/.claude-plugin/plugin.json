@@ -1,0 +1,18 @@
+{
+  "name": "excalidraw-diagrams",
+  "version": "0.1.0",
+  "description": "Bidirectional Excalidraw diagram integration for compound-engineering. Generate architecture diagrams from code, read hand-drawn diagrams, and keep diagrams in sync with what was built.",
+  "author": {
+    "name": "Kiran Jalakam"
+  },
+  "repository": "https://github.com/EveryInc/compound-engineering-plugin",
+  "license": "MIT",
+  "keywords": [
+    "excalidraw",
+    "architecture",
+    "diagrams",
+    "flutter",
+    "bloc",
+    "compound-engineering"
+  ]
+}

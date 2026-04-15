@@ -45,6 +45,23 @@
         "education"
       ],
       "source": "./plugins/coding-tutor"
+    },
+    {
+      "name": "excalidraw-diagrams",
+      "description": "Bidirectional Excalidraw diagram integration for compound-engineering. Generate architecture diagrams from code, read hand-drawn diagrams, and keep diagrams in sync with what was built. Includes 3 skills and 3 agents.",
+      "author": {
+        "name": "Kiran Jalakam"
+      },
+      "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
+      "tags": [
+        "excalidraw",
+        "architecture",
+        "diagrams",
+        "flutter",
+        "bloc",
+        "compound-engineering"
+      ],
+      "source": "./plugins/excalidraw-diagrams"
     }
   ]
 }
