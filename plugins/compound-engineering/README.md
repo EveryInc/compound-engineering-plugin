@@ -23,6 +23,7 @@ The primary entry points for engineering work, invoked as slash commands:
 |-------|-------------|
 | `/ce:ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
 | `/ce:brainstorm` | Explore requirements and approaches before planning |
+| `/ce:prototype` | Build throwaway prototypes to validate assumptions before planning |
 | `/ce:plan` | Create structured plans for any multi-step task -- software features, research workflows, events, study plans -- with automatic confidence checking |
 | `/ce:review` | Structured code review with tiered persona agents, confidence gating, and dedup pipeline |
 | `/ce:work` | Execute work items systematically |

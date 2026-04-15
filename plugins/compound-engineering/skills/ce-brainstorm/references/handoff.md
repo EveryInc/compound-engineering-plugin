@@ -20,6 +20,7 @@ If `Resolve Before Planning` contains any items:
 
 Present only the options that apply:
 - **Proceed to planning (Recommended)** - Run `/ce:plan` for structured implementation planning
+- **Prototype first** - Run `/ce:prototype` to validate untested assumptions before planning. Offer this when the requirements depend on unverified external factors (third-party APIs, data source quality, UX patterns, integration behavior) that could invalidate the plan if wrong. Do not offer when all requirements are grounded in known, verified constraints.
 - **Proceed directly to work** - Only offer this when scope is lightweight, success criteria are clear, scope boundaries are clear, and no meaningful technical or research questions remain
 - **Run additional document review** - Offer this only when a requirements document exists. Runs another pass for further refinement
 - **Ask more questions** - Continue clarifying scope, preferences, or edge cases
@@ -27,12 +28,17 @@ Present only the options that apply:
 - **Done for now** - Return later
 
 If the direct-to-work gate is not satisfied, omit that option entirely.
+If the prototype gate is not satisfied (no unverified external dependencies), omit that option entirely.
 
 #### 4.2 Handle the Selected Option
 
 **If user selects "Proceed to planning (Recommended)":**
 
 Immediately run `/ce:plan` in the current session. Pass the requirements document path when one exists; otherwise pass a concise summary of the finalized brainstorm decisions. Do not print the closing summary first.
+
+**If user selects "Prototype first":**
+
+Immediately run `/ce:prototype` in the current session. Pass the requirements document path when one exists; otherwise pass a concise summary of the finalized brainstorm decisions so the prototype skill has context without re-asking the user. The prototype skill will extract testable assumptions, validate them, and produce a validation report that feeds into `/ce:plan`. Do not print the closing summary first.
 
 **If user selects "Proceed directly to work":**
 
