@@ -508,6 +508,23 @@ describe("mergeCodexConfig", () => {
     expect(result).toContain('trust_level = "trusted"')
   })
 
+  test("strips bounded legacy MCP block when no MCP servers are incoming", () => {
+    const existing = [
+      "[user]",
+      'model = "gpt-5.4"',
+      "",
+      "# MCP servers synced from Claude Code",
+      "",
+      "[mcp_servers.old]",
+      'command = "old"',
+    ].join("\n")
+
+    const result = mergeCodexConfig(existing, null)!
+    expect(result).toContain("[user]")
+    expect(result).not.toContain("# MCP servers synced from Claude Code")
+    expect(result).not.toContain("[mcp_servers.old]")
+  })
+
   test("returns existing content byte-for-byte when no MCP servers or managed blocks exist", () => {
     const existing = [
       'model = "gpt-5.4"',

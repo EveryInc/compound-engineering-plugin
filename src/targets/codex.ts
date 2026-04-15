@@ -128,6 +128,10 @@ export function mergeCodexConfig(existingContent: string, mcpToml: string | null
   // boundary for deleting only plugin-owned TOML.
   if (!mcpToml) {
     if (!existingContent) return null
+    const legacyMarkerIndex = stripped.indexOf(LEGACY_MARKER)
+    if (legacyMarkerIndex !== -1) {
+      return stripped.slice(0, legacyMarkerIndex).trimEnd()
+    }
     return removedManagedBlock ? stripped.trimEnd() : existingContent
   }
 
