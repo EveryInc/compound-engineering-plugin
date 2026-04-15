@@ -14,6 +14,12 @@ export type CodexSkillDir = {
 export type CodexGeneratedSkill = {
   name: string
   content: string
+  sidecarDirs?: CodexGeneratedSkillSidecarDir[]
+}
+
+export type CodexGeneratedSkillSidecarDir = {
+  sourceDir: string
+  targetName: string
 }
 
 export type CodexBundle = {

@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
-import { backupFile, copySkillDir, ensureDir, sanitizePathName, writeText, writeTextSecure } from "../utils/files"
+import { backupFile, copyDir, copySkillDir, ensureDir, sanitizePathName, writeText, writeTextSecure } from "../utils/files"
 import type { CodexBundle } from "../types/codex"
 import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
@@ -39,7 +39,11 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
   if (bundle.generatedSkills.length > 0) {
     const skillsRoot = path.join(codexRoot, "skills")
     for (const skill of bundle.generatedSkills) {
-      await writeText(path.join(skillsRoot, sanitizePathName(skill.name), "SKILL.md"), skill.content + "\n")
+      const skillDir = path.join(skillsRoot, sanitizePathName(skill.name))
+      await writeText(path.join(skillDir, "SKILL.md"), skill.content + "\n")
+      for (const sidecar of skill.sidecarDirs ?? []) {
+        await copyDir(sidecar.sourceDir, path.join(skillDir, sidecar.targetName))
+      }
     }
   }
 

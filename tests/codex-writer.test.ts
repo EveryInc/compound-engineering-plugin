@@ -76,6 +76,38 @@ describe("writeCodexBundle", () => {
     expect(await exists(path.join(codexRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
   })
 
+  test("copies generated skill sidecar directories", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-sidecar-"))
+    const sidecarDir = path.join(tempRoot, "source", "session-history-scripts")
+    await fs.mkdir(sidecarDir, { recursive: true })
+    await fs.writeFile(path.join(sidecarDir, "discover-sessions.sh"), "#!/usr/bin/env bash\n")
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [
+        {
+          name: "session-historian",
+          content: "Skill content",
+          sidecarDirs: [{ sourceDir: sidecarDir, targetName: "session-history-scripts" }],
+        },
+      ],
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    expect(await exists(
+      path.join(
+        tempRoot,
+        ".codex",
+        "skills",
+        "session-historian",
+        "session-history-scripts",
+        "discover-sessions.sh",
+      ),
+    )).toBe(true)
+  })
+
   test("preserves existing user config when writing MCP servers", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-backup-"))
     const codexRoot = path.join(tempRoot, ".codex")
