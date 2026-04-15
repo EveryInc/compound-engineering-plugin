@@ -9,10 +9,13 @@ Syncs reviewer persona files, orchestrator definitions, and user persona files f
 
 ## Step 1: Locate plugin
 
-Find the plugin's install location in the Claude plugin cache:
+Find the plugin's install location in the Claude plugin cache. Use `$CLAUDE_CONFIG_DIR` (set by the Claude runtime) to target the active profile, otherwise the `find` glob hits `~/.claude/` first alphabetically and always writes to the default profile regardless of which profile is running.
 
 ```bash
-PLUGIN_DIR=$(find "$HOME/.claude" "$HOME/.claude-"* -path "*/compound-engineering/*/agents/review" -type d 2>/dev/null | head -1 | sed 's|/agents/review$||')
+if [ -n "${CLAUDE_CONFIG_DIR:-}" ]; then
+  PLUGIN_DIR=$(find "$CLAUDE_CONFIG_DIR" -path "*/compound-engineering/*/agents/review" -type d 2>/dev/null | head -1 | sed 's|/agents/review$||')
+fi
+PLUGIN_DIR="${PLUGIN_DIR:-$(find "$HOME/.claude" "$HOME/.claude-"* -path "*/compound-engineering/*/agents/review" -type d 2>/dev/null | head -1 | sed 's|/agents/review$||')}"
 ```
 
 Fall back to relative path if not found (e.g., running from source repo):
