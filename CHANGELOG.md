@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.66.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.65.0...cli-v2.66.0) (2026-04-15)
+
+
+### Bug Fixes
+
+* **converters:** preserve Codex agent sidecar scripts ([#563](https://github.com/EveryInc/compound-engineering-plugin/issues/563)) ([ee8e402](https://github.com/EveryInc/compound-engineering-plugin/commit/ee8e4028972252620f0dbfdbe1240204d22e6ea1))
+* **converters:** preserve Codex config on no-MCP install ([#564](https://github.com/EveryInc/compound-engineering-plugin/issues/564)) ([ed778e6](https://github.com/EveryInc/compound-engineering-plugin/commit/ed778e62f1e0e8621df94e5d461b20833cff33e2))
+
 ## [2.65.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.64.0...cli-v2.65.0) (2026-04-11)
 
 
