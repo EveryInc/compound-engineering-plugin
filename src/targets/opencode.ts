@@ -55,8 +55,8 @@ async function mergeOpenCodeConfig(
   }
 }
 
-export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBundle): Promise<void> {
-  const openCodePaths = resolveOpenCodePaths(outputRoot)
+export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBundle, scope?: string): Promise<void> {
+  const openCodePaths = resolveOpenCodePaths(outputRoot, scope)
   await ensureDir(openCodePaths.root)
 
   const hadExistingConfig = await pathExists(openCodePaths.configPath)
@@ -111,11 +111,13 @@ export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBu
   }
 }
 
-function resolveOpenCodePaths(outputRoot: string) {
+function resolveOpenCodePaths(outputRoot: string, scope?: string) {
   const base = path.basename(outputRoot)
-  // Global install: ~/.config/opencode (basename is "opencode")
-  // Project install: .opencode (basename is ".opencode")
-  if (base === "opencode" || base === ".opencode") {
+  // Global install: ~/.config/opencode (basename "opencode"), explicit scope "global",
+  // or any OPENCODE_CONFIG_DIR-derived root that OpenCode treats as its global config tree.
+  // Project install: .opencode (basename ".opencode")
+  const isGlobal = scope === "global" || base === "opencode" || base === ".opencode"
+  if (isGlobal) {
     return {
       root: outputRoot,
       configPath: path.join(outputRoot, "opencode.json"),

@@ -134,9 +134,9 @@ describe("CLI", () => {
     }
 
     expect(stdout).toContain("Installed compound-engineering")
-    // Output should go to OPENCODE_CONFIG_DIR, not ~/.config/opencode
+    // Output should go to OPENCODE_CONFIG_DIR with flat (global) layout, not ~/.config/opencode
     expect(await exists(path.join(customConfigDir, "opencode.json"))).toBe(true)
-    expect(await exists(path.join(customConfigDir, ".opencode", "agents", "repo-research-analyst.md"))).toBe(true)
+    expect(await exists(path.join(customConfigDir, "agents", "repo-research-analyst.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".config", "opencode", "opencode.json"))).toBe(false)
   })
 

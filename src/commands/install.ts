@@ -96,7 +96,7 @@ export default defineCommand({
 
     try {
       const plugin = await loadClaudePlugin(resolvedPlugin.path)
-      const outputRoot = resolveOutputRoot(args.output)
+      const { root: outputRoot, isGlobalOpenCodeConfig } = resolveOutputRoot(args.output)
       const codexHome = resolveTargetHome(args.codexHome, path.join(os.homedir(), ".codex"))
       const piHome = resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent"))
       const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
@@ -163,6 +163,12 @@ export default defineCommand({
       }
 
       const resolvedScope = validateScope(targetName, target, args.scope ? String(args.scope) : undefined)
+      // For OpenCode, if the output root is the global config dir (default or OPENCODE_CONFIG_DIR),
+      // use "global" scope so writeOpenCodeBundle writes the flat layout regardless of basename.
+      const effectiveScope =
+        targetName === "opencode" && isGlobalOpenCodeConfig && resolvedScope === undefined
+          ? "global"
+          : resolvedScope
 
       const bundle = target.convert(plugin, options)
       if (!bundle) {
@@ -177,9 +183,9 @@ export default defineCommand({
         qwenHome,
         pluginName: plugin.manifest.name,
         hasExplicitOutput,
-        scope: resolvedScope,
+        scope: effectiveScope,
       })
-      await target.write(primaryOutputRoot, bundle, resolvedScope)
+      await target.write(primaryOutputRoot, bundle, effectiveScope)
       console.log(`Installed ${plugin.manifest.name} to ${primaryOutputRoot}`)
 
       const extraTargets = parseExtraTargets(args.also)
@@ -259,19 +265,19 @@ function parseExtraTargets(value: unknown): string[] {
     .filter(Boolean)
 }
 
-function resolveOutputRoot(value: unknown): string {
+function resolveOutputRoot(value: unknown): { root: string; isGlobalOpenCodeConfig: boolean } {
   if (value && String(value).trim()) {
     const expanded = expandHome(String(value).trim())
-    return path.resolve(expanded)
+    return { root: path.resolve(expanded), isGlobalOpenCodeConfig: false }
   }
   // OpenCode global config: respect OPENCODE_CONFIG_DIR if set, otherwise
   // fall back to ~/.config/opencode per XDG spec.
   // See: https://opencode.ai/docs/config/
   const envDir = process.env.OPENCODE_CONFIG_DIR?.trim()
   if (envDir) {
-    return path.resolve(expandHome(envDir))
+    return { root: path.resolve(expandHome(envDir)), isGlobalOpenCodeConfig: true }
   }
-  return path.join(os.homedir(), ".config", "opencode")
+  return { root: path.join(os.homedir(), ".config", "opencode"), isGlobalOpenCodeConfig: true }
 }
 
 async function resolveBundledPluginPath(pluginName: string): Promise<string | null> {
