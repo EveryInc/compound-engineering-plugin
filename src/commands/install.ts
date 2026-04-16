@@ -144,7 +144,9 @@ export default defineCommand({
             pluginName: plugin.manifest.name,
             hasExplicitOutput,
           })
-          await handler.write(root, bundle)
+          const writeScope =
+            tool.name === "opencode" && isGlobalOpenCodeConfig ? "global" : handler.defaultScope
+          await handler.write(root, bundle, writeScope)
           console.log(`Installed ${plugin.manifest.name} to ${tool.name} at ${root}`)
         }
 
