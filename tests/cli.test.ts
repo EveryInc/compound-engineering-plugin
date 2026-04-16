@@ -100,6 +100,46 @@ describe("CLI", () => {
     expect(await exists(path.join(tempRoot, ".config", "opencode", "agents", "repo-research-analyst.md"))).toBe(true)
   })
 
+  test("install respects OPENCODE_CONFIG_DIR env var for output root", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-opencode-env-"))
+    const customConfigDir = path.join(tempRoot, "custom-opencode-config")
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+
+    const repoRoot = path.join(import.meta.dir, "..")
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "opencode",
+    ], {
+      cwd: tempRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempRoot,
+        OPENCODE_CONFIG_DIR: customConfigDir,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering")
+    // Output should go to OPENCODE_CONFIG_DIR, not ~/.config/opencode
+    expect(await exists(path.join(customConfigDir, "opencode.json"))).toBe(true)
+    expect(await exists(path.join(customConfigDir, ".opencode", "agents", "repo-research-analyst.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".config", "opencode", "opencode.json"))).toBe(false)
+  })
+
   test("list returns plugins in a temp workspace", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-list-"))
     const pluginsRoot = path.join(tempRoot, "plugins", "demo-plugin", ".claude-plugin")

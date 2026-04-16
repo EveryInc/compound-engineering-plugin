@@ -1,6 +1,7 @@
 import os from "os"
 import path from "path"
 import type { ClaudeHomeConfig } from "../parsers/claude-home"
+import { expandHome } from "../utils/resolve-home"
 import { syncToCodex } from "./codex"
 import { syncToCopilot } from "./copilot"
 import { syncToDroid } from "./droid"
@@ -11,6 +12,14 @@ import { syncToOpenCode } from "./opencode"
 import { syncToPi } from "./pi"
 import { syncToQwen } from "./qwen"
 import { syncToWindsurf } from "./windsurf"
+
+function resolveOpenCodeConfigDir(home: string): string {
+  const envDir = process.env.OPENCODE_CONFIG_DIR?.trim()
+  if (envDir) {
+    return path.resolve(expandHome(envDir))
+  }
+  return path.join(home, ".config", "opencode")
+}
 
 function getCopilotHomeRoot(home: string): string {
   return path.join(home, ".copilot")
@@ -43,15 +52,10 @@ export const syncTargets: SyncTargetDefinition[] = [
   {
     name: "opencode",
     detectPaths: (home, cwd) => [
-      process.env.OPENCODE_CONFIG_DIR
-        ? path.resolve(process.env.OPENCODE_CONFIG_DIR)
-        : path.join(home, ".config", "opencode"),
+      resolveOpenCodeConfigDir(home),
       path.join(cwd, ".opencode"),
     ],
-    resolveOutputRoot: (home) =>
-      process.env.OPENCODE_CONFIG_DIR
-        ? path.resolve(process.env.OPENCODE_CONFIG_DIR)
-        : path.join(home, ".config", "opencode"),
+    resolveOutputRoot: (home) => resolveOpenCodeConfigDir(home),
     sync: syncToOpenCode,
   },
   {

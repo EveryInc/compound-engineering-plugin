@@ -267,8 +267,9 @@ function resolveOutputRoot(value: unknown): string {
   // OpenCode global config: respect OPENCODE_CONFIG_DIR if set, otherwise
   // fall back to ~/.config/opencode per XDG spec.
   // See: https://opencode.ai/docs/config/
-  if (process.env.OPENCODE_CONFIG_DIR) {
-    return path.resolve(process.env.OPENCODE_CONFIG_DIR)
+  const envDir = process.env.OPENCODE_CONFIG_DIR?.trim()
+  if (envDir) {
+    return path.resolve(expandHome(envDir))
   }
   return path.join(os.homedir(), ".config", "opencode")
 }

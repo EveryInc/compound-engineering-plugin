@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { describe, expect, test, beforeEach, afterEach } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
@@ -88,6 +88,49 @@ describe("detectInstalledTools", () => {
     results = await detectInstalledTools(tempHome, tempCwd)
     expect(results.find((t) => t.name === "copilot")?.detected).toBe(true)
     expect(results.find((t) => t.name === "copilot")?.reason).toContain(".github/skills")
+  })
+
+  test("detects opencode via OPENCODE_CONFIG_DIR env var", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-home-"))
+    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-cwd-"))
+    const customConfigDir = path.join(tempHome, "custom-opencode-config")
+
+    // Create dir at the custom path only — NOT at ~/.config/opencode
+    await fs.mkdir(customConfigDir, { recursive: true })
+
+    const savedEnv = process.env.OPENCODE_CONFIG_DIR
+    try {
+      process.env.OPENCODE_CONFIG_DIR = customConfigDir
+      const results = await detectInstalledTools(tempHome, tempCwd)
+      expect(results.find((t) => t.name === "opencode")?.detected).toBe(true)
+    } finally {
+      if (savedEnv === undefined) {
+        delete process.env.OPENCODE_CONFIG_DIR
+      } else {
+        process.env.OPENCODE_CONFIG_DIR = savedEnv
+      }
+    }
+  })
+
+  test("does not detect opencode via OPENCODE_CONFIG_DIR when that dir does not exist", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-miss-"))
+    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-miss-cwd-"))
+    const missingDir = path.join(tempHome, "nonexistent-opencode")
+
+    const savedEnv = process.env.OPENCODE_CONFIG_DIR
+    try {
+      process.env.OPENCODE_CONFIG_DIR = missingDir
+      // Also create ~/.config/opencode to confirm it is NOT used when env var points elsewhere
+      await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
+      const results = await detectInstalledTools(tempHome, tempCwd)
+      expect(results.find((t) => t.name === "opencode")?.detected).toBe(false)
+    } finally {
+      if (savedEnv === undefined) {
+        delete process.env.OPENCODE_CONFIG_DIR
+      } else {
+        process.env.OPENCODE_CONFIG_DIR = savedEnv
+      }
+    }
   })
 })
 
