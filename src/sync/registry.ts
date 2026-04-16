@@ -43,10 +43,15 @@ export const syncTargets: SyncTargetDefinition[] = [
   {
     name: "opencode",
     detectPaths: (home, cwd) => [
-      path.join(home, ".config", "opencode"),
+      process.env.OPENCODE_CONFIG_DIR
+        ? path.resolve(process.env.OPENCODE_CONFIG_DIR)
+        : path.join(home, ".config", "opencode"),
       path.join(cwd, ".opencode"),
     ],
-    resolveOutputRoot: (home) => path.join(home, ".config", "opencode"),
+    resolveOutputRoot: (home) =>
+      process.env.OPENCODE_CONFIG_DIR
+        ? path.resolve(process.env.OPENCODE_CONFIG_DIR)
+        : path.join(home, ".config", "opencode"),
     sync: syncToOpenCode,
   },
   {

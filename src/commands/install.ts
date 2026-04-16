@@ -264,8 +264,12 @@ function resolveOutputRoot(value: unknown): string {
     const expanded = expandHome(String(value).trim())
     return path.resolve(expanded)
   }
-  // OpenCode global config lives at ~/.config/opencode per XDG spec
+  // OpenCode global config: respect OPENCODE_CONFIG_DIR if set, otherwise
+  // fall back to ~/.config/opencode per XDG spec.
   // See: https://opencode.ai/docs/config/
+  if (process.env.OPENCODE_CONFIG_DIR) {
+    return path.resolve(process.env.OPENCODE_CONFIG_DIR)
+  }
   return path.join(os.homedir(), ".config", "opencode")
 }
 
