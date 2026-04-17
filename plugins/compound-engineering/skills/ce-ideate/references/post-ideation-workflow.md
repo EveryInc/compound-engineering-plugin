@@ -14,12 +14,12 @@ Rejection criteria:
 - too vague
 - not actionable
 - duplicates a stronger idea
-- not grounded in the current codebase
+- not grounded in the stated context
 - too expensive relative to likely value
 - already covered by existing workflows or docs
 - interesting but better handled as a brainstorm variant, not a product improvement
 
-Score survivors using a consistent rubric weighing: groundedness in the current repo, expected value, novelty, pragmatism, leverage on future work, implementation burden, and overlap with stronger ideas.
+Score survivors using a consistent rubric weighing: groundedness in stated context, expected value, novelty, pragmatism, leverage on future work, implementation burden, and overlap with stronger ideas.
 
 Target output:
 - keep 5-7 survivors by default
@@ -28,7 +28,9 @@ Target output:
 
 ## Phase 4: Present the Survivors
 
-Present the surviving ideas to the user before writing the durable artifact. This is a review checkpoint, not the final archived result.
+**Checkpoint B (V17).** Before presenting, write `.context/compound-engineering/ce-ideate/<run-id>/survivors.md` containing the survivor list plus key context (focus hint, grounding summary, rejection summary). This protects the post-critique state before the user reaches the persistence menu. Best-effort: if the write fails (disk full, permissions), log a warning and proceed; the checkpoint is not load-bearing. Reuses the same `<run-id>` generated in Phase 1; cleaned up on Phase 6 completion (any path) along with Checkpoint A and the V15 cache file. If `.context/` namespacing is unavailable, fall back to OS temp (`mktemp -d`).
+
+Present the surviving ideas to the user. The terminal review loop is a complete ideation cycle in itself — persistence is opt-in (Phase 5), and refinement happens in conversation with no file or network cost (Phase 6).
 
 Present only the surviving ideas in structured form:
 
@@ -41,25 +43,26 @@ Present only the surviving ideas in structured form:
 
 Then include a brief rejection summary so the user can see what was considered and cut.
 
-Keep the presentation concise. The durable artifact holds the full record.
+Keep the presentation concise. Allow brief follow-up questions and lightweight clarification.
 
-Allow brief follow-up questions and lightweight clarification before writing the artifact.
+## Phase 5: Persistence (Opt-In, Mode-Aware)
 
-Do not write the ideation doc yet unless:
-- the user indicates the candidate set is good enough to preserve
-- the user asks to refine and continue in a way that should be recorded
-- the workflow is about to hand off to `ce:brainstorm`, Proof sharing, or session end
+Persistence is opt-in. The terminal review loop is a complete ideation cycle. Refinement loops happen in conversation with no file or network cost. Persistence triggers only when the user explicitly chooses to save, share, or hand off (selected in Phase 6).
 
-## Phase 5: Write the Ideation Artifact
+When the user picks an option in Phase 6 that requires a durable record (Brainstorm, Save and end), ensure a record exists first. When the user ends in conversation only or chooses to keep refining, no record is needed unless the user asks.
 
-Write the ideation artifact after the candidate set has been reviewed enough to preserve.
+**Mode-determined defaults:**
 
-Always write or update the artifact before:
-- handing off to `ce:brainstorm`
-- sharing to Proof
-- ending the session
+| Action | Repo mode default | Elsewhere mode default |
+|---|---|---|
+| Save | `docs/ideation/YYYY-MM-DD-<topic>-ideation.md` | Proof |
+| Share | Proof (additional) | Proof (primary) |
+| Brainstorm handoff | `ce:brainstorm` | `ce:brainstorm` (universal-brainstorming) |
+| End | Conversation only is fine | Conversation only is fine |
 
-To write the artifact:
+Either mode can also use the other destination on explicit request ("save to Proof even though this is repo mode", "save to a local file even though this is elsewhere"). Honor such overrides directly.
+
+### 5.1 File Save (default for repo mode; on request for elsewhere mode)
 
 1. Ensure `docs/ideation/` exists
 2. Choose the file path:
@@ -74,18 +77,19 @@ Use this structure and omit clearly irrelevant fields only when necessary:
 date: YYYY-MM-DD
 topic: <kebab-case-topic>
 focus: <optional focus hint>
+mode: <repo-grounded | elsewhere-software | elsewhere-non-software>
 ---
 
 # Ideation: <Title>
 
-## Codebase Context
-[Grounding summary from Phase 1]
+## Grounding Context
+[Grounding summary from Phase 1 — labeled "Codebase Context" in repo mode, "Topic Context" in elsewhere mode]
 
 ## Ranked Ideas
 
 ### 1. <Idea Title>
 **Description:** [Concrete explanation]
-**Rationale:** [Why this improves the project]
+**Rationale:** [Why this idea is strong in the stated context]
 **Downsides:** [Tradeoffs or costs]
 **Confidence:** [0-100%]
 **Complexity:** [Low / Medium / High]
@@ -102,28 +106,50 @@ If resuming:
 - update the existing file in place
 - preserve explored markers
 
+### 5.2 Proof Save (default for elsewhere mode; on request for repo mode)
+
+Hand off the ideation content to the `proof` skill in HITL review mode. This uploads the doc, runs an iterative review loop (user annotates in Proof, agent ingests feedback and applies tracked edits), and (in repo mode) syncs the reviewed markdown back to `docs/ideation/`.
+
+Load the `proof` skill in HITL-review mode with:
+
+- **source content:** the survivors and rejection summary from Phase 4 (in repo mode, this is the file written in 5.1; in elsewhere mode, render to a temp file as the source for upload)
+- **doc title:** `Ideation: <topic>` or the H1 of the ideation doc
+- **identity:** `ai:compound-engineering` / `Compound Engineering`
+- **recommended next step:** `/ce:brainstorm` (shown in the proof skill's final terminal output)
+
+The Proof failure ladder in Phase 6.5 governs what happens when this hand-off fails.
+
+When the proof skill returns control:
+
+- `status: proceeded` with `localSynced: true` → the ideation doc on disk now reflects the review. Return to the Phase 6 menu.
+- `status: proceeded` with `localSynced: false` → the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the proof skill's Pull workflow. Return to the Phase 6 menu; if the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof so the next handoff doesn't read the old content silently.
+- `status: done_for_now` → the doc on disk may be stale if the user edited in Proof before leaving. Offer to pull the Proof doc to `localPath` so the local ideation artifact stays in sync, then return to the Phase 6 menu. `done_for_now` means the user stopped the HITL loop — it does not mean they ended the whole ideation session; they may still want to brainstorm or refine. If the pull was declined, include the stale-local note above the menu.
+- `status: aborted` → fall back to the Phase 6 menu without changes.
+
 ## Phase 6: Refine or Hand Off
 
-After presenting the results, ask what should happen next using the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the numbered options in chat and wait for the user's reply before proceeding.
+Ask what should happen next using the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present numbered options in chat and wait for the user's reply.
 
-**Question:** "Ideation saved. What's next?"
+**Question:** "What should the agent do next?"
 
-Offer these options:
-1. **Brainstorm a selected idea** — hand off to `ce:brainstorm` with the selected idea as the seed
-2. **Refine the ideation** — add, re-evaluate, or deepen ideas before handing off
-3. **Open in Proof (web app) — review and comment to iterate with the agent** — open the doc in Every's Proof editor, iterate via comments, or copy a link to share with others
-4. **End the session** — no further action; the ideation doc is saved
+Offer these four options (each label is self-contained per the Interactive Question Tool Design rules in the plugin AGENTS.md — the distinguishing word is front-loaded so options stay distinct when truncated):
+
+1. **Brainstorm a selected idea** — load `ce:brainstorm` with the chosen idea as the seed. The orchestrator first writes a durable record using the mode default in Phase 5.
+2. **Refine the ideation in conversation** — add ideas, re-evaluate, or deepen analysis. No file or network side effects.
+3. **Save and end** — persist the ideation using the mode default (file in repo mode, Proof in elsewhere mode), then end.
+4. **End in conversation only** — no save, no Proof. The terminal review was the value.
+
+After any path completes, clean up the run's checkpoint directory (`.context/compound-engineering/ce-ideate/<run-id>/`), which contains the V15 web-research cache, Checkpoint A (`raw-candidates.md`), and Checkpoint B (`survivors.md`). Skip cleanup if the user explicitly asked to inspect the checkpoint files.
 
 ### 6.1 Brainstorm a Selected Idea
 
-If the user selects an idea:
-- write or update the ideation doc first
-- mark that idea as `Explored`
-- invoke `ce:brainstorm` with the selected idea as the seed
+- Write or update the durable record per the mode default in Phase 5 (file in repo mode, Proof in elsewhere mode)
+- Mark the chosen idea as `Explored` in the saved record
+- Load the `ce:brainstorm` skill with the chosen idea as the seed
 
 Do **not** skip brainstorming and go straight to planning from ideation output.
 
-### 6.2 Refine the Ideation
+### 6.2 Refine the Ideation in Conversation
 
 Route refinement by intent:
 
@@ -131,46 +157,56 @@ Route refinement by intent:
 - `re-evaluate` or `raise the bar` -> return to Phase 3
 - `dig deeper on idea #N` -> expand only that idea's analysis
 
-After each refinement:
-- update the ideation document before any handoff, sharing, or session end
+No persistence triggers during refinement. The user can choose Save and end (or Brainstorm) when they are ready to persist.
 
-### 6.3 Open in Proof (web app)
+### 6.3 Save and End
 
-If requested, hand off the ideation document to the proof skill in HITL review mode. This uploads the doc, runs an iterative review loop (user annotates in Proof, agent ingests feedback and applies tracked edits), and syncs the reviewed markdown back to `docs/ideation/`.
+Persist via the mode default (5.1 in repo mode, 5.2 in elsewhere mode), then end. If the user instead asked to use the non-default destination, honor that explicit request.
 
-Load the `proof` skill in HITL-review mode with:
+When the path lands in a file save (5.1):
 
-- **source file:** the ideation document path written in Phase 5 (e.g., `docs/ideation/YYYY-MM-DD-<topic>-ideation.md`)
-- **doc title:** `Ideation: <topic>` or the H1 of the ideation doc
-- **identity:** `ai:compound-engineering` / `Compound Engineering`
-- **recommended next step:** `/ce:brainstorm` (shown in the proof skill's final terminal output)
-
-If the initial upload fails (network error, Proof API down), retry once after a short wait. If it still fails, tell the user the upload didn't succeed and briefly explain why, then return to the next-step options — don't leave them wondering why the option did nothing.
-
-When the proof skill returns control:
-
-- `status: proceeded` with `localSynced: true` → the ideation doc on disk now reflects the review. Return to the next-step options.
-- `status: proceeded` with `localSynced: false` → the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the proof skill's Pull workflow. Return to the next-step options; if the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof so the next handoff doesn't read the old content silently.
-- `status: done_for_now` → the doc on disk may be stale if the user edited in Proof before leaving. Offer to pull the Proof doc to `localPath` so the local ideation artifact stays in sync, then return to the next-step options. `done_for_now` means the user stopped the HITL loop — it does not mean they ended the whole ideation session; they may still want to brainstorm or refine. If the pull was declined, include the stale-local note above the menu.
-- `status: aborted` → fall back to the next-step options without changes.
-
-### 6.4 End the Session
-
-When ending:
 - offer to commit only the ideation doc
 - do not create a branch
 - do not push
 - if the user declines, leave the file uncommitted
 
+### 6.4 End in Conversation Only
+
+No file save, no Proof handoff. Acknowledge briefly and stop.
+
+### 6.5 Proof Failure Ladder
+
+The `proof` skill performs single-retry-once internally on transient failures (`STALE_BASE`, `BASE_TOKEN_REQUIRED`) before surfacing failure. The proof skill's return contract does not expose typed error classes to callers — the orchestrator cannot distinguish retryable vs terminal failures from outside.
+
+**Orchestrator-side retry harness (intentionally minimal):** wrap the proof skill invocation in **one** additional best-effort retry with a short pause (~2 seconds). The proof skill already retried internally, so this catches transient races at the orchestrator boundary without compounding latency. Do not classify error types from outside the skill — no detection mechanism exists.
+
+Distinguish create-failure from ops-failure by inspecting whether the proof skill returned a `docUrl` before failing:
+
+- **Create-failure** (no `docUrl` returned): retry the create.
+- **Ops-failure** (a `docUrl` was returned, but a later operation failed): retry only the failing operation. **Do not recreate** the document.
+
+**Failure narration.** Narrate the single retry to the terminal so the pause does not look like a hang ("Retrying Proof... attempt 2/2"). On persistent failure, narrate that retry exhausted before showing the fallback menu.
+
+**Fallback menu after persistent failure.** Use the platform's blocking question tool. Present these options (omit option (a) if no repo exists at CWD):
+
+- "Save to `docs/ideation/` instead" (repo-mode default destination, available when CWD is inside a git repo)
+- "Save to a custom path the user provides" (validate writable; create parent dirs)
+- "Skip save and keep the ideation in conversation" (no persistence)
+
+If proof returned a partial `docUrl` before failing, surface that URL alongside the fallback options so the user can recover or share the partial record.
+
+After the fallback completes (any path), continue back to the Phase 6 menu so the user can still brainstorm, refine, or end.
+
 ## Quality Bar
 
 Before finishing, check:
 
-- the idea set is grounded in the actual repo
+- the idea set is grounded in the stated context (codebase in repo mode; user-supplied topic in elsewhere mode)
 - the candidate list was generated before filtering
 - the original many-ideas -> critique -> survivors mechanism was preserved
 - if sub-agents were used, they improved diversity without replacing the core workflow
 - every rejected idea has a reason
 - survivors are materially better than a naive "give me ideas" list
-- the artifact was written before any handoff, sharing, or session end
+- persistence followed user choice — terminal-only sessions did not write a file or call Proof
+- when persistence did trigger, the mode default was respected unless the user explicitly overrode it
 - acting on an idea routes to `ce:brainstorm`, not directly to implementation
