@@ -76,9 +76,25 @@ Make two sequential binary decisions, enumerating negative signals at each:
 - Positive signals for **repo-grounded**: prompt references repo files, code, architecture, modules, tests, or workflows; topic is clearly bounded by the current codebase.
 - Negative signals (push toward **elsewhere**): prompt names things absent from the repo (pricing, naming, narrative, business model, personal decisions, brand, content, market positioning); topic is creative, business, or personal with no code surface.
 
-**Decision 2 (only fires if Decision 1 = elsewhere) — software vs non-software.** Software elsewhere = greenfield product or technical topic with no existing repo to ground in. Non-software elsewhere = creative, business, personal, design, narrative, naming.
+**Decision 2 (only fires if Decision 1 = elsewhere) — software vs non-software.** Classify by whether the *subject* of ideation is a software artifact or system, not by where the individual ideas will eventually land. If the topic concerns a product, app, SaaS, web/mobile UI, feature, page, or service, it is **elsewhere-software** — even when the ideas themselves are about copy, UX, CRO, pricing, onboarding, visual design, or positioning *for that software product*. **Elsewhere-non-software** is reserved for topics with no software surface at all: company or brand naming (independent of product), narrative and creative writing, personal decisions, non-digital business strategy, physical-product design.
 
-State the inferred mode in one sentence at the top: "Reading this as [repo-grounded | elsewhere-software | elsewhere-non-software] ideation about X — say 'actually [other-mode]' to switch."
+Sample classifications:
+
+- "Improve conversion on our sign-up page" → elsewhere-software (the subject is a page)
+- "Redesign the onboarding flow" → elsewhere-software (the subject is a flow)
+- "Pricing page A/B test ideas" → elsewhere-software (the subject is a page)
+- "Features to add to our note-taking app" → elsewhere-software
+- "Name my new coffee shop" → elsewhere-non-software (the subject is a brand)
+- "Plot ideas for a short story" → elsewhere-non-software (the subject is a narrative)
+- "Options for my next career move" → elsewhere-non-software (the subject is a personal decision)
+
+State the inferred approach in one sentence at the top, using plain language the user will recognize. Never print the internal taxonomy label (`repo-grounded`, `elsewhere-software`, `elsewhere-non-software`) to the user — those names are for routing only. Adapt the template below to the actual topic; pick a domain word from the topic itself (e.g., "landing page", "onboarding flow", "naming", "career decision") instead of a mode label.
+
+- **Repo-grounded:** "Treating this as a topic in this codebase — about X. Say 'actually this is outside the repo' to switch."
+- **Elsewhere-software:** "Treating this as a product/software topic outside this repo — about X. Say 'actually this is about this repo' or 'actually this has no software surface' to switch."
+- **Elsewhere-non-software:** "Treating this as a [naming | narrative | business | personal] topic — about X. Say 'actually this is about a software product' or 'actually this is about this repo' to switch."
+
+The correction hints must also be plain language ("actually this is outside the repo", "actually this is about this repo"), not internal labels ("actually elsewhere-software").
 
 **Active confirmation on ambiguity (V16).** When classifier confidence is low — single-keyword or short prompts mapping cleanly to either mode (`/ce:ideate ideas`, `/ce:ideate ideas for the docs`), conflicting CWD/prompt signals, or topic mentioning both repo-internal and external surfaces — ask one confirmation question via the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini) **before dispatching Phase 1 grounding**. For clear cases the one-sentence inferred-mode statement is sufficient; do not ask.
 
@@ -132,18 +148,19 @@ When the user provides rich context up front (a paste, a brief, an existing draf
 
 #### 0.5 Cost Transparency Notice
 
-Before dispatching Phase 1, surface the agent count for the inferred mode in one short line so multi-agent cost is not invisible. Compute the count from the actual dispatch decision: 1 grounding-context agent (codebase scan in repo mode; user-context synthesis in elsewhere) + 1 learnings + 1 web researcher + 6 ideation = baseline 9. Add 1 if issue-tracker intent triggered (repo mode only). Add 1 if the user opted into Slack research. Subtract 1 if the user issued a web-research skip phrase or V15 reuse will fire.
+Before dispatching Phase 1, surface the agent count for the inferred mode in one short line so multi-agent cost is not invisible. Compute the count from the actual dispatch decision: 1 grounding-context agent (codebase scan in repo mode; user-context synthesis in elsewhere) + 1 learnings (skip in elsewhere-non-software) + 1 web researcher + 6 ideation = baseline 9 in repo mode and elsewhere-software, 8 in elsewhere-non-software. Add 1 if issue-tracker intent triggered (repo mode only). Add 1 if the user opted into Slack research. Subtract 1 if the user issued a web-research skip phrase or V15 reuse will fire.
 
 Examples (defaults, no skips, no opt-ins):
 
 - **Repo mode:** "Will dispatch ~9 agents: codebase scan + learnings + web research + 6 ideation sub-agents. Skip phrases: 'no external research', 'no slack'."
-- **Elsewhere mode:** "Will dispatch ~9 agents: context synthesis + learnings + web research + 6 ideation sub-agents. Skip phrases: 'no external research'."
+- **Elsewhere-software:** "Will dispatch ~9 agents: context synthesis + learnings + web research + 6 ideation sub-agents. Skip phrases: 'no external research'."
+- **Elsewhere-non-software:** "Will dispatch ~8 agents: context synthesis + web research + 6 ideation sub-agents. Skip phrases: 'no external research'."
 
 The line is informational; users do not need to acknowledge it.
 
 ### Phase 1: Mode-Aware Grounding
 
-Before generating ideas, gather grounding. The dispatch set depends on the mode chosen in Phase 0.2; web research and learnings always run in both modes (skip phrases honored).
+Before generating ideas, gather grounding. The dispatch set depends on the mode chosen in Phase 0.2. Web research runs in all modes (skip phrases honored). Learnings runs in repo mode and elsewhere-software, and is **skipped by default in elsewhere-non-software** — the CWD repo's `docs/solutions/` almost always contains engineering patterns that do not transfer to naming, narrative, personal, or non-digital business topics.
 
 Generate a `<run-id>` once at the start of Phase 1 (8 hex chars). Reuse it for the V15 cache file (this phase) and the V17 checkpoints (Phases 2 and 4) so they share one per-run scratch directory. The run directory is not deleted on Phase 6 completion — the V15 cache is session-scoped and reused across run-ids, and the checkpoints follow the repo's Scratch Space convention of leaving session-scoped artifacts for later invocations to use.
 
@@ -177,7 +194,7 @@ Run grounding agents in parallel in the **foreground** (do not background — re
 
 1. **User-context synthesis** — dispatch a general-purpose sub-agent (cheapest capable model) to read the user-supplied context from Phase 0.4 intake plus any rich-prompt material, and return a structured grounding summary that mirrors the codebase-context shape (project shape → topic shape; notable patterns → stated constraints; pain points → user-named pain points; leverage points → opportunity hooks the context implies). This keeps Phase 2 sub-agents agnostic to grounding source.
 
-2. **Learnings search** — same as repo mode; dispatch `compound-engineering:research:learnings-researcher` with the topic summary in case relevant institutional knowledge exists (skill-design patterns, prior solutions in similar shape).
+2. **Learnings search** *(elsewhere-software only; skipped by default in elsewhere-non-software)* — dispatch `compound-engineering:research:learnings-researcher` with the topic summary in case relevant institutional knowledge exists (skill-design patterns, prior solutions in similar shape). Skip for elsewhere-non-software: the CWD's `docs/solutions/` is unlikely to be topically relevant for non-digital topics, and running it risks polluting generation with unrelated engineering patterns.
 
 3. **Web research** — same as repo mode (see subsection below).
 
