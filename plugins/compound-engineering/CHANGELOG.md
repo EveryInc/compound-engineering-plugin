@@ -9,6 +9,25 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.67.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.66.1...compound-engineering-v2.67.0) (2026-04-17)
+
+
+### Features
+
+* **ce-polish-beta:** human-in-the-loop polish phase between /ce:review and merge ([#568](https://github.com/EveryInc/compound-engineering-plugin/issues/568)) ([070092d](https://github.com/EveryInc/compound-engineering-plugin/commit/070092d997bcc3306016e9258150d3071f017ef8))
+
+
+### Bug Fixes
+
+* **ce-plan, ce-brainstorm:** reliable interactive handoff menus ([#575](https://github.com/EveryInc/compound-engineering-plugin/issues/575)) ([3d96c0f](https://github.com/EveryInc/compound-engineering-plugin/commit/3d96c0f074faf56fcdc835a0332e0f475dc8425f))
+* **ce-pr-description:** hand off PR body via temp file ([#581](https://github.com/EveryInc/compound-engineering-plugin/issues/581)) ([c89f18a](https://github.com/EveryInc/compound-engineering-plugin/commit/c89f18a1151aa289bcc293dc26ff49a011782c7b))
+* **resolve-pr-feedback:** unblock /loop scheduling ([#582](https://github.com/EveryInc/compound-engineering-plugin/issues/582)) ([4ccadcf](https://github.com/EveryInc/compound-engineering-plugin/commit/4ccadcfd3fb3a08666aa4c808a123500bb14ac46))
+
+
+### Miscellaneous Chores
+
+* **claude-permissions-optimizer:** drop skill in favor of /less-permission-prompts ([#583](https://github.com/EveryInc/compound-engineering-plugin/issues/583)) ([729fa19](https://github.com/EveryInc/compound-engineering-plugin/commit/729fa191b60305d8f3761f6441d1d3d15c5f48aa))
+
 ## [2.66.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.66.0...compound-engineering-v2.66.1) (2026-04-16)
 
 
