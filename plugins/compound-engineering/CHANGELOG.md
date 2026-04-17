@@ -9,6 +9,15 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.68.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.67.0...compound-engineering-v2.68.0) (2026-04-17)
+
+
+### Features
+
+* **ce-ideate:** mode-aware v2 ideation ([#588](https://github.com/EveryInc/compound-engineering-plugin/issues/588)) ([12aaad3](https://github.com/EveryInc/compound-engineering-plugin/commit/12aaad31ebd17686db1a75d1d3575da79d1dad2b))
+* **ce-release-notes:** add skill for browsing plugin release history ([#589](https://github.com/EveryInc/compound-engineering-plugin/issues/589)) ([59dbaef](https://github.com/EveryInc/compound-engineering-plugin/commit/59dbaef37607354d103113f05c13b731eecbb690))
+* **proof, ce-brainstorm, ce-plan, ce-ideate:** HITL review-loop mode ([#580](https://github.com/EveryInc/compound-engineering-plugin/issues/580)) ([e7cf0ae](https://github.com/EveryInc/compound-engineering-plugin/commit/e7cf0ae9571e260a00db458dd8e2281c37f1ec8b))
+
 ## [2.67.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.66.1...compound-engineering-v2.67.0) (2026-04-17)
 
 

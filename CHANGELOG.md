@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.68.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.67.0...cli-v2.68.0) (2026-04-17)
+
+
+### Features
+
+* **ce-ideate:** mode-aware v2 ideation ([#588](https://github.com/EveryInc/compound-engineering-plugin/issues/588)) ([12aaad3](https://github.com/EveryInc/compound-engineering-plugin/commit/12aaad31ebd17686db1a75d1d3575da79d1dad2b))
+* **ce-release-notes:** add skill for browsing plugin release history ([#589](https://github.com/EveryInc/compound-engineering-plugin/issues/589)) ([59dbaef](https://github.com/EveryInc/compound-engineering-plugin/commit/59dbaef37607354d103113f05c13b731eecbb690))
+
 ## [2.67.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.66.1...cli-v2.67.0) (2026-04-17)
 
 
