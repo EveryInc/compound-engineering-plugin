@@ -1,6 +1,6 @@
 ---
-name: ce:release-notes
-description: Summarize recent compound-engineering plugin releases, or answer a specific question about a past release with a version citation. Use when the user types `/ce:release-notes` or asks "what changed in compound-engineering recently?" or "what happened to <skill-name>?".
+name: ce-release-notes
+description: Summarize recent compound-engineering plugin releases, or answer a specific question about a past release with a version citation. Use when the user types `/ce-release-notes` or asks "what changed in compound-engineering recently?" or "what happened to <skill-name>?".
 argument-hint: "[optional: question about a past release]"
 disable-model-invocation: true
 ---
@@ -32,7 +32,7 @@ The helper always exits 0 and emits a single JSON object on stdout. It owns all 
 
 If the helper subprocess itself fails to launch (non-zero exit AND empty or non-JSON stdout — e.g., `python3` is not installed, the script is not executable, or the interpreter crashes before emitting the contract), tell the user:
 
-> `python3` is required to run `/ce:release-notes`. Install Python 3.x and retry, or open https://github.com/EveryInc/compound-engineering-plugin/releases directly.
+> `python3` is required to run `/ce-release-notes`. Install Python 3.x and retry, or open https://github.com/EveryInc/compound-engineering-plugin/releases directly.
 
 Then stop. This is distinct from the helper returning `ok: false`, which means the helper ran successfully but both transports failed (handled below).
 
@@ -83,7 +83,7 @@ For each release, render:
 After all releases are rendered, append a two-line footer:
 
 ```
-Showing the last 5 releases. For older history, ask a specific question (e.g., `/ce:release-notes what happened to <skill>?`).
+Showing the last 5 releases. For older history, ask a specific question (e.g., `/ce-release-notes what happened to <skill>?`).
 Browse all releases at https://github.com/EveryInc/compound-engineering-plugin/releases
 ```
 
