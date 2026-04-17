@@ -92,7 +92,7 @@ Sample wording (refine to fit the prompt at hand; follow the Interactive Questio
 
 If the user confirms or selects "elsewhere," still run Decision 2 to choose between elsewhere-software and elsewhere-non-software.
 
-**Routing rule.** When Decision 2 = non-software, still run Phase 1 Elsewhere-mode grounding (user-context synthesis + learnings + web-research; skip phrases honored) — the learnings and external-grounding dispatch is mode-symmetric. Then read `references/universal-ideation.md` and follow that facilitation reference in place of Phase 2's software frame dispatch and the post-ideation wrap-up. Do not run the repo-specific codebase scan at any point.
+**Routing rule.** When Decision 2 = non-software, still run Phase 1 Elsewhere-mode grounding (user-context synthesis + learnings + web-research; skip phrases honored) — the learnings and external-grounding dispatch is mode-symmetric. Then read `references/universal-ideation.md` and follow that facilitation reference in place of Phase 2's software frame dispatch and the Phase 6 menu narrative. Do not run the repo-specific codebase scan at any point. The Phase 6.5 Proof Failure Ladder in `references/post-ideation-workflow.md` still applies — load and follow it whenever a Proof save (the elsewhere-mode default for Save and end) fails, so the local-save fallback path stays reachable in non-software elsewhere runs.
 
 If any prompt-broadening or intake step (0.4 below) materially changes the topic, re-evaluate the mode statement before dispatching Phase 1 — classify on the scope to be acted on, not the scope at first read.
 

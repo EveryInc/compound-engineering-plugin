@@ -119,12 +119,14 @@ Load the `proof` skill in HITL-review mode with:
 
 The Proof failure ladder in Phase 6.5 governs what happens when this hand-off fails.
 
+**Caller-aware return.** The return-rule bullets below describe default control flow back to the Phase 6 menu. When Proof Save was invoked from §6.1's durable-record step (Brainstorm a selected idea), a successful Proof return must **not** stop at the Phase 6 menu — after applying the per-status handling below (including any stale-local pull offer), continue into §6.1's remaining bullets (mark the chosen idea as `Explored`, then load `ce:brainstorm`). Only the `status: aborted` branch returns to the Phase 6 menu from §6.1, since no durable record was written. All other callers (e.g., §6.3 Save and end) follow the bullets as written.
+
 When the proof skill returns control:
 
-- `status: proceeded` with `localSynced: true` → the ideation doc on disk now reflects the review. Return to the Phase 6 menu.
-- `status: proceeded` with `localSynced: false` → the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the proof skill's Pull workflow. Return to the Phase 6 menu; if the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof so the next handoff doesn't read the old content silently.
-- `status: done_for_now` → the doc on disk may be stale if the user edited in Proof before leaving. Offer to pull the Proof doc to `localPath` so the local ideation artifact stays in sync, then return to the Phase 6 menu. `done_for_now` means the user stopped the HITL loop — it does not mean they ended the whole ideation session; they may still want to brainstorm or refine. If the pull was declined, include the stale-local note above the menu.
-- `status: aborted` → fall back to the Phase 6 menu without changes.
+- `status: proceeded` with `localSynced: true` → the ideation doc on disk now reflects the review. Return to the Phase 6 menu (or continue §6.1 per the caller-aware return note above).
+- `status: proceeded` with `localSynced: false` → the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the proof skill's Pull workflow. Return to the Phase 6 menu (or continue §6.1 per the caller-aware return note); if the pull was declined, include a one-line note above the menu (or, for the §6.1 path, in the handoff preamble to `ce:brainstorm`) that `<localPath>` is stale vs. Proof so the next handoff doesn't read the old content silently.
+- `status: done_for_now` → the doc on disk may be stale if the user edited in Proof before leaving. Offer to pull the Proof doc to `localPath` so the local ideation artifact stays in sync, then return to the Phase 6 menu (or continue §6.1 per the caller-aware return note). `done_for_now` means the user stopped the HITL loop — it does not mean they ended the whole ideation session; they may still want to brainstorm or refine. If the pull was declined, include the stale-local note above the menu (or in the §6.1 handoff preamble).
+- `status: aborted` → fall back to the Phase 6 menu without changes (even when invoked from §6.1 — no durable record was written, so the brainstorm handoff should not proceed).
 
 ## Phase 6: Refine or Hand Off
 
@@ -143,7 +145,7 @@ Do not delete the run's scratch directory (`.context/compound-engineering/ce-ide
 
 ### 6.1 Brainstorm a Selected Idea
 
-- Write or update the durable record per the mode default in Phase 5 (file in repo mode, Proof in elsewhere mode)
+- Write or update the durable record per the mode default in Phase 5 (file in repo mode, Proof in elsewhere mode). When this routes through §5.2 Proof Save, apply §5.2's caller-aware return rule: continue into the next bullet on a successful Proof return instead of bouncing back to the Phase 6 menu. If Proof returned `aborted` (no durable record written), go back to the Phase 6 menu and do **not** proceed with the brainstorm handoff.
 - Mark the chosen idea as `Explored` in the saved record
 - Load the `ce:brainstorm` skill with the chosen idea as the seed
 

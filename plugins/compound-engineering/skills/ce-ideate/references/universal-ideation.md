@@ -53,5 +53,5 @@ Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `re
 
 - **Brainstorm a selected idea** — hand off to `ce:brainstorm` with the chosen idea as the seed (universal facilitation in `ce:brainstorm` will pick up the non-software domain).
 - **Refine the ideation in conversation** — add ideas, re-evaluate, or deepen analysis without writing anything.
-- **Save and end** — share the survivors to Proof (the elsewhere-mode default) and end. Use `docs/ideation/` instead only when the user explicitly asks for a local file.
+- **Save and end** — share the survivors to Proof (the elsewhere-mode default) and end. Use `docs/ideation/` instead only when the user explicitly asks for a local file. On Proof failure (including after the single orchestrator-side retry), apply the Phase 6.5 Proof Failure Ladder from `references/post-ideation-workflow.md` — surface the local-save fallback menu (custom path or skip) before ending so the user is not stranded without a recovery path.
 - **End in conversation only** — no save, no file, no Proof. The conversation was the value.
