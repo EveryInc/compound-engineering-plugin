@@ -1,7 +1,8 @@
 .DS_Store
 *.log
 node_modules/
-.codex/
+.codex/*
+!.codex/INSTALL.md
 todos/
 .worktrees
 .context/

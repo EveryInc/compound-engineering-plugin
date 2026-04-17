@@ -109,6 +109,8 @@ bunx @every-env/compound-plugin install compound-engineering --to qwen
 bunx @every-env/compound-plugin install compound-engineering --to all
 ```
 
+For a git-clone + symlink workflow that supports `git pull` upgrades in Codex, see [.codex/INSTALL.md](.codex/INSTALL.md).
+
 <details>
 <summary>Output format details per target</summary>
 
