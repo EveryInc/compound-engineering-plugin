@@ -165,6 +165,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `repo-research-analyst` | Research repository structure and conventions |
 | `session-historian` | Search prior Claude Code, Codex, and Cursor sessions for related investigation context |
 | `slack-researcher` | Search Slack for organizational context relevant to the current task |
+| `web-researcher` | Perform iterative web research and return structured external grounding (prior art, adjacent solutions, market signals, cross-domain analogies) |
 
 ### Design
 
