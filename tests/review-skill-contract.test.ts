@@ -141,8 +141,9 @@ describe("ce-review contract", () => {
     expect(bulkPreview).toContain("Proceed")
     expect(bulkPreview).toContain("Cancel")
 
-    // Step 5 final-next-steps flow is gated on fixes-applied.
-    expect(content).toMatch(/only when one or more fixes landed/i)
+    // Step 5 final-next-steps flow is gated on fixes-applied count, not routing option.
+    expect(content).toContain("fixes_applied_count")
+    expect(content).toMatch(/Step 5 runs only when `fixes_applied_count > 0`/i)
 
     // Final-next-steps wording preserved.
     expect(content).toContain("**On the resolved review base/default branch:**")

@@ -629,7 +629,7 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
   (D) Report only — take no further action
   ```
 
-  Substitute `[TRACKER]` per `references/tracker-defer.md` — the concrete tracker name when detection confidence is high and the sink is available; otherwise the generic form (`File a ticket`). When no tracker sink is detectable, **omit option C entirely** and add one line to the stem explaining why (e.g., `Defer unavailable — no tracker or task-tracking primitive detected on this platform.`). The three remaining options (A, B, D) survive.
+  Render option C per `references/tracker-defer.md`: when detection confidence is high and the sink is available, replace `[TRACKER]` with the concrete name and keep the full label (e.g., `File a Linear ticket per finding without applying fixes`). When confidence is low or the sink is uncertain, use the generic label `File an issue per finding without applying fixes` — this is a whole-label substitution, not a `[TRACKER]` token swap. When no tracker sink is detectable, **omit option C entirely** and add one line to the stem explaining why (e.g., `Defer unavailable — no tracker or task-tracking primitive detected on this platform.`). The three remaining options (A, B, D) survive.
 
   When no blocking question tool is available, present the applicable options as a numbered list and wait for the user's reply.
 
@@ -699,17 +699,18 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 
 #### Step 5: Final next steps
 
-**Interactive mode only, and only when one or more fixes landed in the working tree during this run:** after the fix-review cycle completes (clean verdict or the user chose to stop), offer next steps based on the entry mode. Reuse the resolved review base/default branch from Stage 1 when known; do not hard-code only `main`/`master`.
+**Interactive mode only.** After the fix-review cycle completes (clean verdict or the user chose to stop), offer next steps based on the entry mode. Reuse the resolved review base/default branch from Stage 1 when known; do not hard-code only `main`/`master`.
 
-Skip Step 5 entirely — exit the skill after the completion report — when no fix was applied. This includes:
+**The gate is total fixes applied this run, not routing option.** Track `fixes_applied_count` across the whole Interactive invocation. This counter includes both the `safe_auto` fixes applied automatically before the routing question (see Step 2 Interactive mode) AND any Apply decisions executed by routing option A (walk-through) or option B (LFG). Routing options C (File tickets) and D (Report only) add zero to this counter; neither does a walk-through that ends with only Skip / Defer / Acknowledge, and neither does an LFG whose recommendations were all Defer / Skip / Acknowledge.
 
-- Routing option C (`File a [TRACKER] ticket per finding without applying fixes`) — tickets were filed but no code changed
-- Routing option D (`Report only — take no further action`) — no action taken by definition
-- Routing option B (LFG) where every recommended action was Defer / Skip / Acknowledge, not Apply
-- Walk-through that completed with zero Apply decisions (every finding was Deferred, Skipped, or Acknowledged)
-- Zero-remaining case (no `gated_auto` / `manual` findings after `safe_auto` — the `safe_auto` fixes themselves count as applied, so this case does **not** skip Step 5 when any `safe_auto` fix landed; it skips only when the entire review produced zero changes to the working tree)
+Step 5 runs only when `fixes_applied_count > 0`. If the counter is zero — no `safe_auto` fixes were applied AND the routing path produced no additional Apply — skip Step 5 entirely and exit after the completion report. Asking "push fixes?" when nothing changed in the working tree is incoherent.
 
-When one or more fixes landed — walk-through with at least one Apply, LFG with at least one Apply recommendation executed, or `safe_auto` fixes in a zero-remaining review — Step 5 runs exactly as described below.
+Common outcomes:
+
+- `safe_auto` produced fixes AND the user picked any routing option → Step 5 runs (counter > 0 from the safe_auto pass alone).
+- No `safe_auto` fixes AND the user picked option C or D → Step 5 skipped.
+- No `safe_auto` fixes AND walk-through / LFG finished with zero Applies → Step 5 skipped.
+- Zero-remaining case (no `gated_auto` / `manual` after `safe_auto`) with at least one `safe_auto` fix → Step 5 runs; the routing question was never asked but the counter is > 0.
 
 - **PR mode (entered via PR number/URL):**
   - **Push fixes** -- push commits to the existing PR branch
