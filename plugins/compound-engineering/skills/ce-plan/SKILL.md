@@ -82,9 +82,9 @@ If the plan already has a `deepened: YYYY-MM-DD` frontmatter field and there is 
 
 If the task involves building, modifying, or architecting software (references code, repos, APIs, databases, or asks to build/modify/deploy), continue to Phase 0.2.
 
-Otherwise, read `references/universal-planning.md` and follow that workflow instead. Skip all subsequent phases. Named tools or source links don't change this routing — they're inputs, handled per Core Principle 8.
-
 If the domain is genuinely ambiguous (e.g., "plan a migration" with no other context), ask the user before routing.
+
+Otherwise, read `references/universal-planning.md` and follow that workflow instead. Skip all subsequent phases. Named tools or source links don't change this routing — they're inputs, handled per Core Principle 8.
 
 #### 0.2 Find Upstream Requirements Document
 
