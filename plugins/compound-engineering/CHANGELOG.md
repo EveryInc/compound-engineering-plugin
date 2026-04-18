@@ -9,6 +9,15 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.68.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.68.0...compound-engineering-v2.68.1) (2026-04-18)
+
+
+### Bug Fixes
+
+* **ce-compound-refresh:** restore ce:compound hand-off ([#591](https://github.com/EveryInc/compound-engineering-plugin/issues/591)) ([821c69c](https://github.com/EveryInc/compound-engineering-plugin/commit/821c69c567269ed617c56d95564f7ba1d883f364))
+* **ce-pr-description:** mark return block as hand-off ([#593](https://github.com/EveryInc/compound-engineering-plugin/issues/593)) ([cc78551](https://github.com/EveryInc/compound-engineering-plugin/commit/cc78551e7cac788d5e43efc835c040f696e5b936))
+* **git-commit-push-pr:** apply PR description after delegate hand-off ([#594](https://github.com/EveryInc/compound-engineering-plugin/issues/594)) ([1afd63c](https://github.com/EveryInc/compound-engineering-plugin/commit/1afd63cc764173368a30cbd92af704f5b7602e6d))
+
 ## [2.68.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.67.0...compound-engineering-v2.68.0) (2026-04-17)
 
 
