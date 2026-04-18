@@ -699,7 +699,17 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 
 #### Step 5: Final next steps
 
-**Interactive mode only:** after the fix-review cycle completes (clean verdict or the user chose to stop), offer next steps based on the entry mode. Reuse the resolved review base/default branch from Stage 1 when known; do not hard-code only `main`/`master`.
+**Interactive mode only, and only when one or more fixes landed in the working tree during this run:** after the fix-review cycle completes (clean verdict or the user chose to stop), offer next steps based on the entry mode. Reuse the resolved review base/default branch from Stage 1 when known; do not hard-code only `main`/`master`.
+
+Skip Step 5 entirely — exit the skill after the completion report — when no fix was applied. This includes:
+
+- Routing option C (`File a [TRACKER] ticket per finding without applying fixes`) — tickets were filed but no code changed
+- Routing option D (`Report only — take no further action`) — no action taken by definition
+- Routing option B (LFG) where every recommended action was Defer / Skip / Acknowledge, not Apply
+- Walk-through that completed with zero Apply decisions (every finding was Deferred, Skipped, or Acknowledged)
+- Zero-remaining case (no `gated_auto` / `manual` findings after `safe_auto` — the `safe_auto` fixes themselves count as applied, so this case does **not** skip Step 5 when any `safe_auto` fix landed; it skips only when the entire review produced zero changes to the working tree)
+
+When one or more fixes landed — walk-through with at least one Apply, LFG with at least one Apply recommendation executed, or `safe_auto` fixes in a zero-remaining review — Step 5 runs exactly as described below.
 
 - **PR mode (entered via PR number/URL):**
   - **Push fixes** -- push commits to the existing PR branch
