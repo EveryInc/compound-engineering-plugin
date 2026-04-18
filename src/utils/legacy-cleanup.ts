@@ -118,6 +118,7 @@ const STALE_AGENT_NAMES = [
   "security-sentinel",
   "spec-flow-analyzer",
   "testing-reviewer",
+  "web-researcher",
 ]
 
 /** Old prompt wrapper names (we no longer generate workflow prompts). */
