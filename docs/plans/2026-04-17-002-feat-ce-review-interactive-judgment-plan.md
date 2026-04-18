@@ -1,7 +1,7 @@
 ---
 title: "feat: Add interactive judgment loop to ce:review"
 type: feat
-status: active
+status: completed
 date: 2026-04-17
 origin: docs/brainstorms/2026-04-17-ce-review-interactive-judgment-requirements.md
 ---
