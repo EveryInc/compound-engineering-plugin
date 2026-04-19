@@ -72,6 +72,17 @@ describe("frontmatter YAML validity", () => {
       test(`${pluginRoot}/${rel} has valid strict YAML frontmatter`, () => {
         expect(() => load(yaml)).not.toThrow()
       })
+
+      test(`${pluginRoot}/${rel} description has no unwrapped angle-bracket tokens`, () => {
+        const parsed = load(yaml) as Record<string, unknown> | null
+        const description = parsed && typeof parsed.description === "string" ? parsed.description : ""
+        // Strip backtick-delimited spans; what remains must not contain a bare <tag>.
+        // Cowork's plugin validator parses descriptions as HTML and rejects
+        // unknown tags with a silent "Plugin validation failed" banner. See issue #602.
+        const stripped = description.replace(/`[^`]*`/g, "")
+        const bareTag = stripped.match(/<[A-Za-z][\w-]*>/)
+        expect(bareTag, `Backtick-wrap or rephrase: ${bareTag?.[0] ?? ""}`).toBeNull()
+      })
     }
   }
 })
