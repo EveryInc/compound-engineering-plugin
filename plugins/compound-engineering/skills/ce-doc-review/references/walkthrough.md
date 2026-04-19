@@ -41,7 +41,7 @@ The walk-through receives, from the orchestrator:
 - The merged findings list in severity order (P0 → P1 → P2 → P3), filtered to `gated_auto` and `manual` findings that survived the per-severity confidence gate. FYI-subsection findings are not included — they surface in the final report only and have no walk-through entry.
 - The run id for artifact lookups (when applicable).
 
-Each finding's recommended action has already been normalized by synthesis step 3.6 — the walk-through surfaces that recommendation but does not recompute it.
+Each finding's recommended action has already been normalized by synthesis step 3.5b (Deterministic Recommended-Action Tie-Break, `Skip > Defer > Apply`) — the walk-through surfaces that recommendation via the merged finding's `recommended_action` field and does not recompute it.
 
 ---
 

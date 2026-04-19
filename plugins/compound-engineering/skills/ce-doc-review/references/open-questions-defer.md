@@ -45,14 +45,21 @@ Fields come from the finding's schema:
 
 Do not include `suggested_fix` or `evidence` in the appended entry. Those live in the review run artifact (when applicable) and do not belong in the document's Open Questions section — the entry is a concern summary for the reader returning later, not a full decision packet.
 
-### Step 4: Idempotence on title collisions
+### Step 4: Idempotence on compound-key collisions
 
-If an entry with the same `{title}` already exists under the same `### From YYYY-MM-DD review` subsection, do not append a duplicate. This can happen when:
+If an entry with the same compound key already exists under the same `### From YYYY-MM-DD review` subsection, do not append a duplicate. This can happen when:
 
 - The same review session re-routes the same finding to Defer a second time (rare but possible via LFG-the-rest after a walk-through Defer)
 - The orchestrator retries after a partial failure
 
-On collision, record the no-op in the completion report's Coverage section so the user sees the duplicate was suppressed. Cross-subsection collisions (same title, different dates) are not deduplicated — each review is allowed to re-raise the same concern.
+**Compound key for dedup:** `normalize(section) + normalize(title) + evidence_fingerprint`, where:
+
+- `normalize(section)` and `normalize(title)` use the same normalization as synthesis step 3.3 dedup (lowercase, strip punctuation, collapse whitespace)
+- `evidence_fingerprint` is the first ~120 characters of the finding's first evidence quote (same slice used in the decision primer — see `SKILL.md` under "Decision primer"). When no evidence is available, fall back to section+title alone.
+
+Title-only dedup is not sufficient: two different findings in the same document (even in the same review date) can legitimately share a short title if their sections and evidence differ. Using only `{title}` would silently drop one of them — losing user-visible backlog context. The compound key mirrors the R29/R30 matching predicate (`section + title + evidence-substring overlap`) so cross-round and intra-round dedup behave consistently.
+
+On collision, record the no-op in the completion report's Coverage section so the user sees the duplicate was suppressed. Cross-subsection collisions (same compound key, different dates) are not deduplicated — each review is allowed to re-raise the same concern.
 
 ---
 
