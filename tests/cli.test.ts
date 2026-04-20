@@ -637,6 +637,132 @@ describe("CLI", () => {
     expect(await exists(path.join(qwenRoot, "compound-engineering", "legacy-backup"))).toBe(true)
   })
 
+  test("cleanup preserves user-authored Qwen files at current-bundle names", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-qwen-preserve-"))
+    const qwenRoot = path.join(tempRoot, ".qwen")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    // Legacy artifacts from the historical allow-list (e.g. `ce:plan` sanitizes
+    // to `ce-plan`, `compound:plan` flattens to `compound-plan.md` and nests to
+    // `compound/plan.md`). These MUST be backed up.
+    await fs.mkdir(path.join(qwenRoot, "skills", "ce-plan"), { recursive: true })
+    await fs.writeFile(path.join(qwenRoot, "skills", "ce-plan", "SKILL.md"), "legacy skill")
+    await fs.mkdir(path.join(qwenRoot, "agents"), { recursive: true })
+    await fs.writeFile(path.join(qwenRoot, "agents", "repo-research-analyst.md"), "legacy agent")
+    await fs.mkdir(path.join(qwenRoot, "commands", "compound"), { recursive: true })
+    await fs.writeFile(path.join(qwenRoot, "commands", "compound-plan.md"), "legacy flat command")
+    await fs.writeFile(path.join(qwenRoot, "commands", "compound", "plan.md"), "legacy nested command")
+
+    // User-authored artifacts at names that match the CURRENT CE bundle but
+    // are NOT on the historical allow-list. The Qwen writer is native
+    // (`qwen extensions install`), so these were never installed by this
+    // plugin — cleanup must leave them alone.
+    await fs.mkdir(path.join(qwenRoot, "skills", "ce-debug"), { recursive: true })
+    await fs.writeFile(path.join(qwenRoot, "skills", "ce-debug", "SKILL.md"), "user-authored skill")
+    await fs.mkdir(path.join(qwenRoot, "skills", "my-user-skill"), { recursive: true })
+    await fs.writeFile(path.join(qwenRoot, "skills", "my-user-skill", "SKILL.md"), "user-authored skill")
+    await fs.writeFile(path.join(qwenRoot, "agents", "ce-correctness-reviewer.md"), "user-authored agent")
+    await fs.writeFile(path.join(qwenRoot, "commands", "my-user-command.md"), "user-authored command")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "cleanup",
+      "--target",
+      "qwen",
+      "--qwen-home",
+      qwenRoot,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempRoot,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Cleaned qwen")
+
+    // Historical allow-list entries (including the nested colon-command form
+    // preserved by the PRRT_kwDOP_gZVc58GrCI fix) are backed up.
+    expect(await exists(path.join(qwenRoot, "skills", "ce-plan"))).toBe(false)
+    expect(await exists(path.join(qwenRoot, "agents", "repo-research-analyst.md"))).toBe(false)
+    expect(await exists(path.join(qwenRoot, "commands", "compound-plan.md"))).toBe(false)
+    expect(await exists(path.join(qwenRoot, "commands", "compound", "plan.md"))).toBe(false)
+
+    // User-authored files at names matching the current CE bundle survive.
+    expect(await exists(path.join(qwenRoot, "skills", "ce-debug"))).toBe(true)
+    expect(await exists(path.join(qwenRoot, "skills", "my-user-skill"))).toBe(true)
+    expect(await exists(path.join(qwenRoot, "agents", "ce-correctness-reviewer.md"))).toBe(true)
+    expect(await exists(path.join(qwenRoot, "commands", "my-user-command.md"))).toBe(true)
+  })
+
+  test("cleanup deduplicates Gemini roots when cwd === $HOME to avoid rename races", async () => {
+    // Reproduces the concurrent-rename race: when `cwd` equals `$HOME` (or any
+    // path whose `.gemini` child collides with `--gemini-home`), the two
+    // default cleanup roots resolve to the same directory. Before the dedup
+    // fix, `Promise.all` launched two cleanups against the same directory and
+    // the loser of the rename race raised ENOENT, aborting cleanup
+    // intermittently. The fix deduplicates on absolute path before fanning
+    // out, so a single pass runs and the artifact is moved exactly once.
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-gemini-dedup-"))
+    const repoRoot = path.join(import.meta.dir, "..")
+    // Make `cwd` and `$HOME` the same directory so `<cwd>/.gemini` ==
+    // `$HOME/.gemini`, which is the collision the reviewer flagged.
+    const sharedRoot = tempRoot
+    const sharedGemini = path.join(sharedRoot, ".gemini")
+
+    await fs.mkdir(path.join(sharedGemini, "skills", "creating-agent-skills"), { recursive: true })
+    await fs.writeFile(
+      path.join(sharedGemini, "skills", "creating-agent-skills", "SKILL.md"),
+      "legacy deleted skill",
+    )
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "cleanup",
+      "--target",
+      "gemini",
+    ], {
+      // cwd === HOME triggers the workspaceGemini === roots.geminiHome case.
+      cwd: sharedRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: sharedRoot,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    // Cleanup runs exactly once (only one "Cleaned gemini" line) and the
+    // legacy artifact is moved without an ENOENT race.
+    const geminiLines = stdout.split("\n").filter((line) => line.startsWith("Cleaned gemini"))
+    expect(geminiLines.length).toBe(1)
+    expect(geminiLines[0]).toContain("backed up 1 artifact")
+    expect(await exists(path.join(sharedGemini, "skills", "creating-agent-skills"))).toBe(false)
+    expect(await exists(path.join(sharedGemini, "compound-engineering", "legacy-backup"))).toBe(true)
+  })
+
   test("cleanup backs up Kiro artifacts on demand", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-kiro-"))
     const kiroRoot = path.join(tempRoot, ".kiro")

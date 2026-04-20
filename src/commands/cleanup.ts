@@ -1,4 +1,5 @@
 import { defineCommand } from "citty"
+import fs from "fs/promises"
 import os from "os"
 import path from "path"
 import { fileURLToPath } from "url"
@@ -186,15 +187,27 @@ async function cleanupTarget(
       if (roots.hasExplicitOutput) {
         return [await cleanupGemini(plugin, workspaceGemini)]
       }
-      const rootsToClean = [workspaceGemini, roots.geminiHome]
+      // Deduplicate before launching parallel cleanups: when cwd === $HOME,
+      // `<cwd>/.gemini` and `~/.gemini` resolve to the same directory and two
+      // concurrent passes would race on renames into legacy-backup, producing
+      // intermittent ENOENT failures. `process.cwd()` and `os.homedir()` are
+      // already absolute, and `path.join` (inside `resolveGeminiWorkspaceRoot`
+      // and `resolveTargetHome`) normalizes the result, so string equality on
+      // the post-resolve paths is sufficient.
+      const rootsToClean = await dedupeRoots([workspaceGemini, roots.geminiHome])
       return await Promise.all(rootsToClean.map((root) => cleanupGemini(plugin, root)))
     }
     case "kiro":
       return [await cleanupKiro(plugin, roots.kiroHome)]
     case "copilot": {
+      // Same race-prevention as Gemini: if a user points `--copilot-home`,
+      // `--output`, or `--agents-home` at the same directory these parallel
+      // passes collide on renames. Default values are distinct so the dedup
+      // is mostly defensive, but keep the shape consistent across targets
+      // that fan out with `Promise.all`.
       const rootsToClean = roots.hasExplicitOutput
         ? [resolveCopilotWorkspaceRoot(roots.workspaceRoot)]
-        : [roots.copilotHome, resolveCopilotWorkspaceRoot(roots.workspaceRoot), roots.agentsHome]
+        : await dedupeRoots([roots.copilotHome, resolveCopilotWorkspaceRoot(roots.workspaceRoot), roots.agentsHome])
       return await Promise.all(rootsToClean.map((root) => cleanupCopilot(plugin, root)))
     }
     case "droid":
@@ -202,9 +215,12 @@ async function cleanupTarget(
     case "qwen":
       return [await cleanupQwen(plugin, roots.qwenHome)]
     case "windsurf": {
+      // Same race-prevention as Gemini/Copilot: dedup after path resolution
+      // so overlapping overrides can't produce concurrent renames on the
+      // same directory.
       const rootsToClean = roots.hasExplicitOutput
         ? [resolveWindsurfWorkspaceRoot(roots.workspaceRoot)]
-        : [roots.windsurfHome, resolveWindsurfWorkspaceRoot(roots.workspaceRoot)]
+        : await dedupeRoots([roots.windsurfHome, resolveWindsurfWorkspaceRoot(roots.workspaceRoot)])
       return await Promise.all(rootsToClean.map((root) => cleanupWindsurf(plugin, root)))
     }
   }
@@ -402,29 +418,28 @@ async function cleanupDroid(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>
 }
 
 async function cleanupQwen(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>, qwenRoot: string): Promise<CleanupResult> {
+  // IMPORTANT: legacy detection for `~/.qwen/{skills,agents,commands}` must be
+  // driven exclusively by the historical allow-list in
+  // `EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN`. Mirrors the Codex/Droid/Windsurf/
+  // Copilot cleanup fixes: the Bun-based Qwen writer was replaced by native
+  // `qwen extensions install`, so this cleanup exists solely to back up stale
+  // files from legacy manual installs. Seeding from the current plugin bundle
+  // (`plugin.skills`, `plugin.agents`, `plugin.commands`) would sweep up
+  // user-authored files at paths like `~/.qwen/skills/ce-debug/SKILL.md` or
+  // `~/.qwen/agents/ce-correctness-reviewer.md` that happen to share a name
+  // with a current CE artifact but were never installed by this plugin.
   const managedDir = path.join(qwenRoot, plugin.manifest.name)
   const extras = getLegacyPluginArtifacts(plugin.manifest.name)
-  const skillNames = new Set([
-    ...plugin.skills.map((skill) => sanitizePathName(skill.name)),
-    ...(extras.skills ?? []).map(sanitizePathName),
-  ])
-  const agentNames = new Set([
-    ...plugin.agents.map((agent) => sanitizePathName(agent.name)),
-    ...(extras.agents ?? []).map(sanitizePathName),
-  ])
+  const skillNames = new Set((extras.skills ?? []).map(sanitizePathName))
+  const agentNames = new Set((extras.agents ?? []).map(sanitizePathName))
   // The old Bun-based Qwen writer wrote commands via `resolveCommandPath`,
   // which split colon-namespaced names into nested directories (e.g.
   // `compound:plan` -> `commands/compound/plan.md`). We also probe the flat
   // sanitized form (`commands/compound-plan.md`) in case a historical install
   // landed commands there. Both shapes need cleanup so stale files can't
-  // shadow native plugin commands after migration.
+  // shadow native plugin commands after migration. Candidates come exclusively
+  // from the historical allow-list, not from the current plugin bundle.
   const commandPaths = new Set<string>()
-  for (const command of plugin.commands) {
-    commandPaths.add(`${sanitizePathName(command.name)}.md`)
-    if (command.name.includes(":")) {
-      commandPaths.add(`${command.name.split(":").join("/")}.md`)
-    }
-  }
   for (const name of extras.commands ?? []) {
     commandPaths.add(`${sanitizePathName(name)}.md`)
     if (name.includes(":")) {
@@ -540,6 +555,37 @@ function resolveGeminiWorkspaceRoot(outputRoot: string): string {
 
 function hasExplicitValue(value: unknown): boolean {
   return Boolean(value && String(value).trim())
+}
+
+async function dedupeRoots(roots: string[]): Promise<string[]> {
+  const seen = new Set<string>()
+  const result: string[] = []
+  for (const root of roots) {
+    // Resolve symlinks before comparing. Plain string equality is not enough
+    // on macOS where `$HOME` is typically `/Users/<name>` but `process.cwd()`
+    // on a directory under `/var/folders` resolves to `/private/var/folders`,
+    // and similar per-user tmpdir setups produce two strings that point at
+    // the same inode. Falling back to `path.normalize` on the raw string when
+    // the directory doesn't yet exist (e.g. the first `install` ever) keeps
+    // the pre-realpath behavior as a safety net.
+    const key = await resolveCanonicalPath(root)
+    if (seen.has(key)) continue
+    seen.add(key)
+    result.push(root)
+  }
+  return result
+}
+
+async function resolveCanonicalPath(target: string): Promise<string> {
+  const normalized = path.normalize(target)
+  try {
+    return await fs.realpath(normalized)
+  } catch {
+    // Directory does not exist yet — fall back to the normalized string. This
+    // is fine because a non-existent path has no filesystem aliases to race
+    // against.
+    return normalized
+  }
 }
 
 function resolveDroidWorkspaceRoot(outputRoot: string): string {
