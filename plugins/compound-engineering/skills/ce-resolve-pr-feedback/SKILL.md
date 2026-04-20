@@ -76,33 +76,33 @@ The distinction is about content, not who posted what. A deferral from a teammat
 
 If there are no new items across all feedback types, skip steps 3-9 and go straight to step 10.
 
-### 3. Cluster Analysis (Gated)
+### 3. Cross-Invocation Cluster Analysis (Gated)
 
-Before planning and dispatching fixes, check whether feedback patterns suggest a systemic issue that warrants broader investigation rather than individual fixes.
+Before planning and dispatching fixes, check whether the same concern has appeared across multiple review rounds — evidence of a recurring pattern that warrants broader investigation rather than another surgical fix.
 
-**Gate check**: Cluster analysis only runs when at least one signal fires. If neither fires, skip directly to step 4.
+**Gate check (two stages)**: Both must pass, or skip to step 4.
 
-| Gate signal | Check |
-|---|---|
-| **Volume** | 3+ new items from triage |
-| **Cross-invocation** | `cross_invocation.signal == true` in the script output (resolved threads exist alongside new ones — evidence of multi-round review) |
+1. **Signal stage**: `cross_invocation.signal == true` in the script output — resolved threads exist alongside new ones. First-round reviews always fail this stage.
+2. **Spatial-overlap precheck**: at least one new `review_thread` shares an exact file path or directory subtree with a thread in `cross_invocation.resolved_threads`. The signal alone only means multi-round review exists; it is not itself evidence that recurring feedback has landed in the same area. This precheck compares paths only — no category inference, no LLM calls — so the false-positive tax is cheap. Skip this stage if the script output lacks file paths on resolved threads; in that case the signal stage governs alone.
 
-If the gate does not fire, proceed to step 4. The common case (first review round with 1-2 comments) skips this step entirely with zero overhead.
+Only inline `review_threads` participate in the precheck. `pr_comments` and `review_bodies` have no file paths and cannot contribute to spatial overlap; they are always dispatched individually regardless of clustering.
 
-**If the gate fires**, analyze feedback for thematic clusters. When the cross-invocation signal fired, include resolved threads from `cross_invocation.resolved_threads` alongside new threads in the analysis — these are previously-resolved threads from earlier review rounds that provide pattern context. Mark them as `previously_resolved` so dispatch (step 5) knows not to individually re-resolve them.
+Single-round clustering (grouping new-only threads by theme + proximity within one review) is deliberately not performed: the evidence is too thin to justify holistic fixes and the false-positive rate is high. First-round "one helper would fix all of these" opportunities are handled as individual fixes until repeated reviewer evidence promotes the pattern into cross-invocation mode.
+
+**If both gate stages pass**, analyze feedback for thematic clusters that span new threads and previously-resolved threads. Include resolved threads from `cross_invocation.resolved_threads` alongside new threads in the analysis. Mark prior-resolved threads as `previously_resolved` so dispatch (step 5) knows not to individually re-resolve them.
 
 1. **Assign concern categories** from this fixed list: `error-handling`, `validation`, `type-safety`, `naming`, `performance`, `testing`, `security`, `documentation`, `style`, `architecture`, `other`. Each item (new and previously-resolved) gets exactly one category based on what the feedback is about.
 
-2. **Group by category + spatial proximity**. Form groups from all categorized items -- new and previously-resolved together, not new items only. Two items form a potential cluster when they share a concern category AND are spatially proximate (same file, or files in the same directory subtree).
+2. **Group by category + spatial proximity, requiring cross-round evidence**. Two items form a potential cluster when they share a concern category AND are spatially proximate (same file, or files in the same directory subtree). A cluster must contain **at least one previously-resolved thread** — a new-only group lacks cross-round evidence and is dispatched individually.
 
-   | Thematic match | Spatial proximity | Action |
-   |---|---|---|
-   | Same category | Same file | Cluster |
-   | Same category | Same directory subtree | Cluster |
-   | Same category | Unrelated locations | No cluster |
-   | Different categories | Any | No cluster (same-file grouping still applies for conflict avoidance) |
+   | Thematic match | Spatial proximity | Contains prior-resolved? | Action |
+   |---|---|---|---|
+   | Same category | Same file or subtree | Yes | Cluster |
+   | Same category | Same file or subtree | No (new-only) | No cluster |
+   | Same category | Unrelated locations | Any | No cluster |
+   | Different categories | Any | Any | No cluster |
 
-3. **Synthesize a cluster brief** for each cluster of 2+ items. Pass briefs to agents using a `<cluster-brief>` XML block:
+3. **Synthesize a cluster brief** for each cluster. Pass briefs to agents using a `<cluster-brief>` XML block:
 
    ```xml
    <cluster-brief>
@@ -110,18 +110,18 @@ If the gate does not fire, proceed to step 4. The common case (first review roun
      <area>[common directory path]</area>
      <files>[comma-separated file paths]</files>
      <threads>[comma-separated new thread/comment IDs]</threads>
-     <hypothesis>[one sentence: what the individual comments collectively suggest about a deeper issue]</hypothesis>
+     <hypothesis>[one sentence: what the recurring feedback across rounds suggests about a deeper issue]</hypothesis>
      <prior-resolutions>
        <thread id="PRRT_..." path="..." category="..."/>
      </prior-resolutions>
    </cluster-brief>
    ```
 
-   The `<prior-resolutions>` element lists previously-resolved threads that clustered with the new threads — their IDs, file paths, and assigned concern categories. This gives the resolver agent the full cross-round picture. When no previously-resolved threads are in the cluster, omit the element.
+   The `<prior-resolutions>` element is always present and lists the previously-resolved threads in the cluster — their IDs, file paths, and concern categories. This gives the resolver agent the full cross-round picture.
 
-4. **Items not in any cluster** remain as individual items and are dispatched normally in step 5. Previously-resolved threads that don't cluster with any new thread are dropped — they provided context but no pattern was found.
+4. **Items not in any cluster** remain as individual items and are dispatched normally in step 5. Previously-resolved threads that don't cluster with any new thread are dropped — they provided context but no cross-round pattern was found.
 
-5. **If no clusters are found** after analysis (the gate fired but items don't form thematic+spatial groups), proceed with all items as individual. The gate was a false positive -- the only cost was the analysis itself.
+5. **If no clusters are found** after analysis (the signal fired but no new thread clustered with a prior-resolved thread), proceed with all items as individual. The only cost was the analysis itself.
 
 ### 4. Plan
 

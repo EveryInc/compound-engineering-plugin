@@ -126,25 +126,21 @@ decision_context: [only for needs-human -- the full markdown block above]
 
 When a `<cluster-brief>` XML block is present, follow this workflow instead of the standard workflow.
 
-1. **Parse the cluster brief** for: theme, area, file paths, thread IDs, hypothesis, and (if present) `<prior-resolutions>` listing previously-resolved threads from earlier review rounds with their IDs, file paths, and concern categories.
+Cluster briefs always represent a cross-invocation cluster: the same concern category has appeared across multiple review rounds, and `<prior-resolutions>` lists the previously-resolved threads from earlier rounds.
+
+1. **Parse the cluster brief** for: theme, area, file paths, thread IDs, hypothesis, and `<prior-resolutions>` listing previously-resolved threads with their IDs, file paths, and concern categories.
 
 2. **Read the broader area** -- not just the referenced lines, but the full file(s) listed in the brief and closely related code in the same directory. Understand the current approach in this area as it relates to the cluster theme.
 
-3. **Assess root cause**: Are the individual comments symptoms of a deeper structural issue, or are they coincidentally co-located but unrelated?
-
-   **Without `<prior-resolutions>`** (single-round cluster):
-   - **Systemic**: The comments point to a missing pattern, inconsistent approach, or architectural gap. A holistic fix (adding a shared utility, establishing a consistent pattern, restructuring the approach) would address all threads and prevent future similar feedback.
-   - **Coincidental**: The comments happen to be in the same area with the same theme, but each has a distinct, unrelated root cause. Individual fixes are appropriate.
-
-   **With `<prior-resolutions>`** (cross-invocation cluster — the same concern category has appeared across multiple review rounds):
+3. **Assess root cause**. Pick one mode:
    - **Band-aid fixes**: Prior fixes addressed symptoms, not the root cause. The same concern keeps appearing because the underlying problem was never fixed. Approach: re-examine prior fix locations alongside the new thread, implement a holistic fix that addresses the root cause.
    - **Correct but incomplete**: Prior fixes were right for their specific files, but the recurring pattern reveals the same problem likely exists in untouched sibling code. This is the highest-value mode. Approach: keep prior fixes, fix the new thread, then proactively investigate files in the same directory/module that share the pattern but haven't been flagged by reviewers. Report what was found in the cluster assessment.
    - **Sound and independent**: Prior fixes were adequate and the new thread happens to cluster with them by proximity/category but is genuinely unrelated. Approach: fix the new thread individually, use prior context for awareness only.
 
 4. **Implement fixes**:
-   - If **systemic** or **band-aid**: make the holistic fix first, then verify each thread is resolved by the broader change. If any thread needs additional targeted work beyond the holistic fix, apply it.
+   - If **band-aid**: make the holistic fix first, then verify each thread is resolved by the broader change. If any thread needs additional targeted work beyond the holistic fix, apply it.
    - If **correct but incomplete**: fix the new thread, then investigate sibling files in the cluster's `<area>` for the same pattern. Fix any additional instances found. Stay within the area boundary.
-   - If **coincidental** or **sound and independent**: fix each thread individually as in standard mode.
+   - If **sound and independent**: fix each thread individually as in standard mode.
 
 5. **Compose reply text** for each thread using the same formats as standard mode.
 
@@ -152,9 +148,9 @@ When a `<cluster-brief>` XML block is present, follow this workflow instead of t
 
 ```
 cluster_assessment: [What the broader investigation found. Which assessment mode
-was applied (systemic/coincidental for single-round, or band-aid/correct-but-incomplete/
-sound-and-independent for cross-invocation). If correct-but-incomplete: which additional
-files were investigated and what was found. Keep to 2-4 sentences.]
+was applied (band-aid / correct-but-incomplete / sound-and-independent). If
+correct-but-incomplete: which additional files were investigated and what was
+found. Keep to 2-4 sentences.]
 ```
 
 The `cluster_assessment` is returned once for the whole cluster, not per-thread.
