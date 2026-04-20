@@ -503,6 +503,11 @@ describe("CLI", () => {
     await fs.writeFile(path.join(qwenRoot, "agents", "repo-research-analyst.yaml"), "legacy agent")
     await fs.mkdir(path.join(qwenRoot, "commands"), { recursive: true })
     await fs.writeFile(path.join(qwenRoot, "commands", "compound-plan.md"), "legacy command")
+    // Legacy Bun-install commands for colon-namespaced names (e.g. `compound:plan`)
+    // landed at nested paths via resolveCommandPath; cleanup must back those up
+    // too so they don't shadow native plugin commands after migration.
+    await fs.mkdir(path.join(qwenRoot, "commands", "compound"), { recursive: true })
+    await fs.writeFile(path.join(qwenRoot, "commands", "compound", "plan.md"), "legacy nested command")
 
     const proc = Bun.spawn([
       "bun",
@@ -536,6 +541,7 @@ describe("CLI", () => {
     expect(await exists(path.join(qwenRoot, "skills", "ce-plan"))).toBe(false)
     expect(await exists(path.join(qwenRoot, "agents", "repo-research-analyst.yaml"))).toBe(false)
     expect(await exists(path.join(qwenRoot, "commands", "compound-plan.md"))).toBe(false)
+    expect(await exists(path.join(qwenRoot, "commands", "compound", "plan.md"))).toBe(false)
     expect(await exists(path.join(qwenRoot, "compound-engineering", "legacy-backup"))).toBe(true)
   })
 

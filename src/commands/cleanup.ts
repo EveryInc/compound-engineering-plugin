@@ -398,10 +398,25 @@ async function cleanupQwen(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>,
     ...plugin.agents.map((agent) => sanitizePathName(agent.name)),
     ...(extras.agents ?? []).map(sanitizePathName),
   ])
-  const commandNames = new Set([
-    ...plugin.commands.map((command) => sanitizePathName(command.name)),
-    ...(extras.commands ?? []).map(sanitizePathName),
-  ])
+  // The old Bun-based Qwen writer wrote commands via `resolveCommandPath`,
+  // which split colon-namespaced names into nested directories (e.g.
+  // `compound:plan` -> `commands/compound/plan.md`). We also probe the flat
+  // sanitized form (`commands/compound-plan.md`) in case a historical install
+  // landed commands there. Both shapes need cleanup so stale files can't
+  // shadow native plugin commands after migration.
+  const commandPaths = new Set<string>()
+  for (const command of plugin.commands) {
+    commandPaths.add(`${sanitizePathName(command.name)}.md`)
+    if (command.name.includes(":")) {
+      commandPaths.add(`${command.name.split(":").join("/")}.md`)
+    }
+  }
+  for (const name of extras.commands ?? []) {
+    commandPaths.add(`${sanitizePathName(name)}.md`)
+    if (name.includes(":")) {
+      commandPaths.add(`${name.split(":").join("/")}.md`)
+    }
+  }
 
   let moved = 0
 
@@ -422,8 +437,8 @@ async function cleanupQwen(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>,
     moved += await moveIfExists(managedDir, "agents", path.join(qwenRoot, "agents"), `${agentName}.yaml`, "Qwen")
     moved += await moveIfExists(managedDir, "agents", path.join(qwenRoot, "agents"), `${agentName}.md`, "Qwen")
   }
-  for (const commandName of commandNames) {
-    moved += await moveIfExists(managedDir, "commands", path.join(qwenRoot, "commands"), `${commandName}.md`, "Qwen")
+  for (const commandPath of commandPaths) {
+    moved += await moveIfExists(managedDir, "commands", path.join(qwenRoot, "commands"), commandPath, "Qwen")
   }
 
   return { target: "qwen", root: qwenRoot, moved }
