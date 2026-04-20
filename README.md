@@ -71,6 +71,38 @@ In Cursor Agent chat, install from the plugin marketplace:
 
 Or search for "compound engineering" in the plugin marketplace.
 
+### Codex
+
+Inside Codex:
+
+```text
+codex plugin marketplace add EveryInc/compound-engineering-plugin
+codex plugin install compound-engineering
+```
+
+Or from a shell:
+
+```bash
+codex plugin marketplace add EveryInc/compound-engineering-plugin
+codex plugin install compound-engineering
+```
+
+Native install registers compound-engineering's skills. Codex's plugin format does not register custom agents or slash commands — for the full CE experience (including the review, research, and workflow agents that delegating skills spawn via `Task`), run this followup once after the native install completes:
+
+```bash
+bunx @every-env/compound-plugin install compound-engineering --to codex
+```
+
+The followup writes custom-agent TOML files under `~/.codex/agents/compound-engineering/` that Codex discovers at runtime. Without it, skills that orchestrate other agents (such as `ce-code-review`, `ce-plan`, `ce-work`) will report missing delegates.
+
+If you previously used the Bun-only Codex install, back up stale CE artifacts before the native flow takes over (safe to re-run):
+
+```bash
+bunx @every-env/compound-plugin cleanup --target codex
+```
+
+The `coding-tutor` plugin is also available — native install registers its skills, but its slash commands still require the Bun converter (same followup command as above, with `coding-tutor` in place of `compound-engineering`).
+
 ### GitHub Copilot CLI
 
 Inside Copilot CLI:
@@ -126,10 +158,10 @@ If you previously used the old Bun Qwen install, back up stale CE artifacts befo
 bunx @every-env/compound-plugin cleanup --target qwen
 ```
 
-### OpenCode, Codex, Pi, Gemini & Kiro (experimental)
+### OpenCode, Pi, Gemini & Kiro (experimental)
 
-This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Pi, Gemini CLI, and Kiro CLI.
-Use the native plugin install instructions above for Claude Code, Cursor, GitHub Copilot CLI, Factory Droid, and Qwen Code.
+This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Pi, Gemini CLI, and Kiro CLI.
+Use the native plugin install instructions above for Claude Code, Cursor, Codex, GitHub Copilot CLI, Factory Droid, and Qwen Code.
 
 ```bash
 # convert the compound-engineering plugin into OpenCode format
