@@ -14,7 +14,10 @@ The repo uses an automated release process to prepare plugin releases, including
 ### Contributor Rules
 
 - Do **not** manually bump `.claude-plugin/plugin.json` version in a normal feature PR.
+- Do **not** manually bump `.cursor-plugin/plugin.json` version in a normal feature PR.
+- Do **not** manually bump `.codex-plugin/plugin.json` version in a normal feature PR — release-please owns this via `extra-files` in `.github/release-please-config.json`, parallel to the Claude and Cursor entries.
 - Do **not** manually bump `.claude-plugin/marketplace.json` plugin version in a normal feature PR.
+- Do **not** hand-edit `.agents/plugins/marketplace.json` except to add or remove a plugin. Plugin-list, name, and description drift between the Claude, Cursor, and Codex marketplaces is caught by `bun run release:validate`.
 - Do **not** cut a release section in the canonical root `CHANGELOG.md` for a normal feature PR.
 - Do update substantive docs that are part of the actual change, such as `README.md`, component tables, usage instructions, or counts when they would otherwise become inaccurate.
 
@@ -23,8 +26,11 @@ The repo uses an automated release process to prepare plugin releases, including
 Before committing ANY changes:
 
 - [ ] No manual release-version bump in `.claude-plugin/plugin.json`
+- [ ] No manual release-version bump in `.cursor-plugin/plugin.json`
+- [ ] No manual release-version bump in `.codex-plugin/plugin.json`
 - [ ] No manual release-version bump in `.claude-plugin/marketplace.json`
 - [ ] No manual release entry added to the root `CHANGELOG.md`
+- [ ] `bun run release:validate` passes (enforces Claude/Cursor/Codex manifest parity)
 - [ ] README.md component counts verified
 - [ ] README.md tables accurate (agents, commands, skills)
 - [ ] plugin.json description matches current counts
@@ -205,6 +211,23 @@ grep -E '^description:' skills/*/SKILL.md
 
 - **New skill:** Create `skills/<name>/SKILL.md` with required YAML frontmatter (`name`, `description`). Reference files go in `skills/<name>/references/`. Add the skill to the appropriate category table in `README.md` and update the skill count.
 - **New agent:** Create `agents/<category>/<name>.md` with frontmatter. Categories: `review`, `document-review`, `research`, `design`, `docs`, `workflow`. Add the agent to `README.md` and update the agent count.
+
+### Adding a New Plugin to This Repo
+
+When adding a new plugin alongside `compound-engineering` and `coding-tutor`, the repo ships to three marketplace formats (Claude, Cursor, Codex). All three must stay in parity or `bun run release:validate` will fail on next run. Checklist:
+
+- [ ] `.claude-plugin/marketplace.json` — add the plugin to `plugins[]`
+- [ ] `.cursor-plugin/marketplace.json` — add the plugin to `plugins[]`
+- [ ] `.agents/plugins/marketplace.json` — add the plugin to `plugins[]` (Codex schema: nested `source: { source: "local", path: "./plugins/<name>" }`, `policy`, `category`)
+- [ ] `plugins/<name>/.claude-plugin/plugin.json` — create with `name`, `version`, `description`
+- [ ] `plugins/<name>/.cursor-plugin/plugin.json` — create with matching `name`, `version`, `description`
+- [ ] `plugins/<name>/.codex-plugin/plugin.json` — create with matching `name`, `version`, `description`, plus Codex-specific fields (`skills: "./skills/"` if skills exist, plus `interface{}` block)
+- [ ] `.github/release-please-config.json` — add a `plugins/<name>` package entry with `extra-files` for all three plugin.json paths
+- [ ] `.github/.release-please-manifest.json` — add the initial version entry for the new package
+- [ ] `src/release/metadata.ts` — extend `syncReleaseMetadata` with a cross-check target for the new plugin (follow the `codexPluginTargets` pattern)
+- [ ] Run `bun run release:validate` and confirm it reports the new manifests without drift
+
+The validator enforces: plugin-list parity across all three marketplaces, name/version/description parity across each plugin's three plugin.json files, and existence of any `skills:` directory declared in the Codex manifest. Note that only `description` drift is auto-corrected on `write: true` — version drift is detect-only because release-please owns the write.
 
 ## Beta Skills
 
