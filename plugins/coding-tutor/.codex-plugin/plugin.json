@@ -1,0 +1,33 @@
+{
+  "name": "coding-tutor",
+  "version": "1.2.1",
+  "description": "Personalized coding tutorials that use your actual codebase for examples with spaced repetition quizzes",
+  "author": {
+    "name": "Nityesh Agarwal"
+  },
+  "license": "MIT",
+  "keywords": [
+    "coding",
+    "programming",
+    "tutorial",
+    "learning",
+    "spaced-repetition"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Coding Tutor",
+    "shortDescription": "Personalized coding tutorials that use your actual codebase for examples with spaced repetition quizzes",
+    "longDescription": "Coding Tutor guides you through lessons that draw examples from the repo you're working in, then reinforces what you learned with spaced repetition quizzes. Skills install natively via Codex; Codex does not yet register plugin-declared commands, so the slash commands this plugin ships (e.g., quiz scheduling) require the companion Bun converter (see README).",
+    "developerName": "Nityesh Agarwal",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read"
+    ],
+    "defaultPrompt": [
+      "Teach me about the auth flow in this codebase",
+      "Quiz me on what I learned last week"
+    ],
+    "screenshots": []
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "name": "compound-engineering",
+  "version": "2.68.1",
+  "description": "AI-powered development tools for code review, research, design, and workflow automation.",
+  "author": {
+    "name": "Kieran Klaassen",
+    "email": "kieran@every.to",
+    "url": "https://github.com/kieranklaassen"
+  },
+  "homepage": "https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it",
+  "repository": "https://github.com/EveryInc/compound-engineering-plugin",
+  "license": "MIT",
+  "keywords": [
+    "ai-powered",
+    "compound-engineering",
+    "workflow-automation",
+    "code-review",
+    "rails",
+    "ruby",
+    "python",
+    "typescript",
+    "knowledge-management",
+    "image-generation"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Compound Engineering",
+    "shortDescription": "AI-powered development tools for code review, research, design, and workflow automation.",
+    "longDescription": "Compound Engineering is a suite of skills and agents that make each unit of engineering work easier than the last. Brainstorm requirements, plan implementations, review code with specialized reviewers, research institutional learnings, and capture solved problems so future work benefits. Skills install natively via Codex; for the full experience with specialized review and research agents, run the companion Bun converter after install (see README).",
+    "developerName": "Every",
+    "category": "Coding",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it",
+    "defaultPrompt": [
+      "/ce-brainstorm a new feature",
+      "/ce-plan the implementation",
+      "/ce-code-review my changes"
+    ],
+    "screenshots": []
+  }
+}
