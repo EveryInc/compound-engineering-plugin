@@ -275,6 +275,53 @@ describe("writeCodexBundle", () => {
     expect(await exists(path.join(codexRoot, "compound-engineering", "legacy-backup"))).toBe(true)
   })
 
+  test("preserves unrelated user skills at flat ~/.codex/skills/<name>/ that share a name with a current CE skill", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-user-skill-collide-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+
+    // ce-demo-reel is the name of a current CE skill, but it has never been
+    // shipped as a flat ~/.codex/skills/ce-demo-reel/ install (the historical
+    // flat name was "demo-reel"). A user could plausibly have authored their
+    // own ce-demo-reel skill at the flat path. The first install of CE must
+    // not move it to backup.
+    const userSkillDir = path.join(codexRoot, "skills", "ce-demo-reel")
+    await fs.mkdir(userSkillDir, { recursive: true })
+    const userSkillContent = "# user-authored skill, not from CE"
+    await fs.writeFile(path.join(userSkillDir, "SKILL.md"), userSkillContent)
+
+    // Same for ce-debug — current CE skill name, never in the historical
+    // flat-path allow-list, so a same-named user skill must be preserved.
+    const userDebugDir = path.join(codexRoot, "skills", "ce-debug")
+    await fs.mkdir(userDebugDir, { recursive: true })
+    await fs.writeFile(path.join(userDebugDir, "SKILL.md"), "# user debug skill")
+
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, "..", "plugins", "compound-engineering"))
+    const bundle = convertClaudeToCodex(plugin, {
+      agentMode: "subagent",
+      inferTemperature: true,
+      permissions: "none",
+    })
+    await writeCodexBundle(codexRoot, bundle)
+
+    // The user skills survive the install — same path, same content.
+    expect(await exists(path.join(userSkillDir, "SKILL.md"))).toBe(true)
+    expect(await fs.readFile(path.join(userSkillDir, "SKILL.md"), "utf8")).toBe(userSkillContent)
+    expect(await exists(path.join(userDebugDir, "SKILL.md"))).toBe(true)
+
+    // And they are not silently relocated to the legacy backup.
+    const backupRoot = path.join(codexRoot, "compound-engineering", "legacy-backup")
+    if (await exists(backupRoot)) {
+      const timestamps = await fs.readdir(backupRoot)
+      for (const ts of timestamps) {
+        const skillsBackup = path.join(backupRoot, ts, "skills")
+        if (!(await exists(skillsBackup))) continue
+        const backed = await fs.readdir(skillsBackup)
+        expect(backed).not.toContain("ce-demo-reel")
+        expect(backed).not.toContain("ce-debug")
+      }
+    }
+  })
+
   test("preserves existing user config when writing MCP servers", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-backup-"))
     const codexRoot = path.join(tempRoot, ".codex")

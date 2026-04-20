@@ -272,24 +272,25 @@ export function getLegacyPluginArtifacts(pluginName?: string): LegacyPluginArtif
 }
 
 export function getLegacyCodexArtifacts(bundle: CodexBundle): LegacyTargetArtifacts {
+  // IMPORTANT: legacy detection for the flat `~/.codex/skills/<name>` and
+  // `~/.codex/prompts/<name>.md` paths must be driven exclusively by the
+  // explicit historical allow-list in `EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN`.
+  //
+  // Earlier versions of this function also seeded candidates from the current
+  // plugin bundle (`bundle.skillDirs`, `bundle.generatedSkills`, `bundle.agents`).
+  // That was unsafe: on a first install, any user-authored skill at a flat
+  // `~/.codex/skills/<name>` path that happened to share a name with a current
+  // CE skill or agent would be swept into `compound-engineering/legacy-backup`
+  // even though it was never part of CE.
+  //
+  // The historical allow-list already enumerates every skill/agent/command name
+  // CE has ever shipped (including names that are still current), so restricting
+  // detection to that list still cleans up real legacy installs without
+  // touching unrelated user skills.
   const skills = new Set<string>()
   const prompts = new Set<string>()
   const currentPromptFiles = new Set<string>()
 
-  for (const skill of bundle.skillDirs) {
-    skills.add(sanitizePathName(skill.name))
-  }
-  for (const skill of bundle.generatedSkills) {
-    skills.add(sanitizePathName(skill.name))
-  }
-  for (const agent of bundle.agents ?? []) {
-    const agentName = sanitizePathName(agent.name)
-    skills.add(agentName)
-    const finalSegment = agentName.includes("-ce-") ? agentName.split("-ce-").pop() : agentName
-    if (finalSegment) {
-      skills.add(`ce-${finalSegment}`)
-    }
-  }
   for (const prompt of bundle.prompts) {
     currentPromptFiles.add(`${sanitizePathName(prompt.name)}.md`)
   }

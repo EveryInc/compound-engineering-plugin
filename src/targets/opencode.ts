@@ -58,8 +58,8 @@ async function mergeOpenCodeConfig(
 }
 
 export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBundle): Promise<void> {
-  const openCodePaths = resolveOpenCodePaths(outputRoot)
   const pluginName = bundle.pluginName ? sanitizeManagedPluginName(bundle.pluginName) : undefined
+  const openCodePaths = resolveOpenCodePaths(outputRoot, pluginName)
   const manifest = pluginName ? await readManagedInstallManifest(openCodePaths.managedDir, pluginName) : null
   const currentAgents = bundle.agents.map((agent) => `${sanitizePathName(agent.name)}.md`)
   const currentCommands = bundle.commandFiles.map((commandFile) => `${commandFile.name.split(":").join("/")}.md`)
@@ -138,12 +138,17 @@ export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBu
   }
 }
 
-function resolveOpenCodePaths(outputRoot: string) {
+function resolveOpenCodePaths(outputRoot: string, pluginName?: string) {
+  // Namespace the managed install directory per plugin so multiple plugins
+  // installed into the same OpenCode root do not share (and overwrite) each
+  // other's install manifests. Fall back to the legacy "compound-engineering"
+  // segment when no plugin name is supplied to preserve historical paths.
+  const managedSegment = pluginName ?? "compound-engineering"
   const base = path.basename(outputRoot)
   if (base === "opencode" || base === ".opencode") {
     return {
       root: outputRoot,
-      managedDir: path.join(outputRoot, "compound-engineering"),
+      managedDir: path.join(outputRoot, managedSegment),
       configPath: path.join(outputRoot, "opencode.json"),
       agentsDir: path.join(outputRoot, "agents"),
       pluginsDir: path.join(outputRoot, "plugins"),
@@ -154,7 +159,7 @@ function resolveOpenCodePaths(outputRoot: string) {
 
   return {
     root: outputRoot,
-    managedDir: path.join(outputRoot, ".opencode", "compound-engineering"),
+    managedDir: path.join(outputRoot, ".opencode", managedSegment),
     configPath: path.join(outputRoot, "opencode.json"),
     agentsDir: path.join(outputRoot, ".opencode", "agents"),
     pluginsDir: path.join(outputRoot, ".opencode", "plugins"),

@@ -261,13 +261,26 @@ async function cleanupLegacyAgentsSkillSymlinks(
   currentSkills: string[],
   manifest: CodexInstallManifest | null,
 ): Promise<void> {
-  const candidateSkillNames = new Set([...currentSkills, ...(manifest?.skills ?? [])])
+  // Symlink cleanup is safe for a broad candidate set because
+  // `removeAgentsSkillSymlinkIfManaged` only removes a symlink whose resolved
+  // target is inside a managed root. We probe:
+  //   - current and manifest-tracked skills (in case stale symlinks point at
+  //     still-current skill directories under a previous layout)
+  //   - the explicit historical legacy allow-list (renamed/removed CE skills)
+  // Bundle-derived names that might collide with unrelated user skills are
+  // safe here because the managed-root check rejects symlinks pointing
+  // anywhere outside CE's own install tree.
   const legacyArtifacts = getLegacyCodexArtifacts({
     pluginName,
     prompts: [],
-    skillDirs: [...candidateSkillNames].map((name) => ({ name, sourceDir: "" })),
+    skillDirs: [],
     generatedSkills: [],
   })
+  const candidateSkillNames = new Set<string>([
+    ...currentSkills,
+    ...(manifest?.skills ?? []),
+    ...legacyArtifacts.skills,
+  ])
   const agentsSkillsDir = path.join(path.dirname(codexRoot), ".agents", "skills")
   const rawManagedRoots = [
     path.join(codexRoot, pluginName),
@@ -279,7 +292,7 @@ async function cleanupLegacyAgentsSkillSymlinks(
   ]
 
   await removeAgentsSkillSymlinkIfManaged(path.join(agentsSkillsDir, pluginName), managedRoots)
-  for (const skillName of legacyArtifacts.skills) {
+  for (const skillName of candidateSkillNames) {
     await removeAgentsSkillSymlinkIfManaged(path.join(agentsSkillsDir, skillName), managedRoots)
   }
 }

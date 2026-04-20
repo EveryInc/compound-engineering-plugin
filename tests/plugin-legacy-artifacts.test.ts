@@ -7,7 +7,7 @@ import { convertClaudeToKiro } from "../src/converters/claude-to-kiro"
 import { getLegacyCodexArtifacts, getLegacyKiroArtifacts, getLegacyPiArtifacts, getLegacyWindsurfArtifacts } from "../src/data/plugin-legacy-artifacts"
 
 describe("plugin legacy artifacts", () => {
-  test("includes current and historical CE artifacts for Codex cleanup", async () => {
+  test("Codex legacy detection is restricted to the explicit historical allow-list", async () => {
     const plugin = await loadClaudePlugin(path.join(import.meta.dir, "..", "plugins", "compound-engineering"))
     const bundle = convertClaudeToCodex(plugin, {
       agentMode: "subagent",
@@ -17,25 +17,35 @@ describe("plugin legacy artifacts", () => {
 
     const artifacts = getLegacyCodexArtifacts(bundle)
 
+    // Historical CE skills (renamed/removed since) are detected. These are
+    // explicitly enumerated in EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN.
     expect(artifacts.skills).toContain("ce-plan")
     expect(artifacts.skills).toContain("ce:plan")
     expect(artifacts.skills).toContain("ce:plan-beta")
     expect(artifacts.skills).toContain("ce-review")
     expect(artifacts.skills).toContain("ce:review-beta")
     expect(artifacts.skills).toContain("ce-document-review")
-    expect(artifacts.skills).toContain("ce-demo-reel")
     expect(artifacts.skills).toContain("demo-reel")
     expect(artifacts.skills).toContain("ce:polish-beta")
     expect(artifacts.skills).toContain("ce:release-notes")
     expect(artifacts.skills).toContain("ce-update")
     expect(artifacts.skills).toContain("creating-agent-skills")
     expect(artifacts.skills).toContain("repo-research-analyst")
-    expect(artifacts.skills).toContain("ce-repo-research-analyst")
-    expect(artifacts.skills).toContain("research-ce-repo-research-analyst")
     expect(artifacts.skills).toContain("bug-reproduction-validator")
     expect(artifacts.skills).toContain("report-bug")
     expect(artifacts.skills).toContain("reproduce-bug")
     expect(artifacts.skills).toContain("resolve_pr_parallel")
+
+    // Current CE skill names that were never on the historical allow-list MUST
+    // NOT be flagged as legacy candidates. Otherwise a first install would
+    // sweep an unrelated user skill at ~/.codex/skills/<name>/ into backup
+    // simply because its name collides with a current CE skill.
+    expect(artifacts.skills).not.toContain("ce-demo-reel")
+    // Synthesized agent name variants (e.g. ce-<final-segment>) are not on
+    // the historical allow-list either, so they should not be probed against
+    // unrelated user skills at flat ~/.codex/skills/<name>/ paths.
+    expect(artifacts.skills).not.toContain("ce-repo-research-analyst")
+    expect(artifacts.skills).not.toContain("research-ce-repo-research-analyst")
 
     expect(artifacts.prompts).toContain("codify.md")
     expect(artifacts.prompts).toContain("compound-plan.md")
@@ -43,6 +53,43 @@ describe("plugin legacy artifacts", () => {
     expect(artifacts.prompts).toContain("report-bug.md")
     expect(artifacts.prompts).toContain("workflows-review.md")
     expect(artifacts.prompts).toContain("technical_review.md")
+  })
+
+  test("Codex legacy detection ignores current bundle skills/agents not in the historical allow-list", () => {
+    const artifacts = getLegacyCodexArtifacts({
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [
+        // A current skill name that was NEVER shipped historically. A user
+        // could plausibly have an unrelated skill at ~/.codex/skills/my-novel-skill/
+        // and a first install of CE must not touch it.
+        { name: "my-novel-skill", sourceDir: "/tmp/unused" },
+      ],
+      generatedSkills: [
+        { name: "another-novel-skill", content: "" },
+      ],
+      agents: [
+        { name: "my-novel-agent", description: "x", instructions: "y" },
+      ],
+    })
+
+    expect(artifacts.skills).not.toContain("my-novel-skill")
+    expect(artifacts.skills).not.toContain("another-novel-skill")
+    expect(artifacts.skills).not.toContain("my-novel-agent")
+    expect(artifacts.skills).not.toContain("ce-my-novel-agent")
+  })
+
+  test("Codex legacy detection returns nothing for plugins without an allow-list", () => {
+    const artifacts = getLegacyCodexArtifacts({
+      pluginName: "some-third-party-plugin",
+      prompts: [{ name: "anything", content: "" }],
+      skillDirs: [{ name: "shared-name", sourceDir: "/tmp/x" }],
+      generatedSkills: [],
+      agents: [{ name: "shared-name", description: "x", instructions: "y" }],
+    })
+
+    expect(artifacts.skills).toEqual([])
+    expect(artifacts.prompts).toEqual([])
   })
 
   test("includes current and historical CE artifacts for Pi cleanup", async () => {

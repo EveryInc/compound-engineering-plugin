@@ -139,11 +139,15 @@ describe("CLI", () => {
     await fs.writeFile(path.join(codexRoot, "skills", "ce:review-beta", "SKILL.md"), "legacy raw colon beta skill")
     await fs.mkdir(path.join(codexRoot, "skills", "ce-update"), { recursive: true })
     await fs.writeFile(path.join(codexRoot, "skills", "ce-update", "SKILL.md"), "legacy claude-only skill")
-    await fs.mkdir(path.join(codexRoot, "skills", "ce-repo-research-analyst"), { recursive: true })
-    await fs.writeFile(
-      path.join(codexRoot, "skills", "ce-repo-research-analyst", "SKILL.md"),
-      "legacy flat generated agent skill",
-    )
+    // A user-authored skill at a flat path whose name happens to collide with
+    // a current CE skill name (ce-debug is a current CE skill that has never
+    // been on the historical flat-path allow-list). The cleanup MUST NOT move
+    // it -- otherwise we silently destroy unrelated user content. This guards
+    // against the regression flagged in PR #609.
+    const userOwnedSkillDir = path.join(codexRoot, "skills", "ce-debug")
+    await fs.mkdir(userOwnedSkillDir, { recursive: true })
+    const userOwnedSkillContent = "# user-authored skill, not from CE"
+    await fs.writeFile(path.join(userOwnedSkillDir, "SKILL.md"), userOwnedSkillContent)
     await fs.mkdir(path.join(codexRoot, "prompts"), { recursive: true })
     await fs.writeFile(path.join(codexRoot, "prompts", "report-bug.md"), "legacy prompt")
     await fs.mkdir(path.join(agentsRoot, "skills", "ce-plan"), { recursive: true })
@@ -185,17 +189,24 @@ describe("CLI", () => {
     }
 
     expect(stdout).toContain("Cleaned codex")
-    expect(stdout).toContain("backed up 7 artifact")
+    // 6 historical artifacts get backed up: ce:plan, ce:review-beta, ce-update,
+    // report-bug.md, the .agents/skills/ce-plan symlink-equivalent, and the
+    // namespaced compound-engineering/repo-research-analyst directory.
+    // The user-authored ce-debug skill is preserved.
+    expect(stdout).toContain("backed up 6 artifact")
     expect(await exists(path.join(codexRoot, "skills", "ce:plan"))).toBe(false)
     expect(await exists(path.join(codexRoot, "skills", "ce:review-beta"))).toBe(false)
     expect(await exists(path.join(codexRoot, "skills", "ce-update"))).toBe(false)
-    expect(await exists(path.join(codexRoot, "skills", "ce-repo-research-analyst"))).toBe(false)
     expect(await exists(path.join(codexRoot, "prompts", "report-bug.md"))).toBe(false)
     expect(await exists(path.join(agentsRoot, "skills", "ce-plan"))).toBe(false)
     expect(await exists(path.join(codexRoot, "skills", "compound-engineering", "repo-research-analyst"))).toBe(false)
     expect(await exists(path.join(codexRoot, "skills", "compound-engineering", "ce-plan"))).toBe(true)
     expect(await exists(path.join(codexRoot, "compound-engineering", "legacy-backup"))).toBe(true)
     expect(await exists(path.join(agentsRoot, "compound-engineering", "legacy-backup"))).toBe(true)
+
+    // The user's flat-path skill survives with its original content.
+    expect(await exists(path.join(userOwnedSkillDir, "SKILL.md"))).toBe(true)
+    expect(await fs.readFile(path.join(userOwnedSkillDir, "SKILL.md"), "utf8")).toBe(userOwnedSkillContent)
   })
 
   test("cleanup backs up legacy OpenCode artifacts on demand", async () => {
