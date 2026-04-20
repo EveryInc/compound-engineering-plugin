@@ -278,6 +278,60 @@ Run these research agents:
     expect(await exists(path.join(tempRoot, ".gemini", "commands", "new", "cmd.toml"))).toBe(true)
   })
 
+  test("namespaces managed install manifests per plugin so installs do not collide", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-multi-plugin-"))
+
+    // Install plugin A first, with a skill and an agent
+    await writeGeminiBundle(tempRoot, {
+      pluginName: "compound-engineering",
+      generatedSkills: [],
+      agents: [{ name: "ce-agent", content: "---\nname: ce-agent\n---\n\nBody" }],
+      skillDirs: [
+        {
+          name: "ce-skill",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      commands: [],
+    })
+
+    // Install plugin B into the same Gemini root
+    await writeGeminiBundle(tempRoot, {
+      pluginName: "coding-tutor",
+      generatedSkills: [],
+      agents: [{ name: "tutor-agent", content: "---\nname: tutor-agent\n---\n\nBody" }],
+      skillDirs: [
+        {
+          name: "tutor-skill",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      commands: [],
+    })
+
+    // Both plugins must keep their own namespaced manifest
+    expect(await exists(path.join(tempRoot, ".gemini", "compound-engineering", "install-manifest.json"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".gemini", "coding-tutor", "install-manifest.json"))).toBe(true)
+
+    // Reinstall plugin A with no agents/skills — it must clean up only its own
+    // managed artifacts, leaving plugin B's intact (the bug the namespacing fix
+    // addresses: a shared manifest path would have lost B's manifest after A
+    // was installed, and a later A reinstall would skip B's stale-file cleanup).
+    await writeGeminiBundle(tempRoot, {
+      pluginName: "compound-engineering",
+      generatedSkills: [],
+      agents: [],
+      skillDirs: [],
+      commands: [],
+    })
+
+    expect(await exists(path.join(tempRoot, ".gemini", "agents", "ce-agent.md"))).toBe(false)
+    expect(await exists(path.join(tempRoot, ".gemini", "skills", "ce-skill"))).toBe(false)
+    expect(await exists(path.join(tempRoot, ".gemini", "agents", "tutor-agent.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".gemini", "skills", "tutor-skill"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".gemini", "coding-tutor", "install-manifest.json"))).toBe(true)
+  })
+
   test("moves legacy Gemini CE artifacts to a namespaced backup", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-legacy-artifacts-"))
     const geminiRoot = path.join(tempRoot, ".gemini")

@@ -9,6 +9,7 @@ import {
   cleanupRemovedManagedFiles,
   moveLegacyArtifactToBackup,
   readManagedInstallManifest,
+  resolveManagedSegment,
   sanitizeManagedPluginName,
   writeManagedInstallManifest,
 } from "./managed-artifacts"
@@ -141,9 +142,9 @@ export async function writeOpenCodeBundle(outputRoot: string, bundle: OpenCodeBu
 function resolveOpenCodePaths(outputRoot: string, pluginName?: string) {
   // Namespace the managed install directory per plugin so multiple plugins
   // installed into the same OpenCode root do not share (and overwrite) each
-  // other's install manifests. Fall back to the legacy "compound-engineering"
-  // segment when no plugin name is supplied to preserve historical paths.
-  const managedSegment = pluginName ?? "compound-engineering"
+  // other's install manifests. `resolveManagedSegment` falls back to the
+  // legacy "compound-engineering" segment when no plugin name is supplied.
+  const managedSegment = resolveManagedSegment(pluginName)
   const base = path.basename(outputRoot)
   if (base === "opencode" || base === ".opencode") {
     return {

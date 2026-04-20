@@ -9,13 +9,14 @@ import {
   cleanupRemovedManagedFiles,
   moveLegacyArtifactToBackup,
   readManagedInstallManifest,
+  resolveManagedSegment,
   sanitizeManagedPluginName,
   writeManagedInstallManifest,
 } from "./managed-artifacts"
 
 export async function writeGeminiBundle(outputRoot: string, bundle: GeminiBundle): Promise<void> {
-  const paths = resolveGeminiPaths(outputRoot)
   const pluginName = bundle.pluginName ? sanitizeManagedPluginName(bundle.pluginName) : undefined
+  const paths = resolveGeminiPaths(outputRoot, pluginName)
   const manifest = pluginName ? await readManagedInstallManifest(paths.managedDir, pluginName) : null
   const currentSkills = [
     ...bundle.generatedSkills.map((skill) => sanitizePathName(skill.name)),
@@ -99,12 +100,17 @@ export async function writeGeminiBundle(outputRoot: string, bundle: GeminiBundle
   }
 }
 
-function resolveGeminiPaths(outputRoot: string) {
+function resolveGeminiPaths(outputRoot: string, pluginName?: string) {
+  // Namespace the managed install directory per plugin so multiple plugins
+  // installed into the same Gemini root do not share (and overwrite) each
+  // other's install manifests. `resolveManagedSegment` falls back to the
+  // legacy "compound-engineering" segment when no plugin name is supplied.
+  const managedSegment = resolveManagedSegment(pluginName)
   const base = path.basename(outputRoot)
   if (base === ".gemini") {
     return {
       geminiDir: outputRoot,
-      managedDir: path.join(outputRoot, "compound-engineering"),
+      managedDir: path.join(outputRoot, managedSegment),
       skillsDir: path.join(outputRoot, "skills"),
       agentsDir: path.join(outputRoot, "agents"),
       commandsDir: path.join(outputRoot, "commands"),
@@ -112,7 +118,7 @@ function resolveGeminiPaths(outputRoot: string) {
   }
   return {
     geminiDir: path.join(outputRoot, ".gemini"),
-    managedDir: path.join(outputRoot, ".gemini", "compound-engineering"),
+    managedDir: path.join(outputRoot, ".gemini", managedSegment),
     skillsDir: path.join(outputRoot, ".gemini", "skills"),
     agentsDir: path.join(outputRoot, ".gemini", "agents"),
     commandsDir: path.join(outputRoot, ".gemini", "commands"),

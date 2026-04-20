@@ -213,6 +213,65 @@ Run these research agents:
     expect(await exists(path.join(outputRoot, "extensions", "compound-engineering-compat.ts"))).toBe(false)
   })
 
+  test("namespaces managed install manifests per plugin so installs do not collide", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-multi-plugin-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+
+    // Install plugin A first, with a prompt, skill, generated skill, and extension
+    await writePiBundle(outputRoot, {
+      pluginName: "compound-engineering",
+      prompts: [{ name: "ce-prompt", content: "CE prompt" }],
+      skillDirs: [
+        {
+          name: "ce-skill",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      generatedSkills: [{ name: "ce-gen-skill", content: "---\nname: ce-gen-skill\n---\n\nBody" }],
+      extensions: [{ name: "ce-ext.ts", content: "export default function () {}" }],
+    })
+
+    // Install plugin B into the same Pi root
+    await writePiBundle(outputRoot, {
+      pluginName: "coding-tutor",
+      prompts: [{ name: "tutor-prompt", content: "Tutor prompt" }],
+      skillDirs: [
+        {
+          name: "tutor-skill",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      generatedSkills: [{ name: "tutor-gen-skill", content: "---\nname: tutor-gen-skill\n---\n\nBody" }],
+      extensions: [{ name: "tutor-ext.ts", content: "export default function () {}" }],
+    })
+
+    // Both plugins must keep their own namespaced manifest
+    expect(await exists(path.join(outputRoot, "compound-engineering", "install-manifest.json"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "coding-tutor", "install-manifest.json"))).toBe(true)
+
+    // Reinstall plugin A with no artifacts — it must clean up only its own
+    // managed artifacts, leaving plugin B's intact (the bug the namespacing fix
+    // addresses: a shared manifest path would have lost B's manifest after A
+    // was installed, and a later A reinstall would skip B's stale-file cleanup).
+    await writePiBundle(outputRoot, {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      extensions: [],
+    })
+
+    expect(await exists(path.join(outputRoot, "prompts", "ce-prompt.md"))).toBe(false)
+    expect(await exists(path.join(outputRoot, "skills", "ce-skill"))).toBe(false)
+    expect(await exists(path.join(outputRoot, "skills", "ce-gen-skill"))).toBe(false)
+    expect(await exists(path.join(outputRoot, "extensions", "ce-ext.ts"))).toBe(false)
+    expect(await exists(path.join(outputRoot, "prompts", "tutor-prompt.md"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "skills", "tutor-skill"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "skills", "tutor-gen-skill"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "extensions", "tutor-ext.ts"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "coding-tutor", "install-manifest.json"))).toBe(true)
+  })
+
   test("moves legacy flat Pi CE artifacts to a namespaced backup", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-legacy-artifacts-"))
     const outputRoot = path.join(tempRoot, ".pi")

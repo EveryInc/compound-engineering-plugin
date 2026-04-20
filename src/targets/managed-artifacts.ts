@@ -14,6 +14,18 @@ export function sanitizeManagedPluginName(name: string): string {
   return sanitizePathName(name).replace(/[\\/]/g, "-")
 }
 
+/**
+ * Returns the directory segment used to namespace managed install artifacts
+ * (manifest, legacy-backup) under a target's root. When a sanitized plugin
+ * name is supplied, it is used verbatim so multiple plugins installed into
+ * the same target root keep independent manifests. When no plugin name is
+ * supplied (legacy callers / bundles without `pluginName`), the historical
+ * `compound-engineering` segment is returned to preserve pre-existing paths.
+ */
+export function resolveManagedSegment(pluginName?: string): string {
+  return pluginName ?? "compound-engineering"
+}
+
 export async function readManagedInstallManifest(
   managedDir: string,
   pluginName: string,

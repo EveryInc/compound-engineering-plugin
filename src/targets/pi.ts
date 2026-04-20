@@ -14,6 +14,7 @@ import { transformContentForPi } from "../converters/claude-to-pi"
 import type { PiBundle } from "../types/pi"
 import { getLegacyPiArtifacts } from "../data/plugin-legacy-artifacts"
 import { cleanupStaleAgents } from "../utils/legacy-cleanup"
+import { resolveManagedSegment } from "./managed-artifacts"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
 const PI_AGENTS_BLOCK_END = "<!-- END COMPOUND PI TOOL MAP -->"
@@ -49,8 +50,8 @@ type PiPaths = {
 }
 
 export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promise<void> {
-  const paths = resolvePiPaths(outputRoot)
   const pluginName = bundle.pluginName ? sanitizeCodexPathComponent(bundle.pluginName) : undefined
+  const paths = resolvePiPaths(outputRoot, pluginName)
   const manifest = pluginName ? await readInstallManifest(paths.managedDir, pluginName) : null
   const currentPrompts = bundle.prompts.map((prompt) => `${sanitizePathName(prompt.name)}.md`)
   const currentSkills = [
@@ -112,37 +113,42 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   }
 }
 
-function resolvePiPaths(outputRoot: string): PiPaths {
+function resolvePiPaths(outputRoot: string, pluginName?: string): PiPaths {
+  // Namespace the managed install directory per plugin so multiple plugins
+  // installed into the same Pi root do not share (and overwrite) each other's
+  // install manifests. `resolveManagedSegment` falls back to the legacy
+  // "compound-engineering" segment when no plugin name is supplied.
+  const managedSegment = resolveManagedSegment(pluginName)
   const base = path.basename(outputRoot)
 
   if (base === "agent") {
     return {
-      managedDir: path.join(outputRoot, "compound-engineering"),
+      managedDir: path.join(outputRoot, managedSegment),
       skillsDir: path.join(outputRoot, "skills"),
       promptsDir: path.join(outputRoot, "prompts"),
       extensionsDir: path.join(outputRoot, "extensions"),
-      mcporterConfigPath: path.join(outputRoot, "compound-engineering", "mcporter.json"),
+      mcporterConfigPath: path.join(outputRoot, managedSegment, "mcporter.json"),
       agentsPath: path.join(outputRoot, "AGENTS.md"),
     }
   }
 
   if (base === ".pi") {
     return {
-      managedDir: path.join(outputRoot, "compound-engineering"),
+      managedDir: path.join(outputRoot, managedSegment),
       skillsDir: path.join(outputRoot, "skills"),
       promptsDir: path.join(outputRoot, "prompts"),
       extensionsDir: path.join(outputRoot, "extensions"),
-      mcporterConfigPath: path.join(outputRoot, "compound-engineering", "mcporter.json"),
+      mcporterConfigPath: path.join(outputRoot, managedSegment, "mcporter.json"),
       agentsPath: path.join(outputRoot, "AGENTS.md"),
     }
   }
 
   return {
-    managedDir: path.join(outputRoot, ".pi", "compound-engineering"),
+    managedDir: path.join(outputRoot, ".pi", managedSegment),
     skillsDir: path.join(outputRoot, ".pi", "skills"),
     promptsDir: path.join(outputRoot, ".pi", "prompts"),
     extensionsDir: path.join(outputRoot, ".pi", "extensions"),
-    mcporterConfigPath: path.join(outputRoot, ".pi", "compound-engineering", "mcporter.json"),
+    mcporterConfigPath: path.join(outputRoot, ".pi", managedSegment, "mcporter.json"),
     agentsPath: path.join(outputRoot, "AGENTS.md"),
   }
 }
