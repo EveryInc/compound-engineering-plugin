@@ -27,11 +27,23 @@ fi
 # Fetch review threads, regular PR comments, and review bodies in one query.
 # Output is a JSON object with four keys:
 #   review_threads   - unresolved, non-outdated inline code review threads
-#   pr_comments      - top-level PR conversation comments (excludes PR author)
-#   review_bodies    - review submissions with non-empty body text (excludes PR author)
+#   pr_comments      - top-level PR conversation comments (excludes PR author and known review bots)
+#   review_bodies    - review submissions with non-empty body text (excludes PR author and known review bots)
 #   cross_invocation - cross-invocation awareness envelope:
 #     signal: true when both resolved and unresolved threads exist (multi-round review)
 #     resolved_threads: last N resolved threads by recency, for cluster analysis input
+#
+# Bot filtering: the bots listed below fall into two categories:
+#   - AI review bots (coderabbitai, codex, gemini, copilot): put actionable
+#     feedback in inline review comments (review_threads). Their top-level PR
+#     comments and review submission bodies are wrappers/summaries with no
+#     actionable asks on their own.
+#   - CI/status bots (codecov): post coverage, build, or deploy summaries. Never
+#     actionable on their own; any follow-up belongs in human review comments.
+# Filtering them at the source keeps the agent focused on real feedback and
+# avoids narrating "ignoring bot wrapper" on every run. Add new bot logins here
+# as they're observed; prefer exact login match over pattern matching to avoid
+# dropping actionable content from general-purpose bots.
 gh api graphql -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" -f query='
 query FetchPRFeedback($owner: String!, $repo: String!, $pr: Int!) {
   repository(owner: $owner, name: $repo) {
@@ -62,8 +74,6 @@ query FetchPRFeedback($owner: String!, $repo: String!, $pr: Int!) {
           id
           author { login }
           body
-          createdAt
-          url
         }
       }
       reviews(first: 50) {
@@ -72,13 +82,13 @@ query FetchPRFeedback($owner: String!, $repo: String!, $pr: Int!) {
           author { login }
           body
           state
-          createdAt
-          url
         }
       }
     }
   }
 }' | jq '.data.repository.pullRequest as $pr |
+  # Bots whose top-level comments and review bodies are wrappers or CI summaries, not actionable.
+  ["coderabbitai", "chatgpt-codex-connector", "gemini-code-assist", "copilot-pull-request-reviewer", "codecov"] as $review_bot_logins |
   # Unresolved threads (existing behavior, unchanged)
   [$pr.reviewThreads.edges[]
     | select(.node.isResolved == false and .node.isOutdated == false)] as $unresolved |
@@ -93,10 +103,12 @@ query FetchPRFeedback($owner: String!, $repo: String!, $pr: Int!) {
   review_threads: $unresolved,
   pr_comments: [$pr.comments.nodes[]
     | select(.author.login != $pr.author.login)
+    | select(.author.login as $l | $review_bot_logins | index($l) | not)
     | select(.body | test("^\\s*$") | not)],
   review_bodies: [$pr.reviews.nodes[]
     | select(.body != null and .body != "")
-    | select(.author.login != $pr.author.login)],
+    | select(.author.login != $pr.author.login)
+    | select(.author.login as $l | $review_bot_logins | index($l) | not)],
   cross_invocation: {
     signal: (($resolved | length) > 0 and ($unresolved | length) > 0),
     resolved_threads: $resolved

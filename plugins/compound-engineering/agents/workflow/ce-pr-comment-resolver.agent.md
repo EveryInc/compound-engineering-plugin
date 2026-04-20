@@ -44,7 +44,9 @@ Before touching any code, read the referenced file and classify the feedback:
 
 1. **Read the code** at the referenced file and line. For review threads, the file path and line are provided directly. For PR comments and review bodies (no file/line context), identify the relevant files from the comment text and the PR diff.
 2. **Evaluate validity** using the rubric above.
-3. **If fixing**: implement the change. Keep it focused -- address the feedback, don't refactor the neighborhood. Verify the change doesn't break the immediate logic.
+3. **If fixing**: implement the change. Keep it focused -- address the feedback, don't refactor the neighborhood. Write a test when the fix warrants one and none exists.
+
+   **Test scope rule.** Run only targeted tests for what you changed: a specific test file, a test pattern, or the test you just wrote. Examples: `bun test path/foo.test.ts`, `pytest tests/module/test_foo.py`, `rspec spec/models/user_spec.rb`. **Never run the full project test suite** (bare `bun test`, `pytest`, `rspec` with no path) -- the parent skill runs it once against the combined diff from all resolvers. Skip targeted tests entirely for pure doc/comment/string-literal edits with no behavioral impact. If you can't locate targeted tests, note it in `reason` and let the combined run catch any issues; do not downgrade your verdict.
 4. **Compose the reply text** for the parent to post. Quote the specific sentence or passage being addressed -- not the entire comment if it's long. This helps readers follow the conversation without scrolling.
 
 For fixed items:

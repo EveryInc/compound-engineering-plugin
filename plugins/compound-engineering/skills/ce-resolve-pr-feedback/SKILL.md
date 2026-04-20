@@ -72,7 +72,9 @@ Before processing, classify each piece of feedback as **new** or **already handl
 
 The distinction is about content, not who posted what. A deferral from a teammate, a previous skill run, or a manual reply all count. Similarly, actionability is about content -- bot feedback that requests a specific code change is actionable; a bot's boilerplate header wrapping those requests is not.
 
-If there are no new items across all feedback types, skip steps 3-8 and go straight to step 9.
+**Silent drop.** Non-actionable items are dropped without narration. Do not announce, list, or count dropped items in conversation, the task list, or the step 10 summary. Known review-bot wrappers (CodeRabbit, Codex, Gemini Code Assist, Copilot) and CI/status bot summaries (Codecov) are already filtered at the script level and will not appear; if a similar wrapper slips through, drop it silently and move on.
+
+If there are no new items across all feedback types, skip steps 3-9 and go straight to step 10.
 
 ### 3. Cluster Analysis (Gated)
 
@@ -190,13 +192,25 @@ Verdict meanings:
 
 **Sequential fallback**: Platforms that do not support parallel dispatch should run agents sequentially. Dispatch cluster units first (they are higher-leverage), then individual items.
 
-Fixes can occasionally expand beyond their referenced file (e.g., renaming a method updates callers elsewhere). This is rare but can cause parallel agents to collide. The verification step (step 8) catches this -- if re-fetching shows unresolved threads or if the commit reveals inconsistent changes, re-run the affected agents sequentially.
+Fixes can occasionally expand beyond their referenced file (e.g., renaming a method updates callers elsewhere). This is rare but can cause parallel agents to collide. Step 6 (combined validation) catches test breakage; step 9 (verify) catches unresolved threads. If either surfaces inconsistent changes from parallel fixes, re-run the affected agents sequentially.
 
-### 6. Commit and Push
+### 6. Validate Combined State
 
-After all agents complete, check whether any files were actually changed. If all verdicts are `replied`, `not-addressing`, or `needs-human` (no code changes), skip this step entirely and proceed to step 7.
+After all agents complete, aggregate `files_changed` across every returned summary (individual and cluster alike). If it's empty -- all verdicts are `replied`, `not-addressing`, or `needs-human` -- skip steps 6 and 7 entirely and proceed to step 8.
 
-If there are file changes:
+Resolvers run only targeted tests on their own changes. This step runs the project's full validation **once** against the combined diff to catch cross-agent interactions that targeted runs can't see.
+
+1. **Run the project's validation command** (test suite, type check, or whatever the repo's AGENTS.md/CLAUDE.md specifies). Run once, not per-agent.
+
+2. **Green** -> proceed to step 7.
+
+3. **Red, failures touch files resolvers changed** -> one inline diagnose-and-fix pass. Re-run validation. If still red, escalate with a `needs-human` item containing the test output; do **not** commit.
+
+4. **Red, failures touch only files no resolver changed** -> treat as pre-existing. Proceed to step 7, but add a footer to the commit message: `Note: pre-existing failure in <test> not addressed by this PR.`
+
+Record the validation outcome (command run, pass/fail counts, any pre-existing failures noted) for the step 10 summary.
+
+### 7. Commit and Push
 
 1. Stage only files reported by sub-agents and commit with a message referencing the PR:
 
@@ -212,7 +226,7 @@ git commit -m "Address PR review feedback (#PR_NUMBER)
 git push
 ```
 
-### 7. Reply and Resolve
+### 8. Reply and Resolve
 
 After the push succeeds, post replies and resolve where applicable. The mechanism depends on the feedback type.
 
@@ -258,7 +272,7 @@ gh pr comment PR_NUMBER --body "REPLY_TEXT"
 
 Include enough quoted context in the reply so the reader can follow which comment is being addressed without scrolling.
 
-### 8. Verify
+### 9. Verify
 
 Re-fetch feedback to confirm resolution:
 
@@ -276,7 +290,7 @@ The `review_threads` array should be empty (except `needs-human` items).
 
 PR comments and review bodies have no resolve mechanism, so they will still appear in the output. Verify they were replied to by checking the PR conversation.
 
-### 9. Summary
+### 10. Summary
 
 Present a concise summary of all work done. Group by verdict, one line per item describing *what was done* not just *where*. This is the primary output the user sees.
 
@@ -289,6 +303,8 @@ Fixed (count): [brief description of each fix]
 Fixed differently (count): [what was changed and why the approach differed]
 Replied (count): [what questions were answered]
 Not addressing (count): [what was skipped and why]
+
+Validation: [one line -- e.g., "bun test passed (893/893)" or "bun test passed with pre-existing failure in X noted"; omit when no code changes were committed]
 ```
 
 If any clusters were investigated, append a cluster investigation section:
@@ -359,7 +375,7 @@ This fetches thread IDs and their first comment IDs (minimal fields, no bodies) 
 
 ### 2. Fix, Reply, Resolve
 
-Spawn a single `workflow:ce-pr-comment-resolver` agent for the thread. Then follow the same commit -> push -> reply -> resolve flow as Full Mode steps 6-7.
+Spawn a single `workflow:ce-pr-comment-resolver` agent for the thread. Then follow the same validate -> commit -> push -> reply -> resolve flow as Full Mode steps 6-8.
 
 ---
 
