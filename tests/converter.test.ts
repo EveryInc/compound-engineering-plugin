@@ -15,6 +15,24 @@ const compoundEngineeringRoot = path.join(
 )
 
 describe("convertClaudeToOpenCode", () => {
+  test("current compound-engineering output is skills and subagents, not commands", async () => {
+    const plugin = await loadClaudePlugin(compoundEngineeringRoot)
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: true,
+      permissions: "none",
+    })
+
+    expect(bundle.agents.length).toBeGreaterThan(0)
+    expect(bundle.skillDirs.length).toBeGreaterThan(0)
+    expect(bundle.commandFiles).toHaveLength(0)
+    expect(bundle.plugins).toHaveLength(0)
+    expect(bundle.config.tools).toBeUndefined()
+
+    const parsedAgents = bundle.agents.map((agent) => parseFrontmatter(agent.content))
+    expect(parsedAgents.every((agent) => agent.data.mode === "subagent")).toBe(true)
+  })
+
   test("from-command mode: map allowedTools to global permission block", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
@@ -24,6 +42,7 @@ describe("convertClaudeToOpenCode", () => {
     })
 
     expect(bundle.config.command).toBeUndefined()
+    expect(bundle.config.tools).toBeUndefined()
     expect(bundle.commandFiles.find((f) => f.name === "workflows:review")).toBeDefined()
     expect(bundle.commandFiles.find((f) => f.name === "plan_review")).toBeDefined()
 
@@ -275,6 +294,7 @@ describe("convertClaudeToOpenCode", () => {
       inferTemperature: false,
       permissions: "broad",
     })
+    expect(broadBundle.config.tools).toBeUndefined()
     expect(broadBundle.config.permission).toEqual({
       read: "allow",
       write: "allow",
