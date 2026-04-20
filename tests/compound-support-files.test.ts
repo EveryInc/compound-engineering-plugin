@@ -79,9 +79,21 @@ describe("ce-compound YAML safety rule presence", () => {
       path.join(PLUGIN_ROOT, "ce-compound", "SKILL.md"),
       "utf8",
     )
-    const mentions = raw.match(/yaml-schema\.md/g) ?? []
-    // Both Full-mode Phase 2 step 5 and Lightweight mode step 3 should mention the rule.
-    expect(mentions.length).toBeGreaterThanOrEqual(2)
+    // Match the distinctive write-path pointer phrase, not generic yaml-schema.md
+    // references (which also appear in the support-files list and inputs section).
+    // Both Full-mode Phase 2 step 5 and Lightweight mode step 3 must carry the
+    // pointer so dropping either one is caught.
+    const pointer = /YAML[- ]safety\s+quoting\s+rule\s+for\s+array\s+items/gi
+    const pointerMatches = raw.match(pointer) ?? []
+    expect(pointerMatches.length).toBeGreaterThanOrEqual(2)
+
+    // Each pointer must sit in the frontmatter-write step (step 5 of Full mode,
+    // step 3 of Lightweight mode), not drift to an unrelated location. Both
+    // steps carry the "YAML frontmatter" phrase adjacent to the pointer.
+    const frontmatterAdjacent = raw.match(
+      /YAML\s+frontmatter[\s\S]{0,400}?YAML[- ]safety\s+quoting\s+rule\s+for\s+array\s+items/gi,
+    ) ?? []
+    expect(frontmatterAdjacent.length).toBeGreaterThanOrEqual(2)
   })
 
   test("ce-compound-refresh/SKILL.md points at YAML-safety rules in the Replace flow", async () => {
@@ -89,7 +101,14 @@ describe("ce-compound YAML safety rule presence", () => {
       path.join(PLUGIN_ROOT, "ce-compound-refresh", "SKILL.md"),
       "utf8",
     )
-    expect(/YAML[- ]safety/i.test(raw)).toBe(true)
-    expect(raw).toMatch(/yaml-schema\.md/)
+    // Anchor to the Replace Flow section so a drifted or deleted pointer is
+    // caught even if the phrase still appears elsewhere in the file.
+    const replaceFlowMatch = raw.match(
+      /###\s+Replace\s+Flow\b([\s\S]*?)(?=\n###\s+\w|\n##\s+\w|$)/,
+    )
+    expect(replaceFlowMatch).not.toBeNull()
+    const replaceFlow = replaceFlowMatch?.[1] ?? ""
+    expect(/YAML[- ]safety/i.test(replaceFlow)).toBe(true)
+    expect(replaceFlow).toMatch(/yaml-schema\.md/)
   })
 })
