@@ -5,7 +5,7 @@ tags: [codex, converter, skills, prompts, workflows, deprecation]
 created: 2026-03-15
 severity: medium
 component: codex-target
-problem_type: best_practice
+problem_type: convention
 root_cause: outdated_target_model
 ---
 

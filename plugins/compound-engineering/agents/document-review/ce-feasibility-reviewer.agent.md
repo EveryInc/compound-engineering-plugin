@@ -29,7 +29,8 @@ Apply each check only when relevant. Silence is only a finding when the gap woul
 
 - **HIGH (0.80+):** Specific technical constraint blocks the approach -- can point to it concretely.
 - **MODERATE (0.60-0.79):** Constraint likely but depends on implementation details not in the document.
-- **Below 0.50:** Suppress entirely.
+- **LOW (0.40-0.59) — Advisory:** Theoretical constraint with no current-scale evidence (e.g., "could be slow if data grows 10x", speculative scalability concerns with no baseline number). Still requires an evidence quote. Use this band so synthesis can route the finding to FYI rather than force a decision.
+- **Below 0.40:** Suppress entirely.
 
 ## What you don't flag
 

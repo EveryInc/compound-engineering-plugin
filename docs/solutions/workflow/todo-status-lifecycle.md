@@ -13,7 +13,7 @@ related_components:
   - plugins/compound-engineering/skills/ce-review/
   - plugins/compound-engineering/skills/todo-triage/
   - plugins/compound-engineering/skills/todo-create/
-problem_type: correctness-gap
+problem_type: workflow_issue
 ---
 
 # Status-Gated Todo Resolution

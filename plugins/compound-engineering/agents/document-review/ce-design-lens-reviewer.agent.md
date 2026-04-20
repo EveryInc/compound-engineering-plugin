@@ -36,7 +36,8 @@ Explain what's missing: the functional design thinking that makes the interface 
 
 - **HIGH (0.80+):** Missing states/flows that will clearly cause UX problems during implementation.
 - **MODERATE (0.60-0.79):** Gap exists but a skilled designer could resolve from context.
-- **Below 0.50:** Suppress.
+- **LOW (0.40-0.59) — Advisory:** Pattern or micro-layout preference without strong usability evidence (e.g., button placement alternatives, visual hierarchy micro-choices). Still requires an evidence quote. Use this band so synthesis can route the finding to FYI rather than force a decision.
+- **Below 0.40:** Suppress.
 
 ## What you don't flag
 

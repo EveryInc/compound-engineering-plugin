@@ -43,7 +43,8 @@ With AI-assisted implementation, the cost gap between shortcuts and complete sol
 
 - **HIGH (0.80+):** Can quote goal statement and scope item showing the mismatch.
 - **MODERATE (0.60-0.79):** Misalignment likely but depends on context not in document.
-- **Below 0.50:** Suppress.
+- **LOW (0.40-0.59) — Advisory:** Organizational preference without a concrete cost (unit ordering, section placement alternatives that read equally well, "this could also be split" observations without real impact). Still requires an evidence quote. Use this band so synthesis can route the finding to FYI rather than force a decision.
+- **Below 0.40:** Suppress.
 
 ## What you don't flag
 

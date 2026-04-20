@@ -60,7 +60,8 @@ If priority tiers exist: do assignments match stated goals? Are must-haves truly
 
 - **HIGH (0.80+):** Can quote both the goal and the conflicting work -- disconnect is clear.
 - **MODERATE (0.60-0.79):** Likely misalignment, depends on business context not in document.
-- **Below 0.50:** Suppress.
+- **LOW (0.40-0.59) — Advisory:** Observation about positioning, naming, or strategy without a concrete impact (subjective preference, speculative future-product concern with no current signal). Still requires an evidence quote. Use this band so synthesis can route the finding to FYI rather than force a decision.
+- **Below 0.40:** Suppress.
 
 ## What you don't flag
 

@@ -27,7 +27,8 @@ Skip areas not relevant to the document's scope.
 
 - **HIGH (0.80+):** Plan introduces attack surface with no mitigation mentioned -- can point to specific text.
 - **MODERATE (0.60-0.79):** Concern likely but plan may address implicitly or in a later phase.
-- **Below 0.50:** Suppress.
+- **LOW (0.40-0.59) — Advisory:** Theoretical attack surface with no realistic exploit path under current design (e.g., speculative timing-attack on non-sensitive data, defense-in-depth nice-to-have with no current vector). Still requires an evidence quote. Use this band so synthesis can route the finding to FYI rather than force a decision.
+- **Below 0.40:** Suppress.
 
 ## What you don't flag
 

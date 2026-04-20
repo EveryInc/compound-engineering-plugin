@@ -410,10 +410,14 @@ Bug track:
 - logic-errors/
 
 Knowledge track:
-- best-practices/
+- architecture-patterns/ — architectural or structural patterns (agent/skill/pipeline/workflow shape decisions)
+- design-patterns/ — reusable non-architectural design approaches (content generation, interaction patterns, prompt shapes)
+- tooling-decisions/ — language, library, or tool choices with durable rationale
+- conventions/ — team-agreed way of doing something, captured so it survives turnover
 - workflow-issues/
 - developer-experience/
 - documentation-gaps/
+- best-practices/ — fallback only, use when no narrower knowledge-track value applies
 
 ## Common Mistakes to Avoid
 

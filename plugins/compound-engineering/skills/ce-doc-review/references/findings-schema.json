@@ -45,8 +45,8 @@
           },
           "autofix_class": {
             "type": "string",
-            "enum": ["auto", "present"],
-            "description": "How this issue should be handled. auto = one clear correct fix that can be applied silently (terminology, formatting, cross-references, completeness corrections, additions mechanically implied by other content). present = requires individual user judgment."
+            "enum": ["safe_auto", "gated_auto", "manual"],
+            "description": "How this issue should be handled. safe_auto = one clear correct fix applied silently (typo, wrong count, stale cross-reference, mechanically-implied addition, terminology drift). gated_auto = concrete fix exists but touches document meaning or scope and warrants user confirmation (substantive additions from codebase-pattern-resolved fixes, framework-native-API substitutions, missing standard controls). manual = requires user judgment; multiple valid approaches. Low-confidence manual findings surface in an FYI subsection at the presentation layer."
           },
           "finding_type": {
             "type": "string",

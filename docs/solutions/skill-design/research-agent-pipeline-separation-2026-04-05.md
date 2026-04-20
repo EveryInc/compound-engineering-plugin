@@ -3,7 +3,7 @@ title: Research agent dispatch is intentionally separated across the skill pipel
 date: 2026-04-05
 category: skill-design
 module: compound-engineering
-problem_type: best_practice
+problem_type: architecture_pattern
 component: tooling
 severity: low
 applies_when:

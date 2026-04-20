@@ -3,7 +3,7 @@ title: Conditional visual aids in generated documents and PR descriptions
 date: 2026-03-29
 category: best-practices
 module: compound-engineering plugin skills
-problem_type: best_practice
+problem_type: design_pattern
 component: documentation
 symptoms:
   - "Generated documents and PR descriptions lack visual aids that would improve comprehension of complex workflows and relationships"

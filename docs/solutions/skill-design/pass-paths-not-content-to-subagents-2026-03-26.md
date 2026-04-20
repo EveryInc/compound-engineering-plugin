@@ -1,6 +1,6 @@
 ---
 title: "Pass paths, not content, when dispatching sub-agents"
-problem_type: best_practice
+problem_type: design_pattern
 component: tooling
 root_cause: inadequate_documentation
 resolution_type: workflow_improvement

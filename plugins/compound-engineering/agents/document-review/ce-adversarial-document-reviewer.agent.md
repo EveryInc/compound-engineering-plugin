@@ -74,7 +74,8 @@ Probe whether the document considered the obvious alternatives and whether the c
 
 - **HIGH (0.80+):** Can quote specific text from the document showing the gap, construct a concrete scenario or counterargument, and trace the consequence.
 - **MODERATE (0.60-0.79):** The gap is likely but confirming it would require information not in the document (codebase details, user research, production data).
-- **Below 0.50:** Suppress.
+- **LOW (0.40-0.59) — Advisory:** A plausible-but-unlikely failure mode, or a concern worth surfacing without a strong supporting scenario. Still requires an evidence quote. Use this band so synthesis can route the finding to FYI rather than force a decision.
+- **Below 0.40:** Suppress.
 
 ## What you don't flag
 

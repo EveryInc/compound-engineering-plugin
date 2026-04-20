@@ -23,12 +23,16 @@ tracks:
       - integration_issue
       - logic_error
   knowledge:
-    description: "Best practices, workflow improvements, patterns, and documentation"
+    description: "Practices, patterns, conventions, decisions, workflow improvements, and documentation"
     problem_types:
       - best_practice
       - documentation_gap
       - workflow_issue
       - developer_experience
+      - architecture_pattern
+      - design_pattern
+      - tooling_decision
+      - convention
 
 # --- Fields required by BOTH tracks -----------------------------------------
 required_fields:
@@ -57,7 +61,11 @@ required_fields:
       - workflow_issue
       - best_practice
       - documentation_gap
-    description: "Primary category — determines track (bug vs knowledge)"
+      - architecture_pattern
+      - design_pattern
+      - tooling_decision
+      - convention
+    description: "Primary category — determines track (bug vs knowledge). Prefer the narrowest applicable value; best_practice is the fallback when no narrower knowledge-track value fits."
 
   component:
     type: enum
