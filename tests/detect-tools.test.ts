@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
@@ -65,6 +65,43 @@ describe("detectInstalledTools", () => {
     expect(results.find((t) => t.name === "opencode")?.detected).toBe(true)
     expect(results.find((t) => t.name === "droid")?.detected).toBe(true)
     expect(results.find((t) => t.name === "pi")?.detected).toBe(true)
+  })
+
+  describe("opencode OPENCODE_CONFIG_DIR", () => {
+    const originalEnv = process.env.OPENCODE_CONFIG_DIR
+
+    afterEach(() => {
+      if (originalEnv === undefined) {
+        delete process.env.OPENCODE_CONFIG_DIR
+      } else {
+        process.env.OPENCODE_CONFIG_DIR = originalEnv
+      }
+    })
+
+    test("detects opencode at OPENCODE_CONFIG_DIR when set, even if ~/.config/opencode is absent", async () => {
+      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-home-"))
+      const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-cwd-"))
+      const customRoot = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-root-"))
+
+      // Ensure no ~/.config/opencode exists under the sandbox home.
+      process.env.OPENCODE_CONFIG_DIR = customRoot
+
+      const results = await detectInstalledTools(tempHome, tempCwd)
+      const opencode = results.find((t) => t.name === "opencode")
+      expect(opencode?.detected).toBe(true)
+      expect(opencode?.reason).toContain(customRoot)
+    })
+
+    test("opencode is not detected when OPENCODE_CONFIG_DIR points at a missing directory", async () => {
+      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-missing-home-"))
+      const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-missing-cwd-"))
+      const missingRoot = path.join(os.tmpdir(), `detect-opencode-missing-${Date.now()}-${Math.random()}`)
+
+      process.env.OPENCODE_CONFIG_DIR = missingRoot
+
+      const results = await detectInstalledTools(tempHome, tempCwd)
+      expect(results.find((t) => t.name === "opencode")?.detected).toBe(false)
+    })
   })
 
   test("detects copilot from project-specific skills without generic .github false positives", async () => {

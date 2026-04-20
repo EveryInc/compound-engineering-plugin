@@ -1,6 +1,7 @@
 import os from "os"
 import path from "path"
 import { pathExists } from "./files"
+import { resolveOpenCodeGlobalRoot } from "./opencode-config"
 
 export type DetectedTool = {
   name: string
@@ -16,10 +17,19 @@ type DetectableTool = {
 const detectableTools: DetectableTool[] = [
   {
     name: "opencode",
-    detectPaths: (home, cwd) => [
-      path.join(home, ".config", "opencode"),
-      path.join(cwd, ".opencode"),
-    ],
+    detectPaths: (home, cwd) => {
+      // Resolve the OpenCode global root through the shared helper so that
+      // detection agrees with install/cleanup on `OPENCODE_CONFIG_DIR`. When
+      // the env var is unset, the helper falls back to `os.homedir()`, which
+      // may differ from the `home` arg threaded through for testability; in
+      // that case prefer the explicit `home` param so existing callers that
+      // override it keep working.
+      const envDir = process.env.OPENCODE_CONFIG_DIR?.trim()
+      const globalRoot = envDir
+        ? resolveOpenCodeGlobalRoot()
+        : path.join(home, ".config", "opencode")
+      return [globalRoot, path.join(cwd, ".opencode")]
+    },
   },
   {
     name: "codex",
