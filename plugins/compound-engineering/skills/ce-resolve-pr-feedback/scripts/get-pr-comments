@@ -33,17 +33,18 @@ fi
 #     signal: true when both resolved and unresolved threads exist (multi-round review)
 #     resolved_threads: last N resolved threads by recency, for cluster analysis input
 #
-# Bot filtering: the bots listed below fall into two categories:
-#   - AI review bots (coderabbitai, codex, gemini, copilot): put actionable
-#     feedback in inline review comments (review_threads). Their top-level PR
-#     comments and review submission bodies are wrappers/summaries with no
-#     actionable asks on their own.
-#   - CI/status bots (codecov): post coverage, build, or deploy summaries. Never
-#     actionable on their own; any follow-up belongs in human review comments.
-# Filtering them at the source keeps the agent focused on real feedback and
-# avoids narrating "ignoring bot wrapper" on every run. Add new bot logins here
-# as they're observed; prefer exact login match over pattern matching to avoid
-# dropping actionable content from general-purpose bots.
+# Bot filtering: only CI/status bots (codecov, etc.) are filtered at the source.
+# Their output is structurally never actionable -- coverage numbers, build
+# summaries, deploy status -- and that holds regardless of format changes.
+# AI review bots (coderabbitai, codex, gemini, copilot) are NOT filtered here.
+# Historically their top-level comments were assumed to always be wrappers, but
+# that turned out to be wrong: Codex sometimes posts actionable findings as
+# top-level PR comments with no inline thread counterpart. Any source-level
+# heuristic to separate wrapper from actionable for these bots is brittle (one
+# bot format change away from silently dropping feedback). SKILL.md step 2
+# has a content-aware actionability check and Silent Drop rule that handles
+# wrappers correctly, so we trust that layer instead. Add new logins to the CI
+# list only if their output is structurally non-actionable like codecov's.
 gh api graphql -f owner="$OWNER" -f repo="$REPO" -F pr="$PR_NUMBER" -f query='
 query FetchPRFeedback($owner: String!, $repo: String!, $pr: Int!) {
   repository(owner: $owner, name: $repo) {
@@ -87,8 +88,8 @@ query FetchPRFeedback($owner: String!, $repo: String!, $pr: Int!) {
     }
   }
 }' | jq '.data.repository.pullRequest as $pr |
-  # Bots whose top-level comments and review bodies are wrappers or CI summaries, not actionable.
-  ["coderabbitai", "chatgpt-codex-connector", "gemini-code-assist", "copilot-pull-request-reviewer", "codecov"] as $review_bot_logins |
+  # Structurally non-actionable bot output; always dropped.
+  ["codecov"] as $ci_bot_logins |
   # Unresolved threads. `isOutdated` means the diff hunk around the comment
   # has shifted since the thread was opened -- not that the reviewer concern
   # was addressed. Resolution state is the only authoritative signal; outdated
@@ -107,12 +108,16 @@ query FetchPRFeedback($owner: String!, $repo: String!, $pr: Int!) {
   review_threads: $unresolved,
   pr_comments: [$pr.comments.nodes[]
     | select(.author.login != $pr.author.login)
-    | select(.author.login as $l | $review_bot_logins | index($l) | not)
+    | select(
+        .author.login as $l | $ci_bot_logins | index($l) | not
+      )
     | select(.body | test("^\\s*$") | not)],
   review_bodies: [$pr.reviews.nodes[]
     | select(.body != null and .body != "")
     | select(.author.login != $pr.author.login)
-    | select(.author.login as $l | $review_bot_logins | index($l) | not)],
+    | select(
+        .author.login as $l | $ci_bot_logins | index($l) | not
+      )],
   cross_invocation: {
     signal: (($resolved | length) > 0 and ($unresolved | length) > 0),
     resolved_threads: $resolved
