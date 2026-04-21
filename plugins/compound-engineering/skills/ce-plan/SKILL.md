@@ -479,15 +479,55 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 - R1. [Requirement or success criterion this plan must satisfy]
 - R2. [Requirement or success criterion this plan must satisfy]
 
+<!-- Origin trace sub-blocks: include only when the upstream requirements doc supplies the
+     corresponding section. Each sub-block is independent — include only the ones that apply.
+     Omit cleanly (no header, no empty line) when no origin doc exists or the origin had no
+     Actors / Key Flows / Acceptance Examples sections. -->
+
+**Origin actors:** [A1 (role/name), A2 (role/name), …]
+**Origin flows:** [F1 (flow name), F2 (flow name), …]
+**Origin acceptance examples:** [AE1 (covers R1, R4), AE2 (covers R3), …]
+
 ## Scope Boundaries
+
+<!-- Default structure (no origin doc, or origin was Lightweight / Standard / Deep-feature):
+     a single bulleted list of explicit non-goals. The optional `### Deferred to Follow-Up Work`
+     subsection below may still be included when this plan's implementation is intentionally
+     split across other PRs/issues/repos. -->
 
 - [Explicit non-goal or exclusion]
 
-<!-- Optional: When some items are planned work that will happen in a separate PR, issue,
-     or repo, use this sub-heading to distinguish them from true non-goals. -->
-### Deferred to Separate Tasks
+<!-- Optional plan-local subsection — include when this plan's implementation is intentionally
+     split across other PRs, issues, or repos. Distinct from origin-carried "Deferred for later"
+     (product sequencing) and "Outside this product's identity" (positioning). -->
+### Deferred to Follow-Up Work
 
 - [Work that will be done separately]: [Where or when -- e.g., "separate PR in repo-x", "future iteration"]
+
+<!-- Triggered structure: replace the single list above with the three subsections below ONLY
+     when the origin doc is Deep-product (detectable by presence of an "Outside this product's
+     identity" subsection in the origin's Scope Boundaries). At all other tiers and when no
+     origin exists, use the single-list structure above. -->
+
+<!--
+### Deferred for later
+
+[Carried from origin — product/version sequencing. Work that will be done eventually but not in v1.]
+
+- [Item]
+
+### Outside this product's identity
+
+[Carried from origin — positioning rejection. Adjacent product the plan must not accidentally build.]
+
+- [Item]
+
+### Deferred to Follow-Up Work
+
+[Plan-local — implementation work intentionally split across other PRs/issues/repos. Distinct from origin's "Deferred for later" (product) and "Outside this product's identity" (positioning).]
+
+- [Item]
+-->
 
 ## Context & Research
 
@@ -671,7 +711,7 @@ Before finalizing, check:
 - If a High-Level Technical Design section is included, it uses the right medium for the work, carries the non-prescriptive framing, and does not contain implementation code (no imports, exact signatures, or framework-specific syntax)
 - Per-unit technical design fields, if present, are concise and directional rather than copy-paste-ready
 - If the plan creates a new directory structure, would an Output Structure tree help reviewers see the overall shape?
-- If Scope Boundaries lists items that are planned work for a separate PR or task, are they under `### Deferred to Separate Tasks` rather than mixed with true non-goals?
+- If Scope Boundaries lists items that are planned work for a separate PR, issue, or repo, are they under `### Deferred to Follow-Up Work` rather than mixed with true non-goals?
 - Would a visual aid (dependency graph, interaction diagram, comparison table) help a reader grasp the plan structure faster than scanning prose alone?
 
 If the plan originated from a requirements document, re-read that document and verify:

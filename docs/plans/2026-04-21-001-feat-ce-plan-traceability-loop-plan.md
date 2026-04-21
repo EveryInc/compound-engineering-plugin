@@ -192,7 +192,7 @@ This is the **conditionality design rule** the PR also introduces.
 
 ---
 
-- [ ] **U2: Origin Trace sub-block + Scope Boundaries three-way split + rename in `ce-plan/SKILL.md`**
+- [x] **U2: Origin Trace sub-block + Scope Boundaries three-way split + rename in `ce-plan/SKILL.md`**
 
 **Goal:** Make origin A/F/AE IDs visible in the plan output via a conditional sub-block under Requirements Trace; support the three-way Scope Boundaries split when origin is Deep-product; rename "Deferred to Separate Tasks" → "Deferred to Follow-Up Work" everywhere it appears.
 
