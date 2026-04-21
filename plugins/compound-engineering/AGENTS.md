@@ -39,16 +39,14 @@ Before committing ANY changes:
 
 ```
 agents/
-├── review/           # Code review agents
-├── document-review/  # Plan and requirements document review agents
-├── research/         # Research and analysis agents
-├── design/           # Design and UI agents
-└── docs/             # Documentation agents
+└── ce-*.agent.md  # All agents live flat under agents/, prefixed with ce-
 
 skills/
 ├── ce-*/          # Core workflow skills (ce-plan, ce-code-review, etc.)
 └── */             # All other skills
 ```
+
+Agents are grouped topically in `README.md` (Review, Document Review, Research, Design, Workflow, Docs) for reader navigation — those groupings are conceptual, not filesystem subdirectories.
 
 > **Note:** Commands were migrated to skills in v2.39.0. All former
 > `/command-name` slash commands now live under `skills/command-name/SKILL.md`
@@ -74,7 +72,7 @@ Important: Just because the developer's installed plugin may be out of date, it'
 
 **Why `ce-`?** Claude Code has built-in `/plan` and `/review` commands. The `ce-` prefix (short for compound-engineering) makes it immediately clear these components belong to this plugin. The hyphen is used instead of a colon to avoid filesystem issues on Windows and to align directory names with frontmatter names.
 
-**Agents** follow the same convention: `ce-adversarial-reviewer`, `ce-learnings-researcher`, etc. When referencing agents from skills, use the category-qualified format: `<category>:ce-<agent-name>` (e.g., `ce-adversarial-reviewer`).
+**Agents** follow the same convention: `ce-adversarial-reviewer`, `ce-learnings-researcher`, etc. When referencing agents from skills, use the bare `ce-<agent-name>` form (e.g., `ce-adversarial-reviewer`) — the `ce-` prefix is sufficient for uniqueness across plugins.
 
 ## Known External Limitations
 
@@ -210,7 +208,7 @@ grep -E '^description:' skills/*/SKILL.md
 ## Adding Components
 
 - **New skill:** Create `skills/<name>/SKILL.md` with required YAML frontmatter (`name`, `description`). Reference files go in `skills/<name>/references/`. Add the skill to the appropriate category table in `README.md` and update the skill count.
-- **New agent:** Create `agents/<category>/<name>.md` with frontmatter. Categories: `review`, `document-review`, `research`, `design`, `docs`, `workflow`. Add the agent to `README.md` and update the agent count.
+- **New agent:** Create `agents/ce-<name>.agent.md` with frontmatter (the `ce-` prefix is required). Add the agent to the appropriate topical section of `README.md` (Review, Document Review, Research, Design, Workflow, Docs) and update the agent count.
 
 ### Adding a New Plugin to This Repo
 

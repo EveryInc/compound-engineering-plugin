@@ -120,13 +120,11 @@ Only add a provider when the target format is stable, documented, and has a clea
 
 ## Agent References in Skills
 
-When referencing agents from within skill SKILL.md files (e.g., via the `Agent` or `Task` tool), use the **category-qualified namespace** with the `ce-` prefix: `<category>:ce-<agent-name>`. Never use the bare agent name alone.
+When referencing agents from within skill SKILL.md files (e.g., via the `Agent` or `Task` tool), use the bare `ce-<agent-name>` form. The `ce-` prefix identifies the agent as a compound-engineering component and is sufficient for uniqueness across plugins.
 
 Example:
-- `research:ce-learnings-researcher` (correct)
-- `learnings-researcher` (wrong - will fail to resolve at runtime)
-
-This prevents resolution failures when the plugin is installed alongside other plugins that may define agents with the same short name.
+- `ce-learnings-researcher` (correct)
+- `learnings-researcher` (wrong — the `ce-` prefix is required; it's what prevents collisions with agents from other plugins that might share a short name)
 
 ## File References in Skills
 
