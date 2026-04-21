@@ -41,10 +41,12 @@ With AI-assisted implementation, the cost gap between shortcuts and complete sol
 
 ## Confidence calibration
 
-- **HIGH (0.80+):** Can quote goal statement and scope item showing the mismatch.
-- **MODERATE (0.60-0.79):** Misalignment likely but depends on context not in document.
-- **LOW (0.40-0.59) — Advisory:** Organizational preference without a concrete cost (unit ordering, section placement alternatives that read equally well, "this could also be split" observations without real impact). Still requires an evidence quote. Use this band so synthesis can route the finding to FYI rather than force a decision.
-- **Below 0.40:** Suppress.
+Use the shared anchored rubric (see `subagent-template.md` — Confidence rubric). Scope-guardian's domain grounds in the document's own stated goals and declared scope. Apply as:
+
+- **`100` — Absolutely certain:** Can quote both the goal statement and the scope item showing the mismatch. Evidence directly confirms the misalignment.
+- **`75` — Highly confident:** Misalignment likely to derail the work, but fully confirming it would require context not in the document (strategic priorities, prior decisions). You double-checked and the issue will hit implementers.
+- **`50` — Advisory (routes to FYI):** Organizational preference without a concrete cost (unit ordering, section placement alternatives that read equally well, "this could also be split" observations without real impact). Still requires an evidence quote. Surfaces as observation without forcing a decision.
+- **Suppress entirely:** Anything below anchor `50` — speculative concern or stylistic preference. Do not emit; anchors `0` and `25` exist in the enum only so synthesis can track drops.
 
 ## What you don't flag
 

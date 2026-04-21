@@ -27,10 +27,12 @@ Apply each check only when relevant. Silence is only a finding when the gap woul
 
 ## Confidence calibration
 
-- **HIGH (0.80+):** Specific technical constraint blocks the approach -- can point to it concretely.
-- **MODERATE (0.60-0.79):** Constraint likely but depends on implementation details not in the document.
-- **LOW (0.40-0.59) — Advisory:** Theoretical constraint with no current-scale evidence (e.g., "could be slow if data grows 10x", speculative scalability concerns with no baseline number). Still requires an evidence quote. Use this band so synthesis can route the finding to FYI rather than force a decision.
-- **Below 0.40:** Suppress entirely.
+Use the shared anchored rubric (see `subagent-template.md` — Confidence rubric). Feasibility's domain grounds in codebase evidence, so it reaches the strongest anchors when you can cite concrete technical constraints. Apply as:
+
+- **`100` — Absolutely certain:** Specific technical constraint blocks the approach and you can cite it concretely (codebase reference, framework behavior, platform limit). Evidence directly confirms.
+- **`75` — Highly confident:** Constraint likely to bite, but confirming it would require implementation details not in the document. You double-checked and the issue will be hit in practice.
+- **`50` — Advisory (routes to FYI):** Theoretical constraint with no current-scale evidence ("could be slow if data grows 10x", speculative scalability concerns with no baseline number). Still requires an evidence quote. Surfaces as observation without forcing a decision.
+- **Suppress entirely:** Anything below anchor `50` — cannot verify, speculative without any grounding. Do not emit; anchors `0` and `25` exist in the enum only so synthesis can track drops.
 
 ## What you don't flag
 

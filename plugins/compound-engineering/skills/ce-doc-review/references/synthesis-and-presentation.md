@@ -14,23 +14,23 @@ Check each agent's returned JSON against the findings schema:
 
 **Do not narrate remap / validation diagnostics to the user.** Schema-drift notes ("persona X returned unknown enum Y, remapped to Z"), persona-prompt-drift commentary, and other validator-internal diagnostics are maintainer-facing information. They do not belong in the Phase 4 output the user reads. If a persona's output is malformed, the only user-visible consequence is a Coverage-row annotation (e.g., the persona shows fewer findings or a `malformed` marker). Everything else stays internal.
 
-### 3.2 Confidence Gate (Per-Severity)
+### 3.2 Confidence Gate (Anchor-Based)
 
-Gate findings using per-severity thresholds rather than a single flat floor:
+Gate findings by their `confidence` anchor value. Anchors are discrete integers (`0`, `25`, `50`, `75`, `100`) with behavioral definitions documented in `references/findings-schema.json` and embedded in the persona rubric (`references/subagent-template.md`). This replaces the prior continuous 0.0-1.0 scale with per-severity gates — doc-review economics do not warrant threshold gradation by severity, and coarse anchors prevent false-precision gaming.
 
-| Severity | Gate |
-|----------|------|
-| P0       | 0.50 |
-| P1       | 0.60 |
-| P2       | 0.65 |
-| P3       | 0.75 |
+| Anchor | Meaning | Route |
+|--------|---------|-------|
+| `0`    | False positive or pre-existing issue | Drop silently |
+| `25`   | Might be real but could not verify; stylistic-not-in-origin | Drop silently |
+| `50`   | Verified real but nitpick / advisory / not very important | Surface in FYI subsection |
+| `75`   | Double-checked, will hit in practice, directly impacts correctness | Enter actionable tier (classify by `autofix_class`) |
+| `100`  | Evidence directly confirms; will happen frequently | Enter actionable tier (classify by `autofix_class`) |
 
-Findings at or above their severity's gate survive for classification. Findings below the gate are evaluated for FYI-eligibility:
+- **Dropped silently** (anchors `0` and `25`): these do not surface in any output bucket — not as findings, not as FYI observations, not as residual concerns. Record the drop count in Coverage.
+- **FYI-subsection** (anchor `50`): surface in the presentation layer's FYI subsection regardless of `autofix_class`. These do not enter the walk-through or any bulk action — observational value without forcing a decision. Advisory observations ("nothing breaks, but...") naturally land here.
+- **Actionable** (anchors `75` and `100`): enter the classification pipeline. Route by `autofix_class` (see 3.7).
 
-- **FYI-eligible** when `autofix_class` is `manual` and confidence is between 0.40 (FYI floor) and the severity gate. These surface in an FYI subsection at the presentation layer (see 3.7) but do not enter the walk-through or any bulk action — they exist as observational value without forcing a decision.
-- **Dropped** when confidence is below 0.40, or when the finding is `safe_auto` / `gated_auto` but below the severity gate (auto-apply findings need confidence above the decision gate to avoid silent mistakes).
-
-Record the drop count and the FYI count in Coverage.
+**Why this threshold, not Anthropic's ≥ 80 code-review threshold:** Document review has opposite economics from code review. There is no linter backstop — the review IS the backstop. Premise-level concerns (product-lens, adversarial) naturally cap at anchors 50-75 because "is the motivation valid?" cannot be verified against ground truth. The routing menu already makes dismissal cheap (Skip, Append to Open Questions), so surfaced-and-skipped is a low-cost outcome while missed-and-shipped derails downstream implementation. Filter low (`≥ 50`) and let the routing menu handle volume.
 
 ### 3.3 Deduplicate
 
@@ -39,8 +39,8 @@ Fingerprint each finding using `normalize(section) + normalize(title)`. Normaliz
 When fingerprints match across personas:
 
 - If the findings recommend opposing actions (e.g., one says cut, the other says keep), do not merge — preserve both for contradiction resolution in 3.5
-- Otherwise merge: keep the highest severity, keep the highest confidence, union all evidence arrays, note all agreeing reviewers (e.g., "coherence, feasibility")
-- **Coverage attribution:** Attribute the merged finding to the persona with the highest confidence. Decrement the losing persona's Findings count and the corresponding route bucket so totals stay exact.
+- Otherwise merge: keep the highest severity, keep the highest confidence anchor (if tied, keep the finding appearing first in document order — deterministic, not probabilistic), union all evidence arrays, note all agreeing reviewers (e.g., "coherence, feasibility")
+- **Coverage attribution:** Attribute the merged finding to the persona with the highest confidence anchor. If anchors tie, attribute to the persona whose entry appeared first in document order. Decrement the losing persona's Findings count and the corresponding route bucket so totals stay exact.
 
 ### 3.3b Same-Persona Premise Redundancy Collapse
 
@@ -54,19 +54,23 @@ For each persona, cluster that persona's surviving findings by shared root premi
 
 For each cluster of size N ≥ 3:
 
-- Keep the single finding with the strongest evidence (highest confidence, or if tied, the one citing the most concrete document reference)
-- Demote the remaining N-1 findings to FYI-subsection status, regardless of their original confidence
+- Keep the single finding with the strongest evidence (highest confidence anchor, or if tied, the one citing the most concrete document reference)
+- Demote the remaining N-1 findings to FYI-subsection status (anchor `50`), regardless of their original anchor
 - On the kept finding, note in the Reviewer column that the persona raised N-1 related variants (e.g., `product-lens (+4 related variants demoted to FYI)`)
 
-This runs per-persona before 3.4 cross-persona boost. Cross-persona agreement across the *kept* finding still qualifies for the +0.10 boost; demoted variants do not participate in cross-persona boost (they are observational only after collapse).
+This runs per-persona before 3.4 cross-persona boost. Cross-persona agreement across the *kept* finding still qualifies for the anchor-step promotion in 3.4; demoted variants do not participate in cross-persona promotion (they are observational only after collapse).
 
 Do NOT collapse across personas at this step — different personas surfacing the same concern is exactly the independence signal the cross-persona boost rewards. Collapse applies within one persona's output only.
 
-### 3.4 Cross-Persona Agreement Boost
+### 3.4 Cross-Persona Agreement Promotion
 
-When 2+ independent personas flagged the same merged finding (from 3.3), boost the merged finding's confidence by +0.10 (capped at 1.0). Independent corroboration is strong signal — multiple reviewers converging on the same issue is more reliable than any single reviewer's confidence. Note the boost in the Reviewer column of the output (e.g., "coherence, feasibility +0.10").
+When 2+ independent personas flagged the same merged finding (from 3.3), promote the merged finding's anchor by one step: `50 → 75`, `75 → 100`. Anchor `100` does not promote further (already at the ceiling). Findings at anchors `0` or `25` do not reach this step (they were dropped in 3.2).
 
-This replaces the earlier residual-concern promotion step. Findings below the confidence gate are not promoted back into the review surface; they appear in Coverage as residual concerns only. If a below-gate finding is genuinely important, the reviewer should raise their confidence or provide stronger evidence rather than relying on a promotion rule.
+Independent corroboration is strong signal — multiple reviewers converging on the same issue is more reliable than any single reviewer's anchor. Promoting by one anchor step is semantically meaningful (a "verified but nitpick" finding that two personas independently surface is plausibly "will hit in practice"). This replaces the prior `+0.10` boost — the magic-number bump was calibrated to the continuous scale and no longer applies.
+
+Note the promotion in the Reviewer column of the output (e.g., `coherence, feasibility (+1 anchor)`).
+
+This replaces the earlier residual-concern promotion step. Findings at anchors `0` / `25` are not promoted back into the review surface; they appear only as drop counts in Coverage. If a below-gate finding is genuinely important, the reviewer should raise their anchor through stronger evidence rather than relying on a promotion rule.
 
 ### 3.5 Resolve Contradictions
 
@@ -135,7 +139,7 @@ If multiple candidates match the criteria, elevate ALL of them. The criteria abo
 
 If none match, skip the rest of this step — no chains exist.
 
-**Dependent assignment under multiple roots.** When multiple roots exist and a candidate dependent could plausibly link to more than one, assign it to the root whose rejection most directly dissolves the dependent's concern. If ambiguity remains, assign to the higher-confidence root. A dependent never links to more than one root — a single `depends_on` value.
+**Dependent assignment under multiple roots.** When multiple roots exist and a candidate dependent could plausibly link to more than one, assign it to the root whose rejection most directly dissolves the dependent's concern. If ambiguity remains, assign to the root with the higher confidence anchor; if anchors tie, assign to the root appearing first in document order. A dependent never links to more than one root — a single `depends_on` value.
 
 **Step 2: Identify dependents.** For each candidate root, scan the remaining findings for dependents. The predicate must match the cascade trigger in `references/walkthrough.md` — dependents cascade when the user rejects (Skip/Defer) the root, so dependency is defined on the rejection branch, not the acceptance branch. A finding is a dependent of a root when:
 
@@ -153,9 +157,9 @@ Test with the substitution check: "If the user rejects the root (Skip/Defer), do
 
 When uncertain, default to NOT linking. A mis-linked chain hides a real issue; leaving a finding unlinked only costs one extra decision.
 
-**Step 4: Annotate.** On each dependent, record `depends_on: <root_finding_id>` (use section + normalized title as the id). On each root, record `dependents: [<dependent_ids>]`. Cap `dependents` at 6 entries per root — if more than 6 candidates link to the same root, keep the top 6 by severity then confidence and leave the rest unlinked (over-aggressive chaining risks obscuring independent concerns).
+**Step 4: Annotate.** On each dependent, record `depends_on: <root_finding_id>` (use section + normalized title as the id). On each root, record `dependents: [<dependent_ids>]`. Cap `dependents` at 6 entries per root — if more than 6 candidates link to the same root, keep the top 6 by severity, then confidence anchor (descending), then document order as the deterministic final tiebreak; leave the rest unlinked (over-aggressive chaining risks obscuring independent concerns).
 
-Do NOT reclassify, re-route, or change confidence of any finding in this step. Linking is purely annotative; the walk-through and presentation use the annotation, synthesis proper does not.
+Do NOT reclassify, re-route, or change the confidence anchor of any finding in this step. Linking is purely annotative; the walk-through and presentation use the annotation, synthesis proper does not.
 
 **Step 5: Report in Coverage.** Add a line to the coverage summary: `Chains: N root(s) with M total dependents`. When N = 0, omit the line.
 
@@ -199,12 +203,19 @@ Do not promote if the finding involves scope or priority changes where the autho
 
 **Severity and autofix_class are independent.** A P1 finding can be `safe_auto` if the correct fix is obvious. The test is not "how important?" but "is there one clear correct fix, or does this require judgment?"
 
-| Autofix Class | Route |
-|---------------|-------|
-| `safe_auto`   | Apply silently in Phase 4. Requires `suggested_fix`. Demote to `gated_auto` if missing. |
-| `gated_auto`  | Enter the per-finding walk-through with Apply marked (recommended). Requires `suggested_fix`. Demote to `manual` if missing. |
-| `manual`      | Enter the per-finding walk-through with user-judgment framing. `suggested_fix` is optional. |
-| FYI-subsection | `manual` findings below the severity gate but at or above the FYI floor (0.40) — surface in a distinct FYI subsection of the presentation, do not enter the walk-through or any bulk action. |
+**Anchor and autofix_class are also independent.** Anchor gates the finding into a surface (FYI vs actionable); `autofix_class` decides what the actionable surface does with it. Both are consulted in this step.
+
+Findings reaching 3.7 have already been gated to anchors `50`, `75`, or `100` by 3.2 (anchors `0` and `25` were dropped).
+
+| Anchor | Autofix Class | Route |
+|--------|---------------|-------|
+| `100`  | `safe_auto`   | Apply silently in Phase 4. Requires `suggested_fix`. Demote to `gated_auto` if missing. |
+| `100`  | `gated_auto`  | Enter the per-finding walk-through with Apply marked (recommended). Requires `suggested_fix`. Demote to `manual` if missing. |
+| `100`  | `manual`      | Enter the per-finding walk-through with user-judgment framing. `suggested_fix` is optional. |
+| `75`   | `safe_auto`   | Demote to `gated_auto` before routing — silent apply is reserved for anchor `100` findings where evidence directly confirms the fix. Enter the walk-through with Apply marked (recommended). |
+| `75`   | `gated_auto`  | Enter the per-finding walk-through with Apply marked (recommended). Requires `suggested_fix`. Demote to `manual` if missing. |
+| `75`   | `manual`      | Enter the per-finding walk-through with user-judgment framing. `suggested_fix` is optional. |
+| `50`   | any           | Surface in the FYI subsection regardless of `autofix_class`. Do not enter the walk-through or any bulk action. These are observations, not decisions. |
 
 **Auto-eligible patterns for safe_auto:** summary/detail mismatch (body authoritative over overview), wrong counts, missing list entries derivable from elsewhere in the document, stale internal cross-references, terminology drift, prose/diagram contradictions where prose is more detailed, missing steps mechanically implied by other content, unstated thresholds implied by surrounding context.
 
@@ -212,7 +223,7 @@ Do not promote if the finding involves scope or priority changes where the autho
 
 ### 3.8 Sort
 
-Sort findings for presentation: P0 → P1 → P2 → P3, then by finding type (errors before omissions), then by confidence (descending), then by document order (section position).
+Sort findings for presentation: P0 → P1 → P2 → P3, then by finding type (errors before omissions), then by confidence anchor (descending: `100` first, then `75`, then `50`), then by document order (section position) as the deterministic final tiebreak.
 
 ### 3.9 Suppress Restatements in Residual Concerns and Deferred Questions
 
@@ -260,25 +271,25 @@ Applied N fixes:
 
 Proposed fixes (concrete fix, requires user confirmation):
 
-[P0] Section: <section> — <title> (<reviewer>, confidence <N>)
+[P0] Section: <section> — <title> (<reviewer>, confidence <anchor>)
   Why: <why_it_matters>
   Suggested fix: <suggested_fix>
 
 Decisions (requires user judgment):
 
-[P1] Section: <section> — <title> (<reviewer>, confidence <N>)
+[P1] Section: <section> — <title> (<reviewer>, confidence <anchor>)
   Why: <why_it_matters>
   Suggested fix: <suggested_fix or "none">
 
   Dependents (would resolve if this root is rejected):
-    [P2] Section: <section> — <title> (<reviewer>, confidence <N>)
+    [P2] Section: <section> — <title> (<reviewer>, confidence <anchor>)
       Why: <why_it_matters>
-    [P2] Section: <section> — <title> (<reviewer>, confidence <N>)
+    [P2] Section: <section> — <title> (<reviewer>, confidence <anchor>)
       Why: <why_it_matters>
 
-FYI observations (low-confidence, no decision required):
+FYI observations (anchor 50, no decision required):
 
-[P3] Section: <section> — <title> (<reviewer>, confidence <N>)
+[P3] Section: <section> — <title> (<reviewer>, confidence <anchor>)
   Why: <why_it_matters>
 
 Residual concerns:
@@ -290,7 +301,7 @@ Deferred questions:
 Review complete
 ```
 
-Omit any section with zero items. The section headers reflect user-facing vocabulary: the "Proposed fixes" bucket carries `gated_auto` findings (the persona has a concrete fix; the user confirms), "Decisions" carries above-gate `manual` findings (judgment calls), and "FYI observations" carries `manual` findings between the 0.40 FYI floor and the per-severity gate. When a root has dependents, render the root at its normal position in the severity-sorted list and nest its dependents as an indented `Dependents (...)` sub-block immediately below. Do not re-list dependents at their own severity position — they appear only under their root. End with "Review complete" as the terminal signal so callers can detect completion.
+Omit any section with zero items. The section headers reflect user-facing vocabulary: the "Proposed fixes" bucket carries `gated_auto` findings at anchor `75` or `100` (the persona has a concrete fix; the user confirms), "Decisions" carries `manual` findings at anchor `75` or `100` (judgment calls), and "FYI observations" carries any finding at anchor `50` regardless of `autofix_class`. When a root has dependents, render the root at its normal position in the severity-sorted list and nest its dependents as an indented `Dependents (...)` sub-block immediately below. Do not re-list dependents at their own severity position — they appear only under their root. End with "Review complete" as the terminal signal so callers can detect completion.
 
 **Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list without per-item `Why` expansion. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
 

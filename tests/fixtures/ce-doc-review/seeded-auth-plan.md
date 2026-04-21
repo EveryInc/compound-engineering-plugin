@@ -56,7 +56,7 @@ Seed map (run this plan through ce-doc-review to verify):
     - PII handling during migration window unstated — compliance
       gap independent of premise
 
-- FYI candidates (4, confidence 0.40-0.65 at P3):
+- FYI candidates (4, anchor 50 at P3):
     - naming preference ("AuthContext" vs "SessionContext" — both
       legible in the code)
     - speculative future-work concern (could reuse this for a
@@ -65,7 +65,7 @@ Seed map (run this plan through ce-doc-review to verify):
     - unit-organization preference (could group by route rather
       than by endpoint class — current split also reads fine)
 
-- drop-worthy P3s (3, confidence 0.55-0.74):
+- drop-worthy P3s (3, anchors 0/25):
     - vague performance concern without baseline ("could be slow
       under load")
     - theoretical multi-region concern not relevant to single-region

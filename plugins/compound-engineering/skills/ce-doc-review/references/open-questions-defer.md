@@ -42,8 +42,8 @@ Fields come from the finding's schema:
 - `{title}` — the finding's title field
 - `{section}` — the finding's section field, unmodified (human-readable)
 - `{severity}` — P0 / P1 / P2 / P3
-- `{reviewer}` — the persona that produced the finding (after dedup, the persona with the highest confidence; surface all co-flagging personas if multiple)
-- `{confidence}` — rounded to 2 decimal places
+- `{reviewer}` — the persona that produced the finding (after dedup, the persona with the highest confidence anchor; surface all co-flagging personas if multiple)
+- `{confidence}` — the integer anchor (`50`, `75`, or `100`), emitted without a decimal point or percent sign
 - `{why_it_matters}` — the full why_it_matters text, preserving the framing guidance from the subagent template
 
 HTML-comment fields (machine-readable, used by Step 4 dedup):
@@ -133,7 +133,7 @@ Starting document state:
 
 ### From 2026-04-10 review
 
-- **Alias compatibility-theater concern** — Risks (P1, scope-guardian, confidence 0.87)
+- **Alias compatibility-theater concern** — Risks (P1, scope-guardian, confidence 75)
 
   The alias exists without documented external consumers...
 
@@ -152,7 +152,7 @@ After appending two findings in a 2026-04-18 session:
 
 ### From 2026-04-10 review
 
-- **Alias compatibility-theater concern** — Risks (P1, scope-guardian, confidence 0.87)
+- **Alias compatibility-theater concern** — Risks (P1, scope-guardian, confidence 75)
 
   The alias exists without documented external consumers...
 
@@ -160,14 +160,14 @@ After appending two findings in a 2026-04-18 session:
 
 ### From 2026-04-18 review
 
-- **Unit 2/3 merge judgment call** — Scope Boundaries (P2, scope-guardian, confidence 0.78)
+- **Unit 2/3 merge judgment call** — Scope Boundaries (P2, scope-guardian, confidence 75)
 
   The two units update consumer sites that deploy together. Splitting
   adds dependency tracking without enabling independent delivery.
 
   <!-- dedup-key: section="scope boundaries" title="unit 23 merge judgment call" evidence="the two units update consumer sites that deploy together" -->
 
-- **Strawman alternatives on migration strategy** — Unit 3 Files (P2, coherence, confidence 0.72)
+- **Strawman alternatives on migration strategy** — Unit 3 Files (P2, coherence, confidence 75)
 
   The fix options list (a) through (c) as alternatives, but (b) and (c)
   are "accept the regression" framings that don't solve the problem the

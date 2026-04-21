@@ -34,10 +34,12 @@ Explain what's missing: the functional design thinking that makes the interface 
 
 ## Confidence calibration
 
-- **HIGH (0.80+):** Missing states/flows that will clearly cause UX problems during implementation.
-- **MODERATE (0.60-0.79):** Gap exists but a skilled designer could resolve from context.
-- **LOW (0.40-0.59) — Advisory:** Pattern or micro-layout preference without strong usability evidence (e.g., button placement alternatives, visual hierarchy micro-choices). Still requires an evidence quote. Use this band so synthesis can route the finding to FYI rather than force a decision.
-- **Below 0.40:** Suppress.
+Use the shared anchored rubric (see `subagent-template.md` — Confidence rubric). Design-lens's domain grounds in named interaction states and user flows. Apply as:
+
+- **`100` — Absolutely certain:** Missing states or flows that will clearly cause UX problems during implementation. Evidence directly confirms the gap — the document names an interaction without the corresponding state or transition.
+- **`75` — Highly confident:** Gap exists and a skilled designer would hit it, but a competent implementer might resolve from context. You double-checked and the issue will surface in practice.
+- **`50` — Advisory (routes to FYI):** Pattern or micro-layout preference without strong usability evidence (button placement alternatives, visual hierarchy micro-choices). Still requires an evidence quote. Surfaces as observation without forcing a decision.
+- **Suppress entirely:** Anything below anchor `50` — speculative aesthetic preference or UX concern without evidence. Do not emit; anchors `0` and `25` exist in the enum only so synthesis can track drops.
 
 ## What you don't flag
 
