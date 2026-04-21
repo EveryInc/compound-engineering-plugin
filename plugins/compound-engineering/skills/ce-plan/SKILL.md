@@ -472,9 +472,13 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 
 [What is changing and why]
 
+---
+
 ## Problem Frame
 
 [Summarize the user/business problem and context. Reference the origin doc when present.]
+
+---
 
 ## Requirements Trace
 
@@ -489,6 +493,8 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 **Origin actors:** [A1 (role/name), A2 (role/name), …]
 **Origin flows:** [F1 (flow name), F2 (flow name), …]
 **Origin acceptance examples:** [AE1 (covers R1, R4), AE2 (covers R3), …]
+
+---
 
 ## Scope Boundaries
 
@@ -531,6 +537,8 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 - [Item]
 -->
 
+---
+
 ## Context & Research
 
 ### Relevant Code and Patterns
@@ -545,9 +553,13 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 
 - [Relevant external docs or best-practice source, if used]
 
+---
+
 ## Key Technical Decisions
 
 - [Decision]: [Rationale]
+
+---
 
 ## Open Questions
 
@@ -559,6 +571,8 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 
 - [Question or unknown]: [Why it is intentionally deferred]
 
+---
+
 <!-- Optional: Include when the plan creates a new directory structure (greenfield plugin,
      new service, new package). Shows the expected output shape at a glance. Omit for plans
      that only modify existing files. This is a scope declaration, not a constraint --
@@ -566,6 +580,8 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 ## Output Structure
 
     [directory tree showing new directories and files]
+
+---
 
 <!-- Optional: Include this section only when the work involves DSL design, multi-component
      integration, complex data flow, state-heavy lifecycle, or other cases where prose alone
@@ -576,6 +592,8 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 > *This illustrates the intended approach and is directional guidance for review, not implementation specification. The implementing agent should treat it as context, not code to reproduce.*
 
 [Pseudo-code grammar, mermaid diagram, data flow sketch, or state diagram — choose the medium that best communicates the solution shape for this work.]
+
+---
 
 ## Implementation Units
 
@@ -615,6 +633,8 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 **Verification:**
 - [Outcome that should hold when this unit is complete]
 
+---
+
 ## System-Wide Impact
 
 - **Interaction graph:** [What callbacks, middleware, observers, or entry points may be affected]
@@ -624,15 +644,21 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 - **Integration coverage:** [Cross-layer scenarios unit tests alone will not prove]
 - **Unchanged invariants:** [Existing APIs, interfaces, or behaviors that this plan explicitly does not change — and how the new work relates to them. Include when the change touches shared surfaces and reviewers need blast-radius assurance]
 
+---
+
 ## Risks & Dependencies
 
 | Risk | Mitigation |
 |------|------------|
 | [Meaningful risk] | [How it is addressed or accepted] |
 
+---
+
 ## Documentation / Operational Notes
 
 - [Docs, rollout, monitoring, or support impacts when relevant]
+
+---
 
 ## Sources & References
 
@@ -649,19 +675,27 @@ For larger `Deep` plans, extend the core template only when useful with sections
 
 - [Approach]: [Why rejected or not chosen]
 
+---
+
 ## Success Metrics
 
 - [How we will know this solved the intended problem]
 
+---
+
 ## Dependencies / Prerequisites
 
 - [Technical, organizational, or rollout dependency]
+
+---
 
 ## Risk Analysis & Mitigation
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|-----------|--------|------------|
 | [Risk] | [Low/Med/High] | [Low/Med/High] | [How addressed] |
+
+---
 
 ## Phased Delivery
 
@@ -671,9 +705,13 @@ For larger `Deep` plans, extend the core template only when useful with sections
 ### Phase 2
 - [What follows and why]
 
+---
+
 ## Documentation Plan
 
 - [Docs or runbooks to update]
+
+---
 
 ## Operational / Rollout Notes
 
@@ -682,6 +720,7 @@ For larger `Deep` plans, extend the core template only when useful with sections
 
 #### 4.3 Planning Rules
 
+- **Horizontal rules (`---`) between top-level sections** in Standard and Deep plans, mirroring the `ce-brainstorm` requirements doc convention. Improves scannability of dense plans where many H2 sections sit close together. Omit for Lightweight plans where the whole doc fits on a single screen.
 - **All file paths must be repo-relative** — never use absolute paths like `/Users/name/Code/project/src/file.ts`. Use `src/file.ts` instead. Absolute paths make plans non-portable across machines, worktrees, and teammates. When a plan targets a different repo than the document's home, state the target repo once at the top of the plan (e.g., `**Target repo:** my-other-project`) and use repo-relative paths throughout
 - Prefer path plus class/component/pattern references over brittle line numbers
 - Keep implementation units checkable with `- [ ]` syntax for progress tracking
