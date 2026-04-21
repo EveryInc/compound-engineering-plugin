@@ -150,7 +150,7 @@ Before generating approaches, challenge the request to catch misframing. Match d
 - What adjacent product could we accidentally build instead, and why is that the wrong one?
 - What would have to be true in the world for this to fail?
 
-These questions force an explicit product thesis and feed the Positioning subsection and Dependencies / Assumptions in the requirements document.
+These questions force an explicit product thesis and feed the Scope Boundaries subsections ("Deferred for later" and "Outside this product's identity") and Dependencies / Assumptions in the requirements document.
 
 #### 1.3 Collaborative Dialogue
 
