@@ -266,7 +266,7 @@ This is the **conditionality design rule** the PR also introduces.
 
 ---
 
-- [ ] **U4: `deepening-workflow.md` checklist updates**
+- [x] **U4: `deepening-workflow.md` checklist updates**
 
 **Goal:** Update the deepening machinery so the new contract is enforced where plans are actually strengthened. Most critical addition: a U-ID stability warning at the most likely renumber-accident vector.
 
