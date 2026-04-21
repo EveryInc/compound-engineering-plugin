@@ -597,7 +597,7 @@ describe("ce-compound frontmatter schema expansion contract", () => {
 describe("ce-learnings-researcher domain-agnostic contract", () => {
   test("agent prompt frames as domain-agnostic not bug-focused", async () => {
     const agent = await readRepoFile(
-      "plugins/compound-engineering/agents/research/ce-learnings-researcher.agent.md"
+      "plugins/compound-engineering/agents/ce-learnings-researcher.agent.md"
     )
 
     // Domain-agnostic identity framing

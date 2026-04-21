@@ -205,11 +205,11 @@ describe("ce-code-review contract", () => {
     )
 
     for (const agent of [
-      "review:ce-dhh-rails-reviewer",
-      "review:ce-kieran-rails-reviewer",
-      "review:ce-kieran-python-reviewer",
-      "review:ce-kieran-typescript-reviewer",
-      "review:ce-julik-frontend-races-reviewer",
+      "ce-dhh-rails-reviewer",
+      "ce-kieran-rails-reviewer",
+      "ce-kieran-python-reviewer",
+      "ce-kieran-typescript-reviewer",
+      "ce-julik-frontend-races-reviewer",
     ]) {
       expect(content).toContain(agent)
       expect(catalog).toContain(agent)
@@ -222,23 +222,23 @@ describe("ce-code-review contract", () => {
   test("stack-specific reviewer agents follow the structured findings contract", async () => {
     const reviewers = [
       {
-        path: "plugins/compound-engineering/agents/review/ce-dhh-rails-reviewer.agent.md",
+        path: "plugins/compound-engineering/agents/ce-dhh-rails-reviewer.agent.md",
         reviewer: "dhh-rails",
       },
       {
-        path: "plugins/compound-engineering/agents/review/ce-kieran-rails-reviewer.agent.md",
+        path: "plugins/compound-engineering/agents/ce-kieran-rails-reviewer.agent.md",
         reviewer: "kieran-rails",
       },
       {
-        path: "plugins/compound-engineering/agents/review/ce-kieran-python-reviewer.agent.md",
+        path: "plugins/compound-engineering/agents/ce-kieran-python-reviewer.agent.md",
         reviewer: "kieran-python",
       },
       {
-        path: "plugins/compound-engineering/agents/review/ce-kieran-typescript-reviewer.agent.md",
+        path: "plugins/compound-engineering/agents/ce-kieran-typescript-reviewer.agent.md",
         reviewer: "kieran-typescript",
       },
       {
-        path: "plugins/compound-engineering/agents/review/ce-julik-frontend-races-reviewer.agent.md",
+        path: "plugins/compound-engineering/agents/ce-julik-frontend-races-reviewer.agent.md",
         reviewer: "julik-frontend-races",
       },
     ]
@@ -262,7 +262,7 @@ describe("ce-code-review contract", () => {
 
   test("leaves data-migration-expert as the unstructured review format", async () => {
     const content = await readRepoFile(
-      "plugins/compound-engineering/agents/review/ce-data-migration-expert.agent.md",
+      "plugins/compound-engineering/agents/ce-data-migration-expert.agent.md",
     )
 
     expect(content).toContain("## Reviewer Checklist")
@@ -304,7 +304,7 @@ describe("ce-code-review contract", () => {
 
 describe("testing-reviewer contract", () => {
   test("includes behavioral-changes-with-no-test-additions check", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/agents/review/ce-testing-reviewer.agent.md")
+    const content = await readRepoFile("plugins/compound-engineering/agents/ce-testing-reviewer.agent.md")
 
     // New check exists in "What you're hunting for" section
     expect(content).toContain("Behavioral changes with no test additions")

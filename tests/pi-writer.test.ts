@@ -32,7 +32,7 @@ describe("writePiBundle", () => {
     const outputRoot = path.join(tempRoot, ".pi")
 
     const sessionHistorianDescription = await pluginDescription(
-      "plugins/compound-engineering/agents/research/ce-session-historian.agent.md",
+      "plugins/compound-engineering/agents/ce-session-historian.agent.md",
     )
 
     await fs.mkdir(path.join(outputRoot, "skills", "session-historian"), { recursive: true })

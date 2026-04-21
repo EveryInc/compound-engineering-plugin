@@ -299,9 +299,7 @@ async function cleanupLegacyAgentSkillDirs(
   const currentSkillSet = new Set(currentSkills)
   const legacySkillNames = new Set<string>()
   for (const agent of bundle.agents ?? []) {
-    const finalSegment = agent.name.includes("-ce-") ? agent.name.split("-ce-").pop() : agent.name
     legacySkillNames.add(sanitizePathName(agent.name))
-    if (finalSegment) legacySkillNames.add(`ce-${sanitizePathName(finalSegment)}`)
   }
   for (const name of getLegacyCodexArtifacts({
     pluginName,
