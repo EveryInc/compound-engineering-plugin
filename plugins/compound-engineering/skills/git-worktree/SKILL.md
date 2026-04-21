@@ -21,6 +21,11 @@ This skill provides a unified interface for managing Git worktrees across your d
 
 **NEVER call `git worktree add` directly.** Always use the `worktree-manager.sh` script.
 
+> **Platform requirement**: `CLAUDE_PLUGIN_ROOT` is set automatically by Claude Code. On other platforms (Codex, Gemini CLI, etc.) it is unset and all script paths below will fail. Before running any command, verify the variable is set:
+> ```bash
+> : "${CLAUDE_PLUGIN_ROOT:?'CLAUDE_PLUGIN_ROOT is not set — this skill requires Claude Code or a manual export of the plugin path'}"
+> ```
+
 The script handles critical setup that raw git commands don't:
 1. Copies `.env`, `.env.local`, `.env.test`, etc. from main repo
 2. Ensures `.worktrees` is in `.gitignore`
