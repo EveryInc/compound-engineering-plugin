@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
-import { ensureDir, pathExists, readText, sanitizePathName, writeJson } from "../utils/files"
+import { ensureDir, isSafeManagedPath, pathExists, readText, sanitizePathName, writeJson } from "../utils/files"
 
 const MANAGED_INSTALL_MANIFEST = "install-manifest.json"
 const LEGACY_MANAGED_SEGMENT = "compound-engineering"
@@ -110,7 +110,27 @@ export async function readManagedInstallManifest(
       !Array.isArray(parsed.groups) &&
       Object.values(parsed.groups).every((entries) => Array.isArray(entries))
     ) {
-      return parsed as ManagedInstallManifest
+      // Filter manifest entries at read time: cleanup joins these strings
+      // into fs.rm paths, so a corrupted or tampered manifest with entries
+      // like `../../config.toml` could delete outside the managed root.
+      // We drop unsafe entries here (primary defense) and warn so operators
+      // see the corruption signal. Cleanup functions also re-check each
+      // entry (defense in depth).
+      const safeGroups: Record<string, string[]> = {}
+      for (const [group, entries] of Object.entries(parsed.groups)) {
+        const safe: string[] = []
+        for (const entry of entries as unknown[]) {
+          if (isSafeManagedPath(managedDir, entry)) {
+            safe.push(entry)
+          } else {
+            console.warn(
+              `Dropping unsafe install-manifest entry in ${manifestPath} (group "${group}"): ${JSON.stringify(entry)}`,
+            )
+          }
+        }
+        safeGroups[group] = safe
+      }
+      return { version: 1, pluginName, groups: safeGroups }
     }
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
@@ -136,9 +156,12 @@ export async function cleanupRemovedManagedDirectories(
   if (!manifest) return
   const current = new Set(currentEntries)
   for (const relativePath of manifest.groups[group] ?? []) {
-    if (!current.has(relativePath)) {
-      await fs.rm(resolveArtifactPath(rootDir, relativePath), { recursive: true, force: true })
-    }
+    if (current.has(relativePath)) continue
+    // Defense in depth: `readManagedInstallManifest` already drops unsafe
+    // entries, but re-check here so any future caller that bypasses the
+    // read layer cannot trigger out-of-tree deletes.
+    if (!isSafeManagedPath(rootDir, relativePath)) continue
+    await fs.rm(resolveArtifactPath(rootDir, relativePath), { recursive: true, force: true })
   }
 }
 
@@ -151,9 +174,9 @@ export async function cleanupRemovedManagedFiles(
   if (!manifest) return
   const current = new Set(currentEntries)
   for (const relativePath of manifest.groups[group] ?? []) {
-    if (!current.has(relativePath)) {
-      await fs.rm(resolveArtifactPath(rootDir, relativePath), { force: true })
-    }
+    if (current.has(relativePath)) continue
+    if (!isSafeManagedPath(rootDir, relativePath)) continue
+    await fs.rm(resolveArtifactPath(rootDir, relativePath), { force: true })
   }
 }
 

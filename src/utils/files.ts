@@ -86,6 +86,43 @@ export function sanitizePathName(name: string): string {
 }
 
 /**
+ * Validate that a manifest-supplied relative path is safe to join against a
+ * managed root before deleting or moving anything at that location.
+ *
+ * Install manifests (`install-manifest.json`) are read back from disk during
+ * reinstall/cleanup and fed into `fs.rm`/`fs.rename`. An attacker or a
+ * corrupted file could include entries like `../../config.toml` or
+ * `/etc/passwd` that would cause the cleanup to operate outside the intended
+ * managed tree. This helper rejects:
+ *
+ *   - non-string values
+ *   - empty strings
+ *   - absolute paths (POSIX `/foo`, Windows `C:\foo`)
+ *   - any `..` path segment (including `foo/../bar`)
+ *   - paths that, when joined with `rootDir`, resolve outside `rootDir`
+ *
+ * The `rootDir` check is defense-in-depth against edge cases the first two
+ * checks miss (e.g. platform-specific separators or encoded traversal the
+ * split-based check didn't catch).
+ */
+export function isSafeManagedPath(rootDir: string, candidate: unknown): candidate is string {
+  if (typeof candidate !== "string" || candidate.length === 0) return false
+  if (path.isAbsolute(candidate)) return false
+  // Reject any traversal segment (`..`) split on either separator so the
+  // check is uniform across platforms.
+  const segments = candidate.split(/[\\/]/)
+  if (segments.some((segment) => segment === "..")) return false
+  // Final containment check: the fully-resolved candidate must stay inside
+  // the resolved root. This catches anything the above two checks missed.
+  const resolvedRoot = path.resolve(rootDir)
+  const resolvedCandidate = path.resolve(resolvedRoot, candidate)
+  if (resolvedCandidate !== resolvedRoot && !resolvedCandidate.startsWith(resolvedRoot + path.sep)) {
+    return false
+  }
+  return true
+}
+
+/**
  * Resolve a colon-separated command name into a filesystem path.
  * e.g. resolveCommandPath("/commands", "ce:plan", ".md") -> "/commands/ce/plan.md"
  * Creates intermediate directories as needed.

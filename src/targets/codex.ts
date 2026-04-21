@@ -1,6 +1,6 @@
 import fs from "fs/promises"
 import path from "path"
-import { backupFile, copyDir, copySkillDir, ensureDir, pathExists, sanitizePathName, writeJson, writeText, writeTextSecure } from "../utils/files"
+import { backupFile, copyDir, copySkillDir, ensureDir, isSafeManagedPath, pathExists, sanitizePathName, writeJson, writeText, writeTextSecure } from "../utils/files"
 import type { CodexBundle } from "../types/codex"
 import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
@@ -142,12 +142,21 @@ async function readInstallManifest(codexRoot: string, pluginName: string): Promi
       Array.isArray(parsed.skills) &&
       Array.isArray(parsed.prompts)
     ) {
+      // Filter manifest entries at read time. Cleanup functions join these
+      // strings into `fs.rm` paths, so a tampered or corrupted
+      // `install-manifest.json` could otherwise delete outside the Codex
+      // managed tree. Codex entries are bare leaf names joined against
+      // `skills/<plugin>`, `prompts/`, or `agents/<plugin>` — but the
+      // absolute-path and `..`-segment checks are root-independent, and we
+      // use `codexRoot` for the containment check as the outermost root
+      // that contains every possible destination.
+      const agents = Array.isArray(parsed.agents) ? parsed.agents : []
       return {
         version: 1,
         pluginName,
-        skills: parsed.skills,
-        prompts: parsed.prompts,
-        agents: Array.isArray(parsed.agents) ? parsed.agents : [],
+        skills: filterSafeCodexManifestEntries(parsed.skills, codexRoot, manifestPath, "skills"),
+        prompts: filterSafeCodexManifestEntries(parsed.prompts, codexRoot, manifestPath, "prompts"),
+        agents: filterSafeCodexManifestEntries(agents, codexRoot, manifestPath, "agents"),
       }
     }
   } catch (err) {
@@ -156,6 +165,25 @@ async function readInstallManifest(codexRoot: string, pluginName: string): Promi
     }
   }
   return null
+}
+
+function filterSafeCodexManifestEntries(
+  entries: unknown[],
+  codexRoot: string,
+  manifestPath: string,
+  group: string,
+): string[] {
+  const safe: string[] = []
+  for (const entry of entries) {
+    if (isSafeManagedPath(codexRoot, entry)) {
+      safe.push(entry)
+    } else {
+      console.warn(
+        `Dropping unsafe Codex install-manifest entry in ${manifestPath} (group "${group}"): ${JSON.stringify(entry)}`,
+      )
+    }
+  }
+  return safe
 }
 
 async function writeInstallManifest(codexRoot: string, manifest: CodexInstallManifest): Promise<void> {
@@ -170,9 +198,12 @@ async function cleanupRemovedSkills(
   if (!manifest) return
   const current = new Set(currentSkills)
   for (const skillName of manifest.skills) {
-    if (!current.has(skillName)) {
-      await fs.rm(path.join(skillsRoot, skillName), { recursive: true, force: true })
-    }
+    if (current.has(skillName)) continue
+    // Defense in depth: `readInstallManifest` already drops unsafe entries,
+    // but re-check before any out-of-tree fs.rm can be issued from a future
+    // caller that bypasses the read layer.
+    if (!isSafeManagedPath(skillsRoot, skillName)) continue
+    await fs.rm(path.join(skillsRoot, skillName), { recursive: true, force: true })
   }
 }
 
@@ -184,9 +215,9 @@ async function cleanupRemovedPrompts(
   if (!manifest) return
   const current = new Set(currentPrompts)
   for (const promptFile of manifest.prompts) {
-    if (!current.has(promptFile)) {
-      await fs.rm(path.join(promptsDir, promptFile), { force: true })
-    }
+    if (current.has(promptFile)) continue
+    if (!isSafeManagedPath(promptsDir, promptFile)) continue
+    await fs.rm(path.join(promptsDir, promptFile), { force: true })
   }
 }
 
@@ -198,10 +229,10 @@ async function cleanupRemovedAgents(
   if (!manifest) return
   const current = new Set(currentAgents)
   for (const agentFile of manifest.agents) {
-    if (!current.has(agentFile)) {
-      await fs.rm(path.join(agentsRoot, agentFile), { force: true })
-      await fs.rm(path.join(agentsRoot, path.basename(agentFile, ".toml")), { recursive: true, force: true })
-    }
+    if (current.has(agentFile)) continue
+    if (!isSafeManagedPath(agentsRoot, agentFile)) continue
+    await fs.rm(path.join(agentsRoot, agentFile), { force: true })
+    await fs.rm(path.join(agentsRoot, path.basename(agentFile, ".toml")), { recursive: true, force: true })
   }
 }
 

@@ -24,7 +24,7 @@ import {
 } from "../data/plugin-legacy-artifacts"
 import { moveLegacyArtifactToBackup } from "../targets/managed-artifacts"
 import { readCodexInstallManifest } from "../targets/codex"
-import { pathExists, readJson, sanitizePathName } from "../utils/files"
+import { isSafeManagedPath, pathExists, readJson, sanitizePathName } from "../utils/files"
 import { resolveOpenCodeGlobalRoot } from "../utils/opencode-config"
 import { expandHome, resolveTargetHome } from "../utils/resolve-home"
 
@@ -548,6 +548,12 @@ async function moveIfExists(
   relativePath: string,
   label: string,
 ): Promise<number> {
+  // Defense in depth: relativePath comes from either the historical legacy
+  // allow-list (safe by construction) or an install-manifest entry that
+  // `readManagedInstallManifest` / `readInstallManifest` already filtered.
+  // Re-check here so any future caller that skips the read layer cannot
+  // issue an out-of-tree rename via `moveLegacyArtifactToBackup`.
+  if (!isSafeManagedPath(artifactRoot, relativePath)) return 0
   const artifactPath = path.join(artifactRoot, ...relativePath.split("/"))
   if (!(await pathExists(artifactPath))) return 0
   await moveLegacyArtifactToBackup(managedDir, kind, artifactRoot, relativePath, label)
