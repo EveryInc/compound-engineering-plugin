@@ -24,11 +24,11 @@ Before going online, check if curated knowledge already exists in skills:
 
 2. **Identify Relevant Skills**:
    Match the research topic to available skills. Common mappings:
-   - Rails/Ruby → `ce-dhh-rails-style`, `ce-andrew-kane-gem-writer`, `ce-dspy-ruby`
+   - Rails/Ruby → `ce-dhh-rails-style`
    - Frontend/Design → `ce-frontend-design`, `swiss-design`
    - TypeScript/React → `react-best-practices`
    - AI/Agents → `ce-agent-native-architecture`
-  - Documentation → `ce-compound`, `ce-every-style-editor`
+   - Documentation → `ce-compound`
    - File operations → `rclone`, `ce-worktree`
    - Image generation → `ce-gemini-imagegen`
 

@@ -85,6 +85,13 @@ const STALE_SKILL_DIRS = [
   "ce-document-review",
   "ce-plan-beta",
   "ce-review-beta",
+
+  // Removed skills (no replacement)
+  "ce-andrew-kane-gem-writer",
+  "ce-changelog",
+  "ce-deploy-docs",
+  "ce-dspy-ruby",
+  "ce-every-style-editor",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */

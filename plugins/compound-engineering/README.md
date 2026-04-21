@@ -55,7 +55,6 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 | Skill | Description |
 |-------|-------------|
 | `/ce-demo-reel` | Capture a visual demo reel (GIF demos, terminal recordings, screenshots) for PRs with project-type-aware tier selection |
-| `/ce-changelog` | Create engaging changelogs for recent merges |
 | `/ce-report-bug` | Report a bug in the compound-engineering plugin |
 | `/ce-resolve-pr-feedback` | Resolve PR review feedback in parallel |
 | `/ce-test-browser` | Run browser tests on PR-affected pages |
@@ -72,9 +71,7 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 | Skill | Description |
 |-------|-------------|
 | `ce-agent-native-architecture` | Build AI agents using prompt-native architecture |
-| `ce-andrew-kane-gem-writer` | Write Ruby gems following Andrew Kane's patterns |
 | `ce-dhh-rails-style` | Write Ruby/Rails code in DHH's 37signals style |
-| `ce-dspy-ruby` | Build type-safe LLM applications with DSPy.rb |
 | `ce-frontend-design` | Create production-grade frontend interfaces |
 
 ### Review & Quality
@@ -87,7 +84,6 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 
 | Skill | Description |
 |-------|-------------|
-| `ce-every-style-editor` | Review copy for Every's style guide compliance |
 | `ce-proof` | Create, edit, and share documents via Proof collaborative editor |
 | `ce-todo-create` | File-based todo tracking system |
 
