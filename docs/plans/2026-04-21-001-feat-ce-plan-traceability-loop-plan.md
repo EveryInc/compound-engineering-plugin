@@ -228,7 +228,7 @@ This is the **conditionality design rule** the PR also introduces.
 
 ---
 
-- [ ] **U3: AE-link convention + Alternatives rule + Phase 5.1 checklist updates in `ce-plan/SKILL.md`**
+- [x] **U3: AE-link convention + Alternatives rule + Phase 5.1 checklist updates in `ce-plan/SKILL.md`**
 
 **Goal:** Add the three smaller workflow rules: AE-link convention for test scenarios, planning-side Alternatives rule mirroring brainstorm's, and Phase 5.1 finalization checklist entries that enforce the new origin-traceability contract using judgment-call phrasing.
 
