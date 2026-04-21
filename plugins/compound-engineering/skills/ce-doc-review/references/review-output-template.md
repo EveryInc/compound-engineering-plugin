@@ -72,7 +72,7 @@ Low-confidence observations surfaced without requiring a decision. Content advis
 
 ### Residual Concerns
 
-Residual concerns are issues the reviewers noticed but could not confirm with above-gate confidence. These are not actionable; they appear here for transparency only and are not promoted into the review surface.
+Residual concerns are issues the reviewers noticed but could not confirm at confidence anchor `50` or higher. These are not actionable; they appear here for transparency only and are not promoted into the review surface.
 
 | # | Concern | Source |
 |---|---------|--------|

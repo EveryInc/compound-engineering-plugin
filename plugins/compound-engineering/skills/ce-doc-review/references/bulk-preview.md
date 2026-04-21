@@ -10,8 +10,8 @@ Interactive mode only.
 
 Three call sites:
 
-1. **Routing option B (top-level LFG)** — after the user picks `LFG. Apply the agent's best-judgment action per finding` from the routing question, but before any action executes. Scope: every pending `gated_auto` / above-gate `manual` finding.
-2. **Routing option C (top-level Append-to-Open-Questions)** — after the user picks `Append findings to the doc's Open Questions section and proceed` but before any append runs. Scope: every pending `gated_auto` / above-gate `manual` finding. Every finding appears under `Appending to Open Questions (N):` regardless of the agent's natural recommendation, because option C is batch-defer.
+1. **Routing option B (top-level LFG)** — after the user picks `LFG. Apply the agent's best-judgment action per finding` from the routing question, but before any action executes. Scope: every pending `gated_auto` or `manual` finding at confidence anchor `75` or `100`.
+2. **Routing option C (top-level Append-to-Open-Questions)** — after the user picks `Append findings to the doc's Open Questions section and proceed` but before any append runs. Scope: every pending `gated_auto` or `manual` finding at confidence anchor `75` or `100`. Every finding appears under `Appending to Open Questions (N):` regardless of the agent's natural recommendation, because option C is batch-defer.
 3. **Walk-through `LFG the rest`** — after the user picks `LFG the rest — apply the agent's best judgment to this and remaining findings` from a per-finding question, but before the remaining findings are resolved. Scope: the current finding and everything not yet decided. Already-decided findings from the walk-through are not included in the preview.
 
 In all three cases the user confirms with `Proceed` or backs out with `Cancel`. No per-item decisions inside the preview — per-item decisioning is the walk-through's role.
