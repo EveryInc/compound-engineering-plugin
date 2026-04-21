@@ -75,17 +75,19 @@ Or search for "compound engineering" in the plugin marketplace.
 
 Three steps: register the marketplace, install the agent set, then enable the plugin inside Codex.
 
-```bash
-# 1. Register the marketplace with Codex
-codex plugin marketplace add EveryInc/compound-engineering-plugin
+1. **Register the marketplace with Codex:**
 
-# 2. Install the agent set (Codex's plugin spec doesn't register custom agents yet)
-bunx @every-env/compound-plugin install compound-engineering --to codex
-```
+   ```bash
+   codex plugin marketplace add EveryInc/compound-engineering-plugin
+   ```
 
-**3. Enable the plugin inside Codex.** Launch `codex`, run `/plugins`, find the **Compound Engineering** marketplace, select the **compound-engineering** plugin, and choose **Install**. Restart Codex after install completes.
+2. **Install the agent set** (Codex's plugin spec doesn't register custom agents yet):
 
-Codex's CLI doesn't currently have a subcommand for enabling a plugin from an added marketplace — the `/plugins` TUI is the canonical flow.
+   ```bash
+   bunx @every-env/compound-plugin install compound-engineering --to codex
+   ```
+
+3. **Enable the plugin inside Codex:** launch `codex`, run `/plugins`, find the **Compound Engineering** marketplace, select the **compound-engineering** plugin, and choose **Install**. Restart Codex after install completes. Codex's CLI doesn't currently have a subcommand for enabling a plugin from an added marketplace — the `/plugins` TUI is the canonical flow.
 
 All three steps are needed. The marketplace registration + TUI install handles skills; the Bun step adds the review, research, and workflow agents that skills like `ce-code-review`, `ce-plan`, and `ce-work` spawn via `Task`. Without the agent step, delegating skills will report missing agents. The Bun step defaults to agents-only so it doesn't double-register skills.
 
