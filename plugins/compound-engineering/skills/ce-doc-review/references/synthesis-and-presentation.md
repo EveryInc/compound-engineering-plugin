@@ -21,7 +21,7 @@ Gate findings by their `confidence` anchor value. Anchors are discrete integers 
 | Anchor | Meaning | Route |
 |--------|---------|-------|
 | `0`    | False positive or pre-existing issue | Drop silently |
-| `25`   | Might be real but could not verify; stylistic-not-in-origin | Drop silently |
+| `25`   | Might be real but could not verify | Drop silently |
 | `50`   | Verified real but nitpick / advisory / not very important | Surface in FYI subsection |
 | `75`   | Double-checked, will hit in practice, directly impacts correctness | Enter actionable tier (classify by `autofix_class`) |
 | `100`  | Evidence directly confirms; will happen frequently | Enter actionable tier (classify by `autofix_class`) |
