@@ -112,42 +112,42 @@ Routing rules:
 
 | Agent | Focus |
 |-------|-------|
-| `review:ce-correctness-reviewer` | Logic errors, edge cases, state bugs, error propagation |
-| `review:ce-testing-reviewer` | Coverage gaps, weak assertions, brittle tests |
-| `review:ce-maintainability-reviewer` | Coupling, complexity, naming, dead code, abstraction debt |
-| `review:ce-project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance -- frontmatter, references, naming, portability |
-| `review:ce-agent-native-reviewer` | Verify new features are agent-accessible |
-| `research:ce-learnings-researcher` | Search docs/solutions/ for past issues related to this PR |
+| `ce-correctness-reviewer` | Logic errors, edge cases, state bugs, error propagation |
+| `ce-testing-reviewer` | Coverage gaps, weak assertions, brittle tests |
+| `ce-maintainability-reviewer` | Coupling, complexity, naming, dead code, abstraction debt |
+| `ce-project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance -- frontmatter, references, naming, portability |
+| `ce-agent-native-reviewer` | Verify new features are agent-accessible |
+| `ce-learnings-researcher` | Search docs/solutions/ for past issues related to this PR |
 
 **Cross-cutting conditional (selected per diff):**
 
 | Agent | Select when diff touches... |
 |-------|---------------------------|
-| `review:ce-security-reviewer` | Auth, public endpoints, user input, permissions |
-| `review:ce-performance-reviewer` | DB queries, data transforms, caching, async |
-| `review:ce-api-contract-reviewer` | Routes, serializers, type signatures, versioning |
-| `review:ce-data-migrations-reviewer` | Migrations, schema changes, backfills |
-| `review:ce-reliability-reviewer` | Error handling, retries, timeouts, background jobs |
-| `review:ce-adversarial-reviewer` | Diff >=50 changed non-test/non-generated/non-lockfile lines, or auth, payments, data mutations, external APIs |
-| `review:ce-cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
-| `review:ce-previous-comments-reviewer` | Reviewing a PR that has existing review comments or threads |
+| `ce-security-reviewer` | Auth, public endpoints, user input, permissions |
+| `ce-performance-reviewer` | DB queries, data transforms, caching, async |
+| `ce-api-contract-reviewer` | Routes, serializers, type signatures, versioning |
+| `ce-data-migrations-reviewer` | Migrations, schema changes, backfills |
+| `ce-reliability-reviewer` | Error handling, retries, timeouts, background jobs |
+| `ce-adversarial-reviewer` | Diff >=50 changed non-test/non-generated/non-lockfile lines, or auth, payments, data mutations, external APIs |
+| `ce-cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
+| `ce-previous-comments-reviewer` | Reviewing a PR that has existing review comments or threads |
 
 **Stack-specific conditional (selected per diff):**
 
 | Agent | Select when diff touches... |
 |-------|---------------------------|
-| `review:ce-dhh-rails-reviewer` | Rails architecture, service objects, session/auth choices, or Hotwire-vs-SPA boundaries |
-| `review:ce-kieran-rails-reviewer` | Rails application code where conventions, naming, and maintainability are in play |
-| `review:ce-kieran-python-reviewer` | Python modules, endpoints, scripts, or services |
-| `review:ce-kieran-typescript-reviewer` | TypeScript components, services, hooks, utilities, or shared types |
-| `review:ce-julik-frontend-races-reviewer` | Stimulus/Turbo controllers, DOM events, timers, animations, or async UI flows |
+| `ce-dhh-rails-reviewer` | Rails architecture, service objects, session/auth choices, or Hotwire-vs-SPA boundaries |
+| `ce-kieran-rails-reviewer` | Rails application code where conventions, naming, and maintainability are in play |
+| `ce-kieran-python-reviewer` | Python modules, endpoints, scripts, or services |
+| `ce-kieran-typescript-reviewer` | TypeScript components, services, hooks, utilities, or shared types |
+| `ce-julik-frontend-races-reviewer` | Stimulus/Turbo controllers, DOM events, timers, animations, or async UI flows |
 
 **CE conditional (migration-specific):**
 
 | Agent | Select when diff includes migration files |
 |-------|------------------------------------------|
-| `review:ce-schema-drift-detector` | Cross-references schema.rb against included migrations |
-| `review:ce-deployment-verification-agent` | Produces deployment checklist with SQL verification queries |
+| `ce-schema-drift-detector` | Cross-references schema.rb against included migrations |
+| `ce-deployment-verification-agent` | Produces deployment checklist with SQL verification queries |
 
 ## Review Scope
 

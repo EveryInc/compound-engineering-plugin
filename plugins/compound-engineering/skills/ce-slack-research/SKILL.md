@@ -29,7 +29,7 @@ The input can be a keyword, a natural language question, or include Slack search
 
 If no argument is provided, ask what topic to research. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, ask in plain text and wait for a reply.
 
-Dispatch `research:ce-slack-researcher` with the user's topic as the task prompt. Omit the `mode` parameter so the user's configured permission settings apply.
+Dispatch `ce-slack-researcher` with the user's topic as the task prompt. Omit the `mode` parameter so the user's configured permission settings apply.
 
 The agent handles everything from here -- Slack MCP discovery, search execution, thread reads, and synthesis. It returns a digest with:
 

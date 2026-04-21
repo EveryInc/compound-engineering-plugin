@@ -96,43 +96,43 @@ Use fully-qualified agent names inside Task calls.
 **Deterministic Section-to-Agent Mapping:**
 
 **Requirements Trace / Open Questions classification**
-- `workflow:ce-spec-flow-analyzer` for missing user flows, edge cases, and handoff gaps
-- `research:ce-repo-research-analyst` (Scope: `architecture, patterns`) for repo-grounded patterns, conventions, and implementation reality checks
+- `ce-spec-flow-analyzer` for missing user flows, edge cases, and handoff gaps
+- `ce-repo-research-analyst` (Scope: `architecture, patterns`) for repo-grounded patterns, conventions, and implementation reality checks
 
 **Context & Research / Sources & References gaps**
-- `research:ce-learnings-researcher` for institutional knowledge and past solved problems
-- `research:ce-framework-docs-researcher` for official framework or library behavior
-- `research:ce-best-practices-researcher` for current external patterns and industry guidance
-- Add `research:ce-git-history-analyzer` only when historical rationale or prior art is materially missing
+- `ce-learnings-researcher` for institutional knowledge and past solved problems
+- `ce-framework-docs-researcher` for official framework or library behavior
+- `ce-best-practices-researcher` for current external patterns and industry guidance
+- Add `ce-git-history-analyzer` only when historical rationale or prior art is materially missing
 
 **Key Technical Decisions**
-- `review:ce-architecture-strategist` for design integrity, boundaries, and architectural tradeoffs
-- Add `research:ce-framework-docs-researcher` or `research:ce-best-practices-researcher` when the decision needs external grounding beyond repo evidence
+- `ce-architecture-strategist` for design integrity, boundaries, and architectural tradeoffs
+- Add `ce-framework-docs-researcher` or `ce-best-practices-researcher` when the decision needs external grounding beyond repo evidence
 
 **High-Level Technical Design**
-- `review:ce-architecture-strategist` for validating that the technical design accurately represents the intended approach and identifying gaps
-- `research:ce-repo-research-analyst` (Scope: `architecture, patterns`) for grounding the technical design in existing repo patterns and conventions
-- Add `research:ce-best-practices-researcher` when the technical design involves a DSL, API surface, or pattern that benefits from external validation
+- `ce-architecture-strategist` for validating that the technical design accurately represents the intended approach and identifying gaps
+- `ce-repo-research-analyst` (Scope: `architecture, patterns`) for grounding the technical design in existing repo patterns and conventions
+- Add `ce-best-practices-researcher` when the technical design involves a DSL, API surface, or pattern that benefits from external validation
 
 **Implementation Units / Verification**
-- `research:ce-repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, and repo-specific sequencing clues
-- `review:ce-pattern-recognition-specialist` for consistency, duplication risks, and alignment with existing patterns
-- Add `workflow:ce-spec-flow-analyzer` when sequencing depends on user flow or handoff completeness
+- `ce-repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, and repo-specific sequencing clues
+- `ce-pattern-recognition-specialist` for consistency, duplication risks, and alignment with existing patterns
+- Add `ce-spec-flow-analyzer` when sequencing depends on user flow or handoff completeness
 
 **System-Wide Impact**
-- `review:ce-architecture-strategist` for cross-boundary effects, interface surfaces, and architectural knock-on impact
+- `ce-architecture-strategist` for cross-boundary effects, interface surfaces, and architectural knock-on impact
 - Add the specific specialist that matches the risk:
-  - `review:ce-performance-oracle` for scalability, latency, throughput, and resource-risk analysis
-  - `review:ce-security-sentinel` for auth, validation, exploit surfaces, and security boundary review
-  - `review:ce-data-integrity-guardian` for migrations, persistent state safety, consistency, and data lifecycle risks
+  - `ce-performance-oracle` for scalability, latency, throughput, and resource-risk analysis
+  - `ce-security-sentinel` for auth, validation, exploit surfaces, and security boundary review
+  - `ce-data-integrity-guardian` for migrations, persistent state safety, consistency, and data lifecycle risks
 
 **Risks & Dependencies / Operational Notes**
 - Use the specialist that matches the actual risk:
-  - `review:ce-security-sentinel` for security, auth, privacy, and exploit risk
-  - `review:ce-data-integrity-guardian` for persistent data safety, constraints, and transaction boundaries
-  - `review:ce-data-migration-expert` for migration realism, backfills, and production data transformation risk
-  - `review:ce-deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
-  - `review:ce-performance-oracle` for capacity, latency, and scaling concerns
+  - `ce-security-sentinel` for security, auth, privacy, and exploit risk
+  - `ce-data-integrity-guardian` for persistent data safety, constraints, and transaction boundaries
+  - `ce-data-migration-expert` for migration realism, backfills, and production data transformation risk
+  - `ce-deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
+  - `ce-performance-oracle` for capacity, latency, and scaling concerns
 
 **Agent Prompt Shape:**
 

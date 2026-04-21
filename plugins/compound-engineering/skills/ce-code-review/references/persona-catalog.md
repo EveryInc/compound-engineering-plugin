@@ -10,17 +10,17 @@ Spawned on every review regardless of diff content.
 
 | Persona | Agent | Focus |
 |---------|-------|-------|
-| `correctness` | `review:ce-correctness-reviewer` | Logic errors, edge cases, state bugs, error propagation, intent compliance |
-| `testing` | `review:ce-testing-reviewer` | Coverage gaps, weak assertions, brittle tests, missing edge case tests |
-| `maintainability` | `review:ce-maintainability-reviewer` | Coupling, complexity, naming, dead code, premature abstraction |
-| `project-standards` | `review:ce-project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance -- frontmatter, references, naming, cross-platform portability, tool selection |
+| `correctness` | `ce-correctness-reviewer` | Logic errors, edge cases, state bugs, error propagation, intent compliance |
+| `testing` | `ce-testing-reviewer` | Coverage gaps, weak assertions, brittle tests, missing edge case tests |
+| `maintainability` | `ce-maintainability-reviewer` | Coupling, complexity, naming, dead code, premature abstraction |
+| `project-standards` | `ce-project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance -- frontmatter, references, naming, cross-platform portability, tool selection |
 
 **CE agents (unstructured output, synthesized separately):**
 
 | Agent | Focus |
 |-------|-------|
-| `review:ce-agent-native-reviewer` | Verify new features are agent-accessible |
-| `research:ce-learnings-researcher` | Search docs/solutions/ for past issues related to this PR's modules and patterns |
+| `ce-agent-native-reviewer` | Verify new features are agent-accessible |
+| `ce-learnings-researcher` | Search docs/solutions/ for past issues related to this PR's modules and patterns |
 
 ## Conditional (8 personas)
 
@@ -28,14 +28,14 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 
 | Persona | Agent | Select when diff touches... |
 |---------|-------|---------------------------|
-| `security` | `review:ce-security-reviewer` | Auth middleware, public endpoints, user input handling, permission checks, secrets management |
-| `performance` | `review:ce-performance-reviewer` | Database queries, ORM calls, loop-heavy data transforms, caching layers, async/concurrent code |
-| `api-contract` | `review:ce-api-contract-reviewer` | Route definitions, serializer/interface changes, event schemas, exported type signatures, API versioning |
-| `data-migrations` | `review:ce-data-migrations-reviewer` | Migration files, schema changes, backfill scripts, data transformations |
-| `reliability` | `review:ce-reliability-reviewer` | Error handling, retry logic, circuit breakers, timeouts, background jobs, async handlers, health checks |
-| `adversarial` | `review:ce-adversarial-reviewer` | Diff has >=50 changed non-test, non-generated, non-lockfile lines, OR touches auth, payments, data mutations, external API integrations, or other high-risk domains |
-| `cli-readiness` | `review:ce-cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
-| `previous-comments` | `review:ce-previous-comments-reviewer` | **PR-only.** Reviewing a PR that has existing review comments or review threads from prior review rounds. Skip entirely when no PR metadata was gathered in Stage 1. |
+| `security` | `ce-security-reviewer` | Auth middleware, public endpoints, user input handling, permission checks, secrets management |
+| `performance` | `ce-performance-reviewer` | Database queries, ORM calls, loop-heavy data transforms, caching layers, async/concurrent code |
+| `api-contract` | `ce-api-contract-reviewer` | Route definitions, serializer/interface changes, event schemas, exported type signatures, API versioning |
+| `data-migrations` | `ce-data-migrations-reviewer` | Migration files, schema changes, backfill scripts, data transformations |
+| `reliability` | `ce-reliability-reviewer` | Error handling, retry logic, circuit breakers, timeouts, background jobs, async handlers, health checks |
+| `adversarial` | `ce-adversarial-reviewer` | Diff has >=50 changed non-test, non-generated, non-lockfile lines, OR touches auth, payments, data mutations, external API integrations, or other high-risk domains |
+| `cli-readiness` | `ce-cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
+| `previous-comments` | `ce-previous-comments-reviewer` | **PR-only.** Reviewing a PR that has existing review comments or review threads from prior review rounds. Skip entirely when no PR metadata was gathered in Stage 1. |
 
 ## Stack-Specific Conditional (5 personas)
 
@@ -43,11 +43,11 @@ These reviewers keep their original opinionated lens. They are additive with the
 
 | Persona | Agent | Select when diff touches... |
 |---------|-------|---------------------------|
-| `dhh-rails` | `review:ce-dhh-rails-reviewer` | Rails architecture, service objects, authentication/session choices, Hotwire-vs-SPA boundaries, or abstractions that may fight Rails conventions |
-| `kieran-rails` | `review:ce-kieran-rails-reviewer` | Rails controllers, models, views, jobs, components, routes, or other application-layer Ruby code where clarity and conventions matter |
-| `kieran-python` | `review:ce-kieran-python-reviewer` | Python modules, endpoints, services, scripts, or typed domain code |
-| `kieran-typescript` | `review:ce-kieran-typescript-reviewer` | TypeScript components, services, hooks, utilities, or shared types |
-| `julik-frontend-races` | `review:ce-julik-frontend-races-reviewer` | Stimulus/Turbo controllers, DOM event wiring, timers, async UI flows, animations, or frontend state transitions with race potential |
+| `dhh-rails` | `ce-dhh-rails-reviewer` | Rails architecture, service objects, authentication/session choices, Hotwire-vs-SPA boundaries, or abstractions that may fight Rails conventions |
+| `kieran-rails` | `ce-kieran-rails-reviewer` | Rails controllers, models, views, jobs, components, routes, or other application-layer Ruby code where clarity and conventions matter |
+| `kieran-python` | `ce-kieran-python-reviewer` | Python modules, endpoints, services, scripts, or typed domain code |
+| `kieran-typescript` | `ce-kieran-typescript-reviewer` | TypeScript components, services, hooks, utilities, or shared types |
+| `julik-frontend-races` | `ce-julik-frontend-races-reviewer` | Stimulus/Turbo controllers, DOM event wiring, timers, async UI flows, animations, or frontend state transitions with race potential |
 
 ## CE Conditional Agents (migration-specific)
 
@@ -55,8 +55,8 @@ These CE-native agents provide specialized analysis beyond what the persona agen
 
 | Agent | Focus |
 |-------|-------|
-| `review:ce-schema-drift-detector` | Cross-references schema.rb changes against included migrations to catch unrelated drift |
-| `review:ce-deployment-verification-agent` | Produces Go/No-Go deployment checklist with SQL verification queries and rollback procedures |
+| `ce-schema-drift-detector` | Cross-references schema.rb changes against included migrations to catch unrelated drift |
+| `ce-deployment-verification-agent` | Produces Go/No-Go deployment checklist with SQL verification queries and rollback procedures |
 
 ## Selection rules
 

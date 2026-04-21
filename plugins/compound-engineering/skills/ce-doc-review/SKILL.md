@@ -109,15 +109,15 @@ Reviewing with:
 ### Build Agent List
 
 Always include:
-- `document-review:ce-coherence-reviewer`
-- `document-review:ce-feasibility-reviewer`
+- `ce-coherence-reviewer`
+- `ce-feasibility-reviewer`
 
 Add activated conditional personas:
-- `document-review:ce-product-lens-reviewer`
-- `document-review:ce-design-lens-reviewer`
-- `document-review:ce-security-lens-reviewer`
-- `document-review:ce-scope-guardian-reviewer`
-- `document-review:ce-adversarial-document-reviewer`
+- `ce-product-lens-reviewer`
+- `ce-design-lens-reviewer`
+- `ce-security-lens-reviewer`
+- `ce-scope-guardian-reviewer`
+- `ce-adversarial-document-reviewer`
 
 ### Dispatch
 

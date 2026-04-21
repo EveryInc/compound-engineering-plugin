@@ -30,7 +30,7 @@ Create a task list grouped by type (e.g., `TaskCreate` in Claude Code, `update_p
 
 ### 3. Implement (PARALLEL)
 
-Spawn a `workflow:ce-pr-comment-resolver` agent per item. Prefer parallel; fall back to sequential respecting dependency order.
+Spawn a `ce-pr-comment-resolver` agent per item. Prefer parallel; fall back to sequential respecting dependency order.
 
 **Batching:** 1-4 items: direct parallel returns. 5+ items: batches of 4, each returning only a short status summary (todo handled, files changed, tests run/skipped, blockers).
 

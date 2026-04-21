@@ -168,7 +168,7 @@ Launch research subagents. Each returns text data to the orchestrator.
 
 #### 4. **Session Historian** (foreground, after launching the above — only if the user opted in)
    - **Skip entirely** if the user declined session history in the follow-up question
-   - Dispatched as `research:ce-session-historian`
+   - Dispatched as `ce-session-historian`
    - Dispatch in **foreground** — this agent reads session files outside the working directory (`~/.claude/projects/`, `~/.codex/sessions/`, `~/.cursor/projects/`) which background agents may not have access to
    - Searches prior Claude Code, Codex, and Cursor sessions for the same project to find related investigation context
    - Correlates sessions by repo name across all platforms (matches sessions from main checkouts, worktrees, and Conductor workspaces)
@@ -314,13 +314,13 @@ After the learning is written and the refresh decision is made, check whether th
 
 Based on problem type, optionally invoke specialized agents to review the documentation:
 
-- **performance_issue** → `review:ce-performance-oracle`
-- **security_issue** → `review:ce-security-sentinel`
-- **database_issue** → `review:ce-data-integrity-guardian`
-- Any code-heavy issue → always run `review:ce-code-simplicity-reviewer`, and additionally run the kieran reviewer that matches the repo's primary stack:
-  - Ruby/Rails → also run `review:ce-kieran-rails-reviewer`
-  - Python → also run `review:ce-kieran-python-reviewer`
-  - TypeScript/JavaScript → also run `review:ce-kieran-typescript-reviewer`
+- **performance_issue** → `ce-performance-oracle`
+- **security_issue** → `ce-security-sentinel`
+- **database_issue** → `ce-data-integrity-guardian`
+- Any code-heavy issue → always run `ce-code-simplicity-reviewer`, and additionally run the kieran reviewer that matches the repo's primary stack:
+  - Ruby/Rails → also run `ce-kieran-rails-reviewer`
+  - Python → also run `ce-kieran-python-reviewer`
+  - TypeScript/JavaScript → also run `ce-kieran-typescript-reviewer`
   - Other stacks → no kieran reviewer needed
 
 </parallel_tasks>
@@ -509,20 +509,20 @@ Writes the final learning directly into `docs/solutions/`.
 Based on problem type, these agents can enhance documentation:
 
 ### Code Quality & Review
-- **review:ce-kieran-rails-reviewer**: Reviews code examples for Rails best practices
-- **review:ce-kieran-python-reviewer**: Reviews code examples for Python best practices
-- **review:ce-kieran-typescript-reviewer**: Reviews code examples for TypeScript best practices
-- **review:ce-code-simplicity-reviewer**: Ensures solution code is minimal and clear
-- **review:ce-pattern-recognition-specialist**: Identifies anti-patterns or repeating issues
+- **ce-kieran-rails-reviewer**: Reviews code examples for Rails best practices
+- **ce-kieran-python-reviewer**: Reviews code examples for Python best practices
+- **ce-kieran-typescript-reviewer**: Reviews code examples for TypeScript best practices
+- **ce-code-simplicity-reviewer**: Ensures solution code is minimal and clear
+- **ce-pattern-recognition-specialist**: Identifies anti-patterns or repeating issues
 
 ### Specific Domain Experts
-- **review:ce-performance-oracle**: Analyzes performance_issue category solutions
-- **review:ce-security-sentinel**: Reviews security_issue solutions for vulnerabilities
-- **review:ce-data-integrity-guardian**: Reviews database_issue migrations and queries
+- **ce-performance-oracle**: Analyzes performance_issue category solutions
+- **ce-security-sentinel**: Reviews security_issue solutions for vulnerabilities
+- **ce-data-integrity-guardian**: Reviews database_issue migrations and queries
 
 ### Enhancement & Research
-- **research:ce-best-practices-researcher**: Enriches solution with industry best practices
-- **research:ce-framework-docs-researcher**: Links to framework/library documentation references
+- **ce-best-practices-researcher**: Enriches solution with industry best practices
+- **ce-framework-docs-researcher**: Links to framework/library documentation references
 
 ### When to Invoke
 - **Auto-triggered** (optional): Agents can run post-documentation for enhancement

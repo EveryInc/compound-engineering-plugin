@@ -26,7 +26,7 @@ If the lines above resolved to plain values (a folder name like `my-repo` and a 
 
 If no argument is provided, ask what the user wants to know about their session history. Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, ask in plain text and wait for a reply.
 
-Dispatch `research:ce-session-historian` with the user's question as the task prompt. Omit the `mode` parameter so the user's configured permission settings apply. Include in the dispatch prompt:
+Dispatch `ce-session-historian` with the user's question as the task prompt. Omit the `mode` parameter so the user's configured permission settings apply. Include in the dispatch prompt:
 
 - The user's question
 - The current working directory
