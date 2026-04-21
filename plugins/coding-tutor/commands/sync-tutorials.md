@@ -1,3 +1,8 @@
+---
+name: sync-tutorials
+description: Commit and push your coding tutorials to GitHub for backup and mobile reading
+---
+
 # Sync Coding Tutor Tutorials
 
 Commit and push your tutorials to the GitHub repository for backup and mobile reading.
