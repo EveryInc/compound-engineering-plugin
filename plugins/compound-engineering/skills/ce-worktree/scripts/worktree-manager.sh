@@ -194,12 +194,21 @@ create_worktree() {
   copy_env_files "$worktree_path"
 
   echo "Dev tool trust:"
-  local trust_ref="origin/$default_branch"
+  local trust_branch="$default_branch"
   local allow_direnv_auto="false"
   if is_trusted_base_branch "$from_branch" "$default_branch"; then
-    trust_ref="origin/$from_branch"
+    trust_branch="$from_branch"
     allow_direnv_auto="true"
   fi
+  # Refresh the trust baseline before the hash-baseline check. Without this,
+  # a stale origin/<default_branch> can cause auto-trust against an outdated
+  # baseline when from_branch is untrusted (feature/review branches).
+  if [[ "$trust_branch" != "$from_branch" ]]; then
+    if ! git fetch origin "$trust_branch" --quiet; then
+      echo "  Warning: could not fetch origin/$trust_branch; baseline may be stale" >&2
+    fi
+  fi
+  local trust_ref="origin/$trust_branch"
   if git rev-parse --verify "$trust_ref" &>/dev/null; then
     trust_dev_tools "$worktree_path" "$trust_ref" "$allow_direnv_auto"
   else
