@@ -15,12 +15,13 @@
 
 set -euo pipefail
 
-# Resolve the main repo root, not the current worktree's toplevel. When invoked
-# from inside an existing worktree, --show-toplevel returns the worktree's path,
-# which would cause new worktrees to nest under .worktrees/<existing>/.worktrees/.
-# --git-common-dir returns the shared .git directory regardless of worktree
-# context; its parent directory is the main repo root.
-GIT_ROOT=$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")
+# Resolve the main worktree's working tree, not the current worktree's toplevel.
+# `git worktree list --porcelain` always emits the main worktree first. This
+# handles normal repos, linked worktrees (where --show-toplevel would return
+# the nested worktree), submodules (where --git-common-dir points under
+# .git/modules), and --separate-git-dir setups (where --git-common-dir points
+# to an external path).
+GIT_ROOT=$(git worktree list --porcelain | awk '/^worktree / {print $2; exit}')
 WORKTREE_DIR="$GIT_ROOT/.worktrees"
 
 usage() {
