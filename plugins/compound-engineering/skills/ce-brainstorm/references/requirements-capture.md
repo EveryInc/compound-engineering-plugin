@@ -8,20 +8,33 @@ This document should behave like a lightweight PRD without PRD ceremony. Include
 
 The requirements document is for product definition and scope control. Do **not** include implementation details such as libraries, schemas, endpoints, file layouts, or code structure unless the brainstorm is inherently technical and those details are themselves the subject of the decision.
 
-**Required content for non-trivial work:**
-- Problem frame
-- Concrete requirements or intended behavior with stable IDs
-- Scope boundaries
-- Success criteria
+## Section matrix
 
-**Include when materially useful:**
-- Key decisions and rationale
-- Dependencies or assumptions
-- Outstanding questions
-- Alternatives considered
-- High-level technical direction only when the work is inherently technical and the direction is part of the product/architecture decision
+| Section | Lightweight | Standard / Deep-feature | Deep-product |
+|---|---|---|---|
+| Problem Frame | Required | Required | Required |
+| Actors | Omit unless triggered | Triggered (see below) | Triggered (see below) |
+| Key Flows | Omit unless triggered | Triggered (see below) | Expected by default |
+| Requirements | Required | Required (with R-IDs) | Required (with R-IDs) |
+| Acceptance Examples | Omit unless triggered | Triggered (see below) | Triggered (see below) |
+| Success Criteria | Required | Required | Required |
+| Scope Boundaries | Required (single list) | Required (single list) | Required (split into "Deferred for later" and "Outside this product's identity") |
+| Key Decisions | Include when material | Include when material | Include when material |
+| Dependencies / Assumptions | Include when material | Include when material | Include when material |
+| Outstanding Questions | Include when material | Include when material | Include when material |
+| Next Steps | Required | Required | Required |
 
-**Document structure:** Use this template and omit clearly inapplicable optional sections:
+## Triggered sections — when to include
+
+**Actors** — include when multiple humans, agents, or systems are meaningfully involved, or when decisions change based on whose perspective is optimized for. Covers both end-user actors (for product work) and pipeline-agent actors (for agent-workflow work, such as changes to CE's own review or planning flows).
+
+**Key Flows** — include when the work involves multi-step interaction or coordinates across existing flows. At Deep-product tier, include 2-4 primary flows by default; omit only when the product is not meaningfully flow-shaped (e.g., pure API, policy, or artifact output) and Actors, Requirements, Scope Boundaries, and Acceptance Examples already prevent downstream invention of user/agent paths. When omitting at product tier, note the reason in the doc.
+
+**Acceptance Examples** — include when a requirement's behavior is hard to pin down without a concrete scenario. Each example disambiguates one or more requirements via a `Covers: R-IDs` back-reference. Examples are definitive for what they describe but the section is not exhaustive — only include examples where the requirement alone is ambiguous.
+
+## Template
+
+Use this template and omit sections per the matrix above. At Deep-product tier, keep the Scope Boundaries split. At other tiers, use the single Scope Boundaries list.
 
 ```markdown
 ---
@@ -32,57 +45,152 @@ topic: <kebab-case-topic>
 # <Topic Title>
 
 ## Problem Frame
-[Who is affected, what is changing, and why it matters]
+
+[Who is affected, what is changing, and why it matters.]
+
+---
+
+## Actors
+
+[Include when triggered. Each actor gets a stable A-ID and a one-line role description.]
+
+- A1. [Name or role]: [What they do in this context]
+- A2. [Name or role]: [What they do in this context]
+
+---
+
+## Key Flows
+
+[Include when triggered. Each flow has trigger, actors, steps, outcome, and a Covered by back-reference.]
+
+- F1. [Flow name]
+  - **Trigger:** [What initiates the flow]
+  - **Actors:** A1, A2
+  - **Steps:** [3-7 steps, prose or short list]
+  - **Outcome:** [What is true after the flow completes]
+  - **Covered by:** R1, R2, R5
+
+---
 
 ## Requirements
 
-**[Group Header]**
-- R1. [Concrete requirement in this group]
-- R2. [Concrete requirement in this group]
+[Group under bold inline headers when requirements span distinct concerns. Keep R-IDs sequential across groups — numbering does not restart per group.]
 
-**[Group Header]**
-- R3. [Concrete requirement in this group]
+**[Group header, e.g., "Brainstorming workflow"]**
+- R1. [Concrete requirement]
+- R2. [Concrete requirement]
+
+**[Group header, e.g., "Output document"]**
+- R3. [Concrete requirement]
+
+---
+
+## Acceptance Examples
+
+[Include when triggered. Each example is a definitive scenario; the list is not exhaustive.]
+
+- AE1. **Covers R1, R2.** Given [state], when [action], [outcome].
+- AE2. **Covers R4.** Given [state], when [action], [outcome].
+
+---
 
 ## Success Criteria
-- [How we will know this solved the right problem]
+
+- [How we will know this solved the right problem — human outcome.]
+- [How a downstream agent or implementer can tell the handoff was clean.]
+
+---
 
 ## Scope Boundaries
+
+[At Lightweight, Standard, and Deep-feature tiers, use a single list.]
+
 - [Deliberate non-goal or exclusion]
 
+[At Deep-product tier, split into two subsections:]
+
+### Deferred for later
+
+- [Work that will be done eventually but not in v1]
+
+### Outside this product's identity
+
+- [Adjacent product we could build but are rejecting — positioning decision, not a deferral]
+
+---
+
 ## Key Decisions
+
 - [Decision]: [Rationale]
 
+---
+
 ## Dependencies / Assumptions
-- [Only include if material]
+
+- [Material dependency or assumption]
+
+---
 
 ## Outstanding Questions
 
 ### Resolve Before Planning
+
 - [Affects R1][User decision] [Question that must be answered before planning can proceed]
 
 ### Deferred to Planning
-- [Affects R2][Technical] [Question that should be answered during planning or codebase exploration]
-- [Affects R2][Needs research] [Question that likely requires research during planning]
+
+- [Affects R2][Technical] [Question answered during planning or codebase exploration]
+- [Affects R2][Needs research] [Question likely requiring research during planning]
+
+---
 
 ## Next Steps
+
 [If `Resolve Before Planning` is empty: `-> /ce-plan` for structured implementation planning]
 [If `Resolve Before Planning` is not empty: `-> Resume /ce-brainstorm` to resolve blocking questions before planning]
 ```
 
-**Visual communication** — Include a visual aid when the requirements would be significantly easier to understand with one. Read `references/visual-communication.md` for the decision criteria, format selection, and placement rules.
+## ID and layout rules
 
-For **Standard** and **Deep** brainstorms, a requirements document is usually warranted.
+**Stable IDs.** Standard and Deep scope always assign R-IDs to requirements. Triggered sections use their own prefixes: `A` for Actors, `F` for Key Flows, `AE` for Acceptance Examples. No other ID namespaces.
 
-For **Lightweight** brainstorms, keep the document compact. Skip document creation when the user only needs brief alignment and no durable decisions need to be preserved.
+**ID format.** Use `R1.`, `A1.`, `F1.`, `AE1.` as a plain prefix at the start of the bullet — do not bold the ID. The prefix is visually distinctive on its own.
 
-For very small requirements docs with only 1-3 simple requirements, plain bullet requirements are acceptable. For **Standard** and **Deep** requirements docs, use stable IDs like `R1`, `R2`, `R3` so planning and later review can refer to them unambiguously.
+**Bold leader labels** inside Flows and Acceptance Examples (e.g., `**Trigger:**`, `**Covers R4, R8.**`) give the bullet structure without needing tables or deeper heading levels.
 
-When requirements span multiple distinct concerns, group them under bold topic headers within the Requirements section. The trigger for grouping is distinct logical areas, not item count — even four requirements benefit from headers if they cover three different topics. Group by logical theme (e.g., "Packaging", "Migration and Compatibility", "Contributor Workflow"), not by the order they were discussed. Requirements keep their original stable IDs — numbering does not restart per group. A requirement belongs to whichever group it fits best; do not duplicate it across groups. Skip grouping only when all requirements are about the same thing.
+**Horizontal rules (`---`)** between top-level sections in Standard and Deep docs. Omit for Lightweight.
 
-When the work is simple, combine sections rather than padding them. A short requirements document is better than a bloated one.
+**Grouping within Requirements.** When Standard or Deep requirements span distinct concerns, group them under bold inline headers (not H3s) within the Requirements section. The trigger is distinct logical areas, not item count — even four requirements benefit from headers if they cover three different topics. Group by capability or concern (e.g., "Packaging", "Migration and compatibility", "Contributor workflow"), not by the order they were discussed. Skip grouping only when all requirements are about the same thing.
 
-Before finalizing, check:
+**Tables** — only for genuinely comparative info. Bullets are cheaper and more portable for content lists.
+
+## Size heuristics
+
+- If a capability-named group has only one requirement, ungroup it.
+- If total requirements exceed ~15-20, stop and ask whether this is one brainstorm or several.
+- If a requirement can be fully described in a single short bullet with no sub-items, it probably doesn't need grouping at all.
+- For Lightweight docs with only 1-3 simple requirements, plain bullets without R-IDs are acceptable.
+
+## Visual communication
+
+Include a visual aid when the requirements would be significantly easier to understand with one. Read `references/visual-communication.md` for the decision criteria, format selection, and placement rules.
+
+## When a document is warranted
+
+- **Lightweight** — keep the document compact. Skip document creation when the user only needs brief alignment and no durable decisions need to be preserved.
+- **Standard and Deep (feature or product)** — a requirements document is usually warranted. When the work is simple, combine sections rather than padding them. A short requirements document is better than a bloated one.
+
+## Finalization checklist
+
+Before finalizing:
+
 - What would `ce-plan` still have to invent if this brainstorm ended now?
+- Does every Standard/Deep requirement have either an observable behavior or a stated reason it is structural?
+- Do Success Criteria cover both human outcome and downstream-agent handoff quality?
+- If Actors are named, is each actor mentioned in the problem represented in at least one requirement, flow, or scope boundary?
+- If Key Flows are present, does each flow identify actor, trigger, outcome, and a failure or escape path when relevant?
+- At Deep-product tier: if Key Flows are omitted, is the reason stated in the doc, and do Actors, Requirements, Scope Boundaries, and Acceptance Examples together prevent downstream invention of user/agent paths?
+- At Deep-product tier: does Scope Boundaries distinguish "Deferred for later" from "Outside this product's identity"?
 - Do any requirements depend on something claimed to be out of scope?
 - Are any unresolved items actually product decisions rather than planning questions?
 - Did implementation details leak in when they shouldn't have?
@@ -94,11 +202,14 @@ If planning would need to invent product behavior, scope boundaries, or success 
 
 Ensure `docs/brainstorms/` directory exists before writing.
 
+## Outstanding questions guidance
+
 If a document contains outstanding questions:
-- Use `Resolve Before Planning` only for questions that truly block planning
-- If `Resolve Before Planning` is non-empty, keep working those questions during the brainstorm by default
-- If the user explicitly wants to proceed anyway, convert each remaining item into an explicit decision, assumption, or `Deferred to Planning` question before proceeding
-- Do not force resolution of technical questions during brainstorming just to remove uncertainty
-- Put technical questions, or questions that require validation or research, under `Deferred to Planning` when they are better answered there
-- Use tags like `[Needs research]` when the planner should likely investigate the question rather than answer it from repo context alone
-- Carry deferred questions forward explicitly rather than treating them as a failure to finish the requirements doc
+
+- Use `Resolve Before Planning` only for questions that truly block planning.
+- If `Resolve Before Planning` is non-empty, keep working those questions during the brainstorm by default.
+- If the user explicitly wants to proceed anyway, convert each remaining item into an explicit decision, assumption, or `Deferred to Planning` question before proceeding.
+- Do not force resolution of technical questions during brainstorming just to remove uncertainty.
+- Put technical questions, or questions that require validation or research, under `Deferred to Planning` when they are better answered there.
+- Use tags like `[Needs research]` when the planner should likely investigate the question rather than answer it from repo context alone.
+- Carry deferred questions forward explicitly rather than treating them as a failure to finish the requirements doc.

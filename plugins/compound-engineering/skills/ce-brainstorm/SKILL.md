@@ -90,6 +90,13 @@ Use the feature description plus a light repo scan to classify the work:
 
 If the scope is unclear, ask one targeted question to disambiguate and then proceed.
 
+**Deep sub-mode: feature vs product.** For Deep scope, also classify whether the brainstorm must establish product shape or inherit it:
+
+- **Deep — feature** (default): existing product shape anchors decisions. Primary actors, core outcome, positioning, and primary flows are already established in the product or repo. The brainstorm extends or refines within that shape.
+- **Deep — product**: the brainstorm must establish product shape rather than inherit it. Primary actors, core outcome, positioning against adjacent products, or primary end-to-end flows are materially unresolved. Existing code lowers the odds of product-tier but does not by itself rule it out — a half-built tool with ambiguous shape is still product-tier.
+
+Product-tier triggers additional Phase 1.2 questions and additional sections in the requirements document. Feature-tier uses the current Deep behavior unchanged.
+
 ### Phase 1: Understand the Idea
 
 #### 1.1 Existing Context Scan
@@ -138,6 +145,13 @@ Before generating approaches, challenge the request to catch misframing. Match d
 - What durable capability should this create in 6-12 months?
 - Does this move the product toward that, or is it only a local patch?
 
+**Deep — product** — Deep questions plus:
+- What's the single sharpest user outcome this earns, and what evidence or assumption supports that outcome?
+- What adjacent product could we accidentally build instead, and why is that the wrong one?
+- What would have to be true in the world for this to fail?
+
+These questions force an explicit product thesis and feed the Positioning subsection and Dependencies / Assumptions in the requirements document.
+
 #### 1.3 Collaborative Dialogue
 
 Follow the Interaction Rules above. Use the platform's blocking question tool when available.
@@ -163,6 +177,8 @@ Present approaches first, then evaluate. Let the user see all options before hea
 
 When useful, include one deliberately higher-upside alternative:
 - Identify what adjacent addition or reframing would most increase usefulness, compounding value, or durability without disproportionate carrying cost. Present it as a challenger option alongside the baseline, not as the default. Omit it when the work is already obviously over-scoped or the baseline request is clearly the right move.
+
+At product tier, alternatives should differ on *what* is built (product shape, actor set, positioning), not *how* it is built. Implementation-variant alternatives belong at feature tier.
 
 For each approach, provide:
 - Brief description (2-3 sentences)

@@ -104,8 +104,9 @@ If a relevant requirements document exists:
 2. Announce that it will serve as the origin document for planning
 3. Carry forward all of the following:
    - Problem frame
+   - Actors (A-IDs), Key Flows (F-IDs), and Acceptance Examples (AE-IDs) when present — preserve these as constraints that implementation units must honor
    - Requirements and success criteria
-   - Scope boundaries
+   - Scope boundaries (including "Deferred for later" and "Outside this product's identity" subsections when present)
    - Key decisions and rationale
    - Dependencies or assumptions
    - Outstanding questions, preserving whether they are blocking or deferred
