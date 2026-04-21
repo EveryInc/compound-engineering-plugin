@@ -91,10 +91,19 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
   await cleanupRemovedAgents(agentsRoot, manifest, currentAgents)
   if (agents.length > 0) {
     for (const agent of agents) {
-      const agentFile = `${sanitizePathName(agent.name)}.toml`
+      const agentBaseName = sanitizePathName(agent.name)
+      const agentFile = `${agentBaseName}.toml`
+      // If the agent declares no sidecars, remove any same-basename sibling
+      // directory left behind by a prior install that did. The manifest-driven
+      // cleanupRemovedAgents sweep above only removes the sibling dir when the
+      // TOML itself is being removed; a same-name agent that loses its sidecar
+      // would otherwise leave an orphan directory.
+      if ((agent.sidecarDirs ?? []).length === 0 && isSafeManagedPath(agentsRoot, agentBaseName)) {
+        await fs.rm(path.join(agentsRoot, agentBaseName), { recursive: true, force: true })
+      }
       await writeText(path.join(agentsRoot, agentFile), renderCodexAgentToml(agent) + "\n")
       for (const sidecar of agent.sidecarDirs ?? []) {
-        await copyDir(sidecar.sourceDir, path.join(agentsRoot, sanitizePathName(agent.name), sidecar.targetName))
+        await copyDir(sidecar.sourceDir, path.join(agentsRoot, agentBaseName, sidecar.targetName))
       }
     }
   }

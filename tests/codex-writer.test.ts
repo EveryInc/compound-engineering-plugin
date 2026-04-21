@@ -765,6 +765,87 @@ Workflow handoff:
     expect(installedSkill).not.toContain("/prompts:settings")
     expect(installedSkill).not.toContain("https://prompts:www.proofeditor.ai")
   })
+
+  test("removes orphan sidecar dir when retained agent declares no sidecars", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    const agentsRoot = path.join(tempRoot, ".codex", "agents")
+    const orphanDir = path.join(agentsRoot, "ce-foo", "stale-content")
+    await fs.mkdir(orphanDir, { recursive: true })
+    await fs.writeFile(path.join(orphanDir, "leftover.txt"), "stale", "utf8")
+    await fs.writeFile(path.join(agentsRoot, "ce-foo.toml"), "old-toml", "utf8")
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [
+        {
+          name: "ce-foo",
+          description: "Foo agent",
+          instructions: "Do foo.",
+        },
+      ],
+      mcpServers: {},
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    expect(await entryExists(path.join(agentsRoot, "ce-foo"))).toBe(false)
+    expect(await exists(path.join(agentsRoot, "ce-foo.toml"))).toBe(true)
+  })
+
+  test("keeps sidecar dir when retained agent declares sidecars", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    const sidecarSource = await fs.mkdtemp(path.join(os.tmpdir(), "codex-sidecar-src-"))
+    await fs.writeFile(path.join(sidecarSource, "script.sh"), "#!/bin/sh\necho hi\n", "utf8")
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [
+        {
+          name: "ce-foo",
+          description: "Foo agent",
+          instructions: "Do foo.",
+          sidecarDirs: [{ sourceDir: sidecarSource, targetName: "scripts" }],
+        },
+      ],
+      mcpServers: {},
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const agentsRoot = path.join(tempRoot, ".codex", "agents")
+    expect(await exists(path.join(agentsRoot, "ce-foo.toml"))).toBe(true)
+    expect(await exists(path.join(agentsRoot, "ce-foo", "scripts", "script.sh"))).toBe(true)
+  })
+
+  test("leaves unrelated directories under agentsRoot alone", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    const agentsRoot = path.join(tempRoot, ".codex", "agents")
+    const unrelatedDir = path.join(agentsRoot, "ce-bar-extra")
+    await fs.mkdir(unrelatedDir, { recursive: true })
+    await fs.writeFile(path.join(unrelatedDir, "keep-me.txt"), "keep", "utf8")
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [
+        {
+          name: "ce-foo",
+          description: "Foo agent",
+          instructions: "Do foo.",
+        },
+      ],
+      mcpServers: {},
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    expect(await exists(path.join(unrelatedDir, "keep-me.txt"))).toBe(true)
+  })
 })
 
 describe("renderCodexConfig", () => {
