@@ -385,6 +385,12 @@ For each unit, include:
   - **Error and failure paths** (when the unit has failure modes) - invalid input, downstream service failures, timeout behavior, permission denials
   - **Integration scenarios** (when the unit crosses layers) - behaviors that mocks alone will not prove, e.g., "creating X triggers callback Y which persists Z". Include these for any unit touching callbacks, middleware, or multi-layer interactions
 - **Verification** - how an implementer should know the unit is complete, expressed as outcomes rather than shell command scripts
+- **Wires_into** - optional, include when this unit produces outputs consumed by other units or connects to existing code that must call into it. List critical-path integration contracts — connections where, if missing, the feature doesn't work end-to-end. Typically 1–3 entries per unit; if a unit needs more than 4, it may be doing too much — consider splitting. Write each entry as a natural-language statement describing what must connect to what and why, at the same abstraction level as the rest of the plan (decisions, not code). Example entries:
+  - "The orchestrator (Unit 1) must invoke the condensation loop (Unit 2) when sections exceed the character limit"
+  - "The revision UI (Unit 4) must call the revise-section API (Unit 3) on user edit"
+  - "The revision API (Unit 3) must emit a completion event consumed by the notification handler (Unit 5)"
+  - Omit this field entirely for leaf-node units with no outbound cross-unit connections
+  - This field complements (does not replace) the System-Wide Test Check and Integration test scenarios — those catch within-unit cross-layer issues during implementation; `wires_into` catches between-unit connections that only become visible after all units are complete
 
 Every feature-bearing unit should include the test file path in `**Files:**`.
 
@@ -560,6 +566,10 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 **Verification:**
 - [Outcome that should hold when this unit is complete]
 
+**Wires_into:**
+<!-- Optional — include when this unit has critical cross-unit connections. Omit for leaf nodes. -->
+- [Natural-language integration contract: what must connect to what, and why]
+
 ## System-Wide Impact
 
 - **Interaction graph:** [What callbacks, middleware, observers, or entry points may be affected]
@@ -659,6 +669,7 @@ Before finalizing, check:
 - Per-unit technical design fields, if present, are concise and directional rather than copy-paste-ready
 - If the plan creates a new directory structure, would an Output Structure tree help reviewers see the overall shape?
 - If Scope Boundaries lists items that are planned work for a separate PR or task, are they under `### Deferred to Separate Tasks` rather than mixed with true non-goals?
+- Feature-bearing units with cross-unit dependencies include `wires_into` entries as natural-language integration contracts describing what must connect to what and why. Entries are at the same abstraction level as the rest of the plan (decisions, not implementation code). Units with no outbound connections correctly omit the field rather than leaving it blank
 - Would a visual aid (dependency graph, interaction diagram, comparison table) help a reader grasp the plan structure faster than scanning prose alone?
 
 If the plan originated from a requirements document, re-read that document and verify:
