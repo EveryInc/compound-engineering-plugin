@@ -6,13 +6,20 @@ This content is loaded when Phase 4 begins — after the requirements document i
 
 #### 4.1 Present Next-Step Options
 
-The Phase 4 menu routinely exceeds the 4-option cap of `AskUserQuestion` / `request_user_input` / `ask_user` and every option is a distinct destination (plan, review, Proof, build, refine, pause). Trimming would hide legitimate choices, so render this menu as a numbered list in chat and wait for the user's reply — this is the narrow case-3 exception documented in the plugin AGENTS.md "Interactive Question Tool Design" section, not a generic fallback. Never silently skip the question.
+The Phase 4 menu's visible option count varies by state: no requirements doc hides the review and Proof options, unresolved `Resolve Before Planning` hides `Plan implementation` and `Build it now`, a failing direct-to-work gate hides `Build it now`. Count the visible options for the current state and choose the rendering mode accordingly:
+
+- **4 or fewer visible:** use the platform's blocking question tool (`AskUserQuestion` in Claude Code — call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded; `request_user_input` in Codex; `ask_user` in Gemini). This is the default per the plugin AGENTS.md "Interactive Question Tool Design" section.
+- **5 or more visible:** render as a numbered list in chat. This is the narrow case-3 overflow exception documented in the same AGENTS.md section; trimming would hide legitimate choices (plan, review, Proof, build, refine, pause are all distinct destinations).
+
+Never silently skip the question.
 
 If `Resolve Before Planning` contains any items:
 - Ask the blocking questions now, one at a time, by default
 - If the user explicitly wants to proceed anyway, first convert each remaining item into an explicit decision, assumption, or `Deferred to Planning` question
 - If the user chooses to pause instead, present the handoff as paused or blocked rather than complete
 - Do not offer the `Plan implementation` or `Build it now` options while `Resolve Before Planning` remains non-empty
+
+In both preambles below, the "Pick a number or describe what you want." hint applies only in numbered-list mode. When using the blocking tool, omit that line and pass the remaining stem as the question.
 
 **Preamble when no blocking questions remain:**
 
@@ -77,7 +84,7 @@ Follow `references/hitl-review.md` in the ce-proof skill. It uploads the doc, pr
 When the ce-proof skill returns control:
 
 - `status: proceeded` with `localSynced: true` → the requirements doc on disk now reflects the review. Return to the Phase 4 options and re-render the menu (the doc may have changed substantially during review, so option eligibility can shift — re-evaluate `Resolve Before Planning`, direct-to-work gate, and residual ce-doc-review findings against the updated doc).
-- `status: proceeded` with `localSynced: false` → the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the ce-proof skill's Pull workflow. Re-render the Phase 4 menu after the pull completes (or is declined). If the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof — otherwise `Plan implementation` / `Build it now` will silently read the pre-review copy.
+- `status: proceeded` with `localSynced: false` → the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the ce-proof skill's Pull workflow. Re-render the Phase 4 menu after the pull completes (or is declined). If the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof — otherwise `Plan implementation` / `Build it now` / `Agent review of requirements doc` will silently read the pre-review copy (ce-doc-review would analyze stale content, and planning or work would skip the user's Proof edits).
 - `status: done_for_now` → the doc on disk may be stale if the user edited in Proof before leaving. Offer to pull the Proof doc to `localPath` so the local requirements file stays in sync, then return to the Phase 4 options. If the pull was declined, include the stale-local note above the menu. `done_for_now` means the user stopped the HITL loop without syncing — it does not mean they ended the whole brainstorm; they may still want to plan implementation, run an agent review, or keep refining the doc.
 - `status: aborted` → fall back to the Phase 4 options without changes.
 
