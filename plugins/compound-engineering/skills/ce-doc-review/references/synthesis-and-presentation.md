@@ -12,6 +12,8 @@ Check each agent's returned JSON against the findings schema:
 - Drop findings with invalid enum values (including the pre-rename `auto` / `present` values from older personas — treat those as malformed until all persona output has been regenerated)
 - Note the agent name for any malformed output in the Coverage section
 
+**Do not narrate remap / validation diagnostics to the user.** Schema-drift notes ("persona X returned unknown enum Y, remapped to Z"), persona-prompt-drift commentary, and other validator-internal diagnostics are maintainer-facing information. They do not belong in the Phase 4 output the user reads. If a persona's output is malformed, the only user-visible consequence is a Coverage-row annotation (e.g., the persona shows fewer findings or a `malformed` marker). Everything else stays internal.
+
 ### 3.2 Confidence Gate (Per-Severity)
 
 Gate findings using per-severity thresholds rather than a single flat floor:
@@ -39,6 +41,26 @@ When fingerprints match across personas:
 - If the findings recommend opposing actions (e.g., one says cut, the other says keep), do not merge — preserve both for contradiction resolution in 3.5
 - Otherwise merge: keep the highest severity, keep the highest confidence, union all evidence arrays, note all agreeing reviewers (e.g., "coherence, feasibility")
 - **Coverage attribution:** Attribute the merged finding to the persona with the highest confidence. Decrement the losing persona's Findings count and the corresponding route bucket so totals stay exact.
+
+### 3.3b Same-Persona Premise Redundancy Collapse
+
+A single persona sometimes files multiple findings that share the same root premise expressed at different sections or wrapped in different framing (e.g., product-lens firing five variants of "motivation is weak" attached to Motivation, Unit 4b, Key Technical Decisions, and two other sections). Cross-persona dedup (3.3) does not catch this — it fingerprints on section+title, which differ even when the underlying concern is the same. Surfacing all N variants over-weights one persona's perspective relative to the other five and inflates the P2 Decisions tier with near-duplicate signal.
+
+For each persona, cluster that persona's surviving findings by shared root premise. A cluster forms when 3 or more findings from the same persona share:
+
+- The same `finding_type` (error or omission)
+- Substantially overlapping `why_it_matters` phrasing (same key nouns/verbs signaling the same concern, e.g., "motivation", "justification", "premise unsupported", "scope creep")
+- Fixes that would all be obviated by the same upstream decision (e.g., "add the triggering incident" would moot all five motivation-weakness findings)
+
+For each cluster of size N ≥ 3:
+
+- Keep the single finding with the strongest evidence (highest confidence, or if tied, the one citing the most concrete document reference)
+- Demote the remaining N-1 findings to FYI-subsection status, regardless of their original confidence
+- On the kept finding, note in the Reviewer column that the persona raised N-1 related variants (e.g., `product-lens (+4 related variants demoted to FYI)`)
+
+This runs per-persona before 3.4 cross-persona boost. Cross-persona agreement across the *kept* finding still qualifies for the +0.10 boost; demoted variants do not participate in cross-persona boost (they are observational only after collapse).
+
+Do NOT collapse across personas at this step — different personas surfacing the same concern is exactly the independence signal the cross-persona boost rewards. Collapse applies within one persona's output only.
 
 ### 3.4 Cross-Persona Agreement Boost
 
@@ -192,7 +214,22 @@ Do not promote if the finding involves scope or priority changes where the autho
 
 Sort findings for presentation: P0 → P1 → P2 → P3, then by finding type (errors before omissions), then by confidence (descending), then by document order (section position).
 
+### 3.9 Suppress Restatements in Residual Concerns and Deferred Questions
+
+Persona outputs carry `residual_risks` and `deferred_questions` arrays alongside `findings`. After the actionable-tier set is finalized (post-3.7 routing), personas often re-surface the same substance in their residual/deferred arrays — the persona's own finding and the persona's own residual concern are about the same issue. Rendering both sections verbatim inflates the output with restatements that carry no new signal.
+
+For every `residual_risk` and `deferred_question` across all persona outputs, check against the finalized actionable-finding set (P0/P1/P2/P3 at or above the severity gate, plus FYI-subsection findings). Drop the residual/deferred item if either of these holds:
+
+- **Section-and-substance overlap.** The residual/deferred item names the same section as an actionable finding AND its substance fuzzy-matches the finding's `title` or `why_it_matters` (shared key nouns/verbs indicating the same concern).
+- **Question form of an actionable finding.** A deferred question whose subject is directly answered by or obviated by an actionable finding's recommendation. Example: actionable finding "Motivation cites no real incident" → deferred question "Is there a concrete triggering event?" — the finding already raised this; the question restates it interrogatively.
+
+Do NOT drop residual/deferred items that introduce genuinely new signal (a concern or question the actionable findings do not touch). When in doubt, keep — this pass is for obvious restatements, not borderline calls.
+
+Run this pass on the merged set across all personas. Record the count dropped in Coverage as a "N restated items suppressed" footnote so the user can see the pipeline did the work.
+
 ## Phase 4: Apply and Present
+
+**User-facing vocabulary rule (applies to ALL user-visible output in Phase 4, not just the rendered template).** Internal enum values — `safe_auto`, `gated_auto`, `manual`, `FYI` — stay inside the schema and synthesis prose. Every word the user sees in Phase 4 output, including free-text narration between sections, transition preambles, status lines, and confirmation messages, MUST use user-facing vocabulary: "fixes" (for `safe_auto`), "proposed fixes" (for `gated_auto`), "decisions" (for above-gate `manual`), "FYI observations" (for below-gate `manual`). The only exception is the `Tier` column in rendered tables, which is explicitly documented as surfacing the internal enum for transparency. Do NOT emit narration like "safe_auto fixes applied" or "N safe_auto findings" — write "fixes applied" or "N fixes" instead.
 
 ### Apply safe_auto fixes
 
@@ -255,6 +292,8 @@ Review complete
 
 Omit any section with zero items. The section headers reflect user-facing vocabulary: the "Proposed fixes" bucket carries `gated_auto` findings (the persona has a concrete fix; the user confirms), "Decisions" carries above-gate `manual` findings (judgment calls), and "FYI observations" carries `manual` findings between the 0.40 FYI floor and the per-severity gate. When a root has dependents, render the root at its normal position in the severity-sorted list and nest its dependents as an indented `Dependents (...)` sub-block immediately below. Do not re-list dependents at their own severity position — they appear only under their root. End with "Review complete" as the terminal signal so callers can detect completion.
 
+**Compact rendering for FYI observations, residual concerns, and deferred questions (high-count mode).** When the combined count of these three buckets is 5 or more, collapse each to a one-line count followed by a tight bullet list without per-item `Why` expansion. Actionable buckets (Proposed fixes / Decisions) remain fully rendered regardless. This mirrors the interactive-mode rule in `references/review-output-template.md` so both modes produce the same shape.
+
 **Interactive mode:**
 
 Present findings using the review output template (read `references/review-output-template.md`). Within each severity level, separate findings by type:
@@ -265,6 +304,8 @@ Present findings using the review output template (read `references/review-outpu
 Brief summary at the top: "Applied N fixes. K items need attention (X errors, Y omissions). Z FYI observations."
 
 Include the Coverage table, applied fixes, FYI observations (as a distinct subsection), residual concerns, and deferred questions.
+
+**All tables MUST be pipe-delimited markdown (`| col | col |`). Do NOT use ASCII box-drawing characters (`┌ ┬ ┐ ├ ┼ ┤ └ ┴ ┘ │ ─`) under any circumstances, including for the Coverage table.** This rule restates the template's formatting requirement at the point of rendering so it cannot drift. Pipe-delimited tables render correctly across all target harnesses; box-drawing characters break rendering in some and violate the repo convention documented in root `AGENTS.md`.
 
 ### R29 Rejected-Finding Suppression (Round 2+)
 
