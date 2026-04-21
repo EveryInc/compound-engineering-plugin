@@ -23,7 +23,7 @@ import {
   getLegacyWindsurfArtifacts,
 } from "../data/plugin-legacy-artifacts"
 import { moveLegacyArtifactToBackup } from "../targets/managed-artifacts"
-import { readCodexInstallManifest } from "../targets/codex"
+import { isManagedCodexAgentsSymlink, readCodexInstallManifest, resolveCodexManagedRoots } from "../targets/codex"
 import { isSafeManagedPath, pathExists, readJson, sanitizePathName } from "../utils/files"
 import { resolveOpenCodeGlobalRoot } from "../utils/opencode-config"
 import { expandHome, resolveTargetHome } from "../utils/resolve-home"
@@ -175,7 +175,7 @@ async function cleanupTarget(
     case "codex":
       return [
         await cleanupCodex(plugin, roots.codexHome),
-        await cleanupCodexSharedAgents(plugin, roots.agentsHome),
+        await cleanupCodexSharedAgents(plugin, roots.agentsHome, roots.codexHome),
       ]
     case "opencode": {
       // Mirror install: when `--output <workspace>` is passed (without an
@@ -317,7 +317,21 @@ async function cleanupCodex(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>
   return { target: "codex", root: codexRoot, moved }
 }
 
-async function cleanupCodexSharedAgents(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>, agentsRoot: string): Promise<CleanupResult> {
+async function cleanupCodexSharedAgents(
+  plugin: Awaited<ReturnType<typeof loadClaudePlugin>>,
+  agentsRoot: string,
+  codexRoot: string,
+): Promise<CleanupResult> {
+  // Ownership check: `~/.agents/skills/` is a cross-plugin shared store, so a
+  // name collision alone is not a strong enough signal to move an entry. CE
+  // only ever emitted symlinks into this tree pointing at skill directories
+  // inside its own Codex install root, so we restrict cleanup to symlinks
+  // whose resolved target lives inside a CE-managed Codex root. Plain files
+  // or directories at colliding names are user-authored by definition and
+  // left alone; symlinks pointing elsewhere (another plugin, a user's own
+  // skill checkout) are similarly skipped. Mirrors
+  // `cleanupLegacyAgentsSkillSymlinks` in `src/targets/codex.ts`, which uses
+  // the same ownership gate at install time.
   const bundle = convertClaudeToCodex(plugin, {
     agentMode: "subagent",
     inferTemperature: true,
@@ -325,11 +339,38 @@ async function cleanupCodexSharedAgents(plugin: Awaited<ReturnType<typeof loadCl
   })
   const artifacts = getLegacyCodexArtifacts(bundle)
   const managedDir = path.join(agentsRoot, "compound-engineering")
+  const agentsSkillsDir = path.join(agentsRoot, "skills")
+  const managedRoots = await resolveCodexManagedRoots(codexRoot, plugin.manifest.name)
   let moved = 0
   for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(agentsRoot, "skills"), skillName, ".agents")
+    moved += await moveIfSymlinkManaged(
+      managedDir,
+      "skills",
+      agentsSkillsDir,
+      skillName,
+      ".agents",
+      managedRoots,
+    )
   }
   return { target: "codex", root: agentsRoot, moved }
+}
+
+async function moveIfSymlinkManaged(
+  managedDir: string,
+  kind: string,
+  artifactRoot: string,
+  relativePath: string,
+  label: string,
+  managedRoots: string[],
+): Promise<number> {
+  // Defense in depth — same guard as `moveIfExists`: even though legacy
+  // allow-list names are safe by construction, re-check the join so a future
+  // caller can't issue an out-of-tree rename via `moveLegacyArtifactToBackup`.
+  if (!isSafeManagedPath(artifactRoot, relativePath)) return 0
+  const artifactPath = path.join(artifactRoot, ...relativePath.split("/"))
+  if (!(await isManagedCodexAgentsSymlink(artifactPath, managedRoots))) return 0
+  await moveLegacyArtifactToBackup(managedDir, kind, artifactRoot, relativePath, label)
+  return 1
 }
 
 async function cleanupOpenCode(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>, opencodeRoot: string): Promise<CleanupResult> {

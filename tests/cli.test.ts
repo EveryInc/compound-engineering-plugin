@@ -150,8 +150,21 @@ describe("CLI", () => {
     await fs.writeFile(path.join(userOwnedSkillDir, "SKILL.md"), userOwnedSkillContent)
     await fs.mkdir(path.join(codexRoot, "prompts"), { recursive: true })
     await fs.writeFile(path.join(codexRoot, "prompts", "report-bug.md"), "legacy prompt")
-    await fs.mkdir(path.join(agentsRoot, "skills", "ce-plan"), { recursive: true })
-    await fs.writeFile(path.join(agentsRoot, "skills", "ce-plan", "SKILL.md"), "legacy shared skill")
+    // CE emits entries under `.agents/skills/` as symlinks into its own
+    // managed Codex install root. Simulate that exact shape so cleanup sees
+    // an ownership-valid symlink and backs it up. A plain directory here
+    // would be user-owned (see the new regression coverage below) and must
+    // not be touched -- this shape mirrors the install writer.
+    const sharedAgentSymlinkTarget = path.join(
+      codexRoot,
+      "skills",
+      "compound-engineering",
+      "ce-plan",
+    )
+    await fs.mkdir(sharedAgentSymlinkTarget, { recursive: true })
+    await fs.writeFile(path.join(sharedAgentSymlinkTarget, "SKILL.md"), "legacy shared skill")
+    await fs.mkdir(path.join(agentsRoot, "skills"), { recursive: true })
+    await fs.symlink(sharedAgentSymlinkTarget, path.join(agentsRoot, "skills", "ce-plan"))
     await fs.mkdir(path.join(codexRoot, "skills", "compound-engineering", "repo-research-analyst"), { recursive: true })
     await fs.writeFile(
       path.join(codexRoot, "skills", "compound-engineering", "repo-research-analyst", "SKILL.md"),
@@ -207,6 +220,86 @@ describe("CLI", () => {
     // The user's flat-path skill survives with its original content.
     expect(await exists(path.join(userOwnedSkillDir, "SKILL.md"))).toBe(true)
     expect(await fs.readFile(path.join(userOwnedSkillDir, "SKILL.md"), "utf8")).toBe(userOwnedSkillContent)
+  })
+
+  test("cleanup only backs up CE-owned symlinks under ~/.agents/skills", async () => {
+    // Regression coverage for PR #609 review: `~/.agents/skills/` is a shared
+    // cross-plugin store, so a name collision alone is NOT sufficient signal
+    // that CE installed an entry. CE only ever emits symlinks into this tree
+    // pointing at skill directories inside its own Codex install root. This
+    // test seeds three colliding entries at names that ARE in the legacy
+    // allow-list and verifies cleanup:
+    //   1. Moves a symlink pointing into a CE-managed Codex root.
+    //   2. Leaves a symlink pointing elsewhere (user-created) alone.
+    //   3. Leaves a plain directory (user-created) alone.
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-codex-shared-ownership-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+    const agentsRoot = path.join(tempRoot, ".agents")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    // (1) CE-owned symlink: points inside `<codex>/skills/<plugin>/ce-plan`.
+    const ceOwnedTarget = path.join(codexRoot, "skills", "compound-engineering", "ce-plan")
+    await fs.mkdir(ceOwnedTarget, { recursive: true })
+    await fs.writeFile(path.join(ceOwnedTarget, "SKILL.md"), "ce-owned skill")
+    await fs.mkdir(path.join(agentsRoot, "skills"), { recursive: true })
+    await fs.symlink(ceOwnedTarget, path.join(agentsRoot, "skills", "ce-plan"))
+
+    // (2) User-authored symlink at a colliding legacy name -- points to a
+    // directory the user controls, outside CE's managed roots.
+    const userOwnedTarget = path.join(tempRoot, "user-skills", "ce-update")
+    await fs.mkdir(userOwnedTarget, { recursive: true })
+    const userSymlinkContent = "# user-authored skill reachable via symlink"
+    await fs.writeFile(path.join(userOwnedTarget, "SKILL.md"), userSymlinkContent)
+    await fs.symlink(userOwnedTarget, path.join(agentsRoot, "skills", "ce-update"))
+
+    // (3) User-authored plain directory at a colliding legacy name. CE only
+    // ever emitted symlinks into `~/.agents/skills/`, so a real directory
+    // here is user-owned by definition and must not be touched.
+    const userPlainDir = path.join(agentsRoot, "skills", "ce-debug")
+    await fs.mkdir(userPlainDir, { recursive: true })
+    const userPlainContent = "# user-authored skill, plain directory"
+    await fs.writeFile(path.join(userPlainDir, "SKILL.md"), userPlainContent)
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "cleanup",
+      "--target",
+      "codex",
+      "--codex-home",
+      codexRoot,
+      "--agents-home",
+      agentsRoot,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    // (1) CE-owned symlink was moved out of `.agents/skills/`.
+    expect(await exists(path.join(agentsRoot, "skills", "ce-plan"))).toBe(false)
+    // Its target directory is preserved (cleanupCodex leaves current
+    // namespaced skills alone; the shared symlink cleanup only touches the
+    // link, not its target).
+    expect(await exists(ceOwnedTarget)).toBe(true)
+
+    // (2) User-authored symlink and its target both survive intact.
+    expect(await exists(path.join(agentsRoot, "skills", "ce-update"))).toBe(true)
+    expect(await exists(path.join(userOwnedTarget, "SKILL.md"))).toBe(true)
+    expect(await fs.readFile(path.join(userOwnedTarget, "SKILL.md"), "utf8")).toBe(userSymlinkContent)
+
+    // (3) User-authored plain directory survives with its original content.
+    expect(await exists(userPlainDir)).toBe(true)
+    expect(await fs.readFile(path.join(userPlainDir, "SKILL.md"), "utf8")).toBe(userPlainContent)
   })
 
   test("cleanup migrates manifest-listed Codex artifacts that moved between CE versions", async () => {

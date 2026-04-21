@@ -318,14 +318,7 @@ async function cleanupLegacyAgentsSkillSymlinks(
     ...legacyArtifacts.skills,
   ])
   const agentsSkillsDir = path.join(path.dirname(codexRoot), ".agents", "skills")
-  const rawManagedRoots = [
-    path.join(codexRoot, pluginName),
-    path.join(codexRoot, "skills", pluginName),
-  ]
-  const managedRoots = [
-    ...rawManagedRoots,
-    ...(await Promise.all(rawManagedRoots.map((root) => canonicalizePath(root)))),
-  ]
+  const managedRoots = await resolveCodexManagedRoots(codexRoot, pluginName)
 
   await removeAgentsSkillSymlinkIfManaged(path.join(agentsSkillsDir, pluginName), managedRoots)
   for (const skillName of candidateSkillNames) {
@@ -338,24 +331,62 @@ async function cleanupPreviousManagedCodexSkillStore(codexRoot: string, pluginNa
 }
 
 async function removeAgentsSkillSymlinkIfManaged(symlinkPath: string, managedRoots: string[]): Promise<void> {
-  let stats
-  try {
-    stats = await fs.lstat(symlinkPath)
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return
-    throw err
-  }
-  if (!stats.isSymbolicLink()) return
-
-  const resolvedTarget = await readResolvedSymlinkTarget(symlinkPath)
-  if (!resolvedTarget) return
-  if (!managedRoots.some((root) => isPathInside(resolvedTarget, root))) return
-
+  if (!(await isManagedCodexAgentsSymlink(symlinkPath, managedRoots))) return
   try {
     await fs.unlink(symlinkPath)
   } catch (err) {
     if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err
   }
+}
+
+/**
+ * Ownership check for entries under the shared `~/.agents/skills/` store.
+ *
+ * Returns true only when `entryPath` is a symlink whose resolved target lives
+ * inside one of the supplied CE-managed Codex roots. Plain files, directories,
+ * and symlinks pointing elsewhere (user-created skills that happen to share a
+ * name with a CE skill) return false so callers can leave them alone.
+ *
+ * The shared `.agents` store is cross-plugin, so name-only matches are
+ * ambiguous. Only a symlink pointing into CE's own install tree is a strong
+ * signal that CE emitted it — use this guard before any mutation there.
+ */
+export async function isManagedCodexAgentsSymlink(
+  entryPath: string,
+  managedRoots: string[],
+): Promise<boolean> {
+  let stats
+  try {
+    stats = await fs.lstat(entryPath)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return false
+    throw err
+  }
+  if (!stats.isSymbolicLink()) return false
+
+  const resolvedTarget = await readResolvedSymlinkTarget(entryPath)
+  if (!resolvedTarget) return false
+  return managedRoots.some((root) => isPathInside(resolvedTarget, root))
+}
+
+/**
+ * Build the set of CE-managed Codex roots used as the ownership signal for
+ * entries under `~/.agents/skills/`. Returns both the raw and realpath-resolved
+ * forms so symlink-bearing paths on macOS (`/var/folders/...` -> `/private/...`)
+ * match regardless of which form the resolved symlink target takes.
+ */
+export async function resolveCodexManagedRoots(
+  codexRoot: string,
+  pluginName: string,
+): Promise<string[]> {
+  const rawManagedRoots = [
+    path.join(codexRoot, pluginName),
+    path.join(codexRoot, "skills", pluginName),
+  ]
+  return [
+    ...rawManagedRoots,
+    ...(await Promise.all(rawManagedRoots.map((root) => canonicalizePath(root)))),
+  ]
 }
 
 async function readResolvedSymlinkTarget(symlinkPath: string): Promise<string | null> {
