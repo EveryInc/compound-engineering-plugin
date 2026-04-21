@@ -301,7 +301,7 @@ This is the **conditionality design rule** the PR also introduces.
 
 ---
 
-- [ ] **U5: U-ID recognition + task label rule in `ce-work/SKILL.md` and `ce-work-beta/SKILL.md`**
+- [x] **U5: U-ID recognition + task label rule in `ce-work/SKILL.md` and `ce-work-beta/SKILL.md`**
 
 **Goal:** Close the execution side of the loop. ce-work and ce-work-beta recognize U-IDs alongside R/A/F/AE in blockers/verification/summaries, and preserve the U-ID prefix in task labels so blockers and summaries reference the same anchor.
 
