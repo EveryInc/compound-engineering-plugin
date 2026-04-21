@@ -178,6 +178,47 @@ describe("writeCodexBundle", () => {
     expect(await exists(path.join(promptsDir, "ce-plan.md"))).toBe(true)
   })
 
+  test("preserves same-named user prompts when pluginName triggers legacy allow-list cleanup", async () => {
+    // Regression: `cleanupKnownLegacyCodexArtifacts` used to move any
+    // allow-listed filename under `~/.codex/prompts/` into
+    // `compound-engineering/legacy-backup/` whenever `pluginName` was set,
+    // without checking that CE authored the file. A user-authored
+    // `ce-plan.md` prompt was therefore destroyed on `install --to codex`
+    // even though the content was not a CE-emitted wrapper. The install path
+    // now requires the same body + frontmatter ownership fingerprint that
+    // the standalone `cleanupStalePrompts` helper uses before touching a
+    // prompt file at a colliding legacy name.
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-prompts-legacy-preserve-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+    const promptsDir = path.join(codexRoot, "prompts")
+    await fs.mkdir(promptsDir, { recursive: true })
+    const userPromptBody =
+      "---\ndescription: \"Project-local ce-plan helper\"\n---\n\nCustom prompt body\n"
+    await fs.writeFile(path.join(promptsDir, "ce-plan.md"), userPromptBody)
+
+    await writeCodexBundle(codexRoot, {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+    })
+
+    expect(await exists(path.join(promptsDir, "ce-plan.md"))).toBe(true)
+    expect(await fs.readFile(path.join(promptsDir, "ce-plan.md"), "utf8")).toBe(userPromptBody)
+    const backupRoot = path.join(codexRoot, "compound-engineering", "legacy-backup")
+    // The legacy-backup directory should not contain the user-authored prompt.
+    if (await exists(backupRoot)) {
+      const timestamps = await fs.readdir(backupRoot)
+      for (const timestamp of timestamps) {
+        const promptsBackup = path.join(backupRoot, timestamp, "prompts")
+        if (await exists(promptsBackup)) {
+          const backedUp = await fs.readdir(promptsBackup)
+          expect(backedUp).not.toContain("ce-plan.md")
+        }
+      }
+    }
+  })
+
   test("writes plugin skills under a namespaced Codex skills root without .agents symlinks", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-managed-plugin-"))
     const codexRoot = path.join(tempRoot, ".codex")

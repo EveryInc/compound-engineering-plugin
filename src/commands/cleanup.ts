@@ -24,6 +24,7 @@ import {
 } from "../data/plugin-legacy-artifacts"
 import { moveLegacyArtifactToBackup } from "../targets/managed-artifacts"
 import { isManagedCodexAgentsSymlink, readCodexInstallManifest, resolveCodexManagedRoots } from "../targets/codex"
+import { classifyCodexLegacyPromptOwnership } from "../utils/legacy-cleanup"
 import { isSafeManagedPath, pathExists, readJson, sanitizePathName } from "../utils/files"
 import { resolveOpenCodeGlobalRoot } from "../utils/opencode-config"
 import { expandHome, resolveTargetHome } from "../utils/resolve-home"
@@ -280,6 +281,19 @@ async function cleanupCodex(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>
     }
   }
   for (const promptFile of artifacts.prompts) {
+    // Ownership gate: `~/.codex/prompts/` is a shared directory across plugins
+    // and user-authored prompts. A filename match against the historical CE
+    // allow-list is not a strong enough signal — a user who creates
+    // `~/.codex/prompts/ce-plan.md` for their own workflow would otherwise see
+    // it swept into `compound-engineering/legacy-backup/` on every cleanup run.
+    // Mirror the body + frontmatter check used by `cleanupStalePrompts` so
+    // install-time and standalone cleanup paths treat ownership identically.
+    // "unknown" (no fingerprint on record) falls through so fully-retired
+    // historical wrappers still get cleaned up. Manifest-driven migration
+    // below is already safe because it only touches files CE recorded writing.
+    const promptPath = path.join(codexRoot, "prompts", promptFile)
+    const ownership = await classifyCodexLegacyPromptOwnership(promptPath)
+    if (ownership === "foreign") continue
     moved += await moveIfExists(managedDir, "prompts", path.join(codexRoot, "prompts"), promptFile, "Codex")
   }
 

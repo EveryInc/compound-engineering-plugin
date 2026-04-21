@@ -667,3 +667,44 @@ export async function cleanupStalePrompts(promptsDir: string): Promise<number> {
   }
   return removed
 }
+
+/**
+ * Ownership verdict for an individual Codex prompt file at a shared path like
+ * `~/.codex/prompts/<file>.md`. Used by callers in the Codex install and
+ * standalone-cleanup paths to gate legacy-name allow-list moves before
+ * renaming a file into `compound-engineering/legacy-backup/`.
+ *
+ * Verdicts:
+ *   - `"ce-owned"`: body + frontmatter fingerprint match a known
+ *     compound-engineering prompt-wrapper shape. Safe to move.
+ *   - `"foreign"`: we have a fingerprint on record for this filename and the
+ *     file does NOT match it. A user or sibling plugin authored this file —
+ *     leave it alone. `~/.codex/prompts/` is a cross-plugin directory, so a
+ *     name-only match (e.g. `ce-plan.md`) is not a strong enough signal.
+ *   - `"unknown"`: we have no fingerprint on record for this filename. This
+ *     applies to historical prompt wrappers whose corresponding CE skill no
+ *     longer ships (e.g. `reproduce-bug.md`, `report-bug.md`) — user
+ *     collisions at those names are unlikely, and the historical allow-list
+ *     was written specifically to clean them up. Callers may fall back to
+ *     name-only cleanup in this case.
+ *
+ * Rationale for the three-way split: `LEGACY_PROMPT_CURRENT_SKILL_FOR_FILE`
+ * + `LEGACY_PROMPT_DESCRIPTION_ALIASES` only cover prompt filenames whose
+ * corresponding ce-* skill is still shipped. For names that are fully
+ * retired, we have no description to compare against, so a strict ownership
+ * gate would strand genuinely-owned orphan wrappers. Reporting `"unknown"`
+ * lets callers keep the historical allow-list behavior for those while still
+ * gating the realistic collision vectors.
+ */
+export type CodexPromptOwnership = "ce-owned" | "foreign" | "unknown"
+
+export async function classifyCodexLegacyPromptOwnership(
+  promptPath: string,
+): Promise<CodexPromptOwnership> {
+  const fileName = path.basename(promptPath)
+  const { prompts } = await loadLegacyFingerprints()
+  const hasFingerprint = prompts.has(fileName) || fileName in LEGACY_PROMPT_DESCRIPTION_ALIASES
+  if (!hasFingerprint) return "unknown"
+  const ceOwned = await isLegacyPromptWrapper(promptPath, prompts.get(fileName))
+  return ceOwned ? "ce-owned" : "foreign"
+}

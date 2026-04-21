@@ -5,6 +5,7 @@ import type { CodexBundle } from "../types/codex"
 import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
 import { getLegacyCodexArtifacts } from "../data/plugin-legacy-artifacts"
+import { classifyCodexLegacyPromptOwnership } from "../utils/legacy-cleanup"
 
 const MANAGED_START_MARKER = "# BEGIN Compound Engineering plugin MCP -- do not edit this block"
 const MANAGED_END_MARKER = "# END Compound Engineering plugin MCP"
@@ -264,6 +265,18 @@ async function cleanupKnownLegacyCodexArtifacts(codexRoot: string, bundle: Codex
 
   for (const promptFile of legacyArtifacts.prompts) {
     const legacyPromptPath = path.join(codexRoot, "prompts", promptFile)
+    // Ownership gate: `~/.codex/prompts/` is a shared directory across plugins
+    // and user-authored prompts. A filename match against the legacy allow-list
+    // is not a strong enough signal to move a file — a user who creates
+    // `~/.codex/prompts/ce-plan.md` for their own workflow would otherwise see
+    // it swept into `compound-engineering/legacy-backup/` on every install.
+    // Mirror the body + frontmatter check used by the standalone
+    // `cleanupStalePrompts` helper. "unknown" (no fingerprint on record, e.g.
+    // fully-retired wrappers like `reproduce-bug.md`) falls through to the
+    // historical allow-list behavior — user collisions at those names are
+    // unlikely and a strict gate would strand genuinely-owned orphans.
+    const ownership = await classifyCodexLegacyPromptOwnership(legacyPromptPath)
+    if (ownership === "foreign") continue
     await moveLegacyArtifactToBackup(codexRoot, pluginName, "prompts", legacyPromptPath)
   }
 }
