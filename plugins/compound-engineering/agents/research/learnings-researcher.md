@@ -132,7 +132,7 @@ For each relevant document, return a summary in this format:
 
 ## Frontmatter Schema Reference
 
-Reference the [yaml-schema.md](../../skills/compound-docs/references/yaml-schema.md) for the complete schema. Key enum values:
+See the `compound-docs` skill (`skills/compound-docs/references/yaml-schema.md`) for the complete schema. Key enum values:
 
 **problem_type values:**
 - build_error, test_failure, runtime_error, performance_issue
