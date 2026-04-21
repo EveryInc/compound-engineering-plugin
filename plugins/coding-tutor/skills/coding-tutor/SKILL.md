@@ -21,6 +21,11 @@ Then proceed with setup and onboarding.
 
 **Before doing anything else**, run the setup script to ensure the central tutorials repository exists:
 
+> **Platform requirement**: `CLAUDE_PLUGIN_ROOT` is set automatically by Claude Code. On other platforms (Codex, Gemini CLI, etc.) it is unset and all script invocations below will fail. Verify it is set before proceeding:
+> ```bash
+> : "${CLAUDE_PLUGIN_ROOT:?'CLAUDE_PLUGIN_ROOT is not set — this skill requires Claude Code or a manual export of the plugin path'}"
+> ```
+
 ```bash
 python3 ${CLAUDE_PLUGIN_ROOT}/skills/coding-tutor/scripts/setup_tutorials.py
 ```
