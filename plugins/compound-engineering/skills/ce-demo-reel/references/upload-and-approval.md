@@ -1,6 +1,6 @@
 # Upload and Approval
 
-Upload a temporary preview for the user to review, then promote to permanent hosting on approval.
+Upload a temporary preview for the user to review, then either promote to permanent hosting or save locally based on user choice.
 
 ## Step 1: Preview Upload (Temporary)
 
@@ -14,24 +14,33 @@ The last line of output is the preview URL (e.g., `https://litter.catbox.moe/abc
 
 For multiple files (static screenshots tier), upload each file separately.
 
-**If upload fails** after retry, fall back to opening the local file with the platform file-opener (`open` on macOS, `xdg-open` on Linux) so the user can still review it. Include the local path in the approval question instead of a URL.
+**If upload fails** after retry, fall back to opening the local file with the platform file-opener (`open` on macOS, `xdg-open` on Linux) so the user can still review it. Include the local path in the destination choice question instead of a URL.
 
-## Step 2: Approval Gate
+## Step 2: Destination Choice
 
-Present the preview URL to the user for approval. Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini. Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
+Present the preview URL to the user and ask how to handle the evidence. Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini. Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
-**Question:** "Evidence preview (1h link): [PREVIEW_URL]"
+**Question:** "Evidence preview (1h link): [PREVIEW_URL]. Where should the evidence go?"
 
 **Options:**
-1. **Use this in the PR** -- promote to permanent hosting
-2. **Recapture** -- provide instructions on what to change
-3. **Proceed without evidence** -- set evidence to null and proceed
+1. **Upload to catbox (public URL)** -- promote to permanent hosting for PR embedding
+2. **Save locally** -- save to `.context/demo-reel/` in the repo
+3. **Recapture** -- provide instructions on what to change
+4. **Proceed without evidence** -- set evidence to null and proceed
 
 If the question tool is unavailable (headless/background mode), present the numbered options and wait for the user's reply before proceeding.
 
+### On "Upload to catbox (public URL)"
+
+Proceed to Step 3: Promote to Permanent Hosting.
+
+### On "Save locally"
+
+Proceed to Step 3b: Local Save.
+
 ### On "Recapture"
 
-Return to the tier execution step. The user's instructions guide what to change in the next capture attempt. After recapture, upload a new preview and repeat the approval gate.
+Return to the tier execution step. The user's instructions guide what to change in the next capture attempt. After recapture, upload a new preview and repeat the destination choice.
 
 ### On "Proceed without evidence"
 
@@ -39,7 +48,7 @@ Set evidence to null and proceed. The preview link expires on its own.
 
 ## Step 3: Promote to Permanent Hosting
 
-After the user approves, upload to permanent catbox hosting. The command accepts either the preview URL (preferred) or the local file path (fallback):
+After the user selects "Upload to catbox", upload to permanent catbox hosting. The command accepts either the preview URL (preferred) or the local file path (fallback):
 
 ```bash
 python3 scripts/capture-demo.py upload [PREVIEW_URL or ARTIFACT_PATH]
@@ -51,10 +60,26 @@ The last line of output is the permanent URL (e.g., `https://files.catbox.moe/ab
 
 For multiple files, promote each separately.
 
+## Step 3b: Local Save
+
+After the user selects "Save locally", save the artifact to `.context/demo-reel/` using the pipeline script:
+
+```bash
+python3 scripts/capture-demo.py save-local --file [ARTIFACT_PATH] --branch [BRANCH_NAME]
+```
+
+Determine `[BRANCH_NAME]` from `git branch --show-current` or the PR context discovered in Step 0 of the SKILL.md.
+
+The last line of output is the absolute path of the saved file. Use this path in the output.
+
+For multiple files (static screenshots tier), save each file separately.
+
+**If save fails** (permission denied, disk full), report the error and offer to retry or fall back to catbox upload (Step 3).
+
 ## Step 4: Return Output
 
-Return the structured output defined in the SKILL.md Output section: `Tier`, `Description`, and `URL` (the permanent catbox URL). The caller formats the evidence into the PR description. ce-demo-reel does not generate markdown.
+Return the structured output defined in the SKILL.md Output section: `Tier`, `Description`, and either `URL` (permanent catbox URL) or `Path` (local file path). The caller formats the evidence into the PR description. ce-demo-reel does not generate markdown.
 
 ## Step 5: Cleanup
 
-Remove the `[RUN_DIR]` scratch directory and all temporary files. Preserve nothing -- the evidence lives at the permanent URL now.
+Remove the `[RUN_DIR]` scratch directory and all temporary files. Preserve nothing -- the evidence lives at the permanent URL or has been copied to the local save path.
