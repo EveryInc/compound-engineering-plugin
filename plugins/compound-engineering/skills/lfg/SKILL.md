@@ -27,13 +27,25 @@ CRITICAL: You MUST execute every step below IN ORDER. Do NOT skip any required s
 
    1. Load `references/tracker-defer.md` in **non-interactive mode**. Pass the residual actionable findings from step 4's summary (or the run artifact when the summary was truncated).
    2. Collect the structured return: `{ filed: [...], failed: [...], no_sink: [...] }`.
-   3. Update the PR description by loading the `ce-commit-push-pr` skill in its update mode. Provide a `## Residual Review Findings` section composed from the structured return:
+   3. Compose a `## Residual Review Findings` markdown section from the structured return:
       - For each item in `filed`: a bullet with severity, file:line, title, and a link to the tracker ticket URL.
       - For each item in `failed`: a bullet with severity, file:line, title, and the failure reason (e.g., `Defer failed: gh returned 401 — tracker unavailable`).
-      - For each item in `no_sink`: a bullet with severity, file:line, and title inlined verbatim so the PR itself is the durable record.
-   4. If step 4 already ran after `ce-work` opened the PR, the update mode appends/replaces the `## Residual Review Findings` section on the existing PR. If no PR exists yet (edge case: `ce-work` stopped short of Phase 4), hand the composed section to the eventual `ce-commit-push-pr` invocation as additional context.
+      - For each item in `no_sink`: a bullet with severity, file:line, and title inlined verbatim so the PR body or fallback file is the durable record.
+   4. Detect the current branch's open PR without prompting:
 
-   Never block DONE on residual handoff. A `no_sink` outcome is success as long as the findings are durably present in the PR body.
+      ```bash
+      gh pr view --json number,url,body,state
+      ```
+
+   5. If an open PR exists, update it directly with `gh`; do not load any confirmation-driven PR update skill. Append or replace the `## Residual Review Findings` section in the current PR body, write the new body to an OS temp file, then run:
+
+      ```bash
+      gh pr edit PR_NUMBER --body-file BODY_FILE
+      ```
+
+   6. If no open PR exists, create a tracked fallback file at `docs/residual-review-findings/<branch-or-head-sha>.md` containing the composed section and the source PR-review run context. Stage only that file, commit it with `docs(review): record residual review findings`, and push the current branch (`git push` if an upstream exists, otherwise `git push --set-upstream origin HEAD`). This is the durable no-PR sink. Do not output DONE until either the existing PR body has been updated or this fallback file commit has been pushed. If both paths fail, stop and report the failed commands; do not silently proceed.
+
+   Never block DONE on tracker filing failures once residuals have been durably recorded. A `no_sink` outcome is success only when the findings are present in the PR body or in the pushed fallback file.
 
 6. `/ce-test-browser`
 

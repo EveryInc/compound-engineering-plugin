@@ -359,12 +359,17 @@ describe("ce-code-review contract", () => {
     expect(lfg).toMatch(/failed/)
     expect(lfg).toMatch(/no_sink/)
 
-    // PR description update path is explicit.
-    expect(lfg).toContain("ce-commit-push-pr")
+    // PR description update path is non-interactive and does not route through
+    // confirmation-driven PR update skills.
+    expect(lfg).not.toContain("ce-commit-push-pr")
+    expect(lfg).toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
     expect(lfg).toContain("## Residual Review Findings")
+    expect(lfg).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
+    expect(lfg).toContain("Do not output DONE until either the existing PR body has been updated or this fallback file commit has been pushed.")
 
-    // Autopilot contract: never block DONE on residual handoff.
-    expect(lfg).toMatch(/Never block DONE/i)
+    // Autopilot contract: never prompt, but require a durable sink before DONE.
+    expect(lfg).toContain("Do not prompt the user")
+    expect(lfg).toMatch(/Never block DONE on tracker filing failures/i)
   })
 
   test("ce-code-review autofix emits a residual-work summary in-chat, not only in the artifact", async () => {
