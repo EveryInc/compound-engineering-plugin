@@ -59,7 +59,6 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 | `/ce-resolve-pr-feedback` | Resolve PR review feedback in parallel |
 | `/ce-test-browser` | Run browser tests on PR-affected pages |
 | `/ce-test-xcode` | Build and test iOS apps on simulator using XcodeBuildMCP |
-| `/ce-onboarding` | Generate `ONBOARDING.md` to help new contributors understand the codebase |
 | `/ce-setup` | Diagnose environment, install missing tools, and bootstrap project config |
 | `/ce-update` | Check compound-engineering plugin version and fix stale cache (Claude Code only) |
 | `/ce-release-notes` | Summarize recent compound-engineering plugin releases, or answer a question about a past release with a version citation |

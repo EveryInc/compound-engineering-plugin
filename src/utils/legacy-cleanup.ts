@@ -92,6 +92,7 @@ const STALE_SKILL_DIRS = [
   "ce-deploy-docs",
   "ce-dspy-ruby",
   "ce-every-style-editor",
+  "ce-onboarding",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */

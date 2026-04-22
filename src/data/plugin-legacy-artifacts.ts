@@ -30,6 +30,7 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "ce-deploy-docs",
       "ce-dspy-ruby",
       "ce-every-style-editor",
+      "ce-onboarding",
       "ce:brainstorm",
       "ce:compound",
       "ce:compound-refresh",
