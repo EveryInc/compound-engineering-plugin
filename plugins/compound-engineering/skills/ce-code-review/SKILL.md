@@ -189,9 +189,10 @@ This path works with any ref — a SHA, `origin/main`, a branch name. Automated 
 
 **If a PR number or GitHub URL is provided as an argument:**
 
-**Skip-condition pre-check.** Before checkout or scope detection, run a single PR-state probe to decide whether the review should proceed at all. This avoids dispatching multi-agent review work for PRs that should not be reviewed.
+**Skip-condition pre-check.** Before checkout or scope detection, fetch the PR state and the current authenticated user's login to decide whether the review should proceed at all. This avoids dispatching multi-agent review work for PRs that should not be reviewed.
 
 ```
+gh api user -q .login
 gh pr view <number-or-url> --json state,isDraft,title,body,comments
 ```
 
@@ -200,7 +201,7 @@ Apply skip rules in order:
 - `state` is `CLOSED` or `MERGED` -> stop with message `PR is closed/merged; not reviewing.`
 - `isDraft` is `true` -> stop with message `PR is a draft; not reviewing. Re-invoke once it's marked ready.`
 - `title` matches a trivial-PR pattern AND `body` is empty or only template scaffolding -> stop with message `PR appears to be a trivial automated PR; not reviewing. Run from the branch (no PR target) or pass base:<ref> if review is intended.` Trivial-PR pattern: `^(chore\(deps\)|build\(deps\)|chore: bump|chore: release)`. The pattern is conservative -- hand-typed informal commits will not match.
-- Any comment in `comments` whose body starts with the ce-code-review report header (e.g., a line beginning with `## Code Review`, `# Code Review`, or the headless completion line `Code review complete (headless mode).`) -> stop with message `PR already has a ce-code-review report. To re-review, run from the branch (no PR target) or pass base:<ref> against the current checkout.`
+- Any comment in `comments` where `author.login` matches the authenticated user's login AND whose body starts with the ce-code-review report header (a line beginning with `## Code Review`, `# Code Review`, or the headless completion line `Code review complete (headless mode).`) -> stop with message `PR already has a ce-code-review report. To re-review, run from the branch (no PR target) or pass base:<ref> against the current checkout.` Comments from other authors with those same headings are ignored.
 
 Skip detection deliberately ignores commits-since-comment. The escape hatch for "I want to re-review after pushing more commits" is branch mode or `base:` mode, both of which bypass this PR-mode skip-check. Simpler to detect and explain than commit-vs-comment timestamp logic; the over-suppression cost is one extra command from the user.
 
@@ -528,7 +529,8 @@ Independent verification gate. Spawn one validator sub-agent per surviving findi
 |------|---------------|-------|
 | `headless` | Yes, eagerly | Between Stage 5 and Stage 6 |
 | `autofix` | Yes, eagerly | Between Stage 5 and Stage 6 |
-| `interactive`, walk-through routing (option A) | No -- the user is the per-finding validator | n/a |
+| `interactive`, walk-through routing (option A) — per-finding phase | No -- the user is the per-finding validator | n/a |
+| `interactive`, walk-through routing (option A) — LFG-the-rest handoff | Yes, on the remaining action set | Before bulk-preview dispatch (same gate as option B) |
 | `interactive`, LFG routing (option B) | Yes, on the action set | Before bulk-preview dispatch |
 | `interactive`, File-tickets routing (option C) | Yes, on the action set | Before tracker dispatch |
 | `interactive`, Report-only routing (option D) | No -- nothing is being externalized | n/a |
@@ -635,6 +637,7 @@ Testing gaps:
 
 Coverage:
 - Suppressed: <N> findings below anchor 75 (P0 at anchor 50+ retained)
+- Mode-aware demotion suppressions: <N> findings suppressed (testing/maintainability advisory P2-P3)
 - Validator drops: <N> findings rejected by Stage 5b validator
   - <file:line> -- <reason>
 - Validator over-budget drops: <N> findings exceeded the 15-cap and were not validated
