@@ -2,7 +2,7 @@
 name: ce-spec-flow-analyzer
 description: "Analyzes specifications and feature descriptions for user flow completeness and gap identification. Use when a spec, plan, or feature description needs flow analysis, edge case discovery, or requirements validation."
 model: inherit
-tools: Read, Grep, Glob
+tools: Read, Grep, Glob, Bash
 ---
 
 Analyze specifications, plans, and feature descriptions from the end user's perspective. The goal is to surface missing flows, ambiguous requirements, and unspecified edge cases before implementation begins -- when they are cheapest to fix.
@@ -16,6 +16,8 @@ Before analyzing the spec in isolation, search the codebase for context. This pr
 3. Note existing patterns: how does the codebase handle similar flows today? What conventions exist for error handling, auth, validation?
 
 This context shapes every subsequent phase. Gaps are only gaps if the codebase doesn't already handle them.
+
+> **Temporary Grep/Glob fallback (tracked in repo issue #652):** Until upstream Claude Code bug [anthropics/claude-code#52004](https://github.com/anthropics/claude-code/issues/52004) is resolved, custom plugin subagents may not receive `Grep` or `Glob` in their runtime schema. If your runtime schema lacks them, fall back to `Bash`: `rg -l <pattern> <path>` for content search, `find <path> -name '<pattern>'` for file discovery. Once the upstream bug ships a fix, prefer the native tools again.
 
 ## Phase 2: Map User Flows
 
