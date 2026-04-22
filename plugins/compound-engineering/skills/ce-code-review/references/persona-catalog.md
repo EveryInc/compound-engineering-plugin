@@ -1,6 +1,6 @@
 # Persona Catalog
 
-17 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific agents. The orchestrator uses this catalog to select which reviewers to spawn for each review.
+18 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific agents. The orchestrator uses this catalog to select which reviewers to spawn for each review.
 
 ## Always-on (4 personas + 2 CE agents)
 
@@ -37,7 +37,7 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 | `cli-readiness` | `ce-cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
 | `previous-comments` | `ce-previous-comments-reviewer` | **PR-only.** Reviewing a PR that has existing review comments or review threads from prior review rounds. Skip entirely when no PR metadata was gathered in Stage 1. |
 
-## Stack-Specific Conditional (5 personas)
+## Stack-Specific Conditional (6 personas)
 
 These reviewers keep their original opinionated lens. They are additive with the cross-cutting personas above, not replacements for them.
 
@@ -48,6 +48,7 @@ These reviewers keep their original opinionated lens. They are additive with the
 | `kieran-python` | `ce-kieran-python-reviewer` | Python modules, endpoints, services, scripts, or typed domain code |
 | `kieran-typescript` | `ce-kieran-typescript-reviewer` | TypeScript components, services, hooks, utilities, or shared types |
 | `julik-frontend-races` | `ce-julik-frontend-races-reviewer` | Stimulus/Turbo controllers, DOM event wiring, timers, async UI flows, animations, or frontend state transitions with race potential |
+| `swift-ios` | `ce-swift-ios-reviewer` | Swift files, SwiftUI views, UIKit controllers, `.entitlements`, `PrivacyInfo.xcprivacy`, `.xcdatamodeld`, `Package.swift`, `Package.resolved`, storyboards, XIBs, or semantic build-setting / target-membership / code-signing changes in `.pbxproj` |
 
 ## CE Conditional Agents (migration-specific)
 

@@ -132,6 +132,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `ce-schema-drift-detector` | Detect unrelated schema.rb changes in PRs |
 | `ce-security-reviewer` | Exploitable vulnerabilities with confidence calibration |
 | `ce-security-sentinel` | Security audits and vulnerability assessments |
+| `ce-swift-ios-reviewer` | Swift and iOS code review -- SwiftUI state, retain cycles, concurrency, Core Data threading, accessibility |
 | `ce-testing-reviewer` | Test coverage gaps, weak assertions |
 | `ce-project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance |
 | `ce-adversarial-reviewer` | Construct failure scenarios to break implementations across component boundaries |

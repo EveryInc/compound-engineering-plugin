@@ -106,7 +106,7 @@ Routing rules:
 
 ## Reviewers
 
-17 reviewer personas in layered conditionals, plus CE-specific agents. See the persona catalog included below for the full catalog.
+18 reviewer personas in layered conditionals, plus CE-specific agents. See the persona catalog included below for the full catalog.
 
 **Always-on (every review):**
 
@@ -141,6 +141,7 @@ Routing rules:
 | `ce-kieran-python-reviewer` | Python modules, endpoints, scripts, or services |
 | `ce-kieran-typescript-reviewer` | TypeScript components, services, hooks, utilities, or shared types |
 | `ce-julik-frontend-races-reviewer` | Stimulus/Turbo controllers, DOM events, timers, animations, or async UI flows |
+| `ce-swift-ios-reviewer` | Swift files, SwiftUI views, UIKit controllers, entitlements, privacy manifests, Core Data models, SPM manifests, storyboards/XIBs, or semantic build-setting/target/signing changes in .pbxproj |
 
 **CE conditional (migration-specific):**
 
