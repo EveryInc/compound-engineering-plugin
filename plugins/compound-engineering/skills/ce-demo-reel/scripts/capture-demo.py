@@ -647,7 +647,7 @@ def cmd_upload(args):
 
 def _sanitize_branch(branch):
     sanitized = branch.replace("/", "-")
-    sanitized = re.sub(r"[^a-zA-Z0-9\-]", "", sanitized)
+    sanitized = re.sub(r"[^a-zA-Z0-9_\-]", "", sanitized)
     sanitized = re.sub(r"-+", "-", sanitized).strip("-")
     return sanitized[:60]
 
@@ -739,7 +739,8 @@ Commands:
     p_save = sub.add_parser("save-local", help="Save artifact locally instead of uploading")
     p_save.add_argument("--file", required=True, help="Artifact file to save")
     p_save.add_argument("--branch", default="", help="Branch name for filename")
-    p_save.add_argument("--output-dir", default=".context/demo-reel", help="Target directory")
+    default_dir = str(Path(os.environ.get("TMPDIR", "/tmp")) / "compound-engineering" / "ce-demo-reel")
+    p_save.add_argument("--output-dir", default=default_dir, help="Target directory")
 
     args = parser.parse_args()
 

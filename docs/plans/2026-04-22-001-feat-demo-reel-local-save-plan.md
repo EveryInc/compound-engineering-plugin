@@ -10,7 +10,7 @@ origin: docs/brainstorms/2026-04-22-demo-reel-local-save-requirements.md
 
 ## Overview
 
-Add a destination choice to the ce-demo-reel upload flow: after capture, the user picks either "upload to catbox" (existing behavior) or "save locally" (new). Local save copies the final artifact to `.context/demo-reel/` with a descriptive filename. The catbox upload path is unchanged.
+Add a destination choice to the ce-demo-reel upload flow: after capture, the user picks either "upload to catbox" (existing behavior) or "save locally" (new). Local save copies the final artifact to a stable OS-temp path with a descriptive filename. The catbox upload path is unchanged.
 
 ---
 
@@ -24,7 +24,7 @@ When ce-demo-reel captures evidence, local artifacts are deleted after uploading
 
 - R1. After capture completes, ask the user whether to upload to catbox or save locally
 - R2. The question must present the captured artifact(s) and clearly describe both options
-- R3. When the user chooses local save, copy artifacts to `.context/demo-reel/` relative to CWD; do not upload to catbox
+- R3. When the user chooses local save, copy artifacts to `$TMPDIR/compound-engineering/ce-demo-reel/`; do not upload to catbox
 - R4. Create the destination directory if it does not exist
 - R5. Use a descriptive filename with branch name and timestamp to avoid collisions
 - R6. After saving, display the local file path(s) to the user
@@ -35,7 +35,7 @@ When ce-demo-reel captures evidence, local artifacts are deleted after uploading
 
 - Catbox upload logic itself is unchanged — only the routing is new
 - No automatic git-add or commit of saved artifacts
-- No configurable save path — `.context/demo-reel/` is the fixed default
+- No configurable save path — `$TMPDIR/compound-engineering/ce-demo-reel/` is the fixed default
 - No retroactive save of previously captured evidence
 
 ---
@@ -90,7 +90,7 @@ When ce-demo-reel captures evidence, local artifacts are deleted after uploading
 - Modify: `plugins/compound-engineering/skills/ce-demo-reel/scripts/capture-demo.py`
 
 **Approach:**
-- Add `save-local` subcommand accepting `--file` (artifact path), `--branch` (branch name), and `--output-dir` (target directory, defaults to `.context/demo-reel/`)
+- Add `save-local` subcommand accepting `--file` (artifact path), `--branch` (branch name), and `--output-dir` (target directory, defaults to `$TMPDIR/compound-engineering/ce-demo-reel/`)
 - Create output directory with `os.makedirs(exist_ok=True)`
 - Sanitize branch name: replace `/` with `-`, strip non-alphanumeric chars except `-`, truncate to 60 chars
 - Generate filename: `<sanitized-branch>-<YYYYMMDD-HHMMSS>.<ext>` where ext comes from the source file
@@ -103,8 +103,8 @@ When ce-demo-reel captures evidence, local artifacts are deleted after uploading
 - Argparse registration pattern at bottom of file
 
 **Test scenarios:**
-- Happy path: `save-local --file /tmp/demo.gif --branch feat/add-login` creates `.context/demo-reel/feat-add-login-<timestamp>.gif` and prints the path
-- Happy path: `save-local --file /tmp/screenshot.png --branch main` creates `.context/demo-reel/main-<timestamp>.png`
+- Happy path: `save-local --file /tmp/demo.gif --branch feat/add-login` creates `$TMPDIR/compound-engineering/ce-demo-reel/feat-add-login-<timestamp>.gif` and prints the path
+- Happy path: `save-local --file /tmp/screenshot.png --branch main` creates `$TMPDIR/compound-engineering/ce-demo-reel/main-<timestamp>.png`
 - Edge case: branch with deep nesting `feat/team/subsystem/thing` sanitizes to `feat-team-subsystem-thing`
 - Edge case: branch name exceeding 60 chars is truncated
 - Edge case: output directory does not exist — created automatically
@@ -134,7 +134,7 @@ When ce-demo-reel captures evidence, local artifacts are deleted after uploading
   2. **Save locally** — runs `save-local` subcommand, skips Step 3, goes to cleanup
   3. **Recapture** — unchanged behavior
   4. **Proceed without evidence** — unchanged behavior
-- Add a new section "Step 3b: Local Save" that calls `python3 scripts/capture-demo.py save-local --file [ARTIFACT_PATH] --branch [BRANCH] --output-dir .context/demo-reel/`
+- Add a new section "Step 3b: Local Save" that calls `python3 scripts/capture-demo.py save-local --file [ARTIFACT_PATH] --branch [BRANCH]`
 - Step 3b captures the printed path and uses it in the output
 - Step 5 (cleanup) remains the same — `[RUN_DIR]` is always removed since the artifact has been copied out
 
@@ -199,7 +199,7 @@ When ce-demo-reel captures evidence, local artifacts are deleted after uploading
 | Risk | Mitigation |
 |------|------------|
 | ce-commit-push-pr doesn't handle `Path` output | Check how ce-commit-push-pr consumes demo-reel output; update if needed (but scoped out of this plan per scope boundaries) |
-| `.context/` directory not gitignored by default | Not our responsibility — users manage their own `.gitignore`. The directory convention is documented in AGENTS.md |
+| OS-temp files cleaned by system reboot | Acceptable — demo reel artifacts are transient; users can `mv` to repo if they want to commit |
 
 ---
 

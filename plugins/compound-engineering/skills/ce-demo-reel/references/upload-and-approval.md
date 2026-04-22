@@ -24,7 +24,7 @@ Present the preview URL to the user and ask how to handle the evidence. Use the 
 
 **Options:**
 1. **Upload to catbox (public URL)** -- promote to permanent hosting for PR embedding
-2. **Save locally** -- save to `.context/demo-reel/` in the repo
+2. **Save locally** -- save to a stable OS-temp path ($TMPDIR/compound-engineering/ce-demo-reel/)
 3. **Recapture** -- provide instructions on what to change
 4. **Proceed without evidence** -- set evidence to null and proceed
 
@@ -62,7 +62,7 @@ For multiple files, promote each separately.
 
 ## Step 3b: Local Save
 
-After the user selects "Save locally", save the artifact to `.context/demo-reel/` using the pipeline script:
+After the user selects "Save locally", save the artifact to the default OS-temp path using the pipeline script:
 
 ```bash
 python3 scripts/capture-demo.py save-local --file [ARTIFACT_PATH] --branch [BRANCH_NAME]
