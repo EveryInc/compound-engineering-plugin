@@ -11,15 +11,18 @@ Subcommands:
   terminal-recording --output OUT --tape TAPE               Run VHS tape file
   preview FILE                       Upload to litterbox (1h expiry) for preview
   upload FILE_OR_URL                 Upload/promote to catbox.moe (permanent)
+  save-local --file F --branch B     Save artifact locally instead of uploading
 """
 import argparse
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -640,6 +643,35 @@ def cmd_upload(args):
         _upload_with_retry(CATBOX_API, source, "catbox.moe")
 
 
+# --- Save local ---
+
+def _sanitize_branch(branch):
+    sanitized = branch.replace("/", "-")
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "", sanitized)
+    sanitized = re.sub(r"-+", "-", sanitized).strip("-")
+    return sanitized[:60]
+
+
+def cmd_save_local(args):
+    src = Path(args.file)
+    if not src.exists():
+        die(f"File not found: {src}")
+
+    output_dir = Path(args.output_dir)
+    os.makedirs(output_dir, exist_ok=True)
+
+    branch_part = _sanitize_branch(args.branch) if args.branch else "unknown"
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+    stem = re.sub(r"[^a-zA-Z0-9_-]", "", src.stem)[:40] or "artifact"
+    filename = f"{branch_part}-{timestamp}-{stem}{src.suffix}"
+    dest = output_dir / filename
+
+    shutil.copy2(src, dest)
+    dest_abs = str(dest.resolve())
+    print(f"Saved: {dest_abs}")
+    print(dest_abs)
+
+
 # --- Main ---
 
 def main():
@@ -656,6 +688,7 @@ Commands:
   terminal-recording --output O --tape T Run VHS tape
   preview FILE                           Upload to litterbox (1h expiry)
   upload FILE_OR_URL                     Upload/promote to catbox.moe (permanent)
+  save-local --file F --branch B         Save artifact locally instead of uploading
 """,
     )
     sub = parser.add_subparsers(dest="command")
@@ -702,6 +735,13 @@ Commands:
     p_upload = sub.add_parser("upload", help="Upload or promote to catbox.moe (permanent)")
     p_upload.add_argument("source", help="Local file path or URL to promote")
 
+    # save-local
+    p_save = sub.add_parser("save-local", help="Save artifact locally instead of uploading")
+    p_save.add_argument("--file", required=True, help="Artifact file to save")
+    p_save.add_argument("--branch", default="", help="Branch name for filename")
+    default_dir = str(Path(os.environ.get("TMPDIR", "/tmp")) / "compound-engineering" / "ce-demo-reel")
+    p_save.add_argument("--output-dir", default=default_dir, help="Target directory")
+
     args = parser.parse_args()
 
     if not args.command:
@@ -717,6 +757,7 @@ Commands:
         "terminal-recording": cmd_terminal_recording,
         "preview": cmd_preview,
         "upload": cmd_upload,
+        "save-local": cmd_save_local,
     }
     dispatch[args.command](args)
 
