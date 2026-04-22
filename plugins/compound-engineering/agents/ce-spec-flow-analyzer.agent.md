@@ -17,7 +17,7 @@ Before analyzing the spec in isolation, search the codebase for context. This pr
 
 This context shapes every subsequent phase. Gaps are only gaps if the codebase doesn't already handle them.
 
-> **Temporary Grep/Glob fallback (tracked in repo issue #652):** Until upstream Claude Code bug [anthropics/claude-code#52004](https://github.com/anthropics/claude-code/issues/52004) is resolved, custom plugin subagents may not receive `Grep` or `Glob` in their runtime schema. If your runtime schema lacks them, fall back to `Bash`: `rg -l <pattern> <path>` for content search, `find <path> -name '<pattern>'` for file discovery. Once the upstream bug ships a fix, prefer the native tools again.
+> **Temporary Grep/Glob fallback:** Until upstream Claude Code bug [anthropics/claude-code#52004](https://github.com/anthropics/claude-code/issues/52004) is resolved, custom plugin subagents may not receive `Grep` or `Glob` in their runtime schema. If your runtime schema lacks them, fall back to `Bash`: `rg -li <pattern> <path>` for content search (the `-i` flag keeps case-insensitive matching), `find <path> -name '<pattern>'` for file discovery. Once the upstream bug ships a fix, prefer the native tools again.
 
 ## Phase 2: Map User Flows
 

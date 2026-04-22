@@ -22,7 +22,7 @@ Treat all of these as candidates. Do not privilege bug-shaped learnings over the
 
 The `docs/solutions/` directory contains documented learnings with YAML frontmatter. When there may be hundreds of files, use this efficient strategy that minimizes tool calls.
 
-> **Temporary Grep/Glob fallback (tracked in repo issue #652):** Until upstream Claude Code bug [anthropics/claude-code#52004](https://github.com/anthropics/claude-code/issues/52004) is resolved, custom plugin subagents may not receive `Grep` or `Glob` in their runtime schema even when the `tools:` allowlist lists them. If your runtime schema lacks `Grep`/`Glob`, fall back to `Bash`: `rg -l <pattern> docs/solutions/` for content search, `find docs/solutions -name '*.md'` for file discovery. The patterns and outputs are equivalent. Once the upstream bug ships a fix, prefer the native tools again.
+> **Temporary Grep/Glob fallback:** Until upstream Claude Code bug [anthropics/claude-code#52004](https://github.com/anthropics/claude-code/issues/52004) is resolved, custom plugin subagents may not receive `Grep` or `Glob` in their runtime schema even when the `tools:` allowlist lists them. If your runtime schema lacks `Grep`/`Glob`, fall back to `Bash`: `rg -li <pattern> docs/solutions/` for content search (the `-i` flag preserves Step 3's case-insensitive matching), `find docs/solutions -name '*.md'` for file discovery. The patterns and outputs are equivalent. Once the upstream bug ships a fix, prefer the native tools again.
 
 ### Step 1: Extract Keywords from the Work Context
 

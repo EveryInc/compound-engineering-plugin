@@ -24,7 +24,9 @@ Verify each condition in order. If any fails, return a clear message explaining 
 
 If `gh` CLI is not available but a GitHub MCP server is connected, use its issue listing and reading tools instead. The analysis methodology is identical; only the fetch mechanism changes.
 
-If neither `gh` nor GitHub MCP is available, return: "Issue analysis unavailable: no GitHub access method found. Ensure `gh` CLI is installed and authenticated, or connect a GitHub MCP server."
+**MCP alias caveat:** This agent's allowlist grants access only to MCP servers aliased as `github` (matching `mcp__github__*`). If the user's GitHub MCP server is aliased under a different name (e.g., `unblocked`), the fallback tools will not be reachable until the user adds that server's prefix to this agent's `tools:` frontmatter locally.
+
+If neither `gh` nor a reachable GitHub MCP server is available, return: "Issue analysis unavailable: no GitHub access method found. Ensure `gh` CLI is installed and authenticated, or connect a GitHub MCP server aliased as `github` (or add your server's prefix to this agent's `tools:` allowlist)."
 
 ### Step 2: Fetch Issues (Token-Efficient)
 
