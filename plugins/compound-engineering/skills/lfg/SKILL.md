@@ -25,7 +25,7 @@ CRITICAL: You MUST execute every step below IN ORDER. Do NOT skip any required s
 
    Do not prompt the user. This step embraces the autopilot contract: residuals must become durable before DONE, but the agent never stops to ask.
 
-   1. Load `plugins/compound-engineering/skills/ce-code-review/references/tracker-defer.md` in **non-interactive mode**. Pass the residual actionable findings from step 4's summary (or the run artifact when the summary was truncated).
+   1. Load `references/tracker-defer.md` in **non-interactive mode**. Pass the residual actionable findings from step 4's summary (or the run artifact when the summary was truncated).
    2. Collect the structured return: `{ filed: [...], failed: [...], no_sink: [...] }`.
    3. Update the PR description by loading the `ce-commit-push-pr` skill in its update mode. Provide a `## Residual Review Findings` section composed from the structured return:
       - For each item in `filed`: a bullet with severity, file:line, title, and a link to the tracker ticket URL.

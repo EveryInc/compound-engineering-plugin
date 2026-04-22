@@ -312,6 +312,9 @@ describe("ce-code-review contract", () => {
       "plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md",
     ]) {
       const workflow = await readRepoFile(path)
+      await expect(readRepoFile(path.replace("shipping-workflow.md", "tracker-defer.md"))).resolves.toContain(
+        "Non-interactive mode",
+      )
 
       // Gate step is explicitly labeled and required after Tier 2.
       expect(workflow).toContain("**Residual Work Gate**")
@@ -330,13 +333,17 @@ describe("ce-code-review contract", () => {
 
   test("lfg autonomously handles residuals via non-interactive tracker-defer and PR description", async () => {
     const lfg = await readRepoFile("plugins/compound-engineering/skills/lfg/SKILL.md")
+    await expect(readRepoFile("plugins/compound-engineering/skills/lfg/references/tracker-defer.md")).resolves.toContain(
+      "Non-interactive mode",
+    )
 
     // Autonomous residual handoff step exists between code review and test-browser.
     expect(lfg).toContain("Autonomous residual handoff")
     expect(lfg).toMatch(/Do not prompt the user/)
 
     // tracker-defer is invoked in non-interactive mode.
-    expect(lfg).toContain("tracker-defer.md")
+    expect(lfg).toContain("references/tracker-defer.md")
+    expect(lfg).not.toContain("plugins/compound-engineering/skills/ce-code-review/references/tracker-defer.md")
     expect(lfg).toMatch(/non-interactive mode/)
 
     // Structured return buckets drive PR description content.
