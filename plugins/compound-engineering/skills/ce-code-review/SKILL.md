@@ -189,23 +189,18 @@ This path works with any ref — a SHA, `origin/main`, a branch name. Automated 
 
 **If a PR number or GitHub URL is provided as an argument:**
 
-**Skip-condition pre-check.** Before checkout or scope detection, fetch the PR state and the current authenticated user's login to decide whether the review should proceed at all. This avoids dispatching multi-agent review work for PRs that should not be reviewed.
+**Skip-condition pre-check.** Before checkout or scope detection, run a PR-state probe to decide whether the review should proceed:
 
 ```
-gh api user -q .login
-gh pr view <number-or-url> --json state,isDraft,title,body,comments
+gh pr view <number-or-url> --json state,title,body,files
 ```
 
 Apply skip rules in order:
 
 - `state` is `CLOSED` or `MERGED` -> stop with message `PR is closed/merged; not reviewing.`
-- `isDraft` is `true` -> stop with message `PR is a draft; not reviewing. Re-invoke once it's marked ready.`
-- `title` matches a trivial-PR pattern AND `body` is empty or only template scaffolding -> stop with message `PR appears to be a trivial automated PR; not reviewing. Run from the branch (no PR target) or pass base:<ref> if review is intended.` Trivial-PR pattern: `^(chore\(deps\)|build\(deps\)|chore: bump|chore: release)`. The pattern is conservative -- hand-typed informal commits will not match.
-- Any comment in `comments` where `author.login` matches the authenticated user's login AND whose body starts with the ce-code-review report header (a line beginning with `## Code Review`, `# Code Review`, or the headless completion line `Code review complete (headless mode).`) -> stop with message `PR already has a ce-code-review report. To re-review, run from the branch (no PR target) or pass base:<ref> against the current checkout.` Comments from other authors with those same headings are ignored.
+- **Trivial-PR judgment**: spawn a lightweight sub-agent (use `model: haiku` in Claude Code; GPT-4.1-mini or equivalent in Codex) with the PR title, body, and changed file paths. The agent's task: "Is this an automated or trivial PR that does not warrant a code review? Consider: dependency lock-file or manifest-only bumps, automated release commits, chore version increments with no substantive code changes. When in doubt, answer no — false negatives (skipped reviews that should have run) are more costly than false positives (unnecessary reviews)." If the judgment returns yes: stop with message `PR appears to be a trivial automated PR; not reviewing. Run without a PR argument to review the current branch, or pass base:<ref> if review is intended.`
 
-Skip detection deliberately ignores commits-since-comment. The escape hatch for "I want to re-review after pushing more commits" is branch mode or `base:` mode, both of which bypass this PR-mode skip-check. Simpler to detect and explain than commit-vs-comment timestamp logic; the over-suppression cost is one extra command from the user.
-
-When any skip rule fires, emit the message and stop without dispatching reviewers, switching the checkout, or running scope detection. **Standalone branch mode and `base:` mode are unaffected** -- they always run the full review.
+When any skip rule fires, emit the message and stop without dispatching reviewers, switching the checkout, or running scope detection. **Standalone branch mode and `base:` mode are unaffected** -- they always run the full review. **Draft PRs are reviewed normally** -- draft status is not a skip condition; early feedback on in-progress work is valuable.
 
 If no skip rule fires, proceed to the mode-switching and checkout logic below.
 

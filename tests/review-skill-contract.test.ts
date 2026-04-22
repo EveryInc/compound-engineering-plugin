@@ -318,17 +318,20 @@ describe("ce-code-review contract", () => {
     // Skip-check section exists
     expect(content).toContain("**Skip-condition pre-check.**")
 
-    // Single gh pr view call gathers all relevant state
-    expect(content).toMatch(/gh pr view.*--json state,isDraft,title,body,comments/)
+    // gh pr view fetches state and file list for trivial judgment
+    expect(content).toMatch(/gh pr view.*--json state,title,body,files/)
 
-    // Each skip rule is named
+    // Hard skip rules
     expect(content).toMatch(/state.*CLOSED.*MERGED/)
-    expect(content).toMatch(/isDraft.*true/)
-    expect(content).toMatch(/trivial-PR pattern/)
-    expect(content).toMatch(/ce-code-review report header/)
 
-    // Conservative trivial pattern (chore/build deps style; backslashes are part of the regex literal in SKILL.md)
-    expect(content).toMatch(/chore\\?\(deps\\?\)/)
+    // Draft PRs are explicitly NOT skipped
+    expect(content).not.toMatch(/isDraft.*true.*stop/)
+    expect(content).toMatch(/Draft PRs are reviewed normally/)
+
+    // Trivial-PR judgment uses lightweight model, not a regex
+    expect(content).toMatch(/lightweight sub-agent/)
+    expect(content).toMatch(/model.*haiku/i)
+    expect(content).not.toMatch(/chore\\?\(deps\\?\)/)
 
     // Skip cleanly without dispatching reviewers
     expect(content).toMatch(/stop without dispatching reviewers/)
