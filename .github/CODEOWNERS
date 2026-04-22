@@ -1,0 +1,13 @@
+# CODEOWNERS for compound-engineering-plugin
+#
+# Uses GitHub Teams per GitHub Repository Governance Plan §5.2.
+# See: https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+
+# Default — any core engineer can review
+* @Gravity-Rail/engineering-core
+
+# CI/CD workflows — permission and security-sensitive
+.github/workflows/ @Gravity-Rail/engineering-core
+
+# CODEOWNERS changes affect review gates
+.github/CODEOWNERS @Gravity-Rail/engineering-core
