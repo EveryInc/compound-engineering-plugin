@@ -1,5 +1,34 @@
 # Changelog
 
+## [3.0.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.68.1...cli-v3.0.0) (2026-04-22)
+
+
+### ⚠ BREAKING CHANGES
+
+* **cli:** rename all skills and agents to consistent ce- prefix ([#503](https://github.com/EveryInc/compound-engineering-plugin/issues/503))
+
+### Features
+
+* **ce-review:** add per-finding judgment loop to Interactive mode ([#590](https://github.com/EveryInc/compound-engineering-plugin/issues/590)) ([27cbaf8](https://github.com/EveryInc/compound-engineering-plugin/commit/27cbaf8161af8aad3260b58d0d9de03d6180a66c))
+* **ce-setup:** check for ast-grep CLI and agent skill ([#653](https://github.com/EveryInc/compound-engineering-plugin/issues/653)) ([23dc11b](https://github.com/EveryInc/compound-engineering-plugin/commit/23dc11b95ae46dc6be0308306de5c8f16329fe49))
+* **codex:** native plugin install manifests + agents-only converter ([#616](https://github.com/EveryInc/compound-engineering-plugin/issues/616)) ([3ed4a4f](https://github.com/EveryInc/compound-engineering-plugin/commit/3ed4a4fa0f6f4d08144ae7598af391b4f070b649))
+* **doc-review, learnings-researcher:** tiers, chain grouping, rewrite ([#601](https://github.com/EveryInc/compound-engineering-plugin/issues/601)) ([c1f68d4](https://github.com/EveryInc/compound-engineering-plugin/commit/c1f68d4d55ebf6085eaa7c177bf5c2e7a2cfb62c))
+* **pi:** first-class support via pi-subagents + pi-ask-user ([#651](https://github.com/EveryInc/compound-engineering-plugin/issues/651)) ([7ddfbed](https://github.com/EveryInc/compound-engineering-plugin/commit/7ddfbed33b08e5ad0dc56a3ecc19adb9a10ebb2c))
+
+
+### Bug Fixes
+
+* **ce-compound:** quote YAML array items starting with reserved indicators ([#613](https://github.com/EveryInc/compound-engineering-plugin/issues/613)) ([d8436b9](https://github.com/EveryInc/compound-engineering-plugin/commit/d8436b9a3c5b5370e51ec168a251ccb45f0d826e))
+* **ce-release-notes:** backtick-wrap `<skill-name>` token in description ([#603](https://github.com/EveryInc/compound-engineering-plugin/issues/603)) ([2aee4d4](https://github.com/EveryInc/compound-engineering-plugin/commit/2aee4d42031892e7937640a003d11fad82420944))
+* **ce-update:** derive cache dir from CLAUDE_PLUGIN_ROOT parent ([#645](https://github.com/EveryInc/compound-engineering-plugin/issues/645)) ([6155b9d](https://github.com/EveryInc/compound-engineering-plugin/commit/6155b9de3c2d60ca424386f2dfcb0dfa7668f2c1))
+* **lfg:** use platform-neutral skill references ([#642](https://github.com/EveryInc/compound-engineering-plugin/issues/642)) ([b104ce4](https://github.com/EveryInc/compound-engineering-plugin/commit/b104ce46bea4b1b9b0e9cfbdd9203dbc5a0aa510))
+* **skills:** cap skill descriptions at harness limit ([#643](https://github.com/EveryInc/compound-engineering-plugin/issues/643)) ([13f95ba](https://github.com/EveryInc/compound-engineering-plugin/commit/13f95ba6392f86aa8dd9b4430b84f0b7523c6c89))
+
+
+### Code Refactoring
+
+* **cli:** rename all skills and agents to consistent ce- prefix ([#503](https://github.com/EveryInc/compound-engineering-plugin/issues/503)) ([5c0ec91](https://github.com/EveryInc/compound-engineering-plugin/commit/5c0ec9137a7350534e32db91e8bad66f02693716))
+
 ## [2.68.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v2.68.0...cli-v2.68.1) (2026-04-18)
 
 
