@@ -419,6 +419,25 @@ const LEGACY_PI_EXTENSIONS_BY_PLUGIN: Record<string, string[]> = {
   "compound-engineering": ["compound-engineering-compat.ts"],
 }
 
+// Plugins that historically shipped an mcporter.json (via the now-removed
+// compat extension) but no longer do when `bundle.mcporterConfig` is absent.
+// The per-plugin guard keeps us from touching mcporter configs owned by
+// plugins that still legitimately emit one.
+const LEGACY_PI_MCPORTER_PLUGINS = new Set<string>(["compound-engineering"])
+
+type LegacyArtifactKind = "skills" | "prompts" | "extensions" | "mcporter"
+
+// Display label used in the "Moved legacy Pi <label> artifact ..." log line.
+// Most kinds are a simple plural→singular trim, but "mcporter" isn't a plural,
+// so we special-case it instead of slicing off a character and logging
+// "mcporte".
+const LEGACY_ARTIFACT_LABELS: Record<LegacyArtifactKind, string> = {
+  skills: "skill",
+  prompts: "prompt",
+  extensions: "extension",
+  mcporter: "mcporter config",
+}
+
 async function cleanupKnownLegacyPiArtifacts(paths: PiPaths, bundle: PiBundle): Promise<void> {
   const pluginName = bundle.pluginName
   if (!pluginName) return
@@ -443,11 +462,19 @@ async function cleanupKnownLegacyPiArtifacts(paths: PiPaths, bundle: PiBundle): 
     const legacyExtensionPath = path.join(paths.extensionsDir, extensionFile)
     await moveLegacyArtifactToBackup(paths.managedDir, "extensions", legacyExtensionPath)
   }
+
+  // Sweep the stale mcporter.json left behind by the removed compat extension.
+  // Only runs when the current bundle is NOT writing a fresh mcporter config —
+  // if it IS (e.g. a plugin with `mcpServers`), the existing write path backs
+  // up and overwrites the file and this sweep would undo that write.
+  if (!bundle.mcporterConfig && LEGACY_PI_MCPORTER_PLUGINS.has(pluginName)) {
+    await moveLegacyArtifactToBackup(paths.managedDir, "mcporter", paths.mcporterConfigPath)
+  }
 }
 
 async function moveLegacyArtifactToBackup(
   managedDir: string,
-  kind: "skills" | "prompts" | "extensions",
+  kind: LegacyArtifactKind,
   artifactPath: string,
 ): Promise<void> {
   if (!(await pathExists(artifactPath))) return
@@ -456,7 +483,7 @@ async function moveLegacyArtifactToBackup(
   const backupPath = path.join(backupDir, path.basename(artifactPath))
   await ensureDir(backupDir)
   await fs.rename(artifactPath, backupPath)
-  console.warn(`Moved legacy Pi ${kind.slice(0, -1)} artifact to ${backupPath}`)
+  console.warn(`Moved legacy Pi ${LEGACY_ARTIFACT_LABELS[kind]} artifact to ${backupPath}`)
 }
 
 export {

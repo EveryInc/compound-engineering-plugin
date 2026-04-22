@@ -286,6 +286,53 @@ Run these research agents:
     expect(await exists(path.join(outputRoot, "coding-tutor", "install-manifest.json"))).toBe(true)
   })
 
+  test("moves stale compound-engineering mcporter.json to legacy backup when bundle has no mcporterConfig", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-legacy-mcporter-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+    const staleConfigPath = path.join(outputRoot, "compound-engineering", "mcporter.json")
+
+    await fs.mkdir(path.dirname(staleConfigPath), { recursive: true })
+    await fs.writeFile(
+      staleConfigPath,
+      JSON.stringify({ mcpServers: { stale: { baseUrl: "https://example.invalid/mcp" } } }, null, 2),
+    )
+
+    const bundle: PiBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [],
+      extensions: [],
+      // No mcporterConfig — the compound-engineering plugin ships no MCP
+      // servers, so the file written by the removed compat extension should
+      // be swept into legacy-backup rather than lingering on disk.
+    }
+
+    await writePiBundle(outputRoot, bundle)
+
+    expect(await exists(staleConfigPath)).toBe(false)
+
+    const legacyBackupRoot = path.join(outputRoot, "compound-engineering", "legacy-backup")
+    expect(await exists(legacyBackupRoot)).toBe(true)
+
+    const timestamps = await fs.readdir(legacyBackupRoot)
+    const mcporterBackup = (
+      await Promise.all(
+        timestamps.map(async (timestamp) => {
+          const candidate = path.join(legacyBackupRoot, timestamp, "mcporter", "mcporter.json")
+          return (await exists(candidate)) ? candidate : null
+        }),
+      )
+    ).find((candidate): candidate is string => candidate !== null)
+
+    expect(mcporterBackup).toBeDefined()
+    const backedUp = JSON.parse(await fs.readFile(mcporterBackup!, "utf8")) as {
+      mcpServers: Record<string, { baseUrl?: string }>
+    }
+    expect(backedUp.mcpServers.stale?.baseUrl).toBe("https://example.invalid/mcp")
+  })
+
   test("moves legacy flat Pi CE artifacts to a namespaced backup", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-legacy-artifacts-"))
     const outputRoot = path.join(tempRoot, ".pi")

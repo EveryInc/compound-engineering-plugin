@@ -1,8 +1,10 @@
 import { formatFrontmatter } from "../utils/frontmatter"
-import { type ClaudeAgent, type ClaudeCommand, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
+import { type ClaudeAgent, type ClaudeCommand, type ClaudeMcpServer, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
 import type {
   PiBundle,
   PiGeneratedAgent,
+  PiMcporterConfig,
+  PiMcporterServer,
 } from "../types/pi"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 
@@ -38,7 +40,33 @@ export function convertClaudeToPi(
     generatedSkills: [],
     agents,
     extensions: [],
+    mcporterConfig: plugin.mcpServers ? convertMcpToMcporter(plugin.mcpServers) : undefined,
   }
+}
+
+function convertMcpToMcporter(servers: Record<string, ClaudeMcpServer>): PiMcporterConfig {
+  const mcpServers: Record<string, PiMcporterServer> = {}
+
+  for (const [name, server] of Object.entries(servers)) {
+    if (server.command) {
+      mcpServers[name] = {
+        command: server.command,
+        args: server.args,
+        env: server.env,
+        headers: server.headers,
+      }
+      continue
+    }
+
+    if (server.url) {
+      mcpServers[name] = {
+        baseUrl: server.url,
+        headers: server.headers,
+      }
+    }
+  }
+
+  return { mcpServers }
 }
 
 function convertPrompt(command: ClaudeCommand, usedNames: Set<string>) {

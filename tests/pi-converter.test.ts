@@ -8,7 +8,7 @@ import type { ClaudePlugin } from "../src/types/claude"
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
 describe("convertClaudeToPi", () => {
-  test("converts commands, skills, and agents without shipping a Pi extension or MCPorter config", async () => {
+  test("converts commands, skills, agents, and MCP servers without shipping a Pi extension", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToPi(plugin, {
       agentMode: "subagent",
@@ -38,9 +38,47 @@ describe("convertClaudeToPi", () => {
     expect(bundle.generatedSkills).toEqual([])
 
     // Pi installs now depend on the community pi-subagents and pi-ask-user extensions,
-    // so the converter emits no extension and no mcporter config. Legacy cleanup in the
-    // Pi writer removes any prior compound-engineering-compat.ts on upgrade.
+    // so the converter emits no bundled extension. Legacy cleanup in the Pi writer
+    // removes any prior compound-engineering-compat.ts on upgrade.
     expect(bundle.extensions).toEqual([])
+
+    // MCP servers declared in plugin.json are translated to Pi's mcporter.json
+    // shape so plugins with MCP wiring keep their backends after conversion.
+    // The fixture declares both an HTTP url server (context7) and a stdio
+    // command server (local-tooling).
+    expect(bundle.mcporterConfig).toEqual({
+      mcpServers: {
+        context7: {
+          baseUrl: "https://mcp.context7.com/mcp",
+          headers: undefined,
+        },
+        "local-tooling": {
+          command: "echo",
+          args: ["fixture"],
+          env: undefined,
+          headers: undefined,
+        },
+      },
+    })
+  })
+
+  test("omits mcporterConfig when the plugin declares no MCP servers", () => {
+    const plugin: ClaudePlugin = {
+      root: "/tmp/plugin",
+      manifest: { name: "fixture", version: "1.0.0" },
+      agents: [],
+      commands: [],
+      skills: [],
+      hooks: undefined,
+      mcpServers: undefined,
+    }
+
+    const bundle = convertClaudeToPi(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
     expect(bundle.mcporterConfig).toBeUndefined()
   })
 
