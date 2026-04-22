@@ -495,7 +495,7 @@ Convert multiple reviewer compact JSON returns into one deduplicated, confidence
 A finding qualifies for demotion when **all** of these hold:
    - Severity is P2 or P3 (P0 and P1 always stay in primary findings)
    - `autofix_class` is `advisory` (concrete-fix findings stay in primary)
-   - The contributing reviewer is `testing` or `maintainability` (the always-on personas most prone to general-quality flagging; expand the list later only with evidence)
+   - **All** contributing reviewers are `testing` or `maintainability` — if any other persona also flagged this finding, cross-reviewer corroboration is present and the finding stays in primary findings regardless of its severity or advisory status (expand the weak-signal list later only with evidence)
 
 When a finding qualifies, route by mode:
    - **Interactive and report-only modes:** Move the finding out of the primary findings set. If the contributing reviewer is `testing`, append `<file:line> -- <title>` to `testing_gaps`. If `maintainability`, append the same to `residual_risks`. Record the demotion count for Coverage. The finding does not appear in the Stage 6 findings table. (Use title only -- the compact return omits `why_it_matters`, and report-only mode skips artifact files entirely. Soft-bucket entries are FYI items; readers who want depth can open the per-agent artifact when one exists.)
@@ -525,7 +525,7 @@ Independent verification gate. Spawn one validator sub-agent per surviving findi
 | `interactive`, walk-through routing (option A) — per-finding phase | No -- the user is the per-finding validator | n/a |
 | `interactive`, walk-through routing (option A) — LFG-the-rest handoff | Yes, on the remaining action set | Before bulk-preview dispatch (same gate as option B) |
 | `interactive`, LFG routing (option B) | Yes, on the action set | Before bulk-preview dispatch |
-| `interactive`, File-tickets routing (option C) | Yes, on the action set | Before tracker dispatch |
+| `interactive`, File-tickets routing (option C) | Yes, on all pending findings | Before tracker dispatch |
 | `interactive`, Report-only routing (option D) | No -- nothing is being externalized | n/a |
 | `report-only` | No -- read-only mode externalizes nothing | n/a |
 
@@ -533,10 +533,14 @@ When Stage 5b does not run, the merged finding set from Stage 5 flows through to
 
 **Steps:**
 
-1. **Select findings to validate.** All survivors of Stage 5 in headless/autofix; the action set (Apply / Defer findings, not Skip / Acknowledge) in interactive LFG/File-tickets.
+1. **Select findings to validate.**
+   - **headless/autofix:** All survivors of Stage 5.
+   - **interactive LFG (option B) and walk-through LFG-the-rest handoff:** The action set — findings with a recommended action of Apply or Defer. Skip and Acknowledge findings are not being externalized on this path.
+   - **interactive File-tickets (option C):** All pending findings regardless of recommended action. Option C externalizes every finding as a ticket, so every finding needs validation.
 2. **Apply dispatch budget cap.** If the selected set exceeds 15 findings, validate the highest-severity 15 (P0 first, then P1, then P2, then P3, breaking ties by anchor descending). Drop the remainder and record the over-budget count for the Coverage section. The blunt drop is intentional; a review producing 15+ surviving findings is already in territory where a second wave would not change the user's triage approach.
 3. **Spawn validators in parallel.** One sub-agent per finding, dispatched concurrently using the validator template. Each validator receives:
-   - The finding's title, severity, file, line, `why_it_matters` (loaded from the per-agent artifact file at `.context/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`), suggested_fix, original reviewer name, and confidence anchor
+   - The finding's title, severity, file, line, suggested_fix, original reviewer name, and confidence anchor
+   - `why_it_matters` when available — loaded from the per-agent artifact file at `.context/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`; omit when the file is absent or the artifact write failed. The validator proceeds without it, using the diff and cited code directly.
    - The full diff
    - Read-tool access to inspect the cited code, callers, guards, framework defaults, and git blame
 4. **Collect verdicts.** Each validator returns `{ "validated": true | false, "reason": "<one sentence>" }`.
