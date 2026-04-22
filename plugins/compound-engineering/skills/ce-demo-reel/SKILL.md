@@ -160,10 +160,10 @@ Path: [local file path or "none" (multiple paths comma-separated for static scre
 
 The `Description` is a 1-line summary derived from the capture hypothesis in Step 0 (e.g., "CLI detect command classifying 3 project types and recommending capture tiers"). The caller decides how to format the URL(s) into the PR description.
 
-- `Tier: skipped` means no evidence was captured.
+- `Tier: skipped` means no evidence was captured; both `URL` and `Path` are `"none"`.
 - When uploaded to catbox: `URL` has the public URL, `Path` is `"none"`.
 - When saved locally: `Path` has the local file path, `URL` is `"none"`.
-- Exactly one of `URL` or `Path` contains a real value; the other is `"none"`.
+- For all non-skipped tiers, exactly one of `URL` or `Path` contains a real value; the other is `"none"`.
 
 **Label convention:**
 - Browser reel, terminal recording, screenshot reel: label as "Demo"

@@ -647,7 +647,7 @@ def cmd_upload(args):
 
 def _sanitize_branch(branch):
     sanitized = branch.replace("/", "-")
-    sanitized = re.sub(r"[^a-zA-Z0-9_\-]", "", sanitized)
+    sanitized = re.sub(r"[^a-zA-Z0-9_-]", "", sanitized)
     sanitized = re.sub(r"-+", "-", sanitized).strip("-")
     return sanitized[:60]
 
@@ -661,8 +661,8 @@ def cmd_save_local(args):
     os.makedirs(output_dir, exist_ok=True)
 
     branch_part = _sanitize_branch(args.branch) if args.branch else "unknown"
-    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    stem = re.sub(r"[^a-zA-Z0-9\-_]", "", src.stem)[:40]
+    timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-%f")
+    stem = re.sub(r"[^a-zA-Z0-9_-]", "", src.stem)[:40] or "artifact"
     filename = f"{branch_part}-{timestamp}-{stem}{src.suffix}"
     dest = output_dir / filename
 
