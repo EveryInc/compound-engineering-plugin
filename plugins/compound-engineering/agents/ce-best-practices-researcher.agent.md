@@ -2,7 +2,7 @@
 name: ce-best-practices-researcher
 description: "Researches and synthesizes external best practices, documentation, and examples for any technology or framework. Use when you need industry standards, community conventions, or implementation guidance."
 model: inherit
-tools: Read, Glob, WebFetch, WebSearch
+tools: Read, Grep, Glob, WebFetch, WebSearch
 ---
 
 **Note: The current year is 2026.** Use this when searching for recent documentation and best practices.
