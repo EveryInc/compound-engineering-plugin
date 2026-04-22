@@ -70,10 +70,9 @@
             "description": "Concrete minimal fix. Omit or null if no good fix is obvious -- a bad suggestion is worse than none."
           },
           "confidence": {
-            "type": "number",
-            "description": "Reviewer confidence in this finding, calibrated per persona",
-            "minimum": 0.0,
-            "maximum": 1.0
+            "type": "integer",
+            "enum": [0, 25, 50, 75, 100],
+            "description": "Anchored confidence score. Use exactly one of 0, 25, 50, 75, 100. Each anchor has a behavioral criterion the reviewer must honestly self-apply. 0: Not confident. This is a false positive that does not stand up to light scrutiny, or a pre-existing issue this PR did not introduce. 25: Somewhat confident. Might be a real issue but could also be a false positive; the reviewer could not verify from the diff and surrounding code alone. 50: Moderately confident. The reviewer verified this is a real issue but it may be a nitpick, narrow edge case, or have minimal practical impact. Relative to the diff's other concerns, it is not very important. Style preferences and subjective improvements land here. 75: Highly confident. The reviewer double-checked the diff and confirmed the issue will affect users, downstream callers, or runtime behavior in normal usage. The bug, vulnerability, or contract violation is clearly present and actionable. 100: Absolutely certain. The issue is verifiable from the code itself -- compile error, type mismatch, definitive logic bug, or an explicit project-standards violation with a quotable rule. No interpretation required."
           },
           "evidence": {
             "type": "array",
@@ -98,14 +97,20 @@
       "description": "Missing test coverage the reviewer identified",
       "items": { "type": "string" }
     }
-    },
+  },
 
   "_meta": {
+    "confidence_anchors": {
+      "description": "Confidence is one of 5 discrete anchors (0, 25, 50, 75, 100), each tied to a behavioral criterion the reviewer can honestly self-apply. Float values (e.g., 0.73) are not valid -- the model cannot meaningfully calibrate at finer granularity, and discrete anchors prevent false-precision gaming.",
+      "0": "False positive or pre-existing -- do not report",
+      "25": "Speculative; could not verify -- do not report",
+      "50": "Verified real but minor or stylistic -- report only when P0 or when synthesis routes to advisory/soft buckets",
+      "75": "Highly confident, will affect users or runtime in normal usage -- report",
+      "100": "Verifiable from code alone (compile error, type mismatch, definitive logic bug, quoted standards violation) -- report"
+    },
     "confidence_thresholds": {
-      "suppress": "Below 0.60 -- do not report. Finding is speculative noise. Exception: P0 findings at 0.50+ may be reported.",
-      "flag": "0.60-0.69 -- include only when the issue is clearly actionable with concrete evidence.",
-      "confident": "0.70-0.84 -- real and important. Report with full evidence.",
-      "certain": "0.85-1.00 -- verifiable from the code alone. Report."
+      "suppress": "Below anchor 75 -- do not report. Exception: P0 findings at anchor 50+ may be reported (critical-but-uncertain issues must not be silently dropped).",
+      "report": "Anchor 75 or 100 -- include with full evidence."
     },
     "severity_definitions": {
       "P0": "Critical breakage, exploitable vulnerability, data loss/corruption. Must fix before merge.",

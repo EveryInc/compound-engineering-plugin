@@ -72,11 +72,15 @@ Generic magic-number, threshold, and hardcoded-rate concerns are not Swift-speci
 
 ## Confidence calibration
 
-Your confidence should be **high (0.80+)** when the state management bug, retain cycle, or concurrency hazard is directly visible in the diff -- for example, `@ObservedObject` on a locally-created object, a closure capturing `self` strongly in a `sink`, UI mutation from a background context with no `@MainActor`, or a managed-object access outside a `perform` block.
+Use the anchored confidence rubric in the subagent template. Persona-specific guidance:
 
-Your confidence should be **moderate (0.60-0.79)** when the issue is real but depends on context outside the diff -- whether a parent actually re-creates a child view (making `@ObservedObject` vs `@StateObject` matter), whether a closure is truly escaping, or whether strict concurrency mode is enabled.
+**Anchor 100** — the bug is mechanical: `@ObservedObject` on a locally-instantiated object literal, a closure capturing `self` strongly in a known-escaping context with no `[weak self]`, UI mutation in a `Task.detached` block.
 
-Your confidence should be **low (below 0.60)** when the finding depends on runtime conditions, project-wide architecture decisions you cannot confirm, or is mostly a style preference. Suppress these.
+**Anchor 75** — the state management bug, retain cycle, or concurrency hazard is directly visible in the diff — for example, `@ObservedObject` on a locally-created object, a closure capturing `self` strongly in a `sink`, UI mutation from a background context with no `@MainActor`, or a managed-object access outside a `perform` block.
+
+**Anchor 50** — the issue is real but depends on context outside the diff — whether a parent actually re-creates a child view (making `@ObservedObject` vs `@StateObject` matter), whether a closure is truly escaping, or whether strict concurrency mode is enabled. Surfaces only as P0 escape or soft buckets.
+
+**Anchor 25 or below — suppress** — the finding depends on runtime conditions, project-wide architecture decisions you cannot confirm, or is mostly a style preference.
 
 ## What you don't flag
 

@@ -68,11 +68,15 @@ Find legitimate-seeming usage patterns that cause bad outcomes. These are not se
 
 ## Confidence calibration
 
-Your confidence should be **high (0.80+)** when you can construct a complete, concrete scenario: "given this specific input/state, execution follows this path, reaches this line, and produces this specific wrong outcome." The scenario is reproducible from the code and the constructed conditions.
+Use the anchored confidence rubric in the subagent template. Persona-specific guidance:
 
-Your confidence should be **moderate (0.60-0.79)** when you can construct the scenario but one step depends on conditions you can see but can't fully confirm -- e.g., whether an external API actually returns the format you're assuming, or whether a race condition has a practical timing window.
+**Anchor 100** — the failure scenario is mechanically constructible: every step in the chain is verifiable from the diff and surrounding code, no assumed runtime conditions.
 
-Your confidence should be **low (below 0.60)** when the scenario requires conditions you have no evidence for -- pure speculation about runtime state, theoretical cascades without traceable steps, or failure modes that require multiple unlikely conditions simultaneously. Suppress these.
+**Anchor 75** — you can construct a complete, concrete scenario: "given this specific input/state, execution follows this path, reaches this line, and produces this specific wrong outcome." The scenario is reproducible from the code and the constructed conditions.
+
+**Anchor 50** — you can construct the scenario but one step depends on conditions you can see but can't fully confirm — e.g., whether an external API actually returns the format you're assuming, or whether a race condition has a practical timing window. Surfaces only as P0 escape or soft buckets.
+
+**Anchor 25 or below — suppress** — the scenario requires conditions you have no evidence for: pure speculation about runtime state, theoretical cascades without traceable steps, or failure modes that require multiple unlikely conditions simultaneously.
 
 ## What you don't flag
 

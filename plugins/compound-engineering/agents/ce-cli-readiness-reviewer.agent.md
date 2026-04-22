@@ -41,11 +41,15 @@ Cap findings at 5-7 per review. Focus on the highest-severity issues for the det
 
 ## Confidence calibration
 
-Your confidence should be **high (0.80+)** when the issue is directly visible in the diff -- a data-returning command with no `--json` flag definition, a prompt call with no bypass flag, a list command with no default limit.
+Use the anchored confidence rubric in the subagent template. Persona-specific guidance:
 
-Your confidence should be **moderate (0.60-0.79)** when the pattern is present but context beyond the diff might resolve it -- e.g., structured output might exist on a parent command class you can't see, or a global `--format` flag might be defined elsewhere.
+**Anchor 100** — the violation is verifiable from the diff: a command literally has no `--json` definition and prints free-form text, a prompt call with no bypass flag definition.
 
-Your confidence should be **low (below 0.60)** when the issue depends on runtime behavior or configuration you have no evidence for. Suppress these.
+**Anchor 75** — the issue is directly visible in the diff — a data-returning command with no `--json` flag definition, a prompt call with no bypass flag, a list command with no default limit.
+
+**Anchor 50** — the pattern is present but context beyond the diff might resolve it — e.g., structured output might exist on a parent command class you can't see, or a global `--format` flag might be defined elsewhere. Surfaces only as P0 escape or soft buckets.
+
+**Anchor 25 or below — suppress** — the issue depends on runtime behavior or configuration you have no evidence for.
 
 ## What you don't flag
 

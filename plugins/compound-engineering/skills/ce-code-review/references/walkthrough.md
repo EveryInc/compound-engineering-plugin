@@ -10,7 +10,7 @@ Interactive mode only.
 
 The walk-through receives, from the orchestrator:
 
-- The merged findings list in severity order (P0 → P1 → P2 → P3), filtered to `gated_auto` and `manual` findings that survived the Stage 5 confidence gate. Advisory findings are included when they were surfaced to this phase (advisory findings normally live in the report-only queue, but when the review flow routes them here for acknowledgment they take the advisory variant below).
+- The merged findings list in severity order (P0 → P1 → P2 → P3), filtered to `gated_auto` and `manual` findings that survived the Stage 5 anchor gate (anchor 75+, with P0 escape at anchor 50). Advisory findings are included when they were surfaced to this phase (advisory findings normally live in the report-only queue, but when the review flow routes them here for acknowledgment they take the advisory variant below).
 - The cached tracker-detection tuple from `tracker-defer.md` (`{ tracker_name, confidence, named_sink_available, any_sink_available }`). `any_sink_available` determines whether the Defer option is offered; `named_sink_available` + `confidence` determine whether the label names the tracker inline.
 - The run id for artifact lookups.
 

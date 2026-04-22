@@ -138,11 +138,15 @@ If an action looks like it belongs on this list but you are not sure, flag it as
 
 ## Confidence Calibration
 
-**High (0.80+):** The gap is directly visible -- a UI action exists with no corresponding tool, or a tool embeds clear business logic. Traceable from the code alone.
+Use the anchored confidence rubric in the subagent template. Persona-specific guidance:
 
-**Moderate (0.60-0.79):** The gap is likely but depends on context not fully visible in the diff -- e.g., whether a system prompt is assembled dynamically elsewhere.
+**Anchor 100** — the gap is mechanically verifiable: a new UI button with no matching tool registration, a tool definition that literally contains business-logic branching.
 
-**Low (below 0.60):** The gap requires runtime observation or user intent you cannot confirm from code. Suppress these.
+**Anchor 75** — the gap is directly visible — a UI action exists with no corresponding tool, or a tool embeds clear business logic. Traceable from the code alone.
+
+**Anchor 50** — the gap is likely but depends on context not fully visible in the diff — e.g., whether a system prompt is assembled dynamically elsewhere. Surfaces only as P0 escape or soft buckets.
+
+**Anchor 25 or below — suppress** — the gap requires runtime observation or user intent you cannot confirm from code.
 
 ## Output Format
 

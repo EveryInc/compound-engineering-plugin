@@ -21,26 +21,26 @@ Use this **exact format** when presenting synthesized review findings. Findings 
 
 | # | File | Issue | Reviewer | Confidence | Route |
 |---|------|-------|----------|------------|-------|
-| 1 | `orders_controller.rb:42` | User-supplied ID in account lookup without ownership check | security | 0.92 | `gated_auto -> downstream-resolver` |
+| 1 | `orders_controller.rb:42` | User-supplied ID in account lookup without ownership check | security | 100 | `gated_auto -> downstream-resolver` |
 
 ### P1 -- High
 
 | # | File | Issue | Reviewer | Confidence | Route |
 |---|------|-------|----------|------------|-------|
-| 2 | `export_service.rb:87` | Loads all orders into memory -- unbounded for large accounts | performance | 0.85 | `safe_auto -> review-fixer` |
-| 3 | `export_service.rb:91` | No pagination -- response size grows linearly with order count | api-contract, performance | 0.80 | `manual -> downstream-resolver` |
+| 2 | `export_service.rb:87` | Loads all orders into memory -- unbounded for large accounts | performance | 100 | `safe_auto -> review-fixer` |
+| 3 | `export_service.rb:91` | No pagination -- response size grows linearly with order count | api-contract, performance | 75 | `manual -> downstream-resolver` |
 
 ### P2 -- Moderate
 
 | # | File | Issue | Reviewer | Confidence | Route |
 |---|------|-------|----------|------------|-------|
-| 4 | `export_service.rb:45` | Missing error handling for CSV serialization failure | correctness | 0.75 | `safe_auto -> review-fixer` |
+| 4 | `export_service.rb:45` | Missing error handling for CSV serialization failure | correctness | 75 | `safe_auto -> review-fixer` |
 
 ### P3 -- Low
 
 | # | File | Issue | Reviewer | Confidence | Route |
 |---|------|-------|----------|------------|-------|
-| 5 | `export_helper.rb:12` | Format detection could use early return instead of nested conditional | maintainability | 0.70 | `advisory -> human` |
+| 5 | `export_helper.rb:12` | Format detection could use early return instead of nested conditional | maintainability | 75 | `advisory -> human` |
 
 ### Applied Fixes
 
@@ -79,7 +79,7 @@ Use this **exact format** when presenting synthesized review findings. Findings 
 
 ### Coverage
 
-- Suppressed: 2 findings below 0.60 confidence
+- Suppressed: 2 findings below anchor 75 (1 at anchor 50, 1 at anchor 25)
 - Residual risks: No rate limiting on export endpoint
 - Testing gaps: No test for concurrent export requests
 
@@ -103,7 +103,7 @@ Sev: P1
 File: foo.go:42
 Issue: Some problem description
 Reviewer(s): adversarial
-Confidence: 0.85
+Confidence: 75
 Route: advisory -> human
 ────────────────────────────────────────
 Sev: P2
@@ -119,7 +119,7 @@ This fails because: no pipe-delimited tables, no severity-grouped `###` headers,
 - **Severity-grouped sections** -- `### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`. Omit empty severity levels.
 - **Always include file:line location** for code review issues
 - **Reviewer column** shows which persona(s) flagged the issue. Multiple reviewers = cross-reviewer agreement.
-- **Confidence column** shows the finding's confidence score
+- **Confidence column** shows the finding's anchor as an integer (`50`, `75`, or `100`). Never render as a float.
 - **Route column** shows the synthesized handling decision as ``<autofix_class> -> <owner>``.
 - **Header includes** scope, intent, and reviewer team with per-conditional justifications
 - **Mode line** -- include `interactive`, `autofix`, `report-only`, or `headless`

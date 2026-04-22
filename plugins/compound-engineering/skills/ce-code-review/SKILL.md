@@ -189,6 +189,25 @@ This path works with any ref — a SHA, `origin/main`, a branch name. Automated 
 
 **If a PR number or GitHub URL is provided as an argument:**
 
+**Skip-condition pre-check.** Before checkout or scope detection, run a single PR-state probe to decide whether the review should proceed at all. This avoids dispatching multi-agent review work for PRs that should not be reviewed.
+
+```
+gh pr view <number-or-url> --json state,isDraft,title,body,comments
+```
+
+Apply skip rules in order:
+
+- `state` is `CLOSED` or `MERGED` -> stop with message `PR is closed/merged; not reviewing.`
+- `isDraft` is `true` -> stop with message `PR is a draft; not reviewing. Re-invoke once it's marked ready.`
+- `title` matches a trivial-PR pattern AND `body` is empty or only template scaffolding -> stop with message `PR appears to be a trivial automated PR; not reviewing. Run from the branch (no PR target) or pass base:<ref> if review is intended.` Trivial-PR pattern: `^(chore\(deps\)|build\(deps\)|chore: bump|chore: release)`. The pattern is conservative -- hand-typed informal commits will not match.
+- Any comment in `comments` whose body starts with the ce-code-review report header (e.g., a line beginning with `## Code Review`, `# Code Review`, or the headless completion line `Code review complete (headless mode).`) -> stop with message `PR already has a ce-code-review report. To re-review, run from the branch (no PR target) or pass base:<ref> against the current checkout.`
+
+Skip detection deliberately ignores commits-since-comment. The escape hatch for "I want to re-review after pushing more commits" is branch mode or `base:` mode, both of which bypass this PR-mode skip-check. Simpler to detect and explain than commit-vs-comment timestamp logic; the over-suppression cost is one extra command from the user.
+
+When any skip rule fires, emit the message and stop without dispatching reviewers, switching the checkout, or running scope detection. **Standalone branch mode and `base:` mode are unaffected** -- they always run the full review.
+
+If no skip rule fires, proceed to the mode-switching and checkout logic below.
+
 If `mode:report-only` or `mode:headless` is active, do **not** run `gh pr checkout <number-or-url>` on the shared checkout. For `mode:report-only`, tell the caller: "mode:report-only cannot switch the shared checkout to review a PR target. Run it from an isolated worktree/checkout for that PR, or run report-only with no target argument on the already checked out branch." For `mode:headless`, emit `Review failed (headless mode). Reason: cannot switch shared checkout. Re-invoke with base:<ref> to review the current checkout, or run from an isolated worktree.` Stop here unless the review is already running in an isolated checkout.
 
 First, verify the worktree is clean before switching branches:
@@ -458,6 +477,8 @@ Detail-tier fields (`why_it_matters`, `evidence`) are in the artifact file only.
 
 Convert multiple reviewer compact JSON returns into one deduplicated, confidence-gated finding set. The compact returns contain merge-tier fields (title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing) plus the optional suggested_fix. Detail-tier fields (why_it_matters, evidence) are on disk in the per-agent artifact files and are not loaded at this stage.
 
+`confidence` is one of 5 discrete anchors (`0`, `25`, `50`, `75`, `100`) with behavioral definitions in the findings schema. Synthesis treats anchors as integers; do not coerce to floats.
+
 1. **Validate.** Check each compact return for required top-level and per-finding fields, plus value constraints. Drop malformed returns or findings. Record the drop count.
    - **Top-level required:** reviewer (string), findings (array), residual_risks (array), testing_gaps (array). Drop the entire return if any are missing or wrong type.
    - **Per-finding required:** title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing
@@ -465,24 +486,72 @@ Convert multiple reviewer compact JSON returns into one deduplicated, confidence
      - severity: P0 | P1 | P2 | P3
      - autofix_class: safe_auto | gated_auto | manual | advisory
      - owner: review-fixer | downstream-resolver | human | release
-     - confidence: numeric, 0.0-1.0
+     - confidence: integer in {0, 25, 50, 75, 100}
      - line: positive integer
      - pre_existing, requires_verification: boolean
    - Do not validate against the full schema here -- the full schema (including why_it_matters and evidence) applies to the artifact files on disk, not the compact returns.
-2. **Confidence gate.** Suppress findings below 0.60 confidence. Exception: P0 findings at 0.50+ confidence survive the gate -- critical-but-uncertain issues must not be silently dropped. Record the suppressed count. This matches the persona instructions and the schema's confidence thresholds.
-3. **Deduplicate.** Compute fingerprint: `normalize(file) + line_bucket(line, +/-3) + normalize(title)`. When fingerprints match, merge: keep highest severity, keep highest confidence, note which reviewers flagged it.
-4. **Cross-reviewer agreement.** When 2+ independent reviewers flag the same issue (same fingerprint), boost the merged confidence by 0.10 (capped at 1.0). Cross-reviewer agreement is strong signal -- independent reviewers converging on the same issue is more reliable than any single reviewer's confidence. Note the agreement in the Reviewer column of the output (e.g., "security, correctness").
+2. **Confidence gate.** Suppress findings below anchor 75. Exception: P0 findings at anchor 50+ survive the gate -- critical-but-uncertain issues must not be silently dropped. Record the suppressed count by anchor (so Coverage can report "N findings suppressed at anchor 50, M at anchor 25"). This matches the persona instructions and the schema's confidence thresholds.
+3. **Deduplicate.** Compute fingerprint: `normalize(file) + line_bucket(line, +/-3) + normalize(title)`. When fingerprints match, merge: keep highest severity, keep highest anchor, note which reviewers flagged it.
+4. **Cross-reviewer agreement.** When 2+ independent reviewers flag the same issue (same fingerprint), promote the merged finding by one anchor step: `50 -> 75`, `75 -> 100`, `100 -> 100`. Cross-reviewer corroboration is a stronger signal than any single reviewer's anchor; the promotion routes a previously-soft finding into the actionable tier or strengthens its already-actionable position. Note the agreement in the Reviewer column of the output (e.g., "security, correctness").
 5. **Separate pre-existing.** Pull out findings with `pre_existing: true` into a separate list.
 6. **Resolve disagreements.** When reviewers flag the same code region but disagree on severity, autofix_class, or owner, annotate the Reviewer column with the disagreement (e.g., "security (P0), correctness (P1) -- kept P0"). This transparency helps the user understand why a finding was routed the way it was.
 7. **Normalize routing.** For each merged finding, set the final `autofix_class`, `owner`, and `requires_verification`. If reviewers disagree, keep the most conservative route. Synthesis may narrow a finding from `safe_auto` to `gated_auto` or `manual`, but must not widen it without new evidence.
 7b. **Tie-break the recommended action.** Interactive mode's walk-through and LFG paths present a per-finding recommended action (Apply / Defer / Skip / Acknowledge) derived from the normalized `autofix_class` and `suggested_fix`. When contributing reviewers implied different actions for the same merged finding, synthesis picks the most conservative using the order `Skip > Defer > Apply > Acknowledge`. This guarantees that identical review artifacts produce the same recommendation deterministically, so LFG results are auditable after the fact and the walk-through's recommendation is stable across re-runs. The user may still override per finding via the walk-through's options; this rule only determines what gets labeled "recommended."
+7c. **Mode-aware demotion of weak general-quality findings.** Some persona output is real signal but does not warrant primary-findings attention. Reroute it to the existing soft buckets so the primary findings table stays focused on actionable issues.
+
+A finding qualifies for demotion when **all** of these hold:
+   - Severity is P2 or P3 (P0 and P1 always stay in primary findings)
+   - `autofix_class` is `advisory` (concrete-fix findings stay in primary)
+   - The contributing reviewer is `testing` or `maintainability` (the always-on personas most prone to general-quality flagging; expand the list later only with evidence)
+
+When a finding qualifies, route by mode:
+   - **Interactive and report-only modes:** Move the finding out of the primary findings set. If the contributing reviewer is `testing`, append `<file:line> -- <title>: <why_it_matters>` to `testing_gaps`. If `maintainability`, append the same to `residual_risks`. Record the demotion count for Coverage. The finding does not appear in the Stage 6 findings table.
+   - **Headless and autofix modes:** Suppress the finding entirely. Record the suppressed count in Coverage as "mode-aware demotion suppressions" so the user can see what was filtered.
+
+Demotion is intentionally narrow. The conservative scope (testing/maintainability + P2/P3 + advisory) is the starting point; do not expand the rule by guessing which other personas overproduce noise. If real review runs show another persona consistently emitting weak signal, expand with evidence.
+
 8. **Partition the work.** Build three sets:
    - in-skill fixer queue: only `safe_auto -> review-fixer`
    - residual actionable queue: unresolved `gated_auto` or `manual` findings whose owner is `downstream-resolver`
    - report-only queue: `advisory` findings plus anything owned by `human` or `release`
-9. **Sort.** Order by severity (P0 first) -> confidence (descending) -> file path -> line number.
+9. **Sort.** Order by severity (P0 first) -> anchor (descending) -> file path -> line number.
 10. **Collect coverage data.** Union residual_risks and testing_gaps across reviewers.
 11. **Preserve CE agent artifacts.** Keep the learnings, agent-native, schema-drift, and deployment-verification outputs alongside the merged finding set. Do not drop unstructured agent output just because it does not match the persona JSON schema.
+
+### Stage 5b: Validation pass (externalizing modes only)
+
+Independent verification gate. Spawn one validator sub-agent per surviving finding using `references/validator-template.md`. The validator's job is to re-check the finding against the diff and surrounding code with no commitment to the original persona's analysis. Findings the validator rejects are dropped; findings the validator confirms flow through unchanged.
+
+**When this stage runs:**
+
+| Mode | Runs Stage 5b? | Where |
+|------|---------------|-------|
+| `headless` | Yes, eagerly | Between Stage 5 and Stage 6 |
+| `autofix` | Yes, eagerly | Between Stage 5 and Stage 6 |
+| `interactive`, walk-through routing (option A) | No -- the user is the per-finding validator | n/a |
+| `interactive`, LFG routing (option B) | Yes, on the action set | Before bulk-preview dispatch |
+| `interactive`, File-tickets routing (option C) | Yes, on the action set | Before tracker dispatch |
+| `interactive`, Report-only routing (option D) | No -- nothing is being externalized | n/a |
+| `report-only` | No -- read-only mode externalizes nothing | n/a |
+
+When Stage 5b does not run, the merged finding set from Stage 5 flows through to Stage 6 unchanged. When it runs, the steps below execute on the relevant set.
+
+**Steps:**
+
+1. **Select findings to validate.** All survivors of Stage 5 in headless/autofix; the action set (Apply / Defer findings, not Skip / Acknowledge) in interactive LFG/File-tickets.
+2. **Apply dispatch budget cap.** If the selected set exceeds 15 findings, validate the highest-severity 15 (P0 first, then P1, then P2, then P3, breaking ties by anchor descending). Drop the remainder and record the over-budget count for the Coverage section. The blunt drop is intentional; a review producing 15+ surviving findings is already in territory where a second wave would not change the user's triage approach.
+3. **Spawn validators in parallel.** One sub-agent per finding, dispatched concurrently using the validator template. Each validator receives:
+   - The finding's title, severity, file, line, `why_it_matters` (loaded from the per-agent artifact file at `.context/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`), suggested_fix, original reviewer name, and confidence anchor
+   - The full diff
+   - Read-tool access to inspect the cited code, callers, guards, framework defaults, and git blame
+4. **Collect verdicts.** Each validator returns `{ "validated": true | false, "reason": "<one sentence>" }`.
+   - `validated: true` -> finding survives unchanged into the next phase (Stage 6 for headless/autofix, dispatch for interactive)
+   - `validated: false` -> finding is dropped; record the validator's reason in Coverage
+   - Validator failure (timeout, dispatch error, malformed JSON) -> drop the finding with reason "validator failed"; conservative bias is correct
+5. **Use mid-tier model for validators.** Same model class (sonnet) the persona reviewers use. Validators are read-only — same constraints as persona reviewers. They may use non-mutating inspection commands (Read, Grep, Glob, git blame, gh).
+6. **Record metrics for Coverage.** Total dispatched, validated true count, validated false count (with reasons), failures, and over-budget drops.
+
+**Why per-finding parallel dispatch (not batched):** Independence is the point. A single batched validator looking at all findings together pattern-matches across them and recreates the persona-bias problem. Per-finding parallel dispatch preserves fresh context per call. Per-file batching is a plausible future optimization for reviews with many findings clustered in few files; not implemented today.
 
 ### Stage 6: Synthesize and present
 
@@ -501,7 +570,7 @@ Assemble the final report using **pipe-delimited markdown tables for findings** 
 8. **Agent-Native Gaps.** Surface ce-agent-native-reviewer results. Omit section if no gaps found.
 9. **Schema Drift Check.** If ce-schema-drift-detector ran, summarize whether drift was found. If drift exists, list the unrelated schema objects and the required cleanup command. If clean, say so briefly.
 10. **Deployment Notes.** If ce-deployment-verification-agent ran, surface the key Go/No-Go items: blocking pre-deploy checks, the most important verification queries, rollback caveats, and monitoring focus areas. Keep the checklist actionable rather than dropping it into Coverage.
-11. **Coverage.** Suppressed count, residual risks, testing gaps, failed/timed-out reviewers, and any intent uncertainty carried by non-interactive modes.
+11. **Coverage.** Suppressed count by anchor (e.g., "N findings suppressed at anchor 50, M at anchor 25"), mode-aware demotion count (interactive/report-only) or suppression count (headless/autofix), validator drop count and reasons (when Stage 5b ran), validator over-budget drops (when the 15-cap fired), residual risks, testing gaps, failed/timed-out reviewers, and any intent uncertainty carried by non-interactive modes.
 12. **Verdict.** Ready to merge / Ready with fixes / Not ready. Fix order if applicable. When an `explicit` plan has unaddressed requirements, the verdict must reflect it — a PR that's code-clean but missing planned requirements is "Not ready" unless the omission is intentional. When an `inferred` plan has unaddressed requirements, note it in the verdict reasoning but do not block on it alone.
 
 Do not include time estimates.
@@ -565,7 +634,10 @@ Testing gaps:
 - <gap>
 
 Coverage:
-- Suppressed: <N> findings below 0.60 confidence (P0 at 0.50+ retained)
+- Suppressed: <N> findings below anchor 75 (P0 at anchor 50+ retained)
+- Validator drops: <N> findings rejected by Stage 5b validator
+  - <file:line> -- <reason>
+- Validator over-budget drops: <N> findings exceeded the 15-cap and were not validated
 - Untracked files excluded: <file1>, <file2>
 - Failed reviewers: <reviewer>
 
@@ -642,8 +714,8 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 
 - **Dispatch on selection.** Route by the option letter (A / B / C / D), not by the rendered label string. The option-C label varies by tracker-detection confidence (`File a [TRACKER] ticket per finding without applying fixes` for a named tracker, `File an issue per finding without applying fixes` as the generic fallback, or omitted entirely when no sink is available — see `references/tracker-defer.md`), and options A / B / D have a single canonical label each. The letter is the stable dispatch signal; the canonical labels below are shown for documentation only. A low-confidence run that rendered option C as the generic label routes to the same branch as a high-confidence run that rendered it with the named tracker.
   - (A) `Review each finding one by one` — load `references/walkthrough.md` and enter the per-finding walk-through loop. The walk-through accumulates Apply decisions in memory; Defer decisions execute inline via `references/tracker-defer.md`; Skip / Acknowledge decisions are recorded as no-action; `LFG the rest` routes through `references/bulk-preview.md`. At end of the loop, dispatch one fixer subagent for the accumulated Apply set (Step 3). Emit the unified completion report.
-  - (B) `LFG. Apply the agent's best-judgment action per finding` — load `references/bulk-preview.md` scoped to every pending `gated_auto` / `manual` finding. On `Proceed`, execute the plan: Apply set → Step 3 fixer dispatch; Defer set → `references/tracker-defer.md`; Skip / Acknowledge → no-op. On `Cancel`, return to this routing question. Emit the unified completion report after execution.
-  - (C) `File a [TRACKER] ticket per finding without applying fixes` (or the generic `File an issue per finding without applying fixes` when the named-tracker label is not used) — load `references/bulk-preview.md` with every pending finding in the file-tickets bucket (regardless of the agent's natural recommendation). On `Proceed`, route every finding through `references/tracker-defer.md`; no fixes are applied. On `Cancel`, return to this routing question. Emit the unified completion report.
+  - (B) `LFG. Apply the agent's best-judgment action per finding` — first run Stage 5b validation on the action set (Apply / Defer findings). Drop validator-rejected findings with their reasons recorded in Coverage. Then load `references/bulk-preview.md` scoped to every surviving pending `gated_auto` / `manual` finding. On `Proceed`, execute the plan: Apply set → Step 3 fixer dispatch; Defer set → `references/tracker-defer.md`; Skip / Acknowledge → no-op. On `Cancel`, return to this routing question. Emit the unified completion report after execution.
+  - (C) `File a [TRACKER] ticket per finding without applying fixes` (or the generic `File an issue per finding without applying fixes` when the named-tracker label is not used) — first run Stage 5b validation on every pending finding. Drop validator-rejected findings with their reasons recorded in Coverage. Then load `references/bulk-preview.md` with every surviving finding in the file-tickets bucket. On `Proceed`, route every finding through `references/tracker-defer.md`; no fixes are applied. On `Cancel`, return to this routing question. Emit the unified completion report.
   - (D) `Report only — take no further action` — do not enter any dispatch phase. Emit the completion report, then proceed to Step 5 per its gating rule (`fixes_applied_count > 0` from earlier `safe_auto` passes). If no fixes were applied this run, stop after the report.
 
 - The walk-through's completion report, the LFG / File-tickets completion report, and the zero-remaining completion summary all follow the unified completion-report structure documented in `references/walkthrough.md`. Use the same structure across every terminal path.
