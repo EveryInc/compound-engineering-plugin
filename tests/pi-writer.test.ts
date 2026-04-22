@@ -47,6 +47,7 @@ describe("writePiBundle", () => {
       prompts: [],
       skillDirs: [],
       generatedSkills: [],
+      agents: [],
       extensions: [],
     }
 
@@ -69,7 +70,8 @@ describe("writePiBundle", () => {
           sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
         },
       ],
-      generatedSkills: [{ name: "repo-research-analyst", content: "---\nname: repo-research-analyst\n---\n\nBody" }],
+      generatedSkills: [],
+      agents: [{ name: "repo-research-analyst", content: "---\nname: repo-research-analyst\n---\n\nBody" }],
       extensions: [{ name: "compound-engineering-compat.ts", content: "export default function () {}" }],
       mcporterConfig: {
         mcpServers: {
@@ -82,7 +84,10 @@ describe("writePiBundle", () => {
 
     expect(await exists(path.join(outputRoot, "prompts", "workflows-plan.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "skills", "repo-research-analyst", "SKILL.md"))).toBe(true)
+    // Claude agents are now written as Pi agent files (.pi/agents/<name>.md),
+    // not skill directories, so nicobailon/pi-subagents can resolve them via
+    // the `subagent` tool.
+    expect(await exists(path.join(outputRoot, "agents", "repo-research-analyst.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "extensions", "compound-engineering-compat.ts"))).toBe(true)
     expect(await exists(path.join(outputRoot, "compound-engineering", "mcporter.json"))).toBe(true)
     expect(await exists(path.join(outputRoot, "compound-engineering", "install-manifest.json"))).toBe(true)
@@ -90,7 +95,8 @@ describe("writePiBundle", () => {
     const agentsPath = path.join(outputRoot, "AGENTS.md")
     const agentsContent = await fs.readFile(agentsPath, "utf8")
     expect(agentsContent).toContain("BEGIN COMPOUND PI TOOL MAP")
-    expect(agentsContent).toContain("MCPorter")
+    expect(agentsContent).toContain("pi-subagents")
+    expect(agentsContent).toContain("pi-ask-user")
   })
 
   test("transforms Task calls in copied SKILL.md files", async () => {
@@ -117,6 +123,7 @@ Run these research agents:
       prompts: [],
       skillDirs: [{ name: "ce-plan", sourceDir: sourceSkillDir }],
       generatedSkills: [],
+      agents: [],
       extensions: [],
     }
 
@@ -141,6 +148,7 @@ Run these research agents:
       prompts: [{ name: "workflows-work", content: "Prompt content" }],
       skillDirs: [],
       generatedSkills: [],
+      agents: [],
       extensions: [],
     }
 
@@ -162,6 +170,7 @@ Run these research agents:
       prompts: [],
       skillDirs: [],
       generatedSkills: [],
+      agents: [],
       extensions: [],
       mcporterConfig: {
         mcpServers: {
@@ -193,7 +202,8 @@ Run these research agents:
           sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
         },
       ],
-      generatedSkills: [{ name: "old-agent", content: "---\nname: old-agent\n---\n\nBody" }],
+      generatedSkills: [],
+      agents: [{ name: "old-agent", content: "---\nname: old-agent\n---\n\nBody" }],
       extensions: [{ name: "compound-engineering-compat.ts", content: "export default function first() {}" }],
     })
 
@@ -201,15 +211,16 @@ Run these research agents:
       pluginName: "compound-engineering",
       prompts: [{ name: "new-prompt", content: "Prompt content" }],
       skillDirs: [],
-      generatedSkills: [{ name: "new-agent", content: "---\nname: new-agent\n---\n\nBody" }],
+      generatedSkills: [],
+      agents: [{ name: "new-agent", content: "---\nname: new-agent\n---\n\nBody" }],
       extensions: [],
     })
 
     expect(await exists(path.join(outputRoot, "prompts", "old-prompt.md"))).toBe(false)
     expect(await exists(path.join(outputRoot, "prompts", "new-prompt.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "skills", "skill-one", "SKILL.md"))).toBe(false)
-    expect(await exists(path.join(outputRoot, "skills", "old-agent", "SKILL.md"))).toBe(false)
-    expect(await exists(path.join(outputRoot, "skills", "new-agent", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "agents", "old-agent.md"))).toBe(false)
+    expect(await exists(path.join(outputRoot, "agents", "new-agent.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "extensions", "compound-engineering-compat.ts"))).toBe(false)
   })
 
@@ -228,6 +239,7 @@ Run these research agents:
         },
       ],
       generatedSkills: [{ name: "ce-gen-skill", content: "---\nname: ce-gen-skill\n---\n\nBody" }],
+      agents: [],
       extensions: [{ name: "ce-ext.ts", content: "export default function () {}" }],
     })
 
@@ -242,6 +254,7 @@ Run these research agents:
         },
       ],
       generatedSkills: [{ name: "tutor-gen-skill", content: "---\nname: tutor-gen-skill\n---\n\nBody" }],
+      agents: [],
       extensions: [{ name: "tutor-ext.ts", content: "export default function () {}" }],
     })
 
@@ -258,6 +271,7 @@ Run these research agents:
       prompts: [],
       skillDirs: [],
       generatedSkills: [],
+      agents: [],
       extensions: [],
     })
 
@@ -297,7 +311,9 @@ Run these research agents:
     expect(await exists(path.join(outputRoot, "prompts", "reproduce-bug.md"))).toBe(false)
     expect(await exists(path.join(outputRoot, "prompts", "report-bug.md"))).toBe(false)
     expect(await exists(path.join(outputRoot, "skills", "ce-plan", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "skills", "ce-repo-research-analyst", "SKILL.md"))).toBe(true)
+    // ce-repo-research-analyst is a Claude agent, so it installs to .pi/agents/<name>.md
+    // (not .pi/skills/<name>/SKILL.md) so nicobailon/pi-subagents can resolve it.
+    expect(await exists(path.join(outputRoot, "agents", "ce-repo-research-analyst.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "compound-engineering", "legacy-backup"))).toBe(true)
   })
 })

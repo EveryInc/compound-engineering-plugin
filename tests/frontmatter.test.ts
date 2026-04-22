@@ -94,6 +94,19 @@ describe("frontmatter YAML validity", () => {
             `Shorten description to ${MAX_SKILL_DESCRIPTION_LENGTH} chars or less`,
           ).toBeLessThanOrEqual(MAX_SKILL_DESCRIPTION_LENGTH)
         })
+
+        // Pi rejects skill names that don't match the parent directory or contain
+        // characters outside [a-z0-9-]. Upgrading from a pre-v3 install with
+        // `name: ce:brainstorm` frontmatter in a renamed `ce-brainstorm` directory
+        // triggered issue #449. Catch any reintroduction at the source.
+        test(`${pluginRoot}/${rel} skill frontmatter name matches directory and uses valid characters`, () => {
+          const parsed = load(yaml) as Record<string, unknown> | null
+          const name = parsed && typeof parsed.name === "string" ? parsed.name : ""
+          const dirName = path.basename(path.dirname(rel))
+          expect(name, `frontmatter name must be present`).not.toBe("")
+          expect(name, `frontmatter name "${name}" must match parent directory "${dirName}"`).toBe(dirName)
+          expect(name, `frontmatter name "${name}" must be lowercase a-z, 0-9, and hyphens`).toMatch(/^[a-z0-9-]+$/)
+        })
       }
     }
   }

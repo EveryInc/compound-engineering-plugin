@@ -13,6 +13,11 @@ export type PiGeneratedSkill = {
   content: string
 }
 
+export type PiGeneratedAgent = {
+  name: string
+  content: string
+}
+
 export type PiExtensionFile = {
   name: string
   content: string
@@ -36,6 +41,7 @@ export type PiBundle = {
   prompts: PiPrompt[]
   skillDirs: PiSkillDir[]
   generatedSkills: PiGeneratedSkill[]
+  agents: PiGeneratedAgent[]
   extensions: PiExtensionFile[]
   mcporterConfig?: PiMcporterConfig
 }
