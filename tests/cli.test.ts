@@ -1680,8 +1680,14 @@ describe("CLI", () => {
     expect(stdout).toContain("Converted compound-engineering")
     expect(stdout).toContain(piRoot)
     expect(await exists(path.join(piRoot, "prompts", "workflows-review.md"))).toBe(true)
-    expect(await exists(path.join(piRoot, "skills", "repo-research-analyst", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(piRoot, "extensions", "compound-engineering-compat.ts"))).toBe(true)
+    // Claude agents now install at .pi/agents/<name>.md (Pi agent format) so
+    // nicobailon/pi-subagents can resolve them via the `subagent` tool.
+    expect(await exists(path.join(piRoot, "agents", "repo-research-analyst.md"))).toBe(true)
+    // Pi installs no longer ship a plugin-authored compat extension; users install
+    // community pi-subagents + pi-ask-user extensions directly in Pi. MCP servers
+    // declared in plugin.json are still translated to mcporter.json so plugins
+    // with MCP wiring keep their backends after conversion.
+    expect(await exists(path.join(piRoot, "extensions", "compound-engineering-compat.ts"))).toBe(false)
     expect(await exists(path.join(piRoot, "compound-engineering", "mcporter.json"))).toBe(true)
   })
 
@@ -1721,7 +1727,7 @@ describe("CLI", () => {
     expect(stdout).toContain("Installed compound-engineering")
     expect(stdout).toContain(piRoot)
     expect(await exists(path.join(piRoot, "prompts", "workflows-review.md"))).toBe(true)
-    expect(await exists(path.join(piRoot, "extensions", "compound-engineering-compat.ts"))).toBe(true)
+    expect(await exists(path.join(piRoot, "extensions", "compound-engineering-compat.ts"))).toBe(false)
   })
 
   test("install --to opencode uses permissions:none by default", async () => {
