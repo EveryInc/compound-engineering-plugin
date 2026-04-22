@@ -662,7 +662,8 @@ def cmd_save_local(args):
 
     branch_part = _sanitize_branch(args.branch) if args.branch else "unknown"
     timestamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-    filename = f"{branch_part}-{timestamp}{src.suffix}"
+    stem = re.sub(r"[^a-zA-Z0-9\-_]", "", src.stem)[:40]
+    filename = f"{branch_part}-{timestamp}-{stem}{src.suffix}"
     dest = output_dir / filename
 
     shutil.copy2(src, dest)
