@@ -349,6 +349,10 @@ describe("ce-code-review contract", () => {
     )
 
     // Autonomous residual handoff step exists between code review and test-browser.
+    expect(lfg).toContain("Persist review autofixes")
+    expect(lfg).toContain("fix(review): apply autofix feedback")
+    expect(lfg).toContain("Do not proceed to step 6, run browser tests, or output DONE while review autofix edits remain only in the working tree.")
+    expect(lfg).toContain("there were no review autofixes to persist")
     expect(lfg).toContain("Autonomous residual handoff")
     expect(lfg).toMatch(/Do not prompt the user/)
 
