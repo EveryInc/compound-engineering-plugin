@@ -28,7 +28,6 @@ describe("plugin legacy artifacts", () => {
     expect(artifacts.skills).toContain("demo-reel")
     expect(artifacts.skills).toContain("ce:polish-beta")
     expect(artifacts.skills).toContain("ce:release-notes")
-    expect(artifacts.skills).toContain("ce-update")
     expect(artifacts.skills).toContain("creating-agent-skills")
     expect(artifacts.skills).toContain("repo-research-analyst")
     expect(artifacts.skills).toContain("bug-reproduction-validator")
@@ -41,6 +40,7 @@ describe("plugin legacy artifacts", () => {
     // sweep an unrelated user skill at ~/.codex/skills/<name>/ into backup
     // simply because its name collides with a current CE skill.
     expect(artifacts.skills).not.toContain("ce-demo-reel")
+    expect(artifacts.skills).not.toContain("ce-update")
     // Synthesized agent name variants (e.g. ce-<final-segment>) are not on
     // the historical allow-list either, so they should not be probed against
     // unrelated user skills at flat ~/.codex/skills/<name>/ paths.

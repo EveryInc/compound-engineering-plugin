@@ -19,7 +19,7 @@ import { fileURLToPath } from "url"
 import { parseFrontmatter } from "./frontmatter"
 
 /** Old skill directory names that no longer exist after the v3 rename. */
-const STALE_SKILL_DIRS = [
+export const STALE_SKILL_DIRS = [
   // ce: -> ce-. Some targets sanitized these to ce-*; others left raw colon
   // directories on filesystems that permit them.
   "ce:brainstorm",

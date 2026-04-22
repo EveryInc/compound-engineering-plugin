@@ -55,7 +55,6 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "ce-reproduce-bug",
       "ce-review",
       "ce-review-beta",
-      "ce-update",
       "changelog",
       "claude-permissions-optimizer",
       "compound-docs",

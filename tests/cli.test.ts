@@ -137,8 +137,6 @@ describe("CLI", () => {
     await fs.writeFile(path.join(codexRoot, "skills", "ce:plan", "SKILL.md"), "legacy raw colon skill")
     await fs.mkdir(path.join(codexRoot, "skills", "ce:review-beta"), { recursive: true })
     await fs.writeFile(path.join(codexRoot, "skills", "ce:review-beta", "SKILL.md"), "legacy raw colon beta skill")
-    await fs.mkdir(path.join(codexRoot, "skills", "ce-update"), { recursive: true })
-    await fs.writeFile(path.join(codexRoot, "skills", "ce-update", "SKILL.md"), "legacy claude-only skill")
     // A user-authored skill at a flat path whose name happens to collide with
     // a current CE skill name (ce-debug is a current CE skill that has never
     // been on the historical flat-path allow-list). The cleanup MUST NOT move
@@ -202,14 +200,13 @@ describe("CLI", () => {
     }
 
     expect(stdout).toContain("Cleaned codex")
-    // 6 historical artifacts get backed up: ce:plan, ce:review-beta, ce-update,
+    // 5 historical artifacts get backed up: ce:plan, ce:review-beta,
     // report-bug.md, the .agents/skills/ce-plan symlink-equivalent, and the
     // namespaced compound-engineering/repo-research-analyst directory.
     // The user-authored ce-debug skill is preserved.
-    expect(stdout).toContain("backed up 6 artifact")
+    expect(stdout).toContain("backed up 5 artifact")
     expect(await exists(path.join(codexRoot, "skills", "ce:plan"))).toBe(false)
     expect(await exists(path.join(codexRoot, "skills", "ce:review-beta"))).toBe(false)
-    expect(await exists(path.join(codexRoot, "skills", "ce-update"))).toBe(false)
     expect(await exists(path.join(codexRoot, "prompts", "report-bug.md"))).toBe(false)
     expect(await exists(path.join(agentsRoot, "skills", "ce-plan"))).toBe(false)
     expect(await exists(path.join(codexRoot, "skills", "compound-engineering", "repo-research-analyst"))).toBe(false)
