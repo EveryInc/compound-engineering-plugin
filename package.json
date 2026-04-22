@@ -5,7 +5,8 @@
   "type": "module",
   "private": false,
   "bin": {
-    "compound-plugin": "src/index.ts"
+    "compound-plugin": "src/index.ts",
+    "ce-sync": "src/ce-sync.ts"
   },
   "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
   "repository": "https://github.com/EveryInc/compound-engineering-plugin",

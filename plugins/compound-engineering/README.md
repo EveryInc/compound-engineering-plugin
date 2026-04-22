@@ -56,6 +56,7 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 |-------|-------------|
 | `/changelog` | Create engaging changelogs for recent merges |
 | `/ce-demo-reel` | Capture a visual demo reel (GIF demos, terminal recordings, screenshots) for PRs with project-type-aware tier selection |
+| `/ce-sync` | Refresh compound-engineering skills across targets using the bundled installer |
 | `/report-bug-ce` | Report a bug in the compound-engineering plugin |
 | `/resolve-pr-feedback` | Resolve PR review feedback in parallel |
 | `/sync` | Sync Claude Code config across machines |
@@ -193,6 +194,16 @@ claude /plugin install compound-engineering
 ```
 
 Then run `/ce-setup` to check your environment and install recommended tools.
+
+For repeatable refreshes and cross-target exports, run `ce-sync --to all` (or `--to codex`, `--to opencode`, etc.). Pass `--branch <ref>` when you want to refresh from a specific branch instead of the default checkout.
+
+Need the full CLI surface? Run:
+
+```bash
+ce-sync --help
+```
+
+The most common options are `--to <target>` for the install target and `--branch <ref>` for branch-based refreshes.
 
 ## Version History
 
