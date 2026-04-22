@@ -1,0 +1,244 @@
+#!/usr/bin/env bash
+# stack-detect — analyze git state for stacked-PR decision-making.
+#
+# Surfaces three sections of parseable signals about the current branch:
+#   === TOOL ===           availability of gh and gh-stack
+#   === STACK_STATE ===    current branch's position in any existing stack
+#   === CHANGE_SUMMARY ===  size/spread/shape of changes vs. a base branch
+#   === COMMIT_LOG ===     one line per commit vs. base (subject only)
+#
+# The script emits signals only. It does NOT make judgments ("should stack",
+# "too big", etc.) — consuming skills apply any interpretation.
+#
+# Usage:
+#   stack-detect                 # TOOL + STACK_STATE only
+#   stack-detect <base-branch>   # all four sections
+#   stack-detect --mock STATE    # force STACK_STATE to STATE for testing
+#   STACK_DETECT_MOCK=STATE stack-detect ...
+#
+# Exit codes:
+#   0  normal run (one of the sentinel states was emitted)
+#   1  not inside a git repo (NOT_IN_REPO emitted before exit)
+#   2  invalid base branch argument
+
+set -o pipefail
+
+# =====================================================
+#  Args
+# =====================================================
+
+mock_state="${STACK_DETECT_MOCK:-}"
+base_branch=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --mock)
+      if [ -z "${2:-}" ]; then
+        echo "error: --mock requires a state argument" >&2
+        exit 2
+      fi
+      mock_state="$2"
+      shift 2
+      ;;
+    --mock=*)
+      mock_state="${1#*=}"
+      shift
+      ;;
+    -h|--help)
+      sed -n '2,20p' "$0" | sed 's/^# \{0,1\}//'
+      exit 0
+      ;;
+    --*)
+      echo "error: unknown flag: $1" >&2
+      exit 2
+      ;;
+    *)
+      if [ -n "$base_branch" ]; then
+        echo "error: unexpected extra argument: $1" >&2
+        exit 2
+      fi
+      base_branch="$1"
+      shift
+      ;;
+  esac
+done
+
+# =====================================================
+#  Pre-flight: repo check
+# =====================================================
+
+echo "=== TOOL ==="
+
+if command -v gh >/dev/null 2>&1; then
+  if gh extension list 2>/dev/null | grep -q '\bgh-stack\b\|github/gh-stack\|gh stack'; then
+    # Verify access by probing `gh stack view`. Only treat it as an access
+    # problem when the extension itself returns an auth/access error — a
+    # generic "not in a stack" failure is fine here (state-machine concern).
+    stack_probe_output=$(gh stack view 2>&1 || true)
+    if printf '%s' "$stack_probe_output" | grep -qiE 'not authenticated|access denied|forbidden|permission denied|403|unauthorized'; then
+      echo "GH_STACK_NO_ACCESS"
+      # Compact the error to a single line for downstream parseability.
+      detail=$(printf '%s' "$stack_probe_output" | tr '\n' ' ' | sed 's/  */ /g' | sed 's/^ *//; s/ *$//')
+      echo "detail: $detail"
+      gh_stack_usable="no"
+    else
+      echo "GH_STACK_INSTALLED"
+      gh_stack_usable="yes"
+    fi
+  else
+    echo "GH_STACK_NOT_INSTALLED"
+    gh_stack_usable="no"
+  fi
+else
+  echo "GH_NOT_INSTALLED"
+  gh_stack_usable="no"
+fi
+
+# =====================================================
+#  Stack state
+# =====================================================
+
+echo "=== STACK_STATE ==="
+
+if ! git rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  echo "NOT_IN_REPO"
+  exit 1
+fi
+
+if [ -n "$mock_state" ]; then
+  echo "$mock_state"
+elif [ "$gh_stack_usable" != "yes" ]; then
+  # Without a working gh-stack, we cannot authoritatively determine stack state.
+  echo "UNKNOWN"
+else
+  stack_json=$(gh stack view --json 2>/dev/null || true)
+  if [ -z "$stack_json" ]; then
+    echo "NOT_IN_STACK"
+  elif command -v jq >/dev/null 2>&1; then
+    # Use jq for robust parsing when available.
+    # A "real" stack has 2+ non-trunk branches. A single-branch "stack" is just
+    # a plain feature branch against trunk — treat it as NOT_IN_STACK.
+    state=$(printf '%s' "$stack_json" | jq -r '
+      if (.branches | length) <= 1 then
+        "NOT_IN_STACK"
+      else
+        . as $s
+        | ($s.branches | map(select(.isCurrent == true)) | .[0]) as $cur
+        | if $cur == null then "NOT_IN_STACK"
+          else
+            ($s.branches | map(.name) | index($cur.name)) as $idx
+            | ($s.branches | length) as $n
+            | if $idx == 0 then "STACK_BOTTOM"
+              elif $idx == ($n - 1) then "STACK_TOP"
+              else "STACK_MIDDLE"
+              end
+          end
+      end
+    ' 2>/dev/null)
+    if [ -z "$state" ] || [ "$state" = "null" ]; then
+      echo "NOT_IN_STACK"
+    else
+      echo "$state"
+    fi
+  else
+    # jq not available — fall back to counting branch entries in JSON heuristically.
+    branch_count=$(printf '%s' "$stack_json" | grep -c '"name":')
+    if [ "$branch_count" -le 1 ]; then
+      echo "NOT_IN_STACK"
+    else
+      # Without jq we cannot reliably determine position; surface a conservative signal.
+      echo "UNKNOWN"
+    fi
+  fi
+fi
+
+# =====================================================
+#  Change summary (only when a base branch is given)
+# =====================================================
+
+if [ -z "$base_branch" ]; then
+  exit 0
+fi
+
+# Validate base branch exists as a ref (local or remote).
+if ! git rev-parse --verify --quiet "$base_branch" >/dev/null 2>&1 \
+   && ! git rev-parse --verify --quiet "refs/remotes/origin/$base_branch" >/dev/null 2>&1; then
+  echo "=== CHANGE_SUMMARY ==="
+  echo "error: base branch not found: $base_branch"
+  exit 2
+fi
+
+# Resolve the actual base ref (prefer local branch, else origin/<base>).
+base_ref="$base_branch"
+if ! git rev-parse --verify --quiet "$base_branch" >/dev/null 2>&1; then
+  base_ref="refs/remotes/origin/$base_branch"
+fi
+
+# Merge-base-style range: commits on HEAD but not on base.
+range="${base_ref}...HEAD"
+
+echo "=== CHANGE_SUMMARY ==="
+
+# files / insertions / deletions via --numstat across the combined diff.
+# --numstat emits lines like: <ins>\t<del>\t<path>. Binary files appear as "-\t-\t<path>".
+diff_stats=$(git diff --numstat "$base_ref"...HEAD 2>/dev/null || true)
+
+files_count=0
+insertions=0
+deletions=0
+if [ -n "$diff_stats" ]; then
+  files_count=$(printf '%s\n' "$diff_stats" | grep -c .)
+  insertions=$(printf '%s\n' "$diff_stats" | awk '$1 ~ /^[0-9]+$/ { s += $1 } END { print s+0 }')
+  deletions=$(printf '%s\n' "$diff_stats" | awk '$2 ~ /^[0-9]+$/ { s += $2 } END { print s+0 }')
+fi
+
+commit_count=$(git rev-list --count "${base_ref}..HEAD" 2>/dev/null || echo 0)
+
+# Distinct top-level directory prefixes touched (or "." for top-level files).
+directories=""
+if [ -n "$diff_stats" ]; then
+  directories=$(printf '%s\n' "$diff_stats" \
+    | awk -F'\t' '{ print $3 }' \
+    | awk -F'/' '{ if (NF > 1) print $1 "/"; else print "."; }' \
+    | sort -u \
+    | paste -sd ',' -)
+fi
+
+# renames_only_commits: commits whose diff is purely renames/moves.
+# For each commit in the range, check whether there is at least one rename AND
+# no other filter kinds (A/M/D/C/T). We rely on --name-status because
+# --diff-filter on log filters commits, not files within a commit.
+renames_only=0
+if [ "$commit_count" -gt 0 ]; then
+  while IFS= read -r sha; do
+    [ -z "$sha" ] && continue
+    # Lines look like: "R100\tfrom\tto" or "M\tpath".
+    status_lines=$(git show --pretty=format: --name-status "$sha" 2>/dev/null | sed '/^$/d')
+    if [ -z "$status_lines" ]; then
+      continue
+    fi
+    has_rename=$(printf '%s\n' "$status_lines" | awk '$1 ~ /^R/' | head -n1)
+    has_other=$(printf '%s\n' "$status_lines" | awk '$1 !~ /^R/' | head -n1)
+    if [ -n "$has_rename" ] && [ -z "$has_other" ]; then
+      renames_only=$((renames_only + 1))
+    fi
+  done < <(git rev-list "${base_ref}..HEAD" 2>/dev/null)
+fi
+
+echo "files: $files_count"
+echo "insertions: $insertions"
+echo "deletions: $deletions"
+echo "commits: $commit_count"
+echo "directories: $directories"
+echo "renames_only_commits: $renames_only"
+
+# =====================================================
+#  Commit log (one line per commit, newest first)
+# =====================================================
+
+echo "=== COMMIT_LOG ==="
+git log --pretty=format:'%h %s' "${base_ref}..HEAD" 2>/dev/null || true
+# Ensure a trailing newline even when git log emits none.
+echo ""
+
+exit 0

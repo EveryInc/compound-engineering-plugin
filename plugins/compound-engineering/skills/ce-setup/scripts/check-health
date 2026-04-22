@@ -18,6 +18,7 @@ deps=(
   "vhs|recommended|NONINTERACTIVE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install -q vhs|https://github.com/charmbracelet/vhs"
   "silicon|recommended|NONINTERACTIVE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install -q silicon|https://github.com/Aloxaf/silicon"
   "ffmpeg|recommended|NONINTERACTIVE=1 HOMEBREW_NO_AUTO_UPDATE=1 brew install -q ffmpeg|https://ffmpeg.org/download.html"
+  "gh-stack|recommended|gh extension install github/gh-stack|https://github.github.com/gh-stack/"
 )
 
 # =====================================================
@@ -56,6 +57,25 @@ cli_ok=0; cli_total=0; issues=0
 results=()
 for entry in "${deps[@]}"; do
   IFS='|' read -r name tier install_cmd url <<< "$entry"
+
+  # gh-* entries are gh CLI extensions, not standalone binaries.
+  # Detect via `gh extension list`, and skip the check entirely when gh itself
+  # is missing (avoids confusing "install gh extension" messaging).
+  if [[ "$name" == gh-* ]]; then
+    if ! command -v gh >/dev/null 2>&1; then
+      results+=("$name|$tier|skipped|$install_cmd|$url")
+      continue
+    fi
+    cli_total=$((cli_total + 1))
+    if gh extension list 2>/dev/null | grep -q "$name"; then
+      cli_ok=$((cli_ok + 1))
+      results+=("$name|$tier|ok|$install_cmd|$url")
+    else
+      results+=("$name|$tier|missing|$install_cmd|$url")
+    fi
+    continue
+  fi
+
   cli_total=$((cli_total + 1))
   if command -v "$name" >/dev/null 2>&1; then
     cli_ok=$((cli_ok + 1))
@@ -115,6 +135,8 @@ for result in "${results[@]}"; do
   IFS='|' read -r name tier status install_cmd url <<< "$result"
   if [ "$status" = "ok" ]; then
     ok "$name"
+  elif [ "$status" = "skipped" ]; then
+    skip "$name (requires gh)"
   else
     warn "$name"
     issues=$((issues + 1))
