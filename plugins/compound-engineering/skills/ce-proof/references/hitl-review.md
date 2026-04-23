@@ -295,11 +295,15 @@ SLUG=<slug>
 TOKEN=<accessToken>
 AGENT_ID=ai:compound-engineering
 BASE=<cached from most recent /state or /snapshot read>
-IDEM_KEY=$(uuidgen)  # reused across retries of the same logical write
 
 mutate() {
   local PAYLOAD="$1"  # jq template without baseToken
-  local BODY RESP
+  local IDEM_KEY BODY RESP CODE
+  # Fresh key per logical write (per mutate() call). The same key is then
+  # reused below only within the retry of this single logical write — NOT
+  # across different payloads, which would make the server collapse
+  # distinct writes as duplicates and silently drop later edits.
+  IDEM_KEY=$(uuidgen)
   BODY=$(jq -n --arg base "$BASE" --argjson payload "$PAYLOAD" '$payload + {baseToken: $base}')
   RESP=$(curl -s -X POST "https://www.proofeditor.ai/api/agent/$SLUG/ops" \
     -H "Content-Type: application/json" \
@@ -307,7 +311,6 @@ mutate() {
     -H "X-Agent-Id: $AGENT_ID" \
     -H "Idempotency-Key: $IDEM_KEY" \
     -d "$BODY")
-  local CODE
   CODE=$(printf '%s' "$RESP" | jq -r '.code // .error // empty')
   # Pre-commit, safe to retry after re-reading state.
   if [ "$CODE" = "STALE_BASE" ] || [ "$CODE" = "BASE_TOKEN_REQUIRED" ] || [ "$CODE" = "MISSING_BASE" ]; then
@@ -325,7 +328,7 @@ mutate() {
 }
 ```
 
-The same `Idempotency-Key` is reused across the retry so the server collapses a duplicate TCP-level send. A *new* key would register as a separate logical write.
+The `Idempotency-Key` is minted fresh at the top of each call (one key per logical write). The retry inside the same call reuses that key so the server can collapse a duplicate TCP-level send, but a later `mutate()` for a different payload gets its own key. Minting outside the function would make every call share one key, and the server would treat the second and subsequent writes as duplicates of the first and silently drop them.
 
 **Ambiguous failures (anything outside the pre-commit set above — `COLLAB_SYNC_FAILED`, `INTERNAL_ERROR`, 5xx, network timeout, 202 with `collab.status: "pending"`):** do not retry from this helper. Re-read `/state` in the caller, diff the marks/content against the intended change, and only re-issue the write if the diff proves nothing landed. Pattern:
 
