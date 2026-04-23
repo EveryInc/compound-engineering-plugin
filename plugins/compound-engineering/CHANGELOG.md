@@ -9,6 +9,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.0.0...compound-engineering-v3.0.1) (2026-04-23)
+
+
+### Bug Fixes
+
+* **ce-proof:** correct op shapes and add retry/batch discipline ([#658](https://github.com/EveryInc/compound-engineering-plugin/issues/658)) ([a9fd842](https://github.com/EveryInc/compound-engineering-plugin/commit/a9fd8421f42d598e8d85c4cb50cbec0fa3d6af46))
+* **ce-update:** replace cache sweep with claude plugin update ([#656](https://github.com/EveryInc/compound-engineering-plugin/issues/656)) ([b9ae6b7](https://github.com/EveryInc/compound-engineering-plugin/commit/b9ae6b758d0d538648cc4dbb09dfb0fa8c0858fb))
+
 ## [3.0.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.68.1...compound-engineering-v3.0.0) (2026-04-22)
 
 

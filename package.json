@@ -1,6 +1,6 @@
 {
   "name": "@every-env/compound-plugin",
-  "version": "3.0.0",
+  "version": "3.0.1",
   "description": "Official Compound Engineering plugin for Claude Code, Codex, and more",
   "type": "module",
   "private": false,
