@@ -45,7 +45,7 @@ Tokenize `$ARGUMENTS` by whitespace and match recognized mode tokens exactly (so
 
 ### Shared autofix rules (both `mode:autofix` and `mode:autofix-full`)
 
-- **Skip all user questions.** Never pause for input — the mode-selection prompt, Discoverability Check consent, and "What's next?" menu are all suppressed. `mode:autofix-full` additionally skips the session-history opt-in (defaults to off — see below).
+- **Skip all user questions.** Never pause for input — the mode-selection prompt, the Phase 2.5 selective-refresh prompt (multi-candidate case), Discoverability Check consent, and "What's next?" menu are all suppressed. `mode:autofix-full` additionally skips the session-history opt-in (defaults to off — see below).
 - **Do not edit instruction files.** The Discoverability Check (AGENTS.md / CLAUDE.md edit) requires user consent. In both autofix modes, surface the gap as a `Discoverability recommendation` line in the output and move on.
 - **Be conservative about writing.** Respect the advisory Preconditions (`problem_solved`, `solution_verified`, `non_trivial`). If the conversation and context hint do not evidence a substantive, verified fix, do **not** write a doc — emit the no-op autofix output (see **Autofix mode output** under Success Output) explaining what was missing.
 - **Always print the full output block.** The success output (or the no-op autofix output when no doc is warranted) is the sole deliverable since no user is present to follow up.
@@ -300,7 +300,7 @@ It does **not** make sense to invoke `ce-compound-refresh` when:
 Use these rules:
 
 - If there is **one obvious stale candidate**, invoke `ce-compound-refresh` with a narrow scope hint after the new learning is written
-- If there are **multiple candidates in the same area**, ask the user whether to run a targeted refresh for that module, category, or pattern set
+- If there are **multiple candidates in the same area**, ask the user whether to run a targeted refresh for that module, category, or pattern set. In both autofix modes (`mode:autofix` and `mode:autofix-full`), do not ask — recommend `ce-compound-refresh` via the `Follow-up` line in the output with the broadest useful scope (module, category, or pattern set) and move on.
 - If context is already tight or you are in lightweight mode, do not expand into a broad refresh automatically; instead recommend `ce-compound-refresh` as the next step with a scope hint
 
 When invoking or recommending `ce-compound-refresh`, be explicit about the argument to pass. Prefer the narrowest useful scope:
