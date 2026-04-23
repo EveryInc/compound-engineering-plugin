@@ -1,6 +1,7 @@
 ---
 name: ce-compound
 description: Document a recently solved problem to compound your team's knowledge
+argument-hint: "[mode:autofix or mode:autofix-full] [brief context]"
 ---
 
 # /ce-compound
@@ -30,7 +31,55 @@ These files are the durable contract for the workflow. Read them on-demand at th
 
 When spawning subagents, pass the relevant file contents into the task prompt so they have the contract without needing cross-skill paths.
 
+## Mode Detection
+
+Tokenize `$ARGUMENTS` by whitespace and match recognized mode tokens exactly (so `mode:autofix-full` is a distinct token from `mode:autofix`). Strip the matched token from arguments; treat the remainder as the brief context hint.
+
+| Mode | Token | Execution path | Prompts |
+|------|-------|----------------|---------|
+| **Interactive** (default) | (none) | User picks Full or Lightweight at the Execution Strategy prompt | All interactive prompts per the documented flow |
+| **Autofix** | `mode:autofix` | Lightweight Mode (single-pass, no subagents, no overlap check) | None — all four interactive prompts skipped |
+| **Autofix-full** | `mode:autofix-full` | Full Mode (Phase 1 parallel research, overlap-update, Phase 3 specialized reviewers) | None — session-history defaults to off; Discoverability becomes a recommendation; "What's next?" suppressed |
+
+**Conflicting mode flags.** If both `mode:autofix` and `mode:autofix-full` appear in arguments, stop before any subagent dispatch and emit: `ce-compound failed. Reason: conflicting mode flags — mode:autofix and mode:autofix-full cannot be combined.` This mirrors the conflict handling in `ce-code-review`.
+
+### Shared autofix rules (both `mode:autofix` and `mode:autofix-full`)
+
+- **Skip all user questions.** Never pause for input — the mode-selection prompt, Discoverability Check consent, and "What's next?" menu are all suppressed. `mode:autofix-full` additionally skips the session-history opt-in (defaults to off — see below).
+- **Do not edit instruction files.** The Discoverability Check (AGENTS.md / CLAUDE.md edit) requires user consent. In both autofix modes, surface the gap as a `Discoverability recommendation` line in the output and move on.
+- **Be conservative about writing.** Respect the advisory Preconditions (`problem_solved`, `solution_verified`, `non_trivial`). If the conversation and context hint do not evidence a substantive, verified fix, do **not** write a doc — emit the no-op autofix output (see **Autofix mode output** under Success Output) explaining what was missing.
+- **Always print the full output block.** The success output (or the no-op autofix output when no doc is warranted) is the sole deliverable since no user is present to follow up.
+
+### `mode:autofix` (default headless)
+
+Routes through the **Lightweight Mode** execution path (see the Lightweight Mode section below). Single-pass, no Phase 1 parallel subagents, no overlap check, no Phase 3 specialized reviewers. Overlap drift is accepted and caught later by `ce-compound-refresh`.
+
+Use when:
+- The caller wants low-cost, low-latency learning capture at scale (post-merge hooks, CI).
+- Fresh problem-solving context is present; cross-referencing existing docs is not a requirement for this run.
+
+### `mode:autofix-full` (opt-in thorough headless)
+
+Routes through the **Full Mode** execution path — Phase 1 parallel research subagents, overlap-update behavior, Phase 3 specialized reviewers — with the interactive prompts guarded:
+
+- **Mode-selection prompt** → skipped (Full is already chosen by the caller).
+- **Session-history opt-in** → defaults to **off**. The opt-in is interactive-only; autofix cannot decide between sessions-yes and sessions-no without a user, so the conservative default is off (no Session Historian dispatch). A caller that wants session history included must invoke the skill interactively or run session analysis separately and pass the findings as context.
+- **Discoverability Check consent** → surfaced as a recommendation in the output, per the shared rule above.
+- **"What's next?" menu** → skipped, per the shared rule above.
+
+Phase 1 research subagents (Context Analyzer, Solution Extractor, Related Docs Finder) and Phase 3 specialized reviewers (`ce-performance-oracle`, `ce-security-sentinel`, etc.) run as usual in `mode:autofix-full` — they return text data to the orchestrator and do not themselves prompt the user.
+
+Use when:
+- The caller wants thorough capture with overlap-update (so duplicates fold into existing docs rather than create fresh ones), cross-referencing to related docs, and specialized-reviewer validation of the written doc.
+- The token cost of a Full-mode run is acceptable for the quality gain.
+
 ## Execution Strategy
+
+**Autofix modes:** Skip this entire section.
+- `mode:autofix` → jump directly to the Lightweight Mode execution path below.
+- `mode:autofix-full` → execute Full Mode below with the interactive prompts guarded per the Mode Detection section.
+
+**Interactive mode** (default):
 
 Present the user with two options before proceeding, using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
@@ -55,16 +104,18 @@ for relevant knowledge to help the Compound process? This adds
 time and token usage.
 ```
 
-If the user says yes, dispatch the Session Historian in Phase 1. If no, skip it. Do not ask this in lightweight mode.
+If the user says yes, dispatch the Session Historian in Phase 1. If no, skip it. Do not ask this in lightweight mode, in `mode:autofix` (which routes through Lightweight and never reaches this prompt), or in `mode:autofix-full` (which defaults session-history to off without a prompt — see Mode Detection).
 
 ---
 
 ### Full Mode
 
+Used by Interactive mode when the user picks Full, and by `mode:autofix-full` with interactive prompts guarded per Mode Detection (mode-selection, session-history opt-in, Discoverability consent, and "What's next?" menu are all suppressed in `mode:autofix-full`; the Phase 1 subagents and Phase 3 reviewers run unchanged since they return text data and do not themselves prompt the user).
+
 <critical_requirement>
 **The primary output is ONE file - the final documentation.**
 
-Phase 1 subagents return TEXT DATA to the orchestrator. They must NOT use Write, Edit, or create any files. Only the orchestrator writes files: the solution doc in Phase 2, and — if the Discoverability Check finds a gap — a small edit to a project instruction file (AGENTS.md or CLAUDE.md). The instruction-file edit is maintenance, not a second deliverable; it ensures future agents can discover the knowledge store.
+Phase 1 subagents return TEXT DATA to the orchestrator. They must NOT use Write, Edit, or create any files. Only the orchestrator writes files: the solution doc in Phase 2, and — if the Discoverability Check finds a gap and the run is in full interactive mode — a small edit to a project instruction file (AGENTS.md or CLAUDE.md). In `mode:autofix-full` the instruction-file edit is never written; the gap is surfaced as a Discoverability recommendation in the output instead.
 </critical_requirement>
 
 ### Phase 0.5: Auto Memory Scan
@@ -304,7 +355,7 @@ After the learning is written and the refresh decision is made, check whether th
 
       `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
       ```
-   c. In full mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode, output a one-liner note and move on
+   c. In full mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode, output a one-liner note and move on. In both autofix modes (`mode:autofix` and `mode:autofix-full`), include it as a `Discoverability recommendation` line in the output — do not attempt to edit instruction files (autofix scope is doc capture, not project config).
 
 ### Phase 3: Optional Enhancement
 
@@ -333,6 +384,8 @@ Based on problem type, optionally invoke specialized agents to review the docume
 **Single-pass alternative — same documentation, fewer tokens.**
 
 This mode skips parallel subagents entirely. The orchestrator performs all work in a single pass, producing the same solution document without cross-referencing or duplicate detection.
+
+**This path is also the execution target for `mode:autofix`** (see Mode Detection). `mode:autofix` adds no-prompt guardrails on top of Lightweight — the execution steps below are identical, but autofix uses a dedicated output block (see **Autofix mode output** under Success Output) so callers can parse the result programmatically. `mode:autofix-full` uses the Full Mode execution path instead, not this one.
 </critical_requirement>
 
 The orchestrator (main conversation) performs ALL of the following in one sequential pass:
@@ -461,6 +514,104 @@ What's next?
 ```
 
 **After displaying the success output, present the "What's next?" options using the platform's blocking question tool:** `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Do not continue the workflow or end the turn without the user's selection.
+
+**In both autofix modes (`mode:autofix` and `mode:autofix-full`), do NOT present the "What's next?" prompt.** The success output (or the no-op autofix output below) is the sole deliverable. End the turn cleanly after printing it — autofix callers parse the output programmatically and do not respond to interactive menus.
+
+### Autofix mode output
+
+In both autofix modes the output is the sole deliverable since no user is present to follow up. Print the full block — do not abbreviate, summarize, or skip sections. All output shapes below are machine-parseable: callers detect which shape was emitted by the first line (`✓ Documentation complete (mode:autofix)`, `✓ Documentation complete (mode:autofix-full)`, `✓ Documentation updated (mode:autofix-full)`, or `✓ No documentation written (autofix mode)`) and extract the file path from the `File created:` or `File updated:` block.
+
+**`mode:autofix` — doc written** (Lightweight path, preconditions met):
+
+```
+✓ Documentation complete (mode:autofix)
+
+File created:
+- docs/solutions/[category]/[filename].md
+
+Track: [bug|knowledge]
+Category: [category]/
+
+[If a specific older doc in docs/solutions/ looks stale given this new learning:]
+Refresh candidate: docs/solutions/[path/to/stale-doc].md
+  Reason: [one-line rationale — contradicts new fix, superseded, etc.]
+  Follow-up: /ce-compound-refresh mode:autofix [scope hint]
+
+[If discoverability check found instruction files don't surface the knowledge store:]
+Discoverability recommendation: AGENTS.md/CLAUDE.md does not surface docs/solutions/
+  Suggested addition: [one-liner or small section — do NOT apply the edit in autofix mode]
+
+Note: mode:autofix runs the Lightweight path (no overlap check against existing docs).
+ce-compound-refresh will catch duplicates on its next sweep.
+```
+
+**`mode:autofix-full` — new doc written** (Full path, preconditions met, overlap low):
+
+```
+✓ Documentation complete (mode:autofix-full)
+
+File created:
+- docs/solutions/[category]/[filename].md
+
+Track: [bug|knowledge]
+Category: [category]/
+
+Phase 1 subagents:
+  - Context Analyzer: [one-line summary]
+  - Solution Extractor: [one-line summary]
+  - Related Docs Finder: overlap=[low|moderate|none], refresh_candidates=[count]
+  - Session Historian: off (mode:autofix-full default)
+
+Phase 3 specialized reviewers:
+  - [each agent invoked and its one-line verdict, or "none applicable"]
+
+[If overlap was moderate — Phase 2.5 flagged consolidation review:]
+Refresh candidate: docs/solutions/[path/to/overlapping-doc].md
+  Reason: [moderate overlap — same area, different angle/root cause/solution]
+  Follow-up: /ce-compound-refresh mode:autofix [scope hint]
+
+[If discoverability check found instruction files don't surface the knowledge store:]
+Discoverability recommendation: AGENTS.md/CLAUDE.md does not surface docs/solutions/
+  Suggested addition: [one-liner or small section — do NOT apply the edit in autofix mode]
+```
+
+**`mode:autofix-full` — existing doc updated** (Full path, preconditions met, overlap high — updated existing doc per Phase 2 overlap rule):
+
+```
+✓ Documentation updated (mode:autofix-full)
+
+Overlap detected: docs/solutions/[category]/[existing-filename].md
+  Matched dimensions: [problem statement, root cause, solution, referenced files, prevention]
+
+File updated:
+- docs/solutions/[category]/[existing-filename].md (added last_updated: YYYY-MM-DD)
+
+Phase 1 subagents:
+  - [same four lines as the new-doc shape]
+
+Phase 3 specialized reviewers:
+  - [same as the new-doc shape]
+
+[Discoverability recommendation block, same as new-doc shape, if applicable]
+```
+
+**Either autofix mode — no doc written** (preconditions not met — trivial fix, unverified solution, or nothing substantive in context):
+
+```
+✓ No documentation written (autofix mode)
+
+Mode: [mode:autofix|mode:autofix-full]
+
+Reason: [which precondition failed — e.g., "non_trivial check: change was a one-character typo"
+  or "solution_verified: no verification evidence in conversation or context hint"
+  or "problem_solved: solution still in progress"]
+
+Context considered:
+- [one-line summary of what was available — e.g., "brief context hint: '<hint>'",
+  "recent commits on branch: 3", "conversation history: empty"]
+
+No action required. A human can invoke /ce-compound interactively if this was a misjudgment.
+```
 
 **Alternate output (when updating an existing doc due to high overlap):**
 
