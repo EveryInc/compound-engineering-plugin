@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.0.3](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.0.2...cli-v3.0.3) (2026-04-24)
+
+
+### Bug Fixes
+
+* **release:** remove stale release-as pin ([#674](https://github.com/EveryInc/compound-engineering-plugin/issues/674)) ([ab44d89](https://github.com/EveryInc/compound-engineering-plugin/commit/ab44d89b0b2b1f7dd57d9ce1604d42b0c11f6415))
+
 ## [3.0.2](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.0.1...cli-v3.0.2) (2026-04-24)
 
 

@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.3](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.0.2...compound-engineering-v3.0.3) (2026-04-24)
+
+
+### Bug Fixes
+
+* **ce-ideate:** sharpen bug intent, surprise-me dispatch, and drop authoring refs ([#672](https://github.com/EveryInc/compound-engineering-plugin/issues/672)) ([f0433d9](https://github.com/EveryInc/compound-engineering-plugin/commit/f0433d9150b0c62a1fd65db7ffdb08a7c45fdb7f))
+
 ## [3.0.2](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.0.1...compound-engineering-v3.0.2) (2026-04-24)
 
 
