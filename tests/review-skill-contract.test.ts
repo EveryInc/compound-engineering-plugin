@@ -283,6 +283,31 @@ describe("ce-code-review contract", () => {
     expect(template).toMatch(/Do not default to `gated_auto` when the fix is mechanical/i)
   })
 
+  test("Stage 4 spawning restates model-override imperative at point of action", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+
+    // Model tiering subsection still enumerates the three session-model exceptions
+    expect(content).toMatch(/ce-correctness-reviewer.*ce-security-reviewer.*ce-adversarial-reviewer/s)
+
+    // Imperative lives inside the Spawning subsection, not only in the rationale block.
+    // Extract the Spawning subsection and assert the model-override directive appears there
+    // with cross-platform dispatch primitives named at the call site.
+    const spawningMatch = content.match(/#### Spawning\n([\s\S]*?)(?=\n####|\n### )/)
+    expect(spawningMatch).not.toBeNull()
+    const spawning = spawningMatch![1]
+
+    expect(spawning).toMatch(/Model override at dispatch time/)
+    expect(spawning).toContain('model: "sonnet"')
+    expect(spawning).toContain("Agent")
+    expect(spawning).toContain("spawn_agent")
+    expect(spawning).toContain("subagent")
+    // Exceptions are restated at point of action so the agent does not have to recall them
+    // from the Model tiering subsection above during a 12-agent parallel dispatch.
+    expect(spawning).toContain("ce-correctness-reviewer")
+    expect(spawning).toContain("ce-security-reviewer")
+    expect(spawning).toContain("ce-adversarial-reviewer")
+  })
+
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
 
