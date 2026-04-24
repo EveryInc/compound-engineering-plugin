@@ -23,6 +23,8 @@ This is easy to miss because authoring feels like using: you edit the plugin whi
 
 The repo uses an automated release process to prepare plugin releases, including version selection and changelog generation. Because multiple PRs may merge before the next release, contributors cannot know the final released version from within an individual PR.
 
+**If `bun run release:validate` reports drift, see `docs/solutions/workflow/release-please-version-drift-recovery.md`** for the file-relationship map, the recovery decision tree (forward-sync vs. backward-revert vs. `release-as` pin), and worked examples. That doc answers questions the rules below don't: *why these files are release-managed, how they sync via `extra-files` and `linked-versions`, and what to do when the rules below were violated.*
+
 ### Contributor Rules
 
 - Do **not** manually bump `.claude-plugin/plugin.json` version in a normal feature PR.
