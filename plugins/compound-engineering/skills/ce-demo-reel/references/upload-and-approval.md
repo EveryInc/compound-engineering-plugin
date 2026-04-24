@@ -24,7 +24,7 @@ Present the preview URL to the user and ask how to handle the evidence. Use the 
 
 **Options:**
 1. **Upload to catbox (public URL)** -- promote to permanent hosting for PR embedding
-2. **Save locally** -- save to a stable OS-temp path ($TMPDIR/compound-engineering/ce-demo-reel/)
+2. **Save locally** -- save to a stable OS-temp path (/tmp/compound-engineering/ce-demo-reel/)
 3. **Recapture** -- provide instructions on what to change
 4. **Proceed without evidence** -- set evidence to null and proceed
 
