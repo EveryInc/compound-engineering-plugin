@@ -553,7 +553,7 @@ describe("ce-code-review contract", () => {
     // Autonomous residual handoff step exists between code review and test-browser.
     expect(lfg).toContain("Persist review autofixes")
     expect(lfg).toContain("fix(review): apply autofix feedback")
-    expect(lfg).toContain("Do not proceed to step 6, run browser tests, or output DONE while review autofix edits remain only in the working tree.")
+    expect(lfg).toContain("Do not proceed to step 5, run browser tests, or output DONE while review autofix edits remain only in the working tree.")
     expect(lfg).toContain("there were no review autofixes to persist")
     expect(lfg).toContain("Autonomous residual handoff")
     expect(lfg).toMatch(/Do not prompt the user/)
@@ -569,8 +569,11 @@ describe("ce-code-review contract", () => {
     expect(lfg).toMatch(/no_sink/)
 
     // PR description update path is non-interactive and does not route through
-    // confirmation-driven PR update skills.
-    expect(lfg).not.toContain("ce-commit-push-pr")
+    // confirmation-driven PR update skills. The positive assertion on
+    // `gh pr edit` below is the actual check; a broad `not.toContain` would
+    // falsely trip on step 7's legitimate use of ce-commit-push-pr for the
+    // post-work commit/PR-open step.
+    expect(lfg).toContain("do not load any confirmation-driven PR update skill")
     expect(lfg).toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
     expect(lfg).toContain("## Residual Review Findings")
     expect(lfg).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
