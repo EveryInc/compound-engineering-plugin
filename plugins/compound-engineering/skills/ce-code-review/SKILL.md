@@ -402,7 +402,7 @@ Pass the resulting path list to the `project-standards` persona inside a `<stand
 
 Three reviewers inherit the session model with no override: `ce-correctness-reviewer`, `ce-security-reviewer`, and `ce-adversarial-reviewer`. These perform the highest-stakes analysis — logic bugs, security vulnerabilities, adversarial failure scenarios — and should run at whatever capability level the user has configured. If the user is on Opus, these get Opus.
 
-All other persona sub-agents and CE agents use the platform's mid-tier model to reduce cost and latency. In Claude Code, pass `model: "sonnet"` in the Agent tool call. On other platforms, use the equivalent mid-tier (e.g., `gpt-5.4-mini` in Codex as of April 2026). If the platform has no model override mechanism or the available model names are unknown, omit the model parameter and let agents inherit the default -- a working review on the parent model is better than a broken dispatch from an unrecognized model name.
+All other persona sub-agents and CE agents use the platform's mid-tier model to reduce cost and latency. See the Spawning subsection below for the exact dispatch-time override — the imperative lives there so it lands at the point of action when spawning many agents in parallel.
 
 The orchestrator (this skill) also inherits the session model; it handles intent discovery, reviewer selection, finding merge/dedup, and synthesis -- tasks that benefit from the same reasoning capability the user configured.
 
@@ -422,6 +422,8 @@ Pass `{run_id}` to every persona sub-agent so they can write their full analysis
 #### Spawning
 
 Omit the `mode` parameter when dispatching sub-agents so the user's configured permission settings apply. Do not pass `mode: "auto"`.
+
+**Model override at dispatch time.** Pass the platform's mid-tier model on every dispatch except `ce-correctness-reviewer`, `ce-security-reviewer`, and `ce-adversarial-reviewer`, which inherit the session model (per the Model tiering subsection above). In Claude Code, add `model: "sonnet"` to the `Agent` tool call. In Codex, pass the equivalent mid-tier on `spawn_agent` (e.g., `gpt-5.4-mini` as of April 2026). In Pi, pass the equivalent on `subagent` via the `pi-subagents` extension. On platforms where the dispatch primitive has no model-override parameter or the available model names are unknown, omit the override — a working review on the parent model beats a broken dispatch on an unrecognized name. Check this on every Agent / `spawn_agent` / `subagent` call in the parallel dispatch; omitting it on Opus sessions silently 3-4x's the cost of a review.
 
 Spawn each selected persona reviewer as a parallel sub-agent using the subagent template included below. Each persona sub-agent receives:
 
