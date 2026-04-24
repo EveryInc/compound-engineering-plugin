@@ -33,7 +33,7 @@ When spawning subagents, pass the relevant file contents into the task prompt so
 
 ## Mode Detection
 
-Parse `$ARGUMENTS` for `mode:autofix` and an optional `depth:<value>` token. Strip matched tokens; treat the remainder as the brief context hint.
+Parse `$ARGUMENTS` for `mode:autofix`. If present, also parse an optional `depth:<value>` token. Strip matched tokens; the remainder is the context hint.
 
 | Mode | When | Behavior |
 |------|------|----------|
@@ -46,7 +46,7 @@ Parse `$ARGUMENTS` for `mode:autofix` and an optional `depth:<value>` token. Str
 - `depth:full` — Full Mode: Phase 1 parallel research, overlap-update, Phase 3 specialized reviewers. Session history off.
 - `depth:thorough` — Full Mode + session history on.
 
-Invalid `depth:` values halt before subagent dispatch and emit `ce-compound failed. Reason: unknown depth:<value>. Valid values: lightweight, full, thorough.`
+In autofix mode, invalid `depth:` values halt before subagent dispatch and emit `ce-compound failed. Reason: unknown depth:<value>. Valid values: lightweight, full, thorough.`
 
 ### Autofix mode rules
 
