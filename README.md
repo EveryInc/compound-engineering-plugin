@@ -81,6 +81,8 @@ The `compound-engineering` plugin currently ships 36 skills and 51 agents. See t
 /plugin install compound-engineering
 ```
 
+If you want a Chinese Skills marketplace for searching and installing skills across Claude Code, OpenCode, and more, try [Skills宝 (skilery.com)](https://skilery.com).
+
 ### Cursor
 
 In Cursor Agent chat, install from the plugin marketplace:
