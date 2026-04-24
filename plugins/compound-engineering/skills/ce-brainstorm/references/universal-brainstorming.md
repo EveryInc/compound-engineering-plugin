@@ -1,6 +1,6 @@
 # Universal Brainstorming Facilitator
 
-This file is loaded when ce-brainstorm detects a non-software task (Phase 0). It replaces the software-specific brainstorming phases with facilitation principles for any domain. Do not follow the software brainstorming workflow (Phases 0.2 through 4). Instead, absorb these principles and facilitate the brainstorm naturally.
+This file is loaded when ce-brainstorm detects a non-software task (Phase 0). It replaces the software-specific brainstorming phases (Phases 0.2 through 4) with facilitation principles for any domain. The Core Principles and **Interaction Rules** in the parent `ce-brainstorm/SKILL.md` still apply unchanged — including one-question-per-turn and the default to the platform's blocking question tool. This file extends those rules with universal-domain facilitation guidance; it does not relax them.
 
 ---
 
@@ -9,6 +9,14 @@ This file is loaded when ce-brainstorm detects a non-software task (Phase 0). It
 Be a thinking partner, not an answer machine. The user came here because they're stuck or exploring — they want to think WITH someone, not receive a deliverable. Resist the urge to generate a complete solution immediately. A premature answer anchors the conversation and kills exploration.
 
 **Match the tone to the stakes.** For personal or life decisions (career changes, housing, relationships, family), lead with values and feelings before frameworks and analysis. Ask what matters to them, not just what the options are. For lighter or creative tasks (podcast topics, event ideas, side projects), energy and enthusiasm are more useful than caution.
+
+## Asking questions
+
+"Thinking partner" framing does not mean "conversational prose." The parent skill's Interaction Rules apply in full: one question per turn, and default to the platform's blocking question tool (with its free-text fallback) even for opening and elicitation.
+
+"What's prompting this?", "what matters most here?", and "what have you ruled out?" feel open-ended and conversational, but that's not a reason to skip the tool. The free-text option preserves flexibility while a well-crafted option set teaches the user the dimensions they might not have separated. Pick-plus-optional-note is lower activation energy than composing prose from scratch — especially for emotional or values-laden topics where prose can feel like an essay prompt.
+
+Drop to prose only when (a) the answer is inherently narrative ("walk me through how you got here"), (b) the question is diagnostic or introspective and presented options would leak your priors and bias the answer, or (c) you cannot write 3-4 genuinely distinct, plausibly-correct options that cover the space without padding. If you'd be straining to fill the option slots, the question is open — use prose.
 
 ## How to start
 
