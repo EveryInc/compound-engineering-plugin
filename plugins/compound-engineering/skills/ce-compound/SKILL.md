@@ -199,9 +199,8 @@ Launch research subagents. Each returns text data to the orchestrator.
 
 </parallel_tasks>
 
-#### 4. **Session Historian** (foreground, after launching the above — see dispatch rule)
-   - **Dispatch when:** the user opted in during the follow-up question (interactive mode), OR `mode:autofix depth:thorough` was passed (autofix mode — `depth:thorough` is the one autofix path that dispatches Session Historian).
-   - **Skip when:** the user declined in the follow-up question, OR `mode:autofix` was passed with any depth other than `thorough` (the `depth:lightweight` default and `depth:full` both skip Session Historian).
+#### 4. **Session Historian** (foreground, after launching the above)
+   - Dispatch if the user opted in during the follow-up question, or if `mode:autofix depth:thorough` was passed. Otherwise skip.
    - Dispatched as `ce-session-historian`
    - Dispatch in **foreground** — this agent reads session files outside the working directory (`~/.claude/projects/`, `~/.codex/sessions/`, `~/.cursor/projects/`) which background agents may not have access to
    - Searches prior Claude Code, Codex, and Cursor sessions for the same project to find related investigation context
