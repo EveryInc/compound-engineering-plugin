@@ -14,6 +14,18 @@ If real product usage is impractical (requires API keys, cloud deploy, paid serv
 
 Never generate fake or placeholder image/GIF URLs. If upload fails, report the failure.
 
+## Never Record Secrets
+
+Recordings must never contain credentials — not in commands, output, URL bars, or on-screen UI. If the demo needs a credential, set it before the recording starts, outside the recorded region.
+
+**Core principle:** secrets should affect the environment, not the visible transcript. Hidden *real* setup beats visible *fake* setup — fake setup breaks the demo and still leaks the secret's shape.
+
+- **Plan it out of frame.** Route every surface where a secret could appear (env exports, CLI flag values, command output, auth headers, URL params, DevTools, config pages) out of the recorded region. Use VHS `Hide`/`Show`; invoke CLIs via env vars, not secret flag values; stay on user-facing pages. Show the authenticated result, not the auth step.
+- **Do not substitute placeholders inside the recording.** Typing a fake `sk-xxxxx` produces a misleading artifact; recapture with the real credential set out of frame instead. Two specific failures:
+  - Re-exporting a fake value visibly (`export API_KEY=REDACTED`) overwrites the real env var, so the demo breaks (401, `Unauthorized`, `0 credits remaining`, empty output). You leak the variable name *and* ship a broken product.
+  - Planning to blur or crop later. Assume anything shown is leaked; recapture is the only remediation.
+- **Scan before upload.** Look for `sk-`, `ghp_`, `ghs_`, `xoxb-`, `Bearer `, `Authorization:`, `?token=`, `api_key=`, long hex/base64 near credential-sounding labels, or visible `.env` contents. If any appear, discard and recapture. Never blur or crop.
+
 ## Arguments
 
 Parse `$ARGUMENTS`:

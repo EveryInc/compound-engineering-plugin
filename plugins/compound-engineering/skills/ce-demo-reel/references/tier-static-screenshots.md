@@ -7,6 +7,8 @@ Capture individual PNG screenshots. No animation, no stitching.
 **Label:** "Screenshots"
 **Required tools:** Varies (agent-browser for web, silicon for CLI, or native screenshot)
 
+**Secrets rule applies here too.** For browser captures, do not open DevTools, do not screenshot URLs carrying tokens, and avoid pages that display unmasked credentials. For CLI captures, render output that was already free of credentials — no env-var dumps, no `--api-key` flag values, no auth headers in error traces. Scan each PNG before uploading; if anything credential-like appears, discard and recapture.
+
 ## Capture by Project Type
 
 ### Web app or desktop app (agent-browser available)

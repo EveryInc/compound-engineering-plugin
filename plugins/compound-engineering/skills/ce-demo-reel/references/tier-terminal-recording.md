@@ -15,6 +15,7 @@ Before generating a .tape file, determine:
 - **Expected output** -- What the terminal should show when the command succeeds.
 - **Terminal dimensions** -- Wide enough for the longest output line, tall enough to avoid scrolling.
 - **Timing** -- Target 5-10 seconds total. Enough sleep after each command for output to render.
+- **Secret exposure points** -- Any step that could surface a credential: env exports, `source .env`, `printenv`/`env`/`set`, CLIs with `--api-key`/`--token` flags, verbose/debug flags, commands that echo tokens in output or error traces, shell prompts with env-interpolated `$VAR` segments. Set real credentials inside a `Hide` block at the top of the `.tape`, run `clear` at the end of the block to flush the buffer, then `Show`. Use a clean `HOME` (`export HOME=$(mktemp -d)`) inside `Hide` so personal dotfiles, cached CLI tokens, and env-interpolated prompts can't leak.
 
 ## Step 2: Generate .tape File
 
@@ -29,22 +30,31 @@ Set Height 500
 Set Theme "Catppuccin Mocha"
 Set TypingSpeed 40ms
 
-# Hide boring setup
+# Hidden prelude: clean HOME, set real secrets, any setup that would leak.
+# These commands execute for real but never appear in the GIF.
+# `clear` at the end flushes the buffer so Show starts on a clean screen.
 Hide
+Type "export HOME=$(mktemp -d)"
+Enter
+Type "export API_KEY='real-secret-value'"
+Enter
 Type "cd /path/to/project"
 Enter
-Sleep 500ms
+Type "clear"
+Enter
 Show
 
-# The demo
+# Visible demo: commands consume the env set above, but never re-export,
+# echo, or print it. Show the feature working -- not the auth mechanism.
 Type "your-cli-command --flag value"
-Sleep 500ms
 Enter
 Sleep 3s
 
 # Let viewer read the output
 Sleep 2s
 ```
+
+**Why this shape:** success of the visible command is itself evidence the credential was set — no need to show the auth step. Never add a visible `export SECRET=...` with a fake value: it leaks the variable name and breaks the demo.
 
 **Key .tape directives:**
 - `Output [path]` -- Where to write the GIF (must be first line)
@@ -79,7 +89,10 @@ Read the generated GIF to verify:
 1. Commands are visible and readable
 2. Output renders completely (not cut off)
 3. The feature being demonstrated is clearly shown
-4. No secrets, credentials, or sensitive paths are visible
+
+**Secrets scan (hard gate):** Scan the GIF for credential material. If any appears, discard and re-record with the leaking step wrapped in `Hide`/`Show` or replaced. Do not upload, do not blur.
+
+**Drift check:** A broken visible command — `401 Unauthorized`, `Invalid API key`, `0 credits remaining`, empty output where data was expected — usually means a visible `export SECRET=...` after `Show` overwrote the real env. Fix the `.tape` so secrets are set in `Hide` only, never re-exported, and re-record.
 
 If quality is poor, revise the .tape file and re-record.
 
