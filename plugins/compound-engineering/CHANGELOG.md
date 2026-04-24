@@ -9,6 +9,47 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.1.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.0.7...compound-engineering-v3.1.0) (2026-04-24)
+
+
+### Features
+
+* **ce-brainstorm:** probe rigor gaps with prose before Phase 2 ([#677](https://github.com/EveryInc/compound-engineering-plugin/issues/677)) ([304a975](https://github.com/EveryInc/compound-engineering-plugin/commit/304a975d02b362eac8e715e482f0118ee623da91))
+* **ce-brainstorm:** product-tier with end-to-end ID traceability ([#629](https://github.com/EveryInc/compound-engineering-plugin/issues/629)) ([bd77d55](https://github.com/EveryInc/compound-engineering-plugin/commit/bd77d5550a492974a26b648df4a9dc556acb9dec))
+* **ce-code-review:** add Swift/iOS stack-specific reviewer persona ([#638](https://github.com/EveryInc/compound-engineering-plugin/issues/638)) ([701ae10](https://github.com/EveryInc/compound-engineering-plugin/commit/701ae10c2dfc60fa50fed11f596c61a0906b3cc4))
+* **ce-commit-push-pr:** skip evidence prompt when judgment allows ([#663](https://github.com/EveryInc/compound-engineering-plugin/issues/663)) ([75cf4d6](https://github.com/EveryInc/compound-engineering-plugin/commit/75cf4d603da4d2449658ddfe97b374a1f9c67362))
+* **ce-debug:** environment sanity, assumption audit, more techniques ([#649](https://github.com/EveryInc/compound-engineering-plugin/issues/649)) ([cce95fb](https://github.com/EveryInc/compound-engineering-plugin/commit/cce95fb814a69a1414af4bee34933cbc117d2449))
+* **ce-demo-reel:** add local save as alternative to catbox upload ([#647](https://github.com/EveryInc/compound-engineering-plugin/issues/647)) ([fdf5fe4](https://github.com/EveryInc/compound-engineering-plugin/commit/fdf5fe4af56dab1f40cbf83e2e761997bce8c939))
+* **ce-ideate:** subject gate, surprise-me, and warrant contract ([#671](https://github.com/EveryInc/compound-engineering-plugin/issues/671)) ([6514b1f](https://github.com/EveryInc/compound-engineering-plugin/commit/6514b1fce5df62582673fe7274c97a90e9aea45c))
+* **ce-plan:** add U-IDs and origin trace to plan template ([#632](https://github.com/EveryInc/compound-engineering-plugin/issues/632)) ([44ce9dd](https://github.com/EveryInc/compound-engineering-plugin/commit/44ce9dd127ccbc300b18051aa2bf7c718112a79c))
+* **ce-proof:** broaden triggers and surface markdown viewing ([#618](https://github.com/EveryInc/compound-engineering-plugin/issues/618)) ([e0f2a4f](https://github.com/EveryInc/compound-engineering-plugin/commit/e0f2a4f9d748124fecb41114856690f88f8fc2e9))
+* **ce-setup:** check for ast-grep CLI and agent skill ([#653](https://github.com/EveryInc/compound-engineering-plugin/issues/653)) ([23dc11b](https://github.com/EveryInc/compound-engineering-plugin/commit/23dc11b95ae46dc6be0308306de5c8f16329fe49))
+* **ce-test-browser:** free-port scan and auto-server start ([f8720da](https://github.com/EveryInc/compound-engineering-plugin/commit/f8720da3d1ba9e6d9fc161a6377f3ba83a8ab978))
+* **ce-test-browser:** gate port scan and auto-start on pipeline mode ([22d493b](https://github.com/EveryInc/compound-engineering-plugin/commit/22d493b192108970a3d54378f8de2fd72ac62863))
+* **codex:** native plugin install manifests + agents-only converter ([#616](https://github.com/EveryInc/compound-engineering-plugin/issues/616)) ([3ed4a4f](https://github.com/EveryInc/compound-engineering-plugin/commit/3ed4a4fa0f6f4d08144ae7598af391b4f070b649))
+* **lfg:** add ce-commit-push-pr step and remove ralph-loop ([1f20c38](https://github.com/EveryInc/compound-engineering-plugin/commit/1f20c3842d26a02ed8baca13eb737ca635320719))
+* **pi:** first-class support via pi-subagents + pi-ask-user ([#651](https://github.com/EveryInc/compound-engineering-plugin/issues/651)) ([7ddfbed](https://github.com/EveryInc/compound-engineering-plugin/commit/7ddfbed33b08e5ad0dc56a3ecc19adb9a10ebb2c))
+
+
+### Bug Fixes
+
+* **ce-brainstorm:** enforce Interaction Rules in universal flow ([#669](https://github.com/EveryInc/compound-engineering-plugin/issues/669)) ([494313e](https://github.com/EveryInc/compound-engineering-plugin/commit/494313e8ebf7635f18087a4091d2ba5ef98c0eba))
+* **ce-debug:** stop hanging handoffs and read full issue thread ([#646](https://github.com/EveryInc/compound-engineering-plugin/issues/646)) ([86d9a2c](https://github.com/EveryInc/compound-engineering-plugin/commit/86d9a2c55f49eb49dbbc3d918ce859dbe273d44e))
+* **ce-demo-reel:** prevent secrets in recorded demos ([#664](https://github.com/EveryInc/compound-engineering-plugin/issues/664)) ([9ddcd22](https://github.com/EveryInc/compound-engineering-plugin/commit/9ddcd22aee55e538d53d7d14aaf0ebebce84cae5))
+* **ce-ideate:** sharpen bug intent, surprise-me dispatch, and drop authoring refs ([#672](https://github.com/EveryInc/compound-engineering-plugin/issues/672)) ([f0433d9](https://github.com/EveryInc/compound-engineering-plugin/commit/f0433d9150b0c62a1fd65db7ffdb08a7c45fdb7f))
+* **ce-learnings-researcher:** drop unreadable schema path reference ([#630](https://github.com/EveryInc/compound-engineering-plugin/issues/630)) ([05ea109](https://github.com/EveryInc/compound-engineering-plugin/commit/05ea109bdb68c6f7686d7ab4f52518d9a23a903e))
+* **ce-proof:** correct op shapes and add retry/batch discipline ([#658](https://github.com/EveryInc/compound-engineering-plugin/issues/658)) ([a9fd842](https://github.com/EveryInc/compound-engineering-plugin/commit/a9fd8421f42d598e8d85c4cb50cbec0fa3d6af46))
+* **ce-resolve-pr-feedback:** stop dropping unresolved and actionable feedback ([#617](https://github.com/EveryInc/compound-engineering-plugin/issues/617)) ([153bea8](https://github.com/EveryInc/compound-engineering-plugin/commit/153bea8669d63848f57942e842cd58ed664e7435))
+* **ce-test-browser:** skip headed/headless question in pipeline mode ([47350c3](https://github.com/EveryInc/compound-engineering-plugin/commit/47350c3e4e612fa341d8e43e4d1709ab391fbe42))
+* **ce-update:** compare against main plugin.json, not release tags ([#660](https://github.com/EveryInc/compound-engineering-plugin/issues/660)) ([351d12e](https://github.com/EveryInc/compound-engineering-plugin/commit/351d12ec5b795bff4c5e633e9a64644f045340c6))
+* **ce-update:** derive cache dir from CLAUDE_PLUGIN_ROOT parent ([#645](https://github.com/EveryInc/compound-engineering-plugin/issues/645)) ([6155b9d](https://github.com/EveryInc/compound-engineering-plugin/commit/6155b9de3c2d60ca424386f2dfcb0dfa7668f2c1))
+* **ce-update:** replace cache sweep with claude plugin update ([#656](https://github.com/EveryInc/compound-engineering-plugin/issues/656)) ([b9ae6b7](https://github.com/EveryInc/compound-engineering-plugin/commit/b9ae6b758d0d538648cc4dbb09dfb0fa8c0858fb))
+* **lfg:** use platform-neutral skill references ([#642](https://github.com/EveryInc/compound-engineering-plugin/issues/642)) ([b104ce4](https://github.com/EveryInc/compound-engineering-plugin/commit/b104ce46bea4b1b9b0e9cfbdd9203dbc5a0aa510))
+* **main:** recover version drift, fix stale test, document learnings ([#678](https://github.com/EveryInc/compound-engineering-plugin/issues/678)) ([bc8ae1a](https://github.com/EveryInc/compound-engineering-plugin/commit/bc8ae1a6b5375f7fbb8120104b3222391da470bb))
+* **question-tool:** stop silent skips when tool looks unavailable ([#620](https://github.com/EveryInc/compound-engineering-plugin/issues/620)) ([d359cc7](https://github.com/EveryInc/compound-engineering-plugin/commit/d359cc7e2f4dd5e920e7daa6dbd1eddc8f53bc19))
+* **skills:** cap skill descriptions at harness limit ([#643](https://github.com/EveryInc/compound-engineering-plugin/issues/643)) ([13f95ba](https://github.com/EveryInc/compound-engineering-plugin/commit/13f95ba6392f86aa8dd9b4430b84f0b7523c6c89))
+* **skills:** plan is a decision artifact; progress comes from git ([#666](https://github.com/EveryInc/compound-engineering-plugin/issues/666)) ([c33bf70](https://github.com/EveryInc/compound-engineering-plugin/commit/c33bf70f46b74979651c7229544743604b965713))
+
 ## [3.0.7] - 2026-04-24
 
 ### Fixed

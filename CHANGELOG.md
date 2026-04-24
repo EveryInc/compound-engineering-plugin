@@ -1,5 +1,25 @@
 # Changelog
 
+## [3.1.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.0.7...cli-v3.1.0) (2026-04-24)
+
+
+### Features
+
+* **ce-ideate:** subject gate, surprise-me, and warrant contract ([#671](https://github.com/EveryInc/compound-engineering-plugin/issues/671)) ([6514b1f](https://github.com/EveryInc/compound-engineering-plugin/commit/6514b1fce5df62582673fe7274c97a90e9aea45c))
+* **ce-setup:** check for ast-grep CLI and agent skill ([#653](https://github.com/EveryInc/compound-engineering-plugin/issues/653)) ([23dc11b](https://github.com/EveryInc/compound-engineering-plugin/commit/23dc11b95ae46dc6be0308306de5c8f16329fe49))
+* **codex:** native plugin install manifests + agents-only converter ([#616](https://github.com/EveryInc/compound-engineering-plugin/issues/616)) ([3ed4a4f](https://github.com/EveryInc/compound-engineering-plugin/commit/3ed4a4fa0f6f4d08144ae7598af391b4f070b649))
+* **pi:** first-class support via pi-subagents + pi-ask-user ([#651](https://github.com/EveryInc/compound-engineering-plugin/issues/651)) ([7ddfbed](https://github.com/EveryInc/compound-engineering-plugin/commit/7ddfbed33b08e5ad0dc56a3ecc19adb9a10ebb2c))
+
+
+### Bug Fixes
+
+* **ce-update:** compare against main plugin.json, not release tags ([#660](https://github.com/EveryInc/compound-engineering-plugin/issues/660)) ([351d12e](https://github.com/EveryInc/compound-engineering-plugin/commit/351d12ec5b795bff4c5e633e9a64644f045340c6))
+* **ce-update:** derive cache dir from CLAUDE_PLUGIN_ROOT parent ([#645](https://github.com/EveryInc/compound-engineering-plugin/issues/645)) ([6155b9d](https://github.com/EveryInc/compound-engineering-plugin/commit/6155b9de3c2d60ca424386f2dfcb0dfa7668f2c1))
+* **lfg:** use platform-neutral skill references ([#642](https://github.com/EveryInc/compound-engineering-plugin/issues/642)) ([b104ce4](https://github.com/EveryInc/compound-engineering-plugin/commit/b104ce46bea4b1b9b0e9cfbdd9203dbc5a0aa510))
+* **main:** recover version drift, fix stale test, document learnings ([#678](https://github.com/EveryInc/compound-engineering-plugin/issues/678)) ([bc8ae1a](https://github.com/EveryInc/compound-engineering-plugin/commit/bc8ae1a6b5375f7fbb8120104b3222391da470bb))
+* **release:** remove stale release-as pin ([#674](https://github.com/EveryInc/compound-engineering-plugin/issues/674)) ([ab44d89](https://github.com/EveryInc/compound-engineering-plugin/commit/ab44d89b0b2b1f7dd57d9ce1604d42b0c11f6415))
+* **skills:** cap skill descriptions at harness limit ([#643](https://github.com/EveryInc/compound-engineering-plugin/issues/643)) ([13f95ba](https://github.com/EveryInc/compound-engineering-plugin/commit/13f95ba6392f86aa8dd9b4430b84f0b7523c6c89))
+
 ## [3.0.3](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.0.2...cli-v3.0.3) (2026-04-24)
 
 
