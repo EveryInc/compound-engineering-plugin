@@ -18,8 +18,11 @@ Rejection criteria:
 - too expensive relative to likely value
 - already covered by existing workflows or docs
 - interesting but better handled as a brainstorm variant, not a product improvement
+- **unjustified — no articulated warrant** (sub-agent failed to provide `direct:`, `external:`, or `reasoned:` justification, or the stated warrant does not actually support the claimed move)
+- **below ambition floor** (fails the meeting-test: would not warrant team discussion — except when Phase 0.5 detected tactical focus signals, in which case this criterion is waived)
+- **subject-replacement** (abandons or replaces the subject of ideation rather than operating on it — e.g., "pivot to an unrelated domain," "become a different organization")
 
-Score survivors using a consistent rubric weighing: groundedness in stated context, expected value, novelty, pragmatism, leverage on future work, implementation burden, and overlap with stronger ideas.
+Score survivors using a consistent rubric weighing: groundedness in stated context, **warrant strength** (`direct:` > `external:` > `reasoned:`; none excluded, but direct-evidence ideas score higher all else equal), expected value, novelty, pragmatism, leverage on future work, implementation burden, and overlap with stronger ideas.
 
 Target output:
 - keep 5-7 survivors by default
@@ -36,7 +39,8 @@ Present only the surviving ideas in structured form:
 
 - title
 - description
-- rationale
+- **warrant** (tagged `direct:` / `external:` / `reasoned:`, with the quoted evidence, cited source, or written-out argument)
+- rationale (how the warrant connects to the move's significance)
 - downsides
 - confidence score
 - estimated complexity
@@ -89,7 +93,8 @@ mode: <repo-grounded | elsewhere-software | elsewhere-non-software>
 
 ### 1. <Idea Title>
 **Description:** [Concrete explanation]
-**Rationale:** [Why this idea is strong in the stated context]
+**Warrant:** [`direct:` / `external:` / `reasoned:` — the actual basis, quoted or cited]
+**Rationale:** [How the warrant connects to the move's significance]
 **Downsides:** [Tradeoffs or costs]
 **Confidence:** [0-100%]
 **Complexity:** [Low / Medium / High]
@@ -221,7 +226,10 @@ After the fallback completes (any path), continue back to the Phase 6 menu so th
 
 Before finishing, check:
 
-- the idea set is grounded in the stated context (codebase in repo mode; user-supplied topic in elsewhere mode)
+- the idea set is grounded in the stated context (codebase in repo mode; user-supplied context in elsewhere mode)
+- **every surviving idea has articulated warrant** (`direct:`, `external:`, or `reasoned:`) that actually supports the claimed move — speculation dressed as ambition was rejected, with reasons
+- **every surviving idea passes the meeting-test** unless Phase 0.5 detected tactical focus signals that waived the floor
+- **no surviving idea replaces the subject** rather than operating on it
 - the candidate list was generated before filtering
 - the original many-ideas -> critique -> survivors mechanism was preserved
 - if sub-agents were used, they improved diversity without replacing the core workflow
