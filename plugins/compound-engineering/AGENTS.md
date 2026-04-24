@@ -5,6 +5,18 @@ They supplement the repo-root `AGENTS.md`.
 
 # Compounding Engineering Plugin Development
 
+## Runtime vs Authoring Context
+
+**This plugin's `AGENTS.md` and `CLAUDE.md` files are authoring context — they do not ship with the installed plugin.** Skills are packaged and installed into end-user environments (their own repos, or folders that may not even be git repos), where they run against *the user's* `AGENTS.md`/`CLAUDE.md`, not this repo's.
+
+Consequences:
+
+- Behavioral rules that govern skill *runtime* behavior must live inside the skill itself — in `SKILL.md` or files under its `references/`. Guidance placed in this file is invisible at runtime.
+- When two or more skills share a behavioral principle, duplicate the guidance into each skill (inline for short rules, `references/` for longer ones). There is no cross-skill shared-file mechanism (see "File References in Skills" below).
+- Do not propose that runtime guidance for ce-ideate, ce-brainstorm, ce-plan, or any other skill live in this AGENTS.md or in the repo-root AGENTS.md. Those files only shape how contributors edit the plugin.
+
+This is easy to miss because authoring feels like using: you edit the plugin while running inside this repo, and the repo's AGENTS.md is loaded — but that load does not follow the installed skill into a user's environment.
+
 ## Versioning Requirements
 
 **IMPORTANT**: Routine PRs should not cut releases for this plugin.
