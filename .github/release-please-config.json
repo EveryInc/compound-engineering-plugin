@@ -14,7 +14,6 @@
     ".": {
       "release-type": "simple",
       "package-name": "cli",
-      "release-as": "3.0.2",
       "exclude-paths": [
         "AGENTS.md",
         "CLAUDE.md",
@@ -47,7 +46,6 @@
     "plugins/compound-engineering": {
       "release-type": "simple",
       "package-name": "compound-engineering",
-      "release-as": "3.0.2",
       "extra-files": [
         {
           "type": "json",

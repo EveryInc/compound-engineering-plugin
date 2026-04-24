@@ -3,6 +3,7 @@ import path from "path"
 type ReleasePleasePackageConfig = {
   "changelog-path"?: string
   "skip-changelog"?: boolean
+  "release-as"?: string
 }
 
 type ReleasePleaseConfig = {
@@ -13,6 +14,13 @@ export function validateReleasePleaseConfig(config: ReleasePleaseConfig): string
   const errors: string[] = []
 
   for (const [packagePath, packageConfig] of Object.entries(config.packages)) {
+    const releaseAs = packageConfig["release-as"]
+    if (releaseAs) {
+      errors.push(
+        `Package "${packagePath}" uses temporary release-as pin "${releaseAs}". Remove release-as after the pinned release ships so future releases can bump normally.`,
+      )
+    }
+
     const changelogPath = packageConfig["changelog-path"]
     if (!changelogPath) continue
 
