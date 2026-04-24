@@ -9,6 +9,22 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.0.2](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.0.1...compound-engineering-v3.0.2) (2026-04-24)
+
+
+### Features
+
+* **ce-commit-push-pr:** skip evidence prompt when judgment allows ([#663](https://github.com/EveryInc/compound-engineering-plugin/issues/663)) ([75cf4d6](https://github.com/EveryInc/compound-engineering-plugin/commit/75cf4d603da4d2449658ddfe97b374a1f9c67362))
+* **ce-ideate:** subject gate, surprise-me, and warrant contract ([#671](https://github.com/EveryInc/compound-engineering-plugin/issues/671)) ([6514b1f](https://github.com/EveryInc/compound-engineering-plugin/commit/6514b1fce5df62582673fe7274c97a90e9aea45c))
+
+
+### Bug Fixes
+
+* **ce-brainstorm:** enforce Interaction Rules in universal flow ([#669](https://github.com/EveryInc/compound-engineering-plugin/issues/669)) ([494313e](https://github.com/EveryInc/compound-engineering-plugin/commit/494313e8ebf7635f18087a4091d2ba5ef98c0eba))
+* **ce-demo-reel:** prevent secrets in recorded demos ([#664](https://github.com/EveryInc/compound-engineering-plugin/issues/664)) ([9ddcd22](https://github.com/EveryInc/compound-engineering-plugin/commit/9ddcd22aee55e538d53d7d14aaf0ebebce84cae5))
+* **ce-update:** compare against main plugin.json, not release tags ([#660](https://github.com/EveryInc/compound-engineering-plugin/issues/660)) ([351d12e](https://github.com/EveryInc/compound-engineering-plugin/commit/351d12ec5b795bff4c5e633e9a64644f045340c6))
+* **skills:** plan is a decision artifact; progress comes from git ([#666](https://github.com/EveryInc/compound-engineering-plugin/issues/666)) ([c33bf70](https://github.com/EveryInc/compound-engineering-plugin/commit/c33bf70f46b74979651c7229544743604b965713))
+
 ## [3.0.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.0.0...compound-engineering-v3.0.1) (2026-04-23)
 
 
