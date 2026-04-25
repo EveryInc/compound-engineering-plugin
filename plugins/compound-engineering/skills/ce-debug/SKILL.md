@@ -172,7 +172,7 @@ If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go
 **Workspace and branch check:** Before editing files:
 
 - Check for uncommitted changes (`git status`). If the user has unstaged work in files that need modification, confirm before editing — do not overwrite in-progress changes.
-- If the current branch is the default branch (`main`, `master`, or the resolved `origin/HEAD`), ask whether to create a feature branch first using the platform's blocking question tool (see Phase 2 for the per-platform names). Default to creating one; derive a name from the bug and run `git checkout -b <name>`. On any other branch, proceed.
+- If the current branch is the default branch, ask whether to create a feature branch first using the platform's blocking question tool (see Phase 2 for the per-platform names). To detect the default branch, compare against `main`, `master`, or the value of `git rev-parse --abbrev-ref origin/HEAD` with its `origin/` prefix stripped (the raw output is `origin/<name>`, so an unstripped comparison will never match the local branch name). Default to creating one; derive a name from the bug and run `git checkout -b <name>`. On any other branch, proceed.
 
 **Test-first:**
 1. Write a failing test that captures the bug (or use the existing failing test)
