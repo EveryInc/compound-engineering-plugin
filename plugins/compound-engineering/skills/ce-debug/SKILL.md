@@ -169,7 +169,10 @@ Present the diagnosis to the user before proceeding.
 
 If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go straight to Phase 4 for the summary — the skill's job was the diagnosis. If they chose "Rethink the design", control has transferred to `/ce-brainstorm` and this skill ends.
 
-**Workspace check:** Before editing files, check for uncommitted changes (`git status`). If the user has unstaged work in files that need modification, confirm before editing — do not overwrite in-progress changes.
+**Workspace and branch check:** Before editing files:
+
+- Check for uncommitted changes (`git status`). If the user has unstaged work in files that need modification, confirm before editing — do not overwrite in-progress changes.
+- If the current branch is the default branch (`main`, `master`, or the resolved `origin/HEAD`), ask whether to create a feature branch first using the platform's blocking question tool (see Phase 2 for the per-platform names). Default to creating one; derive a name from the bug and run `git checkout -b <name>`. On any other branch, proceed.
 
 **Test-first:**
 1. Write a failing test that captures the bug (or use the existing failing test)
@@ -207,6 +210,9 @@ How was this introduced? What allowed it to survive? If a systemic gap was found
 
 Options (include only those that apply):
 
-1. **Commit the fix** — stage and commit the change (always applies here, since Phase 3 ran)
-2. **Document as a learning** (`/ce-compound`) — capture the bug and fix as a reusable pattern
-3. **Post findings to the issue** — reply on the tracker with confirmed root cause, verified reproduction, relevant code references, and suggested fix direction (include only when entry came from an issue tracker)
+1. **Commit the fix (`/ce-commit`)** — stage and commit the change locally (always applies here, since Phase 3 ran)
+2. **Commit and open a PR (`/ce-commit-push-pr`)** — commit, push, and open a pull request
+3. **Document as a learning first (`/ce-compound`)** — capture the bug and fix as a reusable pattern
+4. **Post findings to the issue first** — reply on the tracker with confirmed root cause, verified reproduction, relevant code references, and suggested fix direction (include only when entry came from an issue tracker)
+
+Options 1 and 2 are terminal — running either ends the skill. Options 3 and 4 are additive: after the chosen action completes, re-prompt with the remaining options (excluding the one just completed and any that no longer apply).
