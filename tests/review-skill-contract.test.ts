@@ -85,9 +85,12 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/\(D\)\s*`Report only/)
 
     // The new routing question dispatches to focused reference files, not inline prose.
+    // bulk-preview.md is now invoked by option C only (the LFG path no longer uses it).
     expect(content).toContain("references/walkthrough.md")
     expect(content).toContain("references/bulk-preview.md")
     expect(content).toContain("references/tracker-defer.md")
+    // Option C still references bulk-preview; option B does not.
+    expect(content).toMatch(/\(C\)\s*`File a \[TRACKER\][^\n]*?references\/bulk-preview\.md/s)
 
     // Stem is third-person (AGENTS.md:127 — no first-person "I" / "me" in the new routing question).
     // The Interactive branch of After Review Step 2 must not reintroduce the removed bucket-policy wording.
@@ -284,13 +287,19 @@ describe("ce-code-review contract", () => {
     // Stage 5b exists between Stage 5 and Stage 6
     expect(content).toContain("### Stage 5b: Validation pass")
 
-    // Mode-conditional dispatch
+    // Mode-conditional dispatch — runs on autofix/headless/option C; explicitly does NOT
+    // run on the LFG path (option B and walk-through `LFG the rest`).
     expect(content).toContain("`headless`")
     expect(content).toContain("`autofix`")
     expect(content).toContain("walk-through routing (option A)")
     expect(content).toContain("LFG routing (option B)")
     expect(content).toContain("File-tickets routing (option C)")
     expect(content).toMatch(/Report-only routing.*nothing is being externalized/i)
+
+    // LFG path explicitly skips Stage 5b — the fixer's apply/fail outcome is the validation.
+    expect(content).toMatch(/LFG routing \(option B\) \| No --/)
+    expect(content).toMatch(/LFG-the-rest handoff \| No --/)
+    expect(content).toMatch(/LFG path skips Stage 5b deliberately/i)
 
     // Per-finding parallel dispatch (not batched)
     expect(content).toMatch(/per.finding parallel dispatch/i)
@@ -300,9 +309,14 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/exceeds 15 findings/i)
     expect(content).toMatch(/highest-severity 15.*Drop the remainder/i)
 
-    // After-Review options B and C invoke validation before externalizing
-    expect(content).toMatch(/\(B\)\s*`LFG.*first run Stage 5b validation/)
+    // Option C invokes validation before externalizing (option B no longer does).
     expect(content).toMatch(/\(C\)\s*`File a \[TRACKER\].*first run Stage 5b validation/)
+    expect(content).not.toMatch(/\(B\)\s*`LFG.*first run Stage 5b validation/)
+
+    // Option B dispatches the fixer immediately — no Stage 5b, no bulk-preview.
+    expect(content).toMatch(/\(B\)\s*`LFG.*dispatch the fixer subagent.*immediately/i)
+    expect(content).toMatch(/No Stage 5b validator pre-pass/i)
+    expect(content).toMatch(/No bulk-preview approval gate/i)
 
     // Validator template exists and is read-only
     expect(validatorTemplate).toContain("independent validator")
@@ -310,6 +324,40 @@ describe("ce-code-review contract", () => {
     expect(validatorTemplate).toContain('"validated": true | false')
     expect(validatorTemplate).toMatch(/introduced by THIS diff/i)
     expect(validatorTemplate).toMatch(/handled elsewhere/i)
+  })
+
+  test("LFG path post-run failure-handling question fires only when failed bucket non-empty", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+
+    // Post-run question fires when the fixer's `failed` bucket is non-empty.
+    expect(content).toMatch(/N findings could not be auto-resolved/)
+    expect(content).toContain("File tickets for these")
+    expect(content).toContain("Walk through these one at a time")
+    expect(content).toContain("Ignore — leave them in the report")
+
+    // Sink-availability rule mirrors tracker-defer.md: omit file-tickets when no sink.
+    expect(content).toMatch(/Omit this option when.*any_sink_available\s*=\s*false/i)
+  })
+
+  test("fixer subagent contract supports heterogeneous LFG queue", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+
+    // Step 3 documents both queue shapes: homogeneous (autofix/headless/walk-through Apply)
+    // and heterogeneous (LFG path with gated_auto + manual + advisory).
+    expect(content).toMatch(/Heterogeneous queue/i)
+    expect(content).toMatch(/`gated_auto`,\s*`manual`,\s*and\s*`advisory`/i)
+
+    // Fixer routes items by class with explicit reason taxonomy for the failed bucket.
+    expect(content).toMatch(/no fix proposed by reviewer/i)
+    expect(content).toMatch(/evidence no longer matches code/i)
+    expect(content).toMatch(/fix did not apply cleanly/i)
+
+    // LFG path is single-pass; bounded re-review applies to autofix and walk-through Apply.
+    expect(content).toMatch(/LFG path is single-pass/i)
+    expect(content).toMatch(/max_rounds:\s*2/)
+
+    // Fixer return shape includes the {applied, failed, advisory} partition.
+    expect(content).toMatch(/\{applied,\s*failed,\s*advisory\}/)
   })
 
   test("PR-mode skip-condition pre-check stops without dispatching reviewers", async () => {

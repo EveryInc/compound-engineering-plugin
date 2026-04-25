@@ -67,7 +67,7 @@
           },
           "suggested_fix": {
             "type": ["string", "null"],
-            "description": "Concrete minimal fix. Omit or null if no good fix is obvious -- a bad suggestion is worse than none."
+            "description": "Concrete minimal fix the reviewer can defend from the diff and surrounding code. Propose one whenever any defensible code change is reachable from review context (parallel patterns, framework conventions, or the cited code itself). Imperfect information is not grounds for omission -- propose the most defensible default given what you can see, name any assumption you are making, and let the user override. 'I need <specific input> to commit' is a soft punt: the right question is 'what code change would I propose if I had to choose now?' and propose that, with the assumption named. Omit only when there is genuinely no code-level change to propose -- e.g., the finding is a question rather than a fix ('what is the intended SLA here?'), or the resolution is purely an organizational action with no code component (legal sign-off, business policy decision). These cases are rare in code review. A bad suggestion is still worse than none, but a soft punt is the failure mode this field is designed to prevent."
           },
           "confidence": {
             "type": "integer",

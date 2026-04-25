@@ -137,12 +137,25 @@ Rules:
 - Set `autofix_class` accurately -- not every finding is `advisory`. Use this decision guide:
   - `safe_auto`: The fix is local and deterministic — the fixer can apply it mechanically without design judgment. Examples: extracting a duplicated helper, adding a missing nil/null check, fixing an off-by-one, adding a missing test for an untested code path, removing dead code.
   - `gated_auto`: A concrete fix exists but it changes contracts, permissions, or crosses a module boundary in a way that deserves explicit approval. Examples: adding authentication to an unprotected endpoint, changing a public API response shape, switching from soft-delete to hard-delete.
-  - `manual`: Actionable work that requires design decisions or cross-cutting changes. Examples: redesigning a data model, choosing between two valid architectural approaches, adding pagination to an unbounded query.
+  - `manual`: Actionable work that requires design decisions or cross-cutting changes. Examples: redesigning a data model, choosing between two valid architectural approaches, adding pagination to an unbounded query. **Pair `manual` with a concrete `suggested_fix` whenever you can defend one from the diff and surrounding code** — see the suggested_fix rule below. Omit `suggested_fix` only when the fix genuinely requires cross-team input, business context, or research outside this review.
   - `advisory`: Report-only items that should not become code-fix work. Examples: noting a design asymmetry the PR improves but doesn't fully resolve, flagging a residual risk, deployment notes.
   Do not default to `advisory` when uncertain -- if a concrete fix is obvious, classify it as `safe_auto` or `gated_auto`.
 - Set `owner` to the default next actor for this finding: `review-fixer`, `downstream-resolver`, `human`, or `release`.
 - Set `requires_verification` to true whenever the likely fix needs targeted tests, a focused re-review, or operational validation before it should be trusted.
-- suggested_fix is optional. Only include it when the fix is obvious and correct. A bad suggestion is worse than none.
+- **Propose a `suggested_fix` whenever any defensible code change is reachable from the diff and surrounding code.** This is the persona's commitment that "I, the reviewer with the diff and evidence in front of me, can articulate what the fix looks like." The suggested fix becomes the authoritative signal that downstream surfaces use to decide whether the agent can act on the finding. Three rules:
+  - **Defensible from review context:** the fix should be reachable from the diff, the cited code, parallel patterns elsewhere in the repo, or framework conventions you can verify. If you cannot ground the fix in evidence the reader can check, omit it.
+  - **Concrete, not generic:** "add a guard before the query" with the specific guard named is concrete; "consider adding validation" is generic. Generic advice is suppressed by the false-positive catalog above.
+  - **Imperfect information is not grounds for omission.** When you don't have full context for the optimal fix, propose the most defensible default and name the assumption. Do not omit because "the right answer depends on X" — name the assumption you're making, propose the default, and let the user override.
+    Examples of imperfect-info findings that should still get a `suggested_fix`:
+    - Pagination strategy unclear → propose offset pagination matching the existing pattern at `file:line`, with assumption named. If product needs cursor-based, the user can switch.
+    - Rate limit value uncertain → propose the value that matches existing rate limits in the project, with assumption named. The user can tune.
+    - Auth model unknown → propose authentication via the existing middleware pattern at `file:line`, with assumption named. If a different service owns the auth flow, the user can route through it.
+    The "I need `<specific input>` before I can commit" framing is a soft punt. The question to ask instead is "what code change would I propose if I had to choose now?" — and propose that, with the assumption named so the user can correct it.
+  - **Genuinely-omit cases are rare.** Omit `suggested_fix` only when there is no code-level change to propose — for example:
+    - The finding is a question, not a fix request: "What is the intended SLA here?" with no clear default to assume.
+    - The resolution is purely organizational with no code component: legal sign-off, business policy decision, or a process change that doesn't touch code.
+    These shapes are the exception, not the norm. Most "manual" findings in code review have a defensible code-level proposal even when context is incomplete. A `manual` finding without `suggested_fix` routes to the LFG `failed` bucket with reason "no fix proposed by reviewer" — owning that omission is the persona's responsibility.
+  A bad fix suggestion is still worse than none — the false-positive catalog and grounding rule above prevent that. The bias is toward proposing when you can; the omission case is narrow.
 - If you find no issues, return an empty findings array. Still populate residual_risks and testing_gaps if applicable.
 - **Intent verification:** Compare the code changes against the stated intent (and PR title/body when available). If the code does something the intent does not describe, or fails to do something the intent promises, flag it as a finding. Mismatches between stated intent and actual code are high-value findings.
 </output-contract>
