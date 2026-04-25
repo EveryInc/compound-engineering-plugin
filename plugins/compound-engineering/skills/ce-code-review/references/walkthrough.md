@@ -141,7 +141,7 @@ When reviewers disagreed or content context cuts against the default, still mark
 
 - **Advisory-only finding:** when the finding's `autofix_class` is `advisory` (no actionable fix), option A is replaced with `Acknowledge — mark as reviewed`. The other three options remain. The advisory variant is the only case where `Acknowledge` appears in the menu.
 - **N=1 (exactly one pending finding):** the terminal block's heading omits `Finding N of M` and renders as `## {severity} {plain-English title}`. The stem's first line drops the position counter, becoming `{severity} {short handle}.` Option D (`LFG the rest`) is suppressed because no subsequent findings exist — the menu shows three options: Apply / Defer / Skip (or Acknowledge, for advisory).
-- **No sink (Defer option unavailable):** when the tracker-detection tuple reports `any_sink_available: false` (every tier in the fallback chain — named tracker and GitHub Issues via `gh` — is unreachable), option B (`Defer`) is omitted. The stem appends one line explaining why (e.g., `Defer unavailable on this platform — no durable tracker sink detected.`). The menu shows three options: Apply / Skip / LFG the rest (and Acknowledge in place of Apply for advisory-only findings). **Before rendering the options, remap any per-finding `Defer` recommendation produced by Stage 5 step 7b to `Skip`** so the `(recommended)` marker always lands on an option that is actually in the menu. When the remap fires, surface it on the R15 conflict context line (e.g., `Stage 5 recommended Defer; downgraded to Skip — no tracker sink available.`). This is a render-time runtime step mirroring the Defer→Skip downgrade that `bulk-preview.md` performs for LFG previews; Stage 5 step 7b has no knowledge of sink availability and only orders conflicting reviewer recommendations.
+- **No sink (Defer option unavailable):** when the tracker-detection tuple reports `any_sink_available: false` (every tier in the fallback chain — named tracker and GitHub Issues via `gh` — is unreachable), option B (`Defer`) is omitted. The stem appends one line explaining why (e.g., `Defer unavailable on this platform — no durable tracker sink detected.`). The menu shows three options: Apply / Skip / LFG the rest (and Acknowledge in place of Apply for advisory-only findings). **Before rendering the options, remap any per-finding `Defer` recommendation produced by Stage 5 step 7b to `Skip`** so the `(recommended)` marker always lands on an option that is actually in the menu. When the remap fires, surface it on the R15 conflict context line (e.g., `Stage 5 recommended Defer; downgraded to Skip — no tracker sink available.`). This is a render-time runtime step; Stage 5 step 7b has no knowledge of sink availability and only orders conflicting reviewer recommendations.
 - **Combined N=1 + no sink:** the menu shows two options: Apply / Skip (or Acknowledge / Skip).
 
 Only when `ToolSearch` explicitly returns no match or the tool call errors — or on a platform with no blocking question tool — fall back to presenting the options as a numbered list and waiting for the user's next reply.
@@ -182,13 +182,15 @@ Formal cross-session resumption is out of scope for v1.
 
 ## End-of-walk-through dispatch
 
-After the loop terminates — either every finding has been answered, or the user took `LFG the rest → Proceed` — the walk-through hands off to the dispatch phase:
+This section covers the run-to-completion path only — every finding has been answered Apply / Defer / Skip / Acknowledge and the loop ended naturally. The `LFG the rest` path exits the walk-through earlier and dispatches its own fixer pass on the union of (accumulated Apply set ∪ remaining undecided findings); see the `LFG the rest` bullet under "Per-finding routing" above. There is no second dispatch in that branch.
+
+When the loop runs to completion, the walk-through hands off to the dispatch phase:
 
 1. **Apply set:** spawn one fixer subagent for the full accumulated Apply set. The fixer receives the set as its input queue and applies all changes in one pass against the current working tree. This preserves the existing "one fixer, consistent tree" mechanic and gives the fixer the full set at once to handle inter-fix dependencies (two Applies touching overlapping regions). The existing Step 3 fixer prompt needs a small update to acknowledge this queue may be heterogeneous (`gated_auto` and `manual` mix, not just `safe_auto`) — authored alongside this reference.
 2. **Defer set:** already executed inline during the walk-through. Nothing to dispatch here.
 3. **Skip / Acknowledge:** no-op.
 
-After dispatch completes (or after `LFG the rest → Cancel` followed by the user working through remaining findings one at a time, or after the loop runs to completion), emit the unified completion report described below.
+After dispatch completes, emit the unified completion report described below.
 
 ---
 
@@ -197,7 +199,7 @@ After dispatch completes (or after `LFG the rest → Cancel` followed by the use
 Every terminal path of Interactive mode emits the same completion report structure. This covers:
 
 - Walk-through completed (all findings answered)
-- Walk-through bailed via `LFG the rest → Proceed`
+- Walk-through bailed via `LFG the rest`
 - Top-level LFG (routing option B) completed
 - Top-level File tickets (routing option C) completed
 - Zero findings after `safe_auto` (routing question was skipped — the completion summary is a one-line degenerate case of this structure)
