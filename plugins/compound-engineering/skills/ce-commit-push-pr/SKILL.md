@@ -15,7 +15,7 @@ Three flavors of intent. Pick one and follow the matching path; otherwise defaul
 
 - **Description-only generation.** If the user asked for *just* a PR description with no commit or push intent (e.g., "write a PR description", "draft a PR description for this branch", "describe this PR", or pasted a PR URL/number alone), skip Steps 4–5 entirely AND skip Step 1's decision tree. Use the data already gathered in the Context section above (status, branch, log, default branch, PR check) — do NOT run Step 1's stop gates, which are full-workflow only and would terminate this path on common cases like "feature branch, all pushed, open PR → stop". Then go to Step 6 to compose the title and body following `references/pr-description-writing.md`. Print the result back to the user. Apply via `gh pr edit`/`gh pr create` only if the user asks.
 
-  **If the user pasted a PR URL or number** (e.g., `https://github.com/owner/repo/pull/561`, `#561`, `pr:561`, or a bare `561`), thread that ref through every PR-scoped command in Step 6 — pass it as the positional argument to `gh pr view <ref> --json baseRefName,headRefOid,body,headRefName,url` instead of the bare branch-local `gh pr view`. Use the returned `headRefOid` and `baseRefName` for the diff base AND the commit list (`git fetch origin <baseRefName> <headRefOid>`, then `git log --oneline $(git merge-base origin/<baseRefName> <headRefOid>)..<headRefOid>` and `git diff origin/<baseRefName>...<headRefOid>`), not `HEAD` against the local branch's base. For cross-repo PRs (URL repo differs from `origin`), fall back to `gh pr diff <ref>` and `gh pr view <ref> --json commits` if the local fetch is rejected. Without this substitution, "describe PR #123" silently describes the current branch.
+  **If the user pasted a PR URL or number** (e.g., `https://github.com/owner/repo/pull/561`, `#561`, `pr:561`, or a bare `561`), thread that ref through every PR-scoped command in Step 6 — pass it as the positional argument to `gh pr view <ref> --json baseRefName,headRefOid,body,headRefName,url` instead of the bare branch-local `gh pr view`. Then resolve `<base-remote>` by parsing `owner/repo` from the returned `url` and matching against `git remote -v` (same as DU-3's logic). Use `<base-remote>/<baseRefName>` and `<headRefOid>` for the diff base AND the commit list (`git fetch <base-remote> <baseRefName> <headRefOid>`, then `git log --oneline $(git merge-base <base-remote>/<baseRefName> <headRefOid>)..<headRefOid>` and `git diff <base-remote>/<baseRefName>...<headRefOid>`), not `HEAD` against the local branch's base. **Do not hardcode `origin`** — for fork-based PRs and cross-repo PRs alike, `origin` is the wrong base. If no local remote matches the PR's base repo, fall back to `gh pr diff <ref>` and `gh pr view <ref> --json commits --jq '.commits[] | [.oid[0:7], .messageHeadline] | @tsv'`. Without this substitution, "describe PR #123" silently describes the current branch.
 - **Description update on existing PR.** If the user is asking to update, refresh, or rewrite an existing PR description (with no mention of committing or pushing), follow the Description Update workflow below. The user may also provide a focus (e.g., "update the PR description and add the benchmarking results"). Note any focus for DU-3.
 - **Full workflow.** Otherwise, follow the Full workflow below.
 
@@ -69,13 +69,22 @@ Use the current branch and existing PR check from context. If the current branch
 
 Gather what the writing reference needs before composing — the current PR body (to preserve any existing evidence block and drive the compare-and-confirm step) AND the full branch diff (to drive composition itself).
 
-Read the body and the PR's base branch:
+Read the body, base branch, and PR URL (the URL identifies the base repo, which may not be `origin` for fork-based PRs):
 
 ```bash
-gh pr view --json body,baseRefName --jq '{body: .body, baseRefName: .baseRefName}'
+gh pr view --json body,baseRefName,url --jq '{body: .body, baseRefName: .baseRefName, url: .url}'
 ```
 
-Then gather the full branch diff AND commit list against `origin/<baseRefName>` using the same logic as Step 6's "Gather the full branch diff and commit list" subsection (fetch the base only if it doesn't resolve locally, then run the merge-base-anchored `git log` and `git diff` together). The writing reference assumes both are already in context — without this, composition runs from stale or empty context, and Step A's commit classification falls back to the wrong (HEAD-anchored, capped-at-10) `git log` from the Context section.
+Then resolve the base remote: parse `owner/repo` out of the PR URL and match it against `git remote -v` fetch URLs (handle both `git@github.com:owner/repo` and `https://github.com/owner/repo` forms; strip `.git` suffix). The matching remote name is `<base-remote>`. **Do not hardcode `origin`** — for fork-based PRs (`origin` is your fork, PR targets upstream), `origin/<baseRefName>` is the wrong base.
+
+Gather the full branch diff AND commit list using the same logic as Step 6's "Gather the full branch diff and commit list" subsection, against `<base-remote>/<baseRefName>` rather than `origin/<baseRefName>`. The writing reference assumes both are already in context — without this, composition runs from stale or empty context, and Step A's commit classification falls back to the wrong (HEAD-anchored, capped-at-10) `git log` from the Context section.
+
+**Fork-PR fallback.** If no local remote matches the PR URL's base repo, fall back to the GitHub API for both diff and commits — `origin` would diff against the wrong base:
+
+```bash
+gh pr diff
+gh pr view --json commits --jq '.commits[] | [.oid[0:7], .messageHeadline] | @tsv'
+```
 
 Compose the new title and body following `references/pr-description-writing.md`. If the user provided focus (e.g., "include the benchmarking results"), apply it as steering — do not let it override the writing principles or fabricate content the diff does not support.
 
@@ -174,7 +183,7 @@ The working-tree diff from Step 1 only shows uncommitted changes at invocation t
    ```bash
    gh pr view --json baseRefName,url
    ```
-   Extract `baseRefName`. Match `owner/repo` from the PR URL against `git remote -v` fetch URLs to find the base remote. Fall back to `origin`.
+   Extract `baseRefName`. Match `owner/repo` from the PR URL against `git remote -v` fetch URLs to find the base remote. **If no remote matches** (fork-based PR with no `upstream` remote configured), do NOT fall back to `origin` — `origin` is the contributor fork and would diff against the wrong base. Instead, skip the local-git path entirely for this invocation: use `gh pr diff` for the diff and `gh pr view --json commits` for the commit list, then proceed to composition. Note in the user-facing output that the API path was used.
 2. **Remote default branch from context** -- if resolved, strip `origin/` prefix. Use `origin`.
 3. **GitHub metadata:**
    ```bash
