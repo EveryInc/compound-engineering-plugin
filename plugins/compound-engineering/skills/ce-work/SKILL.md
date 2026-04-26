@@ -139,7 +139,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
    1. Build a file-to-unit mapping from every candidate unit's `Files:` section (Create, Modify, and Test paths)
    2. Check for intersection — any file path appearing in 2+ units means overlap
-   3. If any overlap is found, downgrade to serial subagents. Log the reason (e.g., "Units 2 and 4 share `config/routes.rb` — using serial dispatch"). Serial subagents still provide context-window isolation without shared-directory risks
+   3. **If overlap is found AND worktree isolation is unavailable**: downgrade to serial subagents. Log the reason (e.g., "Units 2 and 4 share `config/routes.rb` — using serial dispatch"). Serial subagents still provide context-window isolation without shared-directory write races.
+   4. **If overlap is found AND worktree isolation is available**: parallel dispatch is still safe — subagents work in isolation, and the overlap surfaces as a predictable merge conflict the orchestrator handles via the post-batch flow below. Log the predicted overlap so the post-batch flow knows which merges to expect conflicts on.
 
    Even with no file overlap, parallel subagents sharing the orchestrator's working directory face git index contention (concurrent staging/committing corrupts the index) and test interference (concurrent test runs pick up each other's in-progress changes). Worktree isolation eliminates both; the shared-directory fallback constraints below mitigate them.
 
@@ -170,7 +171,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
    **After all parallel subagents in a batch complete (worktree-isolated mode):**
    1. Wait for every subagent in the current parallel batch to finish.
    2. For each completed subagent, in dependency order: review the worktree's diff against the orchestrator's branch. If the subagent did not commit its own work, stage and commit it inside that worktree.
-   3. Merge each subagent's branch into the orchestrator's branch sequentially in dependency order. Resolve conflicts at merge time — file overlap the Parallel Safety Check did not predict surfaces here, not as silent data loss.
+   3. Merge each subagent's branch into the orchestrator's branch sequentially in dependency order. **If a merge conflict surfaces, abort the merge (`git merge --abort`) and re-dispatch the conflicting unit serially against the now-merged tree** — hand-resolving silently picks a side and discards one unit's intent. (Predicted overlap from the Parallel Safety Check surfaces here as a conflict, not as silent data loss in shared-directory mode.)
    4. After each merge, run the relevant test suite. If tests fail, diagnose and fix before merging the next branch.
    5. Update the task list (progress is carried by the merge commits).
    6. Remove each merged worktree using the absolute path returned in the subagent's result (`git worktree remove <absolute-path>`). If the platform's subagent primitive does not return a path, build one with `git rev-parse --show-toplevel` (e.g., `git worktree remove "$(git rev-parse --show-toplevel)/.claude/worktrees/agent-<id>"`) so cleanup works regardless of the orchestrator's CWD.
