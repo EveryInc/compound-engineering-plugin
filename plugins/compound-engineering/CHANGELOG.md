@@ -9,6 +9,28 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.2.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.1.0...compound-engineering-v3.2.0) (2026-04-26)
+
+
+### Features
+
+* **ce-compound:** add frontmatter parser-safety validator ([#697](https://github.com/EveryInc/compound-engineering-plugin/issues/697)) ([7eea2d1](https://github.com/EveryInc/compound-engineering-plugin/commit/7eea2d1cfe5c177e2d144b1e12f4957c75dac556))
+
+
+### Bug Fixes
+
+* **ce-code-review:** move run artifacts from .context/ to /tmp per AGENTS.md ([#690](https://github.com/EveryInc/compound-engineering-plugin/issues/690)) ([85e9a20](https://github.com/EveryInc/compound-engineering-plugin/commit/85e9a2073b09295b1a0771d4775d42b7142fd172))
+* **ce-code-review:** replace LFG with best-judgment auto-resolve ([#685](https://github.com/EveryInc/compound-engineering-plugin/issues/685)) ([9ba41a1](https://github.com/EveryInc/compound-engineering-plugin/commit/9ba41a14cadfe2eee75fe50485f72f38b09df00b))
+* **ce-code-review:** tighten autofix_class rubric for safe_auto/gated_auto boundary ([#695](https://github.com/EveryInc/compound-engineering-plugin/issues/695)) ([ad9577e](https://github.com/EveryInc/compound-engineering-plugin/commit/ad9577e7329cba31cffba71815cac6cef290ae1b))
+* **ce-debug:** default to commit-and-PR and tighten learning offer ([#693](https://github.com/EveryInc/compound-engineering-plugin/issues/693)) ([e21156e](https://github.com/EveryInc/compound-engineering-plugin/commit/e21156eeb7e1502a37bf7d4a30fdc6a3287eed7a))
+* **ce-debug:** delegate commit/PR and add branch check ([#683](https://github.com/EveryInc/compound-engineering-plugin/issues/683)) ([1284290](https://github.com/EveryInc/compound-engineering-plugin/commit/1284290af27139c2df192488099626688fd4898b))
+* **ce-demo-reel:** wait for network idle and reject blank frames ([#692](https://github.com/EveryInc/compound-engineering-plugin/issues/692)) ([f30404e](https://github.com/EveryInc/compound-engineering-plugin/commit/f30404e57bcbf7866c1a9524f4392f7dff8f3a0b))
+* **ce-doc-review:** rename LFG path to best-judgment to avoid /lfg collision ([#691](https://github.com/EveryInc/compound-engineering-plugin/issues/691)) ([50bf65e](https://github.com/EveryInc/compound-engineering-plugin/commit/50bf65e88c556eaa1ae10c7d88d8e646274d7ae0))
+* **ce-resolve-pr-feedback:** add declined verdict for harmful suggestions ([#694](https://github.com/EveryInc/compound-engineering-plugin/issues/694)) ([bd72818](https://github.com/EveryInc/compound-engineering-plugin/commit/bd72818609054f6d173cf141641799fa729cc668))
+* **ce-work:** codify worktree isolation for parallel subagent dispatch ([#698](https://github.com/EveryInc/compound-engineering-plugin/issues/698)) ([053c1db](https://github.com/EveryInc/compound-engineering-plugin/commit/053c1db25511843b5967b3d04427b172ede98d25))
+* **session-historian:** cap deep-dives, add keyword filter primitive, tighten dispatch ([#699](https://github.com/EveryInc/compound-engineering-plugin/issues/699)) ([a91270c](https://github.com/EveryInc/compound-engineering-plugin/commit/a91270ccd2d5fba3e035275b7af2c4fec3f90b1c))
+* **skills:** replace case statements blocked by permission check ([#701](https://github.com/EveryInc/compound-engineering-plugin/issues/701)) ([5952b20](https://github.com/EveryInc/compound-engineering-plugin/commit/5952b20d7f2a056f8d7d8719a2d20b6615aca9e4))
+
 ## [3.1.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.0.7...compound-engineering-v3.1.0) (2026-04-24)
 
 
