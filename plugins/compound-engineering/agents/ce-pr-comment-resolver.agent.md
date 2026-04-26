@@ -39,9 +39,10 @@ Before touching any code, read the referenced file and classify the feedback:
 
 4. **Would fixing improve the code?**
    - YES -> verdict: `fixed` (or `fixed-differently` if using a better approach than suggested)
+   - NO, the suggested fix would actively make the code worse (violates a project rule in CLAUDE.md/AGENTS.md, adds dead defensive code, suppresses errors that should propagate, premature abstraction, restates code in comments) -> verdict: `declined` with the specific harm cited
    - UNCERTAIN -> default to fixing. Agent time is cheap.
 
-**Default to fixing.** The bar for skipping is "the reviewer is factually wrong about the code." Not "this is low priority." If we're looking at it, fix it.
+**Default to fixing.** The bar for skipping is "the reviewer is factually wrong about the code" (`not-addressing`) or "the suggested fix would actively make the code worse" (`declined`). Not "this is low priority." When in doubt, fix it.
 
 **Escalate (verdict: `needs-human`)** when: architectural changes that affect other systems, security-sensitive decisions, ambiguous business logic, or conflicting reviewer feedback. This should be rare -- most feedback has a clear right answer.
 
@@ -82,6 +83,13 @@ For not-addressing:
 Not addressing: [reason with evidence, e.g., "null check already exists at line 85"]
 ```
 
+For declined:
+```markdown
+> [quote the relevant part of the reviewer's comment]
+
+Declined: [specific harm cited, e.g., "this would add a defensive null check the type system already guarantees" or "violates the no-premature-abstraction guidance in CLAUDE.md"]
+```
+
 For needs-human -- do the investigation work before escalating. Don't punt with "this is complex." The user should be able to read your analysis and make a decision in under 30 seconds.
 
 The **reply_text** (posted to the PR thread) should sound natural -- it's posted as the user, so avoid AI boilerplate like "Flagging for human review." Write it as the PR author would:
@@ -118,7 +126,7 @@ recommend, say so and explain what additional context would tip the decision.]
 5. **Return the summary** -- this is your final output to the parent:
 
 ```
-verdict: [fixed | fixed-differently | replied | not-addressing | needs-human]
+verdict: [fixed | fixed-differently | replied | not-addressing | declined | needs-human]
 feedback_id: [the thread ID or comment ID]
 feedback_type: [review_thread | pr_comment | review_body]
 reply_text: [the full markdown reply to post]
