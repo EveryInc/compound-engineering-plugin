@@ -93,6 +93,10 @@ Rules:
   - Framework-native-API substitutions — a hand-rolled implementation duplicates first-class framework behavior (cite the framework API in `why_it_matters`)
   - Completeness additions mechanically implied by the document's own explicit decisions (not high-level goals — a goal can be satisfied by multiple valid requirements)
 
+- **Classify your `suggested_fix` by what's written, not by the minimum fix that would have resolved the finding.** Ask: *"What's the smallest fix that addresses this issue?"* If your `suggested_fix` is larger — adds inferred claims, opportunistic refactors, or asserts things the document doesn't establish — those additions are part of what the user has to evaluate, so the higher tier applies. Two responses: **trim** the fix back to the minimum to keep `safe_auto` (and emit the trimmed-out content as a separate finding if it carries its own evidence at anchor 50+), or **gate** at `gated_auto` so the user can see and confirm the inferred scope. Trim when the additions are weak or speculative; gate when they're substantively right but the document doesn't compel them.
+
+  Example: a finding flags that Phase B doesn't surface a U6→U7 sequencing dependency declared on U7. The minimum fix — `Add a Phase B note that U7 follows U6` — is `safe_auto` (purely mechanical, the dependency is on the page, just not in this section). Appending `and U4, U5, U8 can proceed in parallel` goes beyond the minimum because the document doesn't establish those units as independent — that's a persona inference. Trim the parallelism claim to recover `safe_auto`, or emit the bundled fix at `gated_auto`.
+
 - `suggested_fix` is required for `safe_auto` and `gated_auto` findings. For `manual` findings, include only when the fix is obvious.
 
 - **`suggested_fix` commits to one recommendation — no menus of alternatives.** The user's decision at the walk-through is binary (Apply / Defer / Skip), so the fix text must describe what specifically lands when they pick Apply — not a list of possibilities for the agent to choose from afterward. The committed recommendation can be:
