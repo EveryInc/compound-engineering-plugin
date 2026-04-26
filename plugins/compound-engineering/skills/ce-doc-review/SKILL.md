@@ -6,7 +6,7 @@ argument-hint: "[mode:headless] [path/to/document.md]"
 
 # Document Review
 
-Review requirements or plan documents through multi-persona analysis. Dispatches specialized reviewer agents in parallel, auto-applies `safe_auto` fixes, and routes remaining findings through a four-option interaction (per-finding walk-through, LFG, Append-to-Open-Questions, Report-only) for user decision.
+Review requirements or plan documents through multi-persona analysis. Dispatches specialized reviewer agents in parallel, auto-applies `safe_auto` fixes, and routes remaining findings through a four-option interaction (per-finding walk-through, auto-resolve with best judgment, Append-to-Open-Questions, Report-only) for user decision.
 
 ## Interactive mode rules
 
@@ -179,7 +179,7 @@ Cross-session persistence is out of scope. A new invocation of ce-doc-review on 
 
 After all dispatched agents return, read `references/synthesis-and-presentation.md` for the synthesis pipeline (validate, anchor-based gate, dedup, cross-persona agreement promotion, resolve contradictions, auto-promotion, route by three tiers with FYI subsection), `safe_auto` fix application, headless-envelope output, and the handoff to the routing question.
 
-For the four-option routing question and per-finding walk-through (interactive mode), read `references/walkthrough.md`. For the bulk-action preview used by LFG, Append-to-Open-Questions, and walk-through `LFG-the-rest`, read `references/bulk-preview.md`. Do not load these files before agent dispatch completes.
+For the four-option routing question and per-finding walk-through (interactive mode), read `references/walkthrough.md`. For the bulk-action preview used by best-judgment routing, Append-to-Open-Questions, and walk-through `Auto-resolve with best judgment on the rest`, read `references/bulk-preview.md`. Do not load these files before agent dispatch completes.
 
 ---
 

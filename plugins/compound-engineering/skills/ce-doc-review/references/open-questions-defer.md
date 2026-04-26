@@ -64,7 +64,7 @@ Do not include `suggested_fix` or the full `evidence` array in the appended entr
 
 If an entry with the same compound key already exists under the same `### From YYYY-MM-DD review` subsection, do not append a duplicate. This can happen when:
 
-- The same review session re-routes the same finding to Defer a second time (rare but possible via LFG-the-rest after a walk-through Defer)
+- The same review session re-routes the same finding to Defer a second time (rare but possible via best-judgment-the-rest after a walk-through Defer)
 - The orchestrator retries after a partial failure
 
 **Compound key for dedup:** `normalize(section) + normalize(title) + evidence_fingerprint`, reconstructed from each existing entry's `<!-- dedup-key: ... -->` HTML comment (see Step 3 entry format). For a new finding about to append, compute the same fields from the finding's schema data; for existing entries, parse them out of the HTML comment. Match on all three fields.

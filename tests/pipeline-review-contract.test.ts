@@ -541,7 +541,7 @@ describe("ce-doc-review contract", () => {
 
     // Routing question distinguishing words present (front-loaded per AGENTS.md Interactive Question Tool Design)
     expect(walkthrough).toContain("Review each finding one by one")
-    expect(walkthrough).toContain("LFG")
+    expect(walkthrough).toContain("Auto-resolve with best judgment")
     expect(walkthrough).toContain("Append findings to the doc's Open Questions section")
     expect(walkthrough).toContain("Report only")
 
@@ -549,7 +549,7 @@ describe("ce-doc-review contract", () => {
     expect(walkthrough).toContain("Apply the proposed fix")
     expect(walkthrough).toContain("Defer — append to the doc's Open Questions section")
     expect(walkthrough).toContain("Skip — don't apply, don't append")
-    expect(walkthrough).toContain("LFG the rest")
+    expect(walkthrough).toContain("Auto-resolve with best judgment on the rest")
 
     // Recommended marker mandatory
     expect(walkthrough).toContain("(recommended)")
