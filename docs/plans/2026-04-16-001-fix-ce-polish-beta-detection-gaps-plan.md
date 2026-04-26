@@ -1,5 +1,5 @@
 ---
-title: fix: Close ce-polish-beta detection gaps from PR #568 feedback
+title: "fix: Close ce-polish-beta detection gaps from PR #568 feedback"
 type: fix
 status: active
 date: 2026-04-16

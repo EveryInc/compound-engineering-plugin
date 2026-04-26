@@ -16,7 +16,7 @@ tags:
   - eval-methodology
   - variance
 related_issue: EveryInc/compound-engineering-plugin#686
-related_pr: PR #685 (suggested_fix push that this builds on)
+related_pr: "PR #685 (suggested_fix push that this builds on)"
 ---
 
 # safe_auto rubric calibration: variance reduction beats safe_auto-rate-as-target
