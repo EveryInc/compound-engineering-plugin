@@ -272,6 +272,25 @@ describe("extract-metadata", () => {
       }
     })
 
+    test("does not match Codex system_instruction wrapper text", async () => {
+      // The Codex fixture's first user message is wrapped in
+      // <system_instruction>You are working inside Conductor.</system_instruction>
+      // which is Codex/Conductor boilerplate, not user-authored content.
+      // "Conductor" only appears inside that wrapper, so it must not match.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "Conductor",
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      // Either excluded entirely (zero match) or match_count: 0
+      if (sessions.length > 0) {
+        expect(sessions[0].keyword_matches.Conductor).toBe(0)
+      }
+    })
+
     test("--cwd-filter is applied before keyword scan (skips full-file scan for filtered sessions)", async () => {
       // Codex discovery returns sessions across all repos, so --cwd-filter
       // must be evaluated before the expensive full-file keyword scan to

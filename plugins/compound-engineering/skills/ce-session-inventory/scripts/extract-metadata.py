@@ -143,7 +143,15 @@ def _extract_user_assistant_text(filepath):
                 if t == "event_msg":
                     p = obj.get("payload", {})
                     if p.get("type") == "user_message":
-                        chunks.append(p.get("message", ""))
+                        # Strip Codex/Conductor `<system_instruction>...</system_instruction>`
+                        # wrapper before counting. Without this, generic wrapper terms
+                        # (e.g., "Conductor", environment labels) false-match against
+                        # boilerplate the user did not author. Mirrors the same split
+                        # used in ce-session-extract/scripts/extract-skeleton.py.
+                        msg = p.get("message", "")
+                        if isinstance(msg, str):
+                            parts = msg.split("</system_instruction>")
+                            chunks.append(parts[-1] if parts else msg)
                     continue
                 if t == "response_item":
                     p = obj.get("payload", {})
