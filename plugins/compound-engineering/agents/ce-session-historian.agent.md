@@ -136,11 +136,11 @@ A session being returned by `ce-session-inventory` only confirms it lives in the
    - **c.** **If `files_matched: 0`, return "no relevant prior sessions" immediately. Do not invoke `ce-session-extract`. STOP.**
    - **d.** If `files_matched > 0`, treat those sessions as the candidate list. Rank by `match_count`, break ties by per-keyword counts.
 
-3. **Apply the deep-dive cap.** From the candidates produced by step 1 or step 2d, take at most **5 sessions total across all platforms**. If you have more, narrow by branch-match → `match_count` → file size > 30KB → recency.
+3. **Drop sessions outside the scan window before selecting.** A session is within the window if it was active during that period — use `last_ts` when available, fall back to `ts`. Discard sessions where both fall before the window start.
 
-4. **Drop sessions outside the scan window before selecting.** A session is within the window if it was active during that period — use `last_ts` when available, fall back to `ts`. Discard sessions where both fall before the window start.
+4. **Exclude the current session** — its conversation history is already available to the caller.
 
-5. **Exclude the current session** — its conversation history is already available to the caller.
+5. **Apply the deep-dive cap.** From the candidates remaining after the window and current-session filters, take at most **5 sessions total across all platforms**. If you have more, narrow by branch-match → `match_count` → file size > 30KB → recency.
 
 6. **Proceed to Step 4 only if you have at least one selected session.** If zero candidates remain after dropping out-of-window and the current session, return "no relevant prior sessions" and STOP.
 
