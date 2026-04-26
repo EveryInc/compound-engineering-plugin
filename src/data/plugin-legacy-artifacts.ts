@@ -51,6 +51,7 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "ce-feature-video",
       "ce-orchestrating-swarms",
       "ce-plan-beta",
+      "ce-pr-description",
       "ce-pr-stack",
       "ce-reproduce-bug",
       "ce-review",

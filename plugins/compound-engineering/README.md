@@ -11,7 +11,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 | Component | Count |
 |-----------|-------|
 | Agents | 50+ |
-| Skills | 42+ |
+| Skills | 35+ |
 
 ## Skills
 
@@ -44,10 +44,9 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 
 | Skill | Description |
 |-------|-------------|
-| `ce-pr-description` | Write or regenerate a value-first PR title and body from the current branch or a specified PR; used directly or by other skills |
 | `ce-clean-gone-branches` | Clean up local branches whose remote tracking branch is gone |
 | `ce-commit` | Create a git commit with a value-communicating message |
-| `ce-commit-push-pr` | Commit, push, and open a PR with an adaptive description; also update an existing PR description (delegates title/body generation to `ce-pr-description`) |
+| `ce-commit-push-pr` | Commit, push, and open a PR with an adaptive description; also update an existing PR description, or generate a description on its own without committing |
 | `ce-worktree` | Manage Git worktrees for parallel development |
 
 ### Workflow Utilities
@@ -93,7 +92,7 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 
 | Skill | Description |
 |-------|-------------|
-| `/ce-polish-beta` | Human-in-the-loop polish phase after /ce-code-review — verifies review + CI, starts a dev server from `.claude/launch.json`, generates a testable checklist, and dispatches polish sub-agents for fixes. Emits stacked-PR seeds for oversized work |
+| `ce-polish-beta` | Human-in-the-loop polish phase after /ce-code-review — verifies review + CI, starts a dev server from `.claude/launch.json`, generates a testable checklist, and dispatches polish sub-agents for fixes. Emits stacked-PR seeds for oversized work |
 | `/lfg` | Full autonomous engineering workflow |
 
 ## Agents
