@@ -255,6 +255,34 @@ describe("ce-code-review contract", () => {
     expect(template).toMatch(/personas never produce/i)
   })
 
+  test("autofix_class decision guide includes safe_auto operational test and boundary cases", async () => {
+    const template = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review/references/subagent-template.md",
+    )
+
+    // Symmetry-of-error framing: classifying a mechanical fix as gated_auto has cost
+    expect(template).toMatch(/wrong-side cost is symmetric/i)
+    expect(template).toMatch(/Bias toward `safe_auto`/i)
+
+    // Operational test for safe_auto: one-sentence + no-contract-change exclusion list
+    expect(template).toMatch(/one sentence with no .depends on. clauses/i)
+    expect(template).toMatch(/function signature.*public-API.*error contract.*security posture.*permission model/i)
+
+    // The four boundary cases that often feel risky but are still safe_auto
+    expect(template).toMatch(/Boundary cases that often feel risky but are still `safe_auto`/i)
+    expect(template).toMatch(/nil guard that turns a crash into a nil-return is `safe_auto`/i)
+    expect(template).toMatch(/off-by-one fix is `safe_auto`/i)
+    expect(template).toMatch(/Dead-code removal is `safe_auto`/i)
+    expect(template).toMatch(/Helper extraction is `safe_auto`/i)
+
+    // Cross-file extraction discriminator (the F4b case from the calibration eval)
+    expect(template).toMatch(/naming or placement requires a design conversation/i)
+
+    // Anti-default guards on both sides
+    expect(template).toMatch(/Do not default to `advisory`/i)
+    expect(template).toMatch(/Do not default to `gated_auto` when the fix is mechanical/i)
+  })
+
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
 

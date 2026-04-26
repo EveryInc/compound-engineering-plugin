@@ -54,7 +54,7 @@
           "autofix_class": {
             "type": "string",
             "enum": ["safe_auto", "gated_auto", "manual", "advisory"],
-            "description": "Reviewer's conservative recommendation for how this issue should be handled after synthesis"
+            "description": "Routing class for downstream fixer dispatch. safe_auto = local mechanical fix the fixer applies without approval (test: a one-sentence fix with no 'depends on' clauses, AND no change to function signature, public-API/error contract, security posture, or permission model; for helper extraction, naming/placement must follow mechanically from the shared shape). gated_auto = concrete fix that changes contracts/permissions or whose placement requires a design conversation; needs user approval before apply. manual = actionable work needing design decisions; usually paired with a suggested_fix the user can confirm. advisory = report-only, no code change. The wrong-side cost is symmetric -- bias toward safe_auto when the rubric permits, since misclassifying mechanical fixes as gated_auto makes users triage findings the fixer could have applied."
           },
           "owner": {
             "type": "string",
