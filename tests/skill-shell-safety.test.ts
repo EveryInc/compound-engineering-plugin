@@ -40,18 +40,37 @@ function listSkillFiles(): string[] {
   return out
 }
 
-function findPreResolutionLines(body: string): { lineNumber: number; command: string }[] {
+function findPreResolutionCommands(body: string): { lineNumber: number; command: string }[] {
+  // Scan the entire body so multi-line `!` blocks are also caught. `[^`]*`
+  // matches across newlines (line terminators are not special inside JS
+  // character classes), so wrapped commands surface here too.
   const found: { lineNumber: number; command: string }[] = []
-  const lines = body.split(/\r?\n/)
-  for (let i = 0; i < lines.length; i++) {
-    const line = lines[i]
-    const matches = line.matchAll(/!`([^`]*)`/g)
-    for (const m of matches) {
-      found.push({ lineNumber: i + 1, command: m[1] })
-    }
+  const regex = /!`([^`]*)`/g
+  let match: RegExpExecArray | null
+  while ((match = regex.exec(body)) !== null) {
+    const lineNumber = body.slice(0, match.index).split(/\r?\n/).length
+    found.push({ lineNumber, command: match[1] })
   }
   return found
 }
+
+describe("findPreResolutionCommands", () => {
+  test("captures single-line `!` blocks with correct line numbers", () => {
+    const sample = "intro\n!`echo hi` mid !`echo bye`\nend"
+    expect(findPreResolutionCommands(sample)).toEqual([
+      { lineNumber: 2, command: "echo hi" },
+      { lineNumber: 2, command: "echo bye" },
+    ])
+  })
+
+  test("captures multi-line `!` blocks", () => {
+    const sample = "intro\n!`one`\ngap\n!`split\nover\nlines`\nend"
+    expect(findPreResolutionCommands(sample)).toEqual([
+      { lineNumber: 2, command: "one" },
+      { lineNumber: 4, command: "split\nover\nlines" },
+    ])
+  })
+})
 
 describe("skill `!` pre-resolution commands avoid Claude Code denylist", () => {
   const files = listSkillFiles()
@@ -59,11 +78,11 @@ describe("skill `!` pre-resolution commands avoid Claude Code denylist", () => {
   for (const filePath of files) {
     const rel = path.relative(process.cwd(), filePath)
     const body = readFileSync(filePath, "utf8")
-    const preResolutionLines = findPreResolutionLines(body)
-    if (preResolutionLines.length === 0) continue
+    const preResolutionCommands = findPreResolutionCommands(body)
+    if (preResolutionCommands.length === 0) continue
 
     test(`${rel} pre-resolution commands contain no \`case\`/\`esac\` (blocked by Claude Code permission check)`, () => {
-      const offenders = preResolutionLines.filter(({ command }) =>
+      const offenders = preResolutionCommands.filter(({ command }) =>
         /\bcase\b/.test(command) && /\besac\b/.test(command),
       )
       const formatted = offenders
