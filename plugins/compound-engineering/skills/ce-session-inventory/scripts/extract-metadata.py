@@ -96,19 +96,85 @@ def get_last_timestamp(filepath, size):
     return None
 
 
-def count_keyword_matches(filepath, keywords):
-    """Case-insensitive substring count for each keyword across the full file.
+def _extract_user_assistant_text(filepath):
+    """Return concatenated user + assistant text content from a session JSONL.
 
-    Returns a dict {original_keyword: count}. Reads the whole file as a single
-    string -- session JSONL files are typically a few MB; this is cheap relative
-    to the agent's prior 20 grep -l invocations and runs once per file.
+    Skips JSONL metadata field names and values (sessionId, gitBranch, uuid,
+    timestamps, type tags), tool_use blocks (tool names + tool inputs),
+    tool_result blocks (tool outputs), and thinking/reasoning blocks. Only
+    content the user or assistant actually said is included.
+
+    Without this filtering, common topic words like "session" would match every
+    JSONL file via the sessionId field, drowning out real content matches.
     """
+    chunks = []
     try:
         with open(filepath, "r", errors="replace") as f:
-            content_lower = f.read().lower()
+            for line in f:
+                try:
+                    obj = json.loads(line.strip())
+                except (json.JSONDecodeError, ValueError):
+                    continue
+
+                # Claude Code: type-tagged top-level
+                t = obj.get("type")
+                if t == "user":
+                    msg = obj.get("message", {})
+                    content = msg.get("content")
+                    if isinstance(content, str):
+                        chunks.append(content)
+                    elif isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, dict) and block.get("type") == "text":
+                                chunks.append(block.get("text", ""))
+                            # Skip tool_result blocks — tool outputs are not user content.
+                    continue
+                if t == "assistant":
+                    msg = obj.get("message", {})
+                    content = msg.get("content", [])
+                    if isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, dict) and block.get("type") == "text":
+                                chunks.append(block.get("text", ""))
+                            # Skip tool_use and thinking blocks.
+                    continue
+
+                # Codex: payload-typed events
+                if t == "event_msg":
+                    p = obj.get("payload", {})
+                    if p.get("type") == "user_message":
+                        chunks.append(p.get("message", ""))
+                    continue
+                if t == "response_item":
+                    p = obj.get("payload", {})
+                    if p.get("type") == "message" and p.get("role") == "assistant":
+                        for block in p.get("content", []):
+                            if isinstance(block, dict) and block.get("type") == "output_text":
+                                chunks.append(block.get("text", ""))
+                    continue
+
+                # Cursor: role-tagged with no top-level type
+                if obj.get("role") in ("user", "assistant") and "type" not in obj:
+                    msg = obj.get("message", {})
+                    for block in msg.get("content", []) if isinstance(msg.get("content"), list) else []:
+                        if isinstance(block, dict) and block.get("type") == "text":
+                            chunks.append(block.get("text", ""))
+                    continue
     except (OSError, IOError):
-        return {kw: 0 for kw in keywords}
-    return {kw: content_lower.count(kw.lower()) for kw in keywords}
+        pass
+    return "\n".join(chunks)
+
+
+def count_keyword_matches(filepath, keywords):
+    """Case-insensitive substring count for each keyword in user/assistant text.
+
+    Returns a dict {original_keyword: count}. Scans only content the user or
+    assistant said — not JSONL metadata, tool calls, tool outputs, or thinking
+    blocks — so common topic words like "session" do not false-match against
+    the sessionId field.
+    """
+    text_lower = _extract_user_assistant_text(filepath).lower()
+    return {kw: text_lower.count(kw.lower()) for kw in keywords}
 
 
 def process_file(filepath, keywords=None):

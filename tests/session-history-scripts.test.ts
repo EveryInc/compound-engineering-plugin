@@ -233,6 +233,60 @@ describe("extract-metadata", () => {
       const meta = lines.find((l) => l._meta)
       expect(meta.files_matched).toBeUndefined()
     })
+
+    // Content-only scanning: --keyword must match against user/assistant text,
+    // not JSONL metadata fields or tool-call internals. Otherwise common topic
+    // words like "session" false-positive on every file via sessionId.
+    test("does not match JSONL metadata field names", async () => {
+      // sessionId, gitBranch, uuid, parentUuid, timestamp are JSONL field names
+      // present in every Claude session file. None should match.
+      for (const metaToken of ["sessionId", "gitBranch", "parentUuid"]) {
+        const { stdout, exitCode } = await runScript("extract-metadata.py", [
+          "--keyword",
+          metaToken,
+          path.join(FIXTURES_DIR, "claude-session.jsonl"),
+        ])
+        expect(exitCode).toBe(0)
+        const lines = parseJsonLines(stdout)
+        const sessions = lines.filter((l) => !l._meta)
+        if (sessions.length > 0) {
+          expect(sessions[0].keyword_matches[metaToken]).toBe(0)
+        }
+      }
+    })
+
+    test("does not match against tool_use names or tool inputs", async () => {
+      // The Claude fixture invokes Read and Edit tools. Those tool names should
+      // not produce matches — they are tool-call internals, not user content.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "Edit",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      // Either excluded entirely (zero match) or match_count: 0
+      if (sessions.length > 0) {
+        expect(sessions[0].keyword_matches.Edit).toBe(0)
+      }
+    })
+
+    test("matches against actual user/assistant content", async () => {
+      // The Claude fixture's first user message says "fix the auth bug" and
+      // assistant text mentions "auth module" and "middleware". These ARE
+      // user-visible content and must match.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "auth",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(1)
+      expect(sessions[0].keyword_matches.auth).toBeGreaterThan(0)
+    })
   })
 })
 
