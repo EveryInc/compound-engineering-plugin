@@ -174,7 +174,10 @@ Determine how to proceed based on what was provided in `<input_document>`.
    3. Merge each subagent's branch into the orchestrator's branch sequentially in dependency order. **If a merge conflict surfaces, abort the merge (`git merge --abort`) and re-dispatch the conflicting unit serially against the now-merged tree** — hand-resolving silently picks a side and discards one unit's intent. (Predicted overlap from the Parallel Safety Check surfaces here as a conflict, not as silent data loss in shared-directory mode.)
    4. After each merge, run the relevant test suite. If tests fail, diagnose and fix before merging the next branch.
    5. Update the task list (progress is carried by the merge commits).
-   6. After merging, remove each subagent's worktree and delete its branch using the absolute path and branch name returned in the result. The harness locks per-subagent worktrees, so `--force --force` is required to override the lock; the work is already merged, so this is safe. Run `git worktree remove --force --force <absolute-path>` and then `git branch -D <branch-name>` (the branch outlives the worktree by default and accumulates as `worktree-agent-<id>` orphans if not cleaned up). If the platform's subagent primitive does not return a path, derive the main-repo root with `dirname "$(git rev-parse --path-format=absolute --git-common-dir)"` — this works whether the orchestrator runs in the main checkout or in a worktree, unlike `git rev-parse --show-toplevel` (which returns the orchestrator's own worktree).
+   6. After merging, remove each subagent's worktree and delete its branch. Use the absolute path and branch name returned in the subagent's result.
+      - Unlock the worktree first — the harness locks per-subagent worktrees: `git worktree unlock <absolute-path>`
+      - Remove the worktree: `git worktree remove <absolute-path>`
+      - Delete the branch: `git branch -d <branch-name>` (the branch outlives the worktree by default and accumulates as orphans if not cleaned up; `-d` lowercase refuses to delete unmerged branches, which is the safety we want — if it fails, investigate before forcing)
    7. Dispatch the next batch of independent units, or the next dependent unit.
 
    **After all parallel subagents in a batch complete (shared-directory fallback):**
@@ -275,8 +278,6 @@ Determine how to proceed based on what was provided in `<input_document>`.
    **Parallel subagent mode:** Commit ownership is split by isolation mode (see Phase 1 Step 4):
    - **Worktree-isolated:** subagents may stage and commit inside their own worktree branch; the orchestrator merges those branches in dependency order after the batch.
    - **Shared-directory fallback:** subagents do not commit; the orchestrator stages and commits each unit after the entire parallel batch completes.
-
-   The commit guidance in this section applies to inline and serial execution, to subagents in worktree-isolated mode, and to the orchestrator's post-batch commits in shared-directory mode.
 
 3. **Follow Existing Patterns**
 
