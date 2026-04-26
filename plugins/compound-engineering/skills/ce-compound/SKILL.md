@@ -1,6 +1,7 @@
 ---
 name: ce-compound
 description: Document a recently solved problem to compound your team's knowledge
+argument-hint: "[mode:autofix] [depth:lightweight|full|thorough] [brief context]"
 ---
 
 # /ce-compound
@@ -38,7 +39,37 @@ These files are the durable contract for the workflow. Read them on-demand at th
 
 When spawning subagents, pass the relevant file contents into the task prompt so they have the contract without needing cross-skill paths.
 
+## Mode Detection
+
+Parse `$ARGUMENTS` for `mode:autofix`. If present, also parse an optional `depth:<value>` token. Strip matched tokens; the remainder is the context hint.
+
+| Mode | When | Behavior |
+|------|------|----------|
+| **Interactive** (default) | No `mode:autofix` token | User picks Full or Lightweight at the Execution Strategy prompt; all documented interactive prompts run. |
+| **Autofix** | `mode:autofix` in arguments | No user interaction. Execution path and session-history default resolve from `depth:<preset>` (default `lightweight`). |
+
+**Depth presets** (autofix mode only):
+
+- `depth:lightweight` (default) — Lightweight Mode: single-pass, no subagents, no overlap check.
+- `depth:full` — Full Mode: Phase 1 parallel research, overlap-update, Phase 3 specialized reviewers. Session history off.
+- `depth:thorough` — Full Mode + session history on.
+
+In autofix mode, invalid `depth:` values halt before subagent dispatch and emit `ce-compound failed. Reason: unknown depth:<value>. Valid values: lightweight, full, thorough.`
+
+### Autofix mode rules
+
+- **Skip all user questions.** Never pause — the mode-selection prompt, Phase 2.5 selective-refresh prompt (multi-candidate case), session-history opt-in, Discoverability Check consent, and "What's next?" menu are all suppressed.
+- **Do not edit instruction files.** Surface the Discoverability gap as a `Discoverability recommendation` line in the output; do not modify AGENTS.md / CLAUDE.md.
+- **Be conservative about writing.** Respect the advisory Preconditions (`problem_solved`, `solution_verified`, `non_trivial`). If the conversation and context hint do not evidence a substantive, verified fix, emit the no-op autofix output explaining what was missing.
+- **Always print the full output block** — do not abbreviate, summarize, or skip sections.
+
 ## Execution Strategy
+
+**Autofix mode:** Skip this entire section.
+- `depth:lightweight` (default when `depth:` is absent) → jump directly to the Lightweight Mode execution path below.
+- `depth:full` or `depth:thorough` → execute Full Mode below with the interactive prompts guarded per the Mode Detection section.
+
+**Interactive mode** (default):
 
 Present the user with two options before proceeding, using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
@@ -63,16 +94,18 @@ for relevant knowledge to help the Compound process? This adds
 time and token usage.
 ```
 
-If the user says yes, dispatch the Session Historian in Phase 1. If no, skip it. Do not ask this in lightweight mode.
+If the user says yes, dispatch the Session Historian in Phase 1. If no, skip it. Do not ask this in lightweight mode or in autofix mode — `mode:autofix` with `depth:thorough` dispatches the Session Historian without asking; all other autofix paths skip it (see Mode Detection).
 
 ---
 
 ### Full Mode
 
+Used by Interactive mode when the user picks Full, and by `mode:autofix depth:full|thorough` with interactive prompts guarded per Mode Detection.
+
 <critical_requirement>
 **The primary output is ONE file - the final documentation.**
 
-Phase 1 subagents return TEXT DATA to the orchestrator. They must NOT use Write, Edit, or create any files. Only the orchestrator writes files: the solution doc in Phase 2, and — if the Discoverability Check finds a gap — a small edit to a project instruction file (AGENTS.md or CLAUDE.md). The instruction-file edit is maintenance, not a second deliverable; it ensures future agents can discover the knowledge store.
+Phase 1 subagents return TEXT DATA to the orchestrator. They must NOT use Write, Edit, or create any files. Only the orchestrator writes files: the solution doc in Phase 2, and — if the Discoverability Check finds a gap and the run is in full interactive mode — a small edit to a project instruction file (AGENTS.md or CLAUDE.md). In autofix mode the instruction-file edit is never written; the gap is surfaced as a Discoverability recommendation in the output instead.
 </critical_requirement>
 
 ### Phase 0.5: Auto Memory Scan
@@ -174,8 +207,8 @@ Launch research subagents. Each returns text data to the orchestrator.
 
 </parallel_tasks>
 
-#### 4. **Session Historian** (foreground, after launching the above — only if the user opted in)
-   - **Skip entirely** if the user declined session history in the follow-up question
+#### 4. **Session Historian** (foreground, after launching the above)
+   - Dispatch if the user opted in during the follow-up question, or if `mode:autofix depth:thorough` was passed. Otherwise skip.
    - Dispatched as `ce-session-historian`
    - Dispatch in **foreground** — this agent reads session files outside the working directory (`~/.claude/projects/`, `~/.codex/sessions/`, `~/.cursor/projects/`) which background agents may not have access to
    - Omit the `mode` parameter so the user's configured permission settings apply
@@ -261,7 +294,7 @@ It does **not** make sense to invoke `ce-compound-refresh` when:
 Use these rules:
 
 - If there is **one obvious stale candidate**, invoke `ce-compound-refresh` with a narrow scope hint after the new learning is written
-- If there are **multiple candidates in the same area**, ask the user whether to run a targeted refresh for that module, category, or pattern set
+- If there are **multiple candidates in the same area**, ask the user whether to run a targeted refresh for that module, category, or pattern set. In autofix mode, do not ask — recommend `ce-compound-refresh` via the `Follow-up` line in the output with the broadest useful scope (module, category, or pattern set) and move on.
 - If context is already tight or you are in lightweight mode, do not expand into a broad refresh automatically; instead recommend `ce-compound-refresh` as the next step with a scope hint
 
 When invoking or recommending `ce-compound-refresh`, be explicit about the argument to pass. Prefer the narrowest useful scope:
@@ -316,7 +349,7 @@ After the learning is written and the refresh decision is made, check whether th
 
       `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
       ```
-   c. In full mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode, output a one-liner note and move on
+   c. In full mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode, output a one-liner note and move on. In autofix mode, include it as a `Discoverability recommendation` line in the output — do not attempt to edit instruction files (autofix scope is doc capture, not project config).
 
 ### Phase 3: Optional Enhancement
 
@@ -345,6 +378,8 @@ Based on problem type, optionally invoke specialized agents to review the docume
 **Single-pass alternative — same documentation, fewer tokens.**
 
 This mode skips parallel subagents entirely. The orchestrator performs all work in a single pass, producing the same solution document without cross-referencing or duplicate detection.
+
+**This path is also the execution target for `mode:autofix depth:lightweight`** (see Mode Detection). Autofix adds no-prompt guardrails on top of Lightweight — the execution steps below are identical, but autofix uses a dedicated output block (see **Autofix mode output** under Success Output) so callers can parse the result programmatically. `mode:autofix depth:full|thorough` uses the Full Mode execution path instead, not this one.
 </critical_requirement>
 
 The orchestrator (main conversation) performs ALL of the following in one sequential pass:
@@ -472,7 +507,68 @@ What's next?
 5. Other
 ```
 
-**After displaying the success output, present the "What's next?" options using the platform's blocking question tool:** `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Do not continue the workflow or end the turn without the user's selection.
+**After displaying the success output, present the "What's next?" options using the platform's blocking question tool:** `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Do not continue the workflow or end the turn without the user's selection. In autofix mode, skip this step.
+
+### Autofix mode output
+
+**Success** — a new doc was written, or (only on `depth:full|thorough` overlap-high) an existing doc was updated:
+
+```
+✓ Documentation complete (mode:autofix)
+
+Depth: [lightweight|full|thorough]
+
+File created:
+- docs/solutions/[category]/[filename].md
+
+Track: [bug|knowledge]
+Category: [category]/
+
+[When an existing doc was updated instead (only on depth:full|thorough, overlap high),
+ replace the first line with "✓ Documentation updated (mode:autofix)" and replace the
+ "File created:" block above with:]
+Overlap detected: docs/solutions/[category]/[existing-filename].md
+  Matched dimensions: [problem statement, root cause, solution, referenced files, prevention]
+File updated:
+- docs/solutions/[category]/[existing-filename].md (added last_updated: YYYY-MM-DD)
+
+[If depth:full or depth:thorough:]
+Phase 1 subagents:
+  - Context Analyzer: [one-line summary]
+  - Solution Extractor: [one-line summary]
+  - Related Docs Finder: overlap=[low|moderate|none|high], refresh_candidates=[count]
+  - Session Historian: [off (depth:full) | one-line summary (depth:thorough)]
+
+Phase 3 specialized reviewers:
+  - [each agent invoked and its one-line verdict, or "none applicable"]
+
+[If Phase 2.5 flagged a refresh candidate:]
+Refresh candidate: docs/solutions/[path/to/stale-or-overlapping-doc].md
+  Reason: [one-line rationale]
+  Follow-up: /ce-compound-refresh mode:autofix [scope hint]
+
+[If discoverability check found instruction files don't surface the knowledge store:]
+Discoverability recommendation: AGENTS.md/CLAUDE.md does not surface docs/solutions/
+  Suggested addition: [one-liner or small section — do NOT apply the edit in autofix mode]
+```
+
+**No-op** — preconditions not met (trivial fix, unverified solution, or nothing substantive in context):
+
+```
+✓ No documentation written (mode:autofix)
+
+Depth: [lightweight|full|thorough]
+
+Reason: [which precondition failed — e.g., "non_trivial check: change was a one-character typo"
+  or "solution_verified: no verification evidence in conversation or context hint"
+  or "problem_solved: solution still in progress"]
+
+Context considered:
+- [one-line summary of what was available — e.g., "brief context hint: '<hint>'",
+  "recent commits on branch: 3", "conversation history: empty"]
+
+No action required. A human can invoke /ce-compound interactively if this was a misjudgment.
+```
 
 **Alternate output (when updating an existing doc due to high overlap):**
 
