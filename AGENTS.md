@@ -50,6 +50,7 @@ plugins/          Plugin workspaces (compound-engineering, coding-tutor)
 .claude-plugin/   Claude marketplace catalog metadata
 tests/            Converter, writer, and CLI tests + fixtures
 docs/             Requirements, plans, solutions, and target specs
+evals/            Repo-only behavioral evals (LLM-driven; not shipped)
 ```
 
 ## Repo Surfaces
