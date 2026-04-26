@@ -13,7 +13,9 @@ Go from working changes to an open pull request, rewrite an existing PR descript
 
 Three flavors of intent. Pick one and follow the matching path; otherwise default to the full workflow.
 
-- **Description-only generation.** If the user asked for *just* a PR description with no commit or push intent (e.g., "write a PR description", "draft a PR description for this branch", "describe this PR", or pasted a PR URL/number alone), skip Steps 4–5. Run Step 1 for context, then jump to Step 6 to compose the title and body following `references/pr-description-writing.md`. Print the result back to the user. Apply via `gh pr edit`/`gh pr create` only if the user asks. If the user pasted a PR URL or number, describe that PR's commit range (use `gh pr view <ref> --json baseRefName,headRefOid,body` and diff against its base) rather than the local branch.
+- **Description-only generation.** If the user asked for *just* a PR description with no commit or push intent (e.g., "write a PR description", "draft a PR description for this branch", "describe this PR", or pasted a PR URL/number alone), skip Steps 4–5. Run Step 1 for context, then go to Step 6 to compose the title and body following `references/pr-description-writing.md`. Print the result back to the user. Apply via `gh pr edit`/`gh pr create` only if the user asks.
+
+  **If the user pasted a PR URL or number** (e.g., `https://github.com/owner/repo/pull/561`, `#561`, `pr:561`, or a bare `561`), thread that ref through every PR-scoped command in Step 6 — pass it as the positional argument to `gh pr view <ref> --json baseRefName,headRefOid,body,headRefName,url` instead of the bare branch-local `gh pr view`. Use the returned `headRefOid` and `baseRefName` for the diff base (`git fetch origin <baseRefName> <headRefOid>` then `git diff origin/<baseRefName>...<headRefOid>`), not `HEAD` against the local branch's base. For cross-repo PRs (URL repo differs from `origin`), fall back to `gh pr diff <ref>` if the local fetch is rejected. Without this substitution, "describe PR #123" silently describes the current branch.
 - **Description update on existing PR.** If the user is asking to update, refresh, or rewrite an existing PR description (with no mention of committing or pushing), follow the Description Update workflow below. The user may also provide a focus (e.g., "update the PR description and add the benchmarking results"). Note any focus for DU-3.
 - **Full workflow.** Otherwise, follow the Full workflow below.
 
@@ -65,11 +67,15 @@ Use the current branch and existing PR check from context. If the current branch
 
 ### DU-3: Write and apply the updated description
 
-Read the current PR body so you can preserve any existing evidence block and explain what changed:
+Gather what the writing reference needs before composing — the current PR body (to preserve any existing evidence block and drive the compare-and-confirm step) AND the full branch diff (to drive composition itself).
+
+Read the body and the PR's base branch:
 
 ```bash
-gh pr view --json body --jq '.body'
+gh pr view --json body,baseRefName --jq '{body: .body, baseRefName: .baseRefName}'
 ```
+
+Then gather the full branch diff against `origin/<baseRefName>` using the same logic as Step 6's "Gather the full branch diff" subsection (fetch the base only if it doesn't resolve locally, then `git diff origin/<baseRefName>...HEAD`). The writing reference assumes the diff and commit list are already in context — without this, composition runs from stale or empty context.
 
 Compose the new title and body following `references/pr-description-writing.md`. If the user provided focus (e.g., "include the benchmarking results"), apply it as steering — do not let it override the writing principles or fabricate content the diff does not support.
 
