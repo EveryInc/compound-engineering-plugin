@@ -13,9 +13,9 @@ Go from working changes to an open pull request, rewrite an existing PR descript
 
 Three flavors of intent. Pick one and follow the matching path; otherwise default to the full workflow.
 
-- **Description-only generation.** If the user asked for *just* a PR description with no commit or push intent (e.g., "write a PR description", "draft a PR description for this branch", "describe this PR", or pasted a PR URL/number alone), skip Steps 4–5. Run Step 1 for context, then go to Step 6 to compose the title and body following `references/pr-description-writing.md`. Print the result back to the user. Apply via `gh pr edit`/`gh pr create` only if the user asks.
+- **Description-only generation.** If the user asked for *just* a PR description with no commit or push intent (e.g., "write a PR description", "draft a PR description for this branch", "describe this PR", or pasted a PR URL/number alone), skip Steps 4–5 entirely AND skip Step 1's decision tree. Use the data already gathered in the Context section above (status, branch, log, default branch, PR check) — do NOT run Step 1's stop gates, which are full-workflow only and would terminate this path on common cases like "feature branch, all pushed, open PR → stop". Then go to Step 6 to compose the title and body following `references/pr-description-writing.md`. Print the result back to the user. Apply via `gh pr edit`/`gh pr create` only if the user asks.
 
-  **If the user pasted a PR URL or number** (e.g., `https://github.com/owner/repo/pull/561`, `#561`, `pr:561`, or a bare `561`), thread that ref through every PR-scoped command in Step 6 — pass it as the positional argument to `gh pr view <ref> --json baseRefName,headRefOid,body,headRefName,url` instead of the bare branch-local `gh pr view`. Use the returned `headRefOid` and `baseRefName` for the diff base (`git fetch origin <baseRefName> <headRefOid>` then `git diff origin/<baseRefName>...<headRefOid>`), not `HEAD` against the local branch's base. For cross-repo PRs (URL repo differs from `origin`), fall back to `gh pr diff <ref>` if the local fetch is rejected. Without this substitution, "describe PR #123" silently describes the current branch.
+  **If the user pasted a PR URL or number** (e.g., `https://github.com/owner/repo/pull/561`, `#561`, `pr:561`, or a bare `561`), thread that ref through every PR-scoped command in Step 6 — pass it as the positional argument to `gh pr view <ref> --json baseRefName,headRefOid,body,headRefName,url` instead of the bare branch-local `gh pr view`. Use the returned `headRefOid` and `baseRefName` for the diff base AND the commit list (`git fetch origin <baseRefName> <headRefOid>`, then `git log --oneline $(git merge-base origin/<baseRefName> <headRefOid>)..<headRefOid>` and `git diff origin/<baseRefName>...<headRefOid>`), not `HEAD` against the local branch's base. For cross-repo PRs (URL repo differs from `origin`), fall back to `gh pr diff <ref>` and `gh pr view <ref> --json commits` if the local fetch is rejected. Without this substitution, "describe PR #123" silently describes the current branch.
 - **Description update on existing PR.** If the user is asking to update, refresh, or rewrite an existing PR description (with no mention of committing or pushing), follow the Description Update workflow below. The user may also provide a focus (e.g., "update the PR description and add the benchmarking results"). Note any focus for DU-3.
 - **Full workflow.** Otherwise, follow the Full workflow below.
 
@@ -75,7 +75,7 @@ Read the body and the PR's base branch:
 gh pr view --json body,baseRefName --jq '{body: .body, baseRefName: .baseRefName}'
 ```
 
-Then gather the full branch diff against `origin/<baseRefName>` using the same logic as Step 6's "Gather the full branch diff" subsection (fetch the base only if it doesn't resolve locally, then `git diff origin/<baseRefName>...HEAD`). The writing reference assumes the diff and commit list are already in context — without this, composition runs from stale or empty context.
+Then gather the full branch diff AND commit list against `origin/<baseRefName>` using the same logic as Step 6's "Gather the full branch diff and commit list" subsection (fetch the base only if it doesn't resolve locally, then run the merge-base-anchored `git log` and `git diff` together). The writing reference assumes both are already in context — without this, composition runs from stale or empty context, and Step A's commit classification falls back to the wrong (HEAD-anchored, capped-at-10) `git log` from the Context section.
 
 Compose the new title and body following `references/pr-description-writing.md`. If the user provided focus (e.g., "include the benchmarking results"), apply it as steering — do not let it override the writing principles or fabricate content the diff does not support.
 
@@ -189,15 +189,17 @@ The working-tree diff from Step 1 only shows uncommitted changes at invocation t
 
 If none resolve, ask the user to specify the target branch.
 
-**Gather the full branch diff (before evidence decision).** The working-tree diff from Step 1 only reflects uncommitted changes at invocation time — on the common "feature branch, all pushed, open PR" path, Step 1 skips the commit/push steps and the working-tree diff is empty. The evidence decision below needs the real branch diff to judge whether behavior is observable, so compute it explicitly against the base resolved above. Only fetch when the local ref isn't available — if `<base-remote>/<base-branch>` already resolves locally, run the diff from local state so offline / restricted-network / expired-auth environments don't hard-fail:
+**Gather the full branch diff and commit list (before evidence decision).** The working-tree diff from Step 1 only reflects uncommitted changes at invocation time — on the common "feature branch, all pushed, open PR" path, Step 1 skips the commit/push steps and the working-tree diff is empty. The recent-commits log from Step 1 (`git log --oneline -10`) is also wrong for sizing the description: it's HEAD-anchored, not range-anchored, so it bleeds in pre-branch commits on long branches and misses post-`-10` commits on very long ones. Compute both the diff and the commit list explicitly against the base resolved above, anchored at the merge base. Only fetch when the local ref isn't available — if `<base-remote>/<base-branch>` already resolves locally, run from local state so offline / restricted-network / expired-auth environments don't hard-fail:
 
 ```bash
 git rev-parse --verify <base-remote>/<base-branch> >/dev/null 2>&1 \
   || git fetch --no-tags <base-remote> <base-branch>
-git diff <base-remote>/<base-branch>...HEAD
+MERGE_BASE=$(git merge-base "<base-remote>/<base-branch>" HEAD) \
+  && echo '=== COMMITS ===' && git log --oneline "$MERGE_BASE..HEAD" \
+  && echo '=== DIFF ===' && git diff "$MERGE_BASE...HEAD"
 ```
 
-Use this branch diff (not the working-tree diff) for the evidence decision. If the branch diff is empty (e.g., HEAD is already merged into the base or the branch has no unique commits), skip the evidence prompt and continue to composition.
+Use this branch diff and commit list (not Step 1's working-tree diff or `git log -10`) for both the evidence decision and the writing reference. If the commit list is empty (e.g., HEAD is already merged into the base or the branch has no unique commits), skip the evidence prompt and continue to composition.
 
 **Evidence decision (before composition).** Before running the full decision, two short-circuits:
 
