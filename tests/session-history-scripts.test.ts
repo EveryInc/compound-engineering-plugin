@@ -272,6 +272,46 @@ describe("extract-metadata", () => {
       }
     })
 
+    test("--cwd-filter is applied before keyword scan (skips full-file scan for filtered sessions)", async () => {
+      // Codex discovery returns sessions across all repos, so --cwd-filter
+      // must be evaluated before the expensive full-file keyword scan to
+      // avoid scanning sessions that are immediately discarded. Verify the
+      // observable contract: a session that fails --cwd-filter is counted
+      // in filtered_by_cwd and never reaches the keyword filter, so
+      // files_matched stays 0 even though --keyword was supplied.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--cwd-filter",
+        "other-repo",
+        "--keyword",
+        "auth",
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(0)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.filtered_by_cwd).toBe(1)
+      expect(meta.files_matched).toBe(0)
+    })
+
+    test("empty input with --keyword still emits files_matched: 0", async () => {
+      // The empty-stdin (xargs-empty) branch must include files_matched when
+      // --keyword is supplied, so callers relying on its presence to short-
+      // circuit in zero-match scans get a consistent shape.
+      const { stdout, exitCode } = await runScript(
+        "extract-metadata.py",
+        ["--keyword", "anything"],
+        ""
+      )
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_processed).toBe(0)
+      expect(meta.parse_errors).toBe(0)
+      expect(meta.files_matched).toBe(0)
+    })
+
     test("matches against actual user/assistant content", async () => {
       // The Claude fixture's first user message says "fix the auth bug" and
       // assistant text mentions "auth module" and "middleware". These ARE

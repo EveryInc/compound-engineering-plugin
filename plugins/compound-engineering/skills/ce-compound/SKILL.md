@@ -22,7 +22,7 @@ Captures problem solutions while context is fresh, creating structured documenta
 
 ## Pre-resolved context
 
-**Repo name (pre-resolved):** !`common=$(git rev-parse --git-common-dir 2>/dev/null); if [ "$common" = ".git" ]; then basename "$(git rev-parse --show-toplevel 2>/dev/null)"; else basename "$(dirname "$common")"; fi`
+**Repo name (pre-resolved):** !`common=$(git rev-parse --git-common-dir 2>/dev/null); case "$common" in /*) basename "$(dirname "$common")" ;; *) basename "$(git rev-parse --show-toplevel 2>/dev/null)" ;; esac`
 
 **Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD 2>/dev/null`
 

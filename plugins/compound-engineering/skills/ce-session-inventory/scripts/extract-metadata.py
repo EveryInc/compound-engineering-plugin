@@ -177,7 +177,10 @@ def count_keyword_matches(filepath, keywords):
     return {kw: text_lower.count(kw.lower()) for kw in keywords}
 
 
-def process_file(filepath, keywords=None):
+def process_file(filepath):
+    """Extract metadata only. Keyword scanning is done separately so callers
+    can apply cheap filters (e.g. --cwd-filter) before paying the full-file
+    content scan cost."""
     try:
         size = os.path.getsize(filepath)
         with open(filepath, "r") as f:
@@ -203,10 +206,6 @@ def process_file(filepath, keywords=None):
                 last_ts = get_last_timestamp(filepath, size)
                 if last_ts:
                     result["last_ts"] = last_ts
-            if keywords:
-                matches = count_keyword_matches(filepath, keywords)
-                result["keyword_matches"] = matches
-                result["match_count"] = sum(matches.values())
             return result, None
         else:
             return None, filepath
@@ -242,17 +241,24 @@ if files:
     for filepath in files:
         if not filepath.endswith(".jsonl"):
             continue
-        result, error = process_file(filepath, keywords=keywords)
+        result, error = process_file(filepath)
         processed += 1
         if result:
-            # Apply CWD filter: skip Codex sessions from other repos
+            # Apply CWD filter first: cheap metadata-only check. Skip Codex
+            # sessions from other repos before paying the full-file keyword
+            # scan cost — Codex discovery returns sessions across all repos,
+            # so without this ordering --keyword would scan files that are
+            # immediately discarded.
             if cwd_filter and result.get("cwd") and cwd_filter not in result["cwd"]:
                 filtered += 1
                 continue
-            # Apply keyword filter: skip sessions with zero matches when --keyword is set
-            if keywords and result.get("match_count", 0) == 0:
-                continue
+            # Apply keyword scan only after cheap filters pass.
             if keywords:
+                matches = count_keyword_matches(filepath, keywords)
+                result["keyword_matches"] = matches
+                result["match_count"] = sum(matches.values())
+                if result["match_count"] == 0:
+                    continue
                 matched += 1
             print(json.dumps(result))
         elif error:
@@ -274,8 +280,14 @@ else:
         lines = list(sys.stdin)
 
     if not lines:
-        # No input at all — zero-file result (clean exit for empty pipelines)
-        print(json.dumps({"_meta": True, "files_processed": 0, "parse_errors": 0}))
+        # No input at all — zero-file result (clean exit for empty pipelines).
+        # When --keyword was supplied, emit files_matched: 0 so callers relying
+        # on its presence to terminate quickly in zero-match scans see a
+        # consistent shape with the batch-mode no-match case.
+        meta = {"_meta": True, "files_processed": 0, "parse_errors": 0}
+        if keywords:
+            meta["files_matched"] = 0
+        print(json.dumps(meta))
     else:
         # Genuine single-file stdin mode (backward compatible)
         result = extract_from_lines(lines)
