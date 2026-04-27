@@ -49,15 +49,15 @@ If the block above contains YAML key-value pairs, extract values for the keys li
 If it shows `__NO_CONFIG__`, the file does not exist — all settings fall through to defaults.
 If it shows an unresolved command string, read `.compound-engineering/config.local.yaml` from the repo root using the native file-read tool (e.g., Read in Claude Code, read_file in Codex). If the file does not exist, all settings fall through to defaults.
 
-If any setting has an unrecognized value, fall through to the hard default for that setting.
+If any setting has an unrecognized value, fall through to the hard default for that setting. For optional settings without a hard default (`work_delegate_model`, `work_delegate_effort`), an unrecognized or unparseable value resolves to **unset** — the corresponding flag is omitted from the `codex exec` invocation so Codex resolves from `~/.codex/config.toml`. Never substitute an invalid value into the CLI flags.
 
 Config keys:
 - `work_delegate` -- `codex` or default `false`
 - `work_delegate_consent` -- `true` or default `false`
 - `work_delegate_sandbox` -- `yolo` (default) or `full-auto`
 - `work_delegate_decision` -- `auto` (default) or `ask`
-- `work_delegate_model` -- Codex model to use. Optional — when unset, defers to the user's `~/.codex/config.toml` default. Passthrough — any valid model name accepted.
-- `work_delegate_effort` -- `minimal`, `low`, `medium`, `high`, or `xhigh`. Optional — when unset, defers to the user's `~/.codex/config.toml` default.
+- `work_delegate_model` -- Codex model to use. Optional — when unset or unparseable, defers to the user's `~/.codex/config.toml` default. Passthrough — any non-empty string is accepted as valid; only YAML parse failures or empty values resolve to unset.
+- `work_delegate_effort` -- one of `minimal`, `low`, `medium`, `high`, or `xhigh`. Optional — when unset or set to a value outside this enum, resolves to unset and defers to the user's `~/.codex/config.toml` default.
 
 Store the resolved state for downstream consumption:
 - `delegation_active` -- boolean, whether delegation mode is on
