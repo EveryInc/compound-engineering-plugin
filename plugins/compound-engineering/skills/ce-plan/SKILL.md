@@ -138,12 +138,20 @@ If the bootstrap uncovers major unresolved product questions:
 
 If the bootstrap reveals that a different workflow would serve the user better:
 
-- **Bug-shaped prompt** (user describes broken behavior — "fix the bug where X", error message, regression, "doesn't work"). Before surfacing `ce-debug` as a suggestion, verify the bug is investigatable from cwd:
-  - **No specific surface named** (just "fix the bug where X happens" with no file/component/repo reference) → assume cwd, surface `ce-debug` as option.
-  - **Surface named and matches cwd** (file/function/component exists in current repo, or named repo matches current repo identity) → surface `ce-debug` as option.
-  - **Surface named and clearly doesn't match cwd** (different repo named, file paths not found locally) → do NOT surface `ce-debug`. Stay in `ce-plan` silently — paper-planning is valid output for cross-repo work.
+- **Bug-shaped prompt** (user describes broken behavior — "fix the bug where X", error message, regression, "doesn't work"). Before surfacing `ce-debug` as a suggestion or doing any cross-repo investigation, classify the bug surface into one of three accessibility states:
 
-  When surfaced, present `ce-debug` alongside continuing with `ce-plan` via the platform's blocking question tool. The user decides. The accessibility check is conservative; it can under-suggest in monorepos, dependency bugs, or after renames. Users can always invoke `/ce-debug` manually when the check misses.
+  1. **In cwd** (no specific repo named, OR named repo matches current repo identity, OR named files exist locally). Surface `ce-debug` as a route-out option alongside continuing with `ce-plan`, via the platform's blocking question tool. The user decides.
+
+  2. **On disk but not in cwd** (a different repo is named in the prompt — e.g., the user is in repo A and says "fix the bug in repo B" — and a quick disk check confirms repo B is checked out at another local path). **Ask the user explicitly before doing anything else.** Surface a blocking question with three options:
+     - Investigate from the other repo's path (loads `ce-debug` and operates there)
+     - Paper-plan from current cwd (continues `ce-plan` with no code investigation of the cross-repo surface — produces a plan that will be acted on later when the user is in the right context)
+     - Switch context first (user `cd`s themselves and re-invokes `/ce-plan` from the right repo)
+
+     **Do NOT silently `cd` to the other repo and start investigating.** That's a context switch the user did not authorize. Even though the code is reachable on disk, treating it as transparently accessible surprises the user about which repo the agent is operating in. The agent's role is to surface the cross-repo signal, not to make the context decision unilaterally.
+
+  3. **Not on disk** (named repo isn't found anywhere local). Stay in `ce-plan` silently and produce paper-planning output. The named code isn't reachable; `ce-debug` can't help.
+
+  The accessibility classification is conservative and may under-suggest in monorepos, dependency bugs, or after renames. Users can always invoke `/ce-debug` manually when the check misses.
 
 - **Clear task ready to execute** (known root cause, obvious fix, no architectural decisions) — suggest `ce-work` as a faster alternative alongside continuing with planning. The user decides.
 
