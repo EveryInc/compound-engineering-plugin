@@ -23,12 +23,12 @@ If the plan already has a `deepened:` date:
 
 **Section Checklists:**
 
-**Requirements Trace**
+**Requirements**
 - Requirements are vague or disconnected from implementation units
 - Success criteria are missing or not reflected downstream
 - Units do not clearly advance the traced requirements
 - Origin requirements are not clearly carried forward
-- Origin A/F/AE IDs (when supplied by the upstream brainstorm) are not preserved where planning decisions touch them, or are referenced inconsistently across Requirements Trace, units, and test scenarios
+- Origin A/F/AE IDs (when supplied by the upstream brainstorm) are not preserved where planning decisions touch them, or are referenced inconsistently across Requirements, units, and test scenarios
 
 **Context & Research / Sources & References**
 - Relevant repo patterns are named but never used in decisions or implementation units
@@ -98,7 +98,7 @@ Use fully-qualified agent names inside Task calls.
 
 **Deterministic Section-to-Agent Mapping:**
 
-**Requirements Trace / Open Questions classification**
+**Requirements / Open Questions classification**
 - `ce-spec-flow-analyzer` for missing user flows, edge cases, and handoff gaps
 - `ce-repo-research-analyst` (Scope: `architecture, patterns`) for repo-grounded patterns, conventions, and implementation reality checks
 
