@@ -799,10 +799,10 @@ Use the Write tool to save the complete plan to:
 docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md
 ```
 
-Confirm:
+Confirm (use absolute path so the reference is clickable in modern terminals):
 
 ```text
-Plan written to docs/plans/[filename]
+Plan written to <absolute path to plan>
 ```
 
 **Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip interactive questions. Make the needed choices automatically and proceed to writing the plan.
@@ -859,7 +859,7 @@ When deepening is warranted, read `references/deepening-workflow.md` for confide
 
 After document review and final checks, present this menu using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
-**Question:** "Plan ready at `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md`. What would you like to do next?"
+**Question:** "Plan ready at `<absolute path to plan>`. What would you like to do next?" (use absolute path so the reference is clickable in modern terminals)
 
 **Options:**
 1. **Start `/ce-work`** (recommended) - Begin implementing this plan in the current session
