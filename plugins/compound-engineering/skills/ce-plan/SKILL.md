@@ -165,6 +165,22 @@ Classify the work into one of these plan depths:
 
 If depth is unclear, ask one targeted question and then continue.
 
+#### 0.7 Solo-Mode Scope Summary
+
+Fires **only in solo invocation** — when Phase 0.2 found no upstream brainstorm doc AND Phase 0.4 stayed in ce-plan (did not route to ce-debug, ce-work, or universal-planning) AND Phase 0.5 cleared (no unresolved blockers) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Each guard is an explicit conditional. Skip Phase 0.7 entirely when any guard fails — brainstorm-sourced invocations defer to Phase 5.1.5 instead.
+
+Surface a synthesis to the user — the agent's interpretation of scope after the brief Phase 0.4 bootstrap, structured as **Stated** / **Inferred** / **Out of scope**. The "Inferred" list is especially load-bearing here: Phase 0.4 is brief by design ("ask one or two clarifying questions"), so the agent has made substantial inferences. Surfacing them lets the user catch scope misinterpretation **before Phase 1 research is spent** — sub-agent dispatch (repo-research-analyst, learnings-researcher, etc.) is the expensive next step.
+
+**Headless mode** — when invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the user prompt and embed the synthesis directly as the first section of the plan doc, with the **Inferred list omitted** (Stated and Out are kept). Pipelines consume the doc without human review; un-validated agent inferences must not propagate as authoritative content.
+
+**Open prose feedback (not `AskUserQuestion`)** — per Interaction Rule 5(a) (see ce-brainstorm SKILL.md), option sets would leak the agent's framing of which corrections are valid and bias the user's response. Use a prose prompt that invites scanning ("look at the Inferred list — Phase 0.4 makes a lot of these; did I assume anything wrong?") and accept free-text rebuttal.
+
+**Soft-cut on circularity (not iteration count)** — track which items the user touched per round. The soft-cut fires only when the same item is revised twice; new-item revisions across rounds proceed without limit.
+
+**Self-redirect support** — if the user response indicates the wrong skill (e.g., "this is bigger than I thought — let me brainstorm first," "this is just a fix, no plan needed," or "I need to investigate first"), stop ce-plan, suggest the alternative skill (`/ce-brainstorm`, `/ce-work`, `/ce-debug`), and offer to load it in-session.
+
+Read `references/synthesis-summary.md` for the prompt template (solo variant), three-bucket structure rules, soft-cut blocking-question shape, and embedding format. The confirmed synthesis becomes the `## Synthesis` first section of the plan doc when Phase 5.2 writes the file.
+
 ### Phase 1: Gather Context
 
 #### 1.1 Local Research (Always Runs)
@@ -778,7 +794,7 @@ Confirm:
 Plan written to docs/plans/[filename]
 ```
 
-**Pipeline mode:** If invoked from an automated workflow such as LFG, SLFG, or any `disable-model-invocation` context, skip interactive questions. Make the needed choices automatically and proceed to writing the plan.
+**Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip interactive questions. Make the needed choices automatically and proceed to writing the plan.
 
 #### 5.3 Confidence Check and Deepening
 
@@ -844,4 +860,4 @@ Routing each selection, contextual surfacing of residual document-review finding
 
 **Completion check:** This skill is not complete until the post-generation menu above has been presented and the user has selected an action. If you have written the plan file and have not yet presented the menu, you are not done — go to the load instruction above and continue.
 
-**Pipeline mode exception:** In LFG, SLFG, or any `disable-model-invocation` context, skip the interactive menu and return control to the caller after the plan file is written, confidence check has run, and `ce-doc-review` has run in headless mode (per `references/plan-handoff.md`).
+**Pipeline mode exception:** In LFG or any `disable-model-invocation` context, skip the interactive menu and return control to the caller after the plan file is written, confidence check has run, and `ce-doc-review` has run in headless mode (per `references/plan-handoff.md`).
