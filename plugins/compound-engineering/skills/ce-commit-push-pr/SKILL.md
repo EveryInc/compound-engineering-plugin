@@ -136,7 +136,7 @@ If the PR check returned `state: OPEN`, note the URL -- this is the existing-PR 
 
 ### Step 4: Branch, stage, and commit
 
-1. If on the default branch, create a feature branch first with `git checkout -b <branch-name>`.
+1. If on the default branch, create the feature branch from a fresh remote base. Run `git fetch --no-tags origin <base>`, then `git checkout -b <branch-name> origin/<base>`. This avoids inheriting unpushed local commits from another session that advanced local `<base>` (a real failure mode in multi-agent and multi-worktree setups). If the fetch fails, fall back to `git checkout -b <branch-name>` and note in the user-facing summary that base freshness was not verified.
 2. Scan changed files for naturally distinct concerns. If files clearly group into separate logical changes, create separate commits (2-3 max). Group at the file level only (no `git add -p`). When ambiguous, one commit is fine.
 3. Stage and commit each group in a single call. Avoid `git add -A` or `git add .`. Follow conventions from Step 2:
    ```bash
