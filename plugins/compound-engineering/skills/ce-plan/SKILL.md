@@ -138,7 +138,13 @@ If the bootstrap uncovers major unresolved product questions:
 
 If the bootstrap reveals that a different workflow would serve the user better:
 
-- **Symptom without a root cause** (user describes broken behavior but hasn't identified why) — announce that investigation is needed before planning and load the `ce-debug` skill. A plan requires a known problem to solve; debugging identifies what that problem is. Announce the routing clearly: "This needs investigation before planning — switching to ce-debug to find the root cause."
+- **Bug-shaped prompt** (user describes broken behavior — "fix the bug where X", error message, regression, "doesn't work"). Before surfacing `ce-debug` as a suggestion, verify the bug is investigatable from cwd:
+  - **No specific surface named** (just "fix the bug where X happens" with no file/component/repo reference) → assume cwd, surface `ce-debug` as option.
+  - **Surface named and matches cwd** (file/function/component exists in current repo, or named repo matches current repo identity) → surface `ce-debug` as option.
+  - **Surface named and clearly doesn't match cwd** (different repo named, file paths not found locally) → do NOT surface `ce-debug`. Stay in `ce-plan` silently — paper-planning is valid output for cross-repo work.
+
+  When surfaced, present `ce-debug` alongside continuing with `ce-plan` via the platform's blocking question tool. The user decides. The accessibility check is conservative; it can under-suggest in monorepos, dependency bugs, or after renames. Users can always invoke `/ce-debug` manually when the check misses.
+
 - **Clear task ready to execute** (known root cause, obvious fix, no architectural decisions) — suggest `ce-work` as a faster alternative alongside continuing with planning. The user decides.
 
 #### 0.5 Classify Outstanding Questions Before Planning
@@ -489,7 +495,7 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 
 ## Problem Frame
 
-[Backward-looking / situational: the user/business problem and context that motivates this plan. Establishes the pain — does NOT restate the proposal (that lives in Summary). With an origin requirements doc, keep this brief (1-2 sentences plus any plan-specific framing) and link to origin via Sources & References. Without one, carry the full pain narrative.]
+[Backward-looking / situational: the user/business problem and context that motivates this plan. Establishes the pain — does NOT restate the proposal (that lives in Summary). With an origin requirements doc, keep this brief (1-2 sentences plus any plan-specific framing) and link to origin via Sources & References. Without one, carry the full pain narrative. **Omit entirely at Lightweight tier when Summary already carries the situational context** — a focused bug fix or one-line change rarely needs both sections.]
 
 ---
 
