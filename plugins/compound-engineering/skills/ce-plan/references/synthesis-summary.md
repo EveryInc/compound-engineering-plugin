@@ -1,11 +1,15 @@
 # Synthesis Summary
 
+**Synthesis ≠ plan doc.** The synthesis is NOT a preview, draft, or substitute for the plan — it's the scope/decisions checkpoint that plan-write (Phase 5.2) consumes as input. The plan itself is written from the confirmed synthesis. Concretely: code shapes, exact method signatures, JSON schemas, exact error wording, and behavior bullets belong IN the plan; the synthesis names the scope or plan-time decisions (what files to touch, which patterns to extend, what's deferred) without expanding them. If the synthesis reads like a plan preview, it's misshaped — re-cut to scope/decisions-only.
+
+**Three-bucket structure is a chat-time artifact only.** It does its scope-confirmation job in dialogue with the user, then dissolves when Phase 5.2 writes the plan: Stated content informs Requirements, Inferred content informs Key Decisions / Implementation Units, Out-of-scope content informs Scope Boundaries. The plan has no parallel `## Synthesis` section — only the prose summary embeds, as `## Summary`. See "Doc shape after confirmation" below for the routing.
+
 This content is loaded when a synthesis-summary phase fires in ce-plan. There are two variants — they share structure but differ in timing and content focus:
 
 - **Solo variant** (Phase 0.7): fires after Phase 0.4 bootstrap and Phase 0.6 depth classification, before Phase 1 research begins. Catches scope misinterpretation before sub-agent dispatch is spent. Full breadth — problem frame, intended behavior, success criteria, in/out scope.
 - **Brainstorm-sourced variant** (Phase 5.1.5): fires after Phase 1 research, before Phase 5.2 plan-write. Focuses on plan-time decisions (which files/modules to touch, which patterns extended vs. introduced new, test scope, refactor scope). Brainstorm-validated WHAT is assumed and not re-stated.
 
-Both variants share the three-bucket structure, open prose feedback, soft-cut behavior, headless behavior, and embedding format.
+Both variants share the three-bucket structure, open prose feedback, soft-cut behavior, and the doc-shape routing. Both skip entirely in headless mode (no user to confirm to).
 
 ---
 
@@ -16,6 +20,24 @@ Every synthesis is structured in three labeled buckets. Items may appear in two 
 - **Stated** — what the user said directly (in the original prompt, prior conversation, dialogue answers, or the upstream brainstorm doc when present). Items here have explicit user-language anchors.
 - **Inferred** — what the agent assumed to fill gaps. Scope boundaries the user never explicitly named, success criteria extrapolated from intent, technical assumptions made because the brief interview didn't probe them. The "Inferred" list is the most actionable bucket — items here are the agent's bets that the user can correct.
 - **Out of scope** — deliberately excluded items. Adjacent work the agent considered but decided not to include, refactors, nice-to-haves, future-work items.
+
+---
+
+## Synthesis structural discipline (shared)
+
+Both variants share these structural rules. They address failure modes where the synthesis becomes a Phase 5.2 (plan-write) preview instead of a scope checkpoint.
+
+**Prose lives inside the synthesis section**, immediately after the lead-in line and before the Stated bucket — not as a separate prose block above the synthesis. Putting extensive prose ABOVE the synthesis (an approach pitch, files-touched bullets, rationale block) inverts the structure: the synthesis becomes a footnote to the proposal instead of the proposal being a 1-3 line gloss on the synthesis.
+
+**Anti-pattern: synthesis as plan-pitch.** If you find yourself writing a "Recommendation" / "Behavior when X" / "Why this shape" block above the synthesis with file paths, code shapes, or exact error messages, stop. That content is Phase 5.2 (plan-write) territory — it belongs in the plan body the next phase will write, not in the synthesis presentation. The synthesis is a scope/decisions checkpoint: three buckets plus a 1-3 line gloss. Implementation detail leaking into the synthesis is a sign Phases 1-4 (research and structuring) and Phase 5.2 (plan-write) have collapsed into the synthesis-confirmation step.
+
+**A revision is not a confirmation.** After any user revision (even a trivially-understood swap), integrate the change, re-present the revised synthesis with the change reflected, and wait for explicit confirmation before writing the plan. The loop is:
+
+1. Present synthesis → user responds
+2. User confirms → write the plan
+3. User revises → integrate, re-present revised synthesis, return to step 1
+
+Plan-write (Phase 5.2) fires only on explicit confirm or after the soft-cut blocking question's "proceed" option. Never write immediately after a revision, even when the revision is small enough that the agent feels it understood — the confirmation step is what makes the synthesis **confirmed** rather than "agent's last proposal."
 
 ---
 
@@ -80,7 +102,7 @@ Items to surface:
 - **Refactor scope** — adjacent cleanup, if any, going to deferred items vs. active diff
 - **Cross-cutting impact** — auth, migrations, shared types when they're touched
 
-**Graceful fallback**: if the upstream brainstorm doc lacks the R1 `## Synthesis` section (older brainstorms, hand-written ones, or ones that pre-date this mechanism), Phase 5.1.5 still runs as normal. Its content is independent of upstream synthesis presence — plan-time decisions are derived from research and the doc's other sections, not from the synthesis.
+**Reads from doc body, not a synthesis section**: brainstorm docs do not have a `## Synthesis` section (the synthesis is a chat-time artifact in ce-brainstorm; only the prose summary embeds, as `## Summary`). Phase 5.1.5 derives plan-time decisions from the brainstorm doc's body sections — Summary, Problem Frame, Requirements, Key Decisions, Scope Boundaries — plus Phase 1 research. Older brainstorms that may have a legacy `## Synthesis` section work fine; that content is treated as supplementary, not authoritative, with the body sections taking precedence.
 
 **Why pre-write, not pre-research**: brainstorm doc + R1 synthesis already validated WHAT, so research is well-targeted. Plan-time decisions emerge during research and structuring (Phases 1-4), so pre-write catches them at the latest cheap moment — before Phase 5.2 commits the plan to disk.
 
@@ -130,11 +152,11 @@ Fall back to numbered list in chat only when no blocking tool exists or the call
 
 ## Headless mode (shared)
 
-When the skill is invoked from an automated workflow such as LFG or any `disable-model-invocation` context:
+When the skill is invoked from an automated workflow such as LFG or any `disable-model-invocation` context, **skip the synthesis-summary phase entirely** — Phase 0.7 (solo) and Phase 5.1.5 (brainstorm-sourced) both skip. There is no user to confirm a synthesis to; composing one as a self-check before discarding it is ceremony. The agent proceeds directly to plan-write (Phase 5.2).
 
-- **Skip the user prompt.** Do not fire any blocking question.
-- **Embed the synthesis as the first section of the plan doc**, but **omit the "Inferred" list.** Stated and Out-of-scope are kept (Stated reflects input the user gave or content from the brainstorm; Out reflects deliberate exclusions). The Inferred list is the agent's un-validated bets; pipelines consume the doc without human review, so propagating speculation as authoritative content is unsafe.
-- **Pipeline propagation is uncorrected.** A wrong headless synthesis flows through downstream stages until a human PR reviewer reads the resulting code. There is no automated downstream validation — that's an accepted limitation, not an oversight.
+The plan itself is mode-agnostic — interactive and headless modes produce structurally identical plan docs. No `authoring_mode` frontmatter, no `## Assumptions` section, no italic capture-context note. If a downstream pipeline needs to know whether human scope-confirmation occurred, that is the pipeline's concern at orchestration time, not the doc's concern.
+
+Pipeline risk note (for orchestrator design, not for embedding in the doc): a headless plan has not been through human scope-confirmation. Downstream stages flow forward on the agent's interpretation alone. If un-reviewed scope is unacceptable for a given pipeline, the orchestrator should add a review gate or route to a reviewer — not mark up the doc.
 
 ---
 
@@ -149,37 +171,26 @@ In either case: stop ce-plan, suggest the alternative skill, offer to load it in
 
 ---
 
-## Embedding the confirmed synthesis in the plan doc
+## Doc shape after confirmation
 
-After user confirmation (or after the soft-cut decision proceeds), the plan-write step (Phase 5.2) writes the synthesis as the first section of the plan doc. The synthesis section title is `## Synthesis`, with the prose summary at the top followed by three subsections matching the buckets:
+After user confirmation (or after the soft-cut decision proceeds), Phase 5.2 writes the plan doc. The three-bucket structure does NOT carry into the plan as a `## Synthesis` section. Only the prose summary embeds, replacing the existing `## Overview` slot in the plan template (renamed to `## Summary` for terminology consistency). Bucket content dissolves into the plan's body sections:
 
-```markdown
-## Synthesis
+| Chat-time element | Where it goes in the plan |
+|---|---|
+| Prose summary | `## Summary` (1-3 lines, forward-looking) — solo variant: scope being targeted; brainstorm-sourced: implementation approach |
+| Stated bullets | `## Requirements` (R-IDs) and where relevant `## Problem Frame` for narrative context |
+| Inferred bullets | `## Key Decisions` (with rationale) and Implementation Units when the bet drives a structural choice |
+| Out-of-scope bullets | `## Scope Boundaries` — including the `### Deferred to Follow-Up Work` subsection when relevant |
 
-*Captured at [Phase 0.7 / Phase 5.1.5] — agent's interpretation of [scope / plan-time decisions] before plan-write, confirmed by the user. Recorded for audit; downstream consumers (e.g., ce-work) treat this as a record/summary, not as additional content to carry forward.*
+No italic capture-context note (e.g., "Captured at Phase 0.7..."). It would leak engineering process into an artifact whose readers do not need that signal.
 
-[1-3 line prose summary in plain language — solo: scope being targeted; brainstorm-sourced: implementation approach. Required for Standard / Deep. Omit for Lightweight when bullets are the summary.]
-
-### Stated
-
-- [item]
-
-### Inferred
-
-- [item]
-
-### Out of scope
-
-- [item]
-```
-
-In headless mode, the `### Inferred` subsection is omitted (the prose summary stays — it summarizes what's in the plan, not the un-validated agent inferences). The framing italic line above identifies the section's role so downstream tooling treats it correctly.
+The plan's `## Summary` and `## Problem Frame` must serve distinct purposes: Summary answers "what is this plan proposing?" (forward-looking, 1-3 lines); Problem Frame answers "why does this proposal exist?" (backward-looking, paragraphs). Don't restate the proposal in Problem Frame; don't pad Summary with situational context.
 
 ---
 
 ## What does NOT belong in the synthesis
 
-- Implementation code (no imports, exact method signatures, framework-specific syntax)
+- Implementation code (no imports, exact method signatures, framework-specific syntax, JSON shapes, exact error message wording)
 - Re-statement of the entire brainstorm doc — the synthesis is plan-perspective, not a copy
 - Defensive what-ifs and hedges — if a concern is real, state it as Inferred or Out; if speculation, drop it
-- Multiple synthesis sections per doc — exactly one `## Synthesis` section, at the top
+- Open questions surfaced outside the three buckets — by synthesis time, every scope-shaping question must be in **Stated** (asked and answered earlier), **Inferred** (agent's bet for correction), or **Out** (deliberately excluded). There is no fourth status. If a question genuinely cannot be defaulted, pause synthesis and resolve it before presenting — pick the question shape that matches: a blocking multiple-choice tool when options are bounded and meaningfully distinct, prose when option sets would bias the answer per Interaction Rule 5(a). Integrate the answer, then present synthesis. Never present synthesis with adjacent floating questions — that gives the user no clear resolution path

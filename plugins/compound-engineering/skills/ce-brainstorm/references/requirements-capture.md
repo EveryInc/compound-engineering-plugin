@@ -12,7 +12,7 @@ The requirements document is for product definition and scope control. Do **not*
 
 | Section | Lightweight | Standard / Deep-feature | Deep-product |
 |---|---|---|---|
-| Synthesis | Required (Stated + Out; Inferred when present) | Required (all three buckets) | Required (all three buckets) |
+| Summary | Optional (skip when bullets are the summary) | Required (1-3 line prose) | Required (1-3 line prose) |
 | Problem Frame | Required | Required | Required |
 | Actors | Omit unless triggered | Triggered (see below) | Triggered (see below) |
 | Key Flows | Omit unless triggered | Triggered (see below) | Expected by default |
@@ -23,7 +23,21 @@ The requirements document is for product definition and scope control. Do **not*
 | Key Decisions | Include when material | Include when material | Include when material |
 | Dependencies / Assumptions | Include when material | Include when material | Include when material |
 | Outstanding Questions | Include when material | Include when material | Include when material |
-| Next Steps | Required | Required | Required |
+
+## Summary vs Problem Frame discipline
+
+Both sections describe the work, but from different angles. They earn separate sections only when each holds to its own purpose:
+
+| Section | Question it answers | Time direction | Length |
+|---|---|---|---|
+| `## Summary` | What is this doc proposing? | Forward-looking | 1-3 lines |
+| `## Problem Frame` | Why does this proposal exist? | Backward-looking / situational | Paragraphs |
+
+Disciplines:
+- **Summary doesn't need problem context.** A reader scanning Summary gets the proposal at a glance without first reading why. The Problem Frame is the next stop if they need motivation.
+- **Problem Frame doesn't restate the proposal.** It establishes the situation, the specific moment of pain, and the cost shape — then stops. The remedy lives in Summary; restating it in Problem Frame is the duplication that makes the two sections feel redundant.
+
+If the doc tier omits Summary (Lightweight where bullets are the summary), Problem Frame may absorb the situational + remedy framing in a tighter form. At Standard / Deep tiers both sections are present and must follow the discipline above.
 
 ## Triggered sections — when to include
 
@@ -45,31 +59,15 @@ topic: <kebab-case-topic>
 
 # <Topic Title>
 
-## Synthesis
+## Summary
 
-*Captured at Phase 2.5 — agent's interpretation of scope before doc-write, confirmed by the user (or auto-embedded in headless mode without the Inferred bucket). Recorded for audit (which inferences shaped the doc), not as a separate requirements source. Downstream consumers (e.g., ce-plan Phase 0.3) treat this as a record/summary, not as additional content to carry forward.*
-
-[1-3 line prose summary in plain language — what's being proposed for the requirements doc. Required for Standard / Deep-feature / Deep-product tiers. Omit for Lightweight when bullets are the summary.]
-
-### Stated
-
-- [What the user said directly in prompt, prior conversation, or dialogue]
-
-### Inferred
-
-[Omit this subsection in headless mode. When present, list assumptions the agent made to fill gaps — scope boundaries the user never explicitly named, success criteria extrapolated from intent. Items here are agent bets the user can correct.]
-
-- [Inferred item]
-
-### Out of scope
-
-- [Deliberately excluded item — adjacent work, refactors, nice-to-haves]
+[1-3 line prose summary — what is being proposed, in plain language. Forward-looking (what *will* be in the doc), not retrospective. Required for Standard / Deep-feature / Deep-product. Skip for Lightweight when the Requirements bullets ARE the summary.]
 
 ---
 
 ## Problem Frame
 
-[Who is affected, what is changing, and why it matters.]
+[Who is affected, what is changing, and why it matters. Backward-looking / situational. Establishes the pain that motivates the work — does NOT restate the proposal (that lives in Summary).]
 
 ---
 
@@ -164,13 +162,6 @@ topic: <kebab-case-topic>
 
 - [Affects R2][Technical] [Question answered during planning or codebase exploration]
 - [Affects R2][Needs research] [Question likely requiring research during planning]
-
----
-
-## Next Steps
-
-[If `Resolve Before Planning` is empty: `-> /ce-plan` for structured implementation planning]
-[If `Resolve Before Planning` is not empty: `-> Resume /ce-brainstorm` to resolve blocking questions before planning]
 ```
 
 ## ID and layout rules

@@ -167,19 +167,11 @@ If depth is unclear, ask one targeted question and then continue.
 
 #### 0.7 Solo-Mode Scope Summary
 
-Fires **only in solo invocation** — when Phase 0.2 found no upstream brainstorm doc AND Phase 0.4 stayed in ce-plan (did not route to ce-debug, ce-work, or universal-planning) AND Phase 0.5 cleared (no unresolved blockers) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Each guard is an explicit conditional. Skip Phase 0.7 entirely when any guard fails — brainstorm-sourced invocations defer to Phase 5.1.5 instead.
+**STOP. Before composing the synthesis, read `references/synthesis-summary.md`.** The discipline rules, prose-summary requirement, three-bucket structure, anti-pattern guidance, soft-cut behavior, self-redirect support, content focus for the solo variant, and bucket-content routing into plan body sections all live there. Composing a synthesis without these rules loaded reliably produces malformed output — missing prose summary, implementation-detail leakage, the proposal-pitch anti-pattern. This is not optional supplementary reading; it is the source of truth for how the phase behaves.
 
-Surface a synthesis to the user — the agent's interpretation of scope after the brief Phase 0.4 bootstrap, structured as **Stated** / **Inferred** / **Out of scope**. The "Inferred" list is especially load-bearing here: Phase 0.4 is brief by design ("ask one or two clarifying questions"), so the agent has made substantial inferences. Surfacing them lets the user catch scope misinterpretation **before Phase 1 research is spent** — sub-agent dispatch (repo-research-analyst, learnings-researcher, etc.) is the expensive next step.
+Surface a synthesis to the user — the agent's interpretation of scope after the brief Phase 0.4 bootstrap — so scope can be corrected **before Phase 1 research is spent**. Sub-agent dispatch (repo-research-analyst, learnings-researcher, etc.) is the expensive next step this phase guards against wasted effort on.
 
-**Headless mode** — when invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the user prompt and embed the synthesis directly as the first section of the plan doc, with the **Inferred list omitted** (Stated and Out are kept). Pipelines consume the doc without human review; un-validated agent inferences must not propagate as authoritative content.
-
-**Open prose feedback (not `AskUserQuestion`)** — per Interaction Rule 5(a) (see ce-brainstorm SKILL.md), option sets would leak the agent's framing of which corrections are valid and bias the user's response. Use a prose prompt that invites scanning ("look at the Inferred list — Phase 0.4 makes a lot of these; did I assume anything wrong?") and accept free-text rebuttal.
-
-**Soft-cut on circularity (not iteration count)** — track which items the user touched per round. The soft-cut fires only when the same item is revised twice; new-item revisions across rounds proceed without limit.
-
-**Self-redirect support** — if the user response indicates the wrong skill (e.g., "this is bigger than I thought — let me brainstorm first," "this is just a fix, no plan needed," or "I need to investigate first"), stop ce-plan, suggest the alternative skill (`/ce-brainstorm`, `/ce-work`, `/ce-debug`), and offer to load it in-session.
-
-Read `references/synthesis-summary.md` for the prompt template (solo variant), three-bucket structure rules, soft-cut blocking-question shape, and embedding format. The confirmed synthesis becomes the `## Synthesis` first section of the plan doc when Phase 5.2 writes the file.
+Fires **only in solo invocation** — when Phase 0.2 found no upstream brainstorm doc AND Phase 0.4 stayed in ce-plan (did not route to ce-debug, ce-work, or universal-planning) AND Phase 0.5 cleared (no unresolved blockers) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Each guard is an explicit conditional. Skip Phase 0.7 entirely when any guard fails — brainstorm-sourced invocations defer to Phase 5.1.5 instead. **Headless mode**: skip Phase 0.7 entirely (no user to confirm to); the agent proceeds directly through Phase 1 research. The plan is mode-agnostic.
 
 ### Phase 1: Gather Context
 
@@ -489,27 +481,26 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 
 # [Plan Title]
 
-## Overview
+## Summary
 
-[What is changing and why]
+[1-3 line prose summary — what the plan is proposing, in plain language. Forward-looking. With an origin requirements doc, focus on HOW the implementation approaches the work (the WHAT is in origin); without one, carry both WHAT scope and HOW execution. Required for Standard / Deep tiers; Lightweight may omit when Requirements bullets are the summary.]
 
 ---
 
 ## Problem Frame
 
-[Summarize the user/business problem and context. Reference the origin doc when present.]
+[Backward-looking / situational: the user/business problem and context that motivates this plan. Establishes the pain — does NOT restate the proposal (that lives in Summary). With an origin requirements doc, keep this brief (1-2 sentences plus any plan-specific framing) and link to origin via Sources & References. Without one, carry the full pain narrative.]
 
 ---
 
-## Requirements Trace
+## Requirements
 
 - R1. [Requirement or success criterion this plan must satisfy]
 - R2. [Requirement or success criterion this plan must satisfy]
 
-<!-- Origin trace sub-blocks: include only when the upstream requirements doc supplies the
-     corresponding section. Each sub-block is independent — include only the ones that apply.
-     Omit cleanly (no header, no empty line) when no origin doc exists or the origin had no
-     Actors / Key Flows / Acceptance Examples sections. -->
+<!-- With an origin requirements doc, R-IDs trace to origin's; without one, R-IDs are derived
+     during planning. The optional origin trace sub-blocks below carry forward what's relevant
+     when origin actors/flows/acceptance examples exist. -->
 
 **Origin actors:** [A1 (role/name), A2 (role/name), …]
 **Origin flows:** [F1 (flow name), F2 (flow name), …]
@@ -580,9 +571,15 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 
 - [Decision]: [Rationale]
 
+<!-- With an origin requirements doc, scope this section to plan-time architectural choices —
+     product-level decisions are in origin's Key Decisions. Without an origin, both belong here. -->
+
 ---
 
 ## Open Questions
+
+<!-- With an origin requirements doc, scope this section to plan-time questions; product-level
+     open questions stay in origin's Outstanding Questions. -->
 
 ### Resolved During Planning
 
@@ -753,7 +750,7 @@ For larger `Deep` plans, extend the core template only when useful with sections
 
 #### 4.4 Visual Communication in Plan Documents
 
-When the plan contains 4+ implementation units with non-linear dependencies, 3+ interacting surfaces in System-Wide Impact, 3+ behavioral modes/variants in Overview or Problem Frame, or 3+ interacting decisions in Key Technical Decisions or alternatives in Alternative Approaches, read `references/visual-communication.md` for diagram and table guidance. This covers plan-structure visuals (dependency graphs, interaction diagrams, comparison tables) — not solution-design diagrams, which are covered in Section 3.4.
+When the plan contains 4+ implementation units with non-linear dependencies, 3+ interacting surfaces in System-Wide Impact, 3+ behavioral modes/variants in Summary or Problem Frame, or 3+ interacting decisions in Key Technical Decisions or alternatives in Alternative Approaches, read `references/visual-communication.md` for diagram and table guidance. This covers plan-structure visuals (dependency graphs, interaction diagrams, comparison tables) — not solution-design diagrams, which are covered in Section 3.4.
 
 ### Phase 5: Final Review, Write File, and Handoff
 
@@ -781,30 +778,16 @@ If the plan originated from a requirements document, re-read that document and v
 - Scope boundaries and success criteria are preserved
 - Blocking questions were either resolved, explicitly assumed, or sent back to `ce-brainstorm`
 - Every section of the origin document is addressed in the plan — scan each section to confirm nothing was silently dropped
-- If origin supplies A/F/AE IDs: every origin R/F/AE that *affects implementation* is referenced in Requirements Trace, a U-ID unit, test scenarios, verification, scope boundaries, or explicitly deferred. Actors are carried forward when they affect behavior, permissions, UX, orchestration, handoff, or verification. The standard is preservation of product intent, not mandatory ID spam — irrelevant origin IDs may be omitted
+- If origin supplies A/F/AE IDs: every origin R/F/AE that *affects implementation* is referenced in Requirements, a U-ID unit, test scenarios, verification, scope boundaries, or explicitly deferred. Actors are carried forward when they affect behavior, permissions, UX, orchestration, handoff, or verification. The standard is preservation of product intent, not mandatory ID spam — irrelevant origin IDs may be omitted
 - If origin was Deep-product (origin contains an `Outside this product's identity` subsection): the plan's Scope Boundaries preserves the three-way split — `Deferred for later` and `Outside this product's identity` carried verbatim from origin, `Deferred to Follow-Up Work` reserved for plan-local implementation sequencing
 
 #### 5.1.5 Brainstorm-Sourced Scope Summary
 
-Fires **only when the plan was sourced from an upstream brainstorm doc** (Phase 0.2 found a `*-requirements.md` match) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Skip Phase 5.1.5 in solo invocation — solo plans handled their synthesis in Phase 0.7.
+**STOP. Before composing the synthesis, read `references/synthesis-summary.md`.** The discipline rules, prose-summary requirement, three-bucket structure, anti-pattern guidance, soft-cut behavior, self-redirect support, content focus for the brainstorm-sourced variant, doc-body reading rules, and bucket-content routing into plan body sections all live there. Composing a synthesis without these rules loaded reliably produces malformed output — missing prose summary, implementation-detail leakage, the proposal-pitch anti-pattern. This is not optional supplementary reading; it is the source of truth for how the phase behaves.
 
-Surface the agent's plan-time decisions to the user as a synthesis (Stated / Inferred / Out-of-scope). The brainstorm + R1 synthesis already validated WHAT to build; Phase 5.1.5 surfaces HOW the plan will execute that work — decisions the brainstorm didn't make and that emerge during research and structuring (Phases 1-4).
+Surface the agent's plan-time decisions to the user before Phase 5.2 commits the plan to disk — the latest cheap moment to catch plan-time scope errors. The brainstorm already validated WHAT to build; this phase surfaces HOW the plan will execute.
 
-**Content focus is plan-time**: which files/modules to touch (and not touch), which patterns extended vs. introduced new (the agent's architectural judgment within confirmed scope), test scope (which existing-but-untested code is in/out), refactor scope (adjacent cleanup going to deferred items vs. active diff), cross-cutting impact when relevant. Brainstorm-validated WHAT is assumed and not re-stated.
-
-**Why pre-write, not pre-research**: the brainstorm + R1 synthesis already validated WHAT, so research is well-targeted. Plan-time decisions emerge during research and structuring, so pre-write catches them at the latest cheap moment — before Phase 5.2 commits the plan to disk.
-
-**Graceful fallback**: if the upstream brainstorm doc lacks an R1 `## Synthesis` section (older brainstorms, hand-written ones, or ones that pre-date this mechanism), Phase 5.1.5 still runs as normal. Its content is independent of upstream synthesis presence — plan-time decisions are derived from research and the doc's other sections.
-
-**Headless mode** — when invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the user prompt and embed the synthesis directly as the first section of the plan doc, with the **Inferred list omitted** (Stated and Out are kept).
-
-**Open prose feedback (not `AskUserQuestion`)** — per Interaction Rule 5(a). Use a prose prompt that invites scanning and accepts free-text rebuttal.
-
-**Soft-cut on circularity (not iteration count)** — track which items the user touched per round; soft-cut fires only when the same item is revised twice.
-
-**Self-redirect**: if the user response indicates the scope is materially wrong (e.g., "actually this scope is wrong, take it back to brainstorm"), suggest `/ce-brainstorm` to revise the upstream doc.
-
-Read `references/synthesis-summary.md` for the prompt template (brainstorm-sourced variant), three-bucket structure rules, soft-cut blocking-question shape, and embedding format. The confirmed synthesis becomes the `## Synthesis` first section of the plan doc when Phase 5.2 writes the file.
+Fires **only when the plan was sourced from an upstream brainstorm doc** (Phase 0.2 found a `*-requirements.md` match) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Skip Phase 5.1.5 in solo invocation — solo plans handled their synthesis in Phase 0.7. **Headless mode**: skip Phase 5.1.5 entirely (no user to confirm to); the agent proceeds directly to Phase 5.2 plan-write. The plan is mode-agnostic.
 
 #### 5.2 Write Plan File
 
