@@ -41,6 +41,40 @@ Plan-write (Phase 5.2) fires only on explicit confirm or after the soft-cut bloc
 
 ---
 
+## Granularity: name the decision; don't expand it (shared)
+
+Each Inferred bullet should be affirmable or rejectable by the user **without reading code**. Name the decision at the granularity that lets the user say "yes" or "I want X instead." Anything more specific is plan-body content — Phase 5.2's job, not synthesis's.
+
+**Allowed** (when these ARE the decisions being made):
+- File / module names — "skip filter in the matcher" when "where to put it" is the choice
+- Pattern names — "extends the existing event-skip pattern" when "extend vs. introduce" is the choice
+- Column / table names — "user-TZ" or "destination-calendar TZ" when "which source" is the choice
+- Approach posture — "DB-side query with Google-side fallback" when "which strategy" is the choice
+
+**Not allowed** (always plan-body, regardless of variant):
+- Line numbers (`route.ts:249-255`)
+- Exact method signatures, call graphs, or implementation flow ("at the top, before include/exclude evaluation, returning ...")
+- Exact JSON / response shapes (`{pause, cleanup: {eventsDeleted, eventsFailed, errors}}`)
+- HTTP status codes (`409`, `404`, `403`)
+- Exact event / activity-log / type names (`userPauseSet/userPauseEdited/...`)
+- Exact wording of error messages or UI labels
+- SQL syntax or query bodies
+
+The line is drawn slightly differently per variant. **Solo (Phase 0.7)** stays at the higher level — brainstorm's WHAT hasn't been validated yet, so file/module names are usually too specific; talk in terms of "the rule entity," not "syncRules table." **Brainstorm-sourced (Phase 5.1.5)** allows the file / module / pattern / column level when those ARE plan-time decisions, but not implementation flow specifics.
+
+### Bad-vs-good examples
+
+| Plan-body in synthesis (wrong) | Decision-level (right) |
+|---|---|
+| Timezone source: `users.timezone` (IANA), fallback to destination calendar TZ if null. Research found `useTimezoneSync` and `ProtectionStatsCalculator` establish the pattern. | Timezone source: user-TZ (reverses brainstorm's tentative lean — research found established infra and pattern precedent) |
+| Skip filter goes in `RuleMatcher.eventMatchesRule` at the top, before include/exclude evaluation, using the existing `filteredReason` mechanism. | Skip filter extends the existing event-skip pattern in the matcher (vs. introducing a new mechanism) |
+| Reactivation guard: explicit safety in `[ruleId]/route.ts` PATCH — when `isActive: false → true`, the existing handler clears `status/pausedAt/pausedReason`. | Reactivation guard: pause window state preserved through the isActive toggle's existing system-pause-clearing path |
+| Partial cleanup failure response: `{pause, cleanup: {eventsDeleted, eventsFailed, errors}}`; pause window persists regardless of cleanup outcome. | Partial cleanup failure: pause window persists; partial-failure response mirrors the existing rule-edit precedent |
+
+The test: a scanner reading an Inferred bullet should affirm or reject it without needing to read code. If they would have to look up a column name, method name, or call graph to evaluate the bullet, the granularity is wrong — that's plan-body content.
+
+---
+
 ## Solo variant (Phase 0.7)
 
 Fires only when:

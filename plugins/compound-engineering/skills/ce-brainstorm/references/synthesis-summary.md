@@ -74,6 +74,29 @@ Doc-write fires only on explicit confirm or after the soft-cut blocking question
 
 ---
 
+## Granularity: name the decision; don't expand it
+
+Each Stated and Inferred bullet should be affirmable or rejectable by the user **without reading code or looking up implementation details**. Name the decision at the scope level the user can judge — anything more specific is Phase 3 (doc-write) content.
+
+**Not allowed in synthesis bullets** (always doc-body):
+- Implementation paths, file names, method names, or class references
+- Exact JSON / schema shapes or field names
+- HTTP status codes or wire formats
+- Exact wording of error messages or UI labels
+- SQL syntax, query bodies, or specific column references
+
+### Bad-vs-good examples
+
+| Doc-body in synthesis (wrong) | Decision-level (right) |
+|---|---|
+| Manifest discovery walks `~/printing-press/manuscripts/<api-slug>/` and picks the newest run containing `*-absorb-manifest.md` under `research/` | Discovery rule: most-recent prior run for that API |
+| Recorded in `.printing-press.json` under `absorb_source_run` | Provenance: each run records which prior manifest it reused |
+| Skill prints "Reusing absorb manifest from run \<run-id\>" | Visible reuse signal in the transcript when the flag fires |
+
+The test: a scanner reading a bullet should affirm or reject it on product / scope grounds, not on architecture grounds. If they have to evaluate file paths or schema specifics, the granularity is wrong.
+
+---
+
 ## Soft-cut on circularity (not iteration count)
 
 Track which Stated/Inferred/Out items the user touched per round. The soft-cut blocking question fires **only when the same item is revised twice** (or a third-round revision targets an item already revised in round two). New-item revisions across rounds proceed without limit — revising different aspects of a wrong synthesis (e.g., user pushed back on Stated, then on Inferred) is exactly what the mechanism should support.
