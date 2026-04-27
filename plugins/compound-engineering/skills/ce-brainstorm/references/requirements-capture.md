@@ -49,6 +49,8 @@ topic: <kebab-case-topic>
 
 *Captured at Phase 2.5 — agent's interpretation of scope before doc-write, confirmed by the user (or auto-embedded in headless mode without the Inferred bucket). Recorded for audit (which inferences shaped the doc), not as a separate requirements source. Downstream consumers (e.g., ce-plan Phase 0.3) treat this as a record/summary, not as additional content to carry forward.*
 
+[1-3 line prose summary in plain language — what's being proposed for the requirements doc. Required for Standard / Deep-feature / Deep-product tiers. Omit for Lightweight when bullets are the summary.]
+
 ### Stated
 
 - [What the user said directly in prompt, prior conversation, or dialogue]

@@ -35,8 +35,14 @@ Each guard is an explicit conditional in SKILL.md, not implicit. R2 solo does NO
 
 ### Prompt template (solo)
 
+**Prose summary discipline (Standard / Deep tiers — required):** start with a 1-3 line summary in plain prose describing **what scope the plan will target**. Forward-looking (what *will* be planned), not retrospective (what's been discussed in Phase 0.4 bootstrap). The prose's job is to help the user pattern-match against intent before reading bullets — solo invocation has minimal pre-write dialogue, so the prose is especially load-bearing here. **Skip for Lightweight** when the bullets ARE the summary.
+
+**Anti-fluff guidance:** lead with the actual thing being planned in plain words. No qualifiers ("comprehensive," "thoughtful," "substantive"). No re-stating the user's prompt. If you can't say what the scope is in 1-3 lines without filler, the synthesis isn't ready yet.
+
 ```
 Based on your request and our brief Phase 0.4 bootstrap, here's the scope I'm proposing to plan against:
+
+[Standard/Deep: 1-3 line prose summary — what scope the plan will target, in plain language. Skip for Lightweight when bullets are the summary.]
 
 **Stated** (from your input and our dialogue):
 - [item]
@@ -80,8 +86,14 @@ Items to surface:
 
 ### Prompt template (brainstorm-sourced)
 
+**Prose summary discipline (Standard / Deep tiers — required):** start with a 1-3 line summary in plain prose describing **how the implementation approaches the work** at a high level — files/modules touched, patterns extended vs. introduced, scope boundaries the plan honors. Forward-looking (what *will* be in the plan), not retrospective. Brainstorm-validated WHAT is assumed; the prose summarizes HOW. **Skip for Lightweight** when the bullets ARE the summary.
+
+**Anti-fluff guidance:** lead with the actual implementation shape in plain words. No qualifiers, no re-stating the brainstorm's WHAT. If the prose just restates the brainstorm's Problem Frame, rewrite it to focus on plan-time decisions.
+
 ```
 Based on the upstream brainstorm and Phase 1 research, here's the implementation scope I'm proposing for the plan:
+
+[Standard/Deep: 1-3 line prose summary — how the implementation approaches the work (files/modules, patterns, scope honored), in plain language. Brainstorm-validated WHAT is assumed; this summarizes HOW. Skip for Lightweight when bullets are the summary.]
 
 **Stated** (from brainstorm + research findings):
 - [files/modules implicitly named in brainstorm or surfaced by repo-research]
@@ -139,12 +151,14 @@ In either case: stop ce-plan, suggest the alternative skill, offer to load it in
 
 ## Embedding the confirmed synthesis in the plan doc
 
-After user confirmation (or after the soft-cut decision proceeds), the plan-write step (Phase 5.2) writes the synthesis as the first section of the plan doc. The synthesis section title is `## Synthesis`, with three subsections matching the buckets:
+After user confirmation (or after the soft-cut decision proceeds), the plan-write step (Phase 5.2) writes the synthesis as the first section of the plan doc. The synthesis section title is `## Synthesis`, with the prose summary at the top followed by three subsections matching the buckets:
 
 ```markdown
 ## Synthesis
 
 *Captured at [Phase 0.7 / Phase 5.1.5] — agent's interpretation of [scope / plan-time decisions] before plan-write, confirmed by the user. Recorded for audit; downstream consumers (e.g., ce-work) treat this as a record/summary, not as additional content to carry forward.*
+
+[1-3 line prose summary in plain language — solo: scope being targeted; brainstorm-sourced: implementation approach. Required for Standard / Deep. Omit for Lightweight when bullets are the summary.]
 
 ### Stated
 
@@ -159,7 +173,7 @@ After user confirmation (or after the soft-cut decision proceeds), the plan-writ
 - [item]
 ```
 
-In headless mode, the `### Inferred` subsection is omitted. The framing line above identifies the section's role so downstream tooling treats it correctly.
+In headless mode, the `### Inferred` subsection is omitted (the prose summary stays — it summarizes what's in the plan, not the un-validated agent inferences). The framing italic line above identifies the section's role so downstream tooling treats it correctly.
 
 ---
 

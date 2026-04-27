@@ -26,8 +26,14 @@ The synthesis is not a section of the requirements doc yet — it's a chat outpu
 
 This is directional guidance — adjust phrasing to fit dialogue context. Open prose feedback per Interaction Rule 5(a) (option sets would leak the agent's framing of valid corrections).
 
+**Prose summary discipline (Standard, Deep-feature, Deep-product tiers — required):** start with a 1-3 line summary in plain prose describing **what's being proposed for the requirements doc** at a glance. Forward-looking (what *will* be in the doc), not retrospective (what's been discussed). The prose's job is to help the user pattern-match against intent before reading bullets — they may agree with each individual Stated bullet but disagree with the overall framing, and the prose surfaces that gist. **Skip for Lightweight** when the bullets ARE the summary (the work is small enough that prose would just restate them).
+
+**Anti-fluff guidance:** if the prose starts with "This is a substantive proposal that..." or "The synthesis addresses important concerns about...", stop and rewrite. Lead with the actual thing being proposed in plain words. No qualifiers ("comprehensive," "thoughtful," "substantive"). No re-stating dialogue context the user just lived through. If you can't say what the work is in 1-3 lines without filler, the synthesis isn't ready yet.
+
 ```
 Based on our dialogue and approach selection, here's the scope I'm proposing for the requirements doc:
+
+[Standard/Deep: 1-3 line prose summary — what's being proposed in plain language. Skip for Lightweight when bullets are the summary.]
 
 **Stated** (from your input and our dialogue):
 - [item]
@@ -86,12 +92,14 @@ This support exists because the synthesis is an honest checkpoint. If the user d
 
 ## Embedding the confirmed synthesis in the requirements doc
 
-After user confirmation (or after the soft-cut decision proceeds), Phase 3 writes the requirements doc with the synthesis as the first section. The synthesis section title is `## Synthesis`, with three subsections matching the buckets:
+After user confirmation (or after the soft-cut decision proceeds), Phase 3 writes the requirements doc with the synthesis as the first section. The synthesis section title is `## Synthesis`, with the prose summary at the top followed by three subsections matching the buckets:
 
 ```markdown
 ## Synthesis
 
 *Captured at Phase 2.5 — agent's interpretation of scope before doc-write, confirmed by the user. Recorded for audit (which inferences shaped the doc) rather than as a separate requirements source. Downstream consumers (e.g., ce-plan Phase 0.3) treat this as a record/summary, not as additional content to carry forward.*
+
+[1-3 line prose summary in plain language — what's being proposed for the requirements doc. Required for Standard / Deep-feature / Deep-product. Omit for Lightweight when bullets are the summary.]
 
 ### Stated
 
@@ -106,7 +114,7 @@ After user confirmation (or after the soft-cut decision proceeds), Phase 3 write
 - [item]
 ```
 
-In headless mode, the `### Inferred` subsection is omitted. The framing line above explicitly identifies the section's role so downstream tooling (ce-plan, ce-doc-review) treats it correctly.
+In headless mode, the `### Inferred` subsection is omitted (the prose summary stays — it summarizes what's in the doc, not the un-validated agent inferences). The framing italic line above explicitly identifies the section's role so downstream tooling (ce-plan, ce-doc-review) treats it correctly.
 
 ---
 
