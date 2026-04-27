@@ -8,5 +8,5 @@
 # work_delegate_consent: true    # true | false (default: false)
 # work_delegate_sandbox: yolo    # yolo | full-auto (default: yolo)
 # work_delegate_decision: auto   # auto | ask (default: auto)
-# work_delegate_model: gpt-5.4  # any valid codex model (default: gpt-5.4)
-# work_delegate_effort: high     # minimal | low | medium | high | xhigh (default: high)
+# work_delegate_model: gpt-5.4   # any valid codex model (omit to use ~/.codex/config.toml default)
+# work_delegate_effort: high     # minimal | low | medium | high | xhigh (omit to use ~/.codex/config.toml default)

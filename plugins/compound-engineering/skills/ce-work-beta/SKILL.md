@@ -56,16 +56,16 @@ Config keys:
 - `work_delegate_consent` -- `true` or default `false`
 - `work_delegate_sandbox` -- `yolo` (default) or `full-auto`
 - `work_delegate_decision` -- `auto` (default) or `ask`
-- `work_delegate_model` -- Codex model to use (default `gpt-5.4`). Passthrough — any valid model name accepted.
-- `work_delegate_effort` -- `minimal`, `low`, `medium`, `high` (default), or `xhigh`
+- `work_delegate_model` -- Codex model to use. Optional — when unset, defers to the user's `~/.codex/config.toml` default. Passthrough — any valid model name accepted.
+- `work_delegate_effort` -- `minimal`, `low`, `medium`, `high`, or `xhigh`. Optional — when unset, defers to the user's `~/.codex/config.toml` default.
 
 Store the resolved state for downstream consumption:
 - `delegation_active` -- boolean, whether delegation mode is on
 - `delegation_source` -- `argument` or `config` or `default` -- how delegation was resolved (used by environment guard to decide notification verbosity)
 - `sandbox_mode` -- `yolo` or `full-auto` (from config or default `yolo`)
 - `consent_granted` -- boolean (from config `work_delegate_consent`)
-- `delegate_model` -- string (from config or default `gpt-5.4`)
-- `delegate_effort` -- string (from config or default `high`)
+- `delegate_model` -- string from config, or unset (defer to Codex config)
+- `delegate_effort` -- string from config, or unset (defer to Codex config)
 
 ---
 

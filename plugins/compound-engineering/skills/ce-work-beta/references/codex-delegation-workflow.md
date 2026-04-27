@@ -231,19 +231,24 @@ else
 fi
 
 codex exec \
-  -m "<delegate_model>" \
-  -c 'model_reasoning_effort="<delegate_effort>"' \
   $SANDBOX_FLAG \
   --output-schema "<scratch-dir>/result-schema.json" \
   -o "<scratch-dir>/result-batch-<batch-num>.json" \
   - < "<scratch-dir>/prompt-batch-<batch-num>.md"
 ```
 
+**Conditional flags** — only include each line when the corresponding skill-state value is set:
+
+- If `delegate_model` is set, insert `  -m "<delegate_model>" \` as a line before `$SANDBOX_FLAG`.
+- If `delegate_effort` is set, insert `  -c 'model_reasoning_effort="<delegate_effort>"' \` as a line before `$SANDBOX_FLAG`.
+
+When either value is unset, omit its line entirely — Codex resolves the default from the user's `~/.codex/config.toml` (and ultimately the CLI's own built-in default). Do not substitute a placeholder string for unset values.
+
 Critical: `run_in_background: true` must be set as a **Bash tool parameter**, not as a shell `&` suffix. The tool parameter is what removes the timeout ceiling. A shell `&` inside a foreground Bash call still hits the 2-minute default timeout.
 
-Quoting is critical for the `-c` flag: use single quotes around the entire key=value and double quotes around the TOML string value inside. Example: `-c 'model_reasoning_effort="high"'`.
+Quoting is critical for the `-c` flag when present: use single quotes around the entire key=value and double quotes around the TOML string value inside. Example: `-c 'model_reasoning_effort="high"'`.
 
-Do not improvise CLI flags or modify this invocation template.
+Do not improvise CLI flags or modify this invocation template beyond the documented conditional insertions.
 
 **Step B — Poll (foreground, separate Bash calls):**
 
