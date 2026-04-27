@@ -35,7 +35,7 @@ Both sections describe the work, but from different angles. They earn separate s
 
 Disciplines:
 - **Summary doesn't need problem context.** A reader scanning Summary gets the proposal at a glance without first reading why. The Problem Frame is the next stop if they need motivation.
-- **Problem Frame doesn't restate the proposal.** It establishes the situation, the specific moment of pain, and the cost shape — then stops. The remedy lives in Summary; restating it in Problem Frame is the duplication that makes the two sections feel redundant.
+- **Problem Frame doesn't restate the proposal.** It establishes the situation, the specific moment of pain, and the cost shape — then stops. The remedy lives in Summary; restating it in Problem Frame is the duplication that makes the two sections feel redundant. Even a single transition sentence to the remedy at the end of Problem Frame ("A dedicated X primitive collapses both pains into a single action...") slips the proposal in and undermines the discipline. If the last paragraph of Problem Frame names what the doc is proposing, cut it — Summary above already covers it.
 
 If the doc tier omits Summary (Lightweight where bullets are the summary), Problem Frame may absorb the situational + remedy framing in a tighter form. At Standard / Deep tiers both sections are present and must follow the discipline above.
 
