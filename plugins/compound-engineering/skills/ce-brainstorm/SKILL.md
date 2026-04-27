@@ -209,6 +209,20 @@ If relevant, call out whether the choice is:
 - Extend an existing capability
 - Build something net new
 
+### Phase 2.5: Synthesis Summary
+
+Before Phase 3 writes the requirements doc, surface a synthesis to the user — the agent's interpretation of scope, structured as **Stated** / **Inferred** / **Out of scope**. This is the user's last opportunity to correct an over-interpreted or under-interpreted scope before the artifact lands. Fires for **all tiers** including Lightweight. Skip Phase 2.5 entirely on the Phase 0.1b non-software (universal-brainstorming) route.
+
+**Headless mode** — when invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the user prompt and embed the synthesis directly as the first section of the requirements doc, with the **Inferred list omitted** (Stated and Out are kept). Pipelines consume the doc without human review; un-validated agent inferences must not propagate as authoritative content.
+
+**Open prose feedback (not `AskUserQuestion`)** — per Interaction Rule 5(a), option sets would leak the agent's framing of which corrections are valid and bias the user's response. Use a prose prompt that invites scanning ("look at the Inferred list — did I assume anything wrong?") and accept free-text rebuttal. The user can correct even when the synthesis accurately reflects their stated answers — they may have changed their mind or want to surface unstated context.
+
+**Soft-cut on circularity (not iteration count)** — track which items the user touched per round. The soft-cut fires only when the same item is revised twice; new-item revisions across rounds proceed without limit.
+
+**Self-redirect support** — if the user response indicates they're in the wrong skill (e.g., "just /ce-work it"), stop ce-brainstorm, suggest the alternative, and offer to load it in-session.
+
+Read `references/synthesis-summary.md` for the prompt template, three-bucket structure rules, soft-cut blocking-question shape, and embedding format. The confirmed synthesis becomes the `## Synthesis` first section of the requirements doc when Phase 3 writes the file.
+
 ### Phase 3: Capture the Requirements
 
 Write or update a requirements document only when the conversation produced durable decisions worth preserving. Read `references/requirements-capture.md` for the document template, formatting rules, visual aid guidance, and completeness checks.

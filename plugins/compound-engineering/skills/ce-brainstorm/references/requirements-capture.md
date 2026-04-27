@@ -12,6 +12,7 @@ The requirements document is for product definition and scope control. Do **not*
 
 | Section | Lightweight | Standard / Deep-feature | Deep-product |
 |---|---|---|---|
+| Synthesis | Required (Stated + Out; Inferred when present) | Required (all three buckets) | Required (all three buckets) |
 | Problem Frame | Required | Required | Required |
 | Actors | Omit unless triggered | Triggered (see below) | Triggered (see below) |
 | Key Flows | Omit unless triggered | Triggered (see below) | Expected by default |
@@ -43,6 +44,26 @@ topic: <kebab-case-topic>
 ---
 
 # <Topic Title>
+
+## Synthesis
+
+*Captured at Phase 2.5 — agent's interpretation of scope before doc-write, confirmed by the user (or auto-embedded in headless mode without the Inferred bucket). Recorded for audit (which inferences shaped the doc), not as a separate requirements source. Downstream consumers (e.g., ce-plan Phase 0.3) treat this as a record/summary, not as additional content to carry forward.*
+
+### Stated
+
+- [What the user said directly in prompt, prior conversation, or dialogue]
+
+### Inferred
+
+[Omit this subsection in headless mode. When present, list assumptions the agent made to fill gaps — scope boundaries the user never explicitly named, success criteria extrapolated from intent. Items here are agent bets the user can correct.]
+
+- [Inferred item]
+
+### Out of scope
+
+- [Deliberately excluded item — adjacent work, refactors, nice-to-haves]
+
+---
 
 ## Problem Frame
 
