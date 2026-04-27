@@ -21,12 +21,14 @@ If `Resolve Before Planning` contains any items:
 
 In both preambles below, the "Pick a number or describe what you want." hint applies only in numbered-list mode. When using the blocking tool, omit that line and pass the remaining stem as the question.
 
+**Path format:** Use absolute paths for chat-output file references — relative paths are not auto-linked as clickable in most terminals.
+
 **Preamble when no blocking questions remain:**
 
 ```
 Brainstorm complete.
 
-Requirements doc: <path/to/requirements-doc.md>  # omit line if no doc was created
+Requirements doc: <absolute path to requirements doc>  # omit line if no doc was created
 
 What would you like to do next? (Pick a number or describe what you want.)
 ```
@@ -36,7 +38,7 @@ What would you like to do next? (Pick a number or describe what you want.)
 ```
 Brainstorm paused. Planning is blocked until the remaining questions are resolved.
 
-Requirements doc: <path/to/requirements-doc.md>  # omit line if no doc was created
+Requirements doc: <absolute path to requirements doc>  # omit line if no doc was created
 
 What would you like to do next? (Pick a number or describe what you want.)
 ```

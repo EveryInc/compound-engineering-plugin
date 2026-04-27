@@ -33,7 +33,9 @@ If artifact-backed mode was used:
 
 After document-review completes, present the options using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
-**Question:** "Plan ready at `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md`. What would you like to do next?"
+**Path format:** Use absolute paths for chat-output file references — relative paths are not auto-linked as clickable in most terminals.
+
+**Question:** "Plan ready at `<absolute path to plan>`. What would you like to do next?"
 
 **Options:**
 1. **Start `/ce-work`** (recommended) - Begin implementing this plan in the current session
