@@ -778,6 +778,28 @@ If the plan originated from a requirements document, re-read that document and v
 - If origin supplies A/F/AE IDs: every origin R/F/AE that *affects implementation* is referenced in Requirements Trace, a U-ID unit, test scenarios, verification, scope boundaries, or explicitly deferred. Actors are carried forward when they affect behavior, permissions, UX, orchestration, handoff, or verification. The standard is preservation of product intent, not mandatory ID spam — irrelevant origin IDs may be omitted
 - If origin was Deep-product (origin contains an `Outside this product's identity` subsection): the plan's Scope Boundaries preserves the three-way split — `Deferred for later` and `Outside this product's identity` carried verbatim from origin, `Deferred to Follow-Up Work` reserved for plan-local implementation sequencing
 
+#### 5.1.5 Brainstorm-Sourced Scope Summary
+
+Fires **only when the plan was sourced from an upstream brainstorm doc** (Phase 0.2 found a `*-requirements.md` match) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Skip Phase 5.1.5 in solo invocation — solo plans handled their synthesis in Phase 0.7.
+
+Surface the agent's plan-time decisions to the user as a synthesis (Stated / Inferred / Out-of-scope). The brainstorm + R1 synthesis already validated WHAT to build; Phase 5.1.5 surfaces HOW the plan will execute that work — decisions the brainstorm didn't make and that emerge during research and structuring (Phases 1-4).
+
+**Content focus is plan-time**: which files/modules to touch (and not touch), which patterns extended vs. introduced new (the agent's architectural judgment within confirmed scope), test scope (which existing-but-untested code is in/out), refactor scope (adjacent cleanup going to deferred items vs. active diff), cross-cutting impact when relevant. Brainstorm-validated WHAT is assumed and not re-stated.
+
+**Why pre-write, not pre-research**: the brainstorm + R1 synthesis already validated WHAT, so research is well-targeted. Plan-time decisions emerge during research and structuring, so pre-write catches them at the latest cheap moment — before Phase 5.2 commits the plan to disk.
+
+**Graceful fallback**: if the upstream brainstorm doc lacks an R1 `## Synthesis` section (older brainstorms, hand-written ones, or ones that pre-date this mechanism), Phase 5.1.5 still runs as normal. Its content is independent of upstream synthesis presence — plan-time decisions are derived from research and the doc's other sections.
+
+**Headless mode** — when invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the user prompt and embed the synthesis directly as the first section of the plan doc, with the **Inferred list omitted** (Stated and Out are kept).
+
+**Open prose feedback (not `AskUserQuestion`)** — per Interaction Rule 5(a). Use a prose prompt that invites scanning and accepts free-text rebuttal.
+
+**Soft-cut on circularity (not iteration count)** — track which items the user touched per round; soft-cut fires only when the same item is revised twice.
+
+**Self-redirect**: if the user response indicates the scope is materially wrong (e.g., "actually this scope is wrong, take it back to brainstorm"), suggest `/ce-brainstorm` to revise the upstream doc.
+
+Read `references/synthesis-summary.md` for the prompt template (brainstorm-sourced variant), three-bucket structure rules, soft-cut blocking-question shape, and embedding format. The confirmed synthesis becomes the `## Synthesis` first section of the plan doc when Phase 5.2 writes the file.
+
 #### 5.2 Write Plan File
 
 **REQUIRED: Write the plan file to disk before presenting any options.**
