@@ -9,6 +9,24 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.2.0...compound-engineering-v3.3.0) (2026-04-28)
+
+
+### Features
+
+* **ce-brainstorm,ce-plan:** surface agent's scope synthesis before doc-write ([#705](https://github.com/EveryInc/compound-engineering-plugin/issues/705)) ([41e7f72](https://github.com/EveryInc/compound-engineering-plugin/commit/41e7f72ab697b3aee9b4a740794daa55317f44d1))
+
+
+### Bug Fixes
+
+* **ce-code-review:** restate model override at dispatch point ([#681](https://github.com/EveryInc/compound-engineering-plugin/issues/681)) ([9751d1a](https://github.com/EveryInc/compound-engineering-plugin/commit/9751d1a30a39fcfe17a9e052d32dbc9a5deafd02))
+* **ce-compound-refresh:** check inbound links before deletion ([#713](https://github.com/EveryInc/compound-engineering-plugin/issues/713)) ([e806522](https://github.com/EveryInc/compound-engineering-plugin/commit/e806522caab45f07f7bd3f06d6b1333068c538cd))
+* **ce-doc-review:** tighten suggested_fix and why_it_matters rules ([#702](https://github.com/EveryInc/compound-engineering-plugin/issues/702)) ([dd08094](https://github.com/EveryInc/compound-engineering-plugin/commit/dd080943e0bff65416c5a3b16bcc6c3e1d26524f))
+* **ce-plan:** inline post-generation menu routing so option 1 actually starts /ce-work ([#715](https://github.com/EveryInc/compound-engineering-plugin/issues/715)) ([0c515c0](https://github.com/EveryInc/compound-engineering-plugin/commit/0c515c06fe7efc77baf29b5512a768c930d50ba0))
+* **ce-work-beta:** defer model and reasoning effort to Codex config ([#704](https://github.com/EveryInc/compound-engineering-plugin/issues/704)) ([4b5f28d](https://github.com/EveryInc/compound-engineering-plugin/commit/4b5f28da9746aae8f2c5dd715d7029d0ab2758a6))
+* **commit-push-pr:** branch from fresh remote base to prevent stale-base contamination ([#708](https://github.com/EveryInc/compound-engineering-plugin/issues/708)) ([cd2fc67](https://github.com/EveryInc/compound-engineering-plugin/commit/cd2fc67c3f2db9b98de16a10d2a1e8e11700985e))
+* **skills:** replace shell antipatterns blocked by permission check ([#711](https://github.com/EveryInc/compound-engineering-plugin/issues/711)) ([1f0a77b](https://github.com/EveryInc/compound-engineering-plugin/commit/1f0a77bcc1e4edbf1b7979ea5cd13d1e553d4662))
+
 ## [3.2.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.1.0...compound-engineering-v3.2.0) (2026-04-26)
 
 

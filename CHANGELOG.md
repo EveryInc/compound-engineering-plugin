@@ -1,5 +1,15 @@
 # Changelog
 
+## [3.3.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.2.0...cli-v3.3.0) (2026-04-28)
+
+
+### Bug Fixes
+
+* **ce-code-review:** restate model override at dispatch point ([#681](https://github.com/EveryInc/compound-engineering-plugin/issues/681)) ([9751d1a](https://github.com/EveryInc/compound-engineering-plugin/commit/9751d1a30a39fcfe17a9e052d32dbc9a5deafd02))
+* **ce-plan:** inline post-generation menu routing so option 1 actually starts /ce-work ([#715](https://github.com/EveryInc/compound-engineering-plugin/issues/715)) ([0c515c0](https://github.com/EveryInc/compound-engineering-plugin/commit/0c515c06fe7efc77baf29b5512a768c930d50ba0))
+* **ce-work-beta:** defer model and reasoning effort to Codex config ([#704](https://github.com/EveryInc/compound-engineering-plugin/issues/704)) ([4b5f28d](https://github.com/EveryInc/compound-engineering-plugin/commit/4b5f28da9746aae8f2c5dd715d7029d0ab2758a6))
+* **skills:** replace shell antipatterns blocked by permission check ([#711](https://github.com/EveryInc/compound-engineering-plugin/issues/711)) ([1f0a77b](https://github.com/EveryInc/compound-engineering-plugin/commit/1f0a77bcc1e4edbf1b7979ea5cd13d1e553d4662))
+
 ## [3.2.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.1.0...cli-v3.2.0) (2026-04-26)
 
 
