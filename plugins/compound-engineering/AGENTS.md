@@ -232,13 +232,19 @@ Why: shell-heavy exploration causes avoidable permission prompts in sub-agent wo
 
   When the logic is non-trivial, prefer extracting to a script under the skill's `scripts/` directory; the safety check then sees only `bash <quoted-path>`, which sidesteps both current and future safety-check tightenings. Tests in `tests/skill-shell-safety.test.ts` enforce all three patterns.
 
-  **Permission gate on extracted scripts:** A pre-resolution `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` form passes the safety check but still hits Claude Code's permission check at skill-load time. Pre-resolution `!` commands do *not* honor `defaultMode: bypassPermissions`, and `bash <abs-path>` rarely matches common user allow rules (most users have `Bash(bash -c:*)` at most, not `Bash(bash:*)`). The skill must declare its own permissions in frontmatter so the pre-resolution doesn't depend on user-side rules. Pin each pattern to the specific script filename, not the broad `Bash(bash *)`:
+  **Permission gate on extracted scripts — invoke from the skill body, not from `!` pre-resolution.** A pre-resolution `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` form passes the safety check but trips Claude Code's permission check at skill-load time, which does *not* honor `defaultMode: bypassPermissions`. Allow-listing via `allowed-tools` frontmatter is unreliable for this case: empirically, broad `Bash(bash *)` patterns appear to load with bypass on but narrow filename-pinned patterns like `Bash(bash *upstream-version.sh)` fail with bypass off (the docs are inconsistent on whether `*` works as an internal-token glob, and `allowed-tools` coverage of pre-resolution is undocumented). The reliable fix is to invoke the script from the skill body via the runtime Bash tool — runtime calls honor the user's normal permission settings, so users with `bypassPermissions` see no prompt and users without it get a normal one-time approval prompt that Claude Code remembers. Pattern:
 
-  ```yaml
-  allowed-tools: Bash(bash *upstream-version.sh), Bash(bash *currently-loaded-version.sh), Bash(echo *)
+  ```markdown
+  ## Step 1: Probe X
+
+  Run via the Bash tool:
+
+  \`\`\`bash
+  bash scripts/probe.sh
+  \`\`\`
   ```
 
-  The `*` wildcard works at any position and quotes are stripped before matching, so `Bash(bash *upstream-version.sh)` matches both `bash "/local/checkout/.../upstream-version.sh"` and `bash "/Users/foo/.claude/plugins/cache/.../upstream-version.sh"` without granting blanket Bash. `allowed-tools` is additive (per the official docs) — listing specific patterns does not restrict which other tools the skill can use; user permission settings still govern everything not listed. Common shell binaries that already match user allow rules (`git`, `gh`, `cat`, `command -v`) tend not to need this. The gate fires when the first token is `bash` itself (or any binary the user is unlikely to have allow-listed). If a `!` pre-resolution starts with `bash <path>`, declare a script-pinned `allowed-tools` rule alongside it.
+  Use this whenever a `!` pre-resolution would invoke `bash <path>`. Reserve pre-resolution for commands whose first token already matches common user allow rules (`git status`, `gh api`, `cat <path>`, `command -v <name>`).
 - [ ] Do not encode shell recipes for routine exploration when native tools can do the job; encode intent and preferred tool classes instead
 - [ ] For shell-only workflows (e.g., `gh`, `git`, `bundle show`, project CLIs), explicit command examples are acceptable when they are simple, task-scoped, and not chained together
 

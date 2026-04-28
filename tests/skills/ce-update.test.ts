@@ -26,35 +26,37 @@ describe("ce-update SKILL.md", () => {
     ).toBe(false)
   })
 
-  // Regression guard: the previous safety-check fix extracted pre-resolution
-  // logic into `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` invocations.
-  // That cleared the safety check but introduced a new failure: `!`
-  // pre-resolution commands have a *permission* check that does NOT honor
-  // `defaultMode: bypassPermissions`, and `bash <abs-path>` does not match
-  // common user allow rules (most users have `Bash(bash -c:*)` at most, not
-  // `Bash(bash:*)`). Without `allowed-tools` granting permission for the
-  // specific scripts, the skill fails at load time with "Shell command
-  // permission check failed". The pattern is intentionally narrow — pinned to
-  // each script filename — so a regression to broad `Bash(bash *)` is caught.
-  test("declares narrow allowed-tools patterns for each pre-resolution script", () => {
-    const frontmatter = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
-    expect(frontmatter, "ce-update/SKILL.md must have YAML frontmatter").not.toBeNull()
-    const allowedTools = frontmatter![1].match(/^allowed-tools:\s*(.+)$/m)
+  // Regression guard: a previous fix extracted pre-resolution logic into
+  // `!`bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"`` commands. That cleared
+  // Claude Code's safety check but tripped its *permission* check at
+  // skill-load time, which does NOT honor `defaultMode: bypassPermissions`.
+  // We tried allow-listing the scripts via `allowed-tools` (broad and narrow
+  // patterns); narrow patterns (`Bash(bash *<script>.sh)`) failed when
+  // bypass was off, demonstrating that internal-position globs and/or
+  // `allowed-tools` coverage of pre-resolution are not reliable. The fix
+  // moves all probes to the runtime Bash tool inside the skill body, which
+  // honors normal permission rules. Reintroducing any `!`bash <abs-path>``
+  // pre-resolution would re-break the skill — this test catches that.
+  test("does not use `!` pre-resolution to invoke bundled scripts", () => {
+    const preResolutions = SKILL_BODY.match(/!`[^`\n]*bash\s+[^`\n]*\.sh[^`\n]*`/g)
     expect(
-      allowedTools,
-      "ce-update/SKILL.md must declare `allowed-tools:` to grant Bash permission for pre-resolution scripts — `defaultMode: bypassPermissions` does not apply to `!` pre-resolution.",
-    ).not.toBeNull()
-    const tools = allowedTools![1]
+      preResolutions,
+      `ce-update/SKILL.md must not use '!\`bash <path>.sh\`' pre-resolution — it hits Claude Code's load-time permission check, which does not honor 'defaultMode: bypassPermissions'. Move probes into the skill body via runtime Bash tool calls instead. Found: ${JSON.stringify(preResolutions)}`,
+    ).toBeNull()
+  })
+
+  test("instructs the agent to invoke the three probe scripts via the Bash tool", () => {
+    // The skill must reference each script in a runtime instruction so the
+    // agent collects the values before applying decision logic. Uses bare
+    // `bash scripts/<name>.sh` form (the convention in this plugin for
+    // co-located scripts; Claude Code resolves relative paths to the skill
+    // directory at runtime).
     for (const script of ["upstream-version.sh", "currently-loaded-version.sh", "marketplace-name.sh"]) {
       expect(
-        tools.includes(`Bash(bash *${script})`),
-        `ce-update/SKILL.md allowed-tools must include 'Bash(bash *${script})' so the pre-resolution '!\`bash "\${CLAUDE_SKILL_DIR}/scripts/${script}"\`' passes the permission check without granting blanket Bash access (got: ${tools})`,
+        SKILL_BODY.includes(`bash scripts/${script}`),
+        `ce-update/SKILL.md must instruct the agent to run 'bash scripts/${script}' via the Bash tool. Without this, the skill cannot probe versions at runtime.`,
       ).toBe(true)
     }
-    expect(
-      /Bash\(bash \*\)/.test(tools),
-      `ce-update/SKILL.md allowed-tools must NOT use the broad 'Bash(bash *)' pattern — pin to each script filename instead (got: ${tools})`,
-    ).toBe(false)
   })
 })
 
@@ -67,26 +69,21 @@ describe("ce-update SKILL.md", () => {
 // last tag (the normal state between releases), and the prescribed fix
 // (`claude plugin update ...`) reinstalled the same version, looping forever.
 //
-// Rather than grep-testing the literal shell string, this suite extracts the
-// "Latest upstream version" pre-resolution command and executes it against a
-// mocked `gh` that returns distinguishable values for `gh api` vs
-// `gh release list`. The command must report the version from `plugin.json`,
-// not from release tags.
-describe("ce-update 'Latest upstream version' pre-resolution command", () => {
-  test("declares a 'Latest upstream version' pre-resolution section", () => {
-    // Fails loudly if the SKILL structure regresses (renamed section, removed
-    // pre-resolution block) so behavioral tests below can rely on it.
-    expect(SKILL_BODY).toMatch(/\*\*Latest upstream version:\*\*\s*\n!`[^`\n]+`/)
-  })
+// Rather than grep-testing the script body, this suite executes
+// `scripts/upstream-version.sh` against a mocked `gh` that returns
+// distinguishable values for `gh api` vs `gh release list`. The script must
+// report the version from `plugin.json`, not from release tags.
+describe("ce-update upstream-version.sh script", () => {
+  const UPSTREAM_SCRIPT = path.join(path.dirname(SKILL_PATH), "scripts/upstream-version.sh")
 
   test("returns the version from main's plugin.json, not any release tag", () => {
     // Chosen so a tag-based fallback would produce a clearly different value
     // than the plugin.json-based read. Either 1.0.0 or an empty/sentinel
-    // output indicates the command is reading the wrong source.
+    // output indicates the script is reading the wrong source.
     const pluginJsonVersion = "99.0.0"
     const releaseTagVersion = "1.0.0"
 
-    const stdout = runUpstreamCommand(extractUpstreamVersionCommand(SKILL_BODY), {
+    const stdout = runUpstreamScript(UPSTREAM_SCRIPT, {
       pluginJsonVersion,
       releaseTagVersion,
     })
@@ -100,27 +97,12 @@ describe("ce-update 'Latest upstream version' pre-resolution command", () => {
     // can stop rather than silently compare against an empty string — a
     // pipeline-style `|| echo` only catches last-stage failures, and jq on
     // empty input exits 0 with no output.
-    const stdout = runUpstreamCommand(extractUpstreamVersionCommand(SKILL_BODY), {
+    const stdout = runUpstreamScript(UPSTREAM_SCRIPT, {
       ghExitCode: 1,
     })
     expect(stdout).toContain("__CE_UPDATE_VERSION_FAILED__")
   })
 })
-
-/**
- * Extract the shell command between `**Latest upstream version:**` and the
- * next blank line in SKILL.md. The command sits on the next line wrapped in
- * backticks with a leading `!` (Claude Code's pre-resolution syntax).
- */
-function extractUpstreamVersionCommand(body: string): string {
-  const match = body.match(/\*\*Latest upstream version:\*\*\s*\n!`([^`\n]+)`/)
-  if (!match) {
-    throw new Error(
-      `Could not extract 'Latest upstream version' pre-resolution command from ${SKILL_PATH}`,
-    )
-  }
-  return match[1]
-}
 
 type MockOptions = {
   pluginJsonVersion?: string
@@ -129,11 +111,11 @@ type MockOptions = {
 }
 
 /**
- * Run the skill's upstream-version command with a mocked `gh` on PATH.
- * The mock emits distinct payloads for `gh api` vs `gh release list` so the
- * test can prove which source the command actually reads from.
+ * Run the upstream-version.sh script with a mocked `gh` on PATH. The mock
+ * emits distinct payloads for `gh api` vs `gh release list` so the test can
+ * prove which source the script actually reads from.
  */
-function runUpstreamCommand(command: string, options: MockOptions): string {
+function runUpstreamScript(scriptPath: string, options: MockOptions): string {
   const { pluginJsonVersion, releaseTagVersion, ghExitCode } = options
   const mockDir = mkdtempSync(path.join(tmpdir(), "ce-update-gh-"))
   try {
@@ -147,8 +129,8 @@ function runUpstreamCommand(command: string, options: MockOptions): string {
       : "[]"
 
     // Emulate gh's behaviour without requiring host `jq`: real `gh --jq` uses
-    // gojq embedded in the binary, so neither the skill nor this mock needs
-    // an external jq on PATH. When the skill asks a `--jq` filter that
+    // gojq embedded in the binary, so neither the script nor this mock needs
+    // an external jq on PATH. When the script asks a `--jq` filter that
     // extracts `.version`, we emit the pre-computed plugin.json version; when
     // it asks for `.tagName`, we emit the pre-computed release tag. Any other
     // filter is unexpected and the mock fails loudly so the test doesn't pass
@@ -172,7 +154,7 @@ case "$subcommand" in
     esac
     ;;
   release)
-    # If the skill ever falls back to release-tag lookup, this is what it gets.
+    # If the script ever falls back to release-tag lookup, this is what it gets.
     case "$jq_filter" in
       *'tagName'*) printf '%s\\n' '${releaseTagVersion ?? ""}' ;;
       '') printf '%s\\n' '${releaseJson}' ;;
@@ -186,15 +168,10 @@ esac
     writeFileSync(ghPath, ghScript)
     chmodSync(ghPath, 0o755)
 
-    // The pre-resolution command invokes a script under
-    // ${CLAUDE_SKILL_DIR}/scripts/. Point CLAUDE_SKILL_DIR at the real skill
-    // directory so the script resolves; this exercises the full script path
-    // (substitution, script lookup, and gh invocation) end-to-end.
-    return execFileSync("bash", ["-c", command], {
+    return execFileSync("bash", [scriptPath], {
       env: {
         ...process.env,
         PATH: `${mockDir}:${process.env.PATH ?? ""}`,
-        CLAUDE_SKILL_DIR: path.dirname(SKILL_PATH),
       },
       encoding: "utf8",
     }).trim()
