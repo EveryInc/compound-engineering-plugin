@@ -18,7 +18,7 @@ The requirements document is for product definition and scope control. Do **not*
 | Actors | Omit unless triggered | Triggered (see below) | Triggered (see below) |
 | Key Flows | Omit unless triggered | Triggered (see below) | Expected by default |
 | Requirements | Required | Required (with R-IDs) | Required (with R-IDs) |
-| Acceptance Examples | Omit unless triggered | Triggered (see below) | Triggered (see below) |
+| Acceptance Examples | Required for behavioral-conditional requirements ("When X, Y" / "If X, Y"); otherwise omit unless triggered | Required for behavioral-conditional requirements; otherwise triggered (see below) | Required for behavioral-conditional requirements; otherwise triggered (see below) |
 | Success Criteria | Required | Required | Required |
 | Scope Boundaries | Required (single list) | Required (single list) | Required (split into "Deferred for later" and "Outside this product's identity") |
 | Key Decisions | Include when material | Include when material | Include when material |
@@ -46,7 +46,7 @@ In the truly-trivial Lightweight case where Summary is skipped (synthesis ≤ 2 
 
 **Key Flows** — include when the work involves multi-step interaction or coordinates across existing flows. At Deep-product tier, include 2-4 primary flows by default; omit only when the product is not meaningfully flow-shaped (e.g., pure API, policy, or artifact output) and Actors, Requirements, Scope Boundaries, and Acceptance Examples already prevent downstream invention of user/agent paths. When omitting at product tier, note the reason in the doc.
 
-**Acceptance Examples** — include when a requirement's behavior is hard to pin down without a concrete scenario. Each example disambiguates one or more requirements via a `Covers: R-IDs` back-reference. Examples are definitive for what they describe but the section is not exhaustive — only include examples where the requirement alone is ambiguous.
+**Acceptance Examples** — include when a requirement's behavior is hard to pin down without a concrete scenario. **Always include AEs covering behavioral-conditional requirements** — any requirement framed as "When X, Y" or "If X, Y" — regardless of tier. Conditional framing signals state-dependent behavior, which is exactly where prose alone leaves implicit ambiguity (e.g., "When `--quiet` is set, errors continue to surface" — does that include warnings? does it include binary-side errors? AE pins it down). Each example disambiguates one or more requirements via a `Covers: R-IDs` back-reference. Non-conditional requirements may be omitted unless ambiguity surfaces in review; the section is not exhaustive.
 
 ## Template
 
