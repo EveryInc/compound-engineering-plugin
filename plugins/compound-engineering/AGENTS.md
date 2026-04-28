@@ -92,6 +92,36 @@ Important: Just because the developer's installed plugin may be out of date, it'
 
 **Proof HITL surfaces a ghost "AI collaborator" agent** (noted 2026-04-16, may change): The Proof API auto-joins any header-less `/state` read under a synthetic `ai:auto-<hash>` identity, so docs created by the `skills/proof/` HITL workflow show a phantom participant alongside `Compound Engineering`. The only way to suppress it is to set `ownerId: "agent:ai:compound-engineering"` on create — but that transfers document ownership to the agent and prevents the user from claiming it into their Proof library, so we don't use it. Treat as cosmetic noise; don't reintroduce the `ownerId` workaround. Tracked upstream: https://github.com/EveryInc/proof/issues/951.
 
+## Skill Design Principles
+
+Skills are guardrails for an intelligent agent, not a step-by-step controller for a non-intelligent one. The principles below were learned from real-world testing and should guide future skill edits.
+
+**Calibrate prescription level to the failure mode.** Three rough levels:
+
+- **Hard rules** for deterministic safety (e.g., "don't silently `cd` to another repo and write outputs there"; "headless mode skips synthesis phases entirely"). The agent's judgment must not vary here — the failure mode is bad enough that mechanical adherence is the right call.
+- **Strong guidance with examples** for judgment calls where we have a clear bias and need to teach the shape (e.g., "name the decision; don't expand it" with bad-vs-good pairs). Concrete examples teach better than abstract principles, but anchor them at the principle level so the agent can generalize beyond the listed cases.
+- **Trust** for cases where prescription would harm: how the agent does codebase exploration, how many clarifying questions to ask, when to lean on memory, how to phrase user-facing prose. Over-prescription robs the agent of intelligence and memory it has that we couldn't have anticipated at skill-design time.
+
+When in doubt, lean toward less prescription. Agents drift toward rote-feeling output when rules over-specify the path; they produce useful judgment when rules name the safety condition and let intelligence fill in the rest.
+
+**SKILL.md content caches at session start; references load on demand.** Implications:
+
+- For load-bearing rules (those that MUST fire reliably), put strong language at the top of the relevant phase in SKILL.md, not just in the reference. References can be skipped; SKILL.md is always loaded.
+- When the same rule is duplicated across SKILL.md and a reference, both must be updated together. Drift produces confusing agent behavior — the agent follows whichever copy is loaded.
+- Inline content in SKILL.md that describes what's also in a reference makes the reference feel optional ("I have enough from inline"). For references that should always load, minimize the inline alternative or keep it strictly load-instruction-only.
+
+**Split orthogonal decisions into sequential questions.** When a blocking question's options span multiple decision axes (e.g., "where to operate" plus "which skill to use"), users have to reason about both axes simultaneously and individual options end up underspecified. Sequential menus addressing one decision at a time produce clearer interaction shapes — the user resolves one axis, then sees a follow-up for the next. Location vs. skill routing, scope-tier vs. depth, and other multi-axis questions all benefit from this separation.
+
+**Process exhaust stays out of artifacts.** Engineering process metadata — "captured at Phase X.Y" notes, `## Next Steps` pointing to the next skill, mode markers in frontmatter, italic provenance lines — does not belong in user-facing docs. Doc readers want the doc; they do not need to trace which engineering phase produced which section. Keep skill state in chat (where it is interactive and can be acted on) and durable content in the artifact.
+
+**Test the spec by running it, not just by reading it.** Real-world test runs surface failure modes that desk review misses: load reliability, plugin caching across sessions, agent interpretation drift, conflation in menu shapes, edge-case interactions with the user's repo layout. When a test reveals unexpected behavior, ask three questions before tightening the spec:
+
+- Is the agent's behavior actually wrong, or is it expressing better judgment than the rule encoded?
+- Did the spec drift between SKILL.md and references such that the agent saw inconsistent rules?
+- Is this load-reliability (rule never reached) or rule-content (rule reached but produces wrong output)?
+
+The fix differs by answer. Sometimes "fix the spec" means loosening over-prescription, not adding more rules. Sometimes the right answer is "accept the variance — the agent's adaptation was correct for the case."
+
 ## Skill Compliance Checklist
 
 When adding or modifying skills, verify compliance with the skill spec:
