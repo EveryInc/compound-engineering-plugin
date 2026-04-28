@@ -9,7 +9,7 @@ This content is loaded when a synthesis-summary phase fires in ce-plan. There ar
 - **Solo variant** (Phase 0.7): fires after Phase 0.4 bootstrap and Phase 0.6 depth classification, before Phase 1 research begins. Catches scope misinterpretation before sub-agent dispatch is spent. Full breadth — problem frame, intended behavior, success criteria, in/out scope.
 - **Brainstorm-sourced variant** (Phase 5.1.5): fires after Phase 1 research, before Phase 5.2 plan-write. Focuses on plan-time decisions (which files/modules to touch, which patterns extended vs. introduced new, test scope, refactor scope). Brainstorm-validated WHAT is assumed and not re-stated.
 
-Both variants share the three-bucket structure, open prose feedback, soft-cut behavior, and the doc-shape routing. Both skip entirely in headless mode (no user to confirm to).
+Both variants share the three-bucket structure, open prose feedback, soft-cut behavior, and the doc-shape routing. In non-interactive (headless) mode, both compose the synthesis but skip the user confirmation step — Inferred bets route to a `## Assumptions` section in the plan rather than to Key Technical Decisions. See "Headless mode (shared)" below for the full routing.
 
 ---
 

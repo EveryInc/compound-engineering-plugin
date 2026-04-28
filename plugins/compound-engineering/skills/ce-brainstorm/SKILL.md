@@ -221,7 +221,7 @@ Fires for **all tiers** including Lightweight. Skip Phase 2.5 entirely on the Ph
 
 **Headless mode** (LFG / `disable-model-invocation`): the synthesis is composed but not confirmed. Inferred bets route to a `## Assumptions` section in the doc (so downstream review can scrutinize them as un-validated), not into Key Decisions. See `references/synthesis-summary.md` Headless mode for the full routing.
 
-**Announce-mode (Phase 0.2 fast path)**: on the "requirements already clear" fast path that goes straight to Phase 3, Phase 2.5 still fires but in announce-mode — emit the synthesis (Stated / Inferred / Out) for visibility, then proceed to Phase 3 without blocking for confirmation. The user can interrupt if they spot a wrong inference; absent interruption, the flow continues. Preserves visibility on clear-input cases without adding interaction cost.
+**Announce-mode (Phase 0.2 fast path)**: on the "requirements already clear" fast path, Phase 2.5 fires in announce-mode — emit the synthesis (Stated / Inferred / Out) for visibility, then **end the turn**. Do NOT call the Write tool in the same turn as the synthesis emission. On the user's next message: if it's an acknowledgment, follow-up, or any non-correcting input, proceed to Phase 3 doc-write; if it indicates a correction (push-back on an Inferred bullet, scope adjustment), revise the synthesis and emit again. Lighter than full Phase 2.5 (no `AskUserQuestion` menu, no formal confirm option) but still gives the user a real interruption window before the doc lands. ce-brainstorm sits early in the workflow; a wrong-doc has downstream consequence (feeds ce-plan, then implementation), so the turn boundary is justified even on the fast path.
 
 ### Phase 3: Capture the Requirements
 
