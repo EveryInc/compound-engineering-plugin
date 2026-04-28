@@ -232,13 +232,13 @@ Why: shell-heavy exploration causes avoidable permission prompts in sub-agent wo
 
   When the logic is non-trivial, prefer extracting to a script under the skill's `scripts/` directory; the safety check then sees only `bash <quoted-path>`, which sidesteps both current and future safety-check tightenings. Tests in `tests/skill-shell-safety.test.ts` enforce all three patterns.
 
-  **Permission gate on extracted scripts:** A pre-resolution `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` form passes the safety check but still hits Claude Code's permission check at skill-load time. Pre-resolution `!` commands do *not* honor `defaultMode: bypassPermissions`, and `bash <abs-path>` rarely matches common user allow rules (most users have `Bash(bash -c:*)` at most, not `Bash(bash:*)`). The skill must declare its own permissions in frontmatter so the pre-resolution doesn't depend on user-side rules:
+  **Permission gate on extracted scripts:** A pre-resolution `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` form passes the safety check but still hits Claude Code's permission check at skill-load time. Pre-resolution `!` commands do *not* honor `defaultMode: bypassPermissions`, and `bash <abs-path>` rarely matches common user allow rules (most users have `Bash(bash -c:*)` at most, not `Bash(bash:*)`). The skill must declare its own permissions in frontmatter so the pre-resolution doesn't depend on user-side rules. Pin each pattern to the specific script filename, not the broad `Bash(bash *)`:
 
   ```yaml
-  allowed-tools: Bash(bash *), Bash(echo *)
+  allowed-tools: Bash(bash *upstream-version.sh), Bash(bash *currently-loaded-version.sh), Bash(echo *)
   ```
 
-  Common shell binaries that already match user allow rules (`git`, `gh`, `cat`, `command -v`) tend not to need this. The gate fires when the first token is `bash` itself (or any binary the user is unlikely to have allow-listed). If a `!` pre-resolution starts with `bash <path>`, declare `allowed-tools` alongside it.
+  The `*` wildcard works at any position and quotes are stripped before matching, so `Bash(bash *upstream-version.sh)` matches both `bash "/local/checkout/.../upstream-version.sh"` and `bash "/Users/foo/.claude/plugins/cache/.../upstream-version.sh"` without granting blanket Bash. `allowed-tools` is additive (per the official docs) — listing specific patterns does not restrict which other tools the skill can use; user permission settings still govern everything not listed. Common shell binaries that already match user allow rules (`git`, `gh`, `cat`, `command -v`) tend not to need this. The gate fires when the first token is `bash` itself (or any binary the user is unlikely to have allow-listed). If a `!` pre-resolution starts with `bash <path>`, declare a script-pinned `allowed-tools` rule alongside it.
 - [ ] Do not encode shell recipes for routine exploration when native tools can do the job; encode intent and preferred tool classes instead
 - [ ] For shell-only workflows (e.g., `gh`, `git`, `bundle show`, project CLIs), explicit command examples are acceptable when they are simple, task-scoped, and not chained together
 

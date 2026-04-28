@@ -32,9 +32,11 @@ describe("ce-update SKILL.md", () => {
   // pre-resolution commands have a *permission* check that does NOT honor
   // `defaultMode: bypassPermissions`, and `bash <abs-path>` does not match
   // common user allow rules (most users have `Bash(bash -c:*)` at most, not
-  // `Bash(bash:*)`). Without `allowed-tools` declaring `Bash(bash *)`, the
-  // skill fails at load time with "Shell command permission check failed".
-  test("declares allowed-tools so pre-resolution `bash <path>` commands don't require user-side approval", () => {
+  // `Bash(bash:*)`). Without `allowed-tools` granting permission for the
+  // specific scripts, the skill fails at load time with "Shell command
+  // permission check failed". The pattern is intentionally narrow — pinned to
+  // each script filename — so a regression to broad `Bash(bash *)` is caught.
+  test("declares narrow allowed-tools patterns for each pre-resolution script", () => {
     const frontmatter = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
     expect(frontmatter, "ce-update/SKILL.md must have YAML frontmatter").not.toBeNull()
     const allowedTools = frontmatter![1].match(/^allowed-tools:\s*(.+)$/m)
@@ -42,10 +44,17 @@ describe("ce-update SKILL.md", () => {
       allowedTools,
       "ce-update/SKILL.md must declare `allowed-tools:` to grant Bash permission for pre-resolution scripts — `defaultMode: bypassPermissions` does not apply to `!` pre-resolution.",
     ).not.toBeNull()
+    const tools = allowedTools![1]
+    for (const script of ["upstream-version.sh", "currently-loaded-version.sh", "marketplace-name.sh"]) {
+      expect(
+        tools.includes(`Bash(bash *${script})`),
+        `ce-update/SKILL.md allowed-tools must include 'Bash(bash *${script})' so the pre-resolution '!\`bash "\${CLAUDE_SKILL_DIR}/scripts/${script}"\`' passes the permission check without granting blanket Bash access (got: ${tools})`,
+      ).toBe(true)
+    }
     expect(
-      /Bash(?:\b|\(bash\b)/.test(allowedTools![1]),
-      `ce-update/SKILL.md allowed-tools must include 'Bash' or 'Bash(bash *)' so '!\`bash "\${CLAUDE_SKILL_DIR}/scripts/...sh"\`' commands pass the permission check (got: ${allowedTools![1]})`,
-    ).toBe(true)
+      /Bash\(bash \*\)/.test(tools),
+      `ce-update/SKILL.md allowed-tools must NOT use the broad 'Bash(bash *)' pattern — pin to each script filename instead (got: ${tools})`,
+    ).toBe(false)
   })
 })
 
