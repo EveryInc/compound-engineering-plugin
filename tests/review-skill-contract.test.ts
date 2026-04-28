@@ -492,6 +492,7 @@ describe("ce-code-review contract", () => {
       "ce-julik-frontend-races-reviewer",
       "ce-swift-ios-reviewer",
       "ce-agent-native-reviewer",
+      "ce-codex-reviewer",
     ]
 
     for (const persona of personas) {
@@ -693,6 +694,71 @@ describe("ce-code-review contract", () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
     expect(content).toMatch(/Emit a compact Residual Actionable Work summary/)
     expect(content).toContain("Residual actionable work: none.")
+  })
+})
+
+describe("codex-reviewer contract", () => {
+  test("agent file exists with required frontmatter", async () => {
+    const content = await readRepoFile(
+      "plugins/compound-engineering/agents/ce-codex-reviewer.agent.md",
+    )
+    const { data } = parseFrontmatter(content)
+    expect(data.name).toBe("ce-codex-reviewer")
+    expect(typeof data.description).toBe("string")
+    expect(data.tools).toContain("Bash")
+  })
+
+  test("uses pre-computed diff from review context, not its own base-branch resolution", async () => {
+    const content = await readRepoFile(
+      "plugins/compound-engineering/agents/ce-codex-reviewer.agent.md",
+    )
+    // Addresses Codex P1 finding from PR #356 (March 2026): the agent must
+    // not assume the orchestrator passes a base branch. The new subagent
+    // template passes the pre-computed diff directly; the agent uses that.
+    expect(content).toContain("pre-computed diff")
+    expect(content).toMatch(/do not.*resolve.*base branch/i)
+    // Negative checks: must not call git diff / symbolic-ref / rev-parse
+    // for base-branch resolution at the top level of the agent's flow.
+    expect(content).not.toMatch(/git symbolic-ref refs\/remotes\/origin\/HEAD/)
+    expect(content).not.toMatch(/git rev-parse --verify.*main/)
+  })
+
+  test("does not suppress findings as 'already covered by other personas'", async () => {
+    const content = await readRepoFile(
+      "plugins/compound-engineering/agents/ce-codex-reviewer.agent.md",
+    )
+    // Addresses Codex P2 finding from PR #356 (March 2026): the agent runs
+    // as an independent parallel subagent and has no visibility into other
+    // reviewers' outputs. Synthesis dedupes centrally in Stage 5.
+    expect(content).toMatch(/synthesis dedupes findings centrally/i)
+    expect(content).not.toMatch(/Findings already covered by other personas/i)
+  })
+
+  test("registered in persona-catalog and SKILL.md dispatch table", async () => {
+    const catalog = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review/references/persona-catalog.md",
+    )
+    expect(catalog).toContain("`codex`")
+    expect(catalog).toContain("`ce-codex-reviewer`")
+
+    const skill = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review/SKILL.md",
+    )
+    expect(skill).toContain("`ce-codex-reviewer`")
+  })
+
+  test("environment guards run before any codex invocation", async () => {
+    const content = await readRepoFile(
+      "plugins/compound-engineering/agents/ce-codex-reviewer.agent.md",
+    )
+    // Two guards required by the design: already-inside-codex sandbox detection
+    // (CODEX_SANDBOX / CODEX_SESSION_ID) and codex CLI availability check.
+    expect(content).toContain("CODEX_SANDBOX")
+    expect(content).toContain("CODEX_SESSION_ID")
+    expect(content).toMatch(/which codex/)
+    // Both guards must fail closed with the empty-findings JSON.
+    expect(content).toContain("codex-reviewer skipped: already running inside Codex sandbox")
+    expect(content).toContain("codex-reviewer skipped: codex CLI not installed")
   })
 })
 
