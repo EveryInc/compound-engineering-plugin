@@ -231,6 +231,14 @@ Why: shell-heavy exploration causes avoidable permission prompts in sub-agent wo
   - **`$(...)` containing a double-quoted string** (e.g., `basename "$(dirname "$common")"`) is rejected as `Unhandled node type: string` (issue #709). Replace nested `$()` with parameter expansion (`${common%/.git}`), pipe to sed (`| sed -E 's|/\.git/?$||; s|.*/||'`), or extract to a script invoked as `` !`bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` ``.
 
   When the logic is non-trivial, prefer extracting to a script under the skill's `scripts/` directory; the safety check then sees only `bash <quoted-path>`, which sidesteps both current and future safety-check tightenings. Tests in `tests/skill-shell-safety.test.ts` enforce all three patterns.
+
+  **Permission gate on extracted scripts:** A pre-resolution `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` form passes the safety check but still hits Claude Code's permission check at skill-load time. Pre-resolution `!` commands do *not* honor `defaultMode: bypassPermissions`, and `bash <abs-path>` rarely matches common user allow rules (most users have `Bash(bash -c:*)` at most, not `Bash(bash:*)`). The skill must declare its own permissions in frontmatter so the pre-resolution doesn't depend on user-side rules:
+
+  ```yaml
+  allowed-tools: Bash(bash *), Bash(echo *)
+  ```
+
+  Common shell binaries that already match user allow rules (`git`, `gh`, `cat`, `command -v`) tend not to need this. The gate fires when the first token is `bash` itself (or any binary the user is unlikely to have allow-listed). If a `!` pre-resolution starts with `bash <path>`, declare `allowed-tools` alongside it.
 - [ ] Do not encode shell recipes for routine exploration when native tools can do the job; encode intent and preferred tool classes instead
 - [ ] For shell-only workflows (e.g., `gh`, `git`, `bundle show`, project CLIs), explicit command examples are acceptable when they are simple, task-scoped, and not chained together
 

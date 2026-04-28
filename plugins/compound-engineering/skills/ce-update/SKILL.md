@@ -9,6 +9,7 @@ description: |
   Code — it relies on the plugin harness cache layout.
 disable-model-invocation: true
 ce_platforms: [claude]
+allowed-tools: Bash(bash *), Bash(echo *)
 ---
 
 # Check Plugin Version

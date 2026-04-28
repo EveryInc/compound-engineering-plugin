@@ -25,6 +25,28 @@ describe("ce-update SKILL.md", () => {
       "ce-update/SKILL.md reintroduced the ${CLAUDE_PLUGIN_ROOT}/cache/... antipattern — derive the cache dir from dirname \"${CLAUDE_PLUGIN_ROOT}\" instead.",
     ).toBe(false)
   })
+
+  // Regression guard: the previous safety-check fix extracted pre-resolution
+  // logic into `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` invocations.
+  // That cleared the safety check but introduced a new failure: `!`
+  // pre-resolution commands have a *permission* check that does NOT honor
+  // `defaultMode: bypassPermissions`, and `bash <abs-path>` does not match
+  // common user allow rules (most users have `Bash(bash -c:*)` at most, not
+  // `Bash(bash:*)`). Without `allowed-tools` declaring `Bash(bash *)`, the
+  // skill fails at load time with "Shell command permission check failed".
+  test("declares allowed-tools so pre-resolution `bash <path>` commands don't require user-side approval", () => {
+    const frontmatter = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
+    expect(frontmatter, "ce-update/SKILL.md must have YAML frontmatter").not.toBeNull()
+    const allowedTools = frontmatter![1].match(/^allowed-tools:\s*(.+)$/m)
+    expect(
+      allowedTools,
+      "ce-update/SKILL.md must declare `allowed-tools:` to grant Bash permission for pre-resolution scripts — `defaultMode: bypassPermissions` does not apply to `!` pre-resolution.",
+    ).not.toBeNull()
+    expect(
+      /Bash(?:\b|\(bash\b)/.test(allowedTools![1]),
+      `ce-update/SKILL.md allowed-tools must include 'Bash' or 'Bash(bash *)' so '!\`bash "\${CLAUDE_SKILL_DIR}/scripts/...sh"\`' commands pass the permission check (got: ${allowedTools![1]})`,
+    ).toBe(true)
+  })
 })
 
 // Regression guard for https://github.com/EveryInc/compound-engineering-plugin/issues/659.
