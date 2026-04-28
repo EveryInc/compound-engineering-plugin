@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.3.0...cli-v3.3.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* **review:** queue reviewers when subagent slots fill ([#716](https://github.com/EveryInc/compound-engineering-plugin/issues/716)) ([d69a772](https://github.com/EveryInc/compound-engineering-plugin/commit/d69a772bb8682da23fa0b6a293245768e573254b))
+
 ## [3.3.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.2.0...cli-v3.3.0) (2026-04-28)
 
 

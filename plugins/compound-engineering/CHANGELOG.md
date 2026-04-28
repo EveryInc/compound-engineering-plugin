@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.3.0...compound-engineering-v3.3.1) (2026-04-28)
+
+
+### Bug Fixes
+
+* **review:** queue reviewers when subagent slots fill ([#716](https://github.com/EveryInc/compound-engineering-plugin/issues/716)) ([d69a772](https://github.com/EveryInc/compound-engineering-plugin/commit/d69a772bb8682da23fa0b6a293245768e573254b))
+
 ## [3.3.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.2.0...compound-engineering-v3.3.0) (2026-04-28)
 
 
