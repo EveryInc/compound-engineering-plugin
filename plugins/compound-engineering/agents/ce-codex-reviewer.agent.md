@@ -45,13 +45,19 @@ If the diff is empty (no changes to review), return the empty findings JSON with
 Invoke codex in non-interactive mode. Prefer the project's configured default model — do not pin `-m` or `-c reasoning` flags here so the user's `~/.codex/config.toml` settings apply.
 
 ```bash
-codex exec --sandbox read-only --skip-git-repo-check "Review the unified diff in $DIFF_FILE for correctness, security, reliability, and contract issues. Output one finding per issue in this exact format on separate lines:
+codex exec --sandbox read-only --skip-git-repo-check "Review the unified diff in $DIFF_FILE for correctness, security, reliability, and contract issues. Output one JSON object per line (NDJSON), with these fields per object:
 
-SEVERITY|FILE|LINE|TITLE|EVIDENCE
+  {\"severity\": \"P0|P1|P2|P3\", \"file\": \"path/from/diff\", \"line\": <positive integer>, \"file_level\": <true|false>, \"title\": \"short imperative sentence\", \"evidence\": \"specific code snippet that supports the finding\"}
 
-Where SEVERITY is P0/P1/P2/P3, FILE is the path from the diff, LINE is the line number (or 0 if file-level), TITLE is a short imperative sentence, EVIDENCE is the specific code snippet that supports the finding. If you find no issues, output exactly: NO_FINDINGS.
+Rules for each field:
+- severity: exactly one of \"P0\", \"P1\", \"P2\", \"P3\".
+- file: a path from the diff's Changed files list. No quoting, no expansion.
+- line: a positive integer (1 or higher). For file-level findings (no specific line), use 1 and set file_level to true.
+- file_level: true when the issue is whole-file and no specific line applies; false when the line number is precise.
+- title: a short imperative sentence describing the issue.
+- evidence: a string with the exact code snippet, quote, or line content that supports the finding. May contain any characters including pipes, JSON-escaped per JSON rules.
 
-Do not output prose. Do not summarize. Do not output anything other than the pipe-delimited lines or NO_FINDINGS."
+Output one JSON object per line. Do not wrap them in an array. Do not output prose, headers, or commentary. If you find no issues, output exactly the literal token: NO_FINDINGS"
 ```
 
 Capture stdout. Clean up the tempfile: `rm -f "$DIFF_FILE"`.
@@ -60,15 +66,15 @@ If codex exits non-zero, return the empty findings JSON with `residual_risks: ["
 
 ## Step 4: Translate codex output into findings
 
-Parse the pipe-delimited lines from codex's stdout. Skip any line that does not have exactly five `|`-separated fields. Skip the literal `NO_FINDINGS` token.
+Parse codex's stdout line-by-line as NDJSON. Skip blank lines. Skip the literal `NO_FINDINGS` token. For each remaining line, attempt to JSON-parse it; if parsing fails, skip the line (do not retry, do not infer).
 
-For each parsed line, build a finding object that conforms to the findings schema:
+For each successfully-parsed object, build a finding object that conforms to the findings schema:
 
-- **`title`**: the TITLE field from codex.
-- **`severity`**: the SEVERITY field, one of `"P0"`, `"P1"`, `"P2"`, `"P3"`. Reject anything else; if codex emitted a different vocabulary, drop the line silently.
-- **`file`**: the FILE field. Verify the path appears in the diff's `Changed files` list from `<review-context>`; drop the finding if not.
-- **`line`**: the LINE field as an integer (0 means file-level).
-- **`evidence`**: an array containing the EVIDENCE field as one element. Always wrap in an array — a bare string is a schema violation.
+- **`title`**: the `title` field from the codex output.
+- **`severity`**: the `severity` field, one of `"P0"`, `"P1"`, `"P2"`, `"P3"`. Reject anything else; if codex emitted a different vocabulary, drop the object silently.
+- **`file`**: the `file` field. Verify the path appears in the diff's `Changed files` list from `<review-context>`; drop the finding if not.
+- **`line`**: the `line` field as an integer. The findings schema requires `line >= 1`, so reject any object with `line < 1` outright. When codex set `file_level: true`, line will already be `1` per the contract above; the agent does not re-default `0` to `1` because the contract refuses `0`. The `file_level` signal is preserved in `evidence` (see below) so synthesis and downstream surfaces can distinguish "line 1 was the issue" from "this is a file-level concern."
+- **`evidence`**: an array. Always include the `evidence` string from codex as the first element. When `file_level: true`, prepend an additional element: `"file-level finding (no specific line applies)"`. The schema requires evidence to be a non-empty array of strings; never emit a bare string.
 - **`why_it_matters`**: write 2-4 sentences explaining the observable consequence of the issue, grounded in the EVIDENCE codex provided. Lead with what a user, caller, or operator experiences. If you cannot articulate a concrete consequence from the codex output, drop the finding — the schema's why_it_matters bar is non-negotiable.
 - **`autofix_class`**: default `"manual"`. Cross-model findings carry interpretive uncertainty; the orchestrator's synthesis re-classifies during the merge step.
 - **`owner`**: default `"downstream-resolver"`.

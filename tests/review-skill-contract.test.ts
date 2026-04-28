@@ -760,6 +760,46 @@ describe("codex-reviewer contract", () => {
     expect(content).toContain("codex-reviewer skipped: already running inside Codex sandbox")
     expect(content).toContain("codex-reviewer skipped: codex CLI not installed")
   })
+
+  test("uses NDJSON output contract so evidence can carry pipes safely", async () => {
+    const content = await readRepoFile(
+      "plugins/compound-engineering/agents/ce-codex-reviewer.agent.md",
+    )
+    // Addresses Codex P2 finding on commit a8a5ed2 (April 2026): pipe-delimited
+    // output dropped any row that wasn't exactly five `|`-separated fields,
+    // so EVIDENCE containing a literal `|` (bitwise OR, shell pipes, markdown
+    // tables) silently lost real findings. NDJSON is robust to embedded pipes.
+    expect(content).toContain("NDJSON")
+    expect(content).toMatch(/JSON-?parse/i)
+    // Pipe-delimited contract must be gone from the agent's prose.
+    expect(content).not.toMatch(/SEVERITY\|FILE\|LINE\|TITLE\|EVIDENCE/)
+    expect(content).not.toMatch(/exactly five `\|`-separated fields/)
+  })
+
+  test("emits schema-valid line numbers for file-level findings", async () => {
+    const content = await readRepoFile(
+      "plugins/compound-engineering/agents/ce-codex-reviewer.agent.md",
+    )
+    // Addresses Codex P1 finding on commit a8a5ed2 (April 2026): the findings
+    // schema requires line >= 1, so emitting line=0 for file-level findings
+    // would silently drop them at the merge validator. Contract says: line=1
+    // with file_level=true, evidence array prepends the file-level annotation.
+    expect(content).toContain("file_level")
+    expect(content).toMatch(/positive integer/i)
+    expect(content).toMatch(/file-level finding \(no specific line applies\)/)
+    // Negative check: the old "0 means file-level" wording must be gone.
+    expect(content).not.toMatch(/0 means file-level/)
+    expect(content).not.toMatch(/or 0 if file-level/)
+
+    // Also assert the schema constraint is what we think it is — if upstream
+    // ever loosens line to allow 0, this test should be updated to match.
+    const schemaJson = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review/references/findings-schema.json",
+    )
+    const schema = JSON.parse(schemaJson)
+    const lineMin = schema.properties?.findings?.items?.properties?.line?.minimum
+    expect(lineMin).toBe(1)
+  })
 })
 
 describe("testing-reviewer contract", () => {
