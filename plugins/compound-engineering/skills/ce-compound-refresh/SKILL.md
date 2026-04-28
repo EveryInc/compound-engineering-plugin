@@ -352,7 +352,7 @@ Do not search mechanically for keywords from the old learning. Instead, understa
 
 ### Before deleting: check for inbound links
 
-A doc that other files cite is load-bearing in a way the doc itself does not announce. Before classifying as Delete, search the repo for citations of the file across `docs/`, `plugins/`, and project instruction files (`AGENTS.md`, `CLAUDE.md`, `README.md`).
+A doc that other files cite is load-bearing in a way the doc itself does not announce. Before classifying as Delete, search the repo for citations of the file. The filename slug is usually unique enough that one repo-wide query covers it.
 
 Search efficiently:
 
@@ -549,7 +549,7 @@ Do not let replacement subagents invent frontmatter fields, enum values, or sect
 
 Delete only when a learning is clearly obsolete, redundant (with no unique content to merge), or its problem domain is gone. Do not delete a document just because it is old — age alone is not a signal.
 
-Before unlinking the file, run a final inbound-link check to catch any references missed during Phase 1 investigation. Search for the doc's filename slug across `docs/`, `plugins/`, and project instruction files. Prefer the platform's native content-search tool (e.g., Grep in Claude Code) for efficiency; use ranged or context-line reads around matches rather than loading whole files.
+Before unlinking the file, run a final repo-wide inbound-link check to catch any references missed during Phase 1 investigation. Prefer the platform's native content-search tool (e.g., Grep in Claude Code) for efficiency; use ranged or context-line reads around matches rather than loading whole files.
 
 Each match is a citation that will dangle after delete. Cleanup is mechanical — Phase 2 already classified the citations and confirmed Delete was right. Don't re-litigate.
 
