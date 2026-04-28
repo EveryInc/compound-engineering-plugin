@@ -521,6 +521,10 @@ describe("ce-doc-review contract", () => {
     expect(content).toContain("AskUserQuestion")
     expect(content).toContain("ToolSearch")
     expect(content).toContain("numbered-list fallback")
+    expect(content).toContain("bounded parallelism")
+    expect(content).toContain("active-subagent limit")
+    expect(content).toContain("spawn errors as backpressure, not reviewer failure")
+    expect(content).toContain("queue the remainder")
 
     // Decision primer variable in the dispatch table
     expect(content).toContain("{decision_primer}")

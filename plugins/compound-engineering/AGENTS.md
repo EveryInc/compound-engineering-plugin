@@ -198,7 +198,7 @@ Design rules for blocking question menus (`AskUserQuestion` / `request_user_inpu
 ### Cross-Platform Sub-Agent Dispatch
 
 - [ ] When a skill dispatches sub-agents, instruct use of the platform's subagent primitive and name the known equivalents (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex, `subagent` in Pi via the `pi-subagents` extension)
-- [ ] Prefer parallel execution but include a sequential fallback for platforms that do not support parallel dispatch
+- [ ] Prefer bounded parallel execution: respect platform active-subagent limits, queue overflow work, and treat limit-related spawn errors as backpressure. Include a sequential fallback for platforms that do not support parallel dispatch
 - [ ] Prefer sub-agents shipped with this plugin (`ce-*`) over platform built-ins. Built-ins have different names on each target (e.g., Claude Code's `Explore` is `explorer` on Codex via `spawn_agent`'s `agent_type`, `scout` on Pi via `pi-subagents`) — using our own avoids the enumeration tax. Exception: when a built-in offers a meaningful benefit worth keeping, enumerate the per-platform equivalents inline at the call site so the model can route correctly on each target.
 
 ### Script Path References in Skills

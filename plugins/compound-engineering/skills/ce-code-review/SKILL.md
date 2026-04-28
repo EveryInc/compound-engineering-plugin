@@ -425,7 +425,9 @@ Omit the `mode` parameter when dispatching sub-agents so the user's configured p
 
 **Model override at dispatch time.** Pass the platform's mid-tier model on every dispatch except `ce-correctness-reviewer`, `ce-security-reviewer`, and `ce-adversarial-reviewer`, which inherit the session model (per the Model tiering subsection above). In Claude Code, add `model: "sonnet"` to the `Agent` tool call. In Codex, pass the equivalent mid-tier on `spawn_agent` (e.g., `gpt-5.4-mini` as of April 2026). In Pi, pass the equivalent on `subagent` via the `pi-subagents` extension. On platforms where the dispatch primitive has no model-override parameter or the available model names are unknown, omit the override — a working review on the parent model beats a broken dispatch on an unrecognized name. Check this on every Agent / `spawn_agent` / `subagent` call in the parallel dispatch; omitting it on Opus sessions silently 3-4x's the cost of a review.
 
-Spawn each selected persona reviewer as a parallel sub-agent using the subagent template included below. Each persona sub-agent receives:
+**Bounded parallel dispatch.** Respect the current harness's active-subagent limit. Queue selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure: leave the reviewer queued and retry after a slot frees. Record a reviewer as failed only after a successful dispatch times out/fails, or when dispatch fails for a non-capacity reason.
+
+Spawn each selected persona reviewer using the subagent template included below. Each persona sub-agent receives:
 
 1. Their persona file content (identity, failure modes, calibration, suppress conditions)
 2. Shared diff-scope rules from the diff-scope reference included below
@@ -465,9 +467,9 @@ Each persona sub-agent writes full JSON (all schema fields) to `/tmp/compound-en
 
 Detail-tier fields (`why_it_matters`, `evidence`) are in the artifact file only. `suggested_fix` is optional in both tiers -- included in compact returns when present so the orchestrator has fix context for auto-apply decisions. If the file write fails, the compact return still provides everything the merge needs.
 
-**CE always-on agents** (ce-agent-native-reviewer, ce-learnings-researcher) are dispatched as standard Agent calls in parallel with the persona agents. Give them the same review context bundle the personas receive: entry mode, any PR metadata gathered in Stage 1, intent summary, review base branch name when known, `BASE:` marker, file list, diff, and `UNTRACKED:` scope notes. Do not invoke them with a generic "review this" prompt. Their output is unstructured and synthesized separately in Stage 6.
+**CE always-on agents** (ce-agent-native-reviewer, ce-learnings-researcher) are dispatched as standard Agent calls through the same bounded parallel scheduler as the persona agents. Give them the same review context bundle the personas receive: entry mode, any PR metadata gathered in Stage 1, intent summary, review base branch name when known, `BASE:` marker, file list, diff, and `UNTRACKED:` scope notes. Do not invoke them with a generic "review this" prompt. Their output is unstructured and synthesized separately in Stage 6.
 
-**CE conditional agents** (ce-schema-drift-detector, ce-deployment-verification-agent) are also dispatched as standard Agent calls when applicable. Pass the same review context bundle plus the applicability reason (for example, which migration files triggered the agent). For ce-schema-drift-detector specifically, pass the resolved review base branch explicitly so it never assumes `main`. Their output is unstructured and must be preserved for Stage 6 synthesis just like the CE always-on agents.
+**CE conditional agents** (ce-schema-drift-detector, ce-deployment-verification-agent) are also dispatched as standard Agent calls through the same bounded parallel scheduler when applicable. Pass the same review context bundle plus the applicability reason (for example, which migration files triggered the agent). For ce-schema-drift-detector specifically, pass the resolved review base branch explicitly so it never assumes `main`. Their output is unstructured and must be preserved for Stage 6 synthesis just like the CE always-on agents.
 
 ### Stage 5: Merge findings
 
@@ -554,7 +556,7 @@ When Stage 5b does not run, the merged finding set from Stage 5 flows through to
    - **headless/autofix:** All survivors of Stage 5.
    - **interactive File-tickets (option C):** All pending findings regardless of recommended action. Option C externalizes every finding as a ticket, so every finding needs validation.
 2. **Apply dispatch budget cap.** If the selected set exceeds 15 findings, validate the highest-severity 15 (P0 first, then P1, then P2, then P3, breaking ties by anchor descending). Drop the remainder and record the over-budget count for the Coverage section. The blunt drop is intentional; a review producing 15+ surviving findings is already in territory where a second wave would not change the user's triage approach.
-3. **Spawn validators in parallel.** One sub-agent per finding, dispatched concurrently using the validator template. Each validator receives:
+3. **Spawn validators with bounded parallelism.** One sub-agent per finding, dispatched independently using the validator template and the same bounded scheduler from Stage 4. Each validator receives:
    - The finding's title, severity, file, line, suggested_fix, original reviewer name, and confidence anchor
    - `why_it_matters` when available — loaded from the per-agent artifact file at `/tmp/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`; omit when the file is absent or the artifact write failed. The validator proceeds without it, using the diff and cited code directly.
    - The full diff
@@ -566,7 +568,7 @@ When Stage 5b does not run, the merged finding set from Stage 5 flows through to
 5. **Use mid-tier model for validators.** Same model class (sonnet) the persona reviewers use. Validators are read-only — same constraints as persona reviewers. They may use non-mutating inspection commands (Read, Grep, Glob, git blame, gh).
 6. **Record metrics for Coverage.** Total dispatched, validated true count, validated false count (with reasons), failures, and over-budget drops.
 
-**Why per-finding parallel dispatch (not batched):** Independence is the point. A single batched validator looking at all findings together pattern-matches across them and recreates the persona-bias problem. Per-finding parallel dispatch preserves fresh context per call. Per-file batching is a plausible future optimization for reviews with many findings clustered in few files; not implemented today.
+**Why per-finding bounded dispatch (not batched):** Independence is the point. A single batched validator looking at all findings together pattern-matches across them and recreates the persona-bias problem. Per-finding dispatch preserves fresh context while the scheduler respects harness limits. Per-file batching is a plausible future optimization for reviews with many findings clustered in few files; not implemented today.
 
 ### Stage 6: Synthesize and present
 
@@ -851,7 +853,7 @@ If "Push fixes": push the branch with `git push` to update the existing PR.
 
 ## Fallback
 
-If the platform doesn't support parallel sub-agents, run reviewers sequentially. Everything else (stages, output format, merge pipeline) stays the same.
+If the platform doesn't support parallel sub-agents, run reviewers sequentially. If the platform supports sub-agents but caps active concurrency, use the bounded queueing rules in Stage 4 rather than treating cap-related spawn failures as reviewer failures. Everything else (stages, output format, merge pipeline) stays the same.
 
 ---
 

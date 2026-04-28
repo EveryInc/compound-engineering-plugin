@@ -301,6 +301,10 @@ describe("ce-code-review contract", () => {
     expect(spawning).toContain("Agent")
     expect(spawning).toContain("spawn_agent")
     expect(spawning).toContain("subagent")
+    expect(spawning).toMatch(/Bounded parallel dispatch/)
+    expect(spawning).toMatch(/active-subagent limit/)
+    expect(spawning).toMatch(/spawn errors as backpressure, not reviewer failure/)
+    expect(spawning).toMatch(/fill freed slots/)
     // Exceptions are restated at point of action so the agent does not have to recall them
     // from the Model tiering subsection above during a 12-agent parallel dispatch.
     expect(spawning).toContain("ce-correctness-reviewer")
@@ -354,9 +358,11 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/best-judgment-the-rest handoff \| No --/)
     expect(content).toMatch(/best-judgment path skips Stage 5b deliberately/i)
 
-    // Per-finding parallel dispatch (not batched)
-    expect(content).toMatch(/per.finding parallel dispatch/i)
+    // Per-finding bounded dispatch (not batched)
+    expect(content).toMatch(/per.finding bounded dispatch/i)
     expect(content).toMatch(/Independence is the point/i)
+    expect(content).toMatch(/same bounded scheduler from Stage 4/i)
+    expect(content).toMatch(/active-subagent limit/i)
 
     // Budget cap of 15
     expect(content).toMatch(/exceeds 15 findings/i)
