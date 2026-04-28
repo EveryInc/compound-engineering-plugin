@@ -42,7 +42,7 @@ Skill names containing colons (e.g., `ce:brainstorm`, `ce:plan`) were used direc
   errno: -20 }
 ```
 
-This affected every target (OpenCode, Codex, Copilot, Gemini, Kiro, Windsurf, Droid, OpenClaw, Pi, Qwen) because all used `skill.name` directly in `path.join()` calls.
+This affected every target (OpenCode, Codex, Copilot, Gemini, Kiro, Droid, Pi, and others present at the time) because all used `skill.name` directly in `path.join()` calls.
 
 ## What Didn't Work
 
@@ -62,9 +62,9 @@ export function sanitizePathName(name: string): string {
 }
 ```
 
-Applied across three layers:
+Applied across two layers:
 
-### Layer 1: Target writers (10 files)
+### Layer 1: Target writers
 
 Every target writer wraps skill/agent names with `sanitizePathName()` when constructing output paths:
 
@@ -76,19 +76,17 @@ await copyDir(skill.sourceDir, path.join(skillsRoot, skill.name))
 await copyDir(skill.sourceDir, path.join(skillsRoot, sanitizePathName(skill.name)))
 ```
 
-### Layer 2: Sync paths (3 files)
+Currently applied in `src/targets/{opencode,codex,gemini,kiro,pi,managed-artifacts}.ts`. (When this fix was first written, a separate `src/sync/` directory also held path-construction logic that needed the same treatment. That layer has since been consolidated into target writers.)
 
-`src/sync/skills.ts`, `src/sync/commands.ts`, and `src/sync/gemini.ts` received the same treatment. Also fixed a pre-existing bug where `syncOpenCodeCommands` used raw `path.join` instead of `resolveCommandPath` for namespaced command names.
-
-### Layer 3: Converter dedupe sets and manifests (3 files)
+### Layer 2: Converter dedupe sets and manifests
 
 Sanitizing paths in writers created a secondary bug: converter dedupe logic used unsanitized names, so a pass-through skill `ce:plan` and a generated skill normalizing to `ce-plan` wouldn't detect the collision — both would write to `skills/ce-plan/` on disk.
 
-Fixed in three converters:
+Fixed in converters that maintain dedupe sets — currently `src/converters/claude-to-copilot.ts`:
 
-- **Copilot**: `usedSkillNames.add(sanitizePathName(skill.name))` instead of raw `skill.name`
-- **Windsurf**: Same pattern for agent skill dedupe set
-- **OpenClaw**: Manifest `skills` array now uses sanitized dir names, matching what the writer creates on disk
+- `usedSkillNames.add(sanitizePathName(skill.name))` instead of raw `skill.name`
+
+Any future converter that maintains a name-collision set or emits a manifest must apply the same sanitization so the in-memory set matches the on-disk paths.
 
 ## Why This Works
 

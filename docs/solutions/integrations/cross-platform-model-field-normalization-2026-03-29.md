@@ -71,16 +71,16 @@ export function addProviderPrefix(model: string): string
 export function normalizeModelWithProvider(model: string): string
 ```
 
-Each converter now uses the appropriate shared utility:
+Each converter uses the appropriate shared utility:
 
 | Target | Behavior | Output for `model: sonnet` |
 |--------|----------|----------------------------|
 | OpenCode | Resolve alias + add provider prefix | `anthropic/claude-sonnet-4-6` |
-| Qwen | Resolve alias + add provider prefix | `anthropic/claude-sonnet-4-6` |
-| OpenClaw | Resolve alias + add provider prefix | `anthropic/claude-sonnet-4-6` |
 | Droid | Pass through as-is | `sonnet` |
 | Copilot | Drop entirely | (omitted) |
 | Codex | Drop entirely | (omitted) |
+
+> **Note:** This doc was written when the converter set also included Qwen and OpenClaw, both of which used the "Resolve alias + add provider prefix" behavior. Both have since been removed in favor of native plugin install — see `docs/solutions/integrations/native-plugin-install-strategy-2026-04-19.md`. The pattern still applies to any future multi-provider target with the `provider/model-id` format.
 
 ---
 
@@ -100,14 +100,14 @@ Each platform has fundamentally different model handling requirements:
 
 ## Target platform model field reference
 
-This reference captures research findings as of 2026-03-29.
+This reference captures research findings as of 2026-03-29. Targets marked **(removed)** below no longer have custom Bun converters — they rely on native plugin install. The research is preserved as a future reference if those targets re-enter the converter set.
 
 ### OpenCode
 - **Model format:** `provider/model-id` (e.g., `anthropic/claude-sonnet-4-6`)
 - **Provider prefixes:** `anthropic/`, `openai/`, `google/`
 - **Docs:** Agents defined in `.opencode/agents/*.md`
 
-### Qwen
+### Qwen (removed)
 - **Model format:** `provider/model-id` (e.g., `anthropic/claude-sonnet-4-6`)
 - **Multi-provider:** Yes — supports Anthropic, OpenAI, Google GenAI via `settings.json`
 - **Configuration example:** `"anthropic": [{"id": "claude-sonnet-4-20250514", "name": "Claude Sonnet 4", "envKey": "ANTHROPIC_API_KEY"}]`
@@ -126,7 +126,7 @@ This reference captures research findings as of 2026-03-29.
 - **Note:** Spec says "may be ignored on github.com" — model selection works in IDE but may not apply on the GitHub web platform
 - **Docs:** Agents defined in `.github/agents/*.agent.md`
 
-### OpenClaw
+### OpenClaw (removed)
 - **Model format:** `provider/model-id` (same as OpenCode)
 - **Docs:** Skills defined in `skills/*/SKILL.md`
 
