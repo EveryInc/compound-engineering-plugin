@@ -109,6 +109,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `ce-cli-readiness-reviewer` | CLI agent-readiness persona for ce-code-review (conditional, structured JSON) |
 | `ce-architecture-strategist` | Analyze architectural decisions and compliance |
 | `ce-code-simplicity-reviewer` | Final pass for simplicity and minimalism |
+| `ce-codex-reviewer` | Cross-model independent validation via OpenAI Codex CLI (conditional, structured JSON) |
 | `ce-correctness-reviewer` | Logic errors, edge cases, state bugs |
 | `ce-data-integrity-guardian` | Database migrations and data integrity |
 | `ce-data-migration-expert` | Validate ID mappings match production, check for swapped values |
