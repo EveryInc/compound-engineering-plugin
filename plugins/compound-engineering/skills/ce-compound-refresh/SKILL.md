@@ -80,7 +80,7 @@ For each candidate artifact, classify it into one of five outcomes:
    - the user has provided enough concrete replacement context to document the successor honestly, or
    - the codebase investigation found the current approach and can document it as the successor, or
    - newer docs, pattern docs, PRs, or issues provide strong successor evidence.
-8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow no longer exists in the codebase and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." A learning about a deleted feature misleads readers into thinking that feature still exists. When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in autofix mode). Before auto-deleting, search the repo for inbound links to the doc — prefer the platform's native content-search tool (e.g., Grep in Claude Code) over shell for efficiency and to avoid permission prompts, and search narrowly (the filename slug is usually unique enough). If references exist, clean them up in the same change, downgrade to Replace, or downgrade to stale-marking. Missing referenced code with no matching successor AND no inbound links is the unambiguous auto-delete case.
+8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow no longer exists in the codebase and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." A learning about a deleted feature misleads readers into thinking that feature still exists. When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in autofix mode). Before auto-deleting, search the repo for inbound links — prefer the platform's native content-search tool (e.g., Grep in Claude Code) over shell. Inbound links inform classification, not cleanup mechanics: removing a citation is always mechanical, but **decorative** citations (citing doc states the principle inline) allow Delete + cleanup, while **substantive** citations (citing doc relies on the cited doc to provide content) signal Replace instead. The unambiguous auto-delete case is missing code, no matching successor, and citations either absent or decorative.
 9. **Evaluate document-set design, not just accuracy.** In addition to checking whether each doc is accurate, evaluate whether it is still the right unit of knowledge. If two or more docs overlap heavily, determine whether they should remain separate, be cross-scoped more clearly, or be consolidated into one canonical document. Redundant docs are dangerous because they drift silently — two docs saying the same thing will eventually say different things.
 10. **Delete, don't archive.** There is no `_archived/` directory. When a doc is no longer useful, delete it. Git history preserves every deleted file — that is the archive. A dedicated archive directory creates problems: archived docs accumulate, pollute search results, and nobody reads them. If someone needs a deleted doc, `git log --diff-filter=D -- docs/solutions/` will find it.
 
@@ -358,25 +358,27 @@ Search efficiently:
 
 - Prefer the platform's native content-search tool (e.g., Grep in Claude Code) over shell where it fits — native tools are faster, return structured matches, and avoid permission prompts. Drop to shell when the agent judges it materially better for the case.
 - Search for the filename slug (without `.md`) — usually unique enough that one query covers the repo. If matches are noisy, narrow to the full relative path.
-- Don't read the matched files end-to-end just to evaluate citations. Use ranged reads or context lines around each match (e.g., Grep's `-B`/`-A` or context flags) to assess whether the citation is decorative or substantive.
+- Don't read the matched files end-to-end just to evaluate citations. Use ranged reads or context lines around each match (e.g., Grep's `-B`/`-A` or context flags) to assess what each citation does in its citing context.
 
-If references exist (in plans, other learnings, skills, agents, instruction files), the file cannot just be unlinked — that leaves dangling references. Choose one of:
+**Inbound links inform the classification decision, not cleanup mechanics.** Removing a citation is always mechanical: `Related learning: <doc>` becomes nothing, `(per <doc>)` parentheticals get dropped, "see <doc> for details" sentences lose that clause. The judgment is upstream — given these citations, is Delete still the right call, or is Replace closer to right?
 
-- **Delete + clean up the citers in the same change.** Best when citations are decorative (the citing doc states the principle inline and the link is supplementary). Update each reference to drop the link or paraphrase the cited content.
-- **Replace.** Keep a doc at the path but rewrite it to match the current scope. Best when the citers depend on the doc as a substantive reference.
-- **Keep with narrowed scope.** Best when the doc has wider applicability than its title implies and the citations rely on that wider applicability.
+For each match, read the citing context and ask: does the citing doc state the principle/content inline alongside the citation, or does it lean on the cited doc to provide it?
 
-In autofix mode, the presence of any inbound link downgrades Delete to stale-marking — citation cleanup is judgment work that needs a human.
+- **Decorative citations** (principle stated inline, the citation is a "see also" pointer or bare attribution): Delete is fine. Clean up the citations alongside the delete in the same commit.
+- **Substantive citations** (citing doc relies on the cited doc to provide content not stated inline — "see X for details on Y" with no inline Y): signal Delete is probably the wrong call. Classify as **Replace** and write a successor at the same path that satisfies the substantive references, or **Keep with narrowed scope** if the doc's actual content is broader than its title implies.
+- **Mixed or unclear**: stale-mark. The user can decide whether Delete or Replace fits.
 
-**Auto-delete only when the implementation AND the problem domain are gone AND no inbound links exist:**
+In autofix mode, Delete + decorative cleanup is fine — cleanup is mechanical. Any substantive citation, or any genuine ambiguity, downgrades to stale-marking — Replace requires writing a successor, which is judgment-heavy and should not happen unattended.
 
-- the referenced code is gone AND the application no longer deals with that problem domain AND no other file (under `docs/`, `plugins/`, or instruction files) references this doc
-- the learning is fully superseded by a clearly better successor AND the old doc adds no distinct value AND no inbound links remain
-- the document is plainly redundant and adds nothing the canonical doc doesn't already say AND no inbound links remain
+**Auto-delete only when the implementation AND the problem domain are gone, AND any inbound links are unambiguously decorative:**
 
-If the implementation is gone but the problem domain persists (the app still does auth, still processes payments, still handles migrations), classify as **Replace** — the problem still matters and the current approach should be documented.
+- the referenced code is gone AND the application no longer deals with that problem domain AND inbound links (if any) are decorative and removable in the same change
+- the learning is fully superseded by a clearly better successor AND the old doc adds no distinct value AND inbound links (if any) are decorative
+- the document is plainly redundant and adds nothing the canonical doc doesn't already say AND inbound links (if any) are decorative
 
-Do not keep a learning just because its general advice is "still sound" — if the specific code it references is gone and nothing cites the doc, the learning misleads readers. But do not delete a learning whose problem domain is still active or whose principles are cited from active docs — that knowledge gap should be filled with a replacement, or the citers should be updated alongside the delete.
+If the implementation is gone but the problem domain persists (the app still does auth, still processes payments, still handles migrations), or substantive citations exist, classify as **Replace** — the problem still matters and the current approach should be documented.
+
+Do not keep a learning just because its general advice is "still sound" — if the specific code it references is gone and citations (if any) are decorative, the learning misleads readers. But do not delete a learning whose problem domain is still active or whose principles are cited substantively — fill the knowledge gap with a replacement, or update the citers (decorative cases) alongside the delete.
 
 ## Pattern Guidance
 
@@ -551,17 +553,11 @@ Delete only when a learning is clearly obsolete, redundant (with no unique conte
 
 Before unlinking the file, run a final inbound-link check to catch any references missed during Phase 1 investigation. Search for the doc's filename slug across `docs/`, `plugins/`, and project instruction files. Prefer the platform's native content-search tool (e.g., Grep in Claude Code) for efficiency; use ranged or context-line reads around matches rather than loading whole files.
 
-Each match is a citation that will dangle after delete. Handle them by mode:
+Each match is a citation that will dangle after delete. Removing them is mechanical — drop the bare reference, the parenthetical, or the deferring clause. The judgment was the classification decision: Phase 2's inbound-link section already established whether Delete was the right call given how each citation is used (decorative vs substantive). Don't re-litigate that here.
 
-**In autofix mode:** the presence of ANY inbound-link match terminates the Delete classification. Stop, mark the doc stale (`status: stale`, `stale_reason: inbound links found at <paths>`, `stale_date: YYYY-MM-DD`), and surface the inbound links in the report. Do not attempt the citation-cleanup or Replace paths below — they involve judgment calls that need a human.
+If a substantive citation surfaces here that wasn't seen in Phase 1, stop and reclassify — the late discovery is itself a signal the original classification wasn't confident enough. In autofix mode, that means stale-marking; in interactive mode, ask the user whether Replace is the right call.
 
-**In interactive mode**, choose per match:
-
-- If the citation is decorative (citing doc states the principle inline, link is supplementary), update the citing doc in the same commit to drop the link or paraphrase.
-- If the citing doc depends on the deleted doc substantively, downgrade to Replace and write the successor at the same path so the citations resolve.
-- If unsure, downgrade to stale-marking and surface the inbound links in the report so a human can decide.
-
-Commit the citation cleanup and the delete together so the repo never has a state with broken links.
+Otherwise, clean up each citation in the same commit as the delete so the repo never has a state with broken links.
 
 ## Output Format
 
