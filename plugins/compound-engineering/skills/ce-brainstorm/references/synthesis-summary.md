@@ -6,7 +6,7 @@
 
 This content is loaded when Phase 2.5 fires — after Phase 2 (approaches chosen) and before Phase 3 (write requirements doc). The synthesis is the user's last opportunity to correct the agent's interpretation before the doc lands. It serves two purposes: synthesis confirmation (the user agreed to many individual things in dialogue but never saw the whole) and a transition checkpoint ("about to write a doc").
 
-Fires for **all tiers** including Lightweight when there is a user to confirm to. Skip Phase 2.5 entirely on the Phase 0.1b non-software (universal-brainstorming) route — that flow has its own facilitation pattern. Skip Phase 2.5 entirely in headless mode — see "Headless mode" below.
+Fires for **all tiers** including Lightweight. Skip Phase 2.5 entirely on the Phase 0.1b non-software (universal-brainstorming) route — that flow has its own facilitation pattern. In non-interactive (headless) mode, Phase 2.5 still fires — the synthesis is composed but not user-confirmed; Inferred bets route to a `## Assumptions` section in the doc. See "Headless mode" below for the full routing.
 
 ---
 
