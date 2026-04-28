@@ -42,9 +42,9 @@ Display the script's output to the user.
 
 ### Step 3: Evaluate Results
 
-**Platform detection (pre-resolved):** !`[ -n "${CLAUDE_PLUGIN_ROOT}" ] && echo "CLAUDE_CODE" || echo "OTHER"`
+**Plugin root (pre-resolved):** !`echo "${CLAUDE_PLUGIN_ROOT}"`
 
-If the line above resolved to `CLAUDE_CODE`, this is a Claude Code session and `/ce-update` is available. Otherwise, omit any `/ce-update` references from output.
+If the line above resolved to a non-empty path, this is a Claude Code session and `/ce-update` is available. If it is empty or shows the literal string `${CLAUDE_PLUGIN_ROOT}`, omit any `/ce-update` references from output.
 
 After the diagnostic report, check whether:
 
@@ -66,7 +66,7 @@ If everything is installed, no repo-local cleanup is needed, and `.compound-engi
     Run /ce-setup anytime to re-check.
 ```
 
-If this is a Claude Code session, append to the message: "Run /ce-update to grab the latest plugin version."
+If this is a Claude Code session (the **Plugin root** above resolved to a non-empty path), append to the message: "Run /ce-update to grab the latest plugin version."
 
 Stop here.
 

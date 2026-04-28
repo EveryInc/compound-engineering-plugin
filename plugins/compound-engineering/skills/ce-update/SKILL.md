@@ -39,13 +39,13 @@ between releases).
 !`echo "${CLAUDE_SKILL_DIR}"`
 
 **Latest upstream version:**
-!`version=$(gh api repos/EveryInc/compound-engineering-plugin/contents/plugins/compound-engineering/.claude-plugin/plugin.json --jq '.content | @base64d | fromjson | .version' 2>/dev/null) && [ -n "$version" ] && echo "$version" || echo '__CE_UPDATE_VERSION_FAILED__'`
+!`bash "${CLAUDE_SKILL_DIR}/scripts/upstream-version.sh"`
 
 **Currently loaded version:**
-!`echo "${CLAUDE_SKILL_DIR}" | grep -q "/plugins/cache/.*/compound-engineering/.*/skills/ce-update$" && basename "$(dirname "$(dirname "${CLAUDE_SKILL_DIR}")")" || echo '__CE_UPDATE_NOT_MARKETPLACE__'`
+!`bash "${CLAUDE_SKILL_DIR}/scripts/currently-loaded-version.sh"`
 
 **Marketplace name:**
-!`echo "${CLAUDE_SKILL_DIR}" | grep -q "/plugins/cache/.*/compound-engineering/.*/skills/ce-update$" && basename "$(dirname "$(dirname "$(dirname "$(dirname "${CLAUDE_SKILL_DIR}")")")")" || echo '__CE_UPDATE_NOT_MARKETPLACE__'`
+!`bash "${CLAUDE_SKILL_DIR}/scripts/marketplace-name.sh"`
 
 ## Decision logic
 

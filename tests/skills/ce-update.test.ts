@@ -155,8 +155,16 @@ esac
     writeFileSync(ghPath, ghScript)
     chmodSync(ghPath, 0o755)
 
+    // The pre-resolution command invokes a script under
+    // ${CLAUDE_SKILL_DIR}/scripts/. Point CLAUDE_SKILL_DIR at the real skill
+    // directory so the script resolves; this exercises the full script path
+    // (substitution, script lookup, and gh invocation) end-to-end.
     return execFileSync("bash", ["-c", command], {
-      env: { ...process.env, PATH: `${mockDir}:${process.env.PATH ?? ""}` },
+      env: {
+        ...process.env,
+        PATH: `${mockDir}:${process.env.PATH ?? ""}`,
+        CLAUDE_SKILL_DIR: path.dirname(SKILL_PATH),
+      },
       encoding: "utf8",
     }).trim()
   } finally {
