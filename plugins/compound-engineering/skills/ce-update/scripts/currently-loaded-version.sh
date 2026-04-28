@@ -1,16 +1,19 @@
 #!/usr/bin/env bash
-# Print the version segment of CLAUDE_SKILL_DIR when it matches the marketplace
-# cache layout `~/.claude/plugins/cache/<marketplace>/compound-engineering/<version>/skills/ce-update`,
+# Print the version segment of the skill's own location when it matches the
+# marketplace cache layout `~/.claude/plugins/cache/<marketplace>/compound-engineering/<version>/skills/ce-update`,
 # or the literal sentinel `__CE_UPDATE_NOT_MARKETPLACE__` otherwise.
+#
+# Derives skill_dir from BASH_SOURCE rather than $CLAUDE_SKILL_DIR because
+# CLAUDE_SKILL_DIR is documented as a SKILL.md content substitution and is
+# not a guaranteed environment variable for Bash tool subprocesses. The
+# script is invoked as `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"`, so
+# BASH_SOURCE[0] is the absolute script path either way and self-locating
+# is reliable.
 
 set -u
 
-skill_dir="${CLAUDE_SKILL_DIR:-}"
-
-if [ -z "$skill_dir" ]; then
-  echo '__CE_UPDATE_NOT_MARKETPLACE__'
-  exit 0
-fi
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+skill_dir="$(dirname "$script_dir")"
 
 # Match `.../plugins/cache/*/compound-engineering/<version>/skills/ce-update[/]?`
 # Capture group 1 is the version segment.

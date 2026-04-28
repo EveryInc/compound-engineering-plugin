@@ -1,4 +1,4 @@
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { execFileSync } from "child_process"
 import { tmpdir } from "os"
 import path from "path"
@@ -84,6 +84,46 @@ describe("ce-update SKILL.md", () => {
       /Bash\(bash \*\)/.test(tools),
       `ce-update/SKILL.md allowed-tools must NOT use the broad 'Bash(bash *)' pattern — pin to each script filename instead (got: ${tools})`,
     ).toBe(false)
+  })
+})
+
+// Regression guard for the runtime probe scripts that derive their own
+// location from BASH_SOURCE rather than reading `${CLAUDE_SKILL_DIR}` from
+// the environment. CLAUDE_SKILL_DIR is documented as a SKILL.md content
+// substitution, not a guaranteed environment variable for Bash tool
+// subprocesses; if the scripts read the env var directly and Claude Code
+// doesn't export it, they always emit `__CE_UPDATE_NOT_MARKETPLACE__` and
+// the skill never performs version comparison even on real marketplace
+// installs.
+//
+// These tests run each script copied into a fake marketplace-shaped path,
+// with CLAUDE_SKILL_DIR explicitly cleared from the environment, and assert
+// that the script extracts the correct version/marketplace segment from its
+// own location.
+describe("ce-update probe scripts are self-locating", () => {
+  function runFromFakeMarketplace(scriptName: string, marketplaceName: string, version: string): string {
+    const root = mkdtempSync(path.join(tmpdir(), "ce-update-fake-marketplace-"))
+    try {
+      const skillDir = path.join(root, ".claude/plugins/cache", marketplaceName, "compound-engineering", version, "skills/ce-update")
+      mkdirSync(path.join(skillDir, "scripts"), { recursive: true })
+      const sourceScript = path.join(path.dirname(SKILL_PATH), "scripts", scriptName)
+      const targetScript = path.join(skillDir, "scripts", scriptName)
+      copyFileSync(sourceScript, targetScript)
+      chmodSync(targetScript, 0o755)
+      const env = { ...process.env }
+      delete env.CLAUDE_SKILL_DIR
+      return execFileSync("bash", [targetScript], { env, encoding: "utf8" }).trim()
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  test("currently-loaded-version.sh extracts version from BASH_SOURCE path without CLAUDE_SKILL_DIR", () => {
+    expect(runFromFakeMarketplace("currently-loaded-version.sh", "some-marketplace", "9.9.9")).toBe("9.9.9")
+  })
+
+  test("marketplace-name.sh extracts marketplace from BASH_SOURCE path without CLAUDE_SKILL_DIR", () => {
+    expect(runFromFakeMarketplace("marketplace-name.sh", "some-marketplace", "9.9.9")).toBe("some-marketplace")
   })
 })
 
