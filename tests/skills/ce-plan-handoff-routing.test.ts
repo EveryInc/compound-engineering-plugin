@@ -57,9 +57,14 @@ describe("ce-plan post-generation menu routing", () => {
 
     for (const { name, fragment } of optionFragments) {
       const escaped = fragment.replace(/[.*+?^${}()|[\]\\`]/g, "\\$&")
-      // Bullet form: `- **...<fragment>...**` followed by separator + action.
+      // Bullet form: `- **...<fragment>...**` followed by separator + action,
+      // ALL on the same line. Use `[ \t]*` for the inter-token gaps instead of
+      // `\s*` so a bullet with no action text cannot match by spilling into the
+      // next bullet's leading `-` (Codex P2 catch on PR #715: `\s*` consumed
+      // newlines, letting an empty-action bullet pass the regex). The trailing
+      // `[^\n]+` requires at least one non-newline character of action text.
       const inlineRoutingPattern = new RegExp(
-        `^- \\*\\*[^\\n]*${escaped}[^\\n]*\\*\\*\\s*(?:[—\\-]+>?|->)\\s*\\S`,
+        `^- \\*\\*[^\\n]*${escaped}[^\\n]*\\*\\*[ \\t]*(?:[—\\-]+>?|->)[ \\t]*[^\\n]+`,
         "m",
       )
       const found = inlineRoutingPattern.test(phaseRegion)
@@ -120,5 +125,36 @@ describe("ce-plan post-generation menu routing", () => {
       /skill[\s-]?invocation|Skill tool|skill primitive/i.test(ceWorkLine![0]),
       `references/plan-handoff.md 'Start /ce-work' routing must use platform-explicit invocation language matching SKILL.md (e.g., 'invoke the ce-work skill via the platform's skill-invocation primitive'). The bare 'Call /ce-work with the plan path' phrasing was the regression. Found: ${JSON.stringify(ceWorkLine![0])}`,
     ).toBe(true)
+  })
+
+  test("inline-routing regex rejects empty-action bullets even when followed by another bullet", () => {
+    // Regression guard for Codex P2 finding on PR #715: the previous
+    // `\s*(?:...)\s*` shape allowed newline consumption, so a bullet with no
+    // action text on its own line could still match by spilling into the next
+    // bullet's leading `-`. The first test in this file would silently pass
+    // on a real regression. This test recreates the failure mode and asserts
+    // the regex now refuses it.
+    //
+    // Construct the same regex shape used above and exercise it directly
+    // against a hand-rolled fixture — no live SKILL.md needed.
+    const fragment = "Start `/ce-work`"
+    const escaped = fragment.replace(/[.*+?^${}()|[\]\\`]/g, "\\$&")
+    const fixedRegex = new RegExp(
+      `^- \\*\\*[^\\n]*${escaped}[^\\n]*\\*\\*[ \\t]*(?:[—\\-]+>?|->)[ \\t]*[^\\n]+`,
+      "m",
+    )
+    const broken = [
+      "- **Start `/ce-work`**",
+      "- **Done for now** — End the turn.",
+    ].join("\n")
+    expect(
+      fixedRegex.test(broken),
+      "Routing regex must NOT match a bullet with no action text on its own line, even when the next bullet's `-` could be misread as the separator. If this assertion fires, the regex regressed back to consuming newlines (Codex P2 on PR #715).",
+    ).toBe(false)
+
+    // And confirm the regex still matches the legitimate same-line shape so
+    // the negative case isn't masking a positive-case breakage.
+    const valid = "- **Start `/ce-work`** — Invoke the ce-work skill, passing the plan path."
+    expect(fixedRegex.test(valid)).toBe(true)
   })
 })
