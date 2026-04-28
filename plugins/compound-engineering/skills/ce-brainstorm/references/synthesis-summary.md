@@ -1,8 +1,8 @@
 # Synthesis Summary
 
-**Synthesis ≠ requirements doc.** The synthesis is NOT a preview, draft, or substitute for the requirements doc — it's the scope checkpoint that doc-write consumes as input. The requirements doc itself is written in Phase 3 from the confirmed synthesis. Concretely: implementation detail (file paths, code shapes, exact error wording, behavior bullets) belongs IN the doc; the synthesis tells the next phase WHAT scope to expand into a doc. If the synthesis reads like a doc preview, it's misshaped — re-cut to scope-only.
+**Synthesis ≠ requirements doc.** The synthesis is NOT a preview, draft, or substitute for the requirements doc — it's the scope checkpoint that doc-write consumes as input. The requirements doc itself is written in Phase 3 from the confirmed synthesis. Both the synthesis and the requirements doc stay scope-only — implementation detail (file paths, code shapes, exact error wording) is downstream (ce-plan's job), not the requirements doc. If the synthesis reads like a doc preview, it's misshaped — re-cut to scope-only.
 
-**Three-bucket structure is a chat-time artifact only.** It does its scope-confirmation job in dialogue with the user, then dissolves when Phase 3 writes the doc: Stated content informs the Requirements section, Inferred content informs Key Decisions, Out-of-scope content informs Scope Boundaries. The doc has no parallel `## Synthesis` section — only the prose summary embeds, as `## Summary`. See "Doc shape after confirmation" below for the routing.
+**Three-bucket structure is a chat-time artifact only.** It does its scope-confirmation job in dialogue with the user, then dissolves when Phase 3 writes the doc: Stated content informs the Requirements section, Inferred content informs Key Decisions (interactive mode) or `## Assumptions` (non-interactive mode), Out-of-scope content informs Scope Boundaries. The doc has no parallel `## Synthesis` section — only the prose summary embeds, as `## Summary`. See "Doc shape after confirmation" below for the routing.
 
 This content is loaded when Phase 2.5 fires — after Phase 2 (approaches chosen) and before Phase 3 (write requirements doc). The synthesis is the user's last opportunity to correct the agent's interpretation before the doc lands. It serves two purposes: synthesis confirmation (the user agreed to many individual things in dialogue but never saw the whole) and a transition checkpoint ("about to write a doc").
 
@@ -112,11 +112,20 @@ Fall back to a numbered list in chat only when no blocking tool exists or the ca
 
 ## Headless mode
 
-When the skill is invoked from an automated workflow such as LFG or any `disable-model-invocation` context, **skip Phase 2.5 entirely**. There is no user to confirm a synthesis to; composing one as a self-check before discarding it is ceremony. The agent goes from approach selection (Phase 2) directly to doc-write (Phase 3).
+When the skill is invoked from an automated workflow such as LFG or any `disable-model-invocation` context, the skill runs in non-interactive mode (no synchronous user). This does NOT mean unaudited — the artifact is read by downstream skills (ce-doc-review, ce-plan) and human reviewers (PR review). Audit shifts from chat history to the artifact itself.
 
-The doc itself is mode-agnostic — interactive and headless modes produce structurally identical requirements docs. No `authoring_mode` frontmatter, no `## Assumptions` section, no italic capture-context note. If a downstream pipeline needs to know whether human scope-confirmation occurred, that is the pipeline's concern at orchestration time, not the doc's concern.
+Behavior:
 
-Pipeline risk note (for orchestrator design, not for embedding in the doc): a headless requirements doc has not been through human scope-confirmation. Downstream stages flow forward on the agent's interpretation alone. If un-reviewed scope is unacceptable for a given pipeline, the orchestrator should add a review gate or route to a reviewer — not mark up the doc.
+- **Compose the synthesis** as in interactive mode. The forcing function is preserved; the agent must articulate its scope interpretation explicitly.
+- **No user prompt; no blocking question.** Skip the confirmation step.
+- **Route content into the doc with mode-aware shape:**
+  - **Stated** content → Requirements (user's actual stated constraints)
+  - **Out-of-scope** content → Scope Boundaries (deliberate exclusions)
+  - **Inferred** content → `## Assumptions` section — explicitly labeled as un-validated agent bets that downstream review must scrutinize. Do NOT route Inferred items into Key Decisions or Requirements; that would make un-validated bets indistinguishable from user-confirmed decisions.
+
+The `## Assumptions` section appears in non-interactive docs only. In interactive mode, Inferred bets get user-corrected in chat and become decisions; the section is absent.
+
+This restores the audit visibility the original design intended (un-validated bets must not propagate as authoritative content), but surfaces them under their own label rather than hiding them. Downstream review can scrutinize Assumptions specifically.
 
 ---
 

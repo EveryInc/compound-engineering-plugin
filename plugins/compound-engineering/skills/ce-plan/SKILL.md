@@ -149,6 +149,8 @@ If the bootstrap reveals that a different workflow would serve the user better:
 
   The accessibility classification is conservative and may under-suggest in monorepos, dependency bugs, or after renames. Users can always invoke `/ce-debug` manually.
 
+  **Headless mode**: skip the ce-debug suggestion menu entirely; default to continuing with `/ce-plan` (the user's explicit invocation). There is no synchronous user to resolve a route-out choice, and auto-routing to ce-debug would change the skill mid-flight without authorization.
+
 - **Clear task ready to execute** (known root cause, obvious fix, no architectural decisions) — suggest `ce-work` as a faster alternative alongside continuing with planning. The user decides.
 
 #### 0.5 Classify Outstanding Questions Before Planning
@@ -181,7 +183,9 @@ If depth is unclear, ask one targeted question and then continue.
 
 Surface a synthesis to the user — the agent's interpretation of scope after the brief Phase 0.4 bootstrap — so scope can be corrected **before Phase 1 research is spent**. Sub-agent dispatch (repo-research-analyst, learnings-researcher, etc.) is the expensive next step this phase guards against wasted effort on.
 
-Fires **only in solo invocation** — when Phase 0.2 found no upstream brainstorm doc AND Phase 0.4 stayed in ce-plan (did not route to ce-debug, ce-work, or universal-planning) AND Phase 0.5 cleared (no unresolved blockers) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Each guard is an explicit conditional. Skip Phase 0.7 entirely when any guard fails — brainstorm-sourced invocations defer to Phase 5.1.5 instead. **Headless mode**: skip Phase 0.7 entirely (no user to confirm to); the agent proceeds directly through Phase 1 research. The plan is mode-agnostic.
+Fires **only in solo invocation** — when Phase 0.2 found no upstream brainstorm doc AND Phase 0.4 stayed in ce-plan (did not route to ce-debug, ce-work, or universal-planning) AND Phase 0.5 cleared (no unresolved blockers) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Each guard is an explicit conditional. Skip Phase 0.7 entirely when any guard fails — brainstorm-sourced invocations defer to Phase 5.1.5 instead.
+
+**Headless mode**: synthesis is composed but not confirmed (no synchronous user). Continue to Phase 1 research as normal. At plan-write time (Phase 5.2), Inferred bets route to a `## Assumptions` section in the plan instead of Key Technical Decisions. See `references/synthesis-summary.md` Headless mode for the full routing.
 
 ### Phase 1: Gather Context
 
@@ -503,6 +507,19 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 
 ---
 
+<!-- Include ONLY in non-interactive (headless) mode when the agent had Inferred bets that
+     were not user-confirmed. Lists the un-validated agent inferences explicitly so downstream
+     review (ce-doc-review, ce-work, human PR review) can scrutinize them as bets, not as
+     authoritative decisions. Omit entirely in interactive mode — Inferred bets get user-
+     corrected in chat and become Key Technical Decisions or are revised away. -->
+## Assumptions
+
+*This plan was authored without synchronous user confirmation. The items below are agent inferences that fill gaps in the input — un-validated bets that should be reviewed before implementation proceeds.*
+
+- [Inferred item the agent chose without user confirmation]
+
+---
+
 ## Requirements
 
 - R1. [Requirement or success criterion this plan must satisfy]
@@ -797,7 +814,9 @@ If the plan originated from a requirements document, re-read that document and v
 
 Surface the agent's plan-time decisions to the user before Phase 5.2 commits the plan to disk — the latest cheap moment to catch plan-time scope errors. The brainstorm already validated WHAT to build; this phase surfaces HOW the plan will execute.
 
-Fires **only when the plan was sourced from an upstream brainstorm doc** (Phase 0.2 found a `*-requirements.md` match) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Skip Phase 5.1.5 in solo invocation — solo plans handled their synthesis in Phase 0.7. **Headless mode**: skip Phase 5.1.5 entirely (no user to confirm to); the agent proceeds directly to Phase 5.2 plan-write. The plan is mode-agnostic.
+Fires **only when the plan was sourced from an upstream brainstorm doc** (Phase 0.2 found a `*-requirements.md` match) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Skip Phase 5.1.5 in solo invocation — solo plans handled their synthesis in Phase 0.7.
+
+**Headless mode**: synthesis is composed but not confirmed (no synchronous user). Proceed to Phase 5.2 plan-write. Inferred bets route to a `## Assumptions` section in the plan instead of Key Technical Decisions. See `references/synthesis-summary.md` Headless mode for the full routing.
 
 #### 5.2 Write Plan File
 

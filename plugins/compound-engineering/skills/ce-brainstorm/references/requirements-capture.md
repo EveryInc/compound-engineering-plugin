@@ -14,6 +14,7 @@ The requirements document is for product definition and scope control. Do **not*
 |---|---|---|---|
 | Summary | Optional (skip when bullets are the summary) | Required (1-3 line prose) | Required (1-3 line prose) |
 | Problem Frame | Required | Required | Required |
+| Assumptions | Non-interactive only, when Inferred bets exist | Non-interactive only, when Inferred bets exist | Non-interactive only, when Inferred bets exist |
 | Actors | Omit unless triggered | Triggered (see below) | Triggered (see below) |
 | Key Flows | Omit unless triggered | Triggered (see below) | Expected by default |
 | Requirements | Required | Required (with R-IDs) | Required (with R-IDs) |
@@ -68,6 +69,19 @@ topic: <kebab-case-topic>
 ## Problem Frame
 
 [Who is affected, what is changing, and why it matters. Backward-looking / situational. Establishes the pain that motivates the work — does NOT restate the proposal (that lives in Summary).]
+
+---
+
+<!-- Include ONLY in non-interactive (headless) mode when the agent had Inferred bets that
+     were not user-confirmed in chat. Lists the un-validated agent inferences explicitly so
+     downstream review (ce-doc-review, ce-plan, human PR review) can scrutinize them as bets,
+     not as authoritative requirements. Omit entirely in interactive mode — Inferred bets get
+     user-corrected in chat and either become decisions or are revised away. -->
+## Assumptions
+
+*This requirements doc was authored without synchronous user confirmation. The items below are agent inferences that fill gaps in the input — un-validated bets that should be reviewed before planning proceeds.*
+
+- [Inferred scope item the agent chose without user confirmation]
 
 ---
 

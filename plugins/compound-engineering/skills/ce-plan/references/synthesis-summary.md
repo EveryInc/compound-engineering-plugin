@@ -1,8 +1,8 @@
 # Synthesis Summary
 
-**Synthesis ≠ plan doc.** The synthesis is NOT a preview, draft, or substitute for the plan — it's the scope/decisions checkpoint that plan-write (Phase 5.2) consumes as input. The plan itself is written from the confirmed synthesis. Concretely: code shapes, exact method signatures, JSON schemas, exact error wording, and behavior bullets belong IN the plan; the synthesis names the scope or plan-time decisions (what files to touch, which patterns to extend, what's deferred) without expanding them. If the synthesis reads like a plan preview, it's misshaped — re-cut to scope/decisions-only.
+**Synthesis ≠ plan doc.** The synthesis is the scope/decisions checkpoint that plan-write (Phase 5.2) consumes as input. The plan itself is written from the confirmed synthesis. The synthesis names the scope or plan-time decisions (what files to touch, which patterns to extend, what's deferred) at decision-level. The plan body expands those decisions into directional sketches (file paths, test scenarios, approach descriptions) per the Planning Rules — but never into exact method signatures, framework syntax, or code spec (Phase 4.3 forbids those in the plan body too). If the synthesis reads like a plan preview, it's misshaped — re-cut to scope/decisions-only.
 
-**Three-bucket structure is a chat-time artifact only.** It does its scope-confirmation job in dialogue with the user, then dissolves when Phase 5.2 writes the plan: Stated content informs Requirements, Inferred content informs Key Decisions / Implementation Units, Out-of-scope content informs Scope Boundaries. The plan has no parallel `## Synthesis` section — only the prose summary embeds, as `## Summary`. See "Doc shape after confirmation" below for the routing.
+**Three-bucket structure is a chat-time artifact only.** It does its scope-confirmation job in dialogue with the user, then dissolves when Phase 5.2 writes the plan: Stated content informs Requirements, Inferred content informs Key Technical Decisions / Implementation Units (interactive mode) or `## Assumptions` (non-interactive mode), Out-of-scope content informs Scope Boundaries. The plan has no parallel `## Synthesis` section — only the prose summary embeds, as `## Summary`. See "Doc shape after confirmation" below for the routing.
 
 This content is loaded when a synthesis-summary phase fires in ce-plan. There are two variants — they share structure but differ in timing and content focus:
 
@@ -186,11 +186,24 @@ Fall back to numbered list in chat only when no blocking tool exists or the call
 
 ## Headless mode (shared)
 
-When the skill is invoked from an automated workflow such as LFG or any `disable-model-invocation` context, **skip the synthesis-summary phase entirely** — Phase 0.7 (solo) and Phase 5.1.5 (brainstorm-sourced) both skip. There is no user to confirm a synthesis to; composing one as a self-check before discarding it is ceremony. The agent proceeds directly to plan-write (Phase 5.2).
+When the skill is invoked from an automated workflow such as LFG or any `disable-model-invocation` context, the skill runs in non-interactive mode (no synchronous user). The artifact is read by downstream skills (ce-doc-review, ce-work) and human reviewers (PR review).
 
-The plan itself is mode-agnostic — interactive and headless modes produce structurally identical plan docs. No `authoring_mode` frontmatter, no `## Assumptions` section, no italic capture-context note. If a downstream pipeline needs to know whether human scope-confirmation occurred, that is the pipeline's concern at orchestration time, not the doc's concern.
+**Per-variant behavior** (the timing matters for which phases follow):
 
-Pipeline risk note (for orchestrator design, not for embedding in the doc): a headless plan has not been through human scope-confirmation. Downstream stages flow forward on the agent's interpretation alone. If un-reviewed scope is unacceptable for a given pipeline, the orchestrator should add a review gate or route to a reviewer — not mark up the doc.
+- **Solo variant (Phase 0.7)**: Phase 0.7 fires *before* research. In non-interactive mode, compose the synthesis but skip the user confirmation step. Continue to Phase 1 research as normal. Inferred content is held until plan-write (Phase 5.2), where it routes to `## Assumptions`.
+- **Brainstorm-sourced variant (Phase 5.1.5)**: Phase 5.1.5 fires *after* research, before plan-write. Compose the synthesis but skip the user confirmation step. Proceed to Phase 5.2 plan-write. Inferred content routes to `## Assumptions`.
+
+**Shared behavior across both variants:**
+
+- **No user prompt; no blocking question.** Skip the confirmation step.
+- **Route content with mode-aware shape:**
+  - **Stated** content → Requirements (user-stated constraints, traced to origin's R-IDs when present)
+  - **Out-of-scope** content → Scope Boundaries
+  - **Inferred** content → `## Assumptions` section in the plan — explicitly labeled as un-validated agent bets. Do NOT route Inferred items into Key Technical Decisions or Implementation Units; that would make un-validated bets indistinguishable from user-confirmed decisions.
+
+The `## Assumptions` section appears in non-interactive plans only. Interactive plans don't need it (Inferred bets get user-corrected in chat and become Key Technical Decisions or are revised away).
+
+This restores the audit visibility the original design intended (un-validated bets must not propagate as authoritative content), but surfaces them under their own label rather than hiding them. Downstream review (ce-doc-review, ce-work, human PR review) can scrutinize Assumptions specifically.
 
 ---
 
@@ -213,7 +226,7 @@ After user confirmation (or after the soft-cut decision proceeds), Phase 5.2 wri
 |---|---|
 | Prose summary | `## Summary` (1-3 lines, forward-looking) — solo variant: scope being targeted; brainstorm-sourced: implementation approach |
 | Stated bullets | `## Requirements` (R-IDs) and where relevant `## Problem Frame` for narrative context |
-| Inferred bullets | `## Key Decisions` (with rationale) and Implementation Units when the bet drives a structural choice |
+| Inferred bullets | `## Key Technical Decisions` (with rationale) and Implementation Units when the bet drives a structural choice. In non-interactive mode, route to `## Assumptions` instead — see Headless mode below. |
 | Out-of-scope bullets | `## Scope Boundaries` — including the `### Deferred to Follow-Up Work` subsection when relevant |
 
 No italic capture-context note (e.g., "Captured at Phase 0.7..."). It would leak engineering process into an artifact whose readers do not need that signal.

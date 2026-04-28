@@ -82,7 +82,7 @@ Before proceeding to Phase 0.2, classify whether this is a software task. The ke
 - Constrained, well-defined scope
 
 **If requirements are already clear:**
-Keep the interaction brief. Confirm understanding and present concise next-step options rather than forcing a long brainstorm. Only write a short requirements document when a durable handoff to planning or later review would be valuable. Skip Phase 1.1 and 1.2 entirely — go straight to Phase 1.3 or Phase 3.
+Keep the interaction brief. Confirm understanding and present concise next-step options rather than forcing a long brainstorm. Only write a short requirements document when a durable handoff to planning or later review would be valuable. Skip Phase 1.1 and 1.2 entirely — go straight to Phase 1.3 or Phase 2.5 in announce-mode (synthesis emitted for visibility, no blocking confirmation), then to Phase 3.
 
 #### 0.3 Assess Scope
 
@@ -217,7 +217,11 @@ If relevant, call out whether the choice is:
 
 Surface a synthesis to the user before Phase 3 writes the requirements doc — the user's last opportunity to correct scope before the artifact lands.
 
-Fires for **all tiers** including Lightweight when there is a user to confirm to. Skip Phase 2.5 entirely on the Phase 0.1b non-software (universal-brainstorming) route. **Headless mode**: skip Phase 2.5 entirely (no user to confirm to); the agent goes from approach selection directly to doc-write. The doc is mode-agnostic.
+Fires for **all tiers** including Lightweight. Skip Phase 2.5 entirely on the Phase 0.1b non-software (universal-brainstorming) route.
+
+**Headless mode** (LFG / `disable-model-invocation`): the synthesis is composed but not confirmed. Inferred bets route to a `## Assumptions` section in the doc (so downstream review can scrutinize them as un-validated), not into Key Decisions. See `references/synthesis-summary.md` Headless mode for the full routing.
+
+**Announce-mode (Phase 0.2 fast path)**: on the "requirements already clear" fast path that goes straight to Phase 3, Phase 2.5 still fires but in announce-mode — emit the synthesis (Stated / Inferred / Out) for visibility, then proceed to Phase 3 without blocking for confirmation. The user can interrupt if they spot a wrong inference; absent interruption, the flow continues. Preserves visibility on clear-input cases without adding interaction cost.
 
 ### Phase 3: Capture the Requirements
 
