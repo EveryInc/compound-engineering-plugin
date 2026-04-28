@@ -553,7 +553,7 @@ Before unlinking the file, run a final inbound-link check across the repo's mark
 
 Each match is a citation that will dangle after delete. Cleanup is mechanical — Phase 2 already classified the citations and confirmed Delete was right. Don't re-litigate.
 
-If a **substantive** citation surfaces here that wasn't seen in Phase 1, stop and reclassify: autofix mode stale-marks; interactive mode asks the user whether Replace fits. Otherwise, clean up each citation in the same commit as the delete.
+If any citation surfaces here that wasn't seen in Phase 1 and is anything other than unambiguously decorative (substantive or mixed/unclear), stop and reclassify: autofix mode stale-marks; interactive mode asks the user whether Replace fits. Only proceed with cleanup when all late-discovered citations are unambiguously decorative.
 
 ## Output Format
 
