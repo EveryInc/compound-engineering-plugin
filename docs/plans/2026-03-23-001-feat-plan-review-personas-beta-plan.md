@@ -60,7 +60,7 @@ All expect "Review complete" as the terminal signal. No callers check for specif
 - **Subagent design** (docs/solutions/skill-design/compound-refresh-skill-improvements.md): Each persona agent needs explicit context (file path, scope, output format) -- don't rely on inherited context. Use native file tools, not shell commands. Avoid hardcoded tool names; use capability-first language with platform examples.
 - **Parallel dispatch safety**: Persona reviewers are read-only (analyze the document, don't modify it). Parallel dispatch is safe. This differs from compound-refresh which used sequential subagents because they modified files.
 - **Contradictory findings**: With 6 independent reviewers, findings will conflict (scope-guardian wants to cut; coherence wants to keep for narrative flow). Synthesis needs conflict-resolution rules, not just dedup.
-- **Classification pipeline ordering** (docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md): Pipeline ordering matters: filter -> normalize -> group -> threshold -> re-classify -> output. Post-grouping safety checks catch misclassified findings. Single source of truth for classification logic.
+- **Classification pipeline ordering**: Pipeline ordering matters: filter -> normalize -> group -> threshold -> re-classify -> output. Post-grouping safety checks catch misclassified findings. Single source of truth for classification logic.
 - **Beta skills framework** (docs/solutions/skill-design/beta-skills-framework.md): Since we're replacing document-review entirely (not running side-by-side), the beta framework doesn't apply here.
 
 ### Research Insights: iterative-engineering plan-review
@@ -502,4 +502,3 @@ Synthesis pipeline (order matters):
 - Related pattern: iterative-engineering `skills/plan-review/SKILL.md` (synthesis pipeline, findings schema, subagent template)
 - Related pattern: iterative-engineering `agents/coherence-reviewer.md`, `feasibility-reviewer.md`, `scope-guardian-reviewer.md`, `prd-reviewer.md`, `tech-plan-reviewer.md`, `skeptic-reviewer.md` (persona prompt design, confidence calibration, suppress conditions)
 - Related learning: `docs/solutions/skill-design/compound-refresh-skill-improvements.md` (subagent design patterns)
-- Related learning: `docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md` (pipeline ordering, classification correctness)
