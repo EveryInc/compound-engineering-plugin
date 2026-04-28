@@ -551,7 +551,11 @@ Delete only when a learning is clearly obsolete, redundant (with no unique conte
 
 Before unlinking the file, run a final inbound-link check to catch any references missed during Phase 1 investigation. Search for the doc's filename slug across `docs/`, `plugins/`, and project instruction files. Prefer the platform's native content-search tool (e.g., Grep in Claude Code) for efficiency; use ranged or context-line reads around matches rather than loading whole files.
 
-Each match is a citation that will dangle after delete. For each:
+Each match is a citation that will dangle after delete. Handle them by mode:
+
+**In autofix mode:** the presence of ANY inbound-link match terminates the Delete classification. Stop, mark the doc stale (`status: stale`, `stale_reason: inbound links found at <paths>`, `stale_date: YYYY-MM-DD`), and surface the inbound links in the report. Do not attempt the citation-cleanup or Replace paths below — they involve judgment calls that need a human.
+
+**In interactive mode**, choose per match:
 
 - If the citation is decorative (citing doc states the principle inline, link is supplementary), update the citing doc in the same commit to drop the link or paraphrase.
 - If the citing doc depends on the deleted doc substantively, downgrade to Replace and write the successor at the same path so the citations resolve.
