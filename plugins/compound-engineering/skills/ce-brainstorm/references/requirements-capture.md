@@ -12,7 +12,7 @@ The requirements document is for product definition and scope control. Do **not*
 
 | Section | Lightweight | Standard / Deep-feature | Deep-product |
 |---|---|---|---|
-| Summary | Optional (skip when bullets are the summary) | Required (1-3 line prose) | Required (1-3 line prose) |
+| Summary | Required (1-3 line prose; skip only for truly-trivial cases — synthesis ≤ 2 bullets that echo the prompt) | Required (1-3 line prose) | Required (1-3 line prose) |
 | Problem Frame | Required | Required | Required |
 | Assumptions | Non-interactive only, when Inferred bets exist | Non-interactive only, when Inferred bets exist | Non-interactive only, when Inferred bets exist |
 | Actors | Omit unless triggered | Triggered (see below) | Triggered (see below) |

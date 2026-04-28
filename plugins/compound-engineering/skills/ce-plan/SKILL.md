@@ -497,7 +497,7 @@ deepened: YYYY-MM-DD  # optional, set when the confidence check substantively st
 
 ## Summary
 
-[1-3 line prose summary — what the plan is proposing, in plain language. Forward-looking. With an origin requirements doc, focus on HOW the implementation approaches the work (the WHAT is in origin); without one, carry both WHAT scope and HOW execution. Required for Standard / Deep tiers; Lightweight may omit when Requirements bullets are the summary.]
+[1-3 line prose summary — what the plan is proposing, in plain language. Forward-looking. With an origin requirements doc, focus on HOW the implementation approaches the work (the WHAT is in origin); without one, carry both WHAT scope and HOW execution. Required for all tiers; skip only for truly-trivial plans (≤ 2 Requirements bullets that echo the prompt).]
 
 ---
 

@@ -30,7 +30,7 @@ The synthesis is a chat-time artifact. The buckets exist for the user to scan, c
 
 This is directional guidance — adjust phrasing to fit dialogue context. Open prose feedback per Interaction Rule 5(a) (option sets would leak the agent's framing of valid corrections).
 
-**Prose summary discipline (Standard, Deep-feature, Deep-product tiers — required):** start the synthesis with a 1-3 line summary in plain prose describing **what's being proposed for the requirements doc** at a glance. Forward-looking (what *will* be in the doc), not retrospective (what's been discussed). The prose's job is to help the user pattern-match against intent before reading bullets — they may agree with each individual Stated bullet but disagree with the overall framing, and the prose surfaces that gist. **Skip for Lightweight** when the bullets ARE the summary (the work is small enough that prose would just restate them).
+**Prose summary discipline (required for all tiers):** start the synthesis with a 1-3 line summary in plain prose describing **what's being proposed for the requirements doc** at a glance. Forward-looking (what *will* be in the doc), not retrospective (what's been discussed). The prose's job is to help the user pattern-match against intent before reading bullets — they may agree with each individual Stated bullet but disagree with the overall framing, and the prose surfaces that gist. Even Lightweight benefits from a gestalt; a synthesis with more than 2-3 bullets total benefits from a 1-3 line summary at the top. The only legitimate skip is the truly-trivial case (e.g., the user's prompt was itself a complete scope statement like "fix the typo on line 47" and the synthesis is one or two Stated bullets that just echo it).
 
 **Prose lives inside the synthesis section**, immediately after the lead-in line and before the Stated bucket — not as a separate prose block above the synthesis. Putting extensive prose ABOVE the synthesis (an approach pitch, behavior bullets, rationale) inverts the structure: the synthesis becomes a footnote to the proposal instead of the proposal being a 1-3 line gloss on the synthesis.
 
@@ -41,7 +41,7 @@ This is directional guidance — adjust phrasing to fit dialogue context. Open p
 ```
 Based on our dialogue and approach selection, here's the scope I'm proposing for the requirements doc:
 
-[Standard/Deep: 1-3 line prose summary — what's being proposed in plain language. Skip for Lightweight when bullets are the summary.]
+[1-3 line prose summary — what's being proposed in plain language. Required for all tiers; skip only for truly-trivial cases where the synthesis is ≤ 2 bullets that echo the prompt.]
 
 **Stated** (from your input and our dialogue):
 - [item]
