@@ -30,13 +30,9 @@ describe("ce-update SKILL.md", () => {
   // `!`bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"`` commands. That cleared
   // Claude Code's safety check but tripped its *permission* check at
   // skill-load time, which does NOT honor `defaultMode: bypassPermissions`.
-  // We tried allow-listing the scripts via `allowed-tools` (broad and narrow
-  // patterns); narrow patterns (`Bash(bash *<script>.sh)`) failed when
-  // bypass was off, demonstrating that internal-position globs and/or
-  // `allowed-tools` coverage of pre-resolution are not reliable. The fix
-  // moves all probes to the runtime Bash tool inside the skill body, which
-  // honors normal permission rules. Reintroducing any `!`bash <abs-path>``
-  // pre-resolution would re-break the skill — this test catches that.
+  // The reliable fix is to invoke scripts from the skill body via the
+  // runtime Bash tool. Reintroducing any `!`bash <abs-path>`` pre-resolution
+  // would re-break the skill at load time — this test catches that.
   test("does not use `!` pre-resolution to invoke bundled scripts", () => {
     const preResolutions = SKILL_BODY.match(/!`[^`\n]*bash\s+[^`\n]*\.sh[^`\n]*`/g)
     expect(
@@ -45,18 +41,49 @@ describe("ce-update SKILL.md", () => {
     ).toBeNull()
   })
 
-  test("instructs the agent to invoke the three probe scripts via the Bash tool", () => {
-    // The skill must reference each script in a runtime instruction so the
-    // agent collects the values before applying decision logic. Uses bare
-    // `bash scripts/<name>.sh` form (the convention in this plugin for
-    // co-located scripts; Claude Code resolves relative paths to the skill
-    // directory at runtime).
+  // The skill must reference each script in a runtime instruction so the
+  // agent collects the values before applying decision logic. The form
+  // `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` (not bare relative paths)
+  // is required because the runtime Bash tool runs from the user's project
+  // CWD, not the skill directory — empirically, `bash scripts/<name>.sh`
+  // failed with "No such file or directory" when the skill tried it. The
+  // `${CLAUDE_SKILL_DIR}` env var Claude Code sets at runtime is the only
+  // portable way to resolve to the skill's own scripts directory across both
+  // marketplace-cached and `--plugin-dir` installs.
+  test("instructs the agent to invoke each probe script with a CLAUDE_SKILL_DIR-prefixed path", () => {
     for (const script of ["upstream-version.sh", "currently-loaded-version.sh", "marketplace-name.sh"]) {
       expect(
-        SKILL_BODY.includes(`bash scripts/${script}`),
-        `ce-update/SKILL.md must instruct the agent to run 'bash scripts/${script}' via the Bash tool. Without this, the skill cannot probe versions at runtime.`,
+        SKILL_BODY.includes(`bash "\${CLAUDE_SKILL_DIR}/scripts/${script}"`),
+        `ce-update/SKILL.md must instruct the agent to run 'bash "\${CLAUDE_SKILL_DIR}/scripts/${script}"' — relative paths like 'bash scripts/${script}' fail at runtime because the Bash tool's CWD is the user's project, not the skill directory.`,
       ).toBe(true)
     }
+  })
+
+  // Regression guard: each probe is `bash <abs-path>` at runtime, which does
+  // not match the user's typical allow rules (most have `Bash(bash -c:*)` at
+  // most, not `Bash(bash:*)`). Without `allowed-tools` granting permission
+  // for the specific scripts, users without `defaultMode: bypassPermissions`
+  // get an approval prompt every time they run the skill. The patterns are
+  // pinned to each script filename — `Bash(bash *)` would be too broad.
+  test("declares narrow allowed-tools patterns for each probe script", () => {
+    const frontmatter = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
+    expect(frontmatter, "ce-update/SKILL.md must have YAML frontmatter").not.toBeNull()
+    const allowedTools = frontmatter![1].match(/^allowed-tools:\s*(.+)$/m)
+    expect(
+      allowedTools,
+      "ce-update/SKILL.md must declare `allowed-tools:` for each probe script so users without bypassPermissions don't get a prompt every run.",
+    ).not.toBeNull()
+    const tools = allowedTools![1]
+    for (const script of ["upstream-version.sh", "currently-loaded-version.sh", "marketplace-name.sh"]) {
+      expect(
+        tools.includes(`Bash(bash *${script})`),
+        `ce-update/SKILL.md allowed-tools must include 'Bash(bash *${script})' so the runtime Bash call passes the permission check without granting blanket Bash access (got: ${tools})`,
+      ).toBe(true)
+    }
+    expect(
+      /Bash\(bash \*\)/.test(tools),
+      `ce-update/SKILL.md allowed-tools must NOT use the broad 'Bash(bash *)' pattern — pin to each script filename instead (got: ${tools})`,
+    ).toBe(false)
   })
 })
 

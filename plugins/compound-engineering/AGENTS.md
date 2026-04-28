@@ -232,17 +232,25 @@ Why: shell-heavy exploration causes avoidable permission prompts in sub-agent wo
 
   When the logic is non-trivial, prefer extracting to a script under the skill's `scripts/` directory; the safety check then sees only `bash <quoted-path>`, which sidesteps both current and future safety-check tightenings. Tests in `tests/skill-shell-safety.test.ts` enforce all three patterns.
 
-  **Permission gate on extracted scripts — invoke from the skill body, not from `!` pre-resolution.** A pre-resolution `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` form passes the safety check but trips Claude Code's permission check at skill-load time, which does *not* honor `defaultMode: bypassPermissions`. Allow-listing via `allowed-tools` frontmatter is unreliable for this case: empirically, broad `Bash(bash *)` patterns appear to load with bypass on but narrow filename-pinned patterns like `Bash(bash *upstream-version.sh)` fail with bypass off (the docs are inconsistent on whether `*` works as an internal-token glob, and `allowed-tools` coverage of pre-resolution is undocumented). The reliable fix is to invoke the script from the skill body via the runtime Bash tool — runtime calls honor the user's normal permission settings, so users with `bypassPermissions` see no prompt and users without it get a normal one-time approval prompt that Claude Code remembers. Pattern:
+  **Permission gate on extracted scripts — invoke from the skill body, not from `!` pre-resolution.** A pre-resolution `bash "${CLAUDE_SKILL_DIR}/scripts/<name>.sh"` form passes the safety check but trips Claude Code's permission check at skill-load time, which does *not* honor `defaultMode: bypassPermissions`. Allow-listing via `allowed-tools` frontmatter is unreliable at *load time*: empirically, broad `Bash(bash *)` patterns appear to load with bypass on but narrow filename-pinned patterns like `Bash(bash *upstream-version.sh)` fail with bypass off. Move the script invocation into the skill body so it runs via the runtime Bash tool instead. Two pieces are required for it to actually work:
 
-  ```markdown
+  1. **Use `${CLAUDE_SKILL_DIR}` for the script path**, not bare relative paths. The runtime Bash tool runs from the user's project CWD, not the skill directory — `bash scripts/<name>.sh` fails with "No such file or directory" empirically. The `${CLAUDE_SKILL_DIR}` env var resolves correctly across `claude --plugin-dir` and standard marketplace-cached installs.
+  2. **Declare narrow `allowed-tools` patterns** pinned to each script filename. At runtime, `allowed-tools` granting is documented to apply, so users without `bypassPermissions` skip the approval prompt. Pin per filename rather than using broad `Bash(bash *)`.
+
+  ```yaml
+  allowed-tools: Bash(bash *upstream-version.sh), Bash(bash *currently-loaded-version.sh)
+  ```
+
+  ````markdown
   ## Step 1: Probe X
 
-  Run via the Bash tool:
+  Run via the Bash tool, in parallel:
 
-  \`\`\`bash
-  bash scripts/probe.sh
-  \`\`\`
+  ```bash
+  bash "${CLAUDE_SKILL_DIR}/scripts/upstream-version.sh"
+  bash "${CLAUDE_SKILL_DIR}/scripts/currently-loaded-version.sh"
   ```
+  ````
 
   Use this whenever a `!` pre-resolution would invoke `bash <path>`. Reserve pre-resolution for commands whose first token already matches common user allow rules (`git status`, `gh api`, `cat <path>`, `command -v <name>`).
 - [ ] Do not encode shell recipes for routine exploration when native tools can do the job; encode intent and preferred tool classes instead

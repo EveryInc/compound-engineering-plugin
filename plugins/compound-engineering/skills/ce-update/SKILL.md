@@ -9,6 +9,7 @@ description: |
   Code — it relies on the plugin harness cache layout.
 disable-model-invocation: true
 ce_platforms: [claude]
+allowed-tools: Bash(bash *upstream-version.sh), Bash(bash *currently-loaded-version.sh), Bash(bash *marketplace-name.sh)
 ---
 
 # Check Plugin Version
@@ -26,12 +27,14 @@ between releases).
 ## Step 1: Probe versions
 
 Run these three scripts in parallel via the Bash tool. Each prints a single
-line of output; capture the values for the decision logic below.
+line of output; capture the values for the decision logic below. Use
+`${CLAUDE_SKILL_DIR}` so the path resolves correctly in both `claude --plugin-dir`
+local-development sessions and standard marketplace-cached installs.
 
 ```bash
-bash scripts/upstream-version.sh
-bash scripts/currently-loaded-version.sh
-bash scripts/marketplace-name.sh
+bash "${CLAUDE_SKILL_DIR}/scripts/upstream-version.sh"
+bash "${CLAUDE_SKILL_DIR}/scripts/currently-loaded-version.sh"
+bash "${CLAUDE_SKILL_DIR}/scripts/marketplace-name.sh"
 ```
 
 `scripts/upstream-version.sh` reads `plugin.json` on `main` via `gh api`. It
