@@ -80,7 +80,7 @@ For each candidate artifact, classify it into one of five outcomes:
    - the user has provided enough concrete replacement context to document the successor honestly, or
    - the codebase investigation found the current approach and can document it as the successor, or
    - newer docs, pattern docs, PRs, or issues provide strong successor evidence.
-8. **Delete when the code is gone.** If the referenced code, controller, or workflow no longer exists in the codebase and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." A learning about a deleted feature misleads readers into thinking that feature still exists. When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in autofix mode). But missing referenced files with no matching code is **not** a doubt case — it is strong, unambiguous Delete evidence. Auto-delete it.
+8. **Delete when the code is gone, and only after checking for inbound links.** If the referenced code, controller, or workflow no longer exists in the codebase and no successor can be found, delete the file — don't default to Keep just because the general advice is still "sound." A learning about a deleted feature misleads readers into thinking that feature still exists. When in doubt between Keep and Delete, ask the user (in interactive mode) or mark as stale (in autofix mode). Before auto-deleting, search the repo for inbound links to the doc — prefer the platform's native content-search tool (e.g., Grep in Claude Code) over shell for efficiency and to avoid permission prompts, and search narrowly (the filename slug is usually unique enough). If references exist, clean them up in the same change, downgrade to Replace, or downgrade to stale-marking. Missing referenced code with no matching successor AND no inbound links is the unambiguous auto-delete case.
 9. **Evaluate document-set design, not just accuracy.** In addition to checking whether each doc is accurate, evaluate whether it is still the right unit of knowledge. If two or more docs overlap heavily, determine whether they should remain separate, be cross-scoped more clearly, or be consolidated into one canonical document. Redundant docs are dangerous because they drift silently — two docs saying the same thing will eventually say different things.
 10. **Delete, don't archive.** There is no `_archived/` directory. When a doc is no longer useful, delete it. Git history preserves every deleted file — that is the archive. A dedicated archive directory creates problems: archived docs accumulate, pollute search results, and nobody reads them. If someone needs a deleted doc, `git log --diff-filter=D -- docs/solutions/` will find it.
 
@@ -350,15 +350,33 @@ When a learning's referenced files are gone, that is strong evidence — but onl
 
 Do not search mechanically for keywords from the old learning. Instead, understand what problem the learning addresses, then investigate whether that problem domain still exists in the codebase. The agent understands concepts — use that understanding to look for where the problem lives now, not where the old code used to be.
 
-**Auto-delete only when both the implementation AND the problem domain are gone:**
+### Before deleting: check for inbound links
 
-- the referenced code is gone AND the application no longer deals with that problem domain
-- the learning is fully superseded by a clearly better successor AND the old doc adds no distinct value
-- the document is plainly redundant and adds nothing the canonical doc doesn't already say
+A doc that other files cite is load-bearing in a way the doc itself does not announce. Before classifying as Delete, search the repo for citations of the file across `docs/`, `plugins/`, and project instruction files (`AGENTS.md`, `CLAUDE.md`, `README.md`).
+
+Search efficiently:
+
+- Prefer the platform's native content-search tool (e.g., Grep in Claude Code) over shell where it fits — native tools are faster, return structured matches, and avoid permission prompts. Drop to shell when the agent judges it materially better for the case.
+- Search for the filename slug (without `.md`) — usually unique enough that one query covers the repo. If matches are noisy, narrow to the full relative path.
+- Don't read the matched files end-to-end just to evaluate citations. Use ranged reads or context lines around each match (e.g., Grep's `-B`/`-A` or context flags) to assess whether the citation is decorative or substantive.
+
+If references exist (in plans, other learnings, skills, agents, instruction files), the file cannot just be unlinked — that leaves dangling references. Choose one of:
+
+- **Delete + clean up the citers in the same change.** Best when citations are decorative (the citing doc states the principle inline and the link is supplementary). Update each reference to drop the link or paraphrase the cited content.
+- **Replace.** Keep a doc at the path but rewrite it to match the current scope. Best when the citers depend on the doc as a substantive reference.
+- **Keep with narrowed scope.** Best when the doc has wider applicability than its title implies and the citations rely on that wider applicability.
+
+In autofix mode, the presence of any inbound link downgrades Delete to stale-marking — citation cleanup is judgment work that needs a human.
+
+**Auto-delete only when the implementation AND the problem domain are gone AND no inbound links exist:**
+
+- the referenced code is gone AND the application no longer deals with that problem domain AND no other file (under `docs/`, `plugins/`, or instruction files) references this doc
+- the learning is fully superseded by a clearly better successor AND the old doc adds no distinct value AND no inbound links remain
+- the document is plainly redundant and adds nothing the canonical doc doesn't already say AND no inbound links remain
 
 If the implementation is gone but the problem domain persists (the app still does auth, still processes payments, still handles migrations), classify as **Replace** — the problem still matters and the current approach should be documented.
 
-Do not keep a learning just because its general advice is "still sound" — if the specific code it references is gone, the learning misleads readers. But do not delete a learning whose problem domain is still active — that knowledge gap should be filled with a replacement.
+Do not keep a learning just because its general advice is "still sound" — if the specific code it references is gone and nothing cites the doc, the learning misleads readers. But do not delete a learning whose problem domain is still active or whose principles are cited from active docs — that knowledge gap should be filled with a replacement, or the citers should be updated alongside the delete.
 
 ## Pattern Guidance
 
@@ -530,6 +548,16 @@ Do not let replacement subagents invent frontmatter fields, enum values, or sect
 ### Delete Flow
 
 Delete only when a learning is clearly obsolete, redundant (with no unique content to merge), or its problem domain is gone. Do not delete a document just because it is old — age alone is not a signal.
+
+Before unlinking the file, run a final inbound-link check to catch any references missed during Phase 1 investigation. Search for the doc's filename slug across `docs/`, `plugins/`, and project instruction files. Prefer the platform's native content-search tool (e.g., Grep in Claude Code) for efficiency; use ranged or context-line reads around matches rather than loading whole files.
+
+Each match is a citation that will dangle after delete. For each:
+
+- If the citation is decorative (citing doc states the principle inline, link is supplementary), update the citing doc in the same commit to drop the link or paraphrase.
+- If the citing doc depends on the deleted doc substantively, downgrade to Replace and write the successor at the same path so the citations resolve.
+- If unsure, downgrade to stale-marking and surface the inbound links in the report so a human can decide.
+
+Commit the citation cleanup and the delete together so the repo never has a state with broken links.
 
 ## Output Format
 
