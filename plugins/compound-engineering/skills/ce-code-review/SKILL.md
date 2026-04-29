@@ -220,10 +220,10 @@ Then check out the PR branch so persona agents can read the actual code (not the
 gh pr checkout <number-or-url>
 ```
 
-Then fetch PR metadata. Capture the base branch name and the PR base repository identity, not just the branch name. Project `reviews` and `comments` to a `hasPriorComments` boolean via `--jq` -- counting only, not materializing review or comment bodies into the orchestrator's context, which on PRs with long review history would offset the optimization this gate is meant to enable. Stage 3 uses `hasPriorComments` to decide whether to spawn `previous-comments`:
+Then fetch PR metadata. Capture the base branch name and the PR base repository identity, not just the branch name. Project `reviews` and `comments` to a `hasPriorComments` boolean via `--jq` -- counting only, not materializing review or comment bodies into the orchestrator's context. The reviews filter excludes approval-state submissions with empty bodies (approvals are not feedback to verify), so PRs with only approval clicks correctly fall through the gate. Stage 3 uses `hasPriorComments` to decide whether to spawn `previous-comments`:
 
 ```
-gh pr view <number-or-url> --json title,body,baseRefName,headRefName,url,reviews,comments --jq '{title, body, baseRefName, headRefName, url, hasPriorComments: ((.reviews | length) > 0 or (.comments | length) > 0)}'
+gh pr view <number-or-url> --json title,body,baseRefName,headRefName,url,reviews,comments --jq '{title, body, baseRefName, headRefName, url, hasPriorComments: ((.reviews | map(select(.state != "APPROVED" or .body != "")) | length) > 0 or (.comments | length) > 0)}'
 ```
 
 Use the repository portion of the returned PR URL as `<base-repo>` (for example, `EveryInc/compound-engineering-plugin` from `https://github.com/EveryInc/compound-engineering-plugin/pull/348`).
@@ -288,7 +288,7 @@ On success, produce the diff:
 echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard
 ```
 
-You may still fetch additional PR metadata with `gh pr view` for title, body, linked issues, and a projected `hasPriorComments` boolean (use the same `--jq` shape from PR mode above so Stage 3 can comment-gate `previous-comments` consistently). Do not fail if no PR exists -- leave `hasPriorComments=false`.
+You may still fetch additional PR metadata with `gh pr view` for title, body, linked issues, and a projected `hasPriorComments` boolean (use the same `--jq` shape from PR mode above so the gate ignores approval-only reviews and stays consistent across modes). Do not fail if no PR exists -- leave `hasPriorComments=false`.
 
 **If no argument (standalone on current branch):**
 
