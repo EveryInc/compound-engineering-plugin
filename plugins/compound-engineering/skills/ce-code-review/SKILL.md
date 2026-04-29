@@ -220,15 +220,13 @@ Then check out the PR branch so persona agents can read the actual code (not the
 gh pr checkout <number-or-url>
 ```
 
-Then fetch PR metadata. Capture the base branch name and the PR base repository identity, not just the branch name. Also capture `reviews` and `comments` so Stage 3 can decide whether to spawn `previous-comments` without paying a subagent's startup cost just to discover the PR has no prior feedback yet:
+Then fetch PR metadata. Capture the base branch name and the PR base repository identity, not just the branch name. Project `reviews` and `comments` to a `hasPriorComments` boolean via `--jq` -- counting only, not materializing review or comment bodies into the orchestrator's context, which on PRs with long review history would offset the optimization this gate is meant to enable. Stage 3 uses `hasPriorComments` to decide whether to spawn `previous-comments`:
 
 ```
-gh pr view <number-or-url> --json title,body,baseRefName,headRefName,url,reviews,comments
+gh pr view <number-or-url> --json title,body,baseRefName,headRefName,url,reviews,comments --jq '{title, body, baseRefName, headRefName, url, hasPriorComments: ((.reviews | length) > 0 or (.comments | length) > 0)}'
 ```
 
 Use the repository portion of the returned PR URL as `<base-repo>` (for example, `EveryInc/compound-engineering-plugin` from `https://github.com/EveryInc/compound-engineering-plugin/pull/348`).
-
-Record whether the PR has any prior feedback: `HAS_PRIOR_COMMENTS=true` if either `reviews` or `comments` is non-empty, otherwise `false`. Stage 3 uses this flag.
 
 Then compute a local diff against the PR's base branch so re-reviews also include local fix commits and uncommitted edits. Substitute the PR base branch from metadata (shown here as `<base>`) and the PR base repository identity derived from the PR URL (shown here as `<base-repo>`). Resolve the base ref from the PR's actual base repository, not by assuming `origin` points at that repo:
 
@@ -290,7 +288,7 @@ On success, produce the diff:
 echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard
 ```
 
-You may still fetch additional PR metadata with `gh pr view` for title, body, linked issues, and `reviews,comments` (the latter so Stage 3 can comment-gate `previous-comments` consistently with PR mode); set `HAS_PRIOR_COMMENTS` from the result. Do not fail if no PR exists -- leave `HAS_PRIOR_COMMENTS=false`.
+You may still fetch additional PR metadata with `gh pr view` for title, body, linked issues, and a projected `hasPriorComments` boolean (use the same `--jq` shape from PR mode above so Stage 3 can comment-gate `previous-comments` consistently). Do not fail if no PR exists -- leave `hasPriorComments=false`.
 
 **If no argument (standalone on current branch):**
 
@@ -367,7 +365,7 @@ Read the diff and file list from Stage 1. The 4 always-on personas and 2 CE alwa
 **`previous-comments` is PR-only AND comment-gated.** Only select this persona when both conditions hold:
 
 1. Stage 1 gathered PR metadata (PR number or URL was provided as an argument, or `gh pr view` returned metadata for the current branch).
-2. `HAS_PRIOR_COMMENTS` from Stage 1 is true (the PR has at least one review submission or issue comment).
+2. `hasPriorComments` from Stage 1 is true (the PR has at least one review submission or issue comment).
 
 Skip it for standalone branch reviews with no associated PR, and skip it for PRs with no prior feedback yet -- there is nothing for the persona to verify, and a spawned subagent that returns empty findings still costs the full subagent startup overhead (persona spec, diff, schema, plus its own gh calls).
 
