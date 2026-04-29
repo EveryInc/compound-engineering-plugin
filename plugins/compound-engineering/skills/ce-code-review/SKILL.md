@@ -220,13 +220,15 @@ Then check out the PR branch so persona agents can read the actual code (not the
 gh pr checkout <number-or-url>
 ```
 
-Then fetch PR metadata. Capture the base branch name and the PR base repository identity, not just the branch name:
+Then fetch PR metadata. Capture the base branch name and the PR base repository identity, not just the branch name. Also capture `reviews` and `comments` so Stage 3 can decide whether to spawn `previous-comments` without paying a subagent's startup cost just to discover the PR has no prior feedback yet:
 
 ```
-gh pr view <number-or-url> --json title,body,baseRefName,headRefName,url
+gh pr view <number-or-url> --json title,body,baseRefName,headRefName,url,reviews,comments
 ```
 
 Use the repository portion of the returned PR URL as `<base-repo>` (for example, `EveryInc/compound-engineering-plugin` from `https://github.com/EveryInc/compound-engineering-plugin/pull/348`).
+
+Record whether the PR has any prior feedback: `HAS_PRIOR_COMMENTS=true` if either `reviews` or `comments` is non-empty, otherwise `false`. Stage 3 uses this flag.
 
 Then compute a local diff against the PR's base branch so re-reviews also include local fix commits and uncommitted edits. Substitute the PR base branch from metadata (shown here as `<base>`) and the PR base repository identity derived from the PR URL (shown here as `<base-repo>`). Resolve the base ref from the PR's actual base repository, not by assuming `origin` points at that repo:
 
@@ -288,7 +290,7 @@ On success, produce the diff:
 echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard
 ```
 
-You may still fetch additional PR metadata with `gh pr view` for title, body, and linked issues, but do not fail if no PR exists.
+You may still fetch additional PR metadata with `gh pr view` for title, body, linked issues, and `reviews,comments` (the latter so Stage 3 can comment-gate `previous-comments` consistently with PR mode); set `HAS_PRIOR_COMMENTS` from the result. Do not fail if no PR exists -- leave `HAS_PRIOR_COMMENTS=false`.
 
 **If no argument (standalone on current branch):**
 
@@ -362,7 +364,12 @@ Read the diff and file list from Stage 1. The 4 always-on personas and 2 CE alwa
 
 **File-type awareness for conditional selection:** Instruction-prose files (Markdown skill definitions, JSON schemas, config files) are product code but do not benefit from runtime-focused reviewers. The adversarial reviewer's techniques (race conditions, cascade failures, abuse cases) target executable code behavior. For diffs that only change instruction-prose files, skip adversarial unless the prose describes auth, payment, or data-mutation behavior. Count only executable code lines toward line-count thresholds.
 
-**`previous-comments` is PR-only.** Only select this persona when Stage 1 gathered PR metadata (PR number or URL was provided as an argument, or `gh pr view` returned metadata for the current branch). Skip it entirely for standalone branch reviews with no associated PR -- there are no prior comments to check.
+**`previous-comments` is PR-only AND comment-gated.** Only select this persona when both conditions hold:
+
+1. Stage 1 gathered PR metadata (PR number or URL was provided as an argument, or `gh pr view` returned metadata for the current branch).
+2. `HAS_PRIOR_COMMENTS` from Stage 1 is true (the PR has at least one review submission or issue comment).
+
+Skip it for standalone branch reviews with no associated PR, and skip it for PRs with no prior feedback yet -- there is nothing for the persona to verify, and a spawned subagent that returns empty findings still costs the full subagent startup overhead (persona spec, diff, schema, plus its own gh calls).
 
 Stack-specific personas are additive. A Rails UI change may warrant `kieran-rails` plus `julik-frontend-races`; a TypeScript API diff may warrant `kieran-typescript` plus `api-contract` and `reliability`.
 
