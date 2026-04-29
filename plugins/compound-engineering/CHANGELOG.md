@@ -9,6 +9,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.3.2](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.3.1...compound-engineering-v3.3.2) (2026-04-29)
+
+
+### Bug Fixes
+
+* **ce-code-review:** comment-gate previous-comments persona to skip empty PRs ([#720](https://github.com/EveryInc/compound-engineering-plugin/issues/720)) ([09fa18b](https://github.com/EveryInc/compound-engineering-plugin/commit/09fa18bcc1f130b7af26dfc53974776f1434b53d))
+* **ce-code-review:** mandate walkthrough.md load on walk-through entry ([#718](https://github.com/EveryInc/compound-engineering-plugin/issues/718)) ([5ac1a06](https://github.com/EveryInc/compound-engineering-plugin/commit/5ac1a063a9c154bb586a5f2b2ad17ef59990c0b6))
+
 ## [3.3.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.3.0...compound-engineering-v3.3.1) (2026-04-28)
 
 

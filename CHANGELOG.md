@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.3.2](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.3.1...cli-v3.3.2) (2026-04-29)
+
+
+### Miscellaneous Chores
+
+* **cli:** Synchronize compound-engineering versions
+
 ## [3.3.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.3.0...cli-v3.3.1) (2026-04-28)
 
 
