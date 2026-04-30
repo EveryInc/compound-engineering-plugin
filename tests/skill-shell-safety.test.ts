@@ -22,6 +22,9 @@ import { describe, expect, test } from "bun:test"
  *     containing `$()` containing another double-quoted string) trips
  *     "Unhandled node type: string". Issue #709. Fix: replace nested `$()`
  *     with parameter expansion, pipe to sed, or extract to a script.
+ *   - ce-compound and ce-sessions used `git rev-parse ... | sed -E '...'` which
+ *     trips the permission checker as "multiple operations". Fix: replace the
+ *     pipe with bash parameter expansion (e.g. strip suffix, strip prefix).
  */
 
 const PLUGIN_SKILLS_GLOB = ["plugins/compound-engineering/skills", "plugins/coding-tutor/skills"]
@@ -138,6 +141,35 @@ function hasNestedQuotedStringInCommandSubst(cmd: string): boolean {
   return findCommandSubstitutionContents(cmd).some(s => s.includes('"'))
 }
 
+/**
+ * Returns true when the command contains a top-level pipe (`|` that is not
+ * `||`). Claude Code's permission checker treats piped commands as separate
+ * operations and may require approval for each, causing skill-load failure
+ * when the user's permission mode is restrictive.
+ */
+function hasTopLevelPipe(cmd: string): boolean {
+  let depth = 0
+  let inSingleQuote = false
+  let inDoubleQuote = false
+
+  for (let i = 0; i < cmd.length; i++) {
+    const c = cmd[i]
+    const next = cmd[i + 1]
+
+    if (!inDoubleQuote && c === "'") { inSingleQuote = !inSingleQuote; continue }
+    if (!inSingleQuote && c === '"') { inDoubleQuote = !inDoubleQuote; continue }
+    if (inSingleQuote || inDoubleQuote) continue
+
+    if (c === '$' && next === '(') { depth++; i++; continue }
+    if (c === '(') { depth++; continue }
+    if (c === ')') { depth--; continue }
+
+    if (depth === 0 && c === '|' && next !== '|' && cmd[i - 1] !== '|') return true
+  }
+
+  return false
+}
+
 describe("findPreResolutionCommands", () => {
   test("captures single-line `!` blocks with correct line numbers", () => {
     const sample = "intro\n!`echo hi` mid !`echo bye`\nend"
@@ -200,6 +232,28 @@ describe("hasNestedQuotedStringInCommandSubst", () => {
   })
 })
 
+describe("hasTopLevelPipe", () => {
+  test("flags a simple pipe", () => {
+    expect(hasTopLevelPipe("git rev-parse --git-common-dir 2>/dev/null | sed -E 's|x||'")).toBe(true)
+  })
+
+  test("does not flag `||`", () => {
+    expect(hasTopLevelPipe("cmd 2>/dev/null || echo fallback")).toBe(false)
+  })
+
+  test("does not flag a pipe inside `$(...)`", () => {
+    expect(hasTopLevelPipe("x=$(echo foo | tr a b); echo $x")).toBe(false)
+  })
+
+  test("does not flag a pipe inside `(...)`", () => {
+    expect(hasTopLevelPipe("(echo foo | tr a b) || echo fallback")).toBe(false)
+  })
+
+  test("does not flag commands with no pipe", () => {
+    expect(hasTopLevelPipe("git rev-parse --abbrev-ref HEAD 2>/dev/null")).toBe(false)
+  })
+})
+
 describe("skill `!` pre-resolution commands avoid Claude Code denylist", () => {
   const files = listSkillFiles()
 
@@ -245,6 +299,19 @@ describe("skill `!` pre-resolution commands avoid Claude Code denylist", () => {
       expect(
         offenders,
         `Claude Code rejects \`$(...)\` containing a double-quoted string as "Unhandled node type: string" (e.g., \`basename "$(dirname "$common")"\`). Replace nested \`$()\` with parameter expansion (\`\${var%/suffix}\`), pipe to sed, or extract to a script invoked as \`bash "\${CLAUDE_SKILL_DIR}/scripts/<name>.sh"\`.\nOffending commands:\n${formatted}`,
+      ).toEqual([])
+    })
+
+    test(`${rel} pre-resolution commands do not use top-level pipes (triggers permission check for multiple operations)`, () => {
+      const offenders = preResolutionCommands.filter(({ command }) =>
+        hasTopLevelPipe(command),
+      )
+      const formatted = offenders
+        .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
+        .join("\n")
+      expect(
+        offenders,
+        `Claude Code's permission checker flags piped commands as "multiple operations requiring approval", which fails skill load. Replace pipes with parameter expansion (e.g., \`\${var%/.git}\` / \`\${var##*/}\`) or move the transformation into a script invoked from the skill body.\nOffending commands:\n${formatted}`,
       ).toEqual([])
     })
   }

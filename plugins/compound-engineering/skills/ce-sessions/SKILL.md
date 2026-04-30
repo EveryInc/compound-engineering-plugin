@@ -16,7 +16,7 @@ Search your session history.
 
 ## Pre-resolved context
 
-**Repo name (pre-resolved):** !`git rev-parse --path-format=absolute --git-common-dir 2>/dev/null | sed -E 's|/\.git/?$||; s|.*/||'`
+**Repo name (pre-resolved):** !`common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); repo="${common%/.git}"; echo "${repo##*/}"`
 
 **Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD 2>/dev/null`
 
