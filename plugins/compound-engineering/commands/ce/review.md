@@ -520,6 +520,100 @@ The subagent will:
 
 **Standalone:** `/xcode-test [scheme]`
 
+### 7. Visual Proof Artifacts (Optional)
+
+<visual_proof>
+
+For UI changes, user-visible workflows, or whenever the user asks for proof of functionality, offer to capture and attach visual evidence after the summary and any relevant browser/device testing:
+
+```markdown
+**"Want to attach visual proof to the PR?"**
+1. Screenshots - capture key before/after or success states
+2. Short video - record a walkthrough of the working flow
+3. Both screenshots and video
+4. Skip
+```
+
+If the user already requested screenshots or video, proceed without asking again.
+
+**Capture tools:**
+- Use `agent-browser` for web screenshots and recordings:
+  - `agent-browser screenshot tmp/pr-evidence/pr-[number]/screenshots/01-state.png`
+  - `agent-browser record start` then `agent-browser record stop tmp/pr-evidence/pr-[number]/feature-demo.webm`
+- Use `/feature-video` when a polished walkthrough should be planned, recorded, uploaded, and added to the PR.
+- For iOS/macOS reviews, use the screenshot tools from `/xcode-test` after simulator verification.
+
+**Upload target:**
+- Prefer a fixed GitHub artifact branch, such as `image-previews`, for PR visual proof. Commit generated evidence files to that branch, not to the PR branch, and reference them with `https://github.com/[owner]/[repo]/raw/image-previews/[path]` URLs in the PR comment.
+- This follows the same pattern as `opengisch/comment-pr-with-images`: GitHub's comment API only accepts Markdown, so the action uploads images to a GitHub branch and comments with links to those branch-hosted files.
+- Use unique paths such as `pr-[number]/[head-sha]/screenshots/01-state.png` to avoid overwriting previous review evidence.
+- If the repository does not allow writing to a shared artifact branch, fall back to GitHub's PR comment attachment UI when browser automation can upload local files.
+- If neither GitHub branch storage nor web UI attachment is viable, upload generated images/videos to a public artifact host with `rclone`, such as Cloudflare R2, S3, Backblaze B2, or another configured object-storage remote with HTTPS public URLs.
+- Validate every generated URL before posting it: `curl -I "$URL"` must return HTTP 200.
+
+**GitHub artifact branch workflow:**
+```bash
+ARTIFACT_BRANCH=image-previews
+PR_NUMBER=[number]
+HEAD_SHA=$(git rev-parse --short HEAD)
+ARTIFACT_DIR="pr-${PR_NUMBER}/${HEAD_SHA}"
+REPO_ROOT=$(pwd)
+WORKTREE=$(mktemp -d)
+rmdir "$WORKTREE"
+
+# Keep generated files outside the PR branch first.
+mkdir -p "tmp/pr-evidence/${ARTIFACT_DIR}/screenshots"
+
+# Create or update the artifact branch without modifying the PR branch.
+if git ls-remote --exit-code --heads origin "${ARTIFACT_BRANCH}" >/dev/null 2>&1; then
+  git fetch origin "${ARTIFACT_BRANCH}"
+  git worktree add "$WORKTREE" "origin/${ARTIFACT_BRANCH}"
+  git -C "$WORKTREE" checkout -B "${ARTIFACT_BRANCH}"
+else
+  git worktree add --detach "$WORKTREE" HEAD
+  git -C "$WORKTREE" checkout --orphan "${ARTIFACT_BRANCH}"
+  git -C "$WORKTREE" rm -rf . || true
+fi
+
+mkdir -p "$WORKTREE/${ARTIFACT_DIR}"
+cp -R "$REPO_ROOT/tmp/pr-evidence/${ARTIFACT_DIR}/." "$WORKTREE/${ARTIFACT_DIR}/"
+git -C "$WORKTREE" add "${ARTIFACT_DIR}"
+git -C "$WORKTREE" commit -m "Add visual proof for PR ${PR_NUMBER} (${HEAD_SHA})"
+git -C "$WORKTREE" push origin "${ARTIFACT_BRANCH}"
+git worktree remove "$WORKTREE"
+```
+
+**Post to PR:**
+- Prefer the GitHub app's top-level PR conversation comment tool (`mcp__codex_apps__github._add_comment_to_issue`) for an evidence comment once the branch-hosted URLs are available.
+- Use the GitHub app's PR update tool (`mcp__codex_apps__github._update_pull_request`) only when the PR body should include a persistent demo section.
+- CLI fallback: `gh pr comment [number] --body-file tmp/pr-evidence/pr-[number]/evidence.md` or `gh pr edit [number] --body-file tmp/pr-evidence/pr-[number]/body.md`.
+
+**Do not check evidence into the PR:**
+- Store generated media under `tmp/pr-evidence/pr-[number]/` or another temporary path, not under app/source directories.
+- Never `git add` screenshots, videos, traces, or generated evidence markdown.
+- Before finishing, run `git status --short` and confirm evidence files are untracked or outside the repository. If they appear in the worktree, leave them unstaged and mention their local path.
+- Do not modify project `.gitignore` just to hide review evidence unless the user explicitly asks.
+
+**Evidence comment template:**
+
+```markdown
+## Visual Proof
+
+Validated workflow: [short description]
+
+Screenshots:
+- [State name](https://public-url/01-state.png)
+
+Video:
+[![Feature walkthrough](https://public-url/feature-demo-preview.gif)](https://public-url/feature-demo.mp4)
+
+Notes:
+- Tested against: [base URL / simulator / environment]
+- Captured on: [date]
+```
+
+</visual_proof>
+
 ### Important: P1 Findings Block Merge
 
 Any **🔴 P1 (CRITICAL)** findings must be addressed before merging the PR. Present these prominently and ensure they're resolved before accepting the PR.

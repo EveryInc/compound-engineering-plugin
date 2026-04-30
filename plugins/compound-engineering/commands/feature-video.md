@@ -25,8 +25,9 @@ This command creates professional video walkthroughs of features for PR document
 - agent-browser CLI installed
 - Git repository with a PR to document
 - `ffmpeg` installed (for video conversion)
-- `rclone` configured (optional, for cloud upload - see rclone skill)
-- Public R2 base URL known (for example, `https://<public-domain>.r2.dev`)
+- Ability to push generated media to a fixed GitHub artifact branch, such as `image-previews`
+- Optional `rclone` configuration for fallback uploads - see the `rclone` skill
+- If using `rclone`, public artifact base URL known, usually from Cloudflare R2, S3, B2, or another object-storage host (for example, `https://<public-domain>.r2.dev`)
 </requirements>
 
 ## Setup
@@ -34,14 +35,19 @@ This command creates professional video walkthroughs of features for PR document
 **Check installation:**
 ```bash
 command -v agent-browser >/dev/null 2>&1 && echo "Installed" || echo "NOT INSTALLED"
+command -v ffmpeg >/dev/null 2>&1 && echo "ffmpeg installed" || echo "ffmpeg NOT INSTALLED"
+command -v rclone >/dev/null 2>&1 && echo "rclone installed" || echo "rclone NOT INSTALLED"
+rclone listremotes 2>/dev/null || echo "NO RCLONE REMOTES CONFIGURED - only needed for fallback uploads"
 ```
 
 **Install if needed:**
 ```bash
 npm install -g agent-browser && agent-browser install
+# macOS:
+brew install ffmpeg rclone
 ```
 
-See the `agent-browser` skill for detailed usage.
+See the `agent-browser` and `rclone` skills for detailed usage.
 
 ## Main Tasks
 
@@ -207,16 +213,22 @@ ffmpeg -y -framerate 0.5 -pattern_type glob -i 'tmp/screenshots/*.png' \
 
 <upload_video>
 
-**Upload with rclone:**
+**Upload the video:**
+
+Prefer a fixed GitHub artifact branch, such as `image-previews`: commit generated media to that branch, not to the PR branch, then reference `https://github.com/[owner]/[repo]/raw/image-previews/[path]` URLs from the PR comment. Use unique paths such as `pr-[number]/[head-sha]/feature-demo.mp4` so each PR update keeps its own evidence.
+
+This follows the same pattern as `opengisch/comment-pr-with-images`. GitHub PR comments only need Markdown links once the files are available from the artifact branch.
+
+If the repository does not allow writing to a shared artifact branch, use GitHub's PR comment attachment UI if browser automation can upload local files. If neither GitHub-hosted path is viable, use the `rclone` fallback below.
 
 ```bash
 # Check rclone is configured
 rclone listremotes
 
-# Set your public base URL (NO trailing slash)
-PUBLIC_BASE_URL="https://<your-public-r2-domain>.r2.dev"
+# Set your public artifact base URL (NO trailing slash)
+PUBLIC_BASE_URL="https://<your-public-artifact-domain>"
 
-# Upload video, preview GIF, and screenshots to cloud storage
+# Upload video, preview GIF, and screenshots to object storage
 # Use --s3-no-check-bucket to avoid permission errors
 rclone copy tmp/videos/ r2:kieran-claude/pr-videos/pr-[number]/ --s3-no-check-bucket --progress
 rclone copy tmp/screenshots/ r2:kieran-claude/pr-videos/pr-[number]/screenshots/ --s3-no-check-bucket --progress

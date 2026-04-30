@@ -190,7 +190,7 @@ Supports 100+ frameworks including Rails, React, Next.js, Vue, Django, Laravel, 
 
 MCP servers start automatically when the plugin is enabled.
 
-## Browser Automation
+## Local CLI Tools
 
 This plugin uses **agent-browser CLI** for browser automation tasks. Install it globally:
 
@@ -199,7 +199,14 @@ npm install -g agent-browser
 agent-browser install  # Downloads Chromium
 ```
 
-The `agent-browser` skill provides comprehensive documentation on usage.
+Commands that create PR demo videos or visual proof also need `ffmpeg` for video conversion. By default, store generated media on a fixed GitHub artifact branch such as `image-previews`, then link to the branch-hosted files from PR comments. Install `rclone` only when you need a fallback uploader for screenshots/videos:
+
+```bash
+brew install ffmpeg
+brew install rclone  # optional fallback uploader
+```
+
+The GitHub branch approach keeps evidence out of the PR diff while still using repository-hosted URLs. `rclone` is the fallback upload client, not the storage backend. Configure it with a public object-storage remote such as Cloudflare R2, S3, or Backblaze B2, then use the public HTTPS URLs in GitHub PR comments or descriptions. The `agent-browser` and `rclone` skills provide comprehensive documentation on usage.
 
 ## Installation
 
