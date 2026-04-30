@@ -20,14 +20,15 @@ describe("ce-work review contract", () => {
     // Phase 3 has a mandatory code review step in the reference file
     expect(shipping).toContain("2. **Code Review**")
 
-    // Two-tier rubric in reference file
-    expect(shipping).toContain("**Tier 1: Inline self-review**")
-    expect(shipping).toContain("**Tier 2: Full review (default)**")
+    // Two-tier rubric in reference file: Tier 1 is harness-native (default),
+    // Tier 2 is ce-code-review (risk-based escalation)
+    expect(shipping).toContain("**Tier 1 -- harness-native code review (default).**")
+    expect(shipping).toContain("**Tier 2 -- `ce-code-review` (escalation).**")
     expect(shipping).toContain("ce-code-review")
     expect(shipping).toContain("mode:autofix")
 
     // Quality checklist includes review
-    expect(shipping).toContain("Code review completed (inline self-review or full `ce-code-review`)")
+    expect(shipping).toContain("Code review completed (Tier 1 harness-native or Tier 2 `ce-code-review`)")
   })
 
   test("delegates commit and PR to dedicated skills", async () => {
