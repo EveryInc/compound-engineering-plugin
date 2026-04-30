@@ -32,6 +32,27 @@ All tokens are optional. Each one present means one less thing to infer. When ab
 
 **Conflicting mode flags:** If multiple mode tokens appear in arguments, stop and do not dispatch agents. If `mode:headless` is one of the conflicting tokens, emit the headless error envelope: `Review failed (headless mode). Reason: conflicting mode flags — <mode_a> and <mode_b> cannot be combined.` Otherwise emit the generic form: `Review failed. Reason: conflicting mode flags — <mode_a> and <mode_b> cannot be combined.`
 
+## Quick Review Short-Circuit
+
+If `$ARGUMENTS` indicates the user wants a quick, fast, or light code review, do not dispatch the multi-agent flow.
+
+**Announce the chosen path** before any other work (Quick review vs Multi-agent review).
+
+Programmatic callers (when `mode:autofix`, `mode:report-only`, or `mode:headless` is present) skip this announcement -- the orchestrator owns user-facing messaging.
+
+Sequence:
+
+1. **Run the harness's built-in code review.**
+   - If you are Claude Code, run the `/review` tool.
+   - If you are Gemini, run a quick code review.
+   - For all other coding harnesses, run your built-in code review tool.
+
+   Then stop. Do not dispatch the multi-agent reviewer pipeline.
+
+2. **Exemption -- no built-in code review exists.** If the current harness has no built-in code review command or skill, do not short-circuit. Continue into the full multi-agent review described in the rest of this skill (Tier 2).
+
+3. **Programmatic callers bypass this short-circuit.** When `mode:autofix`, `mode:report-only`, or `mode:headless` is present, ignore quick intent and run the full multi-agent review. Skill-to-skill callers that want the lightweight pass should invoke `/review` (or the harness equivalent) directly rather than route through this short-circuit.
+
 ## Mode Detection
 
 | Mode | When | Behavior |
