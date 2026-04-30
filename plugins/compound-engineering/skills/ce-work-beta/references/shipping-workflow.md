@@ -16,7 +16,13 @@ This file contains the shipping workflow (Phase 3-4). Load it only when all Phas
    # Use linting-agent before pushing to origin
    ```
 
-2. **Code Review** (REQUIRED)
+2. **Simplify** (Claude Code only; REQUIRED for >=30 changed lines)
+
+   Before code review, run the `/simplify` skill on the change to consolidate duplicated patterns, remove dead code, and improve reuse. Skip when the diff is purely mechanical (formatting, dependency bumps, lint fixes, generated artifacts) -- simplification has no useful yield on those.
+
+   On other harnesses, proceed directly to code review.
+
+3. **Code Review** (REQUIRED)
 
    Every change gets reviewed before shipping. Default to Tier 1 and escalate to Tier 2 only when a concrete signal calls for it. Tier 2 is materially more expensive in time and tokens -- pay that cost when a signal justifies it, not as a default.
 
@@ -33,7 +39,7 @@ This file contains the shipping workflow (Phase 3-4). Load it only when all Phas
 
    When the change is small, concentrated, and outside the sensitive surface list, Tier 1 is sufficient -- do not escalate "to be safe."
 
-3. **Residual Work Gate** (REQUIRED when Tier 2 ran)
+4. **Residual Work Gate** (REQUIRED when Tier 2 ran)
 
    After Tier 2 code review completes, inspect the Residual Actionable Work summary it returned (or read the run artifact directly if the summary was not emitted). If one or more residual `downstream-resolver` findings remain, do not proceed to Final Validation until the user decides how to handle them.
 
@@ -49,7 +55,7 @@ This file contains the shipping workflow (Phase 3-4). Load it only when all Phas
 
    Skip this gate entirely when the review reported `Residual actionable work: none.` or when only Tier 1 was used. Do not proceed past this gate on an `Accept and proceed` decision until the agent has recorded whether the durable sink is `PR Known Residuals` or `docs/residual-review-findings/<branch-or-head-sha>.md`.
 
-4. **Final Validation**
+5. **Final Validation**
    - All tasks marked completed
    - Testing addressed -- tests pass and new/changed behavior has corresponding test coverage (or an explicit justification for why tests are not needed)
    - Linting passes
@@ -59,7 +65,7 @@ This file contains the shipping workflow (Phase 3-4). Load it only when all Phas
    - If the plan has a `Requirements` section (or legacy `Requirements Trace`), verify each requirement is satisfied by the completed work
    - If any `Deferred to Implementation` questions were noted, confirm they were resolved during execution
 
-5. **Prepare Operational Validation Plan** (REQUIRED)
+6. **Prepare Operational Validation Plan** (REQUIRED)
    - Add a `## Post-Deploy Monitoring & Validation` section to the PR description for every change.
    - Include concrete:
      - Log queries/search terms
@@ -93,7 +99,7 @@ This file contains the shipping workflow (Phase 3-4). Load it only when all Phas
    - Testing notes (tests added/modified, manual testing performed)
    - Evidence context from step 1, so `ce-commit-push-pr` can decide whether to ask about capturing evidence
    - Figma design link (if applicable)
-   - The Post-Deploy Monitoring & Validation section (see Phase 3 Step 5)
+   - The Post-Deploy Monitoring & Validation section (see Phase 3 Step 6)
    - Any "Known Residuals" accepted in the Phase 3 Residual Work Gate, rendered as a dedicated section in the PR body with severity, file:line, and title per finding
 
    If the user prefers to commit without creating a PR, load the `ce-commit` skill instead.
