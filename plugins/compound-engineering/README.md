@@ -11,16 +11,17 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 | Component | Count |
 |-----------|-------|
 | Agents | 50+ |
-| Skills | 35+ |
+| Skills | 37+ |
 
 ## Skills
 
 ### Core Workflow
 
-The primary entry points for engineering work are skills invoked with slash syntax:
+The primary entry points for engineering work, invoked as slash commands. `ce-strategy` skill anchors the loop upstream; `ce-product-pulse` skill closes it with a read on user outcomes.
 
 | Skill | Description |
 |-------|-------------|
+| `/ce-strategy` | Create or maintain `docs/strategy.md` — the product's target problem, approach, persona, key metrics, and tracks. Re-runnable to update. Read as grounding by `/ce-ideate`, `/ce-brainstorm`, and `/ce-plan` when present |
 | `/ce-ideate` | Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming |
 | `/ce-brainstorm` | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning |
 | `/ce-plan` | Create structured plans for any multi-step task -- software features, research workflows, events, study plans -- with automatic confidence checking |
@@ -30,6 +31,7 @@ The primary entry points for engineering work are skills invoked with slash synt
 | `/ce-compound` | Document solved problems to compound team knowledge |
 | `/ce-compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
 | `/ce-optimize` | Run iterative optimization loops with parallel experiments, measurement gates, and LLM-as-judge quality scoring |
+| `/ce-product-pulse` | Generate a single-page, time-windowed report on usage, performance, errors, and followups. Saves reports to `docs/pulse-reports/` as a browseable timeline of what users experienced |
 
 For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/README.md) for usage guidance, example specs, and links to the schema and workflow docs.
 
