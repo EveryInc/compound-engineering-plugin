@@ -42,10 +42,10 @@ Programmatic callers (when `mode:autofix`, `mode:report-only`, or `mode:headless
 
 Sequence:
 
-1. **Run the harness's built-in code review.**
-   - If you are Claude Code, run the `/review` tool.
-   - If you are Gemini, run a quick code review.
-   - For all other coding harnesses, run your built-in code review tool.
+1. **Run the harness's built-in code review.** If `$ARGUMENTS` contained a review target (PR number, GitHub URL, or branch name) after stripping recognized tokens, forward that target to the built-in. If no target was provided, run the bare command and let the built-in default to the current branch.
+   - If you are Claude Code, run the `/review` tool, passing the target if present (e.g., `/review 123`, `/review <PR-URL>`, `/review <branch>`); otherwise run bare `/review`.
+   - If you are Gemini, run a quick code review against the resolved target (or the current branch when none was provided).
+   - For all other coding harnesses, run your built-in code review tool, forwarding the target when its syntax accepts one.
 
    Then stop. Do not dispatch the multi-agent reviewer pipeline.
 
