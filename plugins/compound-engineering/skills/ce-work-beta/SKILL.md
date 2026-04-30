@@ -384,7 +384,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
    - Keep user informed of major milestones
    - When the plan defines U-IDs for Implementation Units, or the plan or origin document carries stable R-IDs (and optionally A/F/AE IDs), reference them in blockers, deferred-work notes, task summaries, and final verification — not routine status updates. U-IDs anchor units across plan edits; R/A/F/AE anchor product intent across the brainstorm-plan handoff. Use the IDs the plan supplies and do not invent ones it does not. This preserves traceability without burying signal under noise.
 
-### Phase 3-4: Quality Check and Ship It
+### Phase 3-4: Quality Check and Finishing Work
 
 When all Phase 2 tasks are complete and execution transitions to quality check, read `references/shipping-workflow.md` for the full shipping workflow: quality checks, code review, final validation, PR creation, and notification.
 
