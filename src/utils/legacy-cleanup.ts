@@ -107,6 +107,8 @@ const STALE_AGENT_NAMES = [
   "architecture-strategist",
   "best-practices-researcher",
   "bug-reproduction-validator",
+  "ce-cli-agent-readiness-reviewer",
+  "ce-cli-readiness-reviewer",
   "cli-agent-readiness-reviewer",
   "cli-readiness-reviewer",
   "code-simplicity-reviewer",
