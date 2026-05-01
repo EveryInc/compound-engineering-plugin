@@ -22,7 +22,7 @@ Captures problem solutions while context is fresh, creating structured documenta
 
 ## Pre-resolved context
 
-**Repo name (pre-resolved):** !`git rev-parse --show-toplevel | xargs basename`
+**Repo name (pre-resolved):** !`git rev-parse --show-toplevel | sed 's|.*/||'`
 
 **Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD 2>/dev/null || true`
 
