@@ -266,7 +266,7 @@ Assemble the body in this order:
 | Codex | (omit logo param) | `000000` |
 | Gemini CLI | `googlegemini` | `4285F4` |
 
-**Model slug:** Replace spaces with underscores. Append context window and thinking level in parentheses if known. Examples: `Opus_4.6_(1M,_Extended_Thinking)`, `Sonnet_4.6_(200K)`, `Gemini_3.1_Pro`.
+**Model slug:** Replace spaces with underscores. Append context window and thinking level in parentheses if known. URL-encode literal parens as `%28` and `%29` — unencoded `(` and `)` inside a markdown image URL break some commit-message parsers (notably release-please's conventional-commits parser, which fails the whole commit on encountering them and silently skips it from the changelog). Examples: `Opus_4.6_%281M,_Extended_Thinking%29`, `Sonnet_4.6_%28200K%29`, `Gemini_3.1_Pro`.
 
 ---
 

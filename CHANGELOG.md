@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.4.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.3.2...cli-v3.4.0) (2026-05-01)
+
+
+### Features
+
+* **ce-strategy,ce-product-pulse:** add PM skills for upstream anchor and outcome pulse ([#614](https://github.com/EveryInc/compound-engineering-plugin/issues/614)) ([cb8f9b3](https://github.com/EveryInc/compound-engineering-plugin/commit/cb8f9b348391d28f31ce367b9ff308980939c96f))
+* **ce-strategy:** move strategy doc to root and add frontmatter ([#732](https://github.com/EveryInc/compound-engineering-plugin/issues/732)) ([265cb42](https://github.com/EveryInc/compound-engineering-plugin/commit/265cb4280f22bbd2fd5cc45e338371442b6c1692))
+
+
+### Bug Fixes
+
+* **ce-compound,ce-sessions:** handle non-git CWD in pre-resolved git branch ([#731](https://github.com/EveryInc/compound-engineering-plugin/issues/731)) ([5e04534](https://github.com/EveryInc/compound-engineering-plugin/commit/5e045341372fc95d284268d514a53da5722c81d2))
+* **ce-sessions:** 722 ce-compound and ce-sessions permission error ([#723](https://github.com/EveryInc/compound-engineering-plugin/issues/723)) ([8f80466](https://github.com/EveryInc/compound-engineering-plugin/commit/8f804669b184bc68ef6dbab4669fe0e431d8271a))
+* **review:** default to harness-native code review, escalate on risk ([#721](https://github.com/EveryInc/compound-engineering-plugin/issues/721)) ([d217660](https://github.com/EveryInc/compound-engineering-plugin/commit/d217660b3d37acf38227abf5c57ba6f390ccaa1e))
+
 ## [3.3.2](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.3.1...cli-v3.3.2) (2026-04-29)
 
 

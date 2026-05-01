@@ -489,7 +489,6 @@ describe("ce-code-review contract", () => {
       "ce-data-migrations-reviewer",
       "ce-reliability-reviewer",
       "ce-adversarial-reviewer",
-      "ce-cli-readiness-reviewer",
       "ce-previous-comments-reviewer",
       "ce-dhh-rails-reviewer",
       "ce-kieran-rails-reviewer",

@@ -22,7 +22,7 @@ Spawned on every review regardless of diff content.
 | `ce-agent-native-reviewer` | Verify new features are agent-accessible |
 | `ce-learnings-researcher` | Search docs/solutions/ for past issues related to this PR's modules and patterns |
 
-## Conditional (8 personas)
+## Conditional (7 personas)
 
 Spawned when the orchestrator identifies relevant patterns in the diff. The orchestrator reads the full diff and reasons about selection -- this is agent judgment, not keyword matching.
 
@@ -34,7 +34,6 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 | `data-migrations` | `ce-data-migrations-reviewer` | Migration files, schema changes, backfill scripts, data transformations |
 | `reliability` | `ce-reliability-reviewer` | Error handling, retry logic, circuit breakers, timeouts, background jobs, async handlers, health checks |
 | `adversarial` | `ce-adversarial-reviewer` | Diff has >=50 changed non-test, non-generated, non-lockfile lines, OR touches auth, payments, data mutations, external API integrations, or other high-risk domains |
-| `cli-readiness` | `ce-cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
 | `previous-comments` | `ce-previous-comments-reviewer` | **PR-only AND comment-gated.** Reviewing a PR that has existing review comments or review threads from prior review rounds. Skip entirely when no PR metadata was gathered in Stage 1, OR when Stage 1's `hasPriorComments` flag is false (no `reviews` and no `comments` on the PR). |
 
 ## Stack-Specific Conditional (6 personas)

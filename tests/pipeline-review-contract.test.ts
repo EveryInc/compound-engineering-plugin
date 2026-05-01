@@ -13,21 +13,25 @@ describe("ce-work review contract", () => {
     const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md")
 
     // SKILL.md should not contain extracted content
-    expect(content).not.toContain("2. **Code Review**")
+    expect(content).not.toContain("3. **Code Review**")
     expect(content).not.toContain("Consider Code Review")
     expect(content).not.toContain("Code Review** (Optional)")
 
-    // Phase 3 has a mandatory code review step in the reference file
-    expect(shipping).toContain("2. **Code Review**")
+    // Phase 3 has a Claude-Code-only Simplify step at position 2 (gated on >=30 LOC)
+    // and a mandatory code review at position 3
+    expect(shipping).toContain("2. **Simplify**")
+    expect(shipping).toContain("Claude Code only")
+    expect(shipping).toContain("3. **Code Review**")
 
-    // Two-tier rubric in reference file
-    expect(shipping).toContain("**Tier 1: Inline self-review**")
-    expect(shipping).toContain("**Tier 2: Full review (default)**")
+    // Two-tier rubric in reference file: Tier 1 is harness-native (default),
+    // Tier 2 is ce-code-review (risk-based escalation)
+    expect(shipping).toContain("**Tier 1 -- harness-native code review (default).**")
+    expect(shipping).toContain("**Tier 2 -- `ce-code-review` (escalation).**")
     expect(shipping).toContain("ce-code-review")
     expect(shipping).toContain("mode:autofix")
 
     // Quality checklist includes review
-    expect(shipping).toContain("Code review completed (inline self-review or full `ce-code-review`)")
+    expect(shipping).toContain("Code review completed (Tier 1 harness-native or Tier 2 `ce-code-review`)")
   })
 
   test("delegates commit and PR to dedicated skills", async () => {
@@ -48,8 +52,10 @@ describe("ce-work review contract", () => {
     // Review/commit content extracted to references/shipping-workflow.md
     const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md")
 
-    // Extracted content in reference file
-    expect(shipping).toContain("2. **Code Review**")
+    // Extracted content in reference file: Simplify step at position 2,
+    // Code Review at position 3
+    expect(shipping).toContain("2. **Simplify**")
+    expect(shipping).toContain("3. **Code Review**")
     expect(shipping).toContain("`ce-commit-push-pr` skill")
     expect(shipping).toContain("`ce-commit` skill")
 
@@ -110,7 +116,7 @@ describe("ce-work review contract", () => {
     expect(content).toContain("`references/shipping-workflow.md`")
 
     // Extracted content is not in SKILL.md
-    expect(content).not.toContain("2. **Code Review**")
+    expect(content).not.toContain("3. **Code Review**")
     expect(content).not.toContain("## Quality Checklist")
     expect(content).not.toContain("## Code Review Tiers")
   })
@@ -122,7 +128,7 @@ describe("ce-work review contract", () => {
     expect(content).toContain("`references/shipping-workflow.md`")
 
     // Extracted content is not in SKILL.md
-    expect(content).not.toContain("2. **Code Review**")
+    expect(content).not.toContain("3. **Code Review**")
     expect(content).not.toContain("## Quality Checklist")
     expect(content).not.toContain("## Code Review Tiers")
   })

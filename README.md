@@ -28,12 +28,15 @@ The point is not ceremony. The point is leverage. A good brainstorm makes the pl
 
 ## Workflow
 
+`/ce-strategy` is upstream of the loop -- it captures the product's target problem, approach, persona, metrics, and tracks as a short durable anchor at `STRATEGY.md`. Ideate, brainstorm, and plan read it as grounding when present, so strategy choices flow into feature conception, prioritization, and spec.
+
 The core loop is: brainstorm the requirements, plan the implementation, work through the plan, review the result, compound the learning, then repeat with better context.
 
 Use `/ce-ideate` before the loop when you want the agent to generate and critique bigger ideas before choosing one to brainstorm. It produces a ranked ideation artifact, not requirements, plans, or code.
 
 | Skill | Purpose |
 |-------|---------|
+| `/ce-strategy` | Create or maintain `STRATEGY.md` -- the product's target problem, approach, persona, key metrics, and tracks. Read as grounding by ideate, brainstorm, and plan |
 | `/ce-ideate` | Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming |
 | `/ce-brainstorm` | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning |
 | `/ce-plan` | Turn feature ideas into detailed implementation plans |
@@ -41,6 +44,9 @@ Use `/ce-ideate` before the loop when you want the agent to generate and critiqu
 | `/ce-debug` | Systematically reproduce failures, trace root cause, and implement fixes |
 | `/ce-code-review` | Multi-agent code review before merging |
 | `/ce-compound` | Document learnings to make future work easier |
+| `/ce-product-pulse` | Generate a single-page, time-windowed pulse report on usage, performance, errors, and followups. Saves to `docs/pulse-reports/` |
+
+`/ce-product-pulse` is the read-side companion -- a time-windowed report on what users actually experienced and how the product performed over a given window (24h, 7d, etc.), saved to `docs/pulse-reports/` so past pulses form a browseable timeline of user outcomes. The next strategy update and the next brainstorm get real signal to anchor to.
 
 Each cycle compounds: brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented.
 
@@ -68,7 +74,7 @@ For a focused bug investigation:
 
 After installing, run `/ce-setup` in any project. It checks your environment, installs missing tools, and bootstraps project config.
 
-The `compound-engineering` plugin currently ships 36 skills and 51 agents. See the [full component reference](plugins/compound-engineering/README.md) for the complete inventory.
+The `compound-engineering` plugin currently ships 37 skills and 51 agents. See the [full component reference](plugins/compound-engineering/README.md) for the complete inventory.
 
 ---
 

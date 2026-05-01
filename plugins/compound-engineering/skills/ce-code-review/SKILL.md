@@ -32,6 +32,27 @@ All tokens are optional. Each one present means one less thing to infer. When ab
 
 **Conflicting mode flags:** If multiple mode tokens appear in arguments, stop and do not dispatch agents. If `mode:headless` is one of the conflicting tokens, emit the headless error envelope: `Review failed (headless mode). Reason: conflicting mode flags — <mode_a> and <mode_b> cannot be combined.` Otherwise emit the generic form: `Review failed. Reason: conflicting mode flags — <mode_a> and <mode_b> cannot be combined.`
 
+## Quick Review Short-Circuit
+
+If `$ARGUMENTS` indicates the user wants a quick, fast, or light code review, do not dispatch the multi-agent flow.
+
+**Announce the chosen path** before any other work (Quick review vs Multi-agent review).
+
+Programmatic callers (when `mode:autofix`, `mode:report-only`, or `mode:headless` is present) skip this announcement -- the orchestrator owns user-facing messaging.
+
+Sequence:
+
+1. **Run the harness's built-in code review.** If `$ARGUMENTS` contained a review target (PR number, GitHub URL, or branch name) after stripping recognized tokens, forward that target to the built-in. If no target was provided, run the bare command and let the built-in default to the current branch.
+   - If you are Claude Code, run the `/review` tool, passing the target if present (e.g., `/review 123`, `/review <PR-URL>`, `/review <branch>`); otherwise run bare `/review`.
+   - If you are Gemini, run a quick code review against the resolved target (or the current branch when none was provided).
+   - For all other coding harnesses, run your built-in code review tool, forwarding the target when its syntax accepts one.
+
+   Then stop. Do not dispatch the multi-agent reviewer pipeline.
+
+2. **Exemption -- no built-in code review exists.** If the current harness has no built-in code review command or skill, do not short-circuit. Continue into the full multi-agent review described in the rest of this skill (Tier 2).
+
+3. **Programmatic callers bypass this short-circuit.** When `mode:autofix`, `mode:report-only`, or `mode:headless` is present, ignore quick intent and run the full multi-agent review. Skill-to-skill callers that want the lightweight pass should invoke `/review` (or the harness equivalent) directly rather than route through this short-circuit.
+
 ## Mode Detection
 
 | Mode | When | Behavior |
@@ -129,7 +150,6 @@ Routing rules:
 | `ce-data-migrations-reviewer` | Migrations, schema changes, backfills |
 | `ce-reliability-reviewer` | Error handling, retries, timeouts, background jobs |
 | `ce-adversarial-reviewer` | Diff >=50 changed non-test/non-generated/non-lockfile lines, or auth, payments, data mutations, external APIs |
-| `ce-cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
 | `ce-previous-comments-reviewer` | Reviewing a PR that has existing review comments or threads |
 
 **Stack-specific conditional (selected per diff):**
