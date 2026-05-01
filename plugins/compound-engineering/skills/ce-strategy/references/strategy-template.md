@@ -1,6 +1,6 @@
 # Strategy Template
 
-Loaded by `SKILL.md` after the interview is complete. Fill it in using the captured answers and write to `docs/strategy.md`.
+Loaded by `SKILL.md` after the interview is complete. Fill it in using the captured answers and write to `STRATEGY.md`.
 
 ## Rules for filling in
 
@@ -8,16 +8,20 @@ Loaded by `SKILL.md` after the interview is complete. Fill it in using the captu
 - Each section stays compact. The whole doc should read in under 5 minutes.
 - Section order is locked. Do not add new top-level sections.
 - Optional sections: delete entirely if unused. Do not leave empty headers.
-- Write the `_Last updated_` line with today's ISO date (YYYY-MM-DD).
+- Set `last_updated` in the YAML frontmatter to today's ISO date (YYYY-MM-DD). Do not duplicate the date in prose.
+- Set `name` in the frontmatter to the product or initiative name (the same value used in the H1 title).
 
 ## Template
 
 The block below is the literal file to write (minus this line and the fences). Replace every `{{placeholder}}` with the captured answer. Delete any optional section whose placeholder wasn't answered.
 
 ~~~markdown
-# {{product_name}} Strategy
+---
+name: {{product_name}}
+last_updated: {{YYYY-MM-DD}}
+---
 
-_Last updated: {{YYYY-MM-DD}}. Re-run `/ce-strategy` to update._
+# {{product_name}} Strategy
 
 ## Target problem
 
@@ -76,9 +80,10 @@ _Why it serves the approach:_ {{one line}}
 
 Before confirming the write, scan the draft for:
 
+- [ ] Frontmatter present at the top with `name` and `last_updated` keys.
+- [ ] `last_updated` carries today's date in ISO format (YYYY-MM-DD).
 - [ ] No section has more than 4 sentences except Tracks (where each track has its own short block).
 - [ ] No placeholders remain (`{{...}}`).
 - [ ] Optional sections with no content have been deleted, not left empty.
 - [ ] Metric count is between 3 and 5. Track count is between 2 and 4.
 - [ ] Target problem and Our approach are connected - one clearly responds to the other.
-- [ ] `_Last updated_` line carries today's date in ISO format.

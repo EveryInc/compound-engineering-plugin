@@ -9,7 +9,7 @@ Loaded by `SKILL.md` at Phase 2.3 after queries have returned. Fill the template
 - No hardcoded thresholds. Do not label things "high" or "low" or color anything red unless the reader asked for threshold-based annotation at setup.
 - No PII. No emails, no account IDs, no message content.
 - Headlines are the top of the page. If a reader only reads the first 3 lines, they should know the most important thing that happened.
-- If `docs/strategy.md` exists, re-read its `## Key metrics` section before assembling the report. For each strategy metric, decide what to render:
+- If `STRATEGY.md` exists, re-read its `## Key metrics` section before assembling the report. For each strategy metric, decide what to render:
   - If the metric name appears in `pulse_excluded_metrics`, omit it from the report.
   - If the metric name appears in `pulse_pending_metrics`, include it in the Usage section marked `no data (instrumentation pending)`.
   - Otherwise, resolve the source for this metric: look it up in `pulse_metric_sources` (CSV of `metric=source` pairs); if present, use that source. If absent, fall back to `pulse_analytics_source` and append `(default source)` to the metric line so the implicit routing is visible. Then query and render the metric with its current value and delta. If the query returns no value, include it anyway and mark it `no data`.

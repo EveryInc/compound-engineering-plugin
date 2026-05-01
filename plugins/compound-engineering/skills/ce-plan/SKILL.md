@@ -194,7 +194,7 @@ Fires **only in solo invocation** — when Phase 0.2 found no upstream brainstor
 Prepare a concise planning context summary (a paragraph or two) to pass as input to the research agents:
 - If an origin document exists, summarize the problem frame, requirements, and key decisions from that document
 - Otherwise use the feature description directly
-- If `docs/strategy.md` exists, read it and include the relevant pieces (target problem, approach, active tracks) in the summary so downstream research and planning decisions are anchored to product strategy
+- If `STRATEGY.md` exists, read it and include the relevant pieces (target problem, approach, active tracks) in the summary so downstream research and planning decisions are anchored to product strategy
 
 Run these agents in parallel:
 
@@ -206,7 +206,7 @@ Collect:
 - Implementation patterns, relevant files, modules, and tests
 - AGENTS.md guidance that materially affects the plan, with CLAUDE.md used only as compatibility fallback when present
 - Institutional learnings from `docs/solutions/`
-- Product strategy context when `docs/strategy.md` is present — flag any plan decisions that pull away from the active tracks or the stated approach
+- Product strategy context when `STRATEGY.md` is present — flag any plan decisions that pull away from the active tracks or the stated approach
 
 **Slack context** (opt-in) — never auto-dispatch. Route by condition:
 

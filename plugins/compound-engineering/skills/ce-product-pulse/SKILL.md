@@ -45,7 +45,7 @@ Apply a **15-minute trailing buffer** to the window's upper bound. Many analytic
 4. **Parallel where safe, serial where it matters.** Analytics and tracing queries run in parallel. Database queries run serially to avoid load.
 5. **Memory through saved reports.** Every run writes to `docs/pulse-reports/` so past pulses are browseable as a timeline.
 6. **Read-only database access only.** If a database is used as a data source, the connection must be read-only. The interview refuses to accept read-write credentials. Database access is optional - many products complete the pulse with analytics and tracing alone.
-7. **Strategy-seeded when available.** If `docs/strategy.md` exists, the interview reads it before asking questions and carries forward the product name and key metrics as seeds. The goal of data-source setup is to wire up whatever connections are needed to actually measure those metrics.
+7. **Strategy-seeded when available.** If `STRATEGY.md` exists, the interview reads it before asking questions and carries forward the product name and key metrics as seeds. The goal of data-source setup is to wire up whatever connections are needed to actually measure those metrics.
 
 ## Execution Flow
 
@@ -72,7 +72,7 @@ If it shows an unresolved command string, read `.compound-engineering/config.loc
 - `pulse_db_enabled` -- `true` or default `false`; when `true`, read-only DB access is part of the pulse
 - `pulse_metric_sources` -- comma-separated `metric=source` pairs giving per-strategy-metric source overrides (e.g., `retention_d7=posthog,nps=delighted`). Strategy metrics not listed fall back to `pulse_analytics_source` and are rendered with a `(default source)` marker so the implicit routing is visible.
 - `pulse_pending_metrics` -- comma-separated string of strategy-doc metric names awaiting instrumentation; rendered as `no data` in each pulse report until instrumentation lands
-- `pulse_excluded_metrics` -- comma-separated string of strategy-doc metric names intentionally excluded from the pulse; the metric stays in `docs/strategy.md` but is not surfaced in pulse reports
+- `pulse_excluded_metrics` -- comma-separated string of strategy-doc metric names intentionally excluded from the pulse; the metric stays in `STRATEGY.md` but is not surfaced in pulse reports
 
 **Routing:**
 
@@ -85,14 +85,14 @@ If the argument was `setup`, `reconfigure`, or `edit config`, go to Phase 1 rega
 
 #### 1.0 Seed from strategy (if available)
 
-Before asking any questions, read `docs/strategy.md` using the native file-read tool. If the file exists, extract:
+Before asking any questions, read `STRATEGY.md` using the native file-read tool. If the file exists, extract:
 
-- The product name from the H1 title, stripping the trailing ` Strategy` suffix (e.g., `# Spiral Strategy` -> `Spiral`)
+- The product name from the `name` key in the YAML frontmatter, falling back to the H1 title (stripping the trailing ` Strategy` suffix, e.g., `# Spiral Strategy` -> `Spiral`) if frontmatter is missing
 - The list of key metrics from the `## Key metrics` section, one per line
 
 Open the interview by surfacing what was extracted: announce that a strategy doc was found, show the seeded product name and the list of key metrics that will be carried into event/data setup, and invite the user to correct any of it before continuing.
 
-If `docs/strategy.md` does not exist, note that explicitly in chat: no strategy doc on file, running setup from scratch, and mention that `ce-strategy` can seed pulse later if run first.
+If `STRATEGY.md` does not exist, note that explicitly in chat: no strategy doc on file, running setup from scratch, and mention that `ce-strategy` can seed pulse later if run first.
 
 #### 1.1 Interview
 

@@ -21,7 +21,7 @@ The primary entry points for engineering work, invoked as slash commands. `ce-st
 
 | Skill | Description |
 |-------|-------------|
-| `/ce-strategy` | Create or maintain `docs/strategy.md` — the product's target problem, approach, persona, key metrics, and tracks. Re-runnable to update. Read as grounding by `/ce-ideate`, `/ce-brainstorm`, and `/ce-plan` when present |
+| `/ce-strategy` | Create or maintain `STRATEGY.md` — the product's target problem, approach, persona, key metrics, and tracks. Re-runnable to update. Read as grounding by `/ce-ideate`, `/ce-brainstorm`, and `/ce-plan` when present |
 | `/ce-ideate` | Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming |
 | `/ce-brainstorm` | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning |
 | `/ce-plan` | Create structured plans for any multi-step task -- software features, research workflows, events, study plans -- with automatic confidence checking |

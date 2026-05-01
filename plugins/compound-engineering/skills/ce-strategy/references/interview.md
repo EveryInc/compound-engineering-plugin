@@ -140,4 +140,4 @@ Skip by default. Keep to 2-3 lines if present.
 
 ## After the Interview
 
-Once sections 1-5 are captured (and any optional sections the user engaged with), read `strategy-template.md` and fill it in. Present the full draft in chat before writing. Offer one edit round. Then write to `docs/strategy.md`.
+Once sections 1-5 are captured (and any optional sections the user engaged with), read `strategy-template.md` and fill it in. Present the full draft in chat before writing. Offer one edit round. Then write to `STRATEGY.md`.
