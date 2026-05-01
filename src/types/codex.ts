@@ -1,4 +1,4 @@
-import type { ClaudeMcpServer } from "./claude"
+import type { ClaudeMcpServer, ClaudeHooks } from "./claude"
 import type { CodexInvocationTargets } from "../utils/codex-content"
 
 export type CodexPrompt = {
@@ -37,6 +37,7 @@ export type CodexBundle = {
   agents?: CodexAgent[]
   invocationTargets?: CodexInvocationTargets
   mcpServers?: Record<string, ClaudeMcpServer>
+  hooks?: ClaudeHooks
   /**
    * Names of skills CE owns in the Codex managed tree that are NOT written by
    * this bundle. Used in agents-only installs (default `--to codex`) where
