@@ -23,9 +23,8 @@ deps=(
 
 # Agent skills installed via the `skills` CLI (vercel-labs/skills).
 # Format: name|tier|install_cmd|url
-# Presence is resolved authoritatively via `npx --yes skills list --global --json`
-# when npx and jq are available; otherwise falls back to a Claude Code path
-# probe at ~/.claude/skills/<name>.
+# Presence is resolved via `npx --yes skills list --global --json`
+# when npx and jq are available, then by probing known global skill roots.
 
 skills=(
   "ast-grep|recommended|npx skills add ast-grep/agent-skill -g -y|https://github.com/ast-grep/agent-skill"
@@ -92,7 +91,25 @@ fi
 
 skill_ok=0; skill_total=0
 skill_results=()
-skills_root="$HOME/.claude/skills"
+skill_roots=(
+  "$HOME/.claude/skills"
+  "$HOME/.agents/skills"
+  "$HOME/.codex/skills"
+)
+
+skill_exists_on_disk() {
+  local name="$1"
+  local root
+
+  for root in "${skill_roots[@]}"; do
+    if [ -e "$root/$name" ]; then
+      return 0
+    fi
+  done
+
+  return 1
+}
+
 for entry in "${skills[@]}"; do
   IFS='|' read -r name tier install_cmd url <<< "$entry"
   skill_total=$((skill_total + 1))
@@ -102,7 +119,9 @@ for entry in "${skills[@]}"; do
     if printf '%s\n' "$installed_skill_names" | grep -qx "$name"; then
       is_installed="yes"
     fi
-  elif [ -e "$skills_root/$name" ]; then
+  fi
+
+  if [ "$is_installed" = "no" ] && skill_exists_on_disk "$name"; then
     is_installed="yes"
   fi
 

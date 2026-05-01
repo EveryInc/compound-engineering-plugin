@@ -142,7 +142,7 @@ For each selected dependency, in order:
 
 2. **If approved:** Run the install command using a shell execution tool. After the command completes, verify installation:
    - For a CLI tool, run the dependency's check command (e.g., `command -v agent-browser`).
-   - For an agent skill, prefer `npx --yes skills list --global --json | jq -r '.[].name' | grep -qx <skill-name>` when `npx` is available; otherwise fall back to checking that `~/.claude/skills/<skill-name>` exists (file, directory, or symlink).
+   - For an agent skill, prefer `npx --yes skills list --global --json | jq -r '.[].name' | grep -qx <skill-name>` when `npx` is available; otherwise fall back to checking that `~/.claude/skills/<skill-name>`, `~/.agents/skills/<skill-name>`, or `~/.codex/skills/<skill-name>` exists (file, directory, or symlink).
 
 3. **If verification succeeds:** Report success.
 

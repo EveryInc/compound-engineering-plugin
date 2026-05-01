@@ -2,7 +2,7 @@
 name: ce-previous-comments-reviewer
 description: Conditional code-review persona, selected when reviewing a PR that has existing review comments or review threads. Checks whether prior feedback has been addressed in the current diff.
 model: inherit
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, Write
 color: yellow
 
 ---

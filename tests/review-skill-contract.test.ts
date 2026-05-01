@@ -575,6 +575,40 @@ describe("ce-code-review contract", () => {
     }
   })
 
+  test("JSON-pipeline persona agents grant Write so they can save run artifacts", async () => {
+    // The ce-code-review subagent template instructs each persona to write its full
+    // analysis to /tmp/compound-engineering/ce-code-review/{run_id}/{reviewer}.json.
+    // Without Write in tools, that "one permitted write" cannot happen and headless
+    // detail enrichment loses its Why:/Evidence: source. See issue #733.
+    const personas = [
+      "ce-correctness-reviewer",
+      "ce-testing-reviewer",
+      "ce-maintainability-reviewer",
+      "ce-project-standards-reviewer",
+      "ce-security-reviewer",
+      "ce-performance-reviewer",
+      "ce-api-contract-reviewer",
+      "ce-data-migrations-reviewer",
+      "ce-reliability-reviewer",
+      "ce-adversarial-reviewer",
+      "ce-previous-comments-reviewer",
+      "ce-dhh-rails-reviewer",
+      "ce-kieran-rails-reviewer",
+      "ce-kieran-python-reviewer",
+      "ce-kieran-typescript-reviewer",
+      "ce-julik-frontend-races-reviewer",
+      "ce-swift-ios-reviewer",
+    ]
+
+    for (const persona of personas) {
+      const content = await readRepoFile(`plugins/compound-engineering/agents/${persona}.agent.md`)
+      const parsed = parseFrontmatter(content)
+      const tools = String(parsed.data.tools ?? "")
+
+      expect(tools).toContain("Write")
+    }
+  })
+
   test("leaves data-migration-expert as the unstructured review format", async () => {
     const content = await readRepoFile(
       "plugins/compound-engineering/agents/ce-data-migration-expert.agent.md",
