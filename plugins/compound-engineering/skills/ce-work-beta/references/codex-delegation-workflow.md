@@ -56,7 +56,7 @@ If `inside_sandbox` is true, delegation would recurse or fail.
 **2. Availability Check**
 
 **Codex CLI path (pre-resolved):**
-!`command -v codex 2>/dev/null`
+!`command -v codex 2>/dev/null || true`
 
 If the line above shows an absolute path (starts with `/`, e.g., `/opt/homebrew/bin/codex`), the Codex CLI is available — proceed to the next check.
 Otherwise — empty, an unresolved command string like `command -v codex 2>/dev/null` left in place by a non-Claude harness that doesn't process `!` pre-resolution, or any other non-path value — run `command -v codex` via the shell/Bash tool to verify at runtime. If that prints an absolute path, the Codex CLI is available; proceed. If it fails or prints nothing, emit "Codex CLI not found (install via `npm install -g @openai/codex` or `brew install codex`) -- using standard mode." and set `delegation_active` to false.

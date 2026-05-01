@@ -24,7 +24,7 @@ Captures problem solutions while context is fresh, creating structured documenta
 
 **Repo name (pre-resolved):** !`common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); repo="${common%/.git}"; echo "${repo##*/}"`
 
-**Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD 2>/dev/null`
+**Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD 2>/dev/null || true`
 
 If the lines above resolved to plain values (a folder name like `my-repo` and a branch name like `feat/my-branch`), pass them into the Session Historian dispatch in Phase 1 so the agent does not waste a turn deriving them. If they still contain backtick command strings or are empty, omit them from the dispatch and let the agent derive them at runtime.
 
