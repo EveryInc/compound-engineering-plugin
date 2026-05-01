@@ -138,11 +138,17 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
   // Write hooks to .codex/hooks.json — Codex uses the same hooks format
   // as Claude Code. Hooks are merged with any existing hooks file to avoid
   // clobbering hooks from other plugins or manual configuration.
-  if (bundle.hooks && Object.keys(bundle.hooks.hooks).length > 0) {
+  // Always run the merge (even with empty hooks) so previously installed
+  // hooks tagged with this plugin's _source are cleaned up on upgrade.
+  {
     const hooksPath = path.join(codexRoot, "hooks.json")
     const existingHooks = await readJsonSafe(hooksPath)
-    const mergedHooks = mergeCodexHooks(existingHooks, bundle.hooks.hooks, pluginName)
-    await writeTextSecure(hooksPath, JSON.stringify(mergedHooks, null, 2) + "\n")
+    const pluginHooks = bundle.hooks?.hooks ?? {}
+    const mergedHooks = mergeCodexHooks(existingHooks, pluginHooks, pluginName)
+    // Only write if there are hooks to write or if we need to clean up old ones
+    if (Object.keys((mergedHooks.hooks as Record<string, unknown>) ?? {}).length > 0 || existingHooks !== null) {
+      await writeTextSecure(hooksPath, JSON.stringify(mergedHooks, null, 2) + "\n")
+    }
   }
 }
 
