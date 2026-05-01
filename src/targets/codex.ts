@@ -145,8 +145,14 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
     const existingHooks = await readJsonSafe(hooksPath)
     const pluginHooks = bundle.hooks?.hooks ?? {}
     const mergedHooks = mergeCodexHooks(existingHooks, pluginHooks, pluginName)
-    // Only write if there are hooks to write or if we need to clean up old ones
-    if (Object.keys((mergedHooks.hooks as Record<string, unknown>) ?? {}).length > 0 || existingHooks !== null) {
+    const hasHooks = Object.keys((mergedHooks.hooks as Record<string, unknown>) ?? {}).length > 0
+    if (hasHooks || existingHooks !== null) {
+      if (existingHooks !== null) {
+        const backupPath = await backupFile(hooksPath)
+        if (backupPath) {
+          console.log(`Backed up existing hooks to ${backupPath}`)
+        }
+      }
       await writeTextSecure(hooksPath, JSON.stringify(mergedHooks, null, 2) + "\n")
     }
   }
