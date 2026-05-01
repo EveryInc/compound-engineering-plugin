@@ -66,7 +66,16 @@ Wait for all three agents to complete. Aggregate their findings and fix each iss
 
 ## Step 4: Verify behavior is preserved
 
-The premise of this skill is that simplification preserves exact functionality. After applying fixes, run the project's existing test suite, lint, and typecheck. Surface any failure clearly with the failing check name and the relevant output. Do not relax assertions, weaken type signatures, or skip tests to make checks pass — that defeats the "preserves functionality" guarantee. Either fix the underlying break introduced by simplification, or revert the specific change that caused the regression.
+The premise of this skill is that simplification preserves exact functionality. After applying fixes:
+
+**Run typecheck and lint over the full project.** They are usually fast and catch the most common simplification regressions — broken imports, unused exports, dropped type narrowings, dead code other modules still reference.
+
+**Run tests:**
+- Run tests scoped to the changed paths. CI runs the full suite on PR — this local check is a fast signal, not the final guarantee. Match scope to blast radius; a 3-line simplification doesn't warrant a 20-minute test run.
+- Broaden scope when the change has obvious wide reach — e.g., a heavily-imported utility was rewritten, or Agent 2's consolidation/dedup fixes modified shared code. This is a judgment call about ripple risk, not a mechanical rule.
+- If the test runner has no scoping mechanism, run the full suite.
+
+Surface any failure clearly with the failing check name and the relevant output. Do not relax assertions, weaken type signatures, or skip tests to make checks pass — that defeats the "preserves functionality" guarantee. Either fix the underlying break introduced by simplification, or revert the specific change that caused the regression.
 
 If no test suite, lint, or typecheck is configured, state that explicitly in the summary; do not silently skip verification.
 
