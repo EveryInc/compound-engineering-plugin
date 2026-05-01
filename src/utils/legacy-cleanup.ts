@@ -107,6 +107,8 @@ const STALE_AGENT_NAMES = [
   "architecture-strategist",
   "best-practices-researcher",
   "bug-reproduction-validator",
+  "ce-cli-agent-readiness-reviewer",
+  "ce-cli-readiness-reviewer",
   "cli-agent-readiness-reviewer",
   "cli-readiness-reviewer",
   "code-simplicity-reviewer",
@@ -291,6 +293,14 @@ const LEGACY_ONLY_AGENT_DESCRIPTIONS: Record<string, string> = {
     "Systematically reproduces and validates bug reports to confirm whether reported behavior is an actual bug. Use when you receive a bug report or issue that needs verification.",
   "lint":
     "Use this agent when you need to run linting and code quality checks on Ruby and ERB files. Run before pushing to origin.",
+  "cli-agent-readiness-reviewer":
+    "Reviews CLI source code, plans, or specs for AI agent readiness using a severity-based rubric focused on whether a CLI is merely usable by agents or genuinely optimized for them.",
+  "ce-cli-agent-readiness-reviewer":
+    "Reviews CLI source code, plans, or specs for AI agent readiness using a severity-based rubric focused on whether a CLI is merely usable by agents or genuinely optimized for them.",
+  "cli-readiness-reviewer":
+    "Conditional code-review persona, selected when the diff touches CLI command definitions, argument parsing, or command handler implementations. Reviews CLI code for agent readiness -- how well the CLI serves autonomous agents, not just human users.",
+  "ce-cli-readiness-reviewer":
+    "Conditional code-review persona, selected when the diff touches CLI command definitions, argument parsing, or command handler implementations. Reviews CLI code for agent readiness -- how well the CLI serves autonomous agents, not just human users.",
 }
 
 type LegacyFingerprints = {

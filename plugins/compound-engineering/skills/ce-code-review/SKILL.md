@@ -150,7 +150,6 @@ Routing rules:
 | `ce-data-migrations-reviewer` | Migrations, schema changes, backfills |
 | `ce-reliability-reviewer` | Error handling, retries, timeouts, background jobs |
 | `ce-adversarial-reviewer` | Diff >=50 changed non-test/non-generated/non-lockfile lines, or auth, payments, data mutations, external APIs |
-| `ce-cli-readiness-reviewer` | CLI command definitions, argument parsing, CLI framework usage, command handler implementations |
 | `ce-previous-comments-reviewer` | Reviewing a PR that has existing review comments or threads |
 
 **Stack-specific conditional (selected per diff):**

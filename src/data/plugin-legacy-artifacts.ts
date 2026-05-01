@@ -131,6 +131,8 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "best-practices-researcher",
       "bug-reproduction-validator",
       "ce-bug-reproduction-validator",
+      "ce-cli-agent-readiness-reviewer",
+      "ce-cli-readiness-reviewer",
       "ce-lint",
       "cli-agent-readiness-reviewer",
       "cli-readiness-reviewer",
