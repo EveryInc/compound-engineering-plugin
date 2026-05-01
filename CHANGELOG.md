@@ -1,5 +1,13 @@
 # Changelog
 
+## [3.4.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.4.0...cli-v3.4.1) (2026-05-01)
+
+
+### Bug Fixes
+
+* **ce-setup:** detect codex global skills ([#739](https://github.com/EveryInc/compound-engineering-plugin/issues/739)) ([887db6b](https://github.com/EveryInc/compound-engineering-plugin/commit/887db6b2ade997a2723debc15b5baf34fcf52fb4))
+* **code-review:** grant Write to JSON-pipeline reviewer agents ([#741](https://github.com/EveryInc/compound-engineering-plugin/issues/741)) ([520a9eb](https://github.com/EveryInc/compound-engineering-plugin/commit/520a9ebea039f4f5d984cd7f31d8b8e60a9e0bc6))
+
 ## [3.4.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.3.2...cli-v3.4.0) (2026-05-01)
 
 
