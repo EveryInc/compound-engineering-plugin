@@ -633,9 +633,9 @@ describe("ce-code-review contract", () => {
 
     // Branch and standalone modes delegate to resolve-base.sh and check its ERROR: output.
     // The script itself emits ERROR: when the base is unresolved.
-    expect(content).toContain("references/resolve-base.sh")
+    expect(content).toContain("scripts/resolve-base.sh")
     const resolveScript = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-code-review/references/resolve-base.sh",
+      "plugins/compound-engineering/skills/ce-code-review/scripts/resolve-base.sh",
     )
     expect(resolveScript).toContain("ERROR:")
 
