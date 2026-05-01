@@ -104,6 +104,7 @@ export function convertClaudeToCodex(
       agents,
       invocationTargets,
       mcpServers: undefined,
+      hooks: plugin.hooks,
       externallyManagedSkillNames,
     }
   }
@@ -126,6 +127,7 @@ export function convertClaudeToCodex(
     agents,
     invocationTargets,
     mcpServers: plugin.mcpServers,
+    hooks: plugin.hooks,
   }
 }
 

@@ -134,6 +134,16 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
     }
     await writeTextSecure(configPath, merged)
   }
+
+  // Write hooks to .codex/hooks.json — Codex uses the same hooks format
+  // as Claude Code. Hooks are merged with any existing hooks file to avoid
+  // clobbering hooks from other plugins or manual configuration.
+  if (bundle.hooks && Object.keys(bundle.hooks.hooks).length > 0) {
+    const hooksPath = path.join(codexRoot, "hooks.json")
+    const existingHooks = await readJsonSafe(hooksPath)
+    const mergedHooks = mergeCodexHooks(existingHooks, bundle.hooks.hooks, pluginName)
+    await writeTextSecure(hooksPath, JSON.stringify(mergedHooks, null, 2) + "\n")
+  }
 }
 
 function resolveCodexRoot(outputRoot: string): string {
@@ -613,4 +623,58 @@ function formatTomlInlineTable(entries: Record<string, string>): string {
     ([key, value]) => `${formatTomlKey(key)} = ${formatTomlString(value)}`,
   )
   return `{ ${parts.join(", ")} }`
+}
+
+// ── Hooks ──────────────────────────────────────────────────
+
+async function readJsonSafe(filePath: string): Promise<Record<string, unknown> | null> {
+  try {
+    const content = await fs.readFile(filePath, "utf8")
+    return JSON.parse(content)
+  } catch {
+    return null
+  }
+}
+
+type HookEntry = { matcher?: string; hooks: Array<{ type: string; command?: string; prompt?: string; agent?: string; timeout?: number }> }
+
+/**
+ * Merge plugin hooks into an existing .codex/hooks.json, preserving hooks
+ * from other sources. Uses a managed-block pattern: each plugin's hooks are
+ * tagged with a `_source` field so re-installs can replace them cleanly.
+ */
+function mergeCodexHooks(
+  existing: Record<string, unknown> | null,
+  pluginHooks: Record<string, HookEntry[]>,
+  pluginName?: string,
+): Record<string, unknown> {
+  const source = pluginName ?? "coco"
+  const result: Record<string, unknown[]> = {}
+
+  // Preserve existing hooks that aren't from this plugin
+  const existingHooks = (existing?.hooks ?? {}) as Record<string, unknown[]>
+  for (const [event, matchers] of Object.entries(existingHooks)) {
+    if (!Array.isArray(matchers)) continue
+    result[event] = matchers.filter((m) => {
+      if (typeof m === "object" && m !== null && "_source" in m) {
+        return (m as Record<string, unknown>)._source !== source
+      }
+      return true // keep hooks without a source tag (manual or other plugins)
+    })
+  }
+
+  // Add this plugin's hooks with source tag
+  for (const [event, matchers] of Object.entries(pluginHooks)) {
+    if (!result[event]) result[event] = []
+    for (const matcher of matchers) {
+      result[event].push({ ...matcher, _source: source })
+    }
+  }
+
+  // Remove empty event arrays
+  for (const event of Object.keys(result)) {
+    if (result[event].length === 0) delete result[event]
+  }
+
+  return { hooks: result }
 }
