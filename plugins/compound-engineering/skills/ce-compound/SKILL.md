@@ -22,7 +22,7 @@ Captures problem solutions while context is fresh, creating structured documenta
 
 ## Pre-resolved context
 
-**Repo name (pre-resolved):** !`common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); repo="${common%/.git}"; echo "${repo##*/}"`
+**Repo name (pre-resolved):** !`git rev-parse --show-toplevel | xargs basename`
 
 **Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD 2>/dev/null || true`
 
