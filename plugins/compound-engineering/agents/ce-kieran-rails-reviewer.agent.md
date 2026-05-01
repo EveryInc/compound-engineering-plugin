@@ -2,7 +2,7 @@
 name: ce-kieran-rails-reviewer
 description: Conditional code-review persona, selected when the diff touches Rails application code. Reviews Rails changes with Kieran's strict bar for clarity, conventions, and maintainability.
 model: inherit
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, Write
 color: blue
 ---
 

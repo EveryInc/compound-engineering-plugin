@@ -2,7 +2,7 @@
 name: ce-swift-ios-reviewer
 description: Conditional code-review persona, selected when the diff touches Swift files (.swift), SwiftUI views, UIKit controllers, iOS entitlements, privacy manifests, Core Data model bundles, SPM manifests, storyboards/XIBs, or semantic build-setting/target/signing changes inside .pbxproj. Reviews Swift and iOS code for SwiftUI correctness, state management, memory safety, Swift concurrency, Core Data threading, and accessibility.
 model: inherit
-tools: Read, Grep, Glob, Bash
+tools: Read, Grep, Glob, Bash, Write
 color: blue
 ---
 
