@@ -11,7 +11,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 | Component | Count |
 |-----------|-------|
 | Agents | 50+ |
-| Skills | 37+ |
+| Skills | 38+ |
 
 ## Skills
 
@@ -77,6 +77,7 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 | Skill | Description |
 |-------|-------------|
 | `ce-doc-review` | Review documents using parallel persona agents for role-specific feedback |
+| `/ce-simplify-code` | Simplify recent code changes for reuse, quality, and efficiency — parallel reviewers find issues, fixes applied, behavior verified by tests |
 
 ### Content & Collaboration
 
