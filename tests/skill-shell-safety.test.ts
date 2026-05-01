@@ -178,11 +178,11 @@ function hasUnguardedErrorSuppression(cmd: string): boolean {
     if (depth === 0) {
       if (c === ';') { lastSeparatorEnd = i + 1; continue }
       if (c === '&' && next === '&') { lastSeparatorEnd = i + 2; i++; continue }
+      if (c === '|' && next === '|') { lastSeparatorEnd = i + 2; i++; continue }
     }
   }
 
-  const trailing = cmd.slice(lastSeparatorEnd)
-  return trailing.includes("2>/dev/null") && !trailing.includes("||")
+  return cmd.slice(lastSeparatorEnd).includes("2>/dev/null")
 }
 
 /**
@@ -311,6 +311,10 @@ describe("hasUnguardedErrorSuppression", () => {
 
   test("flags `2>/dev/null` on the trailing statement of an `&&` chain", () => {
     expect(hasUnguardedErrorSuppression("setup && cmd 2>/dev/null")).toBe(true)
+  })
+
+  test("flags `2>/dev/null` on the trailing statement of an `||` chain (a `||` belonging to an earlier statement does not protect a later unguarded one)", () => {
+    expect(hasUnguardedErrorSuppression("probe || git rev-parse --abbrev-ref HEAD 2>/dev/null")).toBe(true)
   })
 })
 
