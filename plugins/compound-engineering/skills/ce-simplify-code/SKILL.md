@@ -60,22 +60,31 @@ Review the same changes for efficiency:
 6. **Memory**: unbounded data structures, missing cleanup, event listener leaks
 7. **Overly broad operations**: reading entire files when only a portion is needed, loading all items when filtering for one
 
-## Step 3: Fix issues
+## Step 3: Capture verification baseline
+
+Before applying any fixes, run the project's existing test suite, lint, and typecheck commands and record the result of each (pass / fail / not configured). This baseline is what Step 5 compares against to attribute any post-fix failures honestly — without it, a pre-existing red check is indistinguishable from a regression introduced by simplification.
+
+This step can run in parallel with the Step 2 reviewer agents to avoid added latency; the baseline only needs to be captured before Step 4 applies edits.
+
+Identify which checks exist for the project's language/toolchain (test runner, linter, typechecker — e.g., `bun test` / `pnpm test` / `pytest` / `cargo test`, the project's configured linter, the project's typechecker). If no check of a given type is configured, record "not configured" for that check rather than inventing one. If none of the three are configured, record "no baseline available" and skip ahead.
+
+Do not attempt to fix baseline failures here — the goal is only to capture the starting state.
+
+## Step 4: Fix issues
 
 Wait for all three agents to complete. Aggregate their findings and fix each issue directly. If a finding is a false positive or not worth addressing, note it and move on. Do not argue with the finding or raise questions to the user, just skip it.
 
-## Step 4: Verify behavior is preserved
+## Step 5: Verify behavior is preserved
 
-The premise of this skill is that simplification preserves exact functionality. After applying fixes, verify by running the project's existing checks and tests.
+The premise of this skill is that simplification preserves exact functionality. After applying fixes, re-run the same checks captured in the Step 3 baseline.
 
-If any check fails:
+Compare each check's post-fix result against its baseline:
 
-- Surface the failure clearly with the failing check name and the relevant output.
-- Do not relax assertions, weaken type signatures, or skip tests to make checks pass — that defeats the "preserves functionality" guarantee. Either fix the underlying break introduced by simplification, or revert the specific change that caused the regression.
-- If a check was already failing before simplification (pre-existing failure unrelated to the diff), say so explicitly.
+- **Baseline passed, now fails** → regression introduced by simplification. Surface the failure clearly with the failing check name and the relevant output. Do not relax assertions, weaken type signatures, or skip tests to make checks pass — that defeats the "preserves functionality" guarantee. Either fix the underlying break introduced by simplification, or revert the specific change that caused the regression.
+- **Baseline already failed** → label as "pre-existing" and note that simplification did not change its status.
+- **No baseline was captured for this check** (e.g., baseline step was skipped or errored) → label as "unattributed" rather than guessing whether the failure is new or pre-existing.
+- **No checks were configured at all** → report verification status as "no checks configured" in the summary; do not claim behavior is preserved.
 
-If no test suite, lint, or typecheck is configured, state that explicitly in the summary; do not silently skip verification.
-
-## Step 5: Summarize
+## Step 6: Summarize
 
 Briefly summarize what was good vs improved and fixed, including which checks were run and their results. If there were no findings to act on, confirm the code didn't require any changes.
