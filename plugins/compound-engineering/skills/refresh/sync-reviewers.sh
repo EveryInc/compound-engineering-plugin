@@ -295,7 +295,9 @@ echo ""
 for filepath in "$OUTPUT_DIR"/*.md; do
   [ -f "$filepath" ] || continue
   filename=$(basename "$filepath")
-  [ "$filename" = "_template-reviewer.md" ] && continue
+  case "$filename" in
+    _template-reviewer.md|_shim-*) continue ;;
+  esac
   if [ ! -f "${staging}/${filename}" ]; then
     echo "  Orphan: ${filename} (not in any configured source)"
   fi
