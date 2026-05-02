@@ -52,7 +52,7 @@ Apply a **15-minute trailing buffer** to the window's upper bound. Many analytic
 ### Phase 0: Route by Config State
 
 **Config (pre-resolved):**
-!`(top=$(git rev-parse --show-toplevel 2>/dev/null); [ -n "$top" ] && cat "$top/.compound-engineering/config.local.yaml" 2>/dev/null) || (common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); main="${common%/.git}"; [ -n "$main" ] && cat "$main/.compound-engineering/config.local.yaml" 2>/dev/null) || echo '__NO_CONFIG__'`
+!`(top=$(git rev-parse --show-toplevel 2>/dev/null); [ -n "$top" ] && cat "$top/.compound-engineering/config.local.yaml" 2>/dev/null) || echo '__NO_CONFIG__'`
 
 If the block above contains YAML key-value pairs, extract values for the `pulse_*` keys listed under "Config keys" below.
 If it shows `__NO_CONFIG__`, the file does not exist — treat this as a first run.

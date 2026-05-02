@@ -186,6 +186,21 @@ function hasUnguardedErrorSuppression(cmd: string): boolean {
 }
 
 /**
+ * Returns true when the command contains bash parameter expansion using
+ * pattern operators: `${var%pattern}`, `${var##pattern}`, `${var#pattern}`,
+ * `${var%%pattern}`, `${var/pat/repl}`, `${var:-default}`, etc.
+ * Claude Code's permission checker rejects these as "Contains expansion".
+ *
+ * Note: simple `${var}` (no operator after the variable name) is fine.
+ * The issue is operators like `%`, `#`, `/`, `:-`, `:=` that follow the name.
+ */
+function hasParameterExpansion(cmd: string): boolean {
+  // Match ${varname followed by any operator character that isn't just }
+  // Operators: %, #, /, :, ^ — any of these after the identifier
+  return /\$\{[A-Za-z_][A-Za-z0-9_]*[%#/:^][^}]*\}/.test(cmd)
+}
+
+/**
  * Returns true when the command contains a top-level pipe (`|` that is not
  * `||`). Claude Code's permission checker treats piped commands as separate
  * operations and may require approval for each, causing skill-load failure
@@ -318,6 +333,36 @@ describe("hasUnguardedErrorSuppression", () => {
   })
 })
 
+describe("hasParameterExpansion", () => {
+  test("flags ${var%pattern} (strip-suffix operator)", () => {
+    expect(hasParameterExpansion('repo="${common%/.git}"')).toBe(true)
+  })
+
+  test("flags ${var##pattern} (strip-prefix operator)", () => {
+    expect(hasParameterExpansion('echo "${repo##*/}"')).toBe(true)
+  })
+
+  test("flags ${var:-default} (default-value operator)", () => {
+    expect(hasParameterExpansion('echo "${var:-fallback}"')).toBe(true)
+  })
+
+  test("flags ${var/pat/repl} (substitution operator)", () => {
+    expect(hasParameterExpansion('echo "${var/foo/bar}"')).toBe(true)
+  })
+
+  test("does not flag simple ${var} expansion", () => {
+    expect(hasParameterExpansion('echo "${CLAUDE_SKILL_DIR}/scripts/foo.sh"')).toBe(false)
+  })
+
+  test("does not flag commands with no ${...}", () => {
+    expect(hasParameterExpansion("git rev-parse --abbrev-ref HEAD 2>/dev/null || true")).toBe(false)
+  })
+
+  test("does not flag $() command substitution", () => {
+    expect(hasParameterExpansion("top=$(git rev-parse --show-toplevel 2>/dev/null)")).toBe(false)
+  })
+})
+
 describe("hasTopLevelPipe", () => {
   test("flags a simple pipe", () => {
     expect(hasTopLevelPipe("git rev-parse --git-common-dir 2>/dev/null | sed -E 's|x||'")).toBe(true)
@@ -384,7 +429,20 @@ describe("skill `!` pre-resolution commands avoid Claude Code denylist", () => {
         .join("\n")
       expect(
         offenders,
-        `Claude Code rejects \`$(...)\` containing a double-quoted string as "Unhandled node type: string" (e.g., \`basename "$(dirname "$common")"\`). Replace nested \`$()\` with parameter expansion (\`\${var%/suffix}\`), pipe to sed, or extract to a script invoked as \`bash "\${CLAUDE_SKILL_DIR}/scripts/<name>.sh"\`.\nOffending commands:\n${formatted}`,
+        `Claude Code rejects \`$(...)\` containing a double-quoted string as "Unhandled node type: string" (e.g., \`basename "$(dirname "$common")"\`). Extract the logic to a script under \`scripts/\` and invoke it from the skill body — do NOT replace with \`\${var%/suffix}\` parameter expansion, which is also rejected as "Contains expansion".\nOffending commands:\n${formatted}`,
+      ).toEqual([])
+    })
+
+    test(`${rel} pre-resolution commands do not use bash parameter expansion operators (rejected as "Contains expansion")`, () => {
+      const offenders = preResolutionCommands.filter(({ command }) =>
+        hasParameterExpansion(command),
+      )
+      const formatted = offenders
+        .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
+        .join("\n")
+      expect(
+        offenders,
+        `Claude Code rejects bash parameter expansion operators (\`\${var%pat}\`, \`\${var##pat}\`, \`\${var:-default}\`, etc.) as "Contains expansion". Extract the logic to a script under \`scripts/\` and invoke it from the skill body (not from \`!\` pre-resolution — scripts called from \`!\` trip the permission gate at load time). Or remove the pre-resolution and let the agent derive the value at runtime via a Bash tool call.\nOffending commands:\n${formatted}`,
       ).toEqual([])
     })
 
@@ -410,7 +468,7 @@ describe("skill `!` pre-resolution commands avoid Claude Code denylist", () => {
         .join("\n")
       expect(
         offenders,
-        `Claude Code's permission checker flags piped commands as "multiple operations requiring approval", which fails skill load. Replace pipes with parameter expansion (e.g., \`\${var%/.git}\` / \`\${var##*/}\`) or move the transformation into a script invoked from the skill body.\nOffending commands:\n${formatted}`,
+        `Claude Code's permission checker flags piped commands as "multiple operations requiring approval", which fails skill load. Do NOT replace with parameter expansion (\`\${var%/.git}\`, \`\${var##*/}\`) — those are also rejected as "Contains expansion". Extract the logic to a script under \`scripts/\` and invoke it from the skill body.\nOffending commands:\n${formatted}`,
       ).toEqual([])
     })
   }

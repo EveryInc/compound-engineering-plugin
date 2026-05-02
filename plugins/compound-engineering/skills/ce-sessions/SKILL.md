@@ -16,11 +16,9 @@ Search your session history.
 
 ## Pre-resolved context
 
-**Repo name (pre-resolved):** !`common=$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null); repo="${common%/.git}"; echo "${repo##*/}"`
-
 **Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD 2>/dev/null || true`
 
-If the lines above resolved to plain values (a folder name like `my-repo` and a branch name like `feat/my-branch`), they are ready to pass to the agent. If they still contain backtick command strings or are empty, they did not resolve — omit them from the dispatch and let the agent derive them at runtime.
+If the line above resolved to a plain branch name (like `feat/my-branch`), pass it to the agent. If it still contains a backtick command string or is empty, it did not resolve — omit it and let the agent derive it at runtime.
 
 ## Execution
 
