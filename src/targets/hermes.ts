@@ -13,10 +13,10 @@ import {
 import { transformContentForHermes } from "../converters/claude-to-hermes"
 import type { HermesBundle, HermesMcpConfig, HermesMcpServer } from "../types/hermes"
 import { getLegacyHermesArtifacts } from "../data/plugin-legacy-artifacts"
+import type { TargetScope } from "./index"
 import {
   archiveLegacyInstallManifestIfOwned,
   cleanupCurrentManagedDirectory,
-  cleanupRemovedManagedDirectories,
   moveLegacyArtifactToBackup,
   readManagedInstallManifestWithLegacyFallback,
   resolveManagedSegment,
@@ -87,7 +87,7 @@ export function mergeHermesConfig(
 export async function writeHermesBundle(
   outputRoot: string,
   bundle: HermesBundle,
-  _scope?: string,
+  _scope?: TargetScope,
 ): Promise<void> {
   const pluginName = bundle.pluginName ? sanitizeManagedPluginName(bundle.pluginName) : undefined
   const paths = resolveHermesPaths(outputRoot, pluginName)
@@ -110,7 +110,6 @@ export async function writeHermesBundle(
   // to overwrite a skill dir owned by a different plugin's manifest.
   const blockedByOtherPlugin = await detectCrossPluginCollisions(
     paths.hermesDir,
-    paths.skillsDir,
     pluginName,
     currentSkills,
   )
@@ -177,10 +176,6 @@ async function cleanupRemovedManagedDirectoriesSafely(
     }
     await fs.rm(targetPath, { recursive: true, force: true })
   }
-  // Also delegate to the shared helper for any cleanup it would have done that
-  // we skipped due to non-existence — keeps semantics identical to the shared
-  // helper for callers that bypass the realpath layer (defense in depth).
-  await cleanupRemovedManagedDirectories(rootDir, manifest, group, currentEntries)
 }
 
 async function cleanupCurrentManagedDirectorySafely(
@@ -237,11 +232,11 @@ async function isContainedAfterRealpath(rootDir: string, targetPath: string): Pr
  */
 async function detectCrossPluginCollisions(
   hermesDir: string,
-  _skillsDir: string,
   currentPluginName: string | undefined,
   currentSkills: string[],
 ): Promise<Set<string>> {
   const blocked = new Set<string>()
+  if (currentSkills.length === 0) return blocked
   if (!(await pathExists(hermesDir))) return blocked
 
   let entries: string[]
@@ -387,27 +382,24 @@ async function cleanupKnownLegacyHermesArtifacts(
 }
 
 function emitWriterSummary(bundle: HermesBundle, blocked: Set<string>): void {
-  const droppedCommands = bundle.droppedCommands ?? []
-  const skippedMcpServers = bundle.skippedMcpServers ?? []
-  const blockedList = [...blocked]
-  const summaryParts: string[] = []
-  summaryParts.push(`${bundle.passthroughSkills.length} passthrough skill(s)`)
-  summaryParts.push(`${bundle.generatedSkills.length} generated skill(s)`)
+  const summaryParts: string[] = [
+    `${bundle.passthroughSkills.length} passthrough skill(s)`,
+    `${bundle.generatedSkills.length} generated skill(s)`,
+  ]
   if (bundle.mcpConfig) {
     summaryParts.push(`${Object.keys(bundle.mcpConfig.mcp_servers).length} MCP server(s)`)
   }
-  console.log(
-    `Installed compound-engineering to hermes (${summaryParts.join(", ")})`,
-  )
-  if (droppedCommands.length > 0) {
-    console.log(`  Dropped commands: ${droppedCommands.join(", ")}`)
+  const pluginLabel = bundle.pluginName ?? "compound-engineering"
+  console.log(`Installed ${pluginLabel} to hermes (${summaryParts.join(", ")})`)
+  if (bundle.droppedCommands.length > 0) {
+    console.log(`  Dropped commands: ${bundle.droppedCommands.join(", ")}`)
   }
-  if (skippedMcpServers.length > 0) {
-    console.log(`  Skipped MCP servers: ${skippedMcpServers.join(", ")}`)
+  if (bundle.skippedMcpServers.length > 0) {
+    console.log(`  Skipped MCP servers: ${bundle.skippedMcpServers.join(", ")}`)
   }
-  if (blockedList.length > 0) {
+  if (blocked.size > 0) {
     console.log(
-      `  Skipped due to cross-plugin skill-name collision: ${blockedList.join(", ")}`,
+      `  Skipped due to cross-plugin skill-name collision: ${[...blocked].join(", ")}`,
     )
   }
 }

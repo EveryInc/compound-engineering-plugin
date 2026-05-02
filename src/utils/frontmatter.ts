@@ -57,7 +57,7 @@ function formatYamlLine(key: string, value: unknown): string {
   return `${key}: ${formatYamlValue(value)}`
 }
 
-function formatYamlValue(value: unknown): string {
+export function formatYamlValue(value: unknown): string {
   if (value === null || value === undefined) return ""
   if (typeof value === "number" || typeof value === "boolean") return String(value)
   const raw = String(value)

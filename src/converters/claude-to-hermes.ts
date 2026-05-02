@@ -12,6 +12,7 @@ import type {
   HermesMcpServer,
 } from "../types/hermes"
 import { sanitizePathName } from "../utils/files"
+import { formatYamlValue } from "../utils/frontmatter"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 
 export type ClaudeToHermesOptions = ClaudeToOpenCodeOptions
@@ -302,7 +303,7 @@ type HermesFrontmatterFields = {
 function formatHermesFrontmatter(fields: HermesFrontmatterFields): string {
   const lines: string[] = ["---"]
   lines.push(`name: ${fields.name}`)
-  lines.push(`description: ${quoteIfNeeded(fields.description)}`)
+  lines.push(`description: ${formatYamlValue(fields.description)}`)
   if (fields.version !== undefined) {
     lines.push(`version: ${JSON.stringify(fields.version)}`)
   }
@@ -312,24 +313,6 @@ function formatHermesFrontmatter(fields: HermesFrontmatterFields): string {
   lines.push(`      - ${fields.tag}`)
   lines.push("---")
   return lines.join("\n")
-}
-
-/**
- * Mirror the YAML quoting rules in `utils/frontmatter.ts:formatYamlValue` so
- * descriptions containing colons or other YAML metacharacters round-trip
- * cleanly.
- */
-function quoteIfNeeded(value: string): string {
-  if (
-    value.includes(":") ||
-    value.startsWith("[") ||
-    value.startsWith("{") ||
-    value === "*" ||
-    value.startsWith('"')
-  ) {
-    return JSON.stringify(value)
-  }
-  return value
 }
 
 function normalizeName(value: string): string {
