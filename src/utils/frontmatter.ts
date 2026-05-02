@@ -64,8 +64,28 @@ export function formatYamlValue(value: unknown): string {
   if (raw.includes("\n")) {
     return `|\n${raw.split("\n").map((line) => `  ${line}`).join("\n")}`
   }
-  if (raw.includes(":") || raw.startsWith("[") || raw.startsWith("{") || raw === "*") {
+  if (needsYamlQuoting(raw)) {
     return JSON.stringify(raw)
   }
   return raw
+}
+
+const YAML_BOOLEAN_TOKENS = new Set([
+  "yes", "no", "y", "n", "true", "false", "on", "off", "null", "~",
+])
+
+const YAML_INDICATOR_PREFIXES = ["!", "&", "*", ">", "|", "%", "@", "`", "#"]
+
+function needsYamlQuoting(raw: string): boolean {
+  if (raw.length === 0) return true
+  if (raw.includes(":") || raw.includes("#")) return true
+  if (raw.startsWith("[") || raw.startsWith("{") || raw.startsWith('"') || raw.startsWith("'")) return true
+  if (YAML_INDICATOR_PREFIXES.some((p) => raw.startsWith(p))) return true
+  if (raw.startsWith(" ") || raw.endsWith(" ")) return true
+  if (YAML_BOOLEAN_TOKENS.has(raw.toLowerCase())) return true
+  // Numeric-looking strings ('1.0', '0x10', '0b11', '0o7') that YAML 1.1
+  // would coerce away from string. Quote to preserve the string literal.
+  if (/^-?\d+(\.\d+)?([eE][+-]?\d+)?$/.test(raw)) return true
+  if (/^0[xXbBoO][0-9a-fA-F]+$/.test(raw)) return true
+  return false
 }

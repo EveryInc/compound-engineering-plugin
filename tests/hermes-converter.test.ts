@@ -315,6 +315,96 @@ describe("convertClaudeToHermes — edge cases", () => {
     const bundle = convertClaudeToHermes(plugin, baseOptions)!
     expect(bundle.generatedSkills[0].name).toBe("cmd-ce-plan")
   })
+
+  test("CJK skill name '中文-skill' sanitizes to ASCII fallback via NFKD + non-ASCII strip", () => {
+    const plugin = makePlugin({
+      commands: [
+        {
+          name: "中文-skill",
+          description: "CJK command",
+          body: "Body.",
+          sourcePath: "/tmp/plugin/commands/cjk.md",
+        },
+      ],
+    })
+
+    const bundle = convertClaudeToHermes(plugin, baseOptions)!
+    // Non-ASCII characters (CJK ideographs) collapse to '-'; subsequent
+    // sanitizePathName + uniqueName preserve the prefix and ASCII tail.
+    const name = bundle.generatedSkills[0].name
+    expect(name).toMatch(/^cmd-[-a-z0-9]+$/)
+    expect(name).toContain("skill")
+    expect(name.normalize("NFC")).toBe(name)
+    expect(/[^\x00-\x7f]/.test(name)).toBe(false)
+  })
+
+  test("passthrough skill name colliding with generated 'cmd-' prefix gets disambiguated", () => {
+    const plugin = makePlugin({
+      skills: [
+        {
+          name: "cmd-plan",
+          sourceDir: "/tmp/plugin/skills/cmd-plan",
+          skillPath: "/tmp/plugin/skills/cmd-plan/SKILL.md",
+        },
+      ],
+      commands: [
+        {
+          name: "plan",
+          description: "Plan",
+          body: "Body.",
+          sourcePath: "/tmp/plugin/commands/plan.md",
+        },
+      ],
+    })
+
+    const bundle = convertClaudeToHermes(plugin, baseOptions)!
+    // Passthrough preserves its source name `cmd-plan`. Generated command
+    // would normalize to `cmd-plan` too, so dedup escalates it to
+    // `cmd-plan-2` rather than silently overwriting the passthrough.
+    expect(bundle.passthroughSkills[0].name).toBe("cmd-plan")
+    expect(bundle.generatedSkills[0].name).toBe("cmd-plan-2")
+  })
+})
+
+describe("convertClaudeToHermes — slash-command namespace handling", () => {
+  test("namespaced refs that aren't `prompts:`/`workflows:`/`skill:` pass through unchanged", () => {
+    const plugin = makePlugin({
+      commands: [
+        {
+          name: "linkable",
+          description: "Refs",
+          body: "See /pr:123 and /api:v1 and /issue:42 — none should be rewritten.",
+          sourcePath: "/tmp/plugin/commands/linkable.md",
+        },
+      ],
+    })
+
+    const bundle = convertClaudeToHermes(plugin, baseOptions)!
+    const body = bundle.generatedSkills[0].content
+    expect(body).toContain("/pr:123")
+    expect(body).toContain("/api:v1")
+    expect(body).toContain("/issue:42")
+    expect(body).not.toContain("/pr-123")
+    expect(body).not.toContain("/api-v1")
+  })
+
+  test("anchored `.claude/` rewrite leaves `mydomain.claude/path` alone", () => {
+    const plugin = makePlugin({
+      commands: [
+        {
+          name: "url",
+          description: "URL",
+          body: "Visit https://mydomain.claude/path and ~/.claude/skills as separate cases.",
+          sourcePath: "/tmp/plugin/commands/url.md",
+        },
+      ],
+    })
+
+    const bundle = convertClaudeToHermes(plugin, baseOptions)!
+    const body = bundle.generatedSkills[0].content
+    expect(body).toContain("mydomain.claude/path")
+    expect(body).toContain("~/.hermes/skills")
+  })
 })
 
 describe("convertClaudeToHermes — error paths", () => {

@@ -13,7 +13,6 @@ import {
 import { transformContentForHermes } from "../converters/claude-to-hermes"
 import type { HermesBundle, HermesMcpConfig, HermesMcpServer } from "../types/hermes"
 import { getLegacyHermesArtifacts } from "../data/plugin-legacy-artifacts"
-import type { TargetScope } from "./index"
 import {
   archiveLegacyInstallManifestIfOwned,
   cleanupCurrentManagedDirectory,
@@ -25,6 +24,11 @@ import {
 } from "./managed-artifacts"
 
 const MANAGED_INSTALL_MANIFEST = "install-manifest.json"
+
+// Local copy of TargetScope to avoid the circular import edge other targets
+// don't have (hermes.ts -> ./index -> ./hermes). Kept in sync with
+// `src/targets/index.ts:TargetScope`.
+type TargetScope = "global" | "workspace"
 
 type HermesPaths = {
   hermesDir: string
@@ -74,9 +78,23 @@ export function mergeHermesConfig(
   existing: Record<string, unknown>,
   incoming: HermesMcpConfig,
 ): Record<string, unknown> {
-  const existingMcp = (existing.mcp_servers && typeof existing.mcp_servers === "object" && !Array.isArray(existing.mcp_servers))
-    ? (existing.mcp_servers as Record<string, HermesMcpServer>)
-    : {}
+  const rawExistingMcp = existing.mcp_servers
+  const existingMcp: Record<string, HermesMcpServer> = {}
+
+  if (rawExistingMcp && typeof rawExistingMcp === "object" && !Array.isArray(rawExistingMcp)) {
+    for (const [key, value] of Object.entries(rawExistingMcp)) {
+      if (value && typeof value === "object" && !Array.isArray(value) && ("command" in value || "url" in value)) {
+        existingMcp[key] = value as HermesMcpServer
+      }
+    }
+  } else if (rawExistingMcp !== undefined && rawExistingMcp !== null) {
+    // Non-object mcp_servers (string, array, scalar) — surface explicitly so
+    // the user knows their data is being replaced rather than merged.
+    console.warn(
+      `Warning: existing config.yaml mcp_servers is not an object map (got ${Array.isArray(rawExistingMcp) ? "array" : typeof rawExistingMcp}); ignoring it and writing fresh entries.`,
+    )
+  }
+
   const merged = { ...incoming.mcp_servers, ...existingMcp }
   return {
     ...existing,
@@ -95,10 +113,12 @@ export async function writeHermesBundle(
     ? await readManagedInstallManifestWithLegacyFallback(paths.managedDir, pluginName)
     : null
 
-  const currentSkills = [
-    ...bundle.passthroughSkills.map((skill) => sanitizePathName(skill.name)),
-    ...bundle.generatedSkills.map((skill) => sanitizePathName(skill.name)),
-  ]
+  const currentSkills = Array.from(
+    new Set([
+      ...bundle.passthroughSkills.map((skill) => sanitizePathName(skill.name)),
+      ...bundle.generatedSkills.map((skill) => sanitizePathName(skill.name)),
+    ]),
+  )
 
   await ensureDir(paths.hermesDir)
   await ensureDir(paths.skillsDir)
@@ -135,11 +155,15 @@ export async function writeHermesBundle(
   }
 
   if (pluginName) {
+    // Skills blocked by another plugin's manifest must not appear in this
+    // plugin's manifest — otherwise next reinstall's manifest-diff cleanup
+    // would delete the OTHER plugin's content (cross-plugin cascade).
+    const ownedSkills = currentSkills.filter((name) => !blockedByOtherPlugin.has(name))
     await writeManagedInstallManifest(paths.managedDir, {
       version: 1,
       pluginName,
       groups: {
-        skills: currentSkills,
+        skills: ownedSkills,
       },
     })
     await archiveLegacyInstallManifestIfOwned(paths.managedDir, pluginName)
@@ -207,18 +231,36 @@ async function isContainedAfterRealpath(rootDir: string, targetPath: string): Pr
   let resolvedRoot: string
   try {
     resolvedRoot = await fs.realpath(rootDir)
-  } catch {
-    // If the root itself doesn't resolve, fall back to path.resolve so we
-    // still apply a basic containment check rather than skipping it entirely.
-    resolvedRoot = path.resolve(rootDir)
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === "ENOENT") {
+      // Root itself doesn't exist yet — pre-create scenario. Use path.resolve
+      // for a lexical containment check; nothing has been resolved through
+      // symlinks but there's also nothing to be deceived by.
+      resolvedRoot = path.resolve(rootDir)
+    } else {
+      // EACCES, ELOOP, EIO etc. — refuse the rm rather than silently
+      // degrading to lexical comparison. The wrapper logs a warning naming
+      // the path it refused to touch.
+      console.warn(
+        `Refusing realpath check for ${rootDir} for hermes: ${(err as Error).message}.`,
+      )
+      return false
+    }
   }
   let resolvedTarget: string
   try {
     resolvedTarget = await fs.realpath(targetPath)
-  } catch {
-    // Missing target: nothing to delete; skip the realpath check by reporting
-    // contained.
-    return true
+  } catch (err) {
+    const code = (err as NodeJS.ErrnoException).code
+    if (code === "ENOENT") {
+      // Missing target: nothing to delete; report contained.
+      return true
+    }
+    console.warn(
+      `Refusing realpath check for ${targetPath} for hermes: ${(err as Error).message}.`,
+    )
+    return false
   }
   if (resolvedTarget === resolvedRoot) return true
   return resolvedTarget.startsWith(resolvedRoot + path.sep)
@@ -247,12 +289,22 @@ async function detectCrossPluginCollisions(
   }
 
   // Sibling managed dirs are direct children of hermesDir that contain an
-  // install-manifest.json. Skip the current plugin's own dir, the `skills`
-  // tree itself, and well-known non-managed entries (config.yaml, .env).
+  // install-manifest.json. Skip:
+  //   - the current plugin's own dir
+  //   - the `skills` tree itself
+  //   - hidden / config-shaped entries (`config.yaml`, `.env`, `legacy-backup`)
+  // We additionally require the directory name to match the manifest's
+  // `pluginName` field — backups (`compound-engineering.bak.<timestamp>`) and
+  // hand-copied dirs would otherwise spoof ownership and block legitimate
+  // reinstalls.
   for (const entry of entries) {
     if (entry === currentPluginName) continue
     if (entry === "skills") continue
-    if (entry.startsWith(".")) continue
+    // Skip exact known non-managed sibling files. A plugin name starting with
+    // `.` is technically possible after `sanitizeManagedPluginName`, but
+    // practically rare; the explicit list keeps us conservative without
+    // excluding legitimate plugin dirs.
+    if (entry === "config.yaml" || entry === ".env" || entry === "legacy-backup") continue
     const candidateManifestPath = path.join(hermesDir, entry, MANAGED_INSTALL_MANIFEST)
     if (!(await pathExists(candidateManifestPath))) continue
     let raw: string
@@ -268,15 +320,19 @@ async function detectCrossPluginCollisions(
       continue
     }
     if (!parsed || typeof parsed !== "object") continue
+    // Refuse manifests whose pluginName field doesn't match the directory
+    // name. Backup dirs (e.g. `compound-engineering.bak.20260501`) carry the
+    // original pluginName (`compound-engineering`) and would otherwise spoof
+    // ownership of every skill on the next install.
+    if (typeof parsed.pluginName !== "string" || parsed.pluginName !== entry) continue
     const skills = parsed.groups?.skills
     if (!Array.isArray(skills)) continue
     const otherSkills = new Set(skills.filter((s): s is string => typeof s === "string"))
     for (const skillName of currentSkills) {
       if (otherSkills.has(skillName)) {
         blocked.add(skillName)
-        const otherPluginLabel = typeof parsed.pluginName === "string" ? parsed.pluginName : entry
         console.warn(
-          `Skipping hermes skill '${skillName}': already owned by plugin '${otherPluginLabel}'. Rename the skill in one of the colliding plugins to resolve the conflict.`,
+          `Skipping hermes skill '${skillName}': already owned by plugin '${parsed.pluginName}'. Rename the skill in one of the colliding plugins to resolve the conflict.`,
         )
       }
     }
@@ -310,9 +366,18 @@ async function writeHermesConfigYaml(
     try {
       raw = await readText(configPath)
     } catch (err) {
-      console.warn(
-        `Warning: existing ${configPath} could not be read (${(err as Error).message}); writing plugin config without merging.`,
-      )
+      // Read failed — back up the unreadable file before overwrite so the user
+      // has at least a byte-for-byte copy on disk.
+      const backup = await backupFile(configPath)
+      if (backup) {
+        console.warn(
+          `Warning: existing ${configPath} could not be read (${(err as Error).message}); backed up to ${backup} before overwrite.`,
+        )
+      } else {
+        console.warn(
+          `Warning: existing ${configPath} could not be read (${(err as Error).message}) AND backup failed; the file will be overwritten with no recovery copy.`,
+        )
+      }
       writeFresh = true
       raw = ""
     }
@@ -330,21 +395,30 @@ async function writeHermesConfigYaml(
         }
       } catch (err) {
         const backup = await backupFile(configPath)
-        const recoveryPath = backup ?? `${configPath}.bak.<timestamp>`
-        console.warn(
-          `Failed to parse existing ${configPath} for hermes (${(err as Error).message}); backing up to ${recoveryPath} and writing fresh.`,
-        )
+        if (backup) {
+          console.warn(
+            `Failed to parse existing ${configPath} for hermes (${(err as Error).message}); backed up to ${backup} and writing fresh. User top-level keys (model, gateway, channels, tts) are preserved in the backup but absent from the live file until restored.`,
+          )
+        } else {
+          console.warn(
+            `Failed to parse existing ${configPath} for hermes (${(err as Error).message}) AND backup failed; the file will be overwritten with no recovery copy. User top-level keys (model, gateway, channels, tts) will be lost.`,
+          )
+        }
         writeFresh = true
       }
     }
   }
 
   // Take a backup before overwrite for human recovery (separate from the
-  // malformed-config backup, which we already created above).
+  // malformed-config / read-failure backups, which we already created above).
   if (!writeFresh) {
     const backup = await backupFile(configPath)
     if (backup) {
       console.log(`Backed up existing config.yaml to ${backup}`)
+    } else if (await pathExists(configPath)) {
+      console.warn(
+        `Warning: backup of ${configPath} failed; proceeding with overwrite. No human recovery copy is available.`,
+      )
     }
   }
 
@@ -391,14 +465,17 @@ function emitWriterSummary(bundle: HermesBundle, blocked: Set<string>): void {
   }
   const pluginLabel = bundle.pluginName ?? "compound-engineering"
   console.log(`Installed ${pluginLabel} to hermes (${summaryParts.join(", ")})`)
+  // Advisory lines route to stderr so agents parsing stdout for the success
+  // token can separate it from advisory output. Matches the converter's
+  // stderr-warning convention for dropped commands and skipped MCP servers.
   if (bundle.droppedCommands.length > 0) {
-    console.log(`  Dropped commands: ${bundle.droppedCommands.join(", ")}`)
+    console.warn(`  Dropped commands: ${bundle.droppedCommands.join(", ")}`)
   }
   if (bundle.skippedMcpServers.length > 0) {
-    console.log(`  Skipped MCP servers: ${bundle.skippedMcpServers.join(", ")}`)
+    console.warn(`  Skipped MCP servers: ${bundle.skippedMcpServers.join(", ")}`)
   }
   if (blocked.size > 0) {
-    console.log(
+    console.warn(
       `  Skipped due to cross-plugin skill-name collision: ${[...blocked].join(", ")}`,
     )
   }

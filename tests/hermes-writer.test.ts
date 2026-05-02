@@ -418,7 +418,7 @@ describe("writeHermesBundle — malformed config recovery", () => {
     )
 
     // WARN was emitted naming the recovery path.
-    expect(warnings.some((w) => w.includes("Failed to parse existing") && w.includes("backing up to"))).toBe(true)
+    expect(warnings.some((w) => w.includes("Failed to parse existing") && w.includes("backed up to"))).toBe(true)
     // Backup file was created.
     const dirEntries = await fs.readdir(hermesDir)
     expect(dirEntries.some((e) => e.startsWith("config.yaml.bak."))).toBe(true)
@@ -480,6 +480,73 @@ describe("writeHermesBundle — cross-plugin collision detection", () => {
       (w) => w.includes("code-reviewer") && w.includes("plugin1"),
     )
     expect(collisionWarn).toBeDefined()
+
+    // Plugin2's manifest must NOT claim ownership of `code-reviewer` —
+    // otherwise its next reinstall (without the skill) would trigger
+    // manifest-diff cleanup and DELETE plugin1's content.
+    const plugin2Manifest = JSON.parse(
+      await fs.readFile(
+        path.join(tempRoot, ".hermes", "plugin2", "install-manifest.json"),
+        "utf8",
+      ),
+    ) as { groups: { skills: string[] } }
+    expect(plugin2Manifest.groups.skills).not.toContain("code-reviewer")
+
+    // Cascade-fix verification: reinstall plugin2 without `code-reviewer`.
+    // Plugin1's content must survive.
+    await writeHermesBundle(
+      tempRoot,
+      emptyBundle({ pluginName: "plugin2", generatedSkills: [] }),
+    )
+    expect(
+      await exists(path.join(tempRoot, ".hermes", "skills", "code-reviewer", "SKILL.md")),
+    ).toBe(true)
+    const stillThere = await fs.readFile(
+      path.join(tempRoot, ".hermes", "skills", "code-reviewer", "SKILL.md"),
+      "utf8",
+    )
+    expect(stillThere).toContain("Plugin1's reviewer.")
+  })
+
+  test("backup directory with valid manifest does NOT spoof ownership", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-spoof-"))
+    const hermesDir = path.join(tempRoot, ".hermes")
+    await fs.mkdir(hermesDir, { recursive: true })
+
+    // Simulate a user backup of plugin1: directory name differs from the
+    // pluginName field inside the manifest.
+    const backupDir = path.join(hermesDir, "plugin1.bak.20260501")
+    await fs.mkdir(backupDir, { recursive: true })
+    await fs.writeFile(
+      path.join(backupDir, "install-manifest.json"),
+      JSON.stringify({
+        version: 1,
+        pluginName: "plugin1",
+        groups: { skills: ["code-reviewer"] },
+      }),
+    )
+
+    // Now install plugin2 with `code-reviewer`. The mismatch between the
+    // backup dir name (`plugin1.bak.20260501`) and the manifest's
+    // pluginName (`plugin1`) must cause the collision check to skip the
+    // manifest, so plugin2's skill writes successfully.
+    await writeHermesBundle(
+      tempRoot,
+      emptyBundle({
+        pluginName: "plugin2",
+        generatedSkills: [
+          {
+            name: "code-reviewer",
+            content: "---\nname: code-reviewer\n---\n\nPlugin2's reviewer.\n",
+            kind: "command",
+          },
+        ],
+      }),
+    )
+
+    expect(
+      await exists(path.join(tempRoot, ".hermes", "skills", "code-reviewer", "SKILL.md")),
+    ).toBe(true)
   })
 })
 
@@ -639,10 +706,12 @@ describe("writeHermesBundle — stdout summary", () => {
 
     const installedLine = logs.find((l) => l.startsWith("Installed compound-engineering to hermes"))
     expect(installedLine).toBeDefined()
-    expect(logs.some((l) => l.includes("Dropped commands:") && l.includes("disabled-cmd-1"))).toBe(
+    // Advisory follow-up lines route to stderr (warns) so agents can separate
+    // success from advisory output by stream.
+    expect(warnings.some((l) => l.includes("Dropped commands:") && l.includes("disabled-cmd-1"))).toBe(
       true,
     )
-    expect(logs.some((l) => l.includes("Skipped MCP servers:") && l.includes("odd-mcp-entry"))).toBe(
+    expect(warnings.some((l) => l.includes("Skipped MCP servers:") && l.includes("odd-mcp-entry"))).toBe(
       true,
     )
   })
@@ -652,8 +721,8 @@ describe("writeHermesBundle — stdout summary", () => {
     await writeHermesBundle(tempRoot, emptyBundle())
     const installedLine = logs.find((l) => l.startsWith("Installed compound-engineering to hermes"))
     expect(installedLine).toBeDefined()
-    expect(logs.some((l) => l.includes("Dropped commands:"))).toBe(false)
-    expect(logs.some((l) => l.includes("Skipped MCP servers:"))).toBe(false)
+    expect(warnings.some((l) => l.includes("Dropped commands:"))).toBe(false)
+    expect(warnings.some((l) => l.includes("Skipped MCP servers:"))).toBe(false)
   })
 })
 

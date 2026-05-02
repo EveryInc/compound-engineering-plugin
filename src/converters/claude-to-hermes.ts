@@ -39,7 +39,12 @@ export function convertClaudeToHermes(
   _options: ClaudeToHermesOptions,
 ): HermesBundle | null {
   const platformSkills = filterSkillsByPlatform(plugin.skills, "hermes")
-  const usedSkillNames = new Set<string>()
+  // Pre-populate with passthrough skill names so a command/agent that would
+  // normalize to a name a passthrough skill already owns gets a `-2` suffix
+  // rather than colliding silently on disk.
+  const usedSkillNames = new Set<string>(
+    platformSkills.map((skill) => sanitizePathName(skill.name)),
+  )
 
   const droppedCommands: string[] = []
   const generatedSkills: HermesGeneratedSkill[] = []
@@ -227,8 +232,10 @@ export function transformContentForHermes(body: string): string {
   // 4. Path rewrite. Order matters: rewrite ~/.claude/ before .claude/ so
   // the unanchored second pattern doesn't double-rewrite something we just
   // touched, then rewrite remaining .claude/ occurrences.
+  // The .claude/ pattern is anchored with a negative lookbehind so values
+  // like `mydomain.claude/path` don't accidentally match.
   result = result.replace(/~\/\.claude\//g, "~/.hermes/")
-  result = result.replace(/\.claude\//g, ".hermes/")
+  result = result.replace(/(?<![A-Za-z0-9_-])\.claude\//g, ".hermes/")
 
   // 5. Slash-command namespace stripping. Mirrors Pi's negative-lookahead
   // boundary regex and adds an extended allowlist for path segments the
@@ -263,14 +270,20 @@ export function transformContentForHermes(body: string): string {
       return `/skill:${normalizeName(skillName)}`
     }
 
-    let withoutPrefix = commandName
-    if (withoutPrefix.startsWith("prompts:")) {
-      withoutPrefix = withoutPrefix.slice("prompts:".length)
-    } else if (withoutPrefix.startsWith("workflows:")) {
-      withoutPrefix = withoutPrefix.slice("workflows:".length)
+    // Only rewrite recognized namespace prefixes. Other colon-containing refs
+    // (`/pr:123`, `/api:v1`, `/issue:42`) pass through unchanged so we don't
+    // corrupt content the converter doesn't own.
+    if (commandName.startsWith("prompts:")) {
+      return `/${normalizeName(commandName.slice("prompts:".length))}`
+    }
+    if (commandName.startsWith("workflows:")) {
+      return `/${normalizeName(commandName.slice("workflows:".length))}`
+    }
+    if (commandName.includes(":")) {
+      return match
     }
 
-    return `/${normalizeName(withoutPrefix)}`
+    return `/${normalizeName(commandName)}`
   })
 
   return result
@@ -366,5 +379,8 @@ function sanitizeHermesName(name: string): string {
   const decomposed = name.normalize("NFKD")
   // Strip combining marks (Unicode category Mn).
   const withoutMarks = decomposed.replace(/[̀-ͯ]/g, "")
-  return sanitizePathName(withoutMarks)
+  // Map any remaining non-ASCII characters (CJK ideographs, emoji, etc.)
+  // to '-' so the resulting name fits in a portable filesystem name.
+  const asciiOnly = withoutMarks.replace(/[^\x00-\x7f]+/g, "-")
+  return sanitizePathName(asciiOnly)
 }
