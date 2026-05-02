@@ -188,15 +188,16 @@ If you previously used the old Bun Qwen install, back up stale CE artifacts befo
 bunx @every-env/compound-plugin cleanup --target qwen
 ```
 
-### OpenCode, Pi, Gemini, and Kiro
+### OpenCode, Pi, Gemini, Kiro, and Hermes
 
-This repo includes a Bun/TypeScript installer that converts the Compound Engineering plugin to OpenCode, Pi, Gemini CLI, and Kiro CLI.
+This repo includes a Bun/TypeScript installer that converts the Compound Engineering plugin to OpenCode, Pi, Gemini CLI, Kiro CLI, and Hermes Agent.
 
 ```bash
 bunx @every-env/compound-plugin install compound-engineering --to opencode
 bunx @every-env/compound-plugin install compound-engineering --to pi
 bunx @every-env/compound-plugin install compound-engineering --to gemini
 bunx @every-env/compound-plugin install compound-engineering --to kiro
+bunx @every-env/compound-plugin install compound-engineering --to hermes
 ```
 
 **Pi prerequisites.** Pi does not ship a native subagent primitive, so the Pi install depends on [nicobailon/pi-subagents](https://github.com/nicobailon/pi-subagents) (required) and recommends [edlsh/pi-ask-user](https://github.com/edlsh/pi-ask-user) for richer blocking user questions:
@@ -220,6 +221,7 @@ bunx @every-env/compound-plugin cleanup --target opencode
 bunx @every-env/compound-plugin cleanup --target pi
 bunx @every-env/compound-plugin cleanup --target gemini
 bunx @every-env/compound-plugin cleanup --target kiro
+bunx @every-env/compound-plugin cleanup --target hermes
 bunx @every-env/compound-plugin cleanup --target copilot   # old Bun installs only
 bunx @every-env/compound-plugin cleanup --target droid     # old Bun installs only
 bunx @every-env/compound-plugin cleanup --target qwen      # old Bun installs only
@@ -364,7 +366,7 @@ bunx @every-env/compound-plugin cleanup --target qwen
 
 Codex native plugin install currently handles skills, not custom agents. The documented Bun followup is required until Codex supports agents in its native plugin spec.
 
-OpenCode, Pi, Gemini, and Kiro installs are converter-backed and may change as those target formats evolve.
+OpenCode, Pi, Gemini, Kiro, and Hermes installs are converter-backed and may change as those target formats evolve. The Hermes target is new in 2026-05; CE workflows that rely on Claude Code's interactive UX (`/ce-work`, `git-commit-push-pr`, any `AskUserQuestion`-driven prompt) will degrade silently on Hermes' autonomous runtime — see `docs/specs/hermes.md` for the documented gap list.
 
 Release versions are owned by release automation. Routine feature PRs should not hand-bump plugin or marketplace manifest versions.
 
