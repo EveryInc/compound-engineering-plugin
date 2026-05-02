@@ -171,18 +171,38 @@ If two plugins both ship a skill named `code-reviewer`, the second install detec
 - Manifest entries are path-safety-filtered at read time via `isSafeManagedPath` (defends against tampered manifests with `../` or absolute paths).
 - Before any `fs.rm` on a manifest-tracked dir, a `fs.realpath` containment check rejects user-created symlinks pointing out of the managed tree.
 
-## Known UX degradations
+## Blocking questions and user input
 
-CE was designed primarily for Claude Code's interactive UX. On Hermes' headless / autonomous runtime, the following workflows degrade:
+Several CE workflows pause to ask the user a question (mode selection, plan confirmation, routing decisions, PR title approval, etc.). Claude Code provides this via the `AskUserQuestion` tool; other targets have native equivalents (`request_user_input` on Codex, `ask_user` on Gemini and Pi-with-extension). Hermes does not expose a dedicated blocking-question primitive.
 
-| Skill | Degradation mode |
-|-------|------------------|
-| `/ce-work` | Interactive walk-through (mode selection, plan-confirmation prompts) is skipped or returns to default. |
-| `/ce-brainstorm`, `/ce-plan`, `/ce-ideate`, `/ce-doc-review` | `AskUserQuestion`-driven prompts are skipped; agent proceeds with default choices or returns the routing question as text without acting on a selection. |
-| `git-commit-push-pr` | Blocking confirmation for PR title / body is skipped; the agent emits a message but cannot act on the user's choice. |
-| Any skill calling a blocking-question primitive | Same pattern: prompt is skipped, default path is taken (or the skill exits early). |
+**The skills already handle this.** Every CE skill that asks a blocking question carries explicit fallback prose:
 
-If an interactive skill is critical to your workflow, run it on Claude Code rather than Hermes. Users who want to drop these skills entirely from Hermes installs can add `ce_platforms: [claude]` (or any explicit list excluding `hermes`) to the source `SKILL.md` — the converter honors the soft filter.
+> *"Use the platform's blocking question tool ... Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors. Never silently skip the question."*
+
+How that lands on Hermes depends on the execution surface:
+
+| Hermes surface | Behavior |
+|----------------|----------|
+| Conversational gateways (Telegram, Discord, Slack, Matrix, CLI chat) | The skill renders options as a numbered list in the channel and waits for the user's reply. The user replies with the letter or label; the skill continues. **Works as designed.** |
+| Direct `hermes chat` REPL | Same — the agent emits the numbered list, the user types a choice, execution continues. |
+| True-autonomous execution (cron jobs, gateway hooks with no attached user) | The skill renders the question but has no channel to receive a reply. The agent loop pauses until session timeout or until a user attaches to the conversation. **Genuinely degraded** — prefer skills that don't require user input for unattended workflows. |
+
+If an interactive skill is critical and the workflow is fully unattended (no user channel ever attaches), either run it on Claude Code instead, or add `ce_platforms: [claude]` (or any explicit list excluding `hermes`) to the source `SKILL.md` — the converter honors the soft filter and drops the skill from Hermes output entirely.
+
+The plugin emits a guidance block to your `~/.hermes/AGENTS.md` on install (see "AGENTS.md compatibility block" below) so the runtime guidance lives next to your other Hermes config.
+
+## AGENTS.md compatibility block
+
+The Hermes writer upserts a managed block into `~/.hermes/AGENTS.md` (or `<output>/.hermes/AGENTS.md` for project-rooted installs) so the Hermes runtime sees CE-specific guidance as part of the user's own agent instructions. The block is delimited by `<!-- BEGIN COMPOUND HERMES TOOL MAP -->` / `<!-- END COMPOUND HERMES TOOL MAP -->` markers and is rewritten in place on every reinstall.
+
+The block currently advises:
+
+- Blocking-question rendering — render numbered options in the active conversation channel and wait for the user's reply
+- Slash-command behavior — `/<command>` refs in skill bodies refer to converted commands at `~/.hermes/skills/cmd-<name>/`
+- Sub-agent dispatch — `Use the X skill to: ...` patterns delegate via `skill_view`
+- Restart guidance — restart Hermes after each install/reinstall so MCP changes load
+
+Users may freely edit content outside the markers; the writer never touches it. Editing inside the markers will be overwritten on the next install.
 
 ## Operational notes
 

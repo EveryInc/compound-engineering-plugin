@@ -690,6 +690,81 @@ describe("writeHermesBundle — multi-plugin namespacing", () => {
   })
 })
 
+describe("writeHermesBundle — AGENTS.md compatibility block", () => {
+  test("creates AGENTS.md with the managed block when none exists", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-agents-create-"))
+    await writeHermesBundle(tempRoot, emptyBundle())
+
+    const agentsPath = path.join(tempRoot, ".hermes", "AGENTS.md")
+    expect(await exists(agentsPath)).toBe(true)
+    const body = await fs.readFile(agentsPath, "utf8")
+    expect(body).toContain("<!-- BEGIN COMPOUND HERMES TOOL MAP -->")
+    expect(body).toContain("<!-- END COMPOUND HERMES TOOL MAP -->")
+    expect(body).toContain("Blocking questions")
+    expect(body).toContain("Slash commands")
+    expect(body).toContain("Sub-agent dispatch")
+  })
+
+  test("upserts the block into an existing AGENTS.md, preserving user content", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-agents-upsert-"))
+    const hermesDir = path.join(tempRoot, ".hermes")
+    await fs.mkdir(hermesDir, { recursive: true })
+    const agentsPath = path.join(hermesDir, "AGENTS.md")
+    const userContent = "# My personal agent rules\n\nUser instruction line 1.\nUser instruction line 2.\n"
+    await fs.writeFile(agentsPath, userContent)
+
+    await writeHermesBundle(tempRoot, emptyBundle())
+
+    const body = await fs.readFile(agentsPath, "utf8")
+    expect(body).toContain("# My personal agent rules")
+    expect(body).toContain("User instruction line 1.")
+    expect(body).toContain("<!-- BEGIN COMPOUND HERMES TOOL MAP -->")
+    expect(body).toContain("<!-- END COMPOUND HERMES TOOL MAP -->")
+  })
+
+  test("rewrites the managed block in place on reinstall (idempotent)", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-agents-idempotent-"))
+    await writeHermesBundle(tempRoot, emptyBundle())
+
+    const agentsPath = path.join(tempRoot, ".hermes", "AGENTS.md")
+    const firstBody = await fs.readFile(agentsPath, "utf8")
+    const firstStartCount = (firstBody.match(/BEGIN COMPOUND HERMES TOOL MAP/g) ?? []).length
+    expect(firstStartCount).toBe(1)
+
+    // Reinstall — block must remain a single occurrence.
+    await writeHermesBundle(tempRoot, emptyBundle())
+    const secondBody = await fs.readFile(agentsPath, "utf8")
+    const secondStartCount = (secondBody.match(/BEGIN COMPOUND HERMES TOOL MAP/g) ?? []).length
+    expect(secondStartCount).toBe(1)
+  })
+
+  test("user edits inside markers are overwritten, edits outside markers survive", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-agents-edit-"))
+    await writeHermesBundle(tempRoot, emptyBundle())
+
+    const agentsPath = path.join(tempRoot, ".hermes", "AGENTS.md")
+    const firstBody = await fs.readFile(agentsPath, "utf8")
+
+    // User edits both inside and outside the markers.
+    const tampered = firstBody.replace(
+      "Blocking questions",
+      "USER_EDITED_INSIDE_MARKERS",
+    ) + "\n\n# User addition outside markers\n\nKept content.\n"
+    await fs.writeFile(agentsPath, tampered)
+
+    // Reinstall.
+    await writeHermesBundle(tempRoot, emptyBundle())
+    const finalBody = await fs.readFile(agentsPath, "utf8")
+
+    // Inside-markers edit was overwritten.
+    expect(finalBody).not.toContain("USER_EDITED_INSIDE_MARKERS")
+    expect(finalBody).toContain("Blocking questions")
+    // Outside-markers content survived.
+    expect(finalBody).toContain("# User addition outside markers")
+    expect(finalBody).toContain("Kept content.")
+  })
+})
+
 describe("writeHermesBundle — stdout summary", () => {
   test("logs Installed line; appends dropped commands and skipped MCP servers when non-empty", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-summary-"))

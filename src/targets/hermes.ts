@@ -25,6 +25,45 @@ import {
 
 const MANAGED_INSTALL_MANIFEST = "install-manifest.json"
 
+const HERMES_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND HERMES TOOL MAP -->"
+const HERMES_AGENTS_BLOCK_END = "<!-- END COMPOUND HERMES TOOL MAP -->"
+const HERMES_AGENTS_BLOCK_BODY = `## Compound Engineering (Hermes compatibility)
+
+This block is managed by compound-plugin and rewritten on every reinstall.
+Edits inside the markers will be overwritten; edits elsewhere in this file
+are preserved.
+
+CE skills installed under \`~/.hermes/skills/\` follow these conventions:
+
+- **Blocking questions.** Several CE workflows (\`/ce-work\`, \`/ce-plan\`,
+  \`/ce-brainstorm\`, \`/ce-doc-review\`, \`git-commit-push-pr\`, etc.) pause
+  to ask the user a question. Hermes has no dedicated blocking-question
+  primitive, so each skill renders its options as a numbered list in the
+  active conversation channel and waits for the user's reply. Reply with
+  the letter or label to continue.
+
+- **Slash commands.** Skill bodies may reference \`/ce-plan\`, \`/ce-work\`,
+  etc. These resolve to skills installed under
+  \`~/.hermes/skills/cmd-<command-name>/\`. On Hermes surfaces with native
+  slash-command support the trigger is direct; elsewhere the skill is
+  invoked via \`skill_view\`.
+
+- **Sub-agent dispatch.** Skills emitting \`Use the <name> skill to: ...\`
+  delegate to the named skill via \`skill_view\`. CE agents are emitted as
+  \`~/.hermes/skills/agent-<name>/\` and are dispatchable through Hermes'
+  Parallel Sub-Agents primitive.
+
+- **Restart after install.** Run \`hermes config reload\` (or restart the
+  agent / gateway) after each \`bunx ... install --to hermes\` so MCP
+  configuration in \`~/.hermes/config.yaml\` takes effect.
+
+- **Unattended workflows.** True-autonomous Hermes execution (cron jobs,
+  gateway hooks with no attached user) cannot answer blocking questions.
+  Skills that ask user input will pause until a user attaches; for fully
+  unattended runs prefer skills that don't require input, or filter
+  interactive skills out at the source via \`ce_platforms: [claude]\`.
+`
+
 // Local copy of TargetScope to avoid the circular import edge other targets
 // don't have (hermes.ts -> ./index -> ./hermes). Kept in sync with
 // `src/targets/index.ts:TargetScope`.
@@ -35,6 +74,7 @@ type HermesPaths = {
   managedDir: string
   skillsDir: string
   configPath: string
+  agentsPath: string
 }
 
 /**
@@ -57,6 +97,7 @@ export function resolveHermesPaths(outputRoot: string, pluginName?: string): Her
       managedDir: path.join(outputRoot, managedSegment),
       skillsDir: path.join(outputRoot, "skills"),
       configPath: path.join(outputRoot, "config.yaml"),
+      agentsPath: path.join(outputRoot, "AGENTS.md"),
     }
   }
   return {
@@ -64,6 +105,7 @@ export function resolveHermesPaths(outputRoot: string, pluginName?: string): Her
     managedDir: path.join(outputRoot, ".hermes", managedSegment),
     skillsDir: path.join(outputRoot, ".hermes", "skills"),
     configPath: path.join(outputRoot, ".hermes", "config.yaml"),
+    agentsPath: path.join(outputRoot, ".hermes", "AGENTS.md"),
   }
 }
 
@@ -153,6 +195,12 @@ export async function writeHermesBundle(
   if (bundle.mcpConfig) {
     await writeHermesConfigYaml(paths.configPath, bundle.mcpConfig)
   }
+
+  // Upsert the AGENTS.md compatibility block so Hermes' runtime sees CE
+  // guidance as part of the user's own agent instructions. The block is
+  // delimited by markers and rewritten in place; user content outside the
+  // markers is preserved untouched.
+  await ensureHermesAgentsBlock(paths.agentsPath)
 
   if (pluginName) {
     // Skills blocked by another plugin's manifest must not appear in this
@@ -453,6 +501,47 @@ async function cleanupKnownLegacyHermesArtifacts(
   for (const skillName of legacyArtifacts.skills) {
     await moveLegacyArtifactToBackup(paths.managedDir, "skills", paths.skillsDir, skillName, "Hermes skill")
   }
+}
+
+/**
+ * Upsert the CE compatibility block into Hermes' AGENTS.md so runtime guidance
+ * lives next to the user's other agent instructions. The block is bounded by
+ * `<!-- BEGIN COMPOUND HERMES TOOL MAP -->` / `<!-- END ... -->` markers and
+ * is rewritten in place on every reinstall. User content outside the markers
+ * is preserved untouched.
+ */
+async function ensureHermesAgentsBlock(filePath: string): Promise<void> {
+  const block = [HERMES_AGENTS_BLOCK_START, HERMES_AGENTS_BLOCK_BODY.trim(), HERMES_AGENTS_BLOCK_END].join("\n")
+
+  await ensureDir(path.dirname(filePath))
+
+  if (!(await pathExists(filePath))) {
+    await writeText(filePath, block + "\n")
+    return
+  }
+
+  const existing = await readText(filePath)
+  const updated = upsertHermesAgentsBlock(existing, block)
+  if (updated !== existing) {
+    await writeText(filePath, updated)
+  }
+}
+
+function upsertHermesAgentsBlock(existing: string, block: string): string {
+  const startIndex = existing.indexOf(HERMES_AGENTS_BLOCK_START)
+  const endIndex = existing.indexOf(HERMES_AGENTS_BLOCK_END)
+
+  if (startIndex !== -1 && endIndex !== -1 && endIndex > startIndex) {
+    const before = existing.slice(0, startIndex).trimEnd()
+    const after = existing.slice(endIndex + HERMES_AGENTS_BLOCK_END.length).trimStart()
+    return [before, block, after].filter(Boolean).join("\n\n") + "\n"
+  }
+
+  if (existing.trim().length === 0) {
+    return block + "\n"
+  }
+
+  return existing.trimEnd() + "\n\n" + block + "\n"
 }
 
 function emitWriterSummary(bundle: HermesBundle, blocked: Set<string>): void {
