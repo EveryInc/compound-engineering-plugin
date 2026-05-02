@@ -1,0 +1,24 @@
+# Synthesized representative Hermes user config based on the Hermes user-guide
+# MCP page (https://hermes-agent.nousresearch.com/docs/user-guide/features/mcp).
+# Pending verification against a real Hermes install — when a captured
+# config.yaml from a Hermes runtime becomes available, replace this fixture
+# with the captured shape. The intent of the round-trip test is to verify
+# that js-yaml's load + dump preserves enough fidelity for the merge code
+# path to be safe.
+model: claude-sonnet-4-5
+gateway:
+  enabled: true
+  port: 8787
+  host: "0.0.0.0"
+mcp_servers:
+  context7:
+    url: "https://mcp.context7.com/mcp"
+    timeout: 30
+    enabled: true
+  filesystem:
+    command: "npx"
+    args:
+      - "-y"
+      - "@modelcontextprotocol/server-filesystem"
+      - "/Users/me/projects"
+    enabled: true

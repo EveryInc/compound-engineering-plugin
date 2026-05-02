@@ -3,6 +3,7 @@ import type { CopilotBundle } from "../types/copilot"
 import type { DroidBundle } from "../types/droid"
 import type { ClaudePlugin } from "../types/claude"
 import type { GeminiBundle } from "../types/gemini"
+import type { HermesBundle } from "../types/hermes"
 import type { KiroBundle } from "../types/kiro"
 import type { OpenCodeBundle } from "../types/opencode"
 import type { PiBundle } from "../types/pi"
@@ -270,6 +271,10 @@ export type LegacyCopilotArtifacts = {
   agents: string[]
 }
 
+export type LegacyHermesArtifacts = {
+  skills: string[]
+}
+
 export type LegacyWindsurfArtifacts = {
   skills: string[]
   workflows: string[]
@@ -398,6 +403,16 @@ export function getLegacyGeminiArtifacts(bundle: GeminiBundle): LegacyTargetFile
     skills: [...skills].sort(),
     agents: [...agents].sort(),
     commands: [...commands].sort(),
+  }
+}
+
+export function getLegacyHermesArtifacts(_bundle: HermesBundle): LegacyHermesArtifacts {
+  // Hermes is a brand-new converter target with no historical CE artifacts to
+  // sweep. The manifest-diff cleanup in `cleanupRemovedManagedDirectories`
+  // covers post-launch artifact removal automatically. This function exists
+  // as a hook for any future legacy entries; for now it returns empty arrays.
+  return {
+    skills: [],
   }
 }
 
