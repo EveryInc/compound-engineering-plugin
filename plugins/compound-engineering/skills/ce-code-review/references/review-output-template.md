@@ -117,6 +117,7 @@ This fails because: no pipe-delimited tables, no severity-grouped `###` headers,
 
 - **Pipe-delimited markdown tables** for findings -- never ASCII box-drawing characters or per-finding horizontal-rule separators between entries (the report-level `---` before the verdict is still required)
 - **Severity-grouped sections** -- `### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`. Omit empty severity levels.
+- **Stable sequential finding numbers** -- assign finding numbers once after sorting, continue them across severity sections, and reuse those same numbers when findings are repeated in Residual Actionable Work. Do not restart at `1` for each severity or route bucket.
 - **Always include file:line location** for code review issues
 - **Reviewer column** shows which persona(s) flagged the issue. Multiple reviewers = cross-reviewer agreement.
 - **Confidence column** shows the finding's anchor as an integer (`50`, `75`, or `100`). Never render as a float.

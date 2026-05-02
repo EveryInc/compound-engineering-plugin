@@ -731,7 +731,23 @@ describe("ce-code-review contract", () => {
   test("ce-code-review autofix emits a residual-work summary in-chat, not only in the artifact", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
     expect(content).toMatch(/Emit a compact Residual Actionable Work summary/)
+    expect(content).toContain("with its stable `#`, severity, file:line, title, and autofix_class")
+    expect(content).toContain("Keep applied `safe_auto` fixes and residual non-auto findings in separate contiguous sections")
     expect(content).toContain("Residual actionable work: none.")
+  })
+
+  test("ce-code-review uses stable sequential finding numbers across grouped output", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+    const template = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review/references/review-output-template.md",
+    )
+
+    expect(content).toContain("Assign stable finding numbers once")
+    expect(content).toContain("Do not restart numbering inside each severity table or autofix/routing bucket")
+    expect(content).toContain("reuse the same stable `#`")
+    expect(content).toContain("never restart at `1` for a new severity header")
+    expect(template).toContain("Stable sequential finding numbers")
+    expect(template).toContain("reuse those same numbers when findings are repeated in Residual Actionable Work")
   })
 })
 
