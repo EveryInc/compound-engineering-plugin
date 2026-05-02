@@ -1,7 +1,7 @@
 ---
 title: "feat: Add Hermes Agent as a conversion target"
 type: feat
-status: active
+status: completed
 date: 2026-05-01
 ---
 
