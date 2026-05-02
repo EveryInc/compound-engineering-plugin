@@ -10,10 +10,21 @@ export function resolveTargetOutputRoot(options: {
   pluginName?: string
   hasExplicitOutput: boolean
   scope?: TargetScope
+  hermesHome?: string
 }): string {
-  const { targetName, outputRoot, codexHome, piHome, hasExplicitOutput } = options
+  const { targetName, outputRoot, codexHome, piHome, hasExplicitOutput, hermesHome } = options
   if (targetName === "codex") return codexHome
   if (targetName === "pi") return piHome
+  if (targetName === "hermes") {
+    // Hermes accepts both home-rooted (`~/.hermes`) and workspace-rooted
+    // (`<cwd>/.hermes`) install locations. When the user provides
+    // `--hermes-home`, honor it as authoritative. Otherwise fall back to the
+    // workspace `<cwd>/.hermes/` (or `<--output>/.hermes` when `--output`
+    // is set without `--hermes-home`).
+    if (hermesHome) return hermesHome
+    const base = hasExplicitOutput ? outputRoot : process.cwd()
+    return path.join(base, ".hermes")
+  }
   if (targetName === "gemini") {
     const base = hasExplicitOutput ? outputRoot : process.cwd()
     return path.join(base, ".gemini")

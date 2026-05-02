@@ -24,12 +24,13 @@ import {
 } from "../data/plugin-legacy-artifacts"
 import { moveLegacyArtifactToBackup } from "../targets/managed-artifacts"
 import { isManagedCodexAgentsSymlink, readCodexInstallManifest, resolveCodexManagedRoots } from "../targets/codex"
+import { cleanupHermesAtRoot } from "../targets/hermes"
 import { classifyCodexLegacyPromptOwnership } from "../utils/legacy-cleanup"
 import { isSafeManagedPath, pathExists, readJson, sanitizePathName } from "../utils/files"
 import { resolveOpenCodeGlobalRoot } from "../utils/opencode-config"
 import { expandHome, resolveTargetHome } from "../utils/resolve-home"
 
-const cleanupTargets = ["codex", "opencode", "pi", "gemini", "kiro", "copilot", "droid", "qwen", "windsurf"] as const
+const cleanupTargets = ["codex", "opencode", "pi", "gemini", "kiro", "hermes", "copilot", "droid", "qwen", "windsurf"] as const
 type CleanupTarget = typeof cleanupTargets[number]
 
 type CleanupResult = {
@@ -52,7 +53,7 @@ export default defineCommand({
     target: {
       type: "string",
       default: "all",
-      description: "Target to clean: codex | opencode | pi | gemini | kiro | copilot | droid | qwen | windsurf | all",
+      description: "Target to clean: codex | opencode | pi | gemini | kiro | hermes | copilot | droid | qwen | windsurf | all",
     },
     output: {
       type: "string",
@@ -83,6 +84,11 @@ export default defineCommand({
       type: "string",
       alias: "kiro-home",
       description: "Kiro root to clean (default: ./.kiro)",
+    },
+    hermesHome: {
+      type: "string",
+      alias: "hermes-home",
+      description: "Hermes root to clean (default: ~/.hermes)",
     },
     copilotHome: {
       type: "string",
@@ -128,6 +134,7 @@ export default defineCommand({
       opencodeHome: resolveTargetHome(args.opencodeHome, resolveOpenCodeGlobalRoot()),
       geminiHome: resolveTargetHome(args.geminiHome, path.join(os.homedir(), ".gemini")),
       kiroHome: resolveTargetHome(args.kiroHome, path.join(outputRoot, ".kiro")),
+      hermesHome: resolveTargetHome(args.hermesHome, path.join(os.homedir(), ".hermes")),
       copilotHome: resolveTargetHome(args.copilotHome, path.join(os.homedir(), ".copilot")),
       droidHome: resolveTargetHome(args.droidHome, path.join(os.homedir(), ".factory")),
       qwenHome: resolveTargetHome(args.qwenHome, path.join(os.homedir(), ".qwen")),
@@ -161,6 +168,7 @@ async function cleanupTarget(
     opencodeHome: string
     geminiHome: string
     kiroHome: string
+    hermesHome: string
     copilotHome: string
     droidHome: string
     qwenHome: string
@@ -221,6 +229,8 @@ async function cleanupTarget(
     }
     case "kiro":
       return [await cleanupKiro(plugin, roots.kiroHome)]
+    case "hermes":
+      return [await cleanupHermes(plugin, roots.hermesHome)]
     case "copilot": {
       // Same race-prevention as Gemini: if a user points `--copilot-home`,
       // `--output`, or `--agents-home` at the same directory these parallel
@@ -481,6 +491,20 @@ async function cleanupKiro(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>,
     moved += await moveIfExists(managedDir, "agents", path.join(kiroRoot, "agents", "prompts"), `${agentName}.md`, "Kiro")
   }
   return { target: "kiro", root: kiroRoot, moved }
+}
+
+async function cleanupHermes(_plugin: Awaited<ReturnType<typeof loadClaudePlugin>>, hermesRoot: string): Promise<CleanupResult> {
+  // Delegate to the writer's manifest-driven cleanup. The Hermes writer
+  // tracks every file it produces in `<hermesRoot>/<plugin>/install-manifest.json`,
+  // so the safe and accurate cleanup path is to read that manifest and remove
+  // only the files it lists. `cleanupHermesAtRoot` also emits a stderr note
+  // when `config.yaml` is present, since CE does not track MCP entries in the
+  // manifest and they need manual removal.
+  await cleanupHermesAtRoot(hermesRoot)
+  // The shared `CleanupResult` shape requires a `moved` count; the manifest-
+  // based cleanup deletes rather than archiving, so we report 0. The user-
+  // facing summary still prints "Cleaned hermes" via the parent loop.
+  return { target: "hermes", root: hermesRoot, moved: 0 }
 }
 
 async function cleanupCopilot(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>, copilotRoot: string): Promise<CleanupResult> {

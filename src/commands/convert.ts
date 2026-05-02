@@ -25,7 +25,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | pi | gemini | kiro | all)",
+      description: "Target format (opencode | codex | pi | gemini | kiro | hermes | all)",
     },
     output: {
       type: "string",
@@ -41,6 +41,11 @@ export default defineCommand({
       type: "string",
       alias: "pi-home",
       description: "Write Pi output to this Pi root (ex: ~/.pi/agent or ./.pi)",
+    },
+    hermesHome: {
+      type: "string",
+      alias: "hermes-home",
+      description: "Write Hermes output to this Hermes root (ex: ~/.hermes)",
     },
     scope: {
       type: "string",
@@ -85,6 +90,18 @@ export default defineCommand({
     const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
     const codexHome = resolveTargetHome(args.codexHome, path.join(os.homedir(), ".codex"))
     const piHome = resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent"))
+    // For hermes, only honor the resolved Hermes home when the user passed
+    // `--hermes-home` explicitly (or when we route through `--to all` and
+    // detection found a real Hermes install at `~/.hermes/config.yaml`).
+    // Leaving this `undefined` for the standalone `--to hermes` path lets
+    // `resolveTargetOutputRoot` fall back to the workspace-rooted
+    // `<cwd>/.hermes` (or `<--output>/.hermes`) per the documented edge
+    // case where neither flag is set.
+    const hasExplicitHermesHome = Boolean(args.hermesHome && String(args.hermesHome).trim())
+    const hermesHome = hasExplicitHermesHome
+      ? resolveTargetHome(args.hermesHome, path.join(os.homedir(), ".hermes"))
+      : undefined
+    const hermesHomeDefault = path.join(os.homedir(), ".hermes")
 
     const options: ClaudeToOpenCodeOptions = {
       agentMode: String(args.agentMode) === "primary" ? "primary" : "subagent",
@@ -129,6 +146,7 @@ export default defineCommand({
           piHome,
           pluginName: plugin.manifest.name,
           hasExplicitOutput,
+          hermesHome: hermesHome ?? hermesHomeDefault,
         })
         const writeScope =
           tool.name === "opencode" ? resolveOpenCodeWriteScope(hasExplicitOutput, undefined) : undefined
@@ -161,6 +179,7 @@ export default defineCommand({
       pluginName: plugin.manifest.name,
       hasExplicitOutput,
       scope: resolvedScope,
+      hermesHome,
     })
     const bundle = target.convert(plugin, options)
     if (!bundle) {
@@ -197,6 +216,7 @@ export default defineCommand({
         pluginName: plugin.manifest.name,
         hasExplicitOutput,
         scope: handler.defaultScope,
+        hermesHome,
       })
       const extraScope =
         extra === "opencode"

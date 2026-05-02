@@ -1870,5 +1870,368 @@ describe("CLI", () => {
     expect(await exists(path.join(tempCwd, ".gemini", "skills", "skill-one", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(tempCwd, ".kiro", "skills", "skill-one", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(tempHome, ".qwen", "extensions", "compound-engineering", "qwen-extension.json"))).toBe(false)
+    // Regression: a fixture with `~/.codex` and `~/.opencode` but NO
+    // `~/.hermes/config.yaml` MUST NOT trigger Hermes detection. The detector
+    // probes the file, not the directory, so leaving `~/.hermes` absent here
+    // (as this test does) confirms detection stays scoped to real installs.
+    expect(stdout).not.toContain("Installed compound-engineering to hermes")
+  })
+
+  test("convert supports --to hermes with --output", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-convert-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "convert",
+      fixtureRoot,
+      "--to",
+      "hermes",
+      "--output",
+      tempRoot,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Converted compound-engineering to hermes")
+    expect(await exists(path.join(tempRoot, ".hermes", "skills", "skill-one", "SKILL.md"))).toBe(true)
+  })
+
+  test("install --to hermes --hermes-home with .hermes suffix writes there", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-suffix-"))
+    const hermesRoot = path.join(tempRoot, ".hermes")
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "hermes",
+      "--hermes-home",
+      hermesRoot,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering to hermes")
+    expect(await exists(path.join(hermesRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
+  })
+
+  test("install --to hermes --hermes-home without .hermes suffix auto-appends", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-noSuffix-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "hermes",
+      "--hermes-home",
+      tempRoot,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering to hermes")
+    // `resolveHermesPaths` auto-appends `.hermes/` when the supplied path's
+    // basename is not already `.hermes`.
+    expect(await exists(path.join(tempRoot, ".hermes", "skills", "skill-one", "SKILL.md"))).toBe(true)
+  })
+
+  test("install --to hermes falls back to <cwd>/.hermes when no flags supplied", async () => {
+    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-cwd-"))
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-cwd-home-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "hermes",
+    ], {
+      cwd: tempCwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempHome,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering to hermes")
+    expect(await exists(path.join(tempCwd, ".hermes", "skills", "skill-one", "SKILL.md"))).toBe(true)
+  })
+
+  test("install --to hermes --scope global is rejected (no supportedScopes)", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-scope-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "hermes",
+      "--hermes-home",
+      path.join(tempRoot, ".hermes"),
+      "--scope",
+      "global",
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stderr = await new Response(proc.stderr).text()
+
+    expect(exitCode).not.toBe(0)
+    expect(stderr).toContain("hermes")
+    expect(stderr).toContain("does not support the --scope flag")
+  })
+
+  test("install --also hermes with primary --to opencode emits both targets", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-also-"))
+    const hermesRoot = path.join(tempRoot, ".hermes")
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "opencode",
+      "--also",
+      "hermes",
+      "--hermes-home",
+      hermesRoot,
+      "--output",
+      tempRoot,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering to hermes")
+    expect(await exists(path.join(tempRoot, ".opencode", "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(hermesRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
+  })
+
+  test("install --to all detects Hermes only when ~/.hermes/config.yaml is present", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-detect-yes-"))
+    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-detect-yes-cwd-"))
+    const repoRoot = path.join(import.meta.dir, "..")
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+
+    // Seed ~/.hermes with a real config.yaml so detection fires on the file.
+    await fs.mkdir(path.join(tempHome, ".hermes"), { recursive: true })
+    await fs.writeFile(path.join(tempHome, ".hermes", "config.yaml"), "model: claude-sonnet-4\n")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "all",
+    ], {
+      cwd: tempCwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempHome,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering to hermes")
+    expect(await exists(path.join(tempHome, ".hermes", "skills", "skill-one", "SKILL.md"))).toBe(true)
+  })
+
+  test("install --to all does NOT detect Hermes when only ~/.hermes/ directory exists (no config.yaml)", async () => {
+    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-detect-no-"))
+    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "cli-hermes-detect-no-cwd-"))
+    const repoRoot = path.join(import.meta.dir, "..")
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+
+    // Directory-only seed with NO config.yaml — must not trigger detection.
+    await fs.mkdir(path.join(tempHome, ".hermes"), { recursive: true })
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "all",
+    ], {
+      cwd: tempCwd,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempHome,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).not.toContain("Installed compound-engineering to hermes")
+    // Hermes skills must not have been installed at this root.
+    expect(await exists(path.join(tempHome, ".hermes", "skills", "skill-one", "SKILL.md"))).toBe(false)
+  })
+
+  test("cleanup --target hermes removes manifest-tracked skills", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-hermes-"))
+    const hermesRoot = path.join(tempRoot, ".hermes")
+    const repoRoot = path.join(import.meta.dir, "..")
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+
+    // Run an install first to generate a real manifest at
+    // <hermesRoot>/compound-engineering/install-manifest.json.
+    const installProc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "hermes",
+      "--hermes-home",
+      hermesRoot,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+    const installExit = await installProc.exited
+    if (installExit !== 0) {
+      const installStderr = await new Response(installProc.stderr).text()
+      throw new Error(`install setup failed (exit ${installExit}).\nstderr: ${installStderr}`)
+    }
+
+    // Drop a user-authored skill — must survive cleanup.
+    const userSkillDir = path.join(hermesRoot, "skills", "user-skill")
+    await fs.mkdir(userSkillDir, { recursive: true })
+    const userSkillContent = "# user-authored, not in manifest\n"
+    await fs.writeFile(path.join(userSkillDir, "SKILL.md"), userSkillContent)
+
+    expect(await exists(path.join(hermesRoot, "skills", "skill-one"))).toBe(true)
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "cleanup",
+      "--target",
+      "hermes",
+      "--hermes-home",
+      hermesRoot,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Cleaned hermes")
+    // Manifest-tracked skill removed.
+    expect(await exists(path.join(hermesRoot, "skills", "skill-one"))).toBe(false)
+    // The per-plugin managed dir is also removed.
+    expect(await exists(path.join(hermesRoot, "compound-engineering"))).toBe(false)
+    // User-authored skill survives.
+    expect(await exists(path.join(userSkillDir, "SKILL.md"))).toBe(true)
+    expect(await fs.readFile(path.join(userSkillDir, "SKILL.md"), "utf8")).toBe(userSkillContent)
   })
 })

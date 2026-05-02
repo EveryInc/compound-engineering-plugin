@@ -45,7 +45,7 @@ describe("detectInstalledTools", () => {
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
-    expect(results.length).toBe(8)
+    expect(results.length).toBe(9)
     for (const tool of results) {
       expect(tool.detected).toBe(false)
       expect(tool.reason).toBe("not found")
