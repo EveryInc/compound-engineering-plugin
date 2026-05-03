@@ -88,6 +88,8 @@ Important: Just because the developer's installed plugin may be out of date, it'
 
 **Agents** follow the same convention: `ce-adversarial-reviewer`, `ce-learnings-researcher`, etc. When referencing agents from skills, use the bare `ce-<agent-name>` form (e.g., `ce-adversarial-reviewer`) — the `ce-` prefix is sufficient for uniqueness across plugins.
 
+**The `ce-` prefix is required for every new skill and agent — no exceptions.** Three legacy skills (`every-style-editor`, `file-todos`, `lfg`) predate the rule and remain unprefixed; they are pinned in `tests/frontmatter.test.ts` as the only allowed exceptions. Do not add to that allowlist. When adding a new skill, the directory name, the SKILL.md `name:` frontmatter, and any README references must all start with `ce-`. The frontmatter test enforces this and will fail on a missing prefix.
+
 ## Known External Limitations
 
 **Proof HITL surfaces a ghost "AI collaborator" agent** (noted 2026-04-16, may change): The Proof API auto-joins any header-less `/state` read under a synthetic `ai:auto-<hash>` identity, so docs created by the `skills/proof/` HITL workflow show a phantom participant alongside `Compound Engineering`. The only way to suppress it is to set `ownerId: "agent:ai:compound-engineering"` on create — but that transfers document ownership to the agent and prevents the user from claiming it into their Proof library, so we don't use it. Treat as cosmetic noise; don't reintroduce the `ownerId` workaround. Tracked upstream: https://github.com/EveryInc/proof/issues/951.
