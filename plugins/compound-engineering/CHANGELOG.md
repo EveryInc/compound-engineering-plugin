@@ -9,6 +9,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.4.2](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.4.1...compound-engineering-v3.4.2) (2026-05-03)
+
+
+### Bug Fixes
+
+* **ce-compound, ce-sessions:** remove bash parameter expansion from ! backtick  ([#752](https://github.com/EveryInc/compound-engineering-plugin/issues/752)) ([9539bf0](https://github.com/EveryInc/compound-engineering-plugin/commit/9539bf045deba099a20d306b2b118e3b019c633c))
+* **ce-polish-beta:** support Bash 3.2 project detection ([#755](https://github.com/EveryInc/compound-engineering-plugin/issues/755)) ([caf5e12](https://github.com/EveryInc/compound-engineering-plugin/commit/caf5e1251caeeed45ed2e18eb366fc25d90f38be))
+
 ## [3.4.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.4.0...compound-engineering-v3.4.1) (2026-05-01)
 
 
