@@ -731,7 +731,45 @@ describe("ce-code-review contract", () => {
   test("ce-code-review autofix emits a residual-work summary in-chat, not only in the artifact", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
     expect(content).toMatch(/Emit a compact Residual Actionable Work summary/)
+    expect(content).toContain("with its stable `#`, severity, file:line, title, and autofix_class")
+    expect(content).toContain("Structure the summary as two separate contiguous sections")
+    expect(content).toContain("applied `safe_auto` fixes first, then residual non-auto findings")
+    expect(content).toContain("reuse each finding's stable `#` from Stage 5 -- never renumber")
     expect(content).toContain("Residual actionable work: none.")
+  })
+
+  test("ce-code-review uses stable sequential finding numbers across grouped output", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+    const template = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review/references/review-output-template.md",
+    )
+    const fixture = await readRepoFile("tests/fixtures/ce-code-review-stable-numbering.md")
+
+    const stage5 = content.split("### Stage 5b:")[0].split("### Stage 5:")[1]
+    expect(stage5).toMatch(/Sort and number/)
+    expect(stage5).toMatch(/Do not restart numbering inside each severity table or autofix\/routing bucket/)
+    expect(stage5).toMatch(/reuse the same stable `#`/)
+    expect(stage5).toMatch(/ce-resolve-pr-feedback/)
+
+    const stage6 = content.split("### Headless output format")[0].split("### Stage 6: Synthesize and present")[1]
+    expect(stage6).toContain("Finding numbers come from the stable assignment in Stage 5")
+    expect(stage6).toContain("never re-derive them per severity table")
+    expect(template).toContain("Stable sequential finding numbers")
+    expect(template).toContain("reuse those same numbers when findings are repeated in Residual Actionable Work")
+
+    const primaryFindingIds = Array.from(
+      fixture.matchAll(/^\| (\d+) \| `[^`]+` \| .* \| .* \| \d+ \| `.*` \|$/gm),
+      ([, id]) => Number(id),
+    )
+    expect(primaryFindingIds).toEqual([1, 2, 3])
+
+    const residualSection = fixture.split("### Residual Actionable Work")[1]
+    const residualIds = Array.from(
+      residualSection.matchAll(/^\| (\d+) \| `[^`]+` \| .* \| `.*` \| .* \|$/gm),
+      ([, id]) => Number(id),
+    )
+    expect(residualIds).toEqual([2, 3])
+    expect(residualIds.every((id) => primaryFindingIds.includes(id))).toBe(true)
   })
 })
 
