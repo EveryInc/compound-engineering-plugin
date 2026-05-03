@@ -8,6 +8,8 @@ This template describes the Phase 4 interactive presentation — what the user s
 
 **Vocabulary note.** Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) live in the schema and synthesis pipeline. User-facing rendered text uses plain-language labels instead: fixes (for `safe_auto`), proposed fixes (for `gated_auto`), decisions (for `manual`), and FYI observations (for `FYI`). The `Tier` column in the tables below is the one place that still names the internal enum so the user can see the synthesis decision; everything else reads as plain language.
 
+**Confidence column.** The `Confidence` column shows the integer anchor value (`50`, `75`, or `100`) — never a decimal or percentage. Anchor `50` = advisory (routed to FYI); anchor `75` = verified, will hit in practice; anchor `100` = certain, evidence directly confirms. Anchors `0` and `25` are dropped by synthesis before this layer and never appear in the rendered output. Cross-persona agreement promotes by one anchor step; when this happens, the Reviewer column notes it (e.g., `coherence, feasibility (+1 anchor)`).
+
 ## Example
 
 ```markdown
@@ -35,7 +37,7 @@ Applied 5 fixes. 4 items need attention (2 errors, 2 omissions). 2 FYI observati
 
 | # | Section | Issue | Reviewer | Confidence | Tier |
 |---|---------|-------|----------|------------|------|
-| 1 | Requirements Trace | Goal states "offline support" but technical approach assumes persistent connectivity | coherence | 0.92 | manual |
+| 1 | Requirements Trace | Goal states "offline support" but technical approach assumes persistent connectivity | coherence | 100 | manual |
 
 ### P1 — Should Fix
 
@@ -43,13 +45,13 @@ Applied 5 fixes. 4 items need attention (2 errors, 2 omissions). 2 FYI observati
 
 | # | Section | Issue | Reviewer | Confidence | Tier |
 |---|---------|-------|----------|------------|------|
-| 2 | Scope Boundaries | 8 of 12 units build admin infrastructure; only 2 touch stated goal | scope-guardian | 0.80 | manual |
+| 2 | Scope Boundaries | 8 of 12 units build admin infrastructure; only 2 touch stated goal | scope-guardian | 75 | manual |
 
 #### Omissions
 
 | # | Section | Issue | Reviewer | Confidence | Tier |
 |---|---------|-------|----------|------------|------|
-| 3 | Implementation Unit 3 | Plan proposes custom auth but does not mention existing Devise setup or migration path | feasibility | 0.85 | gated_auto |
+| 3 | Implementation Unit 3 | Plan proposes custom auth but does not mention existing Devise setup or migration path | feasibility | 100 | gated_auto |
 
 ### P2 — Consider Fixing
 
@@ -57,7 +59,7 @@ Applied 5 fixes. 4 items need attention (2 errors, 2 omissions). 2 FYI observati
 
 | # | Section | Issue | Reviewer | Confidence | Tier |
 |---|---------|-------|----------|------------|------|
-| 4 | API Design | Public webhook endpoint has no rate limiting mentioned | security-lens | 0.75 | gated_auto |
+| 4 | API Design | Public webhook endpoint has no rate limiting mentioned | security-lens | 75 | gated_auto |
 
 ### FYI Observations
 
@@ -65,12 +67,12 @@ Low-confidence observations surfaced without requiring a decision. Content advis
 
 | # | Section | Observation | Reviewer | Confidence |
 |---|---------|-------------|----------|------------|
-| 1 | Naming | Filename `plan.md` is asymmetric with command name `user-auth`; could go either way | coherence | 0.52 |
-| 2 | Risk Analysis | Rollout-cadence decision may benefit from monitoring thresholds, though not blocking | scope-guardian | 0.48 |
+| 1 | Naming | Filename `plan.md` is asymmetric with command name `user-auth`; could go either way | coherence | 50 |
+| 2 | Risk Analysis | Rollout-cadence decision may benefit from monitoring thresholds, though not blocking | scope-guardian | 50 |
 
 ### Residual Concerns
 
-Residual concerns are issues the reviewers noticed but could not confirm with above-gate confidence. These are not actionable; they appear here for transparency only and are not promoted into the review surface.
+Residual concerns are issues the reviewers noticed but could not confirm at confidence anchor `50` or higher. These are not actionable; they appear here for transparency only and are not promoted into the review surface.
 
 | # | Concern | Source |
 |---|---------|--------|
@@ -93,7 +95,9 @@ Residual concerns are issues the reviewers noticed but could not confirm with ab
 | product-lens | not activated | -- | -- | -- | -- | -- | -- |
 | design-lens | not activated | -- | -- | -- | -- | -- | -- |
 
+Dropped: 3 (anchors 0/25 suppressed)
 Chains: 1 root with 2 dependents
+Restated: 2 (residual/deferred items suppressed as duplicates of actionable findings)
 ```
 
 ## Section Rules
@@ -101,10 +105,12 @@ Chains: 1 root with 2 dependents
 - **Summary line**: Always present after the reviewer list. Format: "Applied N fixes. K items need attention (X errors, Y omissions). Z FYI observations." Omit any zero clause except the FYI clause when zero (it's informative that none surfaced).
 - **Applied fixes**: List all fixes that were applied automatically (`safe_auto` tier). Include enough detail per fix to convey the substance — especially for fixes that add content or touch document meaning. Omit section if none.
 - **P0-P3 sections**: Only include sections that have actionable findings (`gated_auto` or `manual`). Omit empty severity levels. Within each severity, separate into **Errors** and **Omissions** sub-headers. Omit a sub-header if that severity has none of that type. The `Tier` column surfaces whether a finding is `gated_auto` (concrete fix exists, Apply recommended in walk-through) or `manual` (requires user judgment).
-- **FYI Observations**: Low-confidence `manual` findings above the 0.40 FYI floor but below the per-severity gate. Surface here for transparency; these are not actionable and do not enter the walk-through. Omit section if none.
+- **FYI Observations**: Findings at confidence anchor `50` regardless of `autofix_class`. Surface here for transparency; these are not actionable and do not enter the walk-through. Omit section if none.
 - **Residual Concerns**: Residual concerns noted by personas that did not make it above the confidence gate. Listed for transparency; not promoted into the review surface (cross-persona agreement boost runs on findings that already survived the gate, per synthesis step 3.4). Omit section if none.
 - **Deferred Questions**: Questions for later workflow stages. Omit if none.
-- **Coverage**: Always include. All counts are **post-synthesis**. **Findings** must equal Auto + Proposed + Decisions + FYI exactly — if deduplication merged a finding across personas, attribute it to the persona with the highest confidence and reduce the other persona's count. **Residual** = count of `residual_risks` from this persona's raw output (not the promoted subset in the Residual Concerns section). The `Auto` column counts `safe_auto` findings, `Proposed` counts `gated_auto`, `Decisions` counts above-gate `manual`, and `FYI` counts below-gate `manual` findings at or above the 0.40 FYI floor.
+- **Compact rendering for FYI / Residual / Deferred (high-count mode)**: When the combined count across these three sections is **5 or more**, collapse each section to a one-line summary followed by the items as a tight bullet list (no table, no per-item `Why` elaboration). Rationale: these sections are observational, not decision-forcing — when they are lengthy, they bury the actionable tiers above them. A P0/P1/P2 actionable finding stays fully rendered regardless of how many FYI/Residual/Deferred items exist. When the combined count is 4 or fewer, render each section as today.
+- **Coverage**: Always include. All counts are **post-synthesis**. **Findings** must equal Auto + Proposed + Decisions + FYI exactly — if deduplication merged a finding across personas, attribute it to the persona with the highest confidence anchor and reduce the other persona's count. **Residual** = count of `residual_risks` from this persona's raw output (not the promoted subset in the Residual Concerns section). The `Auto` column counts `safe_auto` findings at anchor `100`, `Proposed` counts `gated_auto` findings at anchor `75` or `100`, `Decisions` counts `manual` findings at anchor `75` or `100`, and `FYI` counts findings at anchor `50` regardless of `autofix_class`. Findings at anchors `0` or `25` were dropped by synthesis and do not appear in any column. Do NOT invent additional columns (e.g., `Dropped`, `Surviving`). The column schema above is the canonical set.
+- **Coverage footnote lines** (optional, appear below the table when non-zero): `Dropped: N (anchors 0/25 suppressed)` when synthesis 3.2 dropped any findings. `Chains: N root(s) with M dependents` when premise-dependency chains exist. `Restated: N (residual/deferred items suppressed as duplicates of actionable findings)` when synthesis 3.9 suppressed any restatements. These footnotes — not the summary line, not per-persona columns — are the canonical location for cross-cutting counts that don't fit the per-persona shape. Order: `Dropped:`, then `Chains:`, then `Restated:`, each on its own line. Omit any footnote whose count is zero.
 
 ## Chain-Rendering Rules
 

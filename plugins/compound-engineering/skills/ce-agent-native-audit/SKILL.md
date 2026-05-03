@@ -34,7 +34,7 @@ Select option 7 (action parity) to load the full reference material.
 
 ### Step 2: Launch Parallel Sub-Agents
 
-Launch 8 parallel sub-agents using the Task tool with `subagent_type: Explore`, one for each principle. Each agent should:
+Launch 8 parallel sub-agents using the platform's subagent primitive (`Agent` with `subagent_type: Explore` in Claude Code, `spawn_agent` with `agent_type: "explorer"` in Codex, `subagent` with `agent: "scout"` in Pi via the `pi-subagents` extension), one for each principle. Each agent should:
 
 1. Enumerate ALL instances in the codebase (user actions, tools, contexts, data stores, etc.)
 2. Check compliance against the principle

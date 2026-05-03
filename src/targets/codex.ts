@@ -91,10 +91,19 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
   await cleanupRemovedAgents(agentsRoot, manifest, currentAgents)
   if (agents.length > 0) {
     for (const agent of agents) {
-      const agentFile = `${sanitizePathName(agent.name)}.toml`
+      const agentBaseName = sanitizePathName(agent.name)
+      const agentFile = `${agentBaseName}.toml`
+      // If the agent declares no sidecars, remove any same-basename sibling
+      // directory left behind by a prior install that did. The manifest-driven
+      // cleanupRemovedAgents sweep above only removes the sibling dir when the
+      // TOML itself is being removed; a same-name agent that loses its sidecar
+      // would otherwise leave an orphan directory.
+      if ((agent.sidecarDirs ?? []).length === 0 && isSafeManagedPath(agentsRoot, agentBaseName)) {
+        await fs.rm(path.join(agentsRoot, agentBaseName), { recursive: true, force: true })
+      }
       await writeText(path.join(agentsRoot, agentFile), renderCodexAgentToml(agent) + "\n")
       for (const sidecar of agent.sidecarDirs ?? []) {
-        await copyDir(sidecar.sourceDir, path.join(agentsRoot, sanitizePathName(agent.name), sidecar.targetName))
+        await copyDir(sidecar.sourceDir, path.join(agentsRoot, agentBaseName, sidecar.targetName))
       }
     }
   }
@@ -290,9 +299,19 @@ async function cleanupLegacyAgentSkillDirs(
   const currentSkillSet = new Set(currentSkills)
   const legacySkillNames = new Set<string>()
   for (const agent of bundle.agents ?? []) {
-    const finalSegment = agent.name.includes("-ce-") ? agent.name.split("-ce-").pop() : agent.name
     legacySkillNames.add(sanitizePathName(agent.name))
-    if (finalSegment) legacySkillNames.add(`ce-${sanitizePathName(finalSegment)}`)
+    // Cross-layout cleanup for plugins with nested agent directories: if the
+    // Codex-built agent name contains an embedded `-ce-` (e.g. `review-ce-foo`
+    // for `agents/review/ce-foo.md`), the same logical agent may have
+    // previously been installed under the flat-alias name (`ce-foo`) by an
+    // earlier plugin layout. Seeding the flat alias as a cleanup candidate
+    // sweeps that orphan skill dir on upgrade. For flat-only layouts (such as
+    // compound-engineering itself) `agent.name` has no embedded `-ce-` and
+    // this produces harmless non-matching candidates like `ce-ce-<name>`.
+    if (agent.name.includes("-ce-")) {
+      const finalSegment = agent.name.split("-ce-").pop()
+      if (finalSegment) legacySkillNames.add(`ce-${sanitizePathName(finalSegment)}`)
+    }
   }
   for (const name of getLegacyCodexArtifacts({
     pluginName,

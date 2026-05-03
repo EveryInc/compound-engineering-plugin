@@ -20,6 +20,12 @@ Captures problem solutions while context is fresh, creating structured documenta
 /ce-compound [brief context]    # Provide additional context hint
 ```
 
+## Pre-resolved context
+
+**Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD 2>/dev/null || true`
+
+If the line above resolved to a plain branch name (like `feat/my-branch`), pass it into the Session Historian dispatch in Phase 1 so the agent does not waste a turn deriving it. If it still contains a backtick command string or is empty, omit it and let the agent derive it at runtime.
+
 ## Support Files
 
 These files are the durable contract for the workflow. Read them on-demand at the step that needs them — do not bulk-load at skill start.
@@ -32,7 +38,7 @@ When spawning subagents, pass the relevant file contents into the task prompt so
 
 ## Execution Strategy
 
-Present the user with two options before proceeding, using the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options and wait for the user's reply.
+Present the user with two options before proceeding, using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
 ```
 1. Full (recommended) — the complete compound workflow. Researches,
@@ -168,25 +174,28 @@ Launch research subagents. Each returns text data to the orchestrator.
 
 #### 4. **Session Historian** (foreground, after launching the above — only if the user opted in)
    - **Skip entirely** if the user declined session history in the follow-up question
-   - Dispatched as `research:ce-session-historian`
+   - Dispatched as `ce-session-historian`
    - Dispatch in **foreground** — this agent reads session files outside the working directory (`~/.claude/projects/`, `~/.codex/sessions/`, `~/.cursor/projects/`) which background agents may not have access to
-   - Searches prior Claude Code, Codex, and Cursor sessions for the same project to find related investigation context
-   - Correlates sessions by repo name across all platforms (matches sessions from main checkouts, worktrees, and Conductor workspaces)
-   - In the dispatch prompt, pass:
-     - A specific description of the problem being documented — not a generic topic, but the concrete issue (error messages, module names, what broke and how it was fixed). This is what the agent filters its findings against.
-     - The current git branch and working directory
-     - The instruction: "Only surface findings from prior sessions that are directly relevant to this specific problem. Ignore unrelated work from the same sessions or branches."
-     - The output format:
-
-       ```
-       Structure your response with these sections (omit any with no findings):
-       - What was tried before: prior approaches to this specific problem
-       - What didn't work: failed attempts at this problem from prior sessions
-       - Key decisions: choices made about this problem and their rationale
-       - Related context: anything else from prior sessions that directly informs this problem's documentation
-       ```
    - Omit the `mode` parameter so the user's configured permission settings apply
    - Dispatch on the mid-tier model (e.g., `model: "sonnet"` in Claude Code) — the synthesis feeds into compound assembly and doesn't need frontier reasoning
+
+   **Dispatch prompt — keep tight.** A long, keyword-rich prompt licenses the agent to keep widening. Use this shape:
+
+   - **Pre-resolved context** (only if values resolved cleanly above; otherwise omit and let the agent derive): repo name, current git branch.
+   - **Time window**: explicit `7 days` unless the documented problem clearly spans a longer arc.
+   - **Problem topic**: one sentence naming the concrete issue — error message, module name, what broke and how it was fixed. Not a paragraph; not a bullet list of related topics.
+   - **Filter rule (one line)**: "Only surface findings directly relevant to this specific problem. Ignore unrelated work from the same sessions or branches."
+   - **Output schema**:
+
+     ```
+     Structure your response with these sections (omit any with no findings):
+     - What was tried before
+     - What didn't work
+     - Key decisions
+     - Related context
+     ```
+
+   Do not append additional context blocks, exclusion lists, or topic-keyword bullets — verbose dispatch prompts give the agent license to keep widening the search and rapidly compound wall time. If the agent needs keyword search, it owns that decision via the `--keyword` mode on `ce-session-inventory`.
    - Returns: structured digest of findings from prior sessions, or "no relevant prior sessions" if none found
 
 ### Phase 2: Assembly & Write
@@ -219,6 +228,7 @@ The orchestrating agent (main conversation) performs these steps:
 5. Validate YAML frontmatter against `references/schema.yaml`, including the YAML-safety quoting rule for array items (see `references/yaml-schema.md` > YAML Safety Rules)
 6. Create directory if needed: `mkdir -p docs/solutions/[category]/`
 7. Write the file: either the updated existing doc or the new `docs/solutions/[category]/[filename].md`
+8. **Run `python3 scripts/validate-frontmatter.py <output-path>`** to catch silent-corruption parser-safety issues that the prose rules miss: malformed `---` delimiter lines, unquoted ` #` in scalar values (silent comment truncation), and unquoted `: ` in scalar values (silent mapping confusion). Exit 0 means the doc is parser-safe; exit 1 means the script's stderr names the offending field(s) and what to fix — quote the value(s), re-write the doc, and re-run until exit 0. Do not declare success while validation fails. The script does not enforce schema rules and does not flag YAML reserved-indicator characters (those produce loud parser errors downstream rather than silent corruption — out of scope). Uses Python 3 stdlib only (no PyYAML or other deps).
 
 When creating a new doc, preserve the section order from `assets/resolution-template.md` unless the user explicitly asks for a different structure.
 
@@ -304,7 +314,7 @@ After the learning is written and the refresh decision is made, check whether th
 
       `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
       ```
-   c. In full mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini) to get consent before making the edit. If no question tool is available, present the proposal and wait for the user's reply. In lightweight mode, output a one-liner note and move on
+   c. In full mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode, output a one-liner note and move on
 
 ### Phase 3: Optional Enhancement
 
@@ -314,13 +324,13 @@ After the learning is written and the refresh decision is made, check whether th
 
 Based on problem type, optionally invoke specialized agents to review the documentation:
 
-- **performance_issue** → `review:ce-performance-oracle`
-- **security_issue** → `review:ce-security-sentinel`
-- **database_issue** → `review:ce-data-integrity-guardian`
-- Any code-heavy issue → always run `review:ce-code-simplicity-reviewer`, and additionally run the kieran reviewer that matches the repo's primary stack:
-  - Ruby/Rails → also run `review:ce-kieran-rails-reviewer`
-  - Python → also run `review:ce-kieran-python-reviewer`
-  - TypeScript/JavaScript → also run `review:ce-kieran-typescript-reviewer`
+- **performance_issue** → `ce-performance-oracle`
+- **security_issue** → `ce-security-sentinel`
+- **database_issue** → `ce-data-integrity-guardian`
+- Any code-heavy issue → always run `ce-code-simplicity-reviewer`, and additionally run the kieran reviewer that matches the repo's primary stack:
+  - Ruby/Rails → also run `ce-kieran-rails-reviewer`
+  - Python → also run `ce-kieran-python-reviewer`
+  - TypeScript/JavaScript → also run `ce-kieran-typescript-reviewer`
   - Other stacks → no kieran reviewer needed
 
 </parallel_tasks>
@@ -460,7 +470,7 @@ What's next?
 5. Other
 ```
 
-**After displaying the success output, present the "What's next?" options using the platform's blocking question tool** (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the numbered options and wait for the user's reply before proceeding. Do not continue the workflow or end the turn without the user's selection.
+**After displaying the success output, present the "What's next?" options using the platform's blocking question tool:** `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Do not continue the workflow or end the turn without the user's selection.
 
 **Alternate output (when updating an existing doc due to high overlap):**
 
@@ -509,20 +519,20 @@ Writes the final learning directly into `docs/solutions/`.
 Based on problem type, these agents can enhance documentation:
 
 ### Code Quality & Review
-- **review:ce-kieran-rails-reviewer**: Reviews code examples for Rails best practices
-- **review:ce-kieran-python-reviewer**: Reviews code examples for Python best practices
-- **review:ce-kieran-typescript-reviewer**: Reviews code examples for TypeScript best practices
-- **review:ce-code-simplicity-reviewer**: Ensures solution code is minimal and clear
-- **review:ce-pattern-recognition-specialist**: Identifies anti-patterns or repeating issues
+- **ce-kieran-rails-reviewer**: Reviews code examples for Rails best practices
+- **ce-kieran-python-reviewer**: Reviews code examples for Python best practices
+- **ce-kieran-typescript-reviewer**: Reviews code examples for TypeScript best practices
+- **ce-code-simplicity-reviewer**: Ensures solution code is minimal and clear
+- **ce-pattern-recognition-specialist**: Identifies anti-patterns or repeating issues
 
 ### Specific Domain Experts
-- **review:ce-performance-oracle**: Analyzes performance_issue category solutions
-- **review:ce-security-sentinel**: Reviews security_issue solutions for vulnerabilities
-- **review:ce-data-integrity-guardian**: Reviews database_issue migrations and queries
+- **ce-performance-oracle**: Analyzes performance_issue category solutions
+- **ce-security-sentinel**: Reviews security_issue solutions for vulnerabilities
+- **ce-data-integrity-guardian**: Reviews database_issue migrations and queries
 
 ### Enhancement & Research
-- **research:ce-best-practices-researcher**: Enriches solution with industry best practices
-- **research:ce-framework-docs-researcher**: Links to framework/library documentation references
+- **ce-best-practices-researcher**: Enriches solution with industry best practices
+- **ce-framework-docs-researcher**: Links to framework/library documentation references
 
 ### When to Invoke
 - **Auto-triggered** (optional): Agents can run post-documentation for enhancement

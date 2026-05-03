@@ -14,6 +14,18 @@ If real product usage is impractical (requires API keys, cloud deploy, paid serv
 
 Never generate fake or placeholder image/GIF URLs. If upload fails, report the failure.
 
+## Never Record Secrets
+
+Recordings must never contain credentials — not in commands, output, URL bars, or on-screen UI. If the demo needs a credential, set it before the recording starts, outside the recorded region.
+
+**Core principle:** secrets should affect the environment, not the visible transcript. Hidden *real* setup beats visible *fake* setup — fake setup breaks the demo and still leaks the secret's shape.
+
+- **Plan it out of frame.** Route every surface where a secret could appear (env exports, CLI flag values, command output, auth headers, URL params, DevTools, config pages) out of the recorded region. Use VHS `Hide`/`Show`; invoke CLIs via env vars, not secret flag values; stay on user-facing pages. Show the authenticated result, not the auth step.
+- **Do not substitute placeholders inside the recording.** Typing a fake `sk-xxxxx` produces a misleading artifact; recapture with the real credential set out of frame instead. Two specific failures:
+  - Re-exporting a fake value visibly (`export API_KEY=REDACTED`) overwrites the real env var, so the demo breaks (401, `Unauthorized`, `0 credits remaining`, empty output). You leak the variable name *and* ship a broken product.
+  - Planning to blur or crop later. Assume anything shown is leaked; recapture is the only remediation.
+- **Scan before upload.** Look for `sk-`, `ghp_`, `ghs_`, `xoxb-`, `Bearer `, `Authorization:`, `?token=`, `api_key=`, long hex/base64 near credential-sounding labels, or visible `.env` contents. If any appear, discard and recapture. Never blur or crop.
+
 ## Arguments
 
 Parse `$ARGUMENTS`:
@@ -49,7 +61,7 @@ Before capturing anything, verify the feature works by actually using it:
 - **Library**: Run example code using the new/changed API
 - **Bug fix**: Reproduce the original bug scenario and confirm it's fixed
 
-Use the workspace where the feature was built. Do not reinstall from scratch. If setup requires credentials or services, use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini) to ask the user.
+Use the workspace where the feature was built. Do not reinstall from scratch. If setup requires credentials or services, use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to asking in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
 ## Step 2: Detect Project Type
 
@@ -114,7 +126,7 @@ python3 scripts/capture-demo.py recommend --project-type [TYPE] --change-type [m
 
 This outputs JSON with `recommended` (the best tier), `available` (list of tiers whose tools are present), and `reasoning`.
 
-Present the available tiers to the user via the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). Mark the recommended tier. Always include "No evidence needed" as a final option.
+Present the available tiers to the user via the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. Mark the recommended tier. Always include "No evidence needed" as a final option.
 
 **Question:** "How should evidence be captured for this change?"
 
@@ -154,12 +166,16 @@ Return these values to the caller (e.g., ce-commit-push-pr):
 Tier: [browser-reel / terminal-recording / screenshot-reel / static / skipped]
 Description: [1 sentence describing what the evidence shows]
 URL: [public URL or "none" (multiple URLs comma-separated for static screenshots)]
+Path: [local file path or "none" (multiple paths comma-separated for static screenshots)]
 === End Evidence ===
 ```
 
 The `Description` is a 1-line summary derived from the capture hypothesis in Step 0 (e.g., "CLI detect command classifying 3 project types and recommending capture tiers"). The caller decides how to format the URL(s) into the PR description.
 
-- `Tier: skipped` or `URL: "none"` means no evidence was captured.
+- `Tier: skipped` means no evidence was captured; both `URL` and `Path` are `"none"`.
+- When uploaded to catbox: `URL` has the public URL, `Path` is `"none"`.
+- When saved locally: `Path` has the local file path, `URL` is `"none"`.
+- For all non-skipped tiers, exactly one of `URL` or `Path` contains a real value; the other is `"none"`.
 
 **Label convention:**
 - Browser reel, terminal recording, screenshot reel: label as "Demo"

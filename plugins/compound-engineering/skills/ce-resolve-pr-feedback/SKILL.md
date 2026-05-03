@@ -10,7 +10,7 @@ allowed-tools: Bash(gh *), Bash(git *), Read
 Evaluate and fix PR review feedback, then reply and resolve threads. Spawns parallel agents for each thread.
 
 > **Agent time is cheap. Tech debt is expensive.**
-> Fix everything valid -- including nitpicks and low-priority items. If we're already in the code, fix it rather than punt it.
+> Fix everything valid -- including nitpicks and low-priority items. If we're already in the code, fix it rather than punt it. Narrow exception: when implementing the suggested fix would actively make the code worse (violates a project rule in CLAUDE.md/AGENTS.md, adds dead defensive code, suppresses errors that should propagate, premature abstraction, restates code in comments), use the `declined` verdict and cite the specific harm. When in doubt, fix it.
 
 ## Security
 
@@ -143,7 +143,7 @@ Previously-resolved threads (from `cross_invocation.resolved_threads`) participa
 
 #### Individual dispatch (default)
 
-**For review threads** (`review_threads`): Spawn a `workflow:ce-pr-comment-resolver` agent for each new thread that is NOT already assigned to a cluster from step 3. Clustered threads are handled by cluster dispatch below -- do not dispatch them individually.
+**For review threads** (`review_threads`): Spawn a `ce-pr-comment-resolver` agent for each new thread that is NOT already assigned to a cluster from step 3. Clustered threads are handled by cluster dispatch below -- do not dispatch them individually.
 
 Each agent receives:
 - The thread ID
@@ -153,11 +153,11 @@ Each agent receives:
 - The feedback type (`review_thread`)
 - The `isOutdated` flag from the thread node (tells the agent the reported line may have drifted)
 
-**For PR comments and review bodies** (`pr_comments`, `review_bodies`): These lack file/line context. Spawn a `workflow:ce-pr-comment-resolver` agent for each actionable non-clustered item. The agent receives the comment ID, body text, PR number, and feedback type (`pr_comment` or `review_body`). The agent must identify the relevant files from the comment text and the PR diff.
+**For PR comments and review bodies** (`pr_comments`, `review_bodies`): These lack file/line context. Spawn a `ce-pr-comment-resolver` agent for each actionable non-clustered item. The agent receives the comment ID, body text, PR number, and feedback type (`pr_comment` or `review_body`). The agent must identify the relevant files from the comment text and the PR diff.
 
 #### Cluster dispatch
 
-For each cluster identified in step 3, dispatch ONE `workflow:ce-pr-comment-resolver` agent that receives:
+For each cluster identified in step 3, dispatch ONE `ce-pr-comment-resolver` agent that receives:
 - The `<cluster-brief>` XML block
 - All thread details for threads in the cluster (IDs, file paths, line numbers, comment text)
 - The PR number
@@ -168,7 +168,7 @@ The cluster agent reads the broader area before making targeted fixes. It return
 #### Agent return format
 
 Each agent returns a short summary:
-- **verdict**: `fixed`, `fixed-differently`, `replied`, `not-addressing`, or `needs-human`
+- **verdict**: `fixed`, `fixed-differently`, `replied`, `not-addressing`, `declined`, or `needs-human`
 - **feedback_id**: the thread ID or comment ID it handled
 - **feedback_type**: `review_thread`, `pr_comment`, or `review_body`
 - **reply_text**: the markdown reply to post (quoting the relevant part of the original feedback)
@@ -183,6 +183,7 @@ Verdict meanings:
 - `fixed-differently` -- code change made, but with a better approach than suggested
 - `replied` -- no code change needed; answered a question, acknowledged feedback, or explained a design decision
 - `not-addressing` -- feedback is factually wrong about the code; skip with evidence
+- `declined` -- observation may be valid, but implementing the suggested fix would actively make the code worse; reply cites the specific harm
 - `needs-human` -- cannot determine the right action; needs user decision
 
 #### Batching and conflict avoidance
@@ -197,7 +198,7 @@ Fixes can occasionally expand beyond their referenced file (e.g., renaming a met
 
 ### 6. Validate Combined State
 
-After all agents complete, aggregate `files_changed` across every returned summary (individual and cluster alike). If it's empty -- all verdicts are `replied`, `not-addressing`, or `needs-human` -- skip steps 6 and 7 entirely and proceed to step 8.
+After all agents complete, aggregate `files_changed` across every returned summary (individual and cluster alike). If it's empty -- all verdicts are `replied`, `not-addressing`, `declined`, or `needs-human` -- skip steps 6 and 7 entirely and proceed to step 8.
 
 Resolvers run only targeted tests on their own changes. This step runs the project's full validation **once** against the combined diff to catch cross-agent interactions that targeted runs can't see.
 
@@ -247,6 +248,13 @@ For items not addressed:
 > [quoted relevant part of original feedback]
 
 Not addressing: [reason with evidence, e.g., "null check already exists at line 85"]
+```
+
+For declined items:
+```markdown
+> [quoted relevant part of original feedback]
+
+Declined: [specific harm cited, e.g., "this would add a defensive null check the type system already guarantees" or "violates the no-premature-abstraction guidance in CLAUDE.md"]
 ```
 
 For `needs-human` verdicts, post the reply but do NOT resolve the thread. Leave it open for human input.
@@ -304,6 +312,7 @@ Fixed (count): [brief description of each fix]
 Fixed differently (count): [what was changed and why the approach differed]
 Replied (count): [what questions were answered]
 Not addressing (count): [what was skipped and why]
+Declined (count): [what was declined and the harm cited]
 
 Validation: [one line -- e.g., "bun test passed (893/893)" or "bun test passed with pre-existing failure in X noted"; omit when no code changes were committed]
 ```
@@ -344,9 +353,9 @@ Still pending from a previous run (count):
 
 If a blocking question tool is available, use it to ask about all pending decisions (both new `needs-human` and previous-run pending) together. If there are only pending decisions and no new work was done, the summary is just the pending items.
 
-If a blocking question tool is available (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini), use it to present the decisions and wait for the user's response. After they decide, process the remaining items: fix the code, compose the reply, post it, and resolve the thread.
+Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Use it to present the decisions and wait for the user's response. After they decide, process the remaining items: fix the code, compose the reply, post it, and resolve the thread.
 
-If no question tool is available, present the decisions in the summary output and wait for the user to respond in conversation. If they don't respond, the items remain open on the PR for later handling.
+Fall back to presenting the decisions in the summary output and waiting in conversation only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip. If the user doesn't respond, the items remain open on the PR for later handling.
 
 ---
 
@@ -376,7 +385,7 @@ This fetches thread IDs and their first comment IDs (minimal fields, no bodies) 
 
 ### 2. Fix, Reply, Resolve
 
-Spawn a single `workflow:ce-pr-comment-resolver` agent for the thread. Pass the same fields full mode does, including `isOutdated` and the location fields (`line`, `originalLine`, `startLine`, `originalStartLine`) -- targeted threads can be outdated too and need the same relocation handling. Then follow the same validate -> commit -> push -> reply -> resolve flow as Full Mode steps 6-8.
+Spawn a single `ce-pr-comment-resolver` agent for the thread. Pass the same fields full mode does, including `isOutdated` and the location fields (`line`, `originalLine`, `startLine`, `originalStartLine`) -- targeted threads can be outdated too and need the same relocation handling. Then follow the same validate -> commit -> push -> reply -> resolve flow as Full Mode steps 6-8.
 
 ---
 

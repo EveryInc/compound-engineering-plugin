@@ -36,4 +36,23 @@ describe("release-please config validation", () => {
 
     expect(errors).toEqual([])
   })
+
+  test("rejects checked-in release-as pins", () => {
+    const errors = validateReleasePleaseConfig({
+      packages: {
+        ".": {
+          "release-as": "3.0.2",
+        },
+        "plugins/compound-engineering": {
+          "release-as": "3.0.2",
+        },
+      },
+    })
+
+    expect(errors).toHaveLength(2)
+    expect(errors[0]).toContain('Package "."')
+    expect(errors[0]).toContain("release-as")
+    expect(errors[1]).toContain('Package "plugins/compound-engineering"')
+    expect(errors[1]).toContain("3.0.2")
+  })
 })

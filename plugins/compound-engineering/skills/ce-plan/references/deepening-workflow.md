@@ -23,11 +23,12 @@ If the plan already has a `deepened:` date:
 
 **Section Checklists:**
 
-**Requirements Trace**
+**Requirements**
 - Requirements are vague or disconnected from implementation units
 - Success criteria are missing or not reflected downstream
 - Units do not clearly advance the traced requirements
 - Origin requirements are not clearly carried forward
+- Origin A/F/AE IDs (when supplied by the upstream brainstorm) are not preserved where planning decisions touch them, or are referenced inconsistently across Requirements, units, and test scenarios
 
 **Context & Research / Sources & References**
 - Relevant repo patterns are named but never used in decisions or implementation units
@@ -66,6 +67,8 @@ If the plan already has a `deepened:` date:
 - Test scenarios are vague (don't name inputs and expected outcomes), skip applicable categories (e.g., no error paths for a unit with failure modes, no integration scenarios for a unit crossing layers), or are disproportionate to the unit's complexity
 - Feature-bearing units have blank or missing test scenarios (feature-bearing units require actual test scenarios; the `Test expectation: none` annotation is only valid for non-feature-bearing units)
 - Verification outcomes are vague or not expressed as observable results
+- Existing U-IDs were renumbered after a unit was reordered, split, or deleted (U-IDs are stable: never renumber existing IDs; gaps from deletions are preserved; new units take the next unused number)
+- A unit realizing an origin Key Flow does not cite the F-ID, or a unit enforcing an origin Acceptance Example does not cite the AE-ID, when origin supplies them
 
 **System-Wide Impact**
 - Affected interfaces, callbacks, middleware, entry points, or parity surfaces are missing
@@ -95,44 +98,44 @@ Use fully-qualified agent names inside Task calls.
 
 **Deterministic Section-to-Agent Mapping:**
 
-**Requirements Trace / Open Questions classification**
-- `workflow:ce-spec-flow-analyzer` for missing user flows, edge cases, and handoff gaps
-- `research:ce-repo-research-analyst` (Scope: `architecture, patterns`) for repo-grounded patterns, conventions, and implementation reality checks
+**Requirements / Open Questions classification**
+- `ce-spec-flow-analyzer` for missing user flows, edge cases, and handoff gaps
+- `ce-repo-research-analyst` (Scope: `architecture, patterns`) for repo-grounded patterns, conventions, and implementation reality checks
 
 **Context & Research / Sources & References gaps**
-- `research:ce-learnings-researcher` for institutional knowledge and past solved problems
-- `research:ce-framework-docs-researcher` for official framework or library behavior
-- `research:ce-best-practices-researcher` for current external patterns and industry guidance
-- Add `research:ce-git-history-analyzer` only when historical rationale or prior art is materially missing
+- `ce-learnings-researcher` for institutional knowledge and past solved problems
+- `ce-framework-docs-researcher` for official framework or library behavior
+- `ce-best-practices-researcher` for current external patterns and industry guidance
+- Add `ce-git-history-analyzer` only when historical rationale or prior art is materially missing
 
 **Key Technical Decisions**
-- `review:ce-architecture-strategist` for design integrity, boundaries, and architectural tradeoffs
-- Add `research:ce-framework-docs-researcher` or `research:ce-best-practices-researcher` when the decision needs external grounding beyond repo evidence
+- `ce-architecture-strategist` for design integrity, boundaries, and architectural tradeoffs
+- Add `ce-framework-docs-researcher` or `ce-best-practices-researcher` when the decision needs external grounding beyond repo evidence
 
 **High-Level Technical Design**
-- `review:ce-architecture-strategist` for validating that the technical design accurately represents the intended approach and identifying gaps
-- `research:ce-repo-research-analyst` (Scope: `architecture, patterns`) for grounding the technical design in existing repo patterns and conventions
-- Add `research:ce-best-practices-researcher` when the technical design involves a DSL, API surface, or pattern that benefits from external validation
+- `ce-architecture-strategist` for validating that the technical design accurately represents the intended approach and identifying gaps
+- `ce-repo-research-analyst` (Scope: `architecture, patterns`) for grounding the technical design in existing repo patterns and conventions
+- Add `ce-best-practices-researcher` when the technical design involves a DSL, API surface, or pattern that benefits from external validation
 
 **Implementation Units / Verification**
-- `research:ce-repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, and repo-specific sequencing clues
-- `review:ce-pattern-recognition-specialist` for consistency, duplication risks, and alignment with existing patterns
-- Add `workflow:ce-spec-flow-analyzer` when sequencing depends on user flow or handoff completeness
+- `ce-repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, and repo-specific sequencing clues
+- `ce-pattern-recognition-specialist` for consistency, duplication risks, and alignment with existing patterns
+- Add `ce-spec-flow-analyzer` when sequencing depends on user flow or handoff completeness
 
 **System-Wide Impact**
-- `review:ce-architecture-strategist` for cross-boundary effects, interface surfaces, and architectural knock-on impact
+- `ce-architecture-strategist` for cross-boundary effects, interface surfaces, and architectural knock-on impact
 - Add the specific specialist that matches the risk:
-  - `review:ce-performance-oracle` for scalability, latency, throughput, and resource-risk analysis
-  - `review:ce-security-sentinel` for auth, validation, exploit surfaces, and security boundary review
-  - `review:ce-data-integrity-guardian` for migrations, persistent state safety, consistency, and data lifecycle risks
+  - `ce-performance-oracle` for scalability, latency, throughput, and resource-risk analysis
+  - `ce-security-sentinel` for auth, validation, exploit surfaces, and security boundary review
+  - `ce-data-integrity-guardian` for migrations, persistent state safety, consistency, and data lifecycle risks
 
 **Risks & Dependencies / Operational Notes**
 - Use the specialist that matches the actual risk:
-  - `review:ce-security-sentinel` for security, auth, privacy, and exploit risk
-  - `review:ce-data-integrity-guardian` for persistent data safety, constraints, and transaction boundaries
-  - `review:ce-data-migration-expert` for migration realism, backfills, and production data transformation risk
-  - `review:ce-deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
-  - `review:ce-performance-oracle` for capacity, latency, and scaling concerns
+  - `ce-security-sentinel` for security, auth, privacy, and exploit risk
+  - `ce-data-integrity-guardian` for persistent data safety, constraints, and transaction boundaries
+  - `ce-data-migration-expert` for migration realism, backfills, and production data transformation risk
+  - `ce-deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
+  - `ce-performance-oracle` for capacity, latency, and scaling concerns
 
 **Agent Prompt Shape:**
 
@@ -224,7 +227,7 @@ Strengthen only the selected sections. Keep the plan coherent and preserve its o
 Allowed changes:
 - Clarify or strengthen decision rationale
 - Tighten requirements trace or origin fidelity
-- Reorder or split implementation units when sequencing is weak
+- Reorder or split implementation units when sequencing is weak — but **never renumber existing U-IDs**. Reordering preserves U-IDs in their new order (e.g., U1, U3, U5 reordered is correct; renumbering to U1, U2, U3 is not). Splitting keeps the original U-ID on the original concept and assigns the next unused number to the new unit. Renumbering breaks ce-work blocker and verification references that were written against the original IDs
 - Add missing pattern references, file/test paths, or verification outcomes
 - Expand system-wide impact, risks, or rollout treatment where justified
 - Reclassify open questions between `Resolved During Planning` and `Deferred to Implementation` when evidence supports the change
@@ -238,6 +241,7 @@ Do **not**:
 - Add generic `Research Insights` subsections everywhere
 - Rewrite the entire plan from scratch
 - Invent new product requirements, scope changes, or success criteria without surfacing them explicitly
+- Renumber existing U-IDs as part of reordering, splitting, deletion, or "tidying" the unit list. Deepening is the most likely accidental-renumber vector — preserve U-IDs even when the new order would look cleaner with sequential numbering
 
 If research reveals a product-level ambiguity that should change behavior or scope:
 - Do not silently decide it here

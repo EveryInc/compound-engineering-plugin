@@ -1,6 +1,6 @@
 ---
 name: ce-proof
-description: Create, edit, comment on, share, and run human-in-the-loop iteration loops over markdown documents via Proof's web API. Use when asked to "proof", "share a doc", "create a proof doc", "comment on a document", "suggest edits", "review in proof", "iterate on this doc in proof", "HITL this doc", "sync a Proof doc to local", when a caller needs an HITL review loop over a local markdown file (e.g., ce-brainstorm, ce-ideate, or ce-plan handoff), or when given a proofeditor.ai URL. Prefer this skill for any workflow whose output is a Proof URL or that uses a Proof doc as the review surface, even when not named explicitly.
+description: Create, share, view, comment on, edit, and run human-in-the-loop review loops over markdown documents via Proof, the collaborative markdown editor at proofeditor.ai ("Proof editor"). Use when the user wants to render or view a local markdown file in Proof, share markdown to get a URL, iterate collaboratively on a Proof doc, comment on or suggest edits in Proof, HITL a spec/plan/draft for human review, sync a Proof doc back to local, or work from a proofeditor.ai URL. Trigger on phrases like "view this in proof", "share to proof", "iterate with proof", or "HITL this doc", and on ce-brainstorm / ce-ideate / ce-plan handoffs for human review. Also match clear requests for a rendered/shared markdown review surface even if the user does not name Proof. Do not trigger on "proof" meaning evidence, math/logic proof, burden of proof, proof-of-concept, or bare "proofread this" requests where inline text review is expected.
 allowed-tools:
   - Bash
   - Read
@@ -26,7 +26,10 @@ Set the display name once per doc session by posting to presence with the `X-Age
 
 ## Human-in-the-Loop Review Mode
 
-When a caller (e.g., `ce-brainstorm`, `ce-plan`) needs to upload a local markdown doc, collect structured human feedback in Proof, and sync the final doc back to disk, load `references/hitl-review.md` for the full loop spec: invocation contract, mark classification (change / question / objection / ambiguous), idempotent ingest passes, exception-based terminal reporting, and end-sync atomic write.
+Human-in-the-loop iteration over an existing local markdown file: upload to Proof, let the user annotate in Proof's web UI, ingest feedback as in-thread replies and tracked edits, and sync the final doc back to disk. Two entry points, identical mechanics — load `references/hitl-review.md` for the full loop spec (invocation contract, mark classification, idempotent ingest passes, exception-based terminal reporting, end-sync atomic write) in either case:
+
+- **Direct user request** — a bare user phrase naming a local markdown file and asking to iterate collaboratively via Proof: "share this to proof so we can iterate", "iterate with proof on this doc", "HITL this file with me", "let's get feedback on this in proof", "open this in proof editor so I can review". The file is whichever markdown the user just created, edited, or referenced; if ambiguous, ask which file. This is a first-class entry point — do not require an upstream caller.
+- **Upstream skill handoff** — `ce-brainstorm`, `ce-ideate`, or `ce-plan` finishes a draft and hands it off for human review before the next phase, passing the file path and title explicitly.
 
 ## Web API (Primary for Sharing)
 
@@ -76,9 +79,21 @@ All operations go to `POST https://www.proofeditor.ai/api/agent/{slug}/ops`
 
 **Wire-format reminder.** `/api/agent/{slug}/ops` uses a top-level `type` field; `/api/agent/{slug}/edit/v2` uses an `operations` array where each entry has `op`. Do not mix — sending `op` to `/ops` returns 422.
 
-**Every mutation requires a `baseToken`.** Read it from `/state.mutationBase.token` (or `/snapshot.mutationBase.token`) immediately before each write, and include it in the request body. On `BASE_TOKEN_REQUIRED` or `STALE_BASE`, re-read and retry once. See the baseToken recipe in `references/hitl-review.md`.
+**Every mutation requires a `baseToken`.** Reuse the `mutationBase.token` from the most recent `/state` or `/snapshot` read — tokens don't go stale in seconds, and `STALE_BASE` is a recoverable error. On `BASE_TOKEN_REQUIRED` or `STALE_BASE`, re-read and retry once. Only do a pre-mutation read if no prior read has happened in this session. See the baseToken recipe in `references/hitl-review.md`.
 
-**`Idempotency-Key` header** is recommended on every mutation for safe automation retries; required when `/state.contract.idempotencyRequired` is true.
+`/edit/v2` block refs are a separate concern: they can drift across revisions, so re-fetch `/snapshot` for fresh refs before a block edit if any writes have landed since your last snapshot.
+
+**Retry discipline after mutation errors — verify before retrying.** An error response is not proof that nothing was written.
+
+- `STALE_BASE`, `BASE_TOKEN_REQUIRED`, `MISSING_BASE`, `INVALID_BASE_TOKEN` — pre-commit, token-related. Re-read `/state` and retry once with the same payload and a fresh `baseToken`. A generic mutate helper can auto-retry these.
+- `ANCHOR_NOT_FOUND`, `ANCHOR_AMBIGUOUS` — pre-commit, but the `quote` no longer uniquely matches content. Re-reading does not help by itself; the caller must tighten or regenerate the anchor before retrying. Do not auto-retry blindly.
+- `INVALID_OPERATIONS`, `INVALID_REQUEST`, `INVALID_REF`, `INVALID_BLOCK_MARKDOWN`, `INVALID_RANGE`, `INVALID_MARKDOWN`, 422 — pre-commit, but the payload is wrong. Do not retry blindly; fix the payload first.
+- `COLLAB_SYNC_FAILED`, `REWRITE_BARRIER_FAILED`, `PROJECTION_STALE`, `INTERNAL_ERROR`, 5xx, network timeout, and any **202 with `collab.status: "pending"`** — the canonical doc may have been written even though the call looks like a failure. Before any retry, re-read `/state` and check whether the intended mark/edit is already present; only retry if it isn't.
+- `Idempotency-Key` (see below) protects against double-apply *on the same request* (e.g., TCP-level retry). It does not help if you build a new request body and send a second call — that is a new logical write with a new key.
+
+Duplicate-mark incidents usually come from retrying a `comment.add` or `suggestion.add` after a timeout without verifying. When in doubt: re-read, diff, then decide.
+
+**`Idempotency-Key` header** is recommended on every mutation for safe automation retries; required when `/state.contract.idempotencyRequired` is true. Use the same key when retrying the exact same logical write (same payload) so the server can collapse the retry. A new key means a new write — even if the payload is identical.
 
 **Comment on text:**
 ```json
@@ -133,12 +148,23 @@ curl -X POST "https://www.proofeditor.ai/api/agent/{slug}/edit/v2" \
     "baseToken": "mt1:<token>",
     "operations": [
       {"op": "replace_block", "ref": "b3", "block": {"markdown": "Updated paragraph."}},
-      {"op": "insert_after", "ref": "b3", "block": {"markdown": "## New section"}}
+      {"op": "insert_after", "ref": "b3", "blocks": [{"markdown": "## New section"}]}
     ]
   }'
 ```
 
-Supported `op` kinds inside `operations`: `replace_block`, `insert_before`, `insert_after`, `delete_block`, `replace_range` (uses `fromRef` + `toRef`), `find_replace_in_block` (takes `occurrence: "first" | "all"`). Read `/snapshot` to get stable block `ref` IDs and the `mutationBase.token`.
+Per-op body shape (singular `block` vs plural `blocks` is load-bearing — sending the wrong one returns 422):
+
+| op | body fields |
+|---|---|
+| `replace_block` | `ref`, `block: {markdown}` |
+| `insert_after` | `ref`, `blocks: [{markdown}, ...]` |
+| `insert_before` | `ref`, `blocks: [{markdown}, ...]` |
+| `delete_block` | `ref` |
+| `replace_range` | `fromRef`, `toRef`, `blocks: [{markdown}, ...]` |
+| `find_replace_in_block` | `ref`, `find`, `replace`, `occurrence: "first" \| "all"` |
+
+Read `/snapshot` to get stable block `ref` IDs. `operations` commits atomically — either every op lands or none do — so one `/edit/v2` call can batch dozens of block edits safely and efficiently (see the bulk-sweep guidance in `references/hitl-review.md` Phase 2.4).
 
 **Editing while a client is connected is fine.** `/edit/v2`, `suggestion.add` (including `status: "accepted"`), and all comment ops work during active collab. Only `rewrite.apply` is blocked by `LIVE_CLIENTS_PRESENT` — it would clobber in-flight Yjs edits.
 
@@ -190,13 +216,11 @@ When given a Proof URL like `https://www.proofeditor.ai/d/abc123?token=xxx`:
 4. The author sees changes in real-time
 
 ```bash
-# Read
-curl -s "https://www.proofeditor.ai/api/agent/abc123/state" \
-  -H "x-share-token: xxx"
-
-# Get baseToken for the next mutation
-BASE=$(curl -s "https://www.proofeditor.ai/api/agent/abc123/state" \
-  -H "x-share-token: xxx" | jq -r '.mutationBase.token')
+# Read once — the same response yields both the doc content and the baseToken for every mutation below.
+STATE=$(curl -s "https://www.proofeditor.ai/api/agent/abc123/state" \
+  -H "x-share-token: xxx")
+BASE=$(printf '%s' "$STATE" | jq -r '.mutationBase.token')
+# Inspect doc fields as needed: printf '%s' "$STATE" | jq '.markdown, .revision'
 
 # Comment
 curl -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
@@ -288,4 +312,4 @@ rm "$STATE_TMP"
 - During active collab use `edit/v2` (direct block changes) or `suggestion.add` (tracked changes); reserve `rewrite.apply` for no-client scenarios since it's blocked by `LIVE_CLIENTS_PRESENT` when anyone is connected
 - Don't span table cells in a single replace
 - Always include `by: "ai:compound-engineering"` on every op and `X-Agent-Id: ai:compound-engineering` in headers for consistent attribution
-- Read a fresh `baseToken` before every mutation; on `STALE_BASE`, re-read and retry once
+- Reuse `baseToken` from your most recent `/state` or `/snapshot` read; on `STALE_BASE`, re-read and retry once

@@ -26,14 +26,14 @@ Seed map (run this plan through ce-doc-review to verify):
   scope-guardian complexity challenge (is this abstraction warranted),
   product-lens trajectory concern (does this paint the system into a
   corner)
-- FYI candidates (5, confidence 0.40-0.65 at P3): filename-symmetry
+- FYI candidates (5, anchor 50 at P3): filename-symmetry
   observation, drift note, stylistic preference without evidence of
   impact, speculative future-work concern, subjective readability note
-- drop-worthy P3s (3, confidence 0.55-0.74): vague style nitpick, low-
+- drop-worthy P3s (3, anchors 0/25): vague style nitpick, low-
   signal "consider X" residual, theoretical scalability concern without
   current evidence
 
-The descriptions intentionally vary in evidence quality so the confidence
+The descriptions intentionally vary in evidence quality so the anchor
 gate is exercised.
 -->
 
@@ -205,7 +205,7 @@ one-command rename. (Seeded manual: scope-guardian complexity challenge
 
 - The plan's section ordering could be improved; "Miscellaneous Notes"
   feels like a catch-all. (Seeded drop: vague style nitpick at P3,
-  confidence should register below 0.75 gate.)
+  should register at anchor 0 or 25 and drop silently.)
 - Consider whether the schema migration strategy scales if the codebase
   grows 10x. (Seeded drop: theoretical scalability concern without
   current evidence, P3.)

@@ -326,14 +326,59 @@ Task compound-engineering:review:ce-security-reviewer(code_diff)`,
           name: "ce-repo-research-analyst",
           description: "Repo research",
           body: "Research repositories.",
-          sourcePath: "/tmp/plugin/agents/research/ce-repo-research-analyst.agent.md",
+          sourcePath: "/tmp/plugin/agents/ce-repo-research-analyst.agent.md",
         },
         {
           name: "ce-learnings-researcher",
           description: "Learning research",
           body: "Search learnings.",
-          sourcePath: "/tmp/plugin/agents/research/ce-learnings-researcher.agent.md",
+          sourcePath: "/tmp/plugin/agents/ce-learnings-researcher.agent.md",
         },
+        {
+          name: "ce-security-reviewer",
+          description: "Security review",
+          body: "Review security.",
+          sourcePath: "/tmp/plugin/agents/ce-security-reviewer.agent.md",
+        },
+      ],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToCodex(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+      codexIncludeSkills: true,
+    })
+
+    const commandSkill = bundle.generatedSkills.find((s) => s.name === "plan")
+    expect(commandSkill).toBeDefined()
+    const parsed = parseFrontmatter(commandSkill!.content)
+
+    expect(parsed.body).toContain("Spawn the custom agent `ce-repo-research-analyst` with task: feature_description")
+    expect(parsed.body).toContain("Spawn the custom agent `ce-learnings-researcher` with task: feature_description")
+    expect(parsed.body).toContain("Spawn the custom agent `ce-security-reviewer` with task: code_diff")
+
+    // Original namespaced Task syntax should not remain
+    expect(parsed.body).not.toContain("Task compound-engineering:")
+  })
+
+  test("retains <category>-<agent> naming for nested-layout plugins (dead-code fallback)", () => {
+    // This test pins the behavior of getAgentCategory() for any third-party
+    // plugin that still uses agents/<category>/<name>.md layout. The
+    // compound-engineering plugin itself is flat, but the converter must keep
+    // working for other plugins passed through the CLI.
+    const plugin: ClaudePlugin = {
+      ...fixturePlugin,
+      commands: [
+        {
+          name: "plan",
+          description: "Planning with agents from a nested-layout plugin",
+          body: `- Task compound-engineering:review:ce-security-reviewer(code_diff)`,
+          sourcePath: "/tmp/plugin/commands/plan.md",
+        },
+      ],
+      agents: [
         {
           name: "ce-security-reviewer",
           description: "Security review",
@@ -355,12 +400,7 @@ Task compound-engineering:review:ce-security-reviewer(code_diff)`,
     expect(commandSkill).toBeDefined()
     const parsed = parseFrontmatter(commandSkill!.content)
 
-    expect(parsed.body).toContain("Spawn the custom agent `research-ce-repo-research-analyst` with task: feature_description")
-    expect(parsed.body).toContain("Spawn the custom agent `research-ce-learnings-researcher` with task: feature_description")
     expect(parsed.body).toContain("Spawn the custom agent `review-ce-security-reviewer` with task: code_diff")
-
-    // Original namespaced Task syntax should not remain
-    expect(parsed.body).not.toContain("Task compound-engineering:")
   })
 
   test("transforms zero-argument Task calls", () => {
@@ -379,7 +419,7 @@ Task compound-engineering:review:ce-security-reviewer(code_diff)`,
           name: "ce-code-simplicity-reviewer",
           description: "Simplicity review",
           body: "Review simplicity.",
-          sourcePath: "/tmp/plugin/agents/review/ce-code-simplicity-reviewer.agent.md",
+          sourcePath: "/tmp/plugin/agents/ce-code-simplicity-reviewer.agent.md",
         },
       ],
       skills: [],
@@ -395,7 +435,7 @@ Task compound-engineering:review:ce-security-reviewer(code_diff)`,
     const commandSkill = bundle.generatedSkills.find((s) => s.name === "review")
     expect(commandSkill).toBeDefined()
     const parsed = parseFrontmatter(commandSkill!.content)
-    expect(parsed.body).toContain("Spawn the custom agent `review-ce-code-simplicity-reviewer`")
+    expect(parsed.body).toContain("Spawn the custom agent `ce-code-simplicity-reviewer`")
     expect(parsed.body).not.toContain("compound-engineering:")
     expect(parsed.body).not.toContain("skill to:")
   })

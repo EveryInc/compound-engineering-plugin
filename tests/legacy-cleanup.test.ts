@@ -227,13 +227,55 @@ describe("cleanupStaleSkillDirs", () => {
         "Optimize Claude Code permissions by finding safe Bash commands from session history and auto-applying them to settings.json. Can run from any coding agent but targets Claude Code specifically. Use when experiencing permission fatigue, too many permission prompts, wanting to optimize permissions, or needing to set up allowlists. Triggers on \"optimize permissions\", \"reduce permission prompts\", \"allowlist commands\", \"too many permission prompts\", \"permission fatigue\", \"permission setup\", or complaints about clicking approve too often.",
       ),
     )
+    await createDir(
+      path.join(root, "ce-onboarding"),
+      skillContent(
+        "ce-onboarding",
+        "Generate or regenerate ONBOARDING.md to help new contributors understand a codebase. Use when the user asks to 'create onboarding docs', 'generate ONBOARDING.md', 'document this project for new developers', 'write onboarding documentation', 'vonboard', 'vonboarding', 'prepare this repo for a new contributor', 'refresh the onboarding doc', or 'update ONBOARDING.md'. Also use when someone needs to onboard a new team member and wants a written artifact, or when a codebase lacks onboarding documentation and the user wants to generate one.",
+      ),
+    )
+    await createDir(
+      path.join(root, "ce-andrew-kane-gem-writer"),
+      skillContent(
+        "ce-andrew-kane-gem-writer",
+        "This skill should be used when writing Ruby gems following Andrew Kane's proven patterns and philosophy. It applies when creating new Ruby gems, refactoring existing gems, designing gem APIs, or when clean, minimal, production-ready Ruby library code is needed. Triggers on requests like \"create a gem\", \"write a Ruby library\", \"design a gem API\", or mentions of Andrew Kane's style.",
+      ),
+    )
+    await createDir(
+      path.join(root, "ce-changelog"),
+      skillContent("ce-changelog", "Create engaging changelogs for recent merges to main branch"),
+    )
+    await createDir(
+      path.join(root, "ce-deploy-docs"),
+      skillContent("ce-deploy-docs", "Validate and prepare documentation for GitHub Pages deployment"),
+    )
+    await createDir(
+      path.join(root, "ce-dspy-ruby"),
+      skillContent(
+        "ce-dspy-ruby",
+        "Build type-safe LLM applications with DSPy.rb — Ruby's programmatic prompt framework with signatures, modules, agents, and optimization. Use when implementing predictable AI features, creating LLM signatures and modules, configuring language model providers, building agent systems with tools, optimizing prompts, or testing LLM-powered functionality in Ruby applications.",
+      ),
+    )
+    await createDir(
+      path.join(root, "ce-every-style-editor"),
+      skillContent(
+        "ce-every-style-editor",
+        "This skill should be used when reviewing or editing copy to ensure adherence to Every's style guide. It provides a systematic line-by-line review process for grammar, punctuation, mechanics, and style guide compliance.",
+      ),
+    )
 
     const removed = await cleanupStaleSkillDirs(root)
 
-    expect(removed).toBe(3)
+    expect(removed).toBe(9)
     expect(await exists(path.join(root, "feature-video"))).toBe(false)
     expect(await exists(path.join(root, "reproduce-bug"))).toBe(false)
     expect(await exists(path.join(root, "claude-permissions-optimizer"))).toBe(false)
+    expect(await exists(path.join(root, "ce-onboarding"))).toBe(false)
+    expect(await exists(path.join(root, "ce-andrew-kane-gem-writer"))).toBe(false)
+    expect(await exists(path.join(root, "ce-changelog"))).toBe(false)
+    expect(await exists(path.join(root, "ce-deploy-docs"))).toBe(false)
+    expect(await exists(path.join(root, "ce-dspy-ruby"))).toBe(false)
+    expect(await exists(path.join(root, "ce-every-style-editor"))).toBe(false)
   })
 
   test("preserves same-named user skills for legacy-only entries when content differs", async () => {
@@ -257,14 +299,14 @@ describe("cleanupStaleAgents", () => {
       path.join(root, "adversarial-reviewer.md"),
       agentContent(
         "adversarial-reviewer",
-        await pluginDescription("plugins/compound-engineering/agents/review/ce-adversarial-reviewer.agent.md"),
+        await pluginDescription("plugins/compound-engineering/agents/ce-adversarial-reviewer.agent.md"),
       ),
     )
     await createFile(
       path.join(root, "learnings-researcher.md"),
       agentContent(
         "learnings-researcher",
-        await pluginDescription("plugins/compound-engineering/agents/research/ce-learnings-researcher.agent.md"),
+        await pluginDescription("plugins/compound-engineering/agents/ce-learnings-researcher.agent.md"),
       ),
     )
 
@@ -281,14 +323,14 @@ describe("cleanupStaleAgents", () => {
       path.join(root, "security-sentinel.agent.md"),
       agentContent(
         "security-sentinel",
-        await pluginDescription("plugins/compound-engineering/agents/review/ce-security-sentinel.agent.md"),
+        await pluginDescription("plugins/compound-engineering/agents/ce-security-sentinel.agent.md"),
       ),
     )
     await createFile(
       path.join(root, "performance-oracle.agent.md"),
       agentContent(
         "performance-oracle",
-        await pluginDescription("plugins/compound-engineering/agents/review/ce-performance-oracle.agent.md"),
+        await pluginDescription("plugins/compound-engineering/agents/ce-performance-oracle.agent.md"),
       ),
     )
 
@@ -304,14 +346,14 @@ describe("cleanupStaleAgents", () => {
       path.join(root, "slack-researcher.json"),
       kiroAgentConfigContent(
         "slack-researcher",
-        await pluginDescription("plugins/compound-engineering/agents/research/ce-slack-researcher.agent.md"),
+        await pluginDescription("plugins/compound-engineering/agents/ce-slack-researcher.agent.md"),
       ),
     )
     await createFile(
       path.join(root, "session-historian.json"),
       kiroAgentConfigContent(
         "session-historian",
-        await pluginDescription("plugins/compound-engineering/agents/research/ce-session-historian.agent.md"),
+        await pluginDescription("plugins/compound-engineering/agents/ce-session-historian.agent.md"),
       ),
     )
     await createFile(
@@ -336,14 +378,14 @@ describe("cleanupStaleAgents", () => {
       path.join(root, "code-simplicity-reviewer"),
       skillContent(
         "code-simplicity-reviewer",
-        await pluginDescription("plugins/compound-engineering/agents/review/ce-code-simplicity-reviewer.agent.md"),
+        await pluginDescription("plugins/compound-engineering/agents/ce-code-simplicity-reviewer.agent.md"),
       ),
     )
     await createDir(
       path.join(root, "repo-research-analyst"),
       skillContent(
         "repo-research-analyst",
-        await pluginDescription("plugins/compound-engineering/agents/research/ce-repo-research-analyst.agent.md"),
+        await pluginDescription("plugins/compound-engineering/agents/ce-repo-research-analyst.agent.md"),
       ),
     )
 
@@ -618,7 +660,7 @@ describe("idempotency", () => {
       path.join(root, "adversarial-reviewer.md"),
       agentContent(
         "adversarial-reviewer",
-        await pluginDescription("plugins/compound-engineering/agents/review/ce-adversarial-reviewer.agent.md"),
+        await pluginDescription("plugins/compound-engineering/agents/ce-adversarial-reviewer.agent.md"),
       ),
     )
 

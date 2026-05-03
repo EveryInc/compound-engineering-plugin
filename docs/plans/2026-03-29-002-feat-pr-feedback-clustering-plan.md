@@ -54,7 +54,7 @@ The insight: individual comments don't say "this whole approach is wrong," but w
 ### Institutional Learnings
 
 - **Whack-a-mole state machines** (`docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines-2026-03-27.md`): Skills handling multiple dimensions of state need explicit re-verification after every mutating action. Directly applicable — after fixing a cluster, re-verify the whole area, not just the individual threads.
-- **Cluster before filter** (`docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md`): Pipeline ordering is an architectural invariant. Group/cluster related items before deciding how to address them, otherwise individually below-threshold items that are part of a meaningful pattern get discarded.
+- **Cluster before filter**: Pipeline ordering is an architectural invariant. Group/cluster related items before deciding how to address them, otherwise individually below-threshold items that are part of a meaningful pattern get discarded.
 - **Status-gated resolution** (`docs/solutions/workflow/todo-status-lifecycle.md`): Quality gates belong upstream in triage, not at the resolve boundary. The cluster analysis step is exactly this — a quality gate before dispatch.
 - **Pass paths not content** (`docs/solutions/skill-design/pass-paths-not-content-to-subagents-2026-03-26.md`): When dispatching cluster-aware agents, pass thread IDs and file paths, not full comment bodies.
 
@@ -349,6 +349,5 @@ No separate concern-category matching for cross-cycle detection. The re-entry it
 - Related code: `plugins/compound-engineering/skills/resolve-pr-feedback/SKILL.md`
 - Related code: `plugins/compound-engineering/agents/workflow/ce-pr-comment-resolver.agent.md`
 - Institutional learning: `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines-2026-03-27.md`
-- Institutional learning: `docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md`
 - Institutional learning: `docs/solutions/workflow/todo-status-lifecycle.md`
 - Institutional learning: `docs/solutions/skill-design/pass-paths-not-content-to-subagents-2026-03-26.md`

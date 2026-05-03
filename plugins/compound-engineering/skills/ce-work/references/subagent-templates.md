@@ -117,9 +117,9 @@ Use the least powerful model that can handle each role to conserve cost and incr
 
 After each subagent completes with DONE status:
 
-1. **Spec-compliance review** — Dispatch the `spec-compliance-reviewer` agent. Does the output match the plan unit's Goal, Files, Approach, and Test scenarios? The reviewer explicitly distrusts the implementer's self-report and verifies by reading actual code.
+1. **Spec-compliance review** — Dispatch the `ce-spec-compliance-reviewer` agent. Does the output match the plan unit's Goal, Files, Approach, and Test scenarios? The reviewer explicitly distrusts the implementer's self-report and verifies by reading actual code.
 
-2. **Code-quality review** — Only after spec-compliance passes. Dispatch the `code-quality-per-task-reviewer` agent. Is the code clean, tested, and maintainable?
+2. **Code-quality review** — Only after spec-compliance passes. Dispatch the `ce-code-quality-per-task-reviewer` agent. Is the code clean, tested, and maintainable?
 
 3. **Fix-and-re-review loop** — If either reviewer raises critical issues, the implementer fixes them and the reviewer re-reviews. Repeat until approved.
 

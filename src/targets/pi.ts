@@ -25,12 +25,13 @@ const PI_AGENTS_BLOCK_BODY = `## Compound Engineering (Pi compatibility)
 
 This block is managed by compound-plugin.
 
-Compatibility notes:
-- Claude Task(agent, args) maps to the subagent extension tool
-- For parallel agent runs, batch multiple subagent calls with multi_tool_use.parallel
-- AskUserQuestion maps to the ask_user_question extension tool
-- MCP access uses MCPorter via mcporter_list and mcporter_call extension tools
-- MCPorter config path: .pi/compound-engineering/mcporter.json (project) or ~/.pi/agent/compound-engineering/mcporter.json (global)
+Pi extensions used by this plugin:
+- Required: \`pi-subagents\` (by nicobailon) provides the \`subagent\` tool used by skills that dispatch parallel agents
+- Recommended: \`pi-ask-user\` (by edlsh) provides the \`ask_user\` tool; skills fall back to numbered options in chat when it is missing
+
+Install with:
+  pi install npm:pi-subagents
+  pi install npm:pi-ask-user
 `
 
 export type PiInstallManifest = {
@@ -39,6 +40,8 @@ export type PiInstallManifest = {
   skills: string[]
   prompts: string[]
   extensions: string[]
+  // Added in v2.69+. Older manifests omit this; reads default to [].
+  agents: string[]
 }
 
 type PiPaths = {
@@ -46,6 +49,7 @@ type PiPaths = {
   skillsDir: string
   promptsDir: string
   extensionsDir: string
+  agentsDir: string
   mcporterConfigPath: string
   agentsPath: string
 }
@@ -61,15 +65,18 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
     ...bundle.skillDirs.map((skill) => sanitizePathName(skill.name)),
     ...bundle.generatedSkills.map((skill) => sanitizePathName(skill.name)),
   ]
+  const currentAgents = bundle.agents.map((agent) => `${sanitizePathName(agent.name)}.md`)
   const currentExtensions = bundle.extensions.map((extension) => extension.name)
 
   await ensureDir(paths.skillsDir)
   await ensureDir(paths.promptsDir)
   await ensureDir(paths.extensionsDir)
+  await ensureDir(paths.agentsDir)
 
   await cleanupStaleAgents(paths.skillsDir, null)
   await cleanupRemovedPrompts(paths.promptsDir, manifest, currentPrompts)
   await cleanupRemovedSkills(paths.skillsDir, manifest, currentSkills)
+  await cleanupRemovedAgents(paths.agentsDir, manifest, currentAgents)
   await cleanupRemovedExtensions(paths.extensionsDir, manifest, currentExtensions)
 
   for (const prompt of bundle.prompts) {
@@ -88,6 +95,13 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
     const targetDir = path.join(paths.skillsDir, skillName)
     await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
     await writeText(path.join(targetDir, "SKILL.md"), skill.content + "\n")
+  }
+
+  for (const agent of bundle.agents) {
+    const agentFileName = `${sanitizePathName(agent.name)}.md`
+    const targetPath = path.join(paths.agentsDir, agentFileName)
+    await cleanupCurrentManagedAgentFile(targetPath, manifest, agentFileName)
+    await writeText(targetPath, agent.content + "\n")
   }
 
   for (const extension of bundle.extensions) {
@@ -111,6 +125,7 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
       skills: currentSkills,
       prompts: currentPrompts,
       extensions: currentExtensions,
+      agents: currentAgents,
     })
     await archiveLegacyInstallManifestIfOwned(paths.managedDir, pluginName)
     await cleanupKnownLegacyPiArtifacts(paths, bundle)
@@ -131,6 +146,7 @@ function resolvePiPaths(outputRoot: string, pluginName?: string): PiPaths {
       skillsDir: path.join(outputRoot, "skills"),
       promptsDir: path.join(outputRoot, "prompts"),
       extensionsDir: path.join(outputRoot, "extensions"),
+      agentsDir: path.join(outputRoot, "agents"),
       mcporterConfigPath: path.join(outputRoot, managedSegment, "mcporter.json"),
       agentsPath: path.join(outputRoot, "AGENTS.md"),
     }
@@ -142,6 +158,7 @@ function resolvePiPaths(outputRoot: string, pluginName?: string): PiPaths {
       skillsDir: path.join(outputRoot, "skills"),
       promptsDir: path.join(outputRoot, "prompts"),
       extensionsDir: path.join(outputRoot, "extensions"),
+      agentsDir: path.join(outputRoot, "agents"),
       mcporterConfigPath: path.join(outputRoot, managedSegment, "mcporter.json"),
       agentsPath: path.join(outputRoot, "AGENTS.md"),
     }
@@ -152,6 +169,7 @@ function resolvePiPaths(outputRoot: string, pluginName?: string): PiPaths {
     skillsDir: path.join(outputRoot, ".pi", "skills"),
     promptsDir: path.join(outputRoot, ".pi", "prompts"),
     extensionsDir: path.join(outputRoot, ".pi", "extensions"),
+    agentsDir: path.join(outputRoot, ".pi", "agents"),
     mcporterConfigPath: path.join(outputRoot, ".pi", managedSegment, "mcporter.json"),
     agentsPath: path.join(outputRoot, "AGENTS.md"),
   }
@@ -259,7 +277,7 @@ async function readInstallManifest(
       Array.isArray(parsed.extensions)
     ) {
       // Filter manifest entries at read time. Cleanup functions join these
-      // strings into `fs.rm` paths against the Pi skills/prompts/extensions
+      // strings into `fs.rm` paths against the Pi skills/prompts/extensions/agents
       // directories, so a tampered or corrupted `install-manifest.json` with
       // entries like `../../config.toml` or `/etc/passwd` would otherwise
       // delete outside the Pi managed tree. Validate each group against the
@@ -270,12 +288,18 @@ async function readInstallManifest(
       const skillsRoot = paths?.skillsDir ?? managedDir
       const promptsRoot = paths?.promptsDir ?? managedDir
       const extensionsRoot = paths?.extensionsDir ?? managedDir
+      const agentsRoot = paths?.agentsDir ?? managedDir
+      // `agents` was added in v2.69+; accept missing/omitted to stay
+      // backward-compatible with v2.x manifests that only tracked skills,
+      // prompts, and extensions. Drop non-array values defensively.
+      const rawAgents = Array.isArray(parsed.agents) ? parsed.agents : []
       return {
         version: 1,
         pluginName,
         skills: filterSafePiManifestEntries(parsed.skills, skillsRoot, manifestPath, "skills"),
         prompts: filterSafePiManifestEntries(parsed.prompts, promptsRoot, manifestPath, "prompts"),
         extensions: filterSafePiManifestEntries(parsed.extensions, extensionsRoot, manifestPath, "extensions"),
+        agents: filterSafePiManifestEntries(rawAgents, agentsRoot, manifestPath, "agents"),
       }
     }
   } catch (err) {
@@ -354,6 +378,20 @@ async function cleanupRemovedExtensions(
   }
 }
 
+async function cleanupRemovedAgents(
+  agentsDir: string,
+  manifest: PiInstallManifest | null,
+  currentAgents: string[],
+): Promise<void> {
+  if (!manifest) return
+  const current = new Set(currentAgents)
+  for (const agentFile of manifest.agents) {
+    if (current.has(agentFile)) continue
+    if (!isSafeManagedPath(agentsDir, agentFile)) continue
+    await fs.rm(path.join(agentsDir, agentFile), { force: true })
+  }
+}
+
 async function cleanupCurrentManagedSkillDir(
   targetDir: string,
   manifest: PiInstallManifest | null,
@@ -361,6 +399,43 @@ async function cleanupCurrentManagedSkillDir(
 ): Promise<void> {
   if (!manifest?.skills.includes(skillName)) return
   await fs.rm(targetDir, { recursive: true, force: true })
+}
+
+async function cleanupCurrentManagedAgentFile(
+  targetPath: string,
+  manifest: PiInstallManifest | null,
+  agentFileName: string,
+): Promise<void> {
+  if (!manifest?.agents.includes(agentFileName)) return
+  await fs.rm(targetPath, { force: true })
+}
+
+// Explicit legacy Pi extension names this plugin has historically shipped and
+// no longer does. The manifest-diff cleanup in cleanupRemovedExtensions handles
+// post-manifest installs automatically, but pre-manifest installs return null
+// from readInstallManifestWithLegacyFallback and would otherwise leak the file
+// on upgrade. This list is the safety net for that case.
+const LEGACY_PI_EXTENSIONS_BY_PLUGIN: Record<string, string[]> = {
+  "compound-engineering": ["compound-engineering-compat.ts"],
+}
+
+// Plugins that historically shipped an mcporter.json (via the now-removed
+// compat extension) but no longer do when `bundle.mcporterConfig` is absent.
+// The per-plugin guard keeps us from touching mcporter configs owned by
+// plugins that still legitimately emit one.
+const LEGACY_PI_MCPORTER_PLUGINS = new Set<string>(["compound-engineering"])
+
+type LegacyArtifactKind = "skills" | "prompts" | "extensions" | "mcporter"
+
+// Display label used in the "Moved legacy Pi <label> artifact ..." log line.
+// Most kinds are a simple plural→singular trim, but "mcporter" isn't a plural,
+// so we special-case it instead of slicing off a character and logging
+// "mcporte".
+const LEGACY_ARTIFACT_LABELS: Record<LegacyArtifactKind, string> = {
+  skills: "skill",
+  prompts: "prompt",
+  extensions: "extension",
+  mcporter: "mcporter config",
 }
 
 async function cleanupKnownLegacyPiArtifacts(paths: PiPaths, bundle: PiBundle): Promise<void> {
@@ -377,11 +452,29 @@ async function cleanupKnownLegacyPiArtifacts(paths: PiPaths, bundle: PiBundle): 
     const legacyPromptPath = path.join(paths.promptsDir, promptFile)
     await moveLegacyArtifactToBackup(paths.managedDir, "prompts", legacyPromptPath)
   }
+
+  // Only sweep legacy extensions the current bundle is not actively writing.
+  // A caller that explicitly ships an extension (e.g., tests or a future
+  // bundle that reintroduces one) must not have its write undone.
+  const currentExtensionNames = new Set(bundle.extensions.map((extension) => extension.name))
+  for (const extensionFile of LEGACY_PI_EXTENSIONS_BY_PLUGIN[pluginName] ?? []) {
+    if (currentExtensionNames.has(extensionFile)) continue
+    const legacyExtensionPath = path.join(paths.extensionsDir, extensionFile)
+    await moveLegacyArtifactToBackup(paths.managedDir, "extensions", legacyExtensionPath)
+  }
+
+  // Sweep the stale mcporter.json left behind by the removed compat extension.
+  // Only runs when the current bundle is NOT writing a fresh mcporter config —
+  // if it IS (e.g. a plugin with `mcpServers`), the existing write path backs
+  // up and overwrites the file and this sweep would undo that write.
+  if (!bundle.mcporterConfig && LEGACY_PI_MCPORTER_PLUGINS.has(pluginName)) {
+    await moveLegacyArtifactToBackup(paths.managedDir, "mcporter", paths.mcporterConfigPath)
+  }
 }
 
 async function moveLegacyArtifactToBackup(
   managedDir: string,
-  kind: "skills" | "prompts",
+  kind: LegacyArtifactKind,
   artifactPath: string,
 ): Promise<void> {
   if (!(await pathExists(artifactPath))) return
@@ -390,11 +483,12 @@ async function moveLegacyArtifactToBackup(
   const backupPath = path.join(backupDir, path.basename(artifactPath))
   await ensureDir(backupDir)
   await fs.rename(artifactPath, backupPath)
-  console.warn(`Moved legacy Pi ${kind.slice(0, -1)} artifact to ${backupPath}`)
+  console.warn(`Moved legacy Pi ${LEGACY_ARTIFACT_LABELS[kind]} artifact to ${backupPath}`)
 }
 
 export {
   cleanupRemovedSkills as cleanupRemovedPiSkills,
   cleanupRemovedPrompts as cleanupRemovedPiPrompts,
   cleanupRemovedExtensions as cleanupRemovedPiExtensions,
+  cleanupRemovedAgents as cleanupRemovedPiAgents,
 }

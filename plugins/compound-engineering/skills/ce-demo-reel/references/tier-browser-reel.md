@@ -72,7 +72,11 @@ agent-browser open [URL]
 ```
 
 ```bash
-agent-browser wait 2000
+agent-browser wait --load networkidle
+```
+
+```bash
+agent-browser wait 1000
 ```
 
 ```bash
@@ -81,8 +85,15 @@ agent-browser screenshot [RUN_DIR]/frame-01-initial.png
 
 **Capture tips:**
 - Use URL navigation (`agent-browser open URL`) rather than clicking SPA elements (clicks often fail on React/Vue/Svelte SPAs)
-- Wait 2-3 seconds after navigation for the page to settle
+- Wait for `--load networkidle` after navigation, then a short fixed buffer for any post-fetch render. A fixed `wait 2000` alone is not enough on SPAs that fetch data after paint -- screenshots will capture the empty shell.
+- For pages that keep network activity open (websockets, long-polling), use `agent-browser wait --text "<known content>"` to wait for a specific string from the populated UI, or `agent-browser wait --fn "<expression>"` for a custom readiness condition.
 - Capture the full viewport (sidebar, header give reviewers context)
+
+**Keep secrets out of frame:**
+- Do not open DevTools, the Network panel, or Application/Storage -- these expose auth headers, cookies, session storage, and tokens in plain view
+- Skip pages that display raw credentials (unmasked API-key settings, OAuth consent screens, `.env` viewers, billing/payment detail)
+- Check the URL bar before each screenshot -- if it carries a session token or credential query param (`?access_token=`, `?api_key=`, `#id_token=`), navigate to the clean canonical URL first
+- Prefer a demo account or seeded fixture data over a real logged-in account when the screenshot will include account identifiers that are themselves sensitive
 
 ## Step 3: Stitch into GIF
 
@@ -100,8 +111,10 @@ python3 scripts/capture-demo.py stitch --duration 2.0 [RUN_DIR]/demo.gif [RUN_DI
 
 **If stitching fails:** Fall back to static screenshots tier using the individual PNGs already captured. If no PNGs were captured, report the failure.
 
-## Step 4: Cleanup
+## Step 4: Secrets Scan and Cleanup
 
-After successful GIF creation, remove individual PNG frames. Keep only the final GIF for upload.
+Before uploading, inspect the final GIF for any credential material visible on-screen. If any appears, discard the GIF and recapture with the offending page or state routed out of frame. Do not upload, do not blur.
+
+After a clean GIF is confirmed, remove individual PNG frames. Keep only the final GIF for upload.
 
 Proceed to `references/upload-and-approval.md`.

@@ -61,7 +61,6 @@ Call `build_ios_sim_app` with the project path and scheme name.
 
 **On failure:**
 - Capture build errors
-- Create a P1 todo for each build error
 - Report to user with specific error details
 
 **On success:**
@@ -110,7 +109,7 @@ Pause for human input when testing touches flows that require device interaction
 | Location | "Allow location access and verify map updates" |
 | SwiftUI Text links | "Please tap on [element description] manually — automated taps cannot trigger inline text links" |
 
-Ask the user (using the platform's question tool — e.g., `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini — or present numbered options and wait):
+Ask the user using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question:
 
 ```
 Human Verification Needed
@@ -142,14 +141,12 @@ When a test fails:
    Logs: [relevant error messages]
 
    How to proceed?
-   1. Fix now - I'll help debug and fix
-   2. Create todo - Add a todo for later (using the todo-create skill)
-   3. Skip - Continue testing other screens
+   1. Fix now - debug, propose a fix, rebuild and retest
+   2. Skip - continue testing other screens
    ```
 
 3. **If "Fix now":** investigate, propose a fix, rebuild and retest
-4. **If "Create todo":** load the `ce-todo-create` skill and create a todo with priority p1 and description `xcode-{description}`, continue
-5. **If "Skip":** log as skipped, continue
+4. **If "Skip":** log as skipped, continue
 
 ### 8. Test Summary
 
@@ -182,9 +179,6 @@ After all tests complete, present a summary:
 
 ### Failures: [count]
 - Settings screen - crash on navigation
-
-### Created Todos: [count]
-- `006-pending-p1-xcode-settings-crash.md`
 
 ### Result: [PASS / FAIL / PARTIAL]
 ```

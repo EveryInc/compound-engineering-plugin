@@ -18,8 +18,11 @@ Rejection criteria:
 - too expensive relative to likely value
 - already covered by existing workflows or docs
 - interesting but better handled as a brainstorm variant, not a product improvement
+- **unjustified — no articulated warrant** (sub-agent failed to provide `direct:`, `external:`, or `reasoned:` justification, or the stated warrant does not actually support the claimed move)
+- **below ambition floor** (fails the meeting-test: would not warrant team discussion — except when Phase 0.5 detected tactical focus signals, in which case this criterion is waived)
+- **subject-replacement** (abandons or replaces the subject of ideation rather than operating on it — e.g., "pivot to an unrelated domain," "become a different organization")
 
-Score survivors using a consistent rubric weighing: groundedness in stated context, expected value, novelty, pragmatism, leverage on future work, implementation burden, and overlap with stronger ideas.
+Score survivors using a consistent rubric weighing: groundedness in stated context, **warrant strength** (`direct:` > `external:` > `reasoned:`; none excluded, but direct-evidence ideas score higher all else equal), expected value, novelty, pragmatism, leverage on future work, implementation burden, and overlap with stronger ideas.
 
 Target output:
 - keep 5-7 survivors by default
@@ -36,7 +39,8 @@ Present only the surviving ideas in structured form:
 
 - title
 - description
-- rationale
+- **warrant** (tagged `direct:` / `external:` / `reasoned:`, with the quoted evidence, cited source, or written-out argument)
+- rationale (how the warrant connects to the move's significance)
 - downsides
 - confidence score
 - estimated complexity
@@ -89,7 +93,8 @@ mode: <repo-grounded | elsewhere-software | elsewhere-non-software>
 
 ### 1. <Idea Title>
 **Description:** [Concrete explanation]
-**Rationale:** [Why this idea is strong in the stated context]
+**Warrant:** [`direct:` / `external:` / `reasoned:` — the actual basis, quoted or cited]
+**Rationale:** [How the warrant connects to the move's significance]
 **Downsides:** [Tradeoffs or costs]
 **Confidence:** [0-100%]
 **Complexity:** [Low / Medium / High]
@@ -136,11 +141,11 @@ When the proof skill returns control:
 
 ## Phase 6: Refine or Hand Off
 
-Ask what should happen next using the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present numbered options in chat and wait for the user's reply.
+Ask what should happen next using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
 **Question:** "What should the agent do next?"
 
-Offer these four options (each label is self-contained per the Interactive Question Tool Design rules in the plugin AGENTS.md — the distinguishing word is front-loaded so options stay distinct when truncated):
+Offer these four options (labels are self-contained with the distinguishing word front-loaded so options stay distinct when truncated):
 
 1. **Refine the ideation in conversation (or stop here — no save)** — add ideas, re-evaluate, or deepen analysis. No file or network side effects; ending the conversation at any point after this pick is a valid no-save exit.
 2. **Open and iterate in Proof** — save the ideation to Proof and enter the proof skill's HITL review loop: iterate via comments in the Proof editor; reviewed edits sync back to `docs/ideation/` in repo mode.
@@ -221,7 +226,10 @@ After the fallback completes (any path), continue back to the Phase 6 menu so th
 
 Before finishing, check:
 
-- the idea set is grounded in the stated context (codebase in repo mode; user-supplied topic in elsewhere mode)
+- the idea set is grounded in the stated context (codebase in repo mode; user-supplied context in elsewhere mode)
+- **every surviving idea has articulated warrant** (`direct:`, `external:`, or `reasoned:`) that actually supports the claimed move — speculation dressed as ambition was rejected, with reasons
+- **every surviving idea passes the meeting-test** unless Phase 0.5 detected tactical focus signals that waived the floor
+- **no surviving idea replaces the subject** rather than operating on it
 - the candidate list was generated before filtering
 - the original many-ideas -> critique -> survivors mechanism was preserved
 - if sub-agents were used, they improved diversity without replacing the core workflow

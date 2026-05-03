@@ -11,18 +11,19 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 | Component | Count |
 |-----------|-------|
 | Agents | 50+ |
-| Skills | 42+ |
+| Skills | 38+ |
 
 ## Skills
 
 ### Core Workflow
 
-The primary entry points for engineering work are skills invoked with slash syntax:
+The primary entry points for engineering work, invoked as slash commands. `ce-strategy` skill anchors the loop upstream; `ce-product-pulse` skill closes it with a read on user outcomes.
 
 | Skill | Description |
 |-------|-------------|
-| `/ce-ideate` | Discover high-impact project improvements through divergent ideation and adversarial filtering |
-| `/ce-brainstorm` | Explore requirements and approaches before planning |
+| `/ce-strategy` | Create or maintain `STRATEGY.md` — the product's target problem, approach, persona, key metrics, and tracks. Re-runnable to update. Read as grounding by `/ce-ideate`, `/ce-brainstorm`, and `/ce-plan` when present |
+| `/ce-ideate` | Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming |
+| `/ce-brainstorm` | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning |
 | `/ce-plan` | Create structured plans for any multi-step task -- software features, research workflows, events, study plans -- with automatic confidence checking |
 | `/ce-code-review` | Structured code review with tiered persona agents, confidence gating, and dedup pipeline |
 | `/ce-work` | Execute work items systematically |
@@ -30,6 +31,7 @@ The primary entry points for engineering work are skills invoked with slash synt
 | `/ce-compound` | Document solved problems to compound team knowledge |
 | `/ce-compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
 | `/ce-optimize` | Run iterative optimization loops with parallel experiments, measurement gates, and LLM-as-judge quality scoring |
+| `/ce-product-pulse` | Generate a single-page, time-windowed report on usage, performance, errors, and followups. Saves reports to `docs/pulse-reports/` as a browseable timeline of what users experienced |
 
 For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/README.md) for usage guidance, example specs, and links to the schema and workflow docs.
 
@@ -44,10 +46,9 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 
 | Skill | Description |
 |-------|-------------|
-| `ce-pr-description` | Write or regenerate a value-first PR title and body from the current branch or a specified PR; used directly or by other skills |
 | `ce-clean-gone-branches` | Clean up local branches whose remote tracking branch is gone |
 | `ce-commit` | Create a git commit with a value-communicating message |
-| `ce-commit-push-pr` | Commit, push, and open a PR with an adaptive description; also update an existing PR description (delegates title/body generation to `ce-pr-description`) |
+| `ce-commit-push-pr` | Commit, push, and open a PR with an adaptive description; also update an existing PR description, or generate a description on its own without committing |
 | `ce-worktree` | Manage Git worktrees for parallel development |
 
 ### Workflow Utilities
@@ -55,26 +56,20 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 | Skill | Description |
 |-------|-------------|
 | `/ce-demo-reel` | Capture a visual demo reel (GIF demos, terminal recordings, screenshots) for PRs with project-type-aware tier selection |
-| `/ce-changelog` | Create engaging changelogs for recent merges |
 | `/ce-report-bug` | Report a bug in the compound-engineering plugin |
 | `/ce-resolve-pr-feedback` | Resolve PR review feedback in parallel |
 | `/ce-test-browser` | Run browser tests on PR-affected pages |
 | `/ce-test-xcode` | Build and test iOS apps on simulator using XcodeBuildMCP |
-| `/ce-onboarding` | Generate `ONBOARDING.md` to help new contributors understand the codebase |
 | `/ce-setup` | Diagnose environment, install missing tools, and bootstrap project config |
 | `/ce-update` | Check compound-engineering plugin version and fix stale cache (Claude Code only) |
 | `/ce-release-notes` | Summarize recent compound-engineering plugin releases, or answer a question about a past release with a version citation |
-| `/ce-todo-resolve` | Resolve todos in parallel |
-| `/ce-todo-triage` | Triage and prioritize pending todos |
 
 ### Development Frameworks
 
 | Skill | Description |
 |-------|-------------|
 | `ce-agent-native-architecture` | Build AI agents using prompt-native architecture |
-| `ce-andrew-kane-gem-writer` | Write Ruby gems following Andrew Kane's patterns |
 | `ce-dhh-rails-style` | Write Ruby/Rails code in DHH's 37signals style |
-| `ce-dspy-ruby` | Build type-safe LLM applications with DSPy.rb |
 | `ce-frontend-design` | Create production-grade frontend interfaces |
 
 ### Review & Quality
@@ -82,14 +77,13 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 | Skill | Description |
 |-------|-------------|
 | `ce-doc-review` | Review documents using parallel persona agents for role-specific feedback |
+| `/ce-simplify-code` | Simplify recent code changes for reuse, quality, and efficiency — parallel reviewers find issues, fixes applied, behavior verified by tests |
 
 ### Content & Collaboration
 
 | Skill | Description |
 |-------|-------------|
-| `ce-every-style-editor` | Review copy for Every's style guide compliance |
 | `ce-proof` | Create, edit, and share documents via Proof collaborative editor |
-| `ce-todo-create` | File-based todo tracking system |
 
 ### Automation & Tools
 
@@ -101,7 +95,7 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 
 | Skill | Description |
 |-------|-------------|
-| `/ce-polish-beta` | Human-in-the-loop polish phase after /ce-code-review — verifies review + CI, starts a dev server from `.claude/launch.json`, generates a testable checklist, and dispatches polish sub-agents for fixes. Emits stacked-PR seeds for oversized work |
+| `ce-polish-beta` | Human-in-the-loop polish phase after /ce-code-review — verifies review + CI, starts a dev server from `.claude/launch.json`, generates a testable checklist, and dispatches polish sub-agents for fixes. Emits stacked-PR seeds for oversized work |
 | `/lfg` | Full autonomous engineering workflow |
 
 ## Agents
@@ -114,8 +108,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 |-------|-------------|
 | `ce-agent-native-reviewer` | Verify features are agent-native (action + context parity) |
 | `ce-api-contract-reviewer` | Detect breaking API contract changes |
-| `ce-cli-agent-readiness-reviewer` | Evaluate CLI agent-friendliness against 7 core principles |
-| `ce-cli-readiness-reviewer` | CLI agent-readiness persona for ce-code-review (conditional, structured JSON) |
 | `ce-architecture-strategist` | Analyze architectural decisions and compliance |
 | `ce-code-simplicity-reviewer` | Final pass for simplicity and minimalism |
 | `ce-correctness-reviewer` | Logic errors, edge cases, state bugs |
@@ -136,6 +128,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `ce-schema-drift-detector` | Detect unrelated schema.rb changes in PRs |
 | `ce-security-reviewer` | Exploitable vulnerabilities with confidence calibration |
 | `ce-security-sentinel` | Security audits and vulnerability assessments |
+| `ce-swift-ios-reviewer` | Swift and iOS code review -- SwiftUI state, retain cycles, concurrency, Core Data threading, accessibility |
 | `ce-testing-reviewer` | Test coverage gaps, weak assertions |
 | `ce-project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance |
 | `ce-adversarial-reviewer` | Construct failure scenarios to break implementations across component boundaries |
@@ -189,9 +182,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 
 ## Installation
 
-```bash
-claude /plugin install compound-engineering
-```
+See the repo root [Install section](../../README.md#install) for current installation instructions across Claude Code, Codex, Cursor, Copilot, Droid, Qwen, and converter-backed targets.
 
 Then run `/ce-setup` to check your environment and install recommended tools.
 

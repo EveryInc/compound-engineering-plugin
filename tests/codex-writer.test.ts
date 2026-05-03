@@ -395,6 +395,60 @@ describe("writeCodexBundle", () => {
     }
   })
 
+  test("sweeps flat-alias skill dir left by a prior layout when the new bundle's agent name has embedded -ce-", async () => {
+    // Third-party plugins with nested agent directories (e.g. agents/review/ce-foo.md)
+    // produce Codex agent names like `review-ce-foo`. If the same logical agent
+    // was previously installed under a flat layout (raw codex name `ce-foo`),
+    // the now-orphaned skill dir at `.codex/skills/<plugin>/ce-foo/` should be
+    // moved into legacy-backup on the next install. This is the only cleanup
+    // path available for third-party plugins, which have no entry in the
+    // historical allow-list used by getLegacyCodexArtifacts.
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-nested-xmigrate-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+    const pluginName = "third-party-nested"
+    const managedSkillsRoot = path.join(codexRoot, "skills", pluginName)
+
+    // Simulate orphan flat-alias skill dir from the earlier layout.
+    await fs.mkdir(path.join(managedSkillsRoot, "ce-foo"), { recursive: true })
+    await fs.writeFile(
+      path.join(managedSkillsRoot, "ce-foo", "SKILL.md"),
+      "stale flat-alias skill from prior install",
+    )
+
+    await writeCodexBundle(codexRoot, {
+      pluginName,
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [
+        {
+          name: "review-ce-foo",
+          description: "Nested-layout agent",
+          instructions: "Do review work on foo.",
+        },
+      ],
+    })
+
+    // The current install writes the nested-layout agent, not a same-named skill dir.
+    expect(await exists(path.join(codexRoot, "agents", pluginName, "review-ce-foo.toml"))).toBe(true)
+
+    // The orphan flat-alias skill dir should have been relocated.
+    expect(await exists(path.join(managedSkillsRoot, "ce-foo"))).toBe(false)
+
+    // And should be reachable under legacy-backup.
+    const backupRoot = path.join(codexRoot, pluginName, "legacy-backup")
+    expect(await exists(backupRoot)).toBe(true)
+    const timestamps = await fs.readdir(backupRoot)
+    let foundBackup = false
+    for (const ts of timestamps) {
+      const skillsBackup = path.join(backupRoot, ts, "skills")
+      if (!(await exists(skillsBackup))) continue
+      const backed = await fs.readdir(skillsBackup)
+      if (backed.includes("ce-foo")) foundBackup = true
+    }
+    expect(foundBackup).toBe(true)
+  })
+
   test("agents-only install preserves namespaced skills previously installed via Codex native plugin flow", async () => {
     // Regression for the bug where re-running `install --to codex` after a
     // native `/plugins` install moved currently-active namespaced skills
@@ -764,6 +818,87 @@ Workflow handoff:
     expect(installedSkill).not.toContain("/prompts:users")
     expect(installedSkill).not.toContain("/prompts:settings")
     expect(installedSkill).not.toContain("https://prompts:www.proofeditor.ai")
+  })
+
+  test("removes orphan sidecar dir when retained agent declares no sidecars", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    const agentsRoot = path.join(tempRoot, ".codex", "agents")
+    const orphanDir = path.join(agentsRoot, "ce-foo", "stale-content")
+    await fs.mkdir(orphanDir, { recursive: true })
+    await fs.writeFile(path.join(orphanDir, "leftover.txt"), "stale", "utf8")
+    await fs.writeFile(path.join(agentsRoot, "ce-foo.toml"), "old-toml", "utf8")
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [
+        {
+          name: "ce-foo",
+          description: "Foo agent",
+          instructions: "Do foo.",
+        },
+      ],
+      mcpServers: {},
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    expect(await entryExists(path.join(agentsRoot, "ce-foo"))).toBe(false)
+    expect(await exists(path.join(agentsRoot, "ce-foo.toml"))).toBe(true)
+  })
+
+  test("keeps sidecar dir when retained agent declares sidecars", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    const sidecarSource = await fs.mkdtemp(path.join(os.tmpdir(), "codex-sidecar-src-"))
+    await fs.writeFile(path.join(sidecarSource, "script.sh"), "#!/bin/sh\necho hi\n", "utf8")
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [
+        {
+          name: "ce-foo",
+          description: "Foo agent",
+          instructions: "Do foo.",
+          sidecarDirs: [{ sourceDir: sidecarSource, targetName: "scripts" }],
+        },
+      ],
+      mcpServers: {},
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    const agentsRoot = path.join(tempRoot, ".codex", "agents")
+    expect(await exists(path.join(agentsRoot, "ce-foo.toml"))).toBe(true)
+    expect(await exists(path.join(agentsRoot, "ce-foo", "scripts", "script.sh"))).toBe(true)
+  })
+
+  test("leaves unrelated directories under agentsRoot alone", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    const agentsRoot = path.join(tempRoot, ".codex", "agents")
+    const unrelatedDir = path.join(agentsRoot, "ce-bar-extra")
+    await fs.mkdir(unrelatedDir, { recursive: true })
+    await fs.writeFile(path.join(unrelatedDir, "keep-me.txt"), "keep", "utf8")
+
+    const bundle: CodexBundle = {
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [
+        {
+          name: "ce-foo",
+          description: "Foo agent",
+          instructions: "Do foo.",
+        },
+      ],
+      mcpServers: {},
+    }
+
+    await writeCodexBundle(tempRoot, bundle)
+
+    expect(await exists(path.join(unrelatedDir, "keep-me.txt"))).toBe(true)
   })
 })
 

@@ -58,7 +58,7 @@ Numbered requirements that this plan must satisfy. Carries forward applicable v1
 
 **v2 additions:**
 
-- V1. Phase 0 classifies the **subject** of ideation as `repo-grounded` or `elsewhere` based on prompt + topic-repo coherence + CWD signals. Mode classification is structurally **two sequential binary decisions**: (a) repo-grounded vs elsewhere, and (b) for elsewhere, software vs non-software (the latter routes to `references/universal-ideation.md`). Apply negative-signal enumeration at both decision points (per `docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md`). Agent states inferred mode in one sentence; on ambiguous prompts (signals genuinely conflict, OR a single-keyword/short-prompt invocation that maps cleanly to either mode) the agent asks a single confirmation question before dispatching grounding.
+- V1. Phase 0 classifies the **subject** of ideation as `repo-grounded` or `elsewhere` based on prompt + topic-repo coherence + CWD signals. Mode classification is structurally **two sequential binary decisions**: (a) repo-grounded vs elsewhere, and (b) for elsewhere, software vs non-software (the latter routes to `references/universal-ideation.md`). Apply negative-signal enumeration at both decision points. Agent states inferred mode in one sentence; on ambiguous prompts (signals genuinely conflict, OR a single-keyword/short-prompt invocation that maps cleanly to either mode) the agent asks a single confirmation question before dispatching grounding.
 - V2. Phase 0 light context intake (elsewhere mode only) applies the **discrimination test**: would swapping one piece of context for a contrasting alternative materially change which ideas survive? Default to proceeding; ask 1-3 narrowly chosen questions only when context fails the test. Stop asking on dismissive responses; treat genuine "no constraint" answers as real answers.
 - V3. New agent `web-researcher` performs iterative web search + fetch, returning structured external grounding (prior art, adjacent solutions, market signals, cross-domain analogies). Tools: WebSearch + WebFetch. Model: Sonnet. Reusable across skills.
 - V4. `web-researcher` follows a phased search budget — scoping (2-4) → narrowing (3-6) → deep extraction (3-5 fetches) → gap-filling (1-3) — with soft ceilings (~15-20 searches, ~5-8 fetches) and an early-stop heuristic (stop when marginal queries return mostly redundant findings).
@@ -110,7 +110,7 @@ Numbered requirements that this plan must satisfy. Carries forward applicable v1
 
 ### Institutional Learnings
 
-- `docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md` — classification pipeline invariants: classify on the same scope as action; re-evaluate after any broadening step; enumerate negative signals (not just positive). Apply to V1's mode classifier.
+- Classification pipeline invariants (general): classify on the same scope as action; re-evaluate after any broadening step; enumerate negative signals (not just positive). Apply to V1's mode classifier.
 - `docs/solutions/skill-design/research-agent-pipeline-separation-2026-04-05.md` — research agents must be classified by information type and dispatched only from the matching pipeline stage. Apply: `web-researcher` serves grounding (Phase 1), not generation (Phase 2).
 - `docs/solutions/best-practices/codex-delegation-best-practices-2026-04-01.md` — token-economics method for evaluating "always-on" defaults. Implication: V12 cost transparency exists because always-on web-research has real overhead worth disclosing.
 - `docs/solutions/skill-design/pass-paths-not-content-to-subagents-2026-03-26.md` — instruction phrasing dramatically affects tool-call count (14 vs 2 for the same task). Implication: `web-researcher` prompt should be benchmarked with stream-json before considering it stable.
@@ -274,7 +274,7 @@ These were resolved in conversation but reviewers raised non-trivial counterargu
 
 **Approach:**
 - Insert Phase 0.x ahead of current Phase 1 (Codebase Scan), after the existing 0.1 (Resume) and 0.2 (Focus and Volume) blocks. Likely numbering: rename current 0.2 to 0.3, insert new mode classifier as 0.2 — or append as 0.3 and shift focus/volume. Decide at edit time based on flow.
-- **Mode classifier** is two sequential binary decisions, each with negative-signal enumeration per `docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md`:
+- **Mode classifier** is two sequential binary decisions, each with negative-signal enumeration:
   - Decision 1: repo-grounded vs elsewhere. Positive signals: prompt references repo files/code/architecture; topic clearly bounded by current codebase. Negative signals: prompt references things absent from repo (pricing, naming, narrative, business model). Three strength-ordered inputs: (1) prompt content, (2) topic-repo coherence, (3) CWD repo presence as supporting evidence only.
   - Decision 2 (only fires if Decision 1 = elsewhere): software vs non-software. Positive signals for non-software: topic is creative, business, personal, or design with no code surface. Routes non-software to `references/universal-ideation.md`.
 - State inferred mode in one sentence at the top: "Reading this as [repo-grounded | elsewhere-software | elsewhere-non-software] ideation about X — say 'actually [other-mode]' to switch."
@@ -593,7 +593,6 @@ These were resolved in conversation but reviewers raised non-trivial counterargu
   - `plugins/compound-engineering/skills/proof/SKILL.md` (Proof handoff contract)
   - `plugins/compound-engineering/agents/research/ce-learnings-researcher.agent.md`, `slack-researcher.md`, `issue-intelligence-analyst.md` (agent file conventions)
 - **Related learnings:**
-  - `docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md`
   - `docs/solutions/skill-design/research-agent-pipeline-separation-2026-04-05.md`
   - `docs/solutions/best-practices/codex-delegation-best-practices-2026-04-01.md`
   - `docs/solutions/skill-design/pass-paths-not-content-to-subagents-2026-03-26.md`

@@ -52,7 +52,7 @@ Based on detected signals, choose a mode:
 
 ### Asking the User
 
-When context is ambiguous, use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, assume "partial" mode and proceed conservatively.
+When context is ambiguous, use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip. If the user declines to pick, assume "partial" mode and proceed conservatively.
 
 Example question: "I found [detected signals]. Should I follow your existing design patterns or create something distinctive?"
 
@@ -243,7 +243,7 @@ Use the first available option:
 
 One iteration. Take a screenshot, assess against the litmus checks, fix any glaring issues, and move on. Include the screenshot in the deliverable (PR description, conversation output, etc.).
 
-For iterative refinement beyond a single pass (multiple rounds of screenshot-assess-fix), see the `design:ce-design-iterator` agent.
+For iterative refinement beyond a single pass (multiple rounds of screenshot-assess-fix), see the `ce-design-iterator` agent.
 
 ---
 

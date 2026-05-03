@@ -27,7 +27,7 @@ These principles govern every phase. They are repeated at decision points becaus
 | 1 | Investigate | Reproduce the bug, trace the code path |
 | 2 | Root Cause | Form hypotheses with predictions for uncertain links, test them, **causal chain gate**, smart escalation |
 | 3 | Fix | Only if user chose to fix. Test-first fix with workspace safety checks |
-| 4 | Close | Structured summary, handoff options |
+| 4 | Handoff | Structured summary, then prompt the user for the next action |
 
 All phases self-size — a simple bug flows through them in seconds, a complex bug spends more time in each naturally. No complexity classification, no phase skipping.
 
@@ -39,9 +39,9 @@ Parse the input and reach a clear problem statement.
 
 **If the input references an issue tracker**, fetch it:
 - GitHub (`#123`, `org/repo#123`, github.com URL): Parse the issue reference from `<bug_description>` and fetch with `gh issue view <number> --json title,body,comments,labels`. For URLs, pass the URL directly to `gh`.
-- Other trackers (Linear URL/ID, Jira URL/key, any tracker URL): Attempt to fetch using available MCP tools or by fetching the URL content. If the fetch fails — auth, missing tool, non-public page — ask the user to paste the relevant issue content.
+- Other trackers (Linear URL/ID, Jira URL/key, any tracker URL): Attempt to fetch using available MCP tools or by fetching the URL content. If the fetch fails — auth, missing tool, non-public page — ask the user to paste the relevant issue content. Ensure the fetch includes the full comment thread, not just the opening description.
 
-Extract reported symptoms, expected behavior, reproduction steps, and environment details. Then proceed to Phase 1.
+Read the full conversation — the original description AND every comment, with particular attention to the latest ones. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, additional stack traces, or a pivot to a different suspected root cause; treating the opening post as the whole picture often sends the investigation in the wrong direction. Extract reported symptoms, expected behavior, reproduction steps, and environment details from the combined thread. Then proceed to Phase 1.
 
 **Everything else** (stack traces, test paths, error messages, descriptions of broken behavior): Proceed directly to Phase 1.
 
@@ -65,7 +65,18 @@ Confirm the bug exists and understand its behavior. Run the test, trigger the er
 - **Does not reproduce after 2-3 attempts:** Read `references/investigation-techniques.md` for intermittent-bug techniques.
 - **Cannot reproduce at all in this environment:** Document what was tried and what conditions appear to be missing.
 
-#### 1.2 Trace the code path
+#### 1.2 Verify environment sanity
+
+Before deep code tracing, confirm the environment is what you think it is:
+
+- Correct branch checked out; no unintended uncommitted changes
+- Dependencies installed and up to date (`bun install`, `npm install`, `bundle install`, etc.) — stale `node_modules`/`vendor` is a frequent false lead
+- Expected interpreter or runtime version (check `.tool-versions`, `.nvmrc`, `Gemfile`, etc. against what's actually active)
+- Required env vars present and non-empty
+- No stale build artifacts (`dist/`, `.next/`, compiled binaries from an earlier branch)
+- Dependent local services (database, cache, queue) running at expected versions *when the bug plausibly involves them*
+
+#### 1.3 Trace the code path
 
 Read the relevant source files. Follow the execution path from entry point to where the error manifests. Trace backward through the call chain:
 
@@ -92,6 +103,8 @@ As you trace:
 
 Read `references/anti-patterns.md` before forming hypotheses.
 
+**Assumption audit (before hypothesis formation):** List the concrete "this must be true" beliefs your understanding depends on — the framework behaves as expected here, this function returns what its name implies, the config loads before this runs, the caller passes a non-null value, the database is in the state the test implies. For each, mark *verified* (you read the code, checked state, or ran it) or *assumed*. Assumptions are the most common source of stuck debugging. Many "wrong hypotheses" are actually correct hypotheses tested against a wrong assumption.
+
 **Form hypotheses** ranked by likelihood. For each, state:
 - What is wrong and where (file:line)
 - The causal chain: how the trigger leads to the observed symptom, step by step
@@ -113,10 +126,14 @@ Once the root cause is confirmed, present:
 - Which tests to add or modify to prevent recurrence (specific test file, test case description, what the assertion should verify)
 - Whether existing tests should have caught this and why they did not
 
-Then offer next steps (use the platform's question tool — `AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini — or present numbered options and wait):
+Then offer next steps.
+
+Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code, call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded — a pending schema load is not a reason to fall back. Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes). Never silently skip the question.
+
+Options to offer:
 
 1. **Fix it now** — proceed to Phase 3
-2. **View in Proof** (`/ce-proof`) — for easy review and sharing with others
+2. **Diagnosis only — I'll take it from here** — skip the fix, proceed to Phase 4's summary, and end the skill
 3. **Rethink the design** (`/ce-brainstorm`) — only when the root cause reveals a design problem (see below)
 
 Do not assume the user wants action right now. The test recommendations are part of the diagnosis regardless of which path is chosen.
@@ -140,6 +157,8 @@ If 2-3 hypotheses are exhausted without confirmation, diagnose why:
 | Works locally, fails in CI/prod | Environment problem | Focus on env differences, config, dependencies, timing |
 | Fix works but prediction was wrong | Symptom fix, not root cause | The real cause is still active — keep investigating |
 
+**Parallel investigation option:** When hypotheses are evidence-bottlenecked across clearly independent subsystems, dispatch read-only sub-agents in parallel, each with an explicit hypothesis and structured evidence-return format. No code edits by sub-agents, and skip this when hypotheses depend on each other's outcomes. If the platform does not support parallel sub-agent dispatch, run the same hypothesis probes sequentially in ranked-likelihood order instead — the parallelism is a latency optimization, not a correctness requirement.
+
 Present the diagnosis to the user before proceeding.
 
 ---
@@ -148,9 +167,12 @@ Present the diagnosis to the user before proceeding.
 
 *Reminder: one change at a time. If you are changing multiple things, stop.*
 
-If the user chose Proof or brainstorm at the end of Phase 2, skip this phase — the skill's job was the diagnosis.
+If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go straight to Phase 4 for the summary — the skill's job was the diagnosis. If they chose "Rethink the design", control has transferred to `/ce-brainstorm` and this skill ends.
 
-**Workspace check:** Before editing files, check for uncommitted changes (`git status`). If the user has unstaged work in files that need modification, confirm before editing — do not overwrite in-progress changes.
+**Workspace and branch check:** Before editing files:
+
+- Check for uncommitted changes (`git status`). If the user has unstaged work in files that need modification, confirm before editing — do not overwrite in-progress changes.
+- If the current branch is the default branch, ask whether to create a feature branch first using the platform's blocking question tool (see Phase 2 for the per-platform names). To detect the default branch, compare against `main`, `master`, or the value of `git rev-parse --abbrev-ref origin/HEAD` with its `origin/` prefix stripped (the raw output is `origin/<name>`, so an unstripped comparison will never match the local branch name). Default to creating one; derive a name from the bug and run `git checkout -b <name>`. On any other branch, proceed.
 
 **Test-first:**
 1. Write a failing test that captures the bug (or use the existing failing test)
@@ -162,17 +184,16 @@ If the user chose Proof or brainstorm at the end of Phase 2, skip this phase —
 
 **3 failed fix attempts = smart escalation.** Diagnose using the same table from Phase 2. If fixes keep failing, the root cause identification was likely wrong. Return to Phase 2.
 
-**Conditional defense-in-depth** (trigger: grep for the root-cause pattern found it in other files):
-Check whether the same gap exists at those locations. Skip when the root cause is a one-off error.
+**Conditional defense-in-depth** (trigger: grep for the root-cause pattern found it in 3+ other files, OR the bug would have been catastrophic if it reached production): Read `references/defense-in-depth.md` for the four-layer model (entry validation, invariant check, environment guard, diagnostic breadcrumb) and choose which layers apply. Skip when the root cause is a one-off error with no realistic recurrence path.
 
 **Conditional post-mortem** (trigger: the bug was in production, OR the pattern appears in 3+ locations):
-How was this introduced? What allowed it to survive? If a systemic gap was found: "This pattern appears in N other files. Want to capture it with `/ce-compound`?"
+Analyze how this was introduced and what allowed it to survive. Note any systemic gap or repeated pattern found — it informs Phase 4's decision on whether to offer learning capture.
 
 ---
 
-### Phase 4: Close
+### Phase 4: Handoff
 
-**Structured summary:**
+**Structured summary** — always write this first:
 
 ```
 ## Debug Summary
@@ -184,9 +205,32 @@ How was this introduced? What allowed it to survive? If a systemic gap was found
 **Confidence**: [High/Medium/Low]
 ```
 
-**Handoff options** (use platform question tool, or present numbered options and wait):
-1. Commit the fix (if Phase 3 ran)
-2. Document as a learning (`/ce-compound`)
-3. Post findings to the issue (if entry came from an issue tracker) — convey: confirmed root cause, verified reproduction steps, relevant code references, and suggested fix direction; keep it concise and useful for whoever picks up the issue next
-4. View in Proof (`/ce-proof`) — for easy review and sharing with others
-5. Done
+**If Phase 3 was skipped** (user chose "Diagnosis only" in Phase 2), stop after the summary — the user already told you they were taking it from here. Do not prompt.
+
+**If Phase 3 ran**, the next move depends on whether the skill created the branch in Phase 3.
+
+#### Skill-owned branch (created in Phase 3): default to commit-and-PR without prompting
+
+1. **Check for contextual overrides first.** Look at the user's original prompt, loaded memories, and the user/repo `AGENTS.md` or `CLAUDE.md` for preferences that conflict with auto commit-and-PR — for example, "always review before pushing", "open PRs as drafts", or "don't open PRs from skills". A signal must be an explicit instruction or a clearly applicable rule, not a vague tonal cue. If any apply, honor them — switch to the pre-existing-branch menu below, or skip the PR step entirely, whichever matches the user's stated preference.
+2. **Briefly preview what will happen** — what will be committed, on what branch, and that a PR will be opened — then proceed without waiting for confirmation. The preview exists so the user can interrupt; it is not a blocking question. Format and length are your call; keep it scannable.
+3. **Run `/ce-commit-push-pr`.** When the entry came from an issue tracker, include the appropriate auto-close syntax for that tracker in the location it requires — most trackers parse PR descriptions (e.g., `Fixes #N` for GitHub, `Closes ABC-123` for Linear), but some only parse commit messages (e.g., Jira Smart Commits) — so the diagnosis and fix flow back to the issue and it closes on merge. Surface the resulting PR URL.
+
+#### Pre-existing branch (skill did not create it): ask the user
+
+Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code, call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded — a pending schema load is not a reason to fall back. Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors. Never end the phase without collecting a response.
+
+Options:
+
+1. **Commit and open a PR (`/ce-commit-push-pr`)** — default for most cases
+2. **Commit the fix (`/ce-commit`)** — local commit only
+3. **Stop here** — user takes it from there
+
+#### After a PR is open (either path): consider offering learning capture
+
+Most bugs are localized mechanical fixes (typo, missed null check, missing import) where the only "lesson" is the bug itself. Compounding those clutters `docs/solutions/` without adding value. Decide which path applies:
+
+- **Skip silently** when the fix is mechanical and there's no generalizable insight. Default to this when in doubt.
+- **Offer neutrally** when the lesson can be stated in one sentence — e.g., "X.foo() returns T | undefined when Y, not just T", or "the diagnostic path was non-obvious and worth recording." If you cannot articulate the lesson, skip rather than offer.
+- **Lean into the offer** when the pattern appears in 3+ locations OR the root cause reveals a wrong assumption about a shared dependency, framework, or convention that other code is likely to repeat.
+
+When offering, use the blocking question tool described above. If the user accepts, run `/ce-compound`, then commit the resulting learning doc to the same branch and push so the open PR picks up the new commit.

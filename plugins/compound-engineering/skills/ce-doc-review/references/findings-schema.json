@@ -58,10 +58,9 @@
             "description": "Concrete fix text. Omit or null if no good fix is obvious -- a bad suggestion is worse than none."
           },
           "confidence": {
-            "type": "number",
-            "description": "Reviewer confidence in this finding, calibrated per persona",
-            "minimum": 0.0,
-            "maximum": 1.0
+            "type": "integer",
+            "enum": [0, 25, 50, 75, 100],
+            "description": "Anchored confidence score. Use exactly one of 0, 25, 50, 75, 100. Each anchor has a behavioral criterion the reviewer must honestly self-apply. 0: Not confident at all. This is a false positive that does not stand up to light scrutiny, or a pre-existing issue the document did not introduce. 25: Somewhat confident. Might be a real issue but could also be a false positive; the reviewer was not able to verify. 50: Moderately confident. The reviewer verified this is a real issue but it may be a nitpick or not meaningfully affect plan correctness. Relative to the rest of the document, it is not very important. Advisory observations (the honest answer to 'what breaks if we do not fix this?' is 'nothing breaks, but...') land here. 75: Highly confident. The reviewer double-checked and verified the issue will be hit in practice by implementers or readers of this document. The existing approach is insufficient. The issue is important and will directly impact plan correctness, implementer understanding, or downstream execution. 100: Absolutely certain. The reviewer double-checked and confirmed the issue. The evidence directly confirms it will happen frequently in practice. The document text, codebase, or cross-references leave no room for interpretation."
           },
           "evidence": {
             "type": "array",

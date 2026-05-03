@@ -40,7 +40,7 @@ Return shape (used by upstream callers to resume their handoff; also shown to th
    Doc ready for review: <tokenUrl>
    ```
 
-5. Ask the user with the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options in chat and wait for the reply.
+5. Ask the user with the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
    **Question:** "Highlight text in Proof to leave a comment. The agent will read each one, reply in-thread or apply the fix, then sync changes back to your local file. What's next?"
 
@@ -101,6 +101,8 @@ Real feedback blends types — "this is wrong, rename to Y" is both objection an
 
 **Invariant:** every attention-needing mark ends the pass with an agent reply in its thread. Unreplied = "still to do" — the next pass re-classifies it. This is what makes the loop idempotent without a sidecar: mark state *is* the state. Even when the agent disagrees or can't decide, reply (with reasoning or a question) rather than silently skip.
 
+**Parallelize independent thread ops.** `comment.reply` and `comment.resolve` across different marks don't conflict — they touch different thread state and a stale `baseToken` on one doesn't poison another (retry-on-`STALE_BASE` is cheap, per-mark, and local). When there are more than ~3 attention-needing marks that classify as plain replies or resolves, dispatch them in parallel — either via multiple tool calls in one turn or via sub-agents (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex, `subagent` in Pi). Keep block-mutating edits (`suggestion.add`, `/edit/v2`) sequential or batch them through one `/edit/v2` call — concurrent block edits can stale one another's `baseToken` and force retries, and they interact in ways that are easier to reason about as an ordered sequence.
+
 ### 2.4 Apply edits
 
 The user is collaborating in the doc, not waiting on approval. Every mutation works with live clients — only whole-doc `rewrite.apply` is gated. Pick the tool that matches intent:
@@ -130,19 +132,20 @@ curl -X POST "https://www.proofeditor.ai/api/agent/{slug}/edit/v2" \
   -d '{"by":"ai:compound-engineering","baseToken":"<token>","operations":[...]}'
 ```
 
-Supported `op` kinds: `replace_block`, `insert_before`, `insert_after`, `delete_block`, `replace_range` (`fromRef`+`toRef`), `find_replace_in_block` (`occurrence: "first"|"all"`).
-
-Op body shapes (block content must be wrapped in `block: {markdown}` — the server rejects flat `{op, ref, markdown}` shapes):
+Per-op body shape (singular `block` for `replace_block`; plural `blocks:[{markdown},...]` for anything that can add content; the server returns 422 on the wrong shape):
 
 ```json
 {"op":"replace_block","ref":"b8","block":{"markdown":"new content"}}
-{"op":"insert_after","ref":"b3","block":{"markdown":"new block"}}
+{"op":"insert_after","ref":"b3","blocks":[{"markdown":"new block"}]}
+{"op":"insert_before","ref":"b3","blocks":[{"markdown":"new block"}]}
 {"op":"delete_block","ref":"b6"}
 {"op":"find_replace_in_block","ref":"b4","find":"old","replace":"new","occurrence":"first"}
-{"op":"replace_range","fromRef":"b2","toRef":"b5","block":{"markdown":"..."}}
+{"op":"replace_range","fromRef":"b2","toRef":"b5","blocks":[{"markdown":"..."}]}
 ```
 
-Block `ref` values drift across revisions — always re-fetch `/snapshot` for fresh refs before each `/edit/v2` call.
+Block `ref` values drift across revisions — re-fetch `/snapshot` for fresh refs before each `/edit/v2` call if any writes have landed since the last snapshot.
+
+**Bulk mechanical sweep — prefer one `/edit/v2` call over N `suggestion.add` calls.** When a uniform change hits more than ~5 blocks (emdash sweep, terminology rename across a doc, heading-style normalization), batch it as a single `/edit/v2` with many `operations`. One round-trip, one atomic commit, one audit entry — versus N separate ops-endpoint calls, N baseToken reads (without the caching below), and N tracked marks for what is one logical change. Use `suggestion.add` + `accepted` when edits are distinct and anchored (each deserves its own reject-to-revert trail); use `/edit/v2` batch when they're variations of the same mechanical rule.
 
 **Use pending `suggestion.add` (no status)** when the change is judgment-sensitive enough that the agent wants explicit user approval before commit — rare in HITL, since the point of auto-applied edits is to reduce round-trips. Most judgment-sensitive cases are better handled by leaving the thread open with a clarifying question.
 
@@ -151,12 +154,19 @@ Block `ref` values drift across revisions — always re-fetch `/snapshot` for fr
 **Mutation requirements (every write, including replies and resolves):**
 
 - Top-level field is `type` on `/ops`; `operations[].op` on `/edit/v2`. Do not mix.
-- Include `baseToken` from `/state.mutationBase.token` (or `/snapshot.mutationBase.token` for `/edit/v2`). On `STALE_BASE` or `BASE_TOKEN_REQUIRED`, re-read and retry once.
+- Include `baseToken` from `/state.mutationBase.token` (or `/snapshot.mutationBase.token` for `/edit/v2`).
 - Set `by: "ai:compound-engineering"` and header `X-Agent-Id: ai:compound-engineering`.
-- Include an `Idempotency-Key` header (fresh UUID per logical write) so retries stay safe.
+- Include an `Idempotency-Key` header (fresh UUID per logical write). Reuse the same key on a proven retry of the same payload; use a new key for a new logical write.
 - Reply: `{"type":"comment.reply","markId":"<id>","by":"ai:compound-engineering","text":"..."}`. Resolve: `{"type":"comment.resolve","markId":"<id>","by":"ai:compound-engineering"}`. Reopen if needed: `{"type":"comment.unresolve", ...}`.
 
-**When the loop breaks.** If a mutation keeps failing after a fresh read and one retry, or two reads disagree about state, call `POST https://www.proofeditor.ai/api/bridge/report_bug` with the request ID, slug, and raw response body before falling back. Don't silently skip — that loses the audit trail the user is relying on.
+**Retry after any error is verify-first, not retry-first.** The Proof API can commit canonically and still return a non-2xx or a 202 with `collab.status: "pending"`; network timeouts can hit after the server has already written. Retrying without verifying is the most common cause of duplicate marks (same comment twice, same suggestion twice) that then need a manual cleanup pass.
+
+- On `STALE_BASE` / `BASE_TOKEN_REQUIRED` / `MISSING_BASE` / `INVALID_BASE_TOKEN`: pre-commit, token-related. Re-read `/state`, send the same payload with a fresh `baseToken`, retry once. The `mutate()` helper below auto-retries these.
+- On `ANCHOR_NOT_FOUND` / `ANCHOR_AMBIGUOUS`: pre-commit, but the `quote` no longer matches uniquely. Re-read is not enough; the caller must tighten or regenerate the anchor before retrying. The helper surfaces the error instead of auto-retrying.
+- On `INVALID_OPERATIONS` / `INVALID_REQUEST` / `INVALID_REF` / `INVALID_BLOCK_MARKDOWN` / `INVALID_RANGE` / `INVALID_MARKDOWN` / 422: the payload is wrong. Do not retry — fix the payload and send a new write.
+- On `COLLAB_SYNC_FAILED` / `REWRITE_BARRIER_FAILED` / `PROJECTION_STALE` / `INTERNAL_ERROR` / 5xx / network error / timeout / **202 with `collab.status: "pending"`**: the write may have landed. Re-read `/state`, diff against the intended change (mark exists? suggestion applied? quote replaced?), and only retry if the server did not actually commit it. If the diff shows the write did land, treat the call as successful even though the response said otherwise.
+
+**When the loop breaks.** If a mutation keeps failing after a fresh read and a verified-needed retry, or two reads disagree about state, call `POST https://www.proofeditor.ai/api/bridge/report_bug` with the request ID, slug, and raw response body before falling back. Don't silently skip — that loses the audit trail the user is relying on.
 
 ---
 
@@ -182,11 +192,11 @@ Phrase them in whatever voice matches the situation rather than matching a templ
 
 ## Phase 4: Next-Signal Prompt
 
-Ask the user with the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options in chat and wait for the reply.
+Ask the user with the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
 **Question:** "Proof review pass done. What's next?"
 
-Offer options that cover these intents — use concrete user-facing labels, not agent-internal jargon (no "end-sync", "ingest pass", etc.). Only include the options that fit the current state. Keep labels imperative and third-person (no "I'll" / "I'm" — it is ambiguous in a tool-mediated menu whether the speaker is the user or the agent) and keep the `[short label] — [description]` shape consistent across every option. A "still working, come back later" option is not offered: the blocking question already waits, so that option would be a no-op wrapper (per the Interactive Question Tool Design rules in `plugins/compound-engineering/AGENTS.md`).
+Offer options that cover these intents — use concrete user-facing labels, not agent-internal jargon (no "end-sync", "ingest pass", etc.). Only include the options that fit the current state. Keep labels imperative and third-person (no "I'll" / "I'm" — it is ambiguous in a tool-mediated menu whether the speaker is the user or the agent) and keep the `[short label] — [description]` shape consistent across every option. A "still working, come back later" option is not offered: the blocking question already waits, so that option would be a no-op wrapper.
 
 - **Discuss** → `Discuss — walk through the open threads in terminal`
   Talk through open threads in the terminal; the agent echoes decisions back to Proof threads. Only useful when escalations are open.
@@ -220,7 +230,7 @@ Runs when the user selects **Proceed**. Before prompting anything, check whether
 
    **If different** — continue to step 3.
 
-3. Ask with the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini). If no question tool is available, present the options in chat and wait for the reply.
+3. Ask with the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
    **Question:** "Sync the reviewed doc back to `<localPath>`? Proof has your review changes; local still has the pre-review copy."
 
@@ -277,28 +287,73 @@ Do **not** delete the Proof doc. It remains the durable review record; the calle
 
 ### BaseToken-aware mutation
 
+Reuse `baseToken` from the most recent `/state` read. Only re-read on `STALE_BASE` / `BASE_TOKEN_REQUIRED`. For an ingest pass this means one `/state` read at Phase 2.1 feeds every subsequent mutation, not N reads for N mutations.
+
+Two retry classes, and they behave differently. The helper below only covers the safe class; the ambiguous class needs a caller-supplied verifier because "did this write land?" depends on what the payload was (look for a markId, a quote replacement, a thread reply, etc.).
+
 ```bash
 SLUG=<slug>
 TOKEN=<accessToken>
 AGENT_ID=ai:compound-engineering
+BASE=<cached from most recent /state or /snapshot read>
 
 mutate() {
   local PAYLOAD="$1"  # jq template without baseToken
-  local BASE
-  BASE=$(curl -s "https://www.proofeditor.ai/api/agent/$SLUG/state" \
-    -H "x-share-token: $TOKEN" | jq -r '.mutationBase.token')
-  curl -s -X POST "https://www.proofeditor.ai/api/agent/$SLUG/ops" \
+  local IDEM_KEY BODY RESP CODE
+  # Fresh key per logical write (per mutate() call). The same key is then
+  # reused below only within the retry of this single logical write — NOT
+  # across different payloads, which would make the server collapse
+  # distinct writes as duplicates and silently drop later edits.
+  IDEM_KEY=$(uuidgen)
+  BODY=$(jq -n --arg base "$BASE" --argjson payload "$PAYLOAD" '$payload + {baseToken: $base}')
+  RESP=$(curl -s -X POST "https://www.proofeditor.ai/api/agent/$SLUG/ops" \
     -H "Content-Type: application/json" \
     -H "x-share-token: $TOKEN" \
     -H "X-Agent-Id: $AGENT_ID" \
-    -H "Idempotency-Key: $(uuidgen)" \
-    -d "$(jq -n --arg base "$BASE" --argjson payload "$PAYLOAD" '$payload + {baseToken: $base}')"
+    -H "Idempotency-Key: $IDEM_KEY" \
+    -d "$BODY")
+  CODE=$(printf '%s' "$RESP" | jq -r '.code // .error // empty')
+  # Pre-commit token-related errors — safe to auto-retry with the same
+  # payload and a fresh baseToken. Anchor errors (ANCHOR_NOT_FOUND,
+  # ANCHOR_AMBIGUOUS) are also pre-commit but require a tighter quote,
+  # so they are surfaced instead of auto-retried.
+  if [ "$CODE" = "STALE_BASE" ] \
+    || [ "$CODE" = "BASE_TOKEN_REQUIRED" ] \
+    || [ "$CODE" = "MISSING_BASE" ] \
+    || [ "$CODE" = "INVALID_BASE_TOKEN" ]; then
+    BASE=$(curl -s "https://www.proofeditor.ai/api/agent/$SLUG/state" \
+      -H "x-share-token: $TOKEN" | jq -r '.mutationBase.token')
+    BODY=$(jq -n --arg base "$BASE" --argjson payload "$PAYLOAD" '$payload + {baseToken: $base}')
+    RESP=$(curl -s -X POST "https://www.proofeditor.ai/api/agent/$SLUG/ops" \
+      -H "Content-Type: application/json" \
+      -H "x-share-token: $TOKEN" \
+      -H "X-Agent-Id: $AGENT_ID" \
+      -H "Idempotency-Key: $IDEM_KEY" \
+      -d "$BODY")
+  fi
+  printf '%s' "$RESP"
 }
 ```
 
-Every mutation sends a fresh `Idempotency-Key` so retries on network hiccups do not double-apply the op. This is required when `/state.contract.idempotencyRequired` is true and harmless otherwise.
+The `Idempotency-Key` is minted fresh at the top of each call (one key per logical write). The retry inside the same call reuses that key so the server can collapse a duplicate TCP-level send, but a later `mutate()` for a different payload gets its own key. Minting outside the function would make every call share one key, and the server would treat the second and subsequent writes as duplicates of the first and silently drop them.
 
-On `STALE_BASE` in the response, re-run — the state read picks up the fresh token automatically.
+**Ambiguous failures (anything outside the pre-commit set above — `COLLAB_SYNC_FAILED`, `INTERNAL_ERROR`, 5xx, network timeout, 202 with `collab.status: "pending"`):** do not retry from this helper. Re-read `/state` in the caller, diff the marks/content against the intended change, and only re-issue the write if the diff proves nothing landed. Pattern:
+
+```bash
+# After an ambiguous failure on comment.add with quote "X" and text "Y":
+STATE=$(curl -s "https://www.proofeditor.ai/api/agent/$SLUG/state" \
+  -H "x-share-token: $TOKEN")
+LANDED=$(printf '%s' "$STATE" | jq --arg q "X" --arg t "Y" \
+  '[.marks[]? | select(.by == "ai:compound-engineering" and .quote == $q and (.thread[0].text // .text) == $t)] | length')
+if [ "$LANDED" -gt 0 ]; then
+  echo "Already applied — skipping retry."
+else
+  # Safe to retry with a fresh BASE.
+  ...
+fi
+```
+
+Match on a payload-identifying field (quote + text for `comment.add`; quote + content for `suggestion.add`; markId + text for `comment.reply`; block ordinal + markdown for `/edit/v2`). When no such invariant is available, prefer leaving the write undone and surfacing it in the terminal report over risking a duplicate.
 
 ### jq gotcha when inspecting responses
 
