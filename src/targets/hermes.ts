@@ -200,7 +200,7 @@ export async function writeHermesBundle(
   }
 
   // Agent payloads
-  const currentAgentPayloads = bundle.agentPayloads.map((p) => p.name)
+  const currentAgentPayloads = bundle.agentPayloads.map((p) => `${p.name}.md`)
   await cleanupRemovedManagedFiles(paths.agentsDir, manifest, "agent_payloads", currentAgentPayloads)
   await ensureDir(paths.agentsDir)
   for (const payload of bundle.agentPayloads) {
@@ -648,7 +648,7 @@ export async function cleanupHermesAtRoot(root: string): Promise<void> {
     if (Array.isArray(agentPayloads)) {
       for (const payloadName of agentPayloads) {
         if (typeof payloadName !== "string") continue
-        const targetFile = path.join(paths.agentsDir, `${payloadName}.md`)
+        const targetFile = path.join(paths.agentsDir, payloadName)
         if (await pathExists(targetFile)) {
           if (!(await isContainedAfterRealpath(paths.agentsDir, targetFile))) {
             console.warn(`Refusing to remove ${targetFile} for hermes cleanup: realpath escapes managed tree.`)

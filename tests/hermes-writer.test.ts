@@ -33,6 +33,7 @@ function emptyBundle(overrides: Partial<HermesBundle> = {}): HermesBundle {
     pluginName: "compound-engineering",
     passthroughSkills: [],
     generatedSkills: [],
+    agentPayloads: [],
     droppedCommands: [],
     skippedMcpServers: [],
     ...overrides,
@@ -93,6 +94,12 @@ describe("resolveHermesPaths", () => {
     // treated as already-rooted (unlike Pi which has an `agent` branch).
     const paths = resolveHermesPaths("/home/me/.pi/agent", "compound-engineering")
     expect(paths.hermesDir).toBe(path.join("/home/me/.pi/agent", ".hermes"))
+  })
+
+  test("agentsDir is created under managed dir", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-agentsdir-"))
+    const paths = resolveHermesPaths(tempRoot, "compound-engineering")
+    expect(paths.agentsDir).toBe(path.join(tempRoot, ".hermes", "compound-engineering", "agents"))
   })
 })
 
@@ -166,6 +173,14 @@ describe("writeHermesBundle — happy paths", () => {
           kind: "agent",
         },
       ],
+      agentPayloads: [
+        {
+          name: "ce-reviewer",
+          content:
+            "---\nname: ce-reviewer\ndescription: Review\nversion: \"1.0.0\"\nmetadata:\n  compound-engineering:\n    kind: agent\n    toolsets:\n      - file\n      - terminal\n---\n\nReview body.\n",
+          toolsets: ["file", "terminal"],
+        },
+      ],
     })
 
     await writeHermesBundle(tempRoot, bundle)
@@ -194,6 +209,14 @@ describe("writeHermesBundle — happy paths", () => {
     )
     expect(agentContent).toContain("name: agent-reviewer")
     expect(agentContent).toContain("- Agent")
+
+    // Agent payload written to plugin-scoped agents dir
+    const payloadContent = await fs.readFile(
+      path.join(tempRoot, ".hermes", "compound-engineering", "agents", "ce-reviewer.md"),
+      "utf8",
+    )
+    expect(payloadContent).toContain("name: ce-reviewer")
+    expect(payloadContent).toContain("kind: agent")
   })
 
   test("transforms Task calls in passthrough SKILL.md bodies via copySkillDir", async () => {
@@ -295,6 +318,14 @@ Run:
         generatedSkills: [
           { name: "cmd-a", content: "---\nname: cmd-a\n---\n\nA.\n", kind: "command" },
         ],
+        agentPayloads: [
+          {
+            name: "ce-reviewer",
+            content:
+              "---\nname: ce-reviewer\ndescription: Review\nversion: \"1.0.0\"\nmetadata:\n  compound-engineering:\n    kind: agent\n    toolsets:\n      - file\n      - terminal\n---\n\nReview body.\n",
+            toolsets: ["file", "terminal"],
+          },
+        ],
         mcpConfig: { mcp_servers: { x: { command: "y" } } },
       }),
     )
@@ -305,8 +336,9 @@ Run:
     }>(path.join(tempRoot, ".hermes", "compound-engineering", "install-manifest.json"))
     expect(manifest.version).toBe(1)
     expect(manifest.pluginName).toBe("compound-engineering")
-    expect(Object.keys(manifest.groups)).toEqual(["skills"])
+    expect(Object.keys(manifest.groups).sort()).toEqual(["agent_payloads", "skills"])
     expect(manifest.groups.skills).toContain("cmd-a")
+    expect(manifest.groups.agent_payloads).toContain("ce-reviewer.md")
   })
 })
 
@@ -608,6 +640,30 @@ describe("writeHermesBundle — manifest-diff cleanup", () => {
 
     expect(await exists(userSkillPath)).toBe(true)
   })
+
+  test("manifest-diff cleanup removes orphan agent payloads on reinstall", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-payload-clean-"))
+    await writeHermesBundle(
+      tempRoot,
+      emptyBundle({
+        agentPayloads: [
+          { name: "a", content: "A", toolsets: ["file"] },
+          { name: "b", content: "B", toolsets: ["file"] },
+        ],
+      }),
+    )
+
+    // Reinstall with only 'a'
+    await writeHermesBundle(
+      tempRoot,
+      emptyBundle({
+        agentPayloads: [{ name: "a", content: "A", toolsets: ["file"] }],
+      }),
+    )
+
+    expect(await exists(path.join(tempRoot, ".hermes", "compound-engineering", "agents", "a.md"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".hermes", "compound-engineering", "agents", "b.md"))).toBe(false)
+  })
 })
 
 describe("writeHermesBundle — symlink containment", () => {
@@ -828,6 +884,21 @@ describe("cleanupHermesAtRoot", () => {
     // config.yaml is NOT touched.
     expect(await exists(path.join(tempRoot, ".hermes", "config.yaml"))).toBe(true)
     expect(warnings.some((w) => w.includes("config.yaml") && w.includes("manually"))).toBe(true)
+  })
+
+  test("cleanupHermesAtRoot removes agent payloads", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "hermes-payload-clean-"))
+    await writeHermesBundle(
+      tempRoot,
+      emptyBundle({
+        agentPayloads: [{ name: "x", content: "X", toolsets: ["file"] }],
+      }),
+    )
+
+    warnings.length = 0
+    await cleanupHermesAtRoot(tempRoot)
+
+    expect(await exists(path.join(tempRoot, ".hermes", "compound-engineering", "agents", "x.md"))).toBe(false)
   })
 })
 
