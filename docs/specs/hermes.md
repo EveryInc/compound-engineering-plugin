@@ -27,7 +27,7 @@ The MCP feature page is the canonical reference for the `mcp_servers` schema ver
 
 ## How CE installs to Hermes
 
-The CLI converter writes Compound Engineering content into `~/.hermes/skills/` and merges the plugin's MCP servers into `~/.hermes/config.yaml`. Skills, commands, and agents all land under `skills/` because Hermes has no separate command or agent directory — kind is preserved via name prefixes (`cmd-` and `agent-`) and `metadata.hermes.tags`.
+The CLI converter writes Compound Engineering content into `~/.hermes/skills/` and merges the plugin's MCP servers into `~/.hermes/config.yaml`. Skills and commands land under `skills/`; agents land as payload files under `~/.hermes/<pluginName>/agents/`. Commands are preserved via `cmd-` prefix and `metadata.hermes.tags`. Agents are not skills — they are payload files consumed by `delegate_task`.
 
 ```bash
 bunx @every-env/compound-plugin install compound-engineering --to hermes
@@ -48,19 +48,17 @@ bunx @every-env/compound-plugin cleanup --target hermes
 |-------------|-----------|----------------------|
 | Passthrough skill (`plugins/.../skills/<name>/SKILL.md`) | `<name>` | Original frontmatter preserved verbatim. Body rewritten by `transformContentForHermes`. |
 | Command (`plugins/.../commands/<name>.md`, only when not `disableModelInvocation`) | `cmd-<name>` | Generated frontmatter: `name`, `description`, `version`, `metadata.hermes.tags: ["Command"]`. |
-| Agent (`plugins/.../agents/<name>.md`) | `agent-<name>` | Generated frontmatter: `name`, `description`, `version`, `metadata.hermes.tags: ["Agent"]`. `capabilities` folded into a `## Capabilities` body section. |
 
-The skill name prefix is the load-bearing kind identifier. `metadata.hermes.tags: ["Command" | "Agent"]` is advisory and may be ignored by future Hermes versions; the prefix preserves kind regardless.
+The skill name prefix is the load-bearing kind identifier. `metadata.hermes.tags: ["Command"]` is advisory and may be ignored by future Hermes versions; the prefix preserves kind regardless.
 
 ### Frontmatter mapping for generated skills
 
 | Claude field | Hermes field | Notes |
 |--------------|--------------|-------|
-| `name` | `name` | Prefixed with `cmd-` or `agent-` |
+| `name` | `name` | Prefixed with `cmd-` |
 | `description` | `description` | JSON-quoted when value contains `:` / `[` / `{` / `*` / leading `"` |
 | _plugin manifest version_ | `version` | Read from `plugin.json` `version` |
-| _kind_ | `metadata.hermes.tags` | `["Command"]` or `["Agent"]` |
-| `capabilities` (agents only) | _body_ | Folded as `## Capabilities\n- ...` above the original body |
+| _kind_ | `metadata.hermes.tags` | `["Command"]` |
 | `model` | _dropped_ | Hermes routes models via `config.yaml`'s top-level `model` field |
 | `argument-hint` | _dropped_ | No Hermes equivalent |
 | `allowedTools`, `disableModelInvocation` | _dropped_ | Claude-specific; not part of Hermes' contract |
@@ -71,8 +69,8 @@ The converter applies `transformContentForHermes` to every emitted body:
 
 | Pattern | Rewrite |
 |---------|---------|
-| `Task <agent-name>(args)` | `Use the <agent-name> skill to: args` |
-| `Task <agent-name>()` | `Use the <agent-name> skill` |
+| `Task <agent-name>(args)` | `Delegate to the \`<agent-name>\` agent via the \`delegate_task\` tool. Read the agent's prompt at \`~/.hermes/<pluginName>/agents/<agent-name>.md\` and use it as the \`context\` argument. Set \`goal\` to: args. Use the toolsets declared in the payload's frontmatter.` |
+| `Task <agent-name>()` | Same, but `goal` falls back to "a one-line summary of the requested work" |
 | `TaskCreate`, `TaskUpdate`, `TaskList`, `TaskGet`, `TaskStop`, `TaskOutput`, `TodoWrite`, `TodoRead` | `the platform's task-tracking primitive` |
 | `${CLAUDE_PLUGIN_ROOT}` / `${CLAUDE_SKILL_DIR}` | `${HERMES_SKILL_DIR}` |
 | `~/.claude/...` / `.claude/...` | `~/.hermes/...` / `.hermes/...` |
@@ -80,6 +78,8 @@ The converter applies `transformContentForHermes` to every emitted body:
 | `/skill:bar` | `/skill:bar` (preserved per existing convention) |
 
 Slash-command rewrites use a negative-lookahead regex with an inline allowlist (`dev`, `tmp`, `etc`, `usr`, `var`, `bin`, `home`, `users`, `opt`, `sys`, `proc`, `Applications`, `Users`) so URLs (`https://example.com/path`), API paths (`POST /users`), shell paths (`/etc/passwd`), and markdown reference-style links (`[text](/path/to/page)`) pass through unchanged.
+
+When 2+ consecutive `Task` lines appear within 3 lines of an "in parallel" / "concurrently" / "in a batch" trigger, a single batch trailer is appended: `(Use \`delegate_task(tasks=[...])\` to dispatch the agents above concurrently...)`.
 
 ## Commands
 
@@ -89,9 +89,18 @@ Commands with `disableModelInvocation: true` are **dropped** at conversion time 
 
 ## Agents
 
-Agents emit as skills with `metadata.hermes.tags: ["Agent"]` and an `agent-` prefix. `capabilities` is folded into a `## Capabilities` section above the original body. The Claude `model` field is dropped — Hermes' top-level `config.yaml` `model` field controls routing.
+Agents do NOT emit as skills. They emit as **payload files** at `~/.hermes/<pluginName>/agents/<name>.md`.
 
-Hermes supports a Parallel Sub-Agents primitive that dispatches skills concurrently. CE agents converted to Hermes skills are dispatchable via that primitive without converter-side changes.
+Each payload is a markdown file with YAML frontmatter (`name`, `description`, `version`, `metadata.compound-engineering.{kind, toolsets}`) and a body that is the original Claude agent body run through `transformContentForHermes`.
+
+Orchestrator skills that say `Task ce-foo(args)` in the source get rewritten to prose that instructs the host agent to call `delegate_task` with:
+- `context` = the payload file content (or a `read_file` reference to it)
+- `goal` = the args from the Task call
+- `toolsets` = the toolsets declared in the payload frontmatter
+
+Parallel dispatch is preserved via `delegate_task(tasks=[...])` when the surrounding prose declares "in parallel" or "in a batch".
+
+Why payloads instead of skills? Hermes skills load into the host agent's context. Loading 8 reviewer personas into one context destroys the isolation guarantee that makes `/ce-code-review` fast and accurate. `delegate_task` gives each agent its own isolated session.
 
 ## MCP (Model Context Protocol)
 
@@ -151,12 +160,13 @@ Each install records `~/.hermes/<pluginName>/install-manifest.json`:
   "version": 1,
   "pluginName": "compound-engineering",
   "groups": {
-    "skills": ["ce-plan", "agent-ce-research-analyst", "cmd-ce-plan", "..."]
+    "skills": ["cmd-ce-plan", "ce-code-review", "ce-doc-review"],
+    "agent_payloads": ["ce-security-reviewer", "ce-performance-reviewer"]
   }
 }
 ```
 
-Only the `skills` group is tracked. Reinstall removes manifest-listed skills no longer present in the bundle, then writes the new bundle. User-authored skills not in the manifest are preserved.
+Only the `skills` and `agent_payloads` groups are tracked. Reinstall removes manifest-listed skills and agent payloads no longer present in the bundle, then writes the new bundle. User-authored skills and payloads not in the manifest are preserved.
 
 Multi-plugin coexistence: each plugin gets its own `~/.hermes/<pluginName>/install-manifest.json`. Cleanup of plugin A does not touch plugin B's skills.
 

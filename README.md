@@ -366,6 +366,8 @@ bunx @every-env/compound-plugin cleanup --target qwen
 
 Codex native plugin install currently handles skills, not custom agents. The documented Bun followup is required until Codex supports agents in its native plugin spec.
 
+> **Agents on Hermes:** CE agents map to Hermes' `delegate_task` primitive (parallel sub-agents with isolated contexts). Commands still map to skills. See `docs/specs/hermes.md` for details.
+
 OpenCode, Pi, Gemini, Kiro, and Hermes installs are converter-backed and may change as those target formats evolve. The Hermes target is new in 2026-05; CE workflows that rely on Claude Code's interactive UX (`/ce-work`, `git-commit-push-pr`, any `AskUserQuestion`-driven prompt) will degrade silently on Hermes' autonomous runtime — see `docs/specs/hermes.md` for the documented gap list.
 
 Release versions are owned by release automation. Routine feature PRs should not hand-bump plugin or marketplace manifest versions.
