@@ -5,15 +5,15 @@ import { load as parseYaml } from "js-yaml"
 
 const SKILL_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-dispatch/SKILL.md",
+  "plugins/compound-engineering/skills/ce-dispatch-beta/SKILL.md",
 )
 const TEMPLATE_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-dispatch/references/dispatch-prompt-template.md",
+  "plugins/compound-engineering/skills/ce-dispatch-beta/references/dispatch-prompt-template.md",
 )
 const CONDUCTOR_NOTES_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-dispatch/references/conductor-notes.md",
+  "plugins/compound-engineering/skills/ce-dispatch-beta/references/conductor-notes.md",
 )
 const SETUP_CONFIG_PATH = path.join(
   process.cwd(),
@@ -48,35 +48,44 @@ function parseFrontmatter(md: string): Record<string, unknown> {
   return parseYaml(match[1]) as Record<string, unknown>
 }
 
-describe("ce-dispatch SKILL.md frontmatter", () => {
+describe("ce-dispatch-beta SKILL.md frontmatter", () => {
   const fm = parseFrontmatter(SKILL_BODY)
 
-  test("name is ce-dispatch", () => {
-    expect(fm.name).toBe("ce-dispatch")
+  test("name is ce-dispatch-beta (follows beta-skills framework triplet)", () => {
+    // Beta skills in this plugin follow a triplet: `-beta` directory/name
+    // suffix + `[BETA]` description prefix + `disable-model-invocation: true`
+    // (per docs/solutions/skill-design/beta-skills-framework.md). Promotion
+    // to stable strips all three together. The triplet must be applied
+    // consistently — partial application (e.g., suffix without the flag, or
+    // flag without the suffix) drifts from the convention and breaks both
+    // promotion and the bot's pattern-matching review.
+    expect(fm.name).toBe("ce-dispatch-beta")
   })
 
-  test("description is present and mentions dispatch + plan implementation units", () => {
+  test("description carries [BETA] prefix per the beta-skills framework triplet", () => {
     const description = fm.description
     expect(typeof description).toBe("string")
     const desc = description as string
     expect(desc.length).toBeGreaterThan(40)
     expect(desc.length).toBeLessThanOrEqual(1024)
+    expect(desc.startsWith("[BETA]")).toBe(true)
     expect(desc.toLowerCase()).toContain("dispatch")
     expect(desc.toLowerCase()).toContain("implementation unit")
   })
 
-  test("does not set disable-model-invocation (skill is invoked from ce-plan routing)", () => {
-    // ce-plan's option-4 routing fires `Skill ce-dispatch <plan>` via the
-    // platform's skill-invocation primitive. `disable-model-invocation: true`
-    // would block that exact path (per plugins/compound-engineering/AGENTS.md
-    // "Beta Skills" section: the flag blocks model-initiated invocations via
-    // the Skill tool; only a user typing a slash command bypasses it).
-    // The flag is therefore mutually exclusive with being a callee of another
-    // skill. ce-dispatch is a callee, so the flag must be absent (or false).
-    // Prevent accidental auto-fire instead via the description's specificity
-    // and the required argument, per the AGENTS.md non-beta caveat.
-    const flag = fm["disable-model-invocation"]
-    expect(flag === undefined || flag === false).toBe(true)
+  test("sets disable-model-invocation: true per the beta-skills framework triplet", () => {
+    // Beta skills in this plugin (ce-work-beta, ce-polish-beta, ce-dispatch-beta)
+    // all carry `disable-model-invocation: true`. The flag blocks every
+    // model-initiated invocation via the Skill primitive — only a user
+    // typing the slash command directly fires the skill. This is
+    // intentional: it forces beta skills to be opt-in and prevents the
+    // model from auto-routing to an unstable skill.
+    //
+    // The corollary, asserted in the ce-plan tests below, is that ce-plan's
+    // option-4 routing must NOT use the skill-invocation primitive — it
+    // must instruct the user to type `/ce-dispatch-beta` instead, since
+    // the primitive call would be silently dropped by the model layer.
+    expect(fm["disable-model-invocation"]).toBe(true)
   })
 
   test("argument-hint references plan path with auto-detect fallback", () => {
@@ -185,7 +194,12 @@ describe("dispatch-prompt-template required XML sections", () => {
   }
 
   test("template metadata footer is an HTML comment with required keys", () => {
-    expect(TEMPLATE_BODY).toContain("ce-dispatch-metadata")
+    // The marker uses the beta name (`ce-dispatch-beta-metadata`) per the
+    // beta-skills framework's "internal references" rule: beta skills
+    // reference themselves by their beta names. On promotion to stable,
+    // the framework's checklist re-renames this marker alongside the skill
+    // directory.
+    expect(TEMPLATE_BODY).toContain("ce-dispatch-beta-metadata")
     expect(TEMPLATE_BODY).toContain("plan:")
     expect(TEMPLATE_BODY).toContain("unit_ids:")
     expect(TEMPLATE_BODY).toContain("dependencies:")
@@ -291,36 +305,52 @@ describe("ce-plan post-generation menu surfaces dispatch as a fifth option", () 
     expect(PLAN_HANDOFF_BODY).toMatch(/5\.\s+\*\*Done for now\*\*/)
   })
 
-  test("plan-handoff.md routes the dispatch option to the ce-dispatch skill", () => {
-    // Routing bullet (not the menu list) names ce-dispatch and the plan path
+  test("plan-handoff.md routes the dispatch option to a user-typed /ce-dispatch-beta", () => {
+    // ce-dispatch-beta carries `disable-model-invocation: true` per the
+    // beta-skills framework triplet, which blocks the platform's
+    // skill-invocation primitive. The routing must therefore tell the user
+    // to type the slash command directly — firing the primitive in this
+    // case would be silently dropped by the model layer (the bug Codex
+    // Comment 12 / P1 flagged).
     expect(PLAN_HANDOFF_BODY).toContain(
       "- **Dispatch to external agents** ->",
     )
-    expect(PLAN_HANDOFF_BODY.toLowerCase()).toContain("ce-dispatch")
-    // Inline routing must name the platform's skill-invocation primitive
-    // (per docs/solutions/skill-design/post-menu-routing-belongs-inline-2026-04-28.md)
-    expect(PLAN_HANDOFF_BODY).toContain("skill-invocation primitive")
+    // Routing must reference the beta slash command, not the bare skill name.
+    expect(PLAN_HANDOFF_BODY).toContain("/ce-dispatch-beta")
+    // Routing must name the disable-model-invocation flag so future
+    // editors understand WHY the routing isn't a Skill primitive call.
+    expect(PLAN_HANDOFF_BODY).toContain("disable-model-invocation")
+    // Routing must NOT instruct the model to fire the primitive — that
+    // path is blocked. The phrase "Skill ce-dispatch-beta" is acceptable
+    // only when explicitly negated ("do NOT attempt Skill ce-dispatch-beta").
+    const dispatchBullet = PLAN_HANDOFF_BODY.match(
+      /-\s+\*\*Dispatch to external agents\*\*[^\n]+/,
+    )!
+    expect(dispatchBullet[0]).toMatch(
+      /(?:do not|don't|do \*\*not\*\*|do[^a-z]*\*\*not\*\*).{0,40}Skill ce-dispatch/i,
+    )
   })
 
-  test("ce-plan SKILL.md inline routing fires ce-dispatch (not just text)", () => {
-    // The inline routing in SKILL.md must also name the skill-invocation
-    // primitive so an agent that hasn't loaded plan-handoff.md still routes
-    // correctly. Mirrors the regression guard from
-    // tests/skills/ce-plan-handoff-routing.test.ts.
+  test("ce-plan SKILL.md inline routing tells the user to type /ce-dispatch-beta", () => {
+    // The inline routing in SKILL.md must mirror the plan-handoff.md
+    // routing so an agent that hasn't loaded the reference still routes
+    // correctly. With disable-model-invocation: true on ce-dispatch-beta,
+    // the inline routing must NOT call the skill-invocation primitive —
+    // it must end the turn with a one-line user-typed slash instruction.
     const phaseStart = PLAN_SKILL_BODY.indexOf("##### 5.3.8")
     expect(phaseStart).toBeGreaterThan(-1)
     const phaseRegion = PLAN_SKILL_BODY.slice(phaseStart)
     expect(phaseRegion).toMatch(
       /-\s+\*\*Dispatch to external agents\*\*\s*[—\-]+>?\s*[^\n]+/,
     )
-    // Names the primitive and references the plan path
     const dispatchBullet = phaseRegion.match(
       /-\s+\*\*Dispatch to external agents\*\*[^\n]+/,
     )
     expect(dispatchBullet).not.toBeNull()
     const bulletText = dispatchBullet![0]
-    expect(bulletText.toLowerCase()).toContain("skill-invocation primitive")
-    expect(bulletText.toLowerCase()).toContain("plan path")
+    // Inline routing must reference the slash command and the flag.
+    expect(bulletText).toContain("/ce-dispatch-beta")
+    expect(bulletText).toContain("disable-model-invocation")
   })
 })
 
@@ -511,8 +541,9 @@ describe("ce-dispatch SKILL.md regression guards (Codex-flagged bugs)", () => {
     // sibling branch like `dispatch/U3-add-rate-limiter-v2` will collide with
     // a search for `dispatch/U3-add-rate-limiter`. The status check must
     // post-filter the candidate rows so only those whose headRefName equals
-    // the expected_branch survive, and must fall back to a linked-issue query
-    // when no candidate survives (e.g., the workspace renamed the branch).
+    // the expected_branch survive, and must fall back to a body-content
+    // search keyed on the U-ID when no candidate survives (e.g., the
+    // workspace renamed the branch).
     const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
     const phase4Region = SKILL_BODY.slice(phase4Start)
     const statusBlockMatch = phase4Region.match(
@@ -525,9 +556,38 @@ describe("ce-dispatch SKILL.md regression guards (Codex-flagged bugs)", () => {
     // Must require headRefName is part of the --json projection so the post-
     // filter is possible.
     expect(statusBlock).toMatch(/headRefName/)
-    // Must describe an exact-match filter and a linked-issue fallback.
+    // Must describe an exact-match filter.
     expect(statusBlock).toMatch(/exact[-\s]?match/i)
-    expect(statusBlock).toMatch(/linked-issue/)
+    // Must fall back to a body-content search keyed on the U-ID. The
+    // `Unit ID:` line in the PR body (per the dispatch prompt template's
+    // output contract) is the durable correlation key when branch-rename
+    // breaks the head-search path.
+    expect(statusBlock).toMatch(/in:body/)
+    expect(statusBlock).toMatch(/Unit ID/)
+  })
+
+  test("Phase 4 status check does NOT use the invalid linked-issue: qualifier", () => {
+    // Codex Comment 15 / P1: GitHub's documented PR-search qualifier is
+    // `linked:issue` (a flag returning all PRs linked to any issue), NOT
+    // `linked-issue:<n>` (no per-issue lookup syntax exists). An earlier
+    // draft used `--search "linked-issue:<issue_number>"` as a fallback,
+    // which would silently match nothing and leave units stuck. The
+    // skill must use a documented GitHub-search qualifier (e.g., the
+    // `in:body` content-search keyed on the U-ID line).
+    //
+    // The skill may *describe* the bad qualifier in negative prose
+    // (e.g., "Do not use --search \"linked-issue:<n>\"") for context, but
+    // must not pass it to gh as an actual code-block invocation. The
+    // regex matches only when `gh pr list` and `linked-issue:` co-occur
+    // inside a single inline-code span (no backtick boundary between
+    // them) — that's the shape of an actual invocation. Negative-prose
+    // mentions, where `linked-issue:` lives in its own inline-code span
+    // separate from any `gh pr list`, don't trigger.
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    const phase4Region = SKILL_BODY.slice(phase4Start)
+    const ghInvocations =
+      phase4Region.match(/gh pr list[^`\n]*--search[^`\n]*linked-issue:/g) ?? []
+    expect(ghInvocations.length).toBe(0)
   })
 
   test("Phase 4 status check retries on transient mergeable: UNKNOWN", () => {
@@ -613,6 +673,74 @@ describe("ce-dispatch SKILL.md regression guards (Codex-flagged bugs)", () => {
     const mergeBlock = mergeBlockMatch![0]
     // The post-merge sync's git fetch must carry --prune.
     expect(mergeBlock).toMatch(/git fetch origin --prune/)
+  })
+
+  test("SKILL.md does not reference files outside its own directory tree", () => {
+    // Codex Comment 17 / P1: AGENTS.md "File References in Skills" rule —
+    // each skill directory is self-contained. SKILL.md must only reference
+    // files under its own directory tree (`references/`, `assets/`,
+    // `scripts/`). External references (sibling skills, plugin AGENTS.md,
+    // absolute paths, parent-traversal `../`) break runtime resolution
+    // and converter portability. The earlier draft pointed at
+    // `plugins/compound-engineering/AGENTS.md` for the option-overflow
+    // exception — that rule must be inlined here instead.
+    //
+    // Allowed prose mentions: docs/solutions/* (informational, not
+    // load-bearing), agent names like ce-code-review (not file paths),
+    // and references/* (under our own directory tree).
+    //
+    // Disallowed: plugins/.../AGENTS.md, plugins/.../skills/<other>/...,
+    // ../<other-skill>/, /home/.../skills/, ~/.claude/...
+    const externalPlugin = SKILL_BODY.match(
+      /plugins\/[^\/\s`'"]+\/(?:AGENTS\.md|CLAUDE\.md|skills\/[^\/\s`'"]+\/)/g,
+    ) ?? []
+    // Filter out our own skill's path (which is fine to mention).
+    const offendingPlugin = externalPlugin.filter(
+      (m) => !m.includes("ce-dispatch-beta"),
+    )
+    expect(offendingPlugin).toEqual([])
+    // No parent-traversal into a sibling skill.
+    expect(SKILL_BODY).not.toMatch(/\.\.\/(?:[^\/\s`'"]+\/)+SKILL\.md/)
+    // No absolute paths into the user's filesystem or plugin cache.
+    expect(SKILL_BODY).not.toMatch(/\/home\/[^\/\s`'"]+\/[^\s`'"]*skills/)
+    expect(SKILL_BODY).not.toMatch(/~\/\.claude\/plugins/)
+  })
+
+  test("dispatched_units exposes pr as a sub-object with consistent shape", () => {
+    // The unit's PR slot must be a single sub-object whose shape is
+    // declared once and read consistently everywhere. Phase 3 init must
+    // declare `pr: null` (or equivalent), Phase 4 status check must
+    // populate `pr` as a sub-object (not flat siblings like `pr_number`,
+    // `pr_state`, etc.), and the dependency-graph render must read
+    // `pr.number` (not a flat `pr_number`). Splitting state across two
+    // namespaces re-introduces the same casing-class bug as the lifecycle
+    // enum, where merge-routing writes one shape and graph-render reads
+    // the other.
+    const phase3Start = SKILL_BODY.indexOf("### Phase 3:")
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    const phase3Region = SKILL_BODY.slice(phase3Start, phase4Start)
+    const phase4Region = SKILL_BODY.slice(phase4Start)
+    // Phase 3 must declare `pr: null` as the initial slot.
+    expect(phase3Region).toMatch(/pr:\s*null/)
+    // Phase 4 status check must populate `pr` as a sub-object whose
+    // documented keys include number/state/mergeable/ci_rollup.
+    const statusBlockMatch = phase4Region.match(
+      /\*\*Check PR status \(1\)\*\*[\s\S]*?(?=\n- \*\*[A-Z])/,
+    )!
+    const statusBlock = statusBlockMatch[0]
+    expect(statusBlock).toMatch(/\.pr\b|`pr`\s*(?:as|sub-?object)/i)
+    expect(statusBlock).toMatch(/\bnumber\b/)
+    expect(statusBlock).toMatch(/\bmergeable\b/)
+    // Graph render must read pr.number (not flat pr_number).
+    const graphBlockMatch = phase4Region.match(
+      /\*\*Show dependency graph \(5\)\*\*[\s\S]*?(?=\n- \*\*[A-Z]|\n\nIf the user)/,
+    )!
+    const graphBlock = graphBlockMatch[0]
+    expect(graphBlock).toMatch(/pr\.number/)
+    // Flat `pr_number` (a top-level scalar field) must not appear as the
+    // canonical placeholder in the graph render — that was the drift the
+    // P20 audit caught.
+    expect(graphBlock).not.toMatch(/<pr_number>/)
   })
 
   test("Phase 3 documents gh issue create label-missing as an error", () => {
