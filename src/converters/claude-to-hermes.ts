@@ -8,6 +8,7 @@ import {
 import type {
   HermesBundle,
   HermesGeneratedSkill,
+  HermesAgentPayload,
   HermesMcpConfig,
   HermesMcpServer,
 } from "../types/hermes"
@@ -60,8 +61,11 @@ export function convertClaudeToHermes(
     generatedSkills.push(convertCommand(command, plugin, usedSkillNames))
   }
 
+  const agentPayloads: HermesAgentPayload[] = []
+  const usedPayloadNames = new Set<string>()
+
   for (const agent of plugin.agents) {
-    generatedSkills.push(convertAgent(agent, plugin, usedSkillNames))
+    agentPayloads.push(convertAgentPayload(agent, plugin, usedPayloadNames))
   }
 
   const passthroughSkills = platformSkills.map((skill) => ({
@@ -79,6 +83,7 @@ export function convertClaudeToHermes(
     pluginName: plugin.manifest.name,
     passthroughSkills,
     generatedSkills,
+    agentPayloads,
     mcpConfig,
     droppedCommands,
     skippedMcpServers,
@@ -109,27 +114,39 @@ function convertCommand(
   return { name, content, kind: "command" }
 }
 
-function convertAgent(
+function convertAgentPayload(
   agent: ClaudeAgent,
   plugin: ClaudePlugin,
   usedNames: Set<string>,
-): HermesGeneratedSkill {
-  const baseName = sanitizeHermesName(agent.name)
-  const name = uniqueName(`agent-${baseName}`, usedNames)
+): HermesAgentPayload {
+  const name = uniqueName(sanitizeHermesName(agent.name), usedNames)
   const description = sanitizeDescription(
     agent.description ?? `Converted from Claude agent ${agent.name}`,
   )
 
-  const frontmatter = formatHermesFrontmatter({
-    name,
-    description,
-    version: plugin.manifest.version,
-    tag: "Agent",
-  })
+  const toolsets = mapAgentToolsToToolsets(agent.tools)
+
+  const frontmatterLines = [
+    "---",
+    `name: ${name}`,
+    `description: ${formatYamlValue(description)}`,
+  ]
+  if (plugin.manifest.version !== undefined) {
+    frontmatterLines.push(`version: ${JSON.stringify(plugin.manifest.version)}`)
+  }
+  frontmatterLines.push("metadata:")
+  frontmatterLines.push("  compound-engineering:")
+  frontmatterLines.push("    kind: agent")
+  frontmatterLines.push("    toolsets:")
+  for (const ts of toolsets) {
+    frontmatterLines.push(`      - ${ts}`)
+  }
+  frontmatterLines.push("---")
+  const frontmatter = frontmatterLines.join("\n")
 
   const sections: string[] = []
   if (agent.capabilities && agent.capabilities.length > 0) {
-    const items = agent.capabilities.map((capability) => `- ${capability}`).join("\n")
+    const items = agent.capabilities.map((c) => `- ${c}`).join("\n")
     sections.push(`## Capabilities\n${items}`)
   }
 
@@ -138,10 +155,12 @@ function convertAgent(
     : `Instructions converted from the ${agent.name} agent.`
 
   const combined = [...sections, originalBody].join("\n\n")
-  const body = makeHermesContentTransformer(plugin.manifest.name)(combined)
+  const transform = makeHermesContentTransformer(plugin.manifest.name)
+  const body = transform(combined)
 
   const content = `${frontmatter}\n\n${body}`.trimEnd() + "\n"
-  return { name, content, kind: "agent" }
+
+  return { name, content, toolsets }
 }
 
 function convertMcpServers(
@@ -380,6 +399,45 @@ function uniqueName(base: string, used: Set<string>): string {
  * `-` so the resulting name stays within `[a-z0-9_-]` after `normalizeName`
  * downstream consumers run.
  */
+function mapAgentToolsToToolsets(tools: string | string[] | undefined): string[] {
+  if (tools === "inherit" || tools === undefined || (Array.isArray(tools) && tools.length === 0)) {
+    return ["file", "terminal"]
+  }
+  const input = Array.isArray(tools) ? tools : [tools]
+  const toolsets = new Set<string>()
+  for (const tool of input) {
+    switch (tool) {
+      case "Read":
+      case "Write":
+      case "Edit":
+      case "MultiEdit":
+      case "Glob":
+      case "Grep":
+        toolsets.add("file")
+        break
+      case "Bash":
+        toolsets.add("terminal")
+        break
+      case "WebFetch":
+      case "WebSearch":
+        toolsets.add("web")
+        break
+      case "Task":
+        toolsets.add("delegation")
+        break
+      default:
+        if (tool.startsWith("mcp__")) {
+          const parts = tool.split("__")
+          if (parts.length >= 2) {
+            toolsets.add(`mcp:${parts[1]}`)
+          }
+        }
+        break
+    }
+  }
+  return Array.from(toolsets).length > 0 ? Array.from(toolsets) : ["file", "terminal"]
+}
+
 function sanitizeHermesName(name: string): string {
   const decomposed = name.normalize("NFKD")
   // Strip combining marks (Unicode category Mn).

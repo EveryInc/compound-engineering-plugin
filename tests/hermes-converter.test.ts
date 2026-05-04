@@ -105,8 +105,8 @@ describe("convertClaudeToHermes — happy path", () => {
     })
 
     const bundle = convertClaudeToHermes(plugin, baseOptions)!
-    const agent = bundle.generatedSkills.find((s) => s.kind === "agent")!
-    expect(agent.name).toBe("agent-orchestrator")
+    const agent = bundle.agentPayloads[0]
+    expect(agent.name).toBe("orchestrator")
     const parsed = parseFrontmatter(agent.content)
     expect(parsed.body).toContain("Delegate to the `ce-foo` agent via the `delegate_task` tool")
     expect(parsed.body).toContain("~/.hermes/fixture-plugin/agents/ce-foo.md")
@@ -127,8 +127,8 @@ describe("convertClaudeToHermes — happy path", () => {
     })
 
     const bundle = convertClaudeToHermes(plugin, baseOptions)!
-    const agent = bundle.generatedSkills[0]
-    expect(agent.name).toBe("agent-research-analyst")
+    const agent = bundle.agentPayloads[0]
+    expect(agent.name).toBe("research-analyst")
     const parsed = parseFrontmatter(agent.content)
     // parseFrontmatter preserves the blank line between closing `---` and body,
     // so trim before structural assertion (matches `formatFrontmatter`'s shape).
@@ -149,7 +149,7 @@ describe("convertClaudeToHermes — happy path", () => {
     })
 
     const bundle = convertClaudeToHermes(plugin, baseOptions)!
-    const parsed = parseFrontmatter(bundle.generatedSkills[0].content)
+    const parsed = parseFrontmatter(bundle.agentPayloads[0].content)
     expect(parsed.data.description).toBe("Converted from Claude agent lone-agent")
   })
 
@@ -274,11 +274,11 @@ describe("convertClaudeToHermes — edge cases", () => {
     })
 
     const bundle = convertClaudeToHermes(plugin, baseOptions)!
-    const generated = bundle.generatedSkills[0]
-    const parsed = parseFrontmatter(generated.content)
+    const payload = bundle.agentPayloads[0]
+    const parsed = parseFrontmatter(payload.content)
     expect(parsed.data.model).toBeUndefined()
     // And no stray `model:` line in raw content either.
-    expect(generated.content).not.toContain("\nmodel:")
+    expect(payload.content).not.toContain("\nmodel:")
   })
 
   test("collision: two agents both normalize to 'code-reviewer' get -2 suffix", () => {
@@ -300,8 +300,8 @@ describe("convertClaudeToHermes — edge cases", () => {
     })
 
     const bundle = convertClaudeToHermes(plugin, baseOptions)!
-    const names = bundle.generatedSkills.map((s) => s.name)
-    expect(names).toEqual(["agent-code-reviewer", "agent-code-reviewer-2"])
+    const names = bundle.agentPayloads.map((p) => p.name)
+    expect(names).toEqual(["code-reviewer", "code-reviewer-2"])
   })
 
   test("non-ASCII skill name 'ce:plán' (combining mark) sanitizes to 'ce-plan' via NFKD wrapper", () => {
@@ -449,12 +449,10 @@ describe("convertClaudeToHermes — integration", () => {
     // disableModelInvocation tracked on the bundle.
     expect(bundle!.droppedCommands).toContain("deploy-docs")
 
-    // Agents present, prefixed with agent-.
-    const agentNames = bundle!.generatedSkills
-      .filter((s) => s.kind === "agent")
-      .map((s) => s.name)
-    expect(agentNames).toContain("agent-repo-research-analyst")
-    expect(agentNames).toContain("agent-security-sentinel")
+    // Agents present as payloads (no prefix).
+    const agentNames = bundle!.agentPayloads.map((p) => p.name)
+    expect(agentNames).toContain("repo-research-analyst")
+    expect(agentNames).toContain("security-sentinel")
 
     // MCP config carries both fixture entries.
     expect(bundle!.mcpConfig?.mcp_servers).toEqual({
@@ -585,14 +583,14 @@ describe("transformContentForHermes — regressions", () => {
     })
 
     const bundle = convertClaudeToHermes(plugin, baseOptions)!
-    const generated = bundle.generatedSkills[0]
+    const payload = bundle.agentPayloads[0]
     // The colon-bearing description must be JSON-quoted; otherwise YAML
     // parsing would treat the leading word as a key.
-    expect(generated.content).toContain(
+    expect(payload.content).toContain(
       'description: "Use this for: deep dives into systems"',
     )
     // And the parsed-back data round-trips to the original string.
-    const parsed = parseFrontmatter(generated.content)
+    const parsed = parseFrontmatter(payload.content)
     expect(parsed.data.description).toBe("Use this for: deep dives into systems")
   })
 })
