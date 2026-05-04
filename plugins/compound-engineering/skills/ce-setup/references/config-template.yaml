@@ -11,6 +11,16 @@
 # work_delegate_model: gpt-5.4   # any valid codex model (omit to use ~/.codex/config.toml default)
 # work_delegate_effort: high     # minimal | low | medium | high | xhigh (omit to use ~/.codex/config.toml default)
 
+# --- Dispatch (external workspace delegation) ---
+# Settings for /ce-dispatch, which fans out plan implementation units to
+# external agent workspaces (e.g., Conductor) via GitHub issues.
+
+# dispatch_mode: conductor       # conductor | <other identifier> (default: conductor)
+# dispatch_branch_prefix: dispatch/   # branch prefix suggested in dispatch prompts (default: dispatch/)
+# dispatch_base_branch: main     # PR base branch (default: repo default branch)
+# dispatch_labels: ce-dispatch   # comma-separated labels applied to created issues (default: ce-dispatch)
+# dispatch_auto_review: true     # true | false (default: true) -- auto-run ce-code-review on each new PR
+
 # --- Product pulse ---
 # Settings written by /ce-product-pulse first-run interview. Re-run the skill with
 # argument `setup` or `reconfigure` to edit interactively.
