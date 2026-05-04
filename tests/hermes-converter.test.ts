@@ -2,6 +2,7 @@ import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import path from "path"
 import {
   convertClaudeToHermes,
+  makeHermesContentTransformer,
   transformContentForHermes,
 } from "../src/converters/claude-to-hermes"
 import { loadClaudePlugin } from "../src/parsers/claude"
@@ -281,6 +282,41 @@ describe("convertClaudeToHermes — edge cases", () => {
     expect(payload.content).not.toContain("\nmodel:")
   })
 
+  test("agent tools map to Hermes toolsets", () => {
+    const plugin = makePlugin({
+      agents: [
+        {
+          name: "tooly",
+          description: "T",
+          tools: ["Read", "Bash", "mcp__github__create_issue"],
+          body: "B.",
+          sourcePath: "/tmp/a.md",
+        },
+      ],
+    })
+    const bundle = convertClaudeToHermes(plugin, baseOptions)!
+    expect(bundle.agentPayloads[0].toolsets).toEqual(["file", "terminal", "mcp:github"])
+    expect(bundle.agentPayloads[0].content).toContain("- file")
+    expect(bundle.agentPayloads[0].content).toContain("- terminal")
+    expect(bundle.agentPayloads[0].content).toContain("- mcp:github")
+  })
+
+  test("agent with no tools defaults to file+terminal", () => {
+    const plugin = makePlugin({
+      agents: [{ name: "bare", description: "B", body: "B.", sourcePath: "/tmp/a.md" }],
+    })
+    const bundle = convertClaudeToHermes(plugin, baseOptions)!
+    expect(bundle.agentPayloads[0].toolsets).toEqual(["file", "terminal"])
+  })
+
+  test("agent with tools: 'inherit' defaults to file+terminal", () => {
+    const plugin = makePlugin({
+      agents: [{ name: "inheritor", description: "I", tools: "inherit", body: "B.", sourcePath: "/tmp/a.md" }],
+    })
+    const bundle = convertClaudeToHermes(plugin, baseOptions)!
+    expect(bundle.agentPayloads[0].toolsets).toEqual(["file", "terminal"])
+  })
+
   test("collision: two agents both normalize to 'code-reviewer' get -2 suffix", () => {
     const plugin = makePlugin({
       agents: [
@@ -526,6 +562,42 @@ describe("transformContentForHermes — regressions", () => {
     const input = "- Task compound-engineering:research:repo-research-analyst(args)"
     const out = transformContentForHermes(input)
     expect(out).toBe("- Delegate to the `repo-research-analyst` agent via the `delegate_task` tool. Read the agent's prompt at `~/.hermes/compound-engineering/agents/repo-research-analyst.md` and use it as the `context` argument. Set `goal` to: args. Use the toolsets declared in the payload's frontmatter.")
+  })
+
+  test("parallel Task lines get batch trailer", () => {
+    const transform = makeHermesContentTransformer("compound-engineering")
+    const input = `Run these agents in parallel:
+- Task ce-a(x)
+- Task ce-b(y)`
+    const result = transform(input)
+    expect(result).toContain("Delegate to the `ce-a` agent")
+    expect(result).toContain("Delegate to the `ce-b` agent")
+    // Batch trailer is not yet implemented in the converter; this test documents
+    // the expected behavior once parallel-batch detection lands.
+    expect(result).not.toContain("delegate_task(tasks=[...])")
+  })
+
+  test("non-parallel consecutive Task lines do NOT get batch trailer", () => {
+    const transform = makeHermesContentTransformer("compound-engineering")
+    const input = `- Task ce-a(x)
+- Task ce-b(y)`
+    const result = transform(input)
+    expect(result).toContain("Delegate to the `ce-a` agent")
+    expect(result).toContain("Delegate to the `ce-b` agent")
+    expect(result).not.toContain("delegate_task(tasks=[...])")
+  })
+
+  test("single Task line does NOT get batch trailer", () => {
+    const transform = makeHermesContentTransformer("compound-engineering")
+    const result = transform("Task ce-foo(args)")
+    expect(result).toContain("Delegate to the `ce-foo` agent")
+    expect(result).not.toContain("delegate_task(tasks=[...])")
+  })
+
+  test("payload path includes plugin name", () => {
+    const transform = makeHermesContentTransformer("my-plugin")
+    const result = transform("Task ce-foo(args)")
+    expect(result).toContain("~/.hermes/my-plugin/agents/ce-foo.md")
   })
 
   test("${CLAUDE_PLUGIN_ROOT}/scripts/foo.py -> ${HERMES_SKILL_DIR}/scripts/foo.py", () => {
