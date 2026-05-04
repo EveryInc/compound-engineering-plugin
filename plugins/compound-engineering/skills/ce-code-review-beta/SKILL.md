@@ -78,7 +78,7 @@ Store the resolved state for downstream consumption:
 
 - **`mode:report-only`**: delegation is disabled. Report-only is strictly read-only with no run-id and no artifacts; the delegation workflow always writes prompt files, schema files, and artifact JSON. If both flags are present, set `delegation_active` to false silently and continue in report-only's standard subagent path. Note in the report's Coverage that the explicit `delegate:codex` argument was suppressed by report-only.
 - **`mode:headless`**: delegation requires `review_delegate_consent: true` already in the config file (consent prompts are blocking and headless is non-interactive). When `delegate:codex` is passed via argument in headless mode but consent is not recorded, **fail fast with the headless error envelope** rather than silently falling back -- a programmatic caller that asked for delegation needs a machine-readable signal that its argument was ignored. Emit: `Review failed (headless mode). Reason: delegate:codex requested but review_delegate_consent not recorded. Run interactive ce-code-review-beta once to grant consent, or omit delegate:codex.` When delegation is active in headless, surface the lane split in Coverage so callers can verify which reviewers ran where (e.g., `Delegated lane: kieran-rails, julik-frontend-races (codex). Local lane: correctness, security, adversarial, agent-native, learnings (sonnet).`).
-- **`mode:autofix`**: delegation is permitted. Reviewer dispatch is unaffected by autofix's no-question rule; only post-review fix/handoff behavior differs.
+- **`mode:autofix`**: delegation is permitted only when `review_delegate_consent: true` is already recorded. Autofix never prompts for delegation consent; if consent is missing, set `delegation_active` to false, continue in standard mode, and note the suppression in Coverage.
 - **Interactive mode**: delegation prompts for consent the first time; subsequent runs honor the recorded consent.
 
 ## Quick Review Short-Circuit
@@ -476,11 +476,30 @@ Pass the resulting path list to the `project-standards` persona inside a `<stand
 
 When `delegation_active` is true, the delegated lane runs `codex exec` calls outside the harness, so the orchestrator MUST read each delegated persona's `.agent.md` content and inline it into the prompt file the workflow builds (see `references/codex-delegation-workflow.md`). Without this stage, the delegated `<persona>` block ships empty and every delegated reviewer runs as a generic reviewer — silently destroying the value of dispatching specialized personas.
 
-For each reviewer in the delegated lane (the partition computed in Stage 4 Spawning), resolve the persona file path in this order, stopping at the first hit:
+Delegated reviewer IDs are the canonical reviewer IDs from `references/persona-catalog.md`, not the full agent names. Use this exact mapping to resolve the agent file for each selected delegated reviewer:
 
-1. **Plugin-relative path:** `${CLAUDE_PLUGIN_ROOT}/agents/ce-<persona-name>.agent.md`. In Claude Code, `CLAUDE_PLUGIN_ROOT` resolves to the installed plugin root (e.g., `~/.claude/plugins/cache/marketplaces/.../compound-engineering/<version>/`). Read via the native file-read tool (e.g., Read in Claude Code). Codex delegation is gated to Claude Code (see Pre-Delegation Check 0 in the workflow reference), so this variable is always available when this stage runs.
-2. **Repo-relative fallback:** `plugins/compound-engineering/agents/ce-<persona-name>.agent.md` from the current git repo root. This handles development-mode invocations where the skill is loaded via `--plugin-dir` from a checkout of the source repo rather than from the marketplace cache.
-3. **If both paths fail:** mark the reviewer as failed (treat the same as a CLI failure in the workflow's classification table). Record the reason in Coverage as `persona file not found: ce-<persona-name>.agent.md`. Do not attempt to dispatch with an empty `<persona>` block.
+| Reviewer ID | Agent file |
+|-------------|------------|
+| `testing` | `ce-testing-reviewer.agent.md` |
+| `maintainability` | `ce-maintainability-reviewer.agent.md` |
+| `project-standards` | `ce-project-standards-reviewer.agent.md` |
+| `performance` | `ce-performance-reviewer.agent.md` |
+| `api-contract` | `ce-api-contract-reviewer.agent.md` |
+| `data-migrations` | `ce-data-migrations-reviewer.agent.md` |
+| `reliability` | `ce-reliability-reviewer.agent.md` |
+| `previous-comments` | `ce-previous-comments-reviewer.agent.md` |
+| `dhh-rails` | `ce-dhh-rails-reviewer.agent.md` |
+| `kieran-rails` | `ce-kieran-rails-reviewer.agent.md` |
+| `kieran-python` | `ce-kieran-python-reviewer.agent.md` |
+| `kieran-typescript` | `ce-kieran-typescript-reviewer.agent.md` |
+| `julik-frontend-races` | `ce-julik-frontend-races-reviewer.agent.md` |
+| `swift-ios` | `ce-swift-ios-reviewer.agent.md` |
+
+For each reviewer in the delegated lane (the partition computed in Stage 4 Spawning), resolve the mapped agent file path in this order, stopping at the first hit:
+
+1. **Plugin-relative path:** `${CLAUDE_PLUGIN_ROOT}/agents/<mapped-agent-file>`. In Claude Code, `CLAUDE_PLUGIN_ROOT` resolves to the installed plugin root (e.g., `~/.claude/plugins/cache/marketplaces/.../compound-engineering/<version>/`). Read via the native file-read tool (e.g., Read in Claude Code). Codex delegation is gated to Claude Code (see Pre-Delegation Check 0 in the workflow reference), so this variable is always available when this stage runs.
+2. **Repo-relative fallback:** `plugins/compound-engineering/agents/<mapped-agent-file>` from the current git repo root. This handles development-mode invocations where the skill is loaded via `--plugin-dir` from a checkout of the source repo rather than from the marketplace cache.
+3. **If both paths fail:** mark the reviewer as failed (treat the same as a CLI failure in the workflow's classification table). Record the reason in Coverage as `persona file not found: <mapped-agent-file>`. Do not attempt to dispatch with an empty `<persona>` block.
 
 Strip the persona file's YAML frontmatter (the `---` block at the top) before pasting into the prompt — frontmatter is for the harness's agent-routing system and is meaningless to a delegated reviewer. The prose body is what the persona's review behavior depends on.
 
@@ -518,7 +537,7 @@ Omit the `mode` parameter when dispatching sub-agents so the user's configured p
 - **Local lane (always run as in-platform subagents):**
   - **High-stakes (session model, never delegated):** `ce-correctness-reviewer`, `ce-security-reviewer`, `ce-adversarial-reviewer`. These inherit the session model (per Model tiering above) — high-stakes analysis loses capability if downgraded.
   - **Unstructured-output agents:** `ce-agent-native-reviewer`, `ce-learnings-researcher`, `ce-schema-drift-detector`, `ce-deployment-verification-agent`. These produce prose / checklists / unstructured advice — not the findings-JSON shape that `--output-schema` enforces. Stage 6 synthesizes their output separately (see "Preserve CE agent artifacts" in Stage 5). Forcing them through the delegation workflow would either fail schema validation or strip useful prose. Keep them on the orchestrating agent's subagent primitive even when delegation is active.
-- **Delegated lane (run as `codex exec` calls):** every other persona reviewer that was selected in Stage 3 — i.e., the always-on personas `ce-testing-reviewer`, `ce-maintainability-reviewer`, `ce-project-standards-reviewer`, plus any cross-cutting and stack-specific conditionals (`ce-performance-reviewer`, `ce-api-contract-reviewer`, `ce-data-migrations-reviewer`, `ce-reliability-reviewer`, `ce-previous-comments-reviewer`, `ce-dhh-rails-reviewer`, `ce-kieran-rails-reviewer`, `ce-kieran-python-reviewer`, `ce-kieran-typescript-reviewer`, `ce-julik-frontend-races-reviewer`, `ce-swift-ios-reviewer`).
+- **Delegated lane (run as `codex exec` calls):** every other structured persona reviewer that was selected in Stage 3, identified by its canonical reviewer ID from `references/persona-catalog.md` — i.e., the always-on reviewer IDs `testing`, `maintainability`, and `project-standards`, plus any selected cross-cutting and stack-specific reviewer IDs (`performance`, `api-contract`, `data-migrations`, `reliability`, `previous-comments`, `dhh-rails`, `kieran-rails`, `kieran-python`, `kieran-typescript`, `julik-frontend-races`, `swift-ios`). Stage 3c maps these IDs to exact `ce-*.agent.md` files for prompt construction.
 
 These produce findings JSON conforming to `references/findings-schema.json` — the canonical fit for delegation.
 

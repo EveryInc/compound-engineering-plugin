@@ -11,7 +11,7 @@ Before executing this workflow, the orchestrator has already partitioned the rev
 - **Local lane** -- always run as in-platform subagents:
   - High-stakes (session model): `ce-correctness-reviewer`, `ce-security-reviewer`, `ce-adversarial-reviewer`
   - Unstructured-output agents (return prose / checklists, not findings JSON): `ce-agent-native-reviewer`, `ce-learnings-researcher`, `ce-schema-drift-detector`, `ce-deployment-verification-agent`
-- **Delegated lane** -- run via this workflow: every other persona reviewer selected in Stage 3 (the always-on `ce-testing-reviewer`, `ce-maintainability-reviewer`, `ce-project-standards-reviewer`, plus any cross-cutting and stack-specific conditionals selected for the diff)
+- **Delegated lane** -- run via this workflow: every other structured persona reviewer selected in Stage 3, keyed by canonical reviewer ID (`testing`, `maintainability`, `project-standards`, plus any selected cross-cutting and stack-specific reviewer IDs). SKILL.md Stage 3c maps each reviewer ID to the exact `ce-*.agent.md` file before this workflow builds prompts.
 
 Both lanes dispatch concurrently. **Stage 5 merge does not begin until every reviewer in both lanes is terminal** (succeeded with a result OR classified as failed). The orchestrator maintains a per-reviewer status map and verifies all entries are terminal before entering merge — partial early-merge would silently drop slow reviewers.
 
@@ -68,6 +68,12 @@ Otherwise — empty, an unresolved command string, or any other non-path value �
 
 If `consent_granted` is not true (from config `review_delegate_consent`):
 
+- **`mode:autofix` with missing consent**: do not prompt. Set `delegation_active` to false and continue in standard mode. Note in Coverage that delegation was suppressed because `review_delegate_consent` is not recorded.
+- **`mode:headless` with explicit `delegate:codex` argument and no recorded consent**: fail fast with `Review failed (headless mode). Reason: delegate:codex requested but review_delegate_consent not recorded. Run interactive ce-code-review-beta once to grant consent, or omit delegate:codex.` Do not silently fall back — a programmatic caller needs a machine-readable signal that its argument was ignored.
+- **`mode:report-only`**: delegation has already been disabled by SKILL.md mode handling; do not prompt.
+
+Only Interactive mode may present the blocking consent prompt:
+
 Present a one-time consent prompt using the platform's blocking question tool (`AskUserQuestion` in Claude Code; this workflow only runs in Claude Code per Pre-Delegation Check 0). Stem: `Delegate persona reviewers to codex exec in read-only sandbox?` Two options: (1) Yes — enable delegation for this project, (2) No — disable delegation.
 
 The consent prompt's accompanying explanation covers:
@@ -89,7 +95,7 @@ On decline:
 - **`mode:report-only`**: If `delegation_active` is true on entry, set it to false silently and continue in standard mode. Report-only's no-artifact contract is incompatible with the delegation workflow's mandatory scratch and artifact writes. Note the suppression in Coverage so the user sees that `delegate:codex` was overridden by `mode:report-only`.
 - **`mode:headless`** with explicit `delegate:codex` argument and no recorded consent: **fail fast** with `Review failed (headless mode). Reason: delegate:codex requested but review_delegate_consent not recorded. Run interactive ce-code-review-beta once to grant consent, or omit delegate:codex.` Do not silently fall back — a programmatic caller needs a machine-readable signal that its argument was ignored.
 - **`mode:headless`** with `delegate:codex` argument AND recorded consent: proceed normally; surface the lane split in Coverage.
-- **`mode:autofix`**: delegation proceeds normally. Autofix's no-question rule applies to the post-review fix loop, not to delegation pre-checks; consent must already be recorded for autofix runs to delegate.
+- **`mode:autofix`**: delegation proceeds only when consent is already recorded. If consent is missing, set `delegation_active` to false and continue in standard mode; never present a consent prompt.
 
 ## Per-Reviewer Prompt File
 
@@ -150,7 +156,7 @@ Diff:
 
 | Variable | Source |
 |----------|--------|
-| `{persona_content}` | Stage 3c resolved persona file body (frontmatter stripped). If Stage 3c did not run or returned empty, treat as a configuration error and classify the reviewer as failed — do NOT dispatch with an empty `<persona>` block. |
+| `{persona_content}` | Stage 3c resolved persona file body (frontmatter stripped). The delegated reviewer name is the canonical reviewer ID from the Stage 3c mapping (for example `testing`, `kieran-rails`, or `api-contract`), and Stage 3c maps that ID to the exact agent file. If Stage 3c did not run or returned empty, treat as a configuration error and classify the reviewer as failed — do NOT dispatch with an empty `<persona>` block. |
 | `{diff_scope_rules}` | Full content of `references/diff-scope.md` |
 | `{output_contract}` | Full content of `references/subagent-template.md` output-contract section. Modify exactly one line: replace the "Artifact file (when run ID is present)" step with "Skip artifact-file writing — the orchestrator writes the artifact from your returned JSON after the run. Return the FULL JSON via --output-schema, including why_it_matters and evidence." |
 | `{pr_metadata}` | Stage 1 PR metadata (title, body, URL) when available; empty string otherwise |

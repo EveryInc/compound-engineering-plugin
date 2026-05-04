@@ -773,6 +773,61 @@ describe("ce-code-review contract", () => {
   })
 })
 
+describe("ce-code-review-beta contract", () => {
+  test("maps delegated reviewer ids to exact agent files", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review-beta/SKILL.md")
+    const workflow = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/codex-delegation-workflow.md",
+    )
+
+    const mappings = [
+      ["testing", "ce-testing-reviewer.agent.md"],
+      ["maintainability", "ce-maintainability-reviewer.agent.md"],
+      ["project-standards", "ce-project-standards-reviewer.agent.md"],
+      ["performance", "ce-performance-reviewer.agent.md"],
+      ["api-contract", "ce-api-contract-reviewer.agent.md"],
+      ["data-migrations", "ce-data-migrations-reviewer.agent.md"],
+      ["reliability", "ce-reliability-reviewer.agent.md"],
+      ["previous-comments", "ce-previous-comments-reviewer.agent.md"],
+      ["dhh-rails", "ce-dhh-rails-reviewer.agent.md"],
+      ["kieran-rails", "ce-kieran-rails-reviewer.agent.md"],
+      ["kieran-python", "ce-kieran-python-reviewer.agent.md"],
+      ["kieran-typescript", "ce-kieran-typescript-reviewer.agent.md"],
+      ["julik-frontend-races", "ce-julik-frontend-races-reviewer.agent.md"],
+      ["swift-ios", "ce-swift-ios-reviewer.agent.md"],
+    ]
+
+    expect(content).toContain("Use this exact mapping")
+    expect(workflow).toContain("canonical reviewer ID")
+
+    for (const [reviewerId, agentFile] of mappings) {
+      await expect(readRepoFile(`plugins/compound-engineering/agents/${agentFile}`)).resolves.toContain(
+        `name: ${agentFile.replace(".agent.md", "")}`,
+      )
+      expect(content).toContain(`| \`${reviewerId}\` | \`${agentFile}\` |`)
+    }
+
+    expect(content).not.toContain("ce-<persona-name>.agent.md")
+  })
+
+  test("autofix delegation never prompts for missing consent", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review-beta/SKILL.md")
+    const workflow = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/codex-delegation-workflow.md",
+    )
+
+    expect(content).toContain(
+      "**`mode:autofix`**: delegation is permitted only when `review_delegate_consent: true` is already recorded.",
+    )
+    expect(workflow).toContain(
+      "**`mode:autofix` with missing consent**: do not prompt.",
+    )
+    expect(workflow).toContain(
+      "set `delegation_active` to false and continue in standard mode",
+    )
+  })
+})
+
 describe("testing-reviewer contract", () => {
   test("includes behavioral-changes-with-no-test-additions check", async () => {
     const content = await readRepoFile("plugins/compound-engineering/agents/ce-testing-reviewer.agent.md")
