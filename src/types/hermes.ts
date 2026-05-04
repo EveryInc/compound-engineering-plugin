@@ -3,10 +3,16 @@ export type HermesPassthroughSkill = {
   sourceDir: string
 }
 
+export interface HermesAgentPayload {
+  name: string
+  content: string
+  toolsets: string[]
+}
+
 export type HermesGeneratedSkill = {
   name: string
   content: string
-  kind: "command" | "agent"
+  kind: "command"
 }
 
 export type HermesMcpTools = {
@@ -59,6 +65,7 @@ export type HermesBundle = {
   pluginName?: string
   passthroughSkills: HermesPassthroughSkill[]
   generatedSkills: HermesGeneratedSkill[]
+  agentPayloads: HermesAgentPayload[]
   mcpConfig?: HermesMcpConfig
   droppedCommands: string[]
   skippedMcpServers: string[]
