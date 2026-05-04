@@ -69,7 +69,7 @@ describe("convertClaudeToHermes — happy path", () => {
     expect(bundle!.generatedSkills).toEqual([])
   })
 
-  test("command body Task call rewrites to 'Use the X skill to: args' and skill name uses cmd- prefix", () => {
+  test("command body Task call rewrites to delegate_task prose and skill name uses cmd- prefix", () => {
     const plugin = makePlugin({
       commands: [
         {
@@ -87,7 +87,9 @@ describe("convertClaudeToHermes — happy path", () => {
     expect(generated.name).toBe("cmd-plan")
     expect(generated.kind).toBe("command")
     const parsed = parseFrontmatter(generated.content)
-    expect(parsed.body).toContain("Use the ce-research-analyst skill to: planning context")
+    expect(parsed.body).toContain("Delegate to the `ce-research-analyst` agent via the `delegate_task` tool")
+    expect(parsed.body).toContain("~/.hermes/fixture-plugin/agents/ce-research-analyst.md")
+    expect(parsed.body).toContain("Set `goal` to: planning context.")
   })
 
   test("agent body Task call also rewrites — closes the doc-review-flagged gap that only commands were tested", () => {
@@ -106,7 +108,9 @@ describe("convertClaudeToHermes — happy path", () => {
     const agent = bundle.generatedSkills.find((s) => s.kind === "agent")!
     expect(agent.name).toBe("agent-orchestrator")
     const parsed = parseFrontmatter(agent.content)
-    expect(parsed.body).toContain("Use the ce-foo skill to: args")
+    expect(parsed.body).toContain("Delegate to the `ce-foo` agent via the `delegate_task` tool")
+    expect(parsed.body).toContain("~/.hermes/fixture-plugin/agents/ce-foo.md")
+    expect(parsed.body).toContain("Set `goal` to: args.")
   })
 
   test("agent capabilities fold into a Capabilities section above the original body", () => {
@@ -508,22 +512,22 @@ describe("transformContentForHermes — regressions", () => {
     expect(out).not.toContain("/prompts:")
   })
 
-  test("Task call with quoted/comma args rewrites correctly", () => {
+  test("Task call with quoted/comma args rewrites to delegate_task prose", () => {
     const input = "- Task ce-research-analyst(planning context summary)"
     const out = transformContentForHermes(input)
-    expect(out).toBe("- Use the ce-research-analyst skill to: planning context summary")
+    expect(out).toBe("- Delegate to the `ce-research-analyst` agent via the `delegate_task` tool. Read the agent's prompt at `~/.hermes/compound-engineering/agents/ce-research-analyst.md` and use it as the `context` argument. Set `goal` to: planning context summary. Use the toolsets declared in the payload's frontmatter.")
   })
 
-  test("zero-argument Task call becomes 'Use the X skill' with no args suffix", () => {
+  test("zero-argument Task call becomes delegate_task prose with goal summary hint", () => {
     const input = "- Task ce-research-analyst()"
     const out = transformContentForHermes(input)
-    expect(out).toBe("- Use the ce-research-analyst skill")
+    expect(out).toBe("- Delegate to the `ce-research-analyst` agent via the `delegate_task` tool. Read the agent's prompt at `~/.hermes/compound-engineering/agents/ce-research-analyst.md` and use it as the `context` argument. Set `goal` to a one-line summary of the requested work. Use the toolsets declared in the payload's frontmatter.")
   })
 
   test("namespaced Task agent uses the final segment", () => {
     const input = "- Task compound-engineering:research:repo-research-analyst(args)"
     const out = transformContentForHermes(input)
-    expect(out).toBe("- Use the repo-research-analyst skill to: args")
+    expect(out).toBe("- Delegate to the `repo-research-analyst` agent via the `delegate_task` tool. Read the agent's prompt at `~/.hermes/compound-engineering/agents/repo-research-analyst.md` and use it as the `context` argument. Set `goal` to: args. Use the toolsets declared in the payload's frontmatter.")
   })
 
   test("${CLAUDE_PLUGIN_ROOT}/scripts/foo.py -> ${HERMES_SKILL_DIR}/scripts/foo.py", () => {

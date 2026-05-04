@@ -221,7 +221,8 @@ Run:
       path.join(tempRoot, ".hermes", "skills", "ce-plan", "SKILL.md"),
       "utf8",
     )
-    expect(written).toContain("Use the ce-research-analyst skill to: planning context")
+    expect(written).toContain("Delegate to the `ce-research-analyst` agent via the `delegate_task` tool")
+    expect(written).toContain("~/.hermes/compound-engineering/agents/ce-research-analyst.md")
     expect(written).not.toContain("Task ce-research-analyst(")
     // Original frontmatter preserved.
     expect(written).toContain("name: ce-plan")

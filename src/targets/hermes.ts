@@ -10,7 +10,7 @@ import {
   sanitizePathName,
   writeText,
 } from "../utils/files"
-import { transformContentForHermes } from "../converters/claude-to-hermes"
+import { makeHermesContentTransformer } from "../converters/claude-to-hermes"
 import type { HermesBundle, HermesMcpConfig, HermesMcpServer } from "../types/hermes"
 import { getLegacyHermesArtifacts } from "../data/plugin-legacy-artifacts"
 import {
@@ -181,7 +181,8 @@ export async function writeHermesBundle(
     if (blockedByOtherPlugin.has(skillName)) continue
     const targetDir = path.join(paths.skillsDir, skillName)
     await cleanupCurrentManagedDirectorySafely(targetDir, manifest, "skills", skillName)
-    await copySkillDir(skill.sourceDir, targetDir, transformContentForHermes)
+    const transform = makeHermesContentTransformer(bundle.pluginName ?? "compound-engineering")
+    await copySkillDir(skill.sourceDir, targetDir, transform)
   }
 
   for (const skill of bundle.generatedSkills) {

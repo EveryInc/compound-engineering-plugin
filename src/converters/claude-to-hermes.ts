@@ -103,7 +103,7 @@ function convertCommand(
     tag: "Command",
   })
 
-  const body = transformContentForHermes(command.body.trim())
+  const body = makeHermesContentTransformer(plugin.manifest.name)(command.body.trim())
   const content = `${frontmatter}\n\n${body}`.trimEnd() + "\n"
 
   return { name, content, kind: "command" }
@@ -138,7 +138,7 @@ function convertAgent(
     : `Instructions converted from the ${agent.name} agent.`
 
   const combined = [...sections, originalBody].join("\n\n")
-  const body = transformContentForHermes(combined)
+  const body = makeHermesContentTransformer(plugin.manifest.name)(combined)
 
   const content = `${frontmatter}\n\n${body}`.trimEnd() + "\n"
   return { name, content, kind: "agent" }
@@ -196,98 +196,103 @@ function convertMcpServers(
  *      `/prompts:foo` -> `/foo`); `/skill:bar` preserved; URLs and shell
  *      paths in the allowlist pass through unchanged.
  */
-export function transformContentForHermes(body: string): string {
-  let result = body
+export function makeHermesContentTransformer(pluginName: string): (body: string) => string {
+  return function transformContentForHermes(body: string): string {
+    let result = body
 
-  // 1. Task agent(args) -> "Use the <agent> skill to: <args>" or bare
-  // "Use the <agent> skill" when args absent. Pattern matches Pi exactly so
-  // the same multiline / list-prefix shapes are recognized.
-  const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9:-]*)\(([^)]*)\)/gm
-  result = result.replace(
-    taskPattern,
-    (_match, prefix: string, agentName: string, args: string) => {
-      const finalSegment = agentName.includes(":")
-        ? agentName.split(":").pop()!
-        : agentName
-      const skillName = normalizeName(finalSegment)
-      const trimmedArgs = args.trim().replace(/\s+/g, " ")
-      return trimmedArgs
-        ? `${prefix}Use the ${skillName} skill to: ${trimmedArgs}`
-        : `${prefix}Use the ${skillName} skill`
-    },
-  )
+    // 1. Task agent(args) -> delegate_task prose using pluginName from closure.
+    const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9:-]*)\(([^)]*)\)/gm
+    result = result.replace(
+      taskPattern,
+      (_match, prefix: string, agentName: string, args: string) => {
+        const finalSegment = agentName.includes(":")
+          ? agentName.split(":").pop()!
+          : agentName
+        const agentNameNormalized = normalizeName(finalSegment)
+        const payloadPath = `~/.hermes/${pluginName}/agents/${agentNameNormalized}.md`
+        const trimmedArgs = args.trim().replace(/\s+/g, " ")
+        const goalHint = trimmedArgs
+          ? `Set \`goal\` to: ${trimmedArgs}.`
+          : `Set \`goal\` to a one-line summary of the requested work.`
+        return `${prefix}Delegate to the \`${agentNameNormalized}\` agent via the \`delegate_task\` tool. Read the agent's prompt at \`${payloadPath}\` and use it as the \`context\` argument. ${goalHint} Use the toolsets declared in the payload's frontmatter.`
+      },
+    )
 
-  // 2. Task* and Todo* tools -> platform-generic phrasing.
-  result = result.replace(
-    /\bTask(?:Create|Update|List|Get|Stop|Output)\b/g,
-    "the platform's task-tracking primitive",
-  )
-  result = result.replace(/\bTodoWrite\b/g, "the platform's task-tracking primitive")
-  result = result.replace(/\bTodoRead\b/g, "the platform's task-tracking primitive")
+    // 2. Task* and Todo* tools -> platform-generic phrasing.
+    result = result.replace(
+      /\bTask(?:Create|Update|List|Get|Stop|Output)\b/g,
+      "the platform's task-tracking primitive",
+    )
+    result = result.replace(/\bTodoWrite\b/g, "the platform's task-tracking primitive")
+    result = result.replace(/\bTodoRead\b/g, "the platform's task-tracking primitive")
 
-  // 3. Claude template variables -> Hermes equivalent.
-  result = result.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, "${HERMES_SKILL_DIR}")
-  result = result.replace(/\$\{CLAUDE_SKILL_DIR\}/g, "${HERMES_SKILL_DIR}")
+    // 3. Claude template variables -> Hermes equivalent.
+    result = result.replace(/\$\{CLAUDE_PLUGIN_ROOT\}/g, "${HERMES_SKILL_DIR}")
+    result = result.replace(/\$\{CLAUDE_SKILL_DIR\}/g, "${HERMES_SKILL_DIR}")
 
-  // 4. Path rewrite. Order matters: rewrite ~/.claude/ before .claude/ so
-  // the unanchored second pattern doesn't double-rewrite something we just
-  // touched, then rewrite remaining .claude/ occurrences.
-  // The .claude/ pattern is anchored with a negative lookbehind so values
-  // like `mydomain.claude/path` don't accidentally match.
-  result = result.replace(/~\/\.claude\//g, "~/.hermes/")
-  result = result.replace(/(?<![A-Za-z0-9_-])\.claude\//g, ".hermes/")
+    // 4. Path rewrite. Order matters: rewrite ~/.claude/ before .claude/ so
+    // the unanchored second pattern doesn't double-rewrite something we just
+    // touched, then rewrite remaining .claude/ occurrences.
+    // The .claude/ pattern is anchored with a negative lookbehind so values
+    // like `mydomain.claude/path` don't accidentally match.
+    result = result.replace(/~\/\.claude\//g, "~/.hermes/")
+    result = result.replace(/(?<![A-Za-z0-9_-])\.claude\//g, ".hermes/")
 
-  // 5. Slash-command namespace stripping. Mirrors Pi's negative-lookahead
-  // boundary regex and adds an extended allowlist for path segments the
-  // doc review flagged as false-match risks.
-  const slashCommandPattern = /(?<![:\w])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
-  result = result.replace(slashCommandPattern, (match, commandName: string) => {
-    if (commandName.includes("/")) return match
+    // 5. Slash-command namespace stripping. Mirrors Pi's negative-lookahead
+    // boundary regex and adds an extended allowlist for path segments the
+    // doc review flagged as false-match risks.
+    const slashCommandPattern = /(?<![:\w])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
+    result = result.replace(slashCommandPattern, (match, commandName: string) => {
+      if (commandName.includes("/")) return match
 
-    // First segment of the path (before any `:`); compared against the
-    // allowlist case-insensitively for `Applications` / `Users` etc.
-    const firstSegment = commandName.split(":")[0]
-    const allowlistLower = [
-      "dev",
-      "tmp",
-      "etc",
-      "usr",
-      "var",
-      "bin",
-      "home",
-      "users",
-      "opt",
-      "sys",
-      "proc",
-      "applications",
-    ]
-    if (allowlistLower.includes(firstSegment.toLowerCase())) {
-      return match
-    }
+      // First segment of the path (before any `:`); compared against the
+      // allowlist case-insensitively for `Applications` / `Users` etc.
+      const firstSegment = commandName.split(":")[0]
+      const allowlistLower = [
+        "dev",
+        "tmp",
+        "etc",
+        "usr",
+        "var",
+        "bin",
+        "home",
+        "users",
+        "opt",
+        "sys",
+        "proc",
+        "applications",
+      ]
+      if (allowlistLower.includes(firstSegment.toLowerCase())) {
+        return match
+      }
 
-    if (commandName.startsWith("skill:")) {
-      const skillName = commandName.slice("skill:".length)
-      return `/skill:${normalizeName(skillName)}`
-    }
+      if (commandName.startsWith("skill:")) {
+        const skillName = commandName.slice("skill:".length)
+        return `/skill:${normalizeName(skillName)}`
+      }
 
-    // Only rewrite recognized namespace prefixes. Other colon-containing refs
-    // (`/pr:123`, `/api:v1`, `/issue:42`) pass through unchanged so we don't
-    // corrupt content the converter doesn't own.
-    if (commandName.startsWith("prompts:")) {
-      return `/${normalizeName(commandName.slice("prompts:".length))}`
-    }
-    if (commandName.startsWith("workflows:")) {
-      return `/${normalizeName(commandName.slice("workflows:".length))}`
-    }
-    if (commandName.includes(":")) {
-      return match
-    }
+      // Only rewrite recognized namespace prefixes. Other colon-containing refs
+      // (`/pr:123`, `/api:v1`, `/issue:42`) pass through unchanged so we don't
+      // corrupt content the converter doesn't own.
+      if (commandName.startsWith("prompts:")) {
+        return `/${normalizeName(commandName.slice("prompts:".length))}`
+      }
+      if (commandName.startsWith("workflows:")) {
+        return `/${normalizeName(commandName.slice("workflows:".length))}`
+      }
+      if (commandName.includes(":")) {
+        return match
+      }
 
-    return `/${normalizeName(commandName)}`
-  })
+      return `/${normalizeName(commandName)}`
+    })
 
-  return result
+    return result
+  }
 }
+
+// For tests and any direct callers that don't have pluginName context yet
+export const transformContentForHermes = makeHermesContentTransformer("compound-engineering")
 
 type HermesFrontmatterFields = {
   name: string
