@@ -314,6 +314,57 @@ describe("ce-plan post-generation menu surfaces dispatch as a fifth option", () 
   })
 })
 
+describe("ce-dispatch SKILL.md regression guards (Codex-flagged bugs)", () => {
+  // Both guards target real bugs flagged by the upstream's chatgpt-codex-connector
+  // bot on EveryInc#762. Without these, the original `gh pr list` and
+  // `git symbolic-ref` invocations silently return the wrong data.
+
+  test("Phase 4 status refresh queries merged PRs, not just open ones", () => {
+    // `gh pr list` defaults to open PRs only (CLI manual: "only lists open PRs"
+    // by default). Dispatched PRs merged outside this orchestrator (GitHub UI,
+    // Conductor, another shell) must still be discovered, otherwise the
+    // dependency graph never advances and `Dispatch newly unblocked units`
+    // can stay stuck even after prerequisites are merged. Required: --state all
+    // (or --state merged on a separate pass).
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    expect(phase4Start).toBeGreaterThan(-1)
+    const phase4Region = SKILL_BODY.slice(phase4Start)
+    // Match `gh pr list` invocations (those that include flags/arguments,
+    // identified by the `--search` flag we always pass) and require a state
+    // flag on each. A bare prose mention of `gh pr list` without arguments
+    // is not an invocation and is exempt. Allow `--state all` or
+    // `--state merged`.
+    const ghPrListInvocations =
+      phase4Region.match(/gh pr list[^\n`]*--search[^\n`]*/g) ?? []
+    expect(ghPrListInvocations.length).toBeGreaterThan(0)
+    for (const inv of ghPrListInvocations) {
+      expect(inv).toMatch(/--state (all|merged)/)
+    }
+  })
+
+  test("dispatch_base_branch default uses --short to return a bare branch name", () => {
+    // `git symbolic-ref refs/remotes/origin/HEAD` without --short returns the
+    // full ref path (refs/remotes/origin/main) rather than the bare branch
+    // name (main). That value gets propagated into dispatch metadata / agent
+    // prompt instructions where a plain branch name is expected, breaking
+    // PR-target instructions in dispatched workspaces.
+    const phase0Start = SKILL_BODY.indexOf("### Phase 0:")
+    const phase1Start = SKILL_BODY.indexOf("### Phase 1:")
+    expect(phase0Start).toBeGreaterThan(-1)
+    expect(phase1Start).toBeGreaterThan(phase0Start)
+    const phase0Region = SKILL_BODY.slice(phase0Start, phase1Start)
+    // Every `git symbolic-ref ... refs/remotes/origin/HEAD` invocation in
+    // Phase 0 must include the --short flag.
+    const symbolicRefMatches =
+      phase0Region.match(/git symbolic-ref[^`\n]*refs\/remotes\/origin\/HEAD/g) ??
+      []
+    expect(symbolicRefMatches.length).toBeGreaterThan(0)
+    for (const inv of symbolicRefMatches) {
+      expect(inv).toContain("--short")
+    }
+  })
+})
+
 describe("conductor-notes.md documents key Conductor behavior", () => {
   const requiredHeadings = [
     "Issue-to-workspace lifecycle",

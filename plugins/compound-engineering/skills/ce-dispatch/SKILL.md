@@ -49,7 +49,7 @@ Config keys and resolution:
 |---|---|---|
 | `dispatch_mode` | `conductor`, or another short identifier | `conductor` |
 | `dispatch_branch_prefix` | any string (no leading/trailing slashes) | `dispatch/` |
-| `dispatch_base_branch` | any branch name | repo's default branch (`git symbolic-ref refs/remotes/origin/HEAD`) |
+| `dispatch_base_branch` | any branch name | repo's default branch (`git symbolic-ref --short refs/remotes/origin/HEAD`) |
 | `dispatch_labels` | comma-separated label list | `ce-dispatch` |
 | `dispatch_auto_review` | `true` or `false` | `true` |
 
@@ -164,7 +164,7 @@ Dispatch status: <count merged> / <total units> merged. <count open> open PRs. <
 
 Act on the user's selection — do not just announce it. The bare per-option action lives inline below. Elaborate sub-flows (review tool selection, conflict resolution prose) live further down.
 
-- **Check PR status (1)** — for each dispatched unit, run `gh pr list --search "head:<expected_branch>"` (or query by linked issue if the workspace renamed the branch); for each match, run `gh pr view <number> --json state,mergeable,statusCheckRollup,headRefName`. Update `dispatched_units` with the latest PR number, state (`OPEN`, `MERGED`, `CLOSED`), CI rollup, and mergeable flag. Re-render the loop status line and re-render the menu.
+- **Check PR status (1)** — for each dispatched unit, run `gh pr list --state all --search "head:<expected_branch>"` (or query by linked issue if the workspace renamed the branch); `--state all` is required because `gh pr list` defaults to open PRs only and would otherwise miss PRs merged outside this orchestrator (GitHub UI, Conductor, another shell). For each match, run `gh pr view <number> --json state,mergeable,statusCheckRollup,headRefName`. Update `dispatched_units` with the latest PR number, state (`OPEN`, `MERGED`, `CLOSED`), CI rollup, and mergeable flag. Re-render the loop status line and re-render the menu.
 
 - **Review a PR (2)** — ask the user which U-ID's PR to review (blocking tool single-select from open PRs in `dispatched_units`). Then invoke the `ce-code-review` skill via the platform's skill-invocation primitive (`Skill` in Claude Code, `Skill` in Codex, the equivalent on Gemini/Pi), passing the PR URL as the argument. When `dispatch_auto_review: true`, also auto-trigger this for every newly opened PR before the user is asked to merge it (record per-PR `reviewed: true` so it isn't re-run).
 
