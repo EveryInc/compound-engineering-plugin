@@ -9,7 +9,7 @@
 # work_delegate_sandbox: yolo    # yolo | full-auto (default: yolo)
 # work_delegate_decision: auto   # auto | ask (default: auto)
 # work_delegate_model: gpt-5.4   # any valid codex model (omit to use ~/.codex/config.toml default)
-# work_delegate_effort: high     # minimal | low | medium | high | xhigh — floor (minimum), not a cap; ce-work-beta picks per-batch and applies max(pick, floor). Omit to defer to ~/.codex/config.toml default (medium on stock Codex).
+# work_delegate_effort: high     # minimal | low | medium | high | xhigh — floor, not a cap (omit to use ~/.codex/config.toml default)
 
 # --- Product pulse ---
 # Settings written by /ce-product-pulse first-run interview. Re-run the skill with
