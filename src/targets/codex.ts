@@ -139,21 +139,26 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
   // as Claude Code. Hooks are merged with any existing hooks file to avoid
   // clobbering hooks from other plugins or manual configuration.
   // Always run the merge (even with empty hooks) so previously installed
-  // hooks tagged with this plugin's _source are cleaned up on upgrade.
-  {
+  // managed entries are cleaned up on upgrade.
+  if (pluginName) {
     const hooksPath = path.join(codexRoot, "hooks.json")
     const existingHooks = await readJsonSafe(hooksPath)
     const pluginHooks = bundle.hooks?.hooks ?? {}
     const mergedHooks = mergeCodexHooks(existingHooks, pluginHooks, pluginName)
+    const mergedContent = JSON.stringify(mergedHooks, null, 2) + "\n"
+    const existingContent = existingHooks !== null
+      ? JSON.stringify(existingHooks, null, 2) + "\n"
+      : null
     const hasHooks = Object.keys((mergedHooks.hooks as Record<string, unknown>) ?? {}).length > 0
-    if (hasHooks || existingHooks !== null) {
+    // Only write when content actually changes (avoids backup churn on idempotent re-installs)
+    if ((hasHooks || existingHooks !== null) && mergedContent !== existingContent) {
       if (existingHooks !== null) {
         const backupPath = await backupFile(hooksPath)
         if (backupPath) {
           console.log(`Backed up existing hooks to ${backupPath}`)
         }
       }
-      await writeTextSecure(hooksPath, JSON.stringify(mergedHooks, null, 2) + "\n")
+      await writeTextSecure(hooksPath, mergedContent)
     }
   }
 }
@@ -651,35 +656,70 @@ async function readJsonSafe(filePath: string): Promise<Record<string, unknown> |
 type HookEntry = { matcher?: string; hooks: Array<{ type: string; command?: string; prompt?: string; agent?: string; timeout?: number }> }
 
 /**
- * Merge plugin hooks into an existing .codex/hooks.json, preserving hooks
- * from other sources. Uses a managed-block pattern: each plugin's hooks are
- * tagged with a `_source` field so re-installs can replace them cleanly.
+ * Index tracking which hook entries are managed by which plugin.
+ * Stored as a sibling `_managed` block in hooks.json so hook entry
+ * objects stay schema-clean (no `_source` field injected into runtime data).
+ *
+ * Shape: `{ "<pluginName>": { "<event>": [<index>, ...] } }`
  */
-function mergeCodexHooks(
+type ManagedIndex = Record<string, Record<string, number[]>>
+
+/**
+ * Merge plugin hooks into an existing .codex/hooks.json, preserving hooks
+ * from other sources. Uses a `_managed` index block to track which entries
+ * belong to which plugin, so re-installs can replace them cleanly without
+ * injecting bookkeeping fields into hook entry objects.
+ */
+export function mergeCodexHooks(
   existing: Record<string, unknown> | null,
   pluginHooks: Record<string, HookEntry[]>,
-  pluginName?: string,
+  pluginName: string,
 ): Record<string, unknown> {
-  const source = pluginName ?? "coco"
   const result: Record<string, unknown[]> = {}
+  const managed: ManagedIndex = (existing?._managed as ManagedIndex) ?? {}
 
-  // Preserve existing hooks that aren't from this plugin
+  // Collect indices of entries managed by this plugin (to be removed)
+  const ownedIndices: Record<string, Set<number>> = {}
+  if (managed[pluginName]) {
+    for (const [event, indices] of Object.entries(managed[pluginName])) {
+      ownedIndices[event] = new Set(indices)
+    }
+  }
+
+  // Preserve existing hooks, filtering out this plugin's managed entries
   const existingHooks = (existing?.hooks ?? {}) as Record<string, unknown[]>
   for (const [event, matchers] of Object.entries(existingHooks)) {
     if (!Array.isArray(matchers)) continue
-    result[event] = matchers.filter((m) => {
+    const owned = ownedIndices[event]
+    result[event] = owned
+      ? matchers.filter((_, idx) => !owned.has(idx))
+      : [...matchers]
+  }
+
+  // Also filter out entries with legacy `_source` tag from this plugin
+  // (migration path from the previous `_source`-in-entry format)
+  for (const [event, matchers] of Object.entries(result)) {
+    result[event] = (matchers as Array<Record<string, unknown>>).filter((m) => {
       if (typeof m === "object" && m !== null && "_source" in m) {
-        return (m as Record<string, unknown>)._source !== source
+        return m._source !== pluginName
       }
-      return true // keep hooks without a source tag (manual or other plugins)
+      return true
     })
   }
 
-  // Add this plugin's hooks with source tag
+  // Build new managed index for this plugin
+  const newManagedForPlugin: Record<string, number[]> = {}
+
+  // Add this plugin's hooks (clean entries, no _source field)
   for (const [event, matchers] of Object.entries(pluginHooks)) {
     if (!result[event]) result[event] = []
+    const indices: number[] = []
     for (const matcher of matchers) {
-      result[event].push({ ...matcher, _source: source })
+      indices.push(result[event].length)
+      result[event].push({ ...matcher })
+    }
+    if (indices.length > 0) {
+      newManagedForPlugin[event] = indices
     }
   }
 
@@ -688,5 +728,16 @@ function mergeCodexHooks(
     if (result[event].length === 0) delete result[event]
   }
 
-  return { hooks: result }
+  // Update managed index
+  if (Object.keys(newManagedForPlugin).length > 0) {
+    managed[pluginName] = newManagedForPlugin
+  } else {
+    delete managed[pluginName]
+  }
+
+  const output: Record<string, unknown> = { hooks: result }
+  if (Object.keys(managed).length > 0) {
+    output._managed = managed
+  }
+  return output
 }
