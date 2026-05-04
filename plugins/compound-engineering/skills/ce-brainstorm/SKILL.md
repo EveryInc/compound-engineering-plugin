@@ -14,6 +14,24 @@ The durable output of this workflow is a **requirements document**. In other wor
 
 This skill does not implement code. It explores, clarifies, and documents decisions for later planning or execution.
 
+## Optional Local Config
+
+Read optional machine-local settings from `.compound-engineering/config.local.yaml` in the repo root. Resolve repo root with `git rev-parse --show-toplevel` and read from `<repo-root>/.compound-engineering/config.local.yaml`.
+
+Supported key:
+- `ce_brainstorm_mode` -- `lean` or `standard` (default `standard`)
+
+Fallback rule:
+- If the key is missing, empty, or set to an unrecognized value, use `standard`.
+
+When `ce_brainstorm_mode` resolves to `lean`:
+- Bias toward the shortest useful path to requirements clarity
+- Prefer the Phase 0.2 fast path when requirements are already mostly clear
+- Limit Phase 1.3 to only the highest-impact unresolved questions before moving to Phase 2/3
+- Keep the requirements artifact compact unless the user explicitly asks for deeper exploration
+
+User instruction in the current conversation always overrides local config.
+
 **IMPORTANT: All file references in generated documents must use repo-relative paths (e.g., `src/models/user.rb`), never absolute paths. Absolute paths break portability across machines, worktrees, and teammates.**
 
 ## Core Principles

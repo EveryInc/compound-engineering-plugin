@@ -14,6 +14,24 @@ argument-hint: "[optional: feature description, requirements doc path, plan path
 
 This workflow produces a durable implementation plan. It does **not** implement code, run tests, or learn from execution-time results. If the answer depends on changing code and seeing what happens, that belongs in `ce-work`, not here.
 
+## Optional Local Config
+
+Read optional machine-local settings from `.compound-engineering/config.local.yaml` in the repo root. Resolve repo root with `git rev-parse --show-toplevel` and read from `<repo-root>/.compound-engineering/config.local.yaml`.
+
+Supported key:
+- `ce_plan_research_mode` -- `lean` or `standard` (default `standard`)
+
+Fallback rule:
+- If the key is missing, empty, or set to an unrecognized value, use `standard`.
+
+When `ce_plan_research_mode` resolves to `lean`:
+- Run only `ce-repo-research-analyst` in Phase 1.1 by default
+- Skip `ce-learnings-researcher` unless the user asks for institutional learnings or the change is high-risk
+- Treat external research as opt-in unless the topic is high-risk (security, payments, privacy, migrations, compliance)
+- Keep planning dialog concise and move to plan drafting sooner
+
+User instruction in the current conversation always overrides local config.
+
 ## Interaction Method
 
 When asking the user a question, use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
@@ -196,10 +214,14 @@ Prepare a concise planning context summary (a paragraph or two) to pass as input
 - Otherwise use the feature description directly
 - If `STRATEGY.md` exists, read it and include the relevant pieces (target problem, approach, active tracks) in the summary so downstream research and planning decisions are anchored to product strategy
 
-Run these agents in parallel:
+Dispatch strategy:
 
-- Task ce-repo-research-analyst(Scope: technology, architecture, patterns. {planning context summary})
-- Task ce-learnings-researcher(planning context summary)
+- If `ce_plan_research_mode` resolves to `standard` (default), run these agents in parallel:
+  - Task ce-repo-research-analyst(Scope: technology, architecture, patterns. {planning context summary})
+  - Task ce-learnings-researcher(planning context summary)
+- If `ce_plan_research_mode` resolves to `lean`, run only:
+  - Task ce-repo-research-analyst(Scope: technology, architecture, patterns. {planning context summary})
+  - Skip `ce-learnings-researcher` unless the user explicitly asks for institutional learnings or the topic is high-risk
 Collect:
 - Technology stack and versions (used in section 1.2 to make sharper external research decisions)
 - Architectural patterns and conventions to follow
