@@ -65,8 +65,18 @@ describe("ce-dispatch SKILL.md frontmatter", () => {
     expect(desc.toLowerCase()).toContain("implementation unit")
   })
 
-  test("disable-model-invocation is true (beta skill)", () => {
-    expect(fm["disable-model-invocation"]).toBe(true)
+  test("does not set disable-model-invocation (skill is invoked from ce-plan routing)", () => {
+    // ce-plan's option-4 routing fires `Skill ce-dispatch <plan>` via the
+    // platform's skill-invocation primitive. `disable-model-invocation: true`
+    // would block that exact path (per plugins/compound-engineering/AGENTS.md
+    // "Beta Skills" section: the flag blocks model-initiated invocations via
+    // the Skill tool; only a user typing a slash command bypasses it).
+    // The flag is therefore mutually exclusive with being a callee of another
+    // skill. ce-dispatch is a callee, so the flag must be absent (or false).
+    // Prevent accidental auto-fire instead via the description's specificity
+    // and the required argument, per the AGENTS.md non-beta caveat.
+    const flag = fm["disable-model-invocation"]
+    expect(flag === undefined || flag === false).toBe(true)
   })
 
   test("argument-hint references plan path with auto-detect fallback", () => {
@@ -494,6 +504,115 @@ describe("ce-dispatch SKILL.md regression guards (Codex-flagged bugs)", () => {
       /-\s+\*\*Verification\*\*[^\n]+/,
     )!
     expect(verificationBullet[0]).not.toMatch(/Test scenarios/)
+  })
+
+  test("Phase 4 status check applies an exact-match filter on headRefName", () => {
+    // `gh pr list --search "head:..."` is substring-matched, not exact, so a
+    // sibling branch like `dispatch/U3-add-rate-limiter-v2` will collide with
+    // a search for `dispatch/U3-add-rate-limiter`. The status check must
+    // post-filter the candidate rows so only those whose headRefName equals
+    // the expected_branch survive, and must fall back to a linked-issue query
+    // when no candidate survives (e.g., the workspace renamed the branch).
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    const phase4Region = SKILL_BODY.slice(phase4Start)
+    const statusBlockMatch = phase4Region.match(
+      /\*\*Check PR status \(1\)\*\*[\s\S]*?(?=\n- \*\*[A-Z])/,
+    )
+    expect(statusBlockMatch).not.toBeNull()
+    const statusBlock = statusBlockMatch![0]
+    // Must call out substring-matching as a known caveat.
+    expect(statusBlock).toMatch(/substring-?match/i)
+    // Must require headRefName is part of the --json projection so the post-
+    // filter is possible.
+    expect(statusBlock).toMatch(/headRefName/)
+    // Must describe an exact-match filter and a linked-issue fallback.
+    expect(statusBlock).toMatch(/exact[-\s]?match/i)
+    expect(statusBlock).toMatch(/linked-issue/)
+  })
+
+  test("Phase 4 status check retries on transient mergeable: UNKNOWN", () => {
+    // GitHub computes mergeability asynchronously, so newly-opened PRs report
+    // `mergeable: UNKNOWN` for several seconds after creation. Treating that
+    // value as if it were CONFLICTING or MERGEABLE silently mis-routes the
+    // merge gate. The status check must explicitly retry the mergeable poll
+    // a small number of times before storing UNKNOWN as a final state, and
+    // must surface the unknown state to the user when retries exhaust rather
+    // than coercing it to a known value.
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    const phase4Region = SKILL_BODY.slice(phase4Start)
+    const statusBlockMatch = phase4Region.match(
+      /\*\*Check PR status \(1\)\*\*[\s\S]*?(?=\n- \*\*[A-Z])/,
+    )
+    const statusBlock = statusBlockMatch![0]
+    expect(statusBlock).toMatch(/mergeable[`'"]?:?\s*`?UNKNOWN/i)
+    // Some retry / re-poll language must be present.
+    expect(statusBlock).toMatch(/re-?poll|retry|retries/i)
+    // The skill must explicitly forbid coercing UNKNOWN to a known state.
+    expect(statusBlock).toMatch(/(?:not|never|rather than).{0,40}MERGEABLE/i)
+  })
+
+  test("dispatched_units status uses one canonical lowercase enum across reads and writes", () => {
+    // gh's PR-state JSON returns uppercase enums (`OPEN`, `MERGED`, `CLOSED`),
+    // while the merge-routing block writes the merged status as lowercase
+    // `merged` and the unblock-dispatch / loop-completion routings also key off
+    // the lowercase form. If any read or write uses the uppercase form, a unit
+    // merged via one path is treated as unmerged by the other, causing false
+    // merge blocks or missed unblocking. The skill must declare a single
+    // canonical lowercase taxonomy and explicitly map the uppercase gh enum to
+    // it on ingest, never compare against the uppercase form directly.
+    const phase3Start = SKILL_BODY.indexOf("### Phase 3:")
+    const phase3End = SKILL_BODY.indexOf("### Phase 4:")
+    const phase3Region = SKILL_BODY.slice(phase3Start, phase3End)
+    // Phase 3 must declare the canonical taxonomy.
+    expect(phase3Region).toMatch(/canonical/i)
+    expect(phase3Region).toMatch(/lowercase/i)
+    // Each canonical value should be enumerated as a lowercase backticked token.
+    for (const value of [
+      "pending",
+      "issue_created",
+      "pr_open",
+      "merged",
+      "closed",
+      "failed",
+    ]) {
+      expect(phase3Region).toContain("`" + value + "`")
+    }
+    // The taxonomy must include the explicit gh-state -> lowercase mapping.
+    expect(phase3Region).toMatch(/OPEN[^\n]*pr_open/)
+    expect(phase3Region).toMatch(/MERGED[^\n]*\bmerged\b/)
+    expect(phase3Region).toMatch(/CLOSED[^\n]*\bclosed\b/)
+
+    // Phase 4 must not require an uppercase MERGED for the merge-gate
+    // dependency check. The `MERGED` token may still appear inside the
+    // documented `OPEN -> pr_open` / `MERGED -> merged` / `CLOSED -> closed`
+    // mapping prose (for the gh-side enum), but a literal "in state `MERGED`"
+    // dependency check would re-introduce the bug.
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    const phase4Region = SKILL_BODY.slice(phase4Start)
+    expect(phase4Region).not.toMatch(/state\s+`MERGED`/)
+    // The merge gate must reference the canonical lowercase status field.
+    const mergeBlockMatch = phase4Region.match(
+      /\*\*Merge a PR \(3\)\*\*[\s\S]*?(?=\n- \*\*[A-Z])/,
+    )
+    const mergeBlock = mergeBlockMatch![0]
+    expect(mergeBlock).toMatch(/status:\s*merged/)
+  })
+
+  test("Phase 4 merge sync uses git fetch --prune to clear stale refs", () => {
+    // `gh pr merge --delete-branch` removes the head ref on the remote, but
+    // `git fetch origin` without `--prune` retains the stale local
+    // `origin/<expected_branch>` ref. Subsequent `gh pr list --search
+    // "head:..."` queries can match the stale ref and confuse the orchestrator
+    // about whether a follow-up PR exists. The Phase 4 sync step must use
+    // `git fetch --prune` so deleted branches are swept on the next sync.
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    const phase4Region = SKILL_BODY.slice(phase4Start)
+    const mergeBlockMatch = phase4Region.match(
+      /\*\*Merge a PR \(3\)\*\*[\s\S]*?(?=\n- \*\*[A-Z])/,
+    )
+    const mergeBlock = mergeBlockMatch![0]
+    // The post-merge sync's git fetch must carry --prune.
+    expect(mergeBlock).toMatch(/git fetch origin --prune/)
   })
 
   test("Phase 3 documents gh issue create label-missing as an error", () => {
