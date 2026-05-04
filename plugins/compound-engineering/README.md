@@ -41,6 +41,7 @@ For `/ce-optimize`, see [`skills/ce-optimize/README.md`](./skills/ce-optimize/RE
 |-------|-------------|
 | `/ce-sessions` | Ask questions about session history across Claude Code, Codex, and Cursor |
 | `/ce-slack-research` | Search Slack for interpreted organizational context -- decisions, constraints, and discussion arcs |
+| `ce-riffrec-feedback-analysis` | Convert [Riffrec](https://github.com/kieranklaassen/riffrec) recordings, videos, audio, or notes into structured feedback. Routes between setup, quick bug report, and extensive analysis that hands off to `ce-brainstorm` |
 
 ### Git Workflow
 

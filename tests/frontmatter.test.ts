@@ -107,6 +107,42 @@ describe("frontmatter YAML validity", () => {
           expect(name, `frontmatter name "${name}" must match parent directory "${dirName}"`).toBe(dirName)
           expect(name, `frontmatter name "${name}" must be lowercase a-z, 0-9, and hyphens`).toMatch(/^[a-z0-9-]+$/)
         })
+
+        // All compound-engineering skills (and agents) must use the `ce-` prefix
+        // so they are unambiguously identifiable as compound-engineering
+        // components. See plugins/compound-engineering/AGENTS.md "Naming
+        // Convention". A small allowlist preserves three pre-existing skills
+        // that predate the rule -- no new entries should be added.
+        if (pluginRoot === "plugins/compound-engineering") {
+          const SKILL_PREFIX_ALLOWLIST = new Set([
+            "every-style-editor",
+            "file-todos",
+            "lfg",
+          ])
+          test(`${pluginRoot}/${rel} skill name uses ce- prefix`, () => {
+            const dirName = path.basename(path.dirname(rel))
+            if (SKILL_PREFIX_ALLOWLIST.has(dirName)) return
+            expect(
+              dirName.startsWith("ce-"),
+              `Skill "${dirName}" must use the ce- prefix. ` +
+                `If this is a legacy skill that predates the rule, add it to ` +
+                `SKILL_PREFIX_ALLOWLIST in tests/frontmatter.test.ts.`,
+            ).toBe(true)
+          })
+        }
+      }
+
+      if (
+        pluginRoot === "plugins/compound-engineering" &&
+        /^agents\/[^/]+\.agent\.md$/.test(rel)
+      ) {
+        test(`${pluginRoot}/${rel} agent name uses ce- prefix`, () => {
+          const fileName = path.basename(rel, ".agent.md")
+          expect(
+            fileName.startsWith("ce-"),
+            `Agent "${fileName}" must use the ce- prefix.`,
+          ).toBe(true)
+        })
       }
     }
   }

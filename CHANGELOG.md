@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.5.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.4.2...cli-v3.5.0) (2026-05-04)
+
+
+### Features
+
+* **riffrec-feedback-analysis:** add Riffrec feedback skill with three-path routing ([#747](https://github.com/EveryInc/compound-engineering-plugin/issues/747)) ([dde9256](https://github.com/EveryInc/compound-engineering-plugin/commit/dde9256362db90606d052c662dc8f2f0ae6b620b))
+
 ## [3.4.2](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.4.1...cli-v3.4.2) (2026-05-04)
 
 
