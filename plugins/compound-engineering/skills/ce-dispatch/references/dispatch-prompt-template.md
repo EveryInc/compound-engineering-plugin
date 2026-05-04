@@ -28,8 +28,12 @@ issues -- otherwise prefer one issue per unit.]
 </task>
 
 <files>
-[Combined file list from the unit(s) -- files to create, modify, or read.
-Use the plan's `Files:` section as the source of truth. Repo-relative paths only.]
+[Combined file list from the unit(s) -- files to Create, Modify, or Test.
+Use the plan's `**Files:**` section as the source of truth (canonical sub-bullets:
+`Create:`, `Modify:`, `Test:` -- per the ce-plan unit template). `Read:` is also
+accepted as an alias when the plan was hand-edited or produced outside ce-plan.
+Repo-relative paths only. Do not silently drop `Test:` paths -- they are the
+test files the agent is expected to author or update, not just reference.]
 </files>
 
 <patterns>

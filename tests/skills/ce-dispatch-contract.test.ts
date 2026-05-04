@@ -413,6 +413,108 @@ describe("ce-dispatch SKILL.md regression guards (Codex-flagged bugs)", () => {
     expect(pullIdx).toBeGreaterThan(ghMergeIdx)
     expect(testSuiteIdx).toBeGreaterThan(Math.max(fetchIdx, pullIdx))
   })
+
+  test("Phase 4 merge sync guards dirty working tree and restores branch", () => {
+    // The post-merge sync (`git fetch` + `git checkout <base>` + `git pull`)
+    // can fail or silently overwrite user work if the dispatching session's
+    // working tree is dirty. It can also leave the user displaced from a
+    // feature branch they were on. The merge block must (a) check
+    // `git status --porcelain` before running checkout, and (b) restore the
+    // pre-sync branch (or surface that the working tree was cycled) afterward.
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    const phase4Region = SKILL_BODY.slice(phase4Start)
+    const mergeBlockMatch = phase4Region.match(
+      /\*\*Merge a PR \(3\)\*\*[\s\S]*?(?=\n- \*\*[A-Z])/,
+    )
+    expect(mergeBlockMatch).not.toBeNull()
+    const mergeBlock = mergeBlockMatch![0]
+    // Precondition guard: dirty-tree check before checkout.
+    expect(mergeBlock).toMatch(/git status --porcelain/)
+    const dirtyCheckIdx = mergeBlock.search(/git status --porcelain/)
+    const checkoutIdx = mergeBlock.search(/git checkout <base_branch>/)
+    expect(dirtyCheckIdx).toBeGreaterThan(-1)
+    expect(checkoutIdx).toBeGreaterThan(dirtyCheckIdx)
+    // Branch capture before sync; restore after tests.
+    expect(mergeBlock).toMatch(/git symbolic-ref --short HEAD/)
+    expect(mergeBlock).toMatch(/restore|displaced|cycled/i)
+  })
+
+  test("Phase 0 base-branch default documents an origin/HEAD fallback", () => {
+    // `git symbolic-ref --short refs/remotes/origin/HEAD` exits non-zero on
+    // clones where origin/HEAD was never set (bare clones, fresh
+    // `git clone --no-checkout`, some CI checkouts). The default-resolution
+    // table assumed it always succeeds. Must document a fallback (parsing
+    // `git remote show origin`, defaulting to `main`, or both).
+    const phase0Start = SKILL_BODY.indexOf("### Phase 0:")
+    const phase1Start = SKILL_BODY.indexOf("### Phase 1:")
+    const phase0Region = SKILL_BODY.slice(phase0Start, phase1Start)
+    const baseBranchRow = phase0Region.match(
+      /\| `dispatch_base_branch` \|[^\n]+/,
+    )
+    expect(baseBranchRow).not.toBeNull()
+    // Either a parse of `git remote show origin` or a default-to-main, with a
+    // user-facing warning, must be documented in the default cell.
+    expect(baseBranchRow![0]).toMatch(
+      /git remote show origin|default(?:s)? to `?main`?/,
+    )
+  })
+
+  test("Phase 1 Files field captures Test paths (not just Read)", () => {
+    // ce-plan emits Files as `Create:` / `Modify:` / `Test:` (per its unit
+    // template), but the original parse rule listed them as `Create, Modify,
+    // Read`. Test files therefore got dropped from the parallel-safety
+    // file-to-unit map (Phase 1.3) and from the dispatch prompt's `<files>`
+    // section, masking real test-file overlap between dispatched units.
+    const phase1Start = SKILL_BODY.indexOf("### Phase 1:")
+    const phase2Start = SKILL_BODY.indexOf("### Phase 2:")
+    const phase1Region = SKILL_BODY.slice(phase1Start, phase2Start)
+    const filesBullet = phase1Region.match(/-\s+\*\*Files\*\*[^\n]+/)
+    expect(filesBullet).not.toBeNull()
+    // Must explicitly name `Test:` as a captured sub-bullet.
+    expect(filesBullet![0]).toMatch(/`Test:`/)
+    // Phase 1.3 already says "Test paths" — keep that consistent.
+    expect(phase1Region).toMatch(/Create, Modify, and Test paths/)
+  })
+
+  test("Phase 1 captures Test scenarios separately from Verification", () => {
+    // Phase 2 substitutes `<testing>` with the unit's test scenarios and
+    // `<verify>` with the project's test/lint commands — different prompt
+    // sections, different sources. The Phase 1 parse list must capture both
+    // the `**Test scenarios:**` and `**Verification:**` fields as separate
+    // entries; collapsing them into one field leaks each into the wrong
+    // template section.
+    const phase1Start = SKILL_BODY.indexOf("### Phase 1:")
+    const phase2Start = SKILL_BODY.indexOf("### Phase 2:")
+    const phase1Region = SKILL_BODY.slice(phase1Start, phase2Start)
+    expect(phase1Region).toMatch(/-\s+\*\*Test scenarios\*\*[^\n]+/)
+    expect(phase1Region).toMatch(/-\s+\*\*Verification\*\*[^\n]+/)
+    // Verification bullet must NOT also claim to capture Test scenarios in
+    // the same field — that's the bug we're guarding against.
+    const verificationBullet = phase1Region.match(
+      /-\s+\*\*Verification\*\*[^\n]+/,
+    )!
+    expect(verificationBullet[0]).not.toMatch(/Test scenarios/)
+  })
+
+  test("Phase 3 documents gh issue create label-missing as an error", () => {
+    // `gh issue create` with `--label <missing>` exits non-zero and refuses
+    // to create the issue (cli/cli#715 — intentional, prevents accidental
+    // label creation). Calling it a "warning" understates the recovery the
+    // user needs to perform; the skill must describe it as an error and
+    // outline the create-label-then-retry path.
+    const phase3Start = SKILL_BODY.indexOf("### Phase 3:")
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    const phase3Region = SKILL_BODY.slice(phase3Start, phase4Start)
+    // Find the bullet that talks about labels.
+    const labelBullet = phase3Region.match(/- The label list comes from[^\n]+/)
+    expect(labelBullet).not.toBeNull()
+    // Must NOT call the missing-label outcome a "warning" only.
+    expect(labelBullet![0]).not.toMatch(/`gh` prints a warning/)
+    // Must describe an error/refusal and a retry path.
+    expect(labelBullet![0]).toMatch(/non-zero|refuses|error|not found/i)
+    expect(labelBullet![0]).toMatch(/gh label create/)
+    expect(labelBullet![0]).toMatch(/retry/i)
+  })
 })
 
 describe("conductor-notes.md documents key Conductor behavior", () => {

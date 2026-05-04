@@ -49,7 +49,7 @@ Config keys and resolution:
 |---|---|---|
 | `dispatch_mode` | `conductor`, or another short identifier | `conductor` |
 | `dispatch_branch_prefix` | any string (no leading/trailing slashes) | `dispatch/` |
-| `dispatch_base_branch` | any branch name | repo's default branch (`git symbolic-ref --short refs/remotes/origin/HEAD`) |
+| `dispatch_base_branch` | any branch name | repo's default branch (`git symbolic-ref --short refs/remotes/origin/HEAD`; if that fails because `origin/HEAD` is not set — happens on bare clones, fresh `git clone --no-checkout`, or some CI checkouts — fall back to `git remote show origin` and parse the `HEAD branch:` line, or to `main` with a one-line warning to the user) |
 | `dispatch_labels` | comma-separated label list | `ce-dispatch` |
 | `dispatch_auto_review` | `true` or `false` | `true` |
 
@@ -72,11 +72,12 @@ Locate the `Implementation Units` section. Each unit is a top-level bullet whose
 
 - **U-ID** (e.g., `U1`, `U3`)
 - **Name** (the bolded heading text)
-- **Goal** (the unit's "Goal" or "Why" field)
-- **Files** (the unit's `Files:` section — Create, Modify, Read paths)
-- **Patterns** (the unit's `Patterns to follow` field, if present)
-- **Approach** (the unit's `Approach` field, if present)
-- **Verification** (the unit's `Verification` or `Test scenarios` field)
+- **Goal** (the unit's `**Goal:**` field, verbatim — this is the canonical label `ce-plan` emits)
+- **Files** (the unit's `**Files:**` section, capturing all three sub-bullets `Create:`, `Modify:`, and `Test:` — these are the canonical labels `ce-plan` emits per its unit template; `Read:` is also accepted as an alias for hand-edited or external plans. **Test paths are required**: they feed into the Phase 1.3 parallel-safety file-to-unit map, so dropping them silently lets test-file overlaps slip through unflagged.)
+- **Patterns** (the unit's `**Patterns to follow:**` field, if present)
+- **Approach** (the unit's `**Approach:**` field, if present)
+- **Test scenarios** (the unit's `**Test scenarios:**` field, if present — captured as a distinct field from `Verification` because Phase 2 substitutes them into the dispatch prompt's `<testing>` and `<verify>` sections respectively, which are different. Collapsing them here would leak test-scenario detail into `<verify>` and verification commands into `<testing>`.)
+- **Verification** (the unit's `**Verification:**` field, if present — this carries the project's combined test/lint commands and feeds the dispatch prompt's `<verify>` section)
 - **Dependencies** (the unit's `**Dependencies:**` field listing other U-IDs — this is the canonical label `ce-plan` emits per its unit template; also accept `Depends on:` as an alias for hand-edited or external plans. If neither label is present, fall back to inferring from the plan's sequencing prose; default to `none` only when nothing is found. Do **not** default to `none` silently when a `**Dependencies:**` line exists with parseable U-IDs — that would let dependent units look like roots and dispatch out of order.)
 
 If the plan has no recognizable Implementation Units section, stop and tell the user the plan must contain implementation units before dispatch. Do not invent units.
@@ -103,7 +104,7 @@ For each dispatchable unit (initially the roots; later, units whose dependencies
 Substitute concrete values for every section:
 - `<context>` — plan file repo-relative path; one-sentence project context
 - `<task>` — Goal from the unit (single-unit case)
-- `<files>` — the unit's combined Create/Modify/Read file list
+- `<files>` — the unit's combined Create/Modify/Test file list (with `Read:` accepted as alias). Test paths are part of the agent's deliverable, not just reading material — preserve them.
 - `<patterns>` — the unit's `Patterns to follow` content (or the fallback line)
 - `<approach>` — the unit's Approach field
 - `<constraints>` — the template's constraints, plus any predicted-overlap hint
@@ -138,7 +139,7 @@ gh issue create \
 
 Notes:
 - Write the rendered prompt to a per-run scratch file under `mktemp -d -t ce-dispatch-XXXXXX` (per the repo's "Scratch Space" guidance in `AGENTS.md`). The scratch directory holds one file per dispatched unit so retries can re-use them.
-- The label list comes from `dispatch_labels` (default `ce-dispatch`). If a label does not yet exist in the repo, `gh` prints a warning — surface it to the user once and offer to create the label via `gh label create` (single confirmation, not per-issue).
+- The label list comes from `dispatch_labels` (default `ce-dispatch`). If a label does not yet exist in the repo, `gh issue create` returns a non-zero exit and refuses to create the issue (`could not add label: '<name>' not found`) — this is intentional `gh` behavior to prevent accidental label creation (cli/cli#715). Detect the missing-label error on the first failed `gh issue create` call, surface it once with the missing label name(s), and offer to run `gh label create <name>` (single confirmation covering all missing labels, not per-issue), then retry the failed `gh issue create` invocations. Do **not** strip the label from the command and proceed silently — dispatched issues without their labels won't be picked up by `dispatch_labels`-filtering automations.
 - After each successful issue creation, capture the issue URL and number and append them to an in-memory `dispatched_units` map keyed by U-ID: `{ U3: { issue_number: 142, issue_url: "...", expected_branch: "dispatch/U3-...", status: "issue_created", pr: null } }`.
 - If `gh issue create` fails (auth error, rate limit, etc.), stop the round and surface the error. Do not try to "recover" by retrying with different flags — the user needs to fix the underlying problem.
 
@@ -173,7 +174,7 @@ Act on the user's selection — do not just announce it. The bare per-option act
   - CI rollup on the PR is green (no `FAILURE` or `ERROR` checks). If checks are pending, ask the user whether to wait or skip.
   - The PR has a `## Dispatch Result` section in its body with `Status: completed`. If the section is missing or `Status` is `partial` / `failed`, refuse and surface the issue back to the user.
 
-  When all gates pass, run `gh pr merge <number> --squash --delete-branch`. `gh pr merge` lands the merge on GitHub but does not touch the local checkout, so before running any verification commands locally, sync the working tree to the merged base: `git fetch origin && git checkout <base_branch> && git pull --ff-only origin <base_branch>`. Without this sync the test suite would run against pre-merge code and could report a false green even when the merged commit is broken. Then run the project's test suite (`bun test`, `pytest`, etc., as inferred from the plan or repo manifest); if it fails, surface the failure prominently and ask the user whether to revert. Update `dispatched_units[<U-ID>].status` to `merged`.
+  When all gates pass, run `gh pr merge <number> --squash --delete-branch`. `gh pr merge` lands the merge on GitHub but does not touch the local checkout, so before running any verification commands locally, sync the working tree to the merged base. **Precondition** (run before the sync, not after): check `git status --porcelain` — if the dispatching session's working tree has uncommitted changes, do **not** run `git checkout` (it can fail or silently overwrite user work). Surface the dirty paths to the user and ask them to commit, stash, or skip the local test step before proceeding. Also capture the current branch with `git symbolic-ref --short HEAD` (or `git rev-parse HEAD` if detached) so it can be restored after tests — the user may not have been on the base branch when they invoked the orchestrator. With those guards in place, run `git fetch origin && git checkout <base_branch> && git pull --ff-only origin <base_branch>`. Without this sync the test suite would run against pre-merge code and could report a false green even when the merged commit is broken. Then run the project's test suite (`bun test`, `pytest`, etc., as inferred from the plan or repo manifest); if it fails, surface the failure prominently and ask the user whether to revert. Update `dispatched_units[<U-ID>].status` to `merged`. Finally, restore the captured pre-sync branch (`git checkout <captured_ref>`) and tell the user the working tree was cycled through `<base_branch>` for verification — don't leave them silently displaced.
 
   On merge conflict (`gh pr merge` reports the PR is not mergeable due to conflicts), do **not** attempt to resolve the conflict in the dispatching session — the conflict belongs to the workspace that produced the PR. Surface the conflict and advise the user: "Open the workspace, run `git fetch origin && git rebase origin/<base_branch>`, resolve conflicts, push, and re-run option 1 to refresh status." Re-render the menu without merging.
 
