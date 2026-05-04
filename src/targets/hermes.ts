@@ -16,12 +16,14 @@ import { getLegacyHermesArtifacts } from "../data/plugin-legacy-artifacts"
 import {
   archiveLegacyInstallManifestIfOwned,
   cleanupCurrentManagedDirectory,
+  cleanupRemovedManagedFiles,
   moveLegacyArtifactToBackup,
   readManagedInstallManifestWithLegacyFallback,
   resolveManagedSegment,
   sanitizeManagedPluginName,
   writeManagedInstallManifest,
 } from "./managed-artifacts"
+import { isSafeManagedPath } from "../utils/files"
 
 const MANAGED_INSTALL_MANIFEST = "install-manifest.json"
 
@@ -48,10 +50,11 @@ CE skills installed under \`~/.hermes/skills/\` follow these conventions:
   slash-command support the trigger is direct; elsewhere the skill is
   invoked via \`skill_view\`.
 
-- **Sub-agent dispatch.** Skills emitting \`Use the <name> skill to: ...\`
-  delegate to the named skill via \`skill_view\`. CE agents are emitted as
-  \`~/.hermes/skills/agent-<name>/\` and are dispatchable through Hermes'
-  Parallel Sub-Agents primitive.
+- **Sub-agent dispatch.** CE agents are stored as payload files at
+   \`~/.hermes/<pluginName>/agents/<name>.md\`. Orchestrator skills that
+   reference \`Task ce-foo(args)\` are rewritten to \`delegate_task\` invocations
+   that read the payload as \`context\`. Parallel dispatch is preserved via
+   \`delegate_task(tasks=[...])\` batches.
 
 - **Restart after install.** Run \`hermes config reload\` (or restart the
   agent / gateway) after each \`bunx ... install --to hermes\` so MCP
@@ -75,6 +78,7 @@ type HermesPaths = {
   skillsDir: string
   configPath: string
   agentsPath: string
+  agentsDir: string
 }
 
 /**
@@ -98,6 +102,7 @@ export function resolveHermesPaths(outputRoot: string, pluginName?: string): Her
       skillsDir: path.join(outputRoot, "skills"),
       configPath: path.join(outputRoot, "config.yaml"),
       agentsPath: path.join(outputRoot, "AGENTS.md"),
+      agentsDir: path.join(outputRoot, managedSegment, "agents"),
     }
   }
   return {
@@ -106,6 +111,7 @@ export function resolveHermesPaths(outputRoot: string, pluginName?: string): Her
     skillsDir: path.join(outputRoot, ".hermes", "skills"),
     configPath: path.join(outputRoot, ".hermes", "config.yaml"),
     agentsPath: path.join(outputRoot, ".hermes", "AGENTS.md"),
+    agentsDir: path.join(outputRoot, ".hermes", managedSegment, "agents"),
   }
 }
 
@@ -193,6 +199,16 @@ export async function writeHermesBundle(
     await writeText(path.join(targetDir, "SKILL.md"), skill.content)
   }
 
+  // Agent payloads
+  const currentAgentPayloads = bundle.agentPayloads.map((p) => p.name)
+  await cleanupRemovedManagedFiles(paths.agentsDir, manifest, "agent_payloads", currentAgentPayloads)
+  await ensureDir(paths.agentsDir)
+  for (const payload of bundle.agentPayloads) {
+    const targetFile = path.join(paths.agentsDir, `${payload.name}.md`)
+    if (!isSafeManagedPath(paths.agentsDir, `${payload.name}.md`)) continue
+    await writeText(targetFile, payload.content)
+  }
+
   if (bundle.mcpConfig) {
     await writeHermesConfigYaml(paths.configPath, bundle.mcpConfig)
   }
@@ -213,6 +229,7 @@ export async function writeHermesBundle(
       pluginName,
       groups: {
         skills: ownedSkills,
+        agent_payloads: currentAgentPayloads,
       },
     })
     await archiveLegacyInstallManifestIfOwned(paths.managedDir, pluginName)
@@ -604,9 +621,9 @@ export async function cleanupHermesAtRoot(root: string): Promise<void> {
     } catch {
       continue
     }
-    let parsed: { pluginName?: unknown; groups?: { skills?: unknown } } | null
+    let parsed: { pluginName?: unknown; groups?: { skills?: unknown; agent_payloads?: unknown } } | null
     try {
-      parsed = JSON.parse(raw) as { pluginName?: unknown; groups?: { skills?: unknown } } | null
+      parsed = JSON.parse(raw) as { pluginName?: unknown; groups?: { skills?: unknown; agent_payloads?: unknown } } | null
     } catch {
       continue
     }
@@ -624,6 +641,30 @@ export async function cleanupHermesAtRoot(root: string): Promise<void> {
             continue
           }
           await fs.rm(targetDir, { recursive: true, force: true })
+        }
+      }
+    }
+    const agentPayloads = parsed.groups?.agent_payloads
+    if (Array.isArray(agentPayloads)) {
+      for (const payloadName of agentPayloads) {
+        if (typeof payloadName !== "string") continue
+        const targetFile = path.join(paths.agentsDir, `${payloadName}.md`)
+        if (await pathExists(targetFile)) {
+          if (!(await isContainedAfterRealpath(paths.agentsDir, targetFile))) {
+            console.warn(`Refusing to remove ${targetFile} for hermes cleanup: realpath escapes managed tree.`)
+            continue
+          }
+          await fs.rm(targetFile, { force: true })
+        }
+      }
+      if (await pathExists(paths.agentsDir)) {
+        try {
+          const remaining = await fs.readdir(paths.agentsDir)
+          if (remaining.length === 0) {
+            await fs.rm(paths.agentsDir, { recursive: true, force: true })
+          }
+        } catch {
+          // ignore
         }
       }
     }
