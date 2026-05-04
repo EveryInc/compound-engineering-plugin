@@ -261,6 +261,13 @@ Ask the user only if the posture would materially change sequencing or risk and 
 
 Based on the origin document, user signals, and local findings, decide whether external research adds value.
 
+Mode gate:
+- If `ce_plan_research_mode` resolves to `lean`, default to **skip external research**.
+- In `lean` mode, run external research only when either condition is true:
+  - The topic is high-risk (security, payments, privacy, external APIs, migrations, compliance), or
+  - The user explicitly asks for external research.
+- If neither condition is true, announce the skip briefly and continue to Phase 1.4.
+
 **Read between the lines.** Pay attention to signals from the conversation so far:
 - **User familiarity** — Are they pointing to specific files or patterns? They likely know the codebase well.
 - **User intent** — Do they want speed or thoroughness? Exploration or execution?
@@ -277,7 +284,7 @@ The ce-repo-research-analyst output includes a structured Technology & Infrastru
 - If the scan detected deployment infrastructure (Docker, K8s, serverless), note it in the planning context passed to downstream agents so they can account for deployment constraints
 - If the scan detected a monorepo and scoped to a specific service, pass that service's tech context to downstream research agents -- not the aggregate of all services. If the scan surfaced the workspace map without scoping, use the feature description to identify the relevant service before proceeding with research
 
-**Always lean toward external research when:**
+**When `ce_plan_research_mode` resolves to `standard`, always lean toward external research when:**
 - The topic is high-risk: security, payments, privacy, external APIs, migrations, compliance
 - The codebase lacks relevant local patterns -- fewer than 3 direct examples of the pattern this plan needs
 - Local patterns exist for an adjacent domain but not the exact one -- e.g., the codebase has HTTP clients but not webhook receivers, or has background jobs but not event-driven pub/sub. Adjacent patterns suggest the team is comfortable with the technology layer but may not know domain-specific pitfalls. When this signal is present, frame the external research query around the domain gap specifically, not the general technology
@@ -296,7 +303,7 @@ Announce the decision briefly before continuing. Examples:
 
 #### 1.3 External Research (Conditional)
 
-If Step 1.2 indicates external research is useful, run these agents in parallel:
+If Step 1.2 indicates external research is useful (and in `lean` mode, only when the mode gate is satisfied), run these agents in parallel:
 
 - Task ce-best-practices-researcher(planning context summary)
 - Task ce-framework-docs-researcher(planning context summary)

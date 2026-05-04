@@ -195,6 +195,12 @@ These questions force an explicit product thesis and feed the Scope Boundaries s
 
 Follow the Interaction Rules above. Use the platform's blocking question tool when available.
 
+Mode gate:
+- If `ce_brainstorm_mode` resolves to `lean`, default to the shortest path that still produces planning-ready requirements.
+- In `lean` mode, ask only the highest-impact unresolved question at each turn, skip optional deepening loops, and move to Phase 2 once scope and success criteria are clear enough for planning.
+- In `lean` mode, preserve required rigor probes for any scope-appropriate gaps identified in Phase 1.2 before ending Phase 1.
+- If the user explicitly asks for deeper exploration, run the fuller standard-depth dialogue regardless of mode.
+
 **Guidelines:**
 - Ask what the user is already thinking before offering your own ideas. This surfaces hidden context and prevents fixation on AI-generated framings.
 - Start broad (problem, users, value) then narrow (constraints, exclusions, edge cases)
