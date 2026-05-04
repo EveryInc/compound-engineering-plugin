@@ -97,15 +97,17 @@ Before each batch, assess complexity to determine `effective_effort`. The config
 | Tier | Signals | Effort |
 |------|---------|--------|
 | Trivial | ≤2 files, no behavioral change (config, rename, typo) | default (no flag) |
-| Moderate | 3–9 files, clear scope, no high-risk areas | `medium` |
-| Complex | 5+ files OR touches auth, payments, migrations, external APIs, or error handling | `high` |
-| Architectural | 10+ files OR cross-cutting changes OR multiple high-risk areas | `xhigh` |
+| Moderate | 3–4 files, no high-risk areas | `medium` |
+| Complex | 5–9 files, OR any high-risk area (auth, payments, migrations, external APIs, error handling) regardless of file count | `high` |
+| Architectural | ≥10 files, OR cross-cutting changes, OR two or more high-risk areas | `xhigh` |
+
+Tiers are mutually exclusive. Evaluate top-down and stop at the first match; high-risk signals always promote at least to Complex even if the file count would otherwise fall in Moderate.
 
 **Resolution steps:**
 1. Count implementation files in the batch's combined `Files:` list (Create + Modify paths; exclude Test paths)
 2. Check for high-risk signals: auth/session logic, payments, database migrations, external API calls, error handling with retries/fallbacks, changes spanning 3+ layers
-3. Select the matching tier
-4. If `delegate_effort` is set in config, apply as floor using ordering `medium < high < xhigh`; if the tier is "default (no flag)", the config floor wins
+3. Select the matching tier using the top-down rule above
+4. If `delegate_effort` is set in config, apply as floor using ordering `minimal < low < medium < high < xhigh`. The resolved `effective_effort` is `max(tier_effort, floor)`. If the tier is "default (no flag)", the config floor wins regardless of value.
 5. If `delegate_effort` is unset in config, use the tier directly — "default (no flag)" means omit the effort flag and let Codex use its built-in default
 
 When `effective_effort` resolves to "default (no flag)", omit the effort flag entirely from the invocation.
