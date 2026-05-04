@@ -331,9 +331,9 @@ describe("ce-plan review contract", () => {
   test("SKILL.md stub points to plan-handoff reference", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
 
-    // Stub references the handoff file and marks document review as mandatory
+    // Stub references the handoff file and exposes doc-review mode config
     expect(content).toContain("`references/plan-handoff.md`")
-    expect(content).toContain("Document review is mandatory")
+    expect(content).toContain("`ce_plan_doc_review_mode`")
   })
 
   test("uses headless mode in pipeline context", async () => {

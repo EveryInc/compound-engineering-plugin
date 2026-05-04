@@ -11,6 +11,11 @@
 # work_delegate_model: gpt-5.4   # any valid codex model (omit to use ~/.codex/config.toml default)
 # work_delegate_effort: high     # minimal | low | medium | high | xhigh (omit to use ~/.codex/config.toml default)
 
+# --- Brainstorm / Plan pacing ---
+
+# ce_plan_deepening_mode: on_demand  # auto | on_demand (default: auto)
+# ce_plan_doc_review_mode: on_demand # auto | on_demand (default: auto)
+
 # --- Product pulse ---
 # Settings written by /ce-product-pulse first-run interview. Re-run the skill with
 # argument `setup` or `reconfigure` to edit interactively.

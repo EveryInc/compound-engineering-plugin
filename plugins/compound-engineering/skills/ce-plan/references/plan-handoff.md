@@ -4,7 +4,11 @@ This file contains post-plan-writing instructions: document review, post-generat
 
 ## 5.3.8 Document Review
 
-After the confidence check (and any deepening), run the `ce-doc-review` skill on the plan file. Pass the plan path as the argument. When this step is reached, it is mandatory — do not skip it because the confidence check already ran. The two tools catch different classes of issues.
+After the confidence check (and any deepening), decide document-review behavior from config:
+
+- If `ce_plan_doc_review_mode` resolves to `auto` (default), run the `ce-doc-review` skill on the plan file. Pass the plan path as the argument.
+- If `ce_plan_doc_review_mode` resolves to `on_demand`, skip automatic `ce-doc-review` and continue to Final Checks. Report: `Document review skipped by config (ce_plan_doc_review_mode: on_demand)`.
+- If the user explicitly asks for document review in the current conversation, run `ce-doc-review` regardless of mode.
 
 The confidence check and ce-doc-review are complementary:
 - The confidence check strengthens rationale, sequencing, risk treatment, and grounding
@@ -14,7 +18,7 @@ If ce-doc-review returns findings that were auto-applied, note them briefly when
 
 When ce-doc-review returns "Review complete", proceed to Final Checks.
 
-**Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, run `ce-doc-review` with `mode:headless` and the plan path. Headless mode applies auto-fixes silently and returns structured findings without interactive prompts. Address any P0/P1 findings before returning control to the caller.
+**Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, apply the same mode gate above. In `auto`, run `ce-doc-review` with `mode:headless` and the plan path. In `on_demand`, skip automatic review unless explicitly requested by the caller.
 
 ## 5.3.9 Final Checks and Cleanup
 
@@ -29,7 +33,7 @@ If artifact-backed mode was used:
 
 ## 5.4 Post-Generation Options
 
-**Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the interactive menu below and return control to the caller immediately. The plan file has already been written, the confidence check has already run, and ce-doc-review has already run — the caller (e.g., lfg) determines the next step.
+**Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the interactive menu below and return control to the caller immediately. The plan file has already been written and the confidence check has already run; ce-doc-review may have run or been skipped based on `ce_plan_doc_review_mode`.
 
 After document-review completes, present the options using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
@@ -57,9 +61,9 @@ Based on selection (the bare per-option routing is also stated inline in the SKI
   Follow `references/hitl-review.md` in the ce-proof skill. It uploads the plan, prompts the user for review in Proof's web UI, ingests each thread by reading it fresh and replying in-thread, applies agreed edits as tracked suggestions, and syncs the final markdown back to the plan file atomically on proceed.
 
   When the ce-proof skill returns:
-  - `status: proceeded` with `localSynced: true` -> the plan on disk now reflects the review. Re-run `ce-doc-review` on the updated plan before re-rendering the menu — HITL can materially rewrite the plan body, so the prior ce-doc-review pass no longer covers the current file and section 5.3.8 requires a review before any handoff option is offered. Then return to the post-generation options with the refreshed residual findings.
-  - `status: proceeded` with `localSynced: false` -> the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the ce-proof skill's Pull workflow. If the pull happened, re-run `ce-doc-review` on the pulled file before re-rendering the options (same 5.3.8 rationale — the local plan was materially updated by the pull). If the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof — otherwise `Start /ce-work` or `Create Issue` will silently use the pre-review copy.
-  - `status: done_for_now` -> the plan on disk may be stale if the user edited in Proof before leaving. Offer to pull the Proof doc to `localPath` so the local plan file stays in sync. If the pull happened, re-run `ce-doc-review` on the pulled file before re-rendering the options (same 5.3.8 rationale). If the pull was declined, include the stale-local note above the menu. `done_for_now` means the user stopped the HITL loop — it does not mean they ended the whole plan session; they may still want to start work or create an issue.
+  - `status: proceeded` with `localSynced: true` -> the plan on disk now reflects the review. If `ce_plan_doc_review_mode` is `auto`, re-run `ce-doc-review` on the updated plan before re-rendering the menu. If mode is `on_demand`, skip automatic re-review and re-render the menu with a note that review can be run on request.
+  - `status: proceeded` with `localSynced: false` -> the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the ce-proof skill's Pull workflow. If the pull happened and `ce_plan_doc_review_mode` is `auto`, re-run `ce-doc-review` on the pulled file before re-rendering the options. If mode is `on_demand`, skip automatic re-review and re-render with a note that review can be run on request. If the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof — otherwise `Start /ce-work` or `Create Issue` will silently use the pre-review copy.
+  - `status: done_for_now` -> the plan on disk may be stale if the user edited in Proof before leaving. Offer to pull the Proof doc to `localPath` so the local plan file stays in sync. If the pull happened and `ce_plan_doc_review_mode` is `auto`, re-run `ce-doc-review` on the pulled file before re-rendering the options. If mode is `on_demand`, skip automatic re-review and re-render with a note that review can be run on request. If the pull was declined, include the stale-local note above the menu. `done_for_now` means the user stopped the HITL loop — it does not mean they ended the whole plan session; they may still want to start work or create an issue.
   - `status: aborted` -> fall back to the options without changes.
 
   If the initial upload fails (network error, Proof API down), retry once after a short wait. If it still fails, tell the user the upload didn't succeed and briefly explain why, then return to the options — don't leave them wondering why the option did nothing.

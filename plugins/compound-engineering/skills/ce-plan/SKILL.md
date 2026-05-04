@@ -14,6 +14,29 @@ argument-hint: "[optional: feature description, requirements doc path, plan path
 
 This workflow produces a durable implementation plan. It does **not** implement code, run tests, or learn from execution-time results. If the answer depends on changing code and seeing what happens, that belongs in `ce-work`, not here.
 
+## Optional Local Config
+
+Read optional machine-local settings from `.compound-engineering/config.local.yaml` in the repo root. Resolve repo root with `git rev-parse --show-toplevel` and read from `<repo-root>/.compound-engineering/config.local.yaml`.
+
+Supported key:
+- `ce_plan_deepening_mode` -- `auto` or `on_demand` (default `auto`)
+- `ce_plan_doc_review_mode` -- `auto` or `on_demand` (default `auto`)
+
+Fallback rule:
+- If a key is missing, empty, or set to an unrecognized value, use its default.
+
+When `ce_plan_deepening_mode` resolves to `on_demand`:
+- Skip automatic deepening during normal plan generation
+- Run deepening only when the user explicitly asks to deepen (Phase 0.1 deepen intent)
+- Keep confidence checks and document review behavior unchanged unless the user instructs otherwise in the current conversation
+
+When `ce_plan_doc_review_mode` resolves to `on_demand`:
+- Skip automatic post-plan `ce-doc-review` during normal plan generation
+- Run `ce-doc-review` when the user explicitly asks for review
+- Keep deepening behavior unchanged unless the user instructs otherwise in the current conversation
+
+User instruction in the current conversation always overrides local config.
+
 ## Interaction Method
 
 When asking the user a question, use the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
@@ -840,7 +863,12 @@ Plan written to <absolute path to plan>
 
 #### 5.3 Confidence Check and Deepening
 
-After writing the plan file, automatically evaluate whether the plan needs strengthening.
+After writing the plan file, evaluate whether the plan needs strengthening.
+
+Mode gate:
+- If `ce_plan_deepening_mode` resolves to `auto` (default), run the confidence check/deepening flow in this phase.
+- If `ce_plan_deepening_mode` resolves to `on_demand` and there is no explicit deepen intent from Phase 0.1, still run 5.3.1 and 5.3.2 (confidence/risk evaluation), then skip only deepening execution (5.3.3-5.3.7), report "Deepening skipped by config (`ce_plan_deepening_mode: on_demand`)" and continue to 5.3.8.
+- If the user explicitly asks to deepen, always run full deepening regardless of mode.
 
 **Two deepening modes:**
 
@@ -878,7 +906,7 @@ Build a risk profile. Treat these as high-risk signals:
 - **Deep** or high-risk plans often benefit from a targeted second pass
 - **Thin local grounding override:** If Phase 1.2 triggered external research because local patterns were thin (fewer than 3 direct examples or adjacent-domain match), always proceed to scoring regardless of how grounded the plan appears. When the plan was built on unfamiliar territory, claims about system behavior are more likely to be assumptions than verified facts. The scoring pass is cheap — if the plan is genuinely solid, scoring finds nothing and exits quickly
 
-If the plan already appears sufficiently grounded and the thin-grounding override does not apply, report "Confidence check passed — no sections need strengthening", then **load `references/plan-handoff.md` now and execute 5.3.8 → 5.3.9 → 5.4 in sequence**. Document review is mandatory — do not skip it because the confidence check passed. The two tools catch different classes of issues.
+If the plan already appears sufficiently grounded and the thin-grounding override does not apply, report "Confidence check passed — no sections need strengthening", then **load `references/plan-handoff.md` now and execute 5.3.8 → 5.3.9 → 5.4 in sequence**.
 
 ##### 5.3.3–5.3.7 Deepening Execution
 
@@ -886,7 +914,7 @@ When deepening is warranted, read `references/deepening-workflow.md` for confide
 
 ##### 5.3.8–5.4 Document Review, Final Checks, and Post-Generation Options
 
-**STOP. Load `references/plan-handoff.md` now before continuing.** It carries the full instructions for 5.3.8 (document review), 5.3.9 (final checks and cleanup), and 5.4 (post-generation handoff, including the Proof HITL flow, post-HITL re-review, and Issue Creation branching). **This load is non-optional** — without it, the agent renders the post-generation menu, captures the user's selection, and stops without firing the routed action. Document review at 5.3.8 is also mandatory regardless of whether the confidence check already ran.
+**STOP. Load `references/plan-handoff.md` now before continuing.** It carries the full instructions for 5.3.8 (document review), 5.3.9 (final checks and cleanup), and 5.4 (post-generation handoff, including the Proof HITL flow, post-HITL re-review, and Issue Creation branching). **This load is non-optional** — without it, the agent renders the post-generation menu, captures the user's selection, and stops without firing the routed action.
 
 After document review and final checks, present this menu using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
@@ -909,4 +937,4 @@ If the user asks for another document review (either from a contextual prompt ab
 
 **Completion check:** This skill is not complete until the post-generation menu above has been presented, the user has selected an action, and the inline routing for that selection has been executed. Presenting the menu and stopping at the user's selection is not completion — fire the routed action.
 
-**Pipeline mode exception:** In LFG or any `disable-model-invocation` context, skip the interactive menu and return control to the caller after the plan file is written, confidence check has run, and `ce-doc-review` has run in headless mode (per `references/plan-handoff.md`).
+**Pipeline mode exception:** In LFG or any `disable-model-invocation` context, skip the interactive menu and return control to the caller after the plan file is written and confidence check has run; `ce-doc-review` runs or skips per `ce_plan_doc_review_mode` (per `references/plan-handoff.md`).
