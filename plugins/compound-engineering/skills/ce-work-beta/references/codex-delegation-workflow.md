@@ -111,18 +111,19 @@ A few edge cases worth handling explicitly:
 
 **Floor and resolution — hard rules**
 
-These are deterministic; do not improvise.
+Effort levels are ordered: `minimal < low < medium < high < xhigh`.
 
-The floor algebra treats `default` as equivalent to `medium`, because Codex's built-in default reasoning effort is `medium` — omitting the flag and emitting `medium` produce the same runtime behavior. Treating `default` as below `medium` would invert the floor (a `minimal` floor on a `default` pick would emit `minimal`, *lower* than what the unset-config path produces). The ordering used for `max()` is therefore:
+Compute `effective_effort`:
 
-`minimal < low < {default ≡ medium} < high < xhigh`
+- If `delegate_effort` is unset: `effective_effort = picked_level`.
+- If `delegate_effort` is set: substitute `default` → `medium` in `picked_level`, then `effective_effort = max(picked_level, delegate_effort)`.
 
-1. If `delegate_effort` is unset, `effective_effort = picked_level`.
-2. If `delegate_effort` is set, `effective_effort = max(picked_level, delegate_effort)` under the ordering above. Concretely:
-   - Pick `default` + floor `minimal` | `low` | `medium` → `default` (omit flag; Codex's built-in `medium` already meets or exceeds the floor).
-   - Pick `default` + floor `high` | `xhigh` → floor wins; emit floor.
-   - Pick `medium` | `high` | `xhigh` + any floor → emit `max(picked_level, floor)`, where `minimal` and `low` are below `medium` in the ordering.
-3. When `effective_effort` is `default`, omit the `model_reasoning_effort` flag entirely. Never pass the literal string `"default"`.
+Emit based on `effective_effort`:
+
+- `medium`, `high`, or `xhigh` → emit `-c 'model_reasoning_effort="<value>"'`.
+- `default` → omit the flag (defer to `~/.codex/config.toml`). Reachable only when `delegate_effort` is unset and the pick is `default`.
+
+Never pass the literal string `"default"` to `codex exec`.
 
 Store `effective_effort` as a per-batch derived state value (alongside the session-level `delegate_effort`) and use it in place of `delegate_effort` throughout the Execution Loop.
 
@@ -277,7 +278,7 @@ codex exec \
 **Conditional flags** — only include each line when the corresponding skill-state value is set:
 
 - If `delegate_model` is set, insert `  -m "<delegate_model>" \` as a line before `$SANDBOX_FLAG`.
-- If `effective_effort` is set AND not `default` (resolved via Per-Batch Effort above), insert `  -c 'model_reasoning_effort="<effective_effort>"' \` as a line before `$SANDBOX_FLAG`. When `effective_effort` is `default`, omit the line — never pass the literal string `"default"`.
+- If `effective_effort` is `medium`, `high`, or `xhigh` (resolved via Per-Batch Effort above), insert `  -c 'model_reasoning_effort="<effective_effort>"' \` as a line before `$SANDBOX_FLAG`. When `effective_effort` is `default` (only possible when `delegate_effort` is unset and the pick is `default`), omit the line — never pass the literal string `"default"`.
 
 When either value is unset, omit its line entirely — Codex resolves the default from the user's `~/.codex/config.toml` (and ultimately the CLI's own built-in default). Do not substitute a placeholder string for unset values.
 

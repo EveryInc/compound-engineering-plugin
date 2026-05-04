@@ -65,8 +65,8 @@ Store the resolved state for downstream consumption:
 - `sandbox_mode` -- `yolo` or `full-auto` (from config or default `yolo`)
 - `consent_granted` -- boolean (from config `work_delegate_consent`)
 - `delegate_model` -- string from config, or unset (defer to Codex config)
-- `delegate_effort` -- string from config, or unset (defer to Codex config). Floor for per-batch effort selection (not the value passed to `codex exec`).
-- `effective_effort` -- per-batch derived value, one of `default | medium | high | xhigh` (or `minimal`/`low` if floor applies). Computed before each delegated batch from `delegate_effort` and the batch's picked level per `references/codex-delegation-workflow.md` ("Per-Batch Effort"). This — not `delegate_effort` — is what feeds the `codex exec` invocation. When delegation is active, derive `effective_effort` immediately before each batch; never pass `delegate_effort` directly.
+- `delegate_effort` -- string from config, or unset (defer to Codex config). Floor for per-batch effort selection; not passed directly to `codex exec`.
+- `effective_effort` -- per-batch derived value (`default | medium | high | xhigh`), computed before each batch from `delegate_effort` and the picked level per `references/codex-delegation-workflow.md` ("Per-Batch Effort"). Feeds the `codex exec` invocation in place of `delegate_effort`.
 
 ---
 
