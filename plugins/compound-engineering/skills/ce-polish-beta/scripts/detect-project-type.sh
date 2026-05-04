@@ -161,8 +161,19 @@ $gdir"
   fi
 done < <(eval "find . -maxdepth 4 $EXCLUDE_ARGS -name 'Gemfile' -print" 2>/dev/null)
 
-# Parse found files into (type, relative-dir) pairs
-declare -A MONO_HITS=()  # key = "type@dir", value = 1 (dedup)
+# Parse found files into (type, relative-dir) pairs. Use a newline-delimited
+# string instead of an associative array so the script works on macOS's default
+# Bash 3.2 as well as newer Bash versions.
+MONO_HITS=""
+
+add_mono_hit() {
+  hit="$1"
+  if printf '%s\n' "$MONO_HITS" | grep -Fxq "$hit"; then
+    return 0
+  fi
+  MONO_HITS="${MONO_HITS}
+${hit}"
+}
 
 if [ -n "$FOUND_FILES" ]; then
   for f in $FOUND_FILES; do
@@ -194,7 +205,7 @@ if [ -n "$FOUND_FILES" ]; then
     # Skip root hits (those would have been caught by root detection)
     if [ "$fdir" = "." ]; then continue; fi
 
-    MONO_HITS["${ftype}@${fdir}"]=1
+    add_mono_hit "${ftype}@${fdir}"
   done
 fi
 
@@ -207,16 +218,14 @@ if [ -n "$RAILS_HITS" ]; then
       # Enforce depth cap for Rails hits too
       slash_count=$(echo "$rdir" | tr -cd '/' | wc -c | tr -d ' ')
       if [ "$slash_count" -le 2 ]; then
-        MONO_HITS["rails@${rdir}"]=1
+        add_mono_hit "rails@${rdir}"
       fi
     fi
   done
 fi
 
-# ${#MONO_HITS[@]} triggers "unbound variable" under set -u on macOS bash 3.2
-# when the array is empty. Use the ${var+expr} expansion to guard it.
-MONO_COUNT=${MONO_HITS[@]+${#MONO_HITS[@]}}
-MONO_COUNT=${MONO_COUNT:-0}
+MONO_HITS=$(printf '%s\n' "$MONO_HITS" | sed '/^$/d' | sort)
+MONO_COUNT=$(printf '%s\n' "$MONO_HITS" | sed '/^$/d' | wc -l | tr -d ' ')
 
 case $MONO_COUNT in
   0)
@@ -224,20 +233,11 @@ case $MONO_COUNT in
     ;;
   1)
     # Single monorepo hit: emit type@cwd
-    for key in "${!MONO_HITS[@]}"; do
-      echo "$key"
-    done
+    printf '%s\n' "$MONO_HITS"
     ;;
   *)
     # Multiple hits: emit multiple:type1@cwd1,type2@cwd2,...
-    result=""
-    for key in "${!MONO_HITS[@]}"; do
-      if [ -n "$result" ]; then
-        result="${result},${key}"
-      else
-        result="$key"
-      fi
-    done
+    result=$(printf '%s\n' "$MONO_HITS" | paste -sd, -)
     echo "multiple:$result"
     ;;
 esac
