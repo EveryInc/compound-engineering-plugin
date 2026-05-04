@@ -27,9 +27,10 @@ const HERMES_DESCRIPTION_MAX_LENGTH = 1024
  *   `"hermes"`) are recorded as `passthroughSkills`. The body of each
  *   `SKILL.md` is rewritten via `transformContentForHermes` at write time
  *   (in the writer's `copySkillDir` call); frontmatter is preserved.
- * - Commands and agents materialize as `generatedSkills` named
- *   `cmd-<sanitized>` / `agent-<sanitized>`. The prefix is the load-bearing
- *   identifier; `metadata.hermes.tags` is advisory.
+ * - Commands materialize as `generatedSkills` named `cmd-<sanitized>`. The
+ *   prefix is the load-bearing identifier; `metadata.hermes.tags` is advisory.
+ * - Agents are emitted as `agentPayloads` with sanitized names (no `agent-`
+ *   prefix), CE-namespaced frontmatter, and mapped toolsets.
  * - Commands with `disableModelInvocation: true` are dropped with a stderr
  *   warning and tracked in `bundle.droppedCommands`.
  * - MCP entries with neither `command` nor `url` are skipped with a stderr

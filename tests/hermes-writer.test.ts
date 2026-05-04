@@ -166,12 +166,6 @@ describe("writeHermesBundle — happy paths", () => {
             "---\nname: cmd-plan\ndescription: Plan something\nversion: \"1.0.0\"\nmetadata:\n  hermes:\n    tags:\n      - Command\n---\n\nPlan body.\n",
           kind: "command",
         },
-        {
-          name: "agent-reviewer",
-          content:
-            "---\nname: agent-reviewer\ndescription: Review\nversion: \"1.0.0\"\nmetadata:\n  hermes:\n    tags:\n      - Agent\n---\n\nReview body.\n",
-          kind: "agent",
-        },
       ],
       agentPayloads: [
         {
@@ -202,13 +196,6 @@ describe("writeHermesBundle — happy paths", () => {
     expect(cmdContent).toContain("name: cmd-plan")
     expect(cmdContent).toContain("metadata:")
     expect(cmdContent).toContain("- Command")
-
-    const agentContent = await fs.readFile(
-      path.join(tempRoot, ".hermes", "skills", "agent-reviewer", "SKILL.md"),
-      "utf8",
-    )
-    expect(agentContent).toContain("name: agent-reviewer")
-    expect(agentContent).toContain("- Agent")
 
     // Agent payload written to plugin-scoped agents dir
     const payloadContent = await fs.readFile(
