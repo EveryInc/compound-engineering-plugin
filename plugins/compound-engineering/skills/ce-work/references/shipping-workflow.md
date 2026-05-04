@@ -26,7 +26,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
    Every change gets reviewed before shipping. Default to Tier 1 and escalate to Tier 2 only when a concrete signal calls for it. Tier 2 is materially more expensive in time and tokens -- pay that cost when a signal justifies it, not as a default.
 
-   **Tier 1 -- harness-native code review (default).** Run your built-in code review command or skill (e.g., `/review` in Claude Code). Address blocking and suggested findings inline before Final Validation. Skip the Residual Work Gate. If the current harness has no built-in code review command or skill, escalate to Tier 2 -- Tier 1 cannot run, and "Every change gets reviewed" still applies.
+   **Tier 1 -- harness-native code review (default).** Run your built-in code review command or skill (e.g., `/review` in Claude Code). Address blocking and suggested findings inline before Final Validation. If the reviewer returns structured read-only output with a non-empty `findings` array, route those findings through the Read-only Review Finding Gate below before Final Validation. Skip the Residual Work Gate only after no unresolved Tier 1 findings remain. If the current harness has no built-in code review command or skill, escalate to Tier 2 -- Tier 1 cannot run, and "Every change gets reviewed" still applies.
 
    **Tier 2 -- `ce-code-review` (escalation).** Invoke the `ce-code-review` skill with `mode:autofix`, passing `plan:<path>` when known. Then proceed to the Residual Work Gate.
 
@@ -55,7 +55,19 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
    Skip this gate entirely when the review reported `Residual actionable work: none.` or when only Tier 1 was used. Do not proceed past this gate on an `Accept and proceed` decision until the agent has recorded whether the durable sink is `PR Known Residuals` or `docs/residual-review-findings/<branch-or-head-sha>.md`.
 
-5. **Final Validation**
+5. **Read-only Review Finding Gate** (REQUIRED when any read-only review reports findings)
+
+   This gate covers review outputs that are not produced by `ce-code-review mode:autofix`, including harness-native reviews, standalone reviewer agents, or `ce-code-review mode:report-only` / `mode:headless` returns. If the review output contains a non-empty `findings` array, or otherwise lists concrete P0-P3 findings, do not stop after reporting them and do not proceed to Final Validation until every finding is handled.
+
+   For each finding, choose the first applicable route:
+   - **Fix now** -- investigate the finding, modify the relevant source or generated asset, and rerun the review or the most direct validator that proves the finding is resolved.
+   - **Convert to Tier 2 residual** -- when the finding is real but not safe to fix inline, record it as residual actionable work and run the Residual Work Gate path above.
+   - **Durably defer** -- only with explicit user approval, record the finding in the PR "Known Residuals" section or `docs/residual-review-findings/<branch-or-head-sha>.md` before shipping.
+   - **Reject as false positive** -- record the evidence for rejection in the handoff summary.
+
+   A read-only review report that says "No tests or gates were run" does not satisfy verification. If fixes were applied, run the focused test, lint, asset check, screenshot check, or other validator that proves the affected behavior or artifact changed.
+
+6. **Final Validation**
    - All tasks marked completed
    - Testing addressed -- tests pass and new/changed behavior has corresponding test coverage (or an explicit justification for why tests are not needed)
    - Linting passes
@@ -65,7 +77,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - If the plan has a `Requirements` section (or legacy `Requirements Trace`), verify each requirement is satisfied by the completed work
    - If any `Deferred to Implementation` questions were noted, confirm they were resolved during execution
 
-6. **Prepare Operational Validation Plan** (REQUIRED)
+7. **Prepare Operational Validation Plan** (REQUIRED)
    - Add a `## Post-Deploy Monitoring & Validation` section to the PR description for every change.
    - Include concrete:
      - Log queries/search terms
@@ -99,7 +111,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - Testing notes (tests added/modified, manual testing performed)
    - Evidence context from step 1, so `ce-commit-push-pr` can decide whether to ask about capturing evidence
    - Figma design link (if applicable)
-   - The Post-Deploy Monitoring & Validation section (see Phase 3 Step 6)
+   - The Post-Deploy Monitoring & Validation section (see Phase 3 Step 7)
    - Any "Known Residuals" accepted in the Phase 3 Residual Work Gate, rendered as a dedicated section in the PR body with severity, file:line, and title per finding
 
    If the user prefers to commit without creating a PR, load the `ce-commit` skill instead.

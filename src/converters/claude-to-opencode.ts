@@ -5,6 +5,7 @@ import {
   type ClaudeCommand,
   type ClaudeHooks,
   type ClaudePlugin,
+  type ClaudeSkill,
   type ClaudeMcpServer,
   filterSkillsByPlatform,
 } from "../types/claude"
@@ -86,7 +87,9 @@ export function convertClaudeToOpenCode(
   options: ClaudeToOpenCodeOptions,
 ): OpenCodeBundle {
   const agentFiles = plugin.agents.map((agent) => convertAgent(agent, options))
+  const skillDirs = filterSkillsByPlatform(plugin.skills, "opencode")
   const cmdFiles = convertCommands(plugin.commands)
+  const generatedSkillCommands = convertSkillCommandWrappers(skillDirs, cmdFiles)
   const mcp = plugin.mcpServers ? convertMcp(plugin.mcpServers) : undefined
   const plugins = plugin.hooks ? [convertHooks(plugin.hooks)] : []
 
@@ -101,9 +104,9 @@ export function convertClaudeToOpenCode(
     pluginName: plugin.manifest.name,
     config,
     agents: agentFiles,
-    commandFiles: cmdFiles,
+    commandFiles: [...cmdFiles, ...generatedSkillCommands],
     plugins,
-    skillDirs: filterSkillsByPlatform(plugin.skills, "opencode").map((skill) => ({ sourceDir: skill.sourceDir, name: skill.name })),
+    skillDirs: skillDirs.map((skill) => ({ sourceDir: skill.sourceDir, name: skill.name })),
   }
 }
 
@@ -151,6 +154,35 @@ function convertCommands(commands: ClaudeCommand[]): OpenCodeCommandFile[] {
     const content = formatFrontmatter(frontmatter, rewriteClaudePaths(command.body))
     files.push({ name: command.name, content })
   }
+  return files
+}
+
+function convertSkillCommandWrappers(
+  skills: ClaudeSkill[],
+  existingCommands: OpenCodeCommandFile[],
+): OpenCodeCommandFile[] {
+  const existingCommandNames = new Set(existingCommands.map((command) => command.name))
+  const files: OpenCodeCommandFile[] = []
+
+  for (const skill of skills) {
+    if (existingCommandNames.has(skill.name)) continue
+
+    const frontmatter: Record<string, unknown> = {
+      description: skill.description ?? `Run the ${skill.name} skill`,
+      "argument-hint": skill.argumentHint,
+    }
+    const body = [
+      `Read and follow the installed OpenCode skill instructions for \`${skill.name}\`.`,
+      "",
+      `Use the project-local skill file if it exists: \`.opencode/skills/${skill.name}/SKILL.md\``,
+      `Otherwise use the global skill file: \`~/.config/opencode/skills/${skill.name}/SKILL.md\``,
+      "",
+      "<skill_input>$ARGUMENTS</skill_input>",
+    ].join("\n")
+
+    files.push({ name: skill.name, content: formatFrontmatter(frontmatter, body) })
+  }
+
   return files
 }
 

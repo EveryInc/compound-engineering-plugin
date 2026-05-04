@@ -52,6 +52,15 @@ Read the full conversation — the original description AND every comment, with 
 
 **Prior-attempt awareness:** If the user indicates prior failed attempts ("I've been trying", "keeps failing", "stuck"), ask what they have already tried before investigating. This avoids repeating failed approaches and is one of the few cases where asking first is the right call.
 
+#### 0.5 Optional Persistent Memory Recall (Best Effort)
+
+After triage and before reproduction, use persistent memory only as supplementary context:
+
+- If a `ce-memory-researcher` agent is available, ask for `operation: recall` with the bug summary, error text, affected component, issue reference, and project name when known.
+- Look specifically for prior root causes, failed attempts, environment gotchas, and recurring patterns that can sharpen the investigation.
+- Do not skip reproduction or causal tracing because memory suggests an answer.
+- If memory is unavailable, returns no relevant entries, or the agent cannot be dispatched, continue without persistent context and do not fail the debug workflow.
+
 ---
 
 ### Phase 1: Investigate

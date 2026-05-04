@@ -24,6 +24,8 @@ Ask one question at a time. Prefer a concise single-select choice when natural o
 
 <feature_description> #$ARGUMENTS </feature_description>
 
+Treat `$ARGUMENTS` as the source of truth whenever it is non-empty. Treat command rendering artifacts (collapsed previews, shortened snippets, ellipses, or UI truncation) as display artifacts only. Do not ask the user to re-paste the objective, and do not state that the objective is missing or truncated when `$ARGUMENTS` contains content.
+
 **If the feature description above is empty, ask the user:** "What would you like to plan? Describe the task, goal, or project you have in mind." Then wait for their response before continuing.
 
 If the input is present but unclear or underspecified, do not abandon — ask one or two clarifying questions, or proceed to Phase 0.4's planning bootstrap to establish enough context. The goal is always to help the user plan, never to exit the workflow.
@@ -54,6 +56,16 @@ Every plan should contain:
 - Clear dependencies and sequencing
 
 A plan is ready when an implementer can start confidently without needing the plan to write the code for them.
+
+## Scalability Baseline
+
+For runtime-path work, assume at least 1000 simultaneous users. When planning, call out any:
+- blocking I/O or unbounded work on hot paths
+- list endpoints without pagination or limits
+- missing indexes, caching, batching, or background work
+- shared-state or session contention
+
+If the request cannot reasonably satisfy that baseline, make it a blocking concern before finalizing the plan. State how runtime-path changes remain safe under concurrent use when relevant.
 
 ## Workflow
 
@@ -189,12 +201,22 @@ Fires **only in solo invocation** — when Phase 0.2 found no upstream brainstor
 
 ### Phase 1: Gather Context
 
-#### 1.1 Local Research (Always Runs)
+#### 1.0 Optional Persistent Memory Warm-Start (Best Effort)
 
-Prepare a concise planning context summary (a paragraph or two) to pass as input to the research agents:
+Before standard local research, prepare a concise planning context summary (a paragraph or two):
 - If an origin document exists, summarize the problem frame, requirements, and key decisions from that document
 - Otherwise use the feature description directly
 - If `STRATEGY.md` exists, read it and include the relevant pieces (target problem, approach, active tracks) in the summary so downstream research and planning decisions are anchored to product strategy
+
+If a `ce-memory-researcher` agent is available, dispatch it before Phase 1.1:
+
+- Task ce-memory-researcher(operation: warm-start. Include project/repo name when known, topic, and the planning context summary.)
+
+Use returned memory only when it materially affects planning: prior decisions, prior errors, failed attempts, workflow preferences, or cross-project patterns. Treat memory as supplementary evidence; it must not override the origin document, current repo evidence, or explicit user instructions. If memory is unavailable, returns no relevant entries, or the agent cannot be dispatched, continue without persistent context and do not fail the workflow.
+
+#### 1.1 Local Research (Always Runs)
+
+Use the planning context summary from Phase 1.0, or prepare it now if persistent memory warm-start was skipped. Pass it as input to the research agents.
 
 Run these agents in parallel:
 
@@ -276,6 +298,7 @@ If Step 1.2 indicates external research is useful, run these agents in parallel:
 Summarize:
 - Relevant codebase patterns and file paths
 - Relevant institutional learnings
+- Relevant persistent memory findings, if gathered, labeled as supplementary memory context
 - Organizational context from Slack conversations, if gathered (prior discussions, decisions, or domain knowledge relevant to the feature)
 - External references and best practices, if gathered
 - Related issues, PRs, or prior art
@@ -819,6 +842,14 @@ Surface the agent's plan-time decisions to the user before Phase 5.2 commits the
 Fires **only when the plan was sourced from an upstream brainstorm doc** (Phase 0.2 found a `*-requirements.md` match) AND not on Phase 0.1 fast paths (resume normal, deepen-intent). Skip Phase 5.1.5 in solo invocation — solo plans handled their synthesis in Phase 0.7.
 
 **Headless mode**: synthesis is composed but not confirmed (no synchronous user). Proceed to Phase 5.2 plan-write. Inferred bets route to a `## Assumptions` section in the plan instead of Key Technical Decisions. See `references/synthesis-summary.md` Headless mode for the full routing.
+
+#### 5.1.7 Pre-Write Critic Gate
+
+Before writing the plan file, run a bounded critic pass over the complete draft. This catches blocking executability issues while revision is still cheap and before the plan becomes the durable artifact.
+
+**STOP. Load `references/plan-critic.md` now before continuing.** It defines the OKAY/REJECT rubric, max three blocking issues, max two revision loops, CE-portable reviewer guidance, and the fallback behavior when the critic still rejects after the loop limit.
+
+Only revise blocking issues surfaced by the critic. Do not use this gate for perfectionism, stylistic rewrites, or broad re-planning.
 
 #### 5.2 Write Plan File
 

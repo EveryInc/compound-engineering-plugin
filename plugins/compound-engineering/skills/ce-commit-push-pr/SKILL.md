@@ -137,7 +137,7 @@ When using conventional commits, choose the type that most precisely describes t
 
 Use the current branch and existing PR check from context. If the branch is empty, report detached HEAD and stop.
 
-If the PR check returned `state: OPEN`, note the URL -- this is the existing-PR flow. Continue to Step 4 and 5 (commit any pending work and push), then go to Step 7 to ask whether to rewrite the description. Only run Step 6 if the user confirms the rewrite. Otherwise (no open PR), continue through Steps 6, 7, and 8 in order.
+If the PR check returned `state: OPEN`, note the URL -- this is the existing-PR flow. Continue to Step 4 and 5 (commit any pending work and push), then go to Step 7 to ask whether to rewrite the description. Only run Step 6 if the user confirms the rewrite. Otherwise (no open PR), continue through Steps 6, 7, 8, and 9 in order.
 
 ### Step 4: Branch, stage, and commit
 
@@ -207,7 +207,7 @@ Keep the title under 72 characters; the writing reference already emits a conven
 
 The new commits are already on the PR from Step 5. Report the PR URL, then ask whether to rewrite the description.
 
-- If **no** -- skip Step 6 entirely and finish. Do not run composition or evidence capture when the user declined the rewrite.
+- If **no** -- skip Step 6 entirely and continue to Step 8 using the existing PR URL. Do not run composition or evidence capture when the user declined the rewrite.
 - If **yes**, perform these three actions in order. They are separate steps with a hand-off boundary between them -- do not stop between actions.
   1. Run Step 6 to compose the new title and body.
   2. **Preview and confirm.** Read the first two sentences of the Summary, plus the total line count. Ask the user (per the "Asking the user" convention at the top of this skill): "New title: `<title>` (`<N>` chars). Summary leads with: `<first two sentences>`. Total body: `<L>` lines. Apply?" The first two sentences of the Summary carry most of the reviewer's attention. If the user declines, they may pass focus text back for a regenerate; do not apply.
@@ -217,8 +217,16 @@ The new commits are already on the PR from Step 5. Report the PR URL, then ask w
      gh pr edit --title "<TITLE>" --body-file "$BODY_FILE"
      ```
 
-  Then report the PR URL (Step 8).
+  Then continue to Step 8.
 
-### Step 8: Report
+### Step 8: Best-effort post-ship memory capture
+
+Full workflow only. Skip this step for Description-only generation and Description Update workflow.
+
+After the branch has been pushed and the PR has been created, updated, or identified, read `references/memory-capture.md` and follow it. Provide the PR URL, available commit range or commit list, final diff context from Step 6 when available, testing notes, and any plan path or implementation summary supplied by the caller.
+
+This step must never block the PR report. If no reusable memory candidates exist, if `ce-memory-researcher` is unavailable, or if the memory write fails, continue to Step 9 and mention the skip briefly.
+
+### Step 9: Report
 
 Output the PR URL.
