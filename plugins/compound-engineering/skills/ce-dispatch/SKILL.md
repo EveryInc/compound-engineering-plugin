@@ -77,7 +77,7 @@ Locate the `Implementation Units` section. Each unit is a top-level bullet whose
 - **Patterns** (the unit's `Patterns to follow` field, if present)
 - **Approach** (the unit's `Approach` field, if present)
 - **Verification** (the unit's `Verification` or `Test scenarios` field)
-- **Dependencies** (any `Depends on:` field listing other U-IDs, or inferred from the plan's sequencing prose; default to `none`)
+- **Dependencies** (the unit's `**Dependencies:**` field listing other U-IDs — this is the canonical label `ce-plan` emits per its unit template; also accept `Depends on:` as an alias for hand-edited or external plans. If neither label is present, fall back to inferring from the plan's sequencing prose; default to `none` only when nothing is found. Do **not** default to `none` silently when a `**Dependencies:**` line exists with parseable U-IDs — that would let dependent units look like roots and dispatch out of order.)
 
 If the plan has no recognizable Implementation Units section, stop and tell the user the plan must contain implementation units before dispatch. Do not invent units.
 
@@ -173,7 +173,7 @@ Act on the user's selection — do not just announce it. The bare per-option act
   - CI rollup on the PR is green (no `FAILURE` or `ERROR` checks). If checks are pending, ask the user whether to wait or skip.
   - The PR has a `## Dispatch Result` section in its body with `Status: completed`. If the section is missing or `Status` is `partial` / `failed`, refuse and surface the issue back to the user.
 
-  When all gates pass, run `gh pr merge <number> --squash --delete-branch`. After the merge succeeds, run the project's test suite (`bun test`, `pytest`, etc., as inferred from the plan or repo manifest); if it fails, surface the failure prominently and ask the user whether to revert. Update `dispatched_units[<U-ID>].status` to `merged`.
+  When all gates pass, run `gh pr merge <number> --squash --delete-branch`. `gh pr merge` lands the merge on GitHub but does not touch the local checkout, so before running any verification commands locally, sync the working tree to the merged base: `git fetch origin && git checkout <base_branch> && git pull --ff-only origin <base_branch>`. Without this sync the test suite would run against pre-merge code and could report a false green even when the merged commit is broken. Then run the project's test suite (`bun test`, `pytest`, etc., as inferred from the plan or repo manifest); if it fails, surface the failure prominently and ask the user whether to revert. Update `dispatched_units[<U-ID>].status` to `merged`.
 
   On merge conflict (`gh pr merge` reports the PR is not mergeable due to conflicts), do **not** attempt to resolve the conflict in the dispatching session — the conflict belongs to the workspace that produced the PR. Surface the conflict and advise the user: "Open the workspace, run `git fetch origin && git rebase origin/<base_branch>`, resolve conflicts, push, and re-run option 1 to refresh status." Re-render the menu without merging.
 

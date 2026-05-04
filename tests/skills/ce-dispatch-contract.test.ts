@@ -363,6 +363,56 @@ describe("ce-dispatch SKILL.md regression guards (Codex-flagged bugs)", () => {
       expect(inv).toContain("--short")
     }
   })
+
+  test("Phase 1 dependency parser keys to the canonical ce-plan field", () => {
+    // ce-plan emits the bolded `**Dependencies:**` field (see ce-plan/SKILL.md
+    // Implementation Units template). An earlier draft of ce-dispatch keyed
+    // the parser to `Depends on:` instead, which would silently fall back to
+    // `none` for every unit produced by ce-plan, making dependent units look
+    // like roots and dispatching them out of order. The Phase 1 parse rule
+    // must explicitly reference the `Dependencies:` label as the primary key.
+    const phase1Start = SKILL_BODY.indexOf("### Phase 1:")
+    const phase2Start = SKILL_BODY.indexOf("### Phase 2:")
+    expect(phase1Start).toBeGreaterThan(-1)
+    expect(phase2Start).toBeGreaterThan(phase1Start)
+    const phase1Region = SKILL_BODY.slice(phase1Start, phase2Start)
+    // Field-extraction bullet for Dependencies must name the canonical label.
+    const dependenciesBullet = phase1Region.match(
+      /-\s+\*\*Dependencies\*\*[^\n]+/,
+    )
+    expect(dependenciesBullet).not.toBeNull()
+    const bulletText = dependenciesBullet![0]
+    // Primary label is `Dependencies:` (bolded `**Dependencies:**` accepted).
+    expect(bulletText).toMatch(/`(?:\*\*)?Dependencies:(?:\*\*)?`/)
+  })
+
+  test("Phase 4 merge step syncs local checkout before running tests", () => {
+    // `gh pr merge` lands the merge on GitHub but does not update the local
+    // checkout. Running the project test suite immediately after `gh pr merge`
+    // therefore tests pre-merge code, which can falsely report success while
+    // the merged commit is broken. The merge bullet must include an explicit
+    // local sync (fetch + checkout base + pull) between `gh pr merge` and
+    // running the test suite.
+    const phase4Start = SKILL_BODY.indexOf("### Phase 4:")
+    expect(phase4Start).toBeGreaterThan(-1)
+    const phase4Region = SKILL_BODY.slice(phase4Start)
+    // Find the "Merge a PR" routing block — from its label to the next bullet.
+    const mergeBlockMatch = phase4Region.match(
+      /\*\*Merge a PR \(3\)\*\*[\s\S]*?(?=\n- \*\*[A-Z])/,
+    )
+    expect(mergeBlockMatch).not.toBeNull()
+    const mergeBlock = mergeBlockMatch![0]
+    // Must mention `gh pr merge`, then `git fetch`/`git pull` (local sync),
+    // then the test suite — in that order.
+    const ghMergeIdx = mergeBlock.indexOf("gh pr merge")
+    const fetchIdx = mergeBlock.search(/git fetch/)
+    const pullIdx = mergeBlock.search(/git pull/)
+    const testSuiteIdx = mergeBlock.toLowerCase().indexOf("test suite")
+    expect(ghMergeIdx).toBeGreaterThan(-1)
+    expect(fetchIdx).toBeGreaterThan(ghMergeIdx)
+    expect(pullIdx).toBeGreaterThan(ghMergeIdx)
+    expect(testSuiteIdx).toBeGreaterThan(Math.max(fetchIdx, pullIdx))
+  })
 })
 
 describe("conductor-notes.md documents key Conductor behavior", () => {
