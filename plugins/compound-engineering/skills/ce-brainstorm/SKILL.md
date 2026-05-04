@@ -16,7 +16,15 @@ This skill does not implement code. It explores, clarifies, and documents decisi
 
 ## Optional Local Config
 
-Read optional machine-local settings from `.compound-engineering/config.local.yaml` in the repo root. Resolve repo root with `git rev-parse --show-toplevel` and read from `<repo-root>/.compound-engineering/config.local.yaml`.
+Read optional machine-local settings from `.compound-engineering/config.local.yaml` in the repo root.
+
+Use this guarded read pattern so non-git directories fall back cleanly:
+
+!`(top=$(git rev-parse --show-toplevel 2>/dev/null); [ -n "$top" ] && cat "$top/.compound-engineering/config.local.yaml" 2>/dev/null) || echo '__NO_CONFIG__'`
+
+If the block contains YAML key-value pairs, extract supported keys.
+If it shows `__NO_CONFIG__` (including non-git directories), treat as missing config and continue with defaults.
+If it shows an unresolved command string, attempt a native file-read from `.compound-engineering/config.local.yaml` only when repo root is known; otherwise treat as missing config.
 
 Supported key:
 - `ce_brainstorm_mode` -- `lean` or `standard` (default `standard`)
