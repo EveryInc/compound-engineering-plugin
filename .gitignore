@@ -10,3 +10,4 @@ __pycache__/
 *.pyc
 
 .compound-engineering/*.local.yaml
+.idea/
