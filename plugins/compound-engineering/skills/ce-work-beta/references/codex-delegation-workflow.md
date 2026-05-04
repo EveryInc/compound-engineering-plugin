@@ -88,31 +88,43 @@ On decline:
 
 Delegate all units in one batch. If the plan exceeds 5 units, split into batches at the plan's own phase boundaries, or in groups of roughly 5 -- never splitting units that share files. Skip delegation entirely if every unit is trivial.
 
-## Per-Batch Effort Resolution
+## Per-Batch Effort
 
-Before each batch, assess complexity to determine `effective_effort`. The config `work_delegate_effort` acts as a floor — `effective_effort` will never be lower than the config value.
+Each batch picks an effort level proportional to its complexity, then resolves against the config floor before invocation.
 
-**Complexity tiers:**
+**Effort levels — guidelines, not predicates**
 
-| Tier | Signals | Effort |
-|------|---------|--------|
-| Trivial | ≤2 files, no behavioral change (config, rename, typo) | default (no flag) |
-| Moderate | 3–4 files, no high-risk areas | `medium` |
-| Complex | 5–9 files, OR any high-risk area (auth, payments, migrations, external APIs, error handling) regardless of file count | `high` |
-| Architectural | ≥10 files, OR cross-cutting changes, OR two or more high-risk areas | `xhigh` |
+Pick the level that best fits the batch. These are signals to weigh, not boxes to tick — use judgment.
 
-Tiers are mutually exclusive. Evaluate top-down and stop at the first match; high-risk signals always promote at least to Complex even if the file count would otherwise fall in Moderate.
+- **default (no flag)** — trivial work with no behavioral change: a one-line config tweak, a rename, a typo or comment-only fix, a pure documentation update. Defers to the user's `~/.codex/config.toml` default (which is `medium` on a stock Codex install).
+- **`medium`** — small, well-scoped behavioral changes that stay clear of high-risk areas. A handful of files, a single concern, no novel architecture.
+- **`high`** — work that touches a high-risk area (auth/session logic, payments, database migrations, external API contracts, error handling with retries/fallbacks), or work spanning enough surface area that one mistake could cascade.
+- **`xhigh`** — architectural work: cross-cutting refactors, multiple high-risk areas in the same batch, changes that propagate broadly, or anywhere a wrong call meaningfully degrades the project.
 
-**Resolution steps:**
-1. Count implementation files in the batch's combined `Files:` list (Create + Modify paths; exclude Test paths)
-2. Check for high-risk signals: auth/session logic, payments, database migrations, external API calls, error handling with retries/fallbacks, changes spanning 3+ layers
-3. Select the matching tier using the top-down rule above
-4. If `delegate_effort` is set in config, apply as floor using ordering `minimal < low < medium < high < xhigh`. The resolved `effective_effort` is `max(tier_effort, floor)`. If the tier is "default (no flag)", the config floor wins regardless of value.
-5. If `delegate_effort` is unset in config, use the tier directly — "default (no flag)" means omit the effort flag and let Codex use its built-in default
+When in doubt, lean up one level — under-resourcing risky work costs more than over-resourcing routine work. Briefly note the picked level and the signal that drove it (e.g., "`high` — touches db/migrations") so the choice is auditable.
 
-When `effective_effort` resolves to "default (no flag)", omit the effort flag entirely from the invocation.
+A few edge cases worth handling explicitly:
+- **Test-only batches:** classify by what the tests *exercise*, not by file paths. Tests for auth flows, payment logic, or migrations get the same level the equivalent implementation work would get.
+- **Mixed-complexity batches:** the batch picks one level. If a single batch combines a typo unit and a payments rewrite, pick the higher level. If the spread feels wasteful, prefer splitting at the batching step (see Batching above) over averaging it out.
+- **Deletion-only batches:** classify by the risk of what is being removed, not by counts of remaining content. Removing an auth module is `high` even if the batch produces zero `Modify` content.
+- **Documentation- or comment-only batches:** `default`.
 
-Use `effective_effort` in place of `delegate_effort` throughout the Execution Loop.
+**Floor and resolution — hard rules**
+
+These are deterministic; do not improvise.
+
+The floor algebra treats `default` as equivalent to `medium`, because Codex's built-in default reasoning effort is `medium` — omitting the flag and emitting `medium` produce the same runtime behavior. Treating `default` as below `medium` would invert the floor (a `minimal` floor on a `default` pick would emit `minimal`, *lower* than what the unset-config path produces). The ordering used for `max()` is therefore:
+
+`minimal < low < {default ≡ medium} < high < xhigh`
+
+1. If `delegate_effort` is unset, `effective_effort = picked_level`.
+2. If `delegate_effort` is set, `effective_effort = max(picked_level, delegate_effort)` under the ordering above. Concretely:
+   - Pick `default` + floor `minimal` | `low` | `medium` → `default` (omit flag; Codex's built-in `medium` already meets or exceeds the floor).
+   - Pick `default` + floor `high` | `xhigh` → floor wins; emit floor.
+   - Pick `medium` | `high` | `xhigh` + any floor → emit `max(picked_level, floor)`, where `minimal` and `low` are below `medium` in the ordering.
+3. When `effective_effort` is `default`, omit the `model_reasoning_effort` flag entirely. Never pass the literal string `"default"`.
+
+Store `effective_effort` as a per-batch derived state value (alongside the session-level `delegate_effort`) and use it in place of `delegate_effort` throughout the Execution Loop.
 
 ## Prompt Template
 
@@ -265,7 +277,7 @@ codex exec \
 **Conditional flags** — only include each line when the corresponding skill-state value is set:
 
 - If `delegate_model` is set, insert `  -m "<delegate_model>" \` as a line before `$SANDBOX_FLAG`.
-- If `effective_effort` is set (resolved via Per-Batch Effort Resolution above), insert `  -c 'model_reasoning_effort="<effective_effort>"' \` as a line before `$SANDBOX_FLAG`.
+- If `effective_effort` is set AND not `default` (resolved via Per-Batch Effort above), insert `  -c 'model_reasoning_effort="<effective_effort>"' \` as a line before `$SANDBOX_FLAG`. When `effective_effort` is `default`, omit the line — never pass the literal string `"default"`.
 
 When either value is unset, omit its line entirely — Codex resolves the default from the user's `~/.codex/config.toml` (and ultimately the CLI's own built-in default). Do not substitute a placeholder string for unset values.
 
