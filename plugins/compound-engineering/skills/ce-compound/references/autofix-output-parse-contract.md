@@ -9,7 +9,7 @@ This file is not loaded by the skill at runtime. It documents the stable anchors
 The skill emits one of three first-line strings:
 
 - `✓ Documentation complete (mode:autofix)` — a new doc was written
-- `✓ Documentation updated (mode:autofix)` — an existing doc was updated (`depth:full|thorough`, overlap high)
+- `✓ Documentation updated (mode:autofix)` — an existing doc was updated (`depth:standard|deep`, overlap high)
 - `✓ No documentation written (mode:autofix)` — preconditions unmet; nothing written
 
 ## Depth anchor
@@ -17,7 +17,7 @@ The skill emits one of three first-line strings:
 Every autofix output includes:
 
 ```
-Depth: [lightweight|full|thorough]
+Depth: [lightweight|standard|deep]
 ```
 
 This carries the execution path the skill took. `lightweight` is the default when `depth:` is absent from arguments.
@@ -43,5 +43,5 @@ Callers key off these labels. All are present when meaningful for the shape; non
 If the caller passes an unknown `depth:` value, the skill halts before dispatching any subagents and emits:
 
 ```
-ce-compound failed. Reason: unknown depth:<value>. Valid values: lightweight, full, thorough.
+ce-compound failed. Reason: unknown depth:<value>. Valid values: lightweight, standard, deep.
 ```

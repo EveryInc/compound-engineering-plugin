@@ -1,7 +1,7 @@
 ---
 name: ce-compound
 description: Document a recently solved problem to compound your team's knowledge
-argument-hint: "[mode:autofix] [depth:lightweight|full|thorough] [brief context]"
+argument-hint: "[mode:autofix] [depth:lightweight|standard|deep] [brief context]"
 ---
 
 # /ce-compound
@@ -37,16 +37,16 @@ Parse `$ARGUMENTS` for `mode:autofix`. If present, also parse an optional `depth
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Interactive** (default) | No `mode:autofix` token | User picks Full or Lightweight at the Execution Strategy prompt; all documented interactive prompts run. |
+| **Interactive** (default) | No `mode:autofix` token | User picks Standard or Lightweight at the Execution Strategy prompt; all documented interactive prompts run. |
 | **Autofix** | `mode:autofix` in arguments | No user interaction. Execution path and session-history default resolve from `depth:<preset>` (default `lightweight`). |
 
 **Depth presets** (autofix mode only):
 
 - `depth:lightweight` (default) — Lightweight Mode: single-pass, no subagents, no overlap check.
-- `depth:full` — Full Mode: Phase 1 parallel research, overlap-update, Phase 3 specialized reviewers. Session history off.
-- `depth:thorough` — Full Mode + session history on.
+- `depth:standard` — Standard Mode: Phase 1 parallel research, overlap-update, Phase 3 specialized reviewers. Session history off.
+- `depth:deep` — Standard Mode + session history on.
 
-In autofix mode, invalid `depth:` values halt before subagent dispatch and emit `ce-compound failed. Reason: unknown depth:<value>. Valid values: lightweight, full, thorough.`
+In autofix mode, invalid `depth:` values halt before subagent dispatch and emit `ce-compound failed. Reason: unknown depth:<value>. Valid values: lightweight, standard, deep.`
 
 ### Autofix mode rules
 
@@ -59,14 +59,14 @@ In autofix mode, invalid `depth:` values halt before subagent dispatch and emit 
 
 **Autofix mode:** Skip this entire section.
 - `depth:lightweight` (default when `depth:` is absent) → jump directly to the Lightweight Mode execution path below.
-- `depth:full` or `depth:thorough` → execute Full Mode below with the interactive prompts guarded per the Mode Detection section.
+- `depth:standard` or `depth:deep` → execute Standard Mode below with the interactive prompts guarded per the Mode Detection section.
 
 **Interactive mode** (default):
 
 Present the user with two options before proceeding, using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
 
 ```
-1. Full (recommended) — the complete compound workflow. Researches,
+1. Standard (recommended) — the complete compound workflow. Researches,
    cross-references, and reviews your solution to produce documentation
    that compounds your team's knowledge.
 
@@ -78,7 +78,7 @@ Present the user with two options before proceeding, using the platform's blocki
 
 Do NOT pre-select a mode. Do NOT skip this prompt. Wait for the user's choice before proceeding.
 
-**If the user chooses Full**, ask one follow-up question before proceeding. Detect which harness is running (Claude Code, Codex, or Cursor) and ask:
+**If the user chooses Standard**, ask one follow-up question before proceeding. Detect which harness is running (Claude Code, Codex, or Cursor) and ask:
 
 ```
 Would you also like to search your [harness name] session history
@@ -86,18 +86,18 @@ for relevant knowledge to help the Compound process? This adds
 time and token usage.
 ```
 
-If the user says yes, dispatch the Session Historian in Phase 1. If no, skip it. Do not ask this in lightweight mode or in autofix mode — `mode:autofix` with `depth:thorough` dispatches the Session Historian without asking; all other autofix paths skip it (see Mode Detection).
+If the user says yes, dispatch the Session Historian in Phase 1. If no, skip it. Do not ask this in lightweight mode or in autofix mode — `mode:autofix` with `depth:deep` dispatches the Session Historian without asking; all other autofix paths skip it (see Mode Detection).
 
 ---
 
-### Full Mode
+### Standard Mode
 
-Used by Interactive mode when the user picks Full, and by `mode:autofix depth:full|thorough` with interactive prompts guarded per Mode Detection.
+Used by Interactive mode when the user picks Standard, and by `mode:autofix depth:standard|deep` with interactive prompts guarded per Mode Detection.
 
 <critical_requirement>
 **The primary output is ONE file - the final documentation.**
 
-Phase 1 subagents return TEXT DATA to the orchestrator. They must NOT use Write, Edit, or create any files. Only the orchestrator writes files: the solution doc in Phase 2, and — if the Discoverability Check finds a gap and the run is in full interactive mode — a small edit to a project instruction file (AGENTS.md or CLAUDE.md). In autofix mode the instruction-file edit is never written; the gap is surfaced as a Discoverability recommendation in the output instead.
+Phase 1 subagents return TEXT DATA to the orchestrator. They must NOT use Write, Edit, or create any files. Only the orchestrator writes files: the solution doc in Phase 2, and — if the Discoverability Check finds a gap and the run is in Standard interactive mode — a small edit to a project instruction file (AGENTS.md or CLAUDE.md). In autofix mode the instruction-file edit is never written; the gap is surfaced as a Discoverability recommendation in the output instead.
 </critical_requirement>
 
 ### Phase 0.5: Auto Memory Scan
@@ -200,7 +200,7 @@ Launch research subagents. Each returns text data to the orchestrator.
 </parallel_tasks>
 
 #### 4. **Session Historian** (foreground, after launching the above)
-   - Dispatch if the user opted in during the follow-up question, or if `mode:autofix depth:thorough` was passed. Otherwise skip.
+   - Dispatch if the user opted in during the follow-up question, or if `mode:autofix depth:deep` was passed. Otherwise skip.
    - Dispatched as `ce-session-historian`
    - Dispatch in **foreground** — this agent reads session files outside the working directory (`~/.claude/projects/`, `~/.codex/sessions/`, `~/.cursor/projects/`) which background agents may not have access to
    - Searches prior Claude Code, Codex, and Cursor sessions for the same project to find related investigation context
@@ -337,7 +337,7 @@ After the learning is written and the refresh decision is made, check whether th
 
       `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
       ```
-   c. In full mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode, output a one-liner note and move on. In autofix mode, include it as a `Discoverability recommendation` line in the output — do not attempt to edit instruction files (autofix scope is doc capture, not project config).
+   c. In Standard mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode, output a one-liner note and move on. In autofix mode, include it as a `Discoverability recommendation` line in the output — do not attempt to edit instruction files (autofix scope is doc capture, not project config).
 
 ### Phase 3: Optional Enhancement
 
@@ -367,7 +367,7 @@ Based on problem type, optionally invoke specialized agents to review the docume
 
 This mode skips parallel subagents entirely. The orchestrator performs all work in a single pass, producing the same solution document without cross-referencing or duplicate detection.
 
-**This path is also the execution target for `mode:autofix depth:lightweight`** (see Mode Detection). Autofix adds no-prompt guardrails on top of Lightweight — the execution steps below are identical, but autofix uses a dedicated output block (see **Autofix mode output** under Success Output) so callers can parse the result programmatically. `mode:autofix depth:full|thorough` uses the Full Mode execution path instead, not this one.
+**This path is also the execution target for `mode:autofix depth:lightweight`** (see Mode Detection). Autofix adds no-prompt guardrails on top of Lightweight — the execution steps below are identical, but autofix uses a dedicated output block (see **Autofix mode output** under Success Output) so callers can parse the result programmatically. `mode:autofix depth:standard|deep` uses the Standard Mode execution path instead, not this one.
 </critical_requirement>
 
 The orchestrator (main conversation) performs ALL of the following in one sequential pass:
@@ -499,12 +499,12 @@ What's next?
 
 ### Autofix mode output
 
-**Success** — a new doc was written, or (only on `depth:full|thorough` overlap-high) an existing doc was updated:
+**Success** — a new doc was written, or (only on `depth:standard|deep` overlap-high) an existing doc was updated:
 
 ```
 ✓ Documentation complete (mode:autofix)
 
-Depth: [lightweight|full|thorough]
+Depth: [lightweight|standard|deep]
 
 File created:
 - docs/solutions/[category]/[filename].md
@@ -512,7 +512,7 @@ File created:
 Track: [bug|knowledge]
 Category: [category]/
 
-[When an existing doc was updated instead (only on depth:full|thorough, overlap high),
+[When an existing doc was updated instead (only on depth:standard|deep, overlap high),
  replace the first line with "✓ Documentation updated (mode:autofix)" and replace the
  "File created:" block above with:]
 Overlap detected: docs/solutions/[category]/[existing-filename].md
@@ -520,12 +520,12 @@ Overlap detected: docs/solutions/[category]/[existing-filename].md
 File updated:
 - docs/solutions/[category]/[existing-filename].md (added last_updated: YYYY-MM-DD)
 
-[If depth:full or depth:thorough:]
+[If depth:standard or depth:deep:]
 Phase 1 subagents:
   - Context Analyzer: [one-line summary]
   - Solution Extractor: [one-line summary]
   - Related Docs Finder: overlap=[low|moderate|none|high], refresh_candidates=[count]
-  - Session Historian: [off (depth:full) | one-line summary (depth:thorough)]
+  - Session Historian: [off (depth:standard) | one-line summary (depth:deep)]
 
 Phase 3 specialized reviewers:
   - [each agent invoked and its one-line verdict, or "none applicable"]
@@ -545,7 +545,7 @@ Discoverability recommendation: AGENTS.md/CLAUDE.md does not surface docs/soluti
 ```
 ✓ No documentation written (mode:autofix)
 
-Depth: [lightweight|full|thorough]
+Depth: [lightweight|standard|deep]
 
 Reason: [which precondition failed — e.g., "non_trivial check: change was a one-character typo"
   or "solution_verified: no verification evidence in conversation or context hint"
