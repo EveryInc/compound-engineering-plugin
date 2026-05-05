@@ -8,13 +8,16 @@ async function readRepoFile(relativePath: string): Promise<string> {
 }
 
 function structuredPersonaRows(catalog: string): Array<{ reviewerId: string; agentName: string }> {
+  // Match either the original 3-column shape (Persona | Agent | Focus) or the
+  // newer 4-column shape that adds the Lane column (Persona | Agent | Lane | Focus).
+  // Persona and agent are always columns 1 and 2; trailing columns are not captured.
   const personaTables = catalog.matchAll(
-    /^\| Persona \| Agent \| [^\n]+ \|\n\|[-| ]+\|\n((?:\| `[^`]+` \| `ce-[^`]+` \| [^\n]+ \|\n)+)/gm,
+    /^\| Persona \| Agent \|(?: [^|\n]+ \|)+\n\|[-| ]+\|\n((?:\| `[^`]+` \| `ce-[^`]+` \|(?: [^|\n]+ \|)+\n)+)/gm,
   )
 
   return Array.from(personaTables).flatMap(([, table]) =>
     Array.from(
-      table.matchAll(/^\| `([^`]+)` \| `(ce-[^`]+)` \| [^|]+ \|$/gm),
+      table.matchAll(/^\| `([^`]+)` \| `(ce-[^`]+)` \|(?: [^|\n]+ \|)+$/gm),
       ([, reviewerId, agentName]) => ({ reviewerId, agentName }),
     ),
   )
@@ -1176,5 +1179,182 @@ describe("testing-reviewer contract", () => {
 
     // Non-behavioral changes are excluded
     expect(content).toContain("Non-behavioral changes")
+  })
+})
+
+describe("ce-code-review-beta delegation hardening (post-review)", () => {
+  // These tests pin the security-relevant invariants that came out of the
+  // PR review panel. Each is intentionally specific so a future edit that
+  // weakens the contract will fail loudly rather than silently.
+
+  test("Self-Review Prompt Integrity Gate names every load-bearing path glob", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review-beta/SKILL.md")
+    const gateText = sectionBetween(
+      content,
+      "Self-Review Prompt Integrity Gate (beta)",
+      "**Action when tripped",
+    )
+
+    // Each glob below MUST appear in the gate's text. Removing one silently
+    // un-covers that surface area; adding one without including it here means
+    // the gate's prose disagrees with the test's view of what's covered.
+    const requiredGlobs = [
+      "plugins/compound-engineering/skills/ce-code-review-beta/SKILL.md",
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/codex-delegation-workflow.md",
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/findings-schema.json",
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/persona-catalog.md",
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/subagent-template.md",
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/diff-scope.md",
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/delegated-personas/*.agent.md",
+      "plugins/compound-engineering/skills/ce-code-review-beta/scripts/*.sh",
+    ]
+    for (const glob of requiredGlobs) {
+      expect(gateText, `gate text missing trigger glob: ${glob}`).toContain(glob)
+    }
+
+    // The gate must also mention the canonical reviewer agent files (parity-
+    // protected source for delegated-personas sidecars), without leaking the
+    // forbidden literal `plugins/compound-engineering/agents/` path that the
+    // existing self-contained-skill test bans elsewhere in SKILL.md.
+    expect(gateText).toMatch(/canonical reviewer source files|ce-\*-reviewer\.agent\.md/)
+  })
+
+  test("delegation workflow scrubs every named credential variable", async () => {
+    const workflow = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/codex-delegation-workflow.md",
+    )
+
+    // The `env -i` launch must not pass through any of these credential
+    // variables; the workflow must therefore not name them in any HOME/CODEX_HOME
+    // adjacent context. We assert absence as a defensive contract — a future
+    // edit that adds e.g. `GH_TOKEN="$GH_TOKEN"` to the launch template would
+    // introduce a credential leak across the trust boundary.
+    const forbiddenInLaunch = ["GH_TOKEN", "GITHUB_TOKEN", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"]
+    const stepA = sectionBetween(workflow, "**Step A — Launch", "**Step B — Poll")
+    for (const tok of forbiddenInLaunch) {
+      expect(stepA, `Step A leaks ${tok} into delegated launch env`).not.toContain(tok)
+    }
+  })
+
+  test("workflow names codex-home failed-check name explicitly", async () => {
+    const workflow = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/codex-delegation-workflow.md",
+    )
+    expect(workflow).toContain("check-name `codex-home`")
+  })
+
+  test("review_delegate_max_parallel cap is documented in SKILL.md and workflow", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review-beta/SKILL.md")
+    const workflow = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/codex-delegation-workflow.md",
+    )
+    expect(content).toContain("review_delegate_max_parallel")
+    expect(workflow).toContain("review_delegate_max_parallel")
+    // Cap must enforce wave-based scheduling, not silent unbounded fan-out
+    expect(workflow.toLowerCase()).toMatch(/wave|cap|parallel-launch/)
+  })
+
+  test("BETA-STATUS.md documents graduation, sunset, and removal procedure", async () => {
+    const status = await readRepoFile("plugins/compound-engineering/skills/ce-code-review-beta/BETA-STATUS.md")
+    expect(status).toContain("Graduation criteria")
+    expect(status).toContain("Sunset criteria")
+    expect(status).toContain("Removal procedure")
+    expect(status).toContain("STALE_SKILL_DIRS")
+    expect(status).toContain("EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN")
+  })
+
+  test("trust-check and integrity-check scripts exist and are executable", async () => {
+    const scripts = [
+      "plugins/compound-engineering/skills/ce-code-review-beta/scripts/trust-check-codex.sh",
+      "plugins/compound-engineering/skills/ce-code-review-beta/scripts/integrity-check-config.sh",
+      "plugins/compound-engineering/skills/ce-code-review-beta/scripts/resolve-base.sh",
+    ]
+    const { stat } = await import("fs/promises")
+    for (const rel of scripts) {
+      const s = await stat(path.join(process.cwd(), rel))
+      expect(s.isFile(), `${rel} missing or not a regular file`).toBe(true)
+      // Owner-executable bit is what matters; bash invocation works regardless,
+      // but absence of the bit signals an editing accident.
+      expect(s.mode & 0o100, `${rel} missing owner-execute bit`).toBe(0o100)
+    }
+  })
+
+  test("integrity-check-config.sh rejects symlinked .compound-engineering and tracked configs", async () => {
+    // Behavioral test for QA Concern 2: the integrity check must reject
+    // symlinked dirs, symlinked files, tracked files, and missing gitignore
+    // coverage with distinct error messages, not just a single generic failure.
+    const { mkdtemp, mkdir, writeFile, symlink, rm } = await import("fs/promises")
+    const { execSync } = await import("child_process")
+    const os = await import("os")
+
+    const tmp = await mkdtemp(path.join(os.tmpdir(), "ce-integrity-test-"))
+    try {
+      execSync("git init -q", { cwd: tmp })
+      execSync("git config user.email t@t", { cwd: tmp })
+      execSync("git config user.name t", { cwd: tmp })
+
+      const script = path.join(
+        process.cwd(),
+        "plugins/compound-engineering/skills/ce-code-review-beta/scripts/integrity-check-config.sh",
+      )
+      const run = (root: string) =>
+        execSync(`bash ${JSON.stringify(script)} ${JSON.stringify(root)}`, { encoding: "utf8" }).trim()
+
+      // No config dir: ABSENT
+      expect(run(tmp)).toBe("ABSENT")
+
+      // Symlinked .compound-engineering: ERROR
+      const realCfgDir = path.join(tmp, "real-cfg")
+      await mkdir(realCfgDir)
+      await writeFile(path.join(realCfgDir, "config.local.yaml"), "review_delegate_consent: true\n")
+      await symlink(realCfgDir, path.join(tmp, ".compound-engineering"))
+      expect(run(tmp)).toMatch(/^ERROR:\.compound-engineering is a symlink/)
+      await rm(path.join(tmp, ".compound-engineering"))
+
+      // Real dir but config not gitignored: ERROR
+      await mkdir(path.join(tmp, ".compound-engineering"))
+      await writeFile(
+        path.join(tmp, ".compound-engineering/config.local.yaml"),
+        "review_delegate_consent: true\n",
+      )
+      expect(run(tmp)).toMatch(/^ERROR:config\.local\.yaml is not covered by \.gitignore/)
+
+      // Add gitignore but track the file: ERROR
+      await writeFile(path.join(tmp, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+      execSync(
+        "git add -f .compound-engineering/config.local.yaml .gitignore && git commit -q -m init",
+        { cwd: tmp },
+      )
+      expect(run(tmp)).toMatch(/^ERROR:config\.local\.yaml is tracked by git/)
+
+      // Untrack the file: now OK
+      execSync("git rm --cached .compound-engineering/config.local.yaml", { cwd: tmp })
+      execSync("git commit -q -m untrack", { cwd: tmp })
+      const result = run(tmp)
+      expect(result).toMatch(/^OK:.+config\.local\.yaml$/)
+    } finally {
+      await rm(tmp, { recursive: true, force: true })
+    }
+  })
+
+  test("findings-schema declares schema_version and version policy", async () => {
+    const beta = JSON.parse(
+      await readRepoFile(
+        "plugins/compound-engineering/skills/ce-code-review-beta/references/findings-schema.json",
+      ),
+    )
+    const stable = JSON.parse(
+      await readRepoFile("plugins/compound-engineering/skills/ce-code-review/references/findings-schema.json"),
+    )
+    for (const schema of [beta, stable]) {
+      expect(schema.$id).toMatch(/findings-v1/)
+      expect(schema._meta.schema_version).toBe("1.0.0")
+      expect(schema._meta.version_policy).toMatch(/major version/)
+      // schema_version is optional at top-level; producers SHOULD emit it
+      expect(schema.properties.schema_version).toBeDefined()
+      expect(schema.required).not.toContain("schema_version")
+      // evidence: minItems must be 0 — fabricating evidence is worse than []
+      expect(schema.properties.findings.items.properties.evidence.minItems).toBe(0)
+    }
   })
 })

@@ -9,6 +9,12 @@ argument-hint: "[blank to review current branch, or provide PR link] [delegate:c
 
 Reviews code changes using dynamically selected reviewer personas. Spawns parallel sub-agents that return structured JSON, then merges and deduplicates findings into a single report.
 
+**Beta status:** This skill is the experimental Codex-delegation lane. See `BETA-STATUS.md` for graduation criteria, sunset criteria, telemetry, and the removal procedure. The non-delegation paths (scope, intent, selection, merge, synthesis, fix routing) follow stable `ce-code-review` byte-for-byte; only the delegated reviewer dispatch diverges.
+
+**Confidentiality:** Delegation sends each delegated reviewer's prompt — diff, PR metadata, intent summary, persona text — to the Codex provider configured in the user's `auth.json`. Read-only sandbox is not a confidentiality boundary against the provider. Do not enable on diff content the user cannot send to that provider.
+
+**Removal:** see `BETA-STATUS.md` for graduation, sunset, and removal procedure including the cleanup-registry entries that must be added to `src/utils/legacy-cleanup.ts` and `src/data/plugin-legacy-artifacts.ts` when this skill is deleted.
+
 **Beta rollout note:** Invoke `ce-code-review-beta` manually when you want to trial Codex delegation. Stable `ce-code-review` remains the default for upstream skills (`ce-work`, `lfg`, `ce-polish-beta`); they are not yet rewired to call this beta. Mid-tier persona reviewers may be delegated to `codex exec` when `delegate:codex` is active and pre-checks pass; the three high-stakes reviewers (`ce-correctness-reviewer`, `ce-security-reviewer`, `ce-adversarial-reviewer`) always run on the orchestrating agent's session model so capability is not lost where it matters most.
 
 ## When to Use
@@ -54,10 +60,10 @@ After extracting tokens, resolve delegation state using this precedence chain:
 
 Do not read `.compound-engineering/config.local.yaml` until this integrity check passes.
 
-If the block above shows `__TRUSTED_CONFIG__:<path>`, the config exists as a local-only regular file. Only after the check passes, read `.compound-engineering/config.local.yaml` from the repo root using the native file-read tool (e.g., Read in Claude Code, read_file in Codex), then extract values for the keys listed below.
+If the block above shows `__TRUSTED_CONFIG__:<path>`, the config exists as a local-only regular file. The path embedded in that sentinel is informational only — do NOT trust it as a path to read directly. Re-derive the path at runtime: call `git rev-parse --show-toplevel` to find the repo root, run `bash scripts/integrity-check-config.sh "$REPO_ROOT"` via the Bash tool to re-confirm the OK status, then read `<repo-root>/.compound-engineering/config.local.yaml` using the native file-read tool (e.g., Read in Claude Code, read_file in Codex). Only after the check passes, read `.compound-engineering/config.local.yaml`. The `scripts/integrity-check-config.sh` script encodes the same checks as the pre-resolution one-liner above and is the preferred runtime verifier — both are kept so the prose contract and the script implementation can be cross-checked.
 If it shows `__NO_CONFIG__`, the file does not exist — all settings fall through to defaults.
 If it shows `__UNTRUSTED_CONFIG__`, do not read the file for this run. Treat all settings as defaults and note in Coverage: `delegation config ignored because config.local.yaml is not local-only`.
-If it shows an unresolved command string, verify the same integrity properties with individual runtime checks one at a time using native file metadata and simple git commands. Do not paste the chained pre-resolution command into a runtime shell call. Only after the check passes, read `.compound-engineering/config.local.yaml`; otherwise use defaults.
+If it shows an unresolved command string, verify the same integrity properties with `bash scripts/integrity-check-config.sh "$REPO_ROOT"` at runtime using the Bash tool. Do not paste the chained pre-resolution command into a runtime shell call. Only after the check passes, read `.compound-engineering/config.local.yaml`; otherwise use defaults.
 
 If any setting has an unrecognized value, fall through to the hard default for that setting. For optional settings without a hard default (`review_delegate_model`, `review_delegate_effort`), an unrecognized or unparseable value resolves to **unset** — the corresponding flag is omitted from the `codex exec` invocation so Codex uses its built-in default under the workflow's `--ignore-user-config` launch. Never substitute an invalid value into the CLI flags.
 
@@ -68,8 +74,18 @@ Config keys (these are review-specific; they do NOT share state with `ce-work-be
 - `review_delegate_consent` -- `true` or default `false`
 - `review_delegate_decision` -- `auto` (default) or `ask`
 - `review_delegate_model` -- Codex model to use. Optional — when unset or unparseable, Codex uses its built-in default under the workflow's `--ignore-user-config` launch. Accept only a single model identifier that matches `^[A-Za-z0-9._:/-]+$`, does not start with `-`, and contains no whitespace, quotes, backticks, semicolons, pipes, ampersands, redirects, or newlines. Invalid values resolve to unset and must not be substituted into CLI flags.
+
+  **Known-good model identifiers (as of 2026-05):**
+
+  - `gpt-5-codex` (default; recommended for review delegation)
+  - `gpt-5` (if user has access)
+  - `o4-mini`
+  - `gpt-5-mini`
+
+  The character-class regex `^[A-Za-z0-9._:/-]+$` is a syntactic gate — it prevents shell metacharacters and arbitrary flags. It is NOT a semantic allowlist. Users with elevated config trust (write access to `.compound-engineering/config.local.yaml`) can set any string Codex recognizes. Surfacing the allowlist above keeps `delegate_model` defensible-by-default; if a user picks a non-listed model, they get its behavior with their own consent. Update the list when Codex's model surface changes; do NOT silently relax the regex.
 - `review_delegate_effort` -- one of `minimal`, `low`, `medium`, `high`, or `xhigh`. Optional — when unset or set to a value outside this enum, resolves to unset and Codex uses its built-in default under the workflow's `--ignore-user-config` launch.
-- `review_delegate_timeout_seconds` -- per-reviewer polling timeout in seconds. Optional, default `900` (15 minutes). High-effort reasoning on large diffs commonly runs 5-10 minutes; the default has headroom for slow first-launch model loads. Values must be positive integers; non-integer or non-positive values fall back to the default.
+- `review_delegate_timeout_seconds` -- per-reviewer polling timeout in seconds. Optional, default `900` (15 minutes). High-effort reasoning on large diffs commonly runs 5-10 minutes; the default has headroom for slow first-launch model loads. Values must be positive integers; non-integer or non-positive values fall back to the default. Cumulative wall-clock against this timeout is the authoritative bound on a delegated reviewer; any individual polling Bash call's timeout is a polling tick, not a deadline.
+- `review_delegate_max_parallel` -- integer, default `4`. Cap on the number of delegated reviewers running concurrently. Wave-based scheduler queues the rest. See `references/codex-delegation-workflow.md` "Concurrency cap".
 
 Store the resolved state for downstream consumption:
 - `delegation_active` -- boolean, whether delegation mode is on
@@ -302,31 +318,25 @@ gh pr view <number-or-url> --json title,body,baseRefName,headRefName,url,reviews
 
 Use the repository portion of the returned PR URL as `<base-repo>` (for example, `EveryInc/compound-engineering-plugin` from `https://github.com/EveryInc/compound-engineering-plugin/pull/348`).
 
-Then compute a local diff against the PR's base branch so re-reviews also include local fix commits and uncommitted edits. Substitute the PR base branch from metadata (shown here as `<base>`) and the PR base repository identity derived from the PR URL (shown here as `<base-repo>`). Resolve the base ref from the PR's actual base repository, not by assuming `origin` points at that repo:
+Then compute a local diff against the PR's base branch so re-reviews also include local fix commits and uncommitted edits. Resolve the base ref from the PR's actual base repository, not by assuming `origin` points at that repo. PR mode and standalone mode share one tested code path via `scripts/resolve-base.sh` — pass the PR base repository (`<base-repo>` from the PR URL) and PR base branch (`<base>` from `gh pr view` metadata) as flags:
 
-```
-PR_BASE_REMOTE=$(git remote -v | awk 'index($2, "github.com:<base-repo>") || index($2, "github.com/<base-repo>") {print $1; exit}')
-if [ -n "$PR_BASE_REMOTE" ]; then PR_BASE_REMOTE_REF="$PR_BASE_REMOTE/<base>"; else PR_BASE_REMOTE_REF=""; fi
-PR_BASE_REF=$(git rev-parse --verify "$PR_BASE_REMOTE_REF" 2>/dev/null || git rev-parse --verify <base> 2>/dev/null || true)
-if [ -z "$PR_BASE_REF" ]; then
-  if [ -n "$PR_BASE_REMOTE_REF" ]; then
-    git fetch --no-tags "$PR_BASE_REMOTE" <base>:refs/remotes/"$PR_BASE_REMOTE"/<base> 2>/dev/null || git fetch --no-tags "$PR_BASE_REMOTE" <base> 2>/dev/null || true
-    PR_BASE_REF=$(git rev-parse --verify "$PR_BASE_REMOTE_REF" 2>/dev/null || git rev-parse --verify <base> 2>/dev/null || true)
-  else
-    if git fetch --no-tags https://github.com/<base-repo>.git <base> 2>/dev/null; then
-      PR_BASE_REF=$(git rev-parse --verify FETCH_HEAD 2>/dev/null || true)
-    fi
-    if [ -z "$PR_BASE_REF" ]; then PR_BASE_REF=$(git rev-parse --verify <base> 2>/dev/null || true); fi
-  fi
-fi
-if [ -n "$PR_BASE_REF" ]; then BASE=$(git merge-base HEAD "$PR_BASE_REF" 2>/dev/null) || BASE=""; else BASE=""; fi
+```bash
+RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR:-.}/scripts/resolve-base.sh"
+[ -f "$RESOLVE_SCRIPT" ] || RESOLVE_SCRIPT="scripts/resolve-base.sh"
+RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT" --pr-base-repo "$PR_BASE_REPO" --pr-base-branch "$BASE_BRANCH") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
+BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
+The script outputs `BASE:<sha>` on success or `ERROR:<message>` on failure (failure messages now include the captured stderr from the last failing fetch so callers can distinguish "no such branch" from "network failure" from "auth failure"). Substitute `$PR_BASE_REPO` from the repository portion of the returned PR URL (e.g., `EveryInc/compound-engineering-plugin`) and `$BASE_BRANCH` from `gh pr view`'s `baseRefName`.
+
+On success, produce the diff:
+
 ```
-if [ -n "$BASE" ]; then echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard; else echo "ERROR: Unable to resolve PR base branch <base> locally. Fetch the base branch and rerun so the review scope stays aligned with the PR."; fi
+echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:" && git diff -U10 $BASE && echo "UNTRACKED:" && git ls-files --others --exclude-standard
 ```
 
-Extract PR title/body, base branch, and PR URL from `gh pr view`, then extract the base marker, file list, diff content, and `UNTRACKED:` list from the local command. Do not use `gh pr diff` as the review scope after checkout -- it only reflects the remote PR state and will miss local fix commits until they are pushed. If the base ref still cannot be resolved from the PR's actual base repository after the fetch attempt, stop instead of falling back to `git diff HEAD`; a PR review without the PR base branch is incomplete.
+Extract PR title/body, base branch, and PR URL from `gh pr view`, then extract the base marker, file list, diff content, and `UNTRACKED:` list from the local command. Do not use `gh pr diff` as the review scope after checkout -- it only reflects the remote PR state and will miss local fix commits until they are pushed. If the script returns an `ERROR:` line, stop instead of falling back to `git diff HEAD`; a PR review without the PR base branch is incomplete.
 
 **If a branch name is provided as an argument:**
 
@@ -483,6 +493,8 @@ Pass the resulting path list to the `project-standards` persona inside a `<stand
 
 **Do not read persona files in this stage.** This stage only declares the stable reviewer-ID to persona-file mapping used later by Stage 4 after delegation pre-checks pass. Local-lane subagents are dispatched by name through the harness primitive (`Agent` in Claude Code), and the harness loads each persona's content automatically — the orchestrator never needs to read the `.agent.md` file directly.
 
+Before reading delegated persona files or the delegation workflow, the Self-Review Prompt Integrity Gate (Stage 4 below) must have passed. If it didn't, `delegation_active` is false and this stage is skipped.
+
 When `delegation_active` is true, the delegated lane runs `codex exec` calls outside the harness. Stage 4 resolves each delegated persona's `.agent.md` content only after the delegation routing gate and the Self-Review Prompt Integrity Gate have passed. Resolving persona text earlier is forbidden because reviews of this plugin can modify the delegated persona files themselves.
 
 Delegated reviewer IDs are the canonical reviewer IDs from `references/persona-catalog.md`, not the full agent names. Use this exact mapping to resolve the agent file for each selected delegated reviewer:
@@ -543,7 +555,24 @@ Pass `{run_id}` to every persona sub-agent so they can write their full analysis
 
 Omit the `mode` parameter when dispatching sub-agents so the user's configured permission settings apply. Do not pass `mode: "auto"`.
 
-**Self-Review Prompt Integrity Gate (beta).** If `delegation_active` is true after argument parsing, run this built-in gate before reading `references/codex-delegation-workflow.md`, before reading any delegated persona file, and before dispatching any reviewer. This is the authoritative spec for the gate; the workflow's section 0b is a one-line back-reference. If the changed-files list includes this beta review skill's prompt, workflow, schema, catalog, scope rules, subagent template, `scripts/resolve-base.sh`, or delegated persona files, disable delegation for this run. In `mode:headless`, fail fast with the headless error envelope: `Review failed (headless mode). Reason: Codex delegation requested by <delegation_source> but review modifies ce-code-review-beta prompt or delegated persona files.` In `mode:autofix` or Interactive mode, set `delegation_active` to false, continue locally, and note in Coverage: `Codex delegation disabled because review modifies ce-code-review-beta prompt or delegated persona files.` This check covers paths under `plugins/compound-engineering/skills/ce-code-review-beta/` and the installed-skill equivalent under `references/`.
+**Self-Review Prompt Integrity Gate (beta).** This is the authoritative single-source-of-truth spec for the gate; Stage 3c and `references/codex-delegation-workflow.md` section 0b are one-line back-references. If `delegation_active` is true after argument parsing, run this built-in gate before reading `references/codex-delegation-workflow.md`, before reading any delegated persona file, and before dispatching any reviewer.
+
+**Trigger globs.** The gate trips when the Stage 1 changed-files list touches ANY of the following path patterns:
+
+- `plugins/compound-engineering/skills/ce-code-review-beta/SKILL.md`
+- `plugins/compound-engineering/skills/ce-code-review-beta/references/codex-delegation-workflow.md`
+- `plugins/compound-engineering/skills/ce-code-review-beta/references/findings-schema.json`
+- `plugins/compound-engineering/skills/ce-code-review-beta/references/persona-catalog.md`
+- `plugins/compound-engineering/skills/ce-code-review-beta/references/subagent-template.md`
+- `plugins/compound-engineering/skills/ce-code-review-beta/references/diff-scope.md`
+- `plugins/compound-engineering/skills/ce-code-review-beta/references/delegated-personas/*.agent.md`
+- `plugins/compound-engineering/skills/ce-code-review-beta/scripts/*.sh`
+- Any other path under `plugins/compound-engineering/skills/ce-code-review-beta/` (catch-all)
+- The canonical reviewer source files (named `ce-*-reviewer.agent.md` in the plugin's agent source directory) — the byte-equality contract test enforces parity from those source files into the beta sidecars under `references/delegated-personas/`, so a change to a canonical reviewer source is functionally a change to the delegated persona text.
+
+These exact path patterns are load-bearing — the contract test asserts they appear in this gate's text. Also covers the installed-skill equivalent under `references/` once the skill is unpacked at the user's plugin cache.
+
+**Action when tripped.** Disable delegation for this run. In `mode:headless`, fail fast with the headless error envelope: `Review failed (headless mode). Reason: Codex delegation requested by <delegation_source> but review modifies ce-code-review-beta prompt or delegated persona files.` In `mode:autofix` or Interactive mode, set `delegation_active` to false, continue locally, and note in Coverage: `Codex delegation disabled because review modifies ce-code-review-beta prompt or delegated persona files.`
 
 If delegation remains active after that built-in check, read `references/codex-delegation-workflow.md` and follow its Pre-Delegation Checks before dispatching any reviewers. Pre-check failures are mode-specific: report-only disables delegation before this gate; headless fails fast with a structured error envelope for missing trusted consent, unsupported platform, missing/untrusted Codex binary, existing Codex sandbox, or isolated-Codex-home setup failure; autofix disables delegation and continues locally; interactive mode prompts once for consent and otherwise announces local fallback. If pre-checks pass, partition reviewers at dispatch time:
 
@@ -551,7 +580,7 @@ If delegation remains active after that built-in check, read `references/codex-d
   - **High-stakes (session model, never delegated):** `ce-correctness-reviewer`, `ce-security-reviewer`, `ce-adversarial-reviewer`. These inherit the session model (per Model tiering above) — high-stakes analysis loses capability if downgraded.
   - **GitHub-auth dependent:** `ce-previous-comments-reviewer`. It may need the orchestrator's existing `gh` authentication to inspect prior PR review threads. The delegated lane runs with an isolated HOME and scrubbed environment, so do not delegate this reviewer unless the workflow grows an explicit orchestrator-prefetch path for prior comments.
   - **Unstructured-output agents:** `ce-agent-native-reviewer`, `ce-learnings-researcher`, `ce-schema-drift-detector`, `ce-deployment-verification-agent`. These produce prose / checklists / unstructured advice — not the findings-JSON shape that `--output-schema` enforces. Stage 6 synthesizes their output separately (see "Preserve CE agent artifacts" in Stage 5). Forcing them through the delegation workflow would either fail schema validation or strip useful prose. Keep them on the orchestrating agent's subagent primitive even when delegation is active.
-- **Delegated lane (run as `codex exec` calls):** every other structured persona reviewer that was selected in Stage 3, identified by its canonical reviewer ID from `references/persona-catalog.md` — i.e., the always-on reviewer IDs `testing`, `maintainability`, and `project-standards`, plus any selected cross-cutting and stack-specific reviewer IDs (`performance`, `api-contract`, `data-migrations`, `reliability`, `dhh-rails`, `kieran-rails`, `kieran-python`, `kieran-typescript`, `julik-frontend-races`, `swift-ios`). Stage 3c maps these IDs to exact `ce-*.agent.md` files for prompt construction.
+- **Delegated lane (run as `codex exec` calls):** every other structured persona reviewer that was selected in Stage 3. See `references/persona-catalog.md` -> Lane assignment policy. The Lane column is the canonical declaration; the contract test enforces that the catalog's declared lane matches the workflow's delegated mapping. When adding a new reviewer to the catalog, declare its lane explicitly per the policy in that section. Stage 3c maps the delegated reviewer IDs to exact `ce-*.agent.md` files for prompt construction.
 
 These produce findings JSON conforming to `references/findings-schema.json` — the canonical fit for delegation.
 
@@ -640,7 +669,7 @@ Convert multiple reviewer compact JSON returns into one deduplicated, confidence
 4. **Separate pre-existing.** Pull out findings with `pre_existing: true` into a separate list.
 5. **Resolve disagreements.** When reviewers flag the same code region but disagree on severity, autofix_class, or owner, annotate the Reviewer column with the disagreement (e.g., "security (P0), correctness (P1) -- kept P0"). This transparency helps the user understand why a finding was routed the way it was.
 6. **Normalize routing.** For each merged finding, set the final `autofix_class`, `owner`, and `requires_verification`. If reviewers disagree, keep the most conservative route. Synthesis may narrow a finding from `safe_auto` to `gated_auto` or `manual`, but must not widen it without new evidence.
-6b. **Derive the recommended action.** Interactive mode's walk-through and best-judgment paths present a per-finding recommended action (Apply / Defer / Skip / Acknowledge). The recommendation is derived from the normalized `autofix_class` and the presence of `suggested_fix` using this mapping:
+7. **Derive the recommended action.** Interactive mode's walk-through and best-judgment paths present a per-finding recommended action (Apply / Defer / Skip / Acknowledge). The recommendation is derived from the normalized `autofix_class` and the presence of `suggested_fix` using this mapping:
 
 | `autofix_class` | `suggested_fix` present? | Recommended action |
 |-----------------|--------------------------|--------------------|
@@ -654,7 +683,7 @@ Convert multiple reviewer compact JSON returns into one deduplicated, confidence
 The presence of `suggested_fix` is the authoritative signal that the agent can act on the finding. A `manual` finding *with* a `suggested_fix` recommends Apply because the persona has committed to a concrete fix shape grounded in review context (per the subagent template's suggested_fix rule). A `manual` finding *without* a `suggested_fix` recommends Defer because the persona signaled that the fix genuinely needs cross-team input or business-rule context the reviewer cannot provide. `autofix_class` itself is not collapsed by this mapping — the report still records what the persona thought (`manual` vs `gated_auto`), and the distinction matters for downstream surfaces like the unified completion report.
 
 **Cross-reviewer tie-break.** When contributing reviewers implied different actions for the same merged finding, synthesis picks the most conservative using the order `Skip > Defer > Apply > Acknowledge`. This rule fires only on multi-reviewer disagreement; the per-finding mapping above is the single-reviewer default. Tie-break guarantees that identical review artifacts produce the same recommendation deterministically, so best-judgment results are auditable after the fact and the walk-through's recommendation is stable across re-runs. The user may still override per finding via the walk-through's options; this rule only determines what gets labeled "recommended."
-6c. **Mode-aware demotion of weak general-quality findings.** Some persona output is real signal but does not warrant primary-findings attention. Reroute it to the existing soft buckets so the primary findings table stays focused on actionable issues.
+8. **Mode-aware demotion of weak general-quality findings.** Some persona output is real signal but does not warrant primary-findings attention. Reroute it to the existing soft buckets so the primary findings table stays focused on actionable issues.
 
 A finding qualifies for demotion when **all** of these hold:
    - Severity is P2 or P3 (P0 and P1 always stay in primary findings)
@@ -667,14 +696,14 @@ When a finding qualifies, route by mode:
 
 Demotion is intentionally narrow. The conservative scope (testing/maintainability + P2/P3 + advisory) is the starting point; do not expand the rule by guessing which other personas overproduce noise. If real review runs show another persona consistently emitting weak signal, expand with evidence.
 
-7. **Confidence gate.** After dedup, promotion, and demotion have shaped the primary set, suppress remaining findings below anchor 75. Exception: P0 findings at anchor 50+ survive the gate -- critical-but-uncertain issues must not be silently dropped. Record the suppressed count by anchor (so Coverage can report "N findings suppressed at anchor 50, M at anchor 25"). The gate runs late deliberately: anchor-50 findings need a chance to be promoted by step 3 (cross-reviewer corroboration) or rerouted by step 6c (mode-aware demotion to soft buckets) before any drop decision.
-8. **Partition the work.** Build three sets:
-   - in-skill fixer queue: only `safe_auto -> review-fixer`
-   - residual actionable queue: unresolved `gated_auto` or `manual` findings whose owner is `downstream-resolver`
-   - report-only queue: `advisory` findings plus anything owned by `human` or `release`
-9. **Sort and number.** Order by severity (P0 first) -> anchor (descending) -> file path -> line number, then assign monotonically increasing `#` values across the full primary finding set in that sorted order. Do not restart numbering inside each severity table or autofix/routing bucket. If later sections repeat a finding (for example Residual Actionable Work after `safe_auto` fixes are applied), reuse the same stable `#` so users -- and downstream skills like `ce-resolve-pr-feedback` -- can reference findings by `#` after the autofix loop rewrites the report. Renumbering after autofix invalidates any prior reference: copied snippets, follow-up prompts citing `#3`, or tickets filed against an earlier render.
-10. **Collect coverage data.** Union residual_risks and testing_gaps across reviewers.
-11. **Preserve CE agent artifacts.** Keep the learnings, agent-native, schema-drift, and deployment-verification outputs alongside the merged finding set. Do not drop unstructured agent output just because it does not match the persona JSON schema.
+9. **Confidence gate.** After dedup, promotion, and demotion have shaped the primary set, suppress remaining findings below anchor 75. Exception: P0 findings at anchor 50+ survive the gate -- critical-but-uncertain issues must not be silently dropped. Record the suppressed count by anchor (so Coverage can report "N findings suppressed at anchor 50, M at anchor 25"). The gate runs late deliberately: anchor-50 findings need a chance to be promoted by step 3 (cross-reviewer corroboration) or rerouted by step 8 (mode-aware demotion to soft buckets) before any drop decision.
+10. **Partition the work.** Build three sets:
+    - in-skill fixer queue: only `safe_auto -> review-fixer`
+    - residual actionable queue: unresolved `gated_auto` or `manual` findings whose owner is `downstream-resolver`
+    - report-only queue: `advisory` findings plus anything owned by `human` or `release`
+11. **Sort and number.** Order by severity (P0 first) -> anchor (descending) -> file path -> line number, then assign monotonically increasing `#` values across the full primary finding set in that sorted order. Do not restart numbering inside each severity table or autofix/routing bucket. If later sections repeat a finding (for example Residual Actionable Work after `safe_auto` fixes are applied), reuse the same stable `#` so users -- and downstream skills like `ce-resolve-pr-feedback` -- can reference findings by `#` after the autofix loop rewrites the report. Renumbering after autofix invalidates any prior reference: copied snippets, follow-up prompts citing `#3`, or tickets filed against an earlier render.
+12. **Collect coverage data.** Union residual_risks and testing_gaps across reviewers.
+13. **Preserve CE agent artifacts.** Keep the learnings, agent-native, schema-drift, and deployment-verification outputs alongside the merged finding set. Do not drop unstructured agent output just because it does not match the persona JSON schema.
 
 ### Stage 5b: Validation pass (externalizing modes only)
 
@@ -897,7 +926,7 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
     1. **If `failed` is empty:** emit the unified completion report and proceed to Step 5 per its gating rule. No question fires.
     2. **If `failed` is non-empty:** fire the post-run failure-handling question *first* — emitting the report before the user resolves the failed bucket would produce a stale or duplicated report, since `File tickets` and `Walk through` both change the final action state. Stem: `N findings could not be auto-resolved. What should the agent do with them?` Three options:
        - `File tickets for these` — route the failed set through `references/tracker-defer.md` Interactive mode. Omit this option when the cached tracker-detection tuple reports `any_sink_available = false`, and append one line to the stem explaining that no issue tracker is configured for this checkout (Linear, GitHub Issues, etc., were probed and unavailable). Phrase it for a developer audience — avoid `tracker sink` jargon, and avoid `platform` since the missing piece is per-project, not per-agent-platform.
-       - `Walk through these one at a time` — re-enter the walk-through loop scoped to the failed set. Each finding's recommended action is recomputed via the Stage 5 step 6b mapping: items that have a `suggested_fix` recommend Apply (and join the in-memory Apply set if the user picks Apply, dispatching at end-of-walk-through to a focused fixer pass on those items only); items without a `suggested_fix` recommend Defer (Apply is not offered for them; menu is Defer / Skip / `Auto-resolve with best judgment on the rest`).
+       - `Walk through these one at a time` — re-enter the walk-through loop scoped to the failed set. Each finding's recommended action is recomputed via the Stage 5 step 7 mapping: items that have a `suggested_fix` recommend Apply (and join the in-memory Apply set if the user picks Apply, dispatching at end-of-walk-through to a focused fixer pass on those items only); items without a `suggested_fix` recommend Defer (Apply is not offered for them; menu is Defer / Skip / `Auto-resolve with best judgment on the rest`).
        - `Ignore — leave them in the report` — record the failed list as residual actionable work in the report. No further action.
 
        After the user's choice executes (tickets filed, walk-through completed, or ignore recorded), emit the unified completion report. The report reflects the final state including any tickets filed or additional fixes applied during walk-through re-entry.
@@ -943,11 +972,15 @@ After presenting findings and verdict (Stage 6), route the next steps by mode. R
 The fixer accepts two queue shapes depending on which caller invoked it:
 
 - **Homogeneous queue (autofix, headless, walk-through Apply set):** every item is `safe_auto -> review-fixer` (autofix, headless), or every item carries a concrete `suggested_fix` (walk-through Apply set, where the user picked Apply on each finding). The fixer applies each item. **Defensive backstop for the walk-through Apply set:** the walk-through suppresses the Apply option for findings without a `suggested_fix` (see `references/walkthrough.md` adaptations) and the post-run failure-handling re-entry suppresses it as well, so this queue should not contain such items in normal runs. If one slips through, route it to `failed` with reason `no fix proposed by reviewer` rather than attempting an undefined apply — mirroring the heterogeneous queue's handling. Autofix and headless callers are unaffected; they only ever process `safe_auto` items.
-- **Heterogeneous queue (best-judgment path — interactive option B and walk-through's `Auto-resolve with best judgment on the rest`):** the queue mixes `gated_auto`, `manual`, and `advisory` findings. Each item carries: `autofix_class`, `severity`, `file:line`, `title`, `suggested_fix` (may be null), `why_it_matters`, and `evidence`. The fixer routes each item to one of four buckets — the routing categories are fixed; the failure *reason string* should be specific enough that the post-run question's framing (`N findings could not be auto-resolved...`) reads meaningfully to the user. Use the category's default phrasing below when nothing more specific applies; prefer richer, finding-specific reasons that capture *why this particular item didn't land* (e.g., `needs intent confirmation; was the field narrowing deliberate, or do clients still need the full payload?` is more useful than the generic default).
-  - **`safe_auto` / `gated_auto` / `manual` with `suggested_fix`:** light evidence-match check (verify the cited code at `file:line` still resembles the persona's evidence — concretely: at least one identifier or distinctive token from the evidence appears at the cited location, and the line has not been deleted). If the check passes, attempt to apply the fix. On clean apply, route to `applied`. On fix-application failure (line moved, conflicting edit, syntax issue), route to `failed` with a concrete reason — default phrasing `fix did not apply cleanly: <error>` when no richer description fits.
-  - **`gated_auto` or `manual` without `suggested_fix`:** route to `failed` — default phrasing `no fix proposed by reviewer` when no richer description fits. For `manual` this signal indicates the persona judged the finding to need cross-team input or context outside the review; a richer reason naming the specific decision (intent ambiguity, contract decision, design choice) is more useful when the persona's `why_it_matters` or `evidence` makes that clear. For `gated_auto` this is a defensive case (the persona shouldn't normally produce `gated_auto` without a concrete fix) — surface it in `failed` rather than skipping it, to preserve the apply-or-fail contract.
-  - **Advisory items (`autofix_class: advisory`):** no-op. Route to `advisory` (recorded as acknowledged).
-  - **Evidence-match check fails:** route to `failed` — default phrasing `evidence no longer matches code at <file:line>` when no richer description fits. This is the false-positive case — the finding cited something that has since changed or was already handled.
+- **Heterogeneous queue (best-judgment path — interactive option B and walk-through's `Auto-resolve with best judgment on the rest`):** the queue mixes `gated_auto`, `manual`, and `advisory` findings. Each item carries: `autofix_class`, `severity`, `file:line`, `title`, `suggested_fix` (may be null), `why_it_matters`, and `evidence`. The table below is the canonical routing for this queue; any prose elsewhere defers to it. The routing categories are fixed; the failure *reason string* should be specific enough that the post-run question's framing (`N findings could not be auto-resolved...`) reads meaningfully to the user. Use the default phrasing column when nothing more specific applies; prefer richer, finding-specific reasons that capture *why this particular item didn't land* (e.g., `needs intent confirmation; was the field narrowing deliberate, or do clients still need the full payload?` is more useful than the generic default).
+
+  | Bucket | Owner / Destination | Trigger conditions | Action |
+  |--------|---------------------|--------------------|--------|
+  | `applied` | `review-fixer` (in-skill) | Item is `safe_auto`, `gated_auto`, or `manual` with a `suggested_fix` AND the evidence-match check passes (at least one identifier / distinctive token from the evidence appears at the cited `file:line`, and the line has not been deleted) AND the fix applies cleanly. | Apply the fix; if `requires_verification: true`, run the targeted verification before declaring it applied. |
+  | `failed` (no fix proposed) | downstream / surfaced in post-run question | Item is `gated_auto` or `manual` WITHOUT a `suggested_fix`. For `manual`, the persona judged the finding to need cross-team input or context outside the review. For `gated_auto`, this is a defensive case (the persona shouldn't normally produce `gated_auto` without a concrete fix) — surface in `failed` rather than skipping, to preserve the apply-or-fail contract. | Route to `failed`. Default reason: `no fix proposed by reviewer`. Prefer a richer reason naming the specific decision (intent ambiguity, contract decision, design choice) when `why_it_matters` / `evidence` makes that clear. |
+  | `failed` (apply error) | downstream / surfaced in post-run question | Item had a `suggested_fix` and passed the evidence-match check, but applying the fix failed (line moved, conflicting edit, syntax issue), or `requires_verification: true` and the verification step failed. | Route to `failed`. Default reason: `fix did not apply cleanly: <error>` (or `verification failed: <test-name>` for verification failures). |
+  | `failed` (evidence mismatch) | downstream / surfaced in post-run question | Evidence-match check fails — the cited code at `file:line` no longer resembles the persona's evidence. This is the false-positive case: the finding cited something that has since changed or was already handled. | Route to `failed`. Default reason: `evidence no longer matches code at <file:line>`. Do not attempt the apply. |
+  | `advisory` | recorded as acknowledged | Item has `autofix_class: advisory`. | No-op. Route to `advisory`. |
 
 **Best-judgment path is single-pass.** No `max_rounds: 2` re-review loop. After the fixer returns, the orchestrator follows Step 2 Interactive option B's post-fixer ordering: when the `failed` bucket is empty, emit the unified completion report directly; when it is non-empty, fire the post-run failure-handling question first, execute the user's choice, then emit the unified completion report so it reflects the final action state.
 

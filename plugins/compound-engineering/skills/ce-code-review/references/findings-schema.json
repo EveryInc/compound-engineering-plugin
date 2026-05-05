@@ -1,11 +1,16 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://github.com/dwlee/compound-engineering-plugin/schema/code-review-findings-v1.json",
   "title": "Code Review Findings",
-  "description": "Structured output schema for code review sub-agents",
+  "description": "Structured output schema for code review sub-agents. Schema version 1.0.0 — when this contract crosses a process boundary (e.g., codex exec delegation), producers and consumers must agree on the major version.",
   "type": "object",
   "additionalProperties": false,
   "required": ["reviewer", "findings", "residual_risks", "testing_gaps"],
   "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "Optional. When present, must match the major version of the consuming orchestrator. Producers SHOULD emit '1.0.0'; consumers MUST reject inputs whose major version does not match their own."
+    },
     "reviewer": {
       "type": "string",
       "description": "Persona name that produced this output (e.g., 'correctness', 'security')"
@@ -78,9 +83,9 @@
           },
           "evidence": {
             "type": "array",
-            "description": "Code-grounded evidence: snippets, line references, or pattern descriptions. At least 1 item.",
+            "description": "Code-grounded evidence: snippets, line references, or pattern descriptions. Empty is allowed when the diff or finding title itself is sufficient evidence (e.g., schema-level concerns where citing a snippet would be redundant); fabricating an evidence string is worse than returning [].",
             "items": { "type": "string" },
-            "minItems": 1
+            "minItems": 0
           },
           "pre_existing": {
             "type": "boolean",
@@ -106,6 +111,8 @@
   },
 
   "_meta": {
+    "schema_version": "1.0.0",
+    "version_policy": "Bump the major version (1.x -> 2.0.0) on any change that breaks producers or consumers — required-field rename, enum tightening, type change, additionalProperties tightening. Bump minor on additive optional fields. Bump patch on documentation-only edits. Cross-process consumers (codex exec delegation, headless callers) must reject inputs whose major version does not match.",
     "confidence_anchors": {
       "description": "Confidence is one of 5 discrete anchors (0, 25, 50, 75, 100), each tied to a behavioral criterion the reviewer can honestly self-apply. Float values (e.g., 0.73) are not valid -- the model cannot meaningfully calibrate at finer granularity, and discrete anchors prevent false-precision gaming.",
       "0": "False positive or pre-existing -- do not report",
