@@ -88,12 +88,14 @@ export function convertClaudeToOpenCode(
 ): OpenCodeBundle {
   const agentFiles = plugin.agents.map((agent) => convertAgent(agent, options))
   const openCodeSkills = filterSkillsByPlatform(plugin.skills, "opencode")
-  // Commands from the plugin's commands/ directory, plus one generated per skill
-  // so each skill is invocable as a /ce-<name> slash command in OpenCode.
-  const cmdFiles = [
-    ...convertCommands(plugin.commands),
-    ...convertSkillsToCommands(openCodeSkills),
-  ]
+  // Commands from the plugin's commands/ directory take priority; skill stubs
+  // are only appended for names that don't already have an explicit command.
+  const explicitCommands = convertCommands(plugin.commands)
+  const explicitCommandNames = new Set(explicitCommands.map((c) => c.name))
+  const skillStubs = convertSkillsToCommands(openCodeSkills).filter(
+    (stub) => !explicitCommandNames.has(stub.name),
+  )
+  const cmdFiles = [...explicitCommands, ...skillStubs]
   const mcp = plugin.mcpServers ? convertMcp(plugin.mcpServers) : undefined
   const plugins = plugin.hooks ? [convertHooks(plugin.hooks)] : []
 

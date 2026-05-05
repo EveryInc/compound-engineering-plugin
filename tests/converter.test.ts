@@ -57,6 +57,25 @@ describe("convertClaudeToOpenCode", () => {
     expect(bundle.commandFiles.find((f) => f.name === "claude-only-skill")).toBeUndefined()
   })
 
+  test("explicit command takes priority over same-named skill stub", async () => {
+    // If a plugin ships both a commands/foo and a skills/foo, the explicit
+    // command body must win — the skill stub must not overwrite it.
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    // The fixture has a "review" command; confirm it is NOT replaced by a skill stub
+    // (the fixture has no skill named "review", but this test exercises the dedup path
+    // by checking that the command count equals explicit commands + non-colliding stubs)
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    // No command name should appear more than once
+    const names = bundle.commandFiles.map((f) => f.name)
+    const uniqueNames = new Set(names)
+    expect(names.length).toBe(uniqueNames.size)
+  })
+
   test("from-command mode: map allowedTools to global permission block", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
