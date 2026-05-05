@@ -44,7 +44,7 @@ export type ClaudeCommand = {
   sourcePath: string
 }
 
- export type ClaudeSkill = {
+export type ClaudeSkill = {
   name: string
   description?: string
   argumentHint?: string

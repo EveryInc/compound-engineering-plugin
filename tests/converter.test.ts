@@ -187,6 +187,27 @@ describe("convertClaudeToOpenCode", () => {
     expect(permission.skill).toBe("allow")
   })
 
+  test("from-commands mode: patterned skill(...) rule does not block other skill stubs", async () => {
+    // Regression: when a command uses skill(foo-*), patterns["skill"] is populated,
+    // causing the permission build to emit { "*": "deny", "foo-*": "allow" }.
+    // That blocks all stubs for skills outside the pattern even though hasSkillStubs
+    // forces enabled.add("skill"). The fix clears patterns["skill"] when hasSkillStubs is true.
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    // The fixture has skill-command.md with allowed-tools: Skill(create-agent-skills).
+    // skill-one is the stub-eligible skill — it is NOT in the patterned subset.
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "from-commands",
+    })
+
+    expect(bundle.commandFiles.some((f) => f.name === "skill-one")).toBe(true)
+
+    // skill must be a flat "allow", not a pattern object that would deny skill-one
+    const permission = bundle.config.permission as Record<string, string | Record<string, string>>
+    expect(permission.skill).toBe("allow")
+  })
+
   test("normalizes models and infers temperature", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToOpenCode(plugin, {

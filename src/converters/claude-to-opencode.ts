@@ -422,9 +422,13 @@ function applyPermissions(
     }
     // Skill stubs require the `skill` tool to load the skill at invocation time.
     // If we're emitting stubs, ensure `skill` is allowed even when no explicit
-    // command listed it in allowed-tools.
+    // command listed it in allowed-tools, and even when a command listed a
+    // patterned skill(foo-*) rule: a pattern-scoped permission would still
+    // block stubs for skills outside the pattern. Clear any skill patterns so
+    // the permission build emits a flat "allow" for the skill tool.
     if (hasSkillStubs) {
       enabled.add("skill")
+      delete patterns["skill"]
     }
   }
 
