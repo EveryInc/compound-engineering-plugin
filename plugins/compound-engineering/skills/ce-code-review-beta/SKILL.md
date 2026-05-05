@@ -49,35 +49,40 @@ After extracting tokens, resolve delegation state using this precedence chain:
 2. **Config file** -- value `codex` for `review_delegate` activates delegation; `false` deactivates
 3. **Hard default** -- `false` (delegation off)
 
-**Config (pre-resolved):**
-!`(top=$(git rev-parse --show-toplevel 2>/dev/null); [ -n "$top" ] && cat "$top/.compound-engineering/config.local.yaml" 2>/dev/null) || echo '__NO_CONFIG__'`
+**Config status (pre-resolved):**
+!`top=$(git rev-parse --show-toplevel 2>/dev/null || true); cfg="$top/.compound-engineering/config.local.yaml"; if [ -z "$top" ]; then echo '__NO_CONFIG__'; elif [ ! -e "$cfg" ]; then echo '__NO_CONFIG__'; elif [ -L "$top/.compound-engineering" ]; then echo '__UNTRUSTED_CONFIG__'; elif [ -L "$cfg" ]; then echo '__UNTRUSTED_CONFIG__'; elif [ ! -f "$cfg" ]; then echo '__UNTRUSTED_CONFIG__'; elif git -C "$top" ls-files --error-unmatch -- .compound-engineering/config.local.yaml >/dev/null 2>&1; then echo '__UNTRUSTED_CONFIG__'; elif git -C "$top" check-ignore -q -- .compound-engineering/config.local.yaml 2>/dev/null; then echo "__TRUSTED_CONFIG__:$cfg"; else echo '__UNTRUSTED_CONFIG__'; fi`
 
-If the block above contains YAML key-value pairs, extract values for the keys listed below.
+Do not read `.compound-engineering/config.local.yaml` until this integrity check passes.
+
+If the block above shows `__TRUSTED_CONFIG__:<path>`, the config exists as a local-only regular file. Only after the check passes, read `.compound-engineering/config.local.yaml` from the repo root using the native file-read tool (e.g., Read in Claude Code, read_file in Codex), then extract values for the keys listed below.
 If it shows `__NO_CONFIG__`, the file does not exist — all settings fall through to defaults.
-If it shows an unresolved command string, read `.compound-engineering/config.local.yaml` from the repo root using the native file-read tool (e.g., Read in Claude Code, read_file in Codex). If the file does not exist, all settings fall through to defaults.
+If it shows `__UNTRUSTED_CONFIG__`, do not read the file for this run. Treat all settings as defaults and note in Coverage: `delegation config ignored because config.local.yaml is not local-only`.
+If it shows an unresolved command string, verify the same integrity properties with individual runtime checks one at a time using native file metadata and simple git commands. Do not paste the chained pre-resolution command into a runtime shell call. Only after the check passes, read `.compound-engineering/config.local.yaml`; otherwise use defaults.
 
-If any setting has an unrecognized value, fall through to the hard default for that setting. For optional settings without a hard default (`review_delegate_model`, `review_delegate_effort`), an unrecognized or unparseable value resolves to **unset** — the corresponding flag is omitted from the `codex exec` invocation so Codex resolves from `~/.codex/config.toml`. Never substitute an invalid value into the CLI flags.
+If any setting has an unrecognized value, fall through to the hard default for that setting. For optional settings without a hard default (`review_delegate_model`, `review_delegate_effort`), an unrecognized or unparseable value resolves to **unset** — the corresponding flag is omitted from the `codex exec` invocation so Codex uses its built-in default under the workflow's `--ignore-user-config` launch. Never substitute an invalid value into the CLI flags.
+
+**Local-config integrity check.** Treat every delegation config setting as unset until the config file passes the local-config integrity check. The config file is trusted only when `<repo-root>/.compound-engineering/config.local.yaml` is a regular file, neither the file nor `.compound-engineering/` is a symlink, the resolved path stays inside the repo root, the file is not tracked by git, and the file is ignored by git. If any check fails, ignore all delegation config keys and note in Coverage: `delegation config ignored because config.local.yaml is not local-only`.
 
 Config keys (these are review-specific; they do NOT share state with `ce-work-beta`'s `work_delegate_*` keys):
 - `review_delegate` -- `codex` or default `false`
 - `review_delegate_consent` -- `true` or default `false`
 - `review_delegate_decision` -- `auto` (default) or `ask`
-- `review_delegate_model` -- Codex model to use. Optional — when unset or unparseable, defers to the user's `~/.codex/config.toml` default. Passthrough — any non-empty string is accepted as valid; only YAML parse failures or empty values resolve to unset.
-- `review_delegate_effort` -- one of `minimal`, `low`, `medium`, `high`, or `xhigh`. Optional — when unset or set to a value outside this enum, resolves to unset and defers to the user's `~/.codex/config.toml` default.
+- `review_delegate_model` -- Codex model to use. Optional — when unset or unparseable, Codex uses its built-in default under the workflow's `--ignore-user-config` launch. Accept only a single model identifier that matches `^[A-Za-z0-9._:/-]+$`, does not start with `-`, and contains no whitespace, quotes, backticks, semicolons, pipes, ampersands, redirects, or newlines. Invalid values resolve to unset and must not be substituted into CLI flags.
+- `review_delegate_effort` -- one of `minimal`, `low`, `medium`, `high`, or `xhigh`. Optional — when unset or set to a value outside this enum, resolves to unset and Codex uses its built-in default under the workflow's `--ignore-user-config` launch.
 - `review_delegate_timeout_seconds` -- per-reviewer polling timeout in seconds. Optional, default `900` (15 minutes). High-effort reasoning on large diffs commonly runs 5-10 minutes; the default has headroom for slow first-launch model loads. Values must be positive integers; non-integer or non-positive values fall back to the default.
 
 Store the resolved state for downstream consumption:
 - `delegation_active` -- boolean, whether delegation mode is on
 - `delegation_source` -- `argument`, `config`, or `default`
 - `consent_granted` -- boolean (from config `review_delegate_consent`)
-- `delegate_model` -- string from config, or unset
+- `delegate_model` -- validated string from trusted config, or unset
 - `delegate_effort` -- string from config, or unset
 - `delegate_timeout_seconds` -- positive integer from config, or default `900`
 
 **Mode interaction.** Delegation interacts with mode flags as follows:
 
 - **`mode:report-only`**: delegation is disabled. Report-only is strictly read-only with no run-id and no artifacts; the delegation workflow always writes prompt files, schema files, and artifact JSON. If both flags are present, set `delegation_active` to false silently and continue in report-only's standard subagent path. Note in the report's Coverage that the explicit `delegate:codex` argument was suppressed by report-only.
-- **`mode:headless`**: delegation requires `review_delegate_consent: true` already in the config file (consent prompts are blocking and headless is non-interactive). When `delegate:codex` is passed via argument in headless mode but consent is not recorded, **fail fast with the headless error envelope** rather than silently falling back -- a programmatic caller that asked for delegation needs a machine-readable signal that its argument was ignored. Emit: `Review failed (headless mode). Reason: delegate:codex requested but review_delegate_consent not recorded. Run interactive ce-code-review-beta once to grant consent, or omit delegate:codex.` When delegation is active in headless, surface the lane split in Coverage so callers can verify which reviewers ran where (e.g., `Delegated lane: kieran-rails, julik-frontend-races (codex). Local lane: correctness, security, adversarial, agent-native, learnings (sonnet).`).
+- **`mode:headless`**: when `delegation_active` is true and `review_delegate_consent` is not recorded, fail fast with the headless error envelope. This applies to every activation path: explicit `delegate:codex`, fuzzy delegation intent, or `review_delegate: codex` from config. Emit: `Review failed (headless mode). Reason: Codex delegation requested by <delegation_source> but trusted review_delegate_consent is not recorded. Run interactive ce-code-review-beta once to grant consent, or disable delegation.` When delegation is active in headless with trusted consent, surface the lane split in Coverage so callers can verify which reviewers ran where (e.g., `Delegated lane: kieran-rails, julik-frontend-races (codex). Local lane: correctness, security, adversarial, agent-native, learnings (sonnet).`).
 - **`mode:autofix`**: delegation is permitted only when `review_delegate_consent: true` is already recorded. Autofix never prompts for delegation consent; if consent is missing, set `delegation_active` to false, continue in standard mode, and note the suppression in Coverage.
 - **Interactive mode**: delegation prompts for consent the first time; subsequent runs honor the recorded consent.
 
@@ -470,40 +475,39 @@ Before spawning sub-agents, find the file paths (not contents) of all relevant s
 
 Pass the resulting path list to the `project-standards` persona inside a `<standards-paths>` block in its review context (see Stage 4). The persona reads the files itself, targeting only the sections relevant to the changed file types. This keeps the orchestrator's work cheap (path discovery only) and avoids bloating the subagent prompt with content the reviewer may not fully need.
 
-### Stage 3c: Resolve persona files for the delegated lane (beta-only)
+### Stage 3c: Declare delegated persona file mapping (beta-only)
 
-**Skip this stage entirely if `delegation_active` is false.** Local-lane subagents are dispatched by name through the harness primitive (`Agent` in Claude Code), and the harness loads each persona's content automatically — the orchestrator never needs to read the `.agent.md` file directly.
+**Do not read persona files in this stage.** This stage only declares the stable reviewer-ID to persona-file mapping used later by Stage 4 after delegation pre-checks pass. Local-lane subagents are dispatched by name through the harness primitive (`Agent` in Claude Code), and the harness loads each persona's content automatically — the orchestrator never needs to read the `.agent.md` file directly.
 
-When `delegation_active` is true, the delegated lane runs `codex exec` calls outside the harness, so the orchestrator MUST read each delegated persona's `.agent.md` content and inline it into the prompt file the workflow builds (see `references/codex-delegation-workflow.md`). Without this stage, the delegated `<persona>` block ships empty and every delegated reviewer runs as a generic reviewer — silently destroying the value of dispatching specialized personas.
+When `delegation_active` is true, the delegated lane runs `codex exec` calls outside the harness. Stage 4 resolves each delegated persona's `.agent.md` content only after the delegation routing gate and self-review prompt-integrity check have passed. Resolving persona text earlier is forbidden because reviews of this plugin can modify the delegated sidecar files themselves.
 
 Delegated reviewer IDs are the canonical reviewer IDs from `references/persona-catalog.md`, not the full agent names. Use this exact mapping to resolve the agent file for each selected delegated reviewer:
 
-| Reviewer ID | Agent file |
-|-------------|------------|
-| `testing` | `ce-testing-reviewer.agent.md` |
-| `maintainability` | `ce-maintainability-reviewer.agent.md` |
-| `project-standards` | `ce-project-standards-reviewer.agent.md` |
-| `performance` | `ce-performance-reviewer.agent.md` |
-| `api-contract` | `ce-api-contract-reviewer.agent.md` |
-| `data-migrations` | `ce-data-migrations-reviewer.agent.md` |
-| `reliability` | `ce-reliability-reviewer.agent.md` |
-| `previous-comments` | `ce-previous-comments-reviewer.agent.md` |
-| `dhh-rails` | `ce-dhh-rails-reviewer.agent.md` |
-| `kieran-rails` | `ce-kieran-rails-reviewer.agent.md` |
-| `kieran-python` | `ce-kieran-python-reviewer.agent.md` |
-| `kieran-typescript` | `ce-kieran-typescript-reviewer.agent.md` |
-| `julik-frontend-races` | `ce-julik-frontend-races-reviewer.agent.md` |
-| `swift-ios` | `ce-swift-ios-reviewer.agent.md` |
+#### Delegated Reviewer ID Mapping
 
-For each reviewer in the delegated lane (the partition computed in Stage 4 Spawning), resolve the mapped agent file path in this order, stopping at the first hit:
+| Reviewer ID | Persona reference file |
+|-------------|------------------------|
+| `testing` | `references/delegated-personas/ce-testing-reviewer.agent.md` |
+| `maintainability` | `references/delegated-personas/ce-maintainability-reviewer.agent.md` |
+| `project-standards` | `references/delegated-personas/ce-project-standards-reviewer.agent.md` |
+| `performance` | `references/delegated-personas/ce-performance-reviewer.agent.md` |
+| `api-contract` | `references/delegated-personas/ce-api-contract-reviewer.agent.md` |
+| `data-migrations` | `references/delegated-personas/ce-data-migrations-reviewer.agent.md` |
+| `reliability` | `references/delegated-personas/ce-reliability-reviewer.agent.md` |
+| `dhh-rails` | `references/delegated-personas/ce-dhh-rails-reviewer.agent.md` |
+| `kieran-rails` | `references/delegated-personas/ce-kieran-rails-reviewer.agent.md` |
+| `kieran-python` | `references/delegated-personas/ce-kieran-python-reviewer.agent.md` |
+| `kieran-typescript` | `references/delegated-personas/ce-kieran-typescript-reviewer.agent.md` |
+| `julik-frontend-races` | `references/delegated-personas/ce-julik-frontend-races-reviewer.agent.md` |
+| `swift-ios` | `references/delegated-personas/ce-swift-ios-reviewer.agent.md` |
 
-1. **Plugin-relative path:** `${CLAUDE_PLUGIN_ROOT}/agents/<mapped-agent-file>`. In Claude Code, `CLAUDE_PLUGIN_ROOT` resolves to the installed plugin root (e.g., `~/.claude/plugins/cache/marketplaces/.../compound-engineering/<version>/`). Read via the native file-read tool (e.g., Read in Claude Code). Codex delegation is gated to Claude Code (see Pre-Delegation Check 0 in the workflow reference), so this variable is always available when this stage runs.
-2. **Repo-relative fallback:** `plugins/compound-engineering/agents/<mapped-agent-file>` from the current git repo root. This handles development-mode invocations where the skill is loaded via `--plugin-dir` from a checkout of the source repo rather than from the marketplace cache.
-3. **If both paths fail:** mark the reviewer as failed (treat the same as a CLI failure in the workflow's classification table). Record the reason in Coverage as `persona file not found: <mapped-agent-file>`. Do not attempt to dispatch with an empty `<persona>` block.
+This mapping table is a prompt-construction lookup, not an instruction to read persona files before reviewer partitioning. The delegated-lane set is known only after Stage 4 applies the delegation gate and lane split. After Stage 4 partitioning and after the self-review prompt-integrity check passes, read the mapped persona file for each reviewer that remains in the delegated lane. The mapped path shape is `references/delegated-personas/<mapped-persona-file>`. These files are duplicated into the skill so conversion and installed-plugin runs stay self-contained.
 
-Strip the persona file's YAML frontmatter (the `---` block at the top) before pasting into the prompt — frontmatter is for the harness's agent-routing system and is meaningless to a delegated reviewer. The prose body is what the persona's review behavior depends on.
+The workflow does not read plugin-level `agents/` files and never reads persona files from the reviewed repository. If the mapped file is missing, mark the reviewer as failed (treat the same as a CLI failure in the workflow's classification table). Record the reason in Coverage as `persona file not found: references/delegated-personas/<mapped-persona-file>`. Do not attempt to dispatch with an empty `<persona>` block.
 
-Pass the resolved persona content to the workflow as `{persona_content}` per the prompt template. The workflow does not re-resolve paths; this stage is the single resolution point.
+After Stage 4 permits persona resolution, strip the persona file's YAML frontmatter (the `---` block at the top) before passing it to the workflow — frontmatter is for the harness's agent-routing system and is meaningless to a delegated reviewer. The prose body is what the persona's review behavior depends on.
+
+Pass the resolved persona content to the workflow as escaped persona text per the prompt template. The workflow does not re-resolve paths; Stage 4 is the single resolution point for delegated persona content.
 
 ### Stage 4: Spawn sub-agents
 
@@ -532,22 +536,25 @@ Pass `{run_id}` to every persona sub-agent so they can write their full analysis
 
 Omit the `mode` parameter when dispatching sub-agents so the user's configured permission settings apply. Do not pass `mode: "auto"`.
 
-**Delegation routing gate (beta).** If `delegation_active` is true after argument parsing, read `references/codex-delegation-workflow.md` and follow its Pre-Delegation Checks before dispatching any reviewers. If pre-checks fail (Codex not installed, already inside a Codex sandbox, consent not granted), fall through to the standard subagent dispatch below for **all** reviewers. If pre-checks pass, partition reviewers at dispatch time:
+**Delegation routing gate (beta).** If `delegation_active` is true after argument parsing, run this built-in prompt-integrity check before reading `references/codex-delegation-workflow.md`, before reading any delegated persona file, and before dispatching any reviewer: if the changed-files list includes this beta review skill's prompt, workflow, schema, catalog, scope rules, subagent template, or delegated persona sidecars, disable delegation for this run. In `mode:headless`, fail fast with the headless error envelope: `Review failed (headless mode). Reason: Codex delegation requested by <delegation_source> but review modifies ce-code-review-beta prompt or delegated persona files.` In `mode:autofix` or Interactive mode, set `delegation_active` to false, continue locally, and note in Coverage: `Codex delegation disabled because review modifies ce-code-review-beta prompt or delegated persona files.` This check covers paths under `plugins/compound-engineering/skills/ce-code-review-beta/` and the installed-skill equivalent under `references/`.
+
+If delegation remains active after that built-in check, read `references/codex-delegation-workflow.md` and follow its Pre-Delegation Checks before dispatching any reviewers. Pre-check failures are mode-specific: report-only disables delegation before this gate; headless fails fast with a structured error envelope for missing trusted consent, unsupported platform, missing/untrusted Codex binary, existing Codex sandbox, or isolated-Codex-home setup failure; autofix disables delegation and continues locally; interactive mode prompts once for consent and otherwise announces local fallback. If pre-checks pass, partition reviewers at dispatch time:
 
 - **Local lane (always run as in-platform subagents):**
   - **High-stakes (session model, never delegated):** `ce-correctness-reviewer`, `ce-security-reviewer`, `ce-adversarial-reviewer`. These inherit the session model (per Model tiering above) — high-stakes analysis loses capability if downgraded.
+  - **GitHub-auth dependent:** `ce-previous-comments-reviewer`. It may need the orchestrator's existing `gh` authentication to inspect prior PR review threads. The delegated lane runs with an isolated HOME and scrubbed environment, so do not delegate this reviewer unless the workflow grows an explicit orchestrator-prefetch path for prior comments.
   - **Unstructured-output agents:** `ce-agent-native-reviewer`, `ce-learnings-researcher`, `ce-schema-drift-detector`, `ce-deployment-verification-agent`. These produce prose / checklists / unstructured advice — not the findings-JSON shape that `--output-schema` enforces. Stage 6 synthesizes their output separately (see "Preserve CE agent artifacts" in Stage 5). Forcing them through the delegation workflow would either fail schema validation or strip useful prose. Keep them on the orchestrating agent's subagent primitive even when delegation is active.
-- **Delegated lane (run as `codex exec` calls):** every other structured persona reviewer that was selected in Stage 3, identified by its canonical reviewer ID from `references/persona-catalog.md` — i.e., the always-on reviewer IDs `testing`, `maintainability`, and `project-standards`, plus any selected cross-cutting and stack-specific reviewer IDs (`performance`, `api-contract`, `data-migrations`, `reliability`, `previous-comments`, `dhh-rails`, `kieran-rails`, `kieran-python`, `kieran-typescript`, `julik-frontend-races`, `swift-ios`). Stage 3c maps these IDs to exact `ce-*.agent.md` files for prompt construction.
+- **Delegated lane (run as `codex exec` calls):** every other structured persona reviewer that was selected in Stage 3, identified by its canonical reviewer ID from `references/persona-catalog.md` — i.e., the always-on reviewer IDs `testing`, `maintainability`, and `project-standards`, plus any selected cross-cutting and stack-specific reviewer IDs (`performance`, `api-contract`, `data-migrations`, `reliability`, `dhh-rails`, `kieran-rails`, `kieran-python`, `kieran-typescript`, `julik-frontend-races`, `swift-ios`). Stage 3c maps these IDs to exact `ce-*.agent.md` files for prompt construction.
 
 These produce findings JSON conforming to `references/findings-schema.json` — the canonical fit for delegation.
 
-The two lanes run concurrently — local lane uses the bounded subagent scheduler; delegated lane uses Codex's process-level concurrency. **Stage 5 merge does not begin until every reviewer in both lanes is terminal** (succeeded with a result, or classified as failed). Maintain a per-reviewer status map (`pending` / `succeeded` / `failed`) and verify all entries are terminal before entering Stage 5. A local-lane reviewer finishing first must wait for the delegated lane to terminate; the orchestrator does not stream partial results into merge.
+The two lanes run concurrently — local lane uses the bounded subagent scheduler; delegated lane uses Codex's process-level concurrency. **Stage 5 merge does not begin until every reviewer in both lanes is terminal** (succeeded with a result, classified as failed, or explicitly marked ignored after cancellation could not be confirmed). Maintain a per-reviewer status map (`pending` / `succeeded` / `failed` / `ignored`) and verify all entries are terminal before entering Stage 5. A local-lane reviewer finishing first must wait for the delegated lane to terminate; the orchestrator does not stream partial results into merge.
 
 When `delegation_active` is false (or pre-checks fall through), all reviewers run on the standard subagent path described below.
 
 **Model override at dispatch time (local lane).** Pass the platform's mid-tier model on every dispatch except `ce-correctness-reviewer`, `ce-security-reviewer`, and `ce-adversarial-reviewer`, which inherit the session model (per the Model tiering subsection above). In Claude Code, add `model: "sonnet"` to the `Agent` tool call. In Codex, pass the equivalent mid-tier on `spawn_agent` (e.g., `gpt-5.4-mini` as of April 2026). In Pi, pass the equivalent on `subagent` via the `pi-subagents` extension. On platforms where the dispatch primitive has no model-override parameter or the available model names are unknown, omit the override — a working review on the parent model beats a broken dispatch on an unrecognized name. Check this on every Agent / `spawn_agent` / `subagent` call in the parallel dispatch; omitting it on Opus sessions silently 3-4x's the cost of a review.
 
-**Delegated-lane dispatch (beta).** When delegation is active, the delegated reviewers go through `references/codex-delegation-workflow.md` instead of the subagent primitive. Each delegated persona becomes one `codex exec` invocation with the persona content (resolved in Stage 3c) as input, the findings schema as `--output-schema`, and the same review-context bundle (intent, file list, diff, PR metadata, run ID) the local lane receives.
+**Delegated-lane dispatch (beta).** When delegation is active, the delegated reviewers go through `references/codex-delegation-workflow.md` instead of the subagent primitive. After the delegation routing gate and lane split have passed, resolve each delegated persona from the Stage 3c mapping. Each delegated persona becomes one `codex exec` invocation with the resolved persona content as input, the findings schema as `--output-schema`, and the same review-context bundle (intent, file list, diff, PR metadata, run ID) the local lane receives.
 
 **JSON return contract (beta).** Codex returns the **full artifact-tier JSON** via `--output-schema` (including `why_it_matters` and `evidence`). The orchestrator then performs the compact split itself:
 
