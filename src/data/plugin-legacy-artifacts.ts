@@ -46,6 +46,7 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "ce-audit",
       "ce-claude-permissions-optimizer",
       "ce-design",
+      "ce-dispatch",
       "ce-doctor",
       "ce-document-review",
       "ce-feature-video",

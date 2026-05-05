@@ -31,7 +31,7 @@ If artifact-backed mode was used:
 
 **Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the interactive menu below and return control to the caller immediately. The plan file has already been written, the confidence check has already run, and ce-doc-review has already run — the caller (e.g., lfg) determines the next step.
 
-After document-review completes, present the options using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question.
+After document-review completes, present the options. The five options below exceed the 4-option cap most blocking tools enforce, so render the menu as a numbered list directly in chat per the option-overflow exception in `plugins/compound-engineering/AGENTS.md`. Tell the user "Pick a number or describe what you want." so the list retains the open-endedness of the blocking tool. Never silently skip the question.
 
 **Path format:** Use absolute paths for chat-output file references — relative paths are not auto-linked as clickable in most terminals.
 
@@ -41,7 +41,8 @@ After document-review completes, present the options using the platform's blocki
 1. **Start `/ce-work`** (recommended) - Begin implementing this plan in the current session
 2. **Create Issue** - Create a tracked issue from this plan in your configured issue tracker (GitHub or Linear)
 3. **Open in Proof (web app) — review and comment to iterate with the agent** - Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others
-4. **Done for now** - Pause; the plan file is saved and can be resumed later
+4. **Dispatch to external agents** - Create GitHub issues for each implementation unit, ready for pickup by Conductor workspaces or other issue-driven agent workflows
+5. **Done for now** - Pause; the plan file is saved and can be resumed later
 
 **Surface additional document review contextually, not as a menu fixture:** When the prior document-review pass surfaced residual P0/P1 findings that the user has not addressed, mention them adjacent to the menu and offer another review pass in prose (e.g., "Document review flagged 2 P1 findings you may want to address — want me to run another pass before you pick?"). Do not add it to the option list.
 
@@ -63,6 +64,7 @@ Based on selection (the bare per-option routing is also stated inline in the SKI
   - `status: aborted` -> fall back to the options without changes.
 
   If the initial upload fails (network error, Proof API down), retry once after a short wait. If it still fails, tell the user the upload didn't succeed and briefly explain why, then return to the options — don't leave them wondering why the option did nothing.
+- **Dispatch to external agents** -> `ce-dispatch-beta` carries `disable-model-invocation: true` per the beta skills framework (`docs/solutions/skill-design/beta-skills-framework.md`), which blocks the platform's skill-invocation primitive — only a user-typed slash command fires it. Do **not** attempt `Skill ce-dispatch-beta`. Instead, end the turn with a one-line instruction: "Run `/ce-dispatch-beta <plan-path>` to fan the plan's implementation units out to GitHub issues for parallel execution by Conductor / other issue-driven workspaces." Include the resolved plan path so the user can copy-paste. The dispatched workspaces (e.g., Conductor) pick up those issues for parallel execution; the orchestrating session monitors the resulting PRs and gates merges on dependency order. When `ce-dispatch` is later promoted to stable (per the framework's promotion checklist, which strips `-beta` and removes the flag together), this routing will switch back to firing the skill-invocation primitive in-session.
 - **Done for now** -> Display a brief confirmation that the plan file is saved and end the turn. Do not start follow-up work without an explicit further user prompt.
 - **If the user asks for another document review** (either from the contextual prompt when P0/P1 findings remain, or by free-form request) -> Load the `ce-doc-review` skill with the plan path for another pass, then return to the options
 - **Other** -> Accept free text for revisions and loop back to options

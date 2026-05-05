@@ -86,6 +86,11 @@ export const STALE_SKILL_DIRS = [
   "ce-plan-beta",
   "ce-review-beta",
 
+  // ce-dispatch -> ce-dispatch-beta (renamed to follow the beta-skills
+  // framework: betas use `-beta` suffix + `disable-model-invocation: true`).
+  // Sweep stale flat installs of the unsuffixed name on upgrade.
+  "ce-dispatch",
+
   // Removed skills (no replacement)
   "ce-andrew-kane-gem-writer",
   "ce-changelog",
