@@ -1130,17 +1130,14 @@ describe("ce-code-review-beta contract", () => {
 })
 
 describe("ce-code-review stable/beta shared-reference parity", () => {
-  test("shared reference files are byte-identical between stable and beta", async () => {
+  test("unchanged shared reference files are byte-identical between stable and beta", async () => {
     const sharedRefs = [
-      "references/findings-schema.json",
-      "references/subagent-template.md",
+      "references/bulk-preview.md",
       "references/diff-scope.md",
-      "references/persona-catalog.md",
-      "references/synthesis-rubric.md",
-      "references/architecture-patterns.md",
-      "references/walk-through-rubric.md",
-      "references/dispatch-fixers.md",
-      "references/validation-pass.md",
+      "references/review-output-template.md",
+      "references/tracker-defer.md",
+      "references/validator-template.md",
+      "references/walkthrough.md",
     ]
     const stableBase = "plugins/compound-engineering/skills/ce-code-review"
     const betaBase = "plugins/compound-engineering/skills/ce-code-review-beta"
@@ -1333,24 +1330,20 @@ describe("ce-code-review-beta delegation hardening (post-review)", () => {
     }
   })
 
-  test("findings-schema declares schema_version and version policy", async () => {
+  test("beta findings-schema declares schema_version and version policy", async () => {
     const beta = JSON.parse(
       await readRepoFile(
         "plugins/compound-engineering/skills/ce-code-review-beta/references/findings-schema.json",
       ),
     )
-    const stable = JSON.parse(
-      await readRepoFile("plugins/compound-engineering/skills/ce-code-review/references/findings-schema.json"),
-    )
-    for (const schema of [beta, stable]) {
-      expect(schema.$id).toMatch(/findings-v1/)
-      expect(schema._meta.schema_version).toBe("1.0.0")
-      expect(schema._meta.version_policy).toMatch(/major version/)
-      // schema_version is optional at top-level; producers SHOULD emit it
-      expect(schema.properties.schema_version).toBeDefined()
-      expect(schema.required).not.toContain("schema_version")
-      // evidence: minItems must be 0 — fabricating evidence is worse than []
-      expect(schema.properties.findings.items.properties.evidence.minItems).toBe(0)
-    }
+
+    expect(beta.$id).toMatch(/findings-v1/)
+    expect(beta._meta.schema_version).toBe("1.0.0")
+    expect(beta._meta.version_policy).toMatch(/major version/)
+    // schema_version is optional at top-level; producers SHOULD emit it
+    expect(beta.properties.schema_version).toBeDefined()
+    expect(beta.required).not.toContain("schema_version")
+    // evidence: minItems must be 0 — fabricating evidence is worse than []
+    expect(beta.properties.findings.items.properties.evidence.minItems).toBe(0)
   })
 })

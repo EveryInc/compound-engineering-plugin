@@ -292,17 +292,15 @@ If the output is non-empty, inform the user: "You have uncommitted changes on th
 git checkout <branch>
 ```
 
-Then detect the review base branch and compute the merge-base. Run the `scripts/resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names). Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable) so the path works when the Bash tool runs from the user's project CWD rather than the skill directory:
+Then detect the review base branch and compute the merge-base. Run the `scripts/resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names):
 
 ```
-RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR:-.}/scripts/resolve-base.sh"
-[ -f "$RESOLVE_SCRIPT" ] || RESOLVE_SCRIPT="scripts/resolve-base.sh"
-RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+RESOLVE_OUT=$(bash scripts/resolve-base.sh) || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
-If `${CLAUDE_SKILL_DIR}` is unset (other platforms or older harnesses), the fallback bare relative path is tried; if that also fails, the explicit `ERROR:` exit surfaces the issue rather than silently degrading. If the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
+If the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
 
 On success, produce the diff:
 
@@ -314,12 +312,10 @@ You may still fetch additional PR metadata with `gh pr view` for title, body, li
 
 **If no argument (standalone on current branch):**
 
-Detect the review base branch and compute the merge-base using the same `scripts/resolve-base.sh` script as branch mode. Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable) with a bare-path fallback so the call works regardless of the Bash tool's CWD:
+Detect the review base branch and compute the merge-base using the same `scripts/resolve-base.sh` script as branch mode:
 
 ```
-RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR:-.}/scripts/resolve-base.sh"
-[ -f "$RESOLVE_SCRIPT" ] || RESOLVE_SCRIPT="scripts/resolve-base.sh"
-RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+RESOLVE_OUT=$(bash scripts/resolve-base.sh) || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
@@ -442,10 +438,7 @@ Generate a unique run identifier before dispatching any agents. This ID scopes a
 ```bash
 RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ')
 mkdir -p "/tmp/compound-engineering/ce-code-review/$RUN_ID"
-chmod 700 "/tmp/compound-engineering/ce-code-review/$RUN_ID"
 ```
-
-The `chmod 700` is required: `mkdir -p` honors the user's umask (typically `022`, leaving the directory `755` and world-readable). The run directory holds full per-reviewer findings JSON, including the `evidence` field. Tightening to owner-only prevents another local user or process from reading the artifacts.
 
 Pass `{run_id}` to every persona sub-agent so they can write their full analysis to `/tmp/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`.
 
@@ -633,7 +626,6 @@ In `mode:headless`, replace the interactive pipe-delimited table report with a s
 ```
 Code review complete (headless mode).
 
-Skill: ce-code-review
 Scope: <scope-line>
 Intent: <intent-summary>
 Reviewers: <reviewer-list with conditional justifications>
@@ -702,7 +694,6 @@ Review complete
    - **No-match fallback:** If no artifact file contains a match (all writes failed, or the finding was synthesized during merge), omit the `Why:` and `Evidence:` lines for that finding and note the gap in Coverage. The `Suggested fix:` line can still be populated from the compact return since it is merge-tier.
 
 **Formatting rules:**
-- The `Skill: ce-code-review` line is the skill-discriminator header. Programmatic callers use this to gate skill-specific reason-string parsing; emit it verbatim. The beta variant emits `Skill: ce-code-review-beta`.
 - The `[needs-verification]` marker appears only on findings where `requires_verification: true`.
 - The `Artifact:` line gives callers the path to the full run artifact for machine-readable access to the complete findings schema. The text envelope is the primary handoff; the artifact is for debugging and full-fidelity access.
 - Findings with `owner: release` appear in the Advisory section (they are operational/rollout items, not code fixes).
