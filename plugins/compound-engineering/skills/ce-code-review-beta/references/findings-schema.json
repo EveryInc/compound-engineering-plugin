@@ -3,6 +3,7 @@
   "title": "Code Review Findings",
   "description": "Structured output schema for code review sub-agents",
   "type": "object",
+  "additionalProperties": false,
   "required": ["reviewer", "findings", "residual_risks", "testing_gaps"],
   "properties": {
     "reviewer": {
@@ -14,6 +15,7 @@
       "description": "List of code review findings. Empty array if no issues found.",
       "items": {
         "type": "object",
+        "additionalProperties": false,
         "required": [
           "title",
           "severity",
@@ -96,6 +98,10 @@
       "type": "array",
       "description": "Missing test coverage the reviewer identified",
       "items": { "type": "string" }
+    },
+    "_meta": {
+      "type": "object",
+      "description": "Documentation-only metadata block; not a runtime field. Defined here so additionalProperties: false at the root accepts it."
     }
   },
 

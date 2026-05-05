@@ -77,7 +77,7 @@ Store the resolved state for downstream consumption:
 - `consent_granted` -- boolean (from config `review_delegate_consent`)
 - `delegate_model` -- validated string from trusted config, or unset
 - `delegate_effort` -- string from config, or unset
-- `delegate_timeout_seconds` -- positive integer from config, or default `900`
+- `delegate_timeout_seconds` -- positive integer from config, or default `900` seconds (15 minutes)
 
 **Mode interaction.** Delegation interacts with mode flags as follows:
 
@@ -346,15 +346,17 @@ If the output is non-empty, inform the user: "You have uncommitted changes on th
 git checkout <branch>
 ```
 
-Then detect the review base branch and compute the merge-base. Run the `scripts/resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names):
+Then detect the review base branch and compute the merge-base. Run the `scripts/resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names). Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable) so the path works when the Bash tool runs from the user's project CWD rather than the skill directory:
 
 ```
-RESOLVE_OUT=$(bash scripts/resolve-base.sh) || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR:-.}/scripts/resolve-base.sh"
+[ -f "$RESOLVE_SCRIPT" ] || RESOLVE_SCRIPT="scripts/resolve-base.sh"
+RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
-If the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
+If `${CLAUDE_SKILL_DIR}` is unset (other platforms or older harnesses), the fallback bare relative path is tried; if that also fails, the explicit `ERROR:` exit surfaces the issue rather than silently degrading. If the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
 
 On success, produce the diff:
 
@@ -366,10 +368,12 @@ You may still fetch additional PR metadata with `gh pr view` for title, body, li
 
 **If no argument (standalone on current branch):**
 
-Detect the review base branch and compute the merge-base using the same `scripts/resolve-base.sh` script as branch mode:
+Detect the review base branch and compute the merge-base using the same `scripts/resolve-base.sh` script as branch mode. Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable) with a bare-path fallback so the call works regardless of the Bash tool's CWD:
 
 ```
-RESOLVE_OUT=$(bash scripts/resolve-base.sh) || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR:-.}/scripts/resolve-base.sh"
+[ -f "$RESOLVE_SCRIPT" ] || RESOLVE_SCRIPT="scripts/resolve-base.sh"
+RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
@@ -479,7 +483,7 @@ Pass the resulting path list to the `project-standards` persona inside a `<stand
 
 **Do not read persona files in this stage.** This stage only declares the stable reviewer-ID to persona-file mapping used later by Stage 4 after delegation pre-checks pass. Local-lane subagents are dispatched by name through the harness primitive (`Agent` in Claude Code), and the harness loads each persona's content automatically — the orchestrator never needs to read the `.agent.md` file directly.
 
-When `delegation_active` is true, the delegated lane runs `codex exec` calls outside the harness. Stage 4 resolves each delegated persona's `.agent.md` content only after the delegation routing gate and self-review prompt-integrity check have passed. Resolving persona text earlier is forbidden because reviews of this plugin can modify the delegated sidecar files themselves.
+When `delegation_active` is true, the delegated lane runs `codex exec` calls outside the harness. Stage 4 resolves each delegated persona's `.agent.md` content only after the delegation routing gate and the Self-Review Prompt Integrity Gate have passed. Resolving persona text earlier is forbidden because reviews of this plugin can modify the delegated sidecar files themselves.
 
 Delegated reviewer IDs are the canonical reviewer IDs from `references/persona-catalog.md`, not the full agent names. Use this exact mapping to resolve the agent file for each selected delegated reviewer:
 
@@ -501,7 +505,7 @@ Delegated reviewer IDs are the canonical reviewer IDs from `references/persona-c
 | `julik-frontend-races` | `references/delegated-personas/ce-julik-frontend-races-reviewer.agent.md` |
 | `swift-ios` | `references/delegated-personas/ce-swift-ios-reviewer.agent.md` |
 
-This mapping table is a prompt-construction lookup, not an instruction to read persona files before reviewer partitioning. The delegated-lane set is known only after Stage 4 applies the delegation gate and lane split. After Stage 4 partitioning and after the self-review prompt-integrity check passes, read the mapped persona file for each reviewer that remains in the delegated lane. The mapped path shape is `references/delegated-personas/<mapped-persona-file>`. These files are duplicated into the skill so conversion and installed-plugin runs stay self-contained.
+This mapping table is a prompt-construction lookup, not an instruction to read persona files before reviewer partitioning. The delegated-lane set is known only after Stage 4 applies the delegation gate and lane split. After Stage 4 partitioning and after the Self-Review Prompt Integrity Gate passes, read the mapped persona file for each reviewer that remains in the delegated lane. The mapped path shape is `references/delegated-personas/<mapped-persona-file>`. These files are duplicated into the skill so conversion and installed-plugin runs stay self-contained.
 
 The workflow does not read plugin-level `agents/` files and never reads persona files from the reviewed repository. If the mapped file is missing, mark the reviewer as failed (treat the same as a CLI failure in the workflow's classification table). Record the reason in Coverage as `persona file not found: references/delegated-personas/<mapped-persona-file>`. Do not attempt to dispatch with an empty `<persona>` block.
 
@@ -536,7 +540,7 @@ Pass `{run_id}` to every persona sub-agent so they can write their full analysis
 
 Omit the `mode` parameter when dispatching sub-agents so the user's configured permission settings apply. Do not pass `mode: "auto"`.
 
-**Delegation routing gate (beta).** If `delegation_active` is true after argument parsing, run this built-in prompt-integrity check before reading `references/codex-delegation-workflow.md`, before reading any delegated persona file, and before dispatching any reviewer: if the changed-files list includes this beta review skill's prompt, workflow, schema, catalog, scope rules, subagent template, or delegated persona sidecars, disable delegation for this run. In `mode:headless`, fail fast with the headless error envelope: `Review failed (headless mode). Reason: Codex delegation requested by <delegation_source> but review modifies ce-code-review-beta prompt or delegated persona files.` In `mode:autofix` or Interactive mode, set `delegation_active` to false, continue locally, and note in Coverage: `Codex delegation disabled because review modifies ce-code-review-beta prompt or delegated persona files.` This check covers paths under `plugins/compound-engineering/skills/ce-code-review-beta/` and the installed-skill equivalent under `references/`.
+**Self-Review Prompt Integrity Gate (beta).** If `delegation_active` is true after argument parsing, run this built-in gate before reading `references/codex-delegation-workflow.md`, before reading any delegated persona file, and before dispatching any reviewer. This is the authoritative spec for the gate; the workflow's section 0b is a one-line back-reference. If the changed-files list includes this beta review skill's prompt, workflow, schema, catalog, scope rules, subagent template, `scripts/resolve-base.sh`, or delegated persona sidecars, disable delegation for this run. In `mode:headless`, fail fast with the headless error envelope: `Review failed (headless mode). Reason: Codex delegation requested by <delegation_source> but review modifies ce-code-review-beta prompt or delegated persona files.` In `mode:autofix` or Interactive mode, set `delegation_active` to false, continue locally, and note in Coverage: `Codex delegation disabled because review modifies ce-code-review-beta prompt or delegated persona files.` This check covers paths under `plugins/compound-engineering/skills/ce-code-review-beta/` and the installed-skill equivalent under `references/`.
 
 If delegation remains active after that built-in check, read `references/codex-delegation-workflow.md` and follow its Pre-Delegation Checks before dispatching any reviewers. Pre-check failures are mode-specific: report-only disables delegation before this gate; headless fails fast with a structured error envelope for missing trusted consent, unsupported platform, missing/untrusted Codex binary, existing Codex sandbox, or isolated-Codex-home setup failure; autofix disables delegation and continues locally; interactive mode prompts once for consent and otherwise announces local fallback. If pre-checks pass, partition reviewers at dispatch time:
 
@@ -741,6 +745,7 @@ In `mode:headless`, replace the interactive pipe-delimited table report with a s
 ```
 Code review complete (headless mode).
 
+Skill: ce-code-review-beta
 Scope: <scope-line>
 Intent: <intent-summary>
 Reviewers: <reviewer-list with conditional justifications>
@@ -809,6 +814,7 @@ Review complete
    - **No-match fallback:** If no artifact file contains a match (all writes failed, or the finding was synthesized during merge), omit the `Why:` and `Evidence:` lines for that finding and note the gap in Coverage. The `Suggested fix:` line can still be populated from the compact return since it is merge-tier.
 
 **Formatting rules:**
+- The `Skill: ce-code-review-beta` line is the skill-discriminator header. Programmatic callers gate beta-specific reason-string parsing on this line; emit it verbatim. The stable `ce-code-review` skill emits `Skill: ce-code-review`.
 - The `[needs-verification]` marker appears only on findings where `requires_verification: true`.
 - The `Artifact:` line gives callers the path to the full run artifact for machine-readable access to the complete findings schema. The text envelope is the primary handoff; the artifact is for debugging and full-fidelity access.
 - Findings with `owner: release` appear in the Advisory section (they are operational/rollout items, not code fixes).

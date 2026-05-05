@@ -980,13 +980,13 @@ describe("ce-code-review-beta contract", () => {
     const stage3c = sectionBetween(content, "### Stage 3c: Declare delegated persona file mapping", "### Stage 4: Spawn sub-agents")
     const spawning = sectionBetween(content, "#### Spawning", "**JSON return contract")
     expect(stage3c).toContain("Do not read persona files in this stage")
-    expect(stage3c).toContain("After Stage 4 partitioning and after the self-review prompt-integrity check passes")
-    expect(spawning).toContain("run this built-in prompt-integrity check before reading `references/codex-delegation-workflow.md`")
+    expect(stage3c).toContain("After Stage 4 partitioning and after the Self-Review Prompt Integrity Gate passes")
+    expect(spawning).toContain("run this built-in gate before reading `references/codex-delegation-workflow.md`")
     expect(spawning).toContain("before reading any delegated persona file")
-    expect(spawning.indexOf("run this built-in prompt-integrity check")).toBeLessThan(
+    expect(spawning.indexOf("run this built-in gate")).toBeLessThan(
       spawning.indexOf("read `references/codex-delegation-workflow.md`"),
     )
-    expect(spawning.indexOf("run this built-in prompt-integrity check")).toBeLessThan(
+    expect(spawning.indexOf("run this built-in gate")).toBeLessThan(
       spawning.indexOf("resolve each delegated persona from the Stage 3c mapping"),
     )
     expect(workflow).toContain("Before writing consent")
@@ -1023,8 +1023,15 @@ describe("ce-code-review-beta contract", () => {
     expect(launchBlock).toContain('--cd "$REPO_ROOT"')
     expect(launchBlock).toContain("-s read-only")
     expect(launchBlock).toContain("--output-schema \"<scratch-dir>/result-schema.json\"")
-    expect(launchBlock).toContain("-o \"<scratch-dir>/result-<reviewer-name>.json\"")
-    expect(launchBlock).toContain("printf '%s\\n' \"$STATUS\" > \"$EXIT_FILE\"")
+    // Atomic rename-into-place: codex writes RESULT_TMP, mv to RESULT_FILE,
+    // sync, then rename EXIT_TMP into place. Poll readers see complete files only.
+    expect(launchBlock).toContain('RESULT_FILE="<scratch-dir>/result-<reviewer-name>.json"')
+    expect(launchBlock).toContain('RESULT_TMP="$RESULT_FILE.tmp"')
+    expect(launchBlock).toContain("-o \"$RESULT_TMP\"")
+    expect(launchBlock).toContain('mv -f "$RESULT_TMP" "$RESULT_FILE"')
+    expect(launchBlock).toContain("printf '%s\\n' \"$STATUS\" > \"$EXIT_TMP\"")
+    expect(launchBlock).toContain('mv -f "$EXIT_TMP" "$EXIT_FILE"')
+    expect(launchBlock).toContain("sync")
     expect(stepA).toContain("DELEGATE_MODEL=\"<validated-delegate-model>\"")
     expect(stepA).toContain('-m "$DELEGATE_MODEL"')
     expect(stepA).toContain("Record the background process/session handle")
@@ -1093,6 +1100,65 @@ describe("ce-code-review-beta contract", () => {
     expect(workflow).toContain("If a pending process cannot be terminated")
     expect(workflow).toContain("do not redispatch it locally in the same run")
     expect(workflow).toContain("re-dispatch every not-yet-launched delegated reviewer")
+  })
+
+  test("compact split must validate-then-write-full before stripping detail-tier fields", async () => {
+    const skill = await readRepoFile("plugins/compound-engineering/skills/ce-code-review-beta/SKILL.md")
+    const workflow = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/codex-delegation-workflow.md",
+    )
+    // The validate -> write-full -> strip -> merge order is load-bearing.
+    // Reversing steps 2 and 3 silently empties Why:/Evidence: in headless output.
+    expect(workflow).toContain("never reverse")
+    expect(workflow).toContain("silent failure mode")
+    expect(workflow).toMatch(/validate.*write.*strip.*merge/i)
+    // SKILL.md must restate the same ordering rule so the imperative lands at the
+    // point of action even when the workflow reference is not loaded.
+    expect(skill).toContain("Never reverse this order")
+  })
+
+  test("circuit breaker trips after 3 consecutive failures and redispatches locally", async () => {
+    const workflow = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review-beta/references/codex-delegation-workflow.md",
+    )
+    expect(workflow).toContain("consecutive_failures")
+    expect(workflow).toContain("After 3 consecutive failures")
+    expect(workflow).toMatch(/re-?dispatch/i)
+    expect(workflow).toContain("Reset to 0 on every success")
+  })
+})
+
+describe("ce-code-review stable/beta sidecar parity", () => {
+  test("shared reference files are byte-identical between stable and beta", async () => {
+    const sharedRefs = [
+      "references/findings-schema.json",
+      "references/subagent-template.md",
+      "references/diff-scope.md",
+      "references/persona-catalog.md",
+      "references/synthesis-rubric.md",
+      "references/architecture-patterns.md",
+      "references/walk-through-rubric.md",
+      "references/dispatch-fixers.md",
+      "references/validation-pass.md",
+    ]
+    const stableBase = "plugins/compound-engineering/skills/ce-code-review"
+    const betaBase = "plugins/compound-engineering/skills/ce-code-review-beta"
+    for (const ref of sharedRefs) {
+      let stable: string | null = null
+      let beta: string | null = null
+      try {
+        stable = await readRepoFile(`${stableBase}/${ref}`)
+      } catch {
+        // file may not exist in stable; skip if missing on either side
+      }
+      try {
+        beta = await readRepoFile(`${betaBase}/${ref}`)
+      } catch {
+        // file may not exist in beta; skip if missing on either side
+      }
+      if (stable === null || beta === null) continue
+      expect(beta, `${ref} drifted between stable and beta`).toBe(stable)
+    }
   })
 })
 

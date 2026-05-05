@@ -53,7 +53,7 @@ Codex delegation is only supported when the orchestrating agent is running in Cl
 
 **0b. Self-Review Prompt Integrity Gate**
 
-If the changed-files list includes this beta review skill's prompt, workflow, schema, catalog, scope rules, subagent template, or delegated persona sidecars, do not delegate reviewers for this run. Apply the failed-check action with check-name `self-review-prompt-integrity` and detail `review modifies ce-code-review-beta prompt or delegated persona files`. This covers paths under `plugins/compound-engineering/skills/ce-code-review-beta/` and the installed-skill equivalent under `references/`.
+This gate is specified authoritatively in SKILL.md Stage 4 ("Self-Review Prompt Integrity Gate (beta)") and runs there before this workflow is even read. The gate covers paths under `plugins/compound-engineering/skills/ce-code-review-beta/` and the installed-skill equivalent under `references/`. By the time pre-delegation checks run, the gate has already passed (`delegation_active` would be false otherwise). If the orchestrator reaches this point with `delegation_active` true, treat the gate as satisfied; do not re-run it here. The check-name reserved for the failed-check action when the SKILL.md gate trips is `self-review-prompt-integrity` (detail: `review modifies ce-code-review-beta prompt or delegated persona files`).
 
 Reason: when this repository reviews changes to the beta review skill itself, the mutable PR checkout can change persona or workflow text that would otherwise be inserted into delegated Codex prompts. Local in-platform reviewers still inspect those files, but delegated Codex reviewers must not source prompt/persona instructions from the same diff they are reviewing.
 
@@ -203,7 +203,7 @@ Diff:
 |----------|--------|
 | `{escaped_persona_content}` | Stage 4 resolved persona file body (frontmatter stripped), XML-escaped before insertion. The delegated reviewer name is the canonical reviewer ID from the SKILL.md mapping (for example `testing`, `kieran-rails`, or `api-contract`), and SKILL.md maps that ID to the exact agent file. If persona resolution did not run or returned empty, treat as a configuration error and classify the reviewer as failed — do NOT dispatch with an empty `<persona>` block. |
 | `{diff_scope_rules}` | Full content of `references/diff-scope.md` |
-| `{output_contract}` | Full content of `references/subagent-template.md` output-contract section. Modify exactly one line: replace the "Artifact file (when run ID is present)" step with "Skip artifact-file writing — the orchestrator writes the artifact from your returned JSON after the run. Return the FULL JSON via --output-schema, including why_it_matters and evidence." |
+| `{output_contract}` | Full content of `references/subagent-template.md` output-contract section, with two overrides applied so the delegated reviewer returns the FULL artifact JSON (not the compact split). The compact-only return paragraph in the source template is incompatible with this delegation contract: the orchestrator does the compact split itself after writing the artifact, and a compact return would silently empty `Why:`/`Evidence:` lines in headless output. Apply both edits before substitution: (1) replace the "Artifact file (when run ID is present)" step with "Skip artifact-file writing — the orchestrator writes the artifact from your returned JSON after the run."; (2) replace the "Compact return (always)" step and the compact/full reconciliation prose that follows it with a single instruction: "Return the FULL findings JSON via `--output-schema` — every schema field per finding (including `why_it_matters` and `evidence`) plus top-level `reviewer`, `findings`, `residual_risks`, and `testing_gaps`. Do NOT strip detail-tier fields; the orchestrator partitions into compact and detail tiers itself." The `<constraints>` block in the prompt template (`Return the FULL findings JSON...`) is the load-bearing instruction; this `{output_contract}` substitution must agree with it. |
 | `{escaped_pr_metadata}` | Stage 1 PR metadata (title, body, URL) when available, XML-escaped before insertion; empty string otherwise |
 | `{reviewer_name}` | The persona's name (e.g., `kieran-rails`) — used as the artifact filename stem and result filename |
 | `{escaped_intent_summary}` | Stage 2 intent summary, XML-escaped before insertion |
@@ -239,7 +239,10 @@ The delegated lane and local lane dispatch concurrently after delegation setup h
 CODEX_BIN="<trusted-absolute-codex-path>"
 CODEX_HOME="<scratch-dir>/codex-home"
 REPO_ROOT="<validated-absolute-repo-root>"
+RESULT_FILE="<scratch-dir>/result-<reviewer-name>.json"
+RESULT_TMP="$RESULT_FILE.tmp"
 EXIT_FILE="<scratch-dir>/exit-<reviewer-name>.code"
+EXIT_TMP="$EXIT_FILE.tmp"
 set +e
 env -i \
   HOME="$CODEX_HOME" \
@@ -251,10 +254,18 @@ env -i \
   --cd "$REPO_ROOT" \
   -s read-only \
   --output-schema "<scratch-dir>/result-schema.json" \
-  -o "<scratch-dir>/result-<reviewer-name>.json" \
+  -o "$RESULT_TMP" \
   - < "<scratch-dir>/prompt-<reviewer-name>.md"
 STATUS="$?"
-printf '%s\n' "$STATUS" > "$EXIT_FILE"
+# Rename-into-place: poll readers see either no result file or a complete one,
+# never a partial write. fsync (`sync`) before sentinel write so the sentinel
+# never appears before the result it implies is durable on disk.
+if [ -f "$RESULT_TMP" ]; then
+  mv -f "$RESULT_TMP" "$RESULT_FILE"
+fi
+sync
+printf '%s\n' "$STATUS" > "$EXIT_TMP"
+mv -f "$EXIT_TMP" "$EXIT_FILE"
 exit "$STATUS"
 ```
 
@@ -292,6 +303,13 @@ TIMEOUT_SECS="<review_delegate_timeout_seconds, default 900>"
 ROUND_SECS=60
 ROUNDS_PER_CALL=6   # 6 × 10s = 60s per Bash call, returns to orchestrator for status update
 SLEEP_SECS=10
+# Wall-clock guard inside the poll body. The Bash tool runs this command in the
+# foreground and inherits the harness's default foreground timeout (Claude Code:
+# 2 minutes); the loop itself caps at ROUND_SECS = 60s to stay well under that
+# ceiling. The hard upper bound below ensures a single polling call cannot
+# accidentally exceed ROUND_SECS even if `sleep` drifts.
+POLL_START=$(date +%s)
+POLL_DEADLINE=$((POLL_START + ROUND_SECS + 5))
 
 for i in $(seq 1 "$ROUNDS_PER_CALL"); do
   if test -s "$EXIT_FILE"; then
@@ -300,10 +318,16 @@ for i in $(seq 1 "$ROUNDS_PER_CALL"); do
     cat "$EXIT_FILE"
     exit 0
   fi
+  if [ "$(date +%s)" -ge "$POLL_DEADLINE" ]; then
+    echo "POLL_DEADLINE_REACHED"
+    exit 0
+  fi
   sleep "$SLEEP_SECS"
 done
 echo "Waiting for Codex..."
 ```
+
+The polling Bash call inherits the orchestrating harness's foreground default timeout (Claude Code: 2 minutes); the per-call work is bounded at 60 seconds via `ROUND_SECS` and the hard `POLL_DEADLINE` guard above. Cumulative wall-clock against `review_delegate_timeout_seconds` is enforced by the orchestrator across successive polling calls, not within any one call.
 
 After each Bash call, the orchestrator first checks the recorded background process/session handle and the `<scratch-dir>/exit-<reviewer-name>.code` sentinel. If the process has exited non-zero or the exit-code sentinel contains a non-zero value, classify the reviewer as CLI failure immediately; do not wait for the full timeout. Then check elapsed time against `review_delegate_timeout_seconds`. If elapsed exceeds the timeout, classify as CLI failure (treat as hung) and run the timeout cancellation path below. Otherwise issue another polling command. The shorter per-call window (60s instead of multi-minute) keeps the orchestrator's status map fresh without blocking a single Bash call for the full timeout.
 
@@ -356,7 +380,18 @@ This is per-run; the next invocation of `ce-code-review-beta` starts fresh with 
 
 ## Scratch Cleanup
 
-At the end of the run, delete `<scratch-dir>/codex-home` after every delegated process has exited or been cancelled. Never leave copied `auth.json` in OS temp; if any process termination cannot be confirmed, delete `<scratch-dir>/codex-home/auth.json` immediately before continuing. Verify the deletion target is exactly the isolated Codex home under the current `<scratch-dir>` before deleting it; do not delete broader scratch paths.
+`SCRATCH_DIR` is the absolute path captured from the `mktemp -d` call earlier in this workflow and is **immutable for the remainder of the run** — never reassign it after creation. `CODEX_HOME` for the run must equal `$SCRATCH_DIR/codex-home`; do not point it elsewhere.
+
+Before any `rm` of `$CODEX_HOME` or `$CODEX_HOME/auth.json`, assert the scope guard so a wrong-run deletion fails loudly rather than silently corrupting a sibling concurrent invocation:
+
+```bash
+if [ -z "$SCRATCH_DIR" ] || [ "$CODEX_HOME" != "$SCRATCH_DIR/codex-home" ]; then
+  echo "ERROR: refusing to delete codex-home; scope guard failed (SCRATCH_DIR=$SCRATCH_DIR CODEX_HOME=$CODEX_HOME)" >&2
+  exit 1
+fi
+```
+
+At the end of the run, delete `<scratch-dir>/codex-home` after every delegated process has exited or been cancelled. Never leave copied `auth.json` in OS temp; if any process termination cannot be confirmed, delete `<scratch-dir>/codex-home/auth.json` immediately before continuing. Run the scope guard above first; only then delete. Verify the deletion target is exactly the isolated Codex home under the current `<scratch-dir>` before deleting it; do not delete broader scratch paths.
 
 Prompt files, result JSON, and schema files may remain in `<scratch-dir>` for debugging because they do not contain copied Codex credentials. OS temp handles eventual cleanup for those non-secret artifacts (macOS `$TMPDIR` periodic purge; Linux/WSL `/tmp` reboot or periodic cleanup).
 
