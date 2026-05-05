@@ -9,6 +9,24 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.6.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.5.0...compound-engineering-v3.6.0) (2026-05-05)
+
+
+### Features
+
+* **ce-work-beta:** adaptive effort selection for Codex delegation batches ([#759](https://github.com/EveryInc/compound-engineering-plugin/issues/759)) ([3e03365](https://github.com/EveryInc/compound-engineering-plugin/commit/3e03365d54b5ec909ba75adfc15b870f2e5a9b53))
+
+
+### Bug Fixes
+
+* **ce-doc-review:** block diagram deletion as a fix recommendation ([#775](https://github.com/EveryInc/compound-engineering-plugin/issues/775)) ([1f3c646](https://github.com/EveryInc/compound-engineering-plugin/commit/1f3c6466e4eb4e1b584c658953dfb1ca98dd3335))
+* **ce-doc-review:** tighten finding resolution routing ([#769](https://github.com/EveryInc/compound-engineering-plugin/issues/769)) ([5427863](https://github.com/EveryInc/compound-engineering-plugin/commit/542786320bc155d48823e58162d6a474b54be671))
+* **ce-plan:** render Implementation Units as headings, not bulleted list items ([#766](https://github.com/EveryInc/compound-engineering-plugin/issues/766)) ([be2efd7](https://github.com/EveryInc/compound-engineering-plugin/commit/be2efd7d7605c483ea9f068c6190b81a9d68e942))
+* **ce-work-beta:** replace semicolon pre-resolution with single-command form ([#758](https://github.com/EveryInc/compound-engineering-plugin/issues/758)) ([5139ff1](https://github.com/EveryInc/compound-engineering-plugin/commit/5139ff13e9102e9db821fbeffa5e2abc49014dd6))
+* **ce-work-beta:** update Codex sandbox flags to current CLI syntax ([#770](https://github.com/EveryInc/compound-engineering-plugin/issues/770)) ([7ff3472](https://github.com/EveryInc/compound-engineering-plugin/commit/7ff3472cabb4dfe7141b55429ed2bc6b02a7b5e9))
+* **ce-worktree:** resolve script path against skill dir, not user CWD ([#772](https://github.com/EveryInc/compound-engineering-plugin/issues/772)) ([4cc1ee6](https://github.com/EveryInc/compound-engineering-plugin/commit/4cc1ee6fe2a353cd0b8e7466ec27e9556b042ee3))
+* **review:** escape literal pipes in finding table cells ([#779](https://github.com/EveryInc/compound-engineering-plugin/issues/779)) ([c7fc674](https://github.com/EveryInc/compound-engineering-plugin/commit/c7fc6743264440c2b0093607572764a0ce451b5d))
+
 ## [3.5.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.4.2...compound-engineering-v3.5.0) (2026-05-04)
 
 
