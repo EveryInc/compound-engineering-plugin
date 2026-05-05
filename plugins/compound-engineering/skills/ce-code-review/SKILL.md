@@ -292,15 +292,17 @@ If the output is non-empty, inform the user: "You have uncommitted changes on th
 git checkout <branch>
 ```
 
-Then detect the review base branch and compute the merge-base. Run the `scripts/resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names):
+Then detect the review base branch and compute the merge-base. Run the skill-directory `resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names):
 
 ```
-RESOLVE_OUT=$(bash scripts/resolve-base.sh) || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh"
+if [ -z "${CLAUDE_SKILL_DIR:-}" ] || [ ! -f "$RESOLVE_SCRIPT" ]; then echo "ERROR: resolve-base.sh is unavailable because the skill directory is not exposed. Re-run with `base:<ref>` or use a harness that exposes the skill directory."; exit 1; fi
+RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
-If the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
+If the skill directory is unavailable, the helper script is missing, or the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
 
 On success, produce the diff:
 
@@ -312,15 +314,17 @@ You may still fetch additional PR metadata with `gh pr view` for title, body, li
 
 **If no argument (standalone on current branch):**
 
-Detect the review base branch and compute the merge-base using the same `scripts/resolve-base.sh` script as branch mode:
+Detect the review base branch and compute the merge-base using the same skill-directory `resolve-base.sh` script as branch mode:
 
 ```
-RESOLVE_OUT=$(bash scripts/resolve-base.sh) || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh"
+if [ -z "${CLAUDE_SKILL_DIR:-}" ] || [ ! -f "$RESOLVE_SCRIPT" ]; then echo "ERROR: resolve-base.sh is unavailable because the skill directory is not exposed. Re-run with `base:<ref>` or use a harness that exposes the skill directory."; exit 1; fi
+RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
-If the script outputs an error, stop instead of falling back to `git diff HEAD`; a standalone review without the base branch would only show uncommitted changes and silently miss all committed work on the branch.
+If the skill directory is unavailable, the helper script is missing, or the script outputs an error, stop instead of falling back to `git diff HEAD`; a standalone review without the base branch would only show uncommitted changes and silently miss all committed work on the branch.
 
 On success, produce the diff:
 

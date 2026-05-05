@@ -631,9 +631,12 @@ describe("ce-code-review contract", () => {
     // PR mode still has an inline error for unresolved base
     expect(content).toContain('echo "ERROR: Unable to resolve PR base branch')
 
-    // Branch and standalone modes delegate to resolve-base.sh and check its ERROR: output.
+    // Branch and standalone modes delegate to resolve-base.sh from the skill directory and
+    // check its ERROR: output.
     // The script itself emits ERROR: when the base is unresolved.
-    expect(content).toContain("scripts/resolve-base.sh")
+    expect(content).toContain('${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh')
+    expect(content).not.toContain('[ -f "$RESOLVE_SCRIPT" ] || RESOLVE_SCRIPT="scripts/resolve-base.sh"')
+    expect(content).toContain("Re-run with `base:<ref>` or use a harness that exposes the skill directory.")
     const resolveScript = await readRepoFile(
       "plugins/compound-engineering/skills/ce-code-review/scripts/resolve-base.sh",
     )
@@ -641,7 +644,7 @@ describe("ce-code-review contract", () => {
 
     // Branch and standalone modes must stop on script error, not fall back
     expect(content).toContain(
-      "If the script outputs an error, stop instead of falling back to `git diff HEAD`",
+      "If the skill directory is unavailable, the helper script is missing, or the script outputs an error, stop instead of falling back to `git diff HEAD`",
     )
   })
 
