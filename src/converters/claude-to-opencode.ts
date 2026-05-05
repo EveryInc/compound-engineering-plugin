@@ -116,7 +116,7 @@ export function convertClaudeToOpenCode(
     mcp: mcp && Object.keys(mcp).length > 0 ? mcp : undefined,
   }
 
-  applyPermissions(config, plugin.commands, options.permissions)
+  applyPermissions(config, plugin.commands, options.permissions, skillStubs.length > 0)
 
   return {
     pluginName: plugin.manifest.name,
@@ -381,6 +381,7 @@ function applyPermissions(
   config: OpenCodeConfig,
   commands: ClaudeCommand[],
   mode: PermissionMode,
+  hasSkillStubs = false,
 ) {
   if (mode === "none") return
 
@@ -418,6 +419,12 @@ function applyPermissions(
           patterns[parsed.tool].add(normalizedPattern)
         }
       }
+    }
+    // Skill stubs require the `skill` tool to load the skill at invocation time.
+    // If we're emitting stubs, ensure `skill` is allowed even when no explicit
+    // command listed it in allowed-tools.
+    if (hasSkillStubs) {
+      enabled.add("skill")
     }
   }
 

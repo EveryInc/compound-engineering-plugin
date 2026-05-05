@@ -163,6 +163,30 @@ describe("convertClaudeToOpenCode", () => {
     expect(parsed.data.mode).toBe("subagent")
   })
 
+  test("from-commands mode: skill tool is allowed when skill stubs are emitted", async () => {
+    // Regression: applyPermissions only scanned plugin.commands for allowedTools,
+    // so a plugin with no explicit commands (or none listing "skill") would get
+    // permission.skill = "deny", causing every generated stub to fail immediately.
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    // Build a minimal plugin with skills but no explicit commands.
+    const skillOnlyPlugin: ClaudePlugin = {
+      ...plugin,
+      commands: [],
+    }
+    const bundle = convertClaudeToOpenCode(skillOnlyPlugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "from-commands",
+    })
+
+    // Skill stubs should be emitted (skill-one is opencode-eligible)
+    expect(bundle.commandFiles.some((f) => f.name === "skill-one")).toBe(true)
+
+    // The skill tool must be allowed so the stubs can actually load the skill
+    const permission = bundle.config.permission as Record<string, string>
+    expect(permission.skill).toBe("allow")
+  })
+
   test("normalizes models and infers temperature", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
