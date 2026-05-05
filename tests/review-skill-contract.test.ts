@@ -26,6 +26,16 @@ describe("ce-code-review contract", () => {
     expect(content).not.toContain("Which severities should I fix?")
   })
 
+  test("keeps plan requirements completeness compatible with current and legacy unit formats", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+
+    expect(content).toContain("current numeric subsections")
+    expect(content).toContain("`### U1.`")
+    expect(content).toContain("`### Unit 1:`")
+    expect(content).toContain("legacy bullet or checkbox unit entries")
+    expect(content).toContain("unaddressed requirements or implementation units")
+  })
+
   test("documents headless mode contract for programmatic callers", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
 
