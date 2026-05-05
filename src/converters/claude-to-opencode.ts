@@ -182,6 +182,7 @@ function convertSkillsToCommands(skills: ClaudeSkill[]): OpenCodeCommandFile[] {
   const files: OpenCodeCommandFile[] = []
   for (const skill of skills) {
     if (skill.disableModelInvocation) continue
+    if (skill.userInvocable === false) continue
     const frontmatter: Record<string, unknown> = {
       description: skill.description,
     }

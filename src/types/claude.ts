@@ -44,11 +44,12 @@ export type ClaudeCommand = {
   sourcePath: string
 }
 
-export type ClaudeSkill = {
+ export type ClaudeSkill = {
   name: string
   description?: string
   argumentHint?: string
   disableModelInvocation?: boolean
+  userInvocable?: boolean
   ce_platforms?: string[]
   sourceDir: string
   skillPath: string
