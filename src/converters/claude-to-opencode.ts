@@ -96,9 +96,17 @@ export function convertClaudeToOpenCode(
   // commands/foo/bar.md, so they must be treated as the same command here.
   const explicitCommands = convertCommands(plugin.commands)
   const explicitCommandPaths = new Set(explicitCommands.map((c) => commandNameToRelativePath(c.name)))
-  const skillStubs = convertSkillsToCommands(openCodeSkills).filter(
-    (stub) => !explicitCommandPaths.has(commandNameToRelativePath(stub.name)),
-  )
+  // Also deduplicate skill stubs against each other by normalized path: two
+  // skills whose names normalize to the same path (e.g. "foo:bar" vs "foo/bar",
+  // or duplicate name frontmatter across skill dirs) would both write to the
+  // same commands/foo/bar.md. Keep only the first occurrence.
+  const seenStubPaths = new Set<string>()
+  const skillStubs = convertSkillsToCommands(openCodeSkills).filter((stub) => {
+    const normalizedPath = commandNameToRelativePath(stub.name)
+    if (explicitCommandPaths.has(normalizedPath) || seenStubPaths.has(normalizedPath)) return false
+    seenStubPaths.add(normalizedPath)
+    return true
+  })
   const cmdFiles = [...explicitCommands, ...skillStubs]
   const mcp = plugin.mcpServers ? convertMcp(plugin.mcpServers) : undefined
   const plugins = plugin.hooks ? [convertHooks(plugin.hooks)] : []
