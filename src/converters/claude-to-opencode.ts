@@ -6,6 +6,7 @@ import {
   type ClaudeHooks,
   type ClaudePlugin,
   type ClaudeMcpServer,
+  type ClaudeSkill,
   filterSkillsByPlatform,
 } from "../types/claude"
 import type {
@@ -86,7 +87,13 @@ export function convertClaudeToOpenCode(
   options: ClaudeToOpenCodeOptions,
 ): OpenCodeBundle {
   const agentFiles = plugin.agents.map((agent) => convertAgent(agent, options))
-  const cmdFiles = convertCommands(plugin.commands)
+  const openCodeSkills = filterSkillsByPlatform(plugin.skills, "opencode")
+  // Commands from the plugin's commands/ directory, plus one generated per skill
+  // so each skill is invocable as a /ce-<name> slash command in OpenCode.
+  const cmdFiles = [
+    ...convertCommands(plugin.commands),
+    ...convertSkillsToCommands(openCodeSkills),
+  ]
   const mcp = plugin.mcpServers ? convertMcp(plugin.mcpServers) : undefined
   const plugins = plugin.hooks ? [convertHooks(plugin.hooks)] : []
 
@@ -103,7 +110,7 @@ export function convertClaudeToOpenCode(
     agents: agentFiles,
     commandFiles: cmdFiles,
     plugins,
-    skillDirs: filterSkillsByPlatform(plugin.skills, "opencode").map((skill) => ({ sourceDir: skill.sourceDir, name: skill.name })),
+    skillDirs: openCodeSkills.map((skill) => ({ sourceDir: skill.sourceDir, name: skill.name })),
   }
 }
 
@@ -150,6 +157,26 @@ function convertCommands(commands: ClaudeCommand[]): OpenCodeCommandFile[] {
     }
     const content = formatFrontmatter(frontmatter, rewriteClaudePaths(command.body))
     files.push({ name: command.name, content })
+  }
+  return files
+}
+
+// Generate a slash-command stub for each skill so OpenCode users can invoke
+// /ce-work, /ce-plan, etc. just like Claude Code users do.
+// The stub body delegates to the skill tool so the full skill content is loaded.
+function convertSkillsToCommands(skills: ClaudeSkill[]): OpenCodeCommandFile[] {
+  const files: OpenCodeCommandFile[] = []
+  for (const skill of skills) {
+    if (skill.disableModelInvocation) continue
+    const frontmatter: Record<string, unknown> = {
+      description: skill.description,
+    }
+    if (skill.argumentHint) {
+      frontmatter["argument-hint"] = skill.argumentHint
+    }
+    const body = `Load and execute the \`${skill.name}\` skill.\n\n$ARGUMENTS`
+    const content = formatFrontmatter(frontmatter, body)
+    files.push({ name: skill.name, content })
   }
   return files
 }

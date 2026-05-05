@@ -15,7 +15,7 @@ const compoundEngineeringRoot = path.join(
 )
 
 describe("convertClaudeToOpenCode", () => {
-  test("current compound-engineering output is skills and subagents, not commands", async () => {
+  test("current compound-engineering output has skills, subagents, and one command per skill", async () => {
     const plugin = await loadClaudePlugin(compoundEngineeringRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
       agentMode: "subagent",
@@ -25,12 +25,36 @@ describe("convertClaudeToOpenCode", () => {
 
     expect(bundle.agents.length).toBeGreaterThan(0)
     expect(bundle.skillDirs.length).toBeGreaterThan(0)
-    expect(bundle.commandFiles).toHaveLength(0)
+    // Each skill now also generates a slash-command stub (skills with disable-model-invocation are excluded)
+    expect(bundle.commandFiles.length).toBeGreaterThan(0)
+    expect(bundle.commandFiles.length).toBeLessThanOrEqual(bundle.skillDirs.length)
     expect(bundle.plugins).toHaveLength(0)
     expect(bundle.config.tools).toBeUndefined()
 
     const parsedAgents = bundle.agents.map((agent) => parseFrontmatter(agent.content))
     expect(parsedAgents.every((agent) => agent.data.mode === "subagent")).toBe(true)
+  })
+
+  test("skills generate slash-command stubs with description and argument-hint frontmatter", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    // skill-one is the only opencode-eligible skill (disabled-skill is skipped, claude-only-skill is platform-filtered)
+    const cmd = bundle.commandFiles.find((f) => f.name === "skill-one")
+    expect(cmd).toBeDefined()
+    const parsed = parseFrontmatter(cmd!.content)
+    expect(parsed.data.description).toBe("Sample skill")
+    expect(parsed.body.trim()).toContain("skill-one")
+    expect(parsed.body.trim()).toContain("$ARGUMENTS")
+
+    // disabled-skill must not appear
+    expect(bundle.commandFiles.find((f) => f.name === "disabled-skill")).toBeUndefined()
+    // claude-only-skill is filtered before convertSkillsToCommands — also absent
+    expect(bundle.commandFiles.find((f) => f.name === "claude-only-skill")).toBeUndefined()
   })
 
   test("from-command mode: map allowedTools to global permission block", async () => {
