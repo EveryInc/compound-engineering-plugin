@@ -483,7 +483,7 @@ Pass the resulting path list to the `project-standards` persona inside a `<stand
 
 **Do not read persona files in this stage.** This stage only declares the stable reviewer-ID to persona-file mapping used later by Stage 4 after delegation pre-checks pass. Local-lane subagents are dispatched by name through the harness primitive (`Agent` in Claude Code), and the harness loads each persona's content automatically — the orchestrator never needs to read the `.agent.md` file directly.
 
-When `delegation_active` is true, the delegated lane runs `codex exec` calls outside the harness. Stage 4 resolves each delegated persona's `.agent.md` content only after the delegation routing gate and the Self-Review Prompt Integrity Gate have passed. Resolving persona text earlier is forbidden because reviews of this plugin can modify the delegated sidecar files themselves.
+When `delegation_active` is true, the delegated lane runs `codex exec` calls outside the harness. Stage 4 resolves each delegated persona's `.agent.md` content only after the delegation routing gate and the Self-Review Prompt Integrity Gate have passed. Resolving persona text earlier is forbidden because reviews of this plugin can modify the delegated persona files themselves.
 
 Delegated reviewer IDs are the canonical reviewer IDs from `references/persona-catalog.md`, not the full agent names. Use this exact mapping to resolve the agent file for each selected delegated reviewer:
 
@@ -530,7 +530,10 @@ Generate a unique run identifier before dispatching any agents. This ID scopes a
 ```bash
 RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ')
 mkdir -p "/tmp/compound-engineering/ce-code-review/$RUN_ID"
+chmod 700 "/tmp/compound-engineering/ce-code-review/$RUN_ID"
 ```
+
+The `chmod 700` is required: `mkdir -p` honors the user's umask (typically `022`, leaving the directory `755` and world-readable). The run directory holds full per-reviewer findings JSON, including the `evidence` field and (in delegated mode) any content the delegated reviewer chose to include. Tightening to owner-only matches the per-run isolation already established by `mktemp -d` for `$CODEX_HOME` and prevents another local user or process from reading the artifacts.
 
 Pass `{run_id}` to every persona sub-agent so they can write their full analysis to `/tmp/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`.
 
@@ -540,7 +543,7 @@ Pass `{run_id}` to every persona sub-agent so they can write their full analysis
 
 Omit the `mode` parameter when dispatching sub-agents so the user's configured permission settings apply. Do not pass `mode: "auto"`.
 
-**Self-Review Prompt Integrity Gate (beta).** If `delegation_active` is true after argument parsing, run this built-in gate before reading `references/codex-delegation-workflow.md`, before reading any delegated persona file, and before dispatching any reviewer. This is the authoritative spec for the gate; the workflow's section 0b is a one-line back-reference. If the changed-files list includes this beta review skill's prompt, workflow, schema, catalog, scope rules, subagent template, `scripts/resolve-base.sh`, or delegated persona sidecars, disable delegation for this run. In `mode:headless`, fail fast with the headless error envelope: `Review failed (headless mode). Reason: Codex delegation requested by <delegation_source> but review modifies ce-code-review-beta prompt or delegated persona files.` In `mode:autofix` or Interactive mode, set `delegation_active` to false, continue locally, and note in Coverage: `Codex delegation disabled because review modifies ce-code-review-beta prompt or delegated persona files.` This check covers paths under `plugins/compound-engineering/skills/ce-code-review-beta/` and the installed-skill equivalent under `references/`.
+**Self-Review Prompt Integrity Gate (beta).** If `delegation_active` is true after argument parsing, run this built-in gate before reading `references/codex-delegation-workflow.md`, before reading any delegated persona file, and before dispatching any reviewer. This is the authoritative spec for the gate; the workflow's section 0b is a one-line back-reference. If the changed-files list includes this beta review skill's prompt, workflow, schema, catalog, scope rules, subagent template, `scripts/resolve-base.sh`, or delegated persona files, disable delegation for this run. In `mode:headless`, fail fast with the headless error envelope: `Review failed (headless mode). Reason: Codex delegation requested by <delegation_source> but review modifies ce-code-review-beta prompt or delegated persona files.` In `mode:autofix` or Interactive mode, set `delegation_active` to false, continue locally, and note in Coverage: `Codex delegation disabled because review modifies ce-code-review-beta prompt or delegated persona files.` This check covers paths under `plugins/compound-engineering/skills/ce-code-review-beta/` and the installed-skill equivalent under `references/`.
 
 If delegation remains active after that built-in check, read `references/codex-delegation-workflow.md` and follow its Pre-Delegation Checks before dispatching any reviewers. Pre-check failures are mode-specific: report-only disables delegation before this gate; headless fails fast with a structured error envelope for missing trusted consent, unsupported platform, missing/untrusted Codex binary, existing Codex sandbox, or isolated-Codex-home setup failure; autofix disables delegation and continues locally; interactive mode prompts once for consent and otherwise announces local fallback. If pre-checks pass, partition reviewers at dispatch time:
 

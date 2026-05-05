@@ -442,7 +442,10 @@ Generate a unique run identifier before dispatching any agents. This ID scopes a
 ```bash
 RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ')
 mkdir -p "/tmp/compound-engineering/ce-code-review/$RUN_ID"
+chmod 700 "/tmp/compound-engineering/ce-code-review/$RUN_ID"
 ```
+
+The `chmod 700` is required: `mkdir -p` honors the user's umask (typically `022`, leaving the directory `755` and world-readable). The run directory holds full per-reviewer findings JSON, including the `evidence` field. Tightening to owner-only prevents another local user or process from reading the artifacts.
 
 Pass `{run_id}` to every persona sub-agent so they can write their full analysis to `/tmp/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`.
 

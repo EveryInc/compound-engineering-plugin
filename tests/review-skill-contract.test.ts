@@ -968,8 +968,10 @@ describe("ce-code-review-beta contract", () => {
     expect(workflow).toContain("unresolved symlink")
     expect(workflow).toContain("is not executable")
     expect(workflow).toContain("newlines or shell metacharacters")
-    expect(workflow).toContain("smoke-check the candidate under the same scrubbed PATH")
-    expect(workflow).toContain("rejects npm/nvm wrapper scripts")
+    expect(workflow).toMatch(/smoke-check the candidate under (the same scrubbed PATH|an environment that matches the actual delegated launch)/)
+    expect(workflow).toContain("env -i")
+    expect(workflow).toContain("npm/nvm wrapper scripts")
+    expect(workflow).toMatch(/TTY|terminal detection/)
     expect(workflow).toContain("CODEX_BIN` must be the absolute `codex_bin` path verified by the Codex Binary Trust Check")
     expect(workflow).toContain("Refuse to read or write the config if `.compound-engineering/config.local.yaml` is a symlink")
     expect(workflow).toContain("Verify `.compound-engineering/config.local.yaml` is covered by `.gitignore`")
@@ -1128,7 +1130,7 @@ describe("ce-code-review-beta contract", () => {
   })
 })
 
-describe("ce-code-review stable/beta sidecar parity", () => {
+describe("ce-code-review stable/beta shared-reference parity", () => {
   test("shared reference files are byte-identical between stable and beta", async () => {
     const sharedRefs = [
       "references/findings-schema.json",
