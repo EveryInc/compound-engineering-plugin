@@ -1,5 +1,5 @@
 import path from "path"
-import { backupFile, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJson, writeText } from "../utils/files"
+import { backupFile, commandNameToRelativePath, copySkillDir, ensureDir, pathExists, readJson, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformSkillContentForOpenCode } from "../converters/claude-to-opencode"
 import type { OpenCodeBundle, OpenCodeConfig } from "../types/opencode"
 import { getLegacyOpenCodeArtifacts } from "../data/plugin-legacy-artifacts"
@@ -70,7 +70,7 @@ export async function writeOpenCodeBundle(
     ? await readManagedInstallManifestWithLegacyFallback(openCodePaths.managedDir, pluginName)
     : null
   const currentAgents = bundle.agents.map((agent) => `${sanitizePathName(agent.name)}.md`)
-  const currentCommands = bundle.commandFiles.map((commandFile) => `${commandFile.name.split(":").join("/")}.md`)
+  const currentCommands = bundle.commandFiles.map((commandFile) => `${commandNameToRelativePath(commandFile.name)}.md`)
   const currentPlugins = bundle.plugins.map((plugin) => plugin.name)
   const currentSkills = bundle.skillDirs.map((skill) => sanitizePathName(skill.name))
 
@@ -103,7 +103,7 @@ export async function writeOpenCodeBundle(
   }
 
   for (const commandFile of bundle.commandFiles) {
-    const dest = path.join(openCodePaths.commandDir, ...commandFile.name.split(":")) + ".md"
+    const dest = path.join(openCodePaths.commandDir, ...commandNameToRelativePath(commandFile.name).split("/")) + ".md"
     const cmdBackupPath = await backupFile(dest)
     if (cmdBackupPath) {
       console.log(`Backed up existing command file to ${cmdBackupPath}`)

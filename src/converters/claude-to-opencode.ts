@@ -1,5 +1,6 @@
 import { formatFrontmatter } from "../utils/frontmatter"
 import { normalizeModelWithProvider } from "../utils/model"
+import { commandNameToRelativePath } from "../utils/files"
 import {
   type ClaudeAgent,
   type ClaudeCommand,
@@ -90,10 +91,13 @@ export function convertClaudeToOpenCode(
   const openCodeSkills = filterSkillsByPlatform(plugin.skills, "opencode")
   // Commands from the plugin's commands/ directory take priority; skill stubs
   // are only appended for names that don't already have an explicit command.
+  // Dedup uses the normalized path key (colons → slashes) to match the writer's
+  // on-disk layout — "foo:bar" and a skill named "foo/bar" both resolve to
+  // commands/foo/bar.md, so they must be treated as the same command here.
   const explicitCommands = convertCommands(plugin.commands)
-  const explicitCommandNames = new Set(explicitCommands.map((c) => c.name))
+  const explicitCommandPaths = new Set(explicitCommands.map((c) => commandNameToRelativePath(c.name)))
   const skillStubs = convertSkillsToCommands(openCodeSkills).filter(
-    (stub) => !explicitCommandNames.has(stub.name),
+    (stub) => !explicitCommandPaths.has(commandNameToRelativePath(stub.name)),
   )
   const cmdFiles = [...explicitCommands, ...skillStubs]
   const mcp = plugin.mcpServers ? convertMcp(plugin.mcpServers) : undefined

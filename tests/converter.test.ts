@@ -76,6 +76,39 @@ describe("convertClaudeToOpenCode", () => {
     expect(names.length).toBe(uniqueNames.size)
   })
 
+  test("explicit command foo:bar blocks skill stub foo/bar from being emitted", async () => {
+    // "foo:bar" (explicit command) and "foo/bar" (skill name) both normalize to
+    // the same on-disk path commands/foo/bar.md — the skill stub must be dropped.
+    const plugin: ClaudePlugin = {
+      manifest: { name: "test-plugin", version: "1.0.0", description: "" },
+      agents: [],
+      commands: [{ name: "foo:bar", description: "explicit", body: "explicit body" }],
+      skills: [
+        {
+          name: "foo/bar",
+          description: "skill",
+          sourceDir: "/tmp/fake-skill",
+          platforms: [],
+        },
+      ],
+      mcpServers: undefined,
+      hooks: undefined,
+    }
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const fooBarCommands = bundle.commandFiles.filter((f) =>
+      f.name === "foo:bar" || f.name === "foo/bar",
+    )
+    // Only the explicit command should survive
+    expect(fooBarCommands).toHaveLength(1)
+    expect(fooBarCommands[0].name).toBe("foo:bar")
+    expect(fooBarCommands[0].content).toContain("explicit body")
+  })
+
   test("from-command mode: map allowedTools to global permission block", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
