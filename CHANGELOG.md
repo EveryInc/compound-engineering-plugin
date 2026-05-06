@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.6.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.6.0...cli-v3.6.1) (2026-05-06)
+
+
+### Bug Fixes
+
+* **doc-review:** cut review noise on plans, scope personas to doc shape ([#780](https://github.com/EveryInc/compound-engineering-plugin/issues/780)) ([8349e75](https://github.com/EveryInc/compound-engineering-plugin/commit/8349e750b856d267b74fbbeb2fb135e4ff73eb91))
+
 ## [3.6.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.5.0...cli-v3.6.0) (2026-05-05)
 
 
