@@ -49,9 +49,11 @@ if [ -n "$PR_BASE_REPO" ] && [ -z "$REVIEW_BASE_BRANCH" ]; then
   echo "ERROR:--pr-base-repo requires --pr-base-branch"
   exit 0
 fi
-if [ -n "$REVIEW_BASE_BRANCH" ] && [ -z "$PR_BASE_REPO" ] && [ "$1" != "" ]; then
+if [ -n "$REVIEW_BASE_BRANCH" ] && [ -z "$PR_BASE_REPO" ] && [ -n "${1:-}" ]; then
   # Branch-only is allowed (callers may know the branch but not the base repo);
   # but if PR_BASE_REPO was explicitly required, we'd reject above.
+  # Use ${1:-} to avoid `unbound variable` under `set -u` when all positional
+  # args were consumed by the parser above.
   :
 fi
 

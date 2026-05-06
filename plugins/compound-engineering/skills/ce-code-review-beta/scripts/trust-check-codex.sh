@@ -47,14 +47,33 @@ CANONICAL=""
 if command -v readlink >/dev/null 2>&1; then
   CANONICAL=$(readlink -f "$CODEX_BIN_INPUT" 2>/dev/null || true)
 fi
+# Try Python as a portable fallback (present on macOS and most Linux distros).
+if [ -z "$CANONICAL" ] && command -v python3 >/dev/null 2>&1; then
+  CANONICAL=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$CODEX_BIN_INPUT" 2>/dev/null || true)
+fi
+if [ -z "$CANONICAL" ] && command -v perl >/dev/null 2>&1; then
+  CANONICAL=$(perl -MCwd -e 'print Cwd::realpath($ARGV[0])' "$CODEX_BIN_INPUT" 2>/dev/null || true)
+fi
 if [ -z "$CANONICAL" ]; then
-  # Fallback: cd to the dirname and pwd -P, then re-attach basename
+  # Last-resort fallback: cd to the dirname and pwd -P, then re-attach basename.
+  # If the basename itself is a symlink, this fallback alone does NOT resolve
+  # that final component, so we explicitly reject a symlinked final component
+  # below to prevent a symlinked launcher from passing the world-writable and
+  # repo/scratch checks against the symlink's parent rather than the target.
   bin_dir=$(cd "$(dirname "$CODEX_BIN_INPUT")" 2>/dev/null && pwd -P 2>/dev/null || true)
   if [ -z "$bin_dir" ]; then
     echo "ERROR:cannot canonicalize codex_bin path: $CODEX_BIN_INPUT"
     exit 1
   fi
   CANONICAL="$bin_dir/$(basename "$CODEX_BIN_INPUT")"
+fi
+
+# Reject any remaining symlink in the final component. A canonical path must
+# not itself be a symlink; if it is, our canonicalization fell short and the
+# repo/scratch/world-writable checks below would inspect the wrong path.
+if [ -L "$CANONICAL" ]; then
+  echo "ERROR:canonical codex_bin is still a symlink (canonicalization fell back to dirname-only); install readlink -f, python3, or perl on this system: $CANONICAL"
+  exit 1
 fi
 
 if [ ! -f "$CANONICAL" ] || [ ! -x "$CANONICAL" ]; then
