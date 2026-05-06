@@ -680,6 +680,10 @@ describe("ce-code-review contract", () => {
     // the base is unresolved.
     expect(content).toContain('"${CLAUDE_SKILL_DIR:-}"')
     expect(content).toContain('[ -f "${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh" ]')
+    // Reject helper paths against the reviewed-repo top-level, not just CWD --
+    // otherwise a launch from a monorepo subdirectory leaves repo-controlled
+    // sibling paths (e.g., `<repo-root>/.evil`) accepted.
+    expect(content).toContain("git rev-parse --show-toplevel")
     // No bare relative-path fallback to `scripts/resolve-base.sh` -- that would resolve
     // against the reviewed repo's CWD and could execute a repo-controlled script.
     expect(content).not.toContain('RESOLVE_SCRIPT="scripts/resolve-base.sh"')
@@ -750,6 +754,32 @@ describe("ce-code-review contract", () => {
       expect(evil.status).not.toBe(0)
       expect(evil.output).toContain("Re-run with `base:<ref>`")
       expect(evil.output).not.toContain("from-cwd-evil")
+
+      // Monorepo subdir attack: reviewer launched from a subdirectory of the reviewed
+      // repo. CLAUDE_SKILL_DIR points at a sibling of the subdir (e.g., `<repo-root>/.evil`)
+      // -- it lives outside the CWD subdir but is still repo-controlled. The guard must
+      // reject it by comparing against the repo top-level, not just the CWD.
+      const monorepoRoot = fs.mkdtempSync(path.join(os.tmpdir(), "ce-code-review-monorepo-"))
+      try {
+        const subDir = path.join(monorepoRoot, "services", "foo")
+        const sneakSkill = path.join(monorepoRoot, ".evil")
+        fs.mkdirSync(subDir, { recursive: true })
+        fs.mkdirSync(path.join(sneakSkill, "scripts"), { recursive: true })
+        fs.writeFileSync(
+          path.join(sneakSkill, "scripts", "resolve-base.sh"),
+          "echo BASE:from-monorepo-evil\n",
+        )
+        execSync("git init -q", { cwd: monorepoRoot })
+
+        const realSubDir = fs.realpathSync(subDir)
+        const realSneakSkill = fs.realpathSync(sneakSkill)
+        const monorepo = runResolveProbe(snippet, realSubDir, { CLAUDE_SKILL_DIR: realSneakSkill })
+        expect(monorepo.status).not.toBe(0)
+        expect(monorepo.output).toContain("Re-run with `base:<ref>`")
+        expect(monorepo.output).not.toContain("from-monorepo-evil")
+      } finally {
+        fs.rmSync(monorepoRoot, { recursive: true, force: true })
+      }
     } finally {
       fs.rmSync(tempDir, { recursive: true, force: true })
     }

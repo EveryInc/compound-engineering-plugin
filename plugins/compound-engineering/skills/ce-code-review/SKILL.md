@@ -298,9 +298,10 @@ Then detect the review base branch and compute the merge-base. Run the bundled `
 RESOLVE_SCRIPT=""
 if [ -n "${CLAUDE_SKILL_DIR:-}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh" ]; then
   real_base=$(cd "${CLAUDE_SKILL_DIR}" 2>/dev/null && pwd -P) || real_base=""
-  real_cwd=$(pwd -P)
+  repo_top=$(git rev-parse --show-toplevel 2>/dev/null) || repo_top=""
+  if [ -n "$repo_top" ]; then real_repo=$(cd "$repo_top" 2>/dev/null && pwd -P) || real_repo=""; else real_repo=$(pwd -P); fi
   case "$real_base" in
-    ""|"$real_cwd"|"$real_cwd"/*) ;;
+    ""|"$real_repo"|"$real_repo"/*) ;;
     *) RESOLVE_SCRIPT="$real_base/scripts/resolve-base.sh" ;;
   esac
 fi
@@ -328,9 +329,10 @@ Detect the review base branch and compute the merge-base using the same bundled 
 RESOLVE_SCRIPT=""
 if [ -n "${CLAUDE_SKILL_DIR:-}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh" ]; then
   real_base=$(cd "${CLAUDE_SKILL_DIR}" 2>/dev/null && pwd -P) || real_base=""
-  real_cwd=$(pwd -P)
+  repo_top=$(git rev-parse --show-toplevel 2>/dev/null) || repo_top=""
+  if [ -n "$repo_top" ]; then real_repo=$(cd "$repo_top" 2>/dev/null && pwd -P) || real_repo=""; else real_repo=$(pwd -P); fi
   case "$real_base" in
-    ""|"$real_cwd"|"$real_cwd"/*) ;;
+    ""|"$real_repo"|"$real_repo"/*) ;;
     *) RESOLVE_SCRIPT="$real_base/scripts/resolve-base.sh" ;;
   esac
 fi
