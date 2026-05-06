@@ -292,17 +292,20 @@ If the output is non-empty, inform the user: "You have uncommitted changes on th
 git checkout <branch>
 ```
 
-Then detect the review base branch and compute the merge-base. Run the skill-directory `resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names):
+Then detect the review base branch and compute the merge-base. Run the bundled `resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names). Resolve the script via the harness's plugin/skill directory variables (never via the reviewed repo's working directory), so a `scripts/resolve-base.sh` that happens to exist in the repo under review cannot be executed by mistake:
 
 ```
-RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh"
-if [ -z "${CLAUDE_SKILL_DIR:-}" ] || [ ! -f "$RESOLVE_SCRIPT" ]; then echo "ERROR: resolve-base.sh is unavailable because the skill directory is not exposed. Re-run with `base:<ref>` or use a harness that exposes the skill directory."; exit 1; fi
+RESOLVE_SCRIPT=""
+for base in "${CLAUDE_SKILL_DIR:-}" "${CLAUDE_PLUGIN_ROOT:+${CLAUDE_PLUGIN_ROOT}/skills/ce-code-review}"; do
+  if [ -n "$base" ] && [ -f "$base/scripts/resolve-base.sh" ]; then RESOLVE_SCRIPT="$base/scripts/resolve-base.sh"; break; fi
+done
+if [ -z "$RESOLVE_SCRIPT" ]; then echo "ERROR: resolve-base.sh is unavailable because the harness did not expose the plugin or skill directory. Re-run with `base:<ref>` or use a harness that exposes the plugin/skill directory."; exit 1; fi
 RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
-If the skill directory is unavailable, the helper script is missing, or the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
+If the plugin/skill directory is unavailable, the helper script is missing, or the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
 
 On success, produce the diff:
 
@@ -314,17 +317,20 @@ You may still fetch additional PR metadata with `gh pr view` for title, body, li
 
 **If no argument (standalone on current branch):**
 
-Detect the review base branch and compute the merge-base using the same skill-directory `resolve-base.sh` script as branch mode:
+Detect the review base branch and compute the merge-base using the same bundled `resolve-base.sh` script as branch mode. Resolve the script via the harness's plugin/skill directory variables (never via the reviewed repo's working directory):
 
 ```
-RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh"
-if [ -z "${CLAUDE_SKILL_DIR:-}" ] || [ ! -f "$RESOLVE_SCRIPT" ]; then echo "ERROR: resolve-base.sh is unavailable because the skill directory is not exposed. Re-run with `base:<ref>` or use a harness that exposes the skill directory."; exit 1; fi
+RESOLVE_SCRIPT=""
+for base in "${CLAUDE_SKILL_DIR:-}" "${CLAUDE_PLUGIN_ROOT:+${CLAUDE_PLUGIN_ROOT}/skills/ce-code-review}"; do
+  if [ -n "$base" ] && [ -f "$base/scripts/resolve-base.sh" ]; then RESOLVE_SCRIPT="$base/scripts/resolve-base.sh"; break; fi
+done
+if [ -z "$RESOLVE_SCRIPT" ]; then echo "ERROR: resolve-base.sh is unavailable because the harness did not expose the plugin or skill directory. Re-run with `base:<ref>` or use a harness that exposes the plugin/skill directory."; exit 1; fi
 RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
-If the skill directory is unavailable, the helper script is missing, or the script outputs an error, stop instead of falling back to `git diff HEAD`; a standalone review without the base branch would only show uncommitted changes and silently miss all committed work on the branch.
+If the plugin/skill directory is unavailable, the helper script is missing, or the script outputs an error, stop instead of falling back to `git diff HEAD`; a standalone review without the base branch would only show uncommitted changes and silently miss all committed work on the branch.
 
 On success, produce the diff:
 
