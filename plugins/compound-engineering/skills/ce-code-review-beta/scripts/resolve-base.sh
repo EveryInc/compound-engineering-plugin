@@ -110,7 +110,12 @@ if [ -n "$REVIEW_BASE_BRANCH" ]; then
   if [ -n "$PR_BASE_REPO" ]; then
     # awk -v keeps PR_BASE_REPO out of the awk program string entirely so a
     # repo name with a quote/backslash can't terminate the awk source.
-    PR_BASE_REMOTE=$(git remote -v | awk -v repo="$PR_BASE_REPO" 'index($2, "github.com:" repo) || index($2, "github.com/" repo) {print $1; exit}')
+    # tail_ok ensures the match ends at a path boundary (.git or end of URL)
+    # so "org/repo" does not spuriously match "org/repo-extra".
+    PR_BASE_REMOTE=$(git remote -v | awk -v repo="$PR_BASE_REPO" '
+      function tail_ok(url, pfx,    t) { t = substr(url, index(url, pfx) + length(pfx)); return t == "" || t == ".git" }
+      (index($2, "github.com:" repo) && tail_ok($2, "github.com:" repo)) ||
+      (index($2, "github.com/" repo) && tail_ok($2, "github.com/" repo)) {print $1; exit}')
     if [ -n "$PR_BASE_REMOTE" ]; then
       # `|| true` intentional: rev-parse fails when the ref isn't fetched yet,
       # which is the normal case before run_fetch below.
