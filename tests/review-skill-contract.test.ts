@@ -1290,8 +1290,18 @@ describe("ce-code-review-beta delegation hardening (post-review)", () => {
         process.cwd(),
         "plugins/compound-engineering/skills/ce-code-review-beta/scripts/integrity-check-config.sh",
       )
-      const run = (root: string) =>
-        execSync(`bash ${JSON.stringify(script)} ${JSON.stringify(root)}`, { encoding: "utf8" }).trim()
+      // ERROR branches now exit 1 (defense-in-depth: prefix and exit code agree).
+      // OK and ABSENT exit 0; ERROR exits 1 with the prefix on stdout. Capture
+      // stdout regardless of exit code so tests can assert on the prefix.
+      const run = (root: string) => {
+        try {
+          return execSync(`bash ${JSON.stringify(script)} ${JSON.stringify(root)}`, {
+            encoding: "utf8",
+          }).trim()
+        } catch (err: any) {
+          return String(err.stdout ?? "").trim()
+        }
+      }
 
       // No config dir: ABSENT
       expect(run(tmp)).toBe("ABSENT")
