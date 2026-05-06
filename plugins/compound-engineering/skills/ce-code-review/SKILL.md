@@ -292,14 +292,22 @@ If the output is non-empty, inform the user: "You have uncommitted changes on th
 git checkout <branch>
 ```
 
-Then detect the review base branch and compute the merge-base. Run the bundled `resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names). Resolve the script via the harness's plugin/skill directory variables (never via the reviewed repo's working directory), so a `scripts/resolve-base.sh` that happens to exist in the repo under review cannot be executed by mistake:
+Then detect the review base branch and compute the merge-base. Run the bundled `resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names). Resolve the script via the harness's plugin/skill directory variables (never via the reviewed repo's working directory), so a repo-controlled `scripts/resolve-base.sh` cannot be used for arbitrary code execution at review time:
 
 ```
 RESOLVE_SCRIPT=""
 for base in "${CLAUDE_SKILL_DIR:-}" "${CLAUDE_PLUGIN_ROOT:+${CLAUDE_PLUGIN_ROOT}/skills/ce-code-review}"; do
-  if [ -n "$base" ] && [ -f "$base/scripts/resolve-base.sh" ]; then RESOLVE_SCRIPT="$base/scripts/resolve-base.sh"; break; fi
+  if [ -n "$base" ] && [ -f "$base/scripts/resolve-base.sh" ]; then
+    real_base=$(cd "$base" 2>/dev/null && pwd -P) || real_base=""
+    real_cwd=$(pwd -P)
+    case "$real_base" in
+      ""|"$real_cwd"|"$real_cwd"/*) continue ;;
+    esac
+    RESOLVE_SCRIPT="$real_base/scripts/resolve-base.sh"
+    break
+  fi
 done
-if [ -z "$RESOLVE_SCRIPT" ]; then echo "ERROR: resolve-base.sh is unavailable because the harness did not expose the plugin or skill directory. Re-run with `base:<ref>` or use a harness that exposes the plugin/skill directory."; exit 1; fi
+if [ -z "$RESOLVE_SCRIPT" ]; then printf '%s\n' 'ERROR: resolve-base.sh is unavailable because the harness did not expose a trusted plugin or skill directory, or the exposed path resolves inside the reviewed repo. Re-run with `base:<ref>` or use a harness that exposes the plugin/skill directory.'; exit 1; fi
 RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
@@ -322,9 +330,17 @@ Detect the review base branch and compute the merge-base using the same bundled 
 ```
 RESOLVE_SCRIPT=""
 for base in "${CLAUDE_SKILL_DIR:-}" "${CLAUDE_PLUGIN_ROOT:+${CLAUDE_PLUGIN_ROOT}/skills/ce-code-review}"; do
-  if [ -n "$base" ] && [ -f "$base/scripts/resolve-base.sh" ]; then RESOLVE_SCRIPT="$base/scripts/resolve-base.sh"; break; fi
+  if [ -n "$base" ] && [ -f "$base/scripts/resolve-base.sh" ]; then
+    real_base=$(cd "$base" 2>/dev/null && pwd -P) || real_base=""
+    real_cwd=$(pwd -P)
+    case "$real_base" in
+      ""|"$real_cwd"|"$real_cwd"/*) continue ;;
+    esac
+    RESOLVE_SCRIPT="$real_base/scripts/resolve-base.sh"
+    break
+  fi
 done
-if [ -z "$RESOLVE_SCRIPT" ]; then echo "ERROR: resolve-base.sh is unavailable because the harness did not expose the plugin or skill directory. Re-run with `base:<ref>` or use a harness that exposes the plugin/skill directory."; exit 1; fi
+if [ -z "$RESOLVE_SCRIPT" ]; then printf '%s\n' 'ERROR: resolve-base.sh is unavailable because the harness did not expose a trusted plugin or skill directory, or the exposed path resolves inside the reviewed repo. Re-run with `base:<ref>` or use a harness that exposes the plugin/skill directory.'; exit 1; fi
 RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')

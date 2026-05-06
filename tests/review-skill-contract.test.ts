@@ -1,10 +1,54 @@
-import { readFile } from "fs/promises"
-import path from "path"
+import { execSync } from "node:child_process"
+import fs from "node:fs"
+import os from "node:os"
+import path from "node:path"
+import { readFile } from "node:fs/promises"
 import { describe, expect, test } from "bun:test"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 
 async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
+}
+
+function shellQuote(value: string): string {
+  return `'${value.replaceAll("'", "'\\''")}'`
+}
+
+function runResolveProbe(snippet: string, cwd: string, env: NodeJS.ProcessEnv) {
+  try {
+    return {
+      status: 0,
+      output: execSync(`bash -c ${shellQuote(snippet)}`, {
+        cwd,
+        env: {
+          PATH: process.env.PATH,
+          ...env,
+        },
+        encoding: "utf8",
+        stdio: ["ignore", "pipe", "pipe"],
+      }),
+    }
+  } catch (error) {
+    const failed = error as { status?: number; stdout?: Buffer | string; stderr?: Buffer | string }
+    return {
+      status: failed.status ?? 1,
+      output: `${failed.stdout?.toString() ?? ""}${failed.stderr?.toString() ?? ""}`,
+    }
+  }
+}
+
+function extractResolveProbe(content: string): string {
+  const blocks = content.match(
+    /RESOLVE_SCRIPT=""\n[\s\S]*?BASE=\$\(echo "\$RESOLVE_OUT" \| sed 's\/\^BASE:\/\/'\)/g,
+  )
+
+  expect(blocks).toHaveLength(2)
+  expect(blocks?.[0]).toBe(blocks?.[1])
+
+  return blocks![0].replace(
+    `BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')`,
+    `echo "RESOLVED:$RESOLVE_SCRIPT"`,
+  )
 }
 
 describe("ce-code-review contract", () => {
@@ -653,6 +697,94 @@ describe("ce-code-review contract", () => {
     expect(content).toContain(
       "If the plugin/skill directory is unavailable, the helper script is missing, or the script outputs an error, stop instead of falling back to `git diff HEAD`",
     )
+  })
+
+  test("resolve-base probe rejects repo-controlled paths and preserves fallback order", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+    const snippet = extractResolveProbe(content)
+    const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-code-review-contract-"))
+
+    try {
+      const skillDir = path.join(tempDir, "skill-dir")
+      const pluginRoot = path.join(tempDir, "plugin-root")
+      const missingSkillDir = path.join(tempDir, "missing-skill-dir")
+      const evilCwd = path.join(tempDir, "evil-cwd")
+      const evilSkillDir = path.join(evilCwd, ".evil")
+
+      for (const dir of [
+        path.join(skillDir, "scripts"),
+        path.join(pluginRoot, "skills", "ce-code-review", "scripts"),
+        missingSkillDir,
+        path.join(evilCwd, "scripts"),
+        path.join(evilSkillDir, "scripts"),
+      ]) {
+        fs.mkdirSync(dir, { recursive: true })
+      }
+
+      fs.writeFileSync(path.join(skillDir, "scripts", "resolve-base.sh"), "echo BASE:from-skill-dir\n")
+      fs.writeFileSync(
+        path.join(pluginRoot, "skills", "ce-code-review", "scripts", "resolve-base.sh"),
+        "echo BASE:from-plugin-root\n",
+      )
+      fs.writeFileSync(path.join(evilCwd, "scripts", "resolve-base.sh"), "echo BASE:from-cwd-evil\n")
+      fs.writeFileSync(path.join(evilSkillDir, "scripts", "resolve-base.sh"), "echo BASE:from-cwd-evil\n")
+
+      const realSkillDir = fs.realpathSync(skillDir)
+      const realPluginRoot = fs.realpathSync(pluginRoot)
+      const realMissingSkillDir = fs.realpathSync(missingSkillDir)
+      const realEvilSkillDir = fs.realpathSync(evilSkillDir)
+      const realEvilCwd = fs.realpathSync(evilCwd)
+      const skillResolveScript = path.join(realSkillDir, "scripts", "resolve-base.sh")
+      const pluginResolveScript = path.join(
+        realPluginRoot,
+        "skills",
+        "ce-code-review",
+        "scripts",
+        "resolve-base.sh",
+      )
+
+      const unset = runResolveProbe(snippet, realEvilCwd, {})
+      expect(unset.status).not.toBe(0)
+      expect(unset.output).toContain("Re-run with `base:<ref>`")
+
+      expect(runResolveProbe(snippet, realEvilCwd, { CLAUDE_SKILL_DIR: realSkillDir }).output).toContain(
+        `RESOLVED:${skillResolveScript}`,
+      )
+
+      expect(runResolveProbe(snippet, realEvilCwd, { CLAUDE_PLUGIN_ROOT: realPluginRoot }).output).toContain(
+        `RESOLVED:${pluginResolveScript}`,
+      )
+
+      expect(
+        runResolveProbe(snippet, realEvilCwd, {
+          CLAUDE_SKILL_DIR: realSkillDir,
+          CLAUDE_PLUGIN_ROOT: realPluginRoot,
+        }).output,
+      ).toContain(`RESOLVED:${skillResolveScript}`)
+
+      expect(
+        runResolveProbe(snippet, realEvilCwd, {
+          CLAUDE_SKILL_DIR: realEvilSkillDir,
+          CLAUDE_PLUGIN_ROOT: realPluginRoot,
+        }).output,
+      ).toContain(`RESOLVED:${pluginResolveScript}`)
+
+      expect(
+        runResolveProbe(snippet, realEvilCwd, {
+          CLAUDE_SKILL_DIR: "",
+          CLAUDE_PLUGIN_ROOT: realPluginRoot,
+        }).output,
+      ).toContain(`RESOLVED:${pluginResolveScript}`)
+
+      expect(
+        runResolveProbe(snippet, realEvilCwd, {
+          CLAUDE_SKILL_DIR: realMissingSkillDir,
+          CLAUDE_PLUGIN_ROOT: realPluginRoot,
+        }).output,
+      ).toContain(`RESOLVED:${pluginResolveScript}`)
+    } finally {
+      fs.rmSync(tempDir, { recursive: true, force: true })
+    }
   })
 
   test("orchestration callers pass explicit mode flags", async () => {
