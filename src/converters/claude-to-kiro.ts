@@ -66,7 +66,7 @@ export function convertClaudeToKiro(
     )
   }
 
-  return { agents, generatedSkills, skillDirs, steeringFiles, mcpServers }
+  return { pluginName: plugin.manifest.name, agents, generatedSkills, skillDirs, steeringFiles, mcpServers }
 }
 
 function convertAgentToKiroAgent(agent: ClaudeAgent, knownAgentNames: string[]): KiroAgent {

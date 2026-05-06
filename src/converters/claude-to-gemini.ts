@@ -1,6 +1,6 @@
 import { formatFrontmatter } from "../utils/frontmatter"
 import { type ClaudeAgent, type ClaudeCommand, type ClaudeMcpServer, type ClaudePlugin, filterSkillsByPlatform } from "../types/claude"
-import type { GeminiBundle, GeminiCommand, GeminiMcpServer, GeminiSkill } from "../types/gemini"
+import type { GeminiAgent, GeminiBundle, GeminiCommand, GeminiMcpServer } from "../types/gemini"
 import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 
 export type ClaudeToGeminiOptions = ClaudeToOpenCodeOptions
@@ -11,7 +11,6 @@ export function convertClaudeToGemini(
   plugin: ClaudePlugin,
   _options: ClaudeToGeminiOptions,
 ): GeminiBundle {
-  const usedSkillNames = new Set<string>()
   const usedCommandNames = new Set<string>()
 
   const platformSkills = filterSkillsByPlatform(plugin.skills, "gemini")
@@ -20,12 +19,8 @@ export function convertClaudeToGemini(
     sourceDir: skill.sourceDir,
   }))
 
-  // Reserve skill names from pass-through skills
-  for (const skill of skillDirs) {
-    usedSkillNames.add(normalizeName(skill.name))
-  }
-
-  const generatedSkills = plugin.agents.map((agent) => convertAgentToSkill(agent, usedSkillNames))
+  const usedAgentNames = new Set<string>()
+  const agents = plugin.agents.map((agent) => convertAgent(agent, usedAgentNames))
 
   const commands = plugin.commands.map((command) => convertCommand(command, usedCommandNames))
 
@@ -35,16 +30,16 @@ export function convertClaudeToGemini(
     console.warn("Warning: Gemini CLI hooks use a different format (BeforeTool/AfterTool with matchers). Hooks were skipped during conversion.")
   }
 
-  return { generatedSkills, skillDirs, commands, mcpServers }
+  return { pluginName: plugin.manifest.name, generatedSkills: [], skillDirs, agents, commands, mcpServers }
 }
 
-function convertAgentToSkill(agent: ClaudeAgent, usedNames: Set<string>): GeminiSkill {
+function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): GeminiAgent {
   const name = uniqueName(normalizeName(agent.name), usedNames)
   const description = sanitizeDescription(
-    agent.description ?? `Use this skill for ${agent.name} tasks`,
+    agent.description ?? `Use this agent for ${agent.name} tasks`,
   )
 
-  const frontmatter: Record<string, unknown> = { name, description }
+  const frontmatter: Record<string, unknown> = { name, description, kind: "local" }
 
   let body = transformContentForGemini(agent.body.trim())
   if (agent.capabilities && agent.capabilities.length > 0) {
@@ -80,9 +75,9 @@ function convertCommand(command: ClaudeCommand, usedNames: Set<string>): GeminiC
 /**
  * Transform Claude Code content to Gemini-compatible content.
  *
- * 1. Task agent calls: Task agent-name(args) -> Use the agent-name skill to: args
+ * 1. Task agent calls: Task agent-name(args) -> Use the @agent-name subagent to: args
  * 2. Path rewriting: .claude/ -> .gemini/, ~/.claude/ -> ~/.gemini/
- * 3. Agent references: @agent-name -> the agent-name skill
+ * 3. Agent references: @agent-name -> @agent-name subagent
  */
 export function transformContentForGemini(body: string): string {
   let result = body
@@ -91,11 +86,11 @@ export function transformContentForGemini(body: string): string {
   const taskPattern = /^(\s*-?\s*)Task\s+([a-z][a-z0-9:-]*)\(([^)]*)\)/gm
   result = result.replace(taskPattern, (_match, prefix: string, agentName: string, args: string) => {
     const finalSegment = agentName.includes(":") ? agentName.split(":").pop()! : agentName
-    const skillName = normalizeName(finalSegment)
+    const geminiAgentName = normalizeName(finalSegment)
     const trimmedArgs = args.trim()
     return trimmedArgs
-      ? `${prefix}Use the ${skillName} skill to: ${trimmedArgs}`
-      : `${prefix}Use the ${skillName} skill`
+      ? `${prefix}Use the @${geminiAgentName} subagent to: ${trimmedArgs}`
+      : `${prefix}Use the @${geminiAgentName} subagent`
   })
 
   // 2. Rewrite .claude/ paths to .gemini/
@@ -104,9 +99,9 @@ export function transformContentForGemini(body: string): string {
     .replace(/\.claude\//g, ".gemini/")
 
   // 3. Transform @agent-name references
-  const agentRefPattern = /@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))/gi
+  const agentRefPattern = /@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))(?!\s+subagent\b)/gi
   result = result.replace(agentRefPattern, (_match, agentName: string) => {
-    return `the ${normalizeName(agentName)} skill`
+    return `@${normalizeName(agentName)} subagent`
   })
 
   return result

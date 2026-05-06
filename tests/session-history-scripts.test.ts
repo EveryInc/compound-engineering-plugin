@@ -1,18 +1,29 @@
 import { describe, expect, test } from "bun:test"
 import path from "path"
 
-const SCRIPTS_DIR = path.join(
+const INVENTORY_SCRIPTS_DIR = path.join(
   __dirname,
-  "../plugins/compound-engineering/agents/research/session-history-scripts"
+  "../plugins/compound-engineering/skills/ce-session-inventory/scripts"
+)
+const EXTRACT_SCRIPTS_DIR = path.join(
+  __dirname,
+  "../plugins/compound-engineering/skills/ce-session-extract/scripts"
 )
 const FIXTURES_DIR = path.join(__dirname, "fixtures/session-history")
+
+function scriptsDirFor(scriptName: string): string {
+  if (scriptName === "extract-metadata.py" || scriptName === "discover-sessions.sh") {
+    return INVENTORY_SCRIPTS_DIR
+  }
+  return EXTRACT_SCRIPTS_DIR
+}
 
 async function runScript(
   scriptName: string,
   args: string[] = [],
   stdin?: string
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const scriptPath = path.join(SCRIPTS_DIR, scriptName)
+  const scriptPath = path.join(scriptsDirFor(scriptName), scriptName)
   const proc = Bun.spawn(["python3", scriptPath, ...args], {
     stdin: stdin ? new TextEncoder().encode(stdin) : undefined,
     stdout: "pipe",
@@ -127,6 +138,214 @@ describe("extract-metadata", () => {
     const meta = lines.find((l) => l._meta)
     expect(meta.files_processed).toBe(0)
     expect(meta.parse_errors).toBe(0)
+  })
+
+  // --keyword mode: opt-in full-file content scan. When set, sessions with zero
+  // matches are excluded and each emitted session line carries match_count plus
+  // per-keyword counts so the caller can rank candidates without re-scanning.
+  describe("--keyword mode", () => {
+    test("filters to sessions matching a single keyword", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "middleware",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+        path.join(FIXTURES_DIR, "cursor-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      // All three fixtures mention middleware.
+      expect(sessions.length).toBe(3)
+      for (const session of sessions) {
+        expect(session.match_count).toBeGreaterThan(0)
+        expect(session.keyword_matches.middleware).toBeGreaterThan(0)
+      }
+    })
+
+    test("excludes sessions with zero matches and counts them in _meta", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "no_such_token_xyz_42",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(0)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_processed).toBe(2)
+      expect(meta.files_matched).toBe(0)
+    })
+
+    test("supports multiple comma-separated keywords with OR semantics", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "auth,no_such_token_xyz_42",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(1)
+      expect(sessions[0].keyword_matches.auth).toBeGreaterThan(0)
+      expect(sessions[0].keyword_matches.no_such_token_xyz_42).toBe(0)
+    })
+
+    test("keyword match is case-insensitive", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "AUTH",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(1)
+      expect(sessions[0].keyword_matches.AUTH).toBeGreaterThan(0)
+    })
+
+    test("emits files_matched in _meta and preserves files_processed", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "middleware",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_processed).toBe(2)
+      expect(meta.files_matched).toBe(2)
+      expect(meta.parse_errors).toBe(0)
+    })
+
+    test("without --keyword, output shape is unchanged (no match_count field)", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const session = lines.find((l) => !l._meta)
+      expect(session.match_count).toBeUndefined()
+      expect(session.keyword_matches).toBeUndefined()
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_matched).toBeUndefined()
+    })
+
+    // Content-only scanning: --keyword must match against user/assistant text,
+    // not JSONL metadata fields or tool-call internals. Otherwise common topic
+    // words like "session" false-positive on every file via sessionId.
+    test("does not match JSONL metadata field names", async () => {
+      // sessionId, gitBranch, uuid, parentUuid, timestamp are JSONL field names
+      // present in every Claude session file. None should match.
+      for (const metaToken of ["sessionId", "gitBranch", "parentUuid"]) {
+        const { stdout, exitCode } = await runScript("extract-metadata.py", [
+          "--keyword",
+          metaToken,
+          path.join(FIXTURES_DIR, "claude-session.jsonl"),
+        ])
+        expect(exitCode).toBe(0)
+        const lines = parseJsonLines(stdout)
+        const sessions = lines.filter((l) => !l._meta)
+        if (sessions.length > 0) {
+          expect(sessions[0].keyword_matches[metaToken]).toBe(0)
+        }
+      }
+    })
+
+    test("does not match against tool_use names or tool inputs", async () => {
+      // The Claude fixture invokes Read and Edit tools. Those tool names should
+      // not produce matches — they are tool-call internals, not user content.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "Edit",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      // Either excluded entirely (zero match) or match_count: 0
+      if (sessions.length > 0) {
+        expect(sessions[0].keyword_matches.Edit).toBe(0)
+      }
+    })
+
+    test("does not match Codex system_instruction wrapper text", async () => {
+      // The Codex fixture's first user message is wrapped in
+      // <system_instruction>You are working inside Conductor.</system_instruction>
+      // which is Codex/Conductor boilerplate, not user-authored content.
+      // "Conductor" only appears inside that wrapper, so it must not match.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "Conductor",
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      // Either excluded entirely (zero match) or match_count: 0
+      if (sessions.length > 0) {
+        expect(sessions[0].keyword_matches.Conductor).toBe(0)
+      }
+    })
+
+    test("--cwd-filter is applied before keyword scan (skips full-file scan for filtered sessions)", async () => {
+      // Codex discovery returns sessions across all repos, so --cwd-filter
+      // must be evaluated before the expensive full-file keyword scan to
+      // avoid scanning sessions that are immediately discarded. Verify the
+      // observable contract: a session that fails --cwd-filter is counted
+      // in filtered_by_cwd and never reaches the keyword filter, so
+      // files_matched stays 0 even though --keyword was supplied.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--cwd-filter",
+        "other-repo",
+        "--keyword",
+        "auth",
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(0)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.filtered_by_cwd).toBe(1)
+      expect(meta.files_matched).toBe(0)
+    })
+
+    test("empty input with --keyword still emits files_matched: 0", async () => {
+      // The empty-stdin (xargs-empty) branch must include files_matched when
+      // --keyword is supplied, so callers relying on its presence to short-
+      // circuit in zero-match scans get a consistent shape.
+      const { stdout, exitCode } = await runScript(
+        "extract-metadata.py",
+        ["--keyword", "anything"],
+        ""
+      )
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_processed).toBe(0)
+      expect(meta.parse_errors).toBe(0)
+      expect(meta.files_matched).toBe(0)
+    })
+
+    test("matches against actual user/assistant content", async () => {
+      // The Claude fixture's first user message says "fix the auth bug" and
+      // assistant text mentions "auth module" and "middleware". These ARE
+      // user-visible content and must match.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "auth",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(1)
+      expect(sessions[0].keyword_matches.auth).toBeGreaterThan(0)
+    })
   })
 })
 
@@ -420,7 +639,7 @@ describe("discover-sessions", () => {
   async function runDiscover(
     ...args: string[]
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    const scriptPath = path.join(SCRIPTS_DIR, "discover-sessions.sh")
+    const scriptPath = path.join(scriptsDirFor("discover-sessions.sh"), "discover-sessions.sh")
     const proc = Bun.spawn(["bash", scriptPath, ...args], {
       stdout: "pipe",
       stderr: "pipe",

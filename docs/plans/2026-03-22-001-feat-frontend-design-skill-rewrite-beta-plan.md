@@ -49,7 +49,7 @@ Two external sources informed the redesign: Anthropic's official frontend-design
 - `plugins/compound-engineering/skills/ce-plan-beta/SKILL.md` -- reference for cross-agent interaction patterns (Pattern A: platform's blocking question tool with named equivalents)
 - `plugins/compound-engineering/skills/reproduce-bug/SKILL.md` -- reference for cross-agent patterns
 - `plugins/compound-engineering/skills/agent-browser/SKILL.md` -- upstream-vendored, reference for browser automation CLI
-- `plugins/compound-engineering/agents/design/design-iterator.md` -- contains `<frontend_aesthetics>` block that overlaps with current skill; new skill will supersede this when both are loaded
+- `plugins/compound-engineering/agents/design/ce-design-iterator.agent.md` -- contains `<frontend_aesthetics>` block that overlaps with current skill; new skill will supersede this when both are loaded
 - `plugins/compound-engineering/AGENTS.md` -- skill compliance checklist (cross-platform interaction, tool selection, reference rules)
 
 ### Institutional Learnings

@@ -61,7 +61,7 @@ async function loadAgents(agentsDirs: string[]): Promise<ClaudeAgent[]> {
   for (const file of files) {
     const raw = await readText(file)
     const { data, body } = parseFrontmatter(raw, file)
-    const name = (data.name as string) ?? path.basename(file, ".md")
+    const name = (data.name as string) ?? deriveMarkdownStem(file)
     agents.push({
       name,
       description: data.description as string | undefined,
@@ -203,6 +203,10 @@ function toPathList(value?: string | string[]): string[] {
 async function collectMarkdownFiles(dirs: string[]): Promise<string[]> {
   const entries = await collectFiles(dirs)
   return entries.filter((file) => file.endsWith(".md"))
+}
+
+function deriveMarkdownStem(filePath: string): string {
+  return path.basename(filePath, ".md").replace(/\.agent$/, "")
 }
 
 async function collectFiles(dirs: string[]): Promise<string[]> {

@@ -6,7 +6,7 @@ import { targets, validateScope } from "../targets"
 import type { ClaudeToOpenCodeOptions, PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
 import { expandHome, resolveTargetHome } from "../utils/resolve-home"
-import { resolveTargetOutputRoot } from "../utils/resolve-output"
+import { resolveOpenCodeWriteScope, resolveTargetOutputRoot } from "../utils/resolve-output"
 import { detectInstalledTools } from "../utils/detect-tools"
 
 const permissionModes: PermissionMode[] = ["none", "broad", "from-commands"]
@@ -25,7 +25,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro | windsurf | openclaw | qwen | all)",
+      description: "Target format (opencode | codex | pi | gemini | kiro | all)",
     },
     output: {
       type: "string",
@@ -41,16 +41,6 @@ export default defineCommand({
       type: "string",
       alias: "pi-home",
       description: "Write Pi output to this Pi root (ex: ~/.pi/agent or ./.pi)",
-    },
-    openclawHome: {
-      type: "string",
-      alias: "openclaw-home",
-      description: "Write OpenClaw output to this extensions root (ex: ~/.openclaw/extensions)",
-    },
-    qwenHome: {
-      type: "string",
-      alias: "qwen-home",
-      description: "Write Qwen output to this Qwen extensions root (ex: ~/.qwen/extensions)",
     },
     scope: {
       type: "string",
@@ -75,6 +65,12 @@ export default defineCommand({
       default: true,
       description: "Infer agent temperature from name/description",
     },
+    includeSkills: {
+      type: "boolean",
+      default: false,
+      alias: "include-skills",
+      description: "For --to codex only: also emit skills and commands. Default is agents-only, the recommended pairing with `codex plugin install`. Set this flag for a legacy / standalone install without Codex native plugin install. Ignored by other targets.",
+    },
   },
   async run({ args }) {
     const targetName = String(args.to)
@@ -89,26 +85,29 @@ export default defineCommand({
     const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
     const codexHome = resolveTargetHome(args.codexHome, path.join(os.homedir(), ".codex"))
     const piHome = resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent"))
-    const openclawHome = resolveTargetHome(args.openclawHome, path.join(os.homedir(), ".openclaw", "extensions"))
-    const qwenHome = resolveTargetHome(args.qwenHome, path.join(os.homedir(), ".qwen", "extensions"))
 
     const options: ClaudeToOpenCodeOptions = {
       agentMode: String(args.agentMode) === "primary" ? "primary" : "subagent",
       inferTemperature: Boolean(args.inferTemperature),
       permissions: permissions as PermissionMode,
+      codexIncludeSkills: Boolean(args.includeSkills),
     }
 
     if (targetName === "all") {
       const detected = await detectInstalledTools()
-      const activeTargets = detected.filter((t) => t.detected)
+      const activeTargets = detected.filter((t) => t.detected && targets[t.name]?.implemented)
 
       if (activeTargets.length === 0) {
-        console.log("No AI coding tools detected. Install at least one tool first.")
+        console.log("No installable AI coding tools detected. Use native plugin install for Claude Code, Copilot, Droid, and Qwen.")
         return
       }
 
-      console.log(`Detected ${activeTargets.length} tool(s):`)
+      console.log(`Detected ${activeTargets.length} installable tool(s):`)
       for (const tool of detected) {
+        if (tool.detected && !targets[tool.name]?.implemented) {
+          console.log(`  - ${tool.name} — native plugin install; skipped`)
+          continue
+        }
         console.log(`  ${tool.detected ? "✓" : "✗"} ${tool.name} — ${tool.reason}`)
       }
 
@@ -128,12 +127,12 @@ export default defineCommand({
           outputRoot,
           codexHome,
           piHome,
-          openclawHome,
-          qwenHome,
           pluginName: plugin.manifest.name,
           hasExplicitOutput,
         })
-        await handler.write(root, bundle)
+        const writeScope =
+          tool.name === "opencode" ? resolveOpenCodeWriteScope(hasExplicitOutput, undefined) : undefined
+        await handler.write(root, bundle, writeScope)
         console.log(`Converted ${plugin.manifest.name} to ${tool.name} at ${root}`)
       }
 
@@ -159,8 +158,6 @@ export default defineCommand({
       outputRoot,
       codexHome,
       piHome,
-      openclawHome,
-      qwenHome,
       pluginName: plugin.manifest.name,
       hasExplicitOutput,
       scope: resolvedScope,
@@ -170,7 +167,9 @@ export default defineCommand({
       throw new Error(`Target ${targetName} did not return a bundle.`)
     }
 
-    await target.write(primaryOutputRoot, bundle, resolvedScope)
+    const effectiveScope =
+      targetName === "opencode" ? resolveOpenCodeWriteScope(hasExplicitOutput, resolvedScope) : resolvedScope
+    await target.write(primaryOutputRoot, bundle, effectiveScope)
     console.log(`Converted ${plugin.manifest.name} to ${targetName} at ${primaryOutputRoot}`)
 
     const extraTargets = parseExtraTargets(args.also)
@@ -192,16 +191,18 @@ export default defineCommand({
       }
       const extraRoot = resolveTargetOutputRoot({
         targetName: extra,
-        outputRoot: path.join(outputRoot, extra),
+        outputRoot,
         codexHome,
         piHome,
-        openclawHome,
-        qwenHome,
         pluginName: plugin.manifest.name,
         hasExplicitOutput,
         scope: handler.defaultScope,
       })
-      await handler.write(extraRoot, extraBundle, handler.defaultScope)
+      const extraScope =
+        extra === "opencode"
+          ? resolveOpenCodeWriteScope(hasExplicitOutput, handler.defaultScope)
+          : handler.defaultScope
+      await handler.write(extraRoot, extraBundle, extraScope)
       console.log(`Converted ${plugin.manifest.name} to ${extra} at ${extraRoot}`)
     }
 

@@ -13,6 +13,11 @@ export type GeminiCommand = {
   content: string // Full TOML content
 }
 
+export type GeminiAgent = {
+  name: string
+  content: string // Full agent Markdown file with YAML frontmatter
+}
+
 export type GeminiMcpServer = {
   command?: string
   args?: string[]
@@ -22,8 +27,10 @@ export type GeminiMcpServer = {
 }
 
 export type GeminiBundle = {
-  generatedSkills: GeminiSkill[] // From agents
+  pluginName?: string
+  generatedSkills: GeminiSkill[] // Target-specific generated skills, if any
   skillDirs: GeminiSkillDir[] // From skills (pass-through)
+  agents?: GeminiAgent[] // From Claude agents
   commands: GeminiCommand[]
   mcpServers?: Record<string, GeminiMcpServer>
 }

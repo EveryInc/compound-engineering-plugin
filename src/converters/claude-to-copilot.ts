@@ -41,7 +41,7 @@ export function convertClaudeToCopilot(
     console.warn("Warning: Copilot does not support hooks. Hooks were skipped during conversion.")
   }
 
-  return { agents, generatedSkills, skillDirs, mcpConfig }
+  return { pluginName: plugin.manifest.name, agents, generatedSkills, skillDirs, mcpConfig }
 }
 
 function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): CopilotAgent {

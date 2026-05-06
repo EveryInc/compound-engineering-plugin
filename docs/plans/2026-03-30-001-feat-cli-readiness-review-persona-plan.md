@@ -39,11 +39,11 @@ The `cli-agent-readiness-reviewer` agent exists but only fires when someone know
 
 ### Relevant Code and Patterns
 
-- Persona agent pattern: `plugins/compound-engineering/agents/review/security-reviewer.md` (3.4 KB), `performance-reviewer.md` (3.0 KB) -- exact structure to follow
+- Persona agent pattern: `plugins/compound-engineering/agents/review/ce-security-reviewer.agent.md` (3.4 KB), `performance-reviewer.md` (3.0 KB) -- exact structure to follow
 - Persona catalog: `plugins/compound-engineering/skills/ce-review/references/persona-catalog.md` -- cross-cutting conditional section
 - Subagent template: `plugins/compound-engineering/skills/ce-review/references/subagent-template.md` -- provides output schema, scope rules, PR context (persona does not need to include these)
-- Standalone agent: `plugins/compound-engineering/agents/review/cli-agent-readiness-reviewer.md` (24.3 KB) -- source of the 7 principles to distill
-- Agent-native-reviewer: `plugins/compound-engineering/agents/review/agent-native-reviewer.md` -- non-overlapping domain reference
+- Standalone agent: `plugins/compound-engineering/agents/review/ce-cli-agent-readiness-reviewer.agent.md` (24.3 KB) -- source of the 7 principles to distill
+- Agent-native-reviewer: `plugins/compound-engineering/agents/review/ce-agent-native-reviewer.agent.md` -- non-overlapping domain reference
 
 ### Institutional Learnings
 
@@ -81,7 +81,7 @@ The `cli-agent-readiness-reviewer` agent exists but only fires when someone know
 **Dependencies:** None
 
 **Files:**
-- Create: `plugins/compound-engineering/agents/review/cli-readiness-reviewer.md`
+- Create: `plugins/compound-engineering/agents/review/ce-cli-readiness-reviewer.agent.md`
 
 **Approach:**
 - Follow the exact structure of `security-reviewer.md` and `performance-reviewer.md`: frontmatter, identity paragraph, hunting patterns, confidence calibration, suppress list, output format
@@ -95,9 +95,9 @@ The `cli-agent-readiness-reviewer` agent exists but only fires when someone know
 - Include framework detection instruction: "Detect the CLI framework from imports in the diff. Reference framework-idiomatic patterns in suggested_fix (e.g., Click decorators, Cobra persistent flags, clap derive macros)."
 
 **Patterns to follow:**
-- `plugins/compound-engineering/agents/review/security-reviewer.md` -- structure, sections, size
-- `plugins/compound-engineering/agents/review/performance-reviewer.md` -- structure, brevity
-- `plugins/compound-engineering/agents/review/cli-agent-readiness-reviewer.md` -- source of the 7 principles to distill (Principles 1-7, lines 94-252)
+- `plugins/compound-engineering/agents/review/ce-security-reviewer.agent.md` -- structure, sections, size
+- `plugins/compound-engineering/agents/review/ce-performance-reviewer.agent.md` -- structure, brevity
+- `plugins/compound-engineering/agents/review/ce-cli-agent-readiness-reviewer.agent.md` -- source of the 7 principles to distill (Principles 1-7, lines 94-252)
 
 **Test scenarios:**
 - Happy path: persona file parses valid YAML frontmatter with all required fields (name, description, model, tools, color)
@@ -167,6 +167,6 @@ The `cli-agent-readiness-reviewer` agent exists but only fires when someone know
 ## Sources & References
 
 - **Origin document:** [docs/brainstorms/2026-03-30-cli-readiness-review-persona-requirements.md](docs/brainstorms/2026-03-30-cli-readiness-review-persona-requirements.md)
-- Related code: `plugins/compound-engineering/agents/review/security-reviewer.md`, `performance-reviewer.md`
-- Related code: `plugins/compound-engineering/agents/review/cli-agent-readiness-reviewer.md` (source of 7 principles)
+- Related code: `plugins/compound-engineering/agents/review/ce-security-reviewer.agent.md`, `performance-reviewer.md`
+- Related code: `plugins/compound-engineering/agents/review/ce-cli-agent-readiness-reviewer.agent.md` (source of 7 principles)
 - Related code: `plugins/compound-engineering/skills/ce-review/references/persona-catalog.md`

@@ -60,4 +60,4 @@ docs/plans/*-plan.md                (downstream — references validation result
 docs/solutions/                     (post-implementation — documents learnings)
 ```
 
-The validation report is referenced by `/ce:plan` the same way `/ce:plan` references requirements documents — as an origin input that grounds planning decisions in evidence rather than assumptions.
+The validation report is referenced by `/ce-plan` the same way `/ce-plan` references requirements documents — as an origin input that grounds planning decisions in evidence rather than assumptions.

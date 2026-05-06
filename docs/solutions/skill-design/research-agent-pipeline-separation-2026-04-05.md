@@ -3,7 +3,7 @@ title: Research agent dispatch is intentionally separated across the skill pipel
 date: 2026-04-05
 category: skill-design
 module: compound-engineering
-problem_type: best_practice
+problem_type: architecture_pattern
 component: tooling
 severity: low
 applies_when:
@@ -58,7 +58,7 @@ When ce:plan receives an origin document from ce:brainstorm, it reads it as prim
 ce:plan always calls `repo-research-analyst` even when a brainstorm document exists. Does ce:brainstorm also call it? No -- brainstorm only does an inline product-focused scan. The calls are not redundant; no change needed.
 
 **Optimization warranted (Slack pattern):**
-Both ce:brainstorm and ce:plan dispatched `slack-researcher`. Fix: when ce:plan finds Slack context in the origin document, pass it to `slack-researcher` so the agent focuses on gaps. The agent is still called -- it starts from a better baseline.
+Both ce-brainstorm and ce-plan dispatched `ce-slack-researcher`. Fix: when ce-plan finds Slack context in the origin document, pass it to `ce-slack-researcher` so the agent focuses on gaps. The agent is still called -- it starts from a better baseline.
 
 **Anti-pattern -- skipping agents incorrectly:**
 Removing `repo-research-analyst` from ce:plan when an origin document exists, reasoning "brainstorm already scanned the repo." The resulting plan lacks architectural patterns, file paths, and convention details. ce:work produces code that ignores existing patterns.
@@ -69,6 +69,7 @@ A "dependency-analyzer" agent that identifies library versions and compatibility
 ## Related
 
 - `docs/solutions/skill-design/pass-paths-not-content-to-subagents-2026-03-26.md` -- related agent dispatch optimization pattern (token efficiency, not deduplication)
-- `docs/solutions/skill-design/beta-skills-framework.md` -- documents the pipeline chain (note: pipeline description is stale, references `deepen-plan` which has been merged into `ce:plan`)
+- `docs/solutions/skill-design/beta-skills-framework.md` -- documents the pipeline chain and the beta-skills rollout pattern that plugs into it
+- `docs/solutions/best-practices/ce-pipeline-end-to-end-learnings-2026-04-17.md` -- extends this framing downstream (document-review, ce:review, resolve-pr-feedback) with meta-observations from running the full pipeline end-to-end on a feature
 - Commit f7a14b76 on `tmchow/slack-analyst-agent` -- the Slack researcher pass-through optimization that prompted this analysis
 - GitHub issue #492 -- `repo-research-analyst` self-recursion bug (fixed, separate concern)

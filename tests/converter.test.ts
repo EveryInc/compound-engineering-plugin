@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { promises as fs } from "fs"
 import path from "path"
 import { loadClaudePlugin } from "../src/parsers/claude"
 import { convertClaudeToOpenCode, transformSkillContentForOpenCode } from "../src/converters/claude-to-opencode"
@@ -6,8 +7,32 @@ import { parseFrontmatter } from "../src/utils/frontmatter"
 import type { ClaudePlugin } from "../src/types/claude"
 
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+const compoundEngineeringRoot = path.join(
+  import.meta.dir,
+  "..",
+  "plugins",
+  "compound-engineering",
+)
 
 describe("convertClaudeToOpenCode", () => {
+  test("current compound-engineering output is skills and subagents, not commands", async () => {
+    const plugin = await loadClaudePlugin(compoundEngineeringRoot)
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: true,
+      permissions: "none",
+    })
+
+    expect(bundle.agents.length).toBeGreaterThan(0)
+    expect(bundle.skillDirs.length).toBeGreaterThan(0)
+    expect(bundle.commandFiles).toHaveLength(0)
+    expect(bundle.plugins).toHaveLength(0)
+    expect(bundle.config.tools).toBeUndefined()
+
+    const parsedAgents = bundle.agents.map((agent) => parseFrontmatter(agent.content))
+    expect(parsedAgents.every((agent) => agent.data.mode === "subagent")).toBe(true)
+  })
+
   test("from-command mode: map allowedTools to global permission block", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
@@ -17,6 +42,7 @@ describe("convertClaudeToOpenCode", () => {
     })
 
     expect(bundle.config.command).toBeUndefined()
+    expect(bundle.config.tools).toBeUndefined()
     expect(bundle.commandFiles.find((f) => f.name === "workflows:review")).toBeDefined()
     expect(bundle.commandFiles.find((f) => f.name === "plan_review")).toBeDefined()
 
@@ -268,6 +294,7 @@ describe("convertClaudeToOpenCode", () => {
       inferTemperature: false,
       permissions: "broad",
     })
+    expect(broadBundle.config.tools).toBeUndefined()
     expect(broadBundle.config.permission).toEqual({
       read: "allow",
       write: "allow",
@@ -470,9 +497,16 @@ describe("transformSkillContentForOpenCode", () => {
     expect(transformSkillContentForOpenCode(input)).toBe(input)
   })
 
-  test("preserves 2-segment plugin:agent names (no category)", () => {
+  test("rewrites 2-segment category:ce-agent refs to flat names", () => {
+    const input = "Dispatch `review:ce-correctness-reviewer` for logic checks."
+    expect(transformSkillContentForOpenCode(input)).toBe(
+      "Dispatch `ce-correctness-reviewer` for logic checks.",
+    )
+  })
+
+  test("preserves 2-segment refs without ce- prefix", () => {
     const input = "Spawn `compound-engineering:coherence-reviewer` as subagent."
-    // 2-segment names could be skill refs or flat agent refs — not rewritten
+    // 2-segment names without ce- prefix could be skill refs — not rewritten
     expect(transformSkillContentForOpenCode(input)).toBe(input)
   })
 

@@ -42,8 +42,8 @@ What's missing is a *falsification* stance — actively constructing scenarios t
 
 ### Relevant Code and Patterns
 
-- `plugins/compound-engineering/agents/review/*.md` — 24 existing code review agents following consistent structure (identity, hunting list, confidence calibration, suppress conditions, output format)
-- `plugins/compound-engineering/agents/document-review/*.md` — 6 existing document review agents (identity, analysis focus, confidence calibration, suppress conditions)
+- `plugins/compound-engineering/agents/review/ce-*.agent.md` — 24 existing code review agents following consistent structure (identity, hunting list, confidence calibration, suppress conditions, output format)
+- `plugins/compound-engineering/agents/document-review/ce-*.agent.md` — 6 existing document review agents (identity, analysis focus, confidence calibration, suppress conditions)
 - `plugins/compound-engineering/skills/ce-review/SKILL.md` — code review orchestration with tiered persona ensemble
 - `plugins/compound-engineering/skills/ce-review/references/persona-catalog.md` — reviewer registry with always-on, cross-cutting conditional, and stack-specific conditional tiers
 - `plugins/compound-engineering/skills/document-review/SKILL.md` — document review orchestration with 2 always-on + 4 conditional personas
@@ -98,7 +98,7 @@ What's missing is a *falsification* stance — actively constructing scenarios t
   **Dependencies:** None
 
   **Files:**
-  - Create: `plugins/compound-engineering/agents/review/adversarial-reviewer.md`
+  - Create: `plugins/compound-engineering/agents/review/ce-adversarial-reviewer.agent.md`
 
   **Approach:**
   Follow the standard code review agent structure (identity, hunting list, confidence calibration, suppress conditions, output format). The key differentiation is in the *hunting list* — these are not patterns to match but *scenario construction techniques*:
@@ -124,8 +124,8 @@ What's missing is a *falsification* stance — actively constructing scenarios t
   - API contract changes (api-contract-reviewer)
 
   **Patterns to follow:**
-  - `plugins/compound-engineering/agents/review/correctness-reviewer.md` — closest structural analog
-  - `plugins/compound-engineering/agents/review/reliability-reviewer.md` — for cascade/failure-chain framing
+  - `plugins/compound-engineering/agents/review/ce-correctness-reviewer.agent.md` — closest structural analog
+  - `plugins/compound-engineering/agents/review/ce-reliability-reviewer.agent.md` — for cascade/failure-chain framing
 
   **Test scenarios:**
   - Agent file parses with valid YAML frontmatter (name, description, model, tools, color fields present)
@@ -150,7 +150,7 @@ What's missing is a *falsification* stance — actively constructing scenarios t
   **Dependencies:** None
 
   **Files:**
-  - Create: `plugins/compound-engineering/agents/document-review/adversarial-reviewer.md`
+  - Create: `plugins/compound-engineering/agents/document-review/ce-adversarial-document-reviewer.agent.md`
 
   **Approach:**
   Follow the standard document review agent structure (identity, analysis focus, confidence calibration, suppress conditions). The analysis techniques:
@@ -176,8 +176,8 @@ What's missing is a *falsification* stance — actively constructing scenarios t
   - Product framing or business justification (product-lens-reviewer)
 
   **Patterns to follow:**
-  - `plugins/compound-engineering/agents/document-review/scope-guardian-reviewer.md` — closest structural analog (also challenges scope decisions)
-  - `plugins/compound-engineering/agents/document-review/feasibility-reviewer.md` — for assumption-adjacent framing
+  - `plugins/compound-engineering/agents/document-review/ce-scope-guardian-reviewer.agent.md` — closest structural analog (also challenges scope decisions)
+  - `plugins/compound-engineering/agents/document-review/ce-feasibility-reviewer.agent.md` — for assumption-adjacent framing
 
   **Test scenarios:**
   - Agent file parses with valid YAML frontmatter (name, description, model fields present)
@@ -325,6 +325,6 @@ What's missing is a *falsification* stance — actively constructing scenarios t
 ## Sources & References
 
 - Competitive analysis: gstack plugin at `~/Code/gstack/` — adversarial patterns in `/codex`, `/plan-ceo-review`, `/plan-design-review`, `/plan-eng-review`, `/cso` skills
-- Existing agent conventions: `plugins/compound-engineering/agents/review/correctness-reviewer.md`, `plugins/compound-engineering/agents/document-review/scope-guardian-reviewer.md`
+- Existing agent conventions: `plugins/compound-engineering/agents/review/ce-correctness-reviewer.agent.md`, `plugins/compound-engineering/agents/document-review/ce-scope-guardian-reviewer.agent.md`
 - Persona catalog: `plugins/compound-engineering/skills/ce-review/references/persona-catalog.md`
 - Findings schemas: `plugins/compound-engineering/skills/ce-review/references/findings-schema.json`, `plugins/compound-engineering/skills/document-review/references/findings-schema.json`

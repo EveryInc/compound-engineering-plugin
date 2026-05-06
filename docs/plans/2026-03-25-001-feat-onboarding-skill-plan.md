@@ -277,5 +277,5 @@ The primary audience is human developers. A document that works for human compre
 - **Origin document:** [docs/brainstorms/2026-03-25-vonboarding-skill-requirements.md](../brainstorms/2026-03-25-vonboarding-skill-requirements.md)
 - Script-first architecture: [docs/solutions/skill-design/script-first-skill-architecture.md](../solutions/skill-design/script-first-skill-architecture.md)
 - Compound-refresh learnings: [docs/solutions/skill-design/compound-refresh-skill-improvements.md](../solutions/skill-design/compound-refresh-skill-improvements.md)
-- Repo-research-analyst agent: `plugins/compound-engineering/agents/research/repo-research-analyst.md`
+- Repo-research-analyst agent: `plugins/compound-engineering/agents/research/ce-repo-research-analyst.agent.md`
 - Skill compliance checklist: `plugins/compound-engineering/AGENTS.md`

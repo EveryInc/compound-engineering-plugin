@@ -42,18 +42,19 @@ const fixturePlugin: ClaudePlugin = {
 }
 
 describe("convertClaudeToGemini", () => {
-  test("converts agents to skills with SKILL.md frontmatter", () => {
+  test("converts agents to Gemini subagent Markdown", () => {
     const bundle = convertClaudeToGemini(fixturePlugin, {
       agentMode: "subagent",
       inferTemperature: false,
       permissions: "none",
     })
 
-    const skill = bundle.generatedSkills.find((s) => s.name === "security-reviewer")
-    expect(skill).toBeDefined()
-    const parsed = parseFrontmatter(skill!.content)
+    const agent = bundle.agents?.find((a) => a.name === "security-reviewer")
+    expect(agent).toBeDefined()
+    const parsed = parseFrontmatter(agent!.content)
     expect(parsed.data.name).toBe("security-reviewer")
     expect(parsed.data.description).toBe("Security-focused agent")
+    expect(parsed.data.kind).toBe("local")
     expect(parsed.body).toContain("Focus on vulnerabilities.")
   })
 
@@ -64,9 +65,9 @@ describe("convertClaudeToGemini", () => {
       permissions: "none",
     })
 
-    const skill = bundle.generatedSkills.find((s) => s.name === "security-reviewer")
-    expect(skill).toBeDefined()
-    const parsed = parseFrontmatter(skill!.content)
+    const agent = bundle.agents?.find((a) => a.name === "security-reviewer")
+    expect(agent).toBeDefined()
+    const parsed = parseFrontmatter(agent!.content)
     expect(parsed.body).toContain("## Capabilities")
     expect(parsed.body).toContain("- Threat modeling")
     expect(parsed.body).toContain("- OWASP")
@@ -92,8 +93,8 @@ describe("convertClaudeToGemini", () => {
       permissions: "none",
     })
 
-    const parsed = parseFrontmatter(bundle.generatedSkills[0].content)
-    expect(parsed.data.description).toBe("Use this skill for my-agent tasks")
+    const parsed = parseFrontmatter(bundle.agents![0].content)
+    expect(parsed.data.description).toBe("Use this agent for my-agent tasks")
   })
 
   test("agent model field silently dropped", () => {
@@ -103,8 +104,8 @@ describe("convertClaudeToGemini", () => {
       permissions: "none",
     })
 
-    const skill = bundle.generatedSkills.find((s) => s.name === "security-reviewer")
-    const parsed = parseFrontmatter(skill!.content)
+    const agent = bundle.agents?.find((a) => a.name === "security-reviewer")
+    const parsed = parseFrontmatter(agent!.content)
     expect(parsed.data.model).toBeUndefined()
   })
 
@@ -129,7 +130,7 @@ describe("convertClaudeToGemini", () => {
       permissions: "none",
     })
 
-    const parsed = parseFrontmatter(bundle.generatedSkills[0].content)
+    const parsed = parseFrontmatter(bundle.agents![0].content)
     expect(parsed.body).toContain("Instructions converted from the Empty Agent agent.")
   })
 
@@ -232,7 +233,7 @@ describe("convertClaudeToGemini", () => {
     expect(bundle.mcpServers?.local?.args).toEqual(["hello"])
   })
 
-  test("plugin with zero agents produces empty generatedSkills", () => {
+  test("plugin with zero agents produces empty agents", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
       agents: [],
@@ -246,7 +247,7 @@ describe("convertClaudeToGemini", () => {
       permissions: "none",
     })
 
-    expect(bundle.generatedSkills).toHaveLength(0)
+    expect(bundle.agents).toHaveLength(0)
   })
 
   test("plugin with only skills works correctly", () => {
@@ -262,12 +263,12 @@ describe("convertClaudeToGemini", () => {
       permissions: "none",
     })
 
-    expect(bundle.generatedSkills).toHaveLength(0)
+    expect(bundle.agents).toHaveLength(0)
     expect(bundle.skillDirs).toHaveLength(1)
     expect(bundle.commands).toHaveLength(0)
   })
 
-  test("agent name colliding with skill name gets deduplicated", () => {
+  test("agent name can match a skill name because Gemini agents and skills are separate roots", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
       skills: [{ name: "security-reviewer", description: "Existing skill", sourceDir: "/tmp/skill", skillPath: "/tmp/skill/SKILL.md" }],
@@ -281,8 +282,7 @@ describe("convertClaudeToGemini", () => {
       permissions: "none",
     })
 
-    // Agent should be deduplicated since skill already has "security-reviewer"
-    expect(bundle.generatedSkills[0].name).toBe("security-reviewer-2")
+    expect(bundle.agents![0].name).toBe("security-reviewer")
     expect(bundle.skillDirs[0].name).toBe("security-reviewer")
   })
 
@@ -323,7 +323,7 @@ describe("transformContentForGemini", () => {
     expect(result).not.toContain("~/.claude/")
   })
 
-  test("transforms Task agent(args) to natural language skill reference", () => {
+  test("transforms Task agent(args) to Gemini subagent reference", () => {
     const input = `Run these:
 
 - Task repo-research-analyst(feature_description)
@@ -332,9 +332,9 @@ describe("transformContentForGemini", () => {
 Task best-practices-researcher(topic)`
 
     const result = transformContentForGemini(input)
-    expect(result).toContain("Use the repo-research-analyst skill to: feature_description")
-    expect(result).toContain("Use the learnings-researcher skill to: feature_description")
-    expect(result).toContain("Use the best-practices-researcher skill to: topic")
+    expect(result).toContain("Use the @repo-research-analyst subagent to: feature_description")
+    expect(result).toContain("Use the @learnings-researcher subagent to: feature_description")
+    expect(result).toContain("Use the @best-practices-researcher subagent to: topic")
     expect(result).not.toContain("Task repo-research-analyst")
   })
 
@@ -345,8 +345,8 @@ Task best-practices-researcher(topic)`
 - Task compound-engineering:review:security-reviewer(code_diff)`
 
     const result = transformContentForGemini(input)
-    expect(result).toContain("Use the repo-research-analyst skill to: feature_description")
-    expect(result).toContain("Use the security-reviewer skill to: code_diff")
+    expect(result).toContain("Use the @repo-research-analyst subagent to: feature_description")
+    expect(result).toContain("Use the @security-reviewer subagent to: code_diff")
     expect(result).not.toContain("compound-engineering:")
   })
 
@@ -354,15 +354,14 @@ Task best-practices-researcher(topic)`
     const input = `- Task compound-engineering:review:code-simplicity-reviewer()`
 
     const result = transformContentForGemini(input)
-    expect(result).toContain("Use the code-simplicity-reviewer skill")
+    expect(result).toContain("Use the @code-simplicity-reviewer subagent")
     expect(result).not.toContain("compound-engineering:")
-    expect(result).not.toContain("skill to:")
+    expect(result).not.toContain("subagent to:")
   })
 
-  test("transforms @agent references to skill references", () => {
+  test("transforms @agent references to subagent references", () => {
     const result = transformContentForGemini("Ask @security-sentinel for a review.")
-    expect(result).toContain("the security-sentinel skill")
-    expect(result).not.toContain("@security-sentinel")
+    expect(result).toContain("@security-sentinel subagent")
   })
 })
 

@@ -59,7 +59,7 @@ tags: [prototype, validation, keyword-one, keyword-two]
 
 [Based on the results, what should happen next]
 
-- **For planning:** [Constraints and validated assumptions that /ce:plan should incorporate]
+- **For planning:** [Constraints and validated assumptions that /ce-plan should incorporate]
 - **For requirements:** [Any requirements that need revision based on disproved goals]
 - **For further prototyping:** [Goals that need another round, if any]
 

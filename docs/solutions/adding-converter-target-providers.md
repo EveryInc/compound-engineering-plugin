@@ -5,7 +5,7 @@ tags: [converter, target-provider, plugin-conversion, multi-platform, pattern]
 created: 2026-02-23
 severity: medium
 component: converter-cli
-problem_type: best_practice
+problem_type: architecture_pattern
 root_cause: architectural_pattern
 ---
 

@@ -3,7 +3,7 @@ title: Discoverability check for documented solutions in project instruction fil
 date: 2026-03-30
 category: skill-design
 module: compound-engineering
-problem_type: best_practice
+problem_type: convention
 component: tooling
 severity: medium
 applies_when:

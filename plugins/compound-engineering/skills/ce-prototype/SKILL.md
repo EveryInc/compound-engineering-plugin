@@ -1,5 +1,5 @@
 ---
-name: ce:prototype
+name: ce-prototype
 description: "Build a throwaway prototype to validate assumptions before committing to an implementation plan. Use when the user says 'prototype this', 'let me test this idea first', 'spike on this', 'validate this before planning', 'build a quick prototype', 'I want to test if this works', 'try this out before we plan', 'proof of concept', 'quick test', 'throwaway prototype', 'validate assumptions', 'feasibility check', 'experiment with this', or 'will this actually work'. Also use when a brainstorm or requirements document contains untested assumptions about APIs, data sources, UX patterns, or integrations, or when the user wants to de-risk before planning."
 argument-hint: "[optional: feature description, requirements doc path, or specific assumptions to validate]"
 ---
@@ -8,11 +8,11 @@ argument-hint: "[optional: feature description, requirements doc path, or specif
 
 **Note: The current year is 2026.** Use this when dating validation reports.
 
-`ce:brainstorm` defines **WHAT** to build. `ce:prototype` proves **WHETHER** key assumptions hold. `ce:plan` defines **HOW** to build it.
+`ce-brainstorm` defines **WHAT** to build. `ce-prototype` proves **WHETHER** key assumptions hold. `ce-plan` defines **HOW** to build it.
 
 Prototyping sits between brainstorm and planning because planning without validation is guesswork — a plan might commit to an API that returns unusable data, a UX pattern that feels wrong, or a data source that is unreliable. Discovering this after planning wastes the plan. Discovering it during a quick prototype turns uncertainty into constraints that make the plan stronger.
 
-**This skill does not produce production code.** It produces a throwaway prototype and a durable validation report. The prototype gets deleted. The report feeds into `/ce:plan`.
+**This skill does not produce production code.** It produces a throwaway prototype and a durable validation report. The prototype gets deleted. The report feeds into `/ce-plan`.
 
 **IMPORTANT: All file references in generated documents must use repo-relative paths (e.g., `.context/compound-engineering/ce-prototype/stripe-refund-webhooks-20260404-143022/`), never absolute paths.**
 
@@ -21,7 +21,7 @@ Prototyping sits between brainstorm and planning because planning without valida
 1. **Speed over quality** — Use whatever technology is fastest: static HTML, a script, a no-code tool, raw API calls. No linting, no tests, no architecture. The only code standard is "does it answer the validation question?"
 2. **Never fake what you are testing** — If a validation goal is "test image quality from API X," do not mock API X. If unsure whether a shortcut compromises a validation goal, ask the user before proceeding.
 3. **Throwaway by default** — The prototype is scaffolded in an isolated directory and deleted after the validation report is written. If something looks worth keeping, flag it — but reuse is the exception, not the goal.
-4. **Effort-aligned** — Align effort expectations with the user before building. A prototype taking more than one day is likely not a prototype — it is an MVP. Recommend `/ce:plan` instead.
+4. **Effort-aligned** — Align effort expectations with the user before building. A prototype taking more than one day is likely not a prototype — it is an MVP. Recommend `/ce-plan` instead.
 5. **Goal-driven** — Every prototype has explicit validation goals defined upfront. Building without goals is exploration, not prototyping.
 
 ## Interaction Method
@@ -44,9 +44,11 @@ Do not proceed until there is a clear prototyping target.
 
 #### 0.1 Find Upstream Requirements
 
-Search `docs/brainstorms/` for files matching `*-requirements.md`. Apply the same relevance criteria as `ce:plan`: topic match, recency, same problem scope.
+**First, honor an explicit requirements path passed in `#$ARGUMENTS`.** If the argument resolves to a readable file (typically under `docs/brainstorms/` and matching `*-requirements.md`, but accept any valid path), use it directly and skip the heuristic search below. The caller — usually `ce-brainstorm` or the user — has already selected the right origin doc; rerunning a relevance search risks picking a similarly named but stale or mismatched document (e.g., iterative versions of the same topic in the last 30 days).
 
-If a relevant requirements document exists:
+If `#$ARGUMENTS` is empty, does not contain a path, or the path is not a readable file, fall back to a heuristic search: scan `docs/brainstorms/` for files matching `*-requirements.md` and apply the same relevance criteria as `ce-plan` (topic match, recency, same problem scope). When multiple candidates score similarly, ask the user to pick rather than guessing.
+
+If a relevant requirements document is found (either via explicit path or heuristic search):
 1. Read it thoroughly
 2. Announce it as the source document for prototyping
 3. Extract testable assumptions — claims about external APIs, data quality, UX patterns, integration behavior, performance characteristics, or user experience that the requirements take for granted but have not been verified
@@ -72,7 +74,7 @@ Some assumptions can be resolved without building anything:
 - **Existing code answers it** — The repo already integrates with the service and the assumption can be verified by reading the existing implementation.
 - **Trivial to verify** — A single curl command or REPL session answers the question without needing a prototype scaffold.
 
-If all assumptions fall into these categories, say so and recommend skipping to `/ce:plan`. Only prototype when the assumption requires building something to test — an interaction flow, a multi-step integration, visual quality judgment, or behavior that cannot be determined from docs alone.
+If all assumptions fall into these categories, say so and recommend skipping to `/ce-plan`. Only prototype when the assumption requires building something to test — an interaction flow, a multi-step integration, visual quality judgment, or behavior that cannot be determined from docs alone.
 
 ### Phase 1: Define Validation Goals
 
@@ -107,7 +109,7 @@ After classifying, align effort expectations with the user:
 
 - State the scope classification and expected effort range
 - Ask the user if that matches their expectation
-- If the estimate exceeds half a day, flag it: "This feels larger than a prototype — consider whether `/ce:plan` with a phased approach would serve better"
+- If the estimate exceeds half a day, flag it: "This feels larger than a prototype — consider whether `/ce-plan` with a phased approach would serve better"
 - Hard ceiling: if the prototype would take more than one day, recommend splitting into smaller validation rounds or moving to planning
 
 Do not proceed until effort is aligned.
@@ -175,7 +177,7 @@ Write the report to `docs/prototypes/<topic-slug>-validation-<date>.md`. If a re
 
 Create `docs/prototypes/` if it does not exist.
 
-The validation report is the durable output — it survives after the prototype code is deleted. It must contain enough detail that `/ce:plan` (or a future reader) can understand what was tested and what was learned without access to the prototype code.
+The validation report is the durable output — it survives after the prototype code is deleted. It must contain enough detail that `/ce-plan` (or a future reader) can understand what was tested and what was learned without access to the prototype code.
 
 @./assets/validation-report-template.md
 
@@ -204,14 +206,14 @@ Based on the validation results, recommend the appropriate next step:
 
 | Result | Recommendation |
 |--------|---------------|
-| All goals proved | Proceed to `/ce:plan` — pass the validation report path so planning can reference validated constraints |
-| Some goals disproved | Revisit requirements with `/ce:brainstorm` — scope or approach may need to change |
+| All goals proved | Proceed to `/ce-plan` — pass the validation report path so planning can reference validated constraints |
+| Some goals disproved | Revisit requirements with `/ce-brainstorm` — scope or approach may need to change |
 | Inconclusive goals | Run a focused second prototype round on the inconclusive goals |
 | Major surprise discovered | Discuss implications before proceeding — the discovery may reshape the entire approach |
 
 Present as a question using the platform's blocking question tool.
 
-**Handoff to /ce:plan:** When the user selects planning, run `/ce:plan` and pass both the requirements document path (if one exists) and a concise constraints summary extracted from the validation report. The summary should include: proved/disproved goal results, key constraints discovered, and the validation report path for reference. Example: `/ce:plan docs/brainstorms/2026-04-01-topic-requirements.md — Prototype validated: [goals summary]. Constraints: [key constraints]. Full report: docs/prototypes/topic-validation-2026-04-04.md`. This ensures planning starts from validated assumptions even if `/ce:plan` does not auto-discover validation reports.
+**Handoff to /ce-plan:** When the user selects planning, run `/ce-plan` and pass both the requirements document path (if one exists) and a concise constraints summary extracted from the validation report. The summary should include: proved/disproved goal results, key constraints discovered, and the validation report path for reference. Example: `/ce-plan docs/brainstorms/2026-04-01-topic-requirements.md — Prototype validated: [goals summary]. Constraints: [key constraints]. Full report: docs/prototypes/topic-validation-2026-04-04.md`. This ensures planning starts from validated assumptions even if `/ce-plan` does not auto-discover validation reports.
 
 ### Phase 5 (Optional): Brainstorm Integration Suggestion
 
@@ -267,9 +269,9 @@ Prototype cleaned up:
   .context/compound-engineering/ce-prototype/stripe-refund-webhooks-20260404-143022/ [deleted]
 
 What's next?
-1. Proceed to /ce:plan docs/prototypes/stripe-refund-webhooks-validation-2026-04-04.md
+1. Proceed to /ce-plan docs/prototypes/stripe-refund-webhooks-validation-2026-04-04.md
 2. Run another prototype round (for inconclusive goals)
-3. Revisit requirements with /ce:brainstorm (for disproved goals)
+3. Revisit requirements with /ce-brainstorm (for disproved goals)
 4. Update existing requirements document with findings
 5. Other
 ```
@@ -281,7 +283,7 @@ Present the "What's next?" options using the platform's blocking question tool.
 | Wrong | Correct |
 |-------|---------|
 | Mocking or stubbing the external system being validated | Connect to the real service — the prototype exists to test it |
-| Building for a full day with no clear validation goals | Define goals first; if scope exceeds one day, move to `/ce:plan` |
+| Building for a full day with no clear validation goals | Define goals first; if scope exceeds one day, move to `/ce-plan` |
 | Applying project code standards (linting, tests, architecture) | Speed is the only standard — throwaway code has no quality bar |
 | Recording a validation result without user feedback on subjective goals | Present the prototype and wait for the user to test it before marking proved/disproved |
 | Keeping the prototype directory after the report is written | Delete the prototype; the validation report is the durable artifact |
@@ -291,7 +293,7 @@ Present the "What's next?" options using the platform's blocking question tool.
 
 ## Related Commands
 
-- `/ce:brainstorm` — Defines WHAT to build (upstream)
-- `/ce:plan` — Defines HOW to build it (downstream, consumes validation report)
-- `/ce:work` — Executes the plan
-- `/ce:compound` — Documents solved problems (different lifecycle)
+- `/ce-brainstorm` — Defines WHAT to build (upstream)
+- `/ce-plan` — Defines HOW to build it (downstream, consumes validation report)
+- `/ce-work` — Executes the plan
+- `/ce-compound` — Documents solved problems (different lifecycle)

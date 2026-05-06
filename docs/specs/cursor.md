@@ -1,4 +1,4 @@
-# Cursor Spec (Rules, Commands, Skills, MCP)
+# Cursor Spec (Plugin Marketplace, Rules, Commands, Skills, MCP)
 
 Last verified: 2026-02-12
 
@@ -9,6 +9,27 @@ https://docs.cursor.com/context/rules
 https://docs.cursor.com/context/rules-for-ai
 https://docs.cursor.com/customize/model-context-protocol
 ```
+
+## Plugin Marketplace
+
+Compound Engineering is published through the Cursor Plugin Marketplace.
+
+In Cursor Agent chat, install with:
+
+```text
+/add-plugin compound-engineering
+```
+
+Users can also search for "compound engineering" in the plugin marketplace.
+
+The repo-owned marketplace files are:
+
+```text
+.cursor-plugin/marketplace.json
+plugins/compound-engineering/.cursor-plugin/plugin.json
+```
+
+Do not use the old custom Bun converter/install path for Cursor.
 
 ## Config locations
 

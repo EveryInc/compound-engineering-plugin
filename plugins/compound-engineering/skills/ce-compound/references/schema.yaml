@@ -1,4 +1,4 @@
-# Documentation schema for learnings written by ce:compound
+# Documentation schema for learnings written by ce-compound
 # Treat this as the canonical frontmatter contract for docs/solutions/.
 #
 # The schema has two tracks based on problem_type:
@@ -23,12 +23,16 @@ tracks:
       - integration_issue
       - logic_error
   knowledge:
-    description: "Best practices, workflow improvements, patterns, and documentation"
+    description: "Practices, patterns, conventions, decisions, workflow improvements, and documentation"
     problem_types:
       - best_practice
       - documentation_gap
       - workflow_issue
       - developer_experience
+      - architecture_pattern
+      - design_pattern
+      - tooling_decision
+      - convention
 
 # --- Fields required by BOTH tracks -----------------------------------------
 required_fields:
@@ -57,7 +61,11 @@ required_fields:
       - workflow_issue
       - best_practice
       - documentation_gap
-    description: "Primary category — determines track (bug vs knowledge)"
+      - architecture_pattern
+      - design_pattern
+      - tooling_decision
+      - convention
+    description: "Primary category — determines track (bug vs knowledge). Prefer the narrowest applicable value; best_practice is the fallback when no narrower knowledge-track value fits."
 
   component:
     type: enum
@@ -220,3 +228,4 @@ validation_rules:
   - "date must match YYYY-MM-DD format"
   - "rails_version, if provided, must match X.Y.Z format and only applies to bug-track docs"
   - "tags should be lowercase and hyphen-separated"
+  - "Array-of-strings frontmatter items (symptoms, applies_when, tags, related_components, or any future array field) must be wrapped in double quotes when the value starts with a YAML reserved indicator (`, [, *, &, !, |, >, %, @, ?) or contains the substring `: ` — otherwise strict YAML parsers reject the file"

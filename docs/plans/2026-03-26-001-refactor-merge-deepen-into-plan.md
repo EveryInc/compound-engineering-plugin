@@ -216,7 +216,7 @@ The ce:plan and deepen-plan skills form a sequential workflow where the user is 
   **Files:**
   - Modify: `plugins/compound-engineering/README.md`
   - Modify: `plugins/compound-engineering/AGENTS.md`
-  - Modify: `plugins/compound-engineering/agents/research/learnings-researcher.md`
+  - Modify: `plugins/compound-engineering/agents/research/ce-learnings-researcher.agent.md`
   - Modify: `plugins/compound-engineering/skills/document-review/SKILL.md`
 
   **Approach:**

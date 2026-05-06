@@ -25,7 +25,7 @@ related:
 The initial `ce:compound-refresh` skill had several design issues discovered during real-world testing:
 
 1. Interactive questions never triggered the proper tool (AskUserQuestion) because the instruction used a weak "when available" qualifier
-2. Auto-archive criteria contradicted a "always ask before archiving" rule in a later phase
+2. Auto-delete criteria contradicted a "always ask before deleting" rule in a later phase
 3. Broad scope (9+ docs) asked the user to choose an area blindly without providing analysis
 4. The Replace flow tried to hand off to `ce:compound`, which expects fresh problem-solving context the user doesn't have months later
 5. Subagents used shell commands for file existence checks, triggering permission prompts
@@ -36,7 +36,7 @@ The initial `ce:compound-refresh` skill had several design issues discovered dur
 Five independent design issues, each with a distinct root cause:
 
 1. **Hardcoded tool name with escape hatch.** Saying "Use AskUserQuestion when available" gave the model permission to skip the tool and just output text. Also non-portable to Codex and other platforms.
-2. **Contradictory rules across phases.** Phase 2 defined auto-archive criteria. Phase 3 said "always ask before archiving" with no exception. The model followed Phase 3.
+2. **Contradictory rules across phases.** Phase 2 defined auto-delete criteria. Phase 3 said "always ask before deleting" with no exception. The model followed Phase 3.
 3. **Question before evidence.** The skill prompted scope selection before gathering any information about which areas were most stale or interconnected.
 4. **Unsatisfied precondition in cross-skill handoff.** `ce:compound` expects a recently solved problem with fresh context. A maintenance refresh has investigation evidence instead — equivalent data, different shape.
 5. **No tool preference guidance for subagents.** Without explicit instruction, subagents defaulted to bash for file operations.
@@ -56,13 +56,13 @@ Ask questions **one at a time** — use the platform's interactive question tool
 
 The "stop to wait" language removes the escape hatch. The examples help each platform's model select the right tool.
 
-### 2. Auto-archive exemption for unambiguous cases
+### 2. Auto-delete exemption for unambiguous cases
 
-Phase 3 now defers to Phase 2's auto-archive criteria:
+Phase 3 now defers to Phase 2's auto-delete criteria:
 
 ```markdown
-You are about to Archive a document **and** the evidence is not unambiguous
-(see auto-archive criteria in Phase 2). When auto-archive criteria are met,
+You are about to Delete a document **and** the evidence is not unambiguous
+(see auto-delete criteria in Phase 2). When auto-delete criteria are met,
 proceed without asking.
 ```
 
@@ -98,13 +98,13 @@ not shell commands. This avoids unnecessary permission prompts and is more
 reliable across platforms.
 ```
 
-### 6. Autonomous mode for scheduled/unattended runs
+### 6. Autofix mode for scheduled/unattended runs
 
-Added `mode:autonomous` argument support so the skill can run without user interaction (e.g., on a schedule, in CI, or when the user just wants a hands-off sweep).
+Added `mode:autofix` argument support so the skill can run without user interaction (e.g., on a schedule, in CI, or when the user just wants a hands-off sweep).
 
 Key design decisions:
-- **Explicit opt-in only.** `mode:autonomous` must be in the arguments. Auto-detection based on tool availability was rejected because a user in an interactive agent without a question tool (e.g., Cursor, Windsurf) is still interactive — they just use plain-text replies.
-- **Conservative confidence.** Borderline cases that would get a user question in interactive mode get marked stale in autonomous mode. Err toward stale-marking over incorrect action.
+- **Explicit opt-in only.** `mode:autofix` must be in the arguments. Auto-detection based on tool availability was rejected because a user in an interactive agent without a question tool (e.g., Cursor, Windsurf) is still interactive — they just use plain-text replies.
+- **Conservative confidence.** Borderline cases that would get a user question in interactive mode get marked stale in autofix mode. Err toward stale-marking over incorrect action.
 - **Detailed report as deliverable.** Since no user was present, the output report includes full rationale for each action so a human can review after the fact.
 - **Process everything.** No scope narrowing questions — if no scope hint provided, process all docs. For broad scope, process clusters in impact order without asking.
 
@@ -119,18 +119,18 @@ These five patterns should be checked during any skill review:
 3. **No blind user questions** — Every question presented to the user is informed by evidence the agent gathered first
 4. **No unsatisfied cross-skill preconditions** — Every skill handoff verifies the target skill's preconditions are met by the calling context
 5. **No shell commands for file operations in subagents** — Subagent instructions explicitly prefer dedicated tools over shell commands
-6. **Autonomous mode for long-running skills** — Any skill that could run unattended should support an explicit opt-in mode with conservative confidence and detailed reporting
+6. **Autofix mode for long-running skills** — Any skill that could run unattended should support an explicit opt-in mode with conservative confidence and detailed reporting
 
 ### Key anti-patterns
 
 | Anti-pattern | Better pattern |
 |---|---|
 | "Use the AskUserQuestion tool when available" | "Use the platform's interactive question tool (e.g. AskUserQuestion in Claude Code, request_user_input in Codex)" |
-| Defining auto-archive conditions, then "always ask before archiving" | Single-source-of-truth: define the rule once, reference it elsewhere |
+| Defining auto-delete conditions, then "always ask before deleting" | Single-source-of-truth: define the rule once, reference it elsewhere |
 | "Which area should we review?" before any investigation | Triage first, recommend with evidence, let user confirm or redirect |
 | "Create a successor learning through ce:compound" during a refresh | Replacement subagent writes directly using gathered evidence |
 | No tool guidance for subagents | "Use dedicated file search and read tools, not shell commands" |
-| Auto-detecting "no question tool = headless" | Explicit `mode:autonomous` argument — interactive agents without question tools are still interactive |
+| Auto-detecting "no question tool = headless" | Explicit `mode:autofix` argument — interactive agents without question tools are still interactive |
 
 ## Cross-References
 

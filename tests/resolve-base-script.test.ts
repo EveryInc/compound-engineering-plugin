@@ -18,8 +18,8 @@ const resolveBaseScript = path.join(
   "plugins",
   "compound-engineering",
   "skills",
-  "ce-review",
-  "references",
+  "ce-code-review",
+  "scripts",
   "resolve-base.sh",
 )
 
