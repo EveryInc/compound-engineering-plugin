@@ -4,6 +4,8 @@ Use this **exact format** when presenting synthesized review findings. Findings 
 
 **IMPORTANT:** Use pipe-delimited markdown tables (`| col | col |`). Do NOT use ASCII box-drawing characters.
 
+**IMPORTANT:** Escape literal pipe characters in table cells. Any `|` that appears inside a finding title, issue description, code snippet, regex pattern, or delimited-string example (e.g. cache key examples like `userName + "|" + groups`) must be written as `\|` so column boundaries are determined only by unescaped pipes. Unescaped pipes split the cell across columns and corrupt the row's `Reviewer`, `Confidence`, and `Route` values.
+
 ## Example
 
 ```markdown
@@ -116,6 +118,7 @@ This fails because: no pipe-delimited tables, no severity-grouped `###` headers,
 ## Formatting Rules
 
 - **Pipe-delimited markdown tables** for findings -- never ASCII box-drawing characters or per-finding horizontal-rule separators between entries (the report-level `---` before the verdict is still required)
+- **Escape literal `|` in table cells** -- any `|` inside a finding title, issue description, code snippet, regex pattern, or delimited-string example must be written as `\|`. Unescaped pipes are parsed as column separators and corrupt the row's `Reviewer`, `Confidence`, and `Route` columns. Applies especially to cache-key delimiter examples, regex alternations, and logical-OR operators quoted inside findings.
 - **Severity-grouped sections** -- `### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`. Omit empty severity levels.
 - **Stable sequential finding numbers** -- assign finding numbers once after sorting, continue them across severity sections, and reuse those same numbers when findings are repeated in Residual Actionable Work. Do not restart at `1` for each severity or route bucket.
 - **Always include file:line location** for code review issues
