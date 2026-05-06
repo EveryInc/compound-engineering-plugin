@@ -21,13 +21,13 @@ If the block above shows `__TRUSTED_CONFIG__:<path>`, follow these steps in orde
 
 1. Treat the embedded path as informational only — do NOT read it directly.
 2. Re-derive the repo root at runtime via `git rev-parse --show-toplevel`.
-3. Run `bash scripts/integrity-check-config.sh "$REPO_ROOT"` via the Bash tool to re-confirm the OK status.
+3. Run `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"` via the Bash tool to re-confirm the OK status. Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable). Never invoke `bash scripts/integrity-check-config.sh` with a bare relative path — the Bash tool's CWD is the reviewed repo, so a bare path would either fail to find the script or, worse, execute a script of the same name planted by the reviewed PR.
 4. Only after the check passes, read `<repo-root>/.compound-engineering/config.local.yaml` using the native file-read tool (e.g., Read in Claude Code, read_file in Codex).
 
 The `scripts/integrity-check-config.sh` script encodes the same checks as the pre-resolution one-liner above and is the preferred runtime verifier — both are kept so the prose contract and the script implementation can be cross-checked.
 If it shows `__NO_CONFIG__`, the file does not exist — all settings fall through to defaults.
 If it shows `__UNTRUSTED_CONFIG__`, do not read the file for this run. Treat all settings as defaults and note in Coverage: `delegation config ignored because config.local.yaml is not local-only`.
-If it shows an unresolved command string, verify the same integrity properties with `bash scripts/integrity-check-config.sh "$REPO_ROOT"` at runtime using the Bash tool. Do not paste the chained pre-resolution command into a runtime shell call. Only after the check passes, read `.compound-engineering/config.local.yaml`; otherwise use defaults.
+If it shows an unresolved command string, verify the same integrity properties with `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"` at runtime using the Bash tool. Do not paste the chained pre-resolution command into a runtime shell call. Only after the check passes, read `.compound-engineering/config.local.yaml`; otherwise use defaults.
 
 If any setting has an unrecognized value, fall through to the hard default for that setting. For optional settings without a hard default (`review_delegate_model`, `review_delegate_effort`), an unrecognized or unparseable value resolves to **unset** — the corresponding flag is omitted from the `codex exec` invocation so Codex uses its built-in default under the workflow's `--ignore-user-config` launch. Never substitute an invalid value into the CLI flags.
 
@@ -49,7 +49,7 @@ Config keys (these are review-specific; they do NOT share state with `ce-work-be
   Update this list when Codex's model surface changes; never silently relax the regex.
 - `review_delegate_effort` -- one of `minimal`, `low`, `medium`, `high`, or `xhigh`. Optional — when unset or set to a value outside this enum, resolves to unset and Codex uses its built-in default under the workflow's `--ignore-user-config` launch.
 - `review_delegate_timeout_seconds` -- per-reviewer polling timeout in seconds. Optional, default `900` (15 minutes). High-effort reasoning on large diffs commonly runs 5-10 minutes; the default has headroom for slow first-launch model loads. Values must be positive integers; non-integer or non-positive values fall back to the default. Cumulative wall-clock against this timeout is the authoritative bound on a delegated reviewer; any individual polling Bash call's timeout is a polling tick, not a deadline.
-- `review_delegate_max_parallel` -- integer, default `4`. Cap on the number of delegated reviewers running concurrently. Wave-based scheduler queues the rest. See `references/codex-delegation-workflow.md` "Concurrency cap".
+- `review_delegate_max_parallel` -- positive integer, default `4`, hard maximum `16`. Cap on the number of delegated reviewers running concurrently. Wave-based scheduler queues the rest. Values that are non-integer, non-positive, or greater than `16` fall back to the default `4` (do not silently honor an oversized value — the cap is a safety control, not just a knob). See `references/codex-delegation-workflow.md` "Concurrency cap".
 
 Store the resolved state for downstream consumption:
 - `delegation_active` -- boolean, whether delegation mode is on
@@ -205,8 +205,10 @@ Also smoke-check the candidate under an environment that matches the actual dele
 The above rules are the contract; `scripts/trust-check-codex.sh` is the canonical implementation and is the preferred runtime entry point — invoke it as:
 
 ```bash
-bash scripts/trust-check-codex.sh "$CODEX_BIN_CANDIDATE" "$REPO_ROOT" "$SCRATCH_DIR"
+bash "${CLAUDE_SKILL_DIR}/scripts/trust-check-codex.sh" "$CODEX_BIN_CANDIDATE" "$REPO_ROOT" "$SCRATCH_DIR"
 ```
+
+Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable). Never invoke `bash scripts/trust-check-codex.sh` with a bare relative path — the Bash tool's CWD is the reviewed repo, so a bare path would either fail to find the script or, worse, execute a script of the same name planted by the reviewed PR before the trust check has a chance to run.
 
 The script encodes every check above (canonicalization, repo/scratch/world-writable rejection, shell-metacharacter rejection, executable-bit verification, scrubbed-env smoke probe with `NO_PROXY` and `HTTP_PROXY=http://127.0.0.1:1` hard-disabled, and nvm/asdf shim detection). On `TRUSTED:<canonical-path>`, capture the canonical path and use it as the verified `codex_bin` for every delegated launch — do NOT resolve `codex` again through the inherited environment. On `ERROR:<reason>`, apply the failed-check action with check-name `codex-binary`. The script emits a specific message when the failure is an nvm/asdf shim whose interpreter (e.g., `node`) isn't on the scrubbed PATH; surface that detail to the user. Keeping prose and script in sync prevents drift between the contract and the implementation.
 
@@ -237,7 +239,7 @@ The consent prompt's accompanying explanation covers:
 - The other Codex sandbox modes (`workspace-write`, `danger-full-access`, and `--dangerously-bypass-approvals-and-sandbox`) are intentionally NOT offered for review delegation. Persona reviewers are read-only by contract — they don't edit project files, run tests, build, or touch arbitrary network resources. Read-only covers 100% of documented persona behavior; broader sandboxes would be footguns with no defensible review use case. (`ce-work-beta` offers them because plan execution needs network and writes; review has neither requirement.)
 
 On acceptance:
-- Run `bash scripts/integrity-check-config.sh "$REPO_ROOT"`. The script verifies symlink rejection, regular-file requirement, gitignore coverage, not-tracked-by-git, and resolved-path-stays-inside-root.
+- Run `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"`. The script verifies symlink rejection, regular-file requirement, gitignore coverage, not-tracked-by-git, and resolved-path-stays-inside-root.
 - On `OK:<absolute-config-path>`, write `review_delegate_consent: true` to that path. Create `<repo-root>/.compound-engineering/` and the YAML file if absent; merge keys preserving existing ones if the file exists.
 - On `ABSENT`, the file does not exist yet — create it as above and write consent.
 - On `ERROR:<reason>`, do not write consent. Note in Coverage: `review_delegate_consent ignored because <reason>`. If the reason indicates the gitignore rule is missing, ask whether to add `.compound-engineering/*.local.yaml` to `.gitignore` before retrying. **The user will be re-prompted for consent on the next invocation until the gitignore rule is in place** — surface this in the decline message so the recurrence is expected, not surprising.
@@ -245,7 +247,7 @@ On acceptance:
 
 On decline:
 - Ask whether to disable delegation entirely for this project
-- If yes: run `bash scripts/integrity-check-config.sh "$REPO_ROOT"`. On `OK:<absolute-config-path>`, write `review_delegate: false` to that path, merging keys preserving existing ones. On `ABSENT`, create `<repo-root>/.compound-engineering/` and the YAML file, then write `review_delegate: false`. On `ERROR:<reason>`, do not write and note in Coverage: `review_delegate: false not persisted because <reason>`. Set `delegation_active` to false and proceed in standard mode either way.
+- If yes: run `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"`. On `OK:<absolute-config-path>`, write `review_delegate: false` to that path, merging keys preserving existing ones. On `ABSENT`, create `<repo-root>/.compound-engineering/` and the YAML file, then write `review_delegate: false`. On `ERROR:<reason>`, do not write and note in Coverage: `review_delegate: false not persisted because <reason>`. Set `delegation_active` to false and proceed in standard mode either way.
 - If no: set `delegation_active` to false for this invocation only, proceed in standard mode
 
 ## Per-Reviewer Prompt File
@@ -351,7 +353,7 @@ If the result JSON is absent or malformed after a successful exit code, classify
 
 The delegated lane and local lane dispatch concurrently after delegation setup has proven viable.
 
-**Concurrency cap (fan-out blast radius).** The delegated lane respects a per-run parallel-launch cap, default 4, configurable via `review_delegate_max_parallel` in `.compound-engineering/config.local.yaml`. The local lane already respects the orchestrating harness's active-subagent limit; the delegated lane needs an explicit cap because it bypasses that harness.
+**Concurrency cap (fan-out blast radius).** The delegated lane respects a per-run parallel-launch cap, default `4`, configurable via `review_delegate_max_parallel` in `.compound-engineering/config.local.yaml`, hard maximum `16`. The local lane already respects the orchestrating harness's active-subagent limit; the delegated lane needs an explicit cap because it bypasses that harness. Reject configured values outside `1..=16` and fall back to the default — the cap is a safety control on local CPU/memory and Codex API spend, not just a tuning knob.
 
 Implement the cap as a wave-based scheduler: launch up to `review_delegate_max_parallel` reviewers, wait for any to reach a terminal state (succeeded, failed, ignored), then launch the next from the queue. This naturally bounds peak parallelism without a global semaphore. The headless preflight gate (Step 1) consumes one slot of the cap; the cap applies across both preflight and fan-out.
 
@@ -378,15 +380,30 @@ EXIT_FILE="<scratch-dir>/exit-<reviewer-name>.code"
 EXIT_TMP="$EXIT_FILE.tmp"
 PID_FILE="<scratch-dir>/pid-<reviewer-name>"
 STDERR_FILE="<scratch-dir>/stderr-<reviewer-name>.log"
-# Crash-safe cleanup: any non-zero / signal exit wipes auth.json from the
-# isolated Codex home so credentials never linger in /tmp on Ctrl-C, OOM,
-# or orchestrator crash. The end-of-run cleanup also wipes the dir; this trap
-# is the safety net for the unhappy path.
-trap 'rm -f "$CODEX_HOME/auth.json"' EXIT INT TERM
+# Signal-only cleanup: only INT/TERM trigger the trap. Do NOT include EXIT —
+# CODEX_HOME is shared across reviewers, so an EXIT trap on the first reviewer
+# to finish normally would delete auth.json out from under reviewers still
+# running and reviewers still queued behind the wave-based scheduler. Crash-
+# safe cleanup of the unhappy path comes from this trap (Ctrl-C, SIGTERM from
+# the cancellation path); the happy path is covered by the end-of-run cleanup
+# block, which runs after every reviewer in the wave has reached a terminal
+# status.
+trap 'rm -f "$CODEX_HOME/auth.json"' INT TERM
 set +e
 # setsid creates a new process group so the cancellation path can kill the
 # whole tree (codex CLI -> node wrapper -> child workers) with one signal.
-setsid env -i \
+# IMPORTANT: setsid is NOT installed on macOS by default (it ships with
+# util-linux on Linux but not in macOS's base userland). Probe for it once
+# at run start and substitute the appropriate launch prefix:
+#   - When `command -v setsid` succeeds: PG_PREFIX="setsid"
+#   - Otherwise:                          PG_PREFIX=""  (PID-only kill)
+# Do not emit the literal token `setsid` into the launch when it is not
+# available — the launcher would die with "command not found" before codex
+# starts, and every delegated reviewer would fail uniformly. The cancellation
+# path detects which prefix was used (recorded alongside the PID file) and
+# uses `kill -SIGNAL -PID` for the setsid case or `kill -SIGNAL PID` for the
+# PID-only case.
+$PG_PREFIX env -i \
   HOME="$CODEX_HOME" \
   CODEX_HOME="$CODEX_HOME" \
   PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin" \
@@ -415,7 +432,13 @@ mv -f "$EXIT_TMP" "$EXIT_FILE"
 exit "$STATUS"
 ```
 
-Note: `setsid` is on macOS (via util-linux on Linux, native on BSD/macOS). If a platform lacks `setsid`, fall back to plain `env -i ...` — the cancellation path then degrades to PID-only kill, which is still better than today's "Bash-tool handle only" approach.
+Note: `setsid` is NOT shipped in macOS's base userland (it lives in util-linux, which macOS does not include). Detect availability once via `command -v setsid` before the first launch:
+- If present, set `PG_PREFIX=setsid`. The cancellation path uses `kill -SIGNAL -$PID` to target the process group, killing codex plus any node/child wrappers in one signal.
+- If absent (typical on macOS without Homebrew util-linux), set `PG_PREFIX=""` — the launch becomes plain `env -i ...`, and the cancellation path falls back to `kill -SIGNAL "$PID"` (no leading minus), which targets only the codex process itself. Child wrappers may need a follow-up `pkill -P "$PID"` sweep, but the orchestrator's per-PID kill is still correct for the launcher itself.
+
+Do not hardcode the literal token `setsid` into the launch on macOS — the launcher will die with "command not found" before codex starts, and every delegated reviewer will fail uniformly with a confusing error. The probe + `$PG_PREFIX` pattern keeps the template portable.
+
+Record which prefix was used per-reviewer (e.g., `pg_prefix: "setsid"` or `pg_prefix: ""` in the status map) so the cancellation path knows whether to use `kill -SIGNAL -$PID` or `kill -SIGNAL $PID`.
 
 Sandbox must remain `read-only`.
 
@@ -493,13 +516,24 @@ When a delegated reviewer times out, cancel or terminate the background process 
 
 ```bash
 PID=$(cat "<scratch-dir>/pid-<reviewer-name>" 2>/dev/null || true)
+PG_PREFIX_USED="<recorded pg_prefix for this reviewer: 'setsid' or ''>"
 if [ -n "$PID" ]; then
-  # Negative PID targets the process group setsid created — kills codex
-  # plus any node/child wrappers it spawned.
-  kill -TERM -"$PID" 2>/dev/null || true
-  # Brief grace, then escalate to SIGKILL.
-  sleep 2
-  kill -KILL -"$PID" 2>/dev/null || true
+  if [ "$PG_PREFIX_USED" = "setsid" ]; then
+    # Negative PID targets the process group setsid created — kills codex
+    # plus any node/child wrappers it spawned.
+    kill -TERM -"$PID" 2>/dev/null || true
+    sleep 2
+    kill -KILL -"$PID" 2>/dev/null || true
+  else
+    # No setsid: target the launcher PID directly, then sweep any direct
+    # children codex may have spawned (best-effort on platforms lacking
+    # process-group support).
+    kill -TERM "$PID" 2>/dev/null || true
+    pkill -TERM -P "$PID" 2>/dev/null || true
+    sleep 2
+    kill -KILL "$PID" 2>/dev/null || true
+    pkill -KILL -P "$PID" 2>/dev/null || true
+  fi
 fi
 ```
 

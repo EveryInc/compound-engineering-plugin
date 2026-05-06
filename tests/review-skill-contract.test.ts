@@ -994,7 +994,17 @@ describe("ce-code-review-beta contract", () => {
     )
     expect(workflow).toContain("resolve each delegated persona from the Stage 3c mapping")
     const acceptance = sectionBetween(workflow, "On acceptance:", "On decline:")
-    expect(acceptance).toContain('Run `bash scripts/integrity-check-config.sh "$REPO_ROOT"`')
+    expect(acceptance).toContain('Run `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"`')
+    // Bare-relative invocation is unsafe: a reviewed PR could plant a malicious
+    // scripts/integrity-check-config.sh in the repo root, and the Bash tool
+    // resolves bare paths against the reviewed repo CWD. Allow the bare-path
+    // string in cautionary prose ("Never invoke `bash scripts/...`"), but block
+    // any active invocation lines (start of line or inside a backticked Run
+    // command).
+    const activeInvocations = workflow.match(
+      /(?:^|`Run `)bash scripts\/(integrity-check-config|trust-check-codex)\.sh/gm,
+    )
+    expect(activeInvocations).toBeNull()
     const okIndex = acceptance.indexOf("On `OK:<absolute-config-path>`, write `review_delegate_consent: true`")
     expect(okIndex).toBeGreaterThan(acceptance.indexOf("The script verifies symlink rejection"))
     expect(acceptance).toContain("On `ABSENT`, the file does not exist yet")
@@ -1245,6 +1255,9 @@ describe("ce-code-review-beta delegation hardening (post-review)", () => {
     expect(workflow).toContain("review_delegate_max_parallel")
     // Cap must enforce wave-based scheduling, not silent unbounded fan-out
     expect(workflow.toLowerCase()).toMatch(/wave|cap|parallel-launch/)
+    // Hard upper bound prevents a misconfigured/hostile config from spawning
+    // hundreds of Codex processes — the cap is a safety control, not a knob.
+    expect(workflow).toMatch(/hard maximum `?16`?|maximum.*16|1\.\.=16/i)
   })
 
   test("BETA-STATUS.md documents graduation, sunset, and removal procedure", async () => {
