@@ -34,6 +34,10 @@ command -v agent-browser >/dev/null 2>&1 && echo "Installed" || echo "NOT INSTAL
 
 If not installed, inform the user: "`agent-browser` is not installed. Run `/ce-setup` to install required dependencies." Then stop — this skill cannot function without agent-browser.
 
+## Framework-Specific Guides
+
+When testing single-spa micro frontend applications, read `references/single-spa-guide.md` for mount detection, cross-app navigation, auth flow, and WebSocket update patterns. When interacting with Element UI components, read `references/element-ui-selectors.md` for teleported component selectors and multi-step interaction patterns.
+
 ## Workflow
 
 ### 1. Verify Installation

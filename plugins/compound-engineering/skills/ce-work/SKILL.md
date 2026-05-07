@@ -20,6 +20,12 @@ This command takes a work document (plan or specification) or a bare prompt desc
 
 ### Phase 0: Input Triage
 
+**Session state check (MANDATORY — runs before input triage):**
+1. Run: check if `SESSION_STATE.md` exists in the project root (use Bash: `test -f SESSION_STATE.md && echo EXISTS || echo NONE`)
+2. If EXISTS: read `SESSION_STATE.md`, then read `references/session-state.md` for resume behavior. Present the state to the user and ask: "Found session state — resume from here, or start fresh?" Do NOT proceed to input triage until the user responds.
+3. If NONE: proceed to input triage below.
+4. **Ruflo memory enrichment (optional):** After the SESSION_STATE.md check, if `mcp__claude-flow__agentdb_health` is available in your tools, read `references/ruflo-memory-integration.md` and follow its session-start steps to query for related past sessions. If ruflo is not available, skip this — SESSION_STATE.md is sufficient.
+
 Determine how to proceed based on what was provided in `<input_document>`.
 
 **Plan document** (input is a file path to an existing plan or specification) → skip to Phase 1.
@@ -161,12 +167,15 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
    **Permission mode:** Omit the `mode` parameter when dispatching subagents so the user's configured permission settings apply. Do not pass `mode: "auto"` — it overrides user-level settings like `bypassPermissions`.
 
+   **Subagent prompt and status handling:** Read `references/subagent-templates.md` for the implementer prompt template, status vocabulary (DONE/DONE_WITH_CONCERNS/NEEDS_CONTEXT/BLOCKED), escalation decision trees, and model-tier routing guidance. When a subagent returns NEEDS_CONTEXT, provide the missing context and re-dispatch. When BLOCKED, follow the escalation decision tree (context problem → re-dispatch, reasoning limit → upgrade model, task too large → split, plan wrong → escalate to user).
+
    **After each subagent completes (serial mode):**
    1. Review the subagent's diff — verify changes match the unit's scope and `Files:` list
-   2. Run the relevant test suite to confirm the tree is healthy
-   3. If tests fail, diagnose and fix before proceeding — do not dispatch dependent units on a broken tree
-   4. Update the task list (do not edit the plan body — progress is carried by the commit)
-   5. Dispatch the next unit
+   2. Run per-task review: dispatch `ce-spec-compliance-reviewer` and `ce-code-quality-per-task-reviewer` agents on the subagent's changes. Spec-compliance runs first; code-quality only after spec-compliance passes. If either reviewer raises critical or important issues, the implementer fixes them and the reviewer re-reviews. Repeat until both approve. See `references/subagent-templates.md` for the full per-task review pipeline.
+   3. Run the relevant test suite to confirm the tree is healthy
+   4. If tests fail, diagnose and fix before proceeding — do not dispatch dependent units on a broken tree
+   5. Update the task list (do not edit the plan body — progress is carried by the commit)
+   6. Dispatch the next unit
 
    **After all parallel subagents in a batch complete (worktree-isolated mode):**
    1. Wait for every subagent in the current parallel batch to finish.
@@ -207,6 +216,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
      - Run tests after changes
      - Assess testing coverage: did this task change behavior? If yes, were tests written or updated? If no tests were added, is the justification deliberate (e.g., pure config, no behavioral change)?
      - Mark task as completed
+     - Update `SESSION_STATE.md` with current task progress (see `references/session-state.md` for format). Orchestrator-level only — never from inside subagents.
      - Evaluate for incremental commit (see below)
    ```
 
@@ -217,6 +227,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
    - Do not skip verifying that a new test fails before implementing the fix or feature
    - Do not over-implement beyond the current behavior slice when working test-first
    - Skip test-first discipline for trivial renames, pure configuration, and pure styling work
+   - When working test-first, also read `references/tdd-guardrails.md` for rationalization defenses, red-flag detection, and the delete-and-restart rule. Read `references/testing-anti-patterns.md` for common testing pitfalls to avoid.
 
    **Test Discovery** — Before implementing changes to a file, find its existing test files (search for test/spec files that import, reference, or share naming patterns with the implementation file). When a plan specifies test scenarios or test files, start there, then check for additional test coverage the plan may not have enumerated. Changes to implementation files should be accompanied by corresponding test updates — new tests for new behavior, modified tests for changed behavior, removed or updated tests for deleted behavior.
 
@@ -321,7 +332,9 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
 ### Phase 3-4: Quality Check and Finishing Work
 
-When all Phase 2 tasks are complete and execution transitions to quality check, you must read `references/shipping-workflow.md` for the full shipping workflow.Do not skip this.
+When all Phase 2 tasks are complete and execution transitions to quality check, you must read `references/shipping-workflow.md` for the full shipping workflow. Do not skip this. Also read `references/verification-discipline.md` for per-message verification freshness, claim-to-evidence mapping, and linguistic red-flag detection before making any completion claims.
+
+**Trajectory capture (after shipping):** If the execution involved a non-obvious approach — an initial attempt that failed, an unexpected dependency order, or a workaround — read `references/trajectory-capture.md` and write a trajectory doc. Skip this for routine work where the plan was followed with no surprises.
 
 ## Key Principles
 

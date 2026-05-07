@@ -179,7 +179,8 @@ If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go
 2. Verify it fails for the right reason — the root cause, not unrelated setup
 3. Implement the minimal fix — address the root cause and nothing else
 4. Verify the test passes
-5. Run the broader test suite for regressions
+5. **Revert-and-verify-failure:** Revert the fix, run the test — it MUST fail (proves the test actually catches the bug, not a false positive). Restore the fix, run the test — it MUST pass again. If the test passes with the fix reverted, the test is a false positive — rewrite it. See `references/verification-discipline.md` in `ce-work` for the full pattern.
+6. Run the broader test suite for regressions
 
 **3 failed fix attempts = smart escalation.** Diagnose using the same table from Phase 2. If fixes keep failing, the root cause identification was likely wrong. Return to Phase 2.
 
