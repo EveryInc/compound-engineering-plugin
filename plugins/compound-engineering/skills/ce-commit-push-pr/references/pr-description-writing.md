@@ -1,255 +1,186 @@
 # PR Description Writing
 
-How to resolve the right commit range and compose a PR title and body. Loaded on demand by `ce-commit-push-pr` callers — do not load earlier.
+## Step Pre-A: Resolve the commit range and diff
 
-Step Pre-A resolves the commit range, diff, and (for existing PRs) the current PR body. Steps A through H assume Pre-A's outputs are in context.
+Two modes:
 
----
+- **Current-branch mode** (default) — describe HEAD vs the repo's default base.
+- **PR mode** — describe a specific PR's range. Triggered when the caller passes a PR ref (number, `#NN`, `pr:NN`, or URL).
 
-## Step Pre-A: Resolve the PR commit range and diff
+### Identify the base
 
-Determine which commits and diff the description should cover. Run this first; Steps A and beyond assume the commit list and full diff are in context.
-
-### Mode
-
-- **Current-branch mode.** Describe HEAD vs the repo's default base. Used when the caller has no explicit PR reference (Step 6 of ce-commit-push-pr's full workflow; description-only mode without a PR ref).
-- **PR mode.** Describe a specific PR's commit range. Used by DU-3 (the existing PR on the current branch) and description-only mode (the user pasted a PR URL/number). The PR ref may be a bare number, `#NN`, `pr:NN`, or a full URL — the caller passes it to `gh pr view <ref>` directly. (`gh pr view` accepts numbers and URLs natively; `#NN` and `pr:NN` need the `#` or `pr:` stripped before passing.)
-
-### Resolve PR metadata (PR mode and current-branch-with-existing-PR)
+For PR mode, get metadata first:
 
 ```bash
-gh pr view [<ref>] --json baseRefName,headRefOid,baseRefOid,headRepository,headRepositoryOwner,isCrossRepository,url,body,state
+gh pr view <ref> --json baseRefName,headRefOid,url,body,state,isCrossRepository,headRepositoryOwner
 ```
 
-If the returned `state` is not `OPEN`, report `"PR <number> is <state>; cannot generate description"` and exit gracefully — do not invent a description.
+If `state` is not `OPEN`, report and stop — do not invent a description. Use `baseRefName` as `<base>`.
 
-### Detect the base branch and remote
+For current-branch mode, resolve `<base>` in priority order:
 
-For PR mode (or current-branch mode with an existing PR), use `baseRefName` from the metadata above. For current-branch mode without an existing PR, resolve in priority order:
+1. **Caller-supplied** (`base:<ref>`) — verbatim.
+2. `git rev-parse --abbrev-ref origin/HEAD` (strip `origin/`).
+3. `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`.
+4. Try `main`, `master`, `develop` via `git rev-parse --verify origin/<candidate>`.
 
-1. **Caller-supplied base** (if the caller passed `base:<ref>`) — use verbatim. The ref must resolve locally.
-2. **Repo default branch** — `git rev-parse --abbrev-ref origin/HEAD`, strip `origin/` prefix.
-3. **GitHub metadata** — `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`.
-4. **Common names** — try `main`, `master`, `develop`, `trunk` in order via `git rev-parse --verify origin/<candidate>`.
+If none resolve, ask the user.
 
-If none resolve, ask the user to specify the base branch.
+For the **base remote**: `origin` for current-branch mode and same-repo PRs. For fork (cross-repo) PRs, match the PR's base owner/repo against `git remote -v` URLs. If no local remote matches, skip directly to the `gh` fallback below — do not diff against `origin` (wrong base).
 
-For the **base remote**, parse `owner/repo` from the PR URL (or use the repo of the current checkout in current-branch mode without a PR) and match against `git remote -v` fetch URLs (handle both `git@github.com:owner/repo` and `https://github.com/owner/repo` forms; strip `.git`). The matching remote name is `<base-remote>`. **If no remote matches** (fork-based PR with no `upstream` remote), do NOT default to `origin` — `origin` would diff against the wrong base. Skip directly to Case B.
-
-### Case A — base remote matched, attempt local git
-
-**Only fetch when the refs aren't already local.** Skipping the fetch when refs resolve locally preserves offline / restricted-network / expired-auth workability — a common case when re-running the skill on a branch that's already been fetched recently.
+### Get the range and diff
 
 ```bash
-PR_HEAD_SHA=<headRefOid>   # for current-branch mode, use HEAD instead
-
-if ! git rev-parse --verify <base-remote>/<baseRefName> >/dev/null 2>&1 \
-  || ! git rev-parse --verify $PR_HEAD_SHA >/dev/null 2>&1; then
-  git fetch --no-tags <base-remote> <baseRefName> $PR_HEAD_SHA
-fi
-
-MERGE_BASE=$(git merge-base <base-remote>/<baseRefName> $PR_HEAD_SHA) \
-  && echo '=== COMMITS ===' && git log --oneline "$MERGE_BASE..$PR_HEAD_SHA" \
-  && echo '=== DIFF ===' && git diff "$MERGE_BASE...$PR_HEAD_SHA"
+git fetch --no-tags <base-remote> <base>   # skip if already current
+echo '=== COMMITS ===' && git log --oneline "<base-remote>/<base>..<head>"
+echo '=== DIFF ===' && git diff "<base-remote>/<base>...<head>"
 ```
 
-For current-branch mode, `$PR_HEAD_SHA` is `HEAD` which is always local, so only the base ref needs fetching. Using the explicit `$PR_HEAD_SHA` in downstream commands avoids `FETCH_HEAD`'s multi-ref ordering problem.
+`<head>` is `HEAD` for current-branch mode, or `<headRefOid>` for PR mode (fetch it first if not local: `git fetch --no-tags <base-remote> <headRefOid>`).
 
-If `git merge-base` itself fails (shallow clone with insufficient history, or genuinely unrelated histories), do not press on — fall through to Case B and let the API path produce the diff and commits.
+If the resulting commit list is empty, report `"No commits to describe"` and stop.
 
-### Case A inner fallback — SHA fetch rejected
+### If that fails
 
-Some GHES configurations disallow fetching non-tip SHAs. If the SHA fetch is rejected (PR mode only — current-branch mode uses HEAD which is always local), fall back to fetching the PR head via `refs/pull/<number>/head`:
-
-```bash
-git fetch --no-tags <base-remote> "refs/pull/<number>/head"
-PR_HEAD_SHA=$(awk '/refs\/pull\/[0-9]+\/head/ {print $1; exit}' "$(git rev-parse --git-dir)/FETCH_HEAD")
-```
-
-Then re-run the merge-base + log + diff with the new `$PR_HEAD_SHA`.
-
-### Case B — API only
-
-Use Case B when:
-- No local remote matches the PR's base repo (fork-PR, cross-repo PR), OR
-- Case A's fetches all fail (offline, restricted network, expired auth, GHES quirks blocking both SHA and `refs/pull/N/head`).
-
-Skip local git entirely:
+Use `gh` directly when local git can't reach the refs — fork PR with no matching remote, shallow clone, GHES blocking SHA fetch, offline/expired auth, or `git merge-base` failing on unrelated histories:
 
 ```bash
 gh pr diff <ref>
 gh pr view <ref> --json commits --jq '.commits[] | [.oid[0:7], .messageHeadline] | @tsv'
 ```
 
-Note in the user-facing output that the API fallback was used.
+For GHES configurations that reject SHA fetch but allow `refs/pull/`:
 
-### Empty range
+```bash
+git fetch --no-tags <base-remote> "refs/pull/<number>/head"
+PR_HEAD_SHA=$(awk '/refs\/pull\/[0-9]+\/head/ {print $1; exit}' "$(git rev-parse --git-dir)/FETCH_HEAD")
+```
 
-If the resulting commit list is empty (HEAD already merged into the base, or the branch has no unique commits), report `"No commits to describe"` and exit gracefully — do not invent a description.
-
----
-
-## Step A: Classify commits
-
-Scan the commit list and classify each commit:
-
-- **Feature commits** -- implement the PR's purpose (new functionality, intentional refactors, design changes). These drive the description.
-- **Fix-up commits** -- iteration work (code review fixes, lint fixes, test fixes, rebase resolutions, style cleanups). Invisible to the reader.
-
-When sizing the description, mentally subtract fix-up commits: a branch with 12 commits but 9 fix-ups is a 3-commit PR.
+Note in the user-facing summary when the API fallback was used.
 
 ---
 
-## Step B: Decide on evidence
+## Step A: Evidence handling
 
-Decide whether to include an evidence section in the body.
+The caller (SKILL.md) decides whether to capture new evidence. This step covers what to do with evidence already on the PR:
 
-**Evidence is possible** when the diff changes observable behavior demonstrable from the workspace: UI, CLI output, API behavior with runnable code, generated artifacts, or workflow output.
+- If the existing PR body has a `## Demo` or `## Screenshots` block with image/video embeds, **preserve it verbatim** unless the user's focus asks to refresh or remove it.
+- If the caller passed in a freshly captured URL or path, splice it in as a `## Demo` section.
+- Otherwise, omit the evidence section.
 
-**Evidence is not possible** for:
-- Docs-only, markdown-only, changelog-only, release metadata, CI/config-only, test-only, or pure internal refactors
-- Behavior requiring unavailable credentials, paid/cloud services, bot tokens, deploy-only infrastructure, or hardware not provided
-
-**Decision logic:**
-
-1. **Existing PR body contains a `## Demo` or `## Screenshots` section with image embeds:** preserve it verbatim unless the user's focus asks to refresh or remove it. Include the preserved block in the body.
-2. **No existing evidence block:** omit the evidence section entirely unless the caller already captured evidence and passed it in (e.g., a `ce-demo-reel` URL).
-
-Do not label test output as "Demo" or "Screenshots". Place any preserved evidence block before the Compound Engineering badge.
+Place any evidence block before the Compound Engineering badge. Do not label test output as "Demo" or "Screenshots."
 
 ---
 
-## Step C: Frame the narrative
+## Step B: Frame the narrative
 
-Articulate the PR's narrative frame:
+State the frame in 1-3 sentences:
 
-1. **Before**: What was broken, limited, or impossible? (One sentence.)
-2. **After**: What's now possible or improved? (One sentence.)
-3. **Scope rationale** (only if 2+ separable-looking concerns): Why do these ship together? (One sentence.)
+1. **Before** — what was broken, limited, or impossible.
+2. **After** — what's now possible or fixed.
+3. **Scope rationale** (only if multiple separable concerns ship together) — why these go together.
 
-This frame becomes the opening. For small+simple PRs, the "after" sentence alone may be the entire description.
+The "after" sentence is the lead. **Verify it leads with value, not mechanism** before continuing:
+
+- Bad: "Replace the hardcoded capture block with a tiered skill."
+- Good: "Evidence capture now works for CLI tools and libraries, not just web apps."
+
+If the first sentence describes what was moved, renamed, or added rather than what's now possible or fixed, rewrite before composing the rest.
+
+For small + simple PRs, the "after" sentence alone is the entire description.
 
 ---
 
-## Step D: Size the change
+## Step C: Size the change
 
-Assess size (files, diff volume) and complexity (design decisions, trade-offs, cross-cutting concerns) to select description depth:
+Match description weight to change weight. When in doubt, shorter wins. Subtract fix-up commits (review fixes, lint, rebase resolutions) when sizing — they're invisible to the reader.
 
 | Change profile | Description approach |
 |---|---|
 | Small + simple (typo, config, dep bump) | 1-2 sentences, no headers. Under ~300 characters. |
-| Small + non-trivial (bugfix, behavioral change) | Short narrative, ~3-5 sentences. No headers unless two distinct concerns. |
-| Medium feature or refactor | Narrative frame (before/after/scope), then what changed and why. Call out design decisions. |
-| Large or architecturally significant | Narrative frame + up to 3-5 design-decision callouts + 1-2 sentence test summary + key docs links. Target ~100 lines, cap ~150. For PRs with many mechanisms, use a Summary-level table to list them; do NOT create an H3 subsection per mechanism. Reviewers scrutinize decisions, not inventories — the diff and spec files carry the detail. If you find yourself writing 10+ subsections, consolidate to a table. |
-| Performance improvement | Include before/after measurements if available. Markdown table works well. |
+| Small + non-trivial (bugfix, behavioral change) | 3-5 sentences. No headers unless two distinct concerns. |
+| Medium feature or refactor | Narrative frame, then what changed and why. Call out design decisions. |
+| Large or architecturally significant | Narrative frame + 3-5 design-decision callouts + brief test summary. Target ~100 lines, cap ~150. For PRs with many mechanisms, use a Summary table; do not create an H3 per mechanism. |
+| Performance improvement | Include before/after measurements as a markdown table. |
 
-When in doubt, shorter is better. Match description weight to change weight. Large PRs need MORE selectivity, not MORE content.
+Large PRs need more selectivity, not more content.
 
 ---
 
-## Step E: Apply writing principles
+## Step D: Apply writing principles
+
+### The default failure to avoid: granular enumeration
+
+**Do not enumerate the diff.** Do not list changed files, modified functions, line counts, or "added X, modified Y, removed Z." GitHub's Files Changed tab shows that. The PR description exists to explain what's now possible, what was broken and is now fixed, or what shape changed — things the diff does not show.
+
+- Bad: "This PR adds a new `evidence-decider.ts` module, modifies `ce-commit-push-pr/SKILL.md` to call it, and updates two test files."
+- Good: "Evidence capture now decides automatically whether a change has observable behavior. CLI tools and libraries are now eligible alongside web UIs."
 
 ### Writing voice
 
-If the repo has documented style preferences in context, follow those. Otherwise:
+If the repo documents style preferences in context, follow those. Otherwise:
 
 - Active voice. No em dashes or `--` substitutes; use periods, commas, colons, or parentheses.
-- Vary sentence length. Never three similar-length sentences in a row.
-- Do not make a claim and immediately explain it. Trust the reader.
 - Plain English. Technical jargon fine; business jargon never.
-- No filler: "it's worth noting", "importantly", "essentially", "in order to", "leverage", "utilize."
-- Digits for numbers ("3 files"), not words ("three files").
+- No filler: "it's worth noting", "importantly", "essentially", "leverage", "utilize."
+- Digits for numbers (`3 files`), not words (`three files`).
 
-### Writing principles
+### Output rules
 
-- **Lead with value**: Open with what's now possible or fixed, not what was moved around. The subtler failure is leading with the mechanism ("Replace the hardcoded capture block with a tiered skill") instead of the outcome ("Evidence capture now works for CLI tools and libraries, not just web apps").
-- **No orphaned opening paragraphs**: If the description uses `##` headings anywhere, the opening must also be under a heading (e.g., `## Summary`). For short descriptions with no sections, a bare paragraph is fine.
-- **Describe the net result, not the journey**: The description covers the end state, not how you got there. No iteration history, debugging steps, intermediate failures, or bugs found and fixed during development. This applies equally when regenerating for an existing PR: rewrite from the current state, not as a log of what changed since the last version. Exception: process details critical to understand a design choice.
-- **When commits conflict, trust the final diff**: The commit list is supporting context, not the source of truth. If commits describe intermediate steps later revised or reverted, describe the end state from the full branch diff.
-- **Explain the non-obvious**: If the diff is self-explanatory, don't narrate it. Spend space on things the diff doesn't show: why this approach, what was rejected, what the reviewer should watch.
-- **Use structure when it earns its keep**: Headers, bullets, and tables aid comprehension, not mandatory template sections.
-- **Markdown tables for data**: Before/after comparisons, performance numbers, or option trade-offs communicate well as tables.
-- **No empty sections**: If a section doesn't apply, omit it. No "N/A" or "None."
-- **Test plan — only when non-obvious**: Include when testing requires edge cases the reviewer wouldn't think of, hard-to-verify behavior, or specific setup. Omit when "run the tests" is the only useful guidance. When the branch adds test files, name them with what they cover.
-- **No Commits section**: GitHub already shows the commit list in its own tab. A Commits section in the PR body duplicates that without adding context. Omit unless the commits need annotations explaining their ordering or shipping rationale.
-- **No Review / process section**: Do not include a section describing how the reviewer should review (checklists of things to look at, process bullets). Process doesn't help the reviewer evaluate code. Call out specific non-obvious things to scrutinize inline with the change that warrants it.
+- **Describe end state, not journey.** No iteration history, debugging steps, or bugs found and fixed during development. When commits conflict with the final diff, trust the diff.
+- **No empty sections.** Omit; do not write `N/A` or `None`.
+- **Test plan only when non-obvious.** Include for tricky edge cases, hard-to-verify behavior, or specific setup. Omit when "run the tests" is the only useful guidance.
+- **No `## Commits` section.** GitHub shows commits in their own tab.
+- **No `## Review` or process section.** Checklists telling reviewers how to review don't help them evaluate code. Inline non-obvious review hints next to the change that warrants them.
+- **No orphaned opening paragraphs.** If the body uses any `##` headings, the opening is also under one (typically `## Summary`). Bare paragraphs only for short, all-prose descriptions.
 
-### Visual communication
+### GitHub gotchas
 
-Include a visual aid only when the change is structurally complex enough that a reviewer would struggle to reconstruct the mental model from prose alone.
+- Never prefix list items with `#` — GitHub auto-links `#1`, `#2` as issue references.
+- Use `org/repo#123` or full URL for actual issue/PR references; never bare `#123` unless verified.
 
-**The core distinction — structure vs. parallel variation:**
+### Visual aids
 
-- Use a **Mermaid diagram** when the change has **topology** — components with directed relationships (calls, flows, dependencies, state transitions, data paths). Diagrams express "A talks to B, B talks to C, C does not talk back to A" in a way tables cannot.
-- Use a **markdown table** when the change has **parallel variation of a single shape** — N things that share the same attributes but differ in their values. Tables express "option 1 costs X, option 2 costs Y, option 3 costs Z" cleanly.
-
-Architecture changes are almost always topology (components + edges), so Mermaid is usually the right call — a table of "components that interact" loses the edges and becomes a flat list. Reserve tables for genuinely parallel data: before/after measurements, option trade-offs, flag matrices, config enumerations.
-
-**When to include (prefer Mermaid, not a table, for architecture/flow):**
-
-| PR changes... | Visual aid |
+| PR shape | Visual |
 |---|---|
-| Architecture touching 3+ interacting components (the components have *directed relationships* — who calls whom, who owns what, which skill delegates to which) | **Mermaid** component or interaction diagram. Do not substitute a table — tables cannot show edges. |
-| Multi-step workflow or data flow with non-obvious sequencing | **Mermaid** flow diagram |
-| State machine with 3+ states and non-trivial transitions | **Mermaid** state diagram |
-| Data model changes with 3+ related entities | **Mermaid** ERD |
-| Before/after performance or behavioral measurements (same metric, different values) | **Markdown table** |
-| Option or flag trade-offs (same attributes evaluated across variants) | **Markdown table** |
-| Feature matrix / compatibility grid | **Markdown table** |
+| Architecture: 3+ components with directed relationships (calls, flows, ownership) | Mermaid component or interaction diagram |
+| Multi-step workflow with non-obvious sequencing | Mermaid flow diagram |
+| State machine, 3+ states | Mermaid state diagram |
+| Data model, 3+ related entities | Mermaid ERD |
+| Before/after measurements (same metric, different values) | Markdown table |
+| Option or flag trade-offs (same attributes across variants) | Markdown table |
 
-**When in doubt, ask: "Does the information have edges (A → B) or does it have rows (attribute × variant)?"** Edges → Mermaid. Rows → table. Architecture has edges almost by definition.
+Topology has edges (`A → B`); use Mermaid. Parallel data has rows (attribute × variant); use a table. Skip both for simple changes, prose-clear changes, and renames/dep bumps. Place inline at the point of relevance. Prose is authoritative when it conflicts with a visual.
 
-**When to skip any visual:**
-- Sizing routes to "1-2 sentences"
-- Prose already communicates clearly
-- The diagram would just restate the diff visually
-- Mechanical changes (renames, dep bumps, config, formatting)
+### User focus
 
-**Format details:**
-- **Mermaid** (default for topology). 5-10 nodes typical, up to 15 for genuinely complex changes. Use `TB` direction. Source should be readable as fallback.
-- **ASCII diagrams** for annotated flows needing rich in-box content. 80-column max.
-- **Markdown tables** for parallel-variation data only.
-- Place inline at point of relevance, not in a separate section.
-- Prose is authoritative when it conflicts with a visual.
-
-Verify generated diagrams against the change before including.
-
-### Numbering and references
-
-Never prefix list items with `#` in PR descriptions — GitHub interprets `#1`, `#2` as issue references and auto-links them.
-
-When referencing actual GitHub issues or PRs, use `org/repo#123` or the full URL. Never use bare `#123` unless verified.
-
-### Applying user focus
-
-If the user provided a focus hint (e.g., "emphasize the benchmarks", "this needs to read as a migration not a feature"), incorporate it alongside the diff-derived narrative. Treat focus as steering, not override: do not invent content the diff does not support, and do not suppress important content the diff demands simply because focus did not mention it. When focus and diff materially disagree (e.g., focus says "include benchmarking" but the diff has no benchmarks), surface the conflict to the user rather than fabricating content.
+If the caller passed a focus hint ("emphasize the benchmarks", "frame this as a migration"), apply it as steering — not override. Do not invent content the diff does not support, and do not suppress important content the diff demands. When focus and diff materially disagree, surface the conflict to the user rather than fabricating.
 
 ---
 
-## Step F: Compose the title
+## Step E: Compose the title
 
-Title format: `type: description` or `type(scope): description`.
+`type: description` or `type(scope): description`.
 
-- **Type** is chosen by intent, not file extension or diff shape. `feat` for new functionality, `fix` for a bug fix, `refactor` for a behavior-preserving change, `docs` for doc-only, `chore` for tooling/maintenance, `perf` for performance, `test` for test-only. Where `fix` and `feat` could both seem to fit, default to `fix`: a change that remedies broken or missing behavior is `fix` even when implemented by adding code. Reserve `feat` for capabilities the user could not previously accomplish. The user may override.
-- **Scope** (optional) is the narrowest useful label: a skill/agent name, CLI area, or shared area. Omit when no single label adds clarity.
-- **Description** is imperative, lowercase, under 72 characters total. No trailing period.
-- If the repo has commit-title conventions visible in recent commits, match them.
-
-Breaking changes use `!` (e.g., `feat!: ...`) or document in the body with a `BREAKING CHANGE:` footer. Do not apply either marker without explicit user confirmation — they trigger automated major-version bumps in some release tooling.
+- **Type by intent, not file extension.** Where `fix` and `feat` both seem to fit, default to `fix` — adding code to remedy missing behavior is still `fix`. Reserve `feat` for capabilities the user could not previously accomplish. Use `refactor` / `docs` / `chore` / `perf` / `test` when they describe more precisely.
+- **Scope** (optional): narrowest useful label — skill or agent name, CLI area, shared area. Omit when no single label adds clarity.
+- **Description**: imperative, lowercase, under 72 characters total, no trailing period.
+- **Match repo conventions** if visible in recent commits.
+- **Never use `!` or `BREAKING CHANGE:` without explicit user confirmation** — they trigger automated major-version bumps.
 
 ---
 
-## Step G: Compose the body
+## Step F: Assemble the body
 
-Assemble the body in this order:
+In order:
 
-1. **Opening** -- the narrative frame from Step C, at the depth chosen in Step D. Under a heading (e.g., `## Summary`) if the description uses any `##` headings elsewhere; a bare paragraph otherwise.
-2. **Body sections** -- only the sections that earn their keep for this change: what changed and why, design decisions, tables for data, visual aids when complexity warrants. Skip empty sections entirely.
-3. **Test plan** -- only when non-obvious per the writing principles. Omit otherwise.
-4. **Evidence block** -- only the preserved or freshly captured block from Step B, if one exists. Do not fabricate or placeholder.
-5. **Compound Engineering badge** -- append a badge footer separated by a `---` rule. Skip if regenerating an existing body that already contains the badge.
+1. **Opening** — the narrative frame from Step B, sized per Step C. Under `## Summary` if the body uses any `##` headings; bare paragraph otherwise.
+2. **Body sections** — only those that earn their keep: what changed and why, design decisions, tables, visual aids. Skip empty sections entirely.
+3. **Test plan** — only when non-obvious.
+4. **Evidence block** — preserved or freshly captured, only if one exists.
+5. **Compound Engineering badge** — append after a `---` rule. Skip if regenerating a body that already contains the badge.
 
-**Badge:**
+### Badge
 
 ```markdown
 ---
@@ -258,29 +189,23 @@ Assemble the body in this order:
 ![HARNESS](https://img.shields.io/badge/MODEL_SLUG-COLOR?logo=LOGO&logoColor=white)
 ```
 
-**Harness lookup:**
-
 | Harness | `LOGO` | `COLOR` |
-|---------|--------|---------|
+|---|---|---|
 | Claude Code | `claude` | `D97757` |
-| Codex | (omit logo param) | `000000` |
+| Codex | (omit `?logo=` param) | `000000` |
 | Gemini CLI | `googlegemini` | `4285F4` |
 
-**Model slug:** Replace spaces with underscores. Append context window and thinking level in parentheses if known. URL-encode literal parens as `%28` and `%29` — unencoded `(` and `)` inside a markdown image URL break some commit-message parsers (notably release-please's conventional-commits parser, which fails the whole commit on encountering them and silently skips it from the changelog). Examples: `Opus_4.6_%281M,_Extended_Thinking%29`, `Sonnet_4.6_%28200K%29`, `Gemini_3.1_Pro`.
+**Model slug:** spaces become underscores; append context window and thinking level in parens if known. URL-encode literal parens as `%28` / `%29` — unencoded parens inside markdown image URLs break release-please's commit parser, which silently drops the commit from the changelog. Examples: `Opus_4.6_%281M,_Extended_Thinking%29`, `Sonnet_4.6_%28200K%29`, `Gemini_3.1_Pro`.
 
 ---
 
-## Step H: Compression pass
+## Step G: Compression pass
 
-Before applying, re-read the composed body and apply these cuts:
+Re-read the composed body and apply:
 
-- If any body section restates content already in the `## Summary`, remove it. The Summary plus the diff should carry the reader.
-- If "Testing" or "Test plan" has more than 2 paragraphs, compress to bullets.
-- If a "Commits" section enumerates the commit log, remove it — GitHub shows it in its own tab.
-- If a "Review" or process-oriented section lists how to review, remove it. Move any truly non-obvious review hints inline with the relevant change.
-- If the body has 5+ H3 subsections that each describe one mechanism, consolidate them into a single table row per mechanism under one header. Reserve prose H3 callouts for 2-3 genuine design decisions.
-- If the body exceeds the sizing-table target by more than 30%, compress the longest non-Summary section by half.
+- Cut any section that restates the Summary.
+- If "Test plan" exceeds 2 paragraphs, compress to bullets.
+- If 5+ H3 subsections each describe one mechanism, consolidate to a single table.
+- If the body exceeds the Step C target by more than 30%, halve the longest non-Summary section.
 
-**Value-lead check.** Re-read the first sentence of the Summary. If it describes what was moved around, renamed, or added ("This PR introduces three-tier autofix..."), rewrite to lead with what's now possible or what was broken and is now fixed ("Document reviews previously produced 14+ findings requiring user judgment; this PR cuts that to 4-6.").
-
-Large PRs benefit from selectivity, not comprehensiveness.
+If the first sentence of the Summary still describes what was moved, renamed, or added, rewrite (Step B should have caught this; this is the second pass).
