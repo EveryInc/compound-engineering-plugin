@@ -367,24 +367,39 @@ describe("ce-plan review contract", () => {
     expect(content).toContain("Document review is mandatory")
   })
 
-  test("uses headless mode in pipeline context", async () => {
+  test("uses headless mode by default and in pipeline context", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md")
 
-    // Pipeline mode runs document-review headlessly, not skipping it
+    // Default at Phase 5.3.8 is `mode:headless` so users opt into deeper interactive review
+    // explicitly from the post-generation menu rather than being forced through it.
     expect(content).toContain("ce-doc-review` with `mode:headless`")
     expect(content).not.toContain("skip document-review and return control")
+
+    // The interactive walkthrough is opt-in via the post-generation menu, not automatic
+    expect(content).toContain("Run deeper doc review")
   })
 
-  test("handoff options recommend ce-work after review", async () => {
+  test("handoff options expose deeper-review opt-in alongside ce-work", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md")
 
-    // ce-work is recommended (review already happened)
+    // ce-work remains the recommended next-stage action (planning is done; review already ran)
     expect(content).toContain("**Start `/ce-work`** (recommended) - Begin implementing this plan in the current session")
 
-    // Additional review passes are surfaced contextually (not as a menu fixture) and still
-    // route through the ce-doc-review skill when requested
-    expect(content).toContain("Surface additional document review contextually")
-    expect(content).toContain("Load the `ce-doc-review` skill")
+    // Deeper review is a first-class menu fixture so users can engage with surfaced findings
+    // without relying on free-form prompting; routed through ce-doc-review without headless mode.
+    expect(content).toContain("**Run deeper doc review**")
+    expect(content).toContain("`ce-doc-review`")
+    expect(content).toContain("without** `mode:headless`")
+
+    // Deeper-review menu fixture is hidden when no actionable findings remain so the menu
+    // collapses back to a 4-option AskUserQuestion-friendly shape on Claude Code. FYI-only
+    // state also hides the option since ce-doc-review's walkthrough is gated to actionable
+    // findings (anchor 75/100, gated_auto/manual) and FYIs (anchor 50) bypass it.
+    expect(content).toContain("Hide `Run deeper doc review` when no actionable findings remain")
+    expect(content).toContain("proposed_fixes_count + decisions_count > 0")
+
+    // Summary line above the menu surfaces autofix counts and remaining-bucket counts
+    expect(content).toContain("Summary line above the menu")
 
     // No conditional ordering based on plan depth (review already ran)
     expect(content).not.toContain("**Options when ce-doc-review is recommended:**")

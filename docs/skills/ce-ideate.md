@@ -2,9 +2,9 @@
 
 > Discover strong, qualified directions worth exploring — across any domain — and let the rest fall away.
 
-`ce-ideate` is the upstream **discovery** skill. It's where you reach when you don't yet have a specific idea — when the question is "which directions even matter here?" rather than "let me refine the one I already have." It does the homework first (parallel grounding agents pull from your codebase, past learnings, **external prior art on the open web**, and optionally Slack and your issue tracker), generates candidates from six different conceptual frames, requires a tagged **warrant** for every idea, and presents only the survivors of an adversarial critique — with explicit reasons for what was rejected.
+`ce-ideate` is the upstream **discovery** skill. It's where you reach when you don't yet have a specific idea — when the question is "which directions even matter here?" rather than "let me refine the one I already have." It does the homework first (parallel grounding agents pull from your codebase, past learnings, **external prior art on the open web**, and optionally Slack and your issue tracker), generates candidates from six different conceptual frames, requires a tagged **basis** for every idea, and presents only the survivors of an adversarial critique — with explicit reasons for what was rejected.
 
-It runs equally well on software topics, product topics, and entirely non-software topics — naming, narrative, personal decisions, weekend trips, business strategy. The same generate-critique-survive engine; the same warrant requirement; the same anti-slop discipline.
+It runs equally well on software topics, product topics, and entirely non-software topics — naming, narrative, personal decisions, weekend trips, business strategy. The same generate-critique-survive engine; the same basis requirement; the same anti-slop discipline.
 
 This is the first step in the compound-engineering ideation chain:
 
@@ -23,7 +23,7 @@ The chain works across domains — every step supports universal mode. `ce-ideat
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Grounds in real material, generates candidates across six conceptual frames, critiques them adversarially, presents 5-7 survivors — each with a tagged warrant |
+| What does it do? | Grounds in real material, decomposes the topic into orthogonal axes, generates candidates across six conceptual frames spread over those axes, critiques them adversarially, presents 5-7 survivors — each with a tagged basis |
 | When to use it | Greenfield exploration, big-picture thinking, codebase audits, surprise-me runs, naming, decisions, business strategy — any domain where you want a qualified candidate set rather than a refined idea |
 | What it produces | Ranked ideation artifact in `docs/ideation/` (or to Proof for non-software topics) |
 | What's next | `/ce-brainstorm` on a chosen survivor — or save and walk away |
@@ -45,9 +45,10 @@ Asking an AI "what's worth exploring here?" usually returns:
 `ce-ideate` separates **grounding**, **generation**, **critique**, and **selection** as discrete phases — and the quality mechanism is **explicit rejection with reasons**, not optimistic ranking.
 
 - Grounding agents do the homework first — codebase scan, past learnings, external prior art, optional Slack and issue intelligence
-- Six parallel ideation sub-agents work from different conceptual frames
-- Every idea must carry a tagged **warrant** — direct evidence, named external prior art, or a written-out first-principles argument
-- Ideas without warrant are rejected; the failure mode being prevented is "AI slop"
+- The topic is decomposed into 3-5 orthogonal axes derived from grounding — *what aspects of the subject* sub-agents must cover, distinct from *how they think about it*
+- Six parallel ideation sub-agents work from different conceptual frames, each spreading ideas across the axes
+- Every idea must carry a tagged **basis** — direct evidence, named external prior art, or a written-out first-principles argument
+- Ideas without a basis are rejected; the failure mode being prevented is "AI slop"
 - Survivors are scored against a consistent rubric and presented with downsides and confidence
 - A rejection summary shows what was considered and cut
 
@@ -59,27 +60,31 @@ Asking an AI "what's worth exploring here?" usually returns:
 
 Every run starts with parallel grounding agents that supply the substance ideas will be qualified against — codebase scan (in repo mode), past institutional learnings from `docs/solutions/`, external prior art via web research, and optional Slack and issue intelligence when those tools are available. **External prior art is critical**: without it, the agent is just remixing what's already in your codebase or your head. With it, ideas can cite "this is how X solved this" — concrete, verifiable, named precedent.
 
-### 2. Warrant requirement — every idea cites its basis
+### 2. Basis requirement — every idea cites its evidence
 
-Each surviving candidate carries a tagged warrant: `direct:` (quoted evidence), `external:` (named prior art), or `reasoned:` (written-out first-principles argument, not a gesture). Speculation that sounds plausible but has no basis is rejected. **Comprehensive grounding + warrant requirement is the dual anti-slop mechanism.** One without the other is weaker: grounding without warrant gives well-informed speculation; warrant without grounding gives clever-sounding rationalization.
+Each surviving candidate carries a tagged basis: `direct:` (quoted evidence), `external:` (named prior art), or `reasoned:` (written-out first-principles argument, not a gesture). Speculation that sounds plausible but has no basis is rejected. **Comprehensive grounding + basis requirement is the dual anti-slop mechanism.** One without the other is weaker: grounding without a basis gives well-informed speculation; a basis without grounding gives clever-sounding rationalization.
 
 ### 3. Six-frame divergent generation
 
 Six parallel sub-agents, each biased toward a different generative frame: pain & friction, inversion/removal/automation, assumption-breaking, leverage & compounding, cross-domain analogy, and constraint-flipping. Single-prompt ideation collapses into the agent's most-trained directions — different frames force genuine breadth, especially cross-domain analogy and constraint-flipping which surface ideas no single prompt would.
 
-### 4. Adversarial filtering with stated rejection reasons
+### 4. Topic-surface decomposition — axis coverage as a dispatch invariant
 
-The orchestrator critiques every candidate against a consistent rubric — groundedness, warrant strength, expected value, novelty, pragmatism, leverage, implementation burden, overlap. One-line reasons accompany every rejection. Survivors are presented alongside a rejection summary so you see what was considered and cut.
+Frames decide *how to think* about a topic; **axes** decide *what part of the topic to think on*. Before frame dispatch, the orchestrator decomposes the topic into 3-5 orthogonal axes derived from grounding (e.g., for "social sharing" — send, discovery, arrival, compounding, actor types). Each frame is then instructed to spread its ideas across axes, and an axis-coverage check after generation catches blind spots — if any axis has zero ideas, a bounded recovery dispatch fills it. The failure mode this prevents: six lenses converging on the most salient interpretation of a topic and missing the rest of its surface entirely. Atomic topics (a name, a tagline) and surprise-me runs skip decomposition cleanly.
 
-### 5. Three modes — software, software-product, and entirely non-software
+### 5. Adversarial filtering with stated rejection reasons
 
-The same generate-critique-survive mechanism runs across very different topic domains: things in your codebase, software products outside your repo (pages, apps, flows), or topics with no software surface at all (naming, narrative, personal decisions, business strategy). In non-software mode, a domain-agnostic facilitator takes over — same six frames, same warrant requirement, same critique, but in domain-native language.
+The orchestrator critiques every candidate against a consistent rubric — groundedness, basis strength, expected value, novelty, pragmatism, leverage, implementation burden, overlap. One-line reasons accompany every rejection. Survivors are presented alongside a rejection summary so you see what was considered and cut.
 
-### 6. Surprise-me mode — no subject required
+### 6. Three modes — software, software-product, and entirely non-software
+
+The same generate-critique-survive mechanism runs across very different topic domains: things in your codebase, software products outside your repo (pages, apps, flows), or topics with no software surface at all (naming, narrative, personal decisions, business strategy). In non-software mode, a domain-agnostic facilitator takes over — same six frames, same basis requirement, same critique, but in domain-native language.
+
+### 7. Surprise-me mode — no subject required
 
 `/ce-ideate "surprise me"` skips the subject step entirely. Sub-agents discover their own subjects from grounding material. Different frames finding different subjects is the feature, not a bug — cross-cutting combinations across discovered subjects often produce the strongest ideas.
 
-### 7. Issue-tracker intent
+### 8. Issue-tracker intent
 
 Phrases like "what users are reporting" or "biggest issue patterns" trigger an issue-intelligence agent that pulls real GitHub issues and feeds clustered themes into the ideation frames.
 
@@ -89,9 +94,9 @@ Phrases like "what users are reporting" or "biggest issue patterns" trigger an i
 
 You invoke `ce-ideate "DX improvements"` from inside a code repo. The agent announces it'll dispatch ~9 grounding and ideation agents and offers skip phrases for cost control.
 
-Grounding agents return in parallel — a codebase summary, relevant past learnings, external prior art on developer-experience patterns. Six ideation sub-agents then generate candidates from different frames. The orchestrator merges 40+ candidates into one list, synthesizes cross-cutting combinations, and runs the adversarial critique pass — about 13 ideas are cut for being too vague, unjustified, or duplicative.
+Grounding agents return in parallel — a codebase summary, relevant past learnings, external prior art on developer-experience patterns. The orchestrator decomposes the topic into 4-5 axes derived from that grounding (e.g., for "DX improvements" — feedback loops, environment friction, tooling ergonomics, knowledge accessibility, automation surface). Six ideation sub-agents then generate candidates from different frames, each tagged with the axis it targets. The orchestrator merges 40+ candidates into one list, synthesizes cross-cutting combinations, runs an axis-coverage check (any empty axis triggers one bounded recovery dispatch), and runs the adversarial critique pass — about 13 ideas are cut for being too vague, unjustified, or duplicative.
 
-You see six survivors. Each has a tagged warrant (e.g., "tests/cli.test.ts:42 spawns 14 different bash invocations"), a rationale connecting that warrant to the move's significance, downsides, confidence, and complexity. A rejection summary lists what was cut and why. Then a four-option menu: refine in conversation, open in Proof, brainstorm a chosen survivor, or save and end.
+You see six survivors spread across the axes. Each has a tagged basis (e.g., "tests/cli.test.ts:42 spawns 14 different bash invocations"), a rationale connecting that basis to the move's significance, the axis it targets, downsides, confidence, and complexity. A rejection summary lists what was cut and why, plus any axis that ended up uncovered as a deliberate gap. Then a four-option menu: refine in conversation, open in Proof, brainstorm a chosen survivor, or save and end.
 
 ---
 
@@ -119,7 +124,7 @@ Skip `ce-ideate` when:
 ```text
 /ce-ideate            "What's worth exploring?"
    |
-   |   chosen survivor (with warrant + rationale)
+   |   chosen survivor (with basis + rationale)
    v
 /ce-brainstorm        "What does this need to be?"
    |
@@ -132,7 +137,7 @@ Skip `ce-ideate` when:
 /ce-work              "Build it."
 ```
 
-Each artifact is structured input for the next: the survivor's warrant carries forward as the brainstorm's evidence base; the brainstorm's decisions flow into the plan's requirements and scope; the plan's U-IDs and test scenarios become the guardrails `ce-work` executes against. When you select "Brainstorm a chosen idea" in the Phase 4 menu, the survivor is saved (with status `Explored`) and `ce-brainstorm` loads with that idea as the seed.
+Each artifact is structured input for the next: the survivor's basis carries forward as the brainstorm's evidence base; the brainstorm's decisions flow into the plan's requirements and scope; the plan's U-IDs and test scenarios become the guardrails `ce-work` executes against. When you select "Brainstorm a chosen idea" in the Phase 4 menu, the survivor is saved (with status `Explored`) and `ce-brainstorm` loads with that idea as the seed.
 
 The chain runs in non-software domains too — ideating on weekend-trip directions feeds a brainstorm that defines the trip, which feeds a plan that structures bookings, packing, and itinerary as guardrails.
 
@@ -181,8 +186,8 @@ Skip phrases supported anywhere in the prompt: `no external research`, `no slack
 **Why six frames? Why not just one "give me ideas" prompt?**
 Single-prompt ideation collapses into the agent's most-trained directions. Different frames force genuine breadth — cross-domain analogy and constraint-flipping in particular surface ideas no single prompt would.
 
-**Why warrant? Isn't this just AI hand-waving?**
-Without warrant, plausible-sounding ideas with no basis pass through unfiltered. The warrant requirement means every survivor cites real evidence, real prior art, or a written-out argument. You can audit the basis.
+**Why a basis requirement? Isn't this just AI hand-waving?**
+Without a basis, plausible-sounding ideas pass through unfiltered. The basis requirement means every survivor cites real evidence, real prior art, or a written-out argument. You can audit it.
 
 **Does it really work for non-software topics?**
 Yes. The same generate-critique-survive engine runs in domain-native language for naming, narrative, personal decisions, and business strategy. Codebase grounding is replaced by user-context synthesis and external research.

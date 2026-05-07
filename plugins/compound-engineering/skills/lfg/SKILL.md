@@ -1,8 +1,7 @@
 ---
 name: lfg
-description: Full autonomous engineering workflow
+description: Run the full autonomous engineering pipeline end-to-end (plan, work, code review, test, commit, push, open PR, watch CI, fix CI failures until green). Use only when the user explicitly requests hands-off execution of a software task and provides a feature description; do not auto-route casual conversation here.
 argument-hint: "[feature description]"
-disable-model-invocation: true
 ---
 
 CRITICAL: You MUST execute every step below IN ORDER. Do NOT skip any required step. Do NOT jump ahead to coding or implementation. The plan phase (step 1) MUST be completed and verified BEFORE any work begins. Violating this order produces bad output.
@@ -57,6 +56,57 @@ When invoking any skill referenced below, resolve its name against the available
 
    This commits any remaining changes, pushes the branch, and opens a pull request. If step 5 already opened a PR (check with `gh pr view --json number,url,state 2>/dev/null`), skip PR creation but still commit and push any uncommitted changes.
 
-8. Output `<promise>DONE</promise>` when complete
+8. **CI watch and autofix loop** (only when an open PR exists for the current branch)
+
+   Detect the PR; if none exists or `gh` is unavailable, skip this step entirely and proceed to step 9.
+
+   ```bash
+   gh pr view --json number,url,state
+   ```
+
+   For up to **3 fix iterations**, repeat:
+
+   1. Wait for CI to complete:
+
+      ```bash
+      gh pr checks --watch
+      ```
+
+      If the command exits 0, all checks passed. Break out of the loop and proceed to step 9.
+
+      If it exits non-zero, one or more checks failed. Continue to (2).
+
+   2. Identify failing checks and pull their failure logs. Use `gh pr checks --json name,state,conclusion,workflow,link` to enumerate failures, then for each failing check read the run logs:
+
+      ```bash
+      gh run view <run-id> --log-failed
+      ```
+
+      where `<run-id>` is parsed from the check's details URL or workflow run.
+
+   3. Read the failure logs, identify the root cause, and apply a fix in the working tree. Do NOT weaken, skip, or mock the failing assertion to make it pass — repair the actual issue. If the failure is a flaky test that has no fix path, document that as the residual outcome below rather than retrying without a code change.
+
+   4. Stage only the files you changed, commit, and push:
+
+      ```bash
+      git add <changed-files>
+      git commit -m "fix(ci): <one-line summary of the failure repaired>"
+      git push
+      ```
+
+   5. Return to iteration (1) with the next attempt counter.
+
+   GATE: STOP iterating after 3 failed attempts. If CI is still red after 3 fix cycles:
+
+   - Compose a `## CI Failures Unresolved` markdown section listing each remaining failing check, the failure summary, and the run/check URL.
+   - Append or replace this section in the PR body, write the new body to an OS temp file, then run:
+
+     ```bash
+     gh pr edit PR_NUMBER --body-file BODY_FILE
+     ```
+
+   - Do NOT continue looping. The autopilot contract is "make residuals durable, then exit." Proceed to step 9.
+
+9. Output `<promise>DONE</promise>` when complete
 
 Start with step 1 now. Remember: plan FIRST, then work. Never skip the plan.

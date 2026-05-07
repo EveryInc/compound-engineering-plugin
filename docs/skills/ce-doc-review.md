@@ -15,7 +15,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 | What does it do? | Selects reviewer personas based on doc content, dispatches them in parallel, applies `safe_auto` fixes, routes remaining findings through structured interaction |
 | When to use it | After `ce-brainstorm` produces a requirements doc; after `ce-plan` writes a plan; before handing either to implementation |
 | What it produces | An updated doc with `safe_auto` fixes applied, plus structured handling of `gated_auto` / `manual` findings |
-| Modes | Interactive (default), Headless |
+| Modes | Interactive (direct invocation), Headless (default when chained from `/ce-plan`) |
 
 ---
 
@@ -53,9 +53,11 @@ Conditional personas activate based on what the doc actually says, not keyword m
 - **`ce-design-lens-reviewer`** — when the doc contains UI/UX references, user flows, interaction descriptions, or visual design language
 - **`ce-security-lens-reviewer`** — when the doc touches auth, public APIs, data handling, PII, payments, third-party trust boundaries
 - **`ce-scope-guardian-reviewer`** — when the doc has multiple priority tiers, large requirement counts, or scope-boundary language that seems misaligned
-- **`ce-adversarial-document-reviewer`** — when the doc has 5+ requirements, explicit architectural decisions, high-stakes domains, or proposes new abstractions
+- **`ce-adversarial-document-reviewer`** — when the doc touches high-stakes domains (auth, payments, migrations), proposes new abstractions, has missing or extended origin, contains requirements-shape premise content, or presents explicit alternatives
 
 The 2 always-on (`ce-coherence-reviewer`, `ce-feasibility-reviewer`) run on every review. Conditional personas add depth where the doc's content warrants it.
+
+Personas also **scope their techniques by doc shape**. On plan-shape docs with `Origin:` set — meaning premise has already been pressure-tested at brainstorm — `ce-product-lens-reviewer`, `ce-adversarial-document-reviewer`, and `ce-scope-guardian-reviewer` suppress their premise-level techniques and run only implementation-level checks (technical assumptions, decision stress-testing, architectural alternatives, deferred-work scope creep). On requirements-shape docs they run their full technique set. `ce-feasibility-reviewer` inverts: shadow-path tracing, implementability, and migration mechanics are scoped to plan-shape docs; on requirements docs it runs a tight "would this direction force a fundamental rework?" check. Doc-type classification happens once in the orchestrator (content-shape signals — frontmatter, R-IDs vs U-IDs, section structure) and the result is passed to every persona via the `Origin:` slot, so personas don't re-classify themselves.
 
 ### 2. Synthesis pipeline with three-tier routing
 
@@ -101,10 +103,10 @@ When the user picks "Auto-resolve with best judgment" or "Append to Open Questio
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Interactive** _(default)_ | Direct user invocation | Routing question, per-finding walk-through, bulk-preview confirmations |
-| **Headless** | `mode:headless` | Apply `safe_auto` silently; return all other findings as structured text; no prompts |
+| **Interactive** | Direct user invocation, or opt-in via `Run deeper doc review` from a caller's post-generation menu | Routing question, per-finding walk-through, bulk-preview confirmations |
+| **Headless** _(default for chained invocation)_ | `mode:headless`; default at `/ce-plan` Phase 5.3.8 | Apply `safe_auto` silently; return all other findings as structured text; surface a one-line summary above the caller's next menu; no prompts |
 
-Headless is for skill-to-skill invocation (e.g., `/ce-plan` Phase 5.3.8 calling this skill from a longer flow). Interactive is the user-facing mode.
+Headless is the default for chained invocation from doc-producing skills — `/ce-plan` Phase 5.3.8 invokes it headless so routine plans autofix and surface a summary line without blocking the user. Interactive is for direct invocation, or when the user opts into `Run deeper doc review` from the post-generation menu.
 
 ### 7. Bounded parallelism with backpressure
 
@@ -118,15 +120,13 @@ The output names which personas ran, which were activated by what signals, and w
 
 ## Quick Example
 
-`/ce-plan` finishes producing a Standard plan for a notification-mute feature. Phase 5.3.8 invokes `/ce-doc-review` with the plan path.
+`/ce-plan` finishes producing a Standard plan for a notification-mute feature. Phase 5.3.8 invokes `/ce-doc-review` in `mode:headless` with the plan path.
 
-The skill reads the doc, classifies it as `plan`, and analyzes content for conditional personas. It detects: explicit architectural decisions (Key Technical Decisions section is non-trivial), user-facing behavior (UI flow for the mute UI), 6 requirements + 4 implementation units. It activates `ce-feasibility-reviewer` (always-on), `ce-coherence-reviewer` (always-on), `ce-design-lens-reviewer` (UI surface), and `ce-adversarial-document-reviewer` (5+ requirements). Security-lens skips (no auth touched). Scope-guardian skips (single priority tier).
+The skill reads the doc, classifies it as `plan` from content-shape signals (U-IDs, plan section structure), reads the `Origin:` slot, and analyzes content for conditional personas. The plan touches a UI surface (mute toggle copy) but no high-stakes domains and proposes no new abstractions. It activates `ce-coherence-reviewer` (always-on), `ce-feasibility-reviewer` (always-on, scoped to plan-shape techniques), and `ce-design-lens-reviewer` (UI surface). Adversarial, scope-guardian, security-lens, and product-lens skip — none of their triggers fire on a routine plan with origin set.
 
-Four reviewers dispatch in parallel. They return 11 raw findings. Synthesis merges them into 7 distinct findings: 2 `safe_auto` (typo, broken cross-reference), 4 `gated_auto` (wording on the durability tradeoff, missing edge case in test scenarios for U2, ambiguous scope wording in Out, design-lens flag on the toggle copy), 1 FYI (suggested scope clarification).
+Three reviewers dispatch in parallel. They return 9 raw findings. Synthesis merges them into 6 distinct findings: 2 `safe_auto` (typo, broken cross-reference), 3 `gated_auto` (wording on the durability tradeoff, missing edge case in test scenarios for U2, design-lens flag on the toggle copy), 1 FYI (suggested scope clarification).
 
-The 2 `safe_auto` apply directly. The user picks "Per-finding walk-through" and steps through the 4 `gated_auto`: applies 3, defers 1 to Open Questions with a reason. The 1 FYI is informational only.
-
-Plan returns to `/ce-plan` Phase 5.3.8 → 5.4 to present the final post-generation menu.
+The 2 `safe_auto` apply directly. Headless mode returns the rest as structured text — no walkthrough, no per-finding routing. A single summary line surfaces above the post-generation menu: `Doc review applied 2 fixes. 3 decisions, 1 FYI remain.` The user picks `Start /ce-work` and goes. Had they wanted to address the 3 decisions interactively, they'd have picked `Run deeper doc review` instead.
 
 ---
 
@@ -151,8 +151,8 @@ Skip `ce-doc-review` when:
 
 `ce-doc-review` is invoked from doc-producing skills as their review pass:
 
-- **`/ce-brainstorm` Phase 4** — offered as one of the post-doc options ("Agent review of requirements doc")
-- **`/ce-plan` Phase 5.3.8** — runs as a mandatory document review step after the confidence check, regardless of whether deepening fired
+- **`/ce-brainstorm` Phase 4** — offered as one of the post-doc options ("Agent review of requirements doc"); runs interactive with full premise scrutiny, since validating premise is exactly what brainstorm exists for
+- **`/ce-plan` Phase 5.3.8** — runs in `mode:headless` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Run deeper doc review` is exposed as a first-class option for users who want the interactive walkthrough
 - **`/ce-resolve-pr-feedback`** — when reviewer feedback lands on a brainstorm or plan doc rather than code
 
 In headless mode, callers receive structured findings and route the user-decision options themselves.

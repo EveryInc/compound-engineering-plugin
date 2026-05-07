@@ -155,12 +155,18 @@ False-positive categories to actively suppress. Do NOT emit a finding when any o
 <review-context>
 Document type: {document_type}
 Document path: {document_path}
+Origin: {origin_path}
 
 {decision_primer}
 
 Document content:
 {document_content}
 </review-context>
+
+<context-slots-rules>
+- `Document type:` is the orchestrator's authoritative classification (`requirements` or `plan`). Trust it; do not re-classify by inspecting content shape. The orchestrator already used frontmatter and section structure to decide.
+- `Origin:` carries the value of the document's `origin:` frontmatter field when one is present, or the literal token `none` when no origin was declared. This is how the orchestrator surfaces upstream provenance to personas that adapt on origin (e.g., suppressing premise-challenge techniques on origin'd plans). Read this line directly — do not parse the document's frontmatter yourself for this signal.
+</context-slots-rules>
 
 <decision-primer-rules>
 When the `<prior-decisions>` block above lists entries (round 2+), honor them:

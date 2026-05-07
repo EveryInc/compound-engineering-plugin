@@ -28,6 +28,33 @@ Apply the discrimination test before asking anything. Would swapping one piece o
 
 When the user provides rich context up front (a paste, a brief, an existing draft), confirm understanding in one line and skip intake.
 
+## How to decompose
+
+Before generating, decompose the topic into 3-5 orthogonal **axes** that name *what aspects of the subject to think about*. Frames in "How to generate" determine *how to think* (the lens); axes determine *what to think on* (the surface). Without explicit axes, the same topic interpreted six ways through six lenses still leaves most of the surface unexamined — lens diversity does not produce surface coverage on its own.
+
+This step is the facilitator's own analysis — no sub-agent, no additional research. The Phase 1 grounding supplies the substance.
+
+Axes should be:
+
+- **3-5 in number.** Fewer means atomic — skip decomposition. More fragments coverage.
+- **Orthogonal.** A single idea should fall on one axis, not span multiple.
+- **Derived from grounding**, not from a generic template.
+- **At the same level** of granularity.
+- **Named in the topic's language**, not meta-language about ideation.
+
+**Worked examples (illustrative, not a template):**
+
+- "Name my new coffee shop" → atomic; skip decomposition (the candidate *is* a name)
+- "Plot ideas for a short story" → atomic; skip decomposition (the candidate *is* a plot)
+- "Brand strategy for a launch" → axes might be: positioning; visual identity; voice; launch channels; pricing/packaging
+- "Career options for the next 5 years" → axes might be: domain (industry/role); structure (employee/founder/freelance); geography; growth ambition; financial floor
+
+**Skip condition.** Many elsewhere-non-software topics are atomic by nature — a single name, tagline, or one-shot creative output. When 3+ orthogonal axes do not emerge, skip decomposition and note `Decomposition skipped — atomic subject` in the grounding summary.
+
+**Surprise-me skip.** No settled subject in surprise-me mode; skip decomposition and note `Decomposition skipped — surprise-me mode`.
+
+Record the axes (or skip-reason) at the head of generation. Generation will distribute ideas across axes; convergence will weight axis spread alongside other rubric criteria.
+
 ## How to generate
 
 Generate the full candidate list before critiquing any idea. Use the same six frames as software ideation, described in domain-agnostic language. Each frame is a **starting bias, not a constraint** — follow promising threads across frames.
@@ -39,28 +66,30 @@ Generate the full candidate list before critiquing any idea. Use the same six fr
 - **Cross-domain analogy** — how do completely different fields solve a structurally similar problem? The grounding domain is the user's topic; the analogy domain is anywhere else (other industries, biology, games, infrastructure, history). Push past the obvious analogy to non-obvious ones.
 - **Constraint-flipping** — invert the obvious constraint to its opposite or extreme. What if the budget were 10x or 0? What if there were one constraint instead of ten, or ten instead of one? Use the resulting design as a candidate even if the flip itself is not realistic.
 
-Aim for 5-8 ideas per frame. After generating, merge and dedupe; scan for cross-cutting combinations (3-5 additions at most; more in surprise-me mode, where different frames often discover different subjects and combinations are the magic layer).
+Aim for 5-8 ideas per frame. **When axes are present, distribute ideas across axes** — each frame's lens applies to every axis, but ideas should not all cluster on one. Tag each idea with the axis it targets. After generating, merge and dedupe; scan for cross-cutting combinations (3-5 additions at most; more in surprise-me mode, where different frames often discover different subjects and combinations are the magic layer).
 
-**Per-idea output contract (mirrors SKILL.md Phase 2):** each idea carries title, summary, **warrant** (required, tagged `direct:` quoted evidence / `external:` named prior art or domain research / `reasoned:` written-out first-principles argument), why-it-matters connecting the warrant to the move's significance, and a one-line meeting-test self-check (waived when tactical focus signals were detected in Phase 0.5). Warrant is required, not optional — unjustified speculation does not surface.
+**Axis-coverage check (when axes are present).** After merging, count ideas per axis. If any axis has zero ideas, generate one additional small batch (3-5 ideas) targeting the empty axis with the frame whose lens best fits — Pain & friction for usability gaps, Cross-domain analogy for distribution or compounding gaps, etc. Cap recovery at 2 axes; beyond that, accept thin coverage rather than fan out. Note any axis that was not recovered in the rejection summary so the gap is visible.
+
+**Per-idea output contract (mirrors SKILL.md Phase 2):** each idea carries title, summary, **axis** (when decomposition produced an axis list — pick the one this idea most centrally targets; omit when skipped), **basis** (required, tagged `direct:` quoted evidence / `external:` named prior art or domain research / `reasoned:` written-out first-principles argument), why-it-matters connecting the basis to the move's significance, and a one-line meeting-test self-check (waived when tactical focus signals were detected in Phase 0.5). Basis is required, not optional — unjustified speculation does not surface.
 
 **Generation rules:**
 
-- Every idea carries articulated warrant. The failure mode to prevent is plausible-sounding speculation that lacks any basis the user can verify.
-- Bias toward the warrant type your frame naturally produces — pain/inversion/leverage tend toward `direct:`; analogy and constraint-flipping tend toward `reasoned:` — but don't exclude other types. When a frame produces reasoned warrant, write the argument out, don't gesture at it.
+- Every idea carries an articulated basis. The failure mode to prevent is plausible-sounding speculation that lacks any basis the user can verify.
+- Bias toward the basis type your frame naturally produces — pain/inversion/leverage tend toward `direct:`; analogy and constraint-flipping tend toward `reasoned:` — but don't exclude other types. When a frame produces a reasoned basis, write the argument out, don't gesture at it.
 - Apply the meeting-test as a default floor: would this idea warrant the equivalent of team discussion (or whatever maps to "worth talking through" in this topic's native domain)? If not, it's below the floor and does not surface. The floor is relaxed only when Phase 0.5 detected tactical focus signals.
-- Stay within the subject's identity. Expansions, new surfaces, new directions, retirements are fair game when warrant supports them. Subject-replacement moves (abandoning the subject, pivoting to an unrelated domain) are out regardless of warrant.
+- Stay within the subject's identity. Expansions, new surfaces, new directions, retirements are fair game when the basis supports them. Subject-replacement moves (abandoning the subject, pivoting to an unrelated domain) are out regardless of basis.
 
-**Surprise-me mode in this reference.** When Phase 0.2 routed to surprise-me, there is no user-specified subject. Through each frame's lens, explore the Phase 1 grounding (user-context synthesis + web research) and identify the subject(s) you find most interesting for that lens. Different frames finding different subjects is the feature. Warrant may include identification of the subject itself — why this subject is worth ideating on through this lens, citing what in the Phase 1 material signals it.
+**Surprise-me mode in this reference.** When Phase 0.2 routed to surprise-me, there is no user-specified subject. Through each frame's lens, explore the Phase 1 grounding (user-context synthesis + web research) and identify the subject(s) you find most interesting for that lens. Different frames finding different subjects is the feature. The basis may include identification of the subject itself — why this subject is worth ideating on through this lens, citing what in the Phase 1 material signals it.
 
 ## How to converge
 
-Apply adversarial critique. For each candidate, write a one-line reason if rejected. **Warrant-integrity check:** reject any idea lacking articulated warrant, any idea whose stated warrant does not actually support the claimed move (speculation dressed as ambition), and any idea that replaces the subject rather than operating on it. Score survivors using a consistent rubric weighing: groundedness in stated context, **warrant strength** (`direct:` > `external:` > `reasoned:`; none excluded, but direct-evidence ideas score higher all else equal), expected value, novelty, pragmatism, leverage, implementation burden, and overlap with stronger candidates.
+Apply adversarial critique. For each candidate, write a one-line reason if rejected. **Basis-integrity check:** reject any idea lacking an articulated basis, any idea whose stated basis does not actually support the claimed move (speculation dressed as ambition), and any idea that replaces the subject rather than operating on it. Score survivors using a consistent rubric weighing: groundedness in stated context, **basis strength** (`direct:` > `external:` > `reasoned:`; none excluded, but direct-evidence ideas score higher all else equal), expected value, novelty, pragmatism, leverage, implementation burden, overlap with stronger candidates, and **axis spread** (when axes were defined) — survivor sets that cover the topic's surface outscore sets that cluster on one axis, all else equal. Axis spread is a list-level concern, not a per-idea reject reason; apply it after per-idea filtering when choosing among comparable candidates.
 
 Target 5-7 survivors by default. If too many survive, run a second stricter pass. If fewer than five survive, report that honestly rather than lowering the bar.
 
 ## When to wrap up
 
-Present survivors before any persistence. For each: title, description, **warrant** (tagged `direct:` / `external:` / `reasoned:`, with the quoted evidence, cited source, or written-out argument), rationale (how the warrant connects to the move's significance), downsides, confidence, complexity. Then a brief rejection summary so the user can see what was considered and cut.
+Present survivors before any persistence. For each: title, description, **axis** (when decomposition produced an axis list), **basis** (tagged `direct:` / `external:` / `reasoned:`, with the quoted evidence, cited source, or written-out argument), rationale (how the basis connects to the move's significance), downsides, confidence, complexity. Then a brief rejection summary so the user can see what was considered and cut — including any axis that ended up with zero survivors despite recovery, so the coverage gap is visible.
 
 Persistence is opt-in. The terminal review loop is a complete ideation cycle. Refinement happens in conversation with no file or network cost. Persistence triggers only when the user explicitly chooses to save, share, or hand off.
 
