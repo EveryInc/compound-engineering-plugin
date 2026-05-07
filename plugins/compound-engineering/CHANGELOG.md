@@ -9,6 +9,18 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.6.1...compound-engineering-v3.7.0) (2026-05-07)
+
+
+### Features
+
+* **lfg:** allow model invocation, add CI autofix loop after PR ([#788](https://github.com/EveryInc/compound-engineering-plugin/issues/788)) ([d316971](https://github.com/EveryInc/compound-engineering-plugin/commit/d316971b20d734ab914cb81093c56810c3b14fa7))
+
+
+### Bug Fixes
+
+* **ce-ideate:** bound scope and add topic-surface decomposition ([#787](https://github.com/EveryInc/compound-engineering-plugin/issues/787)) ([168fad4](https://github.com/EveryInc/compound-engineering-plugin/commit/168fad4ac246b55972b84b7b2a0f1da08a481d7c))
+
 ## [3.6.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.6.0...compound-engineering-v3.6.1) (2026-05-06)
 
 
