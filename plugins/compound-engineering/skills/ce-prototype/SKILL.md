@@ -44,16 +44,18 @@ Do not proceed until there is a clear prototyping target.
 
 #### 0.1 Find Upstream Requirements
 
-**First, honor an explicit requirements path passed in `#$ARGUMENTS`.** If the argument resolves to a readable file (typically under `docs/brainstorms/` and matching `*-requirements.md`, but accept any valid path), use it directly and skip the heuristic search below. The caller — usually `ce-brainstorm` or the user — has already selected the right origin doc; rerunning a relevance search risks picking a similarly named but stale or mismatched document (e.g., iterative versions of the same topic in the last 30 days).
+Branch on the shape of `#$ARGUMENTS` — do not run a heuristic search before checking what was actually passed:
 
-If `#$ARGUMENTS` is empty, does not contain a path, or the path is not a readable file, fall back to a heuristic search: scan `docs/brainstorms/` for files matching `*-requirements.md` and apply the same relevance criteria as `ce-plan` (topic match, recency, same problem scope). When multiple candidates score similarly, ask the user to pick rather than guessing.
+1. **`#$ARGUMENTS` resolves to a readable file path** (typically under `docs/brainstorms/` and matching `*-requirements.md`, but accept any valid path) → use that file directly as the source document. Skip the heuristic search. The caller — usually `ce-brainstorm` or the user — has already selected the right origin doc; rerunning a relevance search risks picking a similarly named but stale document (e.g., iterative versions of the same topic in the last 30 days).
+2. **`#$ARGUMENTS` is non-empty free-text** (a feature description, brainstorm summary, or list of assumptions to validate — not a path) → treat it as the prototype context directly. Skip the heuristic search. This is the `ce-brainstorm` no-doc handoff path: when no requirements file exists, brainstorm passes a concise summary of finalized decisions; running a heuristic over `docs/brainstorms/*-requirements.md` here would override that fresh context with whatever stale doc happens to score highest.
+3. **`#$ARGUMENTS` is empty** → fall back to a heuristic search: scan `docs/brainstorms/` for files matching `*-requirements.md` and apply the same relevance criteria as `ce-plan` (topic match, recency, same problem scope). When multiple candidates score similarly, ask the user to pick rather than guessing.
 
-If a relevant requirements document is found (either via explicit path or heuristic search):
+If a requirements document was found via path (1) or heuristic (3):
 1. Read it thoroughly
 2. Announce it as the source document for prototyping
 3. Extract testable assumptions — claims about external APIs, data quality, UX patterns, integration behavior, performance characteristics, or user experience that the requirements take for granted but have not been verified
 
-If no requirements document exists, proceed from the user's description directly.
+If proceeding from free-text context (2) or no requirements document exists, work from that context directly without searching the repo for unrelated requirements docs.
 
 #### 0.2 Check for Existing Prototypes
 
@@ -276,7 +278,12 @@ What's next?
 5. Other
 ```
 
-Present the "What's next?" options using the platform's blocking question tool.
+Present the "What's next?" options based on the visible option count. The example above shows the maximum case (5 options); the actual menu varies — "Run another prototype round" only applies when goals are inconclusive, "Revisit requirements with `ce-brainstorm`" only when goals were disproved, etc.
+
+- **4 or fewer visible options:** use the platform's blocking question tool (`AskUserQuestion` in Claude Code — call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded; `request_user_input` in Codex; `ask_user` in Gemini; `ask_user` in Pi via the `pi-ask-user` extension).
+- **5 or more visible options:** render as a numbered list in chat. Include a hint that free-form input is accepted ("Pick a number or describe what you want.") so the numbered list retains the blocking tool's open-endedness. This is the narrow option-overflow fallback used because the blocking tool caps at 4 options on target platforms; never silently drop an option to fit the cap.
+
+Never silently skip the question.
 
 ## Common Mistakes to Avoid
 
