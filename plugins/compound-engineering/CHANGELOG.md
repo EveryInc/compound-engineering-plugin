@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.7.2](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.7.1...compound-engineering-v3.7.2) (2026-05-08)
+
+
+### Bug Fixes
+
+* **ce-sessions:** unblock session-history on Claude Code ([#800](https://github.com/EveryInc/compound-engineering-plugin/issues/800)) ([81710ef](https://github.com/EveryInc/compound-engineering-plugin/commit/81710efad5666831715a630b04554a35946afb1d))
+
 ## [3.7.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.7.0...compound-engineering-v3.7.1) (2026-05-08)
 
 
