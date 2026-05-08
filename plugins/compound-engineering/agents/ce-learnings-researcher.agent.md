@@ -1,6 +1,6 @@
 ---
 name: ce-learnings-researcher
-description: "Searches docs/solutions/ for applicable past learnings by frontmatter metadata. Use before implementing features, making decisions, or starting work in a documented area — surfaces prior bugs, architecture patterns, design patterns, tooling decisions, conventions, and workflow learnings so institutional knowledge carries forward."
+description: "Searches docs/solutions/ for applicable past learnings via frontmatter metadata (bugs, architecture, design patterns, conventions, workflow learnings). Use before implementing features, making decisions, or starting work in a documented area so institutional knowledge carries forward."
 model: inherit
 tools: Read, Grep, Glob, Bash
 ---

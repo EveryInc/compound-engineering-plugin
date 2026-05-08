@@ -4,7 +4,7 @@
 
 `ce-debug` is the **investigation-first** debugging skill. It refuses to propose a fix until it can explain the full causal chain from trigger to symptom with no gaps. For uncertain links in that chain, it requires a **prediction** — something in a different code path or scenario that must also be true if the link is right. **When a prediction is wrong but a fix appears to work, the skill flags it: you found a symptom, not the cause.**
 
-It self-sizes. A missing-import bug flows through phases in seconds; a tangled cross-subsystem regression spends more time in each naturally. No complexity classification, no phase skipping. The fix is optional — diagnosis-only is a first-class outcome.
+It right-sizes. Trivial bugs (typos, missing imports, obvious one-line fixes) take an explicit fast-path in Phase 0 — fix it, leave a one-line note, stop. Anything else flows through the full framework, with complex bugs spending more time in each phase naturally. The fix is optional — diagnosis-only is a first-class outcome.
 
 The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-debug` is the bug-shaped sibling to `/ce-work` — when the input is broken behavior rather than a feature to build, this skill takes over. It can also escalate to `/ce-brainstorm` when investigation reveals the bug isn't really a bug; it's a design problem.
 

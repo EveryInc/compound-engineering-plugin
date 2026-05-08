@@ -1,6 +1,6 @@
 ---
 name: ce-compound-refresh
-description: Refresh stale learning docs and pattern docs under docs/solutions/ by reviewing them against the current codebase, then updating, consolidating, replacing, or deleting the drifted ones. Trigger this skill when the user asks to refresh, audit, sweep, clean up, or consolidate stale docs in docs/solutions/ (phrases like "refresh my learnings", "audit docs/solutions/", "clean up stale learnings", "consolidate overlapping docs", "compound refresh", "/ce-compound-refresh"), or when ce-compound has just captured a new learning and flagged a specific older doc in docs/solutions/ as now inaccurate or superseded — invoke with the narrow scope hint ce-compound provides. Also trigger when the user points at a specific learning or pattern doc under docs/solutions/ and calls it stale, outdated, overlapping, or drifted. Do not trigger for general refactor, migration, debugging, or code-review work unless the user has explicitly directed attention to docs/solutions/ itself.
+description: Refresh stale learning and pattern docs under docs/solutions/ by reviewing them against the current codebase, then updating, consolidating, or deleting drifted ones. Use when the user asks to "refresh my learnings", "audit docs/solutions/", "clean up stale learnings", or "consolidate overlapping docs", or when ce-compound flags an older doc as superseded. Do not trigger for general refactor, debugging, or code-review work unless the user has explicitly pointed at docs/solutions/.
 ---
 
 # Compound Refresh

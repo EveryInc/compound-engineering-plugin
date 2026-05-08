@@ -1,6 +1,6 @@
 ---
 name: ce-adversarial-document-reviewer
-description: "Conditional document-review persona, selected when the document has >5 requirements or implementation units, makes significant architectural decisions, covers high-stakes domains, or proposes new abstractions. Challenges premises, surfaces unstated assumptions, and stress-tests decisions rather than evaluating document quality."
+description: "Conditional document-review persona for high-stakes documents -- those with significant architectural decisions, new abstractions, or more than 5 requirements. Challenges premises, surfaces unstated assumptions, and stress-tests decisions rather than evaluating document quality."
 model: inherit
 tools: Read, Grep, Glob, Bash
 ---

@@ -1,6 +1,6 @@
 ---
 name: ce-web-researcher
-description: "Performs iterative web research and returns structured external grounding (prior art, adjacent solutions, market signals, cross-domain analogies). Use when ideating outside the codebase, validating prior art, scanning competitor patterns, finding cross-domain analogies, or any task that benefits from current external context. Prefer over manual web searches when the orchestrator needs structured external grounding."
+description: "Performs iterative web research and returns structured external grounding. Use when ideating outside the codebase, validating prior art, scanning competitor patterns, finding cross-domain analogies, or fetching market signals. Prefer over manual web searches for structured external context."
 model: sonnet
 tools: WebSearch, WebFetch
 ---

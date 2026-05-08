@@ -1,6 +1,6 @@
 ---
 name: ce-optimize
-description: "Run metric-driven iterative optimization loops. Define a measurable goal, build measurement scaffolding, then run parallel experiments that try many approaches, measure each against hard gates and/or LLM-as-judge quality scores, keep improvements, and converge toward the best solution. Use when optimizing clustering quality, search relevance, build performance, prompt quality, or any measurable outcome that benefits from systematic experimentation. Inspired by Karpathy's autoresearch, generalized for multi-file code changes and non-ML domains."
+description: "Run metric-driven iterative optimization loops -- define a measurable goal, run parallel experiments, measure each against hard gates or LLM-as-judge scores, keep improvements, and converge on the best solution. Use when optimizing clustering quality, search relevance, build performance, prompt quality, or any measurable outcome that benefits from systematic experimentation."
 argument-hint: "[path to optimization spec YAML, or describe the optimization goal]"
 ---
 

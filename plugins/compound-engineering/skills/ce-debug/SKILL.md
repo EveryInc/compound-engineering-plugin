@@ -12,8 +12,6 @@ Find root causes, then fix them. This skill investigates bugs systematically —
 
 ## Core Principles
 
-These principles govern every phase. They are repeated at decision points because they matter most when the pressure to skip them is highest.
-
 1. **Investigate before fixing.** Do not propose a fix until you can explain the full causal chain from trigger to symptom with no gaps. "Somehow X leads to Y" is a gap.
 2. **Predictions for uncertain links.** When the causal chain has uncertain or non-obvious links, form a prediction — something in a different code path or scenario that must also be true. If the prediction is wrong but a fix "works," you found a symptom, not the cause. When the chain is obvious (missing import, clear null reference), the chain explanation itself is sufficient.
 3. **One change at a time.** Test one hypothesis, change one thing. If you're changing multiple things to "see if it helps," stop — that is shotgun debugging.
@@ -29,7 +27,7 @@ These principles govern every phase. They are repeated at decision points becaus
 | 3 | Fix | Only if user chose to fix. Test-first fix with workspace safety checks |
 | 4 | Handoff | Structured summary, then prompt the user for the next action |
 
-All phases self-size — a simple bug flows through them in seconds, a complex bug spends more time in each naturally. No complexity classification, no phase skipping.
+Beyond the trivial-bug fast-path in Phase 0, no further phase skipping — complex bugs simply spend more time in each phase naturally. No further complexity tiers.
 
 ---
 
@@ -43,7 +41,11 @@ Parse the input and reach a clear problem statement.
 
 Read the full conversation — the original description AND every comment, with particular attention to the latest ones. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, additional stack traces, or a pivot to a different suspected root cause; treating the opening post as the whole picture often sends the investigation in the wrong direction. Extract reported symptoms, expected behavior, reproduction steps, and environment details from the combined thread. Then proceed to Phase 1.
 
-**Everything else** (stack traces, test paths, error messages, descriptions of broken behavior): Proceed directly to Phase 1.
+**Everything else** (stack traces, test paths, error messages, descriptions of broken behavior): the problem statement is the input itself.
+
+**Trivial-bug fast-path:** Once the problem is clear, decide whether the framework is needed at all. If the cause is immediately readable from the input (single-file typo, missing import, obvious null deref or off-by-one with a one-line fix) and verification doesn't require deep tracing, present the cause and the proposed one-line fix and run Phase 2's **Fix it now / Diagnosis only** user-choice gate before editing — the fast-path saves investigation ceremony, not the user's choice over whether to apply a fix. If the user picks fix, run Phase 3's **Workspace and branch check** (uncommitted-work confirmation and default-branch branch-creation prompt), apply the fix, leave a one-line note explaining the cause, and skip to Phase 4's structured summary. If diagnosis only, write the summary and stop. When in doubt, run the full framework; getting the wrong root cause costs more than the few minutes of ceremony.
+
+**Otherwise**, proceed to Phase 1.
 
 **Questions:**
 - Do not ask questions by default — investigate first (read code, run tests, trace errors)
@@ -73,6 +75,7 @@ Confirm the bug exists and understand its behavior. Run the test, trigger the er
 - **Manual setup required:** If reproduction needs specific conditions the agent cannot create alone (data states, user roles, external services, environment config), document the exact setup steps and guide the user through them. Clear step-by-step instructions save significant time even when the process is fully manual.
 - **Does not reproduce after 2-3 attempts:** Read `references/investigation-techniques.md` for intermittent-bug techniques.
 - **Cannot reproduce at all in this environment:** Document what was tried and what conditions appear to be missing.
+- **Writing the reproduction test:** If the project has testing-conventions guidance — a dedicated testing skill, an `AGENTS.md`/`CLAUDE.md` testing section, or a clear style across existing tests — apply it when authoring the failing test. Otherwise write a minimal isolated test that fails on the current bug and passes once the corrected behavior lands; name it descriptively so the failure message itself explains the bug.
 
 #### 1.2 Verify environment sanity
 
@@ -87,12 +90,16 @@ Before deep code tracing, confirm the environment is what you think it is:
 
 #### 1.3 Trace the code path
 
-Read the relevant source files. Follow the execution path from entry point to where the error manifests. Trace backward through the call chain:
+Trace data flow backward from the symptom to where valid state first became invalid. Read code-shape to form a hypothesis, then verify with observed values — do not theorize from code alone.
 
-- Start at the error
-- Ask "where did this value come from?" and "who called this?"
-- Keep going upstream until finding the point where valid state first became invalid
-- Do not stop at the first function that looks wrong — the root cause is where bad state originates, not where it is first observed
+Concrete recipe:
+
+1. Read the stack trace bottom-to-top, opening each frame's source. The bottom frame is the symptom; the root cause is somewhere upstream.
+2. Identify the first frame where the input data is already invalid — that's the upper bound on where to look.
+3. Instrument the boundaries around that frame: targeted log/print statements, debugger breakpoints, or test assertions that capture *actual* values at function entry/exit. Assumed values lie; observed values don't.
+4. Walk the boundaries until valid input becomes invalid output. That transition is the root cause site.
+
+Do not stop at the first function that looks wrong — the root cause is where bad state originates, not where it is first observed.
 
 As you trace:
 - Check recent changes in files you are reading: `git log --oneline -10 -- [file]`
@@ -110,12 +117,19 @@ As you trace:
 
 *Reminder: investigate before fixing. Do not propose a fix until you can explain the full causal chain from trigger to symptom with no gaps.*
 
-Read `references/anti-patterns.md` before forming hypotheses.
+Read `references/anti-patterns.md` before forming hypotheses. As a load-time preview of the rationalizations it covers, stop and re-examine if the internal monologue contains any of these:
+
+- "Quick fix for now, investigate later"
+- "This should work" (without a tested prediction)
+- "Let me just try..." (without a hypothesis)
+
+These phrases mark mode-drift toward symptom patches, not progress on the root cause. ("One more attempt" after a failed fix and "works on my machine" are covered at the points they fire — Phase 3's invalidation step and the Smart Escalation table below.)
 
 **Assumption audit (before hypothesis formation):** List the concrete "this must be true" beliefs your understanding depends on — the framework behaves as expected here, this function returns what its name implies, the config loads before this runs, the caller passes a non-null value, the database is in the state the test implies. For each, mark *verified* (you read the code, checked state, or ran it) or *assumed*. Assumptions are the most common source of stuck debugging. Many "wrong hypotheses" are actually correct hypotheses tested against a wrong assumption.
 
 **Form hypotheses** ranked by likelihood. For each, state:
 - What is wrong and where (file:line)
+- **At least one concrete observation that supports it** — a runtime variable value, a log line, an instrumented boundary capture, a behavior delta against a working comparison case, or a specific code reference. "X seems off" is not evidence; "X equals null at line 42 because Y was never initialized in the constructor path that runs under condition Z" is. Hypotheses without grounding observations are theorizing — go back to Phase 1 and instrument.
 - The causal chain: how the trigger leads to the observed symptom, step by step
 - **For uncertain links in the chain**: a prediction — something in a different code path or scenario that must also be true if this link is correct
 
@@ -186,9 +200,12 @@ If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go
 **Test-first:**
 1. Write a failing test that captures the bug (or use the existing failing test)
 2. Verify it fails for the right reason — the root cause, not unrelated setup
-3. Implement the minimal fix — address the root cause and nothing else
+3. Implement the minimal fix — address the root cause and nothing else. Do not bundle drive-by refactors, formatting, or unrelated cleanup into a bug-fix change; those belong in separate commits.
 4. Verify the test passes
 5. Run the broader test suite for regressions
+6. Self-review the diff before declaring the fix done: read every changed line and check for style violations, missed edge cases, regressions in adjacent behavior, and missing test coverage for the fix. For non-trivial fixes (multiple files, risky surface area), also run the harness's lightweight review tool (e.g., `/review` in Claude Code; the equivalent in other harnesses) — not the full `ce-code-review` multi-agent flow, which is PR-tier and over-sized for a single bug fix.
+
+**On a failed fix:** return to Phase 2 and *explicitly invalidate the current hypothesis* before forming a new one. State out loud what evidence ruled out the prior hypothesis, then form a new one with its own grounding observation and prediction. Do not retry variants of the same theory ("maybe it was the other branch", "let me also catch this case") — that is the rationalization spiral, not iteration.
 
 **3 failed fix attempts = smart escalation.** Diagnose using the same table from Phase 2. If fixes keep failing, the root cause identification was likely wrong. Return to Phase 2.
 
