@@ -107,7 +107,7 @@ Reach for `ce-sessions` when:
 Skip `ce-sessions` when:
 
 - The context lives in committed code or docs, not in agent sessions → just read the code/docs
-- You want general session metadata (count, timestamps, sizes) without semantic search → use the underlying `ce-session-inventory` directly
+- You want general session metadata (count, timestamps, sizes) without semantic search → run `discover-sessions.sh` and `extract-metadata.py` from `plugins/compound-engineering/skills/ce-sessions/scripts/` directly
 - The question is about a single specific session you remember well — open the session file directly
 
 ---
@@ -116,10 +116,10 @@ Skip `ce-sessions` when:
 
 `ce-sessions` is mostly invoked standalone, but interlocks with other skills:
 
-- **`/ce-compound` Phase 1 (Full mode)** — optionally dispatches the same `ce-session-historian` as a foreground agent to search prior sessions for related context, folding findings into the new learning's "What Didn't Work" section
+- **`/ce-compound` Phase 1 (Full mode)** — optionally invokes `ce-sessions` via the platform's skill-invocation primitive to search prior sessions for related context, folding findings into the new learning's "What Didn't Work" section
 - **`/ce-debug` Triage** — prior-attempt awareness; when the user indicates failed attempts, asking "what have you already tried" before investigating avoids repeating known-failed approaches
 
-This skill is the user-facing way to invoke session search; the other skills invoke the agent directly when they need it.
+This skill is the canonical entry point for session search across Claude Code, Codex, and Cursor; other skills invoke it via the platform's skill-invocation primitive when they need session-history context.
 
 ---
 
@@ -142,35 +142,34 @@ Most use is direct:
 | `<question>` | Direct question to search history for |
 | `<topic>` | Topic to gather context on |
 
-The skill pre-resolves the current git branch and passes it to the historian when it resolves cleanly. The historian decides time windows from the question; the default is bounded.
+The skill pre-resolves the current git branch and uses it for branch filtering when it resolves cleanly. The orchestrator picks time windows from the question; the default is bounded (7 days).
 
 ---
 
 ## FAQ
 
 **Does it work across Claude Code, Codex, and Cursor?**
-Yes — `ce-session-historian` reads from `~/.claude/projects/`, `~/.codex/sessions/`, and `~/.cursor/projects/`. Cross-harness work shows up.
+Yes — `ce-sessions` reads from `~/.claude/projects/`, `~/.codex/sessions/`, and `~/.cursor/projects/`. Cross-harness work shows up.
 
 **What does it return when there's no relevant prior session?**
 A "no relevant prior sessions" message in the digest. The skill doesn't fabricate findings to fill the digest.
 
 **How does it filter for relevance?**
-The historian uses the question to drive a relevance filter. It reads session content selectively — usually filtered by repo, branch, and time window — and synthesizes against what the question asks for. It doesn't dump raw transcripts.
+The skill uses the question to drive a relevance filter — repo, branch, and time window first, keyword match if branch turns up nothing. Up to five sessions are deep-dived; the rest are skipped. The synthesis subagent reads only the pre-extracted skeleton/error files, not the raw session JSONL.
 
-**Why a separate skill vs just a slash to the agent?**
-Because the user-facing surface should ask the right question if one wasn't given, and the skill handles the branch pre-resolution and dispatch shape consistently. The agent does the actual work, but invoking it directly skips the user-facing check and the cross-harness convention.
+**Why does this skill exist instead of dispatching the historian agent directly?**
+The user-facing surface should ask the right question if one wasn't given, and the orchestrator handles branch pre-resolution, scan-window choice, deep-dive selection, and per-session extraction in main context where script invocation works portably. The synthesis-only `ce-session-historian` subagent receives pre-extracted file paths and produces prose findings — it cannot run the discovery pipeline itself, by design.
 
 **Can it read sessions from machines I'm not on?**
 No. It reads local session files only — `~/.claude/projects/` etc. Sessions on other machines aren't accessible.
 
 **Does it work for non-software questions?**
-The historian doesn't care about the topic — it searches whatever is in your session files. If you've used the agent for non-software work and want history on that, this skill works.
+The skill doesn't care about the topic — it searches whatever is in your session files. If you've used the agent for non-software work and want history on that, this skill works.
 
 ---
 
 ## See Also
 
-- [`ce-compound`](./ce-compound.md) — invokes the same `ce-session-historian` (opt-in) during Full-mode capture for prior-context enrichment
+- [`ce-compound`](./ce-compound.md) — invokes `ce-sessions` (opt-in) during Full-mode capture for prior-context enrichment
 - [`ce-debug`](./ce-debug.md) — prior-attempt awareness uses similar context; ask the user about prior failed attempts when the signal is there
-- [`ce-session-inventory`](../../plugins/compound-engineering/skills/ce-session-inventory/) — lower-level skill for session metadata (timestamps, sizes, branch); used by the historian internally
-- [`ce-session-extract`](../../plugins/compound-engineering/skills/ce-session-extract/) — extracts conversation skeleton or error signals from a single session file; also used by the historian
+- `plugins/compound-engineering/skills/ce-sessions/scripts/` — the underlying scripts (`discover-sessions.sh`, `extract-metadata.py`, `extract-skeleton.py`, `extract-errors.py`) that ce-sessions invokes; can be run directly when raw metadata or extraction output is needed without orchestration

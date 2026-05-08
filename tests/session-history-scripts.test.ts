@@ -1,29 +1,20 @@
 import { describe, expect, test } from "bun:test"
+import fs from "fs"
+import os from "os"
 import path from "path"
 
-const INVENTORY_SCRIPTS_DIR = path.join(
+const SCRIPTS_DIR = path.join(
   __dirname,
-  "../plugins/compound-engineering/skills/ce-session-inventory/scripts"
-)
-const EXTRACT_SCRIPTS_DIR = path.join(
-  __dirname,
-  "../plugins/compound-engineering/skills/ce-session-extract/scripts"
+  "../plugins/compound-engineering/skills/ce-sessions/scripts"
 )
 const FIXTURES_DIR = path.join(__dirname, "fixtures/session-history")
-
-function scriptsDirFor(scriptName: string): string {
-  if (scriptName === "extract-metadata.py" || scriptName === "discover-sessions.sh") {
-    return INVENTORY_SCRIPTS_DIR
-  }
-  return EXTRACT_SCRIPTS_DIR
-}
 
 async function runScript(
   scriptName: string,
   args: string[] = [],
   stdin?: string
 ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-  const scriptPath = path.join(scriptsDirFor(scriptName), scriptName)
+  const scriptPath = path.join(SCRIPTS_DIR, scriptName)
   const proc = Bun.spawn(["python3", scriptPath, ...args], {
     stdin: stdin ? new TextEncoder().encode(stdin) : undefined,
     stdout: "pipe",
@@ -526,6 +517,139 @@ describe("extract-skeleton", () => {
     expect(stdout).toContain("[tools] 4x Read")
     expect(stdout).toContain("all ok")
   })
+
+  // Regression: issue #805 — some Claude Code / MCP tool inputs put a dict in
+  // fields the summarizer slices (`command`, `query`, `prompt`, `pattern`).
+  // `dict[:80]` raises TypeError: unhashable type: 'slice'. The fix guards
+  // every slice with isinstance(value, str); dict-shaped fields fall through
+  // to the next candidate or empty target without crashing the extraction.
+  test("does not crash when Claude tool input has a dict-shaped query", async () => {
+    const lines = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "t1",
+              name: "WebSearch",
+              input: { query: { foo: "bar" } },
+            },
+          ],
+        },
+        timestamp: "2026-05-08T10:00:00.000Z",
+      }),
+    ]
+    const { stdout, exitCode, stderr } = await runScript(
+      "extract-skeleton.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stderr).not.toContain("TypeError")
+    expect(stdout).toContain("[tool] WebSearch")
+    const metaLine = stdout.trim().split("\n").at(-1)!
+    expect(JSON.parse(metaLine).parse_errors).toBe(0)
+  })
+
+  test("dict-shaped command/prompt/pattern fields do not crash and fall back to empty target", async () => {
+    const lines = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "c1",
+              name: "Bash",
+              input: { command: { cmd: "ls" } },
+            },
+            {
+              type: "tool_use",
+              id: "p1",
+              name: "Task",
+              input: { prompt: { description: "x" } },
+            },
+            {
+              type: "tool_use",
+              id: "g1",
+              name: "Grep",
+              input: { pattern: { regex: "foo" } },
+            },
+          ],
+        },
+        timestamp: "2026-05-08T10:00:01.000Z",
+      }),
+    ]
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("[tool] Bash")
+    expect(stdout).toContain("[tool] Task")
+    expect(stdout).toContain("[tool] Grep")
+  })
+
+  test("falls through dict-shaped query to a later string field", async () => {
+    // When `query` is a dict, the summarizer must skip it and try `prompt`.
+    const lines = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "x1",
+              name: "MCPTool",
+              input: {
+                query: { structured: true },
+                prompt: "fallback prompt text",
+              },
+            },
+          ],
+        },
+        timestamp: "2026-05-08T10:00:02.000Z",
+      }),
+    ]
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("fallback prompt text")
+  })
+
+  test("dict-shaped Cursor tool inputs do not crash", async () => {
+    // Same exposure exists in handle_cursor's tool_use path.
+    const lines = [
+      JSON.stringify({
+        role: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "search",
+              input: { pattern: { regex: "foo" }, glob_pattern: { type: "x" } },
+            },
+          ],
+        },
+      }),
+    ]
+    const { stdout, exitCode, stderr } = await runScript(
+      "extract-skeleton.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stderr).not.toContain("TypeError")
+    expect(stdout).toContain("[tool] search")
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -603,6 +727,97 @@ describe("extract-errors", () => {
 })
 
 // ---------------------------------------------------------------------------
+// --output PATH mode: extract-skeleton.py and extract-errors.py
+//
+// When --output PATH is set, scripts write extracted bytes to PATH and emit
+// only a one-line _meta status to stdout (with wrote/bytes fields).
+// This lets ce-sessions route bulk extraction content to a scratch file
+// without round-tripping through orchestrator tool results. Without --output,
+// stdout-mode behavior is preserved (covered by tests above).
+// ---------------------------------------------------------------------------
+describe("--output PATH mode", () => {
+  function tmpFile(): string {
+    return path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), "ce-sessions-test-")),
+      "out.txt"
+    )
+  }
+
+  test("extract-skeleton writes file and emits status to stdout", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const outPath = tmpFile()
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      ["--output", outPath],
+      fixture
+    )
+    expect(exitCode).toBe(0)
+
+    // stdout receives only a one-line _meta status with wrote/bytes
+    const stdoutLines = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(stdoutLines).toHaveLength(1)
+    const status = JSON.parse(stdoutLines[0])
+    expect(status._meta).toBe(true)
+    expect(status.wrote).toBe(outPath)
+    expect(status.bytes).toBeGreaterThan(0)
+    expect(status.parse_errors).toBe(0)
+
+    // The file contains the actual extracted body, ending with the inner _meta line
+    const body = fs.readFileSync(outPath, "utf-8")
+    expect(body.length).toBe(status.bytes)
+    const bodyLines = body.trim().split("\n")
+    const innerMeta = JSON.parse(bodyLines[bodyLines.length - 1])
+    expect(innerMeta._meta).toBe(true)
+    expect(body).not.toMatch(/"wrote":/) // status field is stdout-only
+  })
+
+  test("extract-errors writes file and emits status to stdout", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const outPath = tmpFile()
+    const { stdout, exitCode } = await runScript(
+      "extract-errors.py",
+      ["--output", outPath],
+      fixture
+    )
+    expect(exitCode).toBe(0)
+
+    const stdoutLines = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(stdoutLines).toHaveLength(1)
+    const status = JSON.parse(stdoutLines[0])
+    expect(status._meta).toBe(true)
+    expect(status.wrote).toBe(outPath)
+    expect(status.bytes).toBeGreaterThan(0)
+    expect(status.errors_found).toBeGreaterThan(0)
+
+    const body = fs.readFileSync(outPath, "utf-8")
+    expect(body).toContain("[error]")
+    expect(body.length).toBe(status.bytes)
+  })
+
+  test("extract-skeleton stdout-mode still works when --output is omitted", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      [],
+      fixture
+    )
+    expect(exitCode).toBe(0)
+    // No status JSON with `wrote` field — stdout has the body and ends with inner _meta
+    expect(stdout).not.toMatch(/"wrote":/)
+    const lines = stdout.trim().split("\n")
+    const meta = JSON.parse(lines[lines.length - 1])
+    expect(meta._meta).toBe(true)
+    expect(meta).not.toHaveProperty("wrote")
+  })
+})
+
+// ---------------------------------------------------------------------------
 // Cross-platform auto-detection
 // ---------------------------------------------------------------------------
 describe("auto-detection", () => {
@@ -639,7 +854,7 @@ describe("discover-sessions", () => {
   async function runDiscover(
     ...args: string[]
   ): Promise<{ stdout: string; stderr: string; exitCode: number }> {
-    const scriptPath = path.join(scriptsDirFor("discover-sessions.sh"), "discover-sessions.sh")
+    const scriptPath = path.join(SCRIPTS_DIR, "discover-sessions.sh")
     const proc = Bun.spawn(["bash", scriptPath, ...args], {
       stdout: "pipe",
       stderr: "pipe",

@@ -1,15 +1,38 @@
 #!/usr/bin/env python3
 """Extract error signals from a Claude Code, Codex, or Cursor JSONL session file.
 
-Usage: cat <session.jsonl> | python3 extract-errors.py
+Usage:
+  cat <session.jsonl> | python3 extract-errors.py
+  cat <session.jsonl> | python3 extract-errors.py --output PATH
 
 Auto-detects platform from the JSONL structure.
 Note: Cursor agent transcripts do not log tool results, so no errors can be extracted.
 Finds failed tool calls / commands and outputs them with timestamps.
-Outputs a _meta line at the end with processing stats.
+
+When --output PATH is given, the extracted error log is written to PATH and
+stdout receives only a one-line JSON status (_meta with wrote/bytes/stats).
+This lets callers route bulk content to a scratch file without round-tripping
+extraction bytes through orchestrator tool results.
+
+Without --output, extracted content goes to stdout and ends with a _meta line.
 """
+import argparse
+import io
+import os
 import sys
 import json
+
+parser = argparse.ArgumentParser(add_help=True)
+parser.add_argument(
+    "--output",
+    metavar="PATH",
+    help="Write extracted errors to PATH instead of stdout. Stdout receives a one-line _meta status.",
+)
+args = parser.parse_args()
+
+_original_stdout = sys.stdout
+if args.output:
+    sys.stdout = io.StringIO()
 
 stats = {"lines": 0, "parse_errors": 0, "errors_found": 0}
 
@@ -102,3 +125,11 @@ for line in buffer:
         stats["parse_errors"] += 1
 
 print(json.dumps({"_meta": True, **stats}))
+
+if args.output:
+    body = sys.stdout.getvalue()
+    sys.stdout = _original_stdout
+    with open(args.output, "w") as f:
+        f.write(body)
+    bytes_written = os.path.getsize(args.output)
+    print(json.dumps({"_meta": True, "wrote": args.output, "bytes": bytes_written, **stats}))

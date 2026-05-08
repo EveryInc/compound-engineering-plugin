@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Extract the conversation skeleton from a Claude Code, Codex, or Cursor JSONL session file.
 
-Usage: cat <session.jsonl> | python3 extract-skeleton.py
+Usage:
+  cat <session.jsonl> | python3 extract-skeleton.py
+  cat <session.jsonl> | python3 extract-skeleton.py --output PATH
 
 Auto-detects platform (Claude Code, Codex, or Cursor) from the JSONL structure.
 Extracts:
@@ -12,11 +14,35 @@ Extracts:
 Consecutive tool calls of the same type are collapsed:
   3+ Read calls -> "[tools] 3x Read (file1, file2, +1 more) -> all ok"
 Codex call/result pairs are deduplicated (only the result with status is kept).
-Outputs a _meta line at the end with processing stats.
+
+When --output PATH is given, the extracted skeleton is written to PATH and
+stdout receives only a one-line JSON status (_meta with wrote/bytes/stats).
+This lets callers route bulk content to a scratch file without round-tripping
+extraction bytes through orchestrator tool results.
+
+Without --output, extracted content goes to stdout and ends with a _meta line.
 """
+import argparse
+import io
+import os
 import sys
 import json
 import re
+
+parser = argparse.ArgumentParser(add_help=True)
+parser.add_argument(
+    "--output",
+    metavar="PATH",
+    help="Write extracted skeleton to PATH instead of stdout. Stdout receives a one-line _meta status.",
+)
+args = parser.parse_args()
+
+# Capture-and-redirect when --output is set: prints in the rest of the script
+# go to the buffer; at the end the buffer is written to PATH and a status
+# line is emitted to the real stdout.
+_original_stdout = sys.stdout
+if args.output:
+    sys.stdout = io.StringIO()
 
 stats = {"lines": 0, "parse_errors": 0, "user": 0, "assistant": 0, "tool": 0}
 
@@ -95,17 +121,29 @@ def flush_tools():
     pending_tools.clear()
 
 
+def _safe_slice(value, n):
+    """Slice value if it is a string; otherwise return ''.
+
+    Some Claude Code / MCP tool inputs put structured data (dicts, lists) in
+    fields like `query` or `prompt`. `dict[:N]` raises TypeError, so guard
+    every slice with an isinstance check.
+    """
+    return value[:n] if isinstance(value, str) else ""
+
+
 def summarize_claude_tool(block):
     """Extract name and target from a Claude Code tool_use block."""
     name = block.get("name", "unknown")
     inp = block.get("input", {})
+    fp = inp.get("file_path")
+    p = inp.get("path")
     target = (
-        inp.get("file_path")
-        or inp.get("path")
-        or inp.get("command", "")[:120]
-        or inp.get("pattern", "")
-        or inp.get("query", "")[:80]
-        or inp.get("prompt", "")[:80]
+        (fp if isinstance(fp, str) else None)
+        or (p if isinstance(p, str) else None)
+        or _safe_slice(inp.get("command"), 120)
+        or _safe_slice(inp.get("pattern"), 200)
+        or _safe_slice(inp.get("query"), 80)
+        or _safe_slice(inp.get("prompt"), 80)
         or ""
     )
     if isinstance(target, str) and len(target) > 120:
@@ -264,13 +302,15 @@ def handle_cursor(obj):
             elif block.get("type") == "tool_use":
                 name = block.get("name", "unknown")
                 inp = block.get("input", {})
+                p = inp.get("path")
+                fp = inp.get("file_path")
                 target = (
-                    inp.get("path")
-                    or inp.get("file_path")
-                    or inp.get("command", "")[:120]
-                    or inp.get("pattern", "")
-                    or inp.get("glob_pattern", "")
-                    or inp.get("target_directory", "")
+                    (p if isinstance(p, str) else None)
+                    or (fp if isinstance(fp, str) else None)
+                    or _safe_slice(inp.get("command"), 120)
+                    or _safe_slice(inp.get("pattern"), 200)
+                    or _safe_slice(inp.get("glob_pattern"), 200)
+                    or _safe_slice(inp.get("target_directory"), 200)
                     or ""
                 )
                 if isinstance(target, str) and len(target) > 120:
@@ -315,3 +355,11 @@ for line in buffer:
 flush_tools()
 
 print(json.dumps({"_meta": True, **stats}))
+
+if args.output:
+    body = sys.stdout.getvalue()
+    sys.stdout = _original_stdout
+    with open(args.output, "w") as f:
+        f.write(body)
+    bytes_written = os.path.getsize(args.output)
+    print(json.dumps({"_meta": True, "wrote": args.output, "bytes": bytes_written, **stats}))

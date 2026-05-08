@@ -94,6 +94,13 @@ export const STALE_SKILL_DIRS = [
   "ce-every-style-editor",
   "ce-onboarding",
   "ce-pr-description",
+
+  // ce-session-inventory and ce-session-extract were script-host skills called
+  // only from ce-session-historian via the Skill tool. That dispatch path
+  // deadlocked on Claude Code (subagents cannot invoke Skill — issue #794), so
+  // their scripts moved into ce-sessions/scripts/ and the skills were removed.
+  "ce-session-inventory",
+  "ce-session-extract",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -281,6 +288,10 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "This skill should be used when reviewing or editing copy to ensure adherence to Every's style guide. It provides a systematic line-by-line review process for grammar, punctuation, mechanics, and style guide compliance.",
   "ce-pr-description":
     "Write or regenerate a value-first pull-request description (title + body) for the current branch's commits or for a specified PR. Use when the user says 'write a PR description', 'refresh the PR description', 'regenerate the PR body', 'rewrite this PR', 'freshen the PR', 'update the PR description', 'draft a PR body for this diff', 'describe this PR properly', 'generate the PR title', or pastes a GitHub PR URL / #NN / number. Also used internally by ce-commit-push-pr (single-PR flow) and ce-pr-stack (per-layer stack descriptions) so all callers share one writing voice. Input is a natural-language prompt. A PR reference (a full GitHub PR URL, `pr:561`, `#561`, or a bare number alone) picks a specific PR; anything else is treated as optional steering for the default 'describe my current branch' mode. Returns structured {title, body_file} (body written to an OS temp file) for the caller to apply via gh pr edit or gh pr create — this skill never edits the PR itself and never prompts for confirmation.",
+  "ce-session-extract":
+    "Extract conversation skeleton or error signals from a single session file at a given path. Invoked by session-research agents after they have selected which sessions to deep-dive — not intended for direct user queries.",
+  "ce-session-inventory":
+    "Discover session files for a repo across Claude Code, Codex, and Cursor, and extract session metadata (timestamps, branch, cwd, size, platform). Invoked by session-research agents — not intended for direct user queries.",
 }
 
 /**
