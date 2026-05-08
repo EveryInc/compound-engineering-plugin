@@ -96,15 +96,17 @@ describe("ce-compound YAML safety rule presence", () => {
     expect(frontmatterAdjacent.length).toBeGreaterThanOrEqual(2)
   })
 
-  test("ce-compound-refresh/SKILL.md points at YAML-safety rules in the Replace flow", async () => {
+  test("ce-compound-refresh per-action-flows reference points at YAML-safety rules in the Replace flow", async () => {
+    // The Replace Flow content lives in references/per-action-flows.md after the
+    // Phase 4 extraction; SKILL.md keeps a stub that delegates to it.
     const raw = await readFile(
-      path.join(PLUGIN_ROOT, "ce-compound-refresh", "SKILL.md"),
+      path.join(PLUGIN_ROOT, "ce-compound-refresh", "references", "per-action-flows.md"),
       "utf8",
     )
     // Anchor to the Replace Flow section so a drifted or deleted pointer is
     // caught even if the phrase still appears elsewhere in the file.
     const replaceFlowMatch = raw.match(
-      /###\s+Replace\s+Flow\b([\s\S]*?)(?=\n###\s+\w|\n##\s+\w|$)/,
+      /##\s+Replace\s+Flow\b([\s\S]*?)(?=\n##\s+\w|$)/,
     )
     expect(replaceFlowMatch).not.toBeNull()
     const replaceFlow = replaceFlowMatch?.[1] ?? ""
