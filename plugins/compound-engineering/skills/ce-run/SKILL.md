@@ -59,15 +59,17 @@ For each phase in the `phases` list from frontmatter:
 
 1. **Check if optional** — If the phase has `optional: true` and `skip-when`, evaluate whether to skip based on the feature description and context. Explain your reasoning to the user.
 
-2. **Invoke the skill** — Run the skill specified in `skill:`, passing `args:` with variable substitution:
+2. **Check if wrapped** — If the phase has `wrapped: true` in its frontmatter, do NOT invoke the skill in-thread. Instead, yield control to the orchestrator: follow the orchestrator persona's wrapped-phase behavior section (e.g., Erin's `## Wrapped phases`) for dispatch, post-return verification, and run-state management. The orchestrator owns dispatch parameters, the constraints injected into the wrapped subagent's prompt, and all post-return logic. ce-run's role here is recognition only — it does not define a generic `wrapped: <persona>` primitive, schema, or dispatch shape; it just yields. After the orchestrator's wrapped-phase behavior returns control, continue with steps 4–6 (gate evaluation, state tracking, signals) for this phase as normal. If `wrapped: true` is absent (or false), proceed to step 3 (in-thread invocation).
+
+3. **Invoke the skill** — Run the skill specified in `skill:`, passing `args:` with variable substitution:
    - `$ARGUMENTS` → the feature description from step 1
    - `$PLAN_PATH` → the path to the plan file created during the plan phase
 
-3. **Evaluate the gate** — If the phase has a `gate:`, verify the gate conditions are met before proceeding to the next phase. If the gate fails, retry or ask the user for guidance (depending on orchestrator personality).
+4. **Evaluate the gate** — If the phase has a `gate:`, verify the gate conditions are met before proceeding to the next phase. If the gate fails, retry or ask the user for guidance (depending on orchestrator personality).
 
-4. **Track state** — Remember the plan file path when created, track which phases have completed, note key decisions.
+5. **Track state** — Remember the plan file path when created, track which phases have completed, note key decisions.
 
-5. **Handle signals** — If the phase has a `signal:` instead of a `skill:`, output that signal (e.g., `<promise>DONE</promise>`).
+6. **Handle signals** — If the phase has a `signal:` instead of a `skill:`, output that signal (e.g., `<promise>DONE</promise>`).
 
 ### Variable threading
 
