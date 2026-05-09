@@ -29,3 +29,17 @@ Visual aids are conditional on content patterns, not on plan depth classificatio
 - Prose is authoritative: when a visual aid and its surrounding prose disagree, the prose governs.
 
 After generating a visual aid, verify it accurately represents the plan sections it illustrates -- correct dependency edges, no missing surfaces, no merged units.
+
+## HTML Mode Diagrams
+
+When `ce-plan` runs in HTML mode, use inline SVG instead of Mermaid or ASCII diagrams. The shared HTML output reference at `plugins/compound-engineering/skills/_shared/html-output.md` defines the three reusable SVG patterns:
+
+- **Data flow** - Use when the plan needs to show artifact, request, or data movement between systems. Best fits High-Level Technical Design or System-Wide Impact when the flow is the important reader question.
+- **Sequence** - Use when the plan needs to show ordered interactions between actors, services, skills, or review loops. Best fits High-Level Technical Design or a complex Implementation Unit's optional technical design field.
+- **Dependency** - Use when the plan has non-linear Implementation Unit prerequisites. Best fits directly before or after the Implementation Units heading, with U-ID labels matching the article anchors.
+
+Format rules by output mode:
+
+- **HTML mode:** inline SVG is the default for diagrams. Keep it static, self-contained, and labeled with `role="img"` plus a `<title>` unless decorative.
+- **Markdown mode:** keep the existing Mermaid-first guidance. ASCII remains available for markdown-only annotated flows where Mermaid is too sparse.
+- **Both modes:** prose remains authoritative. If the diagram and surrounding text disagree, fix the diagram or remove it.

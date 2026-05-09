@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sample HTML Plan</title>
+  <style>
+:root {
+  color-scheme: light dark;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-soft: #f1f5f9;
+  --text: #111827;
+  --text-muted: #475569;
+  --border: #cbd5e1;
+  --accent: #0f766e;
+  --accent-soft: #ccfbf1;
+  --accent-text: #115e59;
+  --danger: #b91c1c;
+  --danger-soft: #fee2e2;
+  --warning: #a16207;
+  --warning-soft: #fef3c7;
+  --code-bg: #0f172a;
+  --code-text: #e2e8f0;
+  --shadow: 0 1px 2px rgb(15 23 42 / 0.08);
+  --radius: 8px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 16px;
+  line-height: 1.6;
+}
+a { color: var(--accent); text-underline-offset: 0.18em; }
+.doc-header, .doc-footer { max-width: 1180px; margin: 0 auto; padding: 32px 24px 24px; }
+.doc-header h1 { margin: 0; font-size: clamp(2rem, 4vw, 3.5rem); line-height: 1.05; letter-spacing: 0; }
+.eyebrow { margin: 0 0 10px; color: var(--accent-text); font-size: 0.78rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.summary { max-width: 760px; margin: 16px 0 0; color: var(--text-muted); font-size: 1.05rem; }
+.pill-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.pill { display: inline-flex; align-items: center; min-height: 28px; border: 1px solid var(--border); border-radius: 999px; padding: 3px 10px; background: var(--surface); color: var(--text-muted); font-size: 0.82rem; font-weight: 650; }
+.pill-status-active, .pill-type-feat { background: var(--accent-soft); color: var(--accent-text); }
+.layout { display: grid; grid-template-columns: minmax(180px, 240px) minmax(0, 1fr); gap: 24px; max-width: 1180px; margin: 0 auto; padding: 0 24px 40px; }
+.toc { position: sticky; top: 16px; align-self: start; border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; background: var(--surface); box-shadow: var(--shadow); }
+.toc a { display: block; border-radius: 6px; padding: 7px 9px; color: var(--text-muted); font-size: 0.9rem; text-decoration: none; }
+.toc a:hover, .toc a:focus { background: var(--surface-soft); color: var(--text); }
+main { min-width: 0; }
+section, article, .notice, .risk, .table-wrap { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+section { margin-bottom: 18px; padding: 24px; }
+article { margin-top: 14px; padding: 20px; }
+h2, h3, h4 { margin: 0 0 12px; line-height: 1.25; letter-spacing: 0; }
+h2 { font-size: 1.45rem; }
+h3 { font-size: 1.12rem; }
+p, ul, ol { margin-top: 0; }
+ul, ol { padding-left: 1.35rem; }
+.notice { margin-bottom: 18px; padding: 14px 16px; background: var(--accent-soft); color: var(--accent-text); }
+.risk { margin-top: 12px; padding: 14px 16px; }
+.risk-high { background: var(--danger-soft); color: var(--danger); }
+.table-wrap { overflow-x: auto; margin: 14px 0; }
+table { width: 100%; min-width: 620px; border-collapse: collapse; font-size: 0.94rem; }
+thead { background: var(--surface-soft); }
+th, td { border-bottom: 1px solid var(--border); padding: 10px 12px; text-align: left; vertical-align: top; }
+th { color: var(--text); font-weight: 700; }
+tbody tr:nth-child(even) { background: var(--surface-soft); }
+code, pre { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; }
+code { border-radius: 5px; padding: 0.12em 0.34em; background: var(--surface-soft); }
+pre { overflow-x: auto; border-radius: var(--radius); padding: 14px 16px; background: var(--code-bg); color: var(--code-text); font-size: 0.9rem; line-height: 1.5; }
+.diagram { width: 100%; height: auto; margin: 12px 0; }
+.diagram text { fill: currentColor; font-family: ui-sans-serif, system-ui, sans-serif; font-size: 13px; }
+.doc-footer { color: var(--text-muted); font-size: 0.9rem; }
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1120;
+    --surface: #111827;
+    --surface-soft: #1f2937;
+    --text: #f8fafc;
+    --text-muted: #cbd5e1;
+    --border: #334155;
+    --accent: #2dd4bf;
+    --accent-soft: #143a3a;
+    --accent-text: #99f6e4;
+    --danger: #fca5a5;
+    --danger-soft: #3f1d1d;
+    --warning: #facc15;
+    --warning-soft: #3b2f13;
+    --code-bg: #020617;
+    --code-text: #e2e8f0;
+    --shadow: 0 1px 2px rgb(0 0 0 / 0.35);
+  }
+}
+@media (max-width: 768px) {
+  .doc-header, .doc-footer, .layout { padding-left: 16px; padding-right: 16px; }
+  .layout { display: block; }
+  .toc { position: static; margin-bottom: 16px; }
+  section { padding: 18px; }
+  article { padding: 16px; }
+  table { min-width: 0; }
+  thead { display: none; }
+  table, tbody, tr, td { display: block; width: 100%; }
+  tr { border-bottom: 1px solid var(--border); padding: 8px 0; }
+  td { border-bottom: 0; padding: 6px 10px; }
+  td::before { content: attr(data-label); display: block; color: var(--text-muted); font-size: 0.76rem; font-weight: 700; text-transform: uppercase; }
+}
+  </style>
+</head>
+<body>
+  <header class="doc-header">
+    <p class="eyebrow">ce-plan HTML view</p>
+    <h1>Sample HTML Plan</h1>
+    <p class="summary">Add an opt-in HTML output mode to ce-plan while leaving markdown output unchanged.</p>
+    <div class="pill-row" aria-label="Plan frontmatter">
+      <span class="pill pill-status-active">status: active</span>
+      <span class="pill pill-type-feat">type: feat</span>
+      <span class="pill pill-date">date: 2026-05-08</span>
+      <span class="pill pill-generated-by">generated_by: ce-plan</span>
+    </div>
+    <script type="application/json" id="plan-frontmatter">
+{"title":"Sample HTML Plan","type":"feat","status":"active","date":"2026-05-08","generated_by":"ce-plan"}
+    </script>
+  </header>
+
+  <div class="layout">
+    <nav class="toc" aria-label="Plan sections">
+      <a href="#summary">Summary</a>
+      <a href="#problem-frame">Problem Frame</a>
+      <a href="#requirements">Requirements</a>
+      <a href="#implementation-units">Implementation Units</a>
+      <a href="#u1">U1. Shared Reference</a>
+      <a href="#u2">U2. ce-plan Template</a>
+      <a href="#test-scenarios">Test Scenarios</a>
+      <a href="#risks-open-questions">Risks &amp; Open Questions</a>
+      <a href="#sources">Sources &amp; References</a>
+    </nav>
+
+    <main>
+      <aside class="notice" aria-label="Implementation note">
+        <strong>Implementation Note:</strong> This is the HTML view of a ce-plan. Run ce-plan without --html to produce the markdown plan that ce-work consumes.
+      </aside>
+
+      <section id="summary">
+        <h2>Summary</h2>
+        <p>This sample demonstrates the expected single-file HTML shape for ce-plan output.</p>
+      </section>
+
+      <section id="problem-frame">
+        <h2>Problem Frame</h2>
+        <p>Long markdown plans can be hard to scan when shared outside the immediate implementation loop.</p>
+      </section>
+
+      <section id="requirements">
+        <h2>Requirements</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">R-ID</th>
+                <th scope="col">Requirement</th>
+                <th scope="col">Origin trace</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row" data-label="R-ID">R1</th>
+                <td data-label="Requirement">Support an opt-in HTML output mode.</td>
+                <td data-label="Origin trace">Plan requirement R1</td>
+              </tr>
+              <tr>
+                <th scope="row" data-label="R-ID">R2</th>
+                <td data-label="Requirement">Keep default markdown output unchanged.</td>
+                <td data-label="Origin trace">Plan requirement R10</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="implementation-units">
+        <h2>Implementation Units</h2>
+        <svg class="diagram" viewBox="0 0 640 220" role="img" aria-labelledby="dependency-title" xmlns="http://www.w3.org/2000/svg">
+          <title id="dependency-title">Dependency graph</title>
+          <defs>
+            <marker id="dep-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto">
+              <path d="M 0 0 L 10 5 L 0 10 z" fill="currentColor"></path>
+            </marker>
+          </defs>
+          <rect x="70" y="82" width="160" height="56" rx="8" fill="none" stroke="currentColor"></rect>
+          <text x="150" y="116" text-anchor="middle">U1 Shared reference</text>
+          <rect x="410" y="82" width="160" height="56" rx="8" fill="none" stroke="currentColor"></rect>
+          <text x="490" y="116" text-anchor="middle">U2 Template</text>
+          <line x1="236" y1="110" x2="402" y2="110" stroke="currentColor" marker-end="url(#dep-arrow)"></line>
+        </svg>
+
+        <article id="u1">
+          <h3>U1. Shared Reference</h3>
+          <p><strong>Goal:</strong> Define the reusable skeleton, CSS, frontmatter contract, anchors, and SVG patterns.</p>
+          <p><strong>Requirements:</strong> R1, R3, R5, R8</p>
+          <p><strong>Dependencies:</strong> None</p>
+          <h4>Files</h4>
+          <ul>
+            <li>Create: <code>plugins/compound-engineering/skills/_shared/html-output.md</code></li>
+            <li>Test: <code>tests/skills/ce-plan-html-output.test.ts</code></li>
+          </ul>
+          <h4>Approach</h4>
+          <ul>
+            <li>Keep shared HTML rules in one reference so later skills reuse the same contract.</li>
+          </ul>
+          <h4>Test Scenarios</h4>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Category</th>
+                  <th scope="col">Scenario</th>
+                  <th scope="col">Expected</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row" data-label="Category">Happy path</th>
+                  <td data-label="Scenario">Read the shared reference.</td>
+                  <td data-label="Expected">It includes skeleton, CSS, frontmatter, anchors, SVG, and anti-bloat rules.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h4>Acceptance</h4>
+          <ul>
+            <li>Shared contract is explicit and self-contained.</li>
+          </ul>
+        </article>
+
+        <article id="u2">
+          <h3>U2. ce-plan Template</h3>
+          <p><strong>Goal:</strong> Provide plan-specific HTML structure for requirements, implementation units, tests, risks, and sources.</p>
+          <p><strong>Requirements:</strong> R2, R4, R6, R7, R9</p>
+          <p><strong>Dependencies:</strong> U1</p>
+          <h4>Files</h4>
+          <ul>
+            <li>Create: <code>plugins/compound-engineering/skills/ce-plan/references/html-plan-template.md</code></li>
+            <li>Modify: <code>plugins/compound-engineering/skills/ce-plan/SKILL.md</code></li>
+          </ul>
+          <h4>Approach</h4>
+          <ul>
+            <li>Branch only when HTML mode is requested and keep the markdown template path as the default.</li>
+          </ul>
+          <h4>Test Scenarios</h4>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th scope="col">Category</th>
+                  <th scope="col">Scenario</th>
+                  <th scope="col">Expected</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <th scope="row" data-label="Category">Integration</th>
+                  <td data-label="Scenario">Invoke ce-plan with <code>--html</code>.</td>
+                  <td data-label="Expected">The plan path ends with <code>.html</code> and uses the HTML template.</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <h4>Acceptance</h4>
+          <ul>
+            <li>HTML mode is documented and scoped as read-mode.</li>
+          </ul>
+        </article>
+      </section>
+
+      <section id="test-scenarios">
+        <h2>Test Scenarios</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th scope="col">Unit</th>
+                <th scope="col">Category</th>
+                <th scope="col">Scenario</th>
+                <th scope="col">Expected</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <th scope="row" data-label="Unit"><a href="#u1">U1</a></th>
+                <td data-label="Category">Happy path</td>
+                <td data-label="Scenario">Parse the fixture frontmatter JSON.</td>
+                <td data-label="Expected">It round-trips to the source frontmatter object.</td>
+              </tr>
+              <tr>
+                <th scope="row" data-label="Unit"><a href="#u2">U2</a></th>
+                <td data-label="Category">Edge case</td>
+                <td data-label="Scenario">Scan for external resource loads.</td>
+                <td data-label="Expected">No stylesheet, script, font, or image is loaded from a remote URL.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="risks-open-questions">
+        <h2>Risks &amp; Open Questions</h2>
+        <aside class="risk risk-high">
+          <strong>Downstream consumers:</strong> ce-work consumes markdown today, so HTML output is explicitly read-mode until a follow-up teaches consumers to read it.
+        </aside>
+      </section>
+
+      <section id="sources">
+        <h2>Sources &amp; References</h2>
+        <ul>
+          <li>ce-plan skill: <code>plugins/compound-engineering/skills/ce-plan/SKILL.md</code></li>
+          <li>HTML inspiration: <a href="https://thariqs.github.io/html-effectiveness/">Using Claude Code: The Unreasonable Effectiveness of HTML</a></li>
+        </ul>
+      </section>
+    </main>
+  </div>
+
+  <footer class="doc-footer">
+    <p>Generated by ce-plan. Markdown remains the workflow source until downstream skills support HTML inputs.</p>
+  </footer>
+</body>
+</html>

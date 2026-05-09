@@ -55,6 +55,32 @@ Every plan should contain:
 
 A plan is ready when an implementer can start confidently without needing the plan to write the code for them.
 
+## Output Format
+
+Default output is markdown. Unless the user explicitly requests HTML, set `OUTPUT_FORMAT=markdown`, read `references/plan-template.md`, and write the plan to:
+
+```text
+docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md
+```
+
+HTML output is opt-in. Set `OUTPUT_FORMAT=html` only when `$ARGUMENTS` contains either:
+- `--html`
+- a bare `html` keyword, accepted as a fallback for harnesses that strip leading dashes
+
+When `OUTPUT_FORMAT=html`, read `references/html-plan-template.md` instead of the markdown template and write the plan to the same path convention with an `.html` extension:
+
+```text
+docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.html
+```
+
+Every HTML plan must emit this Implementation Note near the top:
+
+```text
+This is the HTML view of a ce-plan. Run ce-plan without --html to produce the markdown plan that ce-work consumes.
+```
+
+Markdown remains the workflow source until downstream skills explicitly support HTML inputs. Do not change flagless markdown behavior.
+
 ## Workflow
 
 ### Phase 0: Resume, Source, and Scope
@@ -483,7 +509,9 @@ Do not add these as boilerplate. Include them only when they improve execution q
 
 #### 4.2 Core Plan Template
 
-Read `references/plan-template.md` for the core plan template (frontmatter, all standard sections, fill-in placeholders) and the optional Deep extensions template (Alternative Approaches Considered, Success Metrics, Dependencies, Risk Analysis, Phased Delivery, Documentation Plan, Operational Notes). Omit clearly inapplicable optional sections — especially for Lightweight plans.
+If `OUTPUT_FORMAT=markdown`, read `references/plan-template.md` for the core plan template (frontmatter, all standard sections, fill-in placeholders) and the optional Deep extensions template (Alternative Approaches Considered, Success Metrics, Dependencies, Risk Analysis, Phased Delivery, Documentation Plan, Operational Notes). Omit clearly inapplicable optional sections — especially for Lightweight plans.
+
+If `OUTPUT_FORMAT=html`, read `references/html-plan-template.md` for the ce-plan HTML structure. The HTML template mirrors the core plan sections, renders Requirements traceability and Test Scenarios as tables, renders Implementation Units as `<article id="uN">`, preserves frontmatter as header pills plus `<script type="application/json" id="plan-frontmatter">`, and emits the Implementation Note described in Output Format.
 
 #### 4.3 Planning Rules
 
@@ -544,10 +572,18 @@ Fires **only when the plan was sourced from an upstream brainstorm doc** (Phase 
 
 **REQUIRED: Write the plan file to disk before presenting any options.**
 
-Use the Write tool to save the complete plan to:
+Use the Write tool to save the complete plan to the path that matches `OUTPUT_FORMAT`.
+
+Markdown mode:
 
 ```text
 docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md
+```
+
+HTML mode:
+
+```text
+docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.html
 ```
 
 Confirm (use absolute path so the reference is clickable in modern terminals):
@@ -619,9 +655,16 @@ After document review and final checks, print a one-line summary of the headless
 4. **Open in Proof (web app) — review and comment to iterate with the agent** - Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others
 5. **Done for now** - Pause; the plan file is saved and can be resumed later
 
+If `OUTPUT_FORMAT=html`, replace option 1 with:
+
+1. **Open in browser** (recommended) - Open the HTML plan locally for review
+
+Keep the remaining options and renumber when the actionable-findings rule drops the deeper-review option. Do not present `Start /ce-work` as the recommended next step for HTML plans because ce-work consumes markdown plans today.
+
 **Routing.** Act on the user's selection — do not just announce it. Elaborate sub-flows (Proof HITL state machine, Issue Creation tracker detection, post-HITL resync) live in `references/plan-handoff.md`.
 
 - **Start `/ce-work`** — Invoke the `ce-work` skill via the platform's skill-invocation primitive (`Skill` in Claude Code, `Skill` in Codex, the equivalent on Gemini/Pi), passing the plan path as the skill argument. Do not merely tell the user to type `/ce-work` — fire the invocation now so the plan executes in this session.
+- **Open in browser** — Open the saved HTML file with the platform's local browser-opening primitive when available, or display the absolute HTML path for the user to open. Do not invoke `ce-work` for HTML plans until downstream HTML consumption exists.
 - **Run deeper doc review** — Re-invoke the `ce-doc-review` skill on the plan path **without** `mode:headless` so the interactive routing question and walkthrough fire. After it returns, re-render this menu with refreshed counts so the user can pick a next-stage action.
 - **Create Issue** — Detect the project tracker (`gh` for GitHub, `linear` for Linear) and create the issue from the plan file as described under "Issue Creation" in `references/plan-handoff.md`. After creation, display the issue URL and ask whether to proceed to `/ce-work` via the platform's blocking question tool.
 - **Open in Proof (web app) — review and comment to iterate with the agent** — Load the `ce-proof` skill in HITL-review mode with the plan file as `source file`, the plan title as `doc title`, identity `ai:compound-engineering` / `Compound Engineering`, and recommended next step `/ce-work`. Then follow the post-HITL resync logic in `references/plan-handoff.md`, which handles the four `ce-proof` return statuses, re-runs `ce-doc-review` after material edits, and falls back gracefully on upload failure.

@@ -17,6 +17,10 @@ const SKILL_EXEMPTIONS = new Set<string>([
 ])
 const AGENT_EXEMPTIONS = new Set<string>([])
 
+function isSupportDirectory(entryName: string): boolean {
+  return entryName.startsWith("_")
+}
+
 function frontmatterName(filePath: string): string {
   const { data } = parseFrontmatter(readFileSync(filePath, "utf8"), filePath)
   return typeof data.name === "string" ? data.name : ""
@@ -24,7 +28,11 @@ function frontmatterName(filePath: string): string {
 
 describe("compound-engineering skill ce- prefix", () => {
   const skillDirs = readdirSync(SKILLS_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && !SKILL_EXEMPTIONS.has(entry.name))
+    .filter((entry) =>
+      entry.isDirectory() &&
+      !isSupportDirectory(entry.name) &&
+      !SKILL_EXEMPTIONS.has(entry.name),
+    )
     .map((entry) => entry.name)
 
   for (const dirName of skillDirs) {
