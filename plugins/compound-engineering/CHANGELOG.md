@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.7.3...compound-engineering-v3.8.0) (2026-05-10)
+
+
+### Features
+
+* **ce-compound:** add mode:headless for non-interactive use ([#813](https://github.com/EveryInc/compound-engineering-plugin/issues/813)) ([9b45a83](https://github.com/EveryInc/compound-engineering-plugin/commit/9b45a83d7ed2534669656fb3abf6a2c23e2e4f59))
+
 ## [3.7.3](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.7.2...compound-engineering-v3.7.3) (2026-05-08)
 
 
