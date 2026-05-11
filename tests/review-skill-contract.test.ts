@@ -1004,13 +1004,21 @@ describe("ce-code-review-beta contract", () => {
     )
     expect(workflow).toContain("resolve each delegated persona from the Stage 3c mapping")
     const acceptance = sectionBetween(workflow, "On acceptance:", "On decline:")
-    expect(acceptance).toContain('Run `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"`')
-    // Bare-relative invocation is unsafe: a reviewed PR could plant a malicious
+    // The portable pattern `${CLAUDE_SKILL_DIR:-.}/scripts/...` resolves to the
+    // absolute skill directory on Claude Code (where the variable is reliably
+    // set), and to a bare relative path on Codex/Gemini and other harnesses
+    // whose Bash CWD is the skill directory. This keeps the skill usable on
+    // non-Claude converted targets while preserving the same security property
+    // on Claude Code, since the fallback to `.` only activates when the
+    // variable is unset — which is the signal that we are NOT on Claude Code.
+    expect(acceptance).toContain('Run `bash "${CLAUDE_SKILL_DIR:-.}/scripts/integrity-check-config.sh" "$REPO_ROOT"`')
+    // Bare-relative invocation (no skill-dir prefix at all) is unsafe on
+    // Claude Code: a reviewed PR could plant a malicious
     // scripts/integrity-check-config.sh in the repo root, and the Bash tool
     // resolves bare paths against the reviewed repo CWD. Allow the bare-path
-    // string in cautionary prose ("Never invoke `bash scripts/...`"), but block
-    // any active invocation lines (start of line or inside a backticked Run
-    // command).
+    // string in cautionary prose ("an unprefixed `bash scripts/...` would..."),
+    // but block any active invocation lines (start of line or inside a
+    // backticked Run command).
     const activeInvocations = workflow.match(
       /(?:^|`Run `)bash scripts\/(integrity-check-config|trust-check-codex)\.sh/gm,
     )

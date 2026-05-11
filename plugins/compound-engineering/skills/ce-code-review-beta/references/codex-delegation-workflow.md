@@ -21,13 +21,13 @@ If the block above shows `__TRUSTED_CONFIG__:<path>`, follow these steps in orde
 
 1. Treat the embedded path as informational only — do NOT read it directly.
 2. Re-derive the repo root at runtime via `git rev-parse --show-toplevel`.
-3. Run `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"` via the Bash tool to re-confirm the OK status. Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable). Never invoke `bash scripts/integrity-check-config.sh` with a bare relative path — the Bash tool's CWD is the reviewed repo, so a bare path would either fail to find the script or, worse, execute a script of the same name planted by the reviewed PR.
+3. Run `bash "${CLAUDE_SKILL_DIR:-.}/scripts/integrity-check-config.sh" "$REPO_ROOT"` via the Bash tool to re-confirm the OK status. The `${CLAUDE_SKILL_DIR:-.}` form works across targets: on Claude Code the variable holds the absolute skill directory (the runtime Bash CWD is the user's project, so an unprefixed `bash scripts/integrity-check-config.sh` would either miss the script or — worse — execute a same-named script planted by the reviewed PR); on Codex, Gemini, and similar harnesses where the variable is unset, the `:-.` fallback yields the bare relative path they natively resolve from the skill directory.
 4. Only after the check passes, read `<repo-root>/.compound-engineering/config.local.yaml` using the native file-read tool (e.g., Read in Claude Code, read_file in Codex).
 
 The `scripts/integrity-check-config.sh` script encodes the same checks as the pre-resolution one-liner above and is the preferred runtime verifier — both are kept so the prose contract and the script implementation can be cross-checked.
 If it shows `__NO_CONFIG__`, the file does not exist — all settings fall through to defaults.
 If it shows `__UNTRUSTED_CONFIG__`, do not read the file for this run. Treat all settings as defaults and note in Coverage: `delegation config ignored because config.local.yaml is not local-only`.
-If it shows an unresolved command string, verify the same integrity properties with `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"` at runtime using the Bash tool. Do not paste the chained pre-resolution command into a runtime shell call. Only after the check passes, read `.compound-engineering/config.local.yaml`; otherwise use defaults.
+If it shows an unresolved command string, verify the same integrity properties with `bash "${CLAUDE_SKILL_DIR:-.}/scripts/integrity-check-config.sh" "$REPO_ROOT"` at runtime using the Bash tool. Do not paste the chained pre-resolution command into a runtime shell call. Only after the check passes, read `.compound-engineering/config.local.yaml`; otherwise use defaults.
 
 If any setting has an unrecognized value, fall through to the hard default for that setting. For optional settings without a hard default (`review_delegate_model`, `review_delegate_effort`), an unrecognized or unparseable value resolves to **unset** — the corresponding flag is omitted from the `codex exec` invocation so Codex uses its built-in default under the workflow's `--ignore-user-config` launch. Never substitute an invalid value into the CLI flags.
 
@@ -205,10 +205,10 @@ Also smoke-check the candidate under an environment that matches the actual dele
 The above rules are the contract; `scripts/trust-check-codex.sh` is the canonical implementation and is the preferred runtime entry point — invoke it as:
 
 ```bash
-bash "${CLAUDE_SKILL_DIR}/scripts/trust-check-codex.sh" "$CODEX_BIN_CANDIDATE" "$REPO_ROOT" "$SCRATCH_DIR"
+bash "${CLAUDE_SKILL_DIR:-.}/scripts/trust-check-codex.sh" "$CODEX_BIN_CANDIDATE" "$REPO_ROOT" "$SCRATCH_DIR"
 ```
 
-Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable). Never invoke `bash scripts/trust-check-codex.sh` with a bare relative path — the Bash tool's CWD is the reviewed repo, so a bare path would either fail to find the script or, worse, execute a script of the same name planted by the reviewed PR before the trust check has a chance to run.
+The `${CLAUDE_SKILL_DIR:-.}` form works across targets: on Claude Code the variable holds the absolute skill directory (the runtime Bash CWD is the user's project, so an unprefixed `bash scripts/trust-check-codex.sh` would either miss the script or — worse — execute a same-named script planted by the reviewed PR before the trust check ran); on Codex, Gemini, and similar harnesses where the variable is unset, the `:-.` fallback yields the bare relative path they natively resolve from the skill directory.
 
 The script encodes every check above (canonicalization, repo/scratch/world-writable rejection, shell-metacharacter rejection, executable-bit verification, scrubbed-env smoke probe with `NO_PROXY` and `HTTP_PROXY=http://127.0.0.1:1` hard-disabled, and nvm/asdf shim detection). On `TRUSTED:<canonical-path>`, capture the canonical path and use it as the verified `codex_bin` for every delegated launch — do NOT resolve `codex` again through the inherited environment. On `ERROR:<reason>`, apply the failed-check action with check-name `codex-binary`. The script emits a specific message when the failure is an nvm/asdf shim whose interpreter (e.g., `node`) isn't on the scrubbed PATH; surface that detail to the user. Keeping prose and script in sync prevents drift between the contract and the implementation.
 
@@ -239,7 +239,7 @@ The consent prompt's accompanying explanation covers:
 - The other Codex sandbox modes (`workspace-write`, `danger-full-access`, and `--dangerously-bypass-approvals-and-sandbox`) are intentionally NOT offered for review delegation. Persona reviewers are read-only by contract — they don't edit project files, run tests, build, or touch arbitrary network resources. Read-only covers 100% of documented persona behavior; broader sandboxes would be footguns with no defensible review use case. (`ce-work-beta` offers them because plan execution needs network and writes; review has neither requirement.)
 
 On acceptance:
-- Run `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"`. The script verifies symlink rejection, regular-file requirement, gitignore coverage, not-tracked-by-git, and resolved-path-stays-inside-root.
+- Run `bash "${CLAUDE_SKILL_DIR:-.}/scripts/integrity-check-config.sh" "$REPO_ROOT"`. The script verifies symlink rejection, regular-file requirement, gitignore coverage, not-tracked-by-git, and resolved-path-stays-inside-root.
 - On `OK:<absolute-config-path>`, write `review_delegate_consent: true` to that path. Create `<repo-root>/.compound-engineering/` and the YAML file if absent; merge keys preserving existing ones if the file exists.
 - On `ABSENT`, the file does not exist yet — create it as above and write consent.
 - On `ERROR:<reason>`, do not write consent. Note in Coverage: `review_delegate_consent ignored because <reason>`. If the reason indicates the gitignore rule is missing, ask whether to add `.compound-engineering/*.local.yaml` to `.gitignore` before retrying. **The user will be re-prompted for consent on the next invocation until the gitignore rule is in place** — surface this in the decline message so the recurrence is expected, not surprising.
@@ -247,7 +247,7 @@ On acceptance:
 
 On decline:
 - Ask whether to disable delegation entirely for this project
-- If yes: run `bash "${CLAUDE_SKILL_DIR}/scripts/integrity-check-config.sh" "$REPO_ROOT"`. On `OK:<absolute-config-path>`, write `review_delegate: false` to that path, merging keys preserving existing ones. On `ABSENT`, create `<repo-root>/.compound-engineering/` and the YAML file, then write `review_delegate: false`. On `ERROR:<reason>`, do not write and note in Coverage: `review_delegate: false not persisted because <reason>`. Set `delegation_active` to false and proceed in standard mode either way.
+- If yes: run `bash "${CLAUDE_SKILL_DIR:-.}/scripts/integrity-check-config.sh" "$REPO_ROOT"`. On `OK:<absolute-config-path>`, write `review_delegate: false` to that path, merging keys preserving existing ones. On `ABSENT`, create `<repo-root>/.compound-engineering/` and the YAML file, then write `review_delegate: false`. On `ERROR:<reason>`, do not write and note in Coverage: `review_delegate: false not persisted because <reason>`. Set `delegation_active` to false and proceed in standard mode either way.
 - If no: set `delegation_active` to false for this invocation only, proceed in standard mode
 
 ## Per-Reviewer Prompt File

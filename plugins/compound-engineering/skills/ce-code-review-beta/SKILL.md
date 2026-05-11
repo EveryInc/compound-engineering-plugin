@@ -268,12 +268,14 @@ Pass the full PR URL from the `gh pr view` response into `resolve-base.sh` so it
 Then compute a local diff against the PR's base branch so re-reviews also include local fix commits and uncommitted edits. Resolve the base ref from the PR's actual base repository, not by assuming `origin` points at that repo. PR mode and standalone mode share one tested code path via `scripts/resolve-base.sh` — pass the PR URL (`<url>` from `gh pr view` metadata) and PR base branch (`<base>` from `gh pr view` metadata) as flags:
 
 ```bash
-RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh"
-[ -f "$RESOLVE_SCRIPT" ] || { echo "ERROR: resolve-base.sh not found (CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-unset})"; exit 1; }
+RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR:-.}/scripts/resolve-base.sh"
+[ -f "$RESOLVE_SCRIPT" ] || { echo "ERROR: resolve-base.sh not found at $RESOLVE_SCRIPT"; exit 1; }
 RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT" --pr-url "$PR_URL" --pr-base-branch "$BASE_BRANCH") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
+
+The `${CLAUDE_SKILL_DIR:-.}` form works across targets: on Claude Code the variable holds the absolute skill-directory path (the runtime Bash tool's CWD is the user's project, so a bare relative path would either miss the script or, after `gh pr checkout`, execute a malicious replacement planted in the reviewed repo); on Codex, Gemini, and other harnesses where `${CLAUDE_SKILL_DIR}` is unset, the `:-.` fallback yields the bare relative path those harnesses already resolve from the skill directory.
 
 The script outputs `BASE:<sha>` on success or `ERROR:<message>` on failure (failure messages include the captured stderr from the last failing fetch so callers can distinguish "no such branch" from "network failure" from "auth failure"). Substitute `$PR_URL` from `gh pr view`'s `url` and `$BASE_BRANCH` from `gh pr view`'s `baseRefName`.
 
@@ -303,17 +305,17 @@ If the output is non-empty, inform the user: "You have uncommitted changes on th
 git checkout <branch>
 ```
 
-Then detect the review base branch and compute the merge-base. Run the `scripts/resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names). Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable) so the path works when the Bash tool runs from the user's project CWD rather than the skill directory:
+Then detect the review base branch and compute the merge-base. Run the `scripts/resolve-base.sh` script, which handles fork-safe remote resolution with multi-fallback detection (PR metadata -> `origin/HEAD` -> `gh repo view` -> common branch names). Resolve the script via `${CLAUDE_SKILL_DIR:-.}` so the path works across targets — Claude Code substitutes the absolute skill directory; other harnesses (Codex, Gemini, etc.) leave the variable unset and the `:-.` fallback yields the bare relative path they natively resolve from the skill directory:
 
 ```
-RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh"
-[ -f "$RESOLVE_SCRIPT" ] || { echo "ERROR: resolve-base.sh not found (CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-unset})"; exit 1; }
+RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR:-.}/scripts/resolve-base.sh"
+[ -f "$RESOLVE_SCRIPT" ] || { echo "ERROR: resolve-base.sh not found at $RESOLVE_SCRIPT"; exit 1; }
 RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
-If `${CLAUDE_SKILL_DIR}` is unset or the script is not found at the expected path, the skill fails with an explicit error. A CWD-relative fallback is not used — in PR mode the CWD is the reviewed repository after `gh pr checkout`, and a malicious PR could plant a replacement script there. If the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
+The original CWD-relative fallback concern (a malicious PR planting `scripts/resolve-base.sh` in the reviewed repo) applies only to Claude Code, where the runtime Bash CWD is the user's project — and Claude Code reliably sets `${CLAUDE_SKILL_DIR}`, so the `:-.` branch only activates on harnesses whose Bash CWD is the skill directory. If the script is missing at the resolved path, the skill fails closed. If the script outputs an error, stop instead of falling back to `git diff HEAD`; a branch review without the base branch would only show uncommitted changes and silently miss all committed work.
 
 On success, produce the diff:
 
@@ -325,11 +327,11 @@ You may still fetch additional PR metadata with `gh pr view` for title, body, li
 
 **If no argument (standalone on current branch):**
 
-Detect the review base branch and compute the merge-base using the same `scripts/resolve-base.sh` script as branch mode. Resolve the script via `${CLAUDE_SKILL_DIR}` (or the equivalent platform variable) so the path works when the Bash tool runs from the user's project CWD rather than the skill directory:
+Detect the review base branch and compute the merge-base using the same `scripts/resolve-base.sh` script as branch mode. Resolve the script via `${CLAUDE_SKILL_DIR:-.}` so the path works across targets — Claude Code substitutes the absolute skill directory; other harnesses (Codex, Gemini, etc.) leave the variable unset and the `:-.` fallback yields the bare relative path they natively resolve from the skill directory:
 
 ```
-RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh"
-[ -f "$RESOLVE_SCRIPT" ] || { echo "ERROR: resolve-base.sh not found (CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-unset})"; exit 1; }
+RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR:-.}/scripts/resolve-base.sh"
+[ -f "$RESOLVE_SCRIPT" ] || { echo "ERROR: resolve-base.sh not found at $RESOLVE_SCRIPT"; exit 1; }
 RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')

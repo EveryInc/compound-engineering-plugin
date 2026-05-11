@@ -108,12 +108,25 @@ async function runTrustCheck(
   return { exitCode, stdout, stderr, elapsedMs }
 }
 
+// trust-check-codex.sh rejects canonical paths under /tmp, /var/tmp,
+// /private/tmp, and /dev/shm, plus any world-writable parent directory.
+// `os.tmpdir()` resolves under /var/folders on macOS (passes) but to /tmp
+// on Linux (rejected), which caused the success-path tests to fail on
+// Linux CI. Anchor the sandbox under the user's home directory so the
+// trust check passes through to the smoke-probe behavior we actually want
+// to test on every platform.
+async function sandboxBase(): Promise<string> {
+  const base = path.join(os.homedir(), ".cache", "ce-trust-check-tests")
+  await fs.mkdir(base, { recursive: true, mode: 0o700 })
+  return base
+}
+
 async function setupSandbox(): Promise<{
   codexBin: string
   repoRoot: string
   scratchDir: string
 }> {
-  const sandbox = await fs.mkdtemp(path.join(os.tmpdir(), "trust-check-sandbox-"))
+  const sandbox = await fs.mkdtemp(path.join(await sandboxBase(), "trust-check-sandbox-"))
   const repoRoot = path.join(sandbox, "repo")
   const scratchDir = path.join(sandbox, "scratch")
   const codexDir = path.join(sandbox, "codex-install")
