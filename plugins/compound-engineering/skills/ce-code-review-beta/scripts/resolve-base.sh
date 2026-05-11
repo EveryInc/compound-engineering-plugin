@@ -244,8 +244,19 @@ if [ -z "$REVIEW_BASE_BRANCH" ]; then
 fi
 
 # Resolve the base ref from the correct remote (fork-safe).
+#
+# PR_METADATA_PROVIDED gates fail-closed behavior. Once a caller has told us
+# which repo the PR is opened against (via --pr-url, --pr-base-repo/host, or
+# `gh pr view`), we must NOT silently fall back to origin or a local branch if
+# we can't reach that specific repo — that would compute merge-base against
+# the wrong history (typically the fork's, or an unrelated checkout's),
+# silently producing the wrong diff scope for reviewers. The legacy
+# origin/local fallback only applies when no PR metadata was provided
+# (auto-detect / branch mode).
+PR_METADATA_PROVIDED=0
 if [ -n "$REVIEW_BASE_BRANCH" ]; then
   if [ -n "$PR_BASE_REPO" ] && [ -n "$PR_BASE_HOST" ]; then
+    PR_METADATA_PROVIDED=1
     # Iterate remotes and use git remote get-url so url.*.insteadOf rewrites
     # are honored. Match parsed (host, owner/repo) against the PR's parsed
     # (host, owner/repo). Exact equality on lowercased values — no substring
@@ -278,6 +289,27 @@ if [ -n "$REVIEW_BASE_BRANCH" ]; then
       fi
     fi
   fi
+
+  # Fail-closed gate: if PR metadata was provided but we could not resolve
+  # the base ref from the matched remote (or no remote matched at all), do
+  # NOT fall through to origin/local. Both sub-cases produce the same wrong
+  # outcome — silently computing diff against a different repo's history.
+  if [ "$PR_METADATA_PROVIDED" = "1" ] && [ -z "$BASE_REF" ]; then
+    if [ -n "$PR_BASE_REMOTE" ]; then
+      if [ -n "$LAST_FETCH_ERR" ]; then
+        echo "ERROR:Identified PR base remote '$PR_BASE_REMOTE' (host=$PR_BASE_HOST, repo=$PR_BASE_REPO) but failed to resolve '$REVIEW_BASE_BRANCH' there. Last fetch stderr: $LAST_FETCH_ERR"
+      else
+        echo "ERROR:Identified PR base remote '$PR_BASE_REMOTE' (host=$PR_BASE_HOST, repo=$PR_BASE_REPO) but '$REVIEW_BASE_BRANCH' is unresolvable there. Verify the remote URL, branch name, and authentication."
+      fi
+    else
+      echo "ERROR:PR metadata (host=$PR_BASE_HOST, repo=$PR_BASE_REPO) does not match any configured git remote. Add a remote pointing at the PR base repository and retry; do not silently fall back to origin, which may belong to a different repository."
+    fi
+    exit 0
+  fi
+
+  # No PR metadata path: legacy origin/local fallback for auto-detect and
+  # branch-mode invocations. Safe here because the caller did not name a
+  # specific PR base — we use whatever local context is available.
   if [ -z "$BASE_REF" ]; then
     if git remote get-url origin >/dev/null 2>&1; then
       BASE_REF=$(git rev-parse --verify "origin/$REVIEW_BASE_BRANCH" 2>/dev/null || true)

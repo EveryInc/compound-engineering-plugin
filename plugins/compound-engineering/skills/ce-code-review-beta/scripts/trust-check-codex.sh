@@ -133,20 +133,93 @@ while [ "$check_dir" != "/" ] && [ -n "$check_dir" ]; do
 done
 
 # --- 6. Smoke probe under the actual delegated-launch env shape ---
+# Resolve a portable timeout strategy in the parent shell BEFORE entering
+# env -i. Inside env -i the PATH is reset to a scrubbed list, so the original
+# `timeout 10 ...` form failed on default macOS (which has no /usr/bin/timeout
+# and no /opt/homebrew/bin/timeout unless the user installed coreutils).
+# Resolving here and passing the absolute path through env -i keeps the
+# scrubbed-env probe contract while making the timeout itself portable.
+#
+# Fallback chain:
+#   1. `timeout` (GNU coreutils — present on most Linux)
+#   2. `gtimeout` (Homebrew coreutils — common on macOS dev machines)
+#   3. `perl` with fork + setpgrp + alarm + kill-pgroup (matches GNU
+#      timeout's SIGTERM-then-SIGKILL process-group semantics, so probes
+#      against bash-wrapped or multi-process codex builds terminate
+#      reliably). /usr/bin/perl ships with macOS and almost every Linux
+#      distribution.
+# If none are available, emit a clear ERROR rather than running unbounded.
+PROBE_TIMEOUT_SECS=${CE_PROBE_TIMEOUT_SECS:-10}
+TIMEOUT_KIND="none"
+TIMEOUT_BIN=""
+if cmd=$(command -v timeout 2>/dev/null) && [ -n "$cmd" ]; then
+  TIMEOUT_KIND="timeout"
+  TIMEOUT_BIN="$cmd"
+elif cmd=$(command -v gtimeout 2>/dev/null) && [ -n "$cmd" ]; then
+  TIMEOUT_KIND="gtimeout"
+  TIMEOUT_BIN="$cmd"
+elif cmd=$(command -v perl 2>/dev/null) && [ -n "$cmd" ]; then
+  TIMEOUT_KIND="perl"
+  TIMEOUT_BIN="$cmd"
+fi
+if [ "$TIMEOUT_KIND" = "none" ]; then
+  echo "ERROR:codex_bin smoke probe cannot proceed: no portable timeout binary found (tried 'timeout', 'gtimeout', 'perl'). Install one of them — coreutils on Linux, coreutils via Homebrew on macOS, or any system perl — and retry."
+  exit 1
+fi
+
 PROBE_HOME="$(mktemp -d -t ce-codex-probe-XXXXXX)"
 chmod 700 "$PROBE_HOME"
 # Hard-disable network egress so a future Codex build that does telemetry at
 # startup fails fast here instead of silently leaking a probe.
 PROBE_OUT=""
 PROBE_STATUS=0
-PROBE_OUT=$(env -i \
-  PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin" \
-  HOME="$PROBE_HOME" \
-  CODEX_HOME="$PROBE_HOME" \
-  NO_PROXY="*" \
-  HTTP_PROXY="http://127.0.0.1:1" \
-  HTTPS_PROXY="http://127.0.0.1:1" \
-  timeout 10 "$CANONICAL" --version 2>&1) || PROBE_STATUS=$?
+if [ "$TIMEOUT_KIND" = "perl" ]; then
+  # Perl-based timeout that matches GNU timeout's process-group semantics.
+  # A naive `alarm; exec` does NOT reliably kill bash-wrapped or multi-process
+  # codex builds, because (a) bash internally swallows SIGALRM (used for
+  # `read -t`), and (b) `kill <pid>` only signals the immediate child, not
+  # its descendants. The child therefore runs setpgrp() to start a fresh
+  # process group, and on alarm we kill the negative pid (whole group) with
+  # TERM then KILL, matching `timeout`'s SIGTERM-then-SIGKILL convention.
+  # On timeout we exit 124 (GNU timeout convention); on normal completion
+  # we propagate the child's exit code.
+  PROBE_OUT=$("$TIMEOUT_BIN" -e '
+    my $s = shift @ARGV;
+    my $p = fork;
+    die "perl-fork-failed: $!" unless defined $p;
+    if (!$p) {
+      setpgrp 0, 0;
+      exec { $ARGV[0] } @ARGV;
+      die "perl-exec-failed: $!";
+    }
+    $SIG{ALRM} = sub {
+      kill "TERM", -$p;
+      sleep 1;
+      kill "KILL", -$p;
+      waitpid $p, 0;
+      exit 124;
+    };
+    alarm $s;
+    waitpid $p, 0;
+    exit($? >> 8);
+  ' "$PROBE_TIMEOUT_SECS" env -i \
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin" \
+    HOME="$PROBE_HOME" \
+    CODEX_HOME="$PROBE_HOME" \
+    NO_PROXY="*" \
+    HTTP_PROXY="http://127.0.0.1:1" \
+    HTTPS_PROXY="http://127.0.0.1:1" \
+    "$CANONICAL" --version 2>&1) || PROBE_STATUS=$?
+else
+  PROBE_OUT=$("$TIMEOUT_BIN" "$PROBE_TIMEOUT_SECS" env -i \
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin" \
+    HOME="$PROBE_HOME" \
+    CODEX_HOME="$PROBE_HOME" \
+    NO_PROXY="*" \
+    HTTP_PROXY="http://127.0.0.1:1" \
+    HTTPS_PROXY="http://127.0.0.1:1" \
+    "$CANONICAL" --version 2>&1) || PROBE_STATUS=$?
+fi
 rm -rf "$PROBE_HOME"
 
 if [ "$PROBE_STATUS" -ne 0 ]; then

@@ -381,18 +381,25 @@ describe("resolve-base-beta.sh — end-to-end host-agnostic resolution", () => {
     expect(result.stdout.trim()).toBe(`BASE:${upstreamMainSha}`)
   })
 
-  test("boundary: org/repo PR does not match remote org/repo-extra", async () => {
+  test("PR metadata with no matching remote fails closed (does not silently fall back to origin)", async () => {
     const repoRoot = await initRepo()
-    const initialSha = await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
     const mainSha = await commitFile(repoRoot, "history.txt", "b\n", "main advance")
 
     await runGit(["checkout", "-b", "feature"], repoRoot)
     await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
 
     // The only remote points at "org/repo-extra"; PR says "org/repo".
-    // resolve-base must NOT match it; it should fall back to origin/main
-    // by name (which is the same remote, but the test verifies the matcher
-    // rejected it for the host-agnostic step).
+    // Two invariants are exercised together:
+    //   (1) host-agnostic matcher must NOT fuzzy-match org/repo-extra for org/repo.
+    //   (2) when PR metadata was provided and no remote matches it, the
+    //       resolver must fail closed rather than silently falling back to
+    //       origin's content (which would reflect a different repo's history
+    //       and silently miscategorize the diff for reviewers).
+    // If invariant (1) regressed (fuzzy match), `BASE:` would be emitted and
+    // this assertion would catch it; if invariant (2) regressed (silent
+    // fallback), `BASE:` would also be emitted. Either failure → ERROR test
+    // fails, surfacing the regression.
     await runGit(["remote", "add", "origin", "git@github.com:org/repo-extra.git"], repoRoot)
     await runGit(["update-ref", "refs/remotes/origin/main", mainSha], repoRoot)
 
@@ -415,11 +422,60 @@ describe("resolve-base-beta.sh — end-to-end host-agnostic resolution", () => {
       },
     )
 
-    // origin/main still exists as a fallback by branch name, so the script
-    // succeeds — but via the origin fallback path, not via host-agnostic
-    // matching. The key invariant: org/repo-extra remote was not matched
-    // as if it were org/repo.
-    expect(result.exitCode).toBe(0)
-    expect(result.stdout.trim()).toBe(`BASE:${mainSha}`)
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).not.toContain("BASE:")
+  })
+
+  test("PR metadata identifies a matched remote but fetch fails -> ERROR, no origin fallback", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const forkMainSha = await commitFile(repoRoot, "history.txt", "b\n", "fork main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    // origin = fork (matches matcher's negative path), upstream = PR base
+    // (matches positive path) but its URL points at a nonexistent local file
+    // path so fetch attempts fail. Pre-seed no upstream/main ref so the
+    // script must fetch to resolve it — the fetch will fail.
+    await runGit(["remote", "add", "origin", "https://github.com/someone/fork.git"], repoRoot)
+    await runGit(["update-ref", "refs/remotes/origin/main", forkMainSha], repoRoot)
+    const unreachableRepoPath = path.join(
+      os.tmpdir(),
+      `nonexistent-upstream-${Date.now()}-${Math.random().toString(36).slice(2)}.git`,
+    )
+    await runGit(
+      ["remote", "add", "upstream", `https://github.com/EveryInc/compound-engineering-plugin.git`],
+      repoRoot,
+    )
+    // Override the remote's URL to an unreachable file:// path so fetch fails
+    // fast without network. Use file:// (not raw path) so git refuses cleanly.
+    await runGit(["remote", "set-url", "upstream", `file://${unreachableRepoPath}`], repoRoot)
+
+    const stubBin = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-base-beta-bin-"))
+    await writeExecutable(path.join(stubBin, "gh"), "#!/usr/bin/env bash\nexit 1\n")
+
+    const result = await runCommand(
+      [
+        "bash",
+        resolveBaseScript,
+        "--pr-url",
+        "https://github.com/EveryInc/compound-engineering-plugin/pull/1",
+        "--pr-base-branch",
+        "main",
+      ],
+      repoRoot,
+      {
+        ...gitEnv,
+        PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+      },
+    )
+
+    // The matched-remote-fetch-fails case is exactly the Codex P1 finding.
+    // Must not fall through to origin (which is the fork) and silently use
+    // forkMainSha as the base.
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
+    expect(result.stdout).not.toMatch(/^BASE:/)
   })
 })
