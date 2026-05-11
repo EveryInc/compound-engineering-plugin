@@ -28,12 +28,16 @@
 #
 # Limitations (intentional; documented):
 #   - scp-form URLs with bracketed IPv6 (git@[::1]:owner/repo) not parsed.
-#   - GHE deployments mounted under a path prefix (acme.com/github/...) fail
+#   - GHE PR URLs mounted under a path prefix (acme.com/github/...) fail
 #     parse_pr_url. With --pr-url this errors out explicitly; in auto-detect
 #     mode where `gh pr view` returns such a URL, the resolver fails closed
 #     with ERROR rather than silently falling back to origin (which would
 #     compute merge-base against fork history). Callers can work around this
-#     by passing --pr-base-repo/--pr-base-host/--pr-base-branch directly.
+#     by passing --pr-base-repo/--pr-base-host/--pr-base-branch directly only
+#     when a matching two-segment remote URL is configured.
+#   - Remote URLs with more than two path segments are rejected instead of
+#     silently truncating parent path segments. This fails closed for
+#     path-prefixed GHE remotes and nested namespaces such as GitLab subgroups.
 
 set -euo pipefail
 
@@ -78,7 +82,8 @@ parse_pr_url() {
 #   - scp-form: user@host:owner/repo[.git]
 # Preserves URL-form ports for exact host matching. Scp-form cannot carry the
 # web UI port, so callers may choose a host-without-port fallback only for
-# FORM=scp.
+# FORM=scp. Rejects paths deeper than owner/repo so path-prefixed deployments
+# and nested namespaces fail closed instead of silently dropping path segments.
 parse_remote_url() {
   local url=$1
   local host path form
@@ -95,6 +100,9 @@ parse_remote_url() {
     *@*:*)
       form=scp
       host=${url#*@}
+      case "$host" in
+        \[*) return 1 ;;
+      esac
       host=${host%%:*}
       path=${url#*:}
       [ "$path" != "$url" ] || return 1
@@ -103,19 +111,19 @@ parse_remote_url() {
   esac
   [ -n "$host" ] || return 1
   local owner_repo
+  path=${path%/}
+  path=${path%.git}
   case "$path" in
-    */*/*)
-      # More than two path segments: take the first two.
-      local first=${path%%/*}
-      local rest=${path#*/}
-      local second=${rest%%/*}
-      owner_repo="$first/$second"
-      ;;
+    */*/*) return 1 ;;
     */*) owner_repo=$path ;;
     *) return 1 ;;
   esac
-  owner_repo=${owner_repo%.git}
-  [ -n "$owner_repo" ] || return 1
+  local repo=${owner_repo##*/}
+  local owner_path=${owner_repo%/*}
+  local owner=${owner_path##*/}
+  [ -n "$owner" ] || return 1
+  [ -n "$repo" ] || return 1
+  owner_repo="$owner/$repo"
   printf '%s\t%s\t%s\n' "$(to_lower "$host")" "$(to_lower "$owner_repo")" "$form"
 }
 
@@ -195,6 +203,10 @@ if [ -n "$PR_BASE_REPO" ] && [ -z "$PR_BASE_HOST" ]; then
   echo "ERROR:--pr-base-repo requires --pr-base-host (or pass --pr-url instead)"
   exit 0
 fi
+if [ -n "$PR_BASE_HOST" ] && [ -z "$PR_BASE_REPO" ]; then
+  echo "ERROR:--pr-base-host requires --pr-base-repo (or pass --pr-url instead)"
+  exit 0
+fi
 
 # Capture stderr from a fetch into LAST_FETCH_ERR so the final error message
 # can distinguish failure modes.
@@ -224,8 +236,14 @@ run_fetch() {
 if [ -z "$REVIEW_BASE_BRANCH" ] && command -v gh >/dev/null 2>&1; then
   PR_META=$(gh pr view --json baseRefName,url 2>/dev/null || true)
   if [ -n "$PR_META" ]; then
-    META_BRANCH=$(echo "$PR_META" | jq -r '.baseRefName // empty' 2>/dev/null || true)
-    META_URL=$(echo "$PR_META" | jq -r '.url // empty' 2>/dev/null || true)
+    if ! META_BRANCH=$(echo "$PR_META" | jq -r '.baseRefName // empty' 2>/dev/null); then
+      echo "ERROR:gh pr view returned metadata but resolve-base.sh could not parse gh pr view metadata with jq; cannot establish PR base repo for fail-closed resolution."
+      exit 0
+    fi
+    if ! META_URL=$(echo "$PR_META" | jq -r '.url // empty' 2>/dev/null); then
+      echo "ERROR:gh pr view returned metadata but resolve-base.sh could not parse gh pr view metadata with jq; cannot establish PR base repo for fail-closed resolution."
+      exit 0
+    fi
     if [ -n "$META_BRANCH" ]; then
       if [ -z "$META_URL" ]; then
         echo "ERROR:gh pr view returned base branch '$META_BRANCH' but no URL; cannot establish PR base repo for fail-closed resolution. Pass --pr-url explicitly."
@@ -233,12 +251,15 @@ if [ -z "$REVIEW_BASE_BRANCH" ] && command -v gh >/dev/null 2>&1; then
       fi
       PARSED_META=$(parse_pr_url "$META_URL" || true)
       if [ -z "$PARSED_META" ]; then
-        echo "ERROR:gh pr view returned an unparseable PR URL: $META_URL. Pass --pr-url explicitly, or use --pr-base-repo/--pr-base-host/--pr-base-branch (e.g., for GHE deployments mounted under a path prefix)."
+        echo "ERROR:gh pr view returned an unparseable PR URL: $META_URL. Pass --pr-url explicitly, or use --pr-base-repo/--pr-base-host/--pr-base-branch with a matching two-segment remote URL."
         exit 0
       fi
       REVIEW_BASE_BRANCH=$META_BRANCH
       PR_BASE_HOST=${PARSED_META%%	*}
       PR_BASE_REPO=${PARSED_META#*	}
+    elif [ -n "$META_URL" ]; then
+      echo "ERROR:gh pr view returned PR URL '$META_URL' but no base branch; cannot determine review base safely. Pass --pr-base-branch explicitly."
+      exit 0
     fi
   fi
 fi

@@ -160,6 +160,30 @@ describe("resolve-base-beta.sh — parse_remote_url", () => {
     expect(r.stdout.trim()).toBe("github.com\torg/repo\tscp")
   })
 
+  test("rejects HTTPS path-prefixed remotes", async () => {
+    const r = await callHelper("parse_remote_url", "https://acme.com/github/org/repo.git")
+    expect(r.exitCode).toBe(1)
+    expect(r.stdout.trim()).toBe("")
+  })
+
+  test("rejects scp-form path-prefixed remotes", async () => {
+    const r = await callHelper("parse_remote_url", "git@acme.com:github/org/repo.git")
+    expect(r.exitCode).toBe(1)
+    expect(r.stdout.trim()).toBe("")
+  })
+
+  test("rejects nested namespace remotes", async () => {
+    const r = await callHelper("parse_remote_url", "git@gitlab.com:group/subgroup/repo.git")
+    expect(r.exitCode).toBe(1)
+    expect(r.stdout.trim()).toBe("")
+  })
+
+  test("rejects bracketed-IPv6 scp-form remotes", async () => {
+    const r = await callHelper("parse_remote_url", "git@[::1]:org/repo.git")
+    expect(r.exitCode).toBe(1)
+    expect(r.stdout.trim()).toBe("")
+  })
+
   test("ssh:// preserves port", async () => {
     const r = await callHelper("parse_remote_url", "ssh://git@ghe.acme.com:22/org/repo.git")
     expect(r.exitCode).toBe(0)
@@ -302,6 +326,129 @@ describe("resolve-base-beta.sh — end-to-end host-agnostic resolution", () => {
     expect(result.stdout.trim()).toBe(`BASE:${upstreamMainSha}`)
   })
 
+  test("auto-detect without PR metadata uses legacy origin branch fallback", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const releaseSha = await commitFile(repoRoot, "history.txt", "b\n", "release advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(["remote", "add", "origin", "https://github.com/org/repo.git"], repoRoot)
+    await runGit(["update-ref", "refs/remotes/origin/release", releaseSha], repoRoot)
+    await runGit(["symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/release"], repoRoot)
+
+    const stubBin = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-base-beta-bin-"))
+    await writeExecutable(path.join(stubBin, "gh"), "#!/usr/bin/env bash\nexit 1\n")
+
+    const result = await runCommand(["bash", resolveBaseScript], repoRoot, {
+      ...gitEnv,
+      PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.trim()).toBe(`BASE:${releaseSha}`)
+  })
+
+  test("explicit PR base flags fail closed for path-prefixed base remotes", async () => {
+    const repoRoot = await initRepo()
+    const initialSha = await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const upstreamMainSha = await commitFile(repoRoot, "history.txt", "b\n", "main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(["checkout", "-b", "fork-main", initialSha], repoRoot)
+    const forkMainSha = await commitFile(repoRoot, "fork.txt", "fork\n", "fork diverges")
+    await runGit(["checkout", "feature"], repoRoot)
+
+    await runGit(["remote", "add", "origin", "https://acme.com/github/someone/fork.git"], repoRoot)
+    await runGit(
+      ["remote", "add", "upstream", "https://acme.com/github/EveryInc/compound-engineering-plugin.git"],
+      repoRoot,
+    )
+    await runGit(["update-ref", "refs/remotes/origin/main", forkMainSha], repoRoot)
+    await runGit(["update-ref", "refs/remotes/upstream/main", upstreamMainSha], repoRoot)
+
+    const stubBin = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-base-beta-bin-"))
+    await writeExecutable(path.join(stubBin, "gh"), "#!/usr/bin/env bash\nexit 1\n")
+
+    const result = await runCommand(
+      [
+        "bash",
+        resolveBaseScript,
+        "--pr-base-repo",
+        "EveryInc/compound-engineering-plugin",
+        "--pr-base-host",
+        "acme.com",
+        "--pr-base-branch",
+        "main",
+      ],
+      repoRoot,
+      {
+        ...gitEnv,
+        PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+      },
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).toContain("does not match any configured git remote")
+    expect(result.stdout).not.toContain(`BASE:${upstreamMainSha}`)
+    expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
+    expect(result.stdout).not.toMatch(/^BASE:/)
+  })
+
+  test("url.insteadOf rewrites to path-prefixed remotes that fail closed", async () => {
+    const repoRoot = await initRepo()
+    const initialSha = await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const upstreamMainSha = await commitFile(repoRoot, "history.txt", "b\n", "main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(["checkout", "-b", "fork-main", initialSha], repoRoot)
+    const forkMainSha = await commitFile(repoRoot, "fork.txt", "fork\n", "fork diverges")
+    await runGit(["checkout", "feature"], repoRoot)
+
+    await runGit(["config", "url.https://acme.com/.insteadOf", "ghe:"], repoRoot)
+    await runGit(["remote", "add", "origin", "https://acme.com/github/someone/fork.git"], repoRoot)
+    await runGit(
+      ["remote", "add", "upstream", "ghe:github/EveryInc/compound-engineering-plugin.git"],
+      repoRoot,
+    )
+    await runGit(["update-ref", "refs/remotes/origin/main", forkMainSha], repoRoot)
+    await runGit(["update-ref", "refs/remotes/upstream/main", upstreamMainSha], repoRoot)
+
+    const stubBin = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-base-beta-bin-"))
+    await writeExecutable(path.join(stubBin, "gh"), "#!/usr/bin/env bash\nexit 1\n")
+
+    const result = await runCommand(
+      [
+        "bash",
+        resolveBaseScript,
+        "--pr-base-repo",
+        "EveryInc/compound-engineering-plugin",
+        "--pr-base-host",
+        "acme.com",
+        "--pr-base-branch",
+        "main",
+      ],
+      repoRoot,
+      {
+        ...gitEnv,
+        PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+      },
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).toContain("does not match any configured git remote")
+    expect(result.stdout).not.toContain(`BASE:${upstreamMainSha}`)
+    expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
+    expect(result.stdout).not.toMatch(/^BASE:/)
+  })
+
   test("ported GitHub Enterprise PR resolves via matching URL-form remote port", async () => {
     const repoRoot = await initRepo()
     const initialSha = await commitFile(repoRoot, "history.txt", "a\n", "initial")
@@ -426,6 +573,80 @@ describe("resolve-base-beta.sh — end-to-end host-agnostic resolution", () => {
     expect(result.stdout).not.toContain("BASE:")
   })
 
+  test("partial explicit PR base metadata fails closed when host is provided without repo", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const forkMainSha = await commitFile(repoRoot, "history.txt", "b\n", "fork main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(["remote", "add", "origin", "https://github.com/someone/fork.git"], repoRoot)
+    await runGit(["update-ref", "refs/remotes/origin/main", forkMainSha], repoRoot)
+
+    const stubBin = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-base-beta-bin-"))
+    await writeExecutable(path.join(stubBin, "gh"), "#!/usr/bin/env bash\nexit 1\n")
+
+    const result = await runCommand(
+      [
+        "bash",
+        resolveBaseScript,
+        "--pr-base-host",
+        "github.com",
+        "--pr-base-branch",
+        "main",
+      ],
+      repoRoot,
+      {
+        ...gitEnv,
+        PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+      },
+    )
+
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).toContain("--pr-base-host requires --pr-base-repo")
+    expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
+    expect(result.stdout).not.toMatch(/^BASE:/)
+  })
+
+  test("PR metadata with bracketed-IPv6 scp-form remote fails closed without origin fallback", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const forkMainSha = await commitFile(repoRoot, "history.txt", "b\n", "fork main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(["remote", "add", "origin", "git@[::1]:org/repo.git"], repoRoot)
+    await runGit(["update-ref", "refs/remotes/origin/main", forkMainSha], repoRoot)
+
+    const stubBin = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-base-beta-bin-"))
+    await writeExecutable(path.join(stubBin, "gh"), "#!/usr/bin/env bash\nexit 1\n")
+
+    const result = await runCommand(
+      [
+        "bash",
+        resolveBaseScript,
+        "--pr-base-repo",
+        "org/repo",
+        "--pr-base-host",
+        "[::1]",
+        "--pr-base-branch",
+        "main",
+      ],
+      repoRoot,
+      {
+        ...gitEnv,
+        PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+      },
+    )
+
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).toContain("does not match any configured git remote")
+    expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
+    expect(result.stdout).not.toMatch(/^BASE:/)
+  })
+
   test("PR metadata identifies a matched remote but fetch fails -> ERROR, no origin fallback", async () => {
     const repoRoot = await initRepo()
     await commitFile(repoRoot, "history.txt", "a\n", "initial")
@@ -540,6 +761,69 @@ describe("resolve-base-beta.sh — end-to-end host-agnostic resolution", () => {
 
     expect(result.stdout).toMatch(/^ERROR:/)
     expect(result.stdout).toContain("no URL")
+    expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
+    expect(result.stdout).not.toMatch(/^BASE:/)
+  })
+
+  test("auto-detect: gh pr view returns PR URL but empty base branch -> ERROR, no origin fallback", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const forkMainSha = await commitFile(repoRoot, "history.txt", "b\n", "fork main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(["remote", "add", "origin", "https://github.com/someone/fork.git"], repoRoot)
+    await runGit(["update-ref", "refs/remotes/origin/main", forkMainSha], repoRoot)
+
+    const stubBin = await createGheStubBin(
+      "",
+      "https://github.com/EveryInc/compound-engineering-plugin/pull/1",
+    )
+
+    const result = await runCommand(["bash", resolveBaseScript], repoRoot, {
+      ...gitEnv,
+      PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+    })
+
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).toContain("no base branch")
+    expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
+    expect(result.stdout).not.toMatch(/^BASE:/)
+  })
+
+  test("auto-detect: gh pr view returns metadata but jq fails -> ERROR, no origin fallback", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const forkMainSha = await commitFile(repoRoot, "history.txt", "b\n", "fork main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(["remote", "add", "origin", "https://github.com/someone/fork.git"], repoRoot)
+    await runGit(["update-ref", "refs/remotes/origin/main", forkMainSha], repoRoot)
+
+    const stubBin = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-base-beta-bin-"))
+    await writeExecutable(
+      path.join(stubBin, "gh"),
+      `#!/usr/bin/env bash
+set -euo pipefail
+if [ "$#" -ge 2 ] && [ "$1" = "pr" ] && [ "$2" = "view" ]; then
+  printf '%s' '{"baseRefName":"main","url":"https://github.com/EveryInc/compound-engineering-plugin/pull/1"}'
+  exit 0
+fi
+exit 1
+`,
+    )
+    await writeExecutable(path.join(stubBin, "jq"), "#!/usr/bin/env bash\nexit 1\n")
+
+    const result = await runCommand(["bash", resolveBaseScript], repoRoot, {
+      ...gitEnv,
+      PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+    })
+
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).toContain("could not parse gh pr view metadata")
     expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
     expect(result.stdout).not.toMatch(/^BASE:/)
   })
