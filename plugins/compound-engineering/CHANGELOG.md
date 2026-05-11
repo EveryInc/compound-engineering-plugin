@@ -9,6 +9,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.8.0...compound-engineering-v3.8.1) (2026-05-11)
+
+
+### Bug Fixes
+
+* **ce-code-review:** replace resolve-base.sh with prose-driven base detection ([#815](https://github.com/EveryInc/compound-engineering-plugin/issues/815)) ([d090bde](https://github.com/EveryInc/compound-engineering-plugin/commit/d090bde0ff1bbc33ec3c3b2049cb4687e9d76532))
+* **ce-plan:** compress synthesis confirmation to prose + call-outs ([#819](https://github.com/EveryInc/compound-engineering-plugin/issues/819)) ([60c1c93](https://github.com/EveryInc/compound-engineering-plugin/commit/60c1c938d5bbf70abd0af08af3d2c9ede0d1b89d))
+
 ## [3.8.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.7.3...compound-engineering-v3.8.0) (2026-05-10)
 
 

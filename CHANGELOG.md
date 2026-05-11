@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.8.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.8.0...cli-v3.8.1) (2026-05-11)
+
+
+### Bug Fixes
+
+* **ce-code-review:** replace resolve-base.sh with prose-driven base detection ([#815](https://github.com/EveryInc/compound-engineering-plugin/issues/815)) ([d090bde](https://github.com/EveryInc/compound-engineering-plugin/commit/d090bde0ff1bbc33ec3c3b2049cb4687e9d76532))
+
 ## [3.8.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.7.3...cli-v3.8.0) (2026-05-10)
 
 
