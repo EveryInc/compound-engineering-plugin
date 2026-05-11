@@ -94,10 +94,55 @@ if git ls-files --error-unmatch ".compound-engineering/config.local.yaml" >/dev/
   exit 1
 fi
 
-# 4. Must be gitignored.
-if ! git check-ignore -q ".compound-engineering/config.local.yaml" 2>/dev/null; then
+# 4. Must be gitignored by a repository-local ignore source. `git check-ignore`
+# also accepts the user's global core.excludesfile, which is not portable to
+# collaborators or CI, so inspect the matching source with -v.
+CHECK_IGNORE_OUTPUT=$(git check-ignore -v -- ".compound-engineering/config.local.yaml" 2>/dev/null || true)
+if [ -z "$CHECK_IGNORE_OUTPUT" ]; then
   echo "ERROR:config.local.yaml is not covered by .gitignore"
   exit 1
+fi
+
+IGNORE_SOURCE_WITH_PATTERN=${CHECK_IGNORE_OUTPUT%%	*}
+IGNORE_SOURCE=${IGNORE_SOURCE_WITH_PATTERN%%:*}
+
+GIT_TOPLEVEL=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$GIT_TOPLEVEL" ]; then
+  echo "ERROR:repo_root is not inside a git working tree"
+  exit 1
+fi
+GIT_TOPLEVEL=$(cd "$GIT_TOPLEVEL" 2>/dev/null && pwd -P 2>/dev/null)
+
+GIT_INFO_EXCLUDE=$(git rev-parse --git-path info/exclude 2>/dev/null || true)
+if [ -n "$GIT_INFO_EXCLUDE" ]; then
+  case "$GIT_INFO_EXCLUDE" in
+    /*) ;;
+    *) GIT_INFO_EXCLUDE="$RESOLVED_ROOT/$GIT_INFO_EXCLUDE" ;;
+  esac
+  GIT_INFO_EXCLUDE=$(cd "$(dirname "$GIT_INFO_EXCLUDE")" 2>/dev/null && pwd -P 2>/dev/null)/$(basename "$GIT_INFO_EXCLUDE")
+fi
+
+case "$IGNORE_SOURCE" in
+  /*) IGNORE_SOURCE_ABS=$IGNORE_SOURCE ;;
+  *) IGNORE_SOURCE_ABS="$RESOLVED_ROOT/$IGNORE_SOURCE" ;;
+esac
+if IGNORE_SOURCE_DIR=$(cd "$(dirname "$IGNORE_SOURCE_ABS")" 2>/dev/null && pwd -P 2>/dev/null); then
+  IGNORE_SOURCE_ABS="$IGNORE_SOURCE_DIR/$(basename "$IGNORE_SOURCE_ABS")"
+else
+  echo "ERROR:config.local.yaml is not covered by a repository-local gitignore source"
+  exit 1
+fi
+
+if [ "$IGNORE_SOURCE_ABS" = "$GIT_INFO_EXCLUDE" ]; then
+  :
+else
+  case "$IGNORE_SOURCE_ABS" in
+    "$GIT_TOPLEVEL"/*) : ;;
+    *)
+      echo "ERROR:config.local.yaml is not covered by a repository-local gitignore source"
+      exit 1
+      ;;
+  esac
 fi
 
 echo "OK:$RESOLVED_CONFIG"

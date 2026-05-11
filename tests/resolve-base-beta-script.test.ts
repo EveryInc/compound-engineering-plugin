@@ -528,6 +528,34 @@ describe("resolve-base-beta.sh — end-to-end host-agnostic resolution", () => {
     expect(result.stdout.trim()).toBe(`BASE:${upstreamMainSha}`)
   })
 
+  test("auto-detect ported GitHub Enterprise PR can resolve via scp-form remote without web UI port", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const upstreamMainSha = await commitFile(repoRoot, "history.txt", "b\n", "main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(
+      ["remote", "add", "upstream", "git@ghe.acme.com:EveryInc/compound-engineering-plugin.git"],
+      repoRoot,
+    )
+    await runGit(["update-ref", "refs/remotes/upstream/main", upstreamMainSha], repoRoot)
+
+    const stubBin = await createGheStubBin(
+      "main",
+      "https://ghe.acme.com:8443/EveryInc/compound-engineering-plugin/pull/7",
+    )
+
+    const result = await runCommand(["bash", resolveBaseScript], repoRoot, {
+      ...gitEnv,
+      PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.trim()).toBe(`BASE:${upstreamMainSha}`)
+  })
+
   test("PR metadata with no matching remote fails closed (does not silently fall back to origin)", async () => {
     const repoRoot = await initRepo()
     await commitFile(repoRoot, "history.txt", "a\n", "initial")

@@ -48,6 +48,15 @@ to_lower() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]'
 }
 
+# derive_host_without_port <host>
+# Mirrors the existing scp-form fallback derivation: strip everything after the
+# final colon when a colon is present, otherwise preserve the host unchanged.
+derive_host_without_port() {
+  local host=$1
+  case "$host" in *:*) host=${host%:*} ;; esac
+  printf '%s\n' "$host"
+}
+
 # parse_pr_url <url>
 # Outputs "HOST<TAB>OWNER/REPO" (both lowercased) on success, returns 1 on
 # failure. Anchors owner/repo extraction on /pull/<N> from the right so a
@@ -190,8 +199,7 @@ fi
 if [ -n "$PR_BASE_REPO" ]; then
   PR_BASE_REPO=$(to_lower "$PR_BASE_REPO")
 fi
-PR_BASE_HOST_WITHOUT_PORT=$PR_BASE_HOST
-case "$PR_BASE_HOST_WITHOUT_PORT" in *:*) PR_BASE_HOST_WITHOUT_PORT=${PR_BASE_HOST_WITHOUT_PORT%:*} ;; esac
+PR_BASE_HOST_WITHOUT_PORT=$(derive_host_without_port "$PR_BASE_HOST")
 
 # Flag-pair validation: --pr-base-repo requires --pr-base-host (so host-agnostic
 # matching works) and --pr-base-branch.
@@ -257,6 +265,7 @@ if [ -z "$REVIEW_BASE_BRANCH" ] && command -v gh >/dev/null 2>&1; then
       REVIEW_BASE_BRANCH=$META_BRANCH
       PR_BASE_HOST=${PARSED_META%%	*}
       PR_BASE_REPO=${PARSED_META#*	}
+      PR_BASE_HOST_WITHOUT_PORT=$(derive_host_without_port "$PR_BASE_HOST")
     elif [ -n "$META_URL" ]; then
       echo "ERROR:gh pr view returned PR URL '$META_URL' but no base branch; cannot determine review base safely. Pass --pr-base-branch explicitly."
       exit 0
