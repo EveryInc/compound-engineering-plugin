@@ -263,19 +263,19 @@ Then fetch PR metadata. Capture the base branch name and the PR base repository 
 gh pr view <number-or-url> --json title,body,baseRefName,headRefName,url,reviews,comments --jq '{title, body, baseRefName, headRefName, url, hasPriorComments: ((.reviews | map(select(.state != "APPROVED" or .body != "")) | length) > 0 or (.comments | length) > 0)}'
 ```
 
-Use the repository portion of the returned PR URL as `<base-repo>` (for example, `EveryInc/compound-engineering-plugin` from `https://github.com/EveryInc/compound-engineering-plugin/pull/348`).
+Pass the full PR URL from the `gh pr view` response into `resolve-base.sh` so it can parse host and owner/repo host-agnostically. This works on GitHub Enterprise and any non-`github.com` host — manual repo-portion extraction is no longer required.
 
-Then compute a local diff against the PR's base branch so re-reviews also include local fix commits and uncommitted edits. Resolve the base ref from the PR's actual base repository, not by assuming `origin` points at that repo. PR mode and standalone mode share one tested code path via `scripts/resolve-base.sh` — pass the PR base repository (`<base-repo>` from the PR URL) and PR base branch (`<base>` from `gh pr view` metadata) as flags:
+Then compute a local diff against the PR's base branch so re-reviews also include local fix commits and uncommitted edits. Resolve the base ref from the PR's actual base repository, not by assuming `origin` points at that repo. PR mode and standalone mode share one tested code path via `scripts/resolve-base.sh` — pass the PR URL (`<url>` from `gh pr view` metadata) and PR base branch (`<base>` from `gh pr view` metadata) as flags:
 
 ```bash
 RESOLVE_SCRIPT="${CLAUDE_SKILL_DIR}/scripts/resolve-base.sh"
 [ -f "$RESOLVE_SCRIPT" ] || { echo "ERROR: resolve-base.sh not found (CLAUDE_SKILL_DIR=${CLAUDE_SKILL_DIR:-unset})"; exit 1; }
-RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT" --pr-base-repo "$PR_BASE_REPO" --pr-base-branch "$BASE_BRANCH") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
+RESOLVE_OUT=$(bash "$RESOLVE_SCRIPT" --pr-url "$PR_URL" --pr-base-branch "$BASE_BRANCH") || { echo "ERROR: resolve-base.sh failed"; exit 1; }
 if [ -z "$RESOLVE_OUT" ] || echo "$RESOLVE_OUT" | grep -q '^ERROR:'; then echo "${RESOLVE_OUT:-ERROR: resolve-base.sh produced no output}"; exit 1; fi
 BASE=$(echo "$RESOLVE_OUT" | sed 's/^BASE://')
 ```
 
-The script outputs `BASE:<sha>` on success or `ERROR:<message>` on failure (failure messages now include the captured stderr from the last failing fetch so callers can distinguish "no such branch" from "network failure" from "auth failure"). Substitute `$PR_BASE_REPO` from the repository portion of the returned PR URL (e.g., `EveryInc/compound-engineering-plugin`) and `$BASE_BRANCH` from `gh pr view`'s `baseRefName`.
+The script outputs `BASE:<sha>` on success or `ERROR:<message>` on failure (failure messages include the captured stderr from the last failing fetch so callers can distinguish "no such branch" from "network failure" from "auth failure"). Substitute `$PR_URL` from `gh pr view`'s `url` and `$BASE_BRANCH` from `gh pr view`'s `baseRefName`.
 
 On success, produce the diff:
 
