@@ -53,10 +53,6 @@ parse_pr_url() {
   [ "$no_scheme" != "$url" ] || return 1
   local host_part=${no_scheme%%/*}
   host_part=${host_part#*@}
-  # Strip :port for symmetric comparison with parse_remote_url (which also
-  # strips ports; SSH remotes commonly use :22, HTTPS PR URLs typically omit
-  # any port — comparing host-only avoids spurious mismatches).
-  case "$host_part" in *:*) host_part=${host_part%:*} ;; esac
   [ -n "$host_part" ] || return 1
   local path=${no_scheme#*/}
   [ "$path" != "$no_scheme" ] || return 1
@@ -72,18 +68,20 @@ parse_pr_url() {
 }
 
 # parse_remote_url <url>
-# Outputs "HOST<TAB>OWNER/REPO" (both lowercased) on success, returns 1 on
-# failure. Handles:
+# Outputs "HOST<TAB>OWNER/REPO<TAB>FORM" (host/repo lowercased) on success,
+# returns 1 on failure. Handles:
 #   - https://[user@]host[:port]/owner/repo[.git]
 #   - ssh://[user[:pass]@]host[:port]/owner/repo[.git]
 #   - scp-form: user@host:owner/repo[.git]
-# Strips trailing :port from the host so an HTTPS remote on default port can
-# match a PR URL that omits the port (and vice versa).
+# Preserves URL-form ports for exact host matching. Scp-form cannot carry the
+# web UI port, so callers may choose a host-without-port fallback only for
+# FORM=scp.
 parse_remote_url() {
   local url=$1
-  local host path
+  local host path form
   case "$url" in
     *://*)
+      form=url
       local no_scheme=${url#*://}
       host=${no_scheme%%/*}
       host=${host#*@}
@@ -92,6 +90,7 @@ parse_remote_url() {
       [ "$path" != "$no_scheme" ] || return 1
       ;;
     *@*:*)
+      form=scp
       host=${url#*@}
       host=${host%%:*}
       path=${url#*:}
@@ -99,7 +98,6 @@ parse_remote_url() {
       ;;
     *) return 1 ;;
   esac
-  case "$host" in *:*) host=${host%:*} ;; esac
   [ -n "$host" ] || return 1
   local owner_repo
   case "$path" in
@@ -115,7 +113,7 @@ parse_remote_url() {
   esac
   owner_repo=${owner_repo%.git}
   [ -n "$owner_repo" ] || return 1
-  printf '%s\t%s\n' "$(to_lower "$host")" "$(to_lower "$owner_repo")"
+  printf '%s\t%s\t%s\n' "$(to_lower "$host")" "$(to_lower "$owner_repo")" "$form"
 }
 
 # When sourced for unit tests, expose helpers and stop before running the
@@ -181,6 +179,8 @@ fi
 if [ -n "$PR_BASE_REPO" ]; then
   PR_BASE_REPO=$(to_lower "$PR_BASE_REPO")
 fi
+PR_BASE_HOST_WITHOUT_PORT=$PR_BASE_HOST
+case "$PR_BASE_HOST_WITHOUT_PORT" in *:*) PR_BASE_HOST_WITHOUT_PORT=${PR_BASE_HOST_WITHOUT_PORT%:*} ;; esac
 
 # Flag-pair validation: --pr-base-repo requires --pr-base-host (so host-agnostic
 # matching works) and --pr-base-branch.
@@ -257,8 +257,12 @@ if [ -n "$REVIEW_BASE_BRANCH" ]; then
       parsed=$(parse_remote_url "$remote_url" || true)
       [ -n "$parsed" ] || continue
       remote_host=${parsed%%	*}
-      remote_repo=${parsed#*	}
-      if [ "$remote_host" = "$PR_BASE_HOST" ] && [ "$remote_repo" = "$PR_BASE_REPO" ]; then
+      remote_rest=${parsed#*	}
+      remote_repo=${remote_rest%%	*}
+      remote_form=${remote_rest#*	}
+      if { [ "$remote_host" = "$PR_BASE_HOST" ] || {
+        [ "$remote_form" = "scp" ] && [ "$remote_host" = "$PR_BASE_HOST_WITHOUT_PORT" ]
+      }; } && [ "$remote_repo" = "$PR_BASE_REPO" ]; then
         PR_BASE_REMOTE=$remote_name
         break
       fi

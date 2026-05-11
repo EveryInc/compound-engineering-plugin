@@ -115,13 +115,13 @@ describe("resolve-base-beta.sh — parse_pr_url", () => {
     expect(r.stdout.trim()).toBe("ghe.acme.com\torg/repo")
   })
 
-  test("userinfo and port are stripped (host-only comparison)", async () => {
+  test("userinfo is stripped and port is preserved", async () => {
     const r = await callHelper(
       "parse_pr_url",
       "https://x-token@ghe.acme.com:8443/org/repo/pull/3",
     )
     expect(r.exitCode).toBe(0)
-    expect(r.stdout.trim()).toBe("ghe.acme.com\torg/repo")
+    expect(r.stdout.trim()).toBe("ghe.acme.com:8443\torg/repo")
   })
 
   test("rejects path-prefixed GHE deployments (no silent miscategorization)", async () => {
@@ -145,37 +145,37 @@ describe("resolve-base-beta.sh — parse_remote_url", () => {
   test("HTTPS with .git", async () => {
     const r = await callHelper("parse_remote_url", "https://github.com/org/repo.git")
     expect(r.exitCode).toBe(0)
-    expect(r.stdout.trim()).toBe("github.com\torg/repo")
+    expect(r.stdout.trim()).toBe("github.com\torg/repo\turl")
   })
 
   test("HTTPS without .git", async () => {
     const r = await callHelper("parse_remote_url", "https://github.com/org/repo")
     expect(r.exitCode).toBe(0)
-    expect(r.stdout.trim()).toBe("github.com\torg/repo")
+    expect(r.stdout.trim()).toBe("github.com\torg/repo\turl")
   })
 
   test("scp-form (git@host:owner/repo.git)", async () => {
     const r = await callHelper("parse_remote_url", "git@github.com:org/repo.git")
     expect(r.exitCode).toBe(0)
-    expect(r.stdout.trim()).toBe("github.com\torg/repo")
+    expect(r.stdout.trim()).toBe("github.com\torg/repo\tscp")
   })
 
-  test("ssh:// with port", async () => {
+  test("ssh:// preserves port", async () => {
     const r = await callHelper("parse_remote_url", "ssh://git@ghe.acme.com:22/org/repo.git")
     expect(r.exitCode).toBe(0)
-    expect(r.stdout.trim()).toBe("ghe.acme.com\torg/repo")
+    expect(r.stdout.trim()).toBe("ghe.acme.com:22\torg/repo\turl")
   })
 
   test("HTTPS with userinfo and mixed case", async () => {
     const r = await callHelper("parse_remote_url", "https://x-token@ghe.acme.com/Org/Repo.git")
     expect(r.exitCode).toBe(0)
-    expect(r.stdout.trim()).toBe("ghe.acme.com\torg/repo")
+    expect(r.stdout.trim()).toBe("ghe.acme.com\torg/repo\turl")
   })
 
   test("boundary: org/repo-extra is NOT equal to org/repo", async () => {
     const r = await callHelper("parse_remote_url", "git@github.com:org/repo-extra.git")
     expect(r.exitCode).toBe(0)
-    expect(r.stdout.trim()).toBe("github.com\torg/repo-extra")
+    expect(r.stdout.trim()).toBe("github.com\torg/repo-extra\tscp")
     expect(r.stdout.trim()).not.toBe("github.com\torg/repo")
   })
 })
@@ -288,6 +288,85 @@ describe("resolve-base-beta.sh — end-to-end host-agnostic resolution", () => {
         resolveBaseScript,
         "--pr-url",
         "https://ghe.acme.com/EveryInc/compound-engineering-plugin/pull/7",
+        "--pr-base-branch",
+        "main",
+      ],
+      repoRoot,
+      {
+        ...gitEnv,
+        PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+      },
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.trim()).toBe(`BASE:${upstreamMainSha}`)
+  })
+
+  test("ported GitHub Enterprise PR resolves via matching URL-form remote port", async () => {
+    const repoRoot = await initRepo()
+    const initialSha = await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const upstreamMainSha = await commitFile(repoRoot, "history.txt", "b\n", "main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(
+      ["remote", "add", "wrongport", "https://ghe.acme.com:9443/EveryInc/compound-engineering-plugin.git"],
+      repoRoot,
+    )
+    await runGit(
+      ["remote", "add", "upstream", "https://ghe.acme.com:8443/EveryInc/compound-engineering-plugin.git"],
+      repoRoot,
+    )
+    await runGit(["update-ref", "refs/remotes/wrongport/main", initialSha], repoRoot)
+    await runGit(["update-ref", "refs/remotes/upstream/main", upstreamMainSha], repoRoot)
+
+    const stubBin = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-base-beta-bin-"))
+    await writeExecutable(path.join(stubBin, "gh"), "#!/usr/bin/env bash\nexit 1\n")
+
+    const result = await runCommand(
+      [
+        "bash",
+        resolveBaseScript,
+        "--pr-url",
+        "https://ghe.acme.com:8443/EveryInc/compound-engineering-plugin/pull/7",
+        "--pr-base-branch",
+        "main",
+      ],
+      repoRoot,
+      {
+        ...gitEnv,
+        PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+      },
+    )
+
+    expect(result.exitCode).toBe(0)
+    expect(result.stdout.trim()).toBe(`BASE:${upstreamMainSha}`)
+  })
+
+  test("ported GitHub Enterprise PR can resolve via scp-form remote without web UI port", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const upstreamMainSha = await commitFile(repoRoot, "history.txt", "b\n", "main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    await runGit(
+      ["remote", "add", "upstream", "git@ghe.acme.com:EveryInc/compound-engineering-plugin.git"],
+      repoRoot,
+    )
+    await runGit(["update-ref", "refs/remotes/upstream/main", upstreamMainSha], repoRoot)
+
+    const stubBin = await fs.mkdtemp(path.join(os.tmpdir(), "resolve-base-beta-bin-"))
+    await writeExecutable(path.join(stubBin, "gh"), "#!/usr/bin/env bash\nexit 1\n")
+
+    const result = await runCommand(
+      [
+        "bash",
+        resolveBaseScript,
+        "--pr-url",
+        "https://ghe.acme.com:8443/EveryInc/compound-engineering-plugin/pull/7",
         "--pr-base-branch",
         "main",
       ],
