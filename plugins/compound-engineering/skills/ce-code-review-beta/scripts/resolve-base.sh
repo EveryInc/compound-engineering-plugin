@@ -29,8 +29,11 @@
 # Limitations (intentional; documented):
 #   - scp-form URLs with bracketed IPv6 (git@[::1]:owner/repo) not parsed.
 #   - GHE deployments mounted under a path prefix (acme.com/github/...) fail
-#     parse_pr_url, which triggers the standard fallback chain rather than
-#     silently picking the wrong repo.
+#     parse_pr_url. With --pr-url this errors out explicitly; in auto-detect
+#     mode where `gh pr view` returns such a URL, the resolver fails closed
+#     with ERROR rather than silently falling back to origin (which would
+#     compute merge-base against fork history). Callers can work around this
+#     by passing --pr-base-repo/--pr-base-host/--pr-base-branch directly.
 
 set -euo pipefail
 
@@ -208,17 +211,34 @@ run_fetch() {
 }
 
 # Step 1: Try PR metadata when no flags supplied (handles fork workflows).
+#
+# Fail-closed semantics: if `gh pr view` identifies us as on a PR (non-empty
+# baseRefName), we MUST establish PR_BASE_HOST/PR_BASE_REPO so the
+# matched-remote gate below triggers; silently dropping PR metadata here would
+# fall through to origin and compute merge-base against fork history. Same bug
+# class d87ab1a0 closed for matched-remote-fetch-fails and no-matching-remote
+# — third trigger is "gh-returned-but-unestablishable PR metadata" (empty or
+# unparseable PR URL, e.g., GHE deployments mounted under a path prefix). When
+# gh returns no PR at all (empty PR_META or empty baseRefName), this block
+# silently falls through to the legacy auto-detect chain (Steps 2-4).
 if [ -z "$REVIEW_BASE_BRANCH" ] && command -v gh >/dev/null 2>&1; then
   PR_META=$(gh pr view --json baseRefName,url 2>/dev/null || true)
   if [ -n "$PR_META" ]; then
-    REVIEW_BASE_BRANCH=$(echo "$PR_META" | jq -r '.baseRefName // empty' 2>/dev/null || true)
+    META_BRANCH=$(echo "$PR_META" | jq -r '.baseRefName // empty' 2>/dev/null || true)
     META_URL=$(echo "$PR_META" | jq -r '.url // empty' 2>/dev/null || true)
-    if [ -n "$META_URL" ]; then
-      PARSED_META=$(parse_pr_url "$META_URL" || true)
-      if [ -n "$PARSED_META" ]; then
-        PR_BASE_HOST=${PARSED_META%%	*}
-        PR_BASE_REPO=${PARSED_META#*	}
+    if [ -n "$META_BRANCH" ]; then
+      if [ -z "$META_URL" ]; then
+        echo "ERROR:gh pr view returned base branch '$META_BRANCH' but no URL; cannot establish PR base repo for fail-closed resolution. Pass --pr-url explicitly."
+        exit 0
       fi
+      PARSED_META=$(parse_pr_url "$META_URL" || true)
+      if [ -z "$PARSED_META" ]; then
+        echo "ERROR:gh pr view returned an unparseable PR URL: $META_URL. Pass --pr-url explicitly, or use --pr-base-repo/--pr-base-host/--pr-base-branch (e.g., for GHE deployments mounted under a path prefix)."
+        exit 0
+      fi
+      REVIEW_BASE_BRANCH=$META_BRANCH
+      PR_BASE_HOST=${PARSED_META%%	*}
+      PR_BASE_REPO=${PARSED_META#*	}
     fi
   fi
 fi

@@ -478,4 +478,69 @@ describe("resolve-base-beta.sh — end-to-end host-agnostic resolution", () => {
     expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
     expect(result.stdout).not.toMatch(/^BASE:/)
   })
+
+  test("auto-detect: gh pr view returns unparseable PR URL -> ERROR, no origin fallback", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const forkMainSha = await commitFile(repoRoot, "history.txt", "b\n", "fork main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    // origin is the fork on a GHE deployment mounted under a path prefix.
+    // If the fail-closed gate regressed, `gh pr view`'s unparseable URL would
+    // silently leave PR_BASE_HOST/REPO unset, and the resolver would fall
+    // through to origin/main (forkMainSha) — silently miscategorizing the
+    // reviewed diff against fork history.
+    await runGit(
+      ["remote", "add", "origin", "https://acme.com/github/someone/fork.git"],
+      repoRoot,
+    )
+    await runGit(["update-ref", "refs/remotes/origin/main", forkMainSha], repoRoot)
+
+    // parse_pr_url rejects path-prefixed GHE shapes (see parse_pr_url tests).
+    const stubBin = await createGheStubBin(
+      "main",
+      "https://acme.com/github/EveryInc/compound-engineering-plugin/pull/1",
+    )
+
+    const result = await runCommand(["bash", resolveBaseScript], repoRoot, {
+      ...gitEnv,
+      PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+    })
+
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).toContain("unparseable PR URL")
+    expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
+    expect(result.stdout).not.toMatch(/^BASE:/)
+  })
+
+  test("auto-detect: gh pr view returns base branch but empty URL -> ERROR, no origin fallback", async () => {
+    const repoRoot = await initRepo()
+    await commitFile(repoRoot, "history.txt", "a\n", "initial")
+    const forkMainSha = await commitFile(repoRoot, "history.txt", "b\n", "fork main advance")
+
+    await runGit(["checkout", "-b", "feature"], repoRoot)
+    await commitFile(repoRoot, "feature.txt", "feature\n", "feature change")
+
+    // Same fork-history regression bait as the unparseable-URL test: if the
+    // fail-closed gate skips this sub-case, the resolver falls through to
+    // origin and silently uses forkMainSha.
+    await runGit(["remote", "add", "origin", "https://github.com/someone/fork.git"], repoRoot)
+    await runGit(["update-ref", "refs/remotes/origin/main", forkMainSha], repoRoot)
+
+    // Stub `gh pr view` to return a base branch but no URL — exercises the
+    // empty-URL guard added alongside the unparseable-URL guard.
+    const stubBin = await createGheStubBin("main", "")
+
+    const result = await runCommand(["bash", resolveBaseScript], repoRoot, {
+      ...gitEnv,
+      PATH: `${stubBin}:${process.env.PATH ?? ""}`,
+    })
+
+    expect(result.stdout).toMatch(/^ERROR:/)
+    expect(result.stdout).toContain("no URL")
+    expect(result.stdout).not.toContain(`BASE:${forkMainSha}`)
+    expect(result.stdout).not.toMatch(/^BASE:/)
+  })
 })
