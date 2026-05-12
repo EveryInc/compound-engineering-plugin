@@ -74,21 +74,35 @@ describe("extract-metadata", () => {
     expect(session.platform).toBe("cursor")
   })
 
+  test("detects Pi platform and extracts CWD", async () => {
+    const { stdout, exitCode } = await runScript("extract-metadata.py", [
+      path.join(FIXTURES_DIR, "pi-session.jsonl"),
+    ])
+    expect(exitCode).toBe(0)
+    const lines = parseJsonLines(stdout)
+    const session = lines.find((l) => !l._meta)
+    expect(session.platform).toBe("pi")
+    expect(session.cwd).toBe("/Users/test/Code/my-repo")
+    expect(session.session).toBe("test-pi-session-1")
+  })
+
   test("batch mode processes multiple files", async () => {
     const { stdout, exitCode } = await runScript("extract-metadata.py", [
       path.join(FIXTURES_DIR, "claude-session.jsonl"),
       path.join(FIXTURES_DIR, "codex-session.jsonl"),
       path.join(FIXTURES_DIR, "cursor-session.jsonl"),
+      path.join(FIXTURES_DIR, "pi-session.jsonl"),
     ])
     expect(exitCode).toBe(0)
     const lines = parseJsonLines(stdout)
     const meta = lines.find((l) => l._meta)
-    expect(meta.files_processed).toBe(3)
+    expect(meta.files_processed).toBe(4)
     expect(meta.parse_errors).toBe(0)
     const platforms = lines.filter((l) => !l._meta).map((l) => l.platform)
     expect(platforms).toContain("claude")
     expect(platforms).toContain("codex")
     expect(platforms).toContain("cursor")
+    expect(platforms).toContain("pi")
   })
 
   test("--cwd-filter excludes non-matching Codex sessions", async () => {
@@ -446,6 +460,20 @@ describe("extract-skeleton", () => {
     for (const line of assistantLines) {
       expect(line).not.toMatch(/\[assistant\]\s*\[REDACTED\]$/)
     }
+  })
+
+  test("extracts Pi user and assistant messages", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "pi-session.jsonl")
+    ).text()
+    const { stdout } = await runScript("extract-skeleton.py", [], fixture)
+    expect(stdout).toContain("[user] fix the auth bug in middleware")
+    expect(stdout).toContain("[assistant] Let me look at the auth middleware.")
+    expect(stdout).toContain("[assistant] Fixed the auth middleware.")
+    // Tool calls should be collapsed
+    expect(stdout).toContain("[tool]")
+    // toolResult messages should not appear as user/assistant turns
+    expect(stdout).not.toContain("[user] file contents here")
   })
 
   test("outputs _meta with stats", async () => {
@@ -822,8 +850,8 @@ describe("--output PATH mode", () => {
 // ---------------------------------------------------------------------------
 describe("auto-detection", () => {
   test("all three scripts detect the correct platform", async () => {
-    const fixtures = ["claude-session", "codex-session", "cursor-session"]
-    const expected = ["claude", "codex", "cursor"]
+    const fixtures = ["claude-session", "codex-session", "cursor-session", "pi-session"]
+    const expected = ["claude", "codex", "cursor", "pi"]
 
     for (let i = 0; i < fixtures.length; i++) {
       const fixturePath = path.join(FIXTURES_DIR, `${fixtures[i]}.jsonl`)

@@ -51,6 +51,20 @@ discover_codex() {
     done
 }
 
+# --- Pi ---
+discover_pi() {
+    local base="$HOME/.pi/agent/sessions"
+    [ -d "$base" ] || return 0
+
+    # Pi encodes the CWD as a directory name by replacing / with -- and
+    # stripping the leading separator. Match any session dir that contains
+    # the repo name as a path segment.
+    for dir in "$base"/*"$REPO_NAME"*/; do
+        [ -d "$dir" ] || continue
+        find "$dir" -maxdepth 1 -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
+    done
+}
+
 # --- Cursor ---
 discover_cursor() {
     local base="$HOME/.cursor/projects"
@@ -69,10 +83,12 @@ case "$PLATFORM" in
     claude)  discover_claude ;;
     codex)   discover_codex ;;
     cursor)  discover_cursor ;;
+    pi)     discover_pi ;;
     all)
         discover_claude
         discover_codex
         discover_cursor
+        discover_pi
         ;;
     *)
         echo "Unknown platform: $PLATFORM" >&2

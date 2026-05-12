@@ -57,6 +57,23 @@ def try_codex(lines):
     return meta if meta else None
 
 
+def try_pi(lines):
+    """Pi sessions: type='session' first line with cwd, then type='message' entries."""
+    for line in lines:
+        try:
+            obj = json.loads(line.strip())
+            if obj.get("type") == "session" and "cwd" in obj:
+                return {
+                    "platform": "pi",
+                    "cwd": obj["cwd"],
+                    "session": obj.get("id", ""),
+                    "ts": obj.get("timestamp", ""),
+                }
+        except (json.JSONDecodeError, KeyError):
+            pass
+    return None
+
+
 def try_cursor(lines):
     """Cursor agent transcripts: role-based entries, no timestamps or metadata fields."""
     for line in lines:
@@ -71,7 +88,7 @@ def try_cursor(lines):
 
 
 def extract_from_lines(lines):
-    return try_claude(lines) or try_codex(lines) or try_cursor(lines)
+    return try_claude(lines) or try_codex(lines) or try_pi(lines) or try_cursor(lines)
 
 
 TAIL_BYTES = 16384  # Read last 16KB to find final timestamp past trailing metadata
@@ -159,6 +176,19 @@ def _extract_user_assistant_text(filepath):
                         for block in p.get("content", []):
                             if isinstance(block, dict) and block.get("type") == "output_text":
                                 chunks.append(block.get("text", ""))
+                    continue
+
+                # Pi: type='message' with message.role and message.content
+                if t == "message" and "message" in obj:
+                    msg = obj["message"]
+                    role = msg.get("role", "")
+                    content = msg.get("content", [])
+                    if role in ("user", "assistant") and isinstance(content, list):
+                        for block in content:
+                            if isinstance(block, dict) and block.get("type") == "text":
+                                chunks.append(block.get("text", ""))
+                            # Skip toolCall and thinking blocks
+                    # Skip toolResult messages
                     continue
 
                 # Cursor: role-tagged with no top-level type
