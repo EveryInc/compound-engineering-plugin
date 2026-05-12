@@ -58,7 +58,7 @@ Based on our dialogue and approach selection, here's the scope I'm proposing for
 Does this match your intent? Tell me what to add, remove, redirect, or that I got wrong — or just confirm to proceed. (You can rebut even if my synthesis accurately reflects what you said earlier — you may have changed your mind, surfaced new context, or want to correct an unstated assumption.)
 ```
 
-Use prose for the user response (no `AskUserQuestion` menu). The justification is Interaction Rule 5(a) in SKILL.md — option sets bias the answer by signaling which dimensions matter.
+Use prose for the user response (no blocking-tool menu). The justification is Interaction Rule 5(a) in SKILL.md — option sets bias the answer by signaling which dimensions matter.
 
 ---
 
@@ -101,7 +101,7 @@ The test: a scanner reading a bullet should affirm or reject it on product / sco
 
 Track which Stated/Inferred/Out items the user touched per round. The soft-cut blocking question fires **only when the same item is revised twice** (or a third-round revision targets an item already revised in round two). New-item revisions across rounds proceed without limit — revising different aspects of a wrong synthesis (e.g., user pushed back on Stated, then on Inferred) is exactly what the mechanism should support.
 
-When the soft-cut fires, use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi) with two options:
+When the soft-cut fires, use the platform's blocking question tool per Interaction Rule 4 in SKILL.md, with two options:
 
 - `Proceed with the current revised synthesis`
 - `Stop and redirect — discuss further before writing the doc`
@@ -112,7 +112,7 @@ Fall back to a numbered list in chat only when no blocking tool exists or the ca
 
 ## Headless mode
 
-When the skill is invoked from an automated workflow such as LFG or any `disable-model-invocation` context, the skill runs in non-interactive mode (no synchronous user). This does NOT mean unaudited — the artifact is read by downstream skills (ce-doc-review, ce-plan) and human reviewers (PR review). Audit shifts from chat history to the artifact itself.
+When the skill runs in a non-interactive context — no synchronous user, e.g., invoked from an automated workflow like LFG or from a skill with model-self-invocation disabled (`disable-model-invocation: true` in Claude Code) — Phase 2.5 still fires but without a confirmation step. This does NOT mean unaudited — the artifact is read by downstream skills (ce-doc-review, ce-plan) and human reviewers (PR review). Audit shifts from chat history to the artifact itself.
 
 Behavior:
 
