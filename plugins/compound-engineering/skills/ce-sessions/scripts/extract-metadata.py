@@ -183,11 +183,14 @@ def _extract_user_assistant_text(filepath):
                     msg = obj["message"]
                     role = msg.get("role", "")
                     content = msg.get("content", [])
-                    if role in ("user", "assistant") and isinstance(content, list):
-                        for block in content:
-                            if isinstance(block, dict) and block.get("type") == "text":
-                                chunks.append(block.get("text", ""))
-                            # Skip toolCall and thinking blocks
+                    if role in ("user", "assistant"):
+                        if isinstance(content, str):
+                            chunks.append(content)
+                        elif isinstance(content, list):
+                            for block in content:
+                                if isinstance(block, dict) and block.get("type") == "text":
+                                    chunks.append(block.get("text", ""))
+                                # Skip toolCall and thinking blocks
                     # Skip toolResult messages
                     continue
 
