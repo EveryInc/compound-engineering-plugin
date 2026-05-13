@@ -318,7 +318,7 @@ def handle_pi(obj):
 
     elif role == "toolResult":
         tool_call_id = msg.get("toolCallId")
-        is_error = any(
+        is_error = msg.get("isError") or any(
             b.get("type") == "toolError"
             for b in (content if isinstance(content, list) else [])
         )
