@@ -12,6 +12,8 @@ ce_platforms: [claude]
 allowed-tools: Bash(bash *upstream-version.sh), Bash(bash *currently-loaded-version.sh), Bash(bash *marketplace-name.sh)
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Check Plugin Version
 
 Verify the installed compound-engineering plugin version matches the upstream

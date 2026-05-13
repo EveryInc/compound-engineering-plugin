@@ -4,6 +4,8 @@ description: Document a recently solved problem to compound your team's knowledg
 argument-hint: "[optional: brief context] [mode:headless] "
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # /ce-compound
 
 Coordinate multiple subagents working in parallel to document a recently solved problem.
