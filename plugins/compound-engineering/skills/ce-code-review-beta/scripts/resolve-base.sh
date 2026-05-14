@@ -38,6 +38,14 @@
 #   - Remote URLs with more than two path segments are rejected instead of
 #     silently truncating parent path segments. This fails closed for
 #     path-prefixed GHE remotes and nested namespaces such as GitLab subgroups.
+#   - url.*.insteadOf rewrites that target non-http(s)/ssh/git/scp schemes
+#     (e.g., file://, custom helpers) cause parse_remote_url to reject the
+#     rewritten URL, so identity matching against the raw configured URL is
+#     not attempted. Workaround: configure the remote with its identity URL
+#     and rely on git's native fetch-time rewriting.
+#   - Percent-encoded path segments (%XX) in PR URLs are compared literally
+#     and will not match a decoded remote path. GitHub web URLs do not emit
+#     percent-encoding for owner/repo in practice.
 
 set -euo pipefail
 
@@ -49,12 +57,45 @@ to_lower() {
 }
 
 # derive_host_without_port <host>
-# Mirrors the existing scp-form fallback derivation: strip everything after the
-# final colon when a colon is present, otherwise preserve the host unchanged.
+# Strip a trailing :port from a host. Bracket-aware so IPv6 literals like
+# [2001:db8::1] are preserved intact: stripping the final colon would collapse
+# distinct IPv6 hosts to the same prefix (e.g., [2001:db8::1] and [2001:db8::2]
+# both reducing to [2001:db8:), which combined with the URL-form ssh/git/scp
+# host-without-port fallback in the matcher would silently match unrelated
+# remotes. Case order matters: the IPv6 patterns must come before *:* because
+# bracketed addresses contain colons.
 derive_host_without_port() {
   local host=$1
-  case "$host" in *:*) host=${host%:*} ;; esac
+  case "$host" in
+    \[*\]) ;;                       # [ipv6] no port — preserve
+    \[*\]:*) host=${host%:*} ;;     # [ipv6]:port — strip port
+    *:*) host=${host%:*} ;;         # host:port — strip port
+  esac
   printf '%s\n' "$host"
+}
+
+normalize_default_port() {
+  local scheme=$1
+  local host=$2
+  case "$scheme:$host" in
+    https:*:443) host=${host%:443} ;;
+    http:*:80) host=${host%:80} ;;
+  esac
+  printf '%s\n' "$host"
+}
+
+has_invalid_percent_escape() {
+  local value=$1
+  while :; do
+    case "$value" in
+      *%*) value=${value#*%} ;;
+      *) return 1 ;;
+    esac
+    case "$value" in
+      [0-9A-Fa-f][0-9A-Fa-f]*) value=${value#??} ;;
+      *) return 0 ;;
+    esac
+  done
 }
 
 # parse_pr_url <url>
@@ -65,21 +106,41 @@ derive_host_without_port() {
 parse_pr_url() {
   local url=$1
   [ -n "$url" ] || return 1
+  case "$url" in
+    *\?*) url=${url%%\?*} ;;
+  esac
+  case "$url" in
+    *#*) url=${url%%#*} ;;
+  esac
+  local scheme=${url%%://*}
+  [ "$scheme" != "$url" ] || return 1
+  case "$scheme" in
+    https|http) ;;
+    *) return 1 ;;
+  esac
   local no_scheme=${url#*://}
   [ "$no_scheme" != "$url" ] || return 1
   local host_part=${no_scheme%%/*}
   host_part=${host_part#*@}
   [ -n "$host_part" ] || return 1
+  host_part=$(normalize_default_port "$scheme" "$host_part")
   local path=${no_scheme#*/}
   [ "$path" != "$no_scheme" ] || return 1
   local owner_repo
   owner_repo=$(printf '%s\n' "$path" | sed -n 's#^\(.*\)/pull/[0-9][0-9]*\(/.*\)\{0,1\}$#\1#p')
   [ -n "$owner_repo" ] || return 1
+  has_invalid_percent_escape "$owner_repo" && return 1
   case "$owner_repo" in
     */*/*) return 1 ;;
     */*) ;;
     *) return 1 ;;
   esac
+  local repo=${owner_repo##*/}
+  local owner_path=${owner_repo%/*}
+  local owner=${owner_path##*/}
+  [ -n "$owner" ] || return 1
+  [ -n "$repo" ] || return 1
+  owner_repo="$owner/$repo"
   printf '%s\t%s\n' "$(to_lower "$host_part")" "$(to_lower "$owner_repo")"
 }
 
@@ -87,32 +148,54 @@ parse_pr_url() {
 # Outputs "HOST<TAB>OWNER/REPO<TAB>FORM" (host/repo lowercased) on success,
 # returns 1 on failure. Handles:
 #   - https://[user@]host[:port]/owner/repo[.git]
+#   - http://[user@]host[:port]/owner/repo[.git]
 #   - ssh://[user[:pass]@]host[:port]/owner/repo[.git]
-#   - scp-form: user@host:owner/repo[.git]
-# Preserves URL-form ports for exact host matching. Scp-form cannot carry the
-# web UI port, so callers may choose a host-without-port fallback only for
-# FORM=scp. Rejects paths deeper than owner/repo so path-prefixed deployments
-# and nested namespaces fail closed instead of silently dropping path segments.
+#   - git://host[:port]/owner/repo[.git]
+#   - scp-form: [user@]host:owner/repo[.git]
+# Preserves non-default URL-form ports for exact host matching. Scp-form,
+# ssh://, and git:// do not carry the web UI port, so callers may choose a
+# host-without-port fallback only for FORM=scp/ssh/git. Rejects paths deeper
+# than owner/repo so path-prefixed deployments and nested namespaces fail
+# closed instead of silently dropping path segments.
 parse_remote_url() {
   local url=$1
   local host path form
   case "$url" in
     *://*)
-      form=url
+      local scheme=${url%%://*}
+      case "$scheme" in
+        https|http|ssh|git) form=$scheme ;;
+        *) return 1 ;;
+      esac
       local no_scheme=${url#*://}
       host=${no_scheme%%/*}
       host=${host#*@}
       [ "$no_scheme" != "$host" ] || return 1
+      [ -n "$host" ] || return 1
+      host=$(normalize_default_port "$scheme" "$host")
       path=${no_scheme#*/}
       [ "$path" != "$no_scheme" ] || return 1
       ;;
-    *@*:*)
+    *:*)
       form=scp
-      host=${url#*@}
+      local before_colon=${url%%:*}
+      case "$before_colon" in
+        */*) return 1 ;;
+      esac
+      # Reject bare-scheme inputs (e.g., `http:owner/repo` missing `//`) that
+      # would otherwise misclassify as scp with host=`http`. These shapes are
+      # never valid scp-form per git-clone(1).
+      case "$before_colon" in
+        http|https|ssh|git|ftp|ftps|file|rsync) return 1 ;;
+      esac
+      case "$before_colon" in
+        *@*) host=${before_colon#*@} ;;
+        *) host=$before_colon ;;
+      esac
       case "$host" in
         \[*) return 1 ;;
       esac
-      host=${host%%:*}
+      [ -n "$host" ] || return 1
       path=${url#*:}
       [ "$path" != "$url" ] || return 1
       ;;
@@ -121,6 +204,7 @@ parse_remote_url() {
   [ -n "$host" ] || return 1
   local owner_repo
   path=${path%/}
+  has_invalid_percent_escape "$path" && return 1
   path=${path%.git}
   case "$path" in
     */*/*) return 1 ;;
@@ -149,6 +233,7 @@ PR_BASE_HOST=""
 PR_BASE_REMOTE=""
 BASE_REF=""
 LAST_FETCH_ERR=""
+PR_BASE_BRANCH_FROM_CLI=0
 
 # --- Parse optional flags. ---
 while [ "$#" -gt 0 ]; do
@@ -171,6 +256,7 @@ while [ "$#" -gt 0 ]; do
     --pr-base-branch)
       [ "$#" -ge 2 ] || { echo "ERROR:--pr-base-branch requires a value"; exit 0; }
       REVIEW_BASE_BRANCH="$2"
+      PR_BASE_BRANCH_FROM_CLI=1
       shift 2
       ;;
     *)
@@ -213,6 +299,10 @@ if [ -n "$PR_BASE_REPO" ] && [ -z "$PR_BASE_HOST" ]; then
 fi
 if [ -n "$PR_BASE_HOST" ] && [ -z "$PR_BASE_REPO" ]; then
   echo "ERROR:--pr-base-host requires --pr-base-repo (or pass --pr-url instead)"
+  exit 0
+fi
+if [ "$PR_BASE_BRANCH_FROM_CLI" = "1" ] && [ -n "$REVIEW_BASE_BRANCH" ] && [ -z "$PR_URL" ] && [ -z "$PR_BASE_REPO" ] && [ -z "$PR_BASE_HOST" ]; then
+  echo "ERROR:--pr-base-branch requires --pr-url or --pr-base-repo/--pr-base-host (or omit all flags for auto-detect)"
   exit 0
 fi
 
@@ -299,6 +389,7 @@ fi
 # origin/local fallback only applies when no PR metadata was provided
 # (auto-detect / branch mode).
 PR_METADATA_PROVIDED=0
+MATCHED_REMOTES=()
 if [ -n "$REVIEW_BASE_BRANCH" ]; then
   if [ -n "$PR_BASE_REPO" ] && [ -n "$PR_BASE_HOST" ]; then
     PR_METADATA_PROVIDED=1
@@ -316,22 +407,38 @@ if [ -n "$REVIEW_BASE_BRANCH" ]; then
       remote_rest=${parsed#*	}
       remote_repo=${remote_rest%%	*}
       remote_form=${remote_rest#*	}
+      remote_host_without_port=$(derive_host_without_port "$remote_host")
       if { [ "$remote_host" = "$PR_BASE_HOST" ] || {
-        [ "$remote_form" = "scp" ] && [ "$remote_host" = "$PR_BASE_HOST_WITHOUT_PORT" ]
+        case "$remote_form" in
+          scp|ssh|git) [ "$remote_host_without_port" = "$PR_BASE_HOST_WITHOUT_PORT" ] ;;
+          *) false ;;
+        esac
       }; } && [ "$remote_repo" = "$PR_BASE_REPO" ]; then
-        PR_BASE_REMOTE=$remote_name
-        break
+        MATCHED_REMOTES+=("$remote_name")
       fi
     done < <(git remote)
 
-    if [ -n "$PR_BASE_REMOTE" ]; then
-      BASE_REF=$(git rev-parse --verify "$PR_BASE_REMOTE/$REVIEW_BASE_BRANCH" 2>/dev/null || true)
-      if [ -z "$BASE_REF" ]; then
-        run_fetch git fetch --no-tags "$PR_BASE_REMOTE" "$REVIEW_BASE_BRANCH:refs/remotes/$PR_BASE_REMOTE/$REVIEW_BASE_BRANCH" \
-          || run_fetch git fetch --no-tags "$PR_BASE_REMOTE" "$REVIEW_BASE_BRANCH" \
-          || true
-        BASE_REF=$(git rev-parse --verify "$PR_BASE_REMOTE/$REVIEW_BASE_BRANCH" 2>/dev/null || true)
-      fi
+    # Guard the for-loop: bash 3.2 (macOS default) errors on
+    # "${empty_array[@]}" under `set -u`, which would crash before the
+    # fail-closed ERROR gate below can emit its structured message.
+    if [ "${#MATCHED_REMOTES[@]}" -gt 0 ]; then
+      for matched_remote in "${MATCHED_REMOTES[@]}"; do
+        # Clear per-remote so the final error message's stderr accurately
+        # reflects the remote it names (LAST_MATCHED_REMOTE), instead of
+        # potentially carrying an earlier remote's stderr forward.
+        LAST_FETCH_ERR=""
+        BASE_REF=$(git rev-parse --verify "$matched_remote/$REVIEW_BASE_BRANCH" 2>/dev/null || true)
+        if [ -z "$BASE_REF" ]; then
+          run_fetch git fetch --no-tags "$matched_remote" "$REVIEW_BASE_BRANCH:refs/remotes/$matched_remote/$REVIEW_BASE_BRANCH" \
+            || run_fetch git fetch --no-tags "$matched_remote" "$REVIEW_BASE_BRANCH" \
+            || true
+          BASE_REF=$(git rev-parse --verify "$matched_remote/$REVIEW_BASE_BRANCH" 2>/dev/null || true)
+        fi
+        if [ -n "$BASE_REF" ]; then
+          PR_BASE_REMOTE=$matched_remote
+          break
+        fi
+      done
     fi
   fi
 
@@ -340,11 +447,12 @@ if [ -n "$REVIEW_BASE_BRANCH" ]; then
   # NOT fall through to origin/local. Both sub-cases produce the same wrong
   # outcome — silently computing diff against a different repo's history.
   if [ "$PR_METADATA_PROVIDED" = "1" ] && [ -z "$BASE_REF" ]; then
-    if [ -n "$PR_BASE_REMOTE" ]; then
+    if [ "${#MATCHED_REMOTES[@]}" -gt 0 ]; then
+      LAST_MATCHED_REMOTE=${MATCHED_REMOTES[$((${#MATCHED_REMOTES[@]} - 1))]}
       if [ -n "$LAST_FETCH_ERR" ]; then
-        echo "ERROR:Identified PR base remote '$PR_BASE_REMOTE' (host=$PR_BASE_HOST, repo=$PR_BASE_REPO) but failed to resolve '$REVIEW_BASE_BRANCH' there. Last fetch stderr: $LAST_FETCH_ERR"
+        echo "ERROR:Identified PR base remote '$LAST_MATCHED_REMOTE' (host=$PR_BASE_HOST, repo=$PR_BASE_REPO) but failed to resolve '$REVIEW_BASE_BRANCH' there. Last fetch stderr: $LAST_FETCH_ERR"
       else
-        echo "ERROR:Identified PR base remote '$PR_BASE_REMOTE' (host=$PR_BASE_HOST, repo=$PR_BASE_REPO) but '$REVIEW_BASE_BRANCH' is unresolvable there. Verify the remote URL, branch name, and authentication."
+        echo "ERROR:Identified PR base remote '$LAST_MATCHED_REMOTE' (host=$PR_BASE_HOST, repo=$PR_BASE_REPO) but '$REVIEW_BASE_BRANCH' is unresolvable there. Verify the remote URL, branch name, and authentication."
       fi
     else
       echo "ERROR:PR metadata (host=$PR_BASE_HOST, repo=$PR_BASE_REPO) does not match any configured git remote. Add a remote pointing at the PR base repository and retry; do not silently fall back to origin, which may belong to a different repository."
