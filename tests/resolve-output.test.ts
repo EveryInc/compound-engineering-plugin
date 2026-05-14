@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import os from "os"
 import path from "path"
+import { resolveCodexHome } from "../src/utils/resolve-home"
 import { resolveOpenCodeWriteScope, resolveTargetOutputRoot } from "../src/utils/resolve-output"
 
 const baseOptions = {
@@ -52,6 +53,30 @@ describe("resolveTargetOutputRoot", () => {
       const result = resolveTargetOutputRoot({ ...baseOptions, targetName: "opencode" })
       expect(result).toBe("/custom/opencode")
     })
+  })
+})
+
+describe("resolveCodexHome", () => {
+  const originalCodexHome = process.env.CODEX_HOME
+
+  afterEach(() => {
+    if (originalCodexHome === undefined) {
+      delete process.env.CODEX_HOME
+    } else {
+      process.env.CODEX_HOME = originalCodexHome
+    }
+  })
+
+  test("uses CODEX_HOME when no explicit --codex-home is provided", () => {
+    process.env.CODEX_HOME = "/tmp/custom-codex-profile"
+
+    expect(resolveCodexHome(undefined)).toBe("/tmp/custom-codex-profile")
+  })
+
+  test("lets explicit --codex-home override CODEX_HOME", () => {
+    process.env.CODEX_HOME = "/tmp/custom-codex-profile"
+
+    expect(resolveCodexHome("/tmp/explicit-codex")).toBe("/tmp/explicit-codex")
   })
 })
 

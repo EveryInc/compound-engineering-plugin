@@ -16,7 +16,7 @@ Be a thinking partner, not an answer machine. The user came here because they're
 
 "What's prompting this?", "what matters most here?", and "what have you ruled out?" feel open-ended and conversational, but that's not a reason to skip the tool. The free-text option preserves flexibility while a well-crafted option set teaches the user the dimensions they might not have separated. Pick-plus-optional-note is lower activation energy than composing prose from scratch — especially for emotional or values-laden topics where prose can feel like an essay prompt.
 
-Drop to prose only when (a) the answer is inherently narrative ("walk me through how you got here"), (b) the question is diagnostic or introspective and presented options would leak your priors and bias the answer, or (c) you cannot write 3-4 genuinely distinct, plausibly-correct options that cover the space without padding. If you'd be straining to fill the option slots, the question is open — use prose.
+Drop the blocking tool only when (a) the answer is inherently narrative ("walk me through how you got here"), (b) the question is diagnostic or introspective and presented options would unintentionally influence the user's answer, or (c) you cannot write 3-4 genuinely distinct, plausibly-correct options that cover the space without padding. If you'd be straining to fill the option slots, the question is open — ask it open-ended (see Interaction Rule 6 in SKILL.md for how to phrase open-ended questions so they earn their place).
 
 ## How to start
 

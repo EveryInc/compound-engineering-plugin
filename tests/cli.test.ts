@@ -1162,6 +1162,84 @@ describe("CLI", () => {
     expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
   })
 
+  test("install --to codex respects CODEX_HOME when --codex-home is omitted", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-env-home-"))
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-env-home-ws-"))
+    const projectRoot = path.join(import.meta.dir, "..")
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const codexHome = path.join(tempRoot, "profiles", "sstk")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(projectRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "codex",
+    ], {
+      cwd: workspaceRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempRoot,
+        CODEX_HOME: codexHome,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain(codexHome)
+    expect(await exists(path.join(codexHome, "agents", "compound-engineering", "security-sentinel.toml"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".codex", "agents", "compound-engineering", "security-sentinel.toml"))).toBe(false)
+  })
+
+  test("install --to codex treats --codex-home as the Codex root even when it is not named .codex", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-explicit-home-"))
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-explicit-home-ws-"))
+    const projectRoot = path.join(import.meta.dir, "..")
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const codexHome = path.join(tempRoot, "profiles", "sstk")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(projectRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "codex",
+      "--codex-home",
+      codexHome,
+    ], {
+      cwd: workspaceRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempRoot,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(await exists(path.join(codexHome, "agents", "compound-engineering", "security-sentinel.toml"))).toBe(true)
+    expect(await exists(path.join(codexHome, ".codex", "agents", "compound-engineering", "security-sentinel.toml"))).toBe(false)
+  })
+
   test("install by name ignores same-named local directory", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-shadow-"))
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-shadow-workspace-"))

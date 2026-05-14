@@ -82,7 +82,7 @@ Phase 2 surfaces 2-3 concrete approaches with at least one **non-obvious angle**
 
 ### 5. Synthesis Summary — the last cheap moment to correct
 
-Before writing the doc, `ce-brainstorm` emits a three-bucket synthesis: **Stated** (explicit decisions), **Inferred** (bets the agent is making to fill gaps), **Out** (what's been ruled out). This is the user's last chance to correct scope before the artifact lands. In headless mode, Inferred bets route to a separate `## Assumptions` section so downstream review can scrutinize them.
+Before writing the doc, `ce-brainstorm` emits a **scoping synthesis** shaped like what two product collaborators would confirm before writing a PRD. It surfaces what's being built, the key trade-offs the dialogue produced, what's been deferred, and any genuine forks the user should weigh in on. Each section renders only when it has something to say — no empty buckets padded for ceremony. When the upstream conversation short-circuited (Phase 0.2 fast path, requirements already clear, no questions asked), the scoping synthesis compresses to a single forward-looking sentence with an end-of-turn interrupt window.
 
 ### 6. Stable identifiers that flow downstream
 
@@ -104,7 +104,7 @@ You start with a vague feature idea — "I want to add a way for users to pause 
 
 The pressure test detects a specificity gap (who are these "users"?) and an attachment gap ("pause" is already a specific solution shape). It probes both as prose, one at a time. You name the actual pain — your support team gets pinged at 3 AM for non-urgent stuff — and describe the smallest version that would solve it.
 
-Three approaches surface — per-notification-type mute with TTL, a global do-not-disturb schedule, mute on the rule rather than the channel — with tradeoffs and a recommendation. The Synthesis Summary surfaces what's stated, what the agent inferred, and what's been ruled out. You confirm and add a 24h preset.
+Three approaches surface — per-notification-type mute with TTL, a global do-not-disturb schedule, mute on the rule rather than the channel — with tradeoffs and a recommendation. The Synthesis Summary reads back the shape that emerged ("per-channel mute on notification rules, 24h preset for the 3 AM support pings"), names the trade-offs made in dialogue (per-channel over per-user, mute lives on the rule), what's deferred (presence-based mute, quiet-hours schedules), and a single call-out about the rule-delete loss path. You confirm and add a 24h preset.
 
 A right-sized requirements doc is written and the Phase 4 menu offers next steps — `/ce-plan` (recommended), agent doc review, Proof iteration, or skip-to-build for trivial scope.
 
@@ -193,7 +193,7 @@ Yes. The Lightweight tier and the announce-mode fast path support that. If you o
 Skip `ce-brainstorm` and go directly to `/ce-plan`. The plan skill consumes any kind of input.
 
 **What does "Inferred" mean in the synthesis?**
-Bets the agent is making to fill gaps. In interactive mode, you confirm or correct them in chat. In headless mode, they route to a `## Assumptions` section in the doc so downstream review can scrutinize them.
+The agent composes an internal three-bucket draft (Stated / Inferred / Out of scope) as a thinking step before presenting the scoping synthesis. Inferred items are the agent's bets to fill dialogue gaps. Those that survive the keep test surface as call-outs in the scoping synthesis; the rest dissolve into the requirements doc's Key Decisions when the user confirms.
 
 **Does it work for non-software topics?**
 Yes — a domain-agnostic facilitator preserves the one-question-at-a-time discipline and right-sizing for naming, decisions, planning, etc.

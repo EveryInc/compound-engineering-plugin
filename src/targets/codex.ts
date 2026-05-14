@@ -23,8 +23,16 @@ export type CodexInstallManifest = {
   agents: string[]
 }
 
-export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle): Promise<void> {
-  const codexRoot = resolveCodexRoot(outputRoot)
+export type CodexWriteOptions = {
+  outputIsCodexRoot?: boolean
+}
+
+export async function writeCodexBundle(
+  outputRoot: string,
+  bundle: CodexBundle,
+  options: CodexWriteOptions = {},
+): Promise<void> {
+  const codexRoot = resolveCodexRoot(outputRoot, options)
   await ensureDir(codexRoot)
 
   const pluginName = bundle.pluginName ? sanitizeCodexPathComponent(bundle.pluginName) : undefined
@@ -163,7 +171,8 @@ export async function writeCodexBundle(outputRoot: string, bundle: CodexBundle):
   }
 }
 
-function resolveCodexRoot(outputRoot: string): string {
+function resolveCodexRoot(outputRoot: string, options: CodexWriteOptions): string {
+  if (options.outputIsCodexRoot) return outputRoot
   return path.basename(outputRoot) === ".codex" ? outputRoot : path.join(outputRoot, ".codex")
 }
 

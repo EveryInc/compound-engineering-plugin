@@ -58,7 +58,10 @@ export const targets: Record<string, TargetHandler> = {
     name: "codex",
     implemented: true,
     convert: convertClaudeToCodex as TargetHandler["convert"],
-    write: writeCodexBundle as TargetHandler["write"],
+    write: ((outputRoot, bundle) =>
+      writeCodexBundle(outputRoot, bundle as Parameters<typeof writeCodexBundle>[1], {
+        outputIsCodexRoot: true,
+      })) as TargetHandler["write"],
   },
   pi: {
     name: "pi",

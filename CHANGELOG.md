@@ -1,5 +1,19 @@
 # Changelog
 
+## [3.8.2](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.8.1...cli-v3.8.2) (2026-05-14)
+
+
+### Bug Fixes
+
+* **codex:** respect CODEX_HOME for profile installs ([#830](https://github.com/EveryInc/compound-engineering-plugin/issues/830)) ([a0a08a1](https://github.com/EveryInc/compound-engineering-plugin/commit/a0a08a17cb178655baeabe4045b5164b3a5cef58))
+
+## [3.8.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.8.0...cli-v3.8.1) (2026-05-11)
+
+
+### Bug Fixes
+
+* **ce-code-review:** replace resolve-base.sh with prose-driven base detection ([#815](https://github.com/EveryInc/compound-engineering-plugin/issues/815)) ([d090bde](https://github.com/EveryInc/compound-engineering-plugin/commit/d090bde0ff1bbc33ec3c3b2049cb4687e9d76532))
+
 ## [3.8.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.7.3...cli-v3.8.0) (2026-05-10)
 
 

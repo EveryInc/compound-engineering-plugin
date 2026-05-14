@@ -284,8 +284,8 @@ Track which call-outs the user touched per round. The soft-cut blocking question
 
 When the soft-cut fires, use the platform's blocking question tool with two options:
 
-- `Proceed with the current revised synthesis`
-- `Stop and redirect — discuss further before [research / plan-write]`
+- `Proceed and continue to [research / plan-write]`
+- `Hold off — keep discussing before continuing`
 
 Fall back to numbered list in chat only when no blocking tool exists or the call errors. Never silently skip.
 
