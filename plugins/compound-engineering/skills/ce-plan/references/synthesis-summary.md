@@ -27,21 +27,45 @@ This draft is internal. Do not paste it verbatim into chat. Compose it as a thin
 
 ---
 
-## Stage 2: chat-time scoping synthesis (shared)
+## Stage 2: chat-time scoping synthesis
 
-Stage 2 is what the user actually sees. It has two parts:
+Stage 2 is what the user actually sees. The shape differs between variants because they serve different purposes — brainstorm-sourced plans inherit a validated WHAT and surface plan-specific HOW; solo plans have no upstream and the synthesis is the WHAT.
 
-1. **Summary** — what scope the plan will target (solo variant) or how the implementation approaches the work (brainstorm-sourced variant). Use the form that communicates best: prose where it flows, bullets where structure clarifies, mix when natural. Match plan depth:
+### Brainstorm-sourced shape (Phase 5.1.5)
 
-   | Plan depth | Summary budget |
-   |---|---|
-   | Lightweight | 1-3 lines prose |
-   | Standard | 3-5 lines prose, or 2-4 bullets, or mix |
-   | Deep | 4-6 lines prose, or 3-6 bullets, or mix |
+Two content sections plus call-outs:
 
-2. **Call outs** (zero or more, capped by plan depth — see "How many call-outs are right?" below) — each a real fork where the user's input materially changes the plan. Omit the "Call outs:" header entirely when zero forks survived the keep test.
+1. **Brainstorm-scope restatement** (1-2 sentences, prose). Restates the brainstorm's scope as orientation. The user wrote this content, but the synthesis may be read days later or in parallel with other plans — the restatement is the topic anchor that says "this is the artifact we're planning against." Stay in the brainstorm's own vocabulary. Do NOT enumerate Implementation Units, restate constraints back at the user, or list acceptance examples.
 
-No "Stated" bucket in chat (the summary covers it). No "Out of scope" bucket as a separate list — fold a non-obvious exclusion into a call-out when it survives the keep test, otherwise drop it.
+2. **Plan-specific scoping** (prose, or bullets when multi-faceted). What *this plan* covers vs. defers vs. expands relative to the brainstorm: staging decisions (one PR or split), test scope (which sites, which acceptance examples), adjacent refactors pulled in or held out, plan-time narrowing or expanding of the brainstorm scope. This is the part the user can actively push back on at plan-time — distinct from what they already validated at brainstorm-time. If the plan covers the full brainstorm scope with no deferrals, expansions, or adjacent work, this section is short ("This plan covers the full brainstorm scope in one PR; test scope is X").
+
+3. **Call outs** (zero or more, capped by plan depth — see "How many call-outs are right?" below). Each a real fork where the user's input materially changes the plan. Omit the "Call outs:" header entirely when zero forks survived the keep test.
+
+### Solo shape (Phase 0.7)
+
+No upstream document; the synthesis itself is the scope claim:
+
+1. **Scope claim** (prose, or bullets when multi-faceted). What the agent is planning to build, at affirm-or-redirect level — names what's in and what's out. NOT an enumeration of Implementation Units the plan will contain.
+
+2. **Call outs** (zero or more, capped by plan depth). Same as brainstorm-sourced.
+
+### Shape budgets
+
+Tier-aware budgets are **ceilings, not targets**. Less is correct when there isn't more to say — filling the budget produces noise.
+
+| Plan depth | Restatement (brainstorm-sourced) | Plan-specific scoping (brainstorm-sourced) / Scope claim (solo) |
+|---|---|---|
+| Lightweight | 1 sentence | 1-3 lines prose |
+| Standard | 1-2 sentences | up to 3-5 lines or 2-4 bullets |
+| Deep | 1-2 sentences | up to 4-6 lines or 3-6 bullets |
+
+Form within each section (prose, bullets, mix) follows whatever communicates best.
+
+### Shared rules
+
+- **No "Stated" bucket in chat** (the orientation or scope-claim covers it).
+- **No "Out of scope" bucket as a separate list** — fold a non-obvious exclusion into a call-out when it survives the keep test, otherwise drop it.
+- **Source-document vocabulary.** When a brainstorm exists, use its terms. Don't invent agent-coded shorthand (e.g., "skill-instruction shape", "hooks engine selection at Step 2a entry"). If the user reading the synthesis would have to flip back to the brainstorm to remember a bare ID reference like `AE4`, name it in plain terms.
 
 ### The keep test for each call-out
 
@@ -216,7 +240,7 @@ Each guard is an explicit conditional in SKILL.md, not implicit. R2 solo does NO
 ```
 Based on your request and our brief discussion, here's the scope I'm proposing to plan against:
 
-[summary — shape per tier budget]
+[scope claim — what the plan will target, what it will not; affirm-or-redirect level; NOT an enumeration of Implementation Units]
 
 **Call outs:** (omit this header when zero forks survived the keep test)
 - [decision-level fork the user can affirm or redirect — one bullet per real fork]
@@ -227,7 +251,7 @@ Confirm and I'll proceed to research, drawing on this scope. (You can also redir
 **Auto-proceed template (fires only for Lightweight with zero call-outs):**
 
 ```
-Planning: [1-3 line summary]
+Planning: [1-3 line scope claim]
 
 No open decisions to weigh in on — proceeding to research. Interrupt if I have the scope wrong.
 ```
@@ -266,9 +290,9 @@ Most of these will not survive the keep test as separate call-outs. Surface only
 **Confirmation template (fires for Standard/Deep regardless of call-out count, or for any tier with one or more call-outs surviving):**
 
 ```
-Based on the upstream brainstorm and the research findings, here's the implementation scope I'm proposing for the plan:
+The brainstorm scopes [1-2 sentence restatement of the brainstorm's scope as orientation; in the brainstorm's own vocabulary; NOT an enumeration of Implementation Units, constraints, or acceptance examples].
 
-[summary — shape per tier budget]
+This plan [plan-specific scoping: what's covered vs. deferred vs. expanded relative to the brainstorm; test scope; any adjacent refactors pulled in or held out. Prose or bullets per substance].
 
 **Call outs:** (omit this header when zero forks survived the keep test)
 - [plan-time fork the user can affirm or redirect — one bullet per real fork]
@@ -279,7 +303,7 @@ Confirm and I'll write the plan next, drawing on the brainstorm, research, and t
 **Auto-proceed template (fires only for Lightweight with zero call-outs):**
 
 ```
-Planning: [1-3 line summary — implementation shape]
+Planning [brief brainstorm-scope restatement] — [plan-specific shape in one clause].
 
 No open decisions to weigh in on — proceeding to plan-write. Interrupt if I have the scope wrong.
 ```

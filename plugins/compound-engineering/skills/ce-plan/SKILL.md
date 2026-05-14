@@ -187,7 +187,7 @@ Fires **only in solo invocation** — when Phase 0.2 found no upstream brainstor
 
 **Required gate output — do not skip; silent proceeding is not allowed.** Compose an internal three-bucket scope draft (Stated / Inferred / Out of scope — internal thinking that feeds plan-body routing at Phase 5.2, not the chat output below). Derive call-outs (specific forks where user input materially changes the plan), then emit one of the two literal templates below in chat before continuing to Phase 1.
 
-**Summary shape:** prose, bullets, or mix — whichever communicates best. Match plan depth (Lightweight 1-3 lines; Standard 3-5 lines or 2-4 bullets; Deep 4-6 lines or 3-6 bullets). 1-2 lines per bullet, conversational not documentary. See reference for keep test, detail test, and re-cut rule.
+**Summary shape:** the summary is a **scope claim** — what the plan will target, what it will not — at affirm-or-redirect level. NOT an enumeration of Implementation Units the plan will contain. Form is prose, bullets, or mix; tier budgets are **ceilings, not targets** (Lightweight 1-3 lines; Standard up to 3-5 lines or 2-4 bullets; Deep up to 4-6 lines or 3-6 bullets). 1-2 lines per bullet, conversational not documentary. Less is correct when there isn't more to say. See reference for keep test, detail test, and source-vocabulary discipline.
 
 **Tier guard on auto-proceed:** the auto-proceed path (announce without waiting for confirmation) fires only when plan depth is **Lightweight AND zero call-outs survive**. Standard and Deep plans always fire the confirmation gate, even with zero call-outs — substance earns the checkpoint, not interaction history.
 
@@ -196,7 +196,7 @@ Fires **only in solo invocation** — when Phase 0.2 found no upstream brainstor
 ````text
 Based on your request and our brief discussion, here's the scope I'm proposing to plan against:
 
-[summary — shape per tier above]
+[scope claim — what the plan will target, what it will not; affirm-or-redirect level; NOT an enumeration of Implementation Units]
 
 **Call outs:** (omit this header when zero forks survived the keep test)
 - [decision-level fork the user can affirm or redirect — one bullet per real fork]
@@ -209,7 +209,7 @@ Wait for user confirmation before continuing to Phase 1.
 **Auto-proceed template (Lightweight with zero call-outs only):**
 
 ````text
-Planning: [1-3 line summary]
+Planning: [1-3 line scope claim]
 
 No open decisions to weigh in on — proceeding to research. Interrupt if I have the scope wrong.
 ````
@@ -571,16 +571,19 @@ Fires **only when the plan was sourced from an upstream brainstorm doc** (Phase 
 
 **Required gate output — do not skip; silent proceeding is not allowed.** Compose an internal three-bucket scope draft (Stated / Inferred / Out of scope — internal thinking that feeds plan-body routing at Phase 5.2, not the chat output below). Derive call-outs (specific forks where user input materially changes the plan), then emit one of the two literal templates below in chat before continuing to Phase 5.2.
 
-**Summary shape:** prose, bullets, or mix — whichever communicates best. Match plan depth (Lightweight 1-3 lines; Standard 3-5 lines or 2-4 bullets; Deep 4-6 lines or 3-6 bullets). 1-2 lines per bullet, conversational not documentary. See reference for keep test, detail test, and re-cut rule.
+**Summary shape: two paragraphs.**
+
+1. **Brainstorm-scope restatement** (1-2 sentences, prose). Restates the brainstorm's scope as orientation, in the brainstorm's own vocabulary. NOT an enumeration of Implementation Units, restated constraints, or listed acceptance examples — the user wrote those.
+2. **Plan-specific scoping** (prose, or bullets when multi-faceted). What *this plan* covers vs. defers vs. expands relative to the brainstorm: staging decisions, test scope, adjacent refactors pulled in or held out, plan-time narrowing or expanding. This is the part the user can push back on at plan-time. Form follows substance; tier budgets are **ceilings, not targets** for this paragraph (Lightweight 1-3 lines; Standard up to 3-5 lines or 2-4 bullets; Deep up to 4-6 lines or 3-6 bullets). 1-2 lines per bullet, conversational not documentary. Less is correct when there isn't more to say. See reference for keep test, detail test, and source-vocabulary discipline.
 
 **Tier guard on auto-proceed:** the auto-proceed path (announce without waiting for confirmation) fires only when plan depth is **Lightweight AND zero call-outs survive**. Standard and Deep plans always fire the confirmation gate, even with zero call-outs — substance earns the checkpoint, not interaction history.
 
 **Confirmation template (Standard/Deep regardless of call-out count, or any tier with one or more call-outs surviving):**
 
 ````text
-Based on the upstream brainstorm and the research findings, here's the implementation scope I'm proposing for the plan:
+The brainstorm scopes [1-2 sentence restatement in the brainstorm's vocabulary as orientation; NOT an enumeration of Implementation Units, constraints, or acceptance examples].
 
-[summary — shape per tier above]
+This plan [plan-specific scoping: what's covered vs. deferred vs. expanded relative to the brainstorm; test scope; any adjacent refactors pulled in. Prose or bullets per substance].
 
 **Call outs:** (omit this header when zero forks survived the keep test)
 - [plan-time fork the user can affirm or redirect — one bullet per real fork]
@@ -593,7 +596,7 @@ Wait for user confirmation before continuing to Phase 5.2.
 **Auto-proceed template (Lightweight with zero call-outs only):**
 
 ````text
-Planning: [1-3 line summary — implementation shape]
+Planning [brief brainstorm-scope restatement] — [plan-specific shape in one clause].
 
 No open decisions to weigh in on — proceeding to plan-write. Interrupt if I have the scope wrong.
 ````
