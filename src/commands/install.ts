@@ -8,7 +8,7 @@ import { targets, validateScope } from "../targets"
 import { pathExists } from "../utils/files"
 import type { ClaudeToOpenCodeOptions, PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
-import { expandHome, resolveTargetHome } from "../utils/resolve-home"
+import { expandHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
 import { resolveOpenCodeWriteScope, resolveTargetOutputRoot } from "../utils/resolve-output"
 import { detectInstalledTools } from "../utils/detect-tools"
 
@@ -38,7 +38,7 @@ export default defineCommand({
     codexHome: {
       type: "string",
       alias: "codex-home",
-      description: "Write Codex output to this .codex root (ex: ~/.codex)",
+      description: "Write Codex output to this Codex root (default: $CODEX_HOME or ~/.codex)",
     },
     piHome: {
       type: "string",
@@ -93,7 +93,7 @@ export default defineCommand({
     try {
       const plugin = await loadClaudePlugin(resolvedPlugin.path)
       const outputRoot = resolveOutputRoot(args.output)
-      const codexHome = resolveTargetHome(args.codexHome, path.join(os.homedir(), ".codex"))
+      const codexHome = resolveCodexHome(args.codexHome)
       const piHome = resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent"))
       const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
 

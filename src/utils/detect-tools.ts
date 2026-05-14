@@ -2,6 +2,7 @@ import os from "os"
 import path from "path"
 import { pathExists } from "./files"
 import { resolveOpenCodeGlobalRoot } from "./opencode-config"
+import { resolveCodexHome } from "./resolve-home"
 
 export type DetectedTool = {
   name: string
@@ -11,7 +12,11 @@ export type DetectedTool = {
 
 type DetectableTool = {
   name: string
-  detectPaths: (home: string, cwd: string) => string[]
+  detectPaths: (home: string, cwd: string, options: DetectPathOptions) => string[]
+}
+
+type DetectPathOptions = {
+  useCodexHomeEnv: boolean
 }
 
 const detectableTools: DetectableTool[] = [
@@ -33,7 +38,12 @@ const detectableTools: DetectableTool[] = [
   },
   {
     name: "codex",
-    detectPaths: (home) => [path.join(home, ".codex")],
+    detectPaths: (home, _cwd, options) => {
+      if (!options.useCodexHomeEnv) return [path.join(home, ".codex")]
+      const codexHome = resolveCodexHome(undefined)
+      const defaultCodexHome = path.join(home, ".codex")
+      return codexHome === defaultCodexHome ? [defaultCodexHome] : [codexHome, defaultCodexHome]
+    },
   },
   {
     name: "pi",
@@ -76,14 +86,16 @@ const detectableTools: DetectableTool[] = [
 ]
 
 export async function detectInstalledTools(
-  home: string = os.homedir(),
+  home?: string,
   cwd: string = process.cwd(),
 ): Promise<DetectedTool[]> {
+  const effectiveHome = home ?? os.homedir()
+  const options = { useCodexHomeEnv: home === undefined }
   const results: DetectedTool[] = []
   for (const target of detectableTools) {
     let detected = false
     let reason = "not found"
-    for (const p of target.detectPaths(home, cwd)) {
+    for (const p of target.detectPaths(effectiveHome, cwd, options)) {
       if (await pathExists(p)) {
         detected = true
         reason = `found ${p}`
@@ -96,7 +108,7 @@ export async function detectInstalledTools(
 }
 
 export async function getDetectedTargetNames(
-  home: string = os.homedir(),
+  home?: string,
   cwd: string = process.cwd(),
 ): Promise<string[]> {
   const tools = await detectInstalledTools(home, cwd)

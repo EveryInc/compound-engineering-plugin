@@ -113,9 +113,27 @@ Three steps: register the marketplace, install the agent set, then install the p
    bunx @every-env/compound-plugin install compound-engineering --to codex
    ```
 
-3. **Install the plugin through Codex's TUI:** launch `codex`, run `/plugins`, find the **Compound Engineering** marketplace, select the **compound-engineering** plugin, and choose **Install**. Restart Codex after install completes. Codex's CLI does not currently have a subcommand for installing a plugin from an added marketplace -- the `/plugins` TUI is the canonical flow.
+3. **Install the plugin through Codex's TUI:** launch `codex`, run `/plugins`, find the **Compound Engineering** marketplace, select the **compound-engineering** plugin, and choose **Install**. Restart Codex after install completes. Codex's CLI can register marketplaces, but it does not currently expose a plugin-install subcommand for plugins from an added marketplace -- the `/plugins` TUI install is required for CE skills.
 
 All three steps are needed. The marketplace registration plus TUI install handles skills; the Bun step adds the review, research, and workflow agents that skills like `$ce-code-review`, `$ce-plan`, and `$ce-work` spawn in Codex. Without the agent step, delegating skills will report missing agents.
+
+For a non-default Codex profile, run every Codex-related step against the same `CODEX_HOME`. This example installs CE into a `work` profile:
+
+```bash
+CODEX_HOME="$HOME/.codex/profiles/work" codex plugin marketplace add EveryInc/compound-engineering-plugin
+CODEX_HOME="$HOME/.codex/profiles/work" bunx @every-env/compound-plugin install compound-engineering --to codex
+CODEX_HOME="$HOME/.codex/profiles/work" codex
+```
+
+Inside Codex, run `/plugins`, select **Compound Engineering**, then install **compound-engineering**. The marketplace step only makes the plugin available; the TUI install is what activates the native CE skills for that profile.
+
+For local development from this checkout, register the current worktree and use the local CLI:
+
+```bash
+CODEX_HOME="$HOME/.codex/profiles/work" codex plugin marketplace add "$PWD"
+CODEX_HOME="$HOME/.codex/profiles/work" bun run src/index.ts install ./plugins/compound-engineering --to codex
+CODEX_HOME="$HOME/.codex/profiles/work" codex
+```
 
 > **Heads up:** once Codex's native plugin spec supports custom agents, the Bun agent step goes away. The TUI install alone will be sufficient.
 

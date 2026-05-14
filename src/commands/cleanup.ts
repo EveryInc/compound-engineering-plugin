@@ -27,7 +27,7 @@ import { isManagedCodexAgentsSymlink, readCodexInstallManifest, resolveCodexMana
 import { classifyCodexLegacyPromptOwnership } from "../utils/legacy-cleanup"
 import { isSafeManagedPath, pathExists, readJson, sanitizePathName } from "../utils/files"
 import { resolveOpenCodeGlobalRoot } from "../utils/opencode-config"
-import { expandHome, resolveTargetHome } from "../utils/resolve-home"
+import { expandHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
 
 const cleanupTargets = ["codex", "opencode", "pi", "gemini", "kiro", "copilot", "droid", "qwen", "windsurf"] as const
 type CleanupTarget = typeof cleanupTargets[number]
@@ -62,7 +62,7 @@ export default defineCommand({
     codexHome: {
       type: "string",
       alias: "codex-home",
-      description: "Codex root to clean (default: ~/.codex)",
+      description: "Codex root to clean (default: $CODEX_HOME or ~/.codex)",
     },
     piHome: {
       type: "string",
@@ -121,7 +121,7 @@ export default defineCommand({
     const hasExplicitGeminiHome = hasExplicitValue(args.geminiHome)
     const hasExplicitOpenCodeHome = hasExplicitValue(args.opencodeHome)
     const roots = {
-      codexHome: resolveTargetHome(args.codexHome, path.join(os.homedir(), ".codex")),
+      codexHome: resolveCodexHome(args.codexHome),
       piHome: resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent")),
       // Mirror install: respect OPENCODE_CONFIG_DIR before falling back to the
       // XDG default so cleanup scans the same directory install wrote to.

@@ -43,7 +43,7 @@ This document records the intended install model by harness. The current priorit
 | Qwen Code | Native extension install from the CE GitHub repository and existing Claude plugin metadata | No, CE plugin install/convert target removed | Yes, before or during migration from previous `~/.qwen` custom installs | Qwen docs say Claude Code extensions install directly from GitHub and are converted automatically; native install was manually tested on 2026-04-19. |
 | OpenCode | Custom CE install to `~/.config/opencode/{skills,agents,plugins}` plus merged `opencode.json`; source commands are written only if present | Yes | Yes, every install | OpenCode plugins are JS/TS or npm hooks/tools, not a Claude-compatible marketplace install path for CE's full plugin payload. |
 | Pi | Custom CE install to `~/.pi/agent/{skills,prompts,extensions}` plus MCPorter config; source commands are written only if present | Yes, until CE ships and tests a Pi package | Yes, every install | Pi has package install support, but CE has not yet packaged the compat extension, generated skills, prompts, and MCPorter config into a tested Pi package. |
-| Codex | Custom CE install to `~/.codex/skills/compound-engineering/<skill>` and `~/.codex/agents/compound-engineering/<agent>.toml` | Yes, because native Codex plugins do not currently register bundled custom agents | Yes, every install | Avoid `~/.agents/skills` so Codex installs do not shadow Copilot's native plugin skills. Claude agents are converted to Codex TOML custom agents. |
+| Codex | Hybrid: native Codex plugin install for skills, plus CE Bun install for custom agents under the active Codex root | Yes, for agents only, because native Codex plugins do not currently register bundled custom agents | Yes, every Bun agent install | Use the same `CODEX_HOME` or `--codex-home` for every Codex step when installing into a non-default profile. |
 | Gemini CLI | Custom CE install to `~/.gemini/{skills,agents}` for now; source commands are written only if present; native extension packaging exists but does not fit CE's current repo/package layout | Yes, until CE ships a Gemini extension root, release artifact, or dedicated distribution branch/repo | Yes, every install | Avoid `~/.agents/skills`; write normalized Gemini agents to `~/.gemini/agents`. |
 | Kiro CLI | Custom CE install to project `.kiro/{skills,agents,steering,settings}` | Yes | Yes, every install; manual `cleanup --target kiro` also exists | Kiro has its own JSON agent format and project-local install root. |
 
@@ -370,6 +370,22 @@ Future Pi package work should preserve the same cleanup semantics before switchi
 
 ### Current Platform Facts
 
+Update on 2026-05-14: CE's Codex install is now a hybrid profile-aware flow:
+
+1. `codex plugin marketplace add <source>` registers the marketplace in the active Codex home.
+2. The Codex `/plugins` TUI installs the native CE plugin skills from that marketplace.
+3. `bunx @every-env/compound-plugin install compound-engineering --to codex` installs the CE custom agents that those skills delegate to.
+
+All three operations must target the same Codex root. For a named profile, set `CODEX_HOME` consistently:
+
+```bash
+CODEX_HOME="$HOME/.codex/profiles/work" codex plugin marketplace add EveryInc/compound-engineering-plugin
+CODEX_HOME="$HOME/.codex/profiles/work" bunx @every-env/compound-plugin install compound-engineering --to codex
+CODEX_HOME="$HOME/.codex/profiles/work" codex
+```
+
+Inside Codex, run `/plugins`, select the Compound Engineering marketplace, and install `compound-engineering`. The marketplace registration alone only makes the plugin available; the TUI install activates native skills. The Bun step is still required for CE's custom agents until Codex native plugins can register bundled agents.
+
 Current Codex docs describe user skills under `~/.agents/skills` and repo skills under `.agents/skills`. Codex also reads admin skills from `/etc/codex/skills` and system skills bundled by OpenAI. Codex supports symlinked skill folders and follows symlink targets.
 
 Empirical note: Codex also still discovers legacy `~/.codex/skills` entries. On 2026-04-18, we created the same skill name in both `~/.agents/skills/ce-duplicate-discovery-smoke` and `~/.codex/skills/ce-duplicate-discovery-smoke`; the Codex skill picker showed both entries.
@@ -542,11 +558,11 @@ But CE should no longer install there because Copilot plugin skills can be shado
 
 ### Future Codex Plugin Option
 
-Codex now has a documented marketplace/plugin install path, including `codex marketplace add <source>`, but CE should not use it as the primary Codex install path yet because plugin-bundled custom agents did not register in testing.
+Codex now has a documented marketplace/plugin install path. CE uses it for skills, but it still cannot be the only install path because plugin-bundled custom agents did not register in testing.
 
 Revisit Codex native plugins when Codex documents and supports plugin-bundled custom agents, or when the plugin installer can declare files that should be installed into the user's custom-agent roots.
 
-Until then, Codex native plugins are useful for local development and testing skill-only packages, but not for CE's agent-heavy workflows.
+Until then, the expected Codex install remains hybrid: native plugin install for skills, plus the CE Bun install for converted custom agents.
 
 ## Gemini CLI
 

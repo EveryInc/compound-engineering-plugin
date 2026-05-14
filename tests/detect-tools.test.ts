@@ -104,6 +104,43 @@ describe("detectInstalledTools", () => {
     })
   })
 
+  describe("codex CODEX_HOME", () => {
+    const originalEnv = process.env.CODEX_HOME
+
+    afterEach(() => {
+      if (originalEnv === undefined) {
+        delete process.env.CODEX_HOME
+      } else {
+        process.env.CODEX_HOME = originalEnv
+      }
+    })
+
+    test("detects codex at CODEX_HOME for default real-user detection", async () => {
+      const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-env-cwd-"))
+      const customRoot = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-env-root-"))
+
+      process.env.CODEX_HOME = customRoot
+
+      const results = await detectInstalledTools(undefined, tempCwd)
+      const codex = results.find((t) => t.name === "codex")
+      expect(codex?.detected).toBe(true)
+      expect(codex?.reason).toContain(customRoot)
+    })
+
+    test("ignores ambient CODEX_HOME when caller provides an explicit home", async () => {
+      const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-explicit-home-"))
+      const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-explicit-cwd-"))
+      const customRoot = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-explicit-root-"))
+
+      process.env.CODEX_HOME = customRoot
+
+      const results = await detectInstalledTools(tempHome, tempCwd)
+      const codex = results.find((t) => t.name === "codex")
+      expect(codex?.detected).toBe(false)
+      expect(codex?.reason).toBe("not found")
+    })
+  })
+
   test("detects copilot from project-specific skills without generic .github false positives", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-copilot-home-"))
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-copilot-cwd-"))
