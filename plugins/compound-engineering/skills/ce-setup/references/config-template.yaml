@@ -29,3 +29,13 @@
 # pulse_metric_sources: "retention_d7=posthog,nps=delighted"  # strategy-metric -> source overrides; comma-separated 'metric=source' pairs; unlisted metrics fall back to pulse_analytics_source
 # pulse_pending_metrics: "retention_d7,nps"             # comma-separated strategy metrics awaiting instrumentation; render as 'no data'
 # pulse_excluded_metrics: "north_star"                  # comma-separated strategy metrics intentionally not in pulse
+
+# --- Output format ---
+# Per-skill output format default. When set to `html`, the skill writes a
+# single self-contained HTML rendering alongside the markdown source.
+# Markdown remains canonical. See DESIGN.md or your agent instructions to
+# influence HTML styling. CLI arguments override these defaults; pipeline
+# contexts (e.g., LFG) always force `md` regardless of these keys.
+
+# plan_output: html              # md | html (default: md)
+# brainstorm_output: html        # md | html (default: md)

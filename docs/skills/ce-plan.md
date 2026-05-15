@@ -193,6 +193,7 @@ In universal-planning mode, the U-IDs, dependency ordering, scope boundaries, an
 | `deepen the plan` / `deepening pass` | Re-deepen fast path (interactive mode) |
 | `<bug description>` | Routes to `ce-debug` suggestion menu |
 | `<task in another repo>` | Cross-repo announcement, plan lands in target |
+| `output:html` | Emit a single self-contained HTML rendering alongside the markdown plan. Default is markdown. Set `plan_output: html` in `.compound-engineering/config.local.yaml` to make this the default. |
 
 ---
 

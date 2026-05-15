@@ -175,6 +175,7 @@ The Phase 4 handoff offers planning, agent doc review, Proof iteration, direct-t
 | `<feature idea>` | Open-ended brainstorm |
 | `<problem>` | Routes via the product pressure test |
 | Existing `*-requirements.md` path or topic | Resume offer |
+| `output:html` | Emit a single self-contained HTML rendering alongside the markdown requirements doc. Default is markdown. Set `brainstorm_output: html` in `.compound-engineering/config.local.yaml` to make this the default. |
 
 ---
 

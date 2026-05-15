@@ -85,10 +85,22 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
 
 2. **Update Plan Status**
 
-   If the input document has YAML frontmatter with a `status` field, update it to `completed`:
-   ```
-   status: active  ->  status: completed
-   ```
+   Update the plan's `status` field from `active` to `completed`. The
+   mechanic depends on the plan's format:
+
+   - **Markdown plan (`.md`).** YAML frontmatter at the top of the file
+     carries the status. Edit the YAML directly:
+     ```
+     status: active  ->  status: completed
+     ```
+   - **HTML plan (`.html`).** Status lives as visible text in the rendered
+     header (typically `<span class="status">active</span>` or similar).
+     Edit the visible element's text content directly. There is no hidden
+     JSON-frontmatter copy to keep in sync — HTML metadata is a single
+     source of truth in visible text per the html-rendering invariants.
+
+   If no status field exists in either format, skip this step — some
+   plans omit frontmatter entirely.
 
 3. **Commit and Create Pull Request**
 

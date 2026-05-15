@@ -32,6 +32,12 @@ If artifact-backed mode was used:
 - Clean up the temporary scratch directory after the plan is safely updated
 - If cleanup is not practical on the current platform, note where the artifacts were left
 
+**Format-specific composition.** When `OUTPUT_FORMAT=html` (resolved in SKILL.md Phase 0.0), the plan is written as a single self-contained `.html` file — there is no markdown sibling. Read `references/html-rendering.md` for composition rules: invariants, precedence stack, format principles, agent-consumability rules, and the post-compose audit. The `.html` file is the artifact downstream consumers (ce-work, ce-doc-review, human readers) read.
+
+When `OUTPUT_FORMAT=md`, write the markdown directly per `references/markdown-rendering.md`. No HTML is composed.
+
+After all mutations in this run have settled (initial write, deepening synthesis, ce-doc-review `safe_auto` fixes, HITL Proof resync if any), the artifact at its single path reflects the final state.
+
 ## 5.4 Post-Generation Options
 
 **Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip the interactive menu below and return control to the caller immediately. The plan file has already been written, the confidence check has already run, and ce-doc-review has already run — the caller (e.g., lfg) determines the next step.
@@ -46,8 +52,11 @@ If artifact-backed mode was used:
 1. **Start `/ce-work`** (recommended) - Begin implementing this plan in the current session
 2. **Run deeper doc review** - Walk through the remaining findings interactively (full ce-doc-review walkthrough)
 3. **Create Issue** - Create a tracked issue from this plan in your configured issue tracker (GitHub or Linear)
-4. **Open in Proof (web app) — review and comment to iterate with the agent** - Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others
+4. **Open in Proof (web app) — review and comment to iterate with the agent** - Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others. **Render only when `OUTPUT_FORMAT=md`.**
+4. **Open in browser** - Open the HTML plan file locally for review and sharing. **Render only when `OUTPUT_FORMAT=html`.**
 5. **Done for now** - Pause; the plan file is saved and can be resumed later
+
+**Option 4 format-keyed label.** Under exclusive output mode, the plan exists as exactly one artifact — `.md` or `.html`, never both. Render the option 4 label matching the produced format. Proof operates on markdown plans (it ingests the `.md` source and rewrites markdown), so it does not apply to HTML runs; the browser option opens the local `.html` file directly. `/ce-work` remains the recommended option in both modes — `ce-work` reads either format (see the ce-work skill's plan-input handling).
 
 **Menu rendering:** The menu has 5 options, which exceeds the `AskUserQuestion` 4-option cap. Per the AGENTS.md narrow exception for legitimate option overflow, render this menu as a numbered list in chat with the hint "Pick a number or describe what you want." rather than trimming to fit the cap. Each option is a distinct destination/workflow and none are removable without losing real user choice (deeper review, issue creation, Proof, ce-work, and pause are each separately requested in practice). On platforms where blocking question tools have no option cap (e.g., Codex `request_user_input`, Pi `ask_user`), use the platform's blocking tool with all 5 options. When the platform's blocking tool is unavailable or errors (e.g., Codex edit modes where `request_user_input` is not exposed, or `ask_user` returns no match), fall back to the same numbered-list-in-chat rendering with the "Pick a number or describe what you want." hint — the same fallback the `AskUserQuestion` overflow path uses. Never silently skip the question.
 
@@ -65,6 +74,8 @@ Based on selection (the bare per-option routing is also stated inline in the SKI
 
   Follow `references/hitl-review.md` in the ce-proof skill. It uploads the plan, prompts the user for review in Proof's web UI, ingests each thread by reading it fresh and replying in-thread, applies agreed edits as tracked suggestions, and syncs the final markdown back to the plan file atomically on proceed.
 
+  Note: the Proof flow only runs when `OUTPUT_FORMAT=md` (the menu only renders this option then). Proof ingests markdown; HTML plans use the local browser option instead.
+
   When the ce-proof skill returns:
   - `status: proceeded` with `localSynced: true` -> the plan on disk now reflects the review. Re-run `ce-doc-review` on the updated plan before re-rendering the menu — HITL can materially rewrite the plan body, so the prior ce-doc-review pass no longer covers the current file and section 5.3.8 requires a review before any handoff option is offered. Then return to the post-generation options with the refreshed residual findings.
   - `status: proceeded` with `localSynced: false` -> the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the ce-proof skill's Pull workflow. If the pull happened, re-run `ce-doc-review` on the pulled file before re-rendering the options (same 5.3.8 rationale — the local plan was materially updated by the pull). If the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof — otherwise `Start /ce-work` or `Create Issue` will silently use the pre-review copy.
@@ -72,6 +83,7 @@ Based on selection (the bare per-option routing is also stated inline in the SKI
   - `status: aborted` -> fall back to the options without changes.
 
   If the initial upload fails (network error, Proof API down), retry once after a short wait. If it still fails, tell the user the upload didn't succeed and briefly explain why, then return to the options — don't leave them wondering why the option did nothing.
+- **Open in browser** -> Display the absolute path to the `.html` plan file so the user can open it locally. Where the platform exposes a browser-opening primitive (e.g., `open` on macOS, `xdg-open` on Linux, `start` on Windows), the agent may invoke it directly; otherwise print the absolute path and let the user open it. After the path is displayed (or the browser is opened), return to the post-generation options so the user can pick a follow-up action.
 - **Done for now** -> Display a brief confirmation that the plan file is saved and end the turn. Do not start follow-up work without an explicit further user prompt.
 - **Free-form prompts that target the findings** (e.g., the user types "review", "walk through", "deep review" instead of picking a numbered option) -> route as if they had picked `Run deeper doc review`. Do not loop back to the menu without firing the deeper review.
 - **Other free-form input** -> Accept revisions to the plan and loop back to options.

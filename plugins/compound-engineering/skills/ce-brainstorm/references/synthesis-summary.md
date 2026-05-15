@@ -268,4 +268,4 @@ The chat-time Trade-offs section dissolves into `## Key Decisions` (the explicit
 
 No italic capture-context note (e.g., "Captured at Phase 2.5..."). It would leak engineering process into an artifact whose readers do not need that signal.
 
-The doc's `## Summary` and `## Problem Frame` must serve distinct purposes — see `references/requirements-capture.md` "Summary vs Problem Frame discipline" for the rules.
+The doc's `## Summary` and `## Problem Frame` must serve distinct purposes — see `references/brainstorm-sections.md` "Discipline: Summary vs Problem Frame" for the rules.

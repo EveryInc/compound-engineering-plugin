@@ -1,7 +1,7 @@
 ---
 name: ce-plan
 description: "Create structured plans for multi-step tasks -- software features, research workflows, events, study plans, or any goal that benefits from breakdown. Also deepens existing plans with interactive sub-agent review. Use when the user says 'plan this', 'create a plan', 'how should we build', 'break this down', or when a brainstorm doc is ready for planning. Use 'deepen the plan' or 'deepening pass' for the deepening flow. For exploratory requests, prefer ce-brainstorm first."
-argument-hint: "[optional: feature description, requirements doc path, plan path to deepen, or any task to plan]"
+argument-hint: "[optional: feature description, requirements doc path, plan path to deepen, or any task to plan] [output:html]"
 ---
 
 # Create Technical Plan
@@ -59,6 +59,29 @@ A plan is ready when an implementer can start confidently without needing the pl
 
 ### Phase 0: Resume, Source, and Scope
 
+#### 0.0 Resolve Output Mode
+
+Determine `OUTPUT_FORMAT` before any other phase fires. Output mode is **exclusive** — the plan is written as either markdown (`.md`) OR HTML (`.html`), never both. Precedence: CLI arg > config > default (`md`), with a hard pipeline-mode override.
+
+**Read config (pre-resolved at skill load):**
+!`cat "$(git rev-parse --show-toplevel 2>/dev/null)/.compound-engineering/config.local.yaml" 2>/dev/null || echo '__NO_CONFIG__'`
+
+Resolution steps:
+
+1. **CLI arg.** Scan `$ARGUMENTS` for a token starting with the literal prefix `output:`. If found, strip it from arguments before treating the remainder as the feature description, and match its value case-insensitively against `md` and `html`.
+   - `output:` alone (no value) → no-op, fall through to step 2.
+   - `output:<unknown>` (e.g., `output:pdf`) → drop the token, fall through to step 2, and remember to emit a one-line note above the post-generation menu after final resolution: `Ignored unknown output: value '<value>' — using <resolved_format> instead.` where `<resolved_format>` is the value `OUTPUT_FORMAT` actually resolved to after steps 2-4. Do not hardcode `md` in the note — that misleads users when config has set HTML.
+2. **Config.** If step 1 did not resolve and the pre-resolved YAML above has an **active (non-commented)** `plan_output:` key whose value matches `md` or `html` (case-insensitive), use it. Missing, invalid, or commented values fall through silently. Critical: lines starting with `#` are YAML comments and must be ignored — the shipped config template includes commented examples like `# plan_output: html` to document the option, and matching those as active settings would silently force HTML mode on every run without the user having opted in.
+3. **Default.** Otherwise `OUTPUT_FORMAT=md`.
+4. **Pipeline override.** When invoked from LFG or any `disable-model-invocation` context, force `OUTPUT_FORMAT=md` regardless of steps 1-3. `ce-work` and other automated downstream consumers parse markdown reliably; HTML in pipeline runs is unnecessary friction.
+
+**Token-parsing convention:** only literal-prefix flag tokens (`output:`, `mode:`, `delegate:` where applicable) are consumed and stripped. Other `<word>:<word>` tokens — including conventional commit prefixes like `feat:`, `fix:`, `chore:` that may appear inside a feature description — pass through verbatim.
+
+**Load the format-rendering reference based on the resolved value.** Section content is the same in either format; presentation differs. Both references are paired with `references/plan-sections.md`, which describes what the plan contains regardless of format.
+
+- When `OUTPUT_FORMAT=md`, read `references/markdown-rendering.md` for format principles.
+- When `OUTPUT_FORMAT=html`, read `references/html-rendering.md` for format principles.
+
 #### 0.1 Resume Existing Plan Work When Appropriate
 
 If the user references an existing plan file or there is an obvious recent matching plan in `docs/plans/`:
@@ -77,6 +100,8 @@ Once the plan is identified and appears complete (all major sections present, im
 Normal editing requests (e.g., "update the test scenarios", "add a new implementation unit", "strengthen the risk section") should NOT trigger the fast path — they follow the standard resume flow.
 
 If the plan already has a `deepened: YYYY-MM-DD` frontmatter field and there is no explicit user request to re-deepen, the fast path still applies the same confidence-gap evaluation — it does not force deepening.
+
+**Resume preserves the existing artifact's format.** When resuming an existing plan, the resume run writes back in whatever format the existing artifact uses — markdown if the existing file is `.md`, HTML if it is `.html`. Explicit `output:` arguments on this run override (e.g., resuming an `.html` plan with `output:md` switches the artifact to markdown), but the default is to preserve the format already on disk so a resume doesn't silently change the artifact shape.
 
 #### 0.1b Classify Task Domain
 
@@ -392,32 +417,15 @@ Avoid:
 
 Each unit carries a stable plan-local **U-ID** assigned in Phase 3.5 (`U1`, `U2`, …). U-IDs survive reordering, splitting, and deletion: new units take the next unused number, gaps are fine, and existing IDs are never renumbered. This lets `ce-work` reference units unambiguously across plan edits.
 
-#### 3.4 High-Level Technical Design (Optional)
+#### 3.4 High-Level Technical Design
 
-Before detailing implementation units, decide whether an overview would help a reviewer validate the intended approach. This section communicates the *shape* of the solution — how pieces fit together — without dictating implementation.
+When the plan's technical approach has shape that prose alone doesn't carry well — architecture across components, sequencing across processes, state machines, branching gates, lifecycles, quantitative comparisons — include a High-Level Technical Design section that conveys the shape. The exact form (component diagram, sequence, swim lane, flowchart, state machine, decision matrix, pseudo-code grammar, bar chart for sizing concerns) is the agent's call per artifact — pick what makes the content land fastest for the reader.
 
-**When to include it:**
+See `references/plan-sections.md` for the section catalog including HTD's "include when material" criterion. See the format-rendering reference loaded at Phase 0.0 for how visualizations render in the target format (mermaid in markdown, inline SVG in HTML — with the layout-legibility principles around halo, contrast, and label placement when in HTML).
 
-| Work involves... | Best overview form |
-|---|---|
-| DSL or API surface design | Pseudo-code grammar or contract sketch |
-| Multi-component integration | Mermaid sequence or component diagram |
-| Data pipeline or transformation | Data flow sketch |
-| State-heavy lifecycle | State diagram |
-| Complex branching logic | Flowchart |
-| Mode/flag combinations or multi-input behavior | Decision matrix (inputs -> outcomes) |
-| Single-component with non-obvious shape | Pseudo-code sketch |
+When the plan's approach is a one-paragraph pattern application that prose conveys directly, skip the section. The presence of HTD should earn its keep with content that genuinely benefits from visualization.
 
-**When to skip it:**
-- Well-patterned work where prose and file paths tell the whole story
-- Straightforward CRUD or convention-following changes
-- Lightweight plans where the approach is obvious
-
-Choose the medium that fits the work. Do not default to pseudo-code when a diagram communicates better, and vice versa.
-
-Frame every sketch with: *"This illustrates the intended approach and is directional guidance for review, not implementation specification. The implementing agent should treat it as context, not code to reproduce."*
-
-Keep sketches concise — enough to validate direction, not enough to copy-paste into production.
+Plan diagrams render authoritative content alongside the prose — they are not "directional sketches." Do not add hedging captions like *"directional guidance for review, not implementation specification"* to plan diagrams; the prose-is-authoritative rule already governs disagreement, and the hedging weakens the diagram unnecessarily.
 
 #### 3.4b Output Structure (Optional)
 
@@ -520,9 +528,16 @@ Do not add these as boilerplate. Include them only when they improve execution q
 
 **Alternatives Considered — what to vary.** When this section is included, alternatives must differ on *how* the work is built: architecture, sequencing, boundaries, integration pattern, rollout strategy. Tiny implementation variants (which hash function, which serialization format) belong in Key Technical Decisions, not Alternatives. Product-shape alternatives (different actors, different core outcome, different positioning) belong in `ce-brainstorm`, not here — surface them back upstream rather than re-litigating product questions during planning.
 
-#### 4.2 Core Plan Template
+#### 4.2 Section Contract and Rendering
 
-Read `references/plan-template.md` for the core plan template (frontmatter, all standard sections, fill-in placeholders) and the optional Deep extensions template (Alternative Approaches Considered, Success Metrics, Dependencies, Risk Analysis, Phased Delivery, Documentation Plan, Operational Notes). Omit clearly inapplicable optional sections — especially for Lightweight plans.
+Compose the plan using two paired references:
+
+- `references/plan-sections.md` — the section contract. Describes what the plan contains: the outcome the plan must enable for downstream consumers, the hard floor (Summary, Problem Frame, Requirements, KTDs, Implementation Units), the include-when-material catalog (HTD, Scope Boundaries, Open Questions, System-Wide Impact, Risks & Dependencies, Acceptance Examples, Documentation/Operational Notes, Sources & Research), the agency-driven escape hatch (introduce new sections when content warrants), and the ID/content rules.
+- The format-rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`) — how to present the sections in the resolved output format.
+
+The section catalog is the same regardless of format. Format-specific principles (table-vs-prose by content shape, ID prefix format, diagram rendering, etc.) live in the rendering reference.
+
+Omit "include when material" sections that don't carry information for this specific plan. Filling a section with placeholder prose is worse than omitting it.
 
 #### 4.3 Planning Rules
 
@@ -535,10 +550,6 @@ Read `references/plan-template.md` for the core plan template (frontmatter, all 
 - Do not include git commands, commit messages, or exact test command recipes
 - Do not expand implementation units into micro-step `RED/GREEN/REFACTOR` instructions
 - Do not pretend an execution-time question is settled just to make the plan look complete
-
-#### 4.4 Visual Communication in Plan Documents
-
-When the plan contains 4+ implementation units with non-linear dependencies, 3+ interacting surfaces in System-Wide Impact, 3+ behavioral modes/variants in Summary or Problem Frame, or 3+ interacting decisions in Key Technical Decisions or alternatives in Alternative Approaches, read `references/visual-communication.md` for diagram and table guidance. This covers plan-structure visuals (dependency graphs, interaction diagrams, comparison tables) — not solution-design diagrams, which are covered in Section 3.4.
 
 ### Phase 5: Final Review, Write File, and Handoff
 
@@ -554,6 +565,7 @@ Before finalizing, check:
 - Test scenarios name specific inputs, actions, and expected outcomes without becoming test code
 - Feature-bearing units with blank or missing test scenarios are flagged as incomplete — feature-bearing units must have actual test scenarios, not just an annotation. The `Test expectation: none -- [reason]` annotation is only valid for non-feature-bearing units (pure config, scaffolding, styling)
 - Deferred items are explicit and not hidden as fake certainty
+- **High-Level Technical Design presence audit (load-bearing).** For each architecture trigger in Phase 3.4 that the plan content satisfies (3+ components with directed relationships, 3+ protocol steps, 3+ state machine states, lifecycle, 3+ decision points, 3+ data-flow stages, mode/flag combinations, DSL/API surface design, non-obvious single-component shape), verify a corresponding sketch/diagram is present in the High-Level Technical Design section. Count the firing triggers; count the sketches; the sketch count must be at least the count of distinct trigger categories that fired. Missing the section when a trigger fired, OR including the section but skipping a triggered sketch within it, is incomplete — return to Phase 3.4 and add the missing sketch. Token cost is not a valid reason to fail this check.
 - If a High-Level Technical Design section is included, it uses the right medium for the work, carries the non-prescriptive framing, and does not contain implementation code (no imports, exact signatures, or framework-specific syntax)
 - Per-unit technical design fields, if present, are concise and directional rather than copy-paste-ready
 - If the plan creates a new directory structure, would an Output Structure tree help reviewers see the overall shape?
@@ -625,11 +637,17 @@ Then continue to Phase 5.2 without a blocking question.
 
 **REQUIRED: Write the plan file to disk before presenting any options.**
 
-Use the Write tool to save the complete plan to:
+Use the Write tool to save the complete plan to the resolved format's extension:
 
 ```text
-docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md
+docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.<md|html>
 ```
+
+Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html` when HTML. Sequence number `NNN` is derived from existing plan files in `docs/plans/` regardless of extension (count both `.md` and `.html`) to ensure unique daily ordering.
+
+Compose the plan using the content from `references/plan-sections.md` and the format-specific principles from the rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`).
+
+**HTML composition timing.** When `OUTPUT_FORMAT=html`, compose the HTML AFTER `ce-doc-review`'s `safe_auto` fixes have been considered (Phase 5.3 deepening + doc review run before this write completes its final form). The first artifact emission reflects those fixes.
 
 Confirm (use absolute path so the reference is clickable in modern terminals):
 
@@ -637,7 +655,7 @@ Confirm (use absolute path so the reference is clickable in modern terminals):
 Plan written to <absolute path to plan>
 ```
 
-**Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip interactive questions. Make the needed choices automatically and proceed to writing the plan.
+**Pipeline mode:** If invoked from an automated workflow such as LFG or any `disable-model-invocation` context, skip interactive questions. Make the needed choices automatically and proceed to writing the plan. Pipeline mode forces `OUTPUT_FORMAT=md` at Phase 0.0.
 
 #### 5.3 Confidence Check and Deepening
 
@@ -693,11 +711,13 @@ After document review and final checks, print a one-line summary of the headless
 
 **Question:** "Plan ready at `<absolute path to plan>`. What would you like to do next?" (use absolute path so the reference is clickable in modern terminals)
 
-**Options (5 when actionable findings remain; option 2 dropped and remaining options renumbered otherwise — including FYI-only state):**
+**Options.** Option 4's label matches the artifact's format. Under exclusive output mode, exactly one of "Open in Proof" or "Open in browser" applies per run — `OUTPUT_FORMAT=md` shows Proof; `OUTPUT_FORMAT=html` shows browser. Proof operates on markdown and cannot ingest HTML; the browser option opens the local `.html` file. Render the option matching the format produced this run.
+
 1. **Start `/ce-work`** (recommended) - Begin implementing this plan in the current session
 2. **Run deeper doc review** - Walk through the remaining findings interactively (full ce-doc-review walkthrough)
 3. **Create Issue** - Create a tracked issue from this plan in your configured issue tracker (GitHub or Linear)
-4. **Open in Proof (web app) — review and comment to iterate with the agent** - Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others
+4. **Open in Proof (web app) — review and comment to iterate with the agent** - Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others. **Render only when `OUTPUT_FORMAT=md`.**
+4. **Open in browser** - Open the HTML plan file locally for review and sharing. **Render only when `OUTPUT_FORMAT=html`.**
 5. **Done for now** - Pause; the plan file is saved and can be resumed later
 
 **Routing.** Act on the user's selection — do not just announce it. Elaborate sub-flows (Proof HITL state machine, Issue Creation tracker detection, post-HITL resync) live in `references/plan-handoff.md`.
@@ -706,6 +726,7 @@ After document review and final checks, print a one-line summary of the headless
 - **Run deeper doc review** — Re-invoke the `ce-doc-review` skill on the plan path **without** `mode:headless` so the interactive routing question and walkthrough fire. After it returns, re-render this menu with refreshed counts so the user can pick a next-stage action.
 - **Create Issue** — Detect the project tracker (`gh` for GitHub, `linear` for Linear) and create the issue from the plan file as described under "Issue Creation" in `references/plan-handoff.md`. After creation, display the issue URL and ask whether to proceed to `/ce-work` via the platform's blocking question tool.
 - **Open in Proof (web app) — review and comment to iterate with the agent** — Load the `ce-proof` skill in HITL-review mode with the plan file as `source file`, the plan title as `doc title`, identity `ai:compound-engineering` / `Compound Engineering`, and recommended next step `/ce-work`. Then follow the post-HITL resync logic in `references/plan-handoff.md`, which handles the four `ce-proof` return statuses, re-runs `ce-doc-review` after material edits, and falls back gracefully on upload failure.
+- **Open in browser** — Display the absolute path to the `.html` plan file so the user can open it locally. Where the platform exposes a browser-opening primitive (e.g., `open` on macOS, `xdg-open` on Linux, `start` on Windows), the agent may use it; otherwise print the absolute path and let the user open it. Do not invoke `ce-work` from this option — the user picked HTML for review/sharing, not handoff.
 - **Done for now** — Display a brief confirmation that the plan file is saved and end the turn. Do not start follow-up work without an explicit further user prompt.
 
 If the user types free-form prompts targeting the findings (e.g., "review", "walk through", "deep review"), route as if they picked `Run deeper doc review` — fire the skill rather than looping back to the menu. For other free-text revisions, accept the input and loop back to this menu after applying the revision.
