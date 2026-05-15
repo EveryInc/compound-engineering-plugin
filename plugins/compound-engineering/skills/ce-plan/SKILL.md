@@ -101,7 +101,7 @@ Normal editing requests (e.g., "update the test scenarios", "add a new implement
 
 If the plan already has a `deepened: YYYY-MM-DD` frontmatter field and there is no explicit user request to re-deepen, the fast path still applies the same confidence-gap evaluation — it does not force deepening.
 
-**Resume preserves the existing artifact's format.** When resuming an existing plan, the resume run writes back in whatever format the existing artifact uses — markdown if the existing file is `.md`, HTML if it is `.html`. Explicit `output:` arguments on this run override (e.g., resuming an `.html` plan with `output:md` switches the artifact to markdown), but the default is to preserve the format already on disk so a resume doesn't silently change the artifact shape.
+**Resume preserves the existing artifact's format, except pipeline mode.** When resuming an existing plan, the resume run writes back in whatever format the existing artifact uses — markdown if the existing file is `.md`, HTML if it is `.html` — so a resume doesn't silently change the artifact shape. Explicit `output:` arguments on this run override (e.g., resuming an `.html` plan with `output:md` switches the artifact to markdown). Pipeline mode (LFG, any `disable-model-invocation` context) always wins per Phase 0.0: even when resuming an existing `.html` plan, pipeline runs force `OUTPUT_FORMAT=md` so downstream automation receives the markdown shape it expects. The resume rewrites the markdown file at the parallel path (`<plan-basename>.md`) and the original `.html` is left in place untouched.
 
 #### 0.1b Classify Task Domain
 
