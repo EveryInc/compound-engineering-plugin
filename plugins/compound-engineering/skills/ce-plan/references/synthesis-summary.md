@@ -1,10 +1,10 @@
-# Synthesis Summary
+# Scoping Synthesis
 
-**Synthesis ≠ plan doc.** The synthesis is the scope/decisions checkpoint that plan-write (Phase 5.2) consumes as input. The plan itself is written from the confirmed synthesis. The synthesis names the scope or plan-time decisions (what files to touch, which patterns to extend, what's deferred) at decision-level. The plan body expands those decisions into directional sketches (file paths, test scenarios, approach descriptions) per the Planning Rules — but never into exact method signatures, framework syntax, or code spec (Phase 4.3 forbids those in the plan body too). If the synthesis reads like a plan preview, it's misshaped — re-cut to scope/decisions-only.
+**Scoping synthesis ≠ plan doc.** The scoping synthesis is the scope/decisions checkpoint that plan-write (Phase 5.2) consumes as input. It surfaces decisions the agent CAN make at synthesis time: scope-level (does this plan cover the full brainstorm or narrow to a subset?), posture (extend existing pattern vs. introduce new abstraction), test approach. It does NOT surface decisions plan-write produces: PR count, commit/branch sequencing, effort or time estimates, Implementation Unit lists, exact file paths, test command recipes. If the synthesis claims any of those, it has leaked plan-write thinking and must be re-cut to scope-decisions only. Even when the agent has formed plan-write opinions earlier in the session, the synthesis stays at scope altitude — the user is being asked to affirm scope, not to rubber-stamp implementation.
 
-**Two-stage shape: internal draft, then chat-time call-outs.** The synthesis is composed in two stages. Stage 1 is an internal three-bucket draft (Stated / Inferred / Out of scope) the agent uses to think comprehensively about scope. Stage 2 is the compressed chat-time presentation: a 1-3 line prose summary plus "Call outs" (count bounded by plan depth — see the cap table under "How many call-outs are right?"; zero is fine) — the specific forks where the user might redirect. The user only sees stage 2. The internal draft still informs the plan body via the doc-shape routing below; it just doesn't reach the user verbatim. This split exists because the comprehensive audit shape produced too much detail for the user to weigh in on, even when the granularity rules were followed.
+**Two-stage shape: internal draft, then chat-time synthesis.** The synthesis is composed in two stages. Stage 1 is an internal three-bucket draft (Stated / Inferred / Out of scope) the agent uses to think comprehensively about scope. Stage 2 is the compressed chat-time output: a tier-shaped summary plus "Call outs" (zero or more, capped by plan depth — see the cap table under "How many call-outs are right?") — the specific forks where the user might redirect. The user only sees stage 2. The internal draft still informs the plan body via the doc-shape routing below; it just doesn't reach the user verbatim. This split exists because the comprehensive audit shape produced too much detail for the user to weigh in on, even when the granularity rules were followed.
 
-**Three-bucket structure is the internal draft, not the user-facing artifact.** It does its scope-thinking job during stage 1 and dissolves when Phase 5.2 writes the plan: Stated content informs Requirements, Inferred content informs Key Technical Decisions / Implementation Units (interactive mode) or `## Assumptions` (non-interactive mode), Out-of-scope content informs Scope Boundaries. The plan has no parallel `## Synthesis` section — only the prose summary embeds, as `## Summary`. See "Doc shape after confirmation" below for the routing.
+**Three-bucket structure is the internal draft, not the user-facing artifact.** It does its scope-thinking job during stage 1 and dissolves when Phase 5.2 writes the plan: Stated content informs Requirements, Inferred content informs Key Technical Decisions / Implementation Units (interactive mode) or `## Assumptions` (non-interactive mode), Out-of-scope content informs Scope Boundaries. The plan has no parallel `## Synthesis` section — only the stage-2 summary embeds, as `## Summary`. See "Doc shape after confirmation" below for the routing.
 
 This content is loaded when a synthesis-summary phase fires in ce-plan. There are two variants — they share structure but differ in timing and content focus:
 
@@ -27,21 +27,56 @@ This draft is internal. Do not paste it verbatim into chat. Compose it as a thin
 
 ---
 
-## Stage 2: chat-time call-outs (shared)
+## Stage 2: chat-time scoping synthesis
 
-Stage 2 is what the user actually sees. It has exactly two parts:
+Stage 2 is what the user actually sees. The shape differs between variants because they serve different purposes — brainstorm-sourced plans inherit a validated WHAT and surface plan-specific HOW; solo plans have no upstream and the synthesis is the WHAT.
 
-1. **1-3 line prose summary** (forward-looking, plain language) — what scope the plan will target (solo variant) or how the implementation approaches the work (brainstorm-sourced variant).
-2. **"Call outs"** (count bounded by plan depth — see the cap table below; zero is fine) — each a real fork where the user's input materially changes the plan.
+### Brainstorm-sourced shape (Phase 5.1.5)
 
-That's it. No "Stated" bucket in chat (the prose covers it). No "Out of scope" bucket as a separate list — fold a non-obvious exclusion into a call-out when it survives the keep test, otherwise drop it.
+Two content sections plus call-outs:
+
+1. **Brainstorm-scope restatement** (1-2 sentences, prose). Restates the brainstorm's scope as orientation. The user wrote this content, but the synthesis may be read days later or in parallel with other plans — the restatement is the topic anchor that says "this is the artifact we're planning against." Stay in the brainstorm's own vocabulary. Do NOT enumerate Implementation Units, restate constraints back at the user, or list acceptance examples.
+
+2. **Plan-specific scoping decisions** (prose, or bullets when multi-faceted). Scope-level commitments the agent made that the brainstorm did not: does this plan cover the full brainstorm scope or narrow to a subset; are adjacent refactors pulled in or held out; what test scope at scenario level (which sites, which acceptance examples). Each item must pass the **affirmability test** — the user can affirm or redirect it without reading code. This section is scope claims at affirm-or-redirect level, NOT a description of where the implementation reaches, NOT PR count or commit sequencing, NOT Implementation Unit lists, NOT exact file paths or test commands — those are all plan-write outputs the synthesis cannot honestly claim. If the plan covers the full brainstorm scope with no narrowing, expansions, or adjacent work, this section stays short ("This plan covers the full brainstorm scope; test scope is X").
+
+3. **Call outs** (zero or more, capped by plan depth — see "How many call-outs are right?" below). Each a real fork where the user's input materially changes the plan. Omit the "Call outs:" header entirely when zero forks survived the keep test.
+
+### Solo shape (Phase 0.7)
+
+No upstream document; the synthesis itself is the scope claim:
+
+1. **Scope claim** (prose, or bullets when multi-faceted). What the agent is planning to build, at affirm-or-redirect level — names what's in and what's out. NOT an enumeration of Implementation Units the plan will contain.
+
+2. **Call outs** (zero or more, capped by plan depth). Same as brainstorm-sourced.
+
+### Shape budgets
+
+Tier-aware budgets are **ceilings, not targets**. Less is correct when there isn't more to say — filling the budget produces noise.
+
+| Plan depth | Restatement (brainstorm-sourced) | Plan-specific scoping (brainstorm-sourced) / Scope claim (solo) |
+|---|---|---|
+| Lightweight | 1 sentence | 1-3 lines prose |
+| Standard | 1-2 sentences | up to 3-5 lines or 2-4 bullets |
+| Deep | 1-2 sentences | up to 4-6 lines or 3-6 bullets |
+
+Form within each section (prose, bullets, mix) follows whatever communicates best.
+
+### Shared rules
+
+- **No "Stated" bucket in chat** (the orientation or scope-claim covers it).
+- **No "Out of scope" bucket as a separate list** — fold a non-obvious exclusion into a call-out when it survives the keep test, otherwise drop it.
+- **Source-document vocabulary.** When a brainstorm exists, use its terms. Don't invent agent-coded shorthand (e.g., "skill-instruction shape", "hooks engine selection at Step 2a entry"). When referencing acceptance examples, requirements, or flows, name them in plain terms ("the install-prompt acceptance case") — never use bare IDs.
+
+- **Pre-emit mechanical checks.** Before emitting the synthesis, scan the output:
+  - **Bare ID references** (`AE\d+`, `R\d+`, `F\d+`, `A\d+`, `U\d+`) → replace with plain names. Mixed forms (case named AND ID cited) still violate the rule because the ID adds noise without information.
+  - **File paths** (`path/like.md`, `path/like.py`, `internal/cli/...`, `skills/.../...`, etc.) → cut unless the path IS the topic of an explicit fork in the call-outs. Allowed: "cleanup hook in the existing archive step vs. a new dedicated phase" (where the path is implicit in the decision). Forbidden: paths listed to demonstrate completeness, preview Implementation Units, or describe where the implementation reaches. The synthesis names *what* the plan targets, not *where* the code lives.
 
 ### The keep test for each call-out
 
 Before keeping a candidate call-out from the internal draft, run the **affirmability test**: would the user need to look at code to evaluate this? If yes, it is plan-body content — cut. If no, apply the keep test — one of the following must be true:
 
 - **Real fork**: another reasonable agent might choose differently on this dimension (extend pattern X vs. introduce abstraction Y; scan source A vs. source B; etc.)
-- **Non-obvious behavioral choice**: a default the agent picked that the user would not see by reading the prose summary alone, but that materially affects what the plan does (e.g., "scans the working-dir snapshot before the copy step" — the user would not infer the scan target from a description of the gate's purpose)
+- **Non-obvious behavioral choice**: a default the agent picked that the user would not see by reading the summary alone, but that materially affects what the plan does (e.g., "scans the working-dir snapshot before the copy step" — the user would not infer the scan target from a description of the gate's purpose)
 - **Non-obvious exclusion**: an item was deliberately excluded that the user might want to add back in
 - **Cheap-now-expensive-later correction**: a bet the user is well-placed to redirect now that would be expensive to undo after research or plan-write
 
@@ -49,7 +84,13 @@ Cut anything else, including:
 
 - Mechanical items where there is no real alternative (e.g., "no new dependencies" when the work clearly does not need any)
 - Implementation choices that will be settled during the work (e.g., regex precision tuned during impl)
-- Items already implied by the prose summary
+- Items already implied by the summary
+
+### The detail test (per call-out and per summary bullet)
+
+After the keep test, every surviving item runs the **detail test**: 1-2 lines max, conversational not documentary. A call-out or summary bullet that runs to 4+ lines of dense prose is naming an implementation consequence rather than a decision — re-cut at higher abstraction.
+
+The keep test addresses *which* items survive. The detail test addresses *how much* each surviving item says. Without it, the count cap is gameable: an agent can hit "3 call-outs" while each call-out is a 6-line paragraph, and the synthesis reads as a doc preview instead of a checkpoint.
 
 ### How many call-outs are right?
 
@@ -61,7 +102,7 @@ The cap is heuristic, not law. The real discipline is the keep test on each cand
 | Standard | 1-3 | 4 |
 | Deep | 2-5 | 6 |
 
-**If the stage-2 pass produces more than 6 call-outs, the synthesis is misshapen — do not raise the cap, re-cut at a higher level of abstraction.** Almost always, 2-3 of those call-outs are sub-decisions of one larger fork (file path, flag name, JSON key behavior, and dependency choice are usually four facets of one "how to extend the existing scaffold" decision, not four independent forks). Collapse related call-outs into a single decision named at the level the user actually weighs in on. The user's job is to redirect forks, not to validate every implementation consequence of a fork they have already implicitly agreed to by accepting the higher-level decision.
+**If the stage-2 pass exceeds the tier cap, OR any call-out or summary bullet runs to 4+ lines of dense prose, the synthesis is misshapen — do not raise the cap or accept the bloat, re-cut at a higher level of abstraction.** Almost always, 2-3 of those call-outs are sub-decisions of one larger fork (file path, flag name, JSON key behavior, and dependency choice are usually four facets of one "how to extend the existing scaffold" decision, not four independent forks). Collapse related call-outs into a single decision named at the level the user actually weighs in on. The user's job is to redirect forks, not to validate every implementation consequence of a fork they have already implicitly agreed to by accepting the higher-level decision.
 
 A useful test: read the call-outs aloud. If two or more sound like "and also" extensions of the same idea, they belong as one.
 
@@ -81,19 +122,21 @@ The line-number, signature, and code-spec rules are not new — they have always
 
 ---
 
-## Skip the gate when there's nothing to weigh in on
+## When to skip the blocking confirmation
 
-When stage 2 produces zero call-outs (the prose summary fully captures the scope and no candidate survived the keep test), do not fire the blocking question. Emit a one-line auto-proceed announcement and continue to the next phase:
+The auto-proceed path (announce without waiting for user confirmation) fires only when **plan depth is Lightweight AND zero call-outs survive the keep test**. For Standard or Deep plans, always fire the confirmation gate even when zero call-outs survive — substance earns the checkpoint, not interaction history. A Deep plan with rich silent decisions and a 1-3 line summary is exactly the case where rubber-stamping is most likely; the explicit confirmation request gives the user a real chance to push back before research or plan-write proceeds.
+
+When auto-proceed applies (Lightweight + zero call-outs), emit a one-line announcement and continue:
 
 ```
-Planning: [1-3 line prose summary]
+Planning: [1-3 line summary]
 
-No open decisions for you to weigh in on — proceeding to [research / plan-write]. Interrupt if I have the scope wrong.
+No open decisions to weigh in on — proceeding to [research / plan-write]. Interrupt if I have the scope wrong.
 ```
 
-The auto-proceed line is the contract: the agent declares "I am not asking because there is nothing to ask," and the user can override on read. The announcement is mandatory when skipping — silent proceeding is not allowed. The "why" (no forks worth flagging) must be visible.
+The announcement is mandatory when skipping — silent proceeding is not allowed. The "why" (no forks worth flagging) must be visible.
 
-This trades a hard rule (always confirm) for a judgment call (confirm when it earns its weight). The failure mode is bounded because the keep test ensures any genuinely correctable bet produces at least one call-out. When unsure whether something is a real fork, default to keeping the call-out — the cost of one extra confirmation is much lower than the cost of silently proceeding on a wrong scope.
+For Standard/Deep with zero call-outs, the confirmation template still fires; the "Call outs:" header is simply omitted. The user gets the summary plus the explicit confirmation request.
 
 ---
 
@@ -101,9 +144,11 @@ This trades a hard rule (always confirm) for a judgment call (confirm when it ea
 
 Both variants share these structural rules. They address failure modes where the synthesis becomes a Phase 5.2 (plan-write) preview instead of a scope checkpoint.
 
-**Prose lives at the start of stage 2**, before the call-outs — not as a separate prose block above. Putting extensive prose ABOVE the synthesis (an approach pitch, files-touched bullets, rationale block) inverts the structure: the synthesis becomes a footnote to the proposal instead of the proposal being a 1-3 line gloss on the synthesis.
+**Summary leads, call-outs follow** — not the reverse, and no separate framing block above. Putting extensive content ABOVE the synthesis (an approach pitch, files-touched bullets, rationale block) inverts the structure: the synthesis becomes a footnote to the proposal instead of the proposal being a tier-budgeted summary the call-outs depend on.
 
-**Anti-pattern: synthesis as plan-pitch.** Plan-body content — file paths, code shapes, sentinel strings, exact error messages, "Recommendation" / "Behavior when X" / "Why this shape" rationale — does not belong in chat output regardless of where it appears: not in a block above the call-outs, not inside the prose summary, and not nested in a call-out's commentary or sub-bullets. The position rule and the content rule are independent: a structurally-legal placement (inside a call-out bullet) does not legitimize plan-body content. If you find yourself writing it anywhere, stop. That content is Phase 5.2 (plan-write) territory — it belongs in the plan body the next phase will write, not in the synthesis presentation. The synthesis is a scope/decisions checkpoint: prose plus call-outs bounded by the tiered cap (see "How many call-outs are right?"). Implementation detail leaking into the synthesis (anywhere) is a sign Phases 1-4 (research and structuring) and Phase 5.2 (plan-write) have collapsed into the synthesis-confirmation step.
+**Anti-pattern: synthesis as plan-pitch.** Plan-body content — file paths, code shapes, sentinel strings, exact error messages, "Recommendation" / "Behavior when X" / "Why this shape" rationale — does not belong in chat output regardless of where it appears: not in a block above the call-outs, not inside the summary, and not nested in a call-out's commentary or sub-bullets. The position rule and the content rule are independent: a structurally-legal placement (inside a call-out bullet) does not legitimize plan-body content. If you find yourself writing it anywhere, stop. That content is Phase 5.2 (plan-write) territory — it belongs in the plan body the next phase will write, not in the synthesis presentation. The synthesis is a scope/decisions checkpoint: a tier-budgeted summary plus call-outs bounded by the tiered cap (see "How many call-outs are right?"). Implementation detail leaking into the synthesis (anywhere) is a sign Phases 1-4 (research and structuring) and Phase 5.2 (plan-write) have collapsed into the synthesis-confirmation step.
+
+**Anti-pattern: numerical attestation.** "All nine requirements covered," "all three flows in scope," "five acceptance examples addressed," counts of files or test scenarios. These are the agent showing its work or attesting completeness, not naming scope decisions. "Covers the full brainstorm scope" already conveys the claim; the count adds nothing the user can affirm or redirect. Cut the numbers; keep the scope claim.
 
 **A revision is not a confirmation.** After any user revision (even a trivially-understood swap), integrate the change, re-present the revised stage 2 with the change reflected, and wait for explicit confirmation before writing the plan. The loop is:
 
@@ -159,7 +204,7 @@ Planning a mechanical PII redaction gate before promote (the unguarded leak path
 - Promote scans the working-dir snapshot before the copy step, not the staged copy.
 - Publish combines PII + vendor-prefix findings into one report, not fail-fast on first.
 
-Confirm to proceed, or tell me which of these to redirect.
+Confirm and I'll proceed to research, drawing on this scope.
 ```
 
 What got cut from the internal draft and why:
@@ -192,31 +237,29 @@ Each guard is an explicit conditional in SKILL.md, not implicit. R2 solo does NO
 
 ### Stage 2 template (solo)
 
-**Prose summary discipline (required):** start with a 1-3 line summary in plain prose describing **what scope the plan will target**. Forward-looking (what *will* be planned), not retrospective (what's been discussed in Phase 0.4 bootstrap). The prose's job is to help the user pattern-match against intent before reading call-outs — solo invocation has minimal pre-write dialogue, so the prose is especially load-bearing here.
+**Summary discipline (required):** describe **what scope the plan will target**, forward-looking (what *will* be planned), not retrospective. The summary's job is to help the user pattern-match against intent before reading call-outs — solo invocation has minimal pre-write dialogue, so the summary is especially load-bearing here. Form (prose, bullets, mix) and length follow the tier budget in "Stage 2: chat-time scoping synthesis" above; detail test applies per bullet.
 
-**Anti-fluff guidance:** lead with the actual thing being planned in plain words. No qualifiers ("comprehensive," "thoughtful," "substantive"). No re-stating the user's prompt. If the scope cannot be said in 1-3 lines without filler, the synthesis isn't ready yet.
+**Anti-fluff guidance:** lead with the actual thing being planned in plain words. No qualifiers ("comprehensive," "thoughtful," "substantive"). No re-stating the user's prompt. If the scope cannot be said within the tier budget without filler, the synthesis isn't ready yet.
 
-**When call-outs survive the keep test (one or more):**
-
-```
-Based on your request and our brief Phase 0.4 bootstrap, here's the scope I'm proposing to plan against:
-
-[1-3 line prose summary — what scope the plan will target, in plain language.]
-
-**Call outs:**
-- [decision-level fork the user can affirm or redirect]
-- [decision-level fork the user can affirm or redirect]
-- [decision-level fork the user can affirm or redirect]
-
-Confirm to proceed, or tell me which of these to redirect. (You can also redirect to /ce-brainstorm if this is bigger than you initially thought — I'll stop here and load it for you.)
-```
-
-**When zero call-outs survive the keep test:**
+**Confirmation template (fires for Standard/Deep regardless of call-out count, or for any tier with one or more call-outs surviving):**
 
 ```
-Planning: [1-3 line prose summary — what scope the plan will target]
+Based on your request and our brief discussion, here's the scope I'm proposing to plan against:
 
-No open decisions for you to weigh in on — proceeding to research. Interrupt if I have the scope wrong.
+[scope claim — what the plan will target, what it will not; affirm-or-redirect level; NOT an enumeration of Implementation Units]
+
+**Call outs:** (omit this header when zero forks survived the keep test)
+- [decision-level fork in 1-2 lines: name the choice and optional one-clause trade-off in parens. NO multi-sentence rationale, NO "my default is X" pitch — those belong in Key Technical Decisions in the plan body, not the synthesis]
+
+Confirm and I'll proceed to research, drawing on this scope. (You can also redirect to /ce-brainstorm if this is bigger than you initially thought — I'll stop here and load it for you.)
+```
+
+**Auto-proceed template (fires only for Lightweight with zero call-outs):**
+
+```
+Planning: [1-3 line scope claim]
+
+No open decisions to weigh in on — proceeding to research. Interrupt if I have the scope wrong.
 ```
 
 Then continue to Phase 1 without waiting. Use prose for any user response that does arrive (no `AskUserQuestion` menu). Justification is Interaction Rule 5(a) in SKILL.md.
@@ -246,30 +289,29 @@ Most of these will not survive the keep test as separate call-outs. Surface only
 
 ### Stage 2 template (brainstorm-sourced)
 
-**Prose summary discipline (required):** start with a 1-3 line summary in plain prose describing **how the implementation approaches the work** at a high level — files/modules touched, patterns extended vs. introduced, scope boundaries the plan honors. Forward-looking (what *will* be in the plan), not retrospective. Brainstorm-validated WHAT is assumed; the prose summarizes HOW.
+**Summary discipline (required):** describe **how the implementation approaches the work** at a high level — files/modules touched, patterns extended vs. introduced, scope boundaries the plan honors. Forward-looking (what *will* be in the plan), not retrospective. Brainstorm-validated WHAT is assumed; the summary covers HOW. Form (prose, bullets, mix) and length follow the tier budget in "Stage 2: chat-time scoping synthesis" above; detail test applies per bullet.
 
-**Anti-fluff guidance:** lead with the actual implementation shape in plain words. No qualifiers, no re-stating the brainstorm's WHAT. If the prose just restates the brainstorm's Problem Frame, rewrite it to focus on plan-time decisions.
+**Anti-fluff guidance:** lead with the actual implementation shape in plain words. No qualifiers, no re-stating the brainstorm's WHAT. If the summary just restates the brainstorm's Problem Frame, rewrite it to focus on plan-time decisions.
 
-**When call-outs survive the keep test (one or more):**
-
-```
-Based on the upstream brainstorm and Phase 1 research, here's the implementation scope I'm proposing for the plan:
-
-[1-3 line prose summary — how the implementation approaches the work (files/modules, patterns, scope honored), in plain language.]
-
-**Call outs:**
-- [plan-time fork the user can affirm or redirect]
-- [plan-time fork the user can affirm or redirect]
-
-Confirm to proceed, or tell me which of these to redirect.
-```
-
-**When zero call-outs survive the keep test:**
+**Confirmation template (fires for Standard/Deep regardless of call-out count, or for any tier with one or more call-outs surviving):**
 
 ```
-Planning: [1-3 line prose summary — implementation shape]
+The brainstorm scopes [1-2 sentence restatement of the brainstorm's scope as orientation; in the brainstorm's own vocabulary; NOT an enumeration of Implementation Units, constraints, or acceptance examples].
 
-No open decisions for you to weigh in on — proceeding to plan-write. Interrupt if I have the scope wrong.
+This plan [plan-specific scoping: what's covered vs. deferred vs. expanded relative to the brainstorm; test scope; any adjacent refactors pulled in or held out. Prose or bullets per substance].
+
+**Call outs:** (omit this header when zero forks survived the keep test)
+- [plan-time fork in 1-2 lines: name the choice and optional one-clause trade-off in parens. NO multi-sentence rationale, NO "my default is X" pitch — those belong in Key Technical Decisions in the plan body, not the synthesis]
+
+Confirm and I'll write the plan next, drawing on the brainstorm, research, and this synthesis.
+```
+
+**Auto-proceed template (fires only for Lightweight with zero call-outs):**
+
+```
+Planning [brief brainstorm-scope restatement] — [plan-specific shape in one clause].
+
+No open decisions to weigh in on — proceeding to plan-write. Interrupt if I have the scope wrong.
 ```
 
 Then continue to Phase 5.2 without waiting. Use prose for any user response that does arrive. Justification is Interaction Rule 5(a).
@@ -329,11 +371,11 @@ In either case: stop ce-plan, suggest the alternative skill, offer to load it in
 
 ## Doc shape after confirmation
 
-After user confirmation (or after the soft-cut decision proceeds), Phase 5.2 writes the plan doc. The internal draft does NOT carry into the plan as a `## Synthesis` section. Only the prose summary embeds, replacing the existing `## Overview` slot in the plan template (renamed to `## Summary` for terminology consistency). Internal-draft content dissolves into the plan's body sections:
+After user confirmation (or after the soft-cut decision proceeds), Phase 5.2 writes the plan doc. The internal draft does NOT carry into the plan as a `## Synthesis` section. Only the stage-2 summary embeds, replacing the existing `## Overview` slot in the plan template (renamed to `## Summary` for terminology consistency). Internal-draft content dissolves into the plan's body sections:
 
 | Internal-draft element | Where it goes in the plan |
 |---|---|
-| Prose summary (stage 2) | `## Summary` (1-3 lines, forward-looking) — solo variant: scope being targeted; brainstorm-sourced: implementation approach |
+| Summary (stage 2) | `## Summary` (1-3 lines prose, forward-looking) — rewrite to plan convention if the chat-time summary used bullets. Solo variant: scope being targeted. Brainstorm-sourced: implementation approach |
 | Stated bullets | `## Requirements` (R-IDs) and where relevant `## Problem Frame` for narrative context |
 | Inferred bullets | `## Key Technical Decisions` (with rationale) and Implementation Units when the bet drives a structural choice. In non-interactive mode, route to `## Assumptions` instead — see Headless mode above. |
 | Out-of-scope bullets | `## Scope Boundaries` — including the `### Deferred to Follow-Up Work` subsection when relevant |
