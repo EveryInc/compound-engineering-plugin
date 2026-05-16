@@ -143,6 +143,29 @@ describe("frontmatter YAML validity", () => {
             `Agent "${fileName}" must use the ce- prefix.`,
           ).toBe(true)
         })
+
+        // Pure document-reasoning reviewers operate on document text already
+        // passed in their prompt and do not look at the codebase. Granting
+        // Bash invites the model -- especially on weaker models like haiku --
+        // to externalize state via temp-file scratchpads, which can hang
+        // indefinitely on platforms whose bash tool blocks on heredocs (see
+        // issue #832 for the OpenCode coherence-reviewer stall).
+        const NO_BASH_AGENTS = new Set([
+          "ce-coherence-reviewer",
+        ])
+        const agentName = path.basename(rel, ".agent.md")
+        if (NO_BASH_AGENTS.has(agentName)) {
+          test(`${pluginRoot}/${rel} pure document reviewer must not allow Bash`, () => {
+            const parsed = load(yaml) as Record<string, unknown> | null
+            const tools = parsed && typeof parsed.tools === "string" ? parsed.tools : ""
+            const toolList = tools.split(",").map((s) => s.trim())
+            expect(
+              toolList.includes("Bash"),
+              `Agent "${agentName}" reviews documents from prompt context only and does ` +
+                `not need shell access. Remove Bash from the tools allowlist (see issue #832).`,
+            ).toBe(false)
+          })
+        }
       }
     }
   }
