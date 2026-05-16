@@ -1,0 +1,38 @@
+{
+  "name": "notion-workspace",
+  "version": "0.1.0",
+  "description": "Notion workspace integration. 3 commands, 1 skill, 1 MCP server for knowledge capture into Notion pages and databases.",
+  "author": {
+    "name": "Notion Labs",
+    "url": "https://www.notion.so"
+  },
+  "homepage": "https://github.com/makenotion/claude-code-notion-plugin",
+  "repository": "https://github.com/makenotion/claude-code-notion-plugin",
+  "license": "MIT",
+  "keywords": [
+    "notion",
+    "workspace",
+    "knowledge-management",
+    "documentation",
+    "wiki",
+    "mcp"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Notion Workspace",
+    "shortDescription": "Notion integration for knowledge capture into pages and databases.",
+    "longDescription": "Notion Workspace bundles a knowledge-capture skill that turns conversations into structured documentation in your Notion workspace (FAQs, decision logs, how-to guides, wiki entries), backed by Notion's hosted MCP server over OAuth. Skills install natively via Codex; Codex does not yet register plugin-declared commands, so the slash commands this plugin ships (find, create-page, database-query) require the companion Bun converter (see README).",
+    "developerName": "Morton Watson",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Capture this conversation into a Notion wiki page",
+      "Find the Q1 planning doc in Notion"
+    ],
+    "screenshots": []
+  }
+}
