@@ -45,6 +45,23 @@
         "education"
       ],
       "source": "./plugins/coding-tutor"
+    },
+    {
+      "name": "notion-workspace",
+      "description": "Notion integration for Claude Code: knowledge capture into Notion pages and databases via the hosted Notion MCP server. Includes 3 commands and 1 skill.",
+      "author": {
+        "name": "Morton Watson"
+      },
+      "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
+      "tags": [
+        "notion",
+        "workspace",
+        "knowledge-management",
+        "documentation",
+        "wiki",
+        "mcp"
+      ],
+      "source": "./plugins/notion-workspace"
     }
   ]
 }

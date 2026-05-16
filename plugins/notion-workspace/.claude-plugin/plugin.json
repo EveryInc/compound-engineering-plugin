@@ -1,0 +1,28 @@
+{
+  "name": "notion-workspace",
+  "version": "0.1.0",
+  "description": "Notion workspace integration. 3 commands, 1 skill, 1 MCP server for knowledge capture into Notion pages and databases.",
+  "author": {
+    "name": "Notion Labs",
+    "url": "https://www.notion.so"
+  },
+  "homepage": "https://github.com/makenotion/claude-code-notion-plugin",
+  "repository": "https://github.com/makenotion/claude-code-notion-plugin",
+  "license": "MIT",
+  "keywords": [
+    "notion",
+    "workspace",
+    "knowledge-management",
+    "meeting-intelligence",
+    "research",
+    "documentation",
+    "project-management",
+    "task-tracking"
+  ],
+  "mcpServers": {
+    "notion": {
+      "type": "http",
+      "url": "https://mcp.notion.com/mcp"
+    }
+  }
+}

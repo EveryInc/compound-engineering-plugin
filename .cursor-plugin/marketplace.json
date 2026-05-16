@@ -20,6 +20,11 @@
       "name": "coding-tutor",
       "source": "coding-tutor",
       "description": "Personalized coding tutorials with spaced repetition quizzes using your real codebase."
+    },
+    {
+      "name": "notion-workspace",
+      "source": "notion-workspace",
+      "description": "Notion integration: knowledge capture into pages and databases via the hosted Notion MCP server."
     }
   ]
 }
