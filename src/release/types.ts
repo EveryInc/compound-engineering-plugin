@@ -1,4 +1,4 @@
-export type ReleaseComponent = "cli" | "compound-engineering" | "coding-tutor" | "marketplace" | "cursor-marketplace"
+export type ReleaseComponent = "cli" | "compound-engineering" | "coding-tutor" | "notion-workspace" | "marketplace" | "cursor-marketplace"
 
 export type BumpLevel = "patch" | "minor" | "major"
 
