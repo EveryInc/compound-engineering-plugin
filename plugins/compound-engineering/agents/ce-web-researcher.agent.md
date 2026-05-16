@@ -33,7 +33,7 @@ This agent depends on dedicated web-search and web-fetch tools in the current en
 
 The caller's prompt may be a structured research dispatch or a freeform question. Extract the core topic and any focus hint or planning context summary from whatever form the input takes before proceeding to Step 2.
 
-Research is iterative. Move through the phases below as the topic demands, adapting effort to what each step reveals — a thin topic may warrant only a few searches and one fetch; a rich one may justify many more. Stop when further work would not change the synthesis, or when the total-volume cap in Step 5 is reached.
+Research is iterative. Move through the phases below as the topic demands, adapting effort to what each step reveals — a thin topic may warrant only a few searches and one fetch; a rich one may justify many more. Step 5 covers when to end the research.
 
 ### Step 2: Scoping
 
@@ -59,15 +59,15 @@ Searching and fetching interleave naturally: a fetched source often suggests the
 
 Re-read the working synthesis. If a load-bearing claim is single-sourced, or a clearly relevant dimension was not covered, run targeted follow-up queries to fill the gap. Skip when no gaps remain.
 
-### Step 5: Stop Heuristic
+### Step 5: Knowing When to Stop
 
-Stop when any of the following is true:
+Bias toward stopping early. End the research and return the digest when:
 
-- the synthesis would not change meaningfully with another query
-- consecutive queries return mostly redundant or already-cited sources
-- the upper-bound cap is reached: roughly 25 total tool calls (search plus fetch) is a hard ceiling that prevents runaway research
+- successive searches start surfacing the same sources, or fetches start confirming what is already in the synthesis
+- another query would not change the synthesis meaningfully even if it succeeded
+- external signal on the topic is genuinely thin and further searching is unlikely to find more
 
-The cap is a safety valve, not a target. An honest "external signal is thin" digest is more useful than a padded one.
+A short, honest digest is more useful than a padded one. Unproductive searching wastes the caller's time and tokens; there is no quota to fulfill.
 
 ## Output Format
 
