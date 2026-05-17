@@ -499,7 +499,11 @@ After the per-learning actions execute, aggregate the domain terms flagged acros
 2. **If `CONCEPTS.md` exists**, add missing terms and refine existing entries when the corpus surfaced new precision. Do not duplicate entries already present.
 3. **If `CONCEPTS.md` does not exist** and at least one qualifying term was surfaced, **bootstrap it**. One term is enough — do not gate creation behind a minimum count, that creates an asymmetric trap where the file only ever gets created on the second eligible run.
 4. **Scope discipline and citation hygiene.** Bootstrap reflects only the area in scope — do not expand to other categories, and do not retroactively inject `(see CONCEPTS.md)` pointers into existing learnings. The report should note that additional entries are likely from refresh runs on other scopes.
-5. **Initial structure.** When bootstrapping, let term count drive shape: 1-4 terms → flat headings, more → cluster by domain relationship per the rules in `references/concepts-vocabulary.md`.
+5. **Initial structure.** When bootstrapping, start the file with this preamble under the `# Concepts` heading:
+
+   > Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or scratchpad.
+
+   Then add entries. Let term count drive shape: 1-4 terms → flat headings, more → cluster by domain relationship per the rules in `references/concepts-vocabulary.md`.
 6. **Scrub violations.** Scan existing entries for content that violates `references/concepts-vocabulary.md` criteria — implementation specifics (file paths, class names, function signatures, code references), status/owner/date metadata, or duplicates of terms covered under a different name. Rewrite or consolidate. The full sweep is appropriate here because refresh is an audit; ce-compound's same-named phase scopes corrections to entries already being touched.
 
 If no Phase 1 signals qualified after applying the reference's criteria, record that outcome explicitly in the report's `CONCEPTS.md` line (e.g., "scanned, no qualifying terms"). Do not silently skip — the visible scan-and-no-result record is the audit signal that the reference was consulted.

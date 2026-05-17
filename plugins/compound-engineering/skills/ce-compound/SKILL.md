@@ -258,6 +258,10 @@ When creating a new doc, preserve the section order from `assets/resolution-temp
 
 Then, applying those criteria, scan the new doc **and** the surrounding conversation for qualifying domain terms. If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and at least one qualifying term surfaced, create it lazily.
 
+**When bootstrapping the file, start with this preamble under the `# Concepts` heading**, then add the qualifying entries below it:
+
+> Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or scratchpad.
+
 **Opportunistically fix violations you notice while editing.** If an entry being added/refined or an adjacent existing entry contains implementation specifics (file paths, class names, function signatures, code references), rewrite to the glossary standard. Do not full-audit the file — confine corrections to entries near the ones already being touched. Broader audit is ce-compound-refresh's job.
 
 If no terms qualified after applying the reference's criteria, record that outcome explicitly in the success output (e.g., "Vocabulary capture: scanned, no qualifying terms"). Do not silently skip — the visible scan-and-no-result record is the audit signal that the reference was consulted.
