@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.8.3](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.8.2...cli-v3.8.3) (2026-05-17)
+
+
+### Bug Fixes
+
+* **ce-coherence-reviewer:** remove Bash from tool allowlist ([#837](https://github.com/EveryInc/compound-engineering-plugin/issues/837)) ([82b8af4](https://github.com/EveryInc/compound-engineering-plugin/commit/82b8af415d9ca5577577fa80da0a6119fc8b661e))
+
 ## [3.8.2](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.8.1...cli-v3.8.2) (2026-05-14)
 
 

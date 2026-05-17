@@ -9,6 +9,16 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.3](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.8.2...compound-engineering-v3.8.3) (2026-05-17)
+
+
+### Bug Fixes
+
+* **ce-coherence-reviewer:** remove Bash from tool allowlist ([#837](https://github.com/EveryInc/compound-engineering-plugin/issues/837)) ([82b8af4](https://github.com/EveryInc/compound-engineering-plugin/commit/82b8af415d9ca5577577fa80da0a6119fc8b661e))
+* **ce-commit-push-pr:** rewrite pr-description around a core principle ([#841](https://github.com/EveryInc/compound-engineering-plugin/issues/841)) ([fd88fd8](https://github.com/EveryInc/compound-engineering-plugin/commit/fd88fd8fd71ccba9d12e9f33a8c1dc99709c6d02))
+* **ce-plan:** inline synthesis gate output into SKILL.md ([#822](https://github.com/EveryInc/compound-engineering-plugin/issues/822)) ([39cb9da](https://github.com/EveryInc/compound-engineering-plugin/commit/39cb9da3a1a90a7ce7418f7a64d7ff3c8f9a917c))
+* **ce-web-researcher:** use any web tool, not just Claude built-ins ([#836](https://github.com/EveryInc/compound-engineering-plugin/issues/836)) ([6fa1277](https://github.com/EveryInc/compound-engineering-plugin/commit/6fa1277e573b6bec5d94d5b42431b6a4cad5b030))
+
 ## [3.8.2](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.8.1...compound-engineering-v3.8.2) (2026-05-14)
 
 
