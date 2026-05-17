@@ -85,7 +85,7 @@ If the working tree is clean and all commits are already pushed, this step is a 
 
 ## Step 4: Compose the PR title and body
 
-**You MUST read `references/pr-description-writing.md`** and follow it from Pre-A onward. The only input it needs from this skill is the PR ref, if one was identified by mode dispatch (description-only with a pasted URL, or description update).
+**You MUST read `references/pr-description-writing.md`** in full — the core principle at the top governs every step. The only input it needs from this skill is the PR ref, if one was identified by mode dispatch (description-only with a pasted URL, or description update).
 
 **Evidence decision** before composition. Two short-circuits, then the full decision:
 
