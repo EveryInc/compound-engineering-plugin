@@ -15,7 +15,7 @@ const compoundEngineeringRoot = path.join(
 )
 
 describe("convertClaudeToOpenCode", () => {
-  test("current compound-engineering output is skills and subagents, not commands", async () => {
+  test("current compound-engineering output includes skill command wrappers", async () => {
     const plugin = await loadClaudePlugin(compoundEngineeringRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
       agentMode: "subagent",
@@ -25,12 +25,60 @@ describe("convertClaudeToOpenCode", () => {
 
     expect(bundle.agents.length).toBeGreaterThan(0)
     expect(bundle.skillDirs.length).toBeGreaterThan(0)
-    expect(bundle.commandFiles).toHaveLength(0)
+    expect(bundle.commandFiles.find((command) => command.name === "ce-plan")).toBeDefined()
+    expect(bundle.commandFiles.find((command) => command.name === "ce-setup")).toBeDefined()
+    expect(bundle.commandFiles.find((command) => command.name === "lfg")).toBeDefined()
     expect(bundle.plugins).toHaveLength(0)
     expect(bundle.config.tools).toBeUndefined()
 
+    const cePlanCommand = bundle.commandFiles.find((command) => command.name === "ce-plan")
+    expect(cePlanCommand).toBeDefined()
+    const parsedCommand = parseFrontmatter(cePlanCommand!.content)
+    expect(parsedCommand.data.description).toContain("Create structured plans")
+    expect(parsedCommand.data["argument-hint"]).toContain("feature description")
+    expect(parsedCommand.body).toContain(".opencode/skills/ce-plan/SKILL.md")
+    expect(parsedCommand.body).toContain("~/.config/opencode/skills/ce-plan/SKILL.md")
+    expect(parsedCommand.body).toContain("$ARGUMENTS")
+
     const parsedAgents = bundle.agents.map((agent) => parseFrontmatter(agent.content))
     expect(parsedAgents.every((agent) => agent.data.mode === "subagent")).toBe(true)
+  })
+
+  test("does not generate a skill wrapper when a command already owns the skill name", () => {
+    const plugin: ClaudePlugin = {
+      root: "/tmp/plugin",
+      manifest: { name: "fixture", version: "1.0.0" },
+      agents: [],
+      commands: [
+        {
+          name: "skill-one",
+          description: "Source command wins",
+          body: "Run the source command.",
+          sourcePath: "/tmp/plugin/commands/skill-one.md",
+        },
+      ],
+      skills: [
+        {
+          name: "skill-one",
+          description: "Generated wrapper should be skipped",
+          sourceDir: "/tmp/plugin/skills/skill-one",
+          skillPath: "/tmp/plugin/skills/skill-one/SKILL.md",
+        },
+      ],
+    }
+
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const matchingCommands = bundle.commandFiles.filter((command) => command.name === "skill-one")
+    expect(matchingCommands).toHaveLength(1)
+    const parsedCommand = parseFrontmatter(matchingCommands[0]!.content)
+    expect(parsedCommand.data.description).toBe("Source command wins")
+    expect(parsedCommand.body).toContain("Run the source command.")
+    expect(parsedCommand.body).not.toContain(".opencode/skills/skill-one/SKILL.md")
   })
 
   test("from-command mode: map allowedTools to global permission block", async () => {

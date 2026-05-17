@@ -58,6 +58,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
    - If clarifying questions were needed above, get user approval on the resolved answers. If no clarifications were needed, proceed without a separate approval step — plan scope is the plan's authority, not something to renegotiate
    - **Do not skip this** - better to ask questions now than build the wrong thing
    - **Do not edit the plan body during execution.** The plan is a decision artifact; progress lives in git commits and the task tracker. The only plan mutation during ce-work is the final `status: active → completed` flip at shipping (see `references/shipping-workflow.md` Phase 4 Step 2). Legacy plans may contain `- [ ]` / `- [x]` marks on unit headings — ignore them as state; per-unit completion is determined during execution by reading the current file state.
+   - **Optional persistent memory context:** If a `ce-memory-researcher` agent is available, ask it for `operation: warm-start` using the plan summary, target project, and affected topics. Use results only for execution context: prior decisions, failed attempts, workflow preferences, or cross-project patterns. Memory is supplementary and must not alter plan scope, override current code evidence, or block execution when unavailable.
 
 2. **Setup Environment**
 

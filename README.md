@@ -278,6 +278,28 @@ bun run src/index.ts install ./plugins/compound-engineering --to codex
 bun run src/index.ts install ./plugins/compound-engineering --to opencode
 ```
 
+For Codex local-fork development, the CLI install only generates the Codex agent files and the managed compatibility block. Codex's native plugin cache still owns the skill files, so point Codex at the local marketplace source and refresh the cache when testing unpublished skill changes:
+
+```toml
+[marketplaces.compound-engineering-plugin]
+source_type = "local"
+source = "/Users/besi/Code/compound-engineering-plugin"
+
+[plugins."compound-engineering@compound-engineering-plugin"]
+enabled = true
+```
+
+```bash
+mkdir -p /Users/besi/.codex/plugins/cache/compound-engineering-plugin/compound-engineering/3.4.1
+cp -R /Users/besi/Code/compound-engineering-plugin/plugins/compound-engineering/. \
+  /Users/besi/.codex/plugins/cache/compound-engineering-plugin/compound-engineering/3.4.1/
+
+cd /Users/besi/Code/compound-engineering-plugin
+bun run src/index.ts install ./plugins/compound-engineering --to codex
+```
+
+Restart Codex or open a new thread after reinstalling. The active runtime reads the plugin cache, generated agents, and `~/.codex/AGENTS.md` at session start.
+
 ### From a pushed branch
 
 For testing someone else's branch or your own branch from a worktree, without switching checkouts. Uses `--branch` to clone the branch to a deterministic cache directory.
@@ -359,6 +381,23 @@ bunx @every-env/compound-plugin install compound-engineering --to codex
 ```
 
 Native Codex plugin install handles skills. The Bun step installs the custom agents those skills delegate to.
+
+### Codex loads CE skills but the flow is flatter than Claude Code
+
+Check the managed Compound Codex tool map in `~/.codex/AGENTS.md`:
+
+```bash
+rg -n "Task \\(subagent dispatch\\)|use spawn_agent|run sequentially in main thread" ~/.codex/AGENTS.md
+```
+
+The task-dispatch line should say to use `spawn_agent` for CE `Task` / `Agent` / `Subagent` instructions. If it says to run subagent dispatch sequentially in the main thread, update `src/utils/codex-agents.ts`, run the regression test, and reinstall:
+
+```bash
+bun test tests/codex-agents.test.ts
+bun run src/index.ts install ./plugins/compound-engineering --to codex
+```
+
+Do not fix this by adding every CE agent to `~/.codex/config.toml`. CE agents are generated under `~/.codex/agents/compound-engineering`; the workflow parity issue is the Codex compatibility block, not agent registration.
 
 ### Codex shows stale or duplicate CE skills
 

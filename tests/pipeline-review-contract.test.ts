@@ -314,6 +314,37 @@ describe("ce-plan testing contract", () => {
 })
 
 describe("ce-plan review contract", () => {
+  test("requires a pre-write critic gate before saving the plan", async () => {
+    const skill = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
+    const critic = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-critic.md")
+
+    expect(skill).toContain("#### 5.1.7 Pre-Write Critic Gate")
+    expect(skill).toContain("`references/plan-critic.md`")
+
+    const criticGateIdx = skill.indexOf("5.1.7 Pre-Write Critic Gate")
+    const writePlanIdx = skill.indexOf("5.2 Write Plan File")
+    expect(criticGateIdx).toBeGreaterThan(-1)
+    expect(criticGateIdx).toBeLessThan(writePlanIdx)
+
+    expect(critic).toContain("OKAY")
+    expect(critic).toContain("REJECT")
+    expect(critic).toContain("max three blocking issues")
+    expect(critic).toContain("max two revision loops")
+    expect(critic).not.toMatch(/\bmetis\b|\bprometheus\b|\bmomus\b/)
+  })
+
+  test("carries pln argument and scalability guardrails into ce-plan", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
+
+    expect(content).toContain("Treat `$ARGUMENTS` as the source of truth")
+    expect(content).toContain("command rendering artifacts")
+    expect(content).toContain("1000 simultaneous users")
+    expect(content).toContain("blocking I/O or unbounded work on hot paths")
+    expect(content).toContain("list endpoints without pagination or limits")
+    expect(content).toContain("missing indexes, caching, batching, or background work")
+    expect(content).toContain("shared-state or session contention")
+  })
+
   test("requires document review after confidence check", async () => {
     // Document review instructions extracted to references/plan-handoff.md
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md")
@@ -373,6 +404,87 @@ describe("ce-plan review contract", () => {
     // No conditional ordering based on plan depth (review already ran)
     expect(content).not.toContain("**Options when ce-doc-review is recommended:**")
     expect(content).not.toContain("**Options for Standard or Lightweight plans:**")
+  })
+})
+
+describe("ce persistent memory contract", () => {
+  test("ships a portable best-effort memory researcher agent", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/agents/ce-memory-researcher.agent.md")
+
+    expect(content).toContain("name: ce-memory-researcher")
+    expect(content).toContain("mcp__neo4j__*")
+    expect(content).toContain("Memory unavailable - continuing without persistent context.")
+    expect(content).toContain("Treat memory as supplementary evidence")
+    expect(content).toContain("Use write operations only when the caller explicitly requests `remember`")
+    expect(content).not.toContain("~/.factory/mcp.json")
+    expect(content).not.toContain("cypher-shell")
+  })
+
+  test("ce-plan warm-starts from memory before local research", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
+
+    expect(content).toContain("#### 1.0 Optional Persistent Memory Warm-Start")
+    expect(content).toContain("Task ce-memory-researcher(operation: warm-start")
+    expect(content).toContain("continue without persistent context and do not fail the workflow")
+    expect(content).toContain("Relevant persistent memory findings")
+
+    const memoryIdx = content.indexOf("1.0 Optional Persistent Memory Warm-Start")
+    const localResearchIdx = content.indexOf("1.1 Local Research")
+    expect(memoryIdx).toBeGreaterThan(-1)
+    expect(memoryIdx).toBeLessThan(localResearchIdx)
+  })
+
+  test("ce-work uses memory only as execution context without changing scope", async () => {
+    const stable = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    const beta = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+
+    for (const content of [stable, beta]) {
+      expect(content).toContain("Optional persistent memory context")
+      expect(content).toContain("ce-memory-researcher")
+      expect(content).toContain("must not alter plan scope")
+      expect(content).toContain("block execution when unavailable")
+    }
+  })
+
+  test("ce-commit-push-pr captures reusable post-ship memory without blocking PR reporting", async () => {
+    const skill = await readRepoFile("plugins/compound-engineering/skills/ce-commit-push-pr/SKILL.md")
+    const reference = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-commit-push-pr/references/memory-capture.md"
+    )
+
+    expect(skill).toContain("Best-effort post-ship memory capture")
+    expect(skill).toContain("references/memory-capture.md")
+    expect(skill).toContain("must never block the PR report")
+    expect(reference).toContain("operation: remember")
+    expect(reference).toContain("ce-memory-researcher")
+    expect(reference).toContain("Save a memory only when it is both verified and likely reusable")
+    expect(reference).toContain("More than three memories from one ship flow")
+    expect(reference).toContain("Do not save")
+  })
+
+  test("ce-debug recalls prior bug context without replacing investigation", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-debug/SKILL.md")
+
+    expect(content).toContain("#### 0.5 Optional Persistent Memory Recall")
+    expect(content).toContain("ce-memory-researcher")
+    expect(content).toContain("prior root causes, failed attempts")
+    expect(content).toContain("Do not skip reproduction or causal tracing")
+    expect(content).toContain("do not fail the debug workflow")
+  })
+
+  test("ce-compound can use persistent memory as supplementary evidence", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-compound/SKILL.md")
+
+    expect(content).toContain("### Phase 0.6: Persistent Memory Recall")
+    expect(content).toContain("ce-memory-researcher")
+    expect(content).toContain("(persistent memory)")
+    expect(content).toContain("do not fail the Compound workflow")
+  })
+
+  test("ce-code-review remains diff-grounded by default", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+
+    expect(content).not.toContain("ce-memory-researcher")
   })
 })
 

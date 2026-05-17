@@ -11,7 +11,7 @@ description: Commit, push, and open a PR with an adaptive, value-first descripti
 
 - **Description-only** — user wants *just* a description ("write/draft a PR description", "describe this PR", or pasted a PR URL/number alone). Run Step 4 only; print the result. Apply only if the user asks. If a PR ref was pasted, pass it to Step 4 so Pre-A resolves the right range.
 - **Description update** — user wants to refresh/rewrite an existing PR's description with no commit/push intent. If no open PR, report and stop. Otherwise run Step 4 (PR mode using the existing PR's URL), then Step 5 to preview, confirm, and apply via `gh pr edit`.
-- **Full workflow** — otherwise. Run Steps 1-5 in order.
+- **Full workflow** — otherwise. Run Steps 1-6 in order.
 
 ## Context
 
@@ -104,14 +104,23 @@ Then continue with the rest of the reference (Steps A through G) to compose the 
 
 **Description-only mode** — print the title and body. Stop unless the user asks to apply.
 
-**New PR** (full workflow, no existing PR from Step 1) — apply per "Applying via gh" below using `gh pr create`. Report the URL.
+**New PR** (full workflow, no existing PR from Step 1) — apply per "Applying via gh" below using `gh pr create`. Note the URL, then continue to Step 6 before the final report.
 
-**Existing PR** (full workflow, found in Step 1) — the new commits are already on the PR from Step 3. Report the PR URL, then ask whether to rewrite the description.
+**Existing PR** (full workflow, found in Step 1) — the new commits are already on the PR from Step 3. Note the PR URL, then ask whether to rewrite the description.
 
-- **No** — done.
-- **Yes** — run Step 4 if not already done, then preview and apply (see below).
+- **No** — continue to Step 6.
+- **Yes** — run Step 4 if not already done, then preview and apply (see below), then continue to Step 6.
 
 **Description update mode, or existing-PR rewrite confirmed** — preview before applying. Ask: "New title: `<title>` (`<N>` chars). Summary leads with: `<first two sentences>`. Total body: `<L>` lines. Apply?" If declined, the user may pass focus text back for a regenerate; do not apply. If confirmed, apply per "Applying via gh" below using `gh pr edit` and report the URL.
+
+
+## Step 6: Best-effort post-ship memory capture
+
+Full workflow only. Skip this step for Description-only generation and Description Update workflow.
+
+After the branch has been pushed and the PR has been created, updated, or identified, read `references/memory-capture.md` and follow it. Provide the PR URL, available commit range or commit list, final diff context from Step 4 when available, testing notes, and any plan path or implementation summary supplied by the caller.
+
+This step must never block the PR report. If no reusable memory candidates exist, if `ce-memory-researcher` is unavailable, or if the memory write fails, continue reporting the PR and mention the skip briefly. Then output the PR URL.
 
 ---
 

@@ -110,6 +110,16 @@ and codebase findings take priority over these notes.
 
 If no relevant entries are found, proceed to Phase 1 without passing memory context.
 
+### Phase 0.6: Persistent Memory Recall (Best Effort)
+
+If a `ce-memory-researcher` agent is available, ask it for `operation: recall` using the problem being documented, repo name, branch, affected component, and any known root cause or solution summary.
+
+Use retrieved persistent memory as supplementary context only:
+- Pass relevant results to the Context Analyzer and Solution Extractor task prompts in Phase 1 alongside any auto-memory excerpt
+- Tag memory-sourced material incorporated into the final documentation with `(persistent memory)` so its origin is clear
+- If persistent memory contradicts the verified conversation history, code evidence, or final fix, note it as cautionary context instead of treating it as truth
+- If memory is unavailable, returns no relevant entries, or the agent cannot be dispatched, continue without persistent context and do not fail the Compound workflow
+
 ### Phase 1: Research
 
 Launch research subagents. Each returns text data to the orchestrator.

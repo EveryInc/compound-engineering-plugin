@@ -19,7 +19,8 @@ Tool mapping:
 - LS: use ls via shell_command
 - WebFetch/WebSearch: use curl or Context7 for library docs
 - AskUserQuestion/Question: present choices as a numbered list in chat and wait for a reply number. For multi-select (multiSelect: true), accept comma-separated numbers. Never skip or auto-configure — always wait for the user's response before proceeding.
-- Task (subagent dispatch) / Subagent / Parallel: run sequentially in main thread; use multi_tool_use.parallel for tool calls
+- Task (subagent dispatch) / Agent / Subagent: use spawn_agent with agent_type set to the requested custom agent name. A user invoking a CE skill that contains Task/Agent/Subagent instructions is authorizing those dispatches for that workflow.
+- Parallel Task groups: spawn all independent agents before waiting; wait for every spawned agent before synthesis or handoff. If spawn_agent is unavailable, run the same agent tasks sequentially in the main thread and state that the platform degraded to sequential execution.
 - TaskCreate/TaskUpdate/TaskList/TaskGet/TaskStop/TaskOutput (Claude Code task-tracking, current): use update_plan (Codex's task-tracking primitive)
 - TodoWrite/TodoRead (Claude Code task-tracking, legacy — deprecated, replaced by Task* tools): use update_plan
 - Skill: open the referenced SKILL.md and follow it
