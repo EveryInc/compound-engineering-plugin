@@ -497,7 +497,7 @@ After the per-learning actions execute, aggregate the domain terms flagged acros
 
 1. **Aggregate.** Collect qualifying terms surfaced across the learnings in scope, applying the reference's criteria. If the same term surfaced in multiple learnings with different shades of precision, **union the shades into one entry** — not three entries, not most-recent-wins.
 2. **If `CONCEPTS.md` exists**, add missing terms and refine existing entries when the corpus surfaced new precision. Do not duplicate entries already present.
-3. **If `CONCEPTS.md` does not exist** and at least one qualifying term was surfaced, **bootstrap it**. One term is enough — do not gate creation behind a minimum count, that creates an asymmetric trap where the file only ever gets created on the second eligible run.
+3. **If `CONCEPTS.md` does not exist** and at least one qualifying term was surfaced, **bootstrap it**. One term is enough — do not gate creation behind a minimum count, that creates an asymmetric trap where the file only ever gets created on the second eligible run. **At creation, hold the qualifying bar conservatively** — a borderline term or a class/table/file name dressed up as an entity should defer until a later run surfaces stronger signal. The conservatism is about quality, not count; updates to an existing file follow normal criteria.
 4. **Scope discipline and citation hygiene.** Bootstrap reflects only the area in scope — do not expand to other categories, and do not retroactively inject `(see CONCEPTS.md)` pointers into existing learnings. The report should note that additional entries are likely from refresh runs on other scopes.
 5. **Initial structure.** When bootstrapping, start the file with this preamble under the `# Concepts` heading:
 

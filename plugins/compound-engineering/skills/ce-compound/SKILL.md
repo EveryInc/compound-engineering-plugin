@@ -258,6 +258,8 @@ When creating a new doc, preserve the section order from `assets/resolution-temp
 
 Then, applying those criteria, scan the new doc **and** the surrounding conversation for qualifying domain terms. If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and at least one qualifying term surfaced, create it lazily.
 
+**At creation only, hold the qualifying bar conservatively.** A borderline term, or a class/table/file name dressed up as an entity, does not justify seeding a new file — defer until a later run surfaces stronger signal. This conservatism applies to creation quality only; updates to an existing file follow the normal criteria.
+
 **When bootstrapping the file, start with this preamble under the `# Concepts` heading**, then add the qualifying entries below it:
 
 > Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or scratchpad.
