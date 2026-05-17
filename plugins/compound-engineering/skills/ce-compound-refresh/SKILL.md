@@ -491,19 +491,21 @@ Only one flow runs per candidate; the reference contains the per-action criteria
 
 After the per-learning actions execute, aggregate the domain terms flagged across Phase 1's Vocabulary dimension and reconcile them with `CONCEPTS.md`.
 
+**First, read `references/concepts-vocabulary.md`.** This is unconditional. Do not pre-judge from memory which Phase 1 signals qualify — the reference's criteria are non-obvious and a "nothing qualifies" judgment without reading is a shortcut, not a result.
+
 **Procedure:**
 
-1. **Aggregate.** Collect qualifying terms surfaced across the learnings in scope. If the same term surfaced in multiple learnings with different shades of precision, **union the shades into one entry** — not three entries, not most-recent-wins.
+1. **Aggregate.** Collect qualifying terms surfaced across the learnings in scope, applying the reference's criteria. If the same term surfaced in multiple learnings with different shades of precision, **union the shades into one entry** — not three entries, not most-recent-wins.
 2. **If `CONCEPTS.md` exists**, add missing terms and refine existing entries when the corpus surfaced new precision. Do not duplicate entries already present.
 3. **If `CONCEPTS.md` does not exist** and at least one qualifying term was surfaced, **bootstrap it**. One term is enough — do not gate creation behind a minimum count, that creates an asymmetric trap where the file only ever gets created on the second eligible run.
 4. **Scope discipline and citation hygiene.** Bootstrap reflects only the area in scope — do not expand to other categories, and do not retroactively inject `(see CONCEPTS.md)` pointers into existing learnings. The report should note that additional entries are likely from refresh runs on other scopes.
 5. **Initial structure.** When bootstrapping, let term count drive shape: 1-4 terms → flat headings, more → cluster by domain relationship per the rules in `references/concepts-vocabulary.md`.
 
+If no Phase 1 signals qualified after applying the reference's criteria, record that outcome explicitly in the report's `CONCEPTS.md` line (e.g., "scanned, no qualifying terms"). Do not silently skip — the visible scan-and-no-result record is the audit signal that the reference was consulted.
+
 Note: if this run **creates** `CONCEPTS.md` from scratch, the Discoverability Check below must also surface it in `AGENTS.md`/`CLAUDE.md` so future agents discover it. Subsequent runs skip this because the instruction file is already current.
 
 **Apply edits silently — no user prompt in any mode.** Vocabulary capture is a side effect of refreshing, not a decision the user makes per run.
-
-Read `references/concepts-vocabulary.md` for the inclusion criteria, what never belongs, per-entry quality bar, organization principle, and an illustrative example. Do not infer the format from memory — read the reference each time vocabulary capture fires.
 
 ## Output Format
 
@@ -524,7 +526,7 @@ Deleted: W
 Skipped: V
 Marked stale: S
 
-CONCEPTS.md: <skipped (no qualifying terms) | created with N entries | updated — N added, N refined>
+CONCEPTS.md: <scanned, no qualifying terms | created with N entries | updated — N added, N refined>
 ```
 
 Then for EVERY file processed, list:

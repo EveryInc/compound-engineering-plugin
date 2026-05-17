@@ -210,12 +210,13 @@ Launch research subagents. Each returns text data to the orchestrator.
 
    Do not append additional context blocks, exclusion lists, or topic-keyword bullets — verbose payloads give ce-sessions license to keep widening the search and rapidly compound wall time. If keyword search is needed, ce-sessions owns that decision internally based on the topic.
    - Returns: structured digest of findings from prior sessions, or "no relevant prior sessions" if none found.
+   - **ce-sessions is the final Phase 1 input, not a workflow stop.** When it returns, proceed directly to Phase 2 with its output as the last input — do not emit a summary and do not pause for the user. A "no relevant prior sessions" return is still a valid input; the documentation gets written without session context.
 
 ### Phase 2: Assembly & Write
 
 <sequential_tasks>
 
-**WAIT for all Phase 1 subagents to complete before proceeding.**
+**WAIT for all Phase 1 inputs to complete before proceeding** — the three parallel subagents and, when the user opted in, the synchronous `ce-sessions` skill call. ce-sessions is a Phase 1 input even though it is a skill rather than a subagent.
 
 The orchestrating agent (main conversation) performs these steps:
 
@@ -249,11 +250,13 @@ When creating a new doc, preserve the section order from `assets/resolution-temp
 
 ### Phase 2.4: Vocabulary Capture
 
-After writing the learning, scan the new doc and the surrounding conversation for **domain terms** — words used with project-specific precise meaning (entities, named processes, status concepts). If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and the learning surfaced at least one qualifying term, create it lazily. If no terms qualify, skip this phase entirely.
+**First, read `references/concepts-vocabulary.md`.** This is unconditional. Do not pre-judge from memory that nothing qualifies — the reference's criteria are non-obvious and qualifying terms often live in the surrounding conversation rather than the new doc itself. Reading the reference is what makes the rest of the phase possible.
+
+Then, applying those criteria, scan the new doc **and** the surrounding conversation for qualifying domain terms. If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and at least one qualifying term surfaced, create it lazily.
+
+If no terms qualified after applying the reference's criteria, record that outcome explicitly in the success output (e.g., "Vocabulary capture: scanned, no qualifying terms"). Do not silently skip — the visible scan-and-no-result record is the audit signal that the reference was consulted.
 
 **Apply edits silently in every mode — no user prompt in interactive, lightweight, or headless.** Vocabulary capture is a side effect of compounding, not a decision the user makes per run.
-
-Read `references/concepts-vocabulary.md` for the inclusion criteria, what never belongs, per-entry quality bar, organization principle, and an illustrative example. Do not infer the format from memory — read the reference each time vocabulary capture fires, so the rules and example stay anchored.
 
 ### Phase 2.5: Selective Refresh Check
 
@@ -486,7 +489,7 @@ Track: <bug | knowledge>
 Category: <category>
 Overlap: <none | low | moderate — see <path> | high — existing doc updated>
 Instruction-file edit: <none needed | applied to <path> | gap noted, not applied>
-CONCEPTS.md: <skipped (no qualifying terms) | created with N entries | updated — N added, N refined>
+CONCEPTS.md: <scanned, no qualifying terms | created with N entries | updated — N added, N refined>
 Refresh recommendation: <none | scope hint for /ce-compound-refresh>
 
 Documentation complete
