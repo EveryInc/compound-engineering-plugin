@@ -18,6 +18,7 @@
     "mcp"
   ],
   "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Notion Workspace",
     "shortDescription": "Notion integration for knowledge capture into pages and databases.",
