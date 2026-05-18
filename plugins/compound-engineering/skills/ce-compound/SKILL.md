@@ -256,13 +256,13 @@ When creating a new doc, preserve the section order from `assets/resolution-temp
 
 **First, read `references/concepts-vocabulary.md`.** This is unconditional. Do not pre-judge from memory that nothing qualifies — the reference's criteria are non-obvious and qualifying terms often live in the surrounding conversation rather than the new doc itself. Reading the reference is what makes the rest of the phase possible.
 
-Then, applying those criteria, scan the new doc **and** the surrounding conversation for qualifying domain terms. If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and at least one qualifying term surfaced, create it lazily.
+Then, applying those criteria, scan three inputs for qualifying domain terms: the new doc, the surrounding conversation, and — in Full mode — the `ce-sessions` findings returned in Phase 1. Session findings carry terminology context from past brainstorm, plan, and work dialogues where terms were actively being resolved; include them in the scan so that resolution context isn't lost when the file is finally written. If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and at least one qualifying term surfaced, create it lazily.
 
 **At creation only, hold the qualifying bar conservatively.** A borderline term, or a class/table/file name dressed up as an entity, does not justify seeding a new file — defer until a later run surfaces stronger signal. This conservatism applies to creation quality only; updates to an existing file follow the normal criteria.
 
 **When bootstrapping the file, start with this preamble under the `# Concepts` heading**, then add the qualifying entries below it:
 
-> Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or scratchpad.
+> Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or catch-all.
 
 **Opportunistically fix violations you notice while editing.** If an entry being added/refined or an adjacent existing entry contains implementation specifics (file paths, class names, function signatures, code references), rewrite to the glossary standard. Do not full-audit the file — confine corrections to entries near the ones already being touched. Broader audit is ce-compound-refresh's job.
 
