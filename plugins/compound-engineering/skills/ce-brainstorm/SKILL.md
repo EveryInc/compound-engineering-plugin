@@ -4,6 +4,8 @@ description: 'Explore requirements and approaches through collaborative dialogue
 argument-hint: "[feature idea or problem to explore]"
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Brainstorm a Feature or Improvement
 
 **Note: The current year is 2026.** Use this when dating requirements documents.

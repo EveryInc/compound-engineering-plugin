@@ -3,6 +3,8 @@ name: coding-tutor
 description: Personalized coding tutorials that build on your existing knowledge and use your actual codebase for examples. Creates a persistent learning trail that compounds over time using the power of AI, spaced repetition and quizes.
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 This skill creates personalized coding tutorials that evolve with the learner. Each tutorial builds on previous ones, uses real examples from the current codebase, and maintains a persistent record of concepts mastered.
 
 The user asks to learn something - either a specific concept or an open "teach me something new" request.

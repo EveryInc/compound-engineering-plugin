@@ -4,6 +4,8 @@ description: "Capture a visual demo reel (GIF, terminal recording, screenshots) 
 argument-hint: "[what to capture, e.g. 'the new settings page' or 'CLI output of the migrate command']"
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Demo Reel
 
 Detect project type, recommend a capture tier, record visual evidence, upload to a public URL, and return markdown for PR inclusion.

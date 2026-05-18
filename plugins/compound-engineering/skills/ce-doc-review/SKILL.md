@@ -4,6 +4,8 @@ description: Review requirements or plan documents using parallel persona agents
 argument-hint: "[mode:headless] [path/to/document.md]"
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Document Review
 
 Review requirements or plan documents through multi-persona analysis. Dispatches specialized reviewer agents in parallel, auto-applies `safe_auto` fixes, and routes remaining findings through a four-option interaction (per-finding walk-through, auto-resolve with best judgment, Append-to-Open-Questions, Report-only) for user decision.

@@ -3,6 +3,8 @@ name: ce-agent-native-architecture
 description: Build applications where agents are first-class citizens. Use this skill when designing autonomous agents, creating MCP tools, implementing self-modifying systems, or building apps where features are outcomes achieved by agents operating in a loop.
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 <overview>
 ## Agent-Native Architecture
 

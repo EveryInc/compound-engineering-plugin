@@ -5,6 +5,8 @@ argument-hint: "[optional: question about a past release]"
 disable-model-invocation: true
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Compound-Engineering Release Notes
 
 Look up what shipped in recent releases of the compound-engineering plugin. Bare invocation summarizes the last 5 plugin releases. Argument invocation searches the last 40 releases and answers a specific question, citing the release version that introduced the change.
@@ -22,7 +24,7 @@ Version-like inputs (`2.65.0`, `v2.65.0`, `compound-engineering-v2.65.0`) are qu
 
 ## Phase 2 — Fetch Releases (Summary Mode)
 
-Run the helper from the skill directory:
+Run the bundled helper:
 
 ```bash
 python3 scripts/list-plugin-releases.py --limit 40
