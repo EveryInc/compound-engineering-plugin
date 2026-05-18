@@ -246,12 +246,24 @@ Then fetch PR metadata. Capture the base branch name and the PR base repository 
 gh pr view <number-or-url> --json title,body,baseRefName,headRefName,url,reviews,comments --jq '{title, body, baseRefName, headRefName, url, hasPriorComments: ((.reviews | map(select(.state != "APPROVED" or .body != "")) | length) > 0 or (.comments | length) > 0)}'
 ```
 
-Use the repository portion of the returned PR URL as `<base-repo>` (for example, `EveryInc/compound-engineering-plugin` from `https://github.com/EveryInc/compound-engineering-plugin/pull/348`).
+Derive both the host and the repository portion from the returned PR URL. Both are needed because remote URLs use the same `host` + `owner/repo` pair as the PR URL but in different shapes (HTTPS, SSH, scp-form), and any host other than `github.com` (GitHub Enterprise, self-hosted) must still match correctly. For example, from `https://github.com/EveryInc/compound-engineering-plugin/pull/348` use `github.com` as `<base-host>` and `EveryInc/compound-engineering-plugin` as `<base-repo>`. From `https://ghe.acme.com/Org/Repo/pull/12` use `ghe.acme.com` as `<base-host>` and `Org/Repo` as `<base-repo>`. From `https://ghe.acme.com:8443/Org/Repo/pull/12` preserve the port and use `ghe.acme.com:8443` as `<base-host>`. Lowercase both before substituting; host and owner/repo are case-insensitive on GitHub and remote URLs may preserve user-typed casing. For scp-form SSH remotes (`git@host:owner/repo.git`), match the host without the PR URL port as a fallback because scp-form syntax does not carry the web UI port.
 
-Then compute a local diff against the PR's base branch so re-reviews also include local fix commits and uncommitted edits. Substitute the PR base branch from metadata (shown here as `<base>`) and the PR base repository identity derived from the PR URL (shown here as `<base-repo>`). Resolve the base ref from the PR's actual base repository, not by assuming `origin` points at that repo:
+Then compute a local diff against the PR's base branch so re-reviews also include local fix commits and uncommitted edits. Substitute the PR base branch from metadata (shown here as `<base>`), the PR base host (shown here as `<base-host>`), and the PR base repository (shown here as `<base-repo>`). Resolve the base ref from the PR's actual base repository, not by assuming `origin` points at that repo:
 
 ```
-PR_BASE_REMOTE=$(git remote -v | awk 'index($2, "github.com:<base-repo>") || index($2, "github.com/<base-repo>") {print $1; exit}')
+PR_BASE_REMOTE=$(git remote -v | awk -v host="<base-host>" -v repo="<base-repo>" '
+  BEGIN { host_without_port = host; sub(/:[0-9]+$/, "", host_without_port) }
+  {
+    url = $2; h = ""; p = ""; scp = 0
+    if (match(url, /:\/\/[^\/]+\//))    { h = substr(url, RSTART+3, RLENGTH-4); p = substr(url, RSTART+RLENGTH) }
+    else if (match(url, /@[^:]+:/))     { h = substr(url, RSTART+1, RLENGTH-2); p = substr(url, RSTART+RLENGTH); scp = 1 }
+    else next
+    sub(/^[^@]*@/, "", h)
+    h = tolower(h)
+    if (!match(p, /^[^\/]+\/[^\/]+/)) next
+    pr = substr(p, 1, RLENGTH); sub(/\.git$/, "", pr); pr = tolower(pr)
+    if ((h == host || (scp && h == host_without_port)) && pr == repo) { print $1; exit }
+  }')
 if [ -n "$PR_BASE_REMOTE" ]; then PR_BASE_REMOTE_REF="$PR_BASE_REMOTE/<base>"; else PR_BASE_REMOTE_REF=""; fi
 PR_BASE_REF=$(git rev-parse --verify "$PR_BASE_REMOTE_REF" 2>/dev/null || git rev-parse --verify <base> 2>/dev/null || true)
 if [ -z "$PR_BASE_REF" ]; then
@@ -259,7 +271,7 @@ if [ -z "$PR_BASE_REF" ]; then
     git fetch --no-tags "$PR_BASE_REMOTE" <base>:refs/remotes/"$PR_BASE_REMOTE"/<base> 2>/dev/null || git fetch --no-tags "$PR_BASE_REMOTE" <base> 2>/dev/null || true
     PR_BASE_REF=$(git rev-parse --verify "$PR_BASE_REMOTE_REF" 2>/dev/null || git rev-parse --verify <base> 2>/dev/null || true)
   else
-    if git fetch --no-tags https://github.com/<base-repo>.git <base> 2>/dev/null; then
+    if git fetch --no-tags https://<base-host>/<base-repo>.git <base> 2>/dev/null; then
       PR_BASE_REF=$(git rev-parse --verify FETCH_HEAD 2>/dev/null || true)
     fi
     if [ -z "$PR_BASE_REF" ]; then PR_BASE_REF=$(git rev-parse --verify <base> 2>/dev/null || true); fi
