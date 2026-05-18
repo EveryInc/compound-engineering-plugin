@@ -29,29 +29,40 @@ These hold regardless of which skill produced the artifact.
 - **All metadata appears as visible text — single source of truth.**
   The artifact's metadata (title, type, status, date, etc. — exact
   fields per-skill, defined in the section contract) renders as visible
-  HTML elements that downstream agents and humans read. There is no
-  hidden machine-readable copy (no `<script type="application/json">`
-  frontmatter block, no `data-*` attribute mirror). One representation
-  for each value, which avoids drift risk and keeps the doc readable
-  by linear text scan.
+  HTML elements that downstream agents and humans read. No hidden
+  machine-readable copy in any form: no `<script type="application/json">`
+  frontmatter block, no `data-*` attribute mirror, and no
+  `<meta name="status">` / `<meta name="created">` / `<meta name="origin">`
+  in `<head>` duplicating the same values that appear in the visible
+  header. One representation for each value — drift across two copies is
+  the failure this rule prevents.
 
-  Convention for editable metadata: render the value as element text
-  content (`<span class="status">active</span>`, `<h1>{title}</h1>`,
-  `<time datetime="2026-05-12">2026-05-12</time>`). Tools doing status
-  flips (`active → completed`) update via a single Edit on the visible
-  element. The text-and-attribute redundancy in `<time>` is acceptable
-  because the attribute is a parser hint, not a hidden copy.
+  The text-and-attribute redundancy in `<time datetime="2026-05-12">2026-05-12</time>`
+  is acceptable because the attribute is a parser hint, not a hidden copy.
+- **Editable status renders as `<span class="status">{value}</span>`.**
+  Downstream tooling (`ce-work` shipping flip, future HTML-aware
+  consumers) finds and rewrites status by selector. Embedding the
+  status value inside a header `<dl>` cell (`<dt>Status</dt><dd>active</dd>`),
+  inside a `<meta>` tag, or as visible text without the `class="status"`
+  hook all break the flip mechanic — the consumer either can't locate
+  the value or can't disambiguate it from prose. The status span may
+  sit anywhere in the doc (inside the header metadata, in a stats
+  strip, in a hero banner); placement is a visual choice, the selector
+  shape is the contract.
 - **Stable IDs as anchor IDs AND visible text.** Every ID-bearing item
   (R-IDs, U-IDs, A-IDs, F-IDs, AE-IDs, KTDs) gets `id="r1"` on its
   element AND appears as visible text inside the element (e.g., the
   text "R1." inside the table cell or heading). Downstream agents find
   the ID in source the same way they find it in markdown.
-- **Source / composition signal.** A footer (or other staleness signal)
-  names the composition timestamp and the source identifier (the user
-  prompt context, the upstream brainstorm doc when one exists, or just
-  the composing skill name when there's no external source). Under
-  exclusive output mode this signal carries the artifact's own
-  provenance — there's no markdown sibling to reference.
+- **Source / composition signal.** A visible footer at the bottom of
+  the doc names the composition timestamp and the source identifier
+  (the user prompt context, the upstream brainstorm doc when one
+  exists, or just the composing skill name when there's no external
+  source). Example shape:
+  `<footer class="composition-signal">Composed 2026-05-17T14:23Z by ce-plan from <code>docs/brainstorms/...-requirements.md</code></footer>`.
+  Under exclusive output mode this signal is the artifact's own
+  provenance — there's no markdown sibling to reference. Omitting it
+  leaves readers unable to tell how stale the rendering is.
 - **ASCII identifiers.** Class names, element IDs, data attribute names
   are ASCII-only.
 
@@ -169,9 +180,14 @@ contracts — the agent picks shapes that fit the content.
   ID chip (visible "U1" text), a metadata strip (`<dl>` with field
   labels and values for Goal, Files, Dependencies), and secondary
   content (Approach, Test Scenarios, Verification, Patterns to Follow)
-  inside `<details>` collapsibles. All collapsibles start closed by
-  default — the metadata strip is the primary surface; subsection
-  labels are clickable affordances for readers to expand on demand.
+  inside `<details>` collapsibles, **default-closed**. At 3+ units the
+  default-closed rule is load-bearing — rendering all units fully
+  expanded turns the doc into one continuous scroll where the reader
+  can't see the unit list at a glance. The metadata strip is the
+  primary always-visible surface; subsection labels (`<summary>`) are
+  clickable affordances for readers to expand on demand. A single unit
+  with no secondary content can skip `<details>` entirely; the rule
+  fires when content exists to hide.
 - **Key Technical Decisions** — repeating cards with the decision ID,
   bold decision title (often with inline code for technical
   identifiers), and prose rationale. Flat cards (not collapsibles) —
@@ -284,11 +300,23 @@ These are examples, not requirements — the agent picks what each
 artifact's content warrants. Other affordances not listed here are
 fine when the content suggests them.
 
-- **Sticky TOC sidebar with active-section indicator** for long docs
-  (5+ top-level sections, or ~400+ rendered lines). Two-column layout
+- **Sticky TOC sidebar with active-section indicator** — *expected* for
+  substantial docs (5+ top-level sections OR ~400+ rendered lines), not
+  optional. A static TOC at the top of a long doc disappears on scroll
+  and leaves the reader unable to navigate without scrolling back —
+  every implementation plan, requirements doc, or design doc past the
+  substantial threshold needs persistent navigation. Two-column layout
   on desktop, collapsed to top-of-page on mobile, paired with a small
   inline `IntersectionObserver` script that toggles `.active` on the
-  matching nav anchor.
+  matching nav anchor. A small inline `<script>` for this purpose is
+  explicitly permitted (see "No JS framework runtimes" above — the ban
+  is on framework runtimes, not on ~20-line vanilla JS).
+- **Within-section sub-nav** for sections containing 6+ repeating cards
+  (Implementation Units, KTDs, Risks at large counts). A short list of
+  card-anchor links rendered at the top of the section gives readers a
+  jump table — without it, a 10-unit section becomes a long scroll
+  even with collapsibles. The sub-nav lives inside the section, just
+  below the section heading.
 - **Eyebrow labels** (small-caps tag above section titles) for
   editorial polish, especially when section titles are narrative
   rather than literal.
@@ -344,17 +372,34 @@ Before returning the artifact, scan it for common slips:
 - **Single self-contained file.** No companion `.css` / `.js` / `.svg`.
 - **No hidden machine-readable metadata copy.** No
   `<script type="application/json">` frontmatter block, no `data-*`
-  attribute mirroring visible values. Metadata lives in visible text;
+  attributes mirroring visible values, **no `<meta name="status">` /
+  `<meta name="created">` / `<meta name="origin">` etc. in `<head>`
+  duplicating the visible header**. Metadata lives in visible text;
   one source of truth per value.
+- **Status renders as `<span class="status">{value}</span>`** so
+  downstream tooling can flip `active → completed` by selector.
 - **All stable IDs** appear as both `id=""` and visible text.
 - **Section heading vocabulary** matches the section contract names
   (downstream agents grep these).
-- **Source / composition signal** is present.
+- **Source / composition signal** is present as a visible footer at
+  the bottom of the doc (composition timestamp + source identifier).
+- **Sticky TOC with active-section indicator is present** when the doc
+  is substantial (5+ top-level sections OR ~400+ rendered lines). A
+  static top-of-doc TOC is not sufficient at this scale.
+- **Repeating cards with 3+ instances put secondary content inside
+  default-closed `<details>`.** Fully-expanded unit cards in a long
+  Implementation Units section is a failure mode — the reader can't see
+  the unit list at a glance. Verify by skimming the rendered units:
+  each `<article>` should render as its ID + title + metadata strip
+  with collapsibles below, not as one long block.
+- **Within-section sub-nav** is present for sections with 6+ repeating
+  cards.
 - **Body `<strong>`** is not colored with accent palette.
 - **`<details>`** inside repeating cards have no `open` attribute.
 - **Diagram labels** are legible — no arrow paths crossing text,
   halo width appropriate for font size.
-- **No JS framework runtimes** included.
+- **No JS framework runtimes** included (small inline IntersectionObserver
+  for the sticky TOC is the only acceptable JS).
 - **Each heading level** is visually distinct from others and from
   inline bold.
 - **No template placeholders** (`{skill}`, `<value>`, `[plan title]`)

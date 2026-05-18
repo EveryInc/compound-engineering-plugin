@@ -39,6 +39,29 @@ describe("html-rendering.md reference content invariants", () => {
     ).toBe(true)
   })
 
+  test("explicitly forbids <meta name='status'/created/origin> tags duplicating visible header", () => {
+    // 2026-05-17 supply-chain plan dogfood failure: agent emitted both
+    // visible <dl>-shaped header metadata AND `<meta name="status">` /
+    // `<meta name="created">` / `<meta name="origin">` in <head>. Two
+    // sources of truth drift. The reference must name this specific form
+    // so the rule generalizes beyond the script-frontmatter shape.
+    expect(
+      /<meta name="status"|<meta name="created"|<meta name="origin"|`<meta name=/i.test(REFERENCE),
+      "Reference must name <meta name='...'> as a forbidden hidden-metadata form.",
+    ).toBe(true)
+  })
+
+  test("editable status renders as <span class='status'>{value}</span>", () => {
+    // 2026-05-17 supply-chain plan dogfood failure: status rendered as
+    // <dd>active</dd> inside the header <dl>. Downstream ce-work shipping
+    // flip relies on the <span class="status"> selector. The reference must
+    // make the selector shape load-bearing, not "convention".
+    expect(
+      /Editable status renders as `<span class="status">|status renders as `<span class="status"|`<span class="status">\{value\}|class="status">.*ce-work/i.test(REFERENCE),
+      "Reference must require status to render as <span class='status'>{value}</span> as the selector contract.",
+    ).toBe(true)
+  })
+
   test("stable IDs preserved as anchor IDs AND visible text", () => {
     expect(
       /Stable IDs as anchor IDs AND visible text|`id="r1"`.*visible text|visible text.*`id="r1"`/i.test(REFERENCE),
@@ -61,6 +84,55 @@ describe("html-rendering.md reference content invariants", () => {
     expect(
       /Source.*composition signal|staleness signal|composition timestamp/i.test(REFERENCE),
       "Reference must require a source-and-composition signal (staleness footer).",
+    ).toBe(true)
+  })
+
+  test("source / composition signal has a concrete example shape", () => {
+    // 2026-05-17 supply-chain plan dogfood failure: the doc ended without
+    // any staleness footer at all. The reference describes the rule but
+    // didn't show the shape — agent skipped emitting it. A concrete example
+    // in the invariant makes the rule actionable.
+    expect(
+      /<footer class="composition-signal"|Composed \d{4}-\d{2}-\d{2}|composition-signal/i.test(REFERENCE),
+      "Reference must include an example shape for the source/composition footer so the agent knows what to emit.",
+    ).toBe(true)
+  })
+
+  test("sticky TOC expected for substantial docs", () => {
+    // 2026-05-17 supply-chain plan dogfood failure: 823-line HTML doc with
+    // 11 top-level sections rendered a static top-of-doc TOC that disappeared
+    // on scroll. The reference now promotes sticky TOC from "affordance
+    // idiom" to "expected for substantial docs" and includes the substantial
+    // threshold so the rule has a concrete trigger.
+    expect(
+      /Sticky TOC.*expected|expected.*sticky TOC|sticky TOC.*not optional/i.test(REFERENCE),
+      "Reference must mark sticky TOC as expected (not optional) for substantial docs.",
+    ).toBe(true)
+    expect(
+      /5\+ top-level sections|400\+ rendered lines|substantial threshold/i.test(REFERENCE),
+      "Reference must name the substantial-doc threshold (5+ sections OR ~400+ lines) that triggers the sticky-TOC expectation.",
+    ).toBe(true)
+  })
+
+  test("repeating cards with 3+ instances use default-closed <details>", () => {
+    // 2026-05-17 supply-chain plan dogfood failure: 8 Implementation Units
+    // rendered fully expanded with no collapsibles. Reader can't see the
+    // unit list at a glance. The reference promotes default-closed <details>
+    // for repeating cards from a soft anatomy pattern to a load-bearing rule
+    // with a count threshold so the rule has a concrete trigger.
+    expect(
+      /3\+ units the default-closed rule is load-bearing|3\+ instances put secondary content inside default-closed|default-closed.*load-bearing/i.test(REFERENCE),
+      "Reference must require default-closed <details> for repeating cards at 3+ instances.",
+    ).toBe(true)
+  })
+
+  test("within-section sub-nav for sections with 6+ repeating cards", () => {
+    // 2026-05-17 supply-chain plan dogfood failure: Implementation Units
+    // section had 8 units with no jump-list at the top. TOC's single
+    // "Implementation Units" entry didn't help navigate within the section.
+    expect(
+      /Within-section sub-nav|sub-nav.*6\+ repeating cards|6\+ repeating cards/i.test(REFERENCE),
+      "Reference must require a within-section sub-nav for sections with 6+ repeating cards.",
     ).toBe(true)
   })
 
@@ -205,11 +277,23 @@ describe("html-rendering.md reference content invariants", () => {
     expect(/Single self-contained file/i.test(auditRegion)).toBe(true)
     // No hidden JSON frontmatter copy check
     expect(/No hidden machine-readable|`<script type="application\/json">`/i.test(auditRegion)).toBe(true)
+    // No <meta> tag duplication check (2026-05-17 supply-chain plan failure)
+    expect(/<meta name="status"|<meta name="created"|<meta name="origin"/i.test(auditRegion)).toBe(true)
+    // Status renders as <span class="status"> check
+    expect(/`<span class="status">|class="status">.*flip/i.test(auditRegion)).toBe(true)
     // Section heading vocabulary check
     expect(/[Ss]ection heading vocabulary/i.test(auditRegion)).toBe(true)
+    // Source / composition signal check (the visible-footer rule)
+    expect(/Source \/ composition signal|composition signal.*present|visible footer/i.test(auditRegion)).toBe(true)
+    // Sticky TOC for substantial docs check
+    expect(/[Ss]ticky TOC.*substantial|substantial.*sticky TOC|active-section indicator/i.test(auditRegion)).toBe(true)
+    // Default-closed collapsibles for 3+ repeating cards check
+    expect(/3\+ instances.*default-closed|repeating cards.*3\+ instances/i.test(auditRegion)).toBe(true)
+    // Within-section sub-nav for 6+ cards check
+    expect(/[Ww]ithin-section sub-nav|6\+ repeating cards/i.test(auditRegion)).toBe(true)
     // Body bold not colored check
     expect(/`<strong>`.*not colored|accent palette/i.test(auditRegion)).toBe(true)
-    // Default-closed collapsibles check
+    // Default-closed collapsibles check (`open` attribute absent)
     expect(/`<details>`.*no `open` attribute|`open` attribute/i.test(auditRegion)).toBe(true)
     // No JS framework runtimes check
     expect(/No JS framework runtimes/i.test(auditRegion)).toBe(true)
