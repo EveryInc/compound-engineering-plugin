@@ -15,7 +15,7 @@ const compoundEngineeringRoot = path.join(
 )
 
 describe("convertClaudeToOpenCode", () => {
-  test("current compound-engineering output is skills and subagents, not commands", async () => {
+  test("current compound-engineering output has skills, subagents, and one command per skill", async () => {
     const plugin = await loadClaudePlugin(compoundEngineeringRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
       agentMode: "subagent",
@@ -25,12 +25,91 @@ describe("convertClaudeToOpenCode", () => {
 
     expect(bundle.agents.length).toBeGreaterThan(0)
     expect(bundle.skillDirs.length).toBeGreaterThan(0)
-    expect(bundle.commandFiles).toHaveLength(0)
+    // Each skill now also generates a slash-command stub (skills with disable-model-invocation are excluded)
+    expect(bundle.commandFiles.length).toBeGreaterThan(0)
+    expect(bundle.commandFiles.length).toBeLessThanOrEqual(bundle.skillDirs.length)
     expect(bundle.plugins).toHaveLength(0)
     expect(bundle.config.tools).toBeUndefined()
 
     const parsedAgents = bundle.agents.map((agent) => parseFrontmatter(agent.content))
     expect(parsedAgents.every((agent) => agent.data.mode === "subagent")).toBe(true)
+  })
+
+  test("skills generate slash-command stubs with description and argument-hint frontmatter", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    // skill-one is the only opencode-eligible skill (disabled-skill is skipped,
+    // claude-only-skill is platform-filtered, agent-only-skill has user-invocable: false)
+    const cmd = bundle.commandFiles.find((f) => f.name === "skill-one")
+    expect(cmd).toBeDefined()
+    const parsed = parseFrontmatter(cmd!.content)
+    expect(parsed.data.description).toBe("Sample skill")
+    expect(parsed.body.trim()).toContain("skill-one")
+    expect(parsed.body.trim()).toContain("$ARGUMENTS")
+
+    // disabled-skill must not appear
+    expect(bundle.commandFiles.find((f) => f.name === "disabled-skill")).toBeUndefined()
+    // claude-only-skill is filtered before convertSkillsToCommands — also absent
+    expect(bundle.commandFiles.find((f) => f.name === "claude-only-skill")).toBeUndefined()
+    // agent-only-skill has user-invocable: false — must not be exposed as a slash command
+    expect(bundle.commandFiles.find((f) => f.name === "agent-only-skill")).toBeUndefined()
+  })
+
+  test("explicit command takes priority over same-named skill stub", async () => {
+    // If a plugin ships both a commands/foo and a skills/foo, the explicit
+    // command body must win — the skill stub must not overwrite it.
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    // The fixture has a "review" command; confirm it is NOT replaced by a skill stub
+    // (the fixture has no skill named "review", but this test exercises the dedup path
+    // by checking that the command count equals explicit commands + non-colliding stubs)
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    // No command name should appear more than once
+    const names = bundle.commandFiles.map((f) => f.name)
+    const uniqueNames = new Set(names)
+    expect(names.length).toBe(uniqueNames.size)
+  })
+
+  test("explicit command foo:bar blocks skill stub foo/bar from being emitted", async () => {
+    // "foo:bar" (explicit command) and "foo/bar" (skill name) both normalize to
+    // the same on-disk path commands/foo/bar.md — the skill stub must be dropped.
+    const plugin: ClaudePlugin = {
+      manifest: { name: "test-plugin", version: "1.0.0", description: "" },
+      agents: [],
+      commands: [{ name: "foo:bar", description: "explicit", body: "explicit body" }],
+      skills: [
+        {
+          name: "foo/bar",
+          description: "skill",
+          sourceDir: "/tmp/fake-skill",
+          platforms: [],
+        },
+      ],
+      mcpServers: undefined,
+      hooks: undefined,
+    }
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "none",
+    })
+
+    const fooBarCommands = bundle.commandFiles.filter((f) =>
+      f.name === "foo:bar" || f.name === "foo/bar",
+    )
+    // Only the explicit command should survive
+    expect(fooBarCommands).toHaveLength(1)
+    expect(fooBarCommands[0].name).toBe("foo:bar")
+    expect(fooBarCommands[0].content).toContain("explicit body")
   })
 
   test("from-command mode: map allowedTools to global permission block", async () => {
@@ -82,6 +161,51 @@ describe("convertClaudeToOpenCode", () => {
     expect(agentFile).toBeDefined()
     const parsed = parseFrontmatter(agentFile!.content)
     expect(parsed.data.mode).toBe("subagent")
+  })
+
+  test("from-commands mode: skill tool is allowed when skill stubs are emitted", async () => {
+    // Regression: applyPermissions only scanned plugin.commands for allowedTools,
+    // so a plugin with no explicit commands (or none listing "skill") would get
+    // permission.skill = "deny", causing every generated stub to fail immediately.
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    // Build a minimal plugin with skills but no explicit commands.
+    const skillOnlyPlugin: ClaudePlugin = {
+      ...plugin,
+      commands: [],
+    }
+    const bundle = convertClaudeToOpenCode(skillOnlyPlugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "from-commands",
+    })
+
+    // Skill stubs should be emitted (skill-one is opencode-eligible)
+    expect(bundle.commandFiles.some((f) => f.name === "skill-one")).toBe(true)
+
+    // The skill tool must be allowed so the stubs can actually load the skill
+    const permission = bundle.config.permission as Record<string, string>
+    expect(permission.skill).toBe("allow")
+  })
+
+  test("from-commands mode: patterned skill(...) rule does not block other skill stubs", async () => {
+    // Regression: when a command uses skill(foo-*), patterns["skill"] is populated,
+    // causing the permission build to emit { "*": "deny", "foo-*": "allow" }.
+    // That blocks all stubs for skills outside the pattern even though hasSkillStubs
+    // forces enabled.add("skill"). The fix clears patterns["skill"] when hasSkillStubs is true.
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    // The fixture has skill-command.md with allowed-tools: Skill(create-agent-skills).
+    // skill-one is the stub-eligible skill — it is NOT in the patterned subset.
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: false,
+      permissions: "from-commands",
+    })
+
+    expect(bundle.commandFiles.some((f) => f.name === "skill-one")).toBe(true)
+
+    // skill must be a flat "allow", not a pattern object that would deny skill-one
+    const permission = bundle.config.permission as Record<string, string | Record<string, string>>
+    expect(permission.skill).toBe("allow")
   })
 
   test("normalizes models and infers temperature", async () => {

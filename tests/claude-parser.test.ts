@@ -47,7 +47,7 @@ describe("loadClaudePlugin", () => {
     expect(plugin.manifest.name).toBe("compound-engineering")
     expect(plugin.agents.length).toBe(2)
     expect(plugin.commands.length).toBe(7)
-    expect(plugin.skills.length).toBe(3)
+    expect(plugin.skills.length).toBe(4)
     expect(plugin.hooks).toBeDefined()
     expect(plugin.mcpServers).toBeDefined()
 
@@ -134,6 +134,17 @@ describe("loadClaudePlugin", () => {
 
     const normalSkill = plugin.skills.find((skill) => skill.name === "skill-one")
     expect(normalSkill?.disableModelInvocation).toBeUndefined()
+  })
+
+  test("parses user-invocable: false from skills", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+
+    const agentOnlySkill = plugin.skills.find((skill) => skill.name === "agent-only-skill")
+    expect(agentOnlySkill).toBeDefined()
+    expect(agentOnlySkill?.userInvocable).toBe(false)
+
+    const normalSkill = plugin.skills.find((skill) => skill.name === "skill-one")
+    expect(normalSkill?.userInvocable).toBeUndefined()
   })
 
   test("loads MCP servers from .mcp.json when manifest is empty", async () => {
