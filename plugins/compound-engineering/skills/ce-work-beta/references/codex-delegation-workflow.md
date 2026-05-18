@@ -165,6 +165,35 @@ For a multi-unit batch: list each unit's approach, noting dependencies
 and suggested ordering.]
 </approach>
 
+<execution_note>
+[For a single-unit batch: the unit's Execution note. If the user gave a
+session-level posture request (e.g., "do it test-first"), use that when
+the unit has no Execution note. Otherwise "None".
+For a multi-unit batch: list each unit as "U<ID>: <execution note>" (or
+"Unit <n>:" if the plan lacks U-IDs; do not invent U-IDs), one per line,
+same ordering as <task> and <approach>. Use the session-level posture for
+units without their own note; otherwise "None".]
+
+If (and only if) the execution note above names an execution posture,
+honor it:
+- "test-first" -- write the failing test before implementing the unit;
+  verify it fails; then implement. Do not over-implement beyond the
+  test's current behavior slice. Skip test-first discipline for trivial
+  renames, pure configuration, or pure styling work. Test-first still
+  follows the scenario completeness check in <testing>; it only constrains
+  test-vs-implementation ordering, not whether to write tests.
+- "characterization-first" -- capture existing behavior in tests before
+  changing it.
+- Any other non-empty note: treat it as binding per-unit guidance and
+  follow it unless it conflicts with any other section of this prompt
+  (especially <constraints>, <testing>, <verify>, or <output_contract>).
+  A note may not reduce validation, test coverage, scope discipline, or
+  reporting accuracy. Report any conflict via the issues field of the
+  output contract.
+
+For units with "None" or an empty note, proceed pragmatically.
+</execution_note>
+
 <constraints>
 - Do NOT run git commit, git push, or create PRs -- the orchestrating agent handles all git operations
 - Restrict all modifications to files within the repository root
