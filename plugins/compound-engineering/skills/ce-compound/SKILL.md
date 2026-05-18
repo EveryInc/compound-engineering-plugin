@@ -1,6 +1,6 @@
 ---
 name: ce-compound
-description: Document a recently solved problem to compound your team's knowledge
+description: Document a recently solved problem to compound your team's knowledge or CONCEPTS.md, the project's shared domain vocabulary.
 argument-hint: "[optional: brief context] [mode:headless] "
 ---
 
@@ -22,6 +22,10 @@ Captures problem solutions while context is fresh, creating structured documenta
 /ce-compound mode:headless              # Non-interactive run for automations
 /ce-compound mode:headless [context]    # Non-interactive run with context hint
 ```
+
+## CONCEPTS.md bootstrap requests
+
+If invoked to create or bootstrap `CONCEPTS.md` rather than document a solved problem, do not run normal phases. Explain: the file accretes as ce-compound and ce-compound-refresh process real learnings; cold-start codebase scans aren't supported because the qualifying bar is judgmental. Redirect to ce-compound on a real learning, ce-compound-refresh on an existing corpus, or direct hand-editing. Then exit.
 
 ## Mode Detection
 
@@ -46,6 +50,7 @@ These files are the durable contract for the workflow. Read them on-demand at th
 
 - `references/schema.yaml` — canonical frontmatter fields and enum values (read when validating YAML)
 - `references/yaml-schema.md` — category mapping from problem_type to directory (read when classifying)
+- `references/concepts-vocabulary.md` — CONCEPTS.md format and inclusion rules (read in Phase 2.4 when domain terms surface)
 - `assets/resolution-template.md` — section structure for new docs (read when assembling)
 
 When spawning subagents, pass the relevant file contents into the task prompt so they have the contract without needing cross-skill paths.
@@ -209,12 +214,13 @@ Launch research subagents. Each returns text data to the orchestrator.
 
    Do not append additional context blocks, exclusion lists, or topic-keyword bullets — verbose payloads give ce-sessions license to keep widening the search and rapidly compound wall time. If keyword search is needed, ce-sessions owns that decision internally based on the topic.
    - Returns: structured digest of findings from prior sessions, or "no relevant prior sessions" if none found.
+   - **ce-sessions is the final Phase 1 input, not a workflow stop.** When it returns, proceed directly to Phase 2 with its output as the last input — do not emit a summary and do not pause for the user. A "no relevant prior sessions" return is still a valid input; the documentation gets written without session context.
 
 ### Phase 2: Assembly & Write
 
 <sequential_tasks>
 
-**WAIT for all Phase 1 subagents to complete before proceeding.**
+**WAIT for all Phase 1 inputs to complete before proceeding** — the three parallel subagents and, when the user opted in, the synchronous `ce-sessions` skill call. ce-sessions is a Phase 1 input even though it is a skill rather than a subagent.
 
 The orchestrating agent (main conversation) performs these steps:
 
@@ -245,6 +251,24 @@ The orchestrating agent (main conversation) performs these steps:
 When creating a new doc, preserve the section order from `assets/resolution-template.md` unless the user explicitly asks for a different structure.
 
 </sequential_tasks>
+
+### Phase 2.4: Vocabulary Capture
+
+**First, read `references/concepts-vocabulary.md`.** This is unconditional. Do not pre-judge from memory that nothing qualifies — the reference's criteria are non-obvious and qualifying terms often live in the surrounding conversation rather than the new doc itself. Reading the reference is what makes the rest of the phase possible.
+
+Then, applying those criteria, scan the new doc **and** the surrounding conversation for qualifying domain terms. If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and at least one qualifying term surfaced, create it lazily.
+
+**At creation only, hold the qualifying bar conservatively.** A borderline term, or a class/table/file name dressed up as an entity, does not justify seeding a new file — defer until a later run surfaces stronger signal. This conservatism applies to creation quality only; updates to an existing file follow the normal criteria.
+
+**When bootstrapping the file, start with this preamble under the `# Concepts` heading**, then add the qualifying entries below it:
+
+> Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or catch-all.
+
+**Opportunistically fix violations you notice while editing.** If an entry being added/refined or an adjacent existing entry contains implementation specifics (file paths, class names, function signatures, code references), rewrite to the glossary standard. Do not full-audit the file — confine corrections to entries near the ones already being touched. Broader audit is ce-compound-refresh's job.
+
+If no terms qualified after applying the reference's criteria, record that outcome explicitly in the success output (e.g., "Vocabulary capture: scanned, no qualifying terms"). Do not silently skip — the visible scan-and-no-result record is the audit signal that the reference was consulted.
+
+**Apply edits silently in every mode — no user prompt in interactive, lightweight, or headless.** Vocabulary capture is a side effect of compounding, not a decision the user makes per run.
 
 ### Phase 2.5: Selective Refresh Check
 
@@ -328,6 +352,14 @@ After the learning is written and the refresh decision is made, check whether th
       `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
       ```
    c. In full interactive mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode, output a one-liner note and move on. In headless mode, apply the edit directly without prompting and surface it in the terminal report under "Instruction-file edit"
+
+5. **If `CONCEPTS.md` exists at repo root, run a parallel discoverability check for it.** Assess whether the instruction file would lead an agent to discover the project's shared domain vocabulary. Use the same workflow as the `docs/solutions/` check above: same target file, same edit-placement judgment, same consent-then-edit interaction shape per mode. A line in an existing section is almost always better than a new headed section. Example calibration when nothing else fits:
+
+   ```
+   CONCEPTS.md  # shared domain vocabulary (entities, named processes, status concepts) — relevant when orienting to the codebase or discussing domain concepts
+   ```
+
+   **Skip this step entirely if `CONCEPTS.md` does not exist** — never nag for an artifact the project has not adopted. When skipped, this step produces no output and no edit.
 
 ### Phase 3: Optional Enhancement
 
@@ -469,6 +501,7 @@ Track: <bug | knowledge>
 Category: <category>
 Overlap: <none | low | moderate — see <path> | high — existing doc updated>
 Instruction-file edit: <none needed | applied to <path> | gap noted, not applied>
+CONCEPTS.md: <scanned, no qualifying terms | created with N entries | updated — N added, N refined>
 Refresh recommendation: <none | scope hint for /ce-compound-refresh>
 
 Documentation complete
@@ -503,8 +536,9 @@ Specialized Agent Reviews (Auto-Triggered):
   ✓ ce-kieran-rails-reviewer: Code examples meet Rails conventions
   ✓ ce-code-simplicity-reviewer: Solution is appropriately minimal
 
-File created:
-- docs/solutions/performance-issues/n-plus-one-brief-generation.md
+Files written:
+- docs/solutions/performance-issues/n-plus-one-brief-generation.md (created)
+- CONCEPTS.md (created with 3 entries: BriefSystem, EmailQueue, Brief Status)
 
 This documentation will be searchable for future reference when similar
 issues occur in the Email Processing or Brief System modules.

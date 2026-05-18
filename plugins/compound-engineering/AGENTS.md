@@ -12,7 +12,7 @@ They supplement the repo-root `AGENTS.md`.
 Consequences:
 
 - Behavioral rules that govern skill *runtime* behavior must live inside the skill itself — in `SKILL.md` or files under its `references/`. Guidance placed in this file is invisible at runtime.
-- When two or more skills share a behavioral principle, duplicate the guidance into each skill (inline for short rules, `references/` for longer ones). There is no cross-skill shared-file mechanism (see "File References in Skills" below).
+- When two or more skills share a behavioral principle, duplicate the guidance into each skill (inline for short rules, `references/` for longer ones). There is no cross-skill shared-file mechanism (see "File References in Skills" below). When a reference file is duplicated across skills (e.g., `concepts-vocabulary.md` in both `ce-compound/references/` and `ce-compound-refresh/references/`), edits must be applied to every copy in the same commit. Drift between copies produces inconsistent agent behavior depending on which skill loaded.
 - Do not propose that runtime guidance for ce-ideate, ce-brainstorm, ce-plan, or any other skill live in this AGENTS.md or in the repo-root AGENTS.md. Those files only shape how contributors edit the plugin.
 
 This is easy to miss because authoring feels like using: you edit the plugin while running inside this repo, and the repo's AGENTS.md is loaded — but that load does not follow the installed skill into a user's environment.
