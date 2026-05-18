@@ -1,6 +1,6 @@
 # Persona Catalog
 
-18 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific agents. The orchestrator uses this catalog to select which reviewers to spawn for each review.
+20 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific agents. The orchestrator uses this catalog to select which reviewers to spawn for each review.
 
 ## Always-on (4 personas + 2 CE agents)
 
@@ -22,7 +22,7 @@ Spawned on every review regardless of diff content.
 | `ce-agent-native-reviewer` | Verify new features are agent-accessible |
 | `ce-learnings-researcher` | Search docs/solutions/ for past issues related to this PR's modules and patterns |
 
-## Conditional (7 personas)
+## Conditional (8 personas)
 
 Spawned when the orchestrator identifies relevant patterns in the diff. The orchestrator reads the full diff and reasons about selection -- this is agent judgment, not keyword matching.
 
@@ -35,6 +35,7 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 | `reliability` | `ce-reliability-reviewer` | Error handling, retry logic, circuit breakers, timeouts, background jobs, async handlers, health checks |
 | `adversarial` | `ce-adversarial-reviewer` | Diff has >=50 changed non-test, non-generated, non-lockfile lines, OR touches auth, payments, data mutations, external API integrations, or other high-risk domains |
 | `previous-comments` | `ce-previous-comments-reviewer` | **PR-only AND comment-gated.** Reviewing a PR that has existing review comments or review threads from prior review rounds. Skip entirely when no PR metadata was gathered in Stage 1, OR when Stage 1's `hasPriorComments` flag is false (no `reviews` and no `comments` on the PR). |
+| `codex` | `ce-codex-reviewer` | Cross-model independent validation when the diff is non-trivial (>= 25 changed non-test/non-generated lines, or touches correctness-sensitive domains: auth, payments, data mutations, parsing, concurrency, external API contracts) AND the user-level Codex CLI is available on PATH. Codex sees the same diff through a different model's reasoning and catches blind spots same-model reviewers share. Skip silently when codex is not installed (the agent handles its own environment guard). |
 
 ## Stack-Specific Conditional (6 personas)
 

@@ -127,7 +127,7 @@ Routing rules:
 
 ## Reviewers
 
-18 reviewer personas in layered conditionals, plus CE-specific agents. See the persona catalog included below for the full catalog.
+19 reviewer personas in layered conditionals, plus CE-specific agents. See the persona catalog included below for the full catalog.
 
 **Always-on (every review):**
 
@@ -151,6 +151,7 @@ Routing rules:
 | `ce-reliability-reviewer` | Error handling, retries, timeouts, background jobs |
 | `ce-adversarial-reviewer` | Diff >=50 changed non-test/non-generated/non-lockfile lines, or auth, payments, data mutations, external APIs |
 | `ce-previous-comments-reviewer` | Reviewing a PR that has existing review comments or threads |
+| `ce-codex-reviewer` | Cross-model independent validation when the diff is non-trivial AND the user-level Codex CLI is available on PATH (>=25 changed non-test lines, or correctness-sensitive domains: auth, payments, data, parsing, concurrency, external API contracts) |
 
 **Stack-specific conditional (selected per diff):**
 
