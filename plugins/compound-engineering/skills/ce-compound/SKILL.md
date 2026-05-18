@@ -256,7 +256,7 @@ When creating a new doc, preserve the section order from `assets/resolution-temp
 
 **First, read `references/concepts-vocabulary.md`.** This is unconditional. Do not pre-judge from memory that nothing qualifies — the reference's criteria are non-obvious and qualifying terms often live in the surrounding conversation rather than the new doc itself. Reading the reference is what makes the rest of the phase possible.
 
-Then, applying those criteria, scan three inputs for qualifying domain terms: the new doc, the surrounding conversation, and — in Full mode — the `ce-sessions` findings returned in Phase 1. Session findings carry terminology context from past brainstorm, plan, and work dialogues where terms were actively being resolved; include them in the scan so that resolution context isn't lost when the file is finally written. If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and at least one qualifying term surfaced, create it lazily.
+Then, applying those criteria, scan the new doc **and** the surrounding conversation for qualifying domain terms. If `CONCEPTS.md` exists at repo root, add missing qualifying terms and refine existing entries when new precision surfaced. If it does not exist and at least one qualifying term surfaced, create it lazily.
 
 **At creation only, hold the qualifying bar conservatively.** A borderline term, or a class/table/file name dressed up as an entity, does not justify seeding a new file — defer until a later run surfaces stronger signal. This conservatism applies to creation quality only; updates to an existing file follow the normal criteria.
 
