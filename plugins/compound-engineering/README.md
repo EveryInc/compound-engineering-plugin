@@ -96,6 +96,7 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 
 | Skill | Description |
 |-------|-------------|
+| `ce-code-review-beta` | Same as `/ce-code-review` but delegates mid-tier persona reviewers to Codex CLI to conserve session tokens; high-stakes reviewers (correctness, security, adversarial) stay on the session model |
 | [`ce-polish-beta`](../../docs/skills/ce-polish-beta.md) | Human-in-the-loop polish phase after /ce-code-review — verifies review + CI, starts a dev server from `.claude/launch.json`, generates a testable checklist, and dispatches polish sub-agents for fixes. Emits stacked-PR seeds for oversized work |
 | `/lfg` | Full autonomous engineering workflow |
 

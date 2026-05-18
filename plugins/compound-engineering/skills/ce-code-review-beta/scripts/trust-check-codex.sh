@@ -1,0 +1,238 @@
+#!/usr/bin/env bash
+# Trust-check a candidate Codex CLI binary before launching delegated reviewers.
+#
+# Usage: bash scripts/trust-check-codex.sh <codex_bin> <repo_root> <scratch_dir>
+# Output: TRUSTED:<canonical-path> on success, ERROR:<message> on failure.
+#
+# Verifies that <codex_bin> is safe to invoke as the delegated review process:
+#   1. Exists and is executable
+#   2. Canonical path is free of shell metacharacters and newlines
+#   3. Canonical path is not inside the reviewed repo or the scratch directory
+#   4. Canonical path is not under a world-writable parent (e.g., /tmp)
+#   5. Smoke-probe survives the same scrubbed env -i shape that the actual
+#      delegated launch uses (catches nvm/asdf wrappers whose interpreter
+#      isn't on the scrubbed PATH, and TTY-blocking CLI builds).
+
+set -euo pipefail
+
+if [ "$#" -ne 3 ]; then
+  echo "ERROR:trust-check-codex.sh requires 3 args: <codex_bin> <repo_root> <scratch_dir>"
+  exit 1
+fi
+
+CODEX_BIN_INPUT="$1"
+REPO_ROOT="$2"
+SCRATCH_DIR="$3"
+
+# --- 1. Reject obvious shell metacharacters before doing anything else ---
+case "$CODEX_BIN_INPUT" in
+  *[$'\n\r']*)
+    echo "ERROR:codex_bin path contains newline"
+    exit 1
+    ;;
+  *\"*|*\'*|*\`*|*\;*|*\|*|*\&*|*\<*|*\>*|*\(*|*\)*|*\\*|*\$*)
+    echo "ERROR:codex_bin path contains shell metacharacters"
+    exit 1
+    ;;
+esac
+
+# --- 2. Existence + executability ---
+if [ ! -e "$CODEX_BIN_INPUT" ]; then
+  echo "ERROR:codex_bin does not exist: $CODEX_BIN_INPUT"
+  exit 1
+fi
+
+# --- 3. Canonicalize. Use a portable approach (readlink -f isn't on macOS by default). ---
+CANONICAL=""
+if command -v readlink >/dev/null 2>&1; then
+  CANONICAL=$(readlink -f "$CODEX_BIN_INPUT" 2>/dev/null || true)
+fi
+# Try Python as a portable fallback (present on macOS and most Linux distros).
+if [ -z "$CANONICAL" ] && command -v python3 >/dev/null 2>&1; then
+  CANONICAL=$(python3 -c 'import os,sys; print(os.path.realpath(sys.argv[1]))' "$CODEX_BIN_INPUT" 2>/dev/null || true)
+fi
+if [ -z "$CANONICAL" ] && command -v perl >/dev/null 2>&1; then
+  CANONICAL=$(perl -MCwd -e 'print Cwd::realpath($ARGV[0])' "$CODEX_BIN_INPUT" 2>/dev/null || true)
+fi
+if [ -z "$CANONICAL" ]; then
+  # Last-resort fallback: cd to the dirname and pwd -P, then re-attach basename.
+  # If the basename itself is a symlink, this fallback alone does NOT resolve
+  # that final component, so we explicitly reject a symlinked final component
+  # below to prevent a symlinked launcher from passing the world-writable and
+  # repo/scratch checks against the symlink's parent rather than the target.
+  bin_dir=$(cd "$(dirname "$CODEX_BIN_INPUT")" 2>/dev/null && pwd -P 2>/dev/null || true)
+  if [ -z "$bin_dir" ]; then
+    echo "ERROR:cannot canonicalize codex_bin path: $CODEX_BIN_INPUT"
+    exit 1
+  fi
+  CANONICAL="$bin_dir/$(basename "$CODEX_BIN_INPUT")"
+fi
+
+# Reject any remaining symlink in the final component. A canonical path must
+# not itself be a symlink; if it is, our canonicalization fell short and the
+# repo/scratch/world-writable checks below would inspect the wrong path.
+if [ -L "$CANONICAL" ]; then
+  echo "ERROR:canonical codex_bin is still a symlink (canonicalization fell back to dirname-only); install readlink -f, python3, or perl on this system: $CANONICAL"
+  exit 1
+fi
+
+if [ ! -f "$CANONICAL" ] || [ ! -x "$CANONICAL" ]; then
+  echo "ERROR:canonical codex_bin is not an executable regular file: $CANONICAL"
+  exit 1
+fi
+
+# --- 4. Reject canonical paths inside repo or scratch ---
+if [ -n "$REPO_ROOT" ]; then
+  case "$CANONICAL" in
+    "$REPO_ROOT"|"$REPO_ROOT"/*)
+      echo "ERROR:codex_bin canonical path is inside the reviewed repo: $CANONICAL"
+      exit 1
+      ;;
+  esac
+fi
+if [ -n "$SCRATCH_DIR" ]; then
+  case "$CANONICAL" in
+    "$SCRATCH_DIR"|"$SCRATCH_DIR"/*)
+      echo "ERROR:codex_bin canonical path is inside the scratch directory: $CANONICAL"
+      exit 1
+      ;;
+  esac
+fi
+
+# --- 5. Reject canonical paths under common world-writable locations ---
+case "$CANONICAL" in
+  /tmp|/tmp/*|/var/tmp|/var/tmp/*|/private/tmp|/private/tmp/*|/dev/shm|/dev/shm/*)
+    echo "ERROR:codex_bin canonical path is under a world-writable directory: $CANONICAL"
+    exit 1
+    ;;
+esac
+
+# Also explicitly reject any directory in the canonical path that is actually
+# world-writable (catches non-standard mountpoints we don't enumerate above).
+check_dir="$(dirname "$CANONICAL")"
+while [ "$check_dir" != "/" ] && [ -n "$check_dir" ]; do
+  if [ -d "$check_dir" ] && [ -w "$check_dir" ]; then
+    # `[ -w ]` is true for the current user; world-writable detection requires stat.
+    perms=""
+    if perms=$(stat -f '%Lp' "$check_dir" 2>/dev/null); then :; else perms=$(stat -c '%a' "$check_dir" 2>/dev/null || echo "")
+    fi
+    if [ -n "$perms" ]; then
+      # Last digit is "other" perms; >=2 means world-writable.
+      last=${perms#${perms%?}}
+      case "$last" in
+        2|3|6|7)
+          echo "ERROR:codex_bin canonical path has a world-writable parent directory: $check_dir"
+          exit 1
+          ;;
+      esac
+    fi
+  fi
+  parent="$(dirname "$check_dir")"
+  if [ "$parent" = "$check_dir" ]; then break; fi
+  check_dir="$parent"
+done
+
+# --- 6. Smoke probe under the actual delegated-launch env shape ---
+# Resolve a portable timeout strategy in the parent shell BEFORE entering
+# env -i. Inside env -i the PATH is reset to a scrubbed list, so the original
+# `timeout 10 ...` form failed on default macOS (which has no /usr/bin/timeout
+# and no /opt/homebrew/bin/timeout unless the user installed coreutils).
+# Resolving here and passing the absolute path through env -i keeps the
+# scrubbed-env probe contract while making the timeout itself portable.
+#
+# Fallback chain:
+#   1. `timeout` (GNU coreutils — present on most Linux)
+#   2. `gtimeout` (Homebrew coreutils — common on macOS dev machines)
+#   3. `perl` with fork + setpgrp + alarm + kill-pgroup (matches GNU
+#      timeout's SIGTERM-then-SIGKILL process-group semantics, so probes
+#      against bash-wrapped or multi-process codex builds terminate
+#      reliably). /usr/bin/perl ships with macOS and almost every Linux
+#      distribution.
+# If none are available, emit a clear ERROR rather than running unbounded.
+PROBE_TIMEOUT_SECS=${CE_PROBE_TIMEOUT_SECS:-10}
+TIMEOUT_KIND="none"
+TIMEOUT_BIN=""
+if cmd=$(command -v timeout 2>/dev/null) && [ -n "$cmd" ]; then
+  TIMEOUT_KIND="timeout"
+  TIMEOUT_BIN="$cmd"
+elif cmd=$(command -v gtimeout 2>/dev/null) && [ -n "$cmd" ]; then
+  TIMEOUT_KIND="gtimeout"
+  TIMEOUT_BIN="$cmd"
+elif cmd=$(command -v perl 2>/dev/null) && [ -n "$cmd" ]; then
+  TIMEOUT_KIND="perl"
+  TIMEOUT_BIN="$cmd"
+fi
+if [ "$TIMEOUT_KIND" = "none" ]; then
+  echo "ERROR:codex_bin smoke probe cannot proceed: no portable timeout binary found (tried 'timeout', 'gtimeout', 'perl'). Install one of them — coreutils on Linux, coreutils via Homebrew on macOS, or any system perl — and retry."
+  exit 1
+fi
+
+PROBE_HOME="$(mktemp -d -t ce-codex-probe-XXXXXX)"
+chmod 700 "$PROBE_HOME"
+# Hard-disable network egress so a future Codex build that does telemetry at
+# startup fails fast here instead of silently leaking a probe.
+PROBE_OUT=""
+PROBE_STATUS=0
+if [ "$TIMEOUT_KIND" = "perl" ]; then
+  # Perl-based timeout that matches GNU timeout's process-group semantics.
+  # A naive `alarm; exec` does NOT reliably kill bash-wrapped or multi-process
+  # codex builds, because (a) bash internally swallows SIGALRM (used for
+  # `read -t`), and (b) `kill <pid>` only signals the immediate child, not
+  # its descendants. The child therefore runs setpgrp() to start a fresh
+  # process group, and on alarm we kill the negative pid (whole group) with
+  # TERM then KILL, matching `timeout`'s SIGTERM-then-SIGKILL convention.
+  # On timeout we exit 124 (GNU timeout convention); on normal completion
+  # we propagate the child's exit code.
+  PROBE_OUT=$("$TIMEOUT_BIN" -e '
+    my $s = shift @ARGV;
+    my $p = fork;
+    die "perl-fork-failed: $!" unless defined $p;
+    if (!$p) {
+      setpgrp 0, 0;
+      exec { $ARGV[0] } @ARGV;
+      die "perl-exec-failed: $!";
+    }
+    $SIG{ALRM} = sub {
+      kill "TERM", -$p;
+      sleep 1;
+      kill "KILL", -$p;
+      waitpid $p, 0;
+      exit 124;
+    };
+    alarm $s;
+    waitpid $p, 0;
+    exit($? >> 8);
+  ' "$PROBE_TIMEOUT_SECS" env -i \
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin" \
+    HOME="$PROBE_HOME" \
+    CODEX_HOME="$PROBE_HOME" \
+    NO_PROXY="*" \
+    HTTP_PROXY="http://127.0.0.1:1" \
+    HTTPS_PROXY="http://127.0.0.1:1" \
+    "$CANONICAL" --version 2>&1) || PROBE_STATUS=$?
+else
+  PROBE_OUT=$("$TIMEOUT_BIN" "$PROBE_TIMEOUT_SECS" env -i \
+    PATH="/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/usr/local/bin" \
+    HOME="$PROBE_HOME" \
+    CODEX_HOME="$PROBE_HOME" \
+    NO_PROXY="*" \
+    HTTP_PROXY="http://127.0.0.1:1" \
+    HTTPS_PROXY="http://127.0.0.1:1" \
+    "$CANONICAL" --version 2>&1) || PROBE_STATUS=$?
+fi
+rm -rf "$PROBE_HOME"
+
+if [ "$PROBE_STATUS" -ne 0 ]; then
+  # Help users debug nvm/asdf shim failures, since `#!/usr/bin/env node` will
+  # fail under env -i when node isn't on the scrubbed PATH.
+  case "$PROBE_OUT" in
+    *"env: node"*|*"env: bun"*|*"env: python"*|*"command not found"*)
+      echo "ERROR:codex_bin smoke probe failed; likely nvm/asdf shim — interpreter (node/bun/python) not on scrubbed PATH. Output: ${PROBE_OUT:0:200}"
+      exit 1
+      ;;
+  esac
+  echo "ERROR:codex_bin smoke probe failed (exit $PROBE_STATUS) under scrubbed env. Output: ${PROBE_OUT:0:200}"
+  exit 1
+fi
+
+echo "TRUSTED:$CANONICAL"

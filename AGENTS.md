@@ -101,6 +101,7 @@ Behavioral changes to a plugin agent or skill (anything under `plugins/*/agents/
 - Keep target-specific behavior in dedicated converters/writers instead of scattering conditionals across unrelated files.
 - Preserve stable output paths and merge semantics for installed targets; do not casually change generated file locations.
 - When adding or changing a target, update fixtures/tests alongside implementation rather than treating docs or examples as sufficient proof.
+- Shell-script portability: prefer built-in tool features over piping to non-POSIX binaries, and guard required external tools with `command -v` plus a fallback or actionable `ERROR:`. See `docs/solutions/integrations/beta-script-external-tool-portability.md`.
 
 ## Commit Conventions
 
