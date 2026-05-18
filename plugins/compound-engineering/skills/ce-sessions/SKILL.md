@@ -1,11 +1,11 @@
 ---
 name: ce-sessions
-description: "Search and ask questions about coding agent session history across Claude Code, Codex, and Cursor. Use when asking what was worked on, what was tried before, how a problem was investigated across sessions, what happened recently, or any question about past agent sessions. Also use when the user references prior sessions, previous attempts, or past investigations — even without saying 'sessions' explicitly."
+description: "Search and ask questions about coding agent session history across Claude Code, Codex, Cursor, and Pi. Use when asking what was worked on, what was tried before, how a problem was investigated across sessions, what happened recently, or any question about past agent sessions. Also use when the user references prior sessions, previous attempts, or past investigations — even without saying 'sessions' explicitly."
 ---
 
 # /ce-sessions
 
-Search session history across Claude Code, Codex, and Cursor and synthesize findings about what was worked on, tried, decided, or learned in prior sessions.
+Search session history across Claude Code, Codex, Cursor, and Pi and synthesize findings about what was worked on, tried, decided, or learned in prior sessions.
 
 ## Usage
 
@@ -54,7 +54,7 @@ Infer a time range from the user's question. Start narrow; widen only if a narro
 | "last few weeks", "this month" | 30 days |
 | "last few months", broad feature history | 90 days |
 
-Claude Code retains session history for ~30 days by default. Wider windows may find nothing on Claude Code unless the user has extended retention.
+Claude Code retains session history for ~30 days by default. Pi retains sessions indefinitely at `~/.pi/agent/sessions/`. Wider windows may find nothing on Claude Code unless the user has extended retention.
 
 ### Step 2 — Discover sessions and extract metadata
 
@@ -66,17 +66,19 @@ bash scripts/discover-sessions.sh <repo> <days> | tr '\n' '\0' | xargs -0 python
 
 Each output line is a JSON object describing a session (platform, file, size, ts, session, plus platform-specific fields). The final `_meta` line carries `files_processed` and `parse_errors`.
 
+Pi sessions carry `cwd` (like Codex) but no `gitBranch`. The `--cwd-filter` flag filters Pi and Codex sessions by repo name in the `cwd` field; branch filtering in Step 3 applies to Claude Code sessions only.
+
 If the inventory's `_meta` line shows `files_processed: 0`, return "no relevant prior sessions" and stop.
 
 If `parse_errors > 0`, note that some sessions could not be parsed and proceed with what was returned.
 
-To narrow the platform set, add `--platform claude`, `--platform codex`, or `--platform cursor` to the `discover-sessions.sh` invocation. Default to all three.
+To narrow the platform set, add `--platform claude`, `--platform codex`, `--platform cursor`, or `--platform pi` to the `discover-sessions.sh` invocation. Default to all four.
 
 ### Step 3 — Filter and rank
 
 Apply these filters in order to pick the sessions worth deep-diving:
 
-1. **Branch filter (Claude Code only).** Keep sessions where `branch == dispatch_branch` exactly, or where the branch name contains a keyword from the question's topic (e.g., a question about "auth middleware" matches branches `feat/auth-fix`, `chore/auth-refactor`). Codex sessions don't carry `gitBranch` — skip this filter for them.
+1. **Branch filter (Claude Code only).** Keep sessions where `branch == dispatch_branch` exactly, or where the branch name contains a keyword from the question's topic (e.g., a question about "auth middleware" matches branches `feat/auth-fix`, `chore/auth-refactor`). Codex and Pi sessions don't carry `gitBranch` — skip this filter for them.
 
 2. **If the branch filter returned zero sessions, or you're processing Codex sessions:**
    - Derive 2-4 keywords from the question's topic. For "a recent crash in the auth middleware where session-validation rejects valid tokens", derive `auth,middleware,session,token` (or similar).
@@ -92,7 +94,7 @@ Apply these filters in order to pick the sessions worth deep-diving:
 
 6. **Proceed only if at least one session remains after filtering.** Otherwise return "no relevant prior sessions" and stop.
 
-**Note: `gitBranch` is captured at the first user message only.** A session that began on `main` and did substantive work on a feature branch via mid-session `git checkout` records `branch: "main"`. Branch-match returning nothing is not conclusive evidence — that's why the keyword-filter fallback in step 2 is required.
+**Note: `gitBranch` is captured at the first user message only.** A session that began on `main` and did substantive work on a feature branch via mid-session `git checkout` records `branch: "main"`. Branch-match returning nothing is not conclusive evidence — that's why the keyword-filter fallback in step 2 is required. Pi sessions have no `gitBranch` at all; rely on keyword filtering for them.
 
 ### Step 4 — Set up scratch space
 
@@ -140,9 +142,9 @@ The dispatch prompt is the agent's input contract. Pass these fields:
 - `scratch_dir` — absolute path to `$SCRATCH`.
 - `sessions` — an array of objects, one per extracted session, each with:
   - `path` — absolute path to the skeleton file (and optionally `errors_path` for the errors file when extracted)
-  - `platform` — `claude`, `codex`, or `cursor`
+  - `platform` — `claude`, `codex`, `cursor`, or `pi`
   - `branch` — git branch when present (Claude Code only)
-  - `cwd` — working directory when present (Codex only)
+  - `cwd` — working directory when present (Codex and Pi)
   - `ts` and `last_ts` — session timestamps
   - `match_count` and `keyword_matches` — when keyword filtering was used
 - `output_schema` — the structure the agent's response should follow. Default schema:
@@ -198,7 +200,7 @@ The OS handles cleanup eventually regardless; the explicit cleanup is for reader
 When the caller (typically a user typing `/ce-sessions`, or another skill invoking ce-sessions via the platform's skill-invocation primitive) does not specify an output format, include a brief header noting what was searched:
 
 ```
-**Sessions searched**: [count] ([N] Claude Code, [N] Codex, [N] Cursor) | [date range]
+**Sessions searched**: [count] ([N] Claude Code, [N] Codex, [N] Cursor, [N] Pi) | [date range]
 ```
 
 Then the synthesizer's prose findings. When the caller supplies a schema, honor it verbatim and omit the default header.

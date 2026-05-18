@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Extract the conversation skeleton from a Claude Code, Codex, or Cursor JSONL session file.
+"""Extract the conversation skeleton from a Claude Code, Codex, Cursor, or Pi JSONL session file.
 
 Usage:
   cat <session.jsonl> | python3 extract-skeleton.py
   cat <session.jsonl> | python3 extract-skeleton.py --output PATH
 
-Auto-detects platform (Claude Code, Codex, or Cursor) from the JSONL structure.
+Auto-detects platform (Claude Code, Codex, Cursor, or Pi) from the JSONL structure.
 Extracts:
   - User messages (text only, no tool results)
   - Assistant text (no thinking/reasoning blocks)
@@ -268,6 +268,73 @@ def handle_codex(obj):
         # Skip function_call — exec_command_end is the deduplicated version with status
 
 
+def handle_pi(obj):
+    """Pi sessions: type='message' with message.role (user/assistant/toolResult)."""
+    msg_type = obj.get("type")
+    if msg_type != "message":
+        return
+    ts = obj.get("timestamp", "")[:19]
+    msg = obj.get("message", {})
+    role = msg.get("role", "")
+    content = msg.get("content", [])
+
+    if role == "user":
+        texts = []
+        for block in (content if isinstance(content, list) else []):
+            if block.get("type") == "text":
+                texts.append(block.get("text", ""))
+        text = clean_text(" ".join(texts))
+        if len(text) > 15:
+            flush_tools()
+            print(f"[{ts}] [user] {text[:800]}")
+            print("---")
+            stats["user"] += 1
+
+    elif role == "assistant":
+        has_text = False
+        for block in (content if isinstance(content, list) else []):
+            if block.get("type") == "text":
+                text = clean_text(block.get("text", ""))
+                if len(text) > 20:
+                    if not has_text:
+                        flush_tools()
+                        has_text = True
+                    print(f"[{ts}] [assistant] {text[:800]}")
+                    print("---")
+                    stats["assistant"] += 1
+            elif block.get("type") == "toolCall":
+                name = block.get("name", "unknown")
+                args = block.get("arguments", {})
+                target = (
+                    _safe_slice(args.get("command"), 120)
+                    or _safe_slice(args.get("path"), 200)
+                    or ""
+                )
+                entry = {"ts": ts, "name": name, "target": target}
+                tool_id = block.get("id")
+                if tool_id:
+                    entry["id"] = tool_id
+                pending_tools.append(entry)
+
+    elif role == "toolResult":
+        tool_call_id = msg.get("toolCallId")
+        is_error = msg.get("isError") or any(
+            b.get("type") == "toolError"
+            for b in (content if isinstance(content, list) else [])
+        )
+        status = "error" if is_error else "ok"
+        if tool_call_id:
+            for entry in pending_tools:
+                if entry.get("id") == tool_call_id:
+                    entry["status"] = status
+                    break
+        else:
+            for entry in pending_tools:
+                if not entry.get("status"):
+                    entry["status"] = status
+                    break
+
+
 def handle_cursor(obj):
     """Cursor agent transcripts: role-based, no timestamps, same content structure as Claude."""
     role = obj.get("role")
@@ -333,7 +400,9 @@ for line in sys.stdin:
     if not detected and len(buffer) <= 10:
         try:
             obj = json.loads(line)
-            if obj.get("type") in ("user", "assistant"):
+            if obj.get("type") == "session" and "cwd" in obj:
+                detected = "pi"
+            elif obj.get("type") in ("user", "assistant"):
                 detected = "claude"
             elif obj.get("type") in ("session_meta", "turn_context", "response_item", "event_msg"):
                 detected = "codex"
@@ -342,7 +411,7 @@ for line in sys.stdin:
         except (json.JSONDecodeError, KeyError):
             pass
 
-handlers = {"claude": handle_claude, "codex": handle_codex, "cursor": handle_cursor}
+handlers = {"claude": handle_claude, "codex": handle_codex, "cursor": handle_cursor, "pi": handle_pi}
 handler = handlers.get(detected, handle_codex)
 
 for line in buffer:
