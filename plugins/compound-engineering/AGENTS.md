@@ -53,7 +53,7 @@ Before committing ANY changes:
 
 ```
 agents/
-└── ce-*.agent.md  # All agents live flat under agents/, prefixed with ce-
+└── ce-*.md  # All agents live flat under agents/, prefixed with ce-
 
 skills/
 ├── ce-*/          # Core workflow skills (ce-plan, ce-code-review, etc.)
@@ -299,7 +299,7 @@ grep -E '^description:' skills/*/SKILL.md
 ## Adding Components
 
 - **New skill:** Create `skills/<name>/SKILL.md` with required YAML frontmatter (`name`, `description`). Reference files go in `skills/<name>/references/`. Add the skill to the appropriate category table in `README.md` and update the skill count.
-- **New agent:** Create `agents/ce-<name>.agent.md` with frontmatter (the `ce-` prefix is required). Add the agent to the appropriate topical section of `README.md` (Review, Document Review, Research, Design, Workflow, Docs) and update the agent count.
+- **New agent:** Create `agents/ce-<name>.md` with frontmatter (the `ce-` prefix is required). Add the agent to the appropriate topical section of `README.md` (Review, Document Review, Research, Design, Workflow, Docs) and update the agent count.
 
 ### Adding a New Plugin to This Repo
 
