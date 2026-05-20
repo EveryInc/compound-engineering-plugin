@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test"
 
 const AGENT_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/agents/ce-session-historian.agent.md",
+  "plugins/compound-engineering/agents/ce-session-historian.md",
 )
 const AGENT_BODY = readFileSync(AGENT_PATH, "utf8")
 

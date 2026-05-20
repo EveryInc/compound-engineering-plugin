@@ -38,7 +38,7 @@ describe("writeKiroBundle", () => {
     const kiroRoot = path.join(tempRoot, ".kiro")
     await fs.mkdir(path.join(kiroRoot, "agents", "prompts"), { recursive: true })
     const sessionHistorianDescription = await pluginDescription(
-      "plugins/compound-engineering/agents/ce-session-historian.agent.md",
+      "plugins/compound-engineering/agents/ce-session-historian.md",
     )
 
     await fs.writeFile(
