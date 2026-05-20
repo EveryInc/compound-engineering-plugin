@@ -27,12 +27,18 @@ Parse `$ARGUMENTS` for optional tokens. Strip each recognized token before inter
 | `mode:report-only` | `mode:report-only` | **Deprecated — ignored.** Former no-artifacts mode; default behavior is review-only without checkout |
 | `base:<sha-or-ref>` | `base:abc1234` or `base:origin/main` | Diff base on the **current checkout** (explicit; skips auto base detection) |
 | `plan:<path>` | `plan:docs/plans/2026-03-25-001-feat-foo-plan.md` | Plan file for requirements verification (explicit) |
+| `grouping:auto` | `grouping:auto` | **Default** — build thematic triage groups when findings span distinct concerns (Stage 5 step 9b) |
+| `grouping:off` | `grouping:off` | Suppress triage groups: no Triage Groups section, empty `triage_groups` in JSON |
+| `grouping:always` | `grouping:always` | Always build triage groups, even for small reviews |
+
+**Grouping is presentation, not a mode.** The `grouping:` tokens change how the finding set is organized for triage — never reviewer selection, merge logic, scope rules, or the Stage 5c apply decision.
 
 **Mode alias:** `mode:headless` normalizes to `mode:agent`. `mode:agent` + `mode:headless` is not a conflict.
 
 **Conflicting arguments:** Stop without dispatching reviewers when:
 - Multiple incompatible scope selectors appear together (e.g. `base:` **and** a PR number/branch target — `base:` means "review the current checkout against this base")
 - Multiple distinct `mode:` tokens other than the `mode:agent`/`mode:headless` alias pair
+- Multiple distinct `grouping:` tokens (e.g. `grouping:off` **and** `grouping:always`)
 
 Deprecated `mode:autofix` is **not** a conflict — ignore the token and proceed with the normal flow (see below).
 
@@ -439,7 +445,14 @@ When a finding qualifies:
 8. **Partition the work.** Build two sets:
    - actionable queue: `gated_auto` or `manual` findings whose owner is `downstream-resolver` (hand off to caller)
    - report-only queue: `advisory` findings plus anything owned by `human` or `release`
-9. **Sort and number.** Order by severity (P0 first) -> anchor (descending) -> file path -> line number, then assign monotonically increasing `#` values across the full primary finding set in that sorted order. Do not restart numbering inside each severity table or autofix/routing bucket. If later sections repeat a finding (for example Actionable Findings), reuse the same stable `#` so users and downstream workflows can reference findings by `#` across the report and caller handoff.
+9. **Sort and number.** Order by severity (P0 first) -> anchor (descending) -> file path -> line number, then assign monotonically increasing `#` values across the full primary finding set in that sorted order. Do not restart numbering inside each severity table, triage group, or autofix/routing bucket. If later sections repeat a finding (for example Actionable Findings), reuse the same stable `#` so users and downstream workflows can reference findings by `#` across the report and caller handoff.
+9b. **Build thematic triage groups.** After stable `#` values exist, group related findings so the reader can triage themes instead of items. This is distinct from deduplication: dedupe answers "are these the same finding?", grouping answers "are these distinct findings that should be understood or resolved together?". Groups never merge findings into a synthetic finding and never change a finding's severity, confidence, route, owner, or stable `#`.
+   - **`grouping:off`:** skip this step.
+   - **`grouping:auto` (default):** build groups when the actionable findings span distinct concerns — the trigger is distinct concerns, not item count (mirroring how plan Requirements group by capability). Skip only when all findings are genuinely about the same thing; prefer no groups over decorative single-item groups.
+   - **`grouping:always`:** always build groups; use single-finding groups only when no meaningful multi-finding grouping exists.
+   - **Grouping signals:** shared root cause, affected subsystem, user-facing failure mode, overlapping fix path, dependency ordering, or repeated symptoms of one design choice.
+   - **Group shape:** short title, the included stable finding `#`s, one-line context, preferred resolution, and why — when one fix path resolves several findings, name it and say which finding to handle first.
+   - **Ordering:** order groups by the highest-severity finding they contain, then by lowest stable `#`. A finding appears in at most one group; leave genuinely unrelated findings ungrouped.
 10. **Collect coverage data.** Union residual_risks and testing_gaps across reviewers.
 11. **Preserve CE agent artifacts.** Keep the learnings, agent-native, and deployment-verification outputs alongside the merged finding set. Do not drop unstructured agent output just because it does not match the persona JSON schema. Schema drift from `data-migration` is already in the merged finding set.
 
@@ -465,6 +478,7 @@ Independent verification gate. Spawn one validator sub-agent per surviving findi
    - Validator **infrastructure** failure (timeout, dispatch error, malformed JSON — not a `validated:false` verdict): for **P2/P3**, drop the finding with reason "validator failed" (conservative bias). For **P0/P1**, do **not** drop on infra failure — keep the finding and mark its validation **degraded** (note in Coverage). A transient validator failure must never silently remove a critical/high finding; a genuine `validated:false` rejection above still drops at any severity.
 5. **Use mid-tier model for validators.** Same model class (sonnet) the persona reviewers use. Validators are read-only — same constraints as persona reviewers. They may use non-mutating inspection commands (Read, Grep, Glob, git blame, gh).
 6. **Record metrics for Coverage.** Total dispatched, validated true count, validated false count (with reasons), infra failures (and any P0/P1 kept-on-failure as degraded), and over-budget drops.
+7. **Prune triage groups after drops.** When validation dropped any finding, rebuild or prune `triage_groups` from the validated set: a group must never reference a `#` that was rejected or dropped. Remove groups left with fewer than two findings under `grouping:auto`; under `grouping:always`, keep them as single-finding groups only when still meaningful.
 
 **Orchestrator direct verification.** When a finding hinges on a fact the orchestrator can check cheaply and authoritatively — a pinned dependency's source, a wiring/config fact in this repo, a build tag — verify it directly with single-purpose native tools (Read/Grep/Glob, one git command at a time), never chained or error-suppressed shell. Fold confirmed facts into synthesis. Whether it can *replace* the independent validator turns on a single distinction: the orchestrator is **not** an independent second opinion (it synthesized these findings), so direct verification catches a wrong **fact** but not the orchestrator's own **bias**. Independence adds nothing to a mechanically-checkable fact and everything to a judgment call:
 
@@ -498,6 +512,8 @@ Severity, confidence, and cross-reviewer agreement tell you what to do first and
 
 **Surface green-but-unverifiable edits.** When an applied fix touches auth/authz, a public or cross-service contract/schema, or concurrency/ordering, a passing test does not prove safety — flag it prominently in the Applied section so the diff reviewer's attention goes there.
 
+**Re-partition triage groups after apply.** Triage groups describe the *remaining* work. After Stage 5c, prune applied findings out of `triage_groups` before Stage 6 rendering — a group must never tell the user to handle a finding that was already applied. When an applied fix resolved part of a theme, note that in the group's context line instead of keeping the applied `#` in the group. Re-apply the same minimum-size rule as Stage 5b step 7 (drop sub-two-finding groups under `grouping:auto`).
+
 ### Stage 6: Synthesize and present
 
 Assemble the final report. **Default:** pipe-delimited markdown tables for findings (mandatory — see review output template). **`mode:agent`:** skip markdown and emit JSON (see ### JSON output format). Other sections (Actionable Findings, Learnings, Coverage, etc.) use bullets and `---` before the verdict in markdown mode only.
@@ -523,7 +539,8 @@ Per-severity tables are **5 columns** — `Route` is not shown here (it appears 
 
 1. **Header.** Scope, intent, mode, reviewer team with per-conditional justifications.
 2. **Applied (default mode only).** When Stage 5c applied fixes, list them first — before the findings tables — in an Applied section (see review output template) as a pipe table `| # | File | Fix | Reviewer |` — **never** `Field:`-blocks or `────` separators, same rules as the findings tables — then a one-line validation outcome (e.g. "pin tests 4 -> 6; suite 94 pass, lint clean") and commit status (committed on a clean tree as `fix(review): …` or the repo's nearest convention, or left uncommitted for the user on a dirty one). Flag green-but-unverifiable edits (auth/contract/concurrency) prominently. Omit this section in `mode:agent` and when nothing was applied. Applied findings appear here, not in the severity tables.
-3. **Findings.** Pipe-delimited tables grouped by severity (`### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`), using the shape above — the **same** shape for every severity. Omit empty severity levels. Finding numbers come from the stable assignment in Stage 5 -- never re-derive them per severity table.
+2b. **Triage Groups.** When finalized `triage_groups` exist (post-validation, post-apply — Stage 5b step 7 / Stage 5c), render a `### Triage Groups` section before the severity tables as a pipe table `| Group | Findings | Context | Preferred Resolution | Why |`. The `Findings` cell references stable `#`s (e.g. `#1, #3`); verify every referenced `#` appears in the severity tables below. Groups supplement the severity tables, never replace them. Omit the section when `grouping:off` is active or no groups survived. In `mode:agent` this section is carried by the `triage_groups` JSON field instead.
+3. **Findings.** Pipe-delimited tables grouped by severity (`### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`), using the shape above — the **same** shape for every severity. Omit empty severity levels. Finding numbers come from the stable assignment in Stage 5 -- never re-derive them per severity table or triage group.
 4. **Requirements Completeness.** Include only when a plan was found in Stage 2b. For each requirement (R1, R2, etc.) and implementation unit in the plan, report whether corresponding work appears in the diff. Use a simple checklist: met / not addressed / partially addressed. Routing depends on `plan_source`:
    - **`explicit`** (caller-provided or PR body): Flag unaddressed requirements or implementation units as P1 findings with `autofix_class: manual`, `owner: downstream-resolver`. These enter the actionable queue.
    - **`inferred`** (auto-discovered): Flag unaddressed requirements or implementation units as P3 findings with `autofix_class: advisory`, `owner: human`. These stay in the report only — no autonomous follow-up. An inferred plan match is a hint, not a contract.
@@ -538,7 +555,7 @@ Per-severity tables are **5 columns** — `Route` is not shown here (it appears 
 
 Do not include time estimates.
 
-**Format verification (default only — last gate before delivering).** Before delivering, scan **every table — the Applied table and each severity findings table** — for the forbidden shapes: `Field:`-prefixed blocks (`#:` / `File:` / `Fix:` / `Issue:`), box-drawing or horizontal-rule separators (`────`), middot `·`, or a list replacing a table. **The Applied table is the most common offender — check it explicitly.** If any table hit one of these, STOP and re-render it as the same pipe-delimited shape before delivering. (The keyed `- **#N** —` detail line under a table is expected — not a failure.) Skip only when `mode:agent` is active.
+**Format verification (default only — last gate before delivering).** Before delivering, scan **every table — the Applied table, the Triage Groups table, and each severity findings table** — for the forbidden shapes: `Field:`-prefixed blocks (`#:` / `File:` / `Fix:` / `Issue:`), box-drawing or horizontal-rule separators (`────`), middot `·`, or a list replacing a table. **The Applied table is the most common offender — check it explicitly.** If any table hit one of these, STOP and re-render it as the same pipe-delimited shape before delivering. (The keyed `- **#N** —` detail line under a table is expected — not a failure.) Skip only when `mode:agent` is active.
 
 ### JSON output format (`mode:agent` only)
 
@@ -564,6 +581,7 @@ Minimum shape:
   "reviewers": ["correctness", "security"],
   "findings": [],
   "actionable_findings": [],
+  "triage_groups": [],
   "pre_existing_findings": [],
   "requirements_completeness": null,
   "learnings": [],
@@ -580,6 +598,8 @@ Minimum shape:
 Each object in `findings` uses the merged finding fields: `#`, `title`, `severity`, `file`, `line`, `confidence`, `autofix_class`, `owner`, `requires_verification`, `pre_existing`, `suggested_fix`, `why_it_matters`, `evidence`, `reviewers`.
 
 `actionable_findings` lists the `gated_auto` / `manual` + `downstream-resolver` subset with the same fields plus stable `#`.
+
+Each object in `triage_groups` carries `{ "title", "findings": [<stable #s>], "context", "preferred_resolution", "why" }` — the finalized groups from Stage 5 step 9b after Stage 5b pruning. Every referenced `#` must exist in `findings`. Callers can use groups to batch related fixes by theme instead of one at a time. Empty array when `grouping:off` is active or no groups were built.
 
 On failure before review completes, set `"status": "failed"` and `"reason": "<one sentence>"`. When all reviewers fail, use `"status": "degraded"` with a reason. When a PR skip rule fires (closed/merged/trivial), use `"status": "skipped"` with the skip reason. Do not emit markdown tables when `mode:agent` is active.
 

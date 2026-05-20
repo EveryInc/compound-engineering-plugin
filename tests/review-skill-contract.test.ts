@@ -701,7 +701,7 @@ describe("ce-code-review contract", () => {
 
     const stage5 = content.split("### Stage 5b:")[0].split("### Stage 5:")[1]
     expect(stage5).toMatch(/Sort and number/)
-    expect(stage5).toMatch(/Do not restart numbering inside each severity table or autofix\/routing bucket/)
+    expect(stage5).toMatch(/Do not restart numbering inside each severity table, triage group, or autofix\/routing bucket/)
     expect(stage5).toMatch(/reuse the same stable `#`/)
     expect(stage5).toMatch(/downstream workflows/)
 
@@ -738,6 +738,86 @@ describe("ce-code-review contract", () => {
     )
     expect(residualIds).toEqual([2, 3])
     expect(residualIds.every((id) => primaryFindingIds.includes(id))).toBe(true)
+  })
+
+  test("documents grouping tokens as presentation with conflict handling", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+
+    // Three grouping tokens in the Argument Parsing table, auto as default
+    expect(content).toContain("`grouping:auto`")
+    expect(content).toContain("`grouping:off`")
+    expect(content).toContain("`grouping:always`")
+
+    // Grouping never changes review behavior — presentation only
+    expect(content).toContain("Grouping is presentation, not a mode.")
+    expect(content).toMatch(/never reviewer selection, merge logic, scope rules, or the Stage 5c apply decision/)
+
+    // Conflicting grouping tokens stop the review like conflicting modes do
+    expect(content).toMatch(/Multiple distinct `grouping:` tokens/)
+  })
+
+  test("Stage 5 builds triage groups without mutating findings", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+    const stage5 = content.split("### Stage 5b:")[0].split("### Stage 5:")[1]
+
+    expect(stage5).toMatch(/Build thematic triage groups/)
+    // Grouping is distinct from dedup and never alters the merged finding set
+    expect(stage5).toMatch(/distinct from deduplication/)
+    expect(stage5).toMatch(/never change a finding's severity, confidence, route, owner, or stable `#`/)
+    // Stable numbering extends across groups, same as severity tables
+    expect(stage5).toMatch(/Do not restart numbering inside each severity table, triage group, or autofix\/routing bucket/)
+    // auto triggers on distinct concerns (mirrors plan Requirements grouping), not item count
+    expect(stage5).toMatch(/the trigger is distinct concerns, not item count/)
+    expect(stage5).toMatch(/prefer no groups over decorative single-item groups/)
+    expect(stage5).toMatch(/A finding appears in at most one group/)
+  })
+
+  test("triage groups are pruned after validation drops and after apply", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+
+    // Stage 5b: groups never reference findings dropped by validation
+    const stage5b = content.split("### Stage 5c:")[0].split("### Stage 5b:")[1]
+    expect(stage5b).toMatch(/Prune triage groups after drops/)
+    expect(stage5b).toMatch(/must never reference a `#` that was rejected or dropped/)
+
+    // Stage 5c: groups describe remaining work — applied findings leave the groups
+    const stage5c = content.split("### Stage 6:")[0].split("### Stage 5c:")[1]
+    expect(stage5c).toMatch(/Re-partition triage groups after apply/)
+    expect(stage5c).toMatch(/never tell the user to handle a finding that was already applied/)
+  })
+
+  test("triage groups render as a stable-numbered pipe table and JSON field", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+    const template = await readRepoFile(
+      "plugins/compound-engineering/skills/ce-code-review/references/review-output-template.md",
+    )
+    const fixture = await readRepoFile("tests/fixtures/ce-code-review-stable-numbering.md")
+
+    // Stage 6 renders groups as a pipe table that supplements, never replaces, severity tables
+    const stage6 = content.split("### Stage 6: Synthesize and present")[1].split("## Quality Gates")[0]
+    expect(stage6).toMatch(/render a `### Triage Groups` section before the severity tables/)
+    expect(stage6).toContain("| Group | Findings | Context | Preferred Resolution | Why |")
+    expect(stage6).toMatch(/Groups supplement the severity tables, never replace them/)
+
+    // Template carries the canonical skeleton and formatting rule
+    expect(template).toContain("### Triage Groups")
+    expect(template).toContain("| Group | Findings | Context | Preferred Resolution | Why |")
+    expect(template).toMatch(/never replace the severity tables, merge findings, or renumber them/)
+
+    // Fixture group references resolve to primary finding numbers
+    const primaryFindingIds = Array.from(
+      fixture.matchAll(/^\| (\d+) \| `[^`]+` \| .* \| .* \| \d+ \|$/gm),
+      ([, id]) => Number(id),
+    )
+    const groupSection = fixture.split("### Triage Groups")[1].split("\n### ")[0]
+    const groupIds = Array.from(groupSection.matchAll(/#(\d+)/g), ([, id]) => Number(id))
+    expect(groupIds.length).toBeGreaterThan(0)
+    expect(groupIds.every((id) => primaryFindingIds.includes(id))).toBe(true)
+
+    // mode:agent carries groups in the JSON contract instead of a markdown section
+    expect(content).toContain('"triage_groups": []')
+    expect(content).toMatch(/Each object in `triage_groups` carries/)
+    expect(template).toMatch(/`triage_groups`.*batch related fixes by theme/)
   })
 })
 

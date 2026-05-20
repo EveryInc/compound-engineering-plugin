@@ -14,6 +14,12 @@
 
 Validation: tests 18 -> 19; suite 96 pass, lint clean.
 
+### Triage Groups
+
+| Group | Findings | Context | Preferred Resolution | Why |
+|-------|----------|---------|----------------------|-----|
+| Export result-set scaling | #1, #2 | Both stem from loading the full order set in one pass | Design the pagination contract first (#2), then stream behind it (#1) | One cursor/page decision resolves the memory bound and the API shape together |
+
 ### P1 -- High
 
 | # | File | Issue | Reviewer | Confidence |

@@ -94,6 +94,8 @@ After all dispatched personas return, synthesis:
 
 The output is one report with calibrated severity, evidence quotes, and explicit ownership — not a flat list of every reviewer's raw output.
 
+Synthesis also builds **thematic triage groups** (`grouping:auto`, the default): when findings span distinct concerns, related ones are grouped under a short theme — shared root cause, overlapping fix path, one design decision resolving several findings — so a 20-finding review reads as a handful of themes instead of 20 independent items. Groups are a triage lens, not a restructure: findings keep their stable `#`s and severity tables, groups reference them (`#2, #3`), and the `mode:agent` JSON carries the same groups in a `triage_groups` field so callers can batch fixes by theme. Pass `grouping:off` for a flat report or `grouping:always` to group even small reviews.
+
 ### 6. Plan discovery for requirements verification
 
 When the diff has an associated plan (`docs/plans/*.md`), the skill discovers it (via `plan:` argument, PR body link, or auto-discovery from branch name) and reads its Requirements section + Implementation Units. Synthesis then verifies the diff actually satisfies those requirements — catching the case where the code looks fine but doesn't match what the plan said it should do.
@@ -177,8 +179,9 @@ Concurrent use note: `mode:agent` is report-only and never mutates, so it's safe
 | `base:<sha-or-ref>` | Skips scope detection; reviews current checkout against that ref |
 | `plan:<path>` | Loads the plan for requirements verification |
 | `mode:agent` | JSON machine handoff; report-only (the caller applies). `mode:headless` is a deprecated alias; `mode:report-only` is ignored |
+| `grouping:auto` / `grouping:off` / `grouping:always` | Thematic triage grouping of findings (default `auto`: group when findings span distinct concerns). Presentation only — never changes reviewer selection, merge logic, or apply behavior |
 
-Conflicting mode flags stop execution with an error. Combining `base:` with a PR/branch target also errors — pass one or the other.
+Conflicting mode flags (or conflicting grouping flags) stop execution with an error. Combining `base:` with a PR/branch target also errors — pass one or the other.
 
 ---
 
