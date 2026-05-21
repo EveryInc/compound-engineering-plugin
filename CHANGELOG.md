@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.8.4](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.8.3...cli-v3.8.4) (2026-05-21)
+
+
+### Bug Fixes
+
+* **agents:** rename .agent.md to .md for VS Code Copilot tool access ([#846](https://github.com/EveryInc/compound-engineering-plugin/issues/846)) ([796bea7](https://github.com/EveryInc/compound-engineering-plugin/commit/796bea75b74f3b101b53f7cc1c108aece0979e6b))
+
 ## [3.8.3](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.8.2...cli-v3.8.3) (2026-05-17)
 
 

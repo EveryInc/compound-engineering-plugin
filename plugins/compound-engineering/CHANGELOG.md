@@ -9,6 +9,15 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.8.4](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.8.3...compound-engineering-v3.8.4) (2026-05-21)
+
+
+### Bug Fixes
+
+* **agents:** rename .agent.md to .md for VS Code Copilot tool access ([#846](https://github.com/EveryInc/compound-engineering-plugin/issues/846)) ([796bea7](https://github.com/EveryInc/compound-engineering-plugin/commit/796bea75b74f3b101b53f7cc1c108aece0979e6b))
+* **ce-compound:** drop date suffix from generated doc filenames ([#849](https://github.com/EveryInc/compound-engineering-plugin/issues/849)) ([ac1c6d9](https://github.com/EveryInc/compound-engineering-plugin/commit/ac1c6d9a997d4f8eaba1ba55d8b44500ca393cd4))
+* **ce-proof:** update HITL flow for Proof v2 ([#847](https://github.com/EveryInc/compound-engineering-plugin/issues/847)) ([2a46670](https://github.com/EveryInc/compound-engineering-plugin/commit/2a46670958e8c102ea32cb2c532fb00a5e29f6e4))
+
 ## [3.8.3](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.8.2...compound-engineering-v3.8.3) (2026-05-17)
 
 
