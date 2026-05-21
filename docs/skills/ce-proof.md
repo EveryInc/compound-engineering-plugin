@@ -2,9 +2,9 @@
 
 > Create, share, view, comment on, and run human-in-the-loop review loops over markdown documents via [Proof](https://www.proofeditor.ai), Every's collaborative markdown editor.
 
-`ce-proof` is the **collaborative-doc** skill. Proof is a real-time markdown editor where humans and agents both work on the same document — the user annotates with comments and suggestions in their browser; the agent ingests those threads and applies tracked edits. The skill exposes both Proof's web API (no install; create, read, edit shared docs via HTTP) and the local bridge (drives the macOS Proof app at `localhost:9847`). Most chain skills use it for HITL review handoffs.
+`ce-proof` is the **collaborative-doc** skill. Proof is a real-time markdown editor where humans and agents both work on the same document — the user annotates with comments and suggestions in their browser; the agent ingests those threads, applies agreed edits, and replies in place. The skill exposes both Proof's web API (no install; create, read, edit shared docs via HTTP) and the local bridge (drives the macOS Proof app at `localhost:9847`). Most chain skills use it for HITL review handoffs.
 
-The most common use is **HITL review mode**: upload a local markdown file (a brainstorm, a plan, a learning), let the user annotate in Proof's UI, ingest each comment thread as a tracked edit, then sync the reviewed doc back to disk atomically.
+The most common use is **HITL review mode**: upload a local markdown file (a brainstorm, a plan, a learning), let the user annotate in Proof's UI, ingest each comment thread, apply agreed edits, then sync the reviewed doc back to disk atomically.
 
 ---
 
@@ -12,7 +12,7 @@ The most common use is **HITL review mode**: upload a local markdown file (a bra
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Uploads markdown to Proof, lets the user comment / suggest in the web UI, ingests feedback as in-thread replies and tracked edits, syncs the reviewed doc back to local |
+| What does it do? | Uploads markdown to Proof, lets the user comment / suggest in the web UI, ingests feedback as in-thread replies and agreed edits, syncs the reviewed doc back to local |
 | When to use it | "Share to Proof", "view this in Proof", "HITL this doc with me", "iterate with Proof on this draft"; auto-invoked on `ce-brainstorm` / `ce-plan` / `ce-ideate` HITL handoffs |
 | What it produces | A shareable Proof URL, an iterative review loop, and (when the source is a local file) a synced markdown file with the user's edits |
 | Two layers | Web API (HTTP, no install) and Local Bridge (drives macOS Proof app) |
@@ -35,11 +35,14 @@ Reviewing markdown drafts collaboratively is harder than it looks:
 `ce-proof` runs collaboration through Proof's structured API:
 
 - **Web API** for shared docs — no install needed; create, read, edit via HTTP; user gets a shareable URL with an access token
+- **Direct shared-link reads** — agents can fetch Proof URLs with `Accept: application/json` or `Accept: text/markdown`, no browser automation needed
 - **Local Bridge** when the macOS Proof app is running — drives the open document directly via `localhost:9847`
 - **HITL review mode** as the primary chain integration — atomic upload + iterative ingest + atomic end-sync to disk
 - **Consistent identity** — `by: "ai:compound-engineering"` on every op; `name: "Compound Engineering"` bound once via `/presence`
-- **`baseToken` discipline** — read once, mutate many; on `STALE_BASE` re-read and retry once; verify before retry on potentially-applied mutations
-- **Idempotency keys** for safe retries on the same logical write
+- **Efficient ingest passes** — filtered comment reads, one block-edit batch for content changes, one comment batch for replies/resolutions
+- **Rewrite-last edit strategy** — exact replacements and block edits first; whole-doc replacement only when truly unavoidable
+- **`baseToken` discipline** — seed from a read, chain the next token from mutation responses; on `STALE_BASE` re-read and retry once; verify before retry on potentially-applied mutations
+- **Idempotency keys** for safe exact-request retries without duplicate writes
 
 ---
 
@@ -60,22 +63,22 @@ The Human-in-the-Loop Review path (loaded from `references/hitl-review.md`) is t
 
 - Upload a local markdown file to Proof; user gets a URL
 - User annotates in Proof's web UI (comments, suggested edits)
-- Skill ingests the threads — reads each comment, replies in-thread, applies agreed edits as tracked suggestions (`status: "accepted"` for in-place commits with audit trail)
+- Skill ingests the threads — reads filtered comment state, applies agreed edits with `/edit/v2`, replies in-thread, and resolves handled threads in a batched comment mutation
 - On end-sync, syncs the final markdown back to the local file **atomically** (write to temp sibling, then `mv`)
 
 Two entry points, identical mechanics:
 - **Direct user request** — bare phrase like "share this to proof so we can iterate" or "HITL this doc"
 - **Upstream skill handoff** — `ce-brainstorm` / `ce-ideate` / `ce-plan` finishes a draft and passes it for review
 
-### 3. Mutation discipline — `baseToken` reuse + verify-before-retry
+### 3. Mutation discipline — token chaining + verify-before-retry
 
 Every Proof mutation requires a `baseToken`. The skill teaches the right pattern:
 
-- **Read once, mutate many** — `mutationBase.token` from `/state` is good for many mutations; `STALE_BASE` is recoverable
-- **On `STALE_BASE` / `BASE_TOKEN_REQUIRED` / `MISSING_BASE` / `INVALID_BASE_TOKEN`** — re-read `/state`, retry once with same payload + fresh token
+- **Read once, chain tokens** — seed from `/state` or `/snapshot`, then reuse the next `mutationBase.token` returned by successful mutations
+- **On `STALE_BASE` / `BASE_TOKEN_REQUIRED` / `MISSING_BASE` / `INVALID_BASE_TOKEN`** — re-read `/state`, rebuild the body with a fresh token, retry once with a new idempotency key
 - **On `INVALID_OPERATIONS` / `INVALID_REQUEST` / 422 errors** — fix the payload first, don't retry blindly
 - **On `COLLAB_SYNC_FAILED` / 5xx / network timeout / `202 with collab.status: "pending"`** — the canonical doc *may* have been written; re-read `/state` and check whether the intended mark/edit is already present **before retrying**
-- **`Idempotency-Key`** is recommended on every mutation; required when contract demands it. Same key on retry collapses the duplicate; new key means a new logical write
+- **`Idempotency-Key`** is recommended on every mutation; required when contract demands it. Reuse the same key only for an exact same-body resend; if the body changes (including a fresh `baseToken`), mint a new key
 
 > Duplicate-mark incidents usually come from retrying a `comment.add` or `suggestion.add` after a timeout without verifying. When in doubt: re-read, diff, then decide.
 
@@ -83,16 +86,40 @@ Every Proof mutation requires a `baseToken`. The skill teaches the right pattern
 
 Proof has two write surfaces with **load-bearing differences** the skill teaches:
 
-- **`/api/agent/{slug}/ops`** — top-level `type` field; one operation per call. Best for marks (`comment.add`, `suggestion.add`, `comment.reply`, etc.)
-- **`/api/agent/{slug}/edit/v2`** — `operations` array where each entry has `op`. Atomic batch — every op lands or none. Best for block-level edits (`replace_block`, `insert_after`, `find_replace_in_block`, etc.)
+- **`/api/agent/{slug}/ops`** — top-level `type` for one mark op, or top-level `operations` for batched comment thread mutations. Best for comments, suggestions, replies, and resolves.
+- **`/api/agent/{slug}/edit/v2`** — `operations` array where each entry has `op`. Atomic batch — every op lands or none. Best for block-level edits and bulk sweeps (`replace_block`, `insert_after`, `find_replace_in_doc`, etc.)
 
 Sending an `op`-shaped operation to `/ops` returns 422; the wire format isn't interchangeable. The skill documents both.
 
-### 5. Tracked suggestion with `status: "accepted"`
+### 5. Fast HITL passes — edit batch, then comment batch
+
+For normal HITL feedback, the comment thread is the audit trail. The efficient pass shape is:
+
+- Read `GET /state?kinds=comment` so provenance/authorship marks never pollute the needs-reply list
+- Apply agreed content edits with one `/edit/v2` batch where possible
+- Use `find_replace_in_doc` for literal doc-wide replacements such as terminology or punctuation sweeps
+- Reply to and resolve handled threads in one `/ops` batch using `comment.reply` with `resolve: true`
+
+This turns an 8-comment review from dozens of sequential reply/resolve/state-read requests into a small number of authoritative mutations.
+
+### 6. Rewrite Is The Last Resort
+
+Agents should not start by replacing the full document. The preferred edit ladder is:
+
+- `find_replace_in_doc` for exact repeated substitutions
+- `/edit/v2` block operations for known paragraphs, list items, sections, insertions, and deletions
+- `suggestion.add` when visible track changes are the desired review surface
+- `rewrite.apply` only when the user explicitly wants a whole-doc replacement or the change cannot be expressed safely with narrower operations
+
+That keeps human comments stable, avoids clobbering live collaborators, and makes retries easier to reason about.
+
+### 7. Tracked suggestion with `status: "accepted"`
 
 `suggestion.add` defaults to creating a pending suggestion the user must accept/reject. The skill also exposes `status: "accepted"` — creates the suggestion mark **and** commits the change in one call. The mark persists as audit trail with per-edit attribution; the user can still reject to revert. Useful when the agent is confident and the user wants to see what landed without an explicit accept step.
 
-### 6. `LIVE_CLIENTS_PRESENT` awareness
+The HITL default is now `/edit/v2` plus an in-thread reply; use accepted suggestions when a visible track-change mark is itself part of the desired review experience.
+
+### 8. `LIVE_CLIENTS_PRESENT` awareness
 
 While a client is connected to a Proof doc, the skill knows what's safe:
 
@@ -103,7 +130,7 @@ While a client is connected to a Proof doc, the skill knows what's safe:
 
 The skill tells callers to reserve `rewrite.apply` for no-client scenarios and use the granular ops or `/edit/v2` during active sessions.
 
-### 7. Atomic end-sync to local file
+### 9. Atomic end-sync to local file
 
 When the source was a local markdown file, end-sync writes the reviewed Proof state back to disk **atomically**:
 
@@ -117,7 +144,7 @@ jq -jr '.markdown' "$STATE_TMP" > "$TMP" && mv "$TMP" "$LOCAL"
 
 The skill also asks the user to confirm before writing when the pull isn't directly asked for (e.g., as a side-effect of HITL completion) — silent overwrites are surprising.
 
-### 8. Consistent agent identity
+### 10. Consistent agent identity
 
 The skill enforces `by: "ai:compound-engineering"` on every op and `X-Agent-Id: ai:compound-engineering` in headers. Display name `Compound Engineering` is bound once per session via `/presence`. **Don't use `ai:compound` or other ad-hoc variants** — identity stays uniform unless a caller explicitly overrides for a sub-agent context.
 
@@ -133,8 +160,8 @@ User opens the URL in their browser. Adds 4 inline comments and 2 suggested edit
 
 The skill reads `/state`, finds 6 new marks. For each comment thread:
 - Reads the thread fresh
-- Composes a reply addressing the concern (with `comment.reply`)
-- For agreed edits, posts a tracked suggestion (`suggestion.add` with `status: "accepted"`) — change lands with an audit-trail mark
+- Applies agreed content edits through `/edit/v2` in a small batch
+- Posts thread replies and resolves handled comments with one `/ops` comment batch
 
 After all threads are processed, the skill asks the user to confirm the end-sync. User confirms. The skill atomically writes the reviewed markdown back to `docs/plans/2026-05-04-001-feat-notification-mute-plan.md`. Returns control to `ce-plan` Phase 5.4 with `status: proceeded` and `localSynced: true`.
 
@@ -145,7 +172,7 @@ After all threads are processed, the skill asks the user to confirm the end-sync
 Reach for `ce-proof` when:
 
 - You want a shareable URL for a markdown doc (brainstorm, plan, learning, draft)
-- You want HITL review with comment threads, tracked edits, and atomic disk sync at the end
+- You want HITL review with comment threads, agent-applied edits, and atomic disk sync at the end
 - A chain skill (`ce-brainstorm`, `ce-plan`, `ce-ideate`) handed off for human review
 - You're working from a Proof URL and want the agent to participate
 
@@ -195,34 +222,37 @@ Direct invocation for ad-hoc Proof work:
 | Op (Web API `/ops`) | Purpose |
 |---------------------|---------|
 | `comment.add` | Comment on a quote |
-| `comment.reply` | Reply within a thread |
+| `comment.reply` | Reply within a thread; `resolve: true` replies and closes in one mutation |
 | `comment.resolve` / `comment.unresolve` | Toggle thread resolution |
 | `suggestion.add` | Tracked edit (pending or `status: "accepted"`) |
 | `suggestion.accept` / `suggestion.reject` | Resolve a suggestion |
-| `rewrite.apply` | Whole-doc replacement (blocked by `LIVE_CLIENTS_PRESENT`) |
+| `rewrite.apply` | Last-resort whole-doc replacement (blocked by `LIVE_CLIENTS_PRESENT`) |
 
 | Endpoint | Wire format | Best for |
 |----------|-------------|----------|
-| `/api/agent/{slug}/ops` | Top-level `type` | Marks (comment, suggestion) |
-| `/api/agent/{slug}/edit/v2` | `operations: [{op, ...}, ...]` | Atomic block batches |
+| `/api/agent/{slug}/ops` | Top-level `type` or comment `operations` batch | Marks, batched replies/resolves |
+| `/api/agent/{slug}/edit/v2` | `operations: [{op, ...}, ...]` | Atomic block batches and `find_replace_in_doc` sweeps |
 
-Identity defaults: `by: "ai:compound-engineering"`, `name: "Compound Engineering"`. `Idempotency-Key` recommended on every mutation.
+Identity defaults: `by: "ai:compound-engineering"`, `X-Agent-Id: ai:compound-engineering`, `name: "Compound Engineering"`. `Idempotency-Key` recommended on every mutation and required when the contract says so.
 
 ---
 
 ## FAQ
 
 **Why two endpoint shapes?**
-Different concerns. `/ops` handles per-call mark mutations (one comment, one suggestion). `/edit/v2` handles atomic batches of block-level edits (one call commits 12 block changes or none). The wire formats differ — sending `op` shape to `/ops` returns 422.
+Different concerns. `/ops` handles mark mutations, including batched existing-thread comment replies/resolves. `/edit/v2` handles atomic batches of block-level edits and document-wide literal replacement. The wire formats differ — sending `op` shape to `/ops` returns 422.
+
+**Should I rewrite the whole doc?**
+Almost never as a first move. Use `find_replace_in_doc` for literal sweeps and block-level `/edit/v2` for scoped edits. Use `rewrite.apply` only when the user asked for full replacement or the change cannot be represented with narrower operations.
 
 **What's the right mutation pattern?**
-Read `/state` once, capture `mutationBase.token`, reuse for many mutations. On `STALE_BASE`, re-read and retry once with fresh token. On potentially-applied errors (5xx, timeout, `202 pending`), re-read and check whether the change is already present before retrying — duplicate marks come from retrying without verifying.
+Read `/state?kinds=comment` for comment ingest or `/snapshot` for block refs, capture `mutationBase.token`, then update your cached token from successful mutation responses. On `STALE_BASE`, re-read and retry once with fresh token. On potentially-applied errors (5xx, timeout, `202 pending`), re-read and check whether the change is already present before retrying — duplicate marks come from retrying without verifying.
 
 **Why the `ai:compound-engineering` identity?**
 For consistent attribution. Mark authorship in the rendered doc shows who edited; if the agent uses `ai:compound` one day and `ai:compound-engineering` the next, the audit trail looks fragmented. The skill enforces one identity unless a caller explicitly overrides.
 
 **What does HITL review mode do?**
-Upload a local markdown file to Proof, let the user annotate via comments and suggestions in the web UI, ingest each thread (read fresh, reply, apply agreed edits as tracked suggestions), then sync the reviewed markdown back to the local file atomically. The full loop spec is in `references/hitl-review.md`.
+Upload a local markdown file to Proof, let the user annotate via comments and suggestions in the web UI, ingest each thread with filtered comment reads, apply agreed edits through Proof's edit APIs, reply/resolve in-thread, then sync the reviewed markdown back to the local file atomically. The full loop spec is in `references/hitl-review.md`.
 
 **Can I edit a doc while a user is connected?**
 Yes for `/edit/v2`, `suggestion.add` (including `status: "accepted"`), and all comment ops. No for `rewrite.apply` — it's blocked by `LIVE_CLIENTS_PRESENT` because it would clobber in-flight Yjs edits.

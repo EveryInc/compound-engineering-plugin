@@ -26,7 +26,7 @@ Set the display name once per doc session by posting to presence with the `X-Age
 
 ## Human-in-the-Loop Review Mode
 
-Human-in-the-loop iteration over an existing local markdown file: upload to Proof, let the user annotate in Proof's web UI, ingest feedback as in-thread replies and tracked edits, and sync the final doc back to disk. Two entry points, identical mechanics — load `references/hitl-review.md` for the full loop spec (invocation contract, mark classification, idempotent ingest passes, exception-based terminal reporting, end-sync atomic write) in either case:
+Human-in-the-loop iteration over an existing local markdown file: upload to Proof, let the user annotate in Proof's web UI, ingest feedback as in-thread replies and agreed edits, and sync the final doc back to disk. Two entry points, identical mechanics — load `references/hitl-review.md` for the full loop spec (invocation contract, mark classification, idempotent ingest passes, exception-based terminal reporting, end-sync atomic write) in either case:
 
 - **Direct user request** — a bare user phrase naming a local markdown file and asking to iterate collaboratively via Proof: "share this to proof so we can iterate", "iterate with proof on this doc", "HITL this file with me", "let's get feedback on this in proof", "open this in proof editor so I can review". The file is whichever markdown the user just created, edited, or referenced; if ambiguous, ask which file. This is a first-class entry point — do not require an upstream caller.
 - **Upstream skill handoff** — `ce-brainstorm`, `ce-ideate`, or `ce-plan` finishes a draft and hands it off for human review before the next phase, passing the file path and title explicitly.
@@ -61,14 +61,32 @@ Use the `tokenUrl` as the shareable link. The `_links` give you the exact API pa
 
 ### Read a Shared Document
 
+If you already have a shared Proof URL, no browser automation is needed. Fetch the URL directly with content negotiation:
+
+```bash
+curl -s -H "Accept: application/json" "https://www.proofeditor.ai/d/{slug}?token=<token>"
+curl -s -H "Accept: text/markdown" "https://www.proofeditor.ai/d/{slug}?token=<token>"
+```
+
+The JSON response includes the markdown, API links, and agent auth hints. Use `/state` when you need mutation metadata, marks, or presence:
+
 ```bash
 curl -s "https://www.proofeditor.ai/api/agent/{slug}/state" \
   -H "x-share-token: <token>"
 ```
 
+For comment-ingest workflows, prefer the server-side filter:
+
+```bash
+curl -s "https://www.proofeditor.ai/api/agent/{slug}/state?kinds=comment" \
+  -H "x-share-token: <token>"
+```
+
+`state.marks` is a union of comments, suggestions, and provenance/authorship marks. The `?kinds=comment` filter avoids treating human-authored provenance marks as review comments.
+
 ### Edit a Shared Document
 
-All operations go to `POST https://www.proofeditor.ai/api/agent/{slug}/ops`
+Comment, suggestion, and rewrite operations go to `POST https://www.proofeditor.ai/api/agent/{slug}/ops`. Block edits use `/api/agent/{slug}/edit/v2`.
 
 **Note:** Use the `/api/agent/{slug}/ops` path (from `_links` in create response), NOT `/api/documents/{slug}/ops`.
 
@@ -79,13 +97,24 @@ All operations go to `POST https://www.proofeditor.ai/api/agent/{slug}/ops`
 
 **Wire-format reminder.** `/api/agent/{slug}/ops` uses a top-level `type` field; `/api/agent/{slug}/edit/v2` uses an `operations` array where each entry has `op`. Do not mix — sending `op` to `/ops` returns 422.
 
-**Every mutation requires a `baseToken`.** Reuse the `mutationBase.token` from the most recent `/state` or `/snapshot` read — tokens don't go stale in seconds, and `STALE_BASE` is a recoverable error. On `BASE_TOKEN_REQUIRED` or `STALE_BASE`, re-read and retry once. Only do a pre-mutation read if no prior read has happened in this session. See the baseToken recipe in `references/hitl-review.md`.
+**Every mutation requires a `baseToken`.** Reuse the `mutationBase.token` from the most recent `/state` or `/snapshot` read, then update it from successful mutation responses (`.mutationBase.token`). On `BASE_TOKEN_REQUIRED` or `STALE_BASE`, re-read and retry once. Only do a pre-mutation read if no prior read has happened in this session or you need fresh document/comment/snapshot content. See the baseToken recipe in `references/hitl-review.md`.
 
 `/edit/v2` block refs are a separate concern: they can drift across revisions, so re-fetch `/snapshot` for fresh refs before a block edit if any writes have landed since your last snapshot.
 
+### Edit Strategy: Avoid Whole-Doc Rewrite
+
+Do not default to full-document replacement. Pick the narrowest edit primitive that matches the requested change:
+
+1. **Literal repeated change:** use `/edit/v2` with `find_replace_in_doc` (optionally constrained by `fromRef`, `toRef`, or `block_filter`). This is the fastest and least error-prone path for terminology renames, punctuation/style sweeps, and other exact text substitutions.
+2. **Known block or section change:** use `/edit/v2` block operations from a fresh `/snapshot`: `replace_block`, `insert_before`, `insert_after`, `delete_block`, `replace_range`, or `find_replace_in_block`.
+3. **Visible track-changes desired:** use `/ops` `suggestion.add` (pending or `status: "accepted"`) when the user should see a suggestion mark and reject/revert affordance for that specific edit.
+4. **Whole-doc replacement:** use `rewrite.apply` only as a last resort when the user explicitly asks to replace the entire document, when the intended change is genuinely global and cannot be expressed as block/range/find-replace operations, and when no live clients are present. Before rewriting, read current state, preserve comments/marks expectations, and mention that the rewrite is broad.
+
+When in doubt, start with `/snapshot` and build a small `/edit/v2` batch. A narrow failed edit is easier to inspect and retry than a broad rewrite, and it avoids clobbering concurrent human work.
+
 **Retry discipline after mutation errors — verify before retrying.** An error response is not proof that nothing was written.
 
-- `STALE_BASE`, `BASE_TOKEN_REQUIRED`, `MISSING_BASE`, `INVALID_BASE_TOKEN` — pre-commit, token-related. Re-read `/state` and retry once with the same payload and a fresh `baseToken`. A generic mutate helper can auto-retry these.
+- `STALE_BASE`, `BASE_TOKEN_REQUIRED`, `MISSING_BASE`, `INVALID_BASE_TOKEN` — pre-commit, token-related. Re-read `/state`, rebuild the request body with a fresh `baseToken`, and retry once with a new `Idempotency-Key`.
 - `ANCHOR_NOT_FOUND`, `ANCHOR_AMBIGUOUS` — pre-commit, but the `quote` no longer uniquely matches content. Re-reading does not help by itself; the caller must tighten or regenerate the anchor before retrying. Do not auto-retry blindly.
 - `INVALID_OPERATIONS`, `INVALID_REQUEST`, `INVALID_REF`, `INVALID_BLOCK_MARKDOWN`, `INVALID_RANGE`, `INVALID_MARKDOWN`, 422 — pre-commit, but the payload is wrong. Do not retry blindly; fix the payload first.
 - `COLLAB_SYNC_FAILED`, `REWRITE_BARRIER_FAILED`, `PROJECTION_STALE`, `INTERNAL_ERROR`, 5xx, network timeout, and any **202 with `collab.status: "pending"`** — the canonical doc may have been written even though the call looks like a failure. Before any retry, re-read `/state` and check whether the intended mark/edit is already present; only retry if it isn't.
@@ -93,7 +122,7 @@ All operations go to `POST https://www.proofeditor.ai/api/agent/{slug}/ops`
 
 Duplicate-mark incidents usually come from retrying a `comment.add` or `suggestion.add` after a timeout without verifying. When in doubt: re-read, diff, then decide.
 
-**`Idempotency-Key` header** is recommended on every mutation for safe automation retries; required when `/state.contract.idempotencyRequired` is true. Use the same key when retrying the exact same logical write (same payload) so the server can collapse the retry. A new key means a new write — even if the payload is identical.
+**`Idempotency-Key` header** is recommended on every mutation for safe automation retries; required when `/state.contract.idempotencyRequired` is true. Use the same key only when resending the exact same serialized request body. If the body changes — including because you replaced `baseToken` after `STALE_BASE` — mint a new key or Proof will reject it as key reuse with a different payload.
 
 **Comment on text:**
 ```json
@@ -104,6 +133,21 @@ Duplicate-mark incidents usually come from retrying a `comment.add` or `suggesti
 ```json
 {"type": "comment.reply", "markId": "<id>", "by": "ai:compound-engineering", "text": "Reply text", "baseToken": "<token>"}
 ```
+
+**Reply and resolve in one mutation:**
+```json
+{"type": "comment.reply", "markId": "<id>", "by": "ai:compound-engineering", "text": "Fixed.", "resolve": true, "baseToken": "<token>"}
+```
+
+**Batch existing-thread comment mutations:**
+```json
+{"by": "ai:compound-engineering", "baseToken": "<token>", "operations": [
+  {"type": "comment.reply", "markId": "<id-1>", "text": "Fixed.", "resolve": true},
+  {"type": "comment.reply", "markId": "<id-2>", "text": "Leaving this open because X."}
+]}
+```
+
+Batch `/ops` supports `comment.reply`, `comment.resolve`, and `comment.unresolve` for existing threads. Use it for HITL ingest passes instead of issuing separate reply and resolve requests per thread.
 
 **Resolve / unresolve a comment:**
 ```json
@@ -131,10 +175,12 @@ Duplicate-mark incidents usually come from retrying a `comment.add` or `suggesti
 
 `suggestion.resolve` is not supported — use accept or reject instead.
 
-**Bulk rewrite (whole-doc replacement):**
+**Whole-doc rewrite (last resort):**
 ```json
 {"type": "rewrite.apply", "content": "full new markdown", "by": "ai:compound-engineering", "baseToken": "<token>"}
 ```
+
+Prefer `find_replace_in_doc` or block-level `/edit/v2` operations first. `rewrite.apply` is broad, disruptive, and blocked while live clients are connected.
 
 **Block-level edits via `/edit/v2`** (separate endpoint, separate shape):
 ```bash
@@ -163,8 +209,11 @@ Per-op body shape (singular `block` vs plural `blocks` is load-bearing — sendi
 | `delete_block` | `ref` |
 | `replace_range` | `fromRef`, `toRef`, `blocks: [{markdown}, ...]` |
 | `find_replace_in_block` | `ref`, `find`, `replace`, `occurrence: "first" \| "all"` |
+| `find_replace_in_doc` | `find`, `replace`, `occurrence: "first" \| "all"`, optional `fromRef`, `toRef`, `block_filter` |
 
-Read `/snapshot` to get stable block `ref` IDs. `operations` commits atomically — either every op lands or none do — so one `/edit/v2` call can batch dozens of block edits safely and efficiently (see the bulk-sweep guidance in `references/hitl-review.md` Phase 2.4).
+Read `/snapshot` to get block `ref` IDs and `mutationBase.token`. `ref` values are opaque request tokens tied to the snapshot/baseToken; re-read `/snapshot` before follow-up block edits if writes have landed. `operations` commits atomically — either every op lands or none do — so one `/edit/v2` call can batch dozens of block edits safely and efficiently (see the bulk-sweep guidance in `references/hitl-review.md` Phase 2.4). Successful full responses include the next `mutationBase.token` and fresh `snapshot.blocks[].ref` values for chaining.
+
+For literal doc-wide sweeps, prefer `find_replace_in_doc` over many block replacements or a whole-doc rewrite. Validate large batches with `?dryRun=1` or `?validate=1`; use `?return=minimal` when you only need `ok`, `revision`, `appliedCount`, and the next `mutationBase`.
 
 **Editing while a client is connected is fine.** `/edit/v2`, `suggestion.add` (including `status: "accepted"`), and all comment ops work during active collab. Only `rewrite.apply` is blocked by `LIVE_CLIENTS_PRESENT` — it would clobber in-flight Yjs edits.
 
@@ -179,7 +228,7 @@ Read `/snapshot` to get stable block `ref` IDs. `operations` commits atomically 
 Requires Proof.app running. Bridge at `http://localhost:9847`.
 
 **Required headers:**
-- `X-Agent-Id: claude` (identity for presence)
+- `X-Agent-Id: ai:compound-engineering` (identity for presence; keep aligned with `by`)
 - `Content-Type: application/json`
 - `X-Window-Id: <uuid>` (when multiple docs open)
 
@@ -198,7 +247,7 @@ Requires Proof.app running. Bridge at `http://localhost:9847`.
 | POST | `/marks/resolve` | `{"markId":"<id>","by":"ai:compound-engineering"}` |
 | POST | `/marks/accept` | `{"markId":"<id>"}` |
 | POST | `/marks/reject` | `{"markId":"<id>"}` |
-| POST | `/rewrite` | `{"content":"full markdown","by":"ai:compound-engineering"}` |
+| POST | `/rewrite` | Last-resort whole-doc replacement: `{"content":"full markdown","by":"ai:compound-engineering"}` |
 | POST | `/presence` | `{"status":"reading","summary":"..."}` |
 | GET | `/events/pending` | Poll for user actions |
 
@@ -211,37 +260,62 @@ Requires Proof.app running. Bridge at `http://localhost:9847`.
 When given a Proof URL like `https://www.proofeditor.ai/d/abc123?token=xxx`:
 
 1. Extract the slug (`abc123`) and token from the URL
-2. Read the document state via the API
-3. Add comments or suggest edits using the ops endpoint
+2. Read the document via content negotiation on the shared URL or via `/api/agent/{slug}/state` when you need marks/mutation metadata
+3. For content edits, prefer `/edit/v2` `find_replace_in_doc` or block operations; use `/ops` for comments, suggestions, and comment replies/resolution
 4. The author sees changes in real-time
 
 ```bash
-# Read once — the same response yields both the doc content and the baseToken for every mutation below.
+SHARE_URL="https://www.proofeditor.ai/d/abc123?token=xxx"
+curl -s -H "Accept: application/json" "$SHARE_URL"
+curl -s -H "Accept: text/markdown" "$SHARE_URL"
+
+# Read once for content + the initial baseToken.
+# After each successful mutation, update BASE from the response's mutationBase.token.
 STATE=$(curl -s "https://www.proofeditor.ai/api/agent/abc123/state" \
   -H "x-share-token: xxx")
 BASE=$(printf '%s' "$STATE" | jq -r '.mutationBase.token')
 # Inspect doc fields as needed: printf '%s' "$STATE" | jq '.markdown, .revision'
 
 # Comment
-curl -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
+OP_RESP=$(curl -s -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
   -H "Content-Type: application/json" \
   -H "x-share-token: xxx" \
   -H "X-Agent-Id: ai:compound-engineering" \
-  -d "$(jq -n --arg base "$BASE" '{type:"comment.add",quote:"text",by:"ai:compound-engineering",text:"comment",baseToken:$base}')"
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d "$(jq -n --arg base "$BASE" '{type:"comment.add",quote:"text",by:"ai:compound-engineering",text:"comment",baseToken:$base}')")
+NEXT_BASE=$(printf '%s' "$OP_RESP" | jq -r '.mutationBase.token // empty')
+[ -n "$NEXT_BASE" ] && BASE="$NEXT_BASE"
 
 # Suggest edit (tracked, pending)
-curl -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
+OP_RESP=$(curl -s -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
   -H "Content-Type: application/json" \
   -H "x-share-token: xxx" \
   -H "X-Agent-Id: ai:compound-engineering" \
-  -d "$(jq -n --arg base "$BASE" '{type:"suggestion.add",kind:"replace",quote:"old",by:"ai:compound-engineering",content:"new",baseToken:$base}')"
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d "$(jq -n --arg base "$BASE" '{type:"suggestion.add",kind:"replace",quote:"old",by:"ai:compound-engineering",content:"new",baseToken:$base}')")
+NEXT_BASE=$(printf '%s' "$OP_RESP" | jq -r '.mutationBase.token // empty')
+[ -n "$NEXT_BASE" ] && BASE="$NEXT_BASE"
 
 # Suggest and immediately apply (tracked, committed)
-curl -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
+OP_RESP=$(curl -s -X POST "https://www.proofeditor.ai/api/agent/abc123/ops" \
   -H "Content-Type: application/json" \
   -H "x-share-token: xxx" \
   -H "X-Agent-Id: ai:compound-engineering" \
-  -d "$(jq -n --arg base "$BASE" '{type:"suggestion.add",kind:"replace",quote:"old",by:"ai:compound-engineering",content:"new",status:"accepted",baseToken:$base}')"
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d "$(jq -n --arg base "$BASE" '{type:"suggestion.add",kind:"replace",quote:"old",by:"ai:compound-engineering",content:"new",status:"accepted",baseToken:$base}')")
+NEXT_BASE=$(printf '%s' "$OP_RESP" | jq -r '.mutationBase.token // empty')
+[ -n "$NEXT_BASE" ] && BASE="$NEXT_BASE"
+
+# Direct content edit (preferred when visible suggestion marks are not needed)
+SNAPSHOT=$(curl -s "https://www.proofeditor.ai/api/agent/abc123/snapshot" \
+  -H "x-share-token: xxx")
+EDIT_BASE=$(printf '%s' "$SNAPSHOT" | jq -r '.mutationBase.token')
+curl -X POST "https://www.proofeditor.ai/api/agent/abc123/edit/v2?return=minimal" \
+  -H "Content-Type: application/json" \
+  -H "x-share-token: xxx" \
+  -H "X-Agent-Id: ai:compound-engineering" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d "$(jq -n --arg base "$EDIT_BASE" '{by:"ai:compound-engineering",baseToken:$base,operations:[{op:"find_replace_in_doc",find:"old",replace:"new",occurrence:"all"}]}')"
 ```
 
 ## Workflow: Create and Share a New Document
@@ -267,14 +341,28 @@ curl -s -X POST "https://www.proofeditor.ai/api/agent/$SLUG/presence" \
 # 4. Share the URL
 echo "$URL"
 
-# 5. Make edits using the ops endpoint (baseToken required)
+# 5. Make comment/suggestion edits using the ops endpoint (baseToken required)
 BASE=$(curl -s "https://www.proofeditor.ai/api/agent/$SLUG/state" \
   -H "x-share-token: $TOKEN" | jq -r '.mutationBase.token')
-curl -X POST "https://www.proofeditor.ai/api/agent/$SLUG/ops" \
+OP_RESP=$(curl -s -X POST "https://www.proofeditor.ai/api/agent/$SLUG/ops" \
   -H "Content-Type: application/json" \
   -H "x-share-token: $TOKEN" \
   -H "X-Agent-Id: ai:compound-engineering" \
-  -d "$(jq -n --arg base "$BASE" '{type:"comment.add",quote:"Content here",by:"ai:compound-engineering",text:"Added a note",baseToken:$base}')"
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d "$(jq -n --arg base "$BASE" '{type:"comment.add",quote:"Content here",by:"ai:compound-engineering",text:"Added a note",baseToken:$base}')")
+NEXT_BASE=$(printf '%s' "$OP_RESP" | jq -r '.mutationBase.token // empty')
+[ -n "$NEXT_BASE" ] && BASE="$NEXT_BASE"
+
+# For content edits, prefer /edit/v2 over rewrite.apply.
+SNAPSHOT=$(curl -s "https://www.proofeditor.ai/api/agent/$SLUG/snapshot" \
+  -H "x-share-token: $TOKEN")
+EDIT_BASE=$(printf '%s' "$SNAPSHOT" | jq -r '.mutationBase.token')
+curl -X POST "https://www.proofeditor.ai/api/agent/$SLUG/edit/v2?return=minimal" \
+  -H "Content-Type: application/json" \
+  -H "x-share-token: $TOKEN" \
+  -H "X-Agent-Id: ai:compound-engineering" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -d "$(jq -n --arg base "$EDIT_BASE" '{by:"ai:compound-engineering",baseToken:$base,operations:[{op:"find_replace_in_doc",find:"Content",replace:"Updated content",occurrence:"all"}]}')"
 ```
 
 ## Workflow: Pull a Proof Doc to Local
@@ -310,6 +398,7 @@ rm "$STATE_TMP"
 
 - Use `/state` content as source of truth before editing
 - During active collab use `edit/v2` (direct block changes) or `suggestion.add` (tracked changes); reserve `rewrite.apply` for no-client scenarios since it's blocked by `LIVE_CLIENTS_PRESENT` when anyone is connected
+- Prefer `find_replace_in_doc` and block-level `/edit/v2` edits before considering `rewrite.apply`
 - Don't span table cells in a single replace
 - Always include `by: "ai:compound-engineering"` on every op and `X-Agent-Id: ai:compound-engineering` in headers for consistent attribution
 - Reuse `baseToken` from your most recent `/state` or `/snapshot` read; on `STALE_BASE`, re-read and retry once
