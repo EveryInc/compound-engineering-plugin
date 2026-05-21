@@ -63,7 +63,7 @@ Based on selection (the bare per-option routing is also stated inline in the SKI
   - identity: `ai:compound-engineering` / `Compound Engineering`
   - recommended next step: `/ce-work` (shown in the ce-proof skill's final terminal output)
 
-  Follow `references/hitl-review.md` in the ce-proof skill. It uploads the plan, prompts the user for review in Proof's web UI, ingests each thread by reading it fresh and replying in-thread, applies agreed edits as tracked suggestions, and syncs the final markdown back to the plan file atomically on proceed.
+  Follow `references/hitl-review.md` in the ce-proof skill. It uploads the plan, prompts the user for review in Proof's web UI, ingests filtered comment threads, applies agreed edits through the current Proof edit APIs, replies/resolves in-thread, and syncs the final markdown back to the plan file atomically on proceed.
 
   When the ce-proof skill returns:
   - `status: proceeded` with `localSynced: true` -> the plan on disk now reflects the review. Re-run `ce-doc-review` on the updated plan before re-rendering the menu — HITL can materially rewrite the plan body, so the prior ce-doc-review pass no longer covers the current file and section 5.3.8 requires a review before any handoff option is offered. Then return to the post-generation options with the refreshed residual findings.

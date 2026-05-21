@@ -81,7 +81,7 @@ Load the `ce-proof` skill in HITL-review mode with:
 - **identity:** `ai:compound-engineering` / `Compound Engineering`
 - **recommended next step:** `ce-plan` (shown in the ce-proof skill's final terminal output)
 
-Follow `references/hitl-review.md` in the ce-proof skill. It uploads the doc, prompts the user for review in Proof's web UI, ingests each thread by reading it fresh and replying in-thread, applies agreed edits as tracked suggestions, and syncs the final markdown back to the source file atomically on proceed.
+Follow `references/hitl-review.md` in the ce-proof skill. It uploads the doc, prompts the user for review in Proof's web UI, ingests filtered comment threads, applies agreed edits through the current Proof edit APIs, replies/resolves in-thread, and syncs the final markdown back to the source file atomically on proceed.
 
 When the ce-proof skill returns control:
 

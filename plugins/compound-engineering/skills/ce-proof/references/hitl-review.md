@@ -1,6 +1,6 @@
 # HITL Review Mode
 
-Human-in-the-loop iteration loop for a markdown document shared via Proof. Invoked either by an upstream skill (`ce-brainstorm`, `ce-ideate`, `ce-plan`) handing off a draft it produced, or directly by the user asking to iterate on an existing markdown file they already have on disk ("share this to proof and iterate", "HITL this doc with me"). Mechanics are identical in both cases: upload the local doc, let the user annotate in Proof's web UI, ingest feedback as in-thread replies and tracked edits, and sync the final doc back to disk.
+Human-in-the-loop iteration loop for a markdown document shared via Proof. Invoked either by an upstream skill (`ce-brainstorm`, `ce-ideate`, `ce-plan`) handing off a draft it produced, or directly by the user asking to iterate on an existing markdown file they already have on disk ("share this to proof and iterate", "HITL this doc with me"). Mechanics are identical in both cases: upload the local doc, let the user annotate in Proof's web UI, ingest feedback as in-thread replies and agreed edits, and sync the final doc back to disk.
 
 This mode assumes a local markdown file exists. There is no "from scratch" entry — if the user wants a fresh doc, create one with the normal proof create workflow first, then invoke HITL.
 
@@ -65,25 +65,26 @@ At the start of the pass, update presence to `status: "acting"` with a short sum
 ### 2.1 Read fresh state
 
 ```
-GET /api/agent/{slug}/state
+GET /api/agent/{slug}/state?kinds=comment
 Headers: x-share-token: <token>
 ```
 
 Capture:
 - `markdown` (current body — includes any user direct edits and accepted suggestions)
 - `revision`
-- `marks` (object keyed by markId)
+- `marks` (object keyed by markId, filtered to comment marks)
 - `mutationBase.token` — the baseToken required for this round's mutations
 
 ### 2.2 Identify marks that need attention
 
 Filter `marks` to items where **all** of the following hold:
 
+- `kind` is `comment` (the `?kinds=comment` read should already guarantee this, but keep the local guard)
 - `by` starts with `human:` (authored by a human, not the agent)
 - `resolved` is `false`
 - Either `thread` has no entry authored by any `ai:*` identity, **OR** the latest entry in `thread` is authored by `human:*` with an `at` timestamp newer than the latest `ai:*` entry (user responded to a prior agent reply)
 
-Skip everything else. Agent-authored marks, resolved threads, and threads already replied to with no new human response are done.
+Skip everything else. Agent-authored marks, resolved threads, non-comment marks, and threads already replied to with no new human response are done. Do not build needs-reply filters from `by` alone — Proof's full `marks` bag can include provenance/authored marks that share a `human:` prefix but are not review comments.
 
 ### 2.3 Read each mark and decide how to respond
 
@@ -101,13 +102,24 @@ Real feedback blends types — "this is wrong, rename to Y" is both objection an
 
 **Invariant:** every attention-needing mark ends the pass with an agent reply in its thread. Unreplied = "still to do" — the next pass re-classifies it. This is what makes the loop idempotent without a sidecar: mark state *is* the state. Even when the agent disagrees or can't decide, reply (with reasoning or a question) rather than silently skip.
 
-**Parallelize independent thread ops.** `comment.reply` and `comment.resolve` across different marks don't conflict — they touch different thread state and a stale `baseToken` on one doesn't poison another (retry-on-`STALE_BASE` is cheap, per-mark, and local). When there are more than ~3 attention-needing marks that classify as plain replies or resolves, dispatch them in parallel — either via multiple tool calls in one turn or via sub-agents (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex, `subagent` in Pi). Keep block-mutating edits (`suggestion.add`, `/edit/v2`) sequential or batch them through one `/edit/v2` call — concurrent block edits can stale one another's `baseToken` and force retries, and they interact in ways that are easier to reason about as an ordered sequence.
+**Batch thread replies and resolves.** Build all thread responses during the pass, then write them with a single `/ops` batch whenever possible. `comment.reply` accepts `resolve: true`, so a handled thread should usually be one operation, not `reply` plus `resolve`. The batched `/ops` shape uses one `baseToken` and one mutation:
+
+```json
+{"by":"ai:compound-engineering","baseToken":"<token>","operations":[
+  {"type":"comment.reply","markId":"<id-1>","text":"Updated the terminology.","resolve":true},
+  {"type":"comment.reply","markId":"<id-2>","text":"I disagree because X; leaving this open."}
+]}
+```
+
+Only include existing-thread comment mutations in a batch: `comment.reply`, `comment.resolve`, and `comment.unresolve`. Leave `resolve` off (or set it false) when the thread remains open for a user decision. This replaces the older pattern of N separate reply/resolve calls or sub-agent parallelism; batching is faster, easier to reason about, and creates one authoritative marks mutation.
 
 ### 2.4 Apply edits
 
 The user is collaborating in the doc, not waiting on approval. Every mutation works with live clients — only whole-doc `rewrite.apply` is gated. Pick the tool that matches intent:
 
-**Default: `suggestion.add` with `status: "accepted"`** for content changes anchored on a quote (reword, rename, clarify, correct, add a sentence inline). One call creates a tracked suggestion mark *and* commits the change. The user sees committed text (no pending approval needed), and the mark persists as audit trail with per-edit attribution and a one-click reject-to-revert. This is the right primitive for HITL auto-applied edits — it gives the user a reversible trail without asking them to re-review anything.
+**Default: `/edit/v2` for agent-applied content changes.** The comment thread is the review/audit trail: the user asked for the change, the agent applies it, then replies in-thread with what changed. Use block edits for direct fixes, insertions, deletions, and coordinated rewrites so the doc does not accumulate extra suggestion marks for work the user already requested.
+
+**Use `suggestion.add` with `status: "accepted"`** when a visible track-change mark is itself valuable — for example, the user asked to preserve a reject-to-revert affordance for a specific edit, or the change is judgment-sensitive enough that the visible suggestion trail is clearer than only replying in the comment thread. One call creates the suggestion mark *and* commits the change.
 
 ```json
 {"type":"suggestion.add","kind":"replace","quote":"<anchor>","content":"<new>","by":"ai:compound-engineering","status":"accepted","baseToken":"<token>"}
@@ -115,7 +127,7 @@ The user is collaborating in the doc, not waiting on approval. Every mutation wo
 
 Use `kind: "insert" | "delete" | "replace"` as appropriate; all three support `status: "accepted"`.
 
-**Use `/edit/v2` silently** only when the trail is actively wrong or technically blocked:
+**Use `/edit/v2` especially when:**
 
 - **Atomicity is required** — multiple coordinated edits must commit together or not at all (e.g., insert new section + update a reference in another block + delete the obsolete paragraph). `/edit/v2` takes an `operations` array that commits atomically; separate `suggestion.add` calls can partially succeed.
 - **Pre-user self-correction** — the agent is fixing its own output *before* the user has looked at the doc (e.g., spotted a mistake mid-ingest-pass). A tracked mark would imply "there was an old version," which is misleading from the user's perspective.
@@ -140,12 +152,21 @@ Per-op body shape (singular `block` for `replace_block`; plural `blocks:[{markdo
 {"op":"insert_before","ref":"b3","blocks":[{"markdown":"new block"}]}
 {"op":"delete_block","ref":"b6"}
 {"op":"find_replace_in_block","ref":"b4","find":"old","replace":"new","occurrence":"first"}
+{"op":"find_replace_in_doc","find":"old","replace":"new","occurrence":"all"}
 {"op":"replace_range","fromRef":"b2","toRef":"b5","blocks":[{"markdown":"..."}]}
 ```
 
-Block `ref` values drift across revisions — re-fetch `/snapshot` for fresh refs before each `/edit/v2` call if any writes have landed since the last snapshot.
+Block `ref` values are opaque request tokens tied to the snapshot/baseToken. Re-fetch `/snapshot` for fresh refs before another `/edit/v2` call if any writes have landed since the last snapshot. Full successful `/edit/v2` responses include a fresh `mutationBase.token` and, unless `?return=minimal` was used, a fresh snapshot for chaining.
 
-**Bulk mechanical sweep — prefer one `/edit/v2` call over N `suggestion.add` calls.** When a uniform change hits more than ~5 blocks (emdash sweep, terminology rename across a doc, heading-style normalization), batch it as a single `/edit/v2` with many `operations`. One round-trip, one atomic commit, one audit entry — versus N separate ops-endpoint calls, N baseToken reads (without the caching below), and N tracked marks for what is one logical change. Use `suggestion.add` + `accepted` when edits are distinct and anchored (each deserves its own reject-to-revert trail); use `/edit/v2` batch when they're variations of the same mechanical rule.
+**Bulk mechanical sweep — prefer `find_replace_in_doc` when the rule is literal.** For terminology renames, punctuation swaps, or other literal doc-wide replacements, use one `/edit/v2` operation:
+
+```json
+{"op":"find_replace_in_doc","find":"old term","replace":"new term","occurrence":"all"}
+```
+
+Run the same payload through `/edit/v2?dryRun=1` first for large sweeps; dry-run returns `valid`, `appliedCount`, and per-op `results[]` without writing. For the real write, use `/edit/v2?return=minimal` when you only need `ok`, `revision`, `appliedCount`, and the next `mutationBase.token`. Responses with `operationResults` include per-block match counts; treat those refs as reporting/display data and re-read `/snapshot` before follow-up block-ref mutations.
+
+When the edit is semantic rather than literal, batch `replace_block`, `insert_*`, `delete_block`, or `replace_range` operations in one `/edit/v2` call. Use `suggestion.add` + `accepted` when edits are distinct and each deserves its own visible reject-to-revert trail.
 
 **Use pending `suggestion.add` (no status)** when the change is judgment-sensitive enough that the agent wants explicit user approval before commit — rare in HITL, since the point of auto-applied edits is to reduce round-trips. Most judgment-sensitive cases are better handled by leaving the thread open with a clarifying question.
 
@@ -153,15 +174,16 @@ Block `ref` values drift across revisions — re-fetch `/snapshot` for fresh ref
 
 **Mutation requirements (every write, including replies and resolves):**
 
-- Top-level field is `type` on `/ops`; `operations[].op` on `/edit/v2`. Do not mix.
+- Top-level field is `type` on single `/ops` writes; top-level `operations` on `/ops` comment batches; `operations[].op` on `/edit/v2`. Do not mix `/ops` `type` entries with `/edit/v2` `op` entries.
 - Include `baseToken` from `/state.mutationBase.token` (or `/snapshot.mutationBase.token` for `/edit/v2`).
 - Set `by: "ai:compound-engineering"` and header `X-Agent-Id: ai:compound-engineering`.
-- Include an `Idempotency-Key` header (fresh UUID per logical write). Reuse the same key on a proven retry of the same payload; use a new key for a new logical write.
-- Reply: `{"type":"comment.reply","markId":"<id>","by":"ai:compound-engineering","text":"..."}`. Resolve: `{"type":"comment.resolve","markId":"<id>","by":"ai:compound-engineering"}`. Reopen if needed: `{"type":"comment.unresolve", ...}`.
+- Include an `Idempotency-Key` header. Reuse the same key only for an exact same-body resend; if you rebuild the body with a fresh `baseToken`, mint a new key.
+- Successful mutation responses include the next `mutationBase.token`; reuse it for the next write instead of re-reading only to get a token.
+- Reply and resolve together when done: `{"type":"comment.reply","markId":"<id>","text":"...","resolve":true}` inside a `/ops` batch. Reopen if needed: `{"type":"comment.unresolve", ...}`.
 
 **Retry after any error is verify-first, not retry-first.** The Proof API can commit canonically and still return a non-2xx or a 202 with `collab.status: "pending"`; network timeouts can hit after the server has already written. Retrying without verifying is the most common cause of duplicate marks (same comment twice, same suggestion twice) that then need a manual cleanup pass.
 
-- On `STALE_BASE` / `BASE_TOKEN_REQUIRED` / `MISSING_BASE` / `INVALID_BASE_TOKEN`: pre-commit, token-related. Re-read `/state`, send the same payload with a fresh `baseToken`, retry once. The `mutate()` helper below auto-retries these.
+- On `STALE_BASE` / `BASE_TOKEN_REQUIRED` / `MISSING_BASE` / `INVALID_BASE_TOKEN`: pre-commit, token-related. Re-read `/state`, rebuild the request body with a fresh `baseToken`, and retry once with a new `Idempotency-Key`. The `mutate()` helper below auto-retries these.
 - On `ANCHOR_NOT_FOUND` / `ANCHOR_AMBIGUOUS`: pre-commit, but the `quote` no longer matches uniquely. Re-read is not enough; the caller must tighten or regenerate the anchor before retrying. The helper surfaces the error instead of auto-retrying.
 - On `INVALID_OPERATIONS` / `INVALID_REQUEST` / `INVALID_REF` / `INVALID_BLOCK_MARKDOWN` / `INVALID_RANGE` / `INVALID_MARKDOWN` / 422: the payload is wrong. Do not retry — fix the payload and send a new write.
 - On `COLLAB_SYNC_FAILED` / `REWRITE_BARRIER_FAILED` / `PROJECTION_STALE` / `INTERNAL_ERROR` / 5xx / network error / timeout / **202 with `collab.status: "pending"`**: the write may have landed. Re-read `/state`, diff against the intended change (mark exists? suggestion applied? quote replaced?), and only retry if the server did not actually commit it. If the diff shows the write did land, treat the call as successful even though the response said otherwise.
@@ -287,7 +309,7 @@ Do **not** delete the Proof doc. It remains the durable review record; the calle
 
 ### BaseToken-aware mutation
 
-Reuse `baseToken` from the most recent `/state` read. Only re-read on `STALE_BASE` / `BASE_TOKEN_REQUIRED`. For an ingest pass this means one `/state` read at Phase 2.1 feeds every subsequent mutation, not N reads for N mutations.
+Seed `baseToken` from the most recent `/state` or `/snapshot` read, then update it from each successful mutation response's `mutationBase.token`. Only re-read on `STALE_BASE` / `BASE_TOKEN_REQUIRED` or when you need fresh document/comment/snapshot content. For an ingest pass this means one comment-filtered `/state` read, one `/edit/v2` batch if content changes are needed, and one `/ops` comment batch for replies/resolutions.
 
 Two retry classes, and they behave differently. The helper below only covers the safe class; the ambiguous class needs a caller-supplied verifier because "did this write land?" depends on what the payload was (look for a markId, a quote replacement, a thread reply, etc.).
 
@@ -299,11 +321,9 @@ BASE=<cached from most recent /state or /snapshot read>
 
 mutate() {
   local PAYLOAD="$1"  # jq template without baseToken
-  local IDEM_KEY BODY RESP CODE
-  # Fresh key per logical write (per mutate() call). The same key is then
-  # reused below only within the retry of this single logical write — NOT
-  # across different payloads, which would make the server collapse
-  # distinct writes as duplicates and silently drop later edits.
+  local IDEM_KEY BODY RESP CODE NEXT_BASE
+  # Fresh key for this request body. If the body changes, including because
+  # baseToken changes after STALE_BASE, the retry below mints a new key.
   IDEM_KEY=$(uuidgen)
   BODY=$(jq -n --arg base "$BASE" --argjson payload "$PAYLOAD" '$payload + {baseToken: $base}')
   RESP=$(curl -s -X POST "https://www.proofeditor.ai/api/agent/$SLUG/ops" \
@@ -324,6 +344,7 @@ mutate() {
     BASE=$(curl -s "https://www.proofeditor.ai/api/agent/$SLUG/state" \
       -H "x-share-token: $TOKEN" | jq -r '.mutationBase.token')
     BODY=$(jq -n --arg base "$BASE" --argjson payload "$PAYLOAD" '$payload + {baseToken: $base}')
+    IDEM_KEY=$(uuidgen)
     RESP=$(curl -s -X POST "https://www.proofeditor.ai/api/agent/$SLUG/ops" \
       -H "Content-Type: application/json" \
       -H "x-share-token: $TOKEN" \
@@ -331,11 +352,15 @@ mutate() {
       -H "Idempotency-Key: $IDEM_KEY" \
       -d "$BODY")
   fi
+  NEXT_BASE=$(printf '%s' "$RESP" | jq -r '.mutationBase.token // empty')
+  if [ -n "$NEXT_BASE" ]; then
+    BASE="$NEXT_BASE"
+  fi
   printf '%s' "$RESP"
 }
 ```
 
-The `Idempotency-Key` is minted fresh at the top of each call (one key per logical write). The retry inside the same call reuses that key so the server can collapse a duplicate TCP-level send, but a later `mutate()` for a different payload gets its own key. Minting outside the function would make every call share one key, and the server would treat the second and subsequent writes as duplicates of the first and silently drop them.
+The `Idempotency-Key` is minted for the exact request body being sent. If a retry rebuilds the body with a fresh `baseToken`, that is a different payload hash, so it needs a new key; reusing the previous key would trigger `IDEMPOTENCY_KEY_REUSED`. Reuse the same key only for a transport-level resend of the exact same body. Minting outside the function would make unrelated writes share one key, and the server would treat later payloads as invalid key reuse.
 
 **Ambiguous failures (anything outside the pre-commit set above — `COLLAB_SYNC_FAILED`, `INTERNAL_ERROR`, 5xx, network timeout, 202 with `collab.status: "pending"`):** do not retry from this helper. Re-read `/state` in the caller, diff the marks/content against the intended change, and only re-issue the write if the diff proves nothing landed. Pattern:
 
