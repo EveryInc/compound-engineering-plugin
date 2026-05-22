@@ -83,7 +83,7 @@ The `compound-engineering` plugin currently ships 37 skills and 51 agents. See t
 ### Claude Code
 
 ```text
-/plugin marketplace add EveryInc/compound-engineering-plugin
+/plugin marketplace add https://github.com/EveryInc/every-marketplace
 /plugin install compound-engineering
 ```
 
