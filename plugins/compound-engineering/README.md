@@ -114,20 +114,14 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `ce-code-simplicity-reviewer` | Final pass for simplicity and minimalism |
 | `ce-correctness-reviewer` | Logic errors, edge cases, state bugs |
 | `ce-data-integrity-guardian` | Database migrations and data integrity |
-| `ce-data-migration-expert` | Validate ID mappings match production, check for swapped values |
-| `ce-data-migrations-reviewer` | Migration safety with confidence calibration |
+| `ce-data-migration-reviewer` | Schema drift, migration safety, mapping verification, deploy-window checks |
 | `ce-deployment-verification-agent` | Create Go/No-Go deployment checklists for risky data changes |
-| `ce-dhh-rails-reviewer` | Rails review from DHH's perspective |
 | `ce-julik-frontend-races-reviewer` | Review JavaScript/Stimulus code for race conditions |
-| `ce-kieran-rails-reviewer` | Rails code review with strict conventions |
-| `ce-kieran-python-reviewer` | Python code review with strict conventions |
-| `ce-kieran-typescript-reviewer` | TypeScript code review with strict conventions |
 | `ce-maintainability-reviewer` | Coupling, complexity, naming, dead code |
 | `ce-pattern-recognition-specialist` | Analyze code for patterns and anti-patterns |
 | `ce-performance-oracle` | Performance analysis and optimization |
 | `ce-performance-reviewer` | Runtime performance with confidence calibration |
 | `ce-reliability-reviewer` | Production reliability and failure modes |
-| `ce-schema-drift-detector` | Detect unrelated schema.rb changes in PRs |
 | `ce-security-reviewer` | Exploitable vulnerabilities with confidence calibration |
 | `ce-security-sentinel` | Security audits and vulnerability assessments |
 | `ce-swift-ios-reviewer` | Swift and iOS code review -- SwiftUI state, retain cycles, concurrency, Core Data threading, accessibility |

@@ -53,8 +53,8 @@ A small config change triggers 6 reviewers (the 4 always-on + 2 CE always-on). A
 
 - **Always-on (every review)** — `ce-correctness-reviewer`, `ce-testing-reviewer`, `ce-maintainability-reviewer`, `ce-project-standards-reviewer`, `ce-agent-native-reviewer`, `ce-learnings-researcher`
 - **Cross-cutting conditional** — security, performance, API contract, data migrations, reliability, adversarial, previous-comments — each selected only when the diff touches its concern
-- **Stack-specific conditional** — DHH-Rails, Kieran-Rails / Python / TypeScript, Julik frontend races, Swift/iOS — only when the matching stack is present
-- **CE conditional (migrations)** — schema-drift detector, deployment-verification agent for diffs with migration files
+- **Stack-specific conditional** — Julik frontend races, Swift/iOS — only when the matching runtime domain is touched. Structural quality (complexity deletion, 1k-line regressions, spaghetti) lives in the always-on maintainability persona.
+- **CE conditional (migrations)** — `ce-deployment-verification-agent` for risky migration diffs; schema drift and migration safety are handled by the `data-migration` persona
 
 Persona selection is agent judgment, not keyword matching. Instruction-prose files (Markdown skills, JSON schemas) are product code but skip runtime-focused reviewers (adversarial, races) — they wouldn't apply.
 
@@ -118,7 +118,7 @@ You invoke `/ce-code-review` on a feature branch with a Rails auth change that i
 
 The skill detects you're on a feature branch (no PR yet), resolves the base from `origin/HEAD` (or PR metadata when an open PR exists), and computes the diff. Stage 2 reads commit messages and writes a 2-3 line intent summary. Stage 2b auto-discovers the plan in `docs/plans/` from the branch name and reads its Requirements (R1-R8, U1-U6).
 
-Stage 3 selects reviewers: the 6 always-on, plus security (auth touched), reliability (background job for token cleanup), data migrations (migration file present), kieran-rails + dhh-rails (stack), schema-drift detector and deployment-verification agent (CE migration conditionals). Ten reviewers total, dispatched in parallel.
+Stage 3 selects reviewers: the 6 always-on, plus security (auth touched), reliability (background job for token cleanup), data-migration (migration file present), and deployment-verification agent when the migration is risky. Seven or eight reviewers total, dispatched in parallel.
 
 After all return, synthesis merges 23 raw findings into 14 distinct findings. Three are `safe_auto` (typo, rename, dead code) and applied automatically. Six are `gated_auto` for the auth surface — routed into the interactive walk-through. Two are `manual` (deployment Go/No-Go checklist items). Three are `advisory` (FYI notes). Each finding has anchored evidence and a stable number.
 
@@ -194,7 +194,7 @@ Conflicting mode flags stop execution with an error. Combining `base:` with a PR
 Use it when it's the right tool — the quick-review short-circuit defers to it explicitly. `ce-code-review` is for cases where you want diff-aware persona selection, structured findings with calibrated severity, autofix routing, and residual work handling. It's the heavier tool; reach for it when the work warrants.
 
 **How does it decide which personas to dispatch?**
-Agent judgment over the actual diff — not keyword matching. The 4 always-on + 2 CE always-on personas run for every review. Cross-cutting and stack-specific personas are added when their concern is touched (e.g., security if auth files changed; data-migrations-reviewer if migration files are present). Instruction-prose files skip runtime-focused reviewers (adversarial, races).
+Agent judgment over the actual diff — not keyword matching. The 4 always-on + 2 CE always-on personas run for every review. Cross-cutting and stack-specific personas are added when their concern is touched (e.g., security if auth files changed; `ce-data-migration-reviewer` when migration or schema dump files are present). Instruction-prose files skip runtime-focused reviewers (adversarial, races).
 
 **What's the difference between Autofix and Headless?**
 Autofix applies `safe_auto` fixes silently and emits a Residual Actionable Work summary for the caller to route. Headless is similar but returns *all* findings as structured text (including `safe_auto`) and never enters bounded re-review rounds. Headless is for programmatic skill-to-skill invocation; Autofix is for orchestrators that own the residual-handling UI.

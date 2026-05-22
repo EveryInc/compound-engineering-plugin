@@ -87,7 +87,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 - **Code style, naming, structure, dead code** -- ce-maintainability-reviewer owns these
 - **Test coverage gaps** or weak assertions -- ce-testing-reviewer owns these
 - **API contract breakage** (changed response shapes, removed fields) -- ce-api-contract-reviewer owns these
-- **Migration safety** (missing rollback, data integrity) -- ce-data-migrations-reviewer owns these
+- **Migration safety** (missing rollback, data integrity, schema drift) -- ce-data-migration-reviewer owns these
 
 Your territory is the *space between* these reviewers -- problems that emerge from combinations, assumptions, sequences, and emergent behavior that no single-pattern reviewer catches.
 

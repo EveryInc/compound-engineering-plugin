@@ -342,11 +342,7 @@ Based on problem type, optionally invoke specialized agents to review the docume
 - **performance_issue** → `ce-performance-oracle`
 - **security_issue** → `ce-security-sentinel`
 - **database_issue** → `ce-data-integrity-guardian`
-- Any code-heavy issue → always run `ce-code-simplicity-reviewer`, and additionally run the kieran reviewer that matches the repo's primary stack:
-  - Ruby/Rails → also run `ce-kieran-rails-reviewer`
-  - Python → also run `ce-kieran-python-reviewer`
-  - TypeScript/JavaScript → also run `ce-kieran-typescript-reviewer`
-  - Other stacks → no kieran reviewer needed
+- Any code-heavy issue → always run `ce-code-simplicity-reviewer` for minimal, clear examples. Structural concerns in the diff are already covered when the same work goes through `/ce-code-review` (maintainability persona).
 
 </parallel_tasks>
 
@@ -500,7 +496,6 @@ Subagent Results:
 
 Specialized Agent Reviews (Auto-Triggered):
   ✓ ce-performance-oracle: Validated query optimization approach
-  ✓ ce-kieran-rails-reviewer: Code examples meet Rails conventions
   ✓ ce-code-simplicity-reviewer: Solution is appropriately minimal
 
 File created:
@@ -566,9 +561,6 @@ Writes the final learning directly into `docs/solutions/`.
 Based on problem type, these agents can enhance documentation:
 
 ### Code Quality & Review
-- **ce-kieran-rails-reviewer**: Reviews code examples for Rails best practices
-- **ce-kieran-python-reviewer**: Reviews code examples for Python best practices
-- **ce-kieran-typescript-reviewer**: Reviews code examples for TypeScript best practices
 - **ce-code-simplicity-reviewer**: Ensures solution code is minimal and clear
 - **ce-pattern-recognition-specialist**: Identifies anti-patterns or repeating issues
 

@@ -426,6 +426,22 @@ describe("cleanupStaleAgents", () => {
     expect(await exists(path.join(root, "lint.md"))).toBe(true)
   })
 
+  test("removes ce-prefixed legacy-only agents removed from the plugin", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-ce-legacy-only-"))
+    await createFile(
+      path.join(root, "ce-dhh-rails-reviewer.md"),
+      agentContent(
+        "ce-dhh-rails-reviewer",
+        "Conditional code-review persona, selected when Rails diffs introduce architectural choices, abstractions, or frontend patterns that may fight the framework. Reviews code from an opinionated DHH perspective.",
+      ),
+    )
+
+    const removed = await cleanupStaleAgents(root, ".md")
+
+    expect(removed).toBe(1)
+    expect(await exists(path.join(root, "ce-dhh-rails-reviewer.md"))).toBe(false)
+  })
+
   test("removes legacy-only agents that no longer ship a ce-* replacement", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-legacy-only-"))
     // `lint` and `bug-reproduction-validator` were removed in an older plugin

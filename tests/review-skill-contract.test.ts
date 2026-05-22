@@ -496,14 +496,10 @@ describe("ce-code-review contract", () => {
       "ce-security-reviewer",
       "ce-performance-reviewer",
       "ce-api-contract-reviewer",
-      "ce-data-migrations-reviewer",
+      "ce-data-migration-reviewer",
       "ce-reliability-reviewer",
       "ce-adversarial-reviewer",
       "ce-previous-comments-reviewer",
-      "ce-dhh-rails-reviewer",
-      "ce-kieran-rails-reviewer",
-      "ce-kieran-python-reviewer",
-      "ce-kieran-typescript-reviewer",
       "ce-julik-frontend-races-reviewer",
       "ce-swift-ios-reviewer",
       "ce-agent-native-reviewer",
@@ -529,15 +525,19 @@ describe("ce-code-review contract", () => {
       "plugins/compound-engineering/skills/ce-code-review/references/persona-catalog.md",
     )
 
-    for (const agent of [
+    for (const agent of ["ce-julik-frontend-races-reviewer", "ce-swift-ios-reviewer"]) {
+      expect(content).toContain(agent)
+      expect(catalog).toContain(agent)
+    }
+
+    for (const removed of [
       "ce-dhh-rails-reviewer",
       "ce-kieran-rails-reviewer",
       "ce-kieran-python-reviewer",
       "ce-kieran-typescript-reviewer",
-      "ce-julik-frontend-races-reviewer",
     ]) {
-      expect(content).toContain(agent)
-      expect(catalog).toContain(agent)
+      expect(content).not.toContain(removed)
+      expect(catalog).not.toContain(removed)
     }
 
     expect(content).toContain("## Language-Aware Conditionals")
@@ -547,24 +547,12 @@ describe("ce-code-review contract", () => {
   test("stack-specific reviewer agents follow the structured findings contract", async () => {
     const reviewers = [
       {
-        path: "plugins/compound-engineering/agents/ce-dhh-rails-reviewer.md",
-        reviewer: "dhh-rails",
-      },
-      {
-        path: "plugins/compound-engineering/agents/ce-kieran-rails-reviewer.md",
-        reviewer: "kieran-rails",
-      },
-      {
-        path: "plugins/compound-engineering/agents/ce-kieran-python-reviewer.md",
-        reviewer: "kieran-python",
-      },
-      {
-        path: "plugins/compound-engineering/agents/ce-kieran-typescript-reviewer.md",
-        reviewer: "kieran-typescript",
-      },
-      {
         path: "plugins/compound-engineering/agents/ce-julik-frontend-races-reviewer.md",
         reviewer: "julik-frontend-races",
+      },
+      {
+        path: "plugins/compound-engineering/agents/ce-swift-ios-reviewer.md",
+        reviewer: "swift-ios",
       },
     ]
 
@@ -598,14 +586,10 @@ describe("ce-code-review contract", () => {
       "ce-security-reviewer",
       "ce-performance-reviewer",
       "ce-api-contract-reviewer",
-      "ce-data-migrations-reviewer",
+      "ce-data-migration-reviewer",
       "ce-reliability-reviewer",
       "ce-adversarial-reviewer",
       "ce-previous-comments-reviewer",
-      "ce-dhh-rails-reviewer",
-      "ce-kieran-rails-reviewer",
-      "ce-kieran-python-reviewer",
-      "ce-kieran-typescript-reviewer",
       "ce-julik-frontend-races-reviewer",
       "ce-swift-ios-reviewer",
     ]
@@ -619,14 +603,19 @@ describe("ce-code-review contract", () => {
     }
   })
 
-  test("leaves data-migration-expert as the unstructured review format", async () => {
+  test("data-migration reviewer consolidates schema drift and migration safety", async () => {
     const content = await readRepoFile(
-      "plugins/compound-engineering/agents/ce-data-migration-expert.md",
+      "plugins/compound-engineering/agents/ce-data-migration-reviewer.md",
     )
+    const skill = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
 
-    expect(content).toContain("## Reviewer Checklist")
-    expect(content).toContain("Refuse approval until there is a written verification + rollback plan.")
-    expect(content).not.toContain("Return your findings as JSON matching the findings schema.")
+    expect(content).toContain("## Step 0: Schema drift")
+    expect(content).toContain('"reviewer": "data-migration"')
+    expect(content).toContain("Return your findings as JSON matching the findings schema.")
+    expect(skill).toContain("data-migration` spawn gate")
+    expect(skill).not.toContain("ce-schema-drift-detector")
+    expect(skill).not.toContain("ce-data-migration-expert")
+    expect(skill).not.toContain("ce-data-migrations-reviewer")
   })
 
   test("fails closed when merge-base is unresolved instead of falling back to git diff HEAD", async () => {

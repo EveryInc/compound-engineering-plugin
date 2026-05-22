@@ -116,6 +116,13 @@ const STALE_AGENT_NAMES = [
   "bug-reproduction-validator",
   "ce-cli-agent-readiness-reviewer",
   "ce-cli-readiness-reviewer",
+  "ce-data-migration-expert",
+  "ce-data-migrations-reviewer",
+  "ce-dhh-rails-reviewer",
+  "ce-kieran-python-reviewer",
+  "ce-kieran-rails-reviewer",
+  "ce-kieran-typescript-reviewer",
+  "ce-schema-drift-detector",
   "cli-agent-readiness-reviewer",
   "cli-readiness-reviewer",
   "code-simplicity-reviewer",
@@ -312,6 +319,34 @@ const LEGACY_ONLY_AGENT_DESCRIPTIONS: Record<string, string> = {
     "Conditional code-review persona, selected when the diff touches CLI command definitions, argument parsing, or command handler implementations. Reviews CLI code for agent readiness -- how well the CLI serves autonomous agents, not just human users.",
   "ce-cli-readiness-reviewer":
     "Conditional code-review persona, selected when the diff touches CLI command definitions, argument parsing, or command handler implementations. Reviews CLI code for agent readiness -- how well the CLI serves autonomous agents, not just human users.",
+  "data-migration-expert":
+    "Validates data migrations, backfills, and production data transformations against reality. Use when PRs involve ID mappings, column renames, enum conversions, or schema changes.",
+  "data-migrations-reviewer":
+    "Conditional code-review persona, selected when the diff touches migration files, schema changes, data transformations, or backfill scripts. Reviews code for data integrity and migration safety.",
+  "dhh-rails-reviewer":
+    "Conditional code-review persona, selected when Rails diffs introduce architectural choices, abstractions, or frontend patterns that may fight the framework. Reviews code from an opinionated DHH perspective.",
+  "kieran-python-reviewer":
+    "Conditional code-review persona, selected when the diff touches Python code. Reviews changes with Kieran's strict bar for Pythonic clarity, type hints, and maintainability.",
+  "kieran-rails-reviewer":
+    "Conditional code-review persona, selected when the diff touches Rails application code. Reviews Rails changes with Kieran's strict bar for clarity, conventions, and maintainability.",
+  "kieran-typescript-reviewer":
+    "Conditional code-review persona, selected when the diff touches TypeScript code. Reviews changes with Kieran's strict bar for type safety, clarity, and maintainability.",
+  "schema-drift-detector":
+    "Detects unrelated schema.rb changes in PRs by cross-referencing against included migrations. Use when reviewing PRs with database schema changes.",
+  "ce-data-migration-expert":
+    "Validates data migrations, backfills, and production data transformations against reality. Use when PRs involve ID mappings, column renames, enum conversions, or schema changes.",
+  "ce-data-migrations-reviewer":
+    "Conditional code-review persona, selected when the diff touches migration files, schema changes, data transformations, or backfill scripts. Reviews code for data integrity and migration safety.",
+  "ce-dhh-rails-reviewer":
+    "Conditional code-review persona, selected when Rails diffs introduce architectural choices, abstractions, or frontend patterns that may fight the framework. Reviews code from an opinionated DHH perspective.",
+  "ce-kieran-python-reviewer":
+    "Conditional code-review persona, selected when the diff touches Python code. Reviews changes with Kieran's strict bar for Pythonic clarity, type hints, and maintainability.",
+  "ce-kieran-rails-reviewer":
+    "Conditional code-review persona, selected when the diff touches Rails application code. Reviews Rails changes with Kieran's strict bar for clarity, conventions, and maintainability.",
+  "ce-kieran-typescript-reviewer":
+    "Conditional code-review persona, selected when the diff touches TypeScript code. Reviews changes with Kieran's strict bar for type safety, clarity, and maintainability.",
+  "ce-schema-drift-detector":
+    "Detects unrelated schema.rb changes in PRs by cross-referencing against included migrations. Use when reviewing PRs with database schema changes.",
 }
 
 type LegacyFingerprints = {
@@ -321,6 +356,10 @@ type LegacyFingerprints = {
 }
 
 let legacyFingerprintsPromise: Promise<LegacyFingerprints> | null = null
+
+function currentAgentNameForLegacy(legacyName: string): string {
+  return legacyName.startsWith("ce-") ? legacyName : `ce-${legacyName}`
+}
 
 function currentSkillNameForLegacy(legacyName: string): string {
   if (legacyName === "ce:review" || legacyName === "workflows:review" || legacyName === "workflows-review") {
@@ -471,7 +510,7 @@ async function loadLegacyFingerprints(): Promise<LegacyFingerprints> {
       }
 
       for (const legacyName of STALE_AGENT_NAMES) {
-        const currentPath = agentIndex.get(`ce-${legacyName}`)
+        const currentPath = agentIndex.get(currentAgentNameForLegacy(legacyName))
         if (currentPath) {
           const description = await readDescription(currentPath)
           if (description) agents.set(legacyName, description)
