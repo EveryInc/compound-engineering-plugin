@@ -1,0 +1,31 @@
+{
+  "_schema": "Cross-model review eval corpus manifest. This committed file is a STUB: pre_registration values are placeholders and the docs array holds one example entry per subset. A real run replaces these before executing any arm (see scripts/eval/cross_model_review/README.md).",
+  "pre_registration": {
+    "_note": "Commit these BEFORE running any arm. null = must be filled at run time (R9). The decision rule must be fixed independent of observed counts.",
+    "go_threshold": null,
+    "minimum_corpus_n": null,
+    "trials_per_arm": 3,
+    "arm_c_context_rule": null
+  },
+  "arms": ["a_baseline", "b_isolated", "c_fixed_context", "d_self_critic"],
+  "docs": [
+    {
+      "id": "negative-control-1",
+      "path": "FILL: path to a clean, well-formed doc no arm should flag",
+      "subset": "negative_control",
+      "_note": "Movement here (any arm produces a decision-changing finding) signals a harness stability problem (H2), not a real signal."
+    },
+    {
+      "id": "known-failure-1",
+      "path": "docs/plans/2026-04-25-001-fix-ce-code-review-lfg-defer-bias-plan.md",
+      "subset": "known_failure",
+      "issue_that_mattered": "FILL: the specific issue the post-hoc failure proved mattered — the finding an arm must surface to score on the primary metric (R7). Sourced from fix-* plans / regression-referencing docs."
+    },
+    {
+      "id": "forward-rated-1",
+      "path": "FILL: path to a real plan/brainstorm from docs/",
+      "subset": "forward_rated",
+      "_note": "Decision-changing judged forward (a competent reviewer would act on it). Corroborating signal only; the known-failure subset is primary (R7, R8)."
+    }
+  ]
+}
