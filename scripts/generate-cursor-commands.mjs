@@ -161,16 +161,6 @@ async function collectSkills(repoRoot) {
   return out
 }
 
-async function rmDirContents(dir) {
-  let names = []
-  try {
-    names = await fs.readdir(dir)
-  } catch {
-    return
-  }
-  await Promise.all(names.map((n) => fs.rm(path.join(dir, n), { recursive: true, force: true })))
-}
-
 /** Remove only our generated .md files (never wipe a whole user directory). */
 async function removeGeneratedMarkdownFiles(dir) {
   let names = []
@@ -207,7 +197,7 @@ async function main() {
   for (const pluginFolder of new Set(entries.map((e) => e.pluginFolder))) {
     const cmdDir = path.join(repoRoot, "plugins", pluginFolder, "commands")
     await fs.mkdir(cmdDir, { recursive: true })
-    await rmDirContents(cmdDir)
+    await removeGeneratedMarkdownFiles(cmdDir)
   }
 
   const workspaceCmdDir = path.join(repoRoot, ".cursor", "commands")
