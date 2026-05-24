@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Cross-Model Review Eval Record",
+  "description": "One record per (document x arm x trial). Both producers write schema-conformant record files into the shared run directory: the Python runner writes records for the CLI arms (b_isolated, c_fixed_context); the orchestrator writes records for the in-process arms (a_baseline, d_self_critic) and the judge. Aggregation pools by reading every record file in the run dir, regardless of producer.",
+  "type": "object",
+  "required": ["arm", "doc_id", "trial", "status", "producer", "latency_ms", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "arm": {
+      "type": "string",
+      "enum": ["a_baseline", "b_isolated", "c_fixed_context", "d_self_critic"]
+    },
+    "doc_id": { "type": "string" },
+    "trial": { "type": "integer", "minimum": 1 },
+    "status": {
+      "type": "string",
+      "enum": ["ok", "degraded", "timeout", "error"],
+      "description": "degraded = circuit breaker tripped for this arm; timeout = per-arm timeout hit; error = invocation failed."
+    },
+    "producer": {
+      "type": "string",
+      "enum": ["runner", "orchestrator"],
+      "description": "Which half wrote this record. The runner's timeout/circuit-breaker apply only to its own (CLI) records; orchestrator records are ingested as-is."
+    },
+    "latency_ms": { "type": "number", "minimum": 0 },
+    "findings": {
+      "type": "array",
+      "description": "Free-form findings the arm produced. Empty when status != ok or the arm found nothing.",
+      "items": {
+        "type": "object",
+        "required": ["id", "text"],
+        "additionalProperties": false,
+        "properties": {
+          "id": { "type": "string" },
+          "text": { "type": "string" }
+        }
+      }
+    },
+    "model": {
+      "type": "string",
+      "description": "Identifying field. Stripped before the blinded judge sees the record (U5)."
+    },
+    "cost": {
+      "type": "object",
+      "description": "Optional cost/tool-call signal (e.g., from codex exec --json). Identifying; stripped before judging.",
+      "additionalProperties": true
+    }
+  }
+}

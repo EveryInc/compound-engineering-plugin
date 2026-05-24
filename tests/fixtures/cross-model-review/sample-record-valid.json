@@ -1,0 +1,12 @@
+{
+  "arm": "b_isolated",
+  "doc_id": "known-failure-1",
+  "trial": 1,
+  "status": "ok",
+  "producer": "runner",
+  "latency_ms": 1234,
+  "findings": [
+    { "id": "f1", "text": "Premise unsupported by evidence." }
+  ],
+  "model": "gpt-5.5"
+}
