@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, existsSync } from "node:fs";
+import { mkdtempSync, existsSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -11,14 +11,25 @@ import { join } from "node:path";
 
 const REPO_ROOT = join(import.meta.dir, "..");
 const RUNNER = join(REPO_ROOT, "scripts/eval/cross_model_review/run_arms.py");
+const ARMS = join(REPO_ROOT, "scripts/eval/cross_model_review/arms.py");
 const FIX = join(REPO_ROOT, "tests/fixtures/cross-model-review");
 
-async function run(args: string[]) {
-	const proc = Bun.spawn(["python3", RUNNER, ...args], { stdout: "pipe", stderr: "pipe" });
+async function spawn(script: string, args: string[]) {
+	const proc = Bun.spawn(["python3", script, ...args], { stdout: "pipe", stderr: "pipe" });
 	const stdout = await new Response(proc.stdout).text();
 	const stderr = await new Response(proc.stderr).text();
 	const exitCode = await proc.exited;
 	return { stdout, stderr, exitCode };
+}
+
+const run = (args: string[]) => spawn(RUNNER, args);
+const arms = (args: string[]) => spawn(ARMS, args);
+
+function tmpFile(name: string, content: string) {
+	const dir = mkdtempSync(join(tmpdir(), "cmre-"));
+	const p = join(dir, name);
+	writeFileSync(p, content);
+	return p;
 }
 
 describe("record validation", () => {
@@ -99,5 +110,67 @@ describe("shared run-dir store: ingest + pool (P1 seam)", () => {
 		expect(out.written).toBeNull();
 		expect(exitCode).toBe(1);
 		expect(JSON.parse((await run(["pool", runDir])).stdout).total).toBe(0);
+	});
+});
+
+describe("cross-model arm invocation assembly (R2 / U3)", () => {
+	const doc = join(FIX, "sample-doc.md");
+	const rubric = join(FIX, "sample-rubric.md");
+	const context = join(FIX, "sample-context.md");
+
+	test("document content is passed via stdin, never interpolated into argv", async () => {
+		const out = JSON.parse((await arms(["build-invocation", "b_isolated", "codex", doc, rubric])).stdout);
+		expect(Array.isArray(out.argv)).toBe(true);
+		expect(out.doc_in_argv).toBe(false);
+		expect(out.stdin_len).toBeGreaterThan(0);
+	});
+
+	test("arm b is isolated: clean cwd + HOME/config env overrides", async () => {
+		const out = JSON.parse((await arms(["build-invocation", "b_isolated", "codex", doc, rubric])).stdout);
+		expect(out.env_overrides).toContain("HOME");
+		expect(out.env_overrides).toContain("CODEX_HOME");
+		expect(out.cwd).not.toBe(REPO_ROOT);
+		expect(out.stdin_has_context).toBe(false);
+	});
+
+	test("arm c supplies the fixed context set via stdin and is not env-isolated", async () => {
+		const out = JSON.parse((await arms(["build-invocation", "c_fixed_context", "agy", doc, rubric, "--context", context])).stdout);
+		expect(out.stdin_has_context).toBe(true);
+		expect(out.env_overrides).toHaveLength(0);
+		expect(out.argv).toEqual(["agy", "--print", expect.any(String)]);
+	});
+});
+
+describe("arm-b isolation probe (AD2 / P1)", () => {
+	test("a leaked sentinel is detected; a clean output is not", async () => {
+		const sentinel = "SENTINEL-7f3a9";
+		const leaked = tmpFile("leaked.txt", `The config value is ${sentinel}, which I read.`);
+		const clean = tmpFile("clean.txt", "I have no access to that configuration value.");
+		expect(JSON.parse((await arms(["detect-leak", sentinel, leaked])).stdout).leaked).toBe(true);
+		expect(JSON.parse((await arms(["detect-leak", sentinel, clean])).stdout).leaked).toBe(false);
+	});
+});
+
+describe("findings parsing (U3)", () => {
+	test("a JSON array of objects parses into findings", async () => {
+		const f = tmpFile("out.json", JSON.stringify([{ id: "a", text: "one" }, { text: "two" }]));
+		const out = JSON.parse((await arms(["parse-findings", f])).stdout).findings;
+		expect(out).toHaveLength(2);
+		expect(out[0]).toEqual({ id: "a", text: "one" });
+		expect(out[1].text).toBe("two");
+	});
+
+	test("markdown bullets parse into findings", async () => {
+		const f = tmpFile("out.md", "Critique:\n- first issue\n- second issue\n");
+		const out = JSON.parse((await arms(["parse-findings", f])).stdout).findings;
+		expect(out).toHaveLength(2);
+		expect(out[0].text).toBe("first issue");
+	});
+
+	test("free-form prose becomes a single finding", async () => {
+		const f = tmpFile("out.txt", "This plan's premise is unconvincing.");
+		const out = JSON.parse((await arms(["parse-findings", f])).stdout).findings;
+		expect(out).toHaveLength(1);
+		expect(out[0].id).toBe("f1");
 	});
 });
