@@ -10,7 +10,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 
 Skills are defined under `skills/*/SKILL.md`. For **Cursor**, matching stub commands live under `commands/*.md` (hyphenated names — e.g. **`/ce-brainstorm`** for `ce:brainstorm`).
 
-From the monorepo root, run **`/ce-cursor-setup`** or:
+From the monorepo root, run **`/ce-cursor-setup`**, paste **`docs/cursor-agent-setup.md`** into Agent chat, or:
 
 ```bash
 npm run install:cursor

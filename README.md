@@ -69,6 +69,8 @@ After installing, run `/ce-setup` in any project. It checks your environment, in
 
 #### Use skills and slash commands in any repo
 
+**Quick path:** paste [`docs/cursor-agent-setup.md`](docs/cursor-agent-setup.md) into Cursor Agent chat and ask it to run setup for you.
+
 Run once from this checkout (or invoke **`/ce-cursor-setup`** in Cursor — it runs the same script):
 
 ```bash
