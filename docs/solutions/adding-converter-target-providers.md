@@ -5,7 +5,7 @@ tags: [converter, target-provider, plugin-conversion, multi-platform, pattern]
 created: 2026-02-23
 severity: medium
 component: converter-cli
-problem_type: best_practice
+problem_type: architecture_pattern
 root_cause: architectural_pattern
 ---
 
@@ -328,7 +328,7 @@ export async function backupFile(filePath: string): Promise<string | null> {
 4. **Empty bundles should succeed gracefully** — Don't fail if a component array is empty. Many plugins may have no commands or no skills.
 
 5. **File extensions matter** — Match target conventions exactly:
-   - Copilot: `.agent.md` (note the dot)
+   - Copilot: `.md` for agents (VS Code parses `.agent.md` as Copilot format and silently drops Claude-style tool names; `.md` triggers Claude format detection and maps tools to VS Code equivalents)
    - Windsurf: `.md` for rules
    - OpenCode: `.md` for commands
 

@@ -46,7 +46,7 @@ The insight: individual comments don't say "this whole approach is wrong," but w
 ### Relevant Code and Patterns
 
 - `plugins/compound-engineering/skills/resolve-pr-feedback/SKILL.md` — the orchestrator skill, 285 lines
-- `plugins/compound-engineering/agents/workflow/pr-comment-resolver.md` — the worker agent, 134 lines
+- `plugins/compound-engineering/agents/workflow/ce-pr-comment-resolver.agent.md` — the worker agent, 134 lines
 - Current same-file grouping at SKILL.md lines 107-113 — conflict avoidance pattern to extend
 - The ce:review skill's confidence-gated merge/dedup pipeline — precedent for pre-dispatch analysis
 - The todo-resolve skill uses the same pr-comment-resolver agent and batching pattern
@@ -54,7 +54,7 @@ The insight: individual comments don't say "this whole approach is wrong," but w
 ### Institutional Learnings
 
 - **Whack-a-mole state machines** (`docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines-2026-03-27.md`): Skills handling multiple dimensions of state need explicit re-verification after every mutating action. Directly applicable — after fixing a cluster, re-verify the whole area, not just the individual threads.
-- **Cluster before filter** (`docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md`): Pipeline ordering is an architectural invariant. Group/cluster related items before deciding how to address them, otherwise individually below-threshold items that are part of a meaningful pattern get discarded.
+- **Cluster before filter**: Pipeline ordering is an architectural invariant. Group/cluster related items before deciding how to address them, otherwise individually below-threshold items that are part of a meaningful pattern get discarded.
 - **Status-gated resolution** (`docs/solutions/workflow/todo-status-lifecycle.md`): Quality gates belong upstream in triage, not at the resolve boundary. The cluster analysis step is exactly this — a quality gate before dispatch.
 - **Pass paths not content** (`docs/solutions/skill-design/pass-paths-not-content-to-subagents-2026-03-26.md`): When dispatching cluster-aware agents, pass thread IDs and file paths, not full comment bodies.
 
@@ -257,7 +257,7 @@ No separate concern-category matching for cross-cycle detection. The re-entry it
 **Dependencies:** Unit 2
 
 **Files:**
-- Modify: `plugins/compound-engineering/agents/workflow/pr-comment-resolver.md`
+- Modify: `plugins/compound-engineering/agents/workflow/ce-pr-comment-resolver.agent.md`
 
 **Approach:**
 - Add a "Cluster Mode" section to the agent, structured as a mode detection table (following ce:review's pattern): if a `<cluster-brief>` XML block is present in the prompt, activate cluster mode; otherwise, standard single-thread mode
@@ -347,8 +347,7 @@ No separate concern-category matching for cross-cycle detection. The re-entry it
 ## Sources & References
 
 - Related code: `plugins/compound-engineering/skills/resolve-pr-feedback/SKILL.md`
-- Related code: `plugins/compound-engineering/agents/workflow/pr-comment-resolver.md`
+- Related code: `plugins/compound-engineering/agents/workflow/ce-pr-comment-resolver.agent.md`
 - Institutional learning: `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines-2026-03-27.md`
-- Institutional learning: `docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md`
 - Institutional learning: `docs/solutions/workflow/todo-status-lifecycle.md`
 - Institutional learning: `docs/solutions/skill-design/pass-paths-not-content-to-subagents-2026-03-26.md`

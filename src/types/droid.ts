@@ -14,6 +14,7 @@ export type DroidSkillDir = {
 }
 
 export type DroidBundle = {
+  pluginName?: string
   commands: DroidCommandFile[]
   droids: DroidAgentFile[]
   skillDirs: DroidSkillDir[]

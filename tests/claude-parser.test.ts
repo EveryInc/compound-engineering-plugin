@@ -1,16 +1,46 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
+import fs from "fs/promises"
+import os from "os"
 import path from "path"
 import { loadClaudePlugin } from "../src/parsers/claude"
 import { filterSkillsByPlatform } from "../src/types/claude"
 
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+const compoundPluginRoot = path.join(import.meta.dir, "..", "plugins", "compound-engineering")
 const mcpFixtureRoot = path.join(import.meta.dir, "fixtures", "mcp-file")
 const customPathsRoot = path.join(import.meta.dir, "fixtures", "custom-paths")
 const invalidCommandPathRoot = path.join(import.meta.dir, "fixtures", "invalid-command-path")
 const invalidHooksPathRoot = path.join(import.meta.dir, "fixtures", "invalid-hooks-path")
 const invalidMcpPathRoot = path.join(import.meta.dir, "fixtures", "invalid-mcp-path")
+const tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const root of tempRoots.splice(0, tempRoots.length)) {
+    await fs.rm(root, { recursive: true, force: true })
+  }
+})
+
+async function makeMinimalPluginRoot(): Promise<string> {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), "claude-parser-agent-md-"))
+  tempRoots.push(root)
+  await fs.mkdir(path.join(root, ".claude-plugin"), { recursive: true })
+  await fs.mkdir(path.join(root, "agents"), { recursive: true })
+  await fs.writeFile(
+    path.join(root, ".claude-plugin", "plugin.json"),
+    JSON.stringify({ name: "test-plugin", version: "1.0.0" }, null, 2),
+  )
+  return root
+}
 
 describe("loadClaudePlugin", () => {
+  test("current compound-engineering plugin ships skills and agents but no source commands", async () => {
+    const plugin = await loadClaudePlugin(compoundPluginRoot)
+
+    expect(plugin.commands).toHaveLength(0)
+    expect(plugin.skills.length).toBeGreaterThan(0)
+    expect(plugin.agents.length).toBeGreaterThan(0)
+  })
+
   test("loads manifest, agents, commands, skills, hooks", async () => {
     const plugin = await loadClaudePlugin(fixtureRoot)
 
@@ -136,5 +166,43 @@ describe("loadClaudePlugin", () => {
     await expect(loadClaudePlugin(invalidMcpPathRoot)).rejects.toThrow(
       "Invalid mcpServers path: ../outside-mcp.json. Paths must stay within the plugin root.",
     )
+  })
+
+  test("loads .agent.md files with explicit frontmatter names", async () => {
+    const root = await makeMinimalPluginRoot()
+    await fs.writeFile(
+      path.join(root, "agents", "repo-research-analyst.agent.md"),
+      `---
+name: repo-research-analyst
+description: Research helper
+---
+
+Research prompt.
+`,
+    )
+
+    const plugin = await loadClaudePlugin(root)
+
+    expect(plugin.agents).toHaveLength(1)
+    expect(plugin.agents[0]?.name).toBe("repo-research-analyst")
+    expect(plugin.agents[0]?.sourcePath.endsWith("repo-research-analyst.agent.md")).toBe(true)
+  })
+
+  test("falls back to the filename stem for .agent.md files without name frontmatter", async () => {
+    const root = await makeMinimalPluginRoot()
+    await fs.writeFile(
+      path.join(root, "agents", "cleanup-specialist.agent.md"),
+      `---
+description: Cleanup helper
+---
+
+Cleanup prompt.
+`,
+    )
+
+    const plugin = await loadClaudePlugin(root)
+
+    expect(plugin.agents).toHaveLength(1)
+    expect(plugin.agents[0]?.name).toBe("cleanup-specialist")
   })
 })

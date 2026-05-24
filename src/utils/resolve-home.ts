@@ -15,3 +15,8 @@ export function resolveTargetHome(value: unknown, defaultPath: string): string {
   if (!raw) return defaultPath
   return path.resolve(expandHome(raw))
 }
+
+export function resolveCodexHome(value: unknown): string {
+  const defaultPath = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), ".codex")
+  return resolveTargetHome(value, path.resolve(expandHome(defaultPath)))
+}

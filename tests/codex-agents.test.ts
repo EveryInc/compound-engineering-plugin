@@ -21,6 +21,8 @@ describe("ensureCodexAgentsFile", () => {
     const content = await readFile(agentsPath)
     expect(content).toContain(CODEX_AGENTS_BLOCK_START)
     expect(content).toContain("Tool mapping")
+    expect(content).toContain("TaskCreate/TaskUpdate/TaskList/TaskGet/TaskStop/TaskOutput")
+    expect(content).toContain("use update_plan")
     expect(content).toContain(CODEX_AGENTS_BLOCK_END)
   })
 

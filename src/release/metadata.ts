@@ -1,6 +1,6 @@
 import { promises as fs } from "fs"
 import path from "path"
-import { readJson, readText, writeJson, writeText } from "../utils/files"
+import { readJson, writeJson } from "../utils/files"
 import type { ReleaseComponent } from "./types"
 
 type ClaudePluginManifest = {
@@ -14,6 +14,13 @@ type CursorPluginManifest = {
   description?: string
 }
 
+type CodexPluginManifest = {
+  name: string
+  version: string
+  description?: string
+  skills?: string
+}
+
 type MarketplaceManifest = {
   metadata: {
     version: string
@@ -23,6 +30,13 @@ type MarketplaceManifest = {
     name: string
     version?: string
     description?: string
+  }>
+}
+
+type CodexMarketplaceManifest = {
+  name: string
+  plugins: Array<{
+    name: string
   }>
 }
 
@@ -39,6 +53,7 @@ type FileUpdate = {
 
 export type MetadataSyncResult = {
   updates: FileUpdate[]
+  errors: string[]
 }
 
 export type CompoundEngineeringCounts = {
@@ -131,6 +146,7 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   const write = options.write ?? false
   const versions = options.componentVersions ?? {}
   const updates: FileUpdate[] = []
+  const errors: string[] = []
 
   const compoundDescription = await buildCompoundEngineeringDescription(root)
   const compoundMarketplaceDescription = await buildCompoundEngineeringMarketplaceDescription(root)
@@ -236,5 +252,114 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   updates.push({ path: marketplaceCursorPath, changed })
   if (write && changed) await writeJson(marketplaceCursorPath, marketplaceCursor)
 
-  return { updates }
+  // Codex manifests. Unlike Claude/Cursor, the Codex plugin.json is a
+  // different schema at `.codex-plugin/plugin.json` and the marketplace lives
+  // at `.agents/plugins/marketplace.json` (no metadata.version field). Plugin
+  // version sync is DETECT-ONLY here — release-please owns the bump via
+  // `extra-files` in `.github/release-please-config.json`. Duplicating the
+  // write would create a second authority for the same field.
+  const compoundCodexPath = path.join(root, "plugins", "compound-engineering", ".codex-plugin", "plugin.json")
+  const codingTutorCodexPath = path.join(root, "plugins", "coding-tutor", ".codex-plugin", "plugin.json")
+  const marketplaceCodexPath = path.join(root, ".agents", "plugins", "marketplace.json")
+
+  const codexPluginTargets: Array<{
+    claudePath: string
+    claude: ClaudePluginManifest
+    codexPath: string
+    expectedName: string
+  }> = [
+    {
+      claudePath: compoundClaudePath,
+      claude: compoundClaude,
+      codexPath: compoundCodexPath,
+      expectedName: "compound-engineering",
+    },
+    {
+      claudePath: codingTutorClaudePath,
+      claude: codingTutorClaude,
+      codexPath: codingTutorCodexPath,
+      expectedName: "coding-tutor",
+    },
+  ]
+
+  for (const { claudePath, claude, codexPath, expectedName } of codexPluginTargets) {
+    let codex: CodexPluginManifest
+    try {
+      codex = await readJson<CodexPluginManifest>(codexPath)
+    } catch (err: unknown) {
+      if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+        errors.push(`${codexPath} is missing but ${claudePath} exists. Codex manifest parity required.`)
+        updates.push({ path: codexPath, changed: false })
+        continue
+      }
+      throw err
+    }
+
+    if (codex.name !== expectedName) {
+      errors.push(`${codexPath}: name "${codex.name}" does not match expected "${expectedName}"`)
+    }
+
+    let codexChanged = false
+
+    // Version: detect-only (release-please owns the write via extra-files).
+    if (codex.version !== claude.version) {
+      codexChanged = true
+    }
+
+    // Description: write-enabled (same pattern as Claude/Cursor description sync).
+    if (claude.description !== undefined && codex.description !== claude.description) {
+      codex.description = claude.description
+      codexChanged = true
+    }
+
+    // Skills declaration: required. Codex native install is the source of
+    // skills for each plugin (and `--to codex` defaults to agents-only), so a
+    // missing `skills` field silently produces a broken install with no skills
+    // registered. Enforce presence, then verify the directory exists.
+    if (codex.skills === undefined) {
+      errors.push(`${codexPath} (${expectedName}): missing required field "skills". Codex plugins must declare a skills path (e.g., "./skills/").`)
+    } else {
+      const pluginDir = path.dirname(path.dirname(codexPath))
+      const skillsDir = path.resolve(pluginDir, codex.skills)
+      try {
+        const stat = await fs.stat(skillsDir)
+        if (!stat.isDirectory()) {
+          errors.push(`${codexPath} declares skills: "${codex.skills}" but ${skillsDir} is not a directory`)
+        }
+      } catch (err: unknown) {
+        if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+          errors.push(`${codexPath} declares skills: "${codex.skills}" but ${skillsDir} does not exist`)
+        } else {
+          throw err
+        }
+      }
+    }
+
+    updates.push({ path: codexPath, changed: codexChanged })
+    if (write && codexChanged) await writeJson(codexPath, codex)
+  }
+
+  // Codex marketplace: plugin-list parity with Claude marketplace. The Codex
+  // marketplace has no metadata.version field and is treated as static content
+  // (no release-please entry). Plugin list must mirror Claude exactly.
+  try {
+    const marketplaceCodex = await readJson<CodexMarketplaceManifest>(marketplaceCodexPath)
+    const claudeNames = [...marketplaceClaude.plugins.map((p) => p.name)].sort()
+    const codexNames = [...marketplaceCodex.plugins.map((p) => p.name)].sort()
+    if (claudeNames.join("|") !== codexNames.join("|")) {
+      errors.push(
+        `${marketplaceCodexPath}: plugin list [${codexNames.join(", ")}] does not match ${marketplaceClaudePath} [${claudeNames.join(", ")}]`,
+      )
+    }
+    updates.push({ path: marketplaceCodexPath, changed: false })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${marketplaceCodexPath} is missing but ${marketplaceClaudePath} exists. Codex marketplace parity required.`)
+      updates.push({ path: marketplaceCodexPath, changed: false })
+    } else {
+      throw err
+    }
+  }
+
+  return { updates, errors }
 }

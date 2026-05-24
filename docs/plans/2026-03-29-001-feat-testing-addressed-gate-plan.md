@@ -41,7 +41,7 @@ ce:work has thorough testing instructions but two narrow gaps let untested behav
 - `plugins/compound-engineering/skills/ce-plan/SKILL.md` — Phase 5.1 review checklist at lines 583-601, test scenario quality checks at lines 591-592. Two edit sites: instruction prose for Test scenarios at line 339 (section 3.5), and plan output template with HTML comment at line 499
 - `plugins/compound-engineering/skills/ce-work/SKILL.md` — Phase 2 task loop at lines ~143-155, Final Validation at lines 287-295 ("All tests pass"), Quality Checklist at lines 427-443 ("Tests pass (run project's test command)")
 - `plugins/compound-engineering/skills/ce-work-beta/SKILL.md` — Identical loop/checklist structure. Final Validation at lines 296-304, Quality Checklist at lines 500-516
-- `plugins/compound-engineering/agents/review/testing-reviewer.md` — 4 existing checks in "What you're hunting for" (lines 15-20), confidence calibration (lines 22-29), output format (lines 37-48)
+- `plugins/compound-engineering/agents/review/ce-testing-reviewer.agent.md` — 4 existing checks in "What you're hunting for" (lines 15-20), confidence calibration (lines 22-29), output format (lines 37-48)
 - `tests/pipeline-review-contract.test.ts` — Contract tests for ce:work, ce:work-beta, ce:brainstorm, ce:plan using `readRepoFile()` + `toContain`/`not.toContain` assertions
 - `tests/review-skill-contract.test.ts` — Contract tests for ce:review agent using same pattern, includes frontmatter parsing and cross-file schema alignment
 
@@ -156,7 +156,7 @@ ce:work has thorough testing instructions but two narrow gaps let untested behav
 **Dependencies:** None
 
 **Files:**
-- Modify: `plugins/compound-engineering/agents/review/testing-reviewer.md`
+- Modify: `plugins/compound-engineering/agents/review/ce-testing-reviewer.agent.md`
 
 **Approach:**
 - Add a 5th bold-titled bullet in "What you're hunting for" (after the existing 4th check at line 20). The check should: describe the pattern (behavioral code changes — new logic branches, state mutations, API changes — with zero corresponding test file additions or modifications in the diff), explain what makes it distinct from check #1 (which looks at untested branches *within* code that has tests, while this flags when no tests exist at all), and note that non-behavioral changes (config, formatting, comments, type-only changes) are excluded

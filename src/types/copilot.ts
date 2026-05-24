@@ -24,6 +24,7 @@ export type CopilotMcpServer = {
 }
 
 export type CopilotBundle = {
+  pluginName?: string
   agents: CopilotAgent[]
   generatedSkills: CopilotGeneratedSkill[]
   skillDirs: CopilotSkillDir[]

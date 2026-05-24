@@ -42,7 +42,7 @@ The current `document-review` applies five generic criteria (Clarity, Completene
 
 - `plugins/compound-engineering/skills/ce-review/SKILL.md` -- Multi-agent orchestration reference: parallel dispatch via Task tool, always-on + conditional agents, P1/P2/P3 severity, finding synthesis with dedup
 - `plugins/compound-engineering/skills/document-review/SKILL.md` -- Current single-voice skill to replace. Key contract: "Review complete" terminal signal
-- `plugins/compound-engineering/agents/review/*.md` -- 15 existing review agents. Frontmatter schema: `name`, `description`, `model: inherit`. Body: examples block, role definition, analysis protocol, output format
+- `plugins/compound-engineering/agents/review/ce-*.agent.md` -- 15 existing review agents. Frontmatter schema: `name`, `description`, `model: inherit`. Body: examples block, role definition, analysis protocol, output format
 - `plugins/compound-engineering/AGENTS.md` -- Agent naming: fully-qualified `compound-engineering:<category>:<agent-name>`. Agent placement: `agents/<category>/<name>.md`
 
 ### Caller Integration Points
@@ -60,7 +60,7 @@ All expect "Review complete" as the terminal signal. No callers check for specif
 - **Subagent design** (docs/solutions/skill-design/compound-refresh-skill-improvements.md): Each persona agent needs explicit context (file path, scope, output format) -- don't rely on inherited context. Use native file tools, not shell commands. Avoid hardcoded tool names; use capability-first language with platform examples.
 - **Parallel dispatch safety**: Persona reviewers are read-only (analyze the document, don't modify it). Parallel dispatch is safe. This differs from compound-refresh which used sequential subagents because they modified files.
 - **Contradictory findings**: With 6 independent reviewers, findings will conflict (scope-guardian wants to cut; coherence wants to keep for narrative flow). Synthesis needs conflict-resolution rules, not just dedup.
-- **Classification pipeline ordering** (docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md): Pipeline ordering matters: filter -> normalize -> group -> threshold -> re-classify -> output. Post-grouping safety checks catch misclassified findings. Single source of truth for classification logic.
+- **Classification pipeline ordering**: Pipeline ordering matters: filter -> normalize -> group -> threshold -> re-classify -> output. Post-grouping safety checks catch misclassified findings. Single source of truth for classification logic.
 - **Beta skills framework** (docs/solutions/skill-design/beta-skills-framework.md): Since we're replacing document-review entirely (not running side-by-side), the beta framework doesn't apply here.
 
 ### Research Insights: iterative-engineering plan-review
@@ -214,8 +214,8 @@ Orchestrator routing (document review simplification):
 **Dependencies:** None
 
 **Files:**
-- Create: `plugins/compound-engineering/agents/review/coherence-reviewer.md`
-- Create: `plugins/compound-engineering/agents/review/feasibility-reviewer.md`
+- Create: `plugins/compound-engineering/agents/document-review/ce-coherence-reviewer.agent.md`
+- Create: `plugins/compound-engineering/agents/document-review/ce-feasibility-reviewer.agent.md`
 
 **Approach:**
 - Follow existing agent structure: frontmatter (name, description, model: inherit), examples block, role definition, analysis protocol
@@ -237,8 +237,8 @@ Orchestrator routing (document review simplification):
 - Suppress: implementation style choices, testing strategy details, code organization preferences, theoretical scalability concerns
 
 **Patterns to follow:**
-- `plugins/compound-engineering/agents/review/code-simplicity-reviewer.md` for agent structure and output format conventions
-- `plugins/compound-engineering/agents/review/architecture-strategist.md` for systematic analysis protocol style
+- `plugins/compound-engineering/agents/review/ce-code-simplicity-reviewer.agent.md` for agent structure and output format conventions
+- `plugins/compound-engineering/agents/review/ce-architecture-strategist.agent.md` for systematic analysis protocol style
 - iterative-engineering agents for confidence calibration and suppress conditions pattern
 
 **Test scenarios:**
@@ -267,10 +267,10 @@ Orchestrator routing (document review simplification):
 **Dependencies:** Unit 1 (for consistent agent structure)
 
 **Files:**
-- Create: `plugins/compound-engineering/agents/review/product-lens-reviewer.md`
-- Create: `plugins/compound-engineering/agents/review/design-lens-reviewer.md`
-- Create: `plugins/compound-engineering/agents/review/security-lens-reviewer.md`
-- Create: `plugins/compound-engineering/agents/review/scope-guardian-reviewer.md`
+- Create: `plugins/compound-engineering/agents/document-review/ce-product-lens-reviewer.agent.md`
+- Create: `plugins/compound-engineering/agents/document-review/ce-design-lens-reviewer.agent.md`
+- Create: `plugins/compound-engineering/agents/document-review/ce-security-lens-reviewer.agent.md`
+- Create: `plugins/compound-engineering/agents/document-review/ce-scope-guardian-reviewer.agent.md`
 
 **Approach:**
 All four use the same structure established in Unit 1 (frontmatter, examples, role, protocol, confidence calibration, suppress conditions). Output normalization handled by shared reference files.
@@ -311,7 +311,7 @@ All four use the same structure established in Unit 1 (frontmatter, examples, ro
 
 **Patterns to follow:**
 - Unit 1 agents for consistent structure
-- `plugins/compound-engineering/agents/review/security-sentinel.md` for security analysis style (plan-level adaptation)
+- `plugins/compound-engineering/agents/review/ce-security-sentinel.agent.md` for security analysis style (plan-level adaptation)
 
 **Test scenarios:**
 - product-lens-reviewer challenges a plan that builds a complex admin dashboard when the stated goal is "improve user onboarding"
@@ -502,4 +502,3 @@ Synthesis pipeline (order matters):
 - Related pattern: iterative-engineering `skills/plan-review/SKILL.md` (synthesis pipeline, findings schema, subagent template)
 - Related pattern: iterative-engineering `agents/coherence-reviewer.md`, `feasibility-reviewer.md`, `scope-guardian-reviewer.md`, `prd-reviewer.md`, `tech-plan-reviewer.md`, `skeptic-reviewer.md` (persona prompt design, confidence calibration, suppress conditions)
 - Related learning: `docs/solutions/skill-design/compound-refresh-skill-improvements.md` (subagent design patterns)
-- Related learning: `docs/solutions/skill-design/claude-permissions-optimizer-classification-fix.md` (pipeline ordering, classification correctness)

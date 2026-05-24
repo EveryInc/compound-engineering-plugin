@@ -3,7 +3,7 @@ title: "Prefer Python over bash for multi-step pipeline scripts"
 date: 2026-04-09
 category: best-practices
 module: "skill scripting / ce-demo-reel"
-problem_type: best_practice
+problem_type: tooling_decision
 component: tooling
 severity: medium
 applies_when:

@@ -50,7 +50,7 @@ export function convertClaudeToDroid(
     sourceDir: skill.sourceDir,
   }))
 
-  return { commands, droids, skillDirs }
+  return { pluginName: plugin.manifest.name, commands, droids, skillDirs }
 }
 
 function convertCommand(command: ClaudeCommand): DroidCommandFile {

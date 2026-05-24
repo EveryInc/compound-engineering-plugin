@@ -1,9 +1,11 @@
 import { describe, expect, test } from "bun:test"
+import fs from "fs"
+import os from "os"
 import path from "path"
 
 const SCRIPTS_DIR = path.join(
   __dirname,
-  "../plugins/compound-engineering/agents/research/session-history-scripts"
+  "../plugins/compound-engineering/skills/ce-sessions/scripts"
 )
 const FIXTURES_DIR = path.join(__dirname, "fixtures/session-history")
 
@@ -127,6 +129,214 @@ describe("extract-metadata", () => {
     const meta = lines.find((l) => l._meta)
     expect(meta.files_processed).toBe(0)
     expect(meta.parse_errors).toBe(0)
+  })
+
+  // --keyword mode: opt-in full-file content scan. When set, sessions with zero
+  // matches are excluded and each emitted session line carries match_count plus
+  // per-keyword counts so the caller can rank candidates without re-scanning.
+  describe("--keyword mode", () => {
+    test("filters to sessions matching a single keyword", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "middleware",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+        path.join(FIXTURES_DIR, "cursor-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      // All three fixtures mention middleware.
+      expect(sessions.length).toBe(3)
+      for (const session of sessions) {
+        expect(session.match_count).toBeGreaterThan(0)
+        expect(session.keyword_matches.middleware).toBeGreaterThan(0)
+      }
+    })
+
+    test("excludes sessions with zero matches and counts them in _meta", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "no_such_token_xyz_42",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(0)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_processed).toBe(2)
+      expect(meta.files_matched).toBe(0)
+    })
+
+    test("supports multiple comma-separated keywords with OR semantics", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "auth,no_such_token_xyz_42",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(1)
+      expect(sessions[0].keyword_matches.auth).toBeGreaterThan(0)
+      expect(sessions[0].keyword_matches.no_such_token_xyz_42).toBe(0)
+    })
+
+    test("keyword match is case-insensitive", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "AUTH",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(1)
+      expect(sessions[0].keyword_matches.AUTH).toBeGreaterThan(0)
+    })
+
+    test("emits files_matched in _meta and preserves files_processed", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "middleware",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_processed).toBe(2)
+      expect(meta.files_matched).toBe(2)
+      expect(meta.parse_errors).toBe(0)
+    })
+
+    test("without --keyword, output shape is unchanged (no match_count field)", async () => {
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const session = lines.find((l) => !l._meta)
+      expect(session.match_count).toBeUndefined()
+      expect(session.keyword_matches).toBeUndefined()
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_matched).toBeUndefined()
+    })
+
+    // Content-only scanning: --keyword must match against user/assistant text,
+    // not JSONL metadata fields or tool-call internals. Otherwise common topic
+    // words like "session" false-positive on every file via sessionId.
+    test("does not match JSONL metadata field names", async () => {
+      // sessionId, gitBranch, uuid, parentUuid, timestamp are JSONL field names
+      // present in every Claude session file. None should match.
+      for (const metaToken of ["sessionId", "gitBranch", "parentUuid"]) {
+        const { stdout, exitCode } = await runScript("extract-metadata.py", [
+          "--keyword",
+          metaToken,
+          path.join(FIXTURES_DIR, "claude-session.jsonl"),
+        ])
+        expect(exitCode).toBe(0)
+        const lines = parseJsonLines(stdout)
+        const sessions = lines.filter((l) => !l._meta)
+        if (sessions.length > 0) {
+          expect(sessions[0].keyword_matches[metaToken]).toBe(0)
+        }
+      }
+    })
+
+    test("does not match against tool_use names or tool inputs", async () => {
+      // The Claude fixture invokes Read and Edit tools. Those tool names should
+      // not produce matches — they are tool-call internals, not user content.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "Edit",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      // Either excluded entirely (zero match) or match_count: 0
+      if (sessions.length > 0) {
+        expect(sessions[0].keyword_matches.Edit).toBe(0)
+      }
+    })
+
+    test("does not match Codex system_instruction wrapper text", async () => {
+      // The Codex fixture's first user message is wrapped in
+      // <system_instruction>You are working inside Conductor.</system_instruction>
+      // which is Codex/Conductor boilerplate, not user-authored content.
+      // "Conductor" only appears inside that wrapper, so it must not match.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "Conductor",
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      // Either excluded entirely (zero match) or match_count: 0
+      if (sessions.length > 0) {
+        expect(sessions[0].keyword_matches.Conductor).toBe(0)
+      }
+    })
+
+    test("--cwd-filter is applied before keyword scan (skips full-file scan for filtered sessions)", async () => {
+      // Codex discovery returns sessions across all repos, so --cwd-filter
+      // must be evaluated before the expensive full-file keyword scan to
+      // avoid scanning sessions that are immediately discarded. Verify the
+      // observable contract: a session that fails --cwd-filter is counted
+      // in filtered_by_cwd and never reaches the keyword filter, so
+      // files_matched stays 0 even though --keyword was supplied.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--cwd-filter",
+        "other-repo",
+        "--keyword",
+        "auth",
+        path.join(FIXTURES_DIR, "codex-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(0)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.filtered_by_cwd).toBe(1)
+      expect(meta.files_matched).toBe(0)
+    })
+
+    test("empty input with --keyword still emits files_matched: 0", async () => {
+      // The empty-stdin (xargs-empty) branch must include files_matched when
+      // --keyword is supplied, so callers relying on its presence to short-
+      // circuit in zero-match scans get a consistent shape.
+      const { stdout, exitCode } = await runScript(
+        "extract-metadata.py",
+        ["--keyword", "anything"],
+        ""
+      )
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const meta = lines.find((l) => l._meta)
+      expect(meta.files_processed).toBe(0)
+      expect(meta.parse_errors).toBe(0)
+      expect(meta.files_matched).toBe(0)
+    })
+
+    test("matches against actual user/assistant content", async () => {
+      // The Claude fixture's first user message says "fix the auth bug" and
+      // assistant text mentions "auth module" and "middleware". These ARE
+      // user-visible content and must match.
+      const { stdout, exitCode } = await runScript("extract-metadata.py", [
+        "--keyword",
+        "auth",
+        path.join(FIXTURES_DIR, "claude-session.jsonl"),
+      ])
+      expect(exitCode).toBe(0)
+      const lines = parseJsonLines(stdout)
+      const sessions = lines.filter((l) => !l._meta)
+      expect(sessions.length).toBe(1)
+      expect(sessions[0].keyword_matches.auth).toBeGreaterThan(0)
+    })
   })
 })
 
@@ -307,6 +517,139 @@ describe("extract-skeleton", () => {
     expect(stdout).toContain("[tools] 4x Read")
     expect(stdout).toContain("all ok")
   })
+
+  // Regression: issue #805 — some Claude Code / MCP tool inputs put a dict in
+  // fields the summarizer slices (`command`, `query`, `prompt`, `pattern`).
+  // `dict[:80]` raises TypeError: unhashable type: 'slice'. The fix guards
+  // every slice with isinstance(value, str); dict-shaped fields fall through
+  // to the next candidate or empty target without crashing the extraction.
+  test("does not crash when Claude tool input has a dict-shaped query", async () => {
+    const lines = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "t1",
+              name: "WebSearch",
+              input: { query: { foo: "bar" } },
+            },
+          ],
+        },
+        timestamp: "2026-05-08T10:00:00.000Z",
+      }),
+    ]
+    const { stdout, exitCode, stderr } = await runScript(
+      "extract-skeleton.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stderr).not.toContain("TypeError")
+    expect(stdout).toContain("[tool] WebSearch")
+    const metaLine = stdout.trim().split("\n").at(-1)!
+    expect(JSON.parse(metaLine).parse_errors).toBe(0)
+  })
+
+  test("dict-shaped command/prompt/pattern fields do not crash and fall back to empty target", async () => {
+    const lines = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "c1",
+              name: "Bash",
+              input: { command: { cmd: "ls" } },
+            },
+            {
+              type: "tool_use",
+              id: "p1",
+              name: "Task",
+              input: { prompt: { description: "x" } },
+            },
+            {
+              type: "tool_use",
+              id: "g1",
+              name: "Grep",
+              input: { pattern: { regex: "foo" } },
+            },
+          ],
+        },
+        timestamp: "2026-05-08T10:00:01.000Z",
+      }),
+    ]
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("[tool] Bash")
+    expect(stdout).toContain("[tool] Task")
+    expect(stdout).toContain("[tool] Grep")
+  })
+
+  test("falls through dict-shaped query to a later string field", async () => {
+    // When `query` is a dict, the summarizer must skip it and try `prompt`.
+    const lines = [
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "tool_use",
+              id: "x1",
+              name: "MCPTool",
+              input: {
+                query: { structured: true },
+                prompt: "fallback prompt text",
+              },
+            },
+          ],
+        },
+        timestamp: "2026-05-08T10:00:02.000Z",
+      }),
+    ]
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("fallback prompt text")
+  })
+
+  test("dict-shaped Cursor tool inputs do not crash", async () => {
+    // Same exposure exists in handle_cursor's tool_use path.
+    const lines = [
+      JSON.stringify({
+        role: "assistant",
+        message: {
+          content: [
+            {
+              type: "tool_use",
+              name: "search",
+              input: { pattern: { regex: "foo" }, glob_pattern: { type: "x" } },
+            },
+          ],
+        },
+      }),
+    ]
+    const { stdout, exitCode, stderr } = await runScript(
+      "extract-skeleton.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stderr).not.toContain("TypeError")
+    expect(stdout).toContain("[tool] search")
+  })
 })
 
 // ---------------------------------------------------------------------------
@@ -380,6 +723,97 @@ describe("extract-errors", () => {
     expect(meta._meta).toBe(true)
     expect(meta.errors_found).toBeGreaterThan(0)
     expect(meta.parse_errors).toBe(0)
+  })
+})
+
+// ---------------------------------------------------------------------------
+// --output PATH mode: extract-skeleton.py and extract-errors.py
+//
+// When --output PATH is set, scripts write extracted bytes to PATH and emit
+// only a one-line _meta status to stdout (with wrote/bytes fields).
+// This lets ce-sessions route bulk extraction content to a scratch file
+// without round-tripping through orchestrator tool results. Without --output,
+// stdout-mode behavior is preserved (covered by tests above).
+// ---------------------------------------------------------------------------
+describe("--output PATH mode", () => {
+  function tmpFile(): string {
+    return path.join(
+      fs.mkdtempSync(path.join(os.tmpdir(), "ce-sessions-test-")),
+      "out.txt"
+    )
+  }
+
+  test("extract-skeleton writes file and emits status to stdout", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const outPath = tmpFile()
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      ["--output", outPath],
+      fixture
+    )
+    expect(exitCode).toBe(0)
+
+    // stdout receives only a one-line _meta status with wrote/bytes
+    const stdoutLines = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(stdoutLines).toHaveLength(1)
+    const status = JSON.parse(stdoutLines[0])
+    expect(status._meta).toBe(true)
+    expect(status.wrote).toBe(outPath)
+    expect(status.bytes).toBeGreaterThan(0)
+    expect(status.parse_errors).toBe(0)
+
+    // The file contains the actual extracted body, ending with the inner _meta line
+    const body = fs.readFileSync(outPath, "utf-8")
+    expect(body.length).toBe(status.bytes)
+    const bodyLines = body.trim().split("\n")
+    const innerMeta = JSON.parse(bodyLines[bodyLines.length - 1])
+    expect(innerMeta._meta).toBe(true)
+    expect(body).not.toMatch(/"wrote":/) // status field is stdout-only
+  })
+
+  test("extract-errors writes file and emits status to stdout", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const outPath = tmpFile()
+    const { stdout, exitCode } = await runScript(
+      "extract-errors.py",
+      ["--output", outPath],
+      fixture
+    )
+    expect(exitCode).toBe(0)
+
+    const stdoutLines = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(stdoutLines).toHaveLength(1)
+    const status = JSON.parse(stdoutLines[0])
+    expect(status._meta).toBe(true)
+    expect(status.wrote).toBe(outPath)
+    expect(status.bytes).toBeGreaterThan(0)
+    expect(status.errors_found).toBeGreaterThan(0)
+
+    const body = fs.readFileSync(outPath, "utf-8")
+    expect(body).toContain("[error]")
+    expect(body.length).toBe(status.bytes)
+  })
+
+  test("extract-skeleton stdout-mode still works when --output is omitted", async () => {
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      [],
+      fixture
+    )
+    expect(exitCode).toBe(0)
+    // No status JSON with `wrote` field — stdout has the body and ends with inner _meta
+    expect(stdout).not.toMatch(/"wrote":/)
+    const lines = stdout.trim().split("\n")
+    const meta = JSON.parse(lines[lines.length - 1])
+    expect(meta._meta).toBe(true)
+    expect(meta).not.toHaveProperty("wrote")
   })
 })
 

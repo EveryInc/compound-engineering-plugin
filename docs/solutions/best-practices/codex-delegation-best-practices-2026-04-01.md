@@ -3,7 +3,7 @@ title: "Codex Delegation Best Practices"
 date: 2026-04-01
 category: best-practices
 module: "Codex delegation / skill design"
-problem_type: best_practice
+problem_type: convention
 component: tooling
 severity: medium
 applies_when:

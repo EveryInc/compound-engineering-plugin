@@ -305,6 +305,27 @@ describe("capture-evidence.py", () => {
       expect(exitCode).toBe(1)
       expect(stderr).toContain("File not found")
     })
+
+    test("stitch fails fast when a frame is below the minimum size", async () => {
+      // Regression: blank screenshots from SPAs were stitched and uploaded silently.
+      // _stitch_frames must reject frames smaller than --min-frame-bytes (default 20480)
+      // before invoking ffmpeg, naming the offending file.
+      const tmp = await fs.mkdtemp(path.join(os.tmpdir(), "evidence-blank-"))
+      try {
+        const tinyPng = createTestPng([10, 10, 10])
+        const tinyPath = path.join(tmp, "blank.png")
+        await fs.writeFile(tinyPath, tinyPng)
+
+        const out = path.join(tmp, "out.gif")
+        const { exitCode, stderr } = await run("stitch", out, tinyPath)
+
+        expect(exitCode).toBe(1)
+        expect(stderr).toContain("blank.png")
+        expect(stderr.toLowerCase()).toContain("min")
+      } finally {
+        await fs.rm(tmp, { recursive: true, force: true })
+      }
+    })
   })
 
   // --- Stitch integration (requires ffmpeg) ---
@@ -345,7 +366,7 @@ describe("capture-evidence.py", () => {
 
       const output = path.join(tmpDir, "output.gif")
       const { exitCode, stdout } = await run(
-        "stitch", "--duration", "0.5", output,
+        "stitch", "--duration", "0.5", "--min-frame-bytes", "0", output,
         path.join(tmpDir, "frame1.png"),
         path.join(tmpDir, "frame2.png"),
       )
@@ -372,7 +393,7 @@ describe("capture-evidence.py", () => {
 
       const output = path.join(tmpDir, "output3.gif")
       const { exitCode, stdout } = await run(
-        "stitch", "--duration", "0.5", output,
+        "stitch", "--duration", "0.5", "--min-frame-bytes", "0", output,
         path.join(tmpDir, "frame1.png"),
         path.join(tmpDir, "frame2.png"),
         path.join(tmpDir, "frame3.png"),
@@ -390,7 +411,7 @@ describe("capture-evidence.py", () => {
 
       const output = path.join(tmpDir, "output-default-dur.gif")
       const { exitCode, stdout } = await run(
-        "stitch", output,
+        "stitch", "--min-frame-bytes", "0", output,
         path.join(tmpDir, "frame1.png"),
         path.join(tmpDir, "frame2.png"),
       )
