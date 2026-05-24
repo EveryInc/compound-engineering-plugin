@@ -26,6 +26,7 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | [`/ce-strategy`](../../docs/skills/ce-strategy.md) | Create or maintain `STRATEGY.md` — the product's target problem, approach, persona, key metrics, and tracks. Re-runnable to update. Read as grounding by `/ce-ideate`, `/ce-brainstorm`, and `/ce-plan` when present |
 | [`/ce-ideate`](../../docs/skills/ce-ideate.md) | Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming |
 | [`/ce-brainstorm`](../../docs/skills/ce-brainstorm.md) | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning |
+| `/ce-prototype` | Build throwaway prototypes to validate assumptions before planning |
 | [`/ce-plan`](../../docs/skills/ce-plan.md) | Create structured plans for any multi-step task -- software features, research workflows, events, study plans -- with automatic confidence checking |
 | [`/ce-code-review`](../../docs/skills/ce-code-review.md) | Structured code review with tiered persona agents, confidence gating, and dedup pipeline |
 | [`/ce-work`](../../docs/skills/ce-work.md) | Execute work items systematically |
@@ -34,6 +35,7 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | [`/ce-compound-refresh`](../../docs/skills/ce-compound-refresh.md) | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
 | [`/ce-optimize`](../../docs/skills/ce-optimize.md) | Run iterative optimization loops with parallel experiments, measurement gates, and LLM-as-judge quality scoring |
 | [`/ce-product-pulse`](../../docs/skills/ce-product-pulse.md) | Generate a single-page, time-windowed report on usage, performance, errors, and followups. Saves reports to `docs/pulse-reports/` as a browseable timeline of what users experienced |
+
 
 ### Research & Context
 
