@@ -67,6 +67,28 @@ After installing, run `/ce-setup` in any project. It checks your environment, in
 /add-plugin compound-engineering
 ```
 
+#### Use skills and slash commands in any repo
+
+Run once from this checkout (or invoke **`/ce-cursor-setup`** in Cursor — it runs the same script):
+
+```bash
+npm run install:cursor
+```
+
+That script:
+
+1. Symlinks each plugin with a `.cursor-plugin/` manifest into `~/.cursor/plugins/local/`
+2. Merges those paths into `~/.cursor/plugins/installed.json`
+3. Regenerates **`~/.cursor/commands/*.md`** with absolute paths to this checkout’s `SKILL.md` files
+
+After it finishes, **quit Cursor fully (Cmd+Q)** and reopen. Then **`/ce-brainstorm`**, **`/ce-plan`**, and the rest appear in **any** workspace — not only when this monorepo is open.
+
+**Why two locations?** Plugin symlinks load **skills/rules** from `~/.cursor/plugins/local/`. Cursor’s `/` palette in other repos reads **user** `~/.cursor/commands/` (and project `.cursor/commands/`), not files inside the plugin tree — the generator writes the user commands for you.
+
+Re-run `npm run install:cursor` after moving the repository or when skills change. To regenerate commands only: `npm run generate:cursor-commands`.
+
+**Note:** `plugins/excalidraw-diagrams/` has no `.cursor-plugin/` manifest yet, so it is not registered as a Cursor plugin. Its generated commands still apply when you open this repo.
+
 ### OpenCode, Codex, Droid, Pi, Gemini, Copilot, Kiro, Windsurf, OpenClaw & Qwen (experimental)
 
 This repo includes a Bun/TypeScript CLI that converts Claude Code plugins to OpenCode, Codex, Factory Droid, Pi, Gemini CLI, GitHub Copilot, Kiro CLI, Windsurf, OpenClaw, and Qwen Code.

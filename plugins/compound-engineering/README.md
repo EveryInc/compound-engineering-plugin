@@ -6,6 +6,18 @@ AI-powered development tools that get smarter with every use. Make each unit of 
 
 After installing, run `/ce-setup` in any project. It diagnoses your environment, installs missing tools, and bootstraps project config in one interactive flow.
 
+### Cursor (slash commands)
+
+Skills are defined under `skills/*/SKILL.md`. For **Cursor**, matching stub commands live under `commands/*.md` (hyphenated names — e.g. **`/ce-brainstorm`** for `ce:brainstorm`).
+
+From the monorepo root, run **`/ce-cursor-setup`** or:
+
+```bash
+npm run install:cursor
+```
+
+That installs plugin symlinks, updates `~/.cursor/plugins/installed.json`, and writes **`~/.cursor/commands/*.md`** so slash commands work in **any** Cursor project. Re-run after moving the repository or when skills change.
+
 ## Components
 
 | Component | Count |

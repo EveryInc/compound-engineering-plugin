@@ -16,6 +16,7 @@ https://docs.cursor.com/customize/model-context-protocol
 |-------|------|
 | Project rules | `.cursor/rules/*.mdc` |
 | Project commands | `.cursor/commands/*.md` |
+| User commands (all projects) | `~/.cursor/commands/*.md` |
 | Project skills | `.cursor/skills/*/SKILL.md` |
 | Project MCP | `.cursor/mcp.json` |
 | Project CLI permissions | `.cursor/cli.json` |
@@ -41,10 +42,23 @@ https://docs.cursor.com/customize/model-context-protocol
 ## Commands (slash commands)
 
 - Custom commands are Markdown files stored in `.cursor/commands/`.
+- User-scoped commands in `~/.cursor/commands/` appear in the `/` palette in **every** project.
 - Commands are plain markdown with no YAML frontmatter support.
 - The filename (without `.md`) becomes the command name.
 - Commands are invoked by typing `/` in the chat UI.
 - Commands support parameterized arguments via `$1`, `$2`, etc.
+
+### Compound Engineering install (script-first)
+
+Prefer **`npm run install:cursor`** (or **`/ce-cursor-setup`**) over hand-written setup steps — the agent reads a tiny command stub and runs `scripts/install-cursor-plugin.sh`, which:
+
+1. Symlinks plugins with `.cursor-plugin/plugin.json` into `~/.cursor/plugins/local/`
+2. Merges paths into `~/.cursor/plugins/installed.json`
+3. Runs `scripts/generate-cursor-commands.mjs` to write plugin, workspace, and user command stubs
+
+Generated command files include `<!-- compound-plugin:cursor-command generated -->`. User-global stubs embed **absolute paths** to `plugins/*/skills/*/SKILL.md` in this checkout so skills resolve from any workspace.
+
+Regenerate when skills change: `npm run generate:cursor-commands`. Full reinstall (e.g. after moving the clone): `npm run install:cursor`.
 
 ## Skills (Agent Skills)
 
