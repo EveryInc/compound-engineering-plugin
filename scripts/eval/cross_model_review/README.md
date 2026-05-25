@@ -188,6 +188,37 @@ python3 run_arms.py gt-score   <manifest.json> <arm-matches.json>  # -> per-arm 
 `decision_changing` for plan-review corpora — so the same three-way decision rule serves
 both breakpoints. Forward-rated and negative-control documents keep `decision_changing`.
 
+### End-to-end (the `drive_eval.py` spine)
+
+`drive_eval.py` wires the deterministic flow and makes the orchestrator handoff explicit.
+It cannot run arms `a`/`d` or the judge (model-driven, no `claude -p`); it runs the spine
+and consumes their outputs.
+
+```
+# 1. build a corpus and assemble a manifest skeleton (pre_registration left null)
+python3 build_corpus.py scan-fixes --repo <repo> --out-dir corpus/ > sf.json
+python3 build_corpus.py to-manifest sf.json > manifest.json
+
+# 2. HUMAN: confirm needs_confirmation entries, add negative_control + forward_rated docs,
+#    and FILL pre_registration (go_threshold / minimum_corpus_n / trials_per_arm). (R6, R9)
+
+# 3. plan -- enumerates arm x doc x trial work, emits the CLI-arm commands + the
+#    in-process/judge todo, and writes run-state.json. Refuses if pre-reg is unset.
+python3 drive_eval.py plan manifest.json --out-dir run/ --rubric code-review-rubric.md --context arm-c-context.md
+
+# 4. ORCHESTRATOR: run the emitted CLI-arm (b, c) commands and ingest; dispatch arms a/d
+#    in-process and ingest; run the judge (gt_match_rubric.md / judge_rubric.md) -> verdict files.
+
+# 5. finalize -- gt-resolve -> gt-score -> aggregate -> decision artifact under docs/
+python3 drive_eval.py finalize run/records manifest.json \
+  --gt-verdicts gt-verdicts.json [--class-verdicts class-verdicts.json] \
+  [--integrity <correct>,<total>] --judge-family <family> --out docs/<decision-record>.md
+```
+
+`plan` enforces R9 (no run without a pre-registered threshold/N); `finalize` forces
+`inconclusive` if the blind-integrity probe comes back confounded, below minimum N, or the
+negative control moves — the same guards the manual chain applies.
+
 The model arms (`b`/`c`) review a diff exactly as they review a plan — it is text on stdin
 — so `arms.py` is unchanged. Note that arm `b` (isolated, no repo) is more crippled by a
 raw diff than by a self-contained plan; pre-register that as an expected effect so a

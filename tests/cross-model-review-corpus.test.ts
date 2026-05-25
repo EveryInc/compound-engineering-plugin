@@ -224,6 +224,28 @@ describe("scan: end-to-end Tier-1 revert discovery on a constructed repo", () =>
 	});
 });
 
+describe("to-manifest (assemble a manifest skeleton from scan output)", () => {
+	test("wraps entries as docs with null pre-registration for the human to fill (R9)", async () => {
+		const scan = tmpFile(
+			"scan.json",
+			JSON.stringify({
+				entries: [
+					{ id: "kf-1", path: "a.diff", subset: "known_failure", ground_truth: { bug: "x" } },
+					{ id: "kf-2", path: "b.diff", subset: "known_failure", ground_truth: { bug: "y" } },
+				],
+				stats: {},
+			}),
+		);
+		const out = JSON.parse((await build(["to-manifest", scan])).stdout);
+		expect(out.docs).toHaveLength(2);
+		expect(out.docs[0].id).toBe("kf-1");
+		expect(out.pre_registration.go_threshold).toBeNull();
+		expect(out.pre_registration.minimum_corpus_n).toBeNull();
+		expect(out.pre_registration.trials_per_arm).toBe(3);
+		expect(out.arms).toContain("c_fixed_context");
+	});
+});
+
 describe("code-path filter (keeps a code-review corpus free of doc fixes)", () => {
 	test("source files are code; markdown and docs/ paths are not", async () => {
 		const cases: [string, boolean][] = [

@@ -381,6 +381,28 @@ def scan_fixes(repo, out_dir=None, all_refs=False, max_entries=None):
     }
 
 
+def to_manifest(scan):
+    """Wrap scan / scan-fixes output into a corpus-manifest skeleton.
+
+    Entries become the `docs` array; pre_registration is left null so the human
+    must fill the decision rule before running (R9), and confirm the
+    `needs_confirmation` Tier-3 entries (R6). Accepts either the full
+    `{entries, stats}` object or a bare list of entries.
+    """
+    entries = scan.get("entries", []) if isinstance(scan, dict) else scan
+    return {
+        "_schema": "Assembled from build_corpus output. FILL pre_registration before running (R9); confirm needs_confirmation entries and add negative_control + forward_rated docs (R6).",
+        "pre_registration": {
+            "go_threshold": None,
+            "minimum_corpus_n": None,
+            "trials_per_arm": 3,
+            "arm_c_context_rule": None,
+        },
+        "arms": ["a_baseline", "b_isolated", "c_fixed_context", "d_self_critic"],
+        "docs": entries,
+    }
+
+
 def _read(path):
     return Path(path).read_text()
 
@@ -405,6 +427,9 @@ def main(argv=None):
     p.add_argument("file")
 
     p = sub.add_parser("is-code-path")
+    p.add_argument("file")
+
+    p = sub.add_parser("to-manifest")
     p.add_argument("file")
 
     p = sub.add_parser("scan")
@@ -448,6 +473,10 @@ def main(argv=None):
 
     if args.cmd == "is-code-path":
         print(json.dumps({"is_code": is_code_path(_read(args.file).strip())}))
+        return 0
+
+    if args.cmd == "to-manifest":
+        print(json.dumps(to_manifest(json.loads(_read(args.file))), indent=2))
         return 0
 
     if args.cmd == "scan":
