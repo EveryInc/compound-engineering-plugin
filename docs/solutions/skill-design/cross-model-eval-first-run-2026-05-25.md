@@ -81,10 +81,42 @@ Honest verdict of both runs: **inconclusive / underpowered** (single trial). Dir
 cross-model critique has not shown a GT-match advantage once the corpus and judging confounds
 are removed; the Gemini/agy arm is non-viable as configured.
 
+## Third run — gemini replaces agy, finding-yield added (same day)
+
+Re-ran the gated corpus with `agy` swapped for `gemini` (arm c) and the new finding-yield
+metric scored alongside GT-match. agy's empty arm became a real reviewer; gemini produced
+4-11 findings per document.
+
+GT-match and finding-yield told **opposite stories**:
+
+- **GT-match:** baseline 1, codex 0, gemini 1, self-critic 1 — no cross-model advantage, and
+  removing agy actually *lost* a GT hit (agy had coincidentally nailed one collation bug in
+  run 2 that neither codex nor gemini caught).
+- **Finding-yield (actionable findings):** baseline 5, **codex ~30**, **gemini ~55**,
+  self-critic 9. The cross-model arms found 6-13x more real bugs than the Claude baseline —
+  exactly what GT-match hides. This is the run-2 thesis confirmed: GT-match against historical
+  fixes measures "did you find the one bug fixed then," not reviewer value.
+
+**But raw yield has a precision hole, and the negative control exposed it.** gemini reported
+two specific, plausible defects on the behavior-preserving negative-control diff, citing line
+numbers that were not in the diff (it ran from a clean cwd and could not have read them — it
+fabricated them). codex's negative control was clean. So gemini's high volume is partly
+confabulation; codex's volume is credible. **Raw yield rewards verbosity and confabulation —
+it must be precision-weighted** (verify a sample of each arm's findings; track a per-arm
+false-positive rate via the negative control + spot checks). A model that invents plausible
+bugs scores high on unweighted yield.
+
+Verdict across three runs: **inconclusive** on a build decision (single trial, single
+Claude-family judge, unverified yield), but the picture is now sharp: cross-model arms add
+substantial finding *volume*; whether that is *value* hinges on precision, where codex looks
+strong (clean control, ~30 actionable) and gemini looks volume-heavy-but-confabulating.
+
 ## Next steps for a decision-grade run
 
-- Pair GT-match with a finding-yield metric (unique, actionable, decision-changing findings
-  per arm) — do not decide on GT-match alone.
+- Score **precision-weighted yield**: verify a random sample of each arm's findings against
+  the real code and compute a per-arm true-positive rate; multiply yield by it. Track the
+  negative-control false-positive rate per arm. Do not rank arms on raw yield.
 - Run blinded with `trials_per_arm >= 3` and a **non-Claude** judge.
-- Drop or replace the Gemini/agy arm (empty/garbage output across both runs).
-- For the cross-model arms specifically, use a public repo (or user-run egress).
+- Prefer `codex` (clean control, high credible yield); treat `gemini` yield as suspect until
+  precision-verified; `agy` stays dropped.
+- For the cross-model arms, use a public repo (or user-run egress).
