@@ -365,10 +365,12 @@ Ask the user only when the answer materially affects architecture, scope, sequen
 - Draft a clear, searchable title using conventional format such as `feat: Add user authentication` or `fix: Prevent checkout double-submit`
 - Determine the plan type: `feat`, `fix`, or `refactor`
 - Build the filename following the repository convention: `docs/plans/YYYY-MM-DD-NNN-<type>-<descriptive-name>-plan.md`
-  - Create `docs/plans/` if it does not exist
-  - Check existing files for today's date to determine the next sequence number (zero-padded to 3 digits, starting at 001)
-  - Keep the descriptive name concise (3-5 words) and kebab-cased
-  - Examples: `2026-01-15-001-feat-user-authentication-flow-plan.md`, `2026-02-03-002-fix-checkout-race-condition-plan.md`
+  - **First and always:** obtain the *actual current calendar date* by running the appropriate terminal or shell execution command for your current harness. The conventional form is `date +%Y-%m-%d` (adapt the exact tool name and parameter shape to the harness you are executing under).
+  - Use the date returned by the tool as the `YYYY-MM-DD` prefix. Never infer "today" from the most recent file in `docs/plans/`.
+  - Create `docs/plans/` if it does not exist.
+  - *After* you have the real current date, scan only files that start with that exact date to determine the next sequence number (zero-padded to 3 digits, starting at 001).
+  - Keep the descriptive name concise (3-5 words) and kebab-cased.
+  - Examples: `2026-05-25-001-feat-...-plan.md`
   - Avoid: missing sequence numbers, vague names like "new-feature", invalid characters (colons, spaces)
 
 #### 3.2 Stakeholder and Impact Awareness

@@ -1,6 +1,7 @@
 ---
-date: 2026-05-20
+date: 2026-05-25
 topic: grok-converter-target
+supersedes: docs/brainstorms/2026-05-20-grok-converter-target-requirements.md
 ---
 
 # Add Grok Converter Target

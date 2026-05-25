@@ -2,8 +2,10 @@
 title: feat: Add Grok converter target
 type: feat
 status: active
-date: 2026-05-20
-origin: docs/brainstorms/2026-05-20-grok-converter-target-requirements.md
+date: 2026-05-25
+origin: docs/brainstorms/2026-05-25-grok-converter-target-requirements.md
+supersedes-draft: docs/plans/2026-05-20-001-feat-add-grok-converter-target-plan.md
+continued-by: docs/plans/2026-05-25-002-fix-grok-target-release-readiness-plan.md
 ---
 
 # feat: Add Grok converter target

@@ -1,4 +1,5 @@
 import path from "path"
+import { execSync } from "child_process"
 
 import { copySkillDir, ensureDir, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformContentForGrok } from "../utils/grok-content"
@@ -40,11 +41,20 @@ export async function writeGrokBundle(outputRoot: string, bundle: GrokBundle): P
   await ensureDir(targetRoot)
 
   // plugin.json (minimal but valid — matches observed Grok expectation)
-  const pluginJson = bundle.pluginJson ?? {
+  // For dev builds we embed a git sha so regeneration after source changes
+  // (e.g. skill fixes) produces a recognizably different version.
+  const base = bundle.pluginJson ?? {
     name: bundle.pluginName || pluginName,
-    version: "0.0.0-dev-grok",
     description: "Compound Engineering skills and agents (converted for Grok)",
   }
+
+  // Best-effort source root for git discovery (helps when the CLI is invoked from outside the source tree)
+  const sourceHint = bundle.skillDirs?.[0]?.sourceDir
+    ? path.dirname(bundle.skillDirs[0].sourceDir)
+    : undefined
+
+  const version = base.version ?? getGrokDevVersion(sourceHint)
+  const pluginJson = { ...base, version }
   await writeJson(path.join(targetRoot, "plugin.json"), pluginJson)
 
   // Agents (already converted to Grok frontmatter + body by claude-to-grok)
@@ -108,8 +118,40 @@ export async function writeGrokBundle(outputRoot: string, bundle: GrokBundle): P
   }
 
   // Helpful next-step logging (consistent with other clean-root targets)
-  console.log(`\n✅ Grok plugin written to: ${targetRoot}`)
+  console.log(`\n✅ Grok plugin written to: ${targetRoot} (version: ${version})`)
   console.log(`   Install locally:   grok plugin install ${targetRoot}`)
   console.log(`   Development use:   grok build --plugin-dir ${targetRoot}  (or --plugin-dir in your workflow)`)
   console.log(`   Marketplace flow:  publish the directory or zip it for your marketplace source.`)
+}
+
+/**
+ * Produce a dev-oriented version string for the generated Grok plugin.
+ * Includes a short git sha when possible so regenerating after source
+ * changes (skills, agents, etc.) produces an obviously different version.
+ *
+ * @param cwdHint - Optional directory to run git from (e.g. the source plugin root).
+ *                  Falls back to process.cwd() when not provided.
+ */
+export function getGrokDevVersion(cwdHint?: string): string {
+  const cwd = cwdHint || process.cwd()
+
+  try {
+    const sha = execSync("git rev-parse --short HEAD", {
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      cwd,
+      timeout: 2000,
+    }).trim()
+
+    if (sha && sha.length > 0) {
+      return `0.0.0-dev-grok-${sha}`
+    }
+  } catch (err) {
+    // Not a git repo, permission issue, timeout, or other failure — fall back with visibility.
+    console.warn(
+      `[grok] Could not determine git sha for dev version (cwd: ${cwd}). ` +
+      `Using placeholder. Run the converter from within (or pointed at) a git checkout for better results.`
+    )
+  }
+  return "0.0.0-dev-grok"
 }

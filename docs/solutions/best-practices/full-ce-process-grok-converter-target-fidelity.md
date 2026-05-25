@@ -1,6 +1,7 @@
 ---
 title: "Full CE process (brainstorm + detailed 8-unit plan + U3 readiness + ce-code-review) yields higher-fidelity --to grok converter target than prior one-off /plan conversion"
 date: 2026-05-25
+last_updated: 2026-05-25
 category: best-practices
 module: plugins/compound-engineering
 problem_type: best_practice
@@ -11,6 +12,8 @@ applies_when:
   - "Choosing between full CE pipeline (brainstorm + plan + U3 readiness pass exercising real skills + post ce-code-review) vs. one-off planner or direct implementation for high-fidelity output"
   - "Dogfooding the CE process inside a target environment (e.g., Grok) to compare against built-in one-off conversions"
   - "Reconciling port notes, agent frontmatter transforms, dispatch, content transforms, and cross-platform references when adding targets"
+  - "Executing the release-readiness phase (002-style plan with explicit U1-U6 units) after initial CE implementation + ce-code-review to close P0/P1 gaps (version, portability, tests, traceability) for first-class Grok converter target support"
+  - "Enforcing the core fidelity rule that target-specific syntax (date rules, harness instructions) must live exclusively in the dedicated transform layer (e.g. grok-content.ts) and never pollute universal portable sources"
 tags:
   - ce-pipeline
   - ce-process
@@ -20,6 +23,11 @@ tags:
   - dogfood
   - u3-readiness
   - ce-code-review
+  - transform-layer
+  - release-readiness
+  - portability
+  - version-emission
+  - primary-tree-testing
 ---
 
 # Full CE process (brainstorm + detailed 8-unit plan + U3 readiness + ce-code-review) yields higher-fidelity --to grok converter target than prior one-off /plan conversion
@@ -104,6 +112,56 @@ The difference is mechanical, observable, and directly attributable to exercisin
 - [codex-skill-prompt-entrypoints.md](../codex-skill-prompt-entrypoints.md) — Converter rewrite rules, frontmatter handling, and entrypoint distinctions (patterns generalized in high-fidelity work).
 - [integrations/native-plugin-install-strategy-2026-04-19.md](../integrations/native-plugin-install-strategy-2026-04-19.md) — Current landscape of custom converter targets vs. native install (context for choosing full 6-phase + converter for Grok).
 - [plugin-versioning-requirements.md](../plugin-versioning-requirements.md) — Release and documentation checklists that apply when adding converter targets.
+
+## Release-Readiness Execution (002 Plan) + Transform-Layer Fidelity Verification + Regeneration Dogfood
+
+After the initial 001-plan full CE execution (documented above), `ce-code-review` identified P0 correctness issues in two recent incremental changes that had been intended to improve real dogfood UX:
+
+- Date-stamping instructions (Phase 3.1 in `ce-plan/SKILL.md` and the brainstorm `requirements-capture.md` template) had leaked Grok-specific `run_terminal_command` + `command: "date +%Y-%m-%d"` syntax into the universal source, violating portability across targets.
+- `getGrokDevVersion` was fragile (no `cwd` control, silent failures, no observability), always emitting opaque `0.0.0-dev-grok` even inside a git checkout.
+
+Additional gaps: missing primary-tree roundtrip/contract test coverage for the writer + date instructions (despite explicit AGENTS.md + 2026-05-25 plan requirements), snapshot divergence between the CE mirror and parallel primary (Grok-built) tree, and traceability issues on the 2026-05-25 goal documents themselves (they had inherited stale 2026-05-20 dates from the original heuristic bug).
+
+The 2026-05-25-002 plan systematically closed these via six units executed on the declared source mirror (`2-test-grok-enabled-compound-engineering-plugin`):
+
+**U1 (version hardening):** `getGrokDevVersion(cwdHint?: string)` now accepts a source hint (derived from `bundle.skillDirs[0].sourceDir`), passes explicit `cwd` + `timeout: 2000` to `execSync("git rev-parse --short HEAD")`, sanitizes output, and emits a single structured `console.warn` containing the `cwd` on any fallback. The sha-suffixed version is injected into `plugin.json` and appears in the four success log lines from `writeGrokBundle`. Fallback path is now observable.
+
+**U2 (date portability — the core fidelity rule):** The Grok-specific language was reverted from the universal source files to a portable form:
+
+> obtain the *actual current calendar date* by running the appropriate terminal or shell execution command for your current harness. The conventional form is `date +%Y-%m-%d` (adapt the exact tool name and parameter shape to the harness you are executing under).
+
+A dedicated `rewriteDateStampingInstructions` helper (high-specificity regex matching the exact portable phrasing) was added to `src/utils/grok-content.ts` and called early in `transformContentForGrok` (after basic path rewriting). Only Grok output receives the precise actionable form with `run_terminal_command` + `command: "date +%Y-%m-%d"`. Non-Grok conversions (e.g. `--to gemini`) now receive only the portable text. The module comment and contract explicitly state: "Grok-specific syntax and guidance lives only here — never in the universal source skills under `plugins/compound-engineering/`."
+
+**U3 (primary-tree test coverage):** New characterization + contract tests in `tests/grok-writer.test.ts` (version emission/logging, real `ce-plan` roundtrip asserting specialized date rule in output while source on disk remains portable), `tests/grok-content.test.ts` (dedicated "date-stamping instruction portability (U2)" suite with negative "source free of Grok syntax" assertions), and `tests/pipeline-review-contract.test.ts` ("Phase 3.1 date-stamping rule is present and portable (no target leakage)").
+
+**U4 (snapshot reconciliation):** Structural + content comparison of writer, `claude-to-grok.ts`, and `grok-content.ts` showed the CE mirror (post U1–U3) was the superior/polished snapshot (full explicit agent frontmatter mapping + dedup + `writeJson`, cwd-aware + logged version + sourceHint, date rewriter, richer layout/docs). Primary was a minimal skeleton. Decision recorded in the plan: mirror is the single best state for the CE side of the head-to-head comparison. No code changes required in the mirror.
+
+**U5 (traceability):** Frontmatter dates and cross-references corrected on the 2026-05-25 goal documents (001 plan + brainstorm) that had been created under the old buggy date heuristic. The 002 plan itself now carries the full U4 reconciliation outcome and U6 execution log as durable artifacts.
+
+**U6 (regeneration + dogfood verification):** Explicit round-trip:
+
+```
+$ bun run src/index.ts convert ./plugins/compound-engineering --to grok -o /tmp/ce-grok-u6-dogfood
+✅ Grok plugin written to: /tmp/ce-grok-u6-dogfood/compound-engineering (version: 0.0.0-dev-grok-9a7901e)
+```
+
+Verified in the emitted artifact:
+- `plugin.json` contains the exact sha version (`"version": "0.0.0-dev-grok-9a7901e"`).
+- `skills/ce-plan/SKILL.md` contains the Grok-specialized date rule with `run_terminal_command` + `command: "date +%Y-%m-%d"`.
+- On-disk source remains the portable form (U2 contract holds in real output).
+
+Live dogfood steps recorded for the user: install the bundle (`grok plugin install ...` or `--plugin-dir`), then invoke real `/ce-plan` + `/ce-brainstorm` inside Grok and observe correct wall-clock dates in new plan filenames + visible version.
+
+**Key reusable pattern (the 002 execution proved it at scale):**
+- Universal source (skills, agents, references, templates) stays 100% target-agnostic.
+- All harness-specific syntax, tool names, dispatch guidance, and execution instructions live exclusively in the per-target transform layer (`grok-content.ts` for Grok) and are applied at conversion time.
+- Dynamic dev versions are cwd-aware, timeout-protected, and observable (sha in logs + manifest).
+- Primary-tree roundtrip + contract tests on the *actual* checked-in complex skills (ce-plan, ce-brainstorm, ce-code-review, etc.) are non-negotiable from the start.
+- Snapshot reconciliation is explicit and recorded; the superior implementation (here the CE mirror) becomes the source of truth for comparison.
+- Traceability documents carry correct dates per the now-portable rule.
+- Verified regeneration + dogfood inside the target is the final arbiter.
+
+This directly extends the fidelity wins from the 001 phase (clean source, hardened transforms, full pipeline) by closing the specific release-blocking gaps that would have made a fair CE vs. built-in comparison impossible.
 
 ## Refresh Candidates Identified
 

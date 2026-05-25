@@ -53,6 +53,9 @@ Use this template and omit sections per the matrix above. At Deep-product tier, 
 
 ```markdown
 ---
+# IMPORTANT: date must be the *real* current calendar date obtained by running
+# the harness-appropriate date command (e.g. `date +%Y-%m-%d`) — never inferred
+# from the most recent file in docs/brainstorms/.
 date: YYYY-MM-DD
 topic: <kebab-case-topic>
 ---

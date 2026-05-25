@@ -12,9 +12,11 @@
  * - Path and variable rewriting (including defensive ${VAR:-.} patterns)
  * - Script invocation cleanup
  * - Conditional Grok + CE agent port note injection
+ * - Grok-specific specialization of portable date-stamping rules (ce-plan / brainstorm templates)
  *
  * This file is the right place to evolve the transform as real usage feedback
- * arrives (especially during dogfood in U8).
+ * arrives (especially during dogfood in U8). Grok-specific syntax and guidance
+ * lives only here — never in the universal source skills under plugins/compound-engineering/.
  */
 
 export type TransformKind = "agent" | "command" | "skill"
@@ -94,6 +96,11 @@ export function transformContentForGrok(input: string, options: TransformOptions
   output = output.replace(/\$\{CLAUDE_SKILL_DIR:-\.\}/g, "${GROK_PLUGIN_ROOT:-.}");
   output = output.replace(/\$\{CLAUDE_PLUGIN_ROOT:-\.\}/g, "${GROK_PLUGIN_ROOT:-.}");
 
+  // 1b. Grok-specific specialization of portable date-stamping instructions (U2 portability fix).
+  // The source of truth in ce-plan/SKILL.md and ce-brainstorm templates uses harness-agnostic
+  // language. Only Grok output receives the precise `run_terminal_command` + `command:` form.
+  output = rewriteDateStampingInstructions(output);
+
   // 2. Task / Agent dispatch rewriting (most important fidelity area)
   output = rewriteTaskAndAgentCalls(output);
 
@@ -136,6 +143,35 @@ function rewriteScriptInvocations(content: string): string {
       return `bash "\${GROK_PLUGIN_ROOT:-.}/scripts/${scriptName}"`;
     }
   );
+}
+
+/**
+ * Specializes portable date-stamping instructions (from ce-plan and ce-brainstorm templates)
+ * into the precise Grok form using `run_terminal_command` + explicit `command:` shape.
+ *
+ * This lives in the transform layer (not source skills) to keep the universal CE skills
+ * portable across all targets per the 2026-05-25 Grok target requirements and AGENTS.md.
+ */
+function rewriteDateStampingInstructions(content: string): string {
+  let result = content;
+
+  // The portable phrasing we expect in source (after U2 revert). Match the distinctive
+  // instruction block in ce-plan/SKILL.md Phase 3.1 and emit the Grok-dogfood-ready form.
+  // This is intentionally high-specificity so only the date rule is affected.
+  const portableDateRule = /obtain the \*actual current calendar date\* by running the appropriate terminal or shell execution command for your current harness\. The conventional form is `date \+%Y-%m-%d` \(adapt the exact tool name and parameter shape to the harness you are executing under\)\./g;
+
+  const grokDateRule = 'obtain the *actual current calendar date* by running a shell command via your terminal execution tool. Preferred: use `run_terminal_command` with `command: "date +%Y-%m-%d"` (or the exact equivalent for the installed Grok harness).';
+
+  result = result.replace(portableDateRule, grokDateRule);
+
+  // Also handle the shorter template form used in ce-brainstorm references/requirements-capture.md
+  // (the IMPORTANT comment that gets embedded into generated brainstorm docs).
+  const portableTemplate = /the harness-appropriate date command \(e\.g\. `date \+%Y-%m-%d`\)/g;
+  const grokTemplate = 'the harness-appropriate date command (for Grok: `run_terminal_command` with `command: "date +%Y-%m-%d"`)';
+
+  result = result.replace(portableTemplate, grokTemplate);
+
+  return result;
 }
 
 // ---------------------------------------------------------------------------

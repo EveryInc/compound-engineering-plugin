@@ -311,6 +311,17 @@ describe("ce-plan testing contract", () => {
     // Template comment mentions the annotation convention
     expect(content).toContain("Test expectation: none -- [reason]")
   })
+
+  test("Phase 3.1 date-stamping rule is present and portable (no target leakage)", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
+
+    // The rule must exist and be harness-agnostic so all targets (and the source) stay correct.
+    expect(content).toContain("obtain the *actual current calendar date*")
+    expect(content).toContain("appropriate terminal or shell execution command for your current harness")
+    // Guard against the P0 pollution that U2 fixed
+    expect(content).not.toContain("run_terminal_command under Grok")
+    expect(content).not.toContain("Grok (this plugin under the Grok target)")
+  })
 })
 
 describe("ce-plan review contract", () => {
