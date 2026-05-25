@@ -109,3 +109,67 @@ The decision artifact records exactly one of:
 - **build nothing** — corpus met `minimum_corpus_n` and no arm cleared the threshold.
 - **inconclusive / underpowered** — corpus below `minimum_corpus_n`, or the blind-integrity
   check came back confounded; re-run larger / with a different judge.
+
+## Building a known-bug corpus (code-review breakpoint)
+
+The four-arm eval transfers from plan review to **code review** with the same harness —
+swap the document (a plan -> a diff), the rubric, and arms `a`/`d` (`ce-doc-review` ->
+`ce-code-review`). What makes code review *more* evaluable than plan review is ground
+truth: git history is a factory of changes the project itself later judged wrong, so the
+known-failure subset (R7) can be sourced automatically instead of hand-curated.
+
+`build_corpus.py` mines a repo for those, in descending attribution strength:
+
+| Tier | Signal | `attribution` | `trust` |
+|------|--------|---------------|---------|
+| 1 | a revert (the team's own verdict) | `revert` | `high` |
+| 2 | a fix subject that names what broke | `named_regression` | `high` |
+| 3 | a fix whose touched lines blame back to a recent change | `blame` | `needs_confirmation` |
+
+Each emitted entry extends the manifest's `known_failure` shape with a `ground_truth`
+block — the bug a reviewer should have caught — so the judge can score a **targeted
+hit/miss** per document (did any pooled finding describe the bug the fix proved mattered?)
+rather than only forward-rating actionability.
+
+```
+# Tier-1: discover reverts, materialize each culprit diff as a reviewable document
+python3 build_corpus.py scan --repo <path-to-target-repo> --out-dir <corpus-dir>
+
+# Tier-3: walk every code `fix:` commit, blame it to a culprit, emit needs_confirmation entries
+python3 build_corpus.py scan-fixes --repo <path-to-target-repo> --out-dir <corpus-dir>
+
+# Tier-2/3 (single fix): blame the lines a known fix touched to find candidate culprits
+python3 build_corpus.py attribute-fix --repo <path> <fix-sha>
+```
+
+Both `scan` and `scan-fixes` emit `{entries, stats}`; every entry passes `validate-entry`
+(the manifest conformance gate, the corpus analog of `validate-record`). `scan-fixes`
+keys one entry per fix, blames code files only (`is-code-path` filters out docs/markdown),
+picks the most-files-touched culprit, and keeps the runners-up in `culprit_alternates` for
+the human to confirm (R6). A conventional `revert:` with no embedded SHA is **counted but
+not emitted** by `scan` — there is no reliable culprit diff — and likewise left to the human.
+
+**Which tier a repo yields depends on how the team works.**
+
+- This plugin's own history: ~5 Tier-1 items — well under any decidable N. Methodology
+  transfers; the sample is too small.
+- A team that doesn't use `git revert` produces **zero usable Tier-1 items** (its reverts
+  are conventional, SHA-less, often content reverts). Its ground truth lives in Tier-3:
+  walking its `fix:` commits with `scan-fixes` yields a large corpus (e.g. ~180–200 unique
+  known-failure candidates from ~200 fixes), with real latency (`surfaced_after_days` up to
+  weeks) — exactly the discovered-late signal review is meant to catch.
+
+Below a pre-registered `minimum_corpus_n` the eval reports `inconclusive` (R9), never a
+false "build nothing".
+
+**Corpus hygiene.** `--all` scans every ref and so double-counts a fix that appears as both
+a branch commit and a squashed merge; the default (HEAD history) avoids most of that. Tier-3
+entries are `trust: needs_confirmation` by design — blame is inferred, and `fix:` subjects
+include renames and test-only fixes — so the human-confirmed subset, not the raw emission,
+is the known-failure set the decision rests on (R6/R7).
+
+The model arms (`b`/`c`) review a diff exactly as they review a plan — it is text on stdin
+— so `arms.py` is unchanged. Note that arm `b` (isolated, no repo) is more crippled by a
+raw diff than by a self-contained plan; pre-register that as an expected effect so a
+near-zero arm-`b` yield reads as "no-context code review is the floor", not "cross-model
+adds nothing".
