@@ -60,13 +60,31 @@ subset; a run replaces them with the real corpus and pre-registered values.
 
 ## Running
 
+Per (document × trial), produce one schema-conformant record per arm into a shared run
+dir, then pool, judge, and aggregate.
+
+**CLI arms (b, c)** — `arms.py` runs the external model and emits a record on stdout (both
+run from a clean CWD with auth preserved; arm b has no context, arm c adds the fixed
+`--context` set):
+
 ```
-python3 scripts/eval/cross_model_review/run_arms.py --manifest <manifest.json> --run-dir <dir>
+python3 arms.py run-arm b_isolated      codex <doc> <rubric>                 --doc-id <id> --trial <n> > rec.json
+python3 arms.py run-arm c_fixed_context agy   <doc> <rubric> --context <ctx> --doc-id <id> --trial <n> > rec.json
+python3 run_arms.py ingest <run_dir> rec.json
 ```
 
-Then the orchestrator produces arms `a`/`d` and the judge (see the in-process run step),
-and aggregation produces the decision inputs. The final decision artifact is written under
-`docs/` (see the plan's U7).
+**In-process arms (a, d) and the judge** — produced by the orchestrator via subagent
+dispatch (see `prompts/baseline.md`, `prompts/self-critic.md`, `judge_rubric.md`), each
+written as a record and ingested into the same run dir.
+
+**Then** pool and decide:
+
+```
+python3 run_arms.py pool <run_dir>
+python3 run_arms.py aggregate <scored.json> <manifest.json>
+```
+
+The decision artifact is written under `docs/` from `decision-artifact-template.md`.
 
 ## Outcomes
 

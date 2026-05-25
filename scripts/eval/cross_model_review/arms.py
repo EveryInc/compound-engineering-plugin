@@ -17,6 +17,7 @@ runs are integration-level (validated at eval time).
 import argparse
 import json
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -24,28 +25,30 @@ import time
 from pathlib import Path
 
 # Validated invocation forms (codex 0.133.0, agy 1.0.2):
-#   codex exec -s read-only -     (prompt via stdin)
-#   agy --print "<instruction>"   (stdin is appended to the prompt)
-CODEX_BASE = ["codex", "exec", "-s", "read-only", "-"]
+#   codex exec -s read-only --skip-git-repo-check -   (prompt via stdin; runs outside a git repo)
+#   agy --print "<instruction>"                        (stdin is appended to the prompt)
+# --skip-git-repo-check is required because both arms run from a clean temp CWD
+# (not the repo) so neither has ambient workspace access; without it codex
+# refuses with "Not inside a trusted directory" (found via live smoke).
+CODEX_BASE = ["codex", "exec", "-s", "read-only", "--skip-git-repo-check", "-"]
 AGY_INSTRUCTION = "Review the document provided on stdin and return findings, one per line."
 
+# Lines like "1. foo" or "2) bar" — numbered findings the model commonly emits.
+NUMBERED_ITEM = re.compile(r"^\s*\d+[.)]\s+(.*)$")
 
-def isolated_env_and_cwd():
-    """Env + cwd for arm b so the CLI cannot read repo or global config.
 
-    codex resolves context from CWD, walks up for AGENTS.md, and reads
-    ~/.codex/config.toml. A clean temp CWD defeats CWD-based and upward
-    discovery; overriding HOME / CODEX_HOME / XDG_CONFIG_HOME defeats the
-    global config. Returns (env, cwd) — the caller owns cleaning up cwd.
+def clean_cwd():
+    """A fresh temp CWD with no ambient repo access.
+
+    Both arms run from here so neither inherits the repo's workspace context
+    (codex's AGENTS.md walk-up and git-repo discovery both start from CWD). HOME
+    is deliberately NOT overridden — that would strip the CLI's auth (found via
+    live smoke). The global config under HOME (~/.codex, agy) is therefore a
+    constant across both arms, so it does not confound the b-vs-c delta; the only
+    difference between the arms is the fixed context arm c injects via stdin. The
+    sentinel isolation probe (detect_leak) guards against repo-context leakage.
     """
-    clean_home = tempfile.mkdtemp(prefix="cmre-isolated-home-")
-    clean_cwd = tempfile.mkdtemp(prefix="cmre-isolated-cwd-")
-    env = dict(os.environ)
-    env["HOME"] = clean_home
-    env.pop("CODEX_HOME", None)
-    env.pop("XDG_CONFIG_HOME", None)
-    env.pop("AGY_CONFIG", None)
-    return env, clean_cwd, ["HOME", "CODEX_HOME", "XDG_CONFIG_HOME", "AGY_CONFIG"]
+    return tempfile.mkdtemp(prefix="cmre-arm-cwd-")
 
 
 def build_invocation(arm, cli, doc_text, rubric, context_text=None):
@@ -67,10 +70,12 @@ def build_invocation(arm, cli, doc_text, rubric, context_text=None):
         parts += ["\n\n=== REPO CONTEXT (fixed set) ===\n", context_text]
     stdin_payload = "".join(parts)
 
-    if arm == "b_isolated":
-        env, cwd, overridden = isolated_env_and_cwd()
-    else:
-        env, cwd, overridden = dict(os.environ), os.getcwd(), []
+    # Both arms run from a clean CWD (no ambient repo access). HOME is preserved
+    # so the CLI keeps its auth; the global config is constant across arms and
+    # does not confound the b-vs-c delta. The only difference is arm c's injected
+    # context above.
+    cwd = clean_cwd()
+    env = dict(os.environ)
 
     # Defensive: document content must never appear as an argv element.
     doc_in_argv = any(doc_text and doc_text in a for a in argv)
@@ -80,7 +85,8 @@ def build_invocation(arm, cli, doc_text, rubric, context_text=None):
         "cli": cli,
         "argv": argv,
         "cwd": cwd,
-        "env_overrides": overridden,
+        "isolated_from_repo": True,
+        "skip_git_repo_check": "--skip-git-repo-check" in argv,
         "stdin_has_context": arm == "c_fixed_context" and bool(context_text),
         "doc_in_argv": doc_in_argv,
         "_env": env,
@@ -114,10 +120,18 @@ def parse_findings(text):
             return out
     except json.JSONDecodeError:
         pass
-    bullets = [ln.strip()[2:].strip() for ln in text.splitlines()
-               if ln.strip().startswith(("- ", "* "))]
-    if bullets:
-        return [{"id": f"f{i}", "text": b} for i, b in enumerate(bullets, 1) if b]
+    items = []
+    for ln in text.splitlines():
+        s = ln.strip()
+        if s.startswith(("- ", "* ")):
+            items.append(s[2:].strip())
+            continue
+        m = NUMBERED_ITEM.match(ln)
+        if m:
+            items.append(m.group(1).strip())
+    items = [i for i in items if i]
+    if items:
+        return [{"id": f"f{i}", "text": b} for i, b in enumerate(items, 1)]
     return [{"id": "f1", "text": text}]
 
 
@@ -167,6 +181,16 @@ def main(argv=None):
     p = sub.add_parser("parse-findings")
     p.add_argument("output")
 
+    p = sub.add_parser("run-arm")
+    p.add_argument("arm", choices=["b_isolated", "c_fixed_context"])
+    p.add_argument("cli", choices=["codex", "agy"])
+    p.add_argument("doc")
+    p.add_argument("rubric")
+    p.add_argument("--context")
+    p.add_argument("--doc-id", required=True)
+    p.add_argument("--trial", type=int, default=1)
+    p.add_argument("--timeout", type=float, default=180.0)
+
     args = parser.parse_args(argv)
 
     if args.cmd == "build-invocation":
@@ -185,6 +209,26 @@ def main(argv=None):
     if args.cmd == "parse-findings":
         print(json.dumps({"findings": parse_findings(_read(args.output))}))
         return 0
+
+    if args.cmd == "run-arm":
+        ctx = _read(args.context) if args.context else None
+        spec = build_invocation(args.arm, args.cli, _read(args.doc), _read(args.rubric), ctx)
+        result = run_invocation(spec, args.timeout)
+        record = {
+            "arm": args.arm,
+            "doc_id": args.doc_id,
+            "trial": args.trial,
+            "status": result["status"],
+            "producer": "runner",
+            "latency_ms": result["latency_ms"],
+            "findings": result["findings"],
+            "model": args.cli,
+        }
+        # stderr carries the CLI's diagnostics (auth/availability failures) for the smoke check.
+        if result.get("stderr"):
+            sys.stderr.write(result["stderr"])
+        print(json.dumps(record))
+        return 0 if result["status"] == "ok" else 1
 
     return 2
 

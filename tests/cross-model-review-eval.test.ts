@@ -125,18 +125,20 @@ describe("cross-model arm invocation assembly (R2 / U3)", () => {
 		expect(out.stdin_len).toBeGreaterThan(0);
 	});
 
-	test("arm b is isolated: clean cwd + HOME/config env overrides", async () => {
+	test("arm b is isolated from the repo: clean cwd + --skip-git-repo-check, no context", async () => {
 		const out = JSON.parse((await arms(["build-invocation", "b_isolated", "codex", doc, rubric])).stdout);
-		expect(out.env_overrides).toContain("HOME");
-		expect(out.env_overrides).toContain("CODEX_HOME");
+		expect(out.isolated_from_repo).toBe(true);
+		expect(out.skip_git_repo_check).toBe(true);
 		expect(out.cwd).not.toBe(REPO_ROOT);
+		expect(out.argv).toContain("--skip-git-repo-check");
 		expect(out.stdin_has_context).toBe(false);
 	});
 
-	test("arm c supplies the fixed context set via stdin and is not env-isolated", async () => {
+	test("arm c also runs from a clean cwd; its only added context is the fixed set via stdin", async () => {
 		const out = JSON.parse((await arms(["build-invocation", "c_fixed_context", "agy", doc, rubric, "--context", context])).stdout);
+		expect(out.isolated_from_repo).toBe(true);
 		expect(out.stdin_has_context).toBe(true);
-		expect(out.env_overrides).toHaveLength(0);
+		expect(out.cwd).not.toBe(REPO_ROOT);
 		expect(out.argv).toEqual(["agy", "--print", expect.any(String)]);
 	});
 });
@@ -165,6 +167,14 @@ describe("findings parsing (U3)", () => {
 		const out = JSON.parse((await arms(["parse-findings", f])).stdout).findings;
 		expect(out).toHaveLength(2);
 		expect(out[0].text).toBe("first issue");
+	});
+
+	test("numbered lists parse into findings (smoke-found gap)", async () => {
+		const f = tmpFile("out.md", "1. **Premise** is unsupported.\n2) Cheaper alternative ignored.\n");
+		const out = JSON.parse((await arms(["parse-findings", f])).stdout).findings;
+		expect(out).toHaveLength(2);
+		expect(out[0].text).toBe("**Premise** is unsupported.");
+		expect(out[1].text).toBe("Cheaper alternative ignored.");
 	});
 
 	test("free-form prose becomes a single finding", async () => {
