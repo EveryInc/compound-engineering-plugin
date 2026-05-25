@@ -98,10 +98,12 @@ describe("finalize: gt-resolve -> gt-score -> aggregate -> decision artifact", (
 			}
 		}
 		const pool = JSON.parse((await runArms(["gt-pool", tmpJson(recList)])).stdout);
-		const cUids = Object.entries(pool.provenance)
+		const cUidList = Object.entries(pool.provenance)
 			.filter(([, p]) => (p as { arm: string }).arm === "c_fixed_context")
-			.map(([uid]) => ({ uid, matches_bug: true }));
-		return { dir, gtVerdicts: tmpJson(cUids) };
+			.map(([uid]) => uid);
+		const gtVerdicts = tmpJson(cUidList.map((uid) => ({ uid, matches_bug: true })));
+		const yieldVerdicts = tmpJson(cUidList.map((uid) => ({ uid, actionable: true, decision_changing: true })));
+		return { dir, gtVerdicts, yieldVerdicts };
 	}
 
 	test("a GT-match win on both known-failure docs yields build:<arm> and a written artifact", async () => {
@@ -119,6 +121,24 @@ describe("finalize: gt-resolve -> gt-score -> aggregate -> decision artifact", (
 		expect(out.per_arm.c_fixed_context.known_failure).toBe(2);
 		expect(out.per_arm.a_baseline.known_failure).toBe(0); // not bled credit
 		expect(existsSync(artifact)).toBe(true);
+	});
+
+	test("finalize reports per-arm finding yield when yield verdicts are supplied", async () => {
+		const { dir, gtVerdicts, yieldVerdicts } = await setup();
+		const { stdout } = await spawn([
+			"finalize", dir, manifest(),
+			"--gt-verdicts", gtVerdicts,
+			"--yield-verdicts", yieldVerdicts,
+			"--out", join(tmpDir(), "d.md"),
+		]);
+		const out = JSON.parse(stdout);
+		// c_fixed_context produced 2 findings, both marked unique-actionable + decision-changing
+		expect(out.yield_per_arm.c_fixed_context.total).toBe(2);
+		expect(out.yield_per_arm.c_fixed_context.unique_actionable).toBe(2);
+		expect(out.yield_per_arm.c_fixed_context.decision_changing).toBe(2);
+		// other arms have findings but no yield verdicts -> total counted, quality zero
+		expect(out.yield_per_arm.a_baseline.total).toBe(2);
+		expect(out.yield_per_arm.a_baseline.unique_actionable).toBe(0);
 	});
 
 	test("a confounded blind-integrity check forces inconclusive regardless of hits", async () => {

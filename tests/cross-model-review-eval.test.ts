@@ -292,6 +292,28 @@ describe("GT-match: per-arm known-failure score (R7 primary metric)", () => {
 	});
 });
 
+describe("finding-yield metric (the value GT-match alone misses)", () => {
+	test("tallies per-arm total / unique-actionable / decision-changing from blind verdicts", async () => {
+		const prov = tmpJson("prov.json", {
+			g1: { arm: "b_isolated", doc_id: "d1" },
+			g2: { arm: "b_isolated", doc_id: "d1" },
+			g3: { arm: "a_baseline", doc_id: "d1" },
+		});
+		const verdicts = tmpJson("v.json", [
+			{ uid: "g1", actionable: true, decision_changing: true },
+			{ uid: "g2", actionable: true, duplicate: true }, // actionable but a duplicate -> not unique-actionable
+			{ uid: "g3", actionable: false },
+		]);
+		const out = JSON.parse((await run(["yield-score", prov, verdicts])).stdout);
+		expect(out.b_isolated.total).toBe(2);
+		expect(out.b_isolated.unique_actionable).toBe(1); // g1 only; g2 is a duplicate
+		expect(out.b_isolated.decision_changing).toBe(1);
+		expect(out.a_baseline.total).toBe(1);
+		expect(out.a_baseline.unique_actionable).toBe(0); // g3 not actionable
+		expect(out.c_fixed_context.total).toBe(0); // arms with no findings still reported at zero
+	});
+});
+
 describe("aggregation uses GT-match hits as the known-failure metric", () => {
 	test("gt_hit drives build:<arm> and takes precedence over decision_changing", async () => {
 		const manifest = tmpJson("m.json", {

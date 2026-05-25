@@ -212,6 +212,32 @@ def gt_hits_from_verdicts(provenance, verdicts):
     return [{"arm": a, "doc_id": d, "gt_hit": h} for (a, d), h in hits.items()]
 
 
+def yield_score(provenance, verdicts):
+    """Per-arm finding-yield: the value GT-match alone misses.
+
+    GT-match only credits surfacing the one bug a historical fix targeted, so a
+    competent reviewer that finds *other* real bugs scores zero. This tallies, per
+    arm, total findings and how many the blind judge classified unique-actionable
+    and decision-changing (verdicts keyed by pool uid, resolved to arms here).
+    verdicts: [{uid, actionable, decision_changing, duplicate?}].
+    """
+    by_uid = {v.get("uid"): v for v in verdicts}
+    per_arm = {arm: {"total": 0, "unique_actionable": 0, "decision_changing": 0} for arm in ARMS}
+    for uid, p in provenance.items():
+        arm = p.get("arm")
+        if arm not in per_arm:
+            per_arm[arm] = {"total": 0, "unique_actionable": 0, "decision_changing": 0}
+        per_arm[arm]["total"] += 1
+        v = by_uid.get(uid)
+        if not v:
+            continue
+        if v.get("actionable") and not v.get("duplicate"):
+            per_arm[arm]["unique_actionable"] += 1
+        if v.get("decision_changing"):
+            per_arm[arm]["decision_changing"] += 1
+    return per_arm
+
+
 def gt_score(manifest, arm_matches):
     """Per-arm hit counts on the known-failure subset (R7 primary metric).
 
@@ -337,6 +363,10 @@ def main(argv=None):
     p.add_argument("manifest")
     p.add_argument("arm_matches")
 
+    p = sub.add_parser("yield-score")
+    p.add_argument("provenance")
+    p.add_argument("verdicts")
+
     p = sub.add_parser("aggregate")
     p.add_argument("scored")
     p.add_argument("manifest")
@@ -391,6 +421,10 @@ def main(argv=None):
 
     if args.cmd == "gt-score":
         print(json.dumps(gt_score(_load(args.manifest), _load(args.arm_matches))))
+        return 0
+
+    if args.cmd == "yield-score":
+        print(json.dumps(yield_score(_load(args.provenance), _load(args.verdicts))))
         return 0
 
     if args.cmd == "aggregate":

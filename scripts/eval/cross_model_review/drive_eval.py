@@ -120,7 +120,27 @@ def _subset_counts(docs):
     return c
 
 
-def render_artifact(manifest, result, gt, integ, judge_family, run_date):
+def _yield_section(yield_per_arm):
+    """Finding-yield table — read alongside GT-match, not instead of it."""
+    if not yield_per_arm:
+        return ""
+    rows = [
+        f"| {arm} | {yp.get('total', 0)} | {yp.get('unique_actionable', 0)} | {yp.get('decision_changing', 0)} |"
+        for arm, yp in yield_per_arm.items()
+    ]
+    return (
+        "## Finding yield (corroborating — GT-match alone undercounts reviewer value)\n\n"
+        "Total findings vs. blind-judged unique-actionable and decision-changing. A low\n"
+        "GT-match with high unique-actionable yield means the arm found real bugs that were\n"
+        "not the one the historical fix targeted.\n\n"
+        "| Arm | Findings | Unique-actionable | Decision-changing |\n"
+        "|-----|----------|-------------------|-------------------|\n"
+        + "\n".join(rows)
+        + "\n\n"
+    )
+
+
+def render_artifact(manifest, result, gt, integ, judge_family, run_date, yield_per_arm=None):
     docs = manifest.get("docs", [])
     sc = _subset_counts(docs)
     prereg = manifest.get("pre_registration", {})
@@ -167,7 +187,7 @@ the bug the fix proved mattered), human-confirmed per R6 before this record is t
 |-----|--------------------|-------------------------------|--------|
 {chr(10).join(rows)}
 
-## Validity checks
+{_yield_section(yield_per_arm)}## Validity checks
 
 - **Blind-integrity:** {integ_line}.
 - **Negative control:** {control}.
@@ -181,13 +201,17 @@ the bug the fix proved mattered), human-confirmed per R6 before this record is t
 """
 
 
-def finalize(records_dir, manifest, gt_verdicts, class_verdicts=None, integrity=None, judge_family=None, out=None):
+def finalize(records_dir, manifest, gt_verdicts, class_verdicts=None, integrity=None,
+             judge_family=None, out=None, yield_verdicts=None):
     records = load_records(records_dir)
     pool = run_arms.gt_pool(records)
     gt_hits = run_arms.gt_hits_from_verdicts(pool["provenance"], gt_verdicts)
     gt = run_arms.gt_score(manifest, gt_hits)
     scored = list(gt["scored"]) + list(class_verdicts or [])
     result = run_arms.aggregate(scored, manifest)
+
+    # finding-yield: GT-match alone undercounts a reviewer that finds other real bugs
+    yield_per_arm = run_arms.yield_score(pool["provenance"], yield_verdicts) if yield_verdicts is not None else None
 
     integ = None
     if integrity is not None:
@@ -196,7 +220,7 @@ def finalize(records_dir, manifest, gt_verdicts, class_verdicts=None, integrity=
         if integ.get("confounded"):
             result = {**result, "outcome": "inconclusive", "confounded": True}
 
-    artifact = render_artifact(manifest, result, gt, integ, judge_family, str(date.today()))
+    artifact = render_artifact(manifest, result, gt, integ, judge_family, str(date.today()), yield_per_arm)
     artifact_path = None
     if out:
         Path(out).write_text(artifact)
@@ -207,6 +231,7 @@ def finalize(records_dir, manifest, gt_verdicts, class_verdicts=None, integrity=
         "artifact_path": artifact_path,
         "per_arm": result["per_arm"],
         "gt_per_arm": gt["per_arm"],
+        "yield_per_arm": yield_per_arm,
         "known_failure_n": gt["known_failure_n"],
         "below_n": result.get("below_n"),
         "control_moved": result.get("control_moved"),
@@ -237,6 +262,7 @@ def main(argv=None):
     p.add_argument("records_dir")
     p.add_argument("manifest")
     p.add_argument("--gt-verdicts", required=True)
+    p.add_argument("--yield-verdicts", help="per-finding {uid, actionable, decision_changing, duplicate} for finding-yield")
     p.add_argument("--class-verdicts")
     p.add_argument("--integrity", help="correct,total of the judge arm-guessing probe")
     p.add_argument("--judge-family")
@@ -251,6 +277,7 @@ def main(argv=None):
 
     if args.cmd == "finalize":
         class_verdicts = _load(args.class_verdicts) if args.class_verdicts else None
+        yield_verdicts = _load(args.yield_verdicts) if args.yield_verdicts else None
         result = finalize(
             args.records_dir,
             _load(args.manifest),
@@ -259,6 +286,7 @@ def main(argv=None):
             integrity=_parse_integrity(args.integrity),
             judge_family=args.judge_family,
             out=args.out,
+            yield_verdicts=yield_verdicts,
         )
         print(json.dumps(result))
         return 0
