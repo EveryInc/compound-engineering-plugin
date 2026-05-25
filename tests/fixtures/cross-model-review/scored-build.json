@@ -1,0 +1,7 @@
+[
+  { "arm": "c_fixed_context", "doc_id": "kf-1", "subset": "known_failure", "decision_changing": true },
+  { "arm": "c_fixed_context", "doc_id": "kf-2", "subset": "known_failure", "decision_changing": true },
+  { "arm": "a_baseline", "doc_id": "kf-1", "subset": "known_failure", "decision_changing": false },
+  { "arm": "b_isolated", "doc_id": "kf-1", "subset": "known_failure", "decision_changing": true },
+  { "arm": "a_baseline", "doc_id": "fr-1", "subset": "forward_rated", "decision_changing": true }
+]

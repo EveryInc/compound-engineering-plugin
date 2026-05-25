@@ -1,0 +1,5 @@
+[
+  { "arm": "a_baseline", "text": "The premise is unsupported by evidence." },
+  { "arm": "b_isolated", "text": "the premise is   unsupported by EVIDENCE." },
+  { "arm": "c_fixed_context", "text": "No repo-access fairness control is defined." }
+]

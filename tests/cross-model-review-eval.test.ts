@@ -174,3 +174,45 @@ describe("findings parsing (U3)", () => {
 		expect(out[0].id).toBe("f1");
 	});
 });
+
+describe("cross-arm dedup (U5)", () => {
+	test("findings with the same normalized text merge and record contributing arms", async () => {
+		const out = JSON.parse((await run(["dedup", join(FIX, "findings-pool.json")])).stdout);
+		expect(out).toHaveLength(2);
+		expect(out[0].arms).toEqual(["a_baseline", "b_isolated"]);
+		expect(out[0].count).toBe(2);
+		expect(out[1].arms).toEqual(["c_fixed_context"]);
+	});
+});
+
+describe("blind-integrity verdict (R5 / U5)", () => {
+	test("at-chance arm guessing is not confounded; well-above-chance is", async () => {
+		const near = JSON.parse((await run(["integrity-verdict", "30", "100", "4"])).stdout);
+		const high = JSON.parse((await run(["integrity-verdict", "60", "100", "4"])).stdout);
+		expect(near.chance).toBeCloseTo(0.25);
+		expect(near.confounded).toBe(false);
+		expect(high.confounded).toBe(true);
+	});
+});
+
+describe("aggregation -> three-way decision (U6 / R7 / R9)", () => {
+	test("an arm clearing the pre-registered threshold yields build:<arm>", async () => {
+		const out = JSON.parse((await run(["aggregate", join(FIX, "scored-build.json"), join(FIX, "manifest-decidable.json")])).stdout);
+		expect(out.outcome).toBe("build:c_fixed_context");
+		expect(out.winning_arm).toBe("c_fixed_context");
+		expect(out.per_arm.c_fixed_context.known_failure).toBe(2);
+		expect(out.below_n).toBe(false);
+	});
+
+	test("a corpus below minimum N is inconclusive even if an arm clears the threshold", async () => {
+		const out = JSON.parse((await run(["aggregate", join(FIX, "scored-build.json"), join(FIX, "manifest-below-n.json")])).stdout);
+		expect(out.below_n).toBe(true);
+		expect(out.outcome).toBe("inconclusive");
+	});
+
+	test("negative-control movement forces inconclusive (harness stability problem)", async () => {
+		const out = JSON.parse((await run(["aggregate", join(FIX, "scored-control-moved.json"), join(FIX, "manifest-decidable.json")])).stdout);
+		expect(out.control_moved).toBe(true);
+		expect(out.outcome).toBe("inconclusive");
+	});
+});

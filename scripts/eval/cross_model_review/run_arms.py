@@ -128,6 +128,89 @@ def pool(run_dir):
     return {"total": total, "by_arm": by_arm, "invalid": invalid}
 
 
+def dedup_findings(items):
+    """Group pooled findings by normalized text — the cross-arm agreement signal (U5).
+
+    items: list of {arm, text}. Returns [{text, arms:[...], count}] so it is
+    visible when multiple arms independently raised the same point. This is a
+    text-normalized dedup, not the full scope-aware peer/nested merge; the eval
+    only needs cross-arm agreement, not the review pipeline's chaining.
+    """
+    groups = {}
+    order = []
+    for it in items:
+        key = " ".join(str(it.get("text", "")).lower().split())
+        if key not in groups:
+            groups[key] = {"text": it.get("text", ""), "arms": [], "count": 0}
+            order.append(key)
+        g = groups[key]
+        g["count"] += 1
+        arm = it.get("arm")
+        if arm and arm not in g["arms"]:
+            g["arms"].append(arm)
+    return [groups[k] for k in order]
+
+
+def integrity_verdict(correct, total, n_arms, margin=0.15):
+    """Blind-integrity check (U5 / R5): can the judge identify arms above chance?
+
+    chance = 1/n_arms. If the judge's arm-guess accuracy exceeds chance by more
+    than `margin`, the blind did not hold and the per-arm metric is confounded.
+    """
+    if total <= 0 or n_arms <= 0:
+        return {"accuracy": None, "chance": None, "confounded": False}
+    accuracy = correct / total
+    chance = 1.0 / n_arms
+    return {"accuracy": accuracy, "chance": chance, "confounded": accuracy > chance + margin}
+
+
+def aggregate(scored, manifest):
+    """Aggregate post-judge, human-confirmed findings into a three-way decision (U6).
+
+    scored: list of {arm, doc_id, subset, decision_changing: bool}. The primary
+    signal is the per-arm decision-changing count on the known-failure subset;
+    forward-rated counts corroborate (R7). Below minimum N, or if the negative
+    control moved, the outcome is inconclusive rather than "build nothing" (R9, H2).
+    """
+    prereg = manifest.get("pre_registration", {})
+    threshold = prereg.get("go_threshold")
+    status = corpus_status(manifest)
+    per_arm = {arm: {"known_failure": 0, "forward_rated": 0} for arm in ARMS}
+    control_moved = False
+    for s in scored:
+        if not s.get("decision_changing"):
+            continue
+        subset, arm = s.get("subset"), s.get("arm")
+        if subset == "negative_control":
+            control_moved = True
+        elif subset in ("known_failure", "forward_rated") and arm in per_arm:
+            per_arm[arm][subset] += 1
+
+    winning_arm, best = None, -1
+    for arm, c in per_arm.items():
+        if c["known_failure"] > best:
+            best, winning_arm = c["known_failure"], arm
+
+    if status["below_n"]:
+        outcome = "inconclusive"
+    elif control_moved:
+        outcome = "inconclusive"  # negative control moved -> harness stability problem (H2)
+    elif isinstance(threshold, int) and best >= threshold and best > 0:
+        outcome = f"build:{winning_arm}"
+    else:
+        outcome = "build_nothing"
+
+    return {
+        "outcome": outcome,
+        "winning_arm": winning_arm if outcome.startswith("build:") else None,
+        "per_arm": per_arm,
+        "control_moved": control_moved,
+        "below_n": status["below_n"],
+        "corpus_n": status["corpus_n"],
+        "go_threshold": threshold,
+    }
+
+
 def _load(path):
     return json.loads(Path(path).read_text())
 
@@ -155,6 +238,19 @@ def main(argv=None):
 
     p = sub.add_parser("pool")
     p.add_argument("run_dir")
+
+    p = sub.add_parser("dedup")
+    p.add_argument("items")
+
+    p = sub.add_parser("integrity-verdict")
+    p.add_argument("correct", type=int)
+    p.add_argument("total", type=int)
+    p.add_argument("n_arms", type=int)
+    p.add_argument("--margin", type=float, default=0.15)
+
+    p = sub.add_parser("aggregate")
+    p.add_argument("scored")
+    p.add_argument("manifest")
 
     args = parser.parse_args(argv)
 
@@ -186,6 +282,18 @@ def main(argv=None):
 
     if args.cmd == "pool":
         print(json.dumps(pool(args.run_dir)))
+        return 0
+
+    if args.cmd == "dedup":
+        print(json.dumps(dedup_findings(_load(args.items))))
+        return 0
+
+    if args.cmd == "integrity-verdict":
+        print(json.dumps(integrity_verdict(args.correct, args.total, args.n_arms, args.margin)))
+        return 0
+
+    if args.cmd == "aggregate":
+        print(json.dumps(aggregate(_load(args.scored), _load(args.manifest))))
         return 0
 
     return 2
