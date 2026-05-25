@@ -86,6 +86,20 @@ python3 run_arms.py aggregate <scored.json> <manifest.json>
 
 The decision artifact is written under `docs/` from `decision-artifact-template.md`.
 
+### Quick one-off critique (turnkey)
+
+To get cross-model critiques of a single document without the full eval, use the wrapper —
+it runs `codex` and `agy` as isolated reviewers and prints each model's findings:
+
+```
+bash scripts/eval/cross_model_review/critique.sh <plan.md> [rubric.md] [context.md]
+```
+
+A built-in rubric is used if none is given; pass a `context.md` to switch the arms to the
+fixed-context variant. Override the per-arm timeout with `CMRE_TIMEOUT=<seconds>` (agy can
+be slow). A missing/unauthenticated CLI is skipped, not fatal. Each run sends the document
+to that vendor (codex -> OpenAI, agy -> Google).
+
 ## Outcomes
 
 The decision artifact records exactly one of:
