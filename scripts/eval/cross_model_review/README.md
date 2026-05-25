@@ -16,10 +16,14 @@ Plan: `docs/plans/2026-05-24-001-feat-cross-model-review-eval-plan.md`
 | `c_fixed_context` | cross-model CLI + a fixed, documented repo-context set | is context-poverty (not the model) the limiting factor? |
 | `d_self_critic` | Claude re-reviews in-process, own failure modes supplied, prior output hidden | is the gain the model, or just a fresh adversarial pass? |
 
-Arms `b`/`c` shell out via the `codex` and `agy` CLIs (run by `run_arms.py`).
-Arms `a`/`d` and the judge are produced by the **orchestrator** (the agent running the
-eval) via in-process subagent dispatch — there is no `claude -p` and arm `d` performs no
-document egress.
+Arms `b`/`c` shell out to external model CLIs (run by `run_arms.py`). Validated CLIs:
+`codex` (OpenAI, reliable) and `gemini` 0.43+ (Google; requires `GEMINI_API_KEY` and is
+invoked with `--approval-mode plan --skip-trust` for headless read-only review). **`agy`
+(Antigravity) is deprecated** — it proved unreliable as a non-interactive reviewer (hangs or
+returns empty; see `docs/solutions/skill-design/cross-model-eval-first-run-2026-05-25.md`).
+Defaults: arm `b` = `codex` isolated, arm `c` = `gemini` + context (override with
+`--cli-b`/`--cli-c`). Arms `a`/`d` and the judge are produced by the **orchestrator** via
+in-process subagent dispatch — there is no `claude -p` and arm `d` performs no document egress.
 
 ## How the two halves cooperate (the record-store seam)
 
@@ -69,7 +73,7 @@ run from a clean CWD with auth preserved; arm b has no context, arm c adds the f
 
 ```
 python3 arms.py run-arm b_isolated      codex <doc> <rubric>                 --doc-id <id> --trial <n> > rec.json
-python3 arms.py run-arm c_fixed_context agy   <doc> <rubric> --context <ctx> --doc-id <id> --trial <n> > rec.json
+python3 arms.py run-arm c_fixed_context gemini <doc> <rubric> --context <ctx> --doc-id <id> --trial <n> > rec.json
 python3 run_arms.py ingest <run_dir> rec.json
 ```
 

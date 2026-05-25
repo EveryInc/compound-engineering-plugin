@@ -24,14 +24,23 @@ import tempfile
 import time
 from pathlib import Path
 
-# Validated invocation forms (codex 0.133.0, agy 1.0.2):
-#   codex exec -s read-only --skip-git-repo-check -   (prompt via stdin; runs outside a git repo)
-#   agy --print "<instruction>"                        (stdin is appended to the prompt)
-# --skip-git-repo-check is required because both arms run from a clean temp CWD
-# (not the repo) so neither has ambient workspace access; without it codex
-# refuses with "Not inside a trusted directory" (found via live smoke).
+# Validated invocation forms:
+#   codex 0.133.0:  codex exec -s read-only --skip-git-repo-check -   (prompt via stdin)
+#   gemini 0.43.0:  gemini -p "<instruction>" --approval-mode plan --skip-trust -o text
+#                   (-p is appended to stdin; plan = read-only so the arm never edits;
+#                    --skip-trust is REQUIRED for headless runs in a clean/untrusted CWD,
+#                    else gemini exits 55 "not running in a trusted directory")
+# Both arms run from a clean temp CWD (no ambient workspace access). codex needs
+# --skip-git-repo-check or it refuses with "Not inside a trusted directory".
+#
+# NOTE: agy 1.0.2 (--print) is retained as an option but proved UNRELIABLE as a
+# non-interactive reviewer (cross-model-eval first/second runs): prompt-in-argv hangs,
+# doc-on-stdin returns exit 0 with empty output, and it has no no-tools mode. Prefer
+# codex/gemini. See docs/solutions/skill-design/cross-model-eval-first-run-2026-05-25.md.
 CODEX_BASE = ["codex", "exec", "-s", "read-only", "--skip-git-repo-check", "-"]
 AGY_INSTRUCTION = "Review the document provided on stdin and return findings, one per line."
+GEMINI_INSTRUCTION = "Review the document provided on stdin and return findings, one per line. Do not modify files."
+GEMINI_BASE = ["gemini", "-p", GEMINI_INSTRUCTION, "--approval-mode", "plan", "--skip-trust", "-o", "text"]
 
 # Lines like "1. foo" or "2) bar" — numbered findings the model commonly emits.
 NUMBERED_ITEM = re.compile(r"^\s*\d+[.)]\s+(.*)$")
@@ -60,6 +69,8 @@ def build_invocation(arm, cli, doc_text, rubric, context_text=None):
     """
     if cli == "codex":
         argv = list(CODEX_BASE)
+    elif cli == "gemini":
+        argv = list(GEMINI_BASE)
     elif cli == "agy":
         argv = ["agy", "--print", AGY_INSTRUCTION]
     else:
@@ -169,7 +180,7 @@ def main(argv=None):
 
     p = sub.add_parser("build-invocation")
     p.add_argument("arm", choices=["b_isolated", "c_fixed_context"])
-    p.add_argument("cli", choices=["codex", "agy"])
+    p.add_argument("cli", choices=["codex", "gemini", "agy"])
     p.add_argument("doc")
     p.add_argument("rubric")
     p.add_argument("--context")
@@ -183,7 +194,7 @@ def main(argv=None):
 
     p = sub.add_parser("run-arm")
     p.add_argument("arm", choices=["b_isolated", "c_fixed_context"])
-    p.add_argument("cli", choices=["codex", "agy"])
+    p.add_argument("cli", choices=["codex", "gemini", "agy"])
     p.add_argument("doc")
     p.add_argument("rubric")
     p.add_argument("--context")

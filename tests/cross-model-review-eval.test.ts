@@ -141,6 +141,18 @@ describe("cross-model arm invocation assembly (R2 / U3)", () => {
 		expect(out.cwd).not.toBe(REPO_ROOT);
 		expect(out.argv).toEqual(["agy", "--print", expect.any(String)]);
 	});
+
+	test("gemini arm: clean cwd, -p instruction in argv, read-only (plan) mode, doc on stdin not argv", async () => {
+		const out = JSON.parse((await arms(["build-invocation", "c_fixed_context", "gemini", doc, rubric, "--context", context])).stdout);
+		expect(out.isolated_from_repo).toBe(true);
+		expect(out.stdin_has_context).toBe(true);
+		expect(out.doc_in_argv).toBe(false);
+		expect(out.argv[0]).toBe("gemini");
+		expect(out.argv).toContain("-p");
+		// read-only mode so the reviewer never edits files
+		expect(out.argv).toContain("--approval-mode");
+		expect(out.argv).toContain("plan");
+	});
 });
 
 describe("arm-b isolation probe (AD2 / P1)", () => {

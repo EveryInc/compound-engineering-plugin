@@ -256,7 +256,7 @@ def main(argv=None):
     p.add_argument("--rubric", default="FILL:code-review-rubric.md")
     p.add_argument("--context", default="FILL:arm-c-context.md")
     p.add_argument("--cli-b", default="codex")
-    p.add_argument("--cli-c", default="agy")
+    p.add_argument("--cli-c", default="gemini")
 
     p = sub.add_parser("finalize")
     p.add_argument("records_dir")
