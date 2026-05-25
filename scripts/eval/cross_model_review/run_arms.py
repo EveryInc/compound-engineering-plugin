@@ -164,13 +164,63 @@ def integrity_verdict(correct, total, n_arms, margin=0.15):
     return {"accuracy": accuracy, "chance": chance, "confounded": accuracy > chance + margin}
 
 
+def gt_hits_from_findings(records, finding_verdicts):
+    """Join blind per-finding GT-match verdicts back to arms (code-review breakpoint).
+
+    The judge decides, per label-stripped finding, whether it describes the
+    document's `ground_truth.bug` (`matches_bug`) — it never sees the arm. This
+    re-attaches the arm from the original records and collapses to a per-(arm,doc)
+    `gt_hit` = did any of that arm's findings for that document match the bug.
+    Blinding is preserved: the arm is recovered here, not exposed to the judge.
+    """
+    matched = {(v.get("doc_id"), v.get("finding_id")) for v in finding_verdicts if v.get("matches_bug")}
+    hits = {}
+    for rec in records:
+        arm, doc = rec.get("arm"), rec.get("doc_id")
+        if arm is None or doc is None:
+            continue
+        key = (arm, doc)
+        if key not in hits:
+            hits[key] = False
+        for f in rec.get("findings", []):
+            if (doc, f.get("id")) in matched:
+                hits[key] = True
+    return [{"arm": a, "doc_id": d, "gt_hit": h} for (a, d), h in hits.items()]
+
+
+def gt_score(manifest, arm_matches):
+    """Per-arm hit counts on the known-failure subset (R7 primary metric).
+
+    arm_matches: [{arm, doc_id, gt_hit}] (e.g. from gt_hits_from_findings). Only
+    verdicts on known_failure documents count; everything else is ignored. Returns
+    per-arm {hits, scored} plus aggregate-ready known_failure records carrying gt_hit.
+    """
+    known_failure = {d.get("id") for d in manifest.get("docs", []) if d.get("subset") == "known_failure"}
+    per_arm = {arm: {"hits": 0, "scored": 0} for arm in ARMS}
+    scored = []
+    for m in arm_matches:
+        if m.get("doc_id") not in known_failure:
+            continue
+        arm = m.get("arm")
+        if arm not in per_arm:
+            continue
+        hit = bool(m.get("gt_hit"))
+        per_arm[arm]["scored"] += 1
+        per_arm[arm]["hits"] += int(hit)
+        scored.append({"arm": arm, "doc_id": m["doc_id"], "subset": "known_failure", "gt_hit": hit})
+    return {"per_arm": per_arm, "scored": scored, "known_failure_n": len(known_failure)}
+
+
 def aggregate(scored, manifest):
     """Aggregate post-judge, human-confirmed findings into a three-way decision (U6).
 
-    scored: list of {arm, doc_id, subset, decision_changing: bool}. The primary
-    signal is the per-arm decision-changing count on the known-failure subset;
-    forward-rated counts corroborate (R7). Below minimum N, or if the negative
-    control moved, the outcome is inconclusive rather than "build nothing" (R9, H2).
+    scored: list of {arm, doc_id, subset, decision_changing: bool, gt_hit?: bool}.
+    The primary signal is the per-arm score on the known-failure subset; forward-rated
+    counts corroborate (R7). On known_failure the predicate is `gt_hit` when present
+    (the targeted code-review GT-match), falling back to `decision_changing` (plan
+    review's forward-rated judgment); other subsets always use `decision_changing`.
+    Below minimum N, or if the negative control moved, the outcome is inconclusive
+    rather than "build nothing" (R9, H2).
     """
     prereg = manifest.get("pre_registration", {})
     threshold = prereg.get("go_threshold")
@@ -178,9 +228,13 @@ def aggregate(scored, manifest):
     per_arm = {arm: {"known_failure": 0, "forward_rated": 0} for arm in ARMS}
     control_moved = False
     for s in scored:
-        if not s.get("decision_changing"):
-            continue
         subset, arm = s.get("subset"), s.get("arm")
+        if subset == "known_failure" and "gt_hit" in s:
+            positive = s.get("gt_hit")
+        else:
+            positive = s.get("decision_changing")
+        if not positive:
+            continue
         if subset == "negative_control":
             control_moved = True
         elif subset in ("known_failure", "forward_rated") and arm in per_arm:
@@ -248,6 +302,14 @@ def main(argv=None):
     p.add_argument("n_arms", type=int)
     p.add_argument("--margin", type=float, default=0.15)
 
+    p = sub.add_parser("gt-resolve")
+    p.add_argument("records")
+    p.add_argument("finding_verdicts")
+
+    p = sub.add_parser("gt-score")
+    p.add_argument("manifest")
+    p.add_argument("arm_matches")
+
     p = sub.add_parser("aggregate")
     p.add_argument("scored")
     p.add_argument("manifest")
@@ -290,6 +352,14 @@ def main(argv=None):
 
     if args.cmd == "integrity-verdict":
         print(json.dumps(integrity_verdict(args.correct, args.total, args.n_arms, args.margin)))
+        return 0
+
+    if args.cmd == "gt-resolve":
+        print(json.dumps(gt_hits_from_findings(_load(args.records), _load(args.finding_verdicts))))
+        return 0
+
+    if args.cmd == "gt-score":
+        print(json.dumps(gt_score(_load(args.manifest), _load(args.arm_matches))))
         return 0
 
     if args.cmd == "aggregate":

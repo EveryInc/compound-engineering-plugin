@@ -226,3 +226,85 @@ describe("aggregation -> three-way decision (U6 / R7 / R9)", () => {
 		expect(out.outcome).toBe("inconclusive");
 	});
 });
+
+// GT-match scoring (code-review breakpoint): the judge classifies findings blind,
+// deciding per finding whether it describes the document's ground_truth.bug; the
+// runner re-attaches arms afterward (blind preserved) to a per-(arm,doc) hit. This
+// is the sharper operationalization of the known-failure axis that a concrete fix
+// commit unlocks over plan review's forward-rated decision_changing (R7).
+function tmpJson(name: string, value: unknown) {
+	const dir = mkdtempSync(join(tmpdir(), "cmre-gt-"));
+	const p = join(dir, name);
+	writeFileSync(p, JSON.stringify(value));
+	return p;
+}
+
+describe("GT-match: blind finding verdicts -> per-arm hits", () => {
+	test("a finding that matches the bug marks its arm a hit; a non-match does not", async () => {
+		const records = tmpJson("records.json", [
+			{
+				arm: "c_fixed_context",
+				doc_id: "kf-1",
+				findings: [
+					{ id: "f1", text: "style nit" },
+					{ id: "f2", text: "collation mismatch in the UNION across posts_* tables" },
+				],
+			},
+			{ arm: "a_baseline", doc_id: "kf-1", findings: [{ id: "f1", text: "style nit" }] },
+		]);
+		const verdicts = tmpJson("verdicts.json", [
+			{ doc_id: "kf-1", finding_id: "f2", matches_bug: true },
+			{ doc_id: "kf-1", finding_id: "f1", matches_bug: false },
+		]);
+		const out = JSON.parse((await run(["gt-resolve", records, verdicts])).stdout);
+		const byArm = Object.fromEntries(out.map((r: { arm: string; gt_hit: boolean }) => [r.arm, r.gt_hit]));
+		expect(byArm.c_fixed_context).toBe(true);
+		expect(byArm.a_baseline).toBe(false);
+	});
+});
+
+describe("GT-match: per-arm known-failure score (R7 primary metric)", () => {
+	test("hits are counted only on known_failure docs", async () => {
+		const manifest = tmpJson("m.json", {
+			docs: [
+				{ id: "kf-1", subset: "known_failure", ground_truth: { bug: "x" } },
+				{ id: "kf-2", subset: "known_failure", ground_truth: { bug: "y" } },
+				{ id: "nc-1", subset: "negative_control" },
+			],
+		});
+		const matches = tmpJson("am.json", [
+			{ arm: "c_fixed_context", doc_id: "kf-1", gt_hit: true },
+			{ arm: "c_fixed_context", doc_id: "kf-2", gt_hit: true },
+			{ arm: "a_baseline", doc_id: "kf-1", gt_hit: false },
+			{ arm: "a_baseline", doc_id: "kf-2", gt_hit: false },
+			{ arm: "b_isolated", doc_id: "nc-1", gt_hit: true },
+		]);
+		const out = JSON.parse((await run(["gt-score", manifest, matches])).stdout);
+		expect(out.known_failure_n).toBe(2);
+		expect(out.per_arm.c_fixed_context.hits).toBe(2);
+		expect(out.per_arm.a_baseline.hits).toBe(0);
+		expect(out.per_arm.b_isolated.scored).toBe(0); // nc-1 is not a known_failure doc
+	});
+});
+
+describe("aggregation uses GT-match hits as the known-failure metric", () => {
+	test("gt_hit drives build:<arm> and takes precedence over decision_changing", async () => {
+		const manifest = tmpJson("m.json", {
+			pre_registration: { go_threshold: 2, minimum_corpus_n: 2, trials_per_arm: 3 },
+			docs: [
+				{ id: "kf-1", subset: "known_failure" },
+				{ id: "kf-2", subset: "known_failure" },
+			],
+		});
+		const scored = tmpJson("s.json", [
+			{ arm: "c_fixed_context", doc_id: "kf-1", subset: "known_failure", gt_hit: true },
+			{ arm: "c_fixed_context", doc_id: "kf-2", subset: "known_failure", gt_hit: true },
+			// gt_hit:false must NOT count even though decision_changing is true
+			{ arm: "a_baseline", doc_id: "kf-1", subset: "known_failure", gt_hit: false, decision_changing: true },
+		]);
+		const out = JSON.parse((await run(["aggregate", scored, manifest])).stdout);
+		expect(out.outcome).toBe("build:c_fixed_context");
+		expect(out.per_arm.c_fixed_context.known_failure).toBe(2);
+		expect(out.per_arm.a_baseline.known_failure).toBe(0);
+	});
+});

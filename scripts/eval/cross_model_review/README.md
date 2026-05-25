@@ -168,6 +168,26 @@ entries are `trust: needs_confirmation` by design — blame is inferred, and `fi
 include renames and test-only fixes — so the human-confirmed subset, not the raw emission,
 is the known-failure set the decision rests on (R6/R7).
 
+### Scoring a code-review corpus: GT-match
+
+Plan review can only forward-rate whether a finding *looks* decision-changing. A known-bug
+corpus has a target — the bug the fix proved mattered — so the known-failure metric becomes
+an objective **hit/miss**: did any of an arm's findings describe that bug? See
+`gt_match_rubric.md`.
+
+The judge stays blind (per-finding, label-stripped, never told the arm); the arm is
+re-attached afterward, so blinding holds:
+
+```
+# judge produces per-finding verdicts {doc_id, finding_id, matches_bug} on the blind pool
+python3 run_arms.py gt-resolve <records.json> <verdicts.json>   # -> per-(arm,doc) gt_hit
+python3 run_arms.py gt-score   <manifest.json> <arm-matches.json>  # -> per-arm known-failure hits
+```
+
+`aggregate` uses `gt_hit` as the known-failure predicate when present, falling back to
+`decision_changing` for plan-review corpora — so the same three-way decision rule serves
+both breakpoints. Forward-rated and negative-control documents keep `decision_changing`.
+
 The model arms (`b`/`c`) review a diff exactly as they review a plan — it is text on stdin
 — so `arms.py` is unchanged. Note that arm `b` (isolated, no repo) is more crippled by a
 raw diff than by a self-contained plan; pre-register that as an expected effect so a
