@@ -239,27 +239,32 @@ function tmpJson(name: string, value: unknown) {
 	return p;
 }
 
-describe("GT-match: blind finding verdicts -> per-arm hits", () => {
-	test("a finding that matches the bug marks its arm a hit; a non-match does not", async () => {
-		const records = tmpJson("records.json", [
-			{
-				arm: "c_fixed_context",
-				doc_id: "kf-1",
-				findings: [
-					{ id: "f1", text: "style nit" },
-					{ id: "f2", text: "collation mismatch in the UNION across posts_* tables" },
-				],
-			},
-			{ arm: "a_baseline", doc_id: "kf-1", findings: [{ id: "f1", text: "style nit" }] },
+describe("GT-match pool: globally-unique, arm-opaque finding ids", () => {
+	const records = () =>
+		tmpJson("records.json", [
+			{ arm: "c_fixed_context", doc_id: "kf-1", findings: [{ id: "f1", text: "the real collation bug" }] },
+			{ arm: "a_baseline", doc_id: "kf-1", findings: [{ id: "f1", text: "an unrelated nit" }] },
 		]);
-		const verdicts = tmpJson("verdicts.json", [
-			{ doc_id: "kf-1", finding_id: "f2", matches_bug: true },
-			{ doc_id: "kf-1", finding_id: "f1", matches_bug: false },
-		]);
-		const out = JSON.parse((await run(["gt-resolve", records, verdicts])).stdout);
+
+	test("two arms reusing the same local finding id get distinct uids; the pool hides the arm", async () => {
+		const pool = JSON.parse((await run(["gt-pool", records()])).stdout);
+		const uids = pool.pool.map((p: { uid: string }) => p.uid);
+		expect(new Set(uids).size).toBe(2); // distinct despite both being "f1"
+		expect(pool.pool.every((p: Record<string, unknown>) => !("arm" in p))).toBe(true); // blind
+	});
+
+	test("a verdict credits only the arm whose finding it is, not a same-local-id sibling (the bug)", async () => {
+		const pool = JSON.parse((await run(["gt-pool", records()])).stdout);
+		const provFile = tmpJson("prov.json", pool.provenance);
+		// the uid whose provenance is the c_fixed_context finding
+		const cUid = Object.entries(pool.provenance).find(
+			([, p]) => (p as { arm: string }).arm === "c_fixed_context",
+		)![0];
+		const verdicts = tmpJson("verdicts.json", [{ uid: cUid, matches_bug: true }]);
+		const out = JSON.parse((await run(["gt-resolve", provFile, verdicts])).stdout);
 		const byArm = Object.fromEntries(out.map((r: { arm: string; gt_hit: boolean }) => [r.arm, r.gt_hit]));
 		expect(byArm.c_fixed_context).toBe(true);
-		expect(byArm.a_baseline).toBe(false);
+		expect(byArm.a_baseline).toBe(false); // NOT credited despite sharing local id "f1"
 	});
 });
 

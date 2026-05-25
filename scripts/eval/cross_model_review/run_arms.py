@@ -15,6 +15,7 @@ via Bun.spawn(["python3", ...]) without invoking any model.
 """
 
 import argparse
+import hashlib
 import json
 import sys
 from pathlib import Path
@@ -164,27 +165,50 @@ def integrity_verdict(correct, total, n_arms, margin=0.15):
     return {"accuracy": accuracy, "chance": chance, "confounded": accuracy > chance + margin}
 
 
-def gt_hits_from_findings(records, finding_verdicts):
-    """Join blind per-finding GT-match verdicts back to arms (code-review breakpoint).
+def _finding_uid(arm, doc_id, fid, text):
+    """Opaque, globally-unique id for one arm's finding.
 
-    The judge decides, per label-stripped finding, whether it describes the
-    document's `ground_truth.bug` (`matches_bug`) — it never sees the arm. This
-    re-attaches the arm from the original records and collapses to a per-(arm,doc)
-    `gt_hit` = did any of that arm's findings for that document match the bug.
-    Blinding is preserved: the arm is recovered here, not exposed to the judge.
+    A content+arm hash: unique per (arm, finding) so two arms reusing a local id
+    like `f1` get different uids; order-independent so the pool and finalize agree;
+    and it does not visibly encode the arm, so the judge stays blind.
     """
-    matched = {(v.get("doc_id"), v.get("finding_id")) for v in finding_verdicts if v.get("matches_bug")}
-    hits = {}
+    h = hashlib.sha1(f"{arm}\x1f{doc_id}\x1f{fid}\x1f{text}".encode("utf-8")).hexdigest()
+    return "g" + h[:12]
+
+
+def gt_pool(records):
+    """Build the blind GT-match pool + arm provenance from arm records.
+
+    Returns `pool` (what the judge sees: uid + doc_id + text, NO arm, ordered by
+    opaque uid so order leaks nothing) and `provenance` (uid -> {arm, doc_id}, the
+    private map the runner uses to resolve verdicts back to arms). Fixes the earlier
+    cross-arm credit bleed where a verdict keyed on a local finding id (`f2`) credited
+    every arm that happened to reuse it.
+    """
+    pool, provenance = [], {}
     for rec in records:
         arm, doc = rec.get("arm"), rec.get("doc_id")
-        if arm is None or doc is None:
-            continue
-        key = (arm, doc)
-        if key not in hits:
-            hits[key] = False
         for f in rec.get("findings", []):
-            if (doc, f.get("id")) in matched:
-                hits[key] = True
+            uid = _finding_uid(arm, doc, f.get("id"), f.get("text", ""))
+            provenance[uid] = {"arm": arm, "doc_id": doc}
+            pool.append({"uid": uid, "doc_id": doc, "text": f.get("text", "")})
+    pool.sort(key=lambda p: p["uid"])
+    return {"pool": pool, "provenance": provenance}
+
+
+def gt_hits_from_verdicts(provenance, verdicts):
+    """Resolve blind per-finding verdicts (keyed by pool uid) to per-(arm,doc) gt_hit.
+
+    A `matches_bug` verdict credits only the one arm whose finding carries that uid;
+    `gt_hit` for an (arm,doc) is true if any of that arm's findings on the doc matched.
+    """
+    matched = {v.get("uid") for v in verdicts if v.get("matches_bug")}
+    hits = {}
+    for uid, p in provenance.items():
+        key = (p.get("arm"), p.get("doc_id"))
+        hits.setdefault(key, False)
+        if uid in matched:
+            hits[key] = True
     return [{"arm": a, "doc_id": d, "gt_hit": h} for (a, d), h in hits.items()]
 
 
@@ -302,9 +326,12 @@ def main(argv=None):
     p.add_argument("n_arms", type=int)
     p.add_argument("--margin", type=float, default=0.15)
 
-    p = sub.add_parser("gt-resolve")
+    p = sub.add_parser("gt-pool")
     p.add_argument("records")
-    p.add_argument("finding_verdicts")
+
+    p = sub.add_parser("gt-resolve")
+    p.add_argument("provenance")
+    p.add_argument("verdicts")
 
     p = sub.add_parser("gt-score")
     p.add_argument("manifest")
@@ -354,8 +381,12 @@ def main(argv=None):
         print(json.dumps(integrity_verdict(args.correct, args.total, args.n_arms, args.margin)))
         return 0
 
+    if args.cmd == "gt-pool":
+        print(json.dumps(gt_pool(_load(args.records))))
+        return 0
+
     if args.cmd == "gt-resolve":
-        print(json.dumps(gt_hits_from_findings(_load(args.records), _load(args.finding_verdicts))))
+        print(json.dumps(gt_hits_from_verdicts(_load(args.provenance), _load(args.verdicts))))
         return 0
 
     if args.cmd == "gt-score":

@@ -183,7 +183,8 @@ the bug the fix proved mattered), human-confirmed per R6 before this record is t
 
 def finalize(records_dir, manifest, gt_verdicts, class_verdicts=None, integrity=None, judge_family=None, out=None):
     records = load_records(records_dir)
-    gt_hits = run_arms.gt_hits_from_findings(records, gt_verdicts)
+    pool = run_arms.gt_pool(records)
+    gt_hits = run_arms.gt_hits_from_verdicts(pool["provenance"], gt_verdicts)
     gt = run_arms.gt_score(manifest, gt_hits)
     scored = list(gt["scored"]) + list(class_verdicts or [])
     result = run_arms.aggregate(scored, manifest)

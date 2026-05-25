@@ -13,14 +13,17 @@ import { join } from "node:path";
 
 const REPO_ROOT = join(import.meta.dir, "..");
 const DRIVER = join(REPO_ROOT, "scripts/eval/cross_model_review/drive_eval.py");
+const RUN_ARMS = join(REPO_ROOT, "scripts/eval/cross_model_review/run_arms.py");
 
-async function spawn(args: string[]) {
-	const proc = Bun.spawn(["python3", DRIVER, ...args], { stdout: "pipe", stderr: "pipe" });
+async function spawnPy(script: string, args: string[]) {
+	const proc = Bun.spawn(["python3", script, ...args], { stdout: "pipe", stderr: "pipe" });
 	const stdout = await new Response(proc.stdout).text();
 	const stderr = await new Response(proc.stderr).text();
 	const exitCode = await proc.exited;
 	return { stdout, stderr, exitCode };
 }
+const spawn = (args: string[]) => spawnPy(DRIVER, args);
+const runArms = (args: string[]) => spawnPy(RUN_ARMS, args);
 
 function tmpDir() {
 	return mkdtempSync(join(tmpdir(), "cmre-drv-"));
@@ -78,23 +81,31 @@ describe("finalize: gt-resolve -> gt-score -> aggregate -> decision artifact", (
 			],
 		});
 
-	function recordsDirWithCWinningBoth() {
+	// build a records dir where c_fixed_context surfaces the GT bug on both docs, and
+	// return uid-keyed verdicts marking exactly the two c findings (discovered via gt-pool,
+	// so the verdict uids match what finalize re-derives from the dir).
+	async function setup() {
 		const dir = tmpDir();
+		const recList: unknown[] = [];
 		for (const doc of ["kf-1", "kf-2"]) {
-			writeRecord(dir, "c_fixed_context", doc, 1, [{ id: "f9", text: "the collation bug" }]);
+			const cFinding = [{ id: "f9", text: "the collation bug" }];
+			writeRecord(dir, "c_fixed_context", doc, 1, cFinding);
+			recList.push({ arm: "c_fixed_context", doc_id: doc, findings: cFinding });
 			for (const arm of ["a_baseline", "b_isolated", "d_self_critic"]) {
-				writeRecord(dir, arm, doc, 1, [{ id: "f1", text: "unrelated nit" }]);
+				const f = [{ id: "f1", text: "unrelated nit" }];
+				writeRecord(dir, arm, doc, 1, f);
+				recList.push({ arm, doc_id: doc, findings: f });
 			}
 		}
-		return dir;
+		const pool = JSON.parse((await runArms(["gt-pool", tmpJson(recList)])).stdout);
+		const cUids = Object.entries(pool.provenance)
+			.filter(([, p]) => (p as { arm: string }).arm === "c_fixed_context")
+			.map(([uid]) => ({ uid, matches_bug: true }));
+		return { dir, gtVerdicts: tmpJson(cUids) };
 	}
 
 	test("a GT-match win on both known-failure docs yields build:<arm> and a written artifact", async () => {
-		const dir = recordsDirWithCWinningBoth();
-		const gtVerdicts = tmpJson([
-			{ doc_id: "kf-1", finding_id: "f9", matches_bug: true },
-			{ doc_id: "kf-2", finding_id: "f9", matches_bug: true },
-		]);
+		const { dir, gtVerdicts } = await setup();
 		const artifact = join(tmpDir(), "decision.md");
 		const { stdout, exitCode } = await spawn([
 			"finalize", dir, manifest(),
@@ -106,15 +117,12 @@ describe("finalize: gt-resolve -> gt-score -> aggregate -> decision artifact", (
 		expect(exitCode).toBe(0);
 		expect(out.outcome).toBe("build:c_fixed_context");
 		expect(out.per_arm.c_fixed_context.known_failure).toBe(2);
+		expect(out.per_arm.a_baseline.known_failure).toBe(0); // not bled credit
 		expect(existsSync(artifact)).toBe(true);
 	});
 
 	test("a confounded blind-integrity check forces inconclusive regardless of hits", async () => {
-		const dir = recordsDirWithCWinningBoth();
-		const gtVerdicts = tmpJson([
-			{ doc_id: "kf-1", finding_id: "f9", matches_bug: true },
-			{ doc_id: "kf-2", finding_id: "f9", matches_bug: true },
-		]);
+		const { dir, gtVerdicts } = await setup();
 		const { stdout } = await spawn([
 			"finalize", dir, manifest(),
 			"--gt-verdicts", gtVerdicts,
