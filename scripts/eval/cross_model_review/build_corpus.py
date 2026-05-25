@@ -97,6 +97,37 @@ def is_regression_subject(text):
     return {"is_regression": bool(matched), "matched": matched}
 
 
+def parse_numstat(text):
+    """Sum changed lines and count files from `git show --numstat` output.
+
+    Each line is `<added>\\t<deleted>\\t<path>`; binary files report `-` and count
+    as a touched file with 0 measurable lines. Used by the culprit-size gate.
+    """
+    files, lines = 0, 0
+    for ln in (text or "").splitlines():
+        parts = ln.split("\t")
+        if len(parts) < 3:
+            continue
+        files += 1
+        a, d = parts[0], parts[1]
+        if a.isdigit():
+            lines += int(a)
+        if d.isdigit():
+            lines += int(d)
+    return {"files": files, "changed_lines": lines}
+
+
+def culprit_within_caps(changed_lines, files, max_lines, max_files):
+    """Quality gate: reject culprits too large to review or wide enough to be a
+    foundational/import commit (the failure modes a Tier-3 blame corpus collects)."""
+    reasons = []
+    if max_lines and changed_lines > max_lines:
+        reasons.append(f"culprit diff {changed_lines} lines > {max_lines}")
+    if max_files and files > max_files:
+        reasons.append(f"culprit touches {files} files > {max_files} (likely foundational)")
+    return {"ok": not reasons, "reasons": reasons}
+
+
 def is_code_path(path):
     """True for reviewable code, False for docs/markdown — keeps the corpus code-only."""
     p = (path or "").strip().lower()
@@ -290,7 +321,8 @@ def attribute_fix(repo, fix_sha):
     return {"fix_commit": fix_sha, "candidates": blame_candidates(repo, fix_sha, code_only=False)}
 
 
-def scan_fixes(repo, out_dir=None, all_refs=False, max_entries=None):
+def scan_fixes(repo, out_dir=None, all_refs=False, max_entries=None,
+               max_culprit_lines=2000, max_culprit_files=30, dedup=True):
     """Discover Tier-3 blame-attributed known-failure entries from `fix:` commits.
 
     Each conventional fix commit is blamed back to the change that last wrote the
@@ -298,6 +330,13 @@ def scan_fixes(repo, out_dir=None, all_refs=False, max_entries=None):
     caught the bug in. Blame is inferred, so every entry is `attribution: "blame",
     trust: "needs_confirmation"` for the human to confirm (R6), with the runner-up
     culprits kept in `culprit_alternates`.
+
+    Quality gate (the first-run lesson): blame on a repo that ships large feature
+    commits collapses many fixes onto one giant culprit. Entries whose culprit diff
+    exceeds `max_culprit_lines`/`max_culprit_files` are dropped (too large to review
+    / foundational), and when `dedup`, only the first fix per distinct culprit is
+    kept (so N fixes touching one feature don't become N non-independent docs).
+    Tighter caps yield a smaller but cleaner, decidable corpus.
     """
     fmt = _FIELD_SEP.join(["%H", "%s", "%aI"]) + _REC_SEP
     log_args = ["log", f"--format={fmt}"]
@@ -307,6 +346,9 @@ def scan_fixes(repo, out_dir=None, all_refs=False, max_entries=None):
 
     fixes_scanned = 0
     fixes_with_culprit = 0
+    filtered_oversize = 0
+    filtered_dup = 0
+    seen_culprits = set()
     entries = []
     out_path = Path(out_dir) if out_dir else None
     if out_path:
@@ -334,6 +376,19 @@ def scan_fixes(repo, out_dir=None, all_refs=False, max_entries=None):
 
         culprit_sha = cands[0]["culprit_sha"]
         alternates = [c["culprit_sha"] for c in cands[1:]]
+
+        # quality gate: drop oversize/foundational culprits, then dedup shared ones
+        try:
+            size = parse_numstat(_git(repo, ["show", "--numstat", "--format=", culprit_sha]))
+        except RuntimeError:
+            continue
+        if not culprit_within_caps(size["changed_lines"], size["files"], max_culprit_lines, max_culprit_files)["ok"]:
+            filtered_oversize += 1
+            continue
+        if dedup and culprit_sha in seen_culprits:
+            filtered_dup += 1
+            continue
+        seen_culprits.add(culprit_sha)
         try:
             c_meta = _git(repo, ["show", "-s", "--format=%s" + _FIELD_SEP + "%aI", culprit_sha])
         except RuntimeError:
@@ -376,6 +431,8 @@ def scan_fixes(repo, out_dir=None, all_refs=False, max_entries=None):
         "stats": {
             "fixes_scanned": fixes_scanned,
             "fixes_with_culprit": fixes_with_culprit,
+            "filtered_oversize": filtered_oversize,
+            "filtered_dup": filtered_dup,
             "entries_emitted": len(entries),
         },
     }
@@ -429,6 +486,9 @@ def main(argv=None):
     p = sub.add_parser("is-code-path")
     p.add_argument("file")
 
+    p = sub.add_parser("parse-numstat")
+    p.add_argument("file")
+
     p = sub.add_parser("to-manifest")
     p.add_argument("file")
 
@@ -443,6 +503,9 @@ def main(argv=None):
     p.add_argument("--out-dir")
     p.add_argument("--all", action="store_true", help="scan all refs, not just HEAD history")
     p.add_argument("--max", type=int, default=None)
+    p.add_argument("--max-culprit-lines", type=int, default=2000, help="drop culprits whose diff exceeds this (0 = no cap)")
+    p.add_argument("--max-culprit-files", type=int, default=30, help="drop culprits touching more files than this (0 = no cap)")
+    p.add_argument("--no-dedup", action="store_true", help="keep every fix even when fixes share a culprit")
 
     p = sub.add_parser("attribute-fix")
     p.add_argument("--repo", required=True)
@@ -483,8 +546,17 @@ def main(argv=None):
         print(json.dumps(scan(args.repo, args.out_dir, args.all, args.max)))
         return 0
 
+    if args.cmd == "parse-numstat":
+        print(json.dumps(parse_numstat(_read(args.file))))
+        return 0
+
     if args.cmd == "scan-fixes":
-        print(json.dumps(scan_fixes(args.repo, args.out_dir, args.all, args.max)))
+        print(json.dumps(scan_fixes(
+            args.repo, args.out_dir, args.all, args.max,
+            max_culprit_lines=args.max_culprit_lines,
+            max_culprit_files=args.max_culprit_files,
+            dedup=not args.no_dedup,
+        )))
         return 0
 
     if args.cmd == "attribute-fix":

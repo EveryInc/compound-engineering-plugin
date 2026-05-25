@@ -136,7 +136,9 @@ rather than only forward-rating actionability.
 python3 build_corpus.py scan --repo <path-to-target-repo> --out-dir <corpus-dir>
 
 # Tier-3: walk every code `fix:` commit, blame it to a culprit, emit needs_confirmation entries
-python3 build_corpus.py scan-fixes --repo <path-to-target-repo> --out-dir <corpus-dir>
+# The quality gate drops oversize/foundational culprits and dedups fixes that share one.
+python3 build_corpus.py scan-fixes --repo <path-to-target-repo> --out-dir <corpus-dir> \
+    --max-culprit-lines 2000 --max-culprit-files 30   # defaults; tighter = cleaner but smaller
 
 # Tier-2/3 (single fix): blame the lines a known fix touched to find candidate culprits
 python3 build_corpus.py attribute-fix --repo <path> <fix-sha>
@@ -146,7 +148,13 @@ Both `scan` and `scan-fixes` emit `{entries, stats}`; every entry passes `valida
 (the manifest conformance gate, the corpus analog of `validate-record`). `scan-fixes`
 keys one entry per fix, blames code files only (`is-code-path` filters out docs/markdown),
 picks the most-files-touched culprit, and keeps the runners-up in `culprit_alternates` for
-the human to confirm (R6). A conventional `revert:` with no embedded SHA is **counted but
+the human to confirm (R6). Its **quality gate** then drops culprits whose diff exceeds
+`--max-culprit-lines`/`--max-culprit-files` (too large to review, or a foundational/import
+commit) and dedups fixes that blame the same culprit (so N fixes touching one feature don't
+become N non-independent docs). On a repo that ships large feature commits this is decisive:
+an ungated run produced a corpus that collapsed to a handful of distinct, often huge diffs,
+while the gated run yields a smaller set of distinct, reviewable culprits — a corpus you can
+actually decide on. Tighter caps trade corpus size for cleanliness. A conventional `revert:` with no embedded SHA is **counted but
 not emitted** by `scan` — there is no reliable culprit diff — and likewise left to the human.
 
 **Which tier a repo yields depends on how the team works.**

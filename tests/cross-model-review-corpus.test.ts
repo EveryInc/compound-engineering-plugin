@@ -224,6 +224,70 @@ describe("scan: end-to-end Tier-1 revert discovery on a constructed repo", () =>
 	});
 });
 
+describe("numstat parsing (culprit size gate)", () => {
+	test("sums changed lines and counts files; binary (-) lines count as files with 0 lines", async () => {
+		const f = tmpFile("ns.txt", "5\t2\tfoo.php\n0\t3\tbar.js\n-\t-\timg.png\n");
+		const out = JSON.parse((await build(["parse-numstat", f])).stdout);
+		expect(out.files).toBe(3);
+		expect(out.changed_lines).toBe(10);
+	});
+});
+
+describe("scan-fixes quality gate: size cap, foundational exclusion, shared-culprit dedup", () => {
+	let repo: string;
+	let outDir: string;
+
+	async function git(args: string[], cwd: string, env: Record<string, string> = {}) {
+		const proc = Bun.spawn(["git", ...args], { cwd, env: { ...process.env, ...env }, stdout: "pipe", stderr: "pipe" });
+		await new Response(proc.stdout).text();
+		await new Response(proc.stderr).text();
+		await proc.exited;
+	}
+	function write(name: string, body: string) {
+		writeFileSync(join(repo, name), body);
+	}
+
+	beforeAll(async () => {
+		repo = mkdtempSync(join(tmpdir(), "cmre-gate-"));
+		outDir = mkdtempSync(join(tmpdir(), "cmre-gateout-"));
+		const id = { GIT_AUTHOR_NAME: "T", GIT_AUTHOR_EMAIL: "t@e", GIT_COMMITTER_NAME: "T", GIT_COMMITTER_EMAIL: "t@e" };
+		await git(["init", "-q", "-b", "main"], repo);
+		// small culprit: 4-line file (two later fixes will both blame it -> dedup)
+		write("small.php", "<?php\n$a = 1;\n$b = 2;\n$c = 3;\n");
+		await git(["add", "."], repo);
+		await git(["commit", "-q", "-m", "feat(small): add"], repo, id);
+		// oversize culprit: 30-line file
+		write("big.php", "<?php\n" + Array.from({ length: 29 }, (_, i) => `$x${i} = ${i};`).join("\n") + "\n");
+		await git(["add", "."], repo);
+		await git(["commit", "-q", "-m", "feat(big): add"], repo, id);
+		// fix A modifies small.php line 3 -> blames the small feat
+		write("small.php", "<?php\n$a = 1;\n$b = 20;\n$c = 3;\n");
+		await git(["add", "."], repo);
+		await git(["commit", "-q", "-m", "fix(small): correct b"], repo, id);
+		// fix B modifies small.php line 4 -> also blames the small feat (shared culprit)
+		write("small.php", "<?php\n$a = 1;\n$b = 20;\n$c = 30;\n");
+		await git(["add", "."], repo);
+		await git(["commit", "-q", "-m", "fix(small): correct c"], repo, id);
+		// fix C modifies big.php -> blames the oversize feat
+		write("big.php", "<?php\n$x0 = 100;\n" + Array.from({ length: 28 }, (_, i) => `$x${i + 1} = ${i + 1};`).join("\n") + "\n");
+		await git(["add", "."], repo);
+		await git(["commit", "-q", "-m", "fix(big): correct x0"], repo, id);
+	});
+
+	test("oversize culprits are excluded and fixes sharing a culprit are deduped", async () => {
+		const { stdout, exitCode } = await build([
+			"scan-fixes", "--repo", repo, "--out-dir", outDir,
+			"--max-culprit-lines", "20", "--max-culprit-files", "5",
+		]);
+		expect(exitCode).toBe(0);
+		const out = JSON.parse(stdout);
+		expect(out.stats.fixes_scanned).toBe(3);
+		expect(out.stats.entries_emitted).toBe(1); // one distinct, in-cap culprit survives
+		expect(out.stats.filtered_oversize).toBe(1); // the 30-line culprit
+		expect(out.stats.filtered_dup).toBe(1); // the second fix sharing the small culprit
+	});
+});
+
 describe("to-manifest (assemble a manifest skeleton from scan output)", () => {
 	test("wraps entries as docs with null pre-registration for the human to fill (R9)", async () => {
 		const scan = tmpFile(
