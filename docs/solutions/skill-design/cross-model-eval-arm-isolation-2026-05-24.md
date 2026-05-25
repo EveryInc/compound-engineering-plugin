@@ -27,7 +27,7 @@ context set (c), and a same-model self-critic (d). The comparison is only meanin
 every arm receives **identical, controlled context** — the design's whole point is to
 isolate *model* and *context* as separate variables.
 
-A live run on two BlueprintOS plans violated this and produced a confidently-wrong
+A live run on two real plans from a separate internal repo violated this and produced a confidently-wrong
 conclusion. The cross-model arms (b, c) were correctly isolated — `codex` ran from a clean
 CWD with the plan piped via stdin, no repo access. But the in-process Claude arms (a, d)
 were dispatched as general-purpose subagents **given a path into the live repo**, so they
