@@ -326,6 +326,36 @@ describe("GT-match: per-arm known-failure score (R7 primary metric)", () => {
 	});
 });
 
+describe("non-Claude judge prompt + verdict parsing (removes the judge-family confound)", () => {
+	test("judge-prompt is blind (no arm), carries each doc's GT bug and the finding uids, asks for JSON", async () => {
+		const pool = tmpJson("pool.json", {
+			pool: [
+				{ uid: "g1", doc_id: "kf-1", text: "the UNION mixes collations" },
+				{ uid: "g2", doc_id: "kf-1", text: "an unrelated nit" },
+			],
+			provenance: { g1: { arm: "b_isolated", doc_id: "kf-1" }, g2: { arm: "a_baseline", doc_id: "kf-1" } },
+		});
+		const manifest = tmpJson("m.json", {
+			docs: [{ id: "kf-1", subset: "known_failure", ground_truth: { bug: "collation mismatch across posts tables" } }],
+		});
+		const out = (await run(["judge-prompt", pool, manifest])).stdout;
+		expect(out).toContain("collation mismatch across posts tables"); // the GT bug
+		expect(out).toContain("g1"); // finding uid present
+		expect(out).toContain("JSON"); // asks for structured verdicts
+		expect(out).not.toContain("b_isolated"); // BLIND — arm never leaks to the judge
+		expect(out).not.toContain("a_baseline");
+	});
+
+	test("judge verdicts parse from a fenced JSON array", async () => {
+		const f = tmpJson("v.json", null); // placeholder; we pass a text file instead
+		const txt = tmpFile("verdicts.md", '```json\n[{"uid":"g1","matches_bug":true,"actionable":true,"decision_changing":true}]\n```');
+		const out = JSON.parse((await run(["judge-parse", txt])).stdout);
+		expect(out).toHaveLength(1);
+		expect(out[0].uid).toBe("g1");
+		expect(out[0].matches_bug).toBe(true);
+	});
+});
+
 describe("finding-yield metric (the value GT-match alone misses)", () => {
 	test("tallies per-arm total / unique-actionable / decision-changing from blind verdicts", async () => {
 		const prov = tmpJson("prov.json", {

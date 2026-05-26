@@ -17,6 +17,7 @@ via Bun.spawn(["python3", ...]) without invoking any model.
 import argparse
 import hashlib
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -212,6 +213,53 @@ def gt_hits_from_verdicts(provenance, verdicts):
     return [{"arm": a, "doc_id": d, "gt_hit": h} for (a, d), h in hits.items()]
 
 
+def build_judge_prompt(pool, manifest):
+    """Build the BLIND judge prompt for a non-Claude judge (codex/gemini).
+
+    The judge sees each document's ground-truth bug and the pooled findings by uid
+    and text only — never the arm (that's recovered after, preserving the blind).
+    Asks for a JSON array of per-finding verdicts so parsing is reliable. Using a
+    non-Claude judge is what clears the judge-family confound (R4).
+    """
+    gt = {d.get("id"): (d.get("ground_truth") or {}).get("bug")
+          for d in manifest.get("docs", []) if d.get("subset") == "known_failure"}
+    by_doc = {}
+    for p in pool.get("pool", []):
+        by_doc.setdefault(p.get("doc_id"), []).append(p)
+    lines = [
+        "You are a blind reviewer-of-reviews. Below are code/plan-review findings grouped by",
+        "document. For EACH finding decide three booleans: matches_bug (does it describe THIS",
+        "document's known bug?), actionable (a specific, addressable defect, not a generic",
+        "caution), decision_changing (a competent owner would act on it).",
+        "",
+        "Return ONLY a JSON array of objects {uid, matches_bug, actionable, decision_changing}.",
+        "No prose. Judge each finding on its own text; you are NOT told which reviewer produced it.",
+        "",
+    ]
+    for doc, items in by_doc.items():
+        if doc in gt and gt[doc]:
+            lines.append(f"## Document {doc} — the bug a good review should have caught: {gt[doc]}")
+        else:
+            lines.append(f"## Document {doc} — NEGATIVE CONTROL: no real bug exists; matches_bug must be false for all.")
+        for p in items:
+            lines.append(f"- uid={p.get('uid')}: {p.get('text','')}")
+        lines.append("")
+    return "\n".join(lines)
+
+
+def parse_judge_verdicts(text):
+    """Parse the judge's JSON verdict array (tolerating a ```json fence). [] on failure."""
+    t = (text or "").strip()
+    if t.startswith("```"):
+        t = re.sub(r"^```[a-zA-Z0-9]*\n?", "", t)
+        t = re.sub(r"\n?```$", "", t).strip()
+    try:
+        data = json.loads(t)
+    except (json.JSONDecodeError, ValueError):
+        return []
+    return data if isinstance(data, list) else []
+
+
 def yield_score(provenance, verdicts):
     """Per-arm finding-yield: the value GT-match alone misses.
 
@@ -367,6 +415,13 @@ def main(argv=None):
     p.add_argument("provenance")
     p.add_argument("verdicts")
 
+    p = sub.add_parser("judge-prompt")
+    p.add_argument("pool")
+    p.add_argument("manifest")
+
+    p = sub.add_parser("judge-parse")
+    p.add_argument("output")
+
     p = sub.add_parser("aggregate")
     p.add_argument("scored")
     p.add_argument("manifest")
@@ -425,6 +480,14 @@ def main(argv=None):
 
     if args.cmd == "yield-score":
         print(json.dumps(yield_score(_load(args.provenance), _load(args.verdicts))))
+        return 0
+
+    if args.cmd == "judge-prompt":
+        print(build_judge_prompt(_load(args.pool), _load(args.manifest)))
+        return 0
+
+    if args.cmd == "judge-parse":
+        print(json.dumps(parse_judge_verdicts(Path(args.output).read_text())))
         return 0
 
     if args.cmd == "aggregate":
