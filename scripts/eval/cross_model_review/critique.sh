@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # Quick cross-model critique of a single plan/document.
 #
-# Runs the cross-model arms (codex = OpenAI, agy = Antigravity/Gemini) as isolated
-# reviewers over one document and prints each model's findings side by side. This is the
-# turnkey path — the full four-arm eval (baseline + self-critic + judge) is agent-driven;
-# see README.md.
+# Runs the cross-model arms (codex = OpenAI, gemini = Google) as isolated reviewers over one
+# document and prints each model's findings side by side. This is the turnkey path — the full
+# four-arm eval (baseline + self-critic + judge) is agent-driven; see README.md.
+# (agy/Antigravity was dropped — unreliable as a non-interactive reviewer; gemini needs GEMINI_API_KEY.)
 #
 # Usage:
 #   critique.sh <plan.md> [rubric.md] [context.md]
@@ -14,7 +14,7 @@
 #   [context.md] if given, models also receive this as a fixed context set (arm c_fixed_context);
 #                otherwise they review the document text only (arm b_isolated)
 #
-# Each model run SENDS THE DOCUMENT to that vendor (codex -> OpenAI, agy -> Google).
+# Each model run SENDS THE DOCUMENT to that vendor (codex -> OpenAI, gemini -> Google).
 # A missing/unauthenticated CLI is skipped with a note rather than failing the whole run.
 set -u
 
@@ -60,7 +60,7 @@ if [ -n "$context" ]; then
 fi
 
 doc_id="$(basename "$plan" .md)"
-timeout="${CMRE_TIMEOUT:-300}"   # per-arm timeout in seconds; override with CMRE_TIMEOUT (agy can be slow)
+timeout="${CMRE_TIMEOUT:-300}"   # per-arm timeout in seconds; override with CMRE_TIMEOUT (gemini can be slow)
 
 run_one() {
 	cli="$1"
@@ -96,5 +96,5 @@ else
 	echo "Rubric: $rubric"
 fi
 run_one codex "codex (OpenAI)"
-run_one agy "agy (Antigravity/Gemini)"
+run_one gemini "gemini (Google)"
 echo ""
