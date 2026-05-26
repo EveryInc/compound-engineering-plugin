@@ -191,9 +191,10 @@ The judge stays blind (per-finding, label-stripped, never told the arm); the arm
 re-attached afterward, so blinding holds:
 
 ```
-# judge produces per-finding verdicts {doc_id, finding_id, matches_bug} on the blind pool
-python3 run_arms.py gt-resolve <records.json> <verdicts.json>   # -> per-(arm,doc) gt_hit
-python3 run_arms.py gt-score   <manifest.json> <arm-matches.json>  # -> per-arm known-failure hits
+# judge produces per-finding verdicts {uid, matches_bug} on the blind pool
+python3 run_arms.py gt-pool    <records.json> > pool.json                     # -> blind pool + provenance
+python3 run_arms.py gt-resolve <(jq .provenance pool.json) <verdicts.json>    # -> per-(arm,doc) gt_hit
+python3 run_arms.py gt-score   <manifest.json> <arm-matches.json>             # -> per-arm known-failure hits
 ```
 
 `aggregate` uses `gt_hit` as the known-failure predicate when present, falling back to

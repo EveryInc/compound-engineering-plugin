@@ -22,6 +22,7 @@ import sys
 from pathlib import Path
 
 ARMS = ["a_baseline", "b_isolated", "c_fixed_context", "d_self_critic"]
+CONTROL_ARM = "a_baseline"  # baseline = existing behavior; a control, never a buildable lever
 CLI_ARMS = {"b_isolated", "c_fixed_context"}  # spawned by the runner; subject to timeout/breaker
 STATUSES = ["ok", "degraded", "timeout", "error"]
 PRODUCERS = ["runner", "orchestrator"]
@@ -95,6 +96,22 @@ def strip_labels(rec):
 def breaker_should_disable(consecutive_failures, threshold=DEFAULT_BREAKER_THRESHOLD):
     """Pure circuit-breaker decision: disable an arm after N consecutive failures."""
     return consecutive_failures >= threshold
+
+
+def _as_bool(v):
+    """Strict-but-tolerant truthiness for judge verdict fields.
+
+    A non-Claude judge (codex/gemini) may serialize booleans loosely, e.g. the
+    string ``"false"`` — which is Python-truthy and would silently inflate a metric.
+    Accept only a real bool or a ``"true"``/``"false"`` string; everything else
+    (including ``"false"``, ``1``, ``None``) is False. This keeps a loose judge from
+    flipping the decision via stray truthiness while still honoring string booleans.
+    """
+    if isinstance(v, bool):
+        return v
+    if isinstance(v, str):
+        return v.strip().lower() == "true"
+    return False
 
 
 def ingest(run_dir, record):
@@ -203,7 +220,7 @@ def gt_hits_from_verdicts(provenance, verdicts):
     A `matches_bug` verdict credits only the one arm whose finding carries that uid;
     `gt_hit` for an (arm,doc) is true if any of that arm's findings on the doc matched.
     """
-    matched = {v.get("uid") for v in verdicts if v.get("matches_bug")}
+    matched = {v.get("uid") for v in verdicts if _as_bool(v.get("matches_bug"))}
     hits = {}
     for uid, p in provenance.items():
         key = (p.get("arm"), p.get("doc_id"))
@@ -279,9 +296,9 @@ def yield_score(provenance, verdicts):
         v = by_uid.get(uid)
         if not v:
             continue
-        if v.get("actionable") and not v.get("duplicate"):
+        if _as_bool(v.get("actionable")) and not _as_bool(v.get("duplicate")):
             per_arm[arm]["unique_actionable"] += 1
-        if v.get("decision_changing"):
+        if _as_bool(v.get("decision_changing")):
             per_arm[arm]["decision_changing"] += 1
     return per_arm
 
@@ -338,23 +355,31 @@ def aggregate(scored, manifest):
         elif subset in ("known_failure", "forward_rated") and arm in per_arm:
             per_arm[arm][subset] += 1
 
-    winning_arm, best = None, -1
-    for arm, c in per_arm.items():
-        if c["known_failure"] > best:
-            best, winning_arm = c["known_failure"], arm
+    # The control arm (baseline = existing behavior) is never a buildable lever, so it is
+    # excluded from winner selection — otherwise a baseline that happened to score highest
+    # could emit a nonsensical `build:a_baseline`. Among the remaining levers, a tie at the
+    # top is not evidence for any single one; the tie-break policy is "inconclusive", not
+    # "first arm in enum order wins".
+    candidates = {arm: c["known_failure"] for arm, c in per_arm.items() if arm != CONTROL_ARM}
+    best = max(candidates.values()) if candidates else 0
+    top_arms = [arm for arm, n in candidates.items() if n == best]
+    tied = best > 0 and len(top_arms) > 1
+    winning_arm = top_arms[0] if len(top_arms) == 1 else None
 
     if status["below_n"]:
         outcome = "inconclusive"
     elif control_moved:
         outcome = "inconclusive"  # negative control moved -> harness stability problem (H2)
     elif isinstance(threshold, int) and best >= threshold and best > 0:
-        outcome = f"build:{winning_arm}"
+        # tie among levers clearing the threshold -> no single buildable winner
+        outcome = "inconclusive" if tied else f"build:{winning_arm}"
     else:
         outcome = "build_nothing"
 
     return {
         "outcome": outcome,
         "winning_arm": winning_arm if outcome.startswith("build:") else None,
+        "tied_arms": top_arms if tied else [],
         "per_arm": per_arm,
         "control_moved": control_moved,
         "below_n": status["below_n"],
@@ -386,7 +411,7 @@ def main(argv=None):
 
     p = sub.add_parser("ingest")
     p.add_argument("run_dir")
-    p.add_argument("record")
+    p.add_argument("record", help="path to a record JSON, or '-' to read the record from stdin")
 
     p = sub.add_parser("pool")
     p.add_argument("run_dir")
@@ -401,7 +426,9 @@ def main(argv=None):
     p.add_argument("--margin", type=float, default=0.15)
 
     p = sub.add_parser("gt-pool")
-    p.add_argument("records")
+    p.add_argument("records", nargs="+",
+                   help="one JSON file holding an array of records, OR several files each "
+                        "holding one record (so a glob like <run>/records/*.json works)")
 
     p = sub.add_parser("gt-resolve")
     p.add_argument("provenance")
@@ -447,8 +474,10 @@ def main(argv=None):
 
     if args.cmd == "ingest":
         try:
-            written = ingest(args.run_dir, _load(args.record))
-        except ValueError as e:
+            # `-` reads the record from stdin so `run-arm ... | ingest <dir> -` works.
+            rec = json.loads(sys.stdin.read()) if args.record == "-" else _load(args.record)
+            written = ingest(args.run_dir, rec)
+        except (ValueError, json.JSONDecodeError) as e:
             print(json.dumps({"written": None, "error": str(e)}))
             return 1
         print(json.dumps({"written": written}))
@@ -467,7 +496,11 @@ def main(argv=None):
         return 0
 
     if args.cmd == "gt-pool":
-        print(json.dumps(gt_pool(_load(args.records))))
+        recs = []
+        for path in args.records:
+            data = _load(path)
+            recs.extend(data if isinstance(data, list) else [data])
+        print(json.dumps(gt_pool(recs)))
         return 0
 
     if args.cmd == "gt-resolve":

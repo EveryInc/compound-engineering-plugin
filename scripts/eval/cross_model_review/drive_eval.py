@@ -41,11 +41,16 @@ def plan(manifest, out_dir, rubric, context, cli_b, cli_c):
     if missing:
         return {"ok": False, "error": f"pre-registration incomplete: {', '.join(missing)} must be set before running (R9)"}
 
+    # trials_per_arm must be a positive integer: 0 (or a non-int) would enumerate zero arm
+    # runs yet still let finalize emit a decision from no experimental data.
+    trials = prereg["trials_per_arm"]
+    if not isinstance(trials, int) or isinstance(trials, bool) or trials < 1:
+        return {"ok": False, "error": f"trials_per_arm must be an integer >= 1 (got {trials!r}); a decision-grade run needs >= 3 (R8)"}
+
     docs = manifest.get("docs", [])
     if not any(d.get("subset") == "known_failure" for d in docs):
         return {"ok": False, "error": "no known_failure documents in corpus — nothing to score on the primary metric (R7)"}
 
-    trials = prereg["trials_per_arm"]
     cli_for = {"b_isolated": cli_b, "c_fixed_context": cli_c}
 
     expected_records, cli_commands, in_process_records = [], [], []
@@ -201,14 +206,49 @@ the bug the fix proved mattered), human-confirmed per R6 before this record is t
 """
 
 
+def coverage(records, manifest):
+    """Did the run actually produce the pre-registered docs x arms x trials records?
+
+    Returns None when trials_per_arm is not a usable int (nothing to check against);
+    otherwise {expected, present, complete}. An incomplete run must not yield a
+    confident build:<arm> — a partial/interrupted dir could otherwise hand the decision
+    to whichever arm's records happened to land first.
+    """
+    trials = manifest.get("pre_registration", {}).get("trials_per_arm")
+    if not isinstance(trials, int) or isinstance(trials, bool) or trials < 1:
+        return None
+    docs = manifest.get("docs", [])
+    expected = len(docs) * len(ARMS) * trials
+    present = len({(r.get("arm"), r.get("doc_id"), r.get("trial")) for r in records})
+    return {"expected": expected, "present": present, "complete": present >= expected}
+
+
 def finalize(records_dir, manifest, gt_verdicts, class_verdicts=None, integrity=None,
              judge_family=None, out=None, yield_verdicts=None):
     records = load_records(records_dir)
+
+    # Class verdicts cover forward_rated + negative_control only. A class verdict carrying
+    # subset "known_failure" would be scored via aggregate's decision_changing fallback,
+    # crediting a GT-match hit with no actual GT match — fail loud rather than corrupt the
+    # primary signal.
+    misrouted = [c for c in (class_verdicts or []) if c.get("subset") == "known_failure"]
+    if misrouted:
+        raise ValueError(
+            f"{len(misrouted)} class-verdict entry(ies) carry subset 'known_failure'; "
+            "known-failure scoring must come from --gt-verdicts (GT-match), not class verdicts "
+            "(which are for forward_rated + negative_control only)"
+        )
+
     pool = run_arms.gt_pool(records)
     gt_hits = run_arms.gt_hits_from_verdicts(pool["provenance"], gt_verdicts)
     gt = run_arms.gt_score(manifest, gt_hits)
     scored = list(gt["scored"]) + list(class_verdicts or [])
     result = run_arms.aggregate(scored, manifest)
+
+    # An incomplete record set cannot support a confident build decision (R8/R9 spirit).
+    cov = coverage(records, manifest)
+    if cov is not None and not cov["complete"] and result["outcome"].startswith("build:"):
+        result = {**result, "outcome": "inconclusive", "incomplete_coverage": cov}
 
     # finding-yield: GT-match alone undercounts a reviewer that finds other real bugs
     yield_per_arm = run_arms.yield_score(pool["provenance"], yield_verdicts) if yield_verdicts is not None else None
@@ -235,6 +275,9 @@ def finalize(records_dir, manifest, gt_verdicts, class_verdicts=None, integrity=
         "known_failure_n": gt["known_failure_n"],
         "below_n": result.get("below_n"),
         "control_moved": result.get("control_moved"),
+        "coverage": cov,
+        "incomplete_coverage": result.get("incomplete_coverage"),
+        "tied_arms": result.get("tied_arms", []),
         "integrity": integ,
     }
 
@@ -278,16 +321,20 @@ def main(argv=None):
     if args.cmd == "finalize":
         class_verdicts = _load(args.class_verdicts) if args.class_verdicts else None
         yield_verdicts = _load(args.yield_verdicts) if args.yield_verdicts else None
-        result = finalize(
-            args.records_dir,
-            _load(args.manifest),
-            _load(args.gt_verdicts),
-            class_verdicts=class_verdicts,
-            integrity=_parse_integrity(args.integrity),
-            judge_family=args.judge_family,
-            out=args.out,
-            yield_verdicts=yield_verdicts,
-        )
+        try:
+            result = finalize(
+                args.records_dir,
+                _load(args.manifest),
+                _load(args.gt_verdicts),
+                class_verdicts=class_verdicts,
+                integrity=_parse_integrity(args.integrity),
+                judge_family=args.judge_family,
+                out=args.out,
+                yield_verdicts=yield_verdicts,
+            )
+        except ValueError as e:
+            print(json.dumps({"error": str(e)}))
+            return 1
         print(json.dumps(result))
         return 0
 

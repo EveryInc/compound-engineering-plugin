@@ -26,7 +26,7 @@ timeout="${CMRE_TIMEOUT:-420}"
 
 # Six lens rubrics, distilled from the ce-doc-review personas so the cross-model arms get the
 # same coverage the Claude panel does.
-lens_dir="$(mktemp -d -t cmre-lenses)"
+lens_dir="$(mktemp -d -t cmre-lenses-XXXXXX)"
 cat > "$lens_dir/coherence.md" <<'EOF'
 Review this document for INTERNAL CONSISTENCY: contradictions between sections, terminology drift,
 dependency/sequencing claims that conflict, and ambiguity where two readers would diverge. Return

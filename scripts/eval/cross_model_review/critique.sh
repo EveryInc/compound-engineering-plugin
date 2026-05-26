@@ -39,7 +39,7 @@ fi
 
 # Built-in default rubric (kept self-contained so this works outside the repo layout).
 if [ -z "$rubric" ]; then
-	rubric="$(mktemp -t cmre-rubric)"
+	rubric="$(mktemp -t cmre-rubric-XXXXXX)"
 	cat > "$rubric" <<'EOF'
 Independent challenge rubric: challenge the premise, surface unstated assumptions, name
 unconsidered alternatives, and state what would falsify this plan. Be concrete and specific

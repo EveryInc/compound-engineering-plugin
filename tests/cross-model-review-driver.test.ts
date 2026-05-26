@@ -69,12 +69,26 @@ describe("plan: enumerate work units and the orchestrator handoff", () => {
 		expect(out.ok).toBe(false);
 		expect(out.error.toLowerCase()).toContain("pre-regist");
 	});
+
+	test("refuses to plan when trials_per_arm is not a positive integer (0 -> zero arm runs)", async () => {
+		const manifest = tmpJson({
+			pre_registration: { go_threshold: 2, minimum_corpus_n: 2, trials_per_arm: 0, arm_c_context_rule: "x" },
+			docs: [{ id: "kf-1", subset: "known_failure", path: "d1.diff", ground_truth: { bug: "x" } }],
+		});
+		const { stdout, exitCode } = await spawn(["plan", manifest, "--out-dir", tmpDir()]);
+		const out = JSON.parse(stdout);
+		expect(exitCode).toBe(1);
+		expect(out.ok).toBe(false);
+		expect(out.error.toLowerCase()).toContain("trials_per_arm");
+	});
 });
 
 describe("finalize: gt-resolve -> gt-score -> aggregate -> decision artifact", () => {
+	// trials_per_arm: 1 matches the single trial setup() writes, so finalize's coverage
+	// guard sees a complete run. (A separate test below exercises the incomplete case.)
 	const manifest = () =>
 		tmpJson({
-			pre_registration: { go_threshold: 2, minimum_corpus_n: 2, trials_per_arm: 3, arm_c_context_rule: "x" },
+			pre_registration: { go_threshold: 2, minimum_corpus_n: 2, trials_per_arm: 1, arm_c_context_rule: "x" },
 			docs: [
 				{ id: "kf-1", subset: "known_failure" },
 				{ id: "kf-2", subset: "known_failure" },
@@ -151,5 +165,44 @@ describe("finalize: gt-resolve -> gt-score -> aggregate -> decision artifact", (
 		]);
 		const out = JSON.parse(stdout);
 		expect(out.outcome).toBe("inconclusive");
+	});
+
+	test("a class verdict mislabeled subset:known_failure is rejected, not scored via fallback", async () => {
+		const { dir, gtVerdicts } = await setup();
+		// a known_failure subset must come from --gt-verdicts; smuggling it in as a class
+		// verdict would credit a GT hit through aggregate's decision_changing fallback.
+		const classVerdicts = tmpJson([
+			{ arm: "b_isolated", doc_id: "kf-1", subset: "known_failure", decision_changing: true },
+		]);
+		const { stdout, exitCode } = await spawn([
+			"finalize", dir, manifest(),
+			"--gt-verdicts", gtVerdicts,
+			"--class-verdicts", classVerdicts,
+			"--out", join(tmpDir(), "d.md"),
+		]);
+		const out = JSON.parse(stdout);
+		expect(exitCode).toBe(1);
+		expect(out.error.toLowerCase()).toContain("known_failure");
+	});
+
+	test("an incomplete record set cannot produce build:<arm> — coverage guard forces inconclusive", async () => {
+		const { dir, gtVerdicts } = await setup(); // writes 1 trial of records (8 records)
+		// declare trials_per_arm: 2 -> expected 2 docs x 4 arms x 2 = 16, present 8 -> incomplete
+		const incompleteManifest = tmpJson({
+			pre_registration: { go_threshold: 2, minimum_corpus_n: 2, trials_per_arm: 2, arm_c_context_rule: "x" },
+			docs: [
+				{ id: "kf-1", subset: "known_failure" },
+				{ id: "kf-2", subset: "known_failure" },
+			],
+		});
+		const { stdout } = await spawn([
+			"finalize", dir, incompleteManifest,
+			"--gt-verdicts", gtVerdicts,
+			"--out", join(tmpDir(), "d.md"),
+		]);
+		const out = JSON.parse(stdout);
+		expect(out.outcome).toBe("inconclusive");
+		expect(out.incomplete_coverage.present).toBe(8);
+		expect(out.incomplete_coverage.expected).toBe(16);
 	});
 });

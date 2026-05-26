@@ -399,3 +399,99 @@ describe("aggregation uses GT-match hits as the known-failure metric", () => {
 		expect(out.per_arm.a_baseline.known_failure).toBe(0);
 	});
 });
+
+describe("aggregate: the control arm and ties cannot become a build winner", () => {
+	const manifestKf = (threshold: number) =>
+		tmpJson("m.json", {
+			pre_registration: { go_threshold: threshold, minimum_corpus_n: 1, trials_per_arm: 1 },
+			docs: [
+				{ id: "kf-1", subset: "known_failure" },
+				{ id: "kf-2", subset: "known_failure" },
+			],
+		});
+
+	test("the control arm never wins, even when it ties for the most known-failure hits", async () => {
+		// baseline hits both docs and so does c_fixed_context; baseline (the control = existing
+		// behavior) must be excluded from selection, so the buildable lever wins — never build:a_baseline.
+		const scored = tmpJson("s.json", [
+			{ arm: "a_baseline", doc_id: "kf-1", subset: "known_failure", gt_hit: true },
+			{ arm: "a_baseline", doc_id: "kf-2", subset: "known_failure", gt_hit: true },
+			{ arm: "c_fixed_context", doc_id: "kf-1", subset: "known_failure", gt_hit: true },
+			{ arm: "c_fixed_context", doc_id: "kf-2", subset: "known_failure", gt_hit: true },
+		]);
+		const out = JSON.parse((await run(["aggregate", scored, manifestKf(2)])).stdout);
+		expect(out.outcome).toBe("build:c_fixed_context");
+		expect(out.winning_arm).toBe("c_fixed_context");
+	});
+
+	test("a tie among levers clearing the threshold is inconclusive, not first-in-enum-order", async () => {
+		const scored = tmpJson("s.json", [
+			{ arm: "b_isolated", doc_id: "kf-1", subset: "known_failure", gt_hit: true },
+			{ arm: "b_isolated", doc_id: "kf-2", subset: "known_failure", gt_hit: true },
+			{ arm: "c_fixed_context", doc_id: "kf-1", subset: "known_failure", gt_hit: true },
+			{ arm: "c_fixed_context", doc_id: "kf-2", subset: "known_failure", gt_hit: true },
+		]);
+		const out = JSON.parse((await run(["aggregate", scored, manifestKf(2)])).stdout);
+		expect(out.outcome).toBe("inconclusive");
+		expect(out.winning_arm).toBeNull();
+		expect(new Set(out.tied_arms)).toEqual(new Set(["b_isolated", "c_fixed_context"]));
+	});
+});
+
+describe("judge booleans are coerced strictly (a loose non-Claude judge can't inflate metrics)", () => {
+	test('gt-resolve: matches_bug "false" (string) is not a hit; "true" (string) is', async () => {
+		const prov = tmpJson("prov.json", {
+			g1: { arm: "b_isolated", doc_id: "kf-1" },
+			g2: { arm: "c_fixed_context", doc_id: "kf-1" },
+		});
+		const verdicts = tmpJson("v.json", [
+			{ uid: "g1", matches_bug: "false" }, // Python-truthy string — must NOT count as a hit
+			{ uid: "g2", matches_bug: "true" },
+		]);
+		const out = JSON.parse((await run(["gt-resolve", prov, verdicts])).stdout);
+		const byArm = Object.fromEntries(out.map((r: { arm: string; gt_hit: boolean }) => [r.arm, r.gt_hit]));
+		expect(byArm.b_isolated).toBe(false);
+		expect(byArm.c_fixed_context).toBe(true);
+	});
+
+	test('yield-score: actionable "false" (string) does not count as unique-actionable', async () => {
+		const prov = tmpJson("prov.json", { g1: { arm: "b_isolated", doc_id: "d1" } });
+		const verdicts = tmpJson("v.json", [{ uid: "g1", actionable: "false", decision_changing: "false" }]);
+		const out = JSON.parse((await run(["yield-score", prov, verdicts])).stdout);
+		expect(out.b_isolated.total).toBe(1);
+		expect(out.b_isolated.unique_actionable).toBe(0);
+		expect(out.b_isolated.decision_changing).toBe(0);
+	});
+});
+
+describe("gt-pool accepts a glob of single-record files (the records-dir layout)", () => {
+	test("two separate one-record files pool into two findings", async () => {
+		const f1 = tmpJson("r1.json", { arm: "b_isolated", doc_id: "kf-1", findings: [{ id: "f1", text: "bug one" }] });
+		const f2 = tmpJson("r2.json", { arm: "c_fixed_context", doc_id: "kf-1", findings: [{ id: "f1", text: "bug two" }] });
+		const out = JSON.parse((await run(["gt-pool", f1, f2])).stdout);
+		expect(out.pool).toHaveLength(2);
+		expect(Object.keys(out.provenance)).toHaveLength(2);
+	});
+});
+
+describe("ingest reads a record from stdin via '-' (the `run-arm | ingest` pipe)", () => {
+	test("a record piped on stdin is written and pooled", async () => {
+		const runDir = mkdtempSync(join(tmpdir(), "cmre-"));
+		const rec = {
+			arm: "b_isolated", doc_id: "kf-1", trial: 1, status: "ok",
+			producer: "runner", latency_ms: 1, findings: [{ id: "f1", text: "x" }],
+		};
+		const proc = Bun.spawn(["python3", RUNNER, "ingest", runDir, "-"], {
+			stdin: new TextEncoder().encode(JSON.stringify(rec)),
+			stdout: "pipe",
+			stderr: "pipe",
+		});
+		const out = JSON.parse(await new Response(proc.stdout).text());
+		await proc.exited;
+		expect(out.written).toBeTruthy();
+		expect(existsSync(out.written)).toBe(true);
+		const pooled = JSON.parse((await run(["pool", runDir])).stdout);
+		expect(pooled.total).toBe(1);
+		expect(pooled.by_arm.b_isolated).toBe(1);
+	});
+});
