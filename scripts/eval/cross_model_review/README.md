@@ -231,6 +231,49 @@ python3 drive_eval.py finalize run/records manifest.json \
 `inconclusive` if the blind-integrity probe comes back confounded, below minimum N, or the
 negative control moves — the same guards the manual chain applies.
 
+### Decision-grade run (the full procedure)
+
+A decision-grade verdict requires all four guards on at once: a **non-Claude judge** (clears
+the family confound, R4), **`trials_per_arm >= 3`** (model arms are non-deterministic; a
+single trial gives confidently-wrong, reversed conclusions), a **human-confirmed known-failure
+corpus** at or above a pre-registered `minimum_corpus_n`, and **precision-weighting** (the
+negative control + spot-verification, so raw yield isn't rewarded for confabulation).
+
+Pre-register in the manifest **before running** (R9): `go_threshold`, `minimum_corpus_n`
+(set it to the real power floor, not the corpus you happen to have — a smaller corpus then
+correctly reports `inconclusive / underpowered` rather than a false confident call),
+`trials_per_arm: 3`, `arm_c_context_rule`, and the judge's model family (must not be Claude).
+
+Ordered steps:
+
+```
+# 1. corpus (git-only, no egress): build + assemble + HUMAN-CONFIRM the known-failure subset
+python3 build_corpus.py scan-fixes --repo <repo> --out-dir corpus/ > sf.json
+python3 build_corpus.py to-manifest sf.json > manifest.json      # then fill pre_registration + confirm
+
+# 2. Claude arms a/d, 3 trials each (orchestrator, in-process, no egress)
+# 3. cross-model arms b/c, 3 trials each (EGRESS — codex + gemini)
+python3 arms.py run-arm b_isolated      codex  <doc> <rubric>                 --doc-id <id> --trial <1..3> | run_arms.py ingest <run>/records -
+python3 arms.py run-arm c_fixed_context gemini <doc> <rubric> --context <ctx> --doc-id <id> --trial <1..3> | run_arms.py ingest <run>/records -
+
+# 4. pool, then the NON-CLAUDE judge over the blind pool (EGRESS)
+python3 run_arms.py gt-pool <run>/records/*.json > pool.json     # (glob-collect records into one array)
+bash run-judge.sh pool.json manifest.json codex verdicts.json    # judge family != Claude
+
+# 5. resolve (blind), score, decide
+python3 run_arms.py gt-resolve <(jq .provenance pool.json) verdicts.json > arm-matches.json
+python3 run_arms.py gt-score   manifest.json arm-matches.json    # per-arm known-failure hits
+python3 run_arms.py yield-score <(jq .provenance pool.json) verdicts.json   # precision-weight this
+python3 drive_eval.py finalize <run>/records manifest.json --gt-verdicts verdicts.json \
+    --yield-verdicts verdicts.json --integrity <correct>,<total> --judge-family <non-claude> --out docs/<decision>.md
+```
+
+**Power note:** the gated code corpus typically yields ~10 confirmed known-failure items —
+enough for a *directional* read (does the cross-model arm hit bugs the Claude arms miss, under
+a fair non-Claude judge), but below the `minimum_corpus_n` a *confident* build/kill needs. Set
+`minimum_corpus_n` honestly so the harness reports `inconclusive / underpowered` until the
+confirmed corpus is large enough — that honesty is the point (R9).
+
 The model arms (`b`/`c`) review a diff exactly as they review a plan — it is text on stdin
 — so `arms.py` is unchanged. Note that arm `b` (isolated, no repo) is more crippled by a
 raw diff than by a self-contained plan; pre-register that as an expected effect so a
