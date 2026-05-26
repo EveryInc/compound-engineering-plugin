@@ -206,15 +206,34 @@ If you previously used the old Bun Qwen install, back up stale CE artifacts befo
 bunx @every-env/compound-plugin cleanup --target qwen
 ```
 
+### Grok
+
+```bash
+bunx @every-env/compound-plugin install compound-engineering --to grok
+# or
+bun run src/index.ts install ./plugins/compound-engineering --to grok --output /tmp/grok-ce
+```
+
+Grok uses a clean self-contained layout (no managed manifests). After conversion:
+
+```bash
+grok plugin install /tmp/grok-ce/compound-engineering
+# or for a single session
+grok build --plugin-dir /tmp/grok-ce/compound-engineering ...
+```
+
+See `docs/specs/grok.md` for the exact layout, agent frontmatter mapping, `GROK_PLUGIN_ROOT` conventions, and the recommended `read_file` + `spawn_subagent` dispatch pattern for CE agents.
+
 ### OpenCode, Pi, Gemini, and Kiro
 
-This repo includes a Bun/TypeScript installer that converts the Compound Engineering plugin to OpenCode, Pi, Gemini CLI, and Kiro CLI.
+This repo includes a Bun/TypeScript installer that converts the Compound Engineering plugin to OpenCode, Pi, Gemini CLI, Kiro CLI, and Grok.
 
 ```bash
 bunx @every-env/compound-plugin install compound-engineering --to opencode
 bunx @every-env/compound-plugin install compound-engineering --to pi
 bunx @every-env/compound-plugin install compound-engineering --to gemini
 bunx @every-env/compound-plugin install compound-engineering --to kiro
+bunx @every-env/compound-plugin install compound-engineering --to grok
 ```
 
 **Pi prerequisites.** Pi does not ship a native subagent primitive, so the Pi install depends on [nicobailon/pi-subagents](https://github.com/nicobailon/pi-subagents) (required) and recommends [edlsh/pi-ask-user](https://github.com/edlsh/pi-ask-user) for richer blocking user questions:

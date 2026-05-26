@@ -284,6 +284,12 @@ export type LegacyWindsurfArtifacts = {
   workflows: string[]
 }
 
+export type LegacyGrokArtifacts = {
+  skills: string[]
+  agents: string[]
+  commands: string[]
+}
+
 export function getLegacyPluginArtifacts(pluginName?: string): LegacyPluginArtifacts {
   if (!pluginName) return {}
   return EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN[pluginName] ?? {}
@@ -580,6 +586,22 @@ export function getLegacyWindsurfArtifacts(plugin: ClaudePlugin): LegacyWindsurf
   return {
     skills: [...skills].sort(),
     workflows: [...workflows].sort(),
+  }
+}
+
+/**
+ * Legacy artifact detector for the Grok target.
+ *
+ * Grok is a new clean-root target (self-contained plugin dir with skills/ + agents/ + plugin.json).
+ * There are no widespread historical flat installs to clean up yet.
+ * Returning empty sets is the safe default and populates the API for future safety
+ * (if Grok ever grows managed layout or we discover early ad-hoc installs).
+ */
+export function getLegacyGrokArtifacts(): LegacyGrokArtifacts {
+  return {
+    skills: [],
+    agents: [],
+    commands: [],
   }
 }
 

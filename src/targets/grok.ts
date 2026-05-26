@@ -1,0 +1,115 @@
+import path from "path"
+
+import { copySkillDir, ensureDir, sanitizePathName, writeJson, writeText } from "../utils/files"
+import { transformContentForGrok } from "../utils/grok-content"
+import type { GrokBundle } from "../types/grok"
+
+/**
+ * Write a self-contained Grok plugin bundle to disk.
+ *
+ * Layout (clean provider root, no managed-artifacts or legacy manifests):
+ *   <outputRoot>/<sanitized-plugin-name>/
+ *     plugin.json
+ *     agents/
+ *       ce-*.md
+ *     skills/
+ *       <skill-name>/
+ *         SKILL.md
+ *         references/
+ *         scripts/...
+ *     commands/ (optional .md files)
+ *     .mcp.json (if MCP servers present)
+ *
+ * This is the simplest writer among targets. Skills are copied with
+ * transformContentForGrok (including references via transformAllMarkdown=true).
+ * Agents are already transformed by the converter (Grok frontmatter + body).
+ *
+ * After writing, a one-line instruction for `grok plugin install` is logged.
+ */
+export async function writeGrokBundle(outputRoot: string, bundle: GrokBundle): Promise<void> {
+  const pluginName = bundle.pluginName
+    ? sanitizePathName(bundle.pluginName)
+    : "compound-engineering"
+
+  // Produce a dedicated, self-contained directory under the provided output root.
+  // This makes the result directly usable with:
+  //   grok plugin install <output>/<name>
+  // or for development:
+  //   --plugin-dir <output>/<name>
+  const targetRoot = path.join(outputRoot, pluginName)
+  await ensureDir(targetRoot)
+
+  // plugin.json (minimal but valid — matches observed Grok expectation)
+  const pluginJson = bundle.pluginJson ?? {
+    name: bundle.pluginName || pluginName,
+    version: "0.0.0-dev-grok",
+    description: "Compound Engineering skills and agents (converted for Grok)",
+  }
+  await writeJson(path.join(targetRoot, "plugin.json"), pluginJson)
+
+  // Agents (already converted to Grok frontmatter + body by claude-to-grok)
+  if (bundle.agents && bundle.agents.length > 0) {
+    const agentsDir = path.join(targetRoot, "agents")
+    await ensureDir(agentsDir)
+
+    const seen = new Set<string>()
+    for (const agent of bundle.agents) {
+      const safeName = sanitizePathName(agent.name)
+      if (seen.has(safeName)) {
+        console.warn(`Skipping duplicate agent after sanitization: ${agent.name} -> ${safeName}`)
+        continue
+      }
+      seen.add(safeName)
+      await writeText(path.join(agentsDir, `${safeName}.md`), agent.content + "\n")
+    }
+  }
+
+  // Skills (pass-through + any generated)
+  const skillsDir = path.join(targetRoot, "skills")
+  await ensureDir(skillsDir)
+
+  // Generated skills (rare for Grok target; usually empty)
+  for (const skill of bundle.generatedSkills ?? []) {
+    const name = sanitizePathName(skill.name)
+    const dir = path.join(skillsDir, name)
+    await ensureDir(dir)
+    await writeText(path.join(dir, "SKILL.md"), skill.content + "\n")
+  }
+
+  // Pass-through skills with full content transform (including references/*.md)
+  for (const skill of bundle.skillDirs ?? []) {
+    const name = sanitizePathName(skill.name)
+    const targetDir = path.join(skillsDir, name)
+    await copySkillDir(skill.sourceDir, targetDir, transformContentForGrok, true)
+  }
+
+  // Commands (written as .md for documentation / future Grok command surface)
+  if (bundle.commands && bundle.commands.length > 0) {
+    const commandsDir = path.join(targetRoot, "commands")
+    await ensureDir(commandsDir)
+
+    const seen = new Set<string>()
+    for (const command of bundle.commands) {
+      const safeName = sanitizePathName(command.name)
+      if (seen.has(safeName)) {
+        console.warn(`Skipping duplicate command after sanitization: ${command.name}`)
+        continue
+      }
+      seen.add(safeName)
+      await writeText(path.join(commandsDir, `${safeName}.md`), command.content + "\n")
+    }
+  }
+
+  // MCP servers -> .mcp.json at plugin root (per Grok plugin contract)
+  if (bundle.mcpServers && Object.keys(bundle.mcpServers).length > 0) {
+    await writeJson(path.join(targetRoot, ".mcp.json"), {
+      mcpServers: bundle.mcpServers,
+    })
+  }
+
+  // Helpful next-step logging (consistent with other clean-root targets)
+  console.log(`\n✅ Grok plugin written to: ${targetRoot}`)
+  console.log(`   Install locally:   grok plugin install ${targetRoot}`)
+  console.log(`   Development use:   grok build --plugin-dir ${targetRoot}  (or --plugin-dir in your workflow)`)
+  console.log(`   Marketplace flow:  publish the directory or zip it for your marketplace source.`)
+}

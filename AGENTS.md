@@ -49,7 +49,7 @@ src/              CLI entry point, parsers, converters, target writers
 plugins/          Plugin workspaces (compound-engineering, coding-tutor)
 .claude-plugin/   Claude marketplace catalog metadata
 tests/            Converter, writer, and CLI tests + fixtures
-docs/             Requirements, plans, solutions, and target specs
+docs/             Requirements, plans, solutions (documented learnings in `docs/solutions/`, searchable via category + YAML frontmatter such as `module`/`tags`/`problem_type`), and target specs. Search `docs/solutions/` for prior solutions before implementing or debugging in documented areas.
 ```
 
 ## Repo Surfaces

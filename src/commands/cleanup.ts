@@ -16,6 +16,7 @@ import {
   getLegacyCopilotArtifacts,
   getLegacyDroidArtifacts,
   getLegacyGeminiArtifacts,
+  getLegacyGrokArtifacts,
   getLegacyKiroArtifacts,
   getLegacyOpenCodeArtifacts,
   getLegacyPiArtifacts,
@@ -29,7 +30,7 @@ import { isSafeManagedPath, pathExists, readJson, sanitizePathName } from "../ut
 import { resolveOpenCodeGlobalRoot } from "../utils/opencode-config"
 import { expandHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
 
-const cleanupTargets = ["codex", "opencode", "pi", "gemini", "kiro", "copilot", "droid", "qwen", "windsurf"] as const
+const cleanupTargets = ["codex", "opencode", "pi", "gemini", "kiro", "grok", "copilot", "droid", "qwen", "windsurf"] as const
 type CleanupTarget = typeof cleanupTargets[number]
 
 type CleanupResult = {
@@ -52,7 +53,7 @@ export default defineCommand({
     target: {
       type: "string",
       default: "all",
-      description: "Target to clean: codex | opencode | pi | gemini | kiro | copilot | droid | qwen | windsurf | all",
+      description: "Target to clean: codex | opencode | pi | gemini | kiro | grok | copilot | droid | qwen | windsurf | all",
     },
     output: {
       type: "string",
@@ -221,6 +222,11 @@ async function cleanupTarget(
     }
     case "kiro":
       return [await cleanupKiro(plugin, roots.kiroHome)]
+    case "grok":
+      // Grok uses a clean self-contained root (no managed-artifacts complexity).
+      // No widespread historical installs exist yet. Returning a zero result keeps
+      // the target selectable for future expansion (see getLegacyGrokArtifacts).
+      return [{ target: "grok", root: "(clean root — user provided output dir)", moved: 0 }]
     case "copilot": {
       // Same race-prevention as Gemini: if a user points `--copilot-home`,
       // `--output`, or `--agents-home` at the same directory these parallel
