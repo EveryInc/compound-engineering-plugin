@@ -111,6 +111,35 @@ Claude-family judge, unverified yield), but the picture is now sharp: cross-mode
 substantial finding *volume*; whether that is *value* hinges on precision, where codex looks
 strong (clean control, ~30 actionable) and gemini looks volume-heavy-but-confabulating.
 
+## Plan-review breakpoint — a different result (convergence, not decorrelation)
+
+Ran the harness against a real, high-stakes internal **plan** (not code): a 6-persona Claude
+panel (`ce-doc-review`) vs `codex` and `gemini` as isolated single-shot reviewers. The result
+inverted the code-review runs:
+
+- **The cross-model arms converged on the panel's #1 finding rather than decorrelating.** codex
+  independently surfaced the same top premise risk three Claude personas had flagged — strong
+  triangulation that it's the real issue — but neither codex nor gemini produced a
+  decision-changing finding the panel had missed. gemini's one finding overlapped an area the
+  plan already mitigated (a partial miss). Volume: panel ~13, codex 1, gemini 1.
+- **No confabulation this round** (unlike the code run's fabricated line numbers) — but the
+  surface was tiny (1 finding each, no context), so there was little opportunity.
+- **Major confound — prompt asymmetry.** The cross-model arms got one generic "challenge the
+  premise" rubric; the Claude side got six specialized lenses. The volume/specificity gap is
+  substantially a prompting artifact, not a proven model difference. A fair comparison must run
+  the cross-model arms through the **same lenses** (see `panel-critique.sh`).
+
+**Lesson: the lever's value is breakpoint-dependent.** Code review → high volume, real
+decorrelation, gemini confabulates. Plan review → low volume, convergence/triangulation on the
+top premise, no confab. This argues against a blanket "always add cross-model review" rule:
+for plans the cross-model arm reads more like a *corroborator* of the headline risk than a
+source of net-new findings, while for code it adds volume that must be precision-weighted.
+
+**Harness gap found:** `critique.sh` truncated findings to 240 chars and persisted no full
+records, making post-hoc judging impossible. Fixed: it now persists full records, and
+`panel-critique.sh` runs the cross-model arms through the six panel lenses with full-record
+persistence for a fair, judgeable comparison.
+
 ## Next steps for a decision-grade run
 
 - Score **precision-weighted yield**: verify a random sample of each arm's findings against

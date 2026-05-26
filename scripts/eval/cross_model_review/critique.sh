@@ -75,6 +75,12 @@ run_one() {
 	else
 		rec="$(python3 "$arms" run-arm "$arm" "$cli" "$plan" "$rubric" --doc-id "$doc_id" --trial 1 --timeout "$timeout" 2>/dev/null)"
 	fi
+	# Persist the FULL record (display below truncates to 240 chars). Set CMRE_OUT_DIR to keep
+	# records for post-hoc judging — without this the full findings are unrecoverable after the run.
+	if [ -n "${CMRE_OUT_DIR:-}" ]; then
+		mkdir -p "$CMRE_OUT_DIR"
+		printf '%s' "$rec" > "$CMRE_OUT_DIR/${cli}__${doc_id}.json"
+	fi
 	printf '%s' "$rec" | python3 -c '
 import json, sys
 try:
