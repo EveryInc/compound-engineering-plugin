@@ -1478,6 +1478,78 @@ describe("CLI", () => {
     expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
   })
 
+  test("convert writes Grok output", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-convert-grok-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      "src/index.ts",
+      "convert",
+      fixtureRoot,
+      "--to",
+      "grok",
+      "--output",
+      tempRoot,
+    ], {
+      cwd: path.join(import.meta.dir, ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Converted compound-engineering")
+    // Grok layout: <output>/<plugin-name>/plugin.json (self-contained, no dotdir)
+    expect(await exists(path.join(tempRoot, "compound-engineering", "plugin.json"))).toBe(true)
+  })
+
+  test("install supports --also with grok output", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-grok-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const grokRoot = path.join(tempRoot, "grok-output")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      "src/index.ts",
+      "install",
+      fixtureRoot,
+      "--to",
+      "opencode",
+      "--also",
+      "grok",
+      "--output",
+      grokRoot,
+      "--include-skills",
+    ], {
+      cwd: path.join(import.meta.dir, ".."),
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering")
+    // Grok side under the explicit --output root (self-contained layout)
+    expect(await exists(path.join(grokRoot, "compound-engineering", "plugin.json"))).toBe(true)
+    // Primary opencode side also lands under the same --output root
+    expect(await exists(path.join(grokRoot, "opencode.json"))).toBe(true)
+  })
+
   test("install --to codex --also opencode without --output writes opencode to global root, not nested", async () => {
     // Regression for the cluster bug: when --output was unset and --to was a
     // non-opencode primary, the --also flow joined `<opencode-global>/opencode`

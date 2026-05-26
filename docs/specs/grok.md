@@ -1,6 +1,6 @@
 # Grok Target Spec
 
-Last verified: 2026-05-20 (U7 of the Grok converter target implementation)
+Last verified: 2026-05-25 (post-002 release-readiness + U3a test placement closure in primary tree)
 
 ## Overview
 

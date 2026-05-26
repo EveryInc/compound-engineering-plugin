@@ -1,4 +1,6 @@
 import { describe, expect, test } from "bun:test"
+import { promises as fs } from "fs"
+import path from "path"
 import {
   transformContentForGrok,
   CLAUDE_TO_GROK_TOOLS,
@@ -6,6 +8,7 @@ import {
   GROK_AGENT_INJECTION_NOTE,
   type TransformOptions,
 } from "../src/utils/grok-content"
+import { transformContentForCodex } from "../src/utils/codex-content"
 
 describe("grok-content transforms (U3 hardened)", () => {
   describe("CLAUDE_TO_GROK_TOOLS table", () => {
@@ -164,5 +167,22 @@ describe("date-stamping instruction portability (U2)", () => {
     for (const phrase of grokSpecificPhrases) {
       expect(portableSkillRule + portableTemplateComment).not.toContain(phrase);
     }
+  });
+
+  test("cross-target negative: non-Grok target (codex) on real ce-brainstorm portable date text emits only portable form (U3b)", async () => {
+    const brainstormRef = path.join(import.meta.dir, "..", "plugins", "compound-engineering", "skills", "ce-brainstorm", "references", "requirements-capture.md");
+    const source = await fs.readFile(brainstormRef, "utf8");
+
+    // Exercise a non-Grok transform path (the portability contract must hold for every target)
+    const codexOutput = transformContentForCodex(source);
+
+    // Must NOT contain any Grok-specific run_terminal_command form
+    expect(codexOutput).not.toContain("run_terminal_command");
+    expect(codexOutput).not.toContain('command: "date +%Y-%m-%d"');
+
+    // Must retain the portable instruction (the IMPORTANT comment that lives in the brainstorm references file)
+    expect(codexOutput).toContain("harness-appropriate date command");
+    // The core portable date rule language must survive (exact long sentence may vary slightly by file)
+    expect(codexOutput).toContain("date +%Y-%m-%d");
   });
 })

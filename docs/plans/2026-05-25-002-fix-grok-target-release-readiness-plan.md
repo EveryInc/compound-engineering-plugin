@@ -356,6 +356,11 @@ All paths repo-relative to the primary tree (the canonical source for contributi
 
 These units (U3a/b, U4a, U5a, U7) are the minimal, file-granular set that directly implements the 2026-05-26 review recommendations while staying inside the narrow scope of this plan. They can be executed in `ce-work` (or a follow-on plan) and will produce a state where the next `ce-code-review` can answer the user's question with "yes, now ready" (subject to the Definition of Done above).
 
+### U4a Reconciliation Follow-up (mitigation of dual-source risk)
+For any upstream PR or release claim, the primary tree (`~/projects/compound-engineering-plugin` on the `1-convert-to-be-used-with-grok-code` label) must contain the full polished implementation that was developed in the mirror and force-promoted onto this label. The mirror checkout remains the pure CE dogfood surface only until the primary has received the complete delta (or an equivalent clean port). This document + the fidelity solution doc (`docs/solutions/best-practices/full-ce-process-grok-converter-target-fidelity.md`) record the decision and the force operation that made the primary the carrier of the CE-built Grok target for the head-to-head comparison.
+
+**Verification:** The path is documented here and referenced from the fidelity doc. Future Grok target work or PRs will see the single source of truth expectation.
+
 **Key Technical Decisions (refined)**
 
 (Existing decisions 1-4 preserved. New:)

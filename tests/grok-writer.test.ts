@@ -195,4 +195,39 @@ describe("writeGrokBundle version + logging + real skill roundtrips (U3 coverage
     expect(source).not.toContain("run_terminal_command under Grok")
     expect(source).not.toContain("Grok (this plugin under the Grok target)")
   })
+
+  test("full Grok write roundtrip on real ce-brainstorm references applies date specialization while source stays portable (U3b)", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "grok-brainstorm-roundtrip-"))
+    const realBrainstormRefDir = path.join(import.meta.dir, "..", "plugins", "compound-engineering", "skills", "ce-brainstorm", "references")
+
+    // Use the references/ subdir because that is where the portable IMPORTANT date instruction lives
+    const bundle: GrokBundle = {
+      pluginName: "compound-engineering",
+      generatedSkills: [],
+      skillDirs: [
+        {
+          name: "ce-brainstorm-references",
+          sourceDir: realBrainstormRefDir,
+        },
+      ],
+      agents: [],
+      commands: [],
+    }
+
+    await writeGrokBundle(tempRoot, bundle)
+
+    const written = path.join(tempRoot, "compound-engineering", "skills", "ce-brainstorm-references", "requirements-capture.md")
+    expect(await exists(written)).toBe(true)
+
+    const emitted = await fs.readFile(written, "utf8")
+    // Grok-specific form must be present (from the transform)
+    expect(emitted).toContain('run_terminal_command')
+    expect(emitted).toContain('command: "date +%Y-%m-%d"')
+
+    // Source on disk must remain the portable form
+    const source = await fs.readFile(path.join(realBrainstormRefDir, "requirements-capture.md"), "utf8")
+    expect(source).toContain("harness-appropriate date command")
+    expect(source).not.toContain("run_terminal_command under Grok")
+    expect(source).not.toContain("Grok (this plugin under the Grok target)")
+  })
 })

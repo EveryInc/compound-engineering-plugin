@@ -185,7 +185,7 @@ This applies equally to any platform's variables — a skill converted from Code
 
 - **Requirements** live in `docs/brainstorms/` — requirements exploration and ideation.
 - **Plans** live in `docs/plans/` — implementation plans and progress tracking.
-- **Solutions** live in `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
+- **Solutions** live in `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas. In particular, `docs/solutions/` contains the full CE process + fidelity record for the Grok converter target (including transform-layer rules and test placement lessons); search there before adding new target providers.
 - **Specs** live in `docs/specs/` — target platform format specifications.
 
 ### Solution categories (`docs/solutions/`)

@@ -3,6 +3,7 @@ import { promises as fs } from "fs"
 import path from "path"
 import { loadClaudePlugin } from "../src/parsers/claude"
 import { convertClaudeToOpenCode, transformSkillContentForOpenCode } from "../src/converters/claude-to-opencode"
+import { convertClaudeToGrok } from "../src/converters/claude-to-grok"
 import { parseFrontmatter } from "../src/utils/frontmatter"
 import type { ClaudePlugin } from "../src/types/claude"
 
@@ -524,5 +525,34 @@ describe("transformSkillContentForOpenCode", () => {
     for (const input of cases) {
       expect(transformSkillContentForOpenCode(input)).toBe(input)
     }
+  })
+})
+
+describe("convertClaudeToGrok (spec coverage per AGENTS.md checklist item 4 + 002 plan U3a)", () => {
+  test("maps agents with Grok-specific frontmatter (prompt_mode, permission_mode, agents_md)", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    const bundle = convertClaudeToGrok(plugin, {})
+
+    expect(bundle.agents.length).toBeGreaterThan(0)
+
+    // Representative agent exercising the explicit Grok mapping (primary fidelity concern)
+    const sample = bundle.agents.find((a) => a.name.includes("reviewer")) ?? bundle.agents[0]
+    const parsed = parseFrontmatter(sample.content)
+
+    expect(parsed.data.prompt_mode).toBe("full")
+    expect(parsed.data.permission_mode).toBe("default")
+    expect(parsed.data.agents_md).toBe(true)
+    expect(parsed.data.model).toBe("inherit")
+  })
+
+  test("produces expected bundle shape and does not throw on hooks", async () => {
+    const plugin = await loadClaudePlugin(fixtureRoot)
+    const bundle = convertClaudeToGrok(plugin, {})
+
+    expect(Array.isArray(bundle.skillDirs)).toBe(true)
+    expect(Array.isArray(bundle.agents)).toBe(true)
+    expect(Array.isArray(bundle.commands)).toBe(true)
+    // Grok has no direct hook equivalent; converter must remain resilient (warning is acceptable)
+    expect(() => convertClaudeToGrok(plugin, {})).not.toThrow()
   })
 })
