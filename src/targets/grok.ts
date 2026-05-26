@@ -119,9 +119,10 @@ export async function writeGrokBundle(outputRoot: string, bundle: GrokBundle): P
 
   // Helpful next-step logging (consistent with other clean-root targets)
   console.log(`\n✅ Grok plugin written to: ${targetRoot} (version: ${version})`)
-  console.log(`   Install locally:   grok plugin install ${targetRoot}`)
-  console.log(`   Development use:   grok build --plugin-dir ${targetRoot}  (or --plugin-dir in your workflow)`)
+  console.log(`   Install locally:   grok plugin install ${targetRoot} --trust`)
+  console.log(`   Development use:   grok --plugin-dir ${targetRoot} ...`)
   console.log(`   Marketplace flow:  publish the directory or zip it for your marketplace source.`)
+  console.log(`   (See https://docs.x.ai/build/features/skills-plugins-marketplaces for current local plugin loading options)`)
 }
 
 /**

@@ -218,7 +218,8 @@ Regenerated fresh Grok bundle from the reconciled mirror state (post U1–U5):
 ```
 $ bun run src/index.ts convert ./plugins/compound-engineering --to grok -o /tmp/ce-grok-u6-dogfood
 ✅ Grok plugin written to: /tmp/ce-grok-u6-dogfood/compound-engineering (version: 0.0.0-dev-grok-9a7901e)
-   Install locally:   grok plugin install /tmp/ce-grok-u6-dogfood/compound-engineering
+   Install locally:   grok plugin install /tmp/ce-grok-u6-dogfood/compound-engineering --trust
+   (or `grok --plugin-dir` for one-off dev sessions — see https://docs.x.ai/build/features/skills-plugins-marketplaces)
    ...
 Converted compound-engineering to grok at /tmp/ce-grok-u6-dogfood
 ```
@@ -230,7 +231,7 @@ Verification of emitted artifact:
   (source on disk remains the portable form — U2 contract holds in real output).
 
 **Next (live dogfood in Grok TUI):**  
-User to run `grok plugin install /tmp/ce-grok-u6-dogfood/compound-engineering --trust` (or equivalent --plugin-dir), then invoke `/ce-plan "U6 dogfood: confirm real calendar date in new plan filename + version visible in plugin.json"` (and one `/ce-brainstorm`). Observe:
+User to run `grok plugin install /tmp/ce-grok-u6-dogfood/compound-engineering --trust` (or `grok --plugin-dir ...` for one-off sessions), then invoke `/ce-plan ...` etc. See current loading docs: https://docs.x.ai/build/features/skills-plugins-marketplaces. Observe:
 - Created plan file uses the real wall-clock date (not inferred from ls).
 - No "Error: no suitable executable" noise beyond known firejail sandbox effects.
 - Version string with sha appears in logs / manifest.
@@ -341,7 +342,7 @@ All paths repo-relative to the primary tree (the canonical source for contributi
 **Files:** N/A for code (experimentation + update to review artifact or a short dogfood note in the fidelity doc or a new solutions/ entry under integrations/).
 
 **Approach:**
-- From the regenerated bundle (or a fresh one after the above units): `grok plugin install ... --trust` (or `--plugin-dir`).
+- From the regenerated bundle (or a fresh one after the above units): `grok plugin install ... --trust` (or `grok --plugin-dir <path>`). Current options: https://docs.x.ai/build/features/skills-plugins-marketplaces.
 - Inside the Grok TUI with the converted plugin active: run `/ce-plan "Grok target dogfood — confirm wall-clock date in filename + version observability"` and one `/ce-brainstorm`.
 - Observe and capture: real calendar date in the created plan file (not inferred), sha version visible in `plugin.json` + logs, any friction (firejail noise, etc.).
 - Update the relevant review artifact (`docs/reviews/grok-target-testing-review.md` or equivalent) and/or add a short "Live Dogfood Results (2026-05-25)" subsection to the fidelity doc.

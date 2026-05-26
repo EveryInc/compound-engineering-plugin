@@ -217,10 +217,15 @@ bun run src/index.ts install ./plugins/compound-engineering --to grok --output /
 Grok uses a clean self-contained layout (no managed manifests). After conversion:
 
 ```bash
-grok plugin install /tmp/grok-ce/compound-engineering
-# or for a single session
-grok build --plugin-dir /tmp/grok-ce/compound-engineering ...
+# Install a local bundle permanently (recommended for daily use)
+grok plugin install /tmp/grok-ce/compound-engineering --trust
+
+# One-off development session (current supported method)
+grok --plugin-dir /tmp/grok-ce/compound-engineering ...
 ```
+
+See the official xAI documentation for all supported ways to load local and development plugins (including `~/.grok/config.toml` and `--plugin-dir`):
+https://docs.x.ai/build/features/skills-plugins-marketplaces
 
 See `docs/specs/grok.md` for the exact layout, agent frontmatter mapping, `GROK_PLUGIN_ROOT` conventions, and the recommended `read_file` + `spawn_subagent` dispatch pattern for CE agents.
 

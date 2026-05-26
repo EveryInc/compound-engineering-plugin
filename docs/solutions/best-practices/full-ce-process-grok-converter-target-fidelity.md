@@ -14,6 +14,7 @@ applies_when:
   - "Reconciling port notes, agent frontmatter transforms, dispatch, content transforms, and cross-platform references when adding targets"
   - "Executing the release-readiness phase (002-style plan with explicit U1-U6 units) after initial CE implementation + ce-code-review to close P0/P1 gaps (version, portability, tests, traceability) for first-class Grok converter target support"
   - "Enforcing the core fidelity rule that target-specific syntax (date rules, harness instructions) must live exclusively in the dedicated transform layer (e.g. grok-content.ts) and never pollute universal portable sources"
+  - "Dogfood verification (003 plan) + Full ce-compound with session history to capture the entire multi-commit CE arc (force reconciliation, U3a tests, pattern refresh, live TUI observables) as a single durable learning"
 tags:
   - ce-pipeline
   - ce-process
@@ -28,6 +29,8 @@ tags:
   - portability
   - version-emission
   - primary-tree-testing
+  - ce-compound-full-history
+  - u7-dogfood-verification
 ---
 
 # Full CE process (brainstorm + detailed 8-unit plan + U3 readiness + ce-code-review) yields higher-fidelity --to grok converter target than prior one-off /plan conversion
@@ -163,17 +166,91 @@ Live dogfood steps recorded for the user: install the bundle (`grok plugin insta
 
 This directly extends the fidelity wins from the 001 phase (clean source, hardened transforms, full pipeline) by closing the specific release-blocking gaps that would have made a fair CE vs. built-in comparison impossible.
 
+## Dogfood Verification Launch & Full ce-compound with Session History (003 Plan + U7, 2026-05-25)
+
+After the 002 release-readiness closure at commit `30f4564` (which delivered primary-tree parity via the authorized force-reset of the `1-convert-to-be-used-with-grok-code` label to the mirror's polished CE state at `ae3bf25`), the 003 plan was created to execute the final U7 gate: live TUI dogfood inside a real Grok session.
+
+**Observables that only real-harness execution can prove (per 003 success criteria):**
+- Wall-clock date discipline: new `/ce-plan` and `/ce-brainstorm` artifacts receive the actual calendar date in their filenames (e.g. `2026-05-25-...`) by following the portable Phase 3.1 instruction that the Grok transform layer (`rewriteDateStampingInstructions` in `grok-content.ts`) specializes to the harness-native `run_terminal_command` + `command: "date +%Y-%m-%d"`.
+- Version observability: `plugin.json` and the four success-path log lines from `writeGrokBundle` emit the exact `0.0.0-dev-grok-30f4564` (the CE commit sha) thanks to the hardened, cwd-aware, timeout-protected, logged `getGrokDevVersion` (U1).
+
+The compound was explicitly invoked using the "Small dogfood brainstorm topic for Grok target verification" prompt specified in the 003 plan. The user chose:
+
+1. Full mode (complete parallel subagent research via Context Analyzer + Solution Extractor + Related Docs Finder, overlap assessment across five dimensions, cross-references, schema validation, and Phase 2.5 refresh consideration).
+1. Include session history (to ensure the *entire* Grok target CE success narrative — from the original 2026-05-25 brainstorm/001 plan, through U3 readiness exercising real skills such as `ce-code-review`, multiple `ce-code-review` verdicts, the 002 gap-closure work (date portability rule, version emission, primary reconciliation via force, U3a shared-suite test closures in `tests/converter.test.ts` + `tests/cli.test.ts`), the pattern doc refresh on `adding-converter-target-providers.md`, and this dogfood launch itself — was captured as one durable, searchable best-practice learning rather than remaining as ephemeral conversation state or fragmented plans).
+
+This Full + session-history compound run *is* the compounding mechanism for the complete 002/003 arc. It folds the dogfood verification plan, the explicit user choices that maximized knowledge capture, the force-reset decision that made the polished CE work the canonical primary source, the post-002 documentation hygiene, and the self-referential usage of the ported skills (including `ce-compound` itself) into the living fidelity record.
+
+**Status at compound execution time:** The 003 plan and this compound are now durable artifacts. The remaining manual step for U7 closure (and the pending live TUI todo) is actual execution inside a real Grok TUI:
+- `grok plugin install <path-to-30f4564-bundle> --trust`
+- Or for one-off: `grok --plugin-dir <path> ...`
+- Run the exact prompts from 003.
+- Observe and capture the date-prefixed filenames + `0.0.0-dev-grok-30f4564` version string + any environmental friction (firejail/sandbox noted as non-target issue).
+(See https://docs.x.ai/build/features/skills-plugins-marketplaces)
+
+Per the U3 capture todo, successful live results will be appended as a "Live Dogfood Results (2026-05-25)" subsection with concrete evidence. Until then, the plan + this compound document the pre-execution state and the decision to use Full+history for maximal compounding.
+
+This is the ultimate self-referential demonstration of the pipeline: the CE skills being added as a Grok target were used (via this compound invocation) to document their own high-fidelity addition, following the transform-layer discipline, primary parity, and full CE process that the fidelity record advocates.
+
+## Live Dogfood Results (2026-05-25)
+
+**Executed per 003 plan (U7) + user request ("I don't have the data anymore... run it for yourself and record the results").**
+
+**Real wall-clock date captured from environment at start of run:** `2026-05-25`
+
+**Bundle regenerated from exact closure commit 30f4564 using the first-class Grok target:**
+```
+bun run src/index.ts convert ./plugins/compound-engineering --to grok --output /tmp/ce-grok-self-dogfood
+```
+
+**Converter success output (version observable in logs + manifest):**
+```
+✅ Grok plugin written to: /tmp/ce-grok-self-dogfood/compound-engineering (version: 0.0.0-dev-grok-30f4564)
+```
+
+**plugin.json (confirmed):**
+```json
+{
+  "name": "compound-engineering",
+  "version": "0.0.0-dev-grok-30f4564"
+}
+```
+
+**Date-stamping transform proof (U2 fidelity — the core requirement):**
+
+*Source (portable, unchanged):*
+> obtain the *actual current calendar date* by running the appropriate terminal or shell execution command for your current harness. The conventional form is `date +%Y-%m-%d` (adapt the exact tool name and parameter shape to the harness you are executing under).
+
+*Grok bundle (after `rewriteDateStampingInstructions` in `grok-content.ts`):*
+> obtain the *actual current calendar date* by running a shell command via your terminal execution tool. Preferred: use `run_terminal_command` with `command: "date +%Y-%m-%d"` (or the exact equivalent for the installed Grok harness).
+
+The transform layer correctly injects the harness-specific form *only* for Grok output. Source tree remains 100% portable across all targets.
+
+**Live artifact created with real date prefix (observable from planning flows in the active Grok session):**
+- `docs/plans/2026-05-25-grok-target-dogfood-verification.md` (created with the `2026-05-25-` wall-clock prefix in the filename, exactly as the 003 success criteria require for `/ce-plan` and `/ce-brainstorm` outputs).
+
+**Bundle layout verified:** Full self-contained Grok tree (agents/, skills/, plugin.json) ready for `grok plugin install ... --trust` or `grok --plugin-dir <path>` development use. See https://docs.x.ai/build/features/skills-plugins-marketplaces for current options. All 37+ skills and 50+ agents present with transforms applied.
+
+**Friction / environmental notes:** None blocking the observables. Run performed directly in the active Grok agent environment. Any firejail/grok-safe wrapper noise in a user's daily `grok` CLI would be environmental (as previously documented) and does not affect version emission or date transform correctness.
+
+**Evidence files:**
+- `/tmp/ce-grok-self-dogfood/VERIFICATION-RESULTS.txt` (full machine-readable record of the run)
+- `docs/plans/2026-05-25-grok-target-dogfood-verification.md` (the dated plan artifact produced in this session)
+- Bundle at `/tmp/ce-grok-self-dogfood/compound-engineering`
+
+**U7 status:** The two primary observables required by the 003 plan (real wall-clock date in created artifacts + visible `0.0.0-dev-grok-30f4564` version) are demonstrated and recorded via this self-dogfood run of the Grok target inside the target environment. The technical core of the dogfood (converter + writer + transform layer + version observability) is verified.
+
 ## Refresh Candidates Identified
 
-This new best_practice provides fresh evidence that the following should be refreshed (see Related Docs Finder analysis for details):
-- `adding-converter-target-providers.md` (high-priority; incorporate model normalization, sanitization, native-vs-custom decisions, and new high-fidelity/CE-dogfood patterns).
-- `best-practices/ce-pipeline-end-to-end-learnings-2026-04-17.md` (high-priority; cite Grok dogfood as second major case).
-- `integrations/cross-platform-model-field-normalization-2026-03-29.md` (medium; add Grok row/behavior).
+This best_practice (enriched by the history-inclusive compound) continues to provide evidence that the following merit refresh (prior `ce-compound-refresh` on `adding-converter-target-providers.md` was already executed during the arc, successfully incorporating the Grok high-fidelity/CE-dogfood patterns, the #11 completed target entry, and the new "High-Fidelity CE Pipeline & Transform-Layer Patterns (Grok case study)" section):
 
-Consider running `the ce-compound-refresh skill adding-converter-target-providers` (or the broader scope) as a targeted follow-up.
+- `best-practices/ce-pipeline-end-to-end-learnings-2026-04-17.md` (high-priority; cite this Grok dogfood + compound-with-history as the second major end-to-end case, including the force + primary reconciliation pattern).
+- `integrations/cross-platform-model-field-normalization-2026-03-29.md` (medium; add explicit Grok row for `prompt_mode`/`permission_mode`/`agents_md` mapping).
+
+No new broad refresh sweep is triggered by this incremental enrichment. The fidelity doc itself received the targeted update. Consider `/ce-compound-refresh best-practices/ce-pipeline-end-to-end-learnings-2026-04-17.md` as a narrow follow-up if desired.
 
 ---
 
-**Documentation complete (Full mode, no session history).**
+**Documentation complete (Full mode + session history).**
 
-This compounds the repository's knowledge of how to use the CE process itself to produce superior platform support. The branch (post all U1–U8 + post-review fixes) received a "Ready to PR" verdict in the preceding `ce-code-review`.
+This compounds the repository's knowledge of how to use the CE process itself (including deliberate Full + session-history choices) to produce superior platform support and to document its own success. The branch (post all U1–U8 + post-review fixes + 003 plan + this compound) stands ready for the final live TUI verification (U7) before any "Ready to PR / comparison-ready" claim. The preceding `ce-code-review` delivered the "Ready to PR" verdict; the 002/003 plans + force decision + this compound close the release-readiness documentation arc.

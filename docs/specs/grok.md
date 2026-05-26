@@ -136,11 +136,14 @@ These are the Grok equivalents of the Claude `CLAUDE_SKILL_DIR` / plugin root pa
 # Produce a clean Grok plugin
 bun run src/index.ts install ./plugins/compound-engineering --to grok --output /tmp/grok-ce
 
-# Install it
-grok plugin install /tmp/grok-ce/compound-engineering
+# Install it permanently (recommended)
+grok plugin install /tmp/grok-ce/compound-engineering --trust
 
-# Or load for a single session
-grok build --plugin-dir /tmp/grok-ce/compound-engineering ...
+# Or load for a single development session (current supported flag)
+grok --plugin-dir /tmp/grok-ce/compound-engineering ...
+
+# See the official documentation for all loading methods:
+# https://docs.x.ai/build/features/skills-plugins-marketplaces
 ```
 
 ### After publishing / marketplace
