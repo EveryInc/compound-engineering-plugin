@@ -313,7 +313,7 @@ describe("to-manifest (assemble a manifest skeleton from scan output)", () => {
 describe("code-path filter (keeps a code-review corpus free of doc fixes)", () => {
 	test("source files are code; markdown and docs/ paths are not", async () => {
 		const cases: [string, boolean][] = [
-			["lib/Commissions.php", true],
+			["lib/payments.php", true],
 			["src/routes/+page.svelte", true],
 			["main.py", true],
 			["README.md", false],
