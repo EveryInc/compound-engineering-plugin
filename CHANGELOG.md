@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.9.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.8.4...cli-v3.9.0) (2026-05-26)
+
+
+### Features
+
+* **ce-plan,ce-brainstorm:** contract-driven sections + optional HTML output ([#826](https://github.com/EveryInc/compound-engineering-plugin/issues/826)) ([11e12e5](https://github.com/EveryInc/compound-engineering-plugin/commit/11e12e5739c6691a2020eb8b70a944587e7f265f))
+
 ## [3.8.4](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.8.3...cli-v3.8.4) (2026-05-21)
 
 
