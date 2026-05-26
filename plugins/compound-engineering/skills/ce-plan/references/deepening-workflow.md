@@ -132,8 +132,7 @@ Use fully-qualified agent names inside Task calls.
 **Risks & Dependencies / Operational Notes**
 - Use the specialist that matches the actual risk:
   - `ce-security-sentinel` for security, auth, privacy, and exploit risk
-  - `ce-data-integrity-guardian` for persistent data safety, constraints, and transaction boundaries
-  - `ce-data-migration-expert` for migration realism, backfills, and production data transformation risk
+  - `ce-data-integrity-guardian` for migrations, backfills, persistent data safety, constraints, transaction boundaries, and production data transformation risk (plan context — not the PR-review `ce-data-migration-reviewer` persona)
   - `ce-deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
   - `ce-performance-oracle` for capacity, latency, and scaling concerns
 

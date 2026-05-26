@@ -286,8 +286,10 @@ describe("ce-brainstorm review contract", () => {
     // Document review is no longer a forced Phase 3.5 step. Users opt in from the Phase 4 menu.
     expect(content).not.toContain("Phase 3.5")
 
-    // Phase 3 and Phase 4 are extracted to references for token optimization
-    expect(content).toContain("`references/requirements-capture.md`")
+    // Phase 3 and Phase 4 are extracted to references for token optimization.
+    // Phase 3 now points at brainstorm-sections.md (content contract) plus a
+    // format-rendering ref; Phase 4 points at handoff.md.
+    expect(content).toContain("`references/brainstorm-sections.md`")
     expect(content).toContain("`references/handoff.md`")
 
     // Phase 4 menu exposes agent review as a first-class option and routes to ce-doc-review

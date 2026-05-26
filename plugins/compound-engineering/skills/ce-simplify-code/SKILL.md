@@ -48,6 +48,8 @@ Review the same changes for hacky patterns:
 8. **Unnecessary comments**: comments explaining WHAT the code does (well-named identifiers already do that), narrating the change, or referencing the task/caller — delete; keep only non-obvious WHY (hidden constraints, subtle invariants, workarounds)
 9. **Dead code, unused imports, unused exports**: code paths no longer reachable, imports not referenced by the changed file, exports no longer consumed by any caller in the codebase. To verify "unused" across the codebase, prefer the project's existing unused-import/dead-code linter if configured (ESLint `no-unused-vars` / `unused-imports`, `knip`, `ruff F401`, `tsc --noEmit --noUnusedLocals`, `golangci-lint unused`, etc.). Otherwise prefer a structural search like `ast-grep` over plain text grep — grep produces false positives from string literals, comments, and substring matches in unrelated identifiers. Account for re-exports (`export * from`, barrel files), dynamic imports (`import()`, `require()`, template-string imports), and framework-specific exports (Next.js page exports, React Server Components, decorators). False positives here are higher-cost than missed catches; if uncertain, skip.
 
+**Balance — avoid over-simplification.** Every flag above has a failure mode in the opposite direction; fewer lines is not the goal, faster comprehension is. Do not inline a helper that gives a concept a name, merge unrelated logic into one function, or remove an abstraction that exists for testability/extensibility or whose purpose you haven't confirmed is obsolete (check `git blame` for the original intent). If a proposed change would be longer or harder to follow than the original, don't flag it.
+
 ### Agent 3: Efficiency Reviewer
 
 Review the same changes for efficiency:
@@ -63,6 +65,8 @@ Review the same changes for efficiency:
 ## Step 3: Fix issues
 
 Wait for all three agents to complete. Aggregate their findings and fix each issue directly. If a finding is a false positive or not worth addressing, note it and move on. Do not argue with the finding or raise questions to the user, just skip it.
+
+Before applying each fix, confirm it preserves behavior: same output for every input, same error behavior, and same side effects and ordering. If a fix can't clear that test, skip it — automated checks in Step 4 don't cover every behavior.
 
 ## Step 4: Verify behavior is preserved
 

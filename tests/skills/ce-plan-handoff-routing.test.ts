@@ -52,6 +52,11 @@ describe("ce-plan post-generation menu routing", () => {
       { name: "Start /ce-work", fragment: "Start `/ce-work`" },
       { name: "Create Issue", fragment: "Create Issue" },
       { name: "Open in Proof", fragment: "Open in Proof" },
+      // "Open in browser" is the HTML-mode replacement for Open in Proof.
+      // Both routings must be present inline: the menu shows one or the other
+      // depending on OUTPUT_FORMAT, so the agent needs both bullets to route
+      // correctly without loading the reference.
+      { name: "Open in browser", fragment: "Open in browser" },
       { name: "Done for now", fragment: "Done for now" },
     ]
 

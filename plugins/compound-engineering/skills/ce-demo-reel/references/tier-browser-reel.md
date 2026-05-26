@@ -18,7 +18,10 @@ If `agent-browser` is not installed, inform the user: "`agent-browser` is not in
 - Check `Gemfile` for Rails (`bin/rails server`) or Sinatra
 - Check for running processes on common ports (3000, 5000, 8080)
 
-If the server is not running, tell the user what start command was detected and ask them to start it. Do not start it automatically (it may require environment variables, database setup, etc.).
+If the server is not running:
+
+- **Headless / background mode** (no blocking question tool available): try starting the server automatically using the detected start command in a background process. For Rails apps, run `bin/dev` or `bin/rails server` in the background. Poll until port 3000 (or the detected port) is accepting connections (max 30s). If it doesn't come up, fall back to static screenshots tier. Track the server PID so you can stop it in Step 4 cleanup.
+- **Interactive mode**: tell the user what start command was detected and ask them to start it. Do not start it automatically (it may require environment variables, database setup, etc.).
 
 If the server cannot be reached after the user confirms it should be running, fall back to static screenshots tier.
 
@@ -115,6 +118,6 @@ python3 scripts/capture-demo.py stitch --duration 2.0 [RUN_DIR]/demo.gif [RUN_DI
 
 Before uploading, inspect the final GIF for any credential material visible on-screen. If any appears, discard the GIF and recapture with the offending page or state routed out of frame. Do not upload, do not blur.
 
-After a clean GIF is confirmed, remove individual PNG frames. Keep only the final GIF for upload.
+After a clean GIF is confirmed, remove individual PNG frames. Keep only the final GIF for upload. If you auto-started the dev server in Step 1 (headless mode), stop it now using the tracked PID.
 
 Proceed to `references/upload-and-approval.md`.

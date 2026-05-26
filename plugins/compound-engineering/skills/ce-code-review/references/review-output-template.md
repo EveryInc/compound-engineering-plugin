@@ -69,10 +69,6 @@ Use this **exact format** when presenting synthesized review findings. Findings 
 
 - New export endpoint has no CLI/agent equivalent -- agent users cannot trigger exports
 
-### Schema Drift Check
-
-- Clean: schema.rb changes match the migrations in scope
-
 ### Deployment Notes
 
 - Pre-deploy: capture baseline row counts before enabling the export backfill
@@ -132,8 +128,7 @@ This fails because: no pipe-delimited tables, no severity-grouped `###` headers,
 - **Pre-existing section** -- separate table, no confidence column (these are informational)
 - **Learnings & Past Solutions section** -- results from ce-learnings-researcher, with links to docs/solutions/ files
 - **Agent-Native Gaps section** -- results from ce-agent-native-reviewer. Omit if no gaps found.
-- **Schema Drift Check section** -- results from ce-schema-drift-detector. Omit if the agent did not run.
-- **Deployment Notes section** -- key checklist items from ce-deployment-verification-agent. Omit if the agent did not run.
+- **Deployment Notes section** -- key checklist items from ce-deployment-verification-agent. Omit if the agent did not run. Schema drift surfaces as `data-migration` findings — no separate section.
 - **Coverage section** -- suppressed count, residual risks, testing gaps, failed reviewers
 - **Summary uses blockquotes** for verdict, reasoning, and fix order
 - **Horizontal rule** (`---`) separates findings from verdict

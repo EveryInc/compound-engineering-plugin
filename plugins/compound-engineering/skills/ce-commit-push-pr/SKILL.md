@@ -50,7 +50,7 @@ The remote default branch returns something like `origin/main`; strip the `origi
 Branch routing:
 
 - **Detached HEAD** — explain a branch is required and ask whether to create a feature branch. If yes, derive a name from the change content. If no, stop.
-- **On default branch with work to do** (uncommitted, unpushed, or no upstream) — ask whether to create a feature branch (pushing default directly is not supported). If yes, continue at Step 3 (which handles branch creation safely). If no, stop.
+- **On default branch with work to do** (uncommitted, unpushed, or no upstream) — automatically create a feature branch (pushing the default directly is not supported). Derive a name from the change content and continue at Step 3, which handles branch creation safely. Do not ask whether to branch — committing on the default is not an option here.
 - **On default branch with no work** — report no feature branch work and stop.
 - **Feature branch** — continue.
 

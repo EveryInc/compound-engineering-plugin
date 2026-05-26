@@ -30,6 +30,34 @@ describe("ce-compound support file drift", () => {
   }
 })
 
+// Format-rendering refs (markdown-rendering.md, html-rendering.md) are
+// byte-duplicated across ce-plan and ce-brainstorm. There is no cross-skill
+// shared-file mechanism (see plugins/compound-engineering/AGENTS.md
+// "Runtime vs Authoring Context"); both copies must stay identical so the
+// agent renders artifacts the same way regardless of which skill composed
+// them.
+const RENDERING_SKILLS = ["ce-plan", "ce-brainstorm"]
+const RENDERING_REFS = [
+  "references/markdown-rendering.md",
+  "references/html-rendering.md",
+]
+
+describe("format-rendering ref drift across ce-plan and ce-brainstorm", () => {
+  for (const ref of RENDERING_REFS) {
+    test(`${ref} is identical across ${RENDERING_SKILLS.join(", ")}`, async () => {
+      const contents = await Promise.all(
+        RENDERING_SKILLS.map((skill) =>
+          readFile(path.join(PLUGIN_ROOT, skill, ref), "utf8"),
+        ),
+      )
+
+      for (let i = 1; i < contents.length; i++) {
+        expect(contents[i]).toBe(contents[0])
+      }
+    })
+  }
+})
+
 /**
  * Regression tests for the YAML-safety quoting rule for array items.
  *
