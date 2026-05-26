@@ -1,0 +1,117 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Code Review Merged Envelope",
+  "description": "Machine-readable handoff written by mode:headless after Stage 5 merge: the post-dedup, post-gating, synthesized finding set plus verdict and counts. Companion to the prose headless envelope -- the prose stays the primary human-facing handoff; this file is the stable contract for programmatic callers, who should prefer it over parsing the prose. Per-finding fields mirror findings-schema.json (the per-reviewer sub-agent schema) so the merge step can populate them directly, plus a `reviewers` list carried from the merge tier.",
+  "type": "object",
+  "required": ["schema_version", "run_id", "verdict", "counts", "findings"],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "description": "SemVer of this envelope schema. Bump the major on a breaking change so consumers can gate on it. Current: 1.0.0."
+    },
+    "run_id": {
+      "type": "string",
+      "description": "Run identifier; matches the run-artifact directory name and metadata.json."
+    },
+    "verdict": {
+      "type": "string",
+      "enum": ["Ready to merge", "Ready with fixes", "Not ready"],
+      "description": "Native verdict vocabulary, unchanged from the prose envelope's Verdict line. Consumers map to their own states."
+    },
+    "applied_safe_auto_fixes": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of safe_auto fixes applied in the single headless pass. Mirrors the prose 'Applied N safe_auto fixes.' line."
+    },
+    "counts": {
+      "type": "object",
+      "description": "Per-severity counts over `findings`. sum equals findings.length.",
+      "required": ["P0", "P1", "P2", "P3"],
+      "properties": {
+        "P0": { "type": "integer", "minimum": 0 },
+        "P1": { "type": "integer", "minimum": 0 },
+        "P2": { "type": "integer", "minimum": 0 },
+        "P3": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "description": "Merged, deduped, confidence-gated findings -- the same set rendered in the prose envelope's finding sections (gated-auto, manual, advisory, pre-existing).",
+      "items": {
+        "type": "object",
+        "required": [
+          "severity",
+          "file",
+          "line",
+          "title",
+          "autofix_class",
+          "owner",
+          "requires_verification",
+          "confidence",
+          "pre_existing",
+          "reviewers"
+        ],
+        "properties": {
+          "severity": {
+            "type": "string",
+            "enum": ["P0", "P1", "P2", "P3"]
+          },
+          "file": {
+            "type": "string",
+            "description": "Relative file path from repository root."
+          },
+          "line": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Primary line number of the issue."
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 100,
+            "description": "Short, specific issue title."
+          },
+          "why_it_matters": {
+            "type": "string",
+            "description": "Impact and failure mode. Detail-tier: omitted when no contributing-reviewer artifact matched (same condition under which the prose envelope omits the Why: line)."
+          },
+          "suggested_fix": {
+            "type": ["string", "null"],
+            "description": "Concrete minimal fix, or null when there is no code-level change to propose."
+          },
+          "evidence": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Code-grounded evidence. Detail-tier: may be empty when no artifact matched."
+          },
+          "autofix_class": {
+            "type": "string",
+            "enum": ["safe_auto", "gated_auto", "manual", "advisory"]
+          },
+          "owner": {
+            "type": "string",
+            "enum": ["review-fixer", "downstream-resolver", "human", "release"]
+          },
+          "requires_verification": {
+            "type": "boolean",
+            "description": "Whether any fix must be re-verified. Mirrors the prose [needs-verification] marker."
+          },
+          "confidence": {
+            "type": "integer",
+            "enum": [0, 25, 50, 75, 100],
+            "description": "Anchored confidence score (see findings-schema.json for anchor definitions)."
+          },
+          "pre_existing": {
+            "type": "boolean",
+            "description": "True if the issue exists in unchanged code unrelated to the diff. Pre-existing findings render in the prose envelope's Pre-existing section regardless of autofix_class."
+          },
+          "reviewers": {
+            "type": "array",
+            "items": { "type": "string" },
+            "minItems": 1,
+            "description": "Persona name(s) that contributed this merged finding (e.g. ['correctness', 'security'])."
+          }
+        }
+      }
+    }
+  }
+}

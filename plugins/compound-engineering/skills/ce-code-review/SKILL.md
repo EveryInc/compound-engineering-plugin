@@ -85,6 +85,7 @@ Sequence:
 - **Apply only `safe_auto -> review-fixer` findings in a single pass.** No bounded re-review rounds. Leave `gated_auto`, `manual`, `human`, and `release` work unresolved and return them in the structured output.
 - **Return all non-auto findings as structured text output.** Use the headless output envelope format (see Stage 6 below) preserving severity, autofix_class, owner, requires_verification, confidence, pre_existing, and suggested_fix per finding. Enrich with detail-tier fields (why_it_matters, evidence[]) from the per-agent artifact files on disk (see Detail enrichment in Stage 6).
 - **Write a run artifact** under `/tmp/compound-engineering/ce-code-review/<run-id>/` summarizing findings, applied fixes, and advisory outputs. Include the artifact path in the structured output.
+- **Write a machine-readable envelope.** Alongside the run artifact, write `<run-id>/envelope.json` containing the merged finding set (post-Stage-5b), verdict, and counts, conforming to `references/envelope-schema.json`. Validate it against that schema before emitting `Review complete`; if it does not validate, emit the degraded envelope (`Code review degraded (headless mode). Reason: <reason>.`) rather than a malformed file. This is the stable contract for programmatic callers -- the prose output below remains the human-facing handoff. See Step 4 for the field mapping.
 - **Do not file tickets or externalize work.** The caller receives structured findings and routes downstream work itself.
 - **Do not switch the shared checkout.** If the caller passes an explicit PR or branch target, `mode:headless` must run in an isolated checkout/worktree or stop instead of running `gh pr checkout` / `git checkout`. When stopping, emit `Review failed (headless mode). Reason: cannot switch shared checkout. Re-invoke with base:<ref> to review the current checkout, or run from an isolated worktree.`
 - **Not safe for concurrent use on a shared checkout.** Unlike `mode:report-only`, headless mutates files (applies `safe_auto` fixes). Callers must not run headless concurrently with other mutating operations on the same checkout.
@@ -621,6 +622,7 @@ Intent: <intent-summary>
 Reviewers: <reviewer-list with conditional justifications>
 Verdict: <Ready to merge | Ready with fixes | Not ready>
 Artifact: /tmp/compound-engineering/ce-code-review/<run-id>/
+Envelope: /tmp/compound-engineering/ce-code-review/<run-id>/envelope.json
 
 Applied N safe_auto fixes.
 
@@ -683,6 +685,7 @@ Review complete
 **Formatting rules:**
 - The `[needs-verification]` marker appears only on findings where `requires_verification: true`.
 - The `Artifact:` line gives callers the path to the full run artifact for machine-readable access to the complete findings schema. The text envelope is the primary handoff; the artifact is for debugging and full-fidelity access.
+- The `Envelope:` line points at `envelope.json` -- the schema'd, merged finding set (`references/envelope-schema.json`). Programmatic callers should prefer it over parsing this prose; the prose remains the human-facing handoff.
 - Findings with `owner: release` appear in the Advisory section (they are operational/rollout items, not code fixes).
 - Findings with `pre_existing: true` appear in the Pre-existing section regardless of autofix_class.
 - The Verdict appears in the metadata header (deliberately reordered from the interactive format where it appears at the bottom) so programmatic callers get the verdict first.
@@ -824,6 +827,7 @@ The fixer accepts two queue shapes depending on which caller invoked it:
   - residual actionable work
   - advisory-only outputs
   Per-agent full-detail JSON files (`{reviewer_name}.json`) are already present in this directory from Stage 4 dispatch.
+- **In headless mode, also write `envelope.json`** -- the merged finding set as machine-readable JSON, conforming to `references/envelope-schema.json`. This is the programmatic-caller contract (the prose envelope is the human handoff). Populate it from the same merged Stage 5 finding set the prose output renders: per-finding `severity`, `file`, `line`, `title`, `autofix_class`, `owner`, `requires_verification`, `confidence`, `pre_existing`, and `reviewers` come from the merge tier; `why_it_matters`, `evidence`, and `suggested_fix` from the same artifact lookup the prose `Why:`/`Evidence:`/`Suggested fix:` lines use (omit the detail-tier fields when no artifact matched). Set `verdict` and `counts` to match the prose header, `applied_safe_auto_fixes` to the applied count, and `schema_version` to `1.0.0`. Validate against the schema before emitting `Review complete`; on failure, emit the degraded envelope instead of writing a malformed file.
 - Also write `metadata.json` alongside the findings so downstream skills (e.g., `ce-polish-beta`) can verify the artifact matches the current branch and HEAD. Minimum fields:
   ```json
   {
@@ -892,6 +896,10 @@ If the platform doesn't support parallel sub-agents, run reviewers sequentially.
 ### Findings Schema
 
 @./references/findings-schema.json
+
+### Envelope Schema
+
+@./references/envelope-schema.json
 
 ### Review Output Template
 
