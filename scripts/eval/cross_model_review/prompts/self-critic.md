@@ -23,7 +23,7 @@ hunt specifically for findings a first-pass review of yours would have missed:
 - Treating "a critique exists" as success rather than "the decision would change."
 
 Now challenge the document: question the premise, surface unstated assumptions, name
-unconsidered alternatives, and state what would falsify it. Return findings, one per line.
+unconsidered alternatives, and state what would falsify it. Return your findings as a JSON array of strings, one element per distinct finding.
 
 ---
 

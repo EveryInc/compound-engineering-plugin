@@ -38,8 +38,8 @@ from pathlib import Path
 # doc-on-stdin returns exit 0 with empty output, and it has no no-tools mode. Prefer
 # codex/gemini. See docs/solutions/skill-design/cross-model-eval-first-run-2026-05-25.md.
 CODEX_BASE = ["codex", "exec", "-s", "read-only", "--skip-git-repo-check", "-"]
-AGY_INSTRUCTION = "Review the document provided on stdin and return findings, one per line."
-GEMINI_INSTRUCTION = "Review the document provided on stdin and return findings, one per line. Do not modify files."
+AGY_INSTRUCTION = "Review the document provided on stdin. Return ONLY a JSON array of finding strings (one element per distinct finding), no prose or preamble."
+GEMINI_INSTRUCTION = "Review the document provided on stdin. Do not modify files. Return ONLY a JSON array of finding strings (one element per distinct finding), no prose or preamble."
 GEMINI_BASE = ["gemini", "-p", GEMINI_INSTRUCTION, "--approval-mode", "plan", "--skip-trust", "-o", "text"]
 
 # Lines like "1. foo" or "2) bar" — numbered findings the model commonly emits.
@@ -111,16 +111,26 @@ def detect_leak(output, sentinel):
 
 
 def parse_findings(text):
-    """Parse a model's free-form output into findings [{id, text}].
+    """Parse a model's output into findings [{id, text}].
 
-    Accepts a JSON array (of strings or {id,text}); otherwise splits markdown
-    bullets; otherwise treats the whole non-empty body as a single finding.
+    The reliable path is a JSON array (the arm instruction now requests one);
+    `--output-format json`/fenced JSON is tolerated. Otherwise: markdown bullets
+    or numbered items; otherwise blank-line-separated paragraphs. We deliberately
+    do NOT split on every newline — verbose models (e.g. codex) wrap a single
+    finding across lines, so line-splitting over-counts wildly (one review parsed
+    as ~100 findings). Counts from unstructured prose are best-effort; structured
+    JSON output is what makes the yield metric trustworthy.
     """
     text = (text or "").strip()
     if not text:
         return []
+    # Tolerate a ```json ... ``` fence around the array.
+    json_text = text
+    if json_text.startswith("```"):
+        json_text = re.sub(r"^```[a-zA-Z0-9]*\n?", "", json_text)
+        json_text = re.sub(r"\n?```$", "", json_text).strip()
     try:
-        data = json.loads(text)
+        data = json.loads(json_text)
         if isinstance(data, list):
             out = []
             for i, item in enumerate(data, 1):
@@ -143,6 +153,11 @@ def parse_findings(text):
     items = [i for i in items if i]
     if items:
         return [{"id": f"f{i}", "text": b} for i, b in enumerate(items, 1)]
+    # Best-effort prose fallback: blank-line-separated paragraphs only (a clear finding
+    # boundary), never per-line (over-counts wrapped prose).
+    paras = [p.strip() for p in re.split(r"\n\s*\n", text) if p.strip()]
+    if len(paras) > 1:
+        return [{"id": f"f{i}", "text": p} for i, p in enumerate(paras, 1)]
     return [{"id": "f1", "text": text}]
 
 

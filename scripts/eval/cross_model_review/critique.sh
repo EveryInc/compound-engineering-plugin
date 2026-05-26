@@ -43,7 +43,7 @@ if [ -z "$rubric" ]; then
 	cat > "$rubric" <<'EOF'
 Independent challenge rubric: challenge the premise, surface unstated assumptions, name
 unconsidered alternatives, and state what would falsify this plan. Be concrete and specific
-to the document. Return findings, one per line.
+to the document. Return your findings as a JSON array of strings, one element per finding.
 EOF
 elif [ ! -f "$rubric" ]; then
 	echo "error: rubric file not found: '$rubric'" >&2

@@ -30,32 +30,31 @@ lens_dir="$(mktemp -d -t cmre-lenses)"
 cat > "$lens_dir/coherence.md" <<'EOF'
 Review this document for INTERNAL CONSISTENCY: contradictions between sections, terminology drift,
 dependency/sequencing claims that conflict, and ambiguity where two readers would diverge. Return
-specific, decision-changing findings, one per line; quote the conflicting text.
+your findings as a JSON array of strings, one element per distinct finding; quote the conflicting text in each.
 EOF
 cat > "$lens_dir/feasibility.md" <<'EOF'
 Review whether the proposed approach will SURVIVE CONTACT WITH REALITY: architecture conflicts,
 dependency gaps, migration/cutover risks, environment assumptions, implementability. Challenge the
-load-bearing claims. Return specific findings, one per line; name the concrete risk.
+load-bearing claims. Return your findings as a JSON array of strings, one element per distinct finding; name the concrete risk in each.
 EOF
 cat > "$lens_dir/security.md" <<'EOF'
 Review for SECURITY gaps: auth/authz assumptions, data exposure, credential handling, trust
-boundaries, PII, and missing threat-model elements. Return specific, exploitable or
-decision-changing findings, one per line.
+boundaries, PII, and missing threat-model elements. Return your findings as a JSON array of strings, one element per distinct finding.
 EOF
 cat > "$lens_dir/scope.md" <<'EOF'
 Review for SCOPE alignment and unjustified complexity: abstractions/frameworks larger than the goal
 needs, scope creep beyond stated intent, premature generality, dependencies declared but not needed.
-Return specific findings, one per line.
+Return your findings as a JSON array of strings, one element per distinct finding.
 EOF
 cat > "$lens_dir/product.md" <<'EOF'
 Review as a senior PRODUCT leader: are the premises sound? What strategic/adoption/trust
 consequences (including for the people the system affects) does this carry even if the premise
-holds? Where does the work drift from the goal? Return specific findings, one per line.
+holds? Where does the work drift from the goal? Return your findings as a JSON array of strings, one element per distinct finding.
 EOF
 cat > "$lens_dir/adversarial.md" <<'EOF'
 ADVERSARIALLY stress-test this document: surface unstated assumptions, construct failure modes the
 mitigations do not actually cover, name the cheaper/safer alternative it dismissed, and find any
-irreversible step taken before its validation. Try to BREAK it. Return findings, one per line.
+irreversible step taken before its validation. Try to BREAK it. Return your findings as a JSON array of strings, one element per distinct finding.
 EOF
 
 run() {

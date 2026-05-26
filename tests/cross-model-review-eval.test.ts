@@ -195,6 +195,28 @@ describe("findings parsing (U3)", () => {
 		expect(out).toHaveLength(1);
 		expect(out[0].id).toBe("f1");
 	});
+
+	test("blank-line-separated prose paragraphs split into findings (codex prose shape)", async () => {
+		const f = tmpFile("out.txt", "Critical: the dataset IAM is unspecified.\n\nCritical: the subject column is untrusted.\n\nHigh: the key leaks in ps.");
+		const out = JSON.parse((await arms(["parse-findings", f])).stdout).findings;
+		expect(out).toHaveLength(3);
+		expect(out[0].text).toContain("IAM");
+		expect(out[2].text).toContain("key leaks");
+	});
+
+	test("a fenced ```json array parses (the structured path the arm instruction requests)", async () => {
+		const f = tmpFile("out.md", '```json\n["the dataset IAM is unspecified", "the subject column is untrusted"]\n```');
+		const out = JSON.parse((await arms(["parse-findings", f])).stdout).findings;
+		expect(out).toHaveLength(2);
+		expect(out[0].text).toContain("IAM");
+	});
+
+	test("single-newline prose is NOT split (verbose models wrap one finding across lines)", async () => {
+		// counts from unstructured prose are best-effort; we under-count rather than over-count
+		const f = tmpFile("out.txt", "This is a long finding that the model\nwrapped across two lines without a blank line.");
+		const out = JSON.parse((await arms(["parse-findings", f])).stdout).findings;
+		expect(out).toHaveLength(1);
+	});
 });
 
 describe("cross-arm dedup (U5)", () => {
