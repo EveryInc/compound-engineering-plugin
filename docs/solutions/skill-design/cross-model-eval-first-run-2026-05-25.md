@@ -129,11 +129,35 @@ inverted the code-review runs:
   substantially a prompting artifact, not a proven model difference. A fair comparison must run
   the cross-model arms through the **same lenses** (see `panel-critique.sh`).
 
-**Lesson: the lever's value is breakpoint-dependent.** Code review → high volume, real
-decorrelation, gemini confabulates. Plan review → low volume, convergence/triangulation on the
-top premise, no confab. This argues against a blanket "always add cross-model review" rule:
-for plans the cross-model arm reads more like a *corroborator* of the headline risk than a
-source of net-new findings, while for code it adds volume that must be precision-weighted.
+**Lesson (first read): the lever's value looked breakpoint-dependent** — plan review appeared
+to give low volume / convergence. **This was wrong, and the fair-lens re-run below corrected it.**
+
+### Correction — the fair, prompt-symmetric re-run (`panel-critique.sh`)
+
+Re-ran the cross-model arms through the **same six lenses** the panel uses (not one generic
+rubric), with full-record persistence. The earlier "low volume / convergence" conclusion was an
+artifact of three things: one generic rubric, 240-char truncation, and `parse_findings`
+collapsing prose into a single "finding". Corrected results:
+
+- **Prompt symmetry closed the volume gap.** Same-lens codex produced 2-4 findings per lens;
+  gemini produced 15 in the adversarial lens alone. The cross-model arms **do decorrelate on
+  plans** — they surfaced ~6 decision-relevant findings the panel missed (e.g. Keychain access
+  failing/hanging under a headless service-user launchd job; a service user blocked by `0700`
+  home perms; a scheduled job with no formal dependency on its producers; the cheaper
+  alternative the plan dismissed, which the panel's *origin-suppressed* adversarial couldn't raise).
+- **Precision still favors codex.** No fabricated specifics this round, but gemini re-flagged
+  ~4-5 items the doc explicitly handles (re-litigating a "perf-not-dedup" checkpoint, an
+  explicitly-scoped non-unification, and a data-file-vs-code-file "contradiction" that was false).
+- **The panel kept one structural edge:** it inspected the machine and proved a service user
+  did not exist — empirical grounding an isolated doc-only arm cannot do. The arms are
+  **complementary**, not ranked: cross-model for decorrelated doc-reasoning, the panel for
+  environment-grounded verification.
+
+**Revised lesson:** the lever is *not* weak on plans — it was under-prompted. The real rules
+are (1) **prompt symmetry is mandatory** for any panel-vs-cross-model comparison, (2)
+**finding *count* is an unreliable metric** until `parse_findings` stops collapsing prose
+(real harness bug), and (3) precision-weighting still matters (codex clean, gemini re-flags
+addressed items). Decorrelation holds across both breakpoints once the comparison is fair.
 
 **Harness gap found:** `critique.sh` truncated findings to 240 chars and persisted no full
 records, making post-hoc judging impossible. Fixed: it now persists full records, and
