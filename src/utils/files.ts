@@ -86,6 +86,25 @@ export function sanitizePathName(name: string): string {
 }
 
 /**
+ * Strong sanitizer for plugin names used as top-level directory names
+ * under a user-supplied output root (especially important for targets
+ * that perform destructive cleanup like recursive rm).
+ *
+ * In addition to the basic colon handling, this also:
+ * - Replaces path separators and traversal sequences
+ * - Removes characters that are problematic on Windows or in shells
+ * - Collapses runs of separators
+ */
+export function sanitizeGrokPluginName(name: string): string {
+  return sanitizePathName(name)
+    .replace(/[\\/]/g, "-")
+    .replace(/\.\./g, "-")
+    .replace(/[^a-zA-Z0-9._-]/g, "-")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+/**
  * Validate that a manifest-supplied relative path is safe to join against a
  * managed root before deleting or moving anything at that location.
  *

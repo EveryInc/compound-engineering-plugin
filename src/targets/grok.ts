@@ -2,7 +2,7 @@ import path from "path"
 import fs from "node:fs/promises"
 import { execSync } from "child_process"
 
-import { copySkillDir, ensureDir, pathExists, sanitizePathName, writeJson, writeText } from "../utils/files"
+import { copySkillDir, ensureDir, pathExists, sanitizeGrokPluginName, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformContentForGrok } from "../utils/grok-content"
 import type { GrokBundle } from "../types/grok"
 
@@ -29,9 +29,8 @@ import type { GrokBundle } from "../types/grok"
  * After writing, a one-line instruction for `grok plugin install` is logged.
  */
 export async function writeGrokBundle(outputRoot: string, bundle: GrokBundle): Promise<void> {
-  const pluginName = bundle.pluginName
-    ? sanitizePathName(bundle.pluginName)
-    : "compound-engineering"
+  const rawName = bundle.pluginName || "compound-engineering"
+  const pluginName = sanitizeGrokPluginName(rawName)
 
   // Produce a dedicated, self-contained directory under the provided output root.
   // This makes the result directly usable with:
@@ -39,6 +38,17 @@ export async function writeGrokBundle(outputRoot: string, bundle: GrokBundle): P
   // or for development:
   //   --plugin-dir <output>/<name>
   const targetRoot = path.join(outputRoot, pluginName)
+
+  // Hard containment check before any destructive operation (P1 review feedback).
+  // Even with sanitization, we refuse to proceed if the resolved path would
+  // escape the caller-supplied outputRoot.
+  const resolvedOutput = path.resolve(outputRoot)
+  const resolvedTarget = path.resolve(targetRoot)
+  if (!resolvedTarget.startsWith(resolvedOutput + path.sep) && resolvedTarget !== resolvedOutput) {
+    throw new Error(
+      `Refusing to write Grok bundle: sanitized plugin name "${pluginName}" would escape the output root`
+    )
+  }
 
   // Clean any previous conversion output at this location so removed/renamed
   // skills, agents, commands, or .mcp.json do not linger (P2 review feedback).
