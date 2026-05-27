@@ -6,7 +6,7 @@ This content is loaded when Phase 4 begins — after the requirements document i
 
 #### 4.1 Present Next-Step Options
 
-The Phase 4 menu's visible option count varies by state: no requirements doc hides the review and Proof options, unresolved `Resolve Before Planning` hides `Plan implementation` and `Build it now`, a failing direct-to-work gate hides `Build it now`. Count the visible options for the current state and choose the rendering mode accordingly:
+The Phase 4 menu's visible option count varies by state: no requirements doc hides the review and Proof options, `OUTPUT_FORMAT=html` also hides the review option (ce-doc-review is markdown-only today), unresolved `Resolve Before Planning` hides `Plan implementation` and `Build it now`, a failing direct-to-work gate hides `Build it now`. Count the visible options for the current state and choose the rendering mode accordingly:
 
 - **4 or fewer visible:** use the platform's blocking question tool (`AskUserQuestion` in Claude Code — call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded; `request_user_input` in Codex; `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension)). This is the default.
 - **5 or more visible:** render as a numbered list in chat. This is the narrow option-overflow fallback; trimming would hide legitimate choices (plan, review, Proof, build, refine, pause are all distinct destinations). Include a hint that free-form input is accepted ("Pick a number or describe what you want.") so the numbered list retains the blocking tool's open-endedness.
@@ -46,13 +46,14 @@ What would you like to do next? (Pick a number or describe what you want.)
 Present only the options that apply. Renumber so visible options stay contiguous starting at 1.
 
 1. **Plan implementation with `ce-plan` (Recommended)** - Move to `ce-plan` for structured implementation planning. Shown only when `Resolve Before Planning` is empty.
-2. **Agent review of requirements doc with `ce-doc-review`** - Dispatch reviewer agents to check the doc for coherence, feasibility, scope, and other persona-specific issues; auto-apply safe fixes; route remaining findings interactively. Shown only when a requirements document exists.
-3. **Open in Proof — review and comment to iterate with the agent** - Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others. Shown only when a requirements document exists.
+2. **Agent review of requirements doc with `ce-doc-review`** - Dispatch reviewer agents to check the doc for coherence, feasibility, scope, and other persona-specific issues; auto-apply safe fixes; route remaining findings interactively. Shown only when a requirements document exists **and `OUTPUT_FORMAT=md`** — ce-doc-review's walkthrough applies markdown-only mutations (`##`/`###` heading inserts, single-file markdown edits via apply-set) and would corrupt an HTML artifact, so HTML brainstorms skip this option until ce-doc-review gains HTML-aware mutation support. Under HTML mode, surface a one-line note above the menu: `Agent review unavailable in output:html mode — ce-doc-review is markdown-only today. Switch to output:md if you want a review pass.`
+3. **Open in Proof — review and comment to iterate with the agent** - Open the doc in Every's Proof editor, iterate with the agent via comments, or copy a link to share with others. Shown only when a requirements document exists. **Render only when `OUTPUT_FORMAT=md`** (Proof operates on markdown and cannot ingest HTML).
+3. **Open in browser** — open the HTML requirements file locally for review and sharing. Shown only when a requirements document exists. **Render only when `OUTPUT_FORMAT=html`.** Replaces "Open in Proof" at the same slot under exclusive output mode — the doc is either markdown OR HTML, never both, so exactly one of the two labels applies per run.
 4. **Build it now with `ce-work` (skip planning)** - Skip planning and move to `ce-work`; suited to lightweight, well-defined changes. Shown only when `Resolve Before Planning` is empty **and** scope is lightweight, success criteria are clear, scope boundaries are clear, and no meaningful technical or research questions remain (the "direct-to-work gate").
 5. **More clarifying questions to sharpen the doc** - Keep refining scope, edge cases, constraints, and preferences through further dialogue. Always shown.
 6. **Done for now** - Pause; the requirements doc is saved and can be resumed later. Always shown.
 
-**Post-review nudge (subsequent rounds only):** If the user has already run `ce-doc-review` this session and residual P0/P1 findings remain unaddressed, add a one-line prose nudge adjacent to the menu (e.g., "Document review flagged 2 P1 findings you may want to address — pick \"Agent review of requirements doc\" to run another pass."). Reference the option by label, not number: the menu renumbers when `Resolve Before Planning` hides `Plan implementation` and `Build it now`, so a hardcoded option number can point users at the wrong action. Do not add a separate menu option; reuse the existing agent-review option.
+**Post-review nudge (subsequent rounds only):** If the user has already run `ce-doc-review` this session and residual P0/P1 findings remain unaddressed, add a one-line prose nudge adjacent to the menu (e.g., "Document review flagged 2 P1 findings you may want to address — pick \"Agent review of requirements doc\" to run another pass."). Reference the option by label, not number: the menu renumbers when `Resolve Before Planning` hides `Plan implementation` and `Build it now`, so a hardcoded option number can point users at the wrong action. Do not add a separate menu option; reuse the existing agent-review option. Suppress this nudge when `OUTPUT_FORMAT=html` — the agent-review option is hidden in that mode, so the nudge would point users at a missing action.
 
 #### 4.2 Handle the Selected Option
 
@@ -86,11 +87,13 @@ Follow `references/hitl-review.md` in the ce-proof skill. It uploads the doc, pr
 When the ce-proof skill returns control:
 
 - `status: proceeded` with `localSynced: true` → the requirements doc on disk now reflects the review. Return to the Phase 4 options and re-render the menu (the doc may have changed substantially during review, so option eligibility can shift — re-evaluate `Resolve Before Planning`, direct-to-work gate, and residual ce-doc-review findings against the updated doc).
-- `status: proceeded` with `localSynced: false` → the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the ce-proof skill's Pull workflow. Re-render the Phase 4 menu after the pull completes (or is declined). If the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof — otherwise `Plan implementation` / `Build it now` / `Agent review of requirements doc` will silently read the pre-review copy (ce-doc-review would analyze stale content, and planning or work would skip the user's Proof edits).
-- `status: done_for_now` → the doc on disk may be stale if the user edited in Proof before leaving. Offer to pull the Proof doc to `localPath` so the local requirements file stays in sync, then return to the Phase 4 options. If the pull was declined, include the stale-local note above the menu. `done_for_now` means the user stopped the HITL loop without syncing — it does not mean they ended the whole brainstorm; they may still want to plan implementation, run an agent review, or keep refining the doc.
+- `status: proceeded` with `localSynced: false` → the reviewed version lives in Proof at `docUrl` but the local copy is stale. Offer to pull the Proof doc to `localPath` using the ce-proof skill's Pull workflow. Re-render the Phase 4 menu after the pull completes (or is declined). If the pull was declined, include a one-line note above the menu that `<localPath>` is stale vs. Proof — otherwise `Plan implementation` / `Build it now` / `Agent review of requirements doc` will silently read the pre-review copy.
+- `status: done_for_now` → the doc on disk may be stale if the user edited in Proof before leaving. Offer to pull the Proof doc to `localPath` so the local requirements file stays in sync, then return to the Phase 4 options. If the pull was declined, include the stale-local note above the menu. `done_for_now` means the user stopped the HITL loop without syncing — it does not mean they ended the whole brainstorm.
 - `status: aborted` → fall back to the Phase 4 options without changes.
 
 If the initial upload fails (network error, Proof API down), retry once after a short wait. If it still fails, tell the user the upload didn't succeed and briefly explain why, then return to the Phase 4 options — don't leave them wondering why the option did nothing.
+
+**If user selects "Open in browser":** Display the absolute path to the `.html` requirements file so the user can open it locally. Where the platform exposes a browser-opening primitive (e.g., `open` on macOS, `xdg-open` on Linux, `start` on Windows), the agent may invoke it directly; otherwise print the absolute path and let the user open it. After the path is displayed (or the browser is opened), return to the Phase 4 options so the user can pick a follow-up action.
 
 **If user selects "Done for now":** Display the closing summary (see 4.3) and end the turn.
 
@@ -98,12 +101,14 @@ If the initial upload fails (network error, Proof API down), retry once after a 
 
 Use the closing summary only when this run of the workflow is ending or handing off, not when returning to the Phase 4 options.
 
+In both templates below, substitute `<absolute path to requirements doc>` with the actual file path written this run — `.md` for `OUTPUT_FORMAT=md`, `.html` for `OUTPUT_FORMAT=html`. Do not emit a hardcoded `.md` path when the artifact is HTML, or the closing summary will point users at a file that was never written.
+
 When complete and ready for planning, display:
 
 ```text
 Brainstorm complete!
 
-Requirements doc: docs/brainstorms/YYYY-MM-DD-<topic>-requirements.md  # if one was created
+Requirements doc: <absolute path to requirements doc>  # omit line if no doc was created
 
 Key decisions:
 - [Decision 1]
@@ -117,7 +122,7 @@ If the user pauses with `Resolve Before Planning` still populated, display:
 ```text
 Brainstorm paused.
 
-Requirements doc: docs/brainstorms/YYYY-MM-DD-<topic>-requirements.md  # if one was created
+Requirements doc: <absolute path to requirements doc>  # omit line if no doc was created
 
 Planning is blocked by:
 - [Blocking question 1]

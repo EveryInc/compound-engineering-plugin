@@ -175,6 +175,7 @@ The Phase 4 handoff offers planning, agent doc review, Proof iteration, direct-t
 | `<feature idea>` | Open-ended brainstorm |
 | `<problem>` | Routes via the product pressure test |
 | Existing `*-requirements.md` path or topic | Resume offer |
+| `output:html` | Write the requirements doc as a single self-contained HTML file instead of markdown. Exclusive — the doc is `.md` OR `.html`, never both. Default is markdown. Set `brainstorm_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. |
 
 ---
 
