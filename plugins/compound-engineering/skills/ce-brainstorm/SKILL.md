@@ -71,7 +71,7 @@ Resolution steps:
 
 **Token-parsing convention:** only literal-prefix flag tokens (`output:`, `mode:`, `delegate:` where applicable) are consumed and stripped. Other `<word>:<word>` tokens — including conventional commit prefixes like `feat:`, `fix:`, `chore:` that may appear inside a feature description — pass through verbatim.
 
-**Load the format-rendering reference based on the resolved value.** Section content is the same in either format; presentation differs. Both rendering references are paired with `references/brainstorm-sections.md`, which describes what the brainstorm contains regardless of format.
+**Load the format-rendering reference based on the resolved value.** Section content is the same in either format; presentation differs. Both rendering references are paired with `references/brainstorm-sections.md` (section contract) and `references/requirements-capture.md` (detailed matrix, triggered sections, date discipline for `docs/brainstorms/YYYY-MM-DD...` files, and template).
 
 - When `OUTPUT_FORMAT=md`, read `references/markdown-rendering.md` for format principles.
 - When `OUTPUT_FORMAT=html`, read `references/html-rendering.md` for format principles.
@@ -262,6 +262,7 @@ Write or update a requirements document only when the conversation produced dura
 When a doc is warranted, compose it using:
 
 - `references/brainstorm-sections.md` — section contract (outcomes, hard floor, include-when-material catalog, agency rules, ID conventions).
+- `references/requirements-capture.md` — detailed section matrix (by tier), triggered sections rules, date discipline (`docs/brainstorms/YYYY-MM-DD...` must use real harness date command, never file inference), template, and summary vs. problem frame guidance.
 - The format-specific rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`) — how the resolved format presents the sections.
 
 Write to `docs/brainstorms/YYYY-MM-DD-<topic>-requirements.<md|html>` — extension follows `OUTPUT_FORMAT`. Confirm with the absolute path so the reference is clickable.

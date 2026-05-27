@@ -1,7 +1,8 @@
 import path from "path"
+import fs from "node:fs/promises"
 import { execSync } from "child_process"
 
-import { copySkillDir, ensureDir, sanitizePathName, writeJson, writeText } from "../utils/files"
+import { copySkillDir, ensureDir, pathExists, sanitizePathName, writeJson, writeText } from "../utils/files"
 import { transformContentForGrok } from "../utils/grok-content"
 import type { GrokBundle } from "../types/grok"
 
@@ -38,6 +39,14 @@ export async function writeGrokBundle(outputRoot: string, bundle: GrokBundle): P
   // or for development:
   //   --plugin-dir <output>/<name>
   const targetRoot = path.join(outputRoot, pluginName)
+
+  // Clean any previous conversion output at this location so removed/renamed
+  // skills, agents, commands, or .mcp.json do not linger (P2 review feedback).
+  // Grok bundles are self-contained clean roots; users pass the dir directly to
+  // `grok plugin install` or `--plugin-dir`, so it must exactly match the current bundle.
+  if (await pathExists(targetRoot)) {
+    await fs.rm(targetRoot, { recursive: true, force: true })
+  }
   await ensureDir(targetRoot)
 
   // plugin.json (minimal but valid — matches observed Grok expectation)
@@ -90,7 +99,13 @@ export async function writeGrokBundle(outputRoot: string, bundle: GrokBundle): P
   for (const skill of bundle.skillDirs ?? []) {
     const name = sanitizePathName(skill.name)
     const targetDir = path.join(skillsDir, name)
-    await copySkillDir(skill.sourceDir, targetDir, transformContentForGrok, true)
+    // Wrap so the transform receives { kind: "skill" } — copySkillDir only passes the content string.
+    await copySkillDir(
+      skill.sourceDir,
+      targetDir,
+      (content) => transformContentForGrok(content, { kind: "skill" }),
+      true
+    )
   }
 
   // Commands (written as .md for documentation / future Grok command surface)
