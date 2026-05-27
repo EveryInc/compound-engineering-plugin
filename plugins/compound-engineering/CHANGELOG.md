@@ -9,6 +9,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.9.0...compound-engineering-v3.9.1) (2026-05-27)
+
+
+### Bug Fixes
+
+* **ce-brainstorm,ce-plan:** restore default-on requirements grouping ([#868](https://github.com/EveryInc/compound-engineering-plugin/issues/868)) ([5c88212](https://github.com/EveryInc/compound-engineering-plugin/commit/5c88212c1fd310d27033e7e8508e782e1f19cfdc))
+* **html-rendering:** constrain measure and surface execution notes ([#870](https://github.com/EveryInc/compound-engineering-plugin/issues/870)) ([1051132](https://github.com/EveryInc/compound-engineering-plugin/commit/1051132d04153c3045fc4c929cff32882c6934fe))
+
 ## [3.9.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.8.4...compound-engineering-v3.9.0) (2026-05-26)
 
 
