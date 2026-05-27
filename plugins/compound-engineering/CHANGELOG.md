@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.2](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.9.1...compound-engineering-v3.9.2) (2026-05-27)
+
+
+### Bug Fixes
+
+* **ce-brainstorm,ce-plan:** add conceptual-diagram affordance to brainstorm docs ([#871](https://github.com/EveryInc/compound-engineering-plugin/issues/871)) ([e5e3fc3](https://github.com/EveryInc/compound-engineering-plugin/commit/e5e3fc3630c026ae0eae6637d8b7a342af862e66))
+
 ## [3.9.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.9.0...compound-engineering-v3.9.1) (2026-05-27)
 
 
