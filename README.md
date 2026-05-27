@@ -219,9 +219,6 @@ Grok uses a clean self-contained layout (no managed manifests). After conversion
 ```bash
 # Install a local bundle permanently (recommended for daily use)
 grok plugin install /tmp/grok-ce/compound-engineering --trust
-
-# One-off development session (current supported method)
-grok --plugin-dir /tmp/grok-ce/compound-engineering ...
 ```
 
 See the official xAI documentation for all supported ways to load local and development plugins (including `~/.grok/config.toml` and `--plugin-dir`):
