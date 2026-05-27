@@ -96,12 +96,21 @@ export function sanitizePathName(name: string): string {
  * - Collapses runs of separators
  */
 export function sanitizeGrokPluginName(name: string): string {
-  return sanitizePathName(name)
+  let sanitized = sanitizePathName(name)
     .replace(/[\\/]/g, "-")
     .replace(/\.\./g, "-")
     .replace(/[^a-zA-Z0-9._-]/g, "-")
     .replace(/-+/g, "-")
     .replace(/^-|-$/g, "");
+
+  // Reject names that would collapse to empty, ".", or ".." after sanitization.
+  // These would cause path.join(outputRoot, pluginName) to resolve to (or escape)
+  // the output root itself, which is dangerous when combined with recursive rm.
+  if (!sanitized || sanitized === "." || sanitized === "..") {
+    return "plugin";
+  }
+
+  return sanitized;
 }
 
 /**

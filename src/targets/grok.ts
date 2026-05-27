@@ -40,13 +40,15 @@ export async function writeGrokBundle(outputRoot: string, bundle: GrokBundle): P
   const targetRoot = path.join(outputRoot, pluginName)
 
   // Hard containment check before any destructive operation (P1 review feedback).
-  // Even with sanitization, we refuse to proceed if the resolved path would
-  // escape the caller-supplied outputRoot.
+  // We require the resolved target to be a strict subdirectory of the output root.
+  // This prevents cases where a sanitized name resolves to "" / "." / "..",
+  // which would make targetRoot == outputRoot and cause us to recursively delete
+  // the user's chosen output directory.
   const resolvedOutput = path.resolve(outputRoot)
   const resolvedTarget = path.resolve(targetRoot)
-  if (!resolvedTarget.startsWith(resolvedOutput + path.sep) && resolvedTarget !== resolvedOutput) {
+  if (!resolvedTarget.startsWith(resolvedOutput + path.sep)) {
     throw new Error(
-      `Refusing to write Grok bundle: sanitized plugin name "${pluginName}" would escape the output root`
+      `Refusing to write Grok bundle: sanitized plugin name "${pluginName}" would escape or collapse to the output root`
     )
   }
 
