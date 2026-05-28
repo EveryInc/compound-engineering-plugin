@@ -33,10 +33,13 @@ from pathlib import Path
 # Both arms run from a clean temp CWD (no ambient workspace access). codex needs
 # --skip-git-repo-check or it refuses with "Not inside a trusted directory".
 #
-# NOTE: agy 1.0.2 (--print) is retained as an option but proved UNRELIABLE as a
-# non-interactive reviewer (cross-model-eval first/second runs): prompt-in-argv hangs,
-# doc-on-stdin returns exit 0 with empty output, and it has no no-tools mode. Prefer
-# codex/gemini. See docs/solutions/skill-design/cross-model-eval-first-run-2026-05-25.md.
+# NOTE: agy 1.0.2 (--print) was UNRELIABLE (empty output) and got dropped — but agy 1.0.3 is a
+# VIABLE non-interactive reviewer (clean JSON via --print + stdin). Its own --sandbox does NOT
+# confine the filesystem, so on macOS the agy arm is wrapped in a seatbelt deny-write profile
+# (allow-default + deny writes to repo/home-creds/dotfiles; a strict deny-all-write OR any
+# deny-read HANGS agy). Auth is OAuth at ~/.gemini/oauth_creds.json (+ refresh_token; do NOT gate
+# detection on expiry — agy auto-refreshes). See
+# docs/solutions/skill-design/2026-05-28-agy-arm-posture-validation.md (Phase 0 / U2).
 CODEX_BASE = ["codex", "exec", "-s", "read-only", "--skip-git-repo-check", "-"]
 AGY_INSTRUCTION = "Review the document provided on stdin. Return ONLY a JSON array of finding strings (one element per distinct finding), no prose or preamble."
 GEMINI_INSTRUCTION = "Review the document provided on stdin. Do not modify files. Return ONLY a JSON array of finding strings (one element per distinct finding), no prose or preamble."
@@ -44,6 +47,38 @@ GEMINI_BASE = ["gemini", "-p", GEMINI_INSTRUCTION, "--approval-mode", "plan", "-
 
 # Lines like "1. foo" or "2) bar" — numbered findings the model commonly emits.
 NUMBERED_ITEM = re.compile(r"^\s*\d+[.)]\s+(.*)$")
+
+
+def _repo_root():
+    """Canonical repo root (arms.py is at scripts/eval/cross_model_review/arms.py)."""
+    return os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
+
+
+def agy_sandbox_prefix():
+    """macOS seatbelt wrapper for the agy arm (Phase 0 / U2, validated 2026-05-28).
+
+    Returns (argv_prefix, profile_path). On macOS, generates a concrete deny-write seatbelt
+    profile from validation/agy-readonly.sb.tmpl (deny writes to the repo + home creds/dotfiles;
+    allow-default otherwise — agy HANGS under deny-all-write or any deny-read) and returns
+    (["sandbox-exec", "-f", <profile>], <profile>). On non-macOS, returns ([], None): seatbelt is
+    macOS-only and the FS floor is not enforced there (documented limitation). The caller unlinks
+    the profile after the run.
+    """
+    if sys.platform != "darwin":
+        return [], None
+    tmpl = os.path.join(os.path.dirname(__file__), "validation", "agy-readonly.sb.tmpl")
+    if not os.path.exists(tmpl):
+        return [], None
+    # Paths must be canonical — seatbelt matches /private/var..., and /Users is already canonical.
+    profile_text = (
+        Path(tmpl).read_text()
+        .replace("__REPO_DIR__", _repo_root())
+        .replace("__HOME__", os.path.realpath(os.path.expanduser("~")))
+    )
+    fd, path = tempfile.mkstemp(prefix="cmre-agy-sb-", suffix=".sb")
+    with os.fdopen(fd, "w") as f:
+        f.write(profile_text)
+    return ["sandbox-exec", "-f", path], path
 
 
 def clean_cwd():
@@ -100,6 +135,10 @@ def build_invocation(arm, cli, doc_text, rubric, context_text=None):
         "skip_git_repo_check": "--skip-git-repo-check" in argv,
         "stdin_has_context": arm == "c_fixed_context" and bool(context_text),
         "doc_in_argv": doc_in_argv,
+        # agy's own flags don't confine the FS, so its arm runs under a macOS seatbelt deny-write
+        # profile applied at run time (see agy_sandbox_prefix / run_invocation). Logical argv stays
+        # ["agy","--print",...]; the sandbox wrapping is an execution concern, not part of the spec.
+        "sandbox": "seatbelt-deny-write" if cli == "agy" else None,
         "_env": env,
         "_stdin": stdin_payload,
     }
@@ -162,27 +201,44 @@ def parse_findings(text):
 
 
 def run_invocation(spec, timeout):
-    """Run the CLI arm as a subprocess (integration-level; not unit-tested with live CLIs)."""
+    """Run the CLI arm as a subprocess (integration-level; not unit-tested with live CLIs).
+
+    For the agy arm, applies the macOS seatbelt deny-write floor at run time (the spec's logical
+    argv stays ["agy","--print",...]; the sandbox wrapping is an execution concern). The generated
+    profile is unlinked after the run.
+    """
+    argv = spec["argv"]
+    sb_profile = None
+    if spec.get("sandbox") == "seatbelt-deny-write":
+        prefix, sb_profile = agy_sandbox_prefix()
+        argv = prefix + argv
     start = time.monotonic()
     try:
-        proc = subprocess.run(
-            spec["argv"],
-            input=spec["_stdin"],
-            cwd=spec["cwd"],
-            env=spec["_env"],
-            capture_output=True,
-            text=True,
-            timeout=timeout,
-            check=False,
-        )
-    except subprocess.TimeoutExpired:
-        return {"status": "timeout", "latency_ms": (time.monotonic() - start) * 1000, "findings": [], "stderr": ""}
-    except FileNotFoundError:
-        return {"status": "error", "latency_ms": 0, "findings": [], "stderr": f"{spec['cli']} not found"}
-    latency_ms = (time.monotonic() - start) * 1000
-    status = "ok" if proc.returncode == 0 else "error"
-    findings = parse_findings(proc.stdout) if status == "ok" else []
-    return {"status": status, "latency_ms": latency_ms, "findings": findings, "stderr": proc.stderr}
+        try:
+            proc = subprocess.run(
+                argv,
+                input=spec["_stdin"],
+                cwd=spec["cwd"],
+                env=spec["_env"],
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                check=False,
+            )
+        except subprocess.TimeoutExpired:
+            return {"status": "timeout", "latency_ms": (time.monotonic() - start) * 1000, "findings": [], "stderr": ""}
+        except FileNotFoundError:
+            return {"status": "error", "latency_ms": 0, "findings": [], "stderr": f"{spec['cli']} not found"}
+        latency_ms = (time.monotonic() - start) * 1000
+        status = "ok" if proc.returncode == 0 else "error"
+        findings = parse_findings(proc.stdout) if status == "ok" else []
+        return {"status": status, "latency_ms": latency_ms, "findings": findings, "stderr": proc.stderr}
+    finally:
+        if sb_profile and os.path.exists(sb_profile):
+            try:
+                os.unlink(sb_profile)
+            except OSError:
+                pass
 
 
 def _read(path):

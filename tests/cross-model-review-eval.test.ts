@@ -139,7 +139,16 @@ describe("cross-model arm invocation assembly (R2 / U3)", () => {
 		expect(out.isolated_from_repo).toBe(true);
 		expect(out.stdin_has_context).toBe(true);
 		expect(out.cwd).not.toBe(REPO_ROOT);
+		// Logical argv is unchanged; agy's seatbelt deny-write floor is applied at run time (Phase 0/U2).
 		expect(out.argv).toEqual(["agy", "--print", expect.any(String)]);
+		expect(out.sandbox).toBe("seatbelt-deny-write");
+	});
+
+	test("only the agy arm carries the seatbelt deny-write floor; codex/gemini do not", async () => {
+		const codex = JSON.parse((await arms(["build-invocation", "b_isolated", "codex", doc, rubric])).stdout);
+		const gemini = JSON.parse((await arms(["build-invocation", "c_fixed_context", "gemini", doc, rubric, "--context", context])).stdout);
+		expect(codex.sandbox).toBeNull();
+		expect(gemini.sandbox).toBeNull();
 	});
 
 	test("gemini arm: clean cwd, -p instruction in argv, read-only (plan) mode, doc on stdin not argv", async () => {
