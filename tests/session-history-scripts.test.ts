@@ -470,6 +470,10 @@ describe("extract-skeleton", () => {
     expect(stdout).toContain("[user] fix the auth bug in middleware")
     expect(stdout).toContain("[assistant] Let me look at the auth middleware.")
     expect(stdout).toContain("[assistant] Fixed the auth middleware.")
+    // String-form content (not just list-of-blocks) must also be parsed --
+    // Pi serializes some messages with `content` as a bare string.
+    expect(stdout).toContain("[user] also add a regression test for the expiry check")
+    expect(stdout).toContain("[assistant] Sure, adding a regression test for the token expiry validation.")
     // Tool calls should be collapsed
     expect(stdout).toContain("[tool]")
     // toolResult messages should not appear as user/assistant turns

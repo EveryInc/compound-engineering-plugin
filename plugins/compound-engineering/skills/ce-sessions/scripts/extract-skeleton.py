@@ -279,10 +279,14 @@ def handle_pi(obj):
     content = msg.get("content", [])
 
     if role == "user":
-        texts = []
-        for block in (content if isinstance(content, list) else []):
-            if block.get("type") == "text":
-                texts.append(block.get("text", ""))
+        if isinstance(content, str):
+            texts = [content]
+        else:
+            texts = [
+                block.get("text", "")
+                for block in (content if isinstance(content, list) else [])
+                if block.get("type") == "text"
+            ]
         text = clean_text(" ".join(texts))
         if len(text) > 15:
             flush_tools()
@@ -291,6 +295,14 @@ def handle_pi(obj):
             stats["user"] += 1
 
     elif role == "assistant":
+        if isinstance(content, str):
+            text = clean_text(content)
+            if len(text) > 20:
+                flush_tools()
+                print(f"[{ts}] [assistant] {text[:800]}")
+                print("---")
+                stats["assistant"] += 1
+            return
         has_text = False
         for block in (content if isinstance(content, list) else []):
             if block.get("type") == "text":
