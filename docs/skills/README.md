@@ -125,6 +125,7 @@ Invoked when a specific need arises — not part of any chain.
 | Skill | Description |
 |-------|-------------|
 | [`/ce-polish-beta`](./ce-polish-beta.md) | Conversational UX polish — start dev server, open browser, iterate together; auto-detects 8 frameworks |
+| [`/ce-deep-review-beta`](./ce-deep-review.md) | Deep cross-model plan review — Claude panel + consent-gated non-Claude reviewer CLIs for decorrelated findings (thin slice: findings unverified) |
 
 ---
 
