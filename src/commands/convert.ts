@@ -2,7 +2,7 @@ import { defineCommand } from "citty"
 import os from "os"
 import path from "path"
 import { loadClaudePlugin } from "../parsers/claude"
-import { targets, validateScope } from "../targets"
+import { targets, validateScope, assertKnownTarget } from "../targets"
 import type { ClaudeToOpenCodeOptions, PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
 import { expandHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
@@ -142,10 +142,7 @@ export default defineCommand({
       return
     }
 
-    const target = targets[targetName]
-    if (!target) {
-      throw new Error(`Unknown target: ${targetName}`)
-    }
+    const target = assertKnownTarget(targetName)
 
     if (!target.implemented) {
       throw new Error(`Target ${targetName} is registered but not implemented yet.`)

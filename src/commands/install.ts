@@ -4,7 +4,7 @@ import os from "os"
 import path from "path"
 import { fileURLToPath } from "url"
 import { loadClaudePlugin } from "../parsers/claude"
-import { targets, validateScope } from "../targets"
+import { targets, validateScope, assertKnownTarget } from "../targets"
 import { pathExists } from "../utils/files"
 import type { ClaudeToOpenCodeOptions, PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
@@ -153,10 +153,7 @@ export default defineCommand({
         return
       }
 
-      const target = targets[targetName]
-      if (!target) {
-        throw new Error(`Unknown target: ${targetName}`)
-      }
+      const target = assertKnownTarget(targetName)
       if (!target.implemented) {
         throw new Error(`Target ${targetName} is registered but not implemented yet.`)
       }

@@ -82,3 +82,28 @@ export const targets: Record<string, TargetHandler> = {
     write: writeKiroBundle as TargetHandler["write"],
   },
 }
+
+/**
+ * The list of valid `--to` values, derived from the registry so it can never
+ * drift. `all` is a valid `--to` value handled by an early branch in each
+ * command (before the registry lookup), so it is appended here for the
+ * help/error text but is never passed to `assertKnownTarget` at runtime.
+ */
+function supportedTargetNames(): string[] {
+  return [...Object.keys(targets), "all"]
+}
+
+/**
+ * Resolve a `--to` value to its handler, or throw an enriched error that lists
+ * the supported target names. Returning the handler yields a single clean call
+ * site and avoids a non-null assertion that could desync from the lookup.
+ */
+export function assertKnownTarget(targetName: string): TargetHandler {
+  const target = targets[targetName]
+  if (!target) {
+    throw new Error(
+      `Unknown target: ${targetName}. Supported targets: ${supportedTargetNames().join(", ")}`,
+    )
+  }
+  return target
+}

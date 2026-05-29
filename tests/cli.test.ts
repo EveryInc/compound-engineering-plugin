@@ -124,7 +124,40 @@ describe("CLI", () => {
 
       expect(exitCode).not.toBe(0)
       expect(stderr).toContain(`Unknown target: ${target}`)
+      // Enriched error lists the supported targets (membership, not exact-string,
+      // so adding a 6th provider never breaks this test).
+      expect(stderr).toContain("Supported targets")
+      expect(stderr).toContain("opencode")
     }
+  })
+
+  test("convert reports supported targets for an unknown --to value", async () => {
+    // sample-plugin must be a valid fixture: loadClaudePlugin runs before the
+    // unknown-target lookup, so a bogus source path would throw a different error.
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "convert",
+      fixtureRoot,
+      "--to",
+      "bogus",
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stderr = await new Response(proc.stderr).text()
+
+    expect(exitCode).not.toBe(0)
+    expect(stderr).toContain("Unknown target: bogus")
+    expect(stderr).toContain("Supported targets")
+    expect(stderr).toContain("opencode")
   })
 
   test("cleanup backs up legacy Codex artifacts on demand", async () => {
