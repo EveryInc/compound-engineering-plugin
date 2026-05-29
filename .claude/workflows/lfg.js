@@ -6,51 +6,30 @@
  * and ends without teaching the next one anything.
  *
  * This workflow keeps the same end-to-end autonomy, adds the two halves that make
- * it *compound*, and fans out the phases the Workflow engine can parallelize:
+ * it *compound*, and fans out the phases the Workflow engine can parallelize.
+ * Each phase is named after the compound-engineering step / skill it runs:
  *
- *   Intake (Riffrec)       — if a Riffrec product-feedback recording is present,
- *                            find it, analyze it, and fold its findings into the
- *                            task before anything else.
- *
- *   compound IN  (Recall)  — parallel ce-* researchers mine docs/solutions/, the
- *                            codebase, git history, and external best practices,
- *                            then a synthesis pass distills them into one brief.
- *
- *   Shape (judge panel)    — three approach lenses (MVP / risk / leverage) run in
- *                            parallel; a judge picks the strongest and grafts in
- *                            the best of the others.
- *
- *   Plan (+ stress test)   — ce-plan writes a durable plan; an adversarial pass
- *                            surfaces plan-level concerns (fatal -> abort).
- *
- *   Build                  — ce-work executes the plan.
- *
- *   Review (dedup+verify)  — persona reviewers per dimension; findings deduped by
- *                            file:line, then adversarially verified; a severity
- *                            gate auto-fixes blocker/high/medium, defers low.
- *
- *   Fix -> Re-review       — apply confirmed fixes, then re-review the FIX diff
- *                            for regressions the fixes themselves introduced.
- *
- *   Simplify               — ce-simplify-code: behavior-preserving cleanup.
- *
- *   Verify                 — suite/build/lint + per-surface automated tests
- *                            (browser when web, simulator when iOS).
- *
- *   Dogfood (always)       — ALWAYS exercise the product as a user, adapted to
- *                            the surface (browser / simulator / CLI / API); fix
- *                            UX/behavior breakage, add regression tests.
- *
- *   Ship                   — commit/push/PR (+ a demo reel for observable
- *                            changes), then MONITOR CI and fix root causes until
- *                            it is green (stops only if genuinely stuck/out of
- *                            budget, and then records the failure on the PR).
- *
- *   compound OUT (Compound)— when something non-obvious happened, ce-compound
- *                            captures the learning so the NEXT run's Recall
- *                            starts ahead. The loop closes.
+ *   Riffrec       — ce-riffrec-feedback-analysis: if a recording is present, find
+ *                   + analyze it and fold its findings into the task. (compound IN)
+ *   Research      — ce-* researcher agents in parallel (learnings, repo, git
+ *                   history, best practices), distilled into one brief. (compound IN)
+ *   Ideate        — ce-ideate, run as a 3-lens judge panel -> chosen direction.
+ *   Plan          — ce-plan: a durable implementation plan under docs/plans/.
+ *   Doc Review    — ce-doc-review: adversarially stress-test the plan (fatal -> abort).
+ *   Work          — ce-work: execute the plan.
+ *   Code Review   — ce-code-review: persona reviewers per dimension, deduped by
+ *                   file:line, adversarially verified; severity gate.
+ *   Autofix       — apply confirmed blocker/high/medium findings (defer low to PR).
+ *   Re-review     — re-review the fix diff for regressions the fixes introduced.
+ *   Simplify      — ce-simplify-code: behavior-preserving cleanup.
+ *   Test          — suite/build/lint + ce-test-browser (web) / simulator (iOS).
+ *   Dogfood       — ce-dogfood-beta: ALWAYS exercise the product as a user.
+ *   Commit & PR   — ce-commit-push-pr (+ ce-demo-reel), then monitor CI until green.
+ *   Compound      — ce-compound: capture the learning so the next Research starts
+ *                   ahead. (compound OUT)
  *
  * Run it:  Workflow({ name: "lfg", args: "<feature description>" })
+ *          Workflow({ name: "lfg", args: { task: "...", dryRun: true } })  // test
  * Watch:   /workflows
  *
  * Every mutating phase runs NON-INTERACTIVELY (no blocking questions) because a
@@ -58,26 +37,27 @@
  * ce-* agents directly via agentType; orchestration-heavy phases spawn generic
  * agents that invoke the corresponding ce-* skill. Skills flagged
  * disable-model-invocation (ce-test-xcode, ce-dogfood-beta) cannot be invoked
- * from a workflow, so their behavior is inlined into Verify/Dogfood instead.
+ * from a workflow, so their behavior is inlined into Test/Dogfood instead.
  */
 
 export const meta = {
   name: 'lfg',
-  description: 'Compounding autonomous engineering pipeline: analyze a Riffrec recording if present, recall prior learnings, shape via a judge panel, plan + stress-test, build, dedup-and-verify review, fix + re-review, simplify, verify, always dogfood, ship, monitor CI until green, then capture the learning so the next run starts ahead.',
-  whenToUse: 'Hands-off execution of a software task when you want the full compound-engineering loop (institutional recall in, durable learning out, CI watched to green) rather than a single linear pass. Pass the feature description (or a Riffrec bundle path) as args.',
+  description: 'Compounding autonomous engineering pipeline named in compound-engineering steps: Riffrec, Research, Ideate, Plan, Doc Review, Work, Code Review, Autofix, Re-review, Simplify, Test, Dogfood, Commit & PR, Compound. Recalls prior learnings in and captures a durable learning out, watching CI to green.',
+  whenToUse: 'Hands-off execution of a software task when you want the full compound-engineering loop (institutional recall in, durable learning out, CI watched to green) rather than a single linear pass. Pass the feature description (or a Riffrec bundle path) as args. Add { dryRun: true } to stop before Commit & PR / CI / Compound.',
   phases: [
-    { title: 'Intake', detail: 'If a Riffrec recording is present, find + analyze it and fold its findings into the task' },
-    { title: 'Recall', detail: 'Parallel ce-* researchers mine docs/solutions, the codebase, git history, and external best practices, then synthesize one brief' },
-    { title: 'Shape', detail: 'Judge panel of 3 approach lenses (MVP / risk / leverage) -> synthesized direction' },
-    { title: 'Plan', detail: 'ce-plan writes a durable plan grounded in recall + direction; adversarial stress-test surfaces concerns' },
-    { title: 'Build', detail: 'ce-work executes the plan with plan-check concerns in view' },
-    { title: 'Review', detail: 'Persona reviewers per dimension -> dedup by file:line -> adversarially verify -> severity gate' },
-    { title: 'Fix', detail: 'Apply confirmed blocker/high/medium findings; defer low to the PR' },
+    { title: 'Riffrec', detail: 'ce-riffrec-feedback-analysis — if a recording is present, find + analyze it and fold its findings into the task' },
+    { title: 'Research', detail: 'Parallel ce-* researchers (learnings, repo, git history, best practices) distilled into one brief' },
+    { title: 'Ideate', detail: 'ce-ideate as a 3-lens judge panel (MVP / risk / leverage) -> chosen direction' },
+    { title: 'Plan', detail: 'ce-plan writes a durable plan grounded in research + direction' },
+    { title: 'Doc Review', detail: 'ce-doc-review — adversarially stress-test the plan (fatal -> abort)' },
+    { title: 'Work', detail: 'ce-work executes the plan with the Doc Review concerns in view' },
+    { title: 'Code Review', detail: 'ce-code-review — persona reviewers per dimension, dedup by file:line, adversarially verify, severity gate' },
+    { title: 'Autofix', detail: 'Apply confirmed blocker/high/medium findings; defer low to the PR' },
     { title: 'Re-review', detail: 'Re-review the fix diff for regressions the fixes introduced; fix them' },
-    { title: 'Simplify', detail: 'ce-simplify-code: behavior-preserving cleanup of the corrected code' },
-    { title: 'Verify', detail: 'Suite/build/lint + per-surface automated tests (browser / simulator)' },
-    { title: 'Dogfood', detail: 'Always exercise the product as a user across surfaces; fix breakage, add regression tests' },
-    { title: 'Ship', detail: 'Commit, push, open PR (+ demo reel), then monitor CI and fix until green' },
+    { title: 'Simplify', detail: 'ce-simplify-code — behavior-preserving cleanup of the corrected code' },
+    { title: 'Test', detail: 'Suite/build/lint + ce-test-browser (web) / simulator (iOS)' },
+    { title: 'Dogfood', detail: 'ce-dogfood-beta — always exercise the product as a user across surfaces; fix breakage, add regression tests' },
+    { title: 'Commit & PR', detail: 'ce-commit-push-pr (+ ce-demo-reel), then monitor CI and fix until green' },
     { title: 'Compound', detail: 'ce-compound captures the learning when something non-obvious happened' },
   ],
 }
@@ -293,8 +273,8 @@ const SEVERITY_RANK = { blocker: 3, high: 2, medium: 1, low: 0 }
 const AUTO_FIX_SEVERITIES = ['blocker', 'high', 'medium']
 
 // Collapse findings that point at the same file:line (two reviewers flagging the
-// same spot) into the highest-severity one, so Fix doesn't make conflicting edits
-// on the same line. Findings without a line are kept distinct (index-keyed).
+// same spot) into the highest-severity one, so Autofix doesn't make conflicting
+// edits on the same line. Findings without a line are kept distinct (index-keyed).
 function dedupeFindings(items) {
   const seen = new Map()
   items.forEach((f, idx) => {
@@ -310,7 +290,7 @@ function dedupeFindings(items) {
 }
 
 // Review a scope across dimensions in parallel, dedup, then adversarially verify
-// every survivor. Used by both the main Review and the post-fix Re-review.
+// every survivor. Used by both Code Review and the post-fix Re-review.
 async function reviewAndVerify(dims, scopePrompt, phaseName) {
   const raw = ((await parallel(dims.map(d => () =>
     agent(
@@ -338,8 +318,8 @@ async function reviewAndVerify(dims, scopePrompt, phaseName) {
 // ---------------------------------------------------------------------------
 // Resolve the task and flags from args. Accepts a string (the task), an object
 // { task, dryRun }, or a string containing a [dry-run] marker. Dry run stops
-// before Ship/CI/Compound — useful for testing the pipeline without opening a
-// PR or writing to docs/solutions/.
+// before Commit & PR / CI / Compound — useful for testing the pipeline without
+// opening a PR or writing to docs/solutions/.
 // ---------------------------------------------------------------------------
 
 let task = null
@@ -356,7 +336,7 @@ if (task && task.indexOf('[dry-run]') !== -1) {
 }
 
 if (!task) {
-  log('No feature description provided. Run with the task as args, e.g. Workflow({ name: "lfg", args: "Add a dark-mode toggle to settings" }). Add { dryRun: true } (or a [dry-run] marker) to stop before Ship/CI/Compound.')
+  log('No feature description provided. Run with the task as args, e.g. Workflow({ name: "lfg", args: "Add a dark-mode toggle to settings" }). Add { dryRun: true } (or a [dry-run] marker) to stop before Commit & PR / CI / Compound.')
   return { error: 'missing-task' }
 }
 
@@ -365,14 +345,14 @@ const SKEPTICS = THOROUGH ? 3 : 1
 log(`lfg starting${DRY_RUN ? ' [DRY RUN — no commit/PR/CI/compound]' : ''}${THOROUGH ? ' (thorough)' : ''}: ${task}`)
 
 // ---------------------------------------------------------------------------
-// Phase 0 — Intake. If a Riffrec product-feedback recording is available, find
-// and analyze it first so the pipeline works on what a real user session surfaced.
+// Riffrec (compound IN). If a Riffrec product-feedback recording is available,
+// find and analyze it first so the pipeline works on what a real user surfaced.
 // ---------------------------------------------------------------------------
 
-phase('Intake')
+phase('Riffrec')
 const riffrec = await agent(
   `Determine whether a Riffrec product-feedback recording is available for this task, then act.\n\nTask:\n${task}\n\nLook for a \`riffrec-*.zip\` or a bundle containing session.json + events.json + recording.webm + voice.webm — in any path named in the task, the repo root, the current directory, or ~/Downloads.\n- If you find one, invoke the ce-riffrec-feedback-analysis skill to analyze it, and return found=true, the path, and the structured product feedback (bugs, UX issues, repro steps, the user's spoken intent).\n- If none exists, return found=false and stop — do not fabricate feedback. ${NON_INTERACTIVE}`,
-  { label: 'intake:riffrec', phase: 'Intake', schema: RIFFREC_SCHEMA }
+  { label: 'riffrec', phase: 'Riffrec', schema: RIFFREC_SCHEMA }
 )
 const riffrecFeedback = (riffrec && riffrec.found && riffrec.feedback) ? riffrec.feedback : ''
 const taskBrief = riffrecFeedback
@@ -383,126 +363,131 @@ log(riffrecFeedback
   : 'No Riffrec recording found — proceeding from the task description.')
 
 // ---------------------------------------------------------------------------
-// Phase 1 — Recall (compound IN). Four read-only ce-* researchers in parallel,
-// then a synthesis pass that distills them into one tight brief.
+// Research (compound IN). Four read-only ce-* researchers in parallel, then a
+// synthesis pass that distills them into one tight brief.
 // ---------------------------------------------------------------------------
 
-phase('Recall')
-const recallSpecs = [
+phase('Research')
+const researchSpecs = [
   {
     type: 'compound-engineering:ce-learnings-researcher',
-    label: 'recall:learnings',
+    label: 'research:learnings',
     prompt: `<work-context>\n${taskBrief}\n</work-context>\n\nFind every applicable past learning in docs/solutions/ for this task. Return the distilled learnings, the conventions to honor, and any prior bug fixes that bear on it. Cite each by its repo-relative path.`,
   },
   {
     type: 'compound-engineering:ce-repo-research-analyst',
-    label: 'recall:repo',
+    label: 'research:repo',
     prompt: `Research how THIS repository is structured and which existing patterns, modules, and conventions a change implementing the following task should follow:\n\n${taskBrief}\n\nReturn the relevant files, the patterns to mirror, and the seams where the change belongs.`,
   },
   {
     type: 'compound-engineering:ce-git-history-analyzer',
-    label: 'recall:history',
+    label: 'research:history',
     prompt: `Trace the git history relevant to this task and surface why the affected code looks the way it does, prior attempts, and any landmines:\n\n${taskBrief}`,
   },
   {
     type: 'compound-engineering:ce-best-practices-researcher',
-    label: 'recall:external',
+    label: 'research:external',
     prompt: `Gather external best practices and community conventions relevant to implementing:\n\n${taskBrief}\n\nReturn concrete, actionable guidance — not a literature review.`,
   },
 ]
-const recall = (await parallel(recallSpecs.map(s => () =>
-  agent(s.prompt, { agentType: s.type, label: s.label, phase: 'Recall' })
+const research = (await parallel(researchSpecs.map(s => () =>
+  agent(s.prompt, { agentType: s.type, label: s.label, phase: 'Research' })
 ))).filter(Boolean)
 
-let recallBrief = '(no institutional recall available)'
+let researchBrief = '(no institutional research available)'
 let landmines = []
-if (recall.length) {
+if (research.length) {
   const synthesis = await agent(
-    `Synthesize these ${recall.length} research findings into ONE tight brief for the engineer who will plan and build this task: "${task}".\n\nFindings:\n${recall.join('\n\n---\n\n')}\n\nReturn a brief with: (1) constraints to honor, (2) existing patterns to mirror (with paths), (3) prior art / past learnings, (4) KNOWN LANDMINES to avoid. Keep it dense — no preamble.`,
-    { label: 'recall:synthesis', phase: 'Recall' }
+    `Synthesize these ${research.length} research findings into ONE tight brief for the engineer who will plan and build this task: "${task}".\n\nFindings:\n${research.join('\n\n---\n\n')}\n\nReturn a brief with: (1) constraints to honor, (2) existing patterns to mirror (with paths), (3) prior art / past learnings, (4) KNOWN LANDMINES to avoid. Keep it dense — no preamble.`,
+    { label: 'research:synthesis', phase: 'Research' }
   )
-  recallBrief = synthesis || recall.join('\n\n---\n\n')
-  const probe = recallBrief.toLowerCase().indexOf('landmine')
-  if (probe !== -1) landmines = [recallBrief.slice(probe, probe + 600)]
+  researchBrief = synthesis || research.join('\n\n---\n\n')
+  const probe = researchBrief.toLowerCase().indexOf('landmine')
+  if (probe !== -1) landmines = [researchBrief.slice(probe, probe + 600)]
 } else {
-  log('Recall returned nothing (ce-* research agents may be unavailable). Continuing without institutional grounding.')
+  log('Research returned nothing (ce-* research agents may be unavailable). Continuing without institutional grounding.')
 }
 
 // ---------------------------------------------------------------------------
-// Phase 2 — Shape (judge panel). Three lenses in parallel, then a judge.
+// Ideate (ce-ideate, run as a judge panel). Three lenses in parallel, then a judge.
 // ---------------------------------------------------------------------------
 
-phase('Shape')
+phase('Ideate')
 const LENSES = [
   { key: 'mvp', framing: 'the SIMPLEST thing that fully satisfies the requirement — minimize new abstractions and surface area' },
   { key: 'risk', framing: 'the approach that most REDUCES risk — name the failure modes, data/migration hazards, and how to de-risk each' },
-  { key: 'leverage', framing: 'the approach that best REUSES the existing patterns surfaced in recall and compounds future work' },
+  { key: 'leverage', framing: 'the approach that best REUSES the existing patterns surfaced in research and compounds future work' },
 ]
 const candidates = (await parallel(LENSES.map(l => () =>
   agent(
-    `Task:\n${taskBrief}\n\nInstitutional recall:\n${recallBrief}\n\nPropose an implementation approach through this lens: ${l.framing}. Be concrete about the first change and the boundaries. ${NON_INTERACTIVE}`,
-    { label: `shape:${l.key}`, phase: 'Shape', schema: APPROACH_SCHEMA }
+    `Task:\n${taskBrief}\n\nInstitutional research:\n${researchBrief}\n\nPropose an implementation approach through this lens: ${l.framing}. Be concrete about the first change and the boundaries. ${NON_INTERACTIVE}`,
+    { label: `ideate:${l.key}`, phase: 'Ideate', schema: APPROACH_SCHEMA }
   )
 ))).filter(Boolean)
 
 const direction = await agent(
   `Task:\n${taskBrief}\n\nCandidate approaches:\n${JSON.stringify(candidates, null, 2)}\n\nPick the single strongest approach for THIS codebase, then graft in the best ideas from the runner-up lenses. Output the synthesized direction the planner should follow, plus watch-outs. ${NON_INTERACTIVE}`,
-  { label: 'shape:judge', phase: 'Shape', schema: DIRECTION_SCHEMA }
+  { label: 'ideate:judge', phase: 'Ideate', schema: DIRECTION_SCHEMA }
 )
 log(`Direction: ${direction && direction.winner ? direction.winner : 'synthesized'}`)
 
 // ---------------------------------------------------------------------------
-// Phase 3 — Plan. ce-plan writes the durable plan, then an adversarial pass
-// stress-tests it. GATE: a plan file must exist; a genuinely fatal plan aborts.
+// Plan (ce-plan). Writes the durable plan. GATE: a plan file must exist.
 // ---------------------------------------------------------------------------
 
 phase('Plan')
 const planResult = await agent(
-  `Invoke the ce-plan skill to produce a durable implementation plan for this task. ${NON_INTERACTIVE}\n\nTask:\n${taskBrief}\n\nChosen direction (from the shaping judge):\n${JSON.stringify(direction)}\n\nInstitutional recall to fold into the plan (cite the docs/solutions learnings you used):\n${recallBrief}\n\nAfter ce-plan finishes, return ONLY the repo-relative path to the plan file it wrote under docs/plans/.`,
+  `Invoke the ce-plan skill to produce a durable implementation plan for this task. ${NON_INTERACTIVE}\n\nTask:\n${taskBrief}\n\nChosen direction (from Ideate's judge):\n${JSON.stringify(direction)}\n\nInstitutional research to fold into the plan (cite the docs/solutions learnings you used):\n${researchBrief}\n\nAfter ce-plan finishes, return ONLY the repo-relative path to the plan file it wrote under docs/plans/.`,
   { label: 'plan', phase: 'Plan', schema: PLAN_SCHEMA }
 )
 const planPath = planResult && planResult.planPath
 if (!planPath) {
-  log('Plan phase produced no plan file — aborting before build (mirrors the /lfg plan gate).')
-  return { error: 'no-plan', recall: recallBrief, direction }
+  log('Plan phase produced no plan file — aborting before work (mirrors the /lfg plan gate).')
+  return { error: 'no-plan', research: researchBrief, direction }
 }
 log(`Plan written: ${planPath}`)
 
+// ---------------------------------------------------------------------------
+// Doc Review (ce-doc-review). Adversarially stress-test the plan. A genuinely
+// fatal plan aborts; non-fatal concerns are fed into Work.
+// ---------------------------------------------------------------------------
+
+phase('Doc Review')
 const planCheck = await agent(
-  `Adversarially stress-test the plan at ${planPath} against THIS codebase. Will it survive contact with reality — do the referenced files/APIs exist, are the boundaries right, are there migration/ordering hazards? Known landmines from recall:\n${JSON.stringify(landmines)}\n\nReturn fatal=true ONLY if the plan is fundamentally unbuildable as written; otherwise list concerns by severity. ${NON_INTERACTIVE}`,
-  { label: 'plan:stress-test', phase: 'Plan', schema: PLANCHECK_SCHEMA }
+  `Invoke the ce-doc-review approach to adversarially stress-test the plan at ${planPath} against THIS codebase. Will it survive contact with reality — do the referenced files/APIs exist, are the boundaries right, are there migration/ordering hazards? Known landmines from research:\n${JSON.stringify(landmines)}\n\nReturn fatal=true ONLY if the plan is fundamentally unbuildable as written; otherwise list concerns by severity. ${NON_INTERACTIVE}`,
+  { label: 'doc-review', phase: 'Doc Review', schema: PLANCHECK_SCHEMA }
 )
 if (planCheck && planCheck.fatal) {
-  log('Plan stress-test judged the plan fatally unbuildable — aborting before build. Concerns recorded.')
+  log('Doc Review judged the plan fatally unbuildable — aborting before work. Concerns recorded.')
   return { error: 'plan-fatal', planPath, concerns: planCheck.concerns }
 }
 const planConcerns = (planCheck && planCheck.concerns) || []
-if (planConcerns.length) log(`Plan stress-test raised ${planConcerns.length} non-fatal concern(s) — feeding into Build.`)
+if (planConcerns.length) log(`Doc Review raised ${planConcerns.length} non-fatal concern(s) — feeding into Work.`)
 
 // ---------------------------------------------------------------------------
-// Phase 4 — Build. ce-work executes the plan, with plan-check concerns in view.
-// GATE: real changes must exist before review.
+// Work (ce-work). Execute the plan, with Doc Review concerns in view.
+// GATE: real changes must exist before Code Review.
 // ---------------------------------------------------------------------------
 
-phase('Build')
+phase('Work')
 const build = await agent(
-  `Invoke the ce-work skill to execute the plan at ${planPath}. Implement the full feature, following the codebase's existing patterns and the conventions surfaced in recall. Address these plan-stress-test concerns as you go:\n${JSON.stringify(planConcerns)}\n${NON_INTERACTIVE}\n\nWhen done, report whether files actually changed, a concise summary, the files touched, and which observable surfaces (web-ui / ios / cli / api / library / docs) the change affects.`,
-  { label: 'build', phase: 'Build', schema: BUILD_SCHEMA }
+  `Invoke the ce-work skill to execute the plan at ${planPath}. Implement the full feature, following the codebase's existing patterns and the conventions surfaced in research. Address these Doc Review concerns as you go:\n${JSON.stringify(planConcerns)}\n${NON_INTERACTIVE}\n\nWhen done, report whether files actually changed, a concise summary, the files touched, and which observable surfaces (web-ui / ios / cli / api / library / docs) the change affects.`,
+  { label: 'work', phase: 'Work', schema: BUILD_SCHEMA }
 )
 if (!build || !build.changed) {
-  log('Build phase made no code changes — aborting before review (mirrors the /lfg work gate).')
+  log('Work phase made no code changes — aborting before review (mirrors the /lfg work gate).')
   return { error: 'no-changes', planPath, build }
 }
 const surfaces = (build.surfaces || []).map(s => String(s).toLowerCase())
 const surfaceList = surfaces.length ? surfaces.join(', ') : 'none detected'
-log(`Build: ${build.summary}${surfaces.length ? ` [surfaces: ${surfaceList}]` : ''}`)
+log(`Work: ${build.summary}${surfaces.length ? ` [surfaces: ${surfaceList}]` : ''}`)
 
 // ---------------------------------------------------------------------------
-// Phase 5 — Review. Persona reviewers per dimension -> dedup -> adversarial
-// verify -> severity gate.
+// Code Review (ce-code-review). Persona reviewers per dimension -> dedup ->
+// adversarial verify -> severity gate.
 // ---------------------------------------------------------------------------
 
-phase('Review')
+phase('Code Review')
 const DIMENSIONS = [
   { key: 'correctness', type: 'compound-engineering:ce-correctness-reviewer' },
   { key: 'security', type: 'compound-engineering:ce-security-reviewer' },
@@ -511,36 +496,36 @@ const DIMENSIONS = [
   { key: 'testing', type: 'compound-engineering:ce-testing-reviewer' },
   { key: 'reliability', type: 'compound-engineering:ce-reliability-reviewer' },
 ]
-const landmineHint = landmines.length ? ` Known landmines from recall — check these specifically: ${JSON.stringify(landmines)}.` : ''
+const landmineHint = landmines.length ? ` Known landmines from research — check these specifically: ${JSON.stringify(landmines)}.` : ''
 const reviewScope = `Review the current uncommitted diff (the working tree vs the base branch) for issues introduced by this change. The change implements: ${task}.${landmineHint}`
-const { raw: rawFindings, confirmed } = await reviewAndVerify(DIMENSIONS, reviewScope, 'Review')
+const { raw: rawFindings, confirmed } = await reviewAndVerify(DIMENSIONS, reviewScope, 'Code Review')
 
 const toFix = confirmed.filter(f => AUTO_FIX_SEVERITIES.includes(f.severity))
 const deferredNits = confirmed.filter(f => !AUTO_FIX_SEVERITIES.includes(f.severity))
 log(`${rawFindings.length} raw -> ${confirmed.length} confirmed — ${toFix.length} to fix, ${deferredNits.length} low deferred to PR`)
 
 // ---------------------------------------------------------------------------
-// Phase 6 — Fix. Apply auto-fixable confirmed findings; record skipped + nits.
+// Autofix. Apply auto-fixable confirmed findings; record skipped + nits.
 // ---------------------------------------------------------------------------
 
-phase('Fix')
+phase('Autofix')
 let fix = { fixed: [], residual: [] }
 if (toFix.length) {
   fix = await agent(
     `Apply fixes for these confirmed code-review findings in the working tree. Fix the ROOT cause — do not weaken tests, suppress warnings, or delete assertions. If you deliberately decide NOT to fix one, leave it and list it as residual with a reason. ${NON_INTERACTIVE}\n\nConfirmed findings:\n${JSON.stringify(toFix, null, 2)}`,
-    { label: 'fix', phase: 'Fix', schema: FIX_SCHEMA }
+    { label: 'autofix', phase: 'Autofix', schema: FIX_SCHEMA }
   ) || fix
   log(`Fixed ${(fix.fixed || []).length}; residual ${(fix.residual || []).length}`)
 } else {
-  log('No auto-fixable findings — skipping fix phase.')
+  log('No auto-fixable findings — skipping Autofix.')
 }
 // Low-severity confirmed findings ride along as residual so they surface on the PR.
 fix.residual = (fix.residual || []).concat(deferredNits.map(f => ({ title: `[${f.severity}] ${f.title}`, reason: f.rationale || 'deferred low-severity finding' })))
 
 // ---------------------------------------------------------------------------
-// Phase 7 — Re-review. The fixes themselves can introduce regressions. Re-review
-// the fix diff (correctness/reliability/testing) and repair any confirmed ones.
-// Bounded to one repair round to avoid churn.
+// Re-review. The fixes themselves can introduce regressions. Re-review the fix
+// diff (correctness/reliability/testing) and repair confirmed ones. Bounded to
+// one repair round to avoid churn.
 // ---------------------------------------------------------------------------
 
 phase('Re-review')
@@ -563,12 +548,12 @@ if ((fix.fixed || []).length) {
     log('Re-review found no confirmed regressions from the fixes.')
   }
 } else {
-  log('No fixes were applied — skipping re-review.')
+  log('No fixes were applied — skipping Re-review.')
 }
 
 // ---------------------------------------------------------------------------
-// Phase 8 — Simplify. Behavior-preserving cleanup of the corrected code. Runs
-// after Fix (never simplify broken code) and before Verify (test the final form).
+// Simplify (ce-simplify-code). Behavior-preserving cleanup of the corrected
+// code. Runs after Autofix (never simplify broken code) and before Test.
 // ---------------------------------------------------------------------------
 
 phase('Simplify')
@@ -579,12 +564,12 @@ const simplify = await agent(
 log(`Simplify: ${simplify ? simplify.notes : 'no result'}`)
 
 // ---------------------------------------------------------------------------
-// Phase 9 — Verify. Suite/build/lint + per-surface automated tests. Browser via
-// the ce-test-browser skill (callable); iOS-simulator is inlined because
+// Test. Suite/build/lint + per-surface automated tests. Browser via the
+// ce-test-browser skill (callable); iOS-simulator is inlined because
 // ce-test-xcode is disable-model-invocation. (Hands-on exploration is Dogfood.)
 // ---------------------------------------------------------------------------
 
-phase('Verify')
+phase('Test')
 const verify = await agent(
   `Validate the change end to end. ${NON_INTERACTIVE}\n\n` +
   `1. Run the project's automated checks (test suite, build, lint as applicable) and report pass/fail with any failing output.\n` +
@@ -594,14 +579,14 @@ const verify = await agent(
   `   - cli / api / library: run the affected automated/integration tests for the changed entrypoint.\n` +
   `3. Fix any failures YOU introduced (root cause, not suppression), then re-run.\n\n` +
   `Return passed, the checks you ran, the surfaces you validated, and notes.`,
-  { label: 'verify', phase: 'Verify', schema: VERIFY_SCHEMA }
+  { label: 'test', phase: 'Test', schema: VERIFY_SCHEMA }
 )
-log(`Verify: ${verify && verify.passed ? 'passed' : 'see notes'} — ${verify ? verify.notes : 'no result'}`)
+log(`Test: ${verify && verify.passed ? 'passed' : 'see notes'} — ${verify ? verify.notes : 'no result'}`)
 
 // ---------------------------------------------------------------------------
-// Phase 10 — Dogfood (ALWAYS). Exercise the product as a real user, adapted to
-// whatever surface exists. Inlines ce-dogfood-beta's diff-scoped auto-fix
-// behavior because that skill is disable-model-invocation.
+// Dogfood (ALWAYS, ce-dogfood-beta behavior). Exercise the product as a real
+// user, adapted to whatever surface exists. Inlines ce-dogfood-beta's
+// diff-scoped auto-fix behavior because that skill is disable-model-invocation.
 // ---------------------------------------------------------------------------
 
 phase('Dogfood')
@@ -619,76 +604,76 @@ const dogfood = await agent(
 log(`Dogfood: ${dogfood ? `${(dogfood.issuesFound || []).length} issue(s), ${(dogfood.fixed || []).length} fixed` : 'no result'}`)
 
 // ---------------------------------------------------------------------------
-// Phase 11 — Ship. Commit, push, open PR (+ demo reel for observable changes),
-// then MONITOR CI and fix root causes until green.
+// Commit & PR (ce-commit-push-pr). Commit, push, open PR (+ ce-demo-reel for
+// observable changes), then MONITOR CI and fix root causes until green.
 // ---------------------------------------------------------------------------
 
-phase('Ship')
+phase('Commit & PR')
 let ship = null
 let ci = { green: null, repaired: null }
 let ciNeededRepair = false
 let ciAttempts = 0
 if (DRY_RUN) {
-  log('DRY RUN — skipping Ship (no commit, PR, or CI). Changes remain in the working tree for inspection.')
+  log('DRY RUN — skipping Commit & PR (no commit, PR, or CI). Changes remain in the working tree for inspection.')
 } else {
-const residualForPr = (fix.residual || [])
-  .concat((dogfood && dogfood.residual) || [])
-  .concat(verify && verify.passed ? [] : [{ title: 'Local verification did not fully pass', reason: (verify && verify.notes) || 'see Verify phase' }])
-const observable = surfaces.some(s => s === 'web-ui' || s === 'cli' || s === 'ios')
-ship = await agent(
-  `Commit, push, and open a pull request for this work. This repo requires a feature branch and a PR — NEVER push to main directly. Invoke the ce-commit-push-pr skill. ${NON_INTERACTIVE}\n\n` +
-  (observable
-    ? `This change has an observable surface (${surfaceList}) — also invoke the ce-demo-reel skill to capture visual/CLI proof and include its markdown in the PR body.\n\n`
-    : '') +
-  `In the PR body, add a "## Residual Findings" section listing these unresolved items verbatim (omit the section if the list is empty):\n${JSON.stringify(residualForPr, null, 2)}\n\nReturn the PR number, URL, and branch.`,
-  { label: 'ship', phase: 'Ship', schema: SHIP_SCHEMA }
-)
+  const residualForPr = (fix.residual || [])
+    .concat((dogfood && dogfood.residual) || [])
+    .concat(verify && verify.passed ? [] : [{ title: 'Local verification did not fully pass', reason: (verify && verify.notes) || 'see Test phase' }])
+  const observable = surfaces.some(s => s === 'web-ui' || s === 'cli' || s === 'ios')
+  ship = await agent(
+    `Commit, push, and open a pull request for this work. This repo requires a feature branch and a PR — NEVER push to main directly. Invoke the ce-commit-push-pr skill. ${NON_INTERACTIVE}\n\n` +
+    (observable
+      ? `This change has an observable surface (${surfaceList}) — also invoke the ce-demo-reel skill to capture visual/CLI proof and include its markdown in the PR body.\n\n`
+      : '') +
+    `In the PR body, add a "## Residual Findings" section listing these unresolved items verbatim (omit the section if the list is empty):\n${JSON.stringify(residualForPr, null, 2)}\n\nReturn the PR number, URL, and branch.`,
+    { label: 'commit-pr', phase: 'Commit & PR', schema: SHIP_SCHEMA }
+  )
 
-// Monitor CI until green. Keep watching and fixing root causes; stop only if the
-// run is genuinely stuck (two consecutive attempts with no fix possible) or budget
-// is nearly exhausted — then record the failure on the PR. (Workflow's 1000-agent
-// cap is the ultimate backstop against a runaway loop.)
-if (ship && ship.prNumber) {
-  log(`PR #${ship.prNumber} opened: ${ship.prUrl || ''} — monitoring CI until green.`)
-  let green = false
-  let stuck = 0
-  const MAX_CI = budget.total ? 16 : 10
-  while (!green && stuck < 2 && ciAttempts < MAX_CI) {
-    if (budget.total && budget.remaining() < 40000) {
-      log('Budget nearly exhausted — stopping CI monitor and recording state on the PR.')
-      break
+  // Monitor CI until green. Keep watching and fixing root causes; stop only if the
+  // run is genuinely stuck (two consecutive attempts with no fix possible) or budget
+  // is nearly exhausted — then record the failure on the PR. (Workflow's 1000-agent
+  // cap is the ultimate backstop against a runaway loop.)
+  if (ship && ship.prNumber) {
+    log(`PR #${ship.prNumber} opened: ${ship.prUrl || ''} — monitoring CI until green.`)
+    let green = false
+    let stuck = 0
+    const MAX_CI = budget.total ? 16 : 10
+    while (!green && stuck < 2 && ciAttempts < MAX_CI) {
+      if (budget.total && budget.remaining() < 40000) {
+        log('Budget nearly exhausted — stopping CI monitor and recording state on the PR.')
+        break
+      }
+      ciAttempts += 1
+      const attempt = await agent(
+        `Monitor CI for PR #${ship.prNumber} until it resolves: run \`gh pr checks ${ship.prNumber} --watch\`.\n` +
+        `- If every check passes, return { green: true }.\n` +
+        `- If any fail, enumerate them (\`gh pr checks ${ship.prNumber} --json name,state,conclusion,link\`), read each failing run's logs (\`gh run view <run-id> --log-failed\`), fix the ROOT cause in the working tree (never weaken or skip the failing assertion), commit \`fix(ci): <summary>\`, push, and return { green: false, repaired: <one-line summary> }.\n` +
+        `- If you read the logs and there is genuinely NO code fix you can make (infra outage, flaky external dependency), return { green: false, repaired: null }.\n${NON_INTERACTIVE}`,
+        { label: `ci:attempt-${ciAttempts}`, phase: 'Commit & PR', schema: CI_SCHEMA }
+      )
+      ci = attempt || ci
+      green = !!(attempt && attempt.green)
+      if (attempt && attempt.repaired) { ciNeededRepair = true; stuck = 0 }
+      else if (!green) { stuck += 1 }
+      log(green
+        ? `CI green after ${ciAttempts} attempt(s).`
+        : `CI red after attempt ${ciAttempts}${stuck ? ` (no fix possible — stuck ${stuck}/2)` : ' (fix pushed, re-watching)'}.`)
     }
-    ciAttempts += 1
-    const attempt = await agent(
-      `Monitor CI for PR #${ship.prNumber} until it resolves: run \`gh pr checks ${ship.prNumber} --watch\`.\n` +
-      `- If every check passes, return { green: true }.\n` +
-      `- If any fail, enumerate them (\`gh pr checks ${ship.prNumber} --json name,state,conclusion,link\`), read each failing run's logs (\`gh run view <run-id> --log-failed\`), fix the ROOT cause in the working tree (never weaken or skip the failing assertion), commit \`fix(ci): <summary>\`, push, and return { green: false, repaired: <one-line summary> }.\n` +
-      `- If you read the logs and there is genuinely NO code fix you can make (infra outage, flaky external dependency), return { green: false, repaired: null }.\n${NON_INTERACTIVE}`,
-      { label: `ci:attempt-${ciAttempts}`, phase: 'Ship', schema: CI_SCHEMA }
-    )
-    ci = attempt || ci
-    green = !!(attempt && attempt.green)
-    if (attempt && attempt.repaired) { ciNeededRepair = true; stuck = 0 }
-    else if (!green) { stuck += 1 }
-    log(green
-      ? `CI green after ${ciAttempts} attempt(s).`
-      : `CI red after attempt ${ciAttempts}${stuck ? ` (no fix possible — stuck ${stuck}/2)` : ' (fix pushed, re-watching)'}.`)
+    if (!green) {
+      log(`CI not green after ${ciAttempts} attempt(s) — recording the failure on the PR for a human.`)
+      await agent(
+        `CI for PR #${ship.prNumber} is still failing. Append (or replace) a "## CI Failures Unresolved" section in the PR body listing each remaining failing check, a one-line failure summary, and its run/check URL. Use \`gh pr edit ${ship.prNumber} --body-file <tmpfile>\`. Do not loop or retry CI. ${NON_INTERACTIVE}`,
+        { label: 'ci:record-unresolved', phase: 'Commit & PR' }
+      )
+    }
+  } else {
+    log('No PR was opened (ce-commit-push-pr returned no PR number) — skipping CI monitor.')
   }
-  if (!green) {
-    log(`CI not green after ${ciAttempts} attempt(s) — recording the failure on the PR for a human.`)
-    await agent(
-      `CI for PR #${ship.prNumber} is still failing. Append (or replace) a "## CI Failures Unresolved" section in the PR body listing each remaining failing check, a one-line failure summary, and its run/check URL. Use \`gh pr edit ${ship.prNumber} --body-file <tmpfile>\`. Do not loop or retry CI. ${NON_INTERACTIVE}`,
-      { label: 'ci:record-unresolved', phase: 'Ship' }
-    )
-  }
-} else {
-  log('No PR was opened (ce-commit-push-pr returned no PR number) — skipping CI monitor.')
-}
 }
 
 // ---------------------------------------------------------------------------
-// Phase 12 — Compound (compound OUT). Only when something non-obvious happened,
-// so the knowledge base the next Recall reads stays signal-dense.
+// Compound (compound OUT, ce-compound). Only when something non-obvious
+// happened, so the knowledge base the next Research reads stays signal-dense.
 // ---------------------------------------------------------------------------
 
 phase('Compound')
@@ -701,11 +686,11 @@ if (DRY_RUN) {
   log('DRY RUN — skipping Compound (no docs/solutions write).')
 } else if (worthCompounding) {
   compound = await agent(
-    `Invoke the ce-compound skill with mode:headless to capture the durable learning from this task into docs/solutions/. Focus on what was NON-OBVIOUS: the approach chosen and why, any gotcha hit during build, review, simplify, verify, dogfood, or CI, and how it connects to the learnings surfaced in recall. ${NON_INTERACTIVE}\n\n` +
+    `Invoke the ce-compound skill with mode:headless to capture the durable learning from this task into docs/solutions/. Focus on what was NON-OBVIOUS: the approach chosen and why, any gotcha hit during work, review, simplify, test, dogfood, or CI, and how it connects to the learnings surfaced in research. ${NON_INTERACTIVE}\n\n` +
     `Task:\n${task}\n` +
     (riffrecFeedback ? `Riffrec-reported feedback that seeded this work:\n${riffrecFeedback}\n` : '') +
     `Direction taken:\n${JSON.stringify(direction)}\n` +
-    `Plan concerns:\n${JSON.stringify(planConcerns)}\n` +
+    `Doc Review concerns:\n${JSON.stringify(planConcerns)}\n` +
     `Dogfood issues:\n${JSON.stringify(dogfood ? dogfood.issuesFound || [] : [])}\n` +
     `Residual findings:\n${JSON.stringify(fix.residual || [])}\n` +
     `CI needed repair: ${ciNeededRepair}\n\n` +
@@ -725,11 +710,11 @@ return {
   task,
   dryRun: DRY_RUN,
   riffrec: riffrec && riffrec.found ? { path: riffrec.path } : null,
-  recallSources: recall.length,
+  researchSources: research.length,
   direction: direction && (direction.winner || direction.direction),
   planPath,
-  planConcerns: planConcerns.length,
-  build: build.summary,
+  docReviewConcerns: planConcerns.length,
+  work: build.summary,
   surfaces,
   rawFindings: rawFindings.length,
   confirmedFindings: confirmed.length,
@@ -737,7 +722,7 @@ return {
   deferredNits: deferredNits.length,
   residual: fix.residual || [],
   simplified: simplify ? (simplify.applied || []).length : 0,
-  verifyPassed: !!(verify && verify.passed),
+  testPassed: !!(verify && verify.passed),
   dogfood: dogfood ? { issues: dogfoodIssues, fixed: (dogfood.fixed || []).length } : null,
   pr: ship ? { number: ship.prNumber, url: ship.prUrl, branch: ship.branch } : null,
   ciGreen: ci.green,
