@@ -4,7 +4,7 @@ type: feat
 origin: docs/brainstorms/2026-05-28-ce-deep-review-requirements.md
 supersedes: docs/plans/2026-05-28-003-feat-ce-deep-review-skill-plan.md
 status: active
-title: ce-deep-review — residual plan after Phase 0/1 landed + first dogfood run (v4)
+title: ce-deep-review — residual plan after Phase 0/1 landed; OD-4 resolved (dogfood #2) (v4)
 ---
 
 # feat: ce-deep-review skill (v4 — reconciled to committed reality)
@@ -22,13 +22,14 @@ title: ce-deep-review — residual plan after Phase 0/1 landed + first dogfood r
 > 1. **`## Current State` added** — what is actually committed, with the as-built facts that differ
 >    from the v3 unit specs (env-detect detects codex+gemini, not grok/agy/stub; arms.py already has
 >    the agy arm; the drift *test* exists but the CI *step* does not).
-> 2. **NEW P0 (OD-4) — the turnkey premise is broken under default auto-mode.** The first dogfood
->    run was hard-blocked: Claude Code's auto-mode permission classifier rejected the
->    `panel-critique.sh` dispatch as Data Exfiltration **even after the in-skill consent gate
->    granted consent**. The run only completed because the user ran the command manually via `!`.
->    U5's "turnkey, removes the terminal hop" mechanism does not hold under the default harness
->    posture — the binding friction is the harness egress gate, not the terminal hop. This is the
->    most important finding and gates how (and whether) the rest proceeds. See OD-4.
+> 2. **OD-4 (egress classifier) — RAISED in dogfood #1, RESOLVED in dogfood #2.** Dogfood #1 was
+>    hard-blocked: Claude Code's auto-mode classifier rejected the `panel-critique.sh` dispatch as
+>    Data Exfiltration because the in-skill gate's bare option labels were not legible as egress
+>    authorization; it only ran via `!`. The fix — verb-carrying consent labels (`Send the plan to
+>    <vendor>`) — shipped in `766c730c`. **Dogfood #2 (2026-05-29, on this v4 doc) confirmed it: the
+>    in-skill gate cleared the classifier with NO `!`-handoff.** The turnkey premise holds for the
+>    interactive path. See OD-4 for the residual caveats (single data point; headless/settings path
+>    still untested).
 > 3. **macOS-only agy floor folded into U8** — `arms.py agy_sandbox_prefix()` returns `([], None)`
 >    off-darwin, so R5's read-only floor is unenforced for non-macOS teammates; the dispatcher must
 >    platform-gate agy off macOS.
@@ -38,18 +39,20 @@ title: ce-deep-review — residual plan after Phase 0/1 landed + first dogfood r
 >    bump that fixes the 0.2.8 headless relay-auth bug, not pending the dogfood proceed-decision.
 >
 > Unchanged v3 content (Actors, Key Flows F1–F5, full Alternatives, Scope Boundaries) remains valid
-> — see v3 for that detail rather than re-reading it here; v4 carries only what moved.
+> — see v3 for that detail rather than re-reading it here; v4 carries only what moved. **Naming
+> caveat:** v3 refers to the skill as `ce-deep-review`; the committed artifact is
+> `ce-deep-review-beta` — substitute it throughout when reading v3's flows.
 
 ## Summary
 
 `ce-deep-review-beta` orchestrates the 3-pass high-stakes-plan review recipe: `ce-doc-review`
 headless (pass 1, Claude panel) → a single consent gate → a bundled cross-model harness (pass 2) →
 [Phase 3] per-finding verification → a reconciled sidecar. **The thin slice (pass 1 + consent +
-raw unverified records) is shipped and was dogfooded once.** That run revealed that the turnkey
-dispatch is blocked by the harness's egress classifier under default auto-mode — so before building
-the verification layer (Phases 3–4) the plan must resolve **how** the cross-model dispatch is
-allowed to run (OD-4), or the "removes the terminal hop" premise the whole investment rests on does
-not hold.
+raw unverified records) is shipped and has been dogfooded twice.** Dogfood #1 surfaced an egress-
+classifier block (OD-4); the legibility fix shipped and **dogfood #2 (2026-05-29) confirmed the
+in-skill gate now clears the classifier with no `!`-handoff** — the "removes the terminal hop"
+premise holds for the interactive path. Residual: the durable `permissions.allow`/headless path is
+still untested, and the verification layer (Phases 3–4) remains to build.
 
 ---
 
@@ -97,54 +100,64 @@ not hold.
   and risk-table mitigation overstate it. **Correction, not new work:** treat the bun test as the
   drift gate; drop the phantom CI-step claim (or add the step if a stronger gate is wanted — RU6).
 
-**First dogfood run (2026-05-28).** This plan (v3) was reviewed by the skill. Pass 1 (7-persona
-Claude panel) + Pass 2 (codex + gemini, 6 lenses, all `ok`, coverage full). Draft sidecar:
+**Dogfood run #1 (2026-05-28).** This plan's predecessor (v3) was reviewed by the skill. Pass 1
+(7-persona Claude panel) + Pass 2 (codex + gemini, 6 lenses, all `ok`, coverage full). Draft sidecar:
 `docs/plans/2026-05-28-003-…-skill-plan.md.deep-review-draft.md`. **The dispatch was hard-blocked by
 the auto-mode classifier and only ran when the user invoked it via `!`** (see OD-4).
+
+**Dogfood run #2 (2026-05-29).** This v4 plan was reviewed by the skill in a fresh session after the
+`766c730c` legibility fix. Pass 1 (6-persona panel) + Pass 2 (codex + gemini, 6 lenses, all `ok`,
+coverage full). Draft sidecar: `docs/plans/2026-05-28-004-…-skill-plan.md.deep-review-draft.md`.
+**The dispatch cleared the auto-mode classifier with NO `!`-handoff** — first end-to-end in-skill
+confirmation of the OD-4 fix. The panel's headline: this plan was itself stale (OD-4/RU1 written as
+open though `766c730c` had already shipped them); this v4 revision folds that in.
 
 ---
 
 ## Open Decisions (resolve before Phase 3 build)
 
-### OD-4 — The turnkey dispatch is blocked by the harness egress classifier. **OPEN — load-bearing.**
+### OD-4 — Egress-classifier block. **RESOLVED (dogfood #2, 2026-05-29).**
 
-The dogfood run proved the failure mode: with consent granted at the in-skill gate, the orchestrating
+Dogfood #1 proved the failure mode: with consent granted at the in-skill gate, the orchestrating
 agent's `bash …/panel-critique.sh --models codex,gemini <plan>` call was **denied by Claude Code's
 auto-mode permission classifier** as "Data Exfiltration … not cleared by the consent-gate
-authorization," regardless of the `allowed-tools: Bash(bash *panel-critique.sh)` declaration. The
+authorization," regardless of the `allowed-tools: Bash(bash *panel-critique.sh)` declaration. That
 run completed only because the user re-issued the command via the `!` prefix (an explicit human
 action the classifier permits).
 
-Consequence: the skill's central premise — *remove the terminal hop so the deep review actually gets
-run* — does **not** hold under the default harness posture. The user is back to running a bash
-command in the terminal; the skill saved the typing, not the hop. OD-1's friction signal is
-confounded by this: a non-adopter in the dogfood window may be blocked by the egress gate, not by
-the friction the gate was meant to test.
+**Root cause (dogfood #1):** the in-skill gate's bare option labels (`codex (OpenAI)`) returned to
+the classifier as a model *selection*, not as authorization to egress — so the classifier saw no
+in-conversation consent to send plan content out. **Fix (`766c730c`):** option labels now carry the
+egress verb + vendor (`Send the plan to codex (OpenAI)`), making the recorded consent legible.
+**Dogfood #2 confirmed it:** the in-skill gate cleared the classifier and ran Pass 2 (codex+gemini,
+12/12 cells `ok`) with no `!`-handoff. The "remove the terminal hop" premise holds for the
+interactive path.
 
-Options (pick before investing in Phases 3–4):
-- **(a)** Document the requirement: the skill needs a pre-approved Bash permission rule
-  (`Bash(bash *panel-critique.sh)`) in the user's settings, OR the user runs the dispatch via `!`.
-  Re-frame the value prop as "one-time permission grant, then turnkey" rather than "turnkey for
-  free." Cheapest; honest; but weakens the friction claim.
-- **(b)** Investigate whether an explicit user `allow` rule for the exact resolved command bypasses
-  the auto-mode *classifier* (distinct from `allowed-tools`, which the run showed is insufficient).
-  If a settings `permissions.allow` entry clears it, the onboarding doc ships that rule and the hop
-  is genuinely removed after setup. **Test this before deciding.**
-- **(c)** Accept the harness boundary and adopt the v3-rejected "emit the exact command for the user
-  to run" probe as the *actual* shape — the agent prepares and the human executes. This is the
-  honest turnkey ceiling under default auto-mode and makes the human-in-the-egress-loop a feature,
-  not a regression (security-lens + gemini-adversarial both argued the human-in-loop boundary was
-  undervalued).
+Chosen path (the b-legible mechanism, shipped in `766c730c`): make the in-conversation consent
+legible to the classifier via verb-carrying labels. The v3 options (a) `!`/permission-rule and (c)
+emit-command survive only as the documented fallback ladder when the gate is blocked.
 
-This decision also feeds OD-1: the dogfood debrief must now distinguish *three* causes of non-use —
-terminal-hop friction, unverified-output distrust, **and the egress-gate block** — or it will
-misattribute (b)-style blocks as friction.
+Residual sub-questions (do NOT block Phases 3–4):
+- **Headless/unattended path untested.** Dogfood #2 confirmed the *interactive* gate only. Whether a
+  durable `permissions.allow` rule clears the classifier for headless runs (no interactive consent
+  turn) is still open — onboarding flags that rule as UNTESTED for headless.
+- **Single data point.** The mechanism (verb-carrying labels vs this session's permission posture)
+  was not fully isolated; a second independent fresh-session run would harden the conclusion.
+- **Defense-in-depth tradeoff (security-lens).** If the headless `permissions.allow` path is adopted
+  it is session-permanent, making the in-skill consent gate the *sole* egress boundary — the
+  onboarding rule must require the gate stay non-suppressible.
+
+OD-1 impact: with the egress block resolved on the interactive path, the dogfood debrief's three-way
+attribution (terminal-hop friction / unverified-output distrust / egress-gate block) no longer has a
+live egress-block confound there — but the debrief should still record egress-block as a possible
+cause for headless users until that path is tested.
 
 ### OD-1, OD-2, OD-3 — carried from v3 (unchanged).
 
 Gate-measurement design, thin-slice probe shape, and grok `-p` retention remain as decided in v3.
-**Caveat added:** the first dogfood data point (this run) is single-author and was egress-blocked,
-so it counts toward OD-1's signal only with the OD-4 confound noted.
+**Caveat:** the dogfood data is single-author and n=2 — dogfood #1 was egress-blocked (now
+resolved), dogfood #2 cleared. OD-1's friction signal still needs ≥2 distinct devs and a clean run
+before it counts, but the egress-block confound is removed for the interactive path.
 
 ---
 
@@ -153,21 +166,20 @@ so it counts toward OD-1's signal only with the OD-4 confound noted.
 Renumbered RU1–RU6; each maps to its v3 ancestor. grok work (v3 U1/U7) is out of the sequence —
 gated on a grok version bump, not the dogfood gate.
 
-### RU1. Resolve OD-4 + harden the dispatch path  *(NEW — from the dogfood run)*
-- **Goal:** Decide OD-4 (a/b/c) and make the cross-model dispatch actually runnable as documented.
-- **Dependencies:** none (do first — it gates whether Phases 3–4 pay back).
-- **Approach:** Test option (b) empirically — add a `permissions.allow` rule for the exact resolved
-  `panel-critique.sh` invocation and confirm whether the auto-mode classifier still blocks. Record
-  the result. Update `SKILL.md` Phase 3 + `arm-invocation.md` + the onboarding doc with the chosen
-  path (permission rule, `!`-handoff, or emit-command). Add a `references` note on the egress-gate
-  behavior so future implementers don't assume `allowed-tools` is sufficient.
-- **Files:** `SKILL.md` (modify), `references/arm-invocation.md` (modify),
-  `docs/skills/ce-deep-review-onboarding.md` (new/modify), contract test (assert the documented path).
-- **Verification:** a fresh run reaches Pass 2 dispatch without manual `!` (option b), or the
-  documented handoff is exercised (a/c). The dogfood debrief template separates egress-block from
-  friction.
+### RU1. Resolve OD-4 + harden the dispatch path  *(DONE — `766c730c`; gate met by dogfood #2)*
+- **Goal:** Make the cross-model dispatch runnable as documented under default auto-mode. ✔
+- **What landed (`766c730c`):** verb-carrying consent labels (`Send the plan to <vendor>`) + an
+  "Egress-gate legibility" section in `consent-gate.md`; the "If the dispatch is blocked" fallback
+  ladder in `SKILL.md` Phase 3 + `arm-invocation.md`; the onboarding doc's "Egress permission"
+  section (headless `permissions.allow` flagged UNTESTED); the contract-test assertions; decision
+  record `docs/solutions/skill-design/2026-05-28-od4-egress-classifier-consent-scope.md`.
+- **Verification:** ✔ **met by dogfood #2 (2026-05-29)** — a fresh-session `/ce-deep-review-beta`
+  reached Pass 2 (codex + gemini, 12/12 cells `ok`) with no manual `!`.
+- **Residual (small, non-blocking):** confirm the durable `permissions.allow`/headless path clears
+  the classifier for unattended runs; keep the dogfood debrief logging egress-block for the headless
+  case.
 
-### RU2. Migrate gemini→agy in the panel runner + wire agy detection + platform-gate  *(v3 U8 — re-scoped: arms.py agy arm is already done)*
+### RU2. Migrate gemini→agy in the panel runner + wire agy detection + platform-gate  *(v3 U8 — re-scoped: arms.py agy arm is already done; the genuinely-new work is the **macOS-only platform-gate** — agy's read-only floor is seatbelt-based, so it is unenforced off-darwin and agy must be withheld there)*
 - **Goal:** Make agy the default non-codex arm and enforce its floor only where it exists.
 - **Dependencies:** RU1 (a runnable dispatch).
 - **Approach:** In `scripts/eval/cross_model_review/panel-critique.sh`, swap `gemini`→`agy` in the
@@ -178,7 +190,10 @@ gated on a grok version bump, not the dogfood gate.
   `agy_sandbox_prefix()` returns `([], None)` off-mac, so offering agy there violates R5). When agy
   joins the skill dispatch, pass the plan's real repo root for the deny-write floor (`git -C
   <plan-dir> rev-parse --show-toplevel`), NOT arms.py's own location (see `arm-invocation.md`
-  Phase-2 TODO). Re-bundle (`bundle-harness.sh`); the drift test must stay green.
+  Phase-2 TODO). **Defense-in-depth (security panel):** also hard-guard `arms.py` itself to refuse
+  the `agy` arm when `sys.platform != "darwin"` (raise, don't silently return no sandbox), so a
+  direct `arms.py run-arm … agy` invocation can't bypass the env-detect gate and run unfloored.
+  Re-bundle (`bundle-harness.sh`); the drift test must stay green.
 - **Files:** `scripts/eval/cross_model_review/panel-critique.sh`, skill `scripts/env-detect.sh`,
   skill `scripts/arms.py` (REPO_DIR plumbing for the installed-skill case), `tests/cross-model-review-driver.test.ts`.
 - **Verification:** `env-detect.sh` reports agy on macOS-authed, `unavailable` off-mac; a 1-model
@@ -206,6 +221,10 @@ gated on a grok version bump, not the dogfood gate.
   `.github/` step running `bundle-harness.sh` + failing on a tree change if a stronger gate is wanted.
 - Brainstorm corrections from U2 are confirmed available: agy auth = `~/.gemini/oauth_creds.json` +
   `refresh_token` (not `AV_API_KEY`); grok retention per OD-3.
+- **Split recommendation (scope panel):** RU6 bundles items with different prerequisites — the
+  doc-only cleanup (drift-gate note, brainstorm corrections, OD-4 path assertion) can ship right
+  after RU2, while verifier-rate measurement + final docs gate on RU4 runtime data. Treat as **RU6a**
+  (doc cleanup, no RU4 dep) and **RU6b** (verifier rates + full contract test + final docs).
 
 ---
 
@@ -213,11 +232,11 @@ gated on a grok version bump, not the dogfood gate.
 
 | Risk | Likelihood | Impact | Mitigation |
 |---|---|---|---|
-| **Turnkey dispatch blocked by harness egress classifier (auto-mode)** | **Confirmed (this run)** | **High** | **OD-4** — test the permission-rule bypass (b); else document the `!`/permission requirement (a) or adopt emit-command (c). The "removes the hop" premise depends on this. |
+| Turnkey dispatch blocked by harness egress classifier (auto-mode) | Resolved (dogfood #2) | High | OD-4 RESOLVED — verb-carrying consent labels (`766c730c`) make egress legible to the classifier; dogfood #2 cleared with no `!`. Residual: headless/`permissions.allow` path untested. |
 | agy floor unenforced off macOS | High (any non-mac dev) | High | RU2 platform-gates agy to `unavailable` off-darwin; the gate never offers an unfloored arm. |
-| Dogfood signal confounded by the egress block | Medium | Medium | Debrief separates egress-block from friction + unverified-output toil (RU1). |
+| Dogfood signal confounded by the egress block | Low (interactive) | Medium | Egress block resolved (dogfood #2); debrief still separates friction from unverified-output toil (RU1). Confound persists only for headless until that path is tested. |
 | Bundled harness drift | Low | Low | Caught by the committed bun equality test. (v3's CI-step claim was phantom — RU6 cleans it up; the test already protects.) |
-| grok unavailable for v1 | Confirmed | Low | Dropped per U1; re-test on a version bump via `grok-smoke.sh`. v1 ships codex + agy. |
+| grok unavailable for v1 | Confirmed | Low | Dropped per U1; re-test on a version bump via `grok-smoke.sh`. v1 currently ships **codex + gemini**; agy is the post-cutoff replacement, gated on RU2 landing before 2026-06-18. |
 | Gemini HTTP-410 cutoff 2026-06-18 | High | Medium | RU2 keeps gemini selectable until cutoff; agy is the post-cutoff default. Calendar fallback unchanged. |
 | Verifier rate measurement exceeds 5% | Medium | Medium | v3 fallback tags (beta stays beta; usable with NEEDS-HUMAN default). |
 
@@ -229,10 +248,9 @@ leak, naming drift) are mitigated by shipped Phase-1 code + tests; see v3 for de
 ## Phased Delivery (residual)
 
 - **Phase 0, Phase 1 — DONE** (see Current State).
-- **Phase 2a — OD-4 + dispatch hardening (RU1).** PR: decision record + dispatch path + onboarding +
-  contract assertion. **Gate: a deep review reaches Pass 2 without a manual `!` (option b), or the
-  documented handoff is exercised.** This precedes the dogfood gate's *interpretation* — without it,
-  the friction signal is confounded.
+- **Phase 2a — OD-4 + dispatch hardening (RU1). DONE** (`766c730c`). **Gate met by dogfood #2:** a
+  fresh-session deep review reached Pass 2 with no manual `!`. Residual: confirm the
+  headless/`permissions.allow` path.
 - **Phase 2b — Harness extension (RU2, RU3).** PR: gemini→agy swap + env-detect wiring + platform-gate
   + full `--models`/parallelism. Gate: `bun test cross-model-review-*` + drift green; agy live smoke
   on macOS; agy `unavailable` off-mac.
@@ -241,19 +259,25 @@ leak, naming drift) are mitigated by shipped Phase-1 code + tests; see v3 for de
 - **Phase 4 — Validation & promotion (RU6).** Gate: verifier rates ≤5% each + adequate agy
   representation; full contract test; README counts; drift-gate note corrected; brainstorm corrected.
 
-**Dogfood gate (OD-1) still applies** between Phase 2a and the Phase 3 build — but it must now be read
-through OD-4 (the first data point was egress-blocked). Do not greenlight Phase 3 on a signal that
-was actually measuring the egress gate.
+**Dogfood gate (OD-1) still applies** between Phase 2a and the Phase 3 build. With OD-4 resolved on
+the interactive path, the signal is no longer confounded by the egress block there — but it remains
+single-author (n=2) and needs ≥2 distinct devs plus a clean adoption signal before greenlighting
+Phase 3.
 
 ---
 
 ## Outstanding Questions
 
 ### Resolve before Phase 3 build
-- **OD-4** — how the cross-model dispatch is permitted to run under the harness (test option b first).
+- **OD-4 — RESOLVED** (dogfood #2): the legible in-skill consent gate clears the classifier on the
+  interactive path. Open sub-question: does a durable `permissions.allow` rule clear it for
+  headless/unattended runs?
 
 ### Deferred to implementation (carried from v3, still open)
 - agy `-p` arg-length cap on ≥200 KB plans (moot for stdin path; verify for `--add-dir`).
 - RU2 REPO_DIR plumbing for the installed-skill case (plan's repo, not arms.py's location).
 - Group cross-model findings by lens vs arm (recommend by-lens).
 - U12 corpus construction; agy-voiced sampling + synthetic fallback; min-sample = 5 agy items.
+- `.gitignore` for sidecars (RU5 currently says "DO NOT modify `.gitignore`"): the security panel
+  flagged accidental-commit risk for untracked `*.deep-review-draft.md`. Decide: ignore the draft
+  vs. intentional sidecar-sharing.
