@@ -60,6 +60,22 @@ describe("RU5 reconcile rotate: keep-N, data-loss-safe", () => {
 		expect(res.pruned.length).toBe(1);
 	});
 
+	test("same-stamp re-runs never overwrite a prior rotation (collision-safe)", async () => {
+		// Two rotations in the same second (or an explicit duplicate --now) must not clobber the
+		// earlier snapshot via os.rename -- that would silently lose a backup before pruning runs.
+		const d = scratch();
+		const base = join(d, "plan.md.deep-review.md");
+		writeFileSync(base, "FIRST");
+		const r1 = JSON.parse((await py(["rotate", base, "--now", "2026-05-29T030000Z", "--keep", "5"])).stdout);
+		expect(r1.rotated).toBe(join(d, "plan.md.deep-review.2026-05-29T030000Z.md"));
+		writeFileSync(base, "SECOND"); // a fresh verified sidecar, rotated again in the same second
+		const r2 = JSON.parse((await py(["rotate", base, "--now", "2026-05-29T030000Z", "--keep", "5"])).stdout);
+		expect(r2.rotated).toBe(join(d, "plan.md.deep-review.2026-05-29T030000Z-1.md")); // disambiguated
+		// both snapshots survive with their distinct content
+		expect(readFileSync(join(d, "plan.md.deep-review.2026-05-29T030000Z.md"), "utf8")).toBe("FIRST");
+		expect(readFileSync(join(d, "plan.md.deep-review.2026-05-29T030000Z-1.md"), "utf8")).toBe("SECOND");
+	});
+
 	test("refuses a path that is not a .deep-review.md sidecar", async () => {
 		const d = scratch();
 		const { exitCode, stderr } = await py(["rotate", join(d, "plan.md"), "--now", "2026-05-29T030000Z"]);

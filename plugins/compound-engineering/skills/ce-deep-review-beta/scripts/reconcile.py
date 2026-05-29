@@ -50,7 +50,15 @@ def rotate(sidecar_path, now=None, keep=5):
 
     rotated = None
     if os.path.exists(sidecar_path):
+        # Collision-safe: a re-run within the same second (or an explicit duplicate --now) yields the
+        # same stamp. Never os.rename over an existing rotation -- that would silently drop a prior
+        # snapshot before pruning runs, violating the data-loss-safe contract. Disambiguate with a
+        # numeric suffix; "<stamp>-1" sorts after "<stamp>" so keep-N (newest-first) ordering holds.
         rotated = f"{prefix}.{stamp}.md"
+        n = 1
+        while os.path.exists(rotated):
+            rotated = f"{prefix}.{stamp}-{n}.md"
+            n += 1
         os.rename(sidecar_path, rotated)
 
     # Rotation files only: "<plan>.deep-review.<infix>.md". The glob's required "." after the prefix

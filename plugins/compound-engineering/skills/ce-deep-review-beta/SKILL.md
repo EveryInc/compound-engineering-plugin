@@ -3,7 +3,7 @@ name: ce-deep-review-beta
 description: "[BETA] Deep cross-model review of a high-stakes plan: runs the Claude ce-doc-review panel, then (with consent) fans the plan across non-Claude reviewer CLIs, verdict-tags their decorrelated findings against the plan with a deterministic quote-grep backstop (CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN), and writes a reconciled verified .deep-review.md sidecar."
 disable-model-invocation: true
 argument-hint: "[path/to/plan.md]"
-allowed-tools: Bash(bash *env-detect.sh), Bash(bash *gitleaks-scan.sh), Bash(bash *panel-critique.sh)
+allowed-tools: Bash(bash *env-detect.sh*), Bash(bash *gitleaks-scan.sh*), Bash(bash *panel-critique.sh*), Bash(python3 *verify-findings.py*), Bash(python3 *reconcile.py*)
 ---
 
 # Deep Review (beta)
