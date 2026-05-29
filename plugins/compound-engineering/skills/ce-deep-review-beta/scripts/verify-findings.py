@@ -42,8 +42,9 @@ _QUOTE_PATTERNS = [
 
 
 def normalize(s):
-    """Lowercase, fold smart punctuation to ASCII, collapse whitespace. Used for both doc and quote
-    so format-only differences (smart quotes, em-dashes, wrapping) do not cause false NOT-FOUND."""
+    """Lowercase, fold smart punctuation to ASCII, strip markdown emphasis, collapse whitespace. Used
+    for both doc and quote so format-only differences (smart quotes, em-dashes, *emphasis*, wrapping)
+    do not cause false NOT-FOUND."""
     if not s:
         return ""
     s = unicodedata.normalize("NFKC", s)
@@ -53,6 +54,13 @@ def normalize(s):
         "–": "-", "—": "-", "−": "-", " ": " ",
     }
     s = s.translate(str.maketrans(trans))
+    # Strip markdown emphasis markers (*italic*, **bold**, _italic_, __bold__): a model quotes the
+    # emphasized text WITHOUT the markers, so a doc "the order *is* the container" must still match a
+    # finding that quotes "the order is the container". The markers carry no content inside a prose
+    # quote. Safe against snake_case false-merges: removal inserts no space, so "market_id" ->
+    # "marketid" only collapses to a match when BOTH doc and quote carry the underscore (a true verbatim
+    # quote); a spaced paraphrase "market id" keeps its space and still will not match "marketid".
+    s = s.replace("*", "").replace("_", "")
     s = s.lower()
     s = re.sub(r"\s+", " ", s)
     return s.strip()

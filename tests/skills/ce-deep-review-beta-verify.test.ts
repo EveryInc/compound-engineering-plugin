@@ -61,6 +61,18 @@ describe("RU4 verify-findings: verify-one verdicts", () => {
 		const { out } = await py(["verify-one", doc, 'The doc: “remove   the terminal   hop”.']);
 		expect(out.verdict).toBe("CONFIRMED");
 	});
+
+	test("normalization: markdown emphasis in the doc still matches an unemphasized verbatim quote", async () => {
+		// A real-run artifact: a finding quotes a phrase the doc wrote with *italic* / **bold** markers.
+		// The emphasis carries no content, so the verbatim quote must still CONFIRM (not false NOT-FOUND).
+		const emph = docFile("# Plan\n\nThe decision: the order *is* the container — no **freeform projects**.");
+		const { out: star } = await py(["verify-one", emph, 'It quotes "the order is the container" verbatim.']);
+		expect(star.verdict).toBe("CONFIRMED");
+		// underscore emphasis (_italic_) folds symmetrically
+		const us = docFile("# Plan\n\nThe rule: _no freeform client projects_ exist in this system.");
+		const { out: under } = await py(["verify-one", us, 'The doc states "no freeform client projects" plainly.']);
+		expect(under.verdict).toBe("CONFIRMED");
+	});
 });
 
 describe("RU4 verify-findings: verify-records is blind to the producing model + aggregates", () => {
