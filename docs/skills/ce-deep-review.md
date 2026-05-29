@@ -30,9 +30,9 @@ migrations, credentials, privacy, data cutover), not routine ones.
 | Arm | Status |
 |-----|--------|
 | **codex** (OpenAI) | available |
-| **agy** (Antigravity) | available — **default non-codex arm**; macOS-only (its read-only floor is a seatbelt) |
-| **gemini** (Google) | selectable until its 2026-06-18 HTTP-410 cutoff |
+| **agy** (Antigravity) | available — the non-codex arm; macOS-only (its read-only floor is a seatbelt) |
 | **grok** (xAI) | deferred — blocked by a grok 0.2.8 headless relay-auth bug |
+| **gemini** (Google) | retired from the skill (410s 2026-06-18); arm retained only in the cross-model eval |
 
 You need at least one arm installed + authenticated. With none, the skill runs the Claude panel and
 writes a `*.panel-review.md` (it refuses to be quiet, not to run).

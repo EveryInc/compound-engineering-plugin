@@ -10,11 +10,11 @@ the plan (never filter records post-hoc — the document would already have been
 bash "${CLAUDE_SKILL_DIR}/scripts/panel-critique.sh" --models <subset> "<plan-path>"
 ```
 
-- `<subset>` is the comma-separated list from the consent gate (e.g. `codex,gemini`).
+- `<subset>` is the comma-separated list from the consent gate (e.g. `codex,agy`).
 - The bundled `panel-critique.sh` runs each selected model across the six lenses (coherence,
   feasibility, security, scope, product, adversarial) via `python3 arms.py run-arm`, writing one
   record per (model, lens). Records land at `${CMRE_OUT_DIR:-/tmp/cmre-panel}/records/<cli>__<lens>.json`.
-- Set `CMRE_TIMEOUT` (seconds, per (model, lens)) if the default is too tight; agy/gemini can be slow.
+- Set `CMRE_TIMEOUT` (seconds, per (model, lens)) if the default is too tight; agy can be slow.
 
 ## If the dispatch is blocked (harness egress classifier)
 
@@ -46,7 +46,7 @@ line per cell:
 
 ```
   [codex   coherence   ] findings=3
-  [gemini  adversarial ] SKIP — gemini not installed
+  [agy     adversarial ] SKIP — agy not installed
 ```
 
 Surface each arm's terminal outcome so the user sees coverage in real time: `ok` / `timeout` /
@@ -72,8 +72,9 @@ reconciled `<plan>.deep-review.md` are added in a later phase.
 
 ## agy arm (RU2 — landed)
 
-The default arm set is now **codex + agy** (gemini stays selectable via `--models codex,gemini`
-until the 2026-06-18 cutoff). agy is **macOS-only**: its read-only floor is a macOS seatbelt, so
+The arm set is **codex + agy** (gemini was retired from the skill — it 410s on 2026-06-18; the
+shared `arms.py` gemini arm remains for the cross-model eval, but the skill no longer offers it).
+agy is **macOS-only**: its read-only floor is a macOS seatbelt, so
 `env-detect.sh` reports agy `unavailable` off-darwin and the gate must not offer it; `arms.py`
 independently refuses the agy arm when the seatbelt prefix is empty (off-darwin or a missing
 template) rather than running it unfloored.

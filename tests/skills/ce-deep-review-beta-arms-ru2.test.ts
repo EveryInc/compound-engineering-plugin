@@ -32,13 +32,13 @@ function unameStubDir(osName: string): string {
 }
 
 describe("RU2 env-detect: agy detection + macOS platform-gate", () => {
-	test("emits an agy key in the JSON record", async () => {
+	test("emits codex + agy keys; gemini was retired from the skill", async () => {
 		const { stdout, exitCode } = await run(["bash", ENV_DETECT]);
 		expect(exitCode).toBe(0);
 		const rec = JSON.parse(stdout);
 		expect(rec).toHaveProperty("agy");
 		expect(rec).toHaveProperty("codex");
-		expect(rec).toHaveProperty("gemini");
+		expect(rec).not.toHaveProperty("gemini");
 	});
 
 	test("off-darwin -> agy is 'unavailable' (platform-gated, never offered)", async () => {
@@ -57,7 +57,7 @@ describe("RU2 env-detect: agy detection + macOS platform-gate", () => {
 
 describe("RU2 panel-critique: default arms + REPO_DIR export", () => {
 	const src = readFileSync(PANEL, "utf8");
-	test("default model loop is codex + agy (gemini selectable, not default)", () => {
+	test("default model loop is codex + agy", () => {
 		expect(src).toMatch(/models="codex agy"/);
 	});
 	test("exports CMRE_REPO_DIR resolved from the plan's repo root", () => {

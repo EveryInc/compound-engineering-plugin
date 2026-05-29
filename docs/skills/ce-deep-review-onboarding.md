@@ -64,7 +64,7 @@ about whether the conversation authorized the egress — the skill's `allowed-to
 **not** sufficient on its own (verified 2026-05-28).
 
 - **Interactive runs (the normal case):** no setup needed. The consent gate's options are phrased
-  as explicit egress authorizations (`Send the plan to gemini (Google)`), which is what the
+  as explicit egress authorizations (`Send the plan to agy (Antigravity)`), which is what the
   classifier reads. Selecting a model and proceeding clears the dispatch. If a run is still blocked,
   the skill restates your consent and retries, then offers to let you re-issue the command via the
   `!` prefix.

@@ -37,12 +37,12 @@ wait for the reply — never skip the gate.
    bash "${CLAUDE_SKILL_DIR}/scripts/env-detect.sh"
    ```
 
-   Parse `{"codex":"ok|unauthed|missing","gemini":...,"agy":"ok|unauthed|missing|unavailable"}`. An
-   arm is **available** only when `ok` (installed + an offline auth signal); `unavailable` means
-   platform-gated off and is never offered. Arms are **codex + agy by default**, with **gemini
-   selectable until its 2026-06-18 HTTP-410 cutoff**. agy is **macOS-only** — its read-only floor is
-   a macOS seatbelt, so env-detect reports it `unavailable` off-darwin and the gate must not offer it
-   (arms.py independently refuses agy off-darwin). grok is deferred (0.2.8 relay-auth bug).
+   Parse `{"codex":"ok|unauthed|missing","agy":"ok|unauthed|missing|unavailable"}`. An arm is
+   **available** only when `ok` (installed + an offline auth signal); `unavailable` means
+   platform-gated off and is never offered. Arms are **codex + agy**. agy is **macOS-only** — its
+   read-only floor is a macOS seatbelt, so env-detect reports it `unavailable` off-darwin and the
+   gate must not offer it (arms.py independently refuses agy off-darwin). grok is deferred (0.2.8
+   relay-auth bug); gemini was retired from the skill (it 410s on 2026-06-18).
 3. **Branch on availability:**
    - **≥1 arm available** → continue to Phase 1.
    - **zero arms available** → run Phase 1 (panel) only, then write a **panel-only** sidecar at
@@ -83,15 +83,14 @@ copy (do not paraphrase them).
 
 2. **Gate question.** Present ONE blocking question whose **stem carries the responsibility
    acknowledgment** (selecting any model confirms it) plus the content preview/notice. **Each
-   option label must carry the egress verb and name the vendor** — `Send the plan to gemini
-   (Google)`, never bare `gemini (Google)`. This is load-bearing: the harness egress classifier in
+   option label must carry the egress verb and name the vendor** — `Send the plan to agy
+   (Antigravity)`, never bare `agy (Antigravity)`. This is load-bearing: the harness egress classifier in
    Phase 3 reads the recorded selection (not this stem) and only treats a verb-carrying choice as
    authorization to send the plan out — see `references/consent-gate.md` → "Egress-gate
    legibility":
    - **≥2 arms available:** a multi-select over the available models, default none. Label each
-     option with the egress verb + vendor: `Send the plan to codex (OpenAI)`,
-     `Send the plan to agy (Antigravity)`, and — pre-cutoff, when still available —
-     `Send the plan to gemini (Google)`. Submitting with ≥1 selected = consent + acknowledgment for
+     option with the egress verb + vendor: `Send the plan to codex (OpenAI)` and
+     `Send the plan to agy (Antigravity)`. Submitting with ≥1 selected = consent + acknowledgment for
      that subset. Submitting with none, or choosing the free-text/Other escape to cancel → see
      routing below.
    - **exactly 1 arm available:** a single-select with two options — `Send the plan to <model>

@@ -181,9 +181,10 @@ gated on a grok version bump, not the dogfood gate.
 
 ### RU2. Migrate gemini→agy in the panel runner + wire agy detection + platform-gate  *(DONE 2026-05-29)*
 - **Goal:** Make agy the default non-codex arm and enforce its floor only where it exists. ✔
-- **Status (DONE):** Default arm set swapped to **codex + agy**; gemini **retained as selectable**
-  via `--models codex,gemini` until the 2026-06-18 cutoff (NOT removed — it is the fallback while
-  agy is the sole new non-codex arm). Landed: `panel-critique.sh` default + `CMRE_REPO_DIR` export;
+- **Status (DONE):** Arm set is now **codex + agy**. gemini was initially retained as a selectable
+  fallback, then **fully removed from the skill** (decision 2026-05-29 — it 410s on 2026-06-18, so
+  shipping it as a fallback that dies in June added no durable value; the shared `arms.py` gemini
+  arm stays for the cross-model eval). Landed: `panel-critique.sh` default + `CMRE_REPO_DIR` export;
   `arms.py` `_repo_root()` honors `CMRE_REPO_DIR` + off-darwin/empty-prefix agy refusal;
   `env-detect.sh` agy detection + macOS platform-gate (`unavailable` off-darwin); SKILL.md +
   consent-gate.md + arm-invocation.md (agy in the gate as `Send the plan to agy (Antigravity)`);
@@ -209,8 +210,9 @@ gated on a grok version bump, not the dogfood gate.
 - **Verification (✔ all passed 2026-05-29):** `env-detect.sh` reports agy `ok` on macOS-authed,
   `unavailable` on simulated Linux; a live 1-model agy run produced records for all 6 lenses via the
   full skill path; `agy-smoke.sh` floor PASS (repo write blocked) + viable under the seatbelt; the
-  arms.py off-mac guard refuses unfloored agy; drift green; full `bun test` 1427 pass; gemini still
-  selectable pre-cutoff.
+  arms.py off-mac guard refuses unfloored agy; drift green; full `bun test` 1427 pass; gemini fully
+  removed from the skill (env-detect emits codex+agy only; gate/SKILL/docs no longer offer it; the
+  eval's gemini arm + tests remain green).
 
 ### RU3. Full `--models` semantics + parallel-across-models  *(v3 U9 — unchanged; minimal guard already shipped)*
 - As v3 U9. Default = all available; fork per-model subshells running six lenses; preserve per-(model,
@@ -248,8 +250,8 @@ gated on a grok version bump, not the dogfood gate.
 | agy floor unenforced off macOS | High (any non-mac dev) | High | RU2 platform-gates agy to `unavailable` off-darwin; the gate never offers an unfloored arm. |
 | Dogfood signal confounded by the egress block | Low (interactive) | Medium | Egress block resolved (dogfood #2); debrief still separates friction from unverified-output toil (RU1). Confound persists only for headless until that path is tested. |
 | Bundled harness drift | Low | Low | Caught by the committed bun equality test. (v3's CI-step claim was phantom — RU6 cleans it up; the test already protects.) |
-| grok unavailable for v1 | Confirmed | Low | Dropped per U1; re-test on a version bump via `grok-smoke.sh`. v1 currently ships **codex + gemini**; agy is the post-cutoff replacement, gated on RU2 landing before 2026-06-18. |
-| Gemini HTTP-410 cutoff 2026-06-18 | High | Medium | RU2 keeps gemini selectable until cutoff; agy is the post-cutoff default. Calendar fallback unchanged. |
+| grok unavailable for v1 | Confirmed | Low | Dropped per U1; re-test on a version bump via `grok-smoke.sh`. v1 ships **codex + agy** (gemini removed from the skill 2026-05-29). |
+| Gemini HTTP-410 cutoff 2026-06-18 | Resolved (skill) | Medium | gemini removed from the skill ahead of the cutoff (RU2 + 2026-05-29 removal); agy is the sole non-codex skill arm. The eval still references gemini and will need its own handling at the cutoff. |
 | Verifier rate measurement exceeds 5% | Medium | Medium | v3 fallback tags (beta stays beta; usable with NEEDS-HUMAN default). |
 
 Carried-forward v3 risks (consent-gate divergence, env-detect credential leak, committed-sidecar
@@ -264,9 +266,9 @@ leak, naming drift) are mitigated by shipped Phase-1 code + tests; see v3 for de
   fresh-session deep review reached Pass 2 with no manual `!`. Residual: confirm the
   headless/`permissions.allow` path.
 - **Phase 2b — Harness extension (RU2, RU3).** **RU2 DONE 2026-05-29** (gemini→agy default swap +
-  env-detect wiring + macOS platform-gate + off-mac arms.py guard + REPO_DIR plumbing; gemini
-  retained selectable until cutoff; agy live smoke on macOS PASS; agy `unavailable` off-mac; drift
-  green). **RU3 pending:** full `--models` semantics + parallel-across-models.
+  env-detect wiring + macOS platform-gate + off-mac arms.py guard + REPO_DIR plumbing; gemini then
+  fully removed from the skill — eval arm retained; agy live smoke on macOS PASS; agy `unavailable`
+  off-mac; drift green). **RU3 pending:** full `--models` semantics + parallel-across-models.
 - **Phase 3 — Verification & reconciliation (RU4, RU5).** Gate: manual end-to-end over F1, F2, F3,
   F4, F4-zero, F5; verified sidecar reclaims `.deep-review.md`.
 - **Phase 4 — Validation & promotion (RU6).** Gate: verifier rates ≤5% each + adequate agy

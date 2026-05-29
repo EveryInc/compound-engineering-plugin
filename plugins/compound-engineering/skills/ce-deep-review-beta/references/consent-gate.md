@@ -46,11 +46,10 @@ This is load-bearing for the harness egress classifier (see "Egress-gate legibil
 cosmetic. Selecting any model == consent.
 
 - **≥2 arms available** → `multiSelect: true` over the available models, labeled
-  `Send the plan to codex (OpenAI)`, `Send the plan to agy (Antigravity)`, and (pre-cutoff)
-  `Send the plan to gemini (Google)`, default none. Each label is self-contained, third-person, and
-  states the egress + target vendor. The free-text/Other escape serves as cancel. Submitting with
-  ≥1 model selected grants consent for that subset; submitting none triggers the one-time re-prompt
-  (then cancel).
+  `Send the plan to codex (OpenAI)` and `Send the plan to agy (Antigravity)`, default none. Each
+  label is self-contained, third-person, and states the egress + target vendor. The free-text/Other
+  escape serves as cancel. Submitting with ≥1 model selected grants consent for that subset;
+  submitting none triggers the one-time re-prompt (then cancel).
 - **exactly 1 arm available** → single-select with two options: `Send the plan to <model> (<Vendor>)`
   and `Cancel — panel-only, no egress`. (A lone toggle cannot be a multi-select; the blocking tool
   needs ≥2 options.)
@@ -61,8 +60,8 @@ cosmetic. Selecting any model == consent.
 Under Claude Code's default auto-mode, an egress dispatch (`bash …/panel-critique.sh`) is screened
 by a permission *classifier* that reasons about **conversation-level consent scope** — it is not
 cleared by `allowed-tools` alone, and it does not read this gate's stem. It reads what the
-conversation records the user *chose*. A bare `gemini (Google)` selection does not register as
-"the user authorized sending the plan to an external vendor"; a `Send the plan to gemini (Google)`
+conversation records the user *chose*. A bare `agy (Antigravity)` selection does not register as
+"the user authorized sending the plan to an external vendor"; a `Send the plan to agy (Antigravity)`
 selection does. The verb-carrying labels exist so the recorded consent is legible to the
 classifier at dispatch time. Empirically (2026-05-28): a top-level authorization phrased this way
 cleared the classifier and ran real egress, while a no-op-framed request was blocked as scope

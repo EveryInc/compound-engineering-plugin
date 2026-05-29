@@ -5,10 +5,10 @@
 # FULL record per (model x lens) for post-hoc judging — nothing is truncated away.
 #
 # Usage:  panel-critique.sh [--models <csv>] <doc.md> [context.md]
-# Default arms = codex + agy (macOS-ONLY; its read-only floor is a seatbelt). gemini stays
-# SELECTABLE via `--models codex,gemini` until the 2026-06-18 HTTP-410 cutoff. Records ->
-# $CMRE_OUT_DIR (default /tmp/cmre-panel/records). Each run SENDS THE DOCUMENT to that vendor
-# (codex -> OpenAI, agy -> Antigravity, gemini -> Google); arms can be slow — raise CMRE_TIMEOUT.
+# Arms = codex + agy. agy is macOS-ONLY (read-only floor is a seatbelt). gemini was retired from
+# the skill (it 410s 2026-06-18); the arms.py gemini arm remains for the cross-model eval. Records
+# -> $CMRE_OUT_DIR (default /tmp/cmre-panel/records). Each run SENDS THE DOCUMENT to that vendor
+# (codex -> OpenAI, agy -> Antigravity); arms can be slow — raise CMRE_TIMEOUT.
 set -u
 
 here="$(cd "$(dirname "$0")" && pwd)"
