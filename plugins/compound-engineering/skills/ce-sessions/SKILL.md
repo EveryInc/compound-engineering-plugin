@@ -80,7 +80,7 @@ Apply these filters in order to pick the sessions worth deep-diving:
 
 1. **Branch filter (Claude Code only).** Keep sessions where `branch == dispatch_branch` exactly, or where the branch name contains a keyword from the question's topic (e.g., a question about "auth middleware" matches branches `feat/auth-fix`, `chore/auth-refactor`). Codex and Pi sessions don't carry `gitBranch` — skip this filter for them.
 
-2. **If the branch filter returned zero sessions, or you're processing Codex sessions:**
+2. **If the branch filter returned zero sessions, or you're processing Codex or Pi sessions:**
    - Derive 2-4 keywords from the question's topic. For "a recent crash in the auth middleware where session-validation rejects valid tokens", derive `auth,middleware,session,token` (or similar).
    - Re-invoke the discovery pipeline with `--keyword K1,K2,...` appended to the `extract-metadata.py` invocation. The script returns sessions with non-zero `match_count` plus per-keyword counts.
    - **If `files_matched: 0`, return "no relevant prior sessions" and stop.** Do not extract anything.
