@@ -1,8 +1,9 @@
 # ce-deep-review (beta)
 
-> **Beta, thin slice.** `ce-deep-review-beta` is invoked explicitly (it does not auto-trigger).
-> At this stage it returns cross-model findings **unverified** — confabulation-checking is still
-> manual. Per-finding verification and a reconciled sidecar arrive in a later phase.
+> **Beta.** `ce-deep-review-beta` is invoked explicitly (it does not auto-trigger). Cross-model
+> findings are **verdict-tagged by a deterministic quote-grep backstop** (CONFIRMED / NOT-FOUND-IN-DOC
+> / NEEDS-HUMAN); NEEDS-HUMAN findings still need your judgment, and the reconciled verified
+> `.deep-review.md` sidecar arrives in a later phase.
 
 ## What it does
 
@@ -14,9 +15,10 @@ Runs a high-stakes plan through two passes:
    across the non-Claude reviewer CLIs you opt in to, for *decorrelated* findings the Claude panel
    may have missed.
 
-It then writes a sidecar next to the plan. In the thin slice that is `<plan>.deep-review-draft.md`
-(marked `verification: none`); the verified `<plan>.deep-review.md` is produced once the
-verification phase lands.
+It then verifies each cross-model finding against the plan (a deterministic quote-grep backstop —
+CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN, blind to the producing model) and writes a sidecar next
+to the plan: `<plan>.deep-review-draft.md` (marked `verification: quote-grep-backstop`). The
+reconciled `<plan>.deep-review.md` is produced once the reconciliation phase (RU5) lands.
 
 ## How it differs from `ce-doc-review`
 

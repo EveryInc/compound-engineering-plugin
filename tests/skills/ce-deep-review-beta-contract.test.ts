@@ -55,7 +55,7 @@ describe("ce-deep-review-beta contract (thin slice)", () => {
 		const c = await read(SKILL);
 		expect(c).toContain(".deep-review-draft.md");
 		expect(c).toContain("skill_phase: thin-slice");
-		expect(c).toContain("verification: none");
+		expect(c).toContain("verification: quote-grep-backstop");
 		// the verified filename is reserved (not written by the thin slice)
 		expect(c).toMatch(/\.deep-review\.md.*reserved|reserved.*\.deep-review\.md|NOT `\.deep-review\.md`/);
 	});
@@ -66,5 +66,16 @@ describe("ce-deep-review-beta contract (thin slice)", () => {
 		expect(c).toMatch(/unavailable/);
 		expect(c).toMatch(/Do NOT block|does NOT block|do not block/i);
 		expect(c).toContain("content_preview: unavailable");
+	});
+
+	test("Phase 3.5 verification: quote-grep backstop, three verdicts, authoritative + model-blind", async () => {
+		const c = await read(SKILL);
+		expect(c).toContain("verify-findings.py");
+		expect(c).toMatch(/CONFIRMED/);
+		expect(c).toMatch(/NOT-FOUND-IN-DOC/);
+		expect(c).toMatch(/NEEDS-HUMAN/);
+		// the deterministic backstop is authoritative and must not be overridden by a model
+		expect(c).toMatch(/authoritative/i);
+		expect(c).toMatch(/blind to the producing model/i);
 	});
 });

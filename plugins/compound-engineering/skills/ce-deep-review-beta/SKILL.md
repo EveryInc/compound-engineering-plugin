@@ -1,6 +1,6 @@
 ---
 name: ce-deep-review-beta
-description: "[BETA] Deep cross-model review of a high-stakes plan: runs the Claude ce-doc-review panel, then (with consent) fans the plan across non-Claude reviewer CLIs and returns their decorrelated findings. Thin slice — findings are unverified at this stage."
+description: "[BETA] Deep cross-model review of a high-stakes plan: runs the Claude ce-doc-review panel, then (with consent) fans the plan across non-Claude reviewer CLIs and returns their decorrelated findings, verdict-tagged by a deterministic quote-grep backstop (CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN). The reconciled verified sidecar lands in a later phase."
 disable-model-invocation: true
 argument-hint: "[path/to/plan.md]"
 allowed-tools: Bash(bash *env-detect.sh), Bash(bash *gitleaks-scan.sh), Bash(bash *panel-critique.sh)
@@ -10,10 +10,11 @@ allowed-tools: Bash(bash *env-detect.sh), Bash(bash *gitleaks-scan.sh), Bash(bas
 
 Run a high-stakes plan through the Claude `ce-doc-review` panel, then — after one consent gate —
 fan it across the available non-Claude reviewer CLIs for decorrelated findings the panel may have
-missed. This is the **thin slice**: cross-model findings are presented **raw and unverified**
-(confabulation-checking is still manual). Verification + a reconciled sidecar arrive in a later
-phase; the thin slice exists to test whether removing the terminal-hop friction changes whether the
-deep review actually gets run.
+missed. Cross-model findings are then **verdict-tagged by a deterministic quote-grep backstop**
+(CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN — see Phase 3.5); NEEDS-HUMAN findings still need your
+judgment, and the reconciled verified `.deep-review.md` sidecar arrives in a later phase (RU5). The
+skill exists to test whether removing the terminal-hop friction changes whether the deep review
+actually gets run.
 
 This skill is invoked **explicitly** (typed slash command or an explicit skill call). It does not
 auto-trigger (`disable-model-invocation: true`).
@@ -130,23 +131,46 @@ bash "${CLAUDE_SKILL_DIR}/scripts/panel-critique.sh" --models <subset> "<plan-pa
   selected (model, lens) into a structured finding set. Raw records remain on disk for audit.
 - If an arm reports a non-`ok` outcome, note it; coverage degrades to `reduced-confidence`.
 
-## Phase 4: Thin-slice output (raw, unverified)
+## Phase 3.5: Verify cross-model findings (deterministic quote-grep backstop)
 
-Present the parsed cross-model findings to chat AND write a sidecar at
-`<plan-path>.deep-review-draft.md` (NOT `.deep-review.md` — that filename is reserved for verified
-output). Frontmatter + banner:
+Ground every raw cross-model finding against the plan before presenting it. Read
+`references/verification-protocol.md` for the verdict semantics, the authoritative-backstop rule,
+and the brittleness caveats — do not paraphrase them.
 
-- Frontmatter: `skill_phase: thin-slice`, `verification: none`, `coverage: full|reduced-confidence`,
-  `plan`, `models`, `timestamp`, `user` (`git config user.name`), `content_preview: ran|unavailable`.
-- Prominent banner at the top: **"Cross-model findings below are UNVERIFIED — confabulation-checking
-  is still manual at this stage (thin slice)."**
-- Include the Claude panel findings (untagged, trusted) and the raw cross-model findings grouped by
-  lens. No verification tags yet — those arrive when the verification phase lands.
+```bash
+python3 "${CLAUDE_SKILL_DIR}/scripts/verify-findings.py" verify-records "<plan-path>" "${CMRE_OUT_DIR:-/tmp/cmre-panel}/records"
+```
 
-Then stream a short summary to chat (which arms ran, finding counts, the sidecar path, and that the
-output is unverified).
+- Parse `{"verified": [{model, lens, id, text, verdict, grounding_quote}], "counts": {...}}`. Each
+  cross-model finding now carries one verdict: **CONFIRMED** (a verbatim quote that exists in the
+  plan — `grounding_quote` shows it), **NOT-FOUND-IN-DOC** (a claimed quote that is absent — flag,
+  do not drop), or **NEEDS-HUMAN** (no substantial verbatim quote to check — a human decides).
+- The backstop is **authoritative and blind to the producing model** — do NOT override its
+  CONFIRMED / NOT-FOUND-IN-DOC verdicts with your own judgment. CONFIRMED certifies the quoted
+  evidence exists, NOT that the finding is correct or important — that stays a human call.
+- A high NEEDS-HUMAN count is expected (a quote-grep can only adjudicate findings that quote the
+  plan); it is not a failure. The Claude panel findings are NOT re-verified — they are trusted.
 
-> **Scope (thin slice):** this beta covers the friction test only — pass 1 + consent + raw
-> cross-model findings. Per-finding verification (CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN) and
-> the reconciled `<plan>.deep-review.md` sidecar are added in a later phase; until then the draft
-> sidecar is explicitly unverified.
+## Phase 4: Output (verdict-tagged)
+
+Present the verdict-tagged cross-model findings to chat AND write a sidecar at
+`<plan-path>.deep-review-draft.md` (NOT `.deep-review.md` — that filename is reserved for the
+reconciled verified output, which RU5 writes). Frontmatter + banner:
+
+- Frontmatter: `skill_phase: thin-slice`, `verification: quote-grep-backstop`,
+  `coverage: full|reduced-confidence`, `plan`, `models`, `timestamp`, `user` (`git config user.name`),
+  `content_preview: ran|unavailable`. Also record the verdict `counts` (CONFIRMED / NOT-FOUND-IN-DOC
+  / NEEDS-HUMAN).
+- Prominent banner at the top: **"Cross-model findings are tagged by a deterministic quote-grep
+  backstop — CONFIRMED = the quoted evidence exists in the plan (NOT that the finding is correct);
+  NOT-FOUND-IN-DOC = a claimed quote is absent (review it); NEEDS-HUMAN = no verbatim quote, your
+  judgment. The Claude panel findings are trusted (untagged)."**
+- Include the Claude panel findings (untagged, trusted) and the cross-model findings grouped by
+  lens, each tagged with its Phase 3.5 verdict (show the `grounding_quote` for CONFIRMED).
+
+Then stream a short summary to chat (which arms ran, the verdict counts, the sidecar path, and that
+NEEDS-HUMAN findings still need triage).
+
+> **Scope:** per-finding verification (Phase 3.5, quote-grep backstop) now runs. Still pending: the
+> reconciled `<plan>.deep-review.md` sidecar (RU5) that promotes the verdict-tagged draft into the
+> reserved verified filename. Until RU5 lands, the output stays at `.deep-review-draft.md`.

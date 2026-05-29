@@ -228,9 +228,22 @@ gated on a grok version bump, not the dogfood gate.
   records; `--models agy` under a Linux `uname` stub → agy SKIP, no record; 3 new RU3 tests in
   `tests/skills/ce-deep-review-beta-arms-ru2.test.ts`; full `bun test` 1430 pass.
 
-### RU4. Verification step — ground each cross-model finding  *(v3 U10 — unchanged)*
-- As v3 U10. Per-finding CONFIRMED (inline quote) / NOT-FOUND-IN-DOC / NEEDS-HUMAN, blind to producing
-  model, synchronous quote-grep backstop. Replaces the thin-slice `verification: none` state.
+### RU4. Verification step — ground each cross-model finding  *(DONE 2026-05-29)*
+- **Status (DONE):** `scripts/verify-findings.py` (skill-only — not bundled; verification is
+  skill-specific, not eval-shared) assigns each cross-model finding one verdict: **CONFIRMED** (a
+  substantial verbatim quote that exists in the plan), **NOT-FOUND-IN-DOC** (a claimed quote that is
+  absent), **NEEDS-HUMAN** (no substantial quote to check). Pure function of (finding text, doc) →
+  **blind to the producing model** (the verdict never reads the model label; `verify-records` uses
+  it only to label output rows). **Scope decision:** v1 is the deterministic quote-grep backstop as
+  the *sole authoritative gate* — no LLM verifier (it would re-introduce the verifier-contamination
+  failure mode the panel flagged); a blinded model triage of NEEDS-HUMAN is a possible later add.
+  Replaces the thin-slice `verification: none` → `verification: quote-grep-backstop`. Protocol:
+  `references/verification-protocol.md`; SKILL.md Phase 3.5 added.
+- **Verification (✔ 2026-05-29):** verify-one CONFIRMED/NOT-FOUND/NEEDS-HUMAN cases pass; lone
+  identifier quotes don't trivially confirm; smart-quote/whitespace normalization avoids false
+  NOT-FOUND; verify-records is model-blind (same text → same verdict under different model labels)
+  and tallies counts; 7 new tests in `tests/skills/ce-deep-review-beta-verify.test.ts` + a contract
+  test; full `bun test` 1438 pass.
 
 ### RU5. Reconciliation + sidecar writer — reclaim `.deep-review.md`  *(v3 U11 — unchanged)*
 - As v3 U11. Reconciled sidecar, coverage/skill_phase/content_preview frontmatter, banner precedence,
@@ -281,8 +294,10 @@ leak, naming drift) are mitigated by shipped Phase-1 code + tests; see v3 for de
   off-mac; drift green). **RU3 DONE 2026-05-29** (parallel-across-models — one subshell per model;
   `--models` semantics: default all-available, unavailable arms warn-SKIP not fatal; R15 progress
   preserved). **Phase 2b complete.**
-- **Phase 3 — Verification & reconciliation (RU4, RU5).** Gate: manual end-to-end over F1, F2, F3,
-  F4, F4-zero, F5; verified sidecar reclaims `.deep-review.md`.
+- **Phase 3 — Verification & reconciliation (RU4, RU5).** **RU4 DONE 2026-05-29** (deterministic
+  quote-grep backstop; CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN; model-blind; authoritative — no
+  LLM verifier in v1). **RU5 pending:** reconciliation + the verified sidecar that reclaims
+  `.deep-review.md`. Gate (RU5): manual end-to-end over F1, F2, F3, F4, F4-zero, F5.
 - **Phase 4 — Validation & promotion (RU6).** Gate: verifier rates ≤5% each + adequate agy
   representation; full contract test; README counts; drift-gate note corrected; brainstorm corrected.
 
