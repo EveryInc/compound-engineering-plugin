@@ -121,15 +121,19 @@ def main(argv=None):
     rec.add_argument("doc")
     rec.add_argument("records_dir")
 
+    meas = sub.add_parser("measure", help="measure false-CONFIRM / false-NOT-FOUND rates on a labeled corpus")
+    meas.add_argument("corpus_json")
+
     args = p.parse_args(argv)
-    doc_norm = normalize(Path(args.doc).read_text())
 
     if args.cmd == "verify-one":
+        doc_norm = normalize(Path(args.doc).read_text())
         verdict, quote = verify_one(args.finding, doc_norm)
         print(json.dumps({"verdict": verdict, "grounding_quote": quote}))
         return 0
 
     if args.cmd == "verify-records":
+        doc_norm = normalize(Path(args.doc).read_text())
         rows = []
         counts = {"CONFIRMED": 0, "NOT-FOUND-IN-DOC": 0, "NEEDS-HUMAN": 0}
         for model, lens, f in _iter_records(args.records_dir):
@@ -141,6 +145,34 @@ def main(argv=None):
                 "text": text, "verdict": verdict, "grounding_quote": quote,
             })
         print(json.dumps({"verified": rows, "counts": counts}))
+        return 0
+
+    if args.cmd == "measure":
+        # RU6b verifier-rate measurement on a labeled corpus. Deterministic + model-blind, so N=1
+        # (no trials) and no voice sampling: the verdict is a pure function of (text, doc).
+        corpus = json.loads(Path(args.corpus_json).read_text())
+        doc_norm = normalize(corpus["document"])
+        grounded = confab = false_not_found = false_confirm = 0
+        detail = []
+        for it in corpus["items"]:
+            verdict, _ = verify_one(it["text"], doc_norm)
+            exp = it["expected"]
+            if exp == "CONFIRMED":
+                grounded += 1
+                if verdict != "CONFIRMED":       # a grounded finding the backstop failed to confirm
+                    false_not_found += 1
+            elif exp == "NOT-FOUND-IN-DOC":
+                confab += 1
+                if verdict == "CONFIRMED":       # a fabricated quote the backstop wrongly confirmed
+                    false_confirm += 1
+            detail.append({"id": it.get("id"), "expected": exp, "got": verdict})
+        fcr = (false_confirm / confab) if confab else 0.0
+        fnr = (false_not_found / grounded) if grounded else 0.0
+        print(json.dumps({
+            "n": len(corpus["items"]), "grounded": grounded, "confabulated": confab,
+            "false_confirm_rate": round(fcr, 4), "false_not_found_rate": round(fnr, 4),
+            "eligible": fcr <= 0.05 and fnr <= 0.05, "detail": detail,
+        }))
         return 0
 
     return 2

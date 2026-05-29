@@ -264,18 +264,27 @@ gated on a grok version bump, not the dogfood gate.
   `tests/skills/ce-deep-review-beta-reconcile.test.ts` + contract test updated; full `bun test` 1442
   pass.
 
-### RU6. Verifier rate measurement + full contract test + docs + drift-gate cleanup  *(v3 U12 + U13 — re-scoped)*
-- v3 U12 (bidirectional verifier rates, agy-voiced corpus + min-sample/synthetic-fallback,
-  `calibration_scope`) + U13 (full contract test, finalized docs, README counts, brainstorm
-  corrections) **plus** the OD-4 path assertion and the **drift-gate cleanup**: either delete v3's
-  phantom "CI step" claim from the rollout notes (the bun test is the gate) or add a real
-  `.github/` step running `bundle-harness.sh` + failing on a tree change if a stronger gate is wanted.
-- Brainstorm corrections from U2 are confirmed available: agy auth = `~/.gemini/oauth_creds.json` +
-  `refresh_token` (not `AV_API_KEY`); grok retention per OD-3.
-- **Split recommendation (scope panel):** RU6 bundles items with different prerequisites — the
-  doc-only cleanup (drift-gate note, brainstorm corrections, OD-4 path assertion) can ship right
-  after RU2, while verifier-rate measurement + final docs gate on RU4 runtime data. Treat as **RU6a**
-  (doc cleanup, no RU4 dep) and **RU6b** (verifier rates + full contract test + final docs).
+### RU6. Verifier rate measurement + full contract test + docs + drift-gate cleanup  *(DONE 2026-05-29)*
+- **RU6b — verifier rates (DONE, re-scoped):** `verify-findings.py measure` runs a labeled corpus
+  (`references/calibration/verifier-corpus.json`, 11 grounded + 11 confabulated, incl. format-variant
+  grounded items) and computes false-CONFIRM (expected NOT-FOUND → CONFIRMED) + false-NOT-FOUND
+  (expected CONFIRMED → not confirmed); `eligible` when both ≤5%. **Measured 0% / 0% → eligible.**
+  **Re-scope (deviation from v3 U12, justified by RU4's deterministic decision):** the verifier is a
+  deterministic, model-blind quote-grep, so v3's **agy-voiced sampling, synthetic-fallback,
+  `calibration_scope`, and N=3 trials are MOOT** — the verdict is a pure function of (text, doc) with
+  no model voice and no variance. The measurement is a straight labeled eval, N=1. (If a stochastic
+  LLM verifier is ever added for NEEDS-HUMAN triage, the v3 calibration machinery returns with it.)
+- **RU6a — docs/cleanup (DONE):** README row reframed (verified, not "thin slice unverified"); full
+  contract test in place (Phase 3.5 verification + verified `.deep-review.md` output + OD-4 block
+  fallback, accreted across RU4/RU5/RU6); brainstorm corrections confirmed (agy auth =
+  `~/.gemini/oauth_creds.json` + `refresh_token`, not `AV_API_KEY` — supersedes notes already in the
+  brainstorm; **grok `-p` retention line corrected to OD-3 = CONFIRMED acceptable**).
+- **Drift-gate cleanup (DECIDED):** the committed bun equality test (`…-bundle-drift.test.ts`) is the
+  drift gate — it runs under `bun test` (which CI's `test` check runs), so drift → red CI already. No
+  separate `.github/` step is added (it would be redundant); v3's phantom "CI step" claim lives only
+  in superseded v3 and v4 already corrects it.
+- **Verification (✔ 2026-05-29):** corpus eligible at 0%/0%; 2 RU6b tests; full `bun test` 1444 pass;
+  `release:validate` in sync.
 
 ---
 
@@ -314,8 +323,15 @@ leak, naming drift) are mitigated by shipped Phase-1 code + tests; see v3 for de
   keep-5; by-lens verdict-tagged render; decision-changing union; banner precedence). Outstanding:
   the **manual end-to-end run** over F1, F2, F3, F4, F4-zero, F5 as a final acceptance check (a real
   human dogfood, distinct from the unit tests) before promotion.
-- **Phase 4 — Validation & promotion (RU6).** Gate: verifier rates ≤5% each + adequate agy
-  representation; full contract test; README counts; drift-gate note corrected; brainstorm corrected.
+- **Phase 4 — Validation & promotion (RU6). BUILD COMPLETE 2026-05-29.** Verifier rates measured
+  **0% / 0% (≤5% gate cleared)** on the labeled corpus; full contract test in place; README reframed;
+  drift-gate decided (bun test is the gate); brainstorm corrected. (The "adequate agy representation"
+  sub-gate is moot — the verifier is deterministic + model-blind, so voice doesn't affect rates.)
+  **Promotion (beta→stable) still gated on the human-run checks below, not on more code:**
+  - the **manual end-to-end** over F1, F2, F3, F4, F4-zero, F5 (your weekend run on a new plan), and
+  - the **OD-1 dogfood signal** (≥2 distinct devs over a window) — which needs the skill shipped to
+    them first (everything is currently local/un-PR'd; OD-1's baseline + debrief instruments are not
+    yet built).
 
 **Dogfood gate (OD-1) still applies** between Phase 2a and the Phase 3 build. With OD-4 resolved on
 the interactive path, the signal is no longer confounded by the egress block there — but it remains

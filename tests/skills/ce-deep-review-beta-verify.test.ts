@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test";
-import { mkdtempSync, writeFileSync } from "node:fs";
+import { mkdtempSync, writeFileSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
@@ -92,5 +92,24 @@ describe("RU4 verify-findings: verify-records is blind to the producing model + 
 		);
 		const { out } = await py(["verify-records", doc, dir]);
 		expect(out.counts).toEqual({ "CONFIRMED": 1, "NOT-FOUND-IN-DOC": 1, "NEEDS-HUMAN": 1 });
+	});
+});
+
+describe("RU6b verifier-rate measurement (deterministic; <=5% gate)", () => {
+	const CORPUS = join(REPO, "plugins/compound-engineering/skills/ce-deep-review-beta/references/calibration/verifier-corpus.json");
+
+	test("the committed corpus has >=10 grounded and >=10 confabulated items", () => {
+		const c = JSON.parse(readFileSync(CORPUS, "utf8"));
+		const grounded = c.items.filter((i: { expected: string }) => i.expected === "CONFIRMED").length;
+		const confab = c.items.filter((i: { expected: string }) => i.expected === "NOT-FOUND-IN-DOC").length;
+		expect(grounded).toBeGreaterThanOrEqual(10);
+		expect(confab).toBeGreaterThanOrEqual(10);
+	});
+
+	test("verifier clears the <=5% gate on the corpus (false-CONFIRM and false-NOT-FOUND)", async () => {
+		const { out } = await py(["measure", CORPUS]);
+		expect(out.false_confirm_rate).toBeLessThanOrEqual(0.05);
+		expect(out.false_not_found_rate).toBeLessThanOrEqual(0.05);
+		expect(out.eligible).toBe(true);
 	});
 });
