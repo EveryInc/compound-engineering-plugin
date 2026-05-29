@@ -16,6 +16,29 @@ bash "${CLAUDE_SKILL_DIR}/scripts/panel-critique.sh" --models <subset> "<plan-pa
   record per (model, lens). Records land at `${CMRE_OUT_DIR:-/tmp/cmre-panel}/records/<cli>__<lens>.json`.
 - Set `CMRE_TIMEOUT` (seconds, per (model, lens)) if the default is too tight; gemini can be slow.
 
+## If the dispatch is blocked (harness egress classifier)
+
+Under Claude Code's default auto-mode, this `bash` call is screened by a permission *classifier*
+that reasons about whether the conversation authorized the egress — `allowed-tools:
+Bash(bash *panel-critique.sh)` is **not** sufficient on its own (verified 2026-05-28). The consent
+gate's verb-carrying option labels (`Send the plan to <model> (<Vendor>)`) exist to make the
+recorded consent legible to it; with a legible selection the dispatch should clear.
+
+If it is still denied (reason mentions "Data Exfiltration" / "not cleared by the consent-gate
+authorization"), do NOT silently work around it. Fall back in this order:
+
+1. **Re-state the authorization, then retry** — surface to the user that the dispatch was blocked,
+   restate exactly which vendors they consented to and that the plan content will be sent, and
+   retry once. The classifier reads the immediately-preceding authorization.
+2. **`!`-handoff** — ask the user to re-issue the exact command via the `!` prefix (a user-initiated
+   command is self-authorizing). Show them the full `bash …/panel-critique.sh --models <subset>
+   "<plan>"` line to paste.
+3. **Settings rule (durable / headless)** — point the user to the onboarding doc's
+   `permissions.allow` rule for unattended runs where no interactive consent turn exists.
+
+See `docs/solutions/skill-design/2026-05-28-od4-egress-classifier-consent-scope.md` for the full
+behavior characterization.
+
 ## Progress streaming (R15 — no silent multi-minute runs)
 
 Stream the harness's per-(model, lens) stderr lines to chat as they arrive. The harness emits one

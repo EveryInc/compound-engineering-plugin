@@ -1,8 +1,8 @@
 # Consent gate — canonical copy + shape
 
 The gate is the only thing between the plan and external vendors. SKILL.md Phase 2 carries the
-load-bearing routing; this file pins the **canonical wording** (do not paraphrase — the contract
-test asserts these strings) and the question shape.
+load-bearing routing; this file pins the **canonical wording** (do not paraphrase — the
+acknowledgment and notice copy is the audited consent record) and the question shape.
 
 ## Canonical responsibility acknowledgment
 
@@ -40,16 +40,34 @@ the final filter)."
 
 ## Question shape (within the 4-option blocking-tool cap)
 
-The acknowledgment lives in the **question stem**, not as an option. Selecting any model == consent.
+The acknowledgment lives in the **question stem**, but **each option label must itself carry the
+egress verb and name the vendor** — `Send the plan to codex (OpenAI)`, not bare `codex (OpenAI)`.
+This is load-bearing for the harness egress classifier (see "Egress-gate legibility" below), not
+cosmetic. Selecting any model == consent.
 
-- **≥2 arms available** → `multiSelect: true` over the available models (`codex (OpenAI)`,
-  `gemini (Google)`), default none. Each option label is self-contained and third-person. The
-  free-text/Other escape serves as cancel. Submitting with ≥1 model selected grants consent for
-  that subset; submitting none triggers the one-time re-prompt (then cancel).
-- **exactly 1 arm available** → single-select with two options: `Send to <model>` and
-  `Cancel — panel-only, no egress`. (A lone toggle cannot be a multi-select; the blocking tool
+- **≥2 arms available** → `multiSelect: true` over the available models, labeled
+  `Send the plan to codex (OpenAI)`, `Send the plan to gemini (Google)`, default none. Each label
+  is self-contained, third-person, and states the egress + target vendor. The free-text/Other
+  escape serves as cancel. Submitting with ≥1 model selected grants consent for that subset;
+  submitting none triggers the one-time re-prompt (then cancel).
+- **exactly 1 arm available** → single-select with two options: `Send the plan to <model> (<Vendor>)`
+  and `Cancel — panel-only, no egress`. (A lone toggle cannot be a multi-select; the blocking tool
   needs ≥2 options.)
 - **0 arms available** → no gate; Phase 0 already routed to the panel-only sidecar.
+
+## Egress-gate legibility (why the labels name the egress)
+
+Under Claude Code's default auto-mode, an egress dispatch (`bash …/panel-critique.sh`) is screened
+by a permission *classifier* that reasons about **conversation-level consent scope** — it is not
+cleared by `allowed-tools` alone, and it does not read this gate's stem. It reads what the
+conversation records the user *chose*. A bare `gemini (Google)` selection does not register as
+"the user authorized sending the plan to an external vendor"; a `Send the plan to gemini (Google)`
+selection does. The verb-carrying labels exist so the recorded consent is legible to the
+classifier at dispatch time. Empirically (2026-05-28): a top-level authorization phrased this way
+cleared the classifier and ran real egress, while a no-op-framed request was blocked as scope
+escalation. See `references/arm-invocation.md` → "If the dispatch is blocked" for the fallback
+path. Confirmation that the *in-skill* gate clears the classifier requires a fresh-session run
+(the skill caches at session start).
 
 ## Outcomes (mirror of SKILL.md routing — keep in sync)
 

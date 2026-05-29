@@ -80,14 +80,20 @@ copy (do not paraphrase them).
      `content_preview: unavailable` for the sidecar header (else `content_preview: ran`).
 
 2. **Gate question.** Present ONE blocking question whose **stem carries the responsibility
-   acknowledgment** (selecting any model confirms it) plus the content preview/notice:
-   - **≥2 arms available:** a multi-select over the available models (e.g. `codex (OpenAI)`,
-     `gemini (Google)`), default none. Submitting with ≥1 selected = consent + acknowledgment for
+   acknowledgment** (selecting any model confirms it) plus the content preview/notice. **Each
+   option label must carry the egress verb and name the vendor** — `Send the plan to gemini
+   (Google)`, never bare `gemini (Google)`. This is load-bearing: the harness egress classifier in
+   Phase 3 reads the recorded selection (not this stem) and only treats a verb-carrying choice as
+   authorization to send the plan out — see `references/consent-gate.md` → "Egress-gate
+   legibility":
+   - **≥2 arms available:** a multi-select over the available models, default none. Label each
+     option with the egress verb + vendor: `Send the plan to codex (OpenAI)` and
+     `Send the plan to gemini (Google)`. Submitting with ≥1 selected = consent + acknowledgment for
      that subset. Submitting with none, or choosing the free-text/Other escape to cancel → see
      routing below.
-   - **exactly 1 arm available:** a single-select with two options — `Send to <model>` and
-     `Cancel — panel-only, no egress` (AskUserQuestion needs ≥2 options; a lone toggle can't be
-     multi-select).
+   - **exactly 1 arm available:** a single-select with two options — `Send the plan to <model>
+     (<Vendor>)` and `Cancel — panel-only, no egress` (AskUserQuestion needs ≥2 options; a lone
+     toggle can't be multi-select).
    - Acknowledgment copy is in `consent-gate.md`; when `content_preview: unavailable`, use the
      **escalated** variant that states no automated scan ran and the user is the sole filter.
 
@@ -111,6 +117,10 @@ progress/timeout streaming format, and `references/ship-state-machine.md` for th
 bash "${CLAUDE_SKILL_DIR}/scripts/panel-critique.sh" --models <subset> "<plan-path>"
 ```
 
+- **If the harness blocks this call** (auto-mode egress classifier; note `allowed-tools` is not sufficient
+  on its own), do NOT work around it silently. Restate which vendors the user consented
+  to and retry once; if still blocked, fall back to the `!`-handoff or the onboarding settings rule.
+  See `references/arm-invocation.md` → "If the dispatch is blocked".
 - Stream the per-(model, lens) progress lines to chat as they arrive (R15 — no silent multi-minute
   runs). Surface each arm's outcome (`ok` / `timeout` / `missing` / `auth_fail` / `empty` /
   `malformed`).

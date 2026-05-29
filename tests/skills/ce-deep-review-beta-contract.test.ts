@@ -41,6 +41,16 @@ describe("ce-deep-review-beta contract (thin slice)", () => {
 		expect(c).toMatch(/never\s+filter records post-hoc/i);
 	});
 
+	test("consent gate labels carry the egress verb (classifier legibility) + dispatch has a block fallback", async () => {
+		const c = await read(SKILL);
+		// option labels must name the egress + vendor, not bare model names (OD-4 legibility)
+		expect(c).toMatch(/Send the plan to codex \(OpenAI\)/);
+		expect(c).toMatch(/Send the plan to gemini \(Google\)/);
+		// the dispatch must document a fallback for the auto-mode egress classifier block
+		expect(c).toMatch(/egress classifier|harness blocks this call/i);
+		expect(c).toMatch(/allowed-tools` is not sufficient|allowed-tools is not sufficient/i);
+	});
+
 	test("sidecar filename trust encoding: draft for thin slice, reserved verified name", async () => {
 		const c = await read(SKILL);
 		expect(c).toContain(".deep-review-draft.md");

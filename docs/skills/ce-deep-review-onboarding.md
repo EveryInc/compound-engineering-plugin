@@ -56,6 +56,32 @@ The consent gate previews your plan for secret/PII-shaped content before egress 
   you are the sole filter" notice and escalates the responsibility acknowledgment. Installing it
   upgrades the preview from manual-only to automated + manual.
 
+## Egress permission (auto-mode)
+
+The cross-model dispatch shells out to send your plan to the consented vendors. Under Claude
+Code's **default auto-mode**, that `bash` call is screened by a permission classifier that reasons
+about whether the conversation authorized the egress — the skill's `allowed-tools` declaration is
+**not** sufficient on its own (verified 2026-05-28).
+
+- **Interactive runs (the normal case):** no setup needed. The consent gate's options are phrased
+  as explicit egress authorizations (`Send the plan to gemini (Google)`), which is what the
+  classifier reads. Selecting a model and proceeding clears the dispatch. If a run is still blocked,
+  the skill restates your consent and retries, then offers to let you re-issue the command via the
+  `!` prefix.
+- **Unattended / headless runs** (no interactive consent turn — e.g. `/loop`, scheduled, or
+  piped): add a durable allow rule to your settings so the dispatch is pre-authorized. In
+  `~/.claude/settings.json` (or project `.claude/settings.json`):
+
+  ```json
+  { "permissions": { "allow": ["Bash(bash *panel-critique.sh*)"] } }
+  ```
+
+  > **Caveat (untested):** the interactive consent path above is empirically confirmed to clear the
+  > classifier; whether a `permissions.allow` rule *alone* bypasses it for fully-headless runs is
+  > not yet verified. Add the rule for headless use, but expect the interactive path to be the
+  > reliable one until the headless path is confirmed. See
+  > `docs/solutions/skill-design/2026-05-28-od4-egress-classifier-consent-scope.md`.
+
 ## First run
 
 ```
