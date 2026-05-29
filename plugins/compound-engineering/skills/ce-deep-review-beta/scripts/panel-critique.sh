@@ -14,10 +14,11 @@ set -u
 here="$(cd "$(dirname "$0")" && pwd)"
 arms="$here/arms.py"
 
-# Optional `--models <csv>` subset (default = the full current arm set). Lets a caller (e.g.
+# Optional `--models <csv>` subset (default = all available arms = codex + agy). Lets a caller (e.g.
 # ce-deep-review-beta's consent gate) restrict egress to exactly the consented models. Egress must
 # equal consent, so the subset is filtered BEFORE running each arm -- never by discarding records
-# post-hoc (the document would already have been sent).
+# post-hoc (the document would already have been sent). Unavailable / off-platform arms are
+# warn-SKIPped per cell (not a missing binary, not agy off-macOS), never fatal: the rest still run.
 models="codex agy"
 if [ "${1:-}" = "--models" ]; then
 	models="$(printf '%s' "${2:-}" | tr ',' ' ')"
@@ -80,6 +81,9 @@ run() {
 	if ! command -v "$cli" >/dev/null 2>&1; then
 		printf '  [%-7s %-12s] SKIP — %s not installed\n' "$cli" "$lens" "$cli"; return
 	fi
+	if [ "$cli" = "agy" ] && [ "$(uname -s)" != "Darwin" ]; then
+		printf '  [%-7s %-12s] SKIP — agy is macOS-only (read-only floor is a seatbelt)\n' "$cli" "$lens"; return
+	fi
 	cmd=(run-arm "$arm" "$cli" "$plan" "$lens_dir/$lens.md" --doc-id "${doc_id}__${lens}" --trial 1 --timeout "$timeout")
 	[ -n "$context" ] && cmd+=(--context "$context")
 	rec="$(python3 "$arms" "${cmd[@]}" 2>/dev/null)"
@@ -94,9 +98,26 @@ except Exception:
 
 echo "Panel critique of: $plan   (arm=$arm)"
 echo "Full records -> $rec_dir"
-for lens in coherence feasibility security scope product adversarial; do
-	echo "--- lens: $lens ---"
-	for cli in $models; do run "$cli" "$lens"; done
+echo "Models: $models  (each runs all 6 lenses; models run in parallel — progress lines interleave)"
+
+# One background subshell PER MODEL, each running the six lenses sequentially. Parallelizing across
+# models (not across lenses) overlaps the slow arms while bounding concurrency to the model count --
+# at most one in-flight request per vendor, which avoids rate-limit / resource contention. Each
+# (model, lens) cell streams its own self-labeled progress line as it completes (R15: no silent
+# multi-minute runs); lines from different models interleave, which is fine. Records key on
+# ${cli}__${lens}.json, so parallel writers never collide.
+run_model() {
+	cli="$1"
+	for lens in coherence feasibility security scope product adversarial; do
+		run "$cli" "$lens"
+	done
+}
+pids=""
+for cli in $models; do
+	run_model "$cli" &
+	pids="$pids $!"
 done
+for pid in $pids; do wait "$pid"; done
+
 echo ""
 echo "DONE. Full records in $rec_dir — read them for the per-lens findings."

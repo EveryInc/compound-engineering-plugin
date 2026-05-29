@@ -214,9 +214,19 @@ gated on a grok version bump, not the dogfood gate.
   removed from the skill (env-detect emits codex+agy only; gate/SKILL/docs no longer offer it; the
   eval's gemini arm + tests remain green).
 
-### RU3. Full `--models` semantics + parallel-across-models  *(v3 U9 — unchanged; minimal guard already shipped)*
-- As v3 U9. Default = all available; fork per-model subshells running six lenses; preserve per-(model,
-  lens) progress (R15). Re-bundle; drift green.
+### RU3. Full `--models` semantics + parallel-across-models  *(DONE 2026-05-29)*
+- **Status (DONE):** `panel-critique.sh` now forks **one background subshell per model** (each runs
+  the six lenses sequentially) and waits on all — parallel across models, bounding concurrency to
+  one in-flight request per vendor (the rate-limit/resource mitigation the feasibility lens flagged).
+  Per-(model, lens) progress lines stream as each cell completes (R15); they interleave, which is
+  fine (each is self-labeled; records key on `${cli}__${lens}.json` so parallel writers never
+  collide). **`--models` semantics defined:** default = all available (codex + agy); unavailable /
+  off-platform arms **warn-SKIP per cell, never fatal** (missing binary, or agy off-macOS) — the
+  rest still run. Re-bundled; drift green.
+- **Verification (✔ 2026-05-29):** live `--models codex,agy` run produced all 12 records with
+  interleaved progress (proves concurrency); `--models bogusA,bogusB` → exit 0, SKIP lines, no
+  records; `--models agy` under a Linux `uname` stub → agy SKIP, no record; 3 new RU3 tests in
+  `tests/skills/ce-deep-review-beta-arms-ru2.test.ts`; full `bun test` 1430 pass.
 
 ### RU4. Verification step — ground each cross-model finding  *(v3 U10 — unchanged)*
 - As v3 U10. Per-finding CONFIRMED (inline quote) / NOT-FOUND-IN-DOC / NEEDS-HUMAN, blind to producing
@@ -268,7 +278,9 @@ leak, naming drift) are mitigated by shipped Phase-1 code + tests; see v3 for de
 - **Phase 2b — Harness extension (RU2, RU3).** **RU2 DONE 2026-05-29** (gemini→agy default swap +
   env-detect wiring + macOS platform-gate + off-mac arms.py guard + REPO_DIR plumbing; gemini then
   fully removed from the skill — eval arm retained; agy live smoke on macOS PASS; agy `unavailable`
-  off-mac; drift green). **RU3 pending:** full `--models` semantics + parallel-across-models.
+  off-mac; drift green). **RU3 DONE 2026-05-29** (parallel-across-models — one subshell per model;
+  `--models` semantics: default all-available, unavailable arms warn-SKIP not fatal; R15 progress
+  preserved). **Phase 2b complete.**
 - **Phase 3 — Verification & reconciliation (RU4, RU5).** Gate: manual end-to-end over F1, F2, F3,
   F4, F4-zero, F5; verified sidecar reclaims `.deep-review.md`.
 - **Phase 4 — Validation & promotion (RU6).** Gate: verifier rates ≤5% each + adequate agy
