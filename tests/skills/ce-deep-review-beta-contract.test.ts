@@ -51,13 +51,15 @@ describe("ce-deep-review-beta contract (thin slice)", () => {
 		expect(c).toMatch(/allowed-tools` is not sufficient|allowed-tools is not sufficient/i);
 	});
 
-	test("sidecar filename trust encoding: draft for thin slice, reserved verified name", async () => {
+	test("verified output: writes the reserved .deep-review.md (skill_phase: verified), rotates, spares the draft", async () => {
 		const c = await read(SKILL);
-		expect(c).toContain(".deep-review-draft.md");
-		expect(c).toContain("skill_phase: thin-slice");
+		expect(c).toContain(".deep-review.md");
+		expect(c).toContain("skill_phase: verified");
 		expect(c).toContain("verification: quote-grep-backstop");
-		// the verified filename is reserved (not written by the thin slice)
-		expect(c).toMatch(/\.deep-review\.md.*reserved|reserved.*\.deep-review\.md|NOT `\.deep-review\.md`/);
+		// rotation runs before the fresh write (data-loss-safe keep-5)
+		expect(c).toMatch(/reconcile\.py" rotate/);
+		// the historical thin-slice draft is left in place, not overwritten
+		expect(c).toMatch(/deep-review-draft\.md.*(in place|historical)/i);
 	});
 
 	test("graceful gitleaks degradation is documented inline", async () => {

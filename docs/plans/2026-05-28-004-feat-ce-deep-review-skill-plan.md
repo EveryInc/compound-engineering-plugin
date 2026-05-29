@@ -245,10 +245,24 @@ gated on a grok version bump, not the dogfood gate.
   and tallies counts; 7 new tests in `tests/skills/ce-deep-review-beta-verify.test.ts` + a contract
   test; full `bun test` 1438 pass.
 
-### RU5. Reconciliation + sidecar writer — reclaim `.deep-review.md`  *(v3 U11 — unchanged)*
-- As v3 U11. Reconciled sidecar, coverage/skill_phase/content_preview frontmatter, banner precedence,
-  rotation (keep 5), committed-leak reminder when `content_preview: unavailable`. Do NOT modify
-  `.gitignore`.
+### RU5. Reconciliation + sidecar writer — reclaim `.deep-review.md`  *(DONE 2026-05-29)*
+- **Status (DONE):** The skill now writes the **verified `<plan>.deep-review.md`** (the reserved
+  name), replacing the thin-slice draft as the terminal output. `scripts/reconcile.py` (skill-only)
+  provides two deterministic helpers: `rotate` (rename an existing verified sidecar to
+  `.deep-review.<ISO>.md`, keep the **5 newest**, prune older — data-loss-safe: the glob matches
+  rotations only, never the base or the `-draft` sidecar, which addresses the feasibility lens's
+  rotation data-loss flag) and `render-cross-model` (by-lens, verdict-tagged Markdown with the
+  grounding quote on CONFIRMED). Frontmatter `skill_phase: verified` + `verification:
+  quote-grep-backstop` + verdict counts + coverage; **banner precedence** = coverage-only (the
+  UNVERIFIED banner is gone) with a NEEDS-HUMAN triage note; **decision-changing union** section;
+  existing `.deep-review-draft.md` left in place; committed-leak reminder when `content_preview:
+  unavailable`; `.gitignore` untouched (still an open decision). Protocol:
+  `references/reconciliation.md`; SKILL.md Phase 4 restructured.
+- **Verification (✔ 2026-05-29):** rotate keeps the 5 newest by ISO infix, prunes older, never
+  touches base/draft, refuses a non-`.deep-review.md` path; render-cross-model groups by lens
+  (canonical order) + orders verdicts + shows grounding quotes; 4 new tests in
+  `tests/skills/ce-deep-review-beta-reconcile.test.ts` + contract test updated; full `bun test` 1442
+  pass.
 
 ### RU6. Verifier rate measurement + full contract test + docs + drift-gate cleanup  *(v3 U12 + U13 — re-scoped)*
 - v3 U12 (bidirectional verifier rates, agy-voiced corpus + min-sample/synthetic-fallback,
@@ -294,10 +308,12 @@ leak, naming drift) are mitigated by shipped Phase-1 code + tests; see v3 for de
   off-mac; drift green). **RU3 DONE 2026-05-29** (parallel-across-models — one subshell per model;
   `--models` semantics: default all-available, unavailable arms warn-SKIP not fatal; R15 progress
   preserved). **Phase 2b complete.**
-- **Phase 3 — Verification & reconciliation (RU4, RU5).** **RU4 DONE 2026-05-29** (deterministic
-  quote-grep backstop; CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN; model-blind; authoritative — no
-  LLM verifier in v1). **RU5 pending:** reconciliation + the verified sidecar that reclaims
-  `.deep-review.md`. Gate (RU5): manual end-to-end over F1, F2, F3, F4, F4-zero, F5.
+- **Phase 3 — Verification & reconciliation (RU4, RU5). COMPLETE 2026-05-29.** RU4 = deterministic
+  quote-grep backstop (CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN; model-blind; authoritative — no
+  LLM verifier in v1). RU5 = reconciliation + the verified `.deep-review.md` sidecar (rotation
+  keep-5; by-lens verdict-tagged render; decision-changing union; banner precedence). Outstanding:
+  the **manual end-to-end run** over F1, F2, F3, F4, F4-zero, F5 as a final acceptance check (a real
+  human dogfood, distinct from the unit tests) before promotion.
 - **Phase 4 — Validation & promotion (RU6).** Gate: verifier rates ≤5% each + adequate agy
   representation; full contract test; README counts; drift-gate note corrected; brainstorm corrected.
 

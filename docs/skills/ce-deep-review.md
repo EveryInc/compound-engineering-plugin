@@ -16,9 +16,10 @@ Runs a high-stakes plan through two passes:
    may have missed.
 
 It then verifies each cross-model finding against the plan (a deterministic quote-grep backstop —
-CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN, blind to the producing model) and writes a sidecar next
-to the plan: `<plan>.deep-review-draft.md` (marked `verification: quote-grep-backstop`). The
-reconciled `<plan>.deep-review.md` is produced once the reconciliation phase (RU5) lands.
+CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN, blind to the producing model), reconciles them with the
+trusted panel findings, and writes a verified sidecar next to the plan at `<plan>.deep-review.md`
+(`skill_phase: verified`). An existing verified sidecar is rotated to `<plan>.deep-review.<ISO>.md`
+(5 most recent kept); a thin-slice `<plan>.deep-review-draft.md`, if present, is left in place.
 
 ## How it differs from `ce-doc-review`
 
