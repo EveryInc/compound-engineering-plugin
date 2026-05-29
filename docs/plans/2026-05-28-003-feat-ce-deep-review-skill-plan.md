@@ -3,7 +3,8 @@ date: 2026-05-28
 type: feat
 origin: docs/brainstorms/2026-05-28-ce-deep-review-requirements.md
 supersedes: docs/plans/2026-05-28-002-feat-ce-deep-review-skill-plan.md
-status: active
+superseded_by: docs/plans/2026-05-28-004-feat-ce-deep-review-skill-plan.md
+status: superseded
 title: ce-deep-review — turnkey high-stakes plan review across Claude + non-Claude models (v3)
 ---
 
