@@ -6,9 +6,12 @@
  * and ends without teaching the next one anything.
  *
  * This workflow keeps the same end-to-end autonomy, adds the two halves that make
- * it *compound*, and fans out the phases the Workflow engine can parallelize.
- * Each phase is named after the compound-engineering step / skill it runs:
+ * it *compound*, runs in an isolated git worktree so it never touches your live
+ * checkout, and fans out the phases the Workflow engine can parallelize. Each
+ * phase is named after the compound-engineering step / skill it runs:
  *
+ *   Worktree      — create an isolated git worktree (ce-worktree); all mutating
+ *                   work happens there, never in the user's checkout.
  *   Riffrec       — ce-riffrec-feedback-analysis: if a recording is present, find
  *                   + analyze it and fold its findings into the task. (compound IN)
  *   Research      — ce-* researcher agents in parallel (learnings, repo, git
@@ -27,6 +30,7 @@
  *   Commit & PR   — ce-commit-push-pr (+ ce-demo-reel), then monitor CI until green.
  *   Compound      — ce-compound: capture the learning so the next Research starts
  *                   ahead. (compound OUT)
+ *   Cleanup       — remove the worktree (keep the branch/PR on real runs).
  *
  * Run it:  Workflow({ name: "lfg", args: "<feature description>" })
  *          Workflow({ name: "lfg", args: { task: "...", dryRun: true } })  // test
@@ -39,18 +43,19 @@
  * disable-model-invocation (ce-test-xcode, ce-dogfood-beta) cannot be invoked
  * from a workflow, so their behavior is inlined into Test/Dogfood instead.
  *
- * SAFETY: a non-dry run performs real git operations on your LIVE checkout — the
- * Commit & PR phase (ce-commit-push-pr) creates a branch, commits, pushes, and
- * opens a PR, which switches the working tree to that new branch. Run from a
- * clean/disposable branch, or pass { dryRun: true } to stop before Commit & PR.
- * For true isolation, run the whole pipeline inside a dedicated git worktree.
+ * ISOLATION: from the Plan phase onward, every agent is told to operate inside
+ * the worktree created in the Worktree phase. If worktree creation fails, the
+ * pipeline falls back to the main checkout (and says so). A non-dry run still
+ * performs real git ops + opens a PR — but on the worktree branch, not your
+ * working branch. { dryRun: true } stops before Commit & PR / CI / Compound.
  */
 
 export const meta = {
   name: 'lfg',
-  description: 'Compounding autonomous engineering pipeline named in compound-engineering steps: Riffrec, Research, Ideate, Plan, Doc Review, Work, Code Review, Autofix, Re-review, Simplify, Test, Dogfood, Commit & PR, Compound. Recalls prior learnings in and captures a durable learning out, watching CI to green.',
-  whenToUse: 'Hands-off execution of a software task when you want the full compound-engineering loop (institutional recall in, durable learning out, CI watched to green) rather than a single linear pass. Pass the feature description (or a Riffrec bundle path) as args. Add { dryRun: true } to stop before Commit & PR / CI / Compound.',
+  description: 'Compounding autonomous engineering pipeline named in compound-engineering steps: Worktree, Riffrec, Research, Ideate, Plan, Doc Review, Work, Code Review, Autofix, Re-review, Simplify, Test, Dogfood, Commit & PR, Compound, Cleanup. Runs in an isolated git worktree, recalls prior learnings in and captures a durable learning out, watching CI to green.',
+  whenToUse: 'Hands-off execution of a software task when you want the full compound-engineering loop (institutional recall in, durable learning out, CI watched to green) rather than a single linear pass. Runs in an isolated git worktree so your checkout is untouched. Pass the feature description (or a Riffrec bundle path) as args. Add { dryRun: true } to stop before Commit & PR / CI / Compound.',
   phases: [
+    { title: 'Worktree', detail: 'Create an isolated git worktree so the run never touches the user checkout' },
     { title: 'Riffrec', detail: 'ce-riffrec-feedback-analysis — if a recording is present, find + analyze it and fold its findings into the task' },
     { title: 'Research', detail: 'Parallel ce-* researchers (learnings, repo, git history, best practices) distilled into one brief' },
     { title: 'Ideate', detail: 'ce-ideate as a 3-lens judge panel (MVP / risk / leverage) -> chosen direction' },
@@ -63,8 +68,9 @@ export const meta = {
     { title: 'Simplify', detail: 'ce-simplify-code — behavior-preserving cleanup of the corrected code' },
     { title: 'Test', detail: 'Suite/build/lint + ce-test-browser (web) / simulator (iOS)' },
     { title: 'Dogfood', detail: 'ce-dogfood-beta — always exercise the product as a user across surfaces; fix breakage, add regression tests' },
-    { title: 'Commit & PR', detail: 'ce-commit-push-pr (+ ce-demo-reel), then monitor CI and fix until green' },
-    { title: 'Compound', detail: 'ce-compound captures the learning when something non-obvious happened' },
+    { title: 'Commit & PR', detail: 'ce-commit-push-pr (+ ce-demo-reel) on the worktree branch, then monitor CI and fix until green' },
+    { title: 'Compound', detail: 'ce-compound captures the learning (committed to the branch) when something non-obvious happened' },
+    { title: 'Cleanup', detail: 'Remove the worktree (keep the branch/PR on real runs; drop the throwaway branch on dry runs)' },
   ],
 }
 
@@ -72,6 +78,17 @@ export const meta = {
 // Schemas — agents that return data are forced through StructuredOutput so the
 // script gets validated objects, not prose it has to parse.
 // ---------------------------------------------------------------------------
+
+const WORKTREE_SCHEMA = {
+  type: 'object',
+  properties: {
+    created: { type: 'boolean' },
+    path: { type: ['string', 'null'], description: 'Absolute path to the created worktree' },
+    branch: { type: ['string', 'null'] },
+    reason: { type: ['string', 'null'], description: 'Why creation failed, if created=false' },
+  },
+  required: ['created'],
+}
 
 const RIFFREC_SCHEMA = {
   type: 'object',
@@ -278,6 +295,10 @@ const NON_INTERACTIVE = 'Run NON-INTERACTIVELY: do NOT call AskUserQuestion or a
 const SEVERITY_RANK = { blocker: 3, high: 2, medium: 1, low: 0 }
 const AUTO_FIX_SEVERITIES = ['blocker', 'high', 'medium']
 
+// Worktree-isolation instruction prepended to every mutating phase. Assigned in
+// the Worktree phase; empty (no-op) when worktree creation fails or is skipped.
+let wt = ''
+
 // Collapse findings that point at the same file:line (two reviewers flagging the
 // same spot) into the highest-severity one, so Autofix doesn't make conflicting
 // edits on the same line. Findings without a line are kept distinct (index-keyed).
@@ -296,11 +317,12 @@ function dedupeFindings(items) {
 }
 
 // Review a scope across dimensions in parallel, dedup, then adversarially verify
-// every survivor. Used by both Code Review and the post-fix Re-review.
+// every survivor. Used by both Code Review and the post-fix Re-review. Prepends
+// the worktree-isolation note (`wt`) so reviewers read the worktree, not main.
 async function reviewAndVerify(dims, scopePrompt, phaseName) {
   const raw = ((await parallel(dims.map(d => () =>
     agent(
-      `${scopePrompt}\n\nReview specifically for ${d.key} issues. Only report issues you can tie to specific code. Return structured findings.`,
+      `${wt}${scopePrompt}\n\nReview specifically for ${d.key} issues. Only report issues you can tie to specific code. Return structured findings.`,
       { agentType: d.type, label: `${phaseName.toLowerCase()}:${d.key}`, phase: phaseName, schema: FINDINGS_SCHEMA }
     ).then(r => ((r && r.findings) || []).map(f => ({ ...f, dimension: d.key })))
   ))).filter(Boolean)).flat()
@@ -309,7 +331,7 @@ async function reviewAndVerify(dims, scopePrompt, phaseName) {
   const verified = await parallel(unique.map(f => () =>
     parallel(Array.from({ length: SKEPTICS }, (_, i) => () =>
       agent(
-        `(skeptic ${i + 1} of ${SKEPTICS}) Adversarially verify this ${f.dimension} finding against the ACTUAL code in the working tree. Try to REFUTE it. Default to isReal=false if you cannot confirm it directly from the code.\n\nFinding:\n${JSON.stringify(f)}`,
+        `${wt}(skeptic ${i + 1} of ${SKEPTICS}) Adversarially verify this ${f.dimension} finding against the ACTUAL code in the worktree. Try to REFUTE it. Default to isReal=false if you cannot confirm it directly from the code.\n\nFinding:\n${JSON.stringify(f)}`,
         { label: `verify:${f.dimension}`, phase: phaseName, schema: VERDICT_SCHEMA }
       )
     )).then(votes => {
@@ -365,8 +387,34 @@ const SKEPTICS = THOROUGH ? 3 : 1
 log(`lfg starting${DRY_RUN ? ' [DRY RUN — no commit/PR/CI/compound]' : ''}${THOROUGH ? ' (thorough)' : ''}: ${task}`)
 
 // ---------------------------------------------------------------------------
-// Riffrec (compound IN). If a Riffrec product-feedback recording is available,
-// find and analyze it first so the pipeline works on what a real user surfaced.
+// Worktree. Create an isolated git worktree so this run never touches the user's
+// live checkout. From Plan onward every agent is told to operate inside it. If
+// creation fails, fall back to the main checkout (and say so).
+// ---------------------------------------------------------------------------
+
+phase('Worktree')
+let worktreePath = null
+let worktreeBranch = null
+const slug = (task.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-+)|(-+$)/g, '') || 'task').slice(0, 40)
+const wtSetup = await agent(
+  `Create an isolated git worktree so this autonomous run NEVER touches the user's current checkout.\n` +
+  `1. Find the repo root with \`git rev-parse --show-toplevel\` and note the current branch.\n` +
+  `2. Create a worktree on a NEW branch \`lfg/${slug}\` based on the current HEAD, at a sibling path OUTSIDE the repo (e.g. \`<repo-root>-wt-${slug}\`). Run: \`git worktree add <path> -b lfg/${slug}\`. If branch \`lfg/${slug}\` already exists, add a short numeric suffix.\n` +
+  `3. Return created=true with the ABSOLUTE worktree path and the branch name. If anything fails, return created=false with the reason — do not damage the repo.\n${NON_INTERACTIVE}`,
+  { label: 'worktree', phase: 'Worktree', schema: WORKTREE_SCHEMA }
+)
+if (wtSetup && wtSetup.created && wtSetup.path) {
+  worktreePath = wtSetup.path
+  worktreeBranch = wtSetup.branch
+  wt = `ISOLATION (MANDATORY): operate inside the git worktree at ${worktreePath} (branch ${worktreeBranch}). cd there FIRST; do every file read, edit, test, and git command there; NEVER modify the user's main checkout.\n\n`
+  log(`Worktree ready: ${worktreePath} (branch ${worktreeBranch})`)
+} else {
+  log(`Worktree setup failed (${wtSetup && wtSetup.reason ? wtSetup.reason : 'no result'}) — running in the main checkout; changes WILL affect it.`)
+}
+
+// ---------------------------------------------------------------------------
+// Riffrec (compound IN). Search the user's real locations (~/Downloads, main
+// checkout) — NOT the fresh worktree — so a dropped recording is actually found.
 // ---------------------------------------------------------------------------
 
 phase('Riffrec')
@@ -452,51 +500,52 @@ const direction = await agent(
 log(`Direction: ${direction && direction.winner ? direction.winner : 'synthesized'}`)
 
 // ---------------------------------------------------------------------------
-// Plan (ce-plan). Writes the durable plan. GATE: a plan file must exist.
+// Plan (ce-plan). Writes the durable plan into the worktree. GATE: a plan file
+// must exist.
 // ---------------------------------------------------------------------------
 
 phase('Plan')
 const planResult = await agent(
-  `Invoke the ce-plan skill to produce a durable implementation plan for this task. ${NON_INTERACTIVE}\n\nTask:\n${taskBrief}\n\nChosen direction (from Ideate's judge):\n${JSON.stringify(direction)}\n\nInstitutional research to fold into the plan (cite the docs/solutions learnings you used):\n${researchBrief}\n\nAfter ce-plan finishes, return ONLY the repo-relative path to the plan file it wrote under docs/plans/.`,
+  `${wt}Invoke the ce-plan skill to produce a durable implementation plan for this task. ${NON_INTERACTIVE}\n\nTask:\n${taskBrief}\n\nChosen direction (from Ideate's judge):\n${JSON.stringify(direction)}\n\nInstitutional research to fold into the plan (cite the docs/solutions learnings you used):\n${researchBrief}\n\nAfter ce-plan finishes, return ONLY the repo-relative path to the plan file it wrote under docs/plans/.`,
   { label: 'plan', phase: 'Plan', schema: PLAN_SCHEMA }
 )
 const planPath = planResult && planResult.planPath
 if (!planPath) {
   log('Plan phase produced no plan file — aborting before work (mirrors the /lfg plan gate).')
-  return { error: 'no-plan', research: researchBrief, direction }
+  return { error: 'no-plan', research: researchBrief, direction, worktree: worktreePath }
 }
 log(`Plan written: ${planPath}`)
 
 // ---------------------------------------------------------------------------
-// Doc Review (ce-doc-review). Adversarially stress-test the plan. A genuinely
-// fatal plan aborts; non-fatal concerns are fed into Work.
+// Doc Review (ce-doc-review). Adversarially stress-test the plan. Fatal -> abort;
+// non-fatal concerns feed into Work.
 // ---------------------------------------------------------------------------
 
 phase('Doc Review')
 const planCheck = await agent(
-  `Invoke the ce-doc-review approach to adversarially stress-test the plan at ${planPath} against THIS codebase. Will it survive contact with reality — do the referenced files/APIs exist, are the boundaries right, are there migration/ordering hazards? Known landmines from research:\n${JSON.stringify(landmines)}\n\nReturn fatal=true ONLY if the plan is fundamentally unbuildable as written; otherwise list concerns by severity. ${NON_INTERACTIVE}`,
+  `${wt}Invoke the ce-doc-review approach to adversarially stress-test the plan at ${planPath} against THIS codebase. Will it survive contact with reality — do the referenced files/APIs exist, are the boundaries right, are there migration/ordering hazards? Known landmines from research:\n${JSON.stringify(landmines)}\n\nReturn fatal=true ONLY if the plan is fundamentally unbuildable as written; otherwise list concerns by severity. ${NON_INTERACTIVE}`,
   { label: 'doc-review', phase: 'Doc Review', schema: PLANCHECK_SCHEMA }
 )
 if (planCheck && planCheck.fatal) {
   log('Doc Review judged the plan fatally unbuildable — aborting before work. Concerns recorded.')
-  return { error: 'plan-fatal', planPath, concerns: planCheck.concerns }
+  return { error: 'plan-fatal', planPath, concerns: planCheck.concerns, worktree: worktreePath }
 }
 const planConcerns = (planCheck && planCheck.concerns) || []
 if (planConcerns.length) log(`Doc Review raised ${planConcerns.length} non-fatal concern(s) — feeding into Work.`)
 
 // ---------------------------------------------------------------------------
-// Work (ce-work). Execute the plan, with Doc Review concerns in view.
-// GATE: real changes must exist before Code Review.
+// Work (ce-work). Execute the plan in the worktree, with Doc Review concerns in
+// view. GATE: real changes must exist before Code Review.
 // ---------------------------------------------------------------------------
 
 phase('Work')
 const build = await agent(
-  `Invoke the ce-work skill to execute the plan at ${planPath}. Implement the full feature, following the codebase's existing patterns and the conventions surfaced in research. Address these Doc Review concerns as you go:\n${JSON.stringify(planConcerns)}\n${NON_INTERACTIVE}\n\nWhen done, report whether files actually changed, a concise summary, the files touched, and which observable surfaces (web-ui / ios / cli / api / library / docs) the change affects.`,
+  `${wt}Invoke the ce-work skill to execute the plan at ${planPath}. Implement the full feature, following the codebase's existing patterns and the conventions surfaced in research. Address these Doc Review concerns as you go:\n${JSON.stringify(planConcerns)}\n${NON_INTERACTIVE}\n\nWhen done, report whether files actually changed, a concise summary, the files touched, and which observable surfaces (web-ui / ios / cli / api / library / docs) the change affects.`,
   { label: 'work', phase: 'Work', schema: BUILD_SCHEMA }
 )
 if (!build || !build.changed) {
   log('Work phase made no code changes — aborting before review (mirrors the /lfg work gate).')
-  return { error: 'no-changes', planPath, build }
+  return { error: 'no-changes', planPath, build, worktree: worktreePath }
 }
 const surfaces = (build.surfaces || []).map(s => String(s).toLowerCase())
 const surfaceList = surfaces.length ? surfaces.join(', ') : 'none detected'
@@ -517,7 +566,7 @@ const DIMENSIONS = [
   { key: 'reliability', type: 'compound-engineering:ce-reliability-reviewer' },
 ]
 const landmineHint = landmines.length ? ` Known landmines from research — check these specifically: ${JSON.stringify(landmines)}.` : ''
-const reviewScope = `Review the current uncommitted diff (the working tree vs the base branch) for issues introduced by this change. The change implements: ${task}.${landmineHint}`
+const reviewScope = `Review the current uncommitted diff (the worktree vs the base branch) for issues introduced by this change. The change implements: ${task}.${landmineHint}`
 const { raw: rawFindings, confirmed } = await reviewAndVerify(DIMENSIONS, reviewScope, 'Code Review')
 
 const toFix = confirmed.filter(f => AUTO_FIX_SEVERITIES.includes(f.severity))
@@ -532,7 +581,7 @@ phase('Autofix')
 let fix = { fixed: [], residual: [] }
 if (toFix.length) {
   fix = await agent(
-    `Apply fixes for these confirmed code-review findings in the working tree. Fix the ROOT cause — do not weaken tests, suppress warnings, or delete assertions. If you deliberately decide NOT to fix one, leave it and list it as residual with a reason. ${NON_INTERACTIVE}\n\nConfirmed findings:\n${JSON.stringify(toFix, null, 2)}`,
+    `${wt}Apply fixes for these confirmed code-review findings in the worktree. Fix the ROOT cause — do not weaken tests, suppress warnings, or delete assertions. If you deliberately decide NOT to fix one, leave it and list it as residual with a reason. ${NON_INTERACTIVE}\n\nConfirmed findings:\n${JSON.stringify(toFix, null, 2)}`,
     { label: 'autofix', phase: 'Autofix', schema: FIX_SCHEMA }
   ) || fix
   log(`Fixed ${(fix.fixed || []).length}; residual ${(fix.residual || []).length}`)
@@ -556,7 +605,7 @@ if ((fix.fixed || []).length) {
   const regToFix = regressions.filter(f => AUTO_FIX_SEVERITIES.includes(f.severity))
   if (regToFix.length) {
     const regFix = await agent(
-      `Fix these regressions that the earlier code-review fixes introduced. Root cause only — do not weaken tests or suppress warnings. ${NON_INTERACTIVE}\n\nRegressions:\n${JSON.stringify(regToFix, null, 2)}`,
+      `${wt}Fix these regressions that the earlier code-review fixes introduced. Root cause only — do not weaken tests or suppress warnings. ${NON_INTERACTIVE}\n\nRegressions:\n${JSON.stringify(regToFix, null, 2)}`,
       { label: 're-review:fix', phase: 'Re-review', schema: FIX_SCHEMA }
     )
     if (regFix) {
@@ -578,7 +627,7 @@ if ((fix.fixed || []).length) {
 
 phase('Simplify')
 const simplify = await agent(
-  `Invoke the ce-simplify-code skill on the changes made on this branch. Improve reuse, clarity, and efficiency WITHOUT changing behavior, then confirm the test suite still passes. ${NON_INTERACTIVE}\n\nReturn what you simplified, whether tests passed, and notes.`,
+  `${wt}Invoke the ce-simplify-code skill on the changes made on this branch. Improve reuse, clarity, and efficiency WITHOUT changing behavior, then confirm the test suite still passes. ${NON_INTERACTIVE}\n\nReturn what you simplified, whether tests passed, and notes.`,
   { label: 'simplify', phase: 'Simplify', schema: SIMPLIFY_SCHEMA }
 )
 log(`Simplify: ${simplify ? simplify.notes : 'no result'}`)
@@ -591,6 +640,7 @@ log(`Simplify: ${simplify ? simplify.notes : 'no result'}`)
 
 phase('Test')
 const verify = await agent(
+  wt +
   `Validate the change end to end. ${NON_INTERACTIVE}\n\n` +
   `1. Run the project's automated checks (test suite, build, lint as applicable) and report pass/fail with any failing output.\n` +
   `2. Affected surfaces: ${surfaceList}. Run automated tests for each that applies, and SKIP the rest:\n` +
@@ -611,6 +661,7 @@ log(`Test: ${verify && verify.passed ? 'passed' : 'see notes'} — ${verify ? ve
 
 phase('Dogfood')
 const dogfood = await agent(
+  wt +
   `Dogfood this change as a real user — ALWAYS exercise the product, never skip. Adapt to the affected surface(s): ${surfaceList}.\n` +
   `   - web-ui: start/attach to the running app and drive it through the CHANGED user journeys via agent-browser (not just the happy path — bad input, edge states, back/forward).\n` +
   `   - ios: drive the changed flows on the simulator.\n` +
@@ -624,8 +675,8 @@ const dogfood = await agent(
 log(`Dogfood: ${dogfood ? `${(dogfood.issuesFound || []).length} issue(s), ${(dogfood.fixed || []).length} fixed` : 'no result'}`)
 
 // ---------------------------------------------------------------------------
-// Commit & PR (ce-commit-push-pr). Commit, push, open PR (+ ce-demo-reel for
-// observable changes), then MONITOR CI and fix root causes until green.
+// Commit & PR (ce-commit-push-pr). Commit on the worktree branch, push, open PR
+// (+ ce-demo-reel for observable changes), then MONITOR CI and fix until green.
 // ---------------------------------------------------------------------------
 
 phase('Commit & PR')
@@ -634,14 +685,16 @@ let ci = { green: null, repaired: null }
 let ciNeededRepair = false
 let ciAttempts = 0
 if (DRY_RUN) {
-  log('DRY RUN — skipping Commit & PR (no commit, PR, or CI). Changes remain in the working tree for inspection.')
+  log('DRY RUN — skipping Commit & PR (no commit, PR, or CI). Changes remain in the worktree for inspection.')
 } else {
   const residualForPr = (fix.residual || [])
     .concat((dogfood && dogfood.residual) || [])
     .concat(verify && verify.passed ? [] : [{ title: 'Local verification did not fully pass', reason: (verify && verify.notes) || 'see Test phase' }])
   const observable = surfaces.some(s => s === 'web-ui' || s === 'cli' || s === 'ios')
   ship = await agent(
-    `Commit, push, and open a pull request for this work. This repo requires a feature branch and a PR — NEVER push to main directly. Invoke the ce-commit-push-pr skill. ${NON_INTERACTIVE}\n\n` +
+    wt +
+    `Commit, push, and open a pull request for this work. This repo requires a PR — NEVER push to main directly. Invoke the ce-commit-push-pr skill. ${NON_INTERACTIVE}\n\n` +
+    (worktreeBranch ? `You are already on branch ${worktreeBranch} in the worktree — commit ALL work to THIS branch, push it, and open the PR from it. Do NOT create another branch or switch branches.\n\n` : '') +
     (observable
       ? `This change has an observable surface (${surfaceList}) — also invoke the ce-demo-reel skill to capture visual/CLI proof and include its markdown in the PR body.\n\n`
       : '') +
@@ -665,9 +718,10 @@ if (DRY_RUN) {
       }
       ciAttempts += 1
       const attempt = await agent(
+        wt +
         `Monitor CI for PR #${ship.prNumber} until it resolves: run \`gh pr checks ${ship.prNumber} --watch\`.\n` +
         `- If every check passes, return { green: true }.\n` +
-        `- If any fail, enumerate them (\`gh pr checks ${ship.prNumber} --json name,state,conclusion,link\`), read each failing run's logs (\`gh run view <run-id> --log-failed\`), fix the ROOT cause in the working tree (never weaken or skip the failing assertion), commit \`fix(ci): <summary>\`, push, and return { green: false, repaired: <one-line summary> }.\n` +
+        `- If any fail, enumerate them (\`gh pr checks ${ship.prNumber} --json name,state,conclusion,link\`), read each failing run's logs (\`gh run view <run-id> --log-failed\`), fix the ROOT cause in the worktree (never weaken or skip the failing assertion), commit \`fix(ci): <summary>\`, push, and return { green: false, repaired: <one-line summary> }.\n` +
         `- If you read the logs and there is genuinely NO code fix you can make (infra outage, flaky external dependency), return { green: false, repaired: null }.\n${NON_INTERACTIVE}`,
         { label: `ci:attempt-${ciAttempts}`, phase: 'Commit & PR', schema: CI_SCHEMA }
       )
@@ -682,6 +736,7 @@ if (DRY_RUN) {
     if (!green) {
       log(`CI not green after ${ciAttempts} attempt(s) — recording the failure on the PR for a human.`)
       await agent(
+        wt +
         `CI for PR #${ship.prNumber} is still failing. Append (or replace) a "## CI Failures Unresolved" section in the PR body listing each remaining failing check, a one-line failure summary, and its run/check URL. Use \`gh pr edit ${ship.prNumber} --body-file <tmpfile>\`. Do not loop or retry CI. ${NON_INTERACTIVE}`,
         { label: 'ci:record-unresolved', phase: 'Commit & PR' }
       )
@@ -694,6 +749,7 @@ if (DRY_RUN) {
 // ---------------------------------------------------------------------------
 // Compound (compound OUT, ce-compound). Only when something non-obvious
 // happened, so the knowledge base the next Research reads stays signal-dense.
+// In a worktree, the learning doc must be committed + pushed or Cleanup discards it.
 // ---------------------------------------------------------------------------
 
 phase('Compound')
@@ -706,7 +762,9 @@ if (DRY_RUN) {
   log('DRY RUN — skipping Compound (no docs/solutions write).')
 } else if (worthCompounding) {
   compound = await agent(
+    wt +
     `Invoke the ce-compound skill with mode:headless to capture the durable learning from this task into docs/solutions/. Focus on what was NON-OBVIOUS: the approach chosen and why, any gotcha hit during work, review, simplify, test, dogfood, or CI, and how it connects to the learnings surfaced in research. ${NON_INTERACTIVE}\n\n` +
+    (worktreeBranch ? `IMPORTANT: after ce-compound writes the doc, commit it (\`docs(compound): capture learning\`) and push to ${worktreeBranch} so it lands on the PR — otherwise Cleanup will discard it.\n\n` : '') +
     `Task:\n${task}\n` +
     (riffrecFeedback ? `Riffrec-reported feedback that seeded this work:\n${riffrecFeedback}\n` : '') +
     `Direction taken:\n${JSON.stringify(direction)}\n` +
@@ -723,12 +781,33 @@ if (DRY_RUN) {
 }
 
 // ---------------------------------------------------------------------------
+// Cleanup. Remove the worktree directory (run from the main repo). On a real run
+// the branch + commits + PR persist; on a dry run the throwaway branch is dropped.
+// ---------------------------------------------------------------------------
+
+phase('Cleanup')
+if (worktreePath) {
+  await agent(
+    `Remove the git worktree at ${worktreePath} now that the run is complete. From the MAIN repo (not the worktree), run \`git worktree remove --force ${worktreePath}\`.\n` +
+    (DRY_RUN
+      ? `This was a DRY RUN — also delete the throwaway branch: \`git branch -D ${worktreeBranch}\`.\n`
+      : `Keep branch ${worktreeBranch} — its commits and PR persist after the worktree directory is gone.\n`) +
+    `Confirm the user's main checkout is on its original branch and untouched. ${NON_INTERACTIVE}`,
+    { label: 'cleanup', phase: 'Cleanup' }
+  )
+  log('Worktree removed.')
+} else {
+  log('No worktree to clean up.')
+}
+
+// ---------------------------------------------------------------------------
 // Summary returned to the caller.
 // ---------------------------------------------------------------------------
 
 return {
   task,
   dryRun: DRY_RUN,
+  worktree: worktreePath ? { path: worktreePath, branch: worktreeBranch } : null,
   riffrec: riffrec && riffrec.found ? { path: riffrec.path } : null,
   researchSources: research.length,
   direction: direction && (direction.winner || direction.direction),
