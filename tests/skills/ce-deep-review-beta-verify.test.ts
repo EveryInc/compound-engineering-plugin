@@ -89,6 +89,28 @@ describe("RU4 verify-findings: verify-records is blind to the producing model + 
 		expect(out.counts.CONFIRMED).toBe(2);
 	});
 
+	test("skips stale records from a DIFFERENT plan left in a reused records dir", async () => {
+		// CMRE_OUT_DIR (default /tmp/cmre-panel/records) is reused across runs. panel-critique.sh
+		// writes doc_id = `<basename plan .md>__<lens>` into each record. docFile() writes plan.md, so
+		// the current plan's doc_id base is "plan". A record carrying another plan's doc_id must NOT be
+		// verified against THIS doc (it would publish a previous review into this sidecar).
+		const doc = docFile(); // basename -> plan.md -> doc_id base "plan"
+		const dir = mkdtempSync(join(tmpdir(), "verify-recs-"));
+		writeFileSync(
+			join(dir, "codex__coherence.json"),
+			JSON.stringify({ doc_id: "plan__coherence", findings: [{ id: "cur", text: 'cites "remove the terminal hop"' }] }),
+		);
+		// Stale record from a prior run on a different plan, still sitting in the shared dir.
+		writeFileSync(
+			join(dir, "agy__coherence.json"),
+			JSON.stringify({ doc_id: "otherplan__coherence", findings: [{ id: "stale", text: 'cites "remove the terminal hop"' }] }),
+		);
+		const { out } = await py(["verify-records", doc, dir]);
+		const ids = out.verified.map((r: { id: string }) => r.id);
+		expect(ids).toEqual(["cur"]); // only the current plan's record is verified; stale one is skipped
+		expect(out.counts).toEqual({ "CONFIRMED": 1, "NOT-FOUND-IN-DOC": 0, "NEEDS-HUMAN": 0 });
+	});
+
 	test("counts tally the three verdicts across a mixed records dir", async () => {
 		const doc = docFile();
 		const dir = mkdtempSync(join(tmpdir(), "verify-recs-"));

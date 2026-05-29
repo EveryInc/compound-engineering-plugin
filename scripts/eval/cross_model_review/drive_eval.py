@@ -41,11 +41,25 @@ def plan(manifest, out_dir, rubric, context, cli_b, cli_c):
     if missing:
         return {"ok": False, "error": f"pre-registration incomplete: {', '.join(missing)} must be set before running (R9)"}
 
-    # trials_per_arm must be a positive integer: 0 (or a non-int) would enumerate zero arm
-    # runs yet still let finalize emit a decision from no experimental data.
+    # Pre-registration values must be positive integers, not just present. A string like
+    # "2" passes the missing-field check above but is silently ignored downstream:
+    # aggregate's `isinstance(threshold, int)` guard turns a string go_threshold into a
+    # blanket build_nothing, and corpus_status's `isinstance(minimum, int)` guard turns a
+    # string minimum_corpus_n into below_n=False — both corrupt the decision without erroring.
+    # trials_per_arm=0 (or a non-int) would enumerate zero arm runs yet still let finalize
+    # emit a decision from no experimental data.
+    def _is_pos_int(v):
+        return isinstance(v, int) and not isinstance(v, bool) and v >= 1
+
     trials = prereg["trials_per_arm"]
-    if not isinstance(trials, int) or isinstance(trials, bool) or trials < 1:
+    if not _is_pos_int(trials):
         return {"ok": False, "error": f"trials_per_arm must be an integer >= 1 (got {trials!r}); a decision-grade run needs >= 3 (R8)"}
+    go_threshold = prereg["go_threshold"]
+    if not _is_pos_int(go_threshold):
+        return {"ok": False, "error": f"go_threshold must be an integer >= 1 (got {go_threshold!r}); a non-int is silently ignored downstream and forces build_nothing (R9)"}
+    minimum_corpus_n = prereg["minimum_corpus_n"]
+    if not _is_pos_int(minimum_corpus_n):
+        return {"ok": False, "error": f"minimum_corpus_n must be an integer >= 1 (got {minimum_corpus_n!r}); a non-int is silently ignored downstream and skips the power check (R9)"}
 
     docs = manifest.get("docs", [])
     if not any(d.get("subset") == "known_failure" for d in docs):
@@ -103,16 +117,31 @@ def plan(manifest, out_dir, rubric, context, cli_b, cli_c):
     }
 
 
+# A trial only counts as completed evidence when its arm actually produced a review.
+# timeout/error records are schema-valid (run_arms emits them on CLI auth/quota/runtime
+# failure) but carry no usable findings; counting them would let coverage() treat a failed
+# trial as present and let finalize score it as a real zero-finding review.
+COMPLETED_STATUSES = {"ok", "degraded"}
+
+
 def load_records(records_dir):
-    """Every schema-conformant record file in the dir (skips run-state and junk)."""
+    """Schema-conformant, completed record files in the dir (skips run-state and junk).
+
+    Records whose status is timeout/error are dropped here so they are neither scored
+    nor counted toward coverage — a failed trial is a missing trial, not a clean
+    zero-finding review.
+    """
     out = []
     for f in sorted(Path(records_dir).glob("*.json")):
         try:
             rec = json.loads(f.read_text())
         except json.JSONDecodeError:
             continue
-        if not run_arms.validate_record(rec):
-            out.append(rec)
+        if run_arms.validate_record(rec):
+            continue
+        if rec.get("status") not in COMPLETED_STATUSES:
+            continue
+        out.append(rec)
     return out
 
 
@@ -207,20 +236,41 @@ the bug the fix proved mattered), human-confirmed per R6 before this record is t
 
 
 def coverage(records, manifest):
-    """Did the run actually produce the pre-registered docs x arms x trials records?
+    """Did the run produce exactly the pre-registered docs x arms x trials records?
 
     Returns None when trials_per_arm is not a usable int (nothing to check against);
-    otherwise {expected, present, complete}. An incomplete run must not yield a
-    confident build:<arm> — a partial/interrupted dir could otherwise hand the decision
-    to whichever arm's records happened to land first.
+    otherwise {expected, present, complete, missing}. Completeness is exact set
+    membership against the expected (arm, doc_id, trial) tuples derived from the
+    manifest — not a bare count. A count-only check would mark a run complete on the
+    wrong corpus (e.g. records for d1/d3 while the manifest expects d1/d2), and
+    finalize would then score/decide on a stale or mismatched set. `present` counts
+    only expected tuples that are actually covered, so extra/stale records never
+    inflate it toward `expected`.
     """
     trials = manifest.get("pre_registration", {}).get("trials_per_arm")
     if not isinstance(trials, int) or isinstance(trials, bool) or trials < 1:
         return None
     docs = manifest.get("docs", [])
-    expected = len(docs) * len(ARMS) * trials
-    present = len({(r.get("arm"), r.get("doc_id"), r.get("trial")) for r in records})
-    return {"expected": expected, "present": present, "complete": present >= expected}
+    expected_tuples = {
+        (arm, doc.get("id"), trial)
+        for doc in docs
+        for arm in ARMS
+        for trial in range(1, trials + 1)
+    }
+    present_tuples = {(r.get("arm"), r.get("doc_id"), r.get("trial")) for r in records}
+    covered = expected_tuples & present_tuples
+    missing = [
+        {"arm": a, "doc_id": d, "trial": t}
+        for (a, d, t) in sorted(
+            expected_tuples - present_tuples, key=lambda x: (str(x[1]), str(x[0]), x[2])
+        )
+    ]
+    return {
+        "expected": len(expected_tuples),
+        "present": len(covered),
+        "complete": covered == expected_tuples,
+        "missing": missing,
+    }
 
 
 def finalize(records_dir, manifest, gt_verdicts, class_verdicts=None, integrity=None,
@@ -245,9 +295,12 @@ def finalize(records_dir, manifest, gt_verdicts, class_verdicts=None, integrity=
     scored = list(gt["scored"]) + list(class_verdicts or [])
     result = run_arms.aggregate(scored, manifest)
 
-    # An incomplete record set cannot support a confident build decision (R8/R9 spirit).
+    # An incomplete record set cannot support ANY confident decision (R8/R9 spirit).
+    # This covers build_nothing as well as build:<arm>: a "don't build" verdict drawn
+    # from partial/interrupted data is a false negative, not a valid decision. An
+    # already-inconclusive outcome is left as-is but still annotated with the coverage gap.
     cov = coverage(records, manifest)
-    if cov is not None and not cov["complete"] and result["outcome"].startswith("build:"):
+    if cov is not None and not cov["complete"]:
         result = {**result, "outcome": "inconclusive", "incomplete_coverage": cov}
 
     # finding-yield: GT-match alone undercounts a reviewer that finds other real bugs

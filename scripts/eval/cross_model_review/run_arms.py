@@ -114,6 +114,18 @@ def _as_bool(v):
     return False
 
 
+def _slug(value):
+    """Filesystem-safe token for a record filename component.
+
+    `doc_id` is a free-form non-empty string (an id copied from a doc path like
+    `docs/plans/x.md` is legal), so it can carry path separators or other chars
+    that would make `write_text` target a nested/nonexistent path and raise. We
+    only sanitize the on-disk filename; the record itself keeps the true doc_id,
+    so pool/gt-pool still read the real value from inside the file.
+    """
+    return re.sub(r"[^A-Za-z0-9._-]+", "_", str(value)) or "_"
+
+
 def ingest(run_dir, record):
     """Validate an externally-produced (orchestrator) record and write it into the store."""
     errors = validate_record(record)
@@ -121,7 +133,7 @@ def ingest(run_dir, record):
         raise ValueError("; ".join(errors))
     run_path = Path(run_dir)
     run_path.mkdir(parents=True, exist_ok=True)
-    name = f"{record['arm']}__{record['doc_id']}__t{record['trial']}.json"
+    name = f"{_slug(record['arm'])}__{_slug(record['doc_id'])}__t{_slug(record['trial'])}.json"
     out = run_path / name
     out.write_text(json.dumps(record, indent=2))
     return str(out)
@@ -240,6 +252,7 @@ def build_judge_prompt(pool, manifest):
     """
     gt = {d.get("id"): (d.get("ground_truth") or {}).get("bug")
           for d in manifest.get("docs", []) if d.get("subset") == "known_failure"}
+    subset_by_doc = {d.get("id"): d.get("subset") for d in manifest.get("docs", [])}
     by_doc = {}
     for p in pool.get("pool", []):
         by_doc.setdefault(p.get("doc_id"), []).append(p)
@@ -256,8 +269,14 @@ def build_judge_prompt(pool, manifest):
     for doc, items in by_doc.items():
         if doc in gt and gt[doc]:
             lines.append(f"## Document {doc} — the bug a good review should have caught: {gt[doc]}")
-        else:
+        elif subset_by_doc.get(doc) == "negative_control":
             lines.append(f"## Document {doc} — NEGATIVE CONTROL: no real bug exists; matches_bug must be false for all.")
+        else:
+            # forward_rated (and any non-known_failure, non-negative_control doc): there is no
+            # pre-registered bug to match, so judge each finding neutrally on its own merits.
+            # Asserting "no real bug exists" here would bias legitimate forward-rated findings
+            # downward in the yield/precision signal that reuses these verdicts.
+            lines.append(f"## Document {doc} — no pre-registered bug; matches_bug must be false. Still judge actionable/decision_changing on each finding's own merits.")
         for p in items:
             lines.append(f"- uid={p.get('uid')}: {p.get('text','')}")
         lines.append("")
@@ -265,7 +284,12 @@ def build_judge_prompt(pool, manifest):
 
 
 def parse_judge_verdicts(text):
-    """Parse the judge's JSON verdict array (tolerating a ```json fence). [] on failure."""
+    """Parse the judge's JSON verdict array (tolerating a ```json fence). [] on failure.
+
+    Requires an array of verdict *objects*: a non-empty array of non-dicts (e.g. the
+    judge emitted a list of strings) is rejected as [] so run-judge.sh treats it as a
+    parse failure instead of handing downstream `v.get(...)` entries it will crash on.
+    """
     t = (text or "").strip()
     if t.startswith("```"):
         t = re.sub(r"^```[a-zA-Z0-9]*\n?", "", t)
@@ -274,7 +298,11 @@ def parse_judge_verdicts(text):
         data = json.loads(t)
     except (json.JSONDecodeError, ValueError):
         return []
-    return data if isinstance(data, list) else []
+    if not isinstance(data, list):
+        return []
+    if not all(isinstance(v, dict) for v in data):
+        return []
+    return data
 
 
 def yield_score(provenance, verdicts):
@@ -477,7 +505,7 @@ def main(argv=None):
             # `-` reads the record from stdin so `run-arm ... | ingest <dir> -` works.
             rec = json.loads(sys.stdin.read()) if args.record == "-" else _load(args.record)
             written = ingest(args.run_dir, rec)
-        except (ValueError, json.JSONDecodeError) as e:
+        except (ValueError, json.JSONDecodeError, OSError) as e:
             print(json.dumps({"written": None, "error": str(e)}))
             return 1
         print(json.dumps({"written": written}))

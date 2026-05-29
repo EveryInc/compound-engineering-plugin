@@ -102,8 +102,24 @@ def verify_one(finding_text, doc_norm):
     return "NOT-FOUND-IN-DOC", None
 
 
-def _iter_records(records_dir):
-    """Yield (model, lens, finding_dict) for every record file <cli>__<lens>.json in the dir."""
+def doc_id_for(doc_path):
+    """The current run's doc_id base, matching panel-critique.sh's `basename <plan> .md`. Records
+    written by the panel store doc_id = `<this base>__<lens>`; verify-records uses it to skip stale
+    records left in a reused CMRE_OUT_DIR by a DIFFERENT plan."""
+    base = os.path.basename(doc_path)
+    if base.endswith(".md"):
+        base = base[:-3]
+    return base
+
+
+def _iter_records(records_dir, doc_id_base):
+    """Yield (model, lens, finding_dict) for every record file <cli>__<lens>.json in the dir whose
+    record belongs to the CURRENT plan. The default CMRE_OUT_DIR (/tmp/cmre-panel/records) is reused
+    across runs, so a record from a different plan can linger; verifying its findings against THIS doc
+    would publish another plan's review into this sidecar. Each record stores doc_id = `<base>__<lens>`
+    (arms.py, via panel-critique.sh's `--doc-id "${doc_id}__${lens}"`); skip any record whose stored
+    doc_id doesn't match the current plan's `<doc_id_base>__<lens>`. A record missing doc_id entirely
+    is kept (can't prove it's stale; preserves pre-doc_id records and hand-built fixtures)."""
     for fn in sorted(os.listdir(records_dir)):
         if not fn.endswith(".json"):
             continue
@@ -113,6 +129,9 @@ def _iter_records(records_dir):
             rec = json.load(open(os.path.join(records_dir, fn)))
         except (json.JSONDecodeError, OSError):
             continue
+        rec_doc_id = rec.get("doc_id")
+        if rec_doc_id is not None and rec_doc_id != f"{doc_id_base}__{lens}":
+            continue  # stale record from another plan (or another lens) in a reused dir
         for f in rec.get("findings", []):
             yield model, lens, f
 
@@ -142,9 +161,10 @@ def main(argv=None):
 
     if args.cmd == "verify-records":
         doc_norm = normalize(Path(args.doc).read_text())
+        doc_id_base = doc_id_for(args.doc)  # skip stale records from another plan in a reused dir
         rows = []
         counts = {"CONFIRMED": 0, "NOT-FOUND-IN-DOC": 0, "NEEDS-HUMAN": 0}
-        for model, lens, f in _iter_records(args.records_dir):
+        for model, lens, f in _iter_records(args.records_dir, doc_id_base):
             text = f.get("text", "")
             verdict, quote = verify_one(text, doc_norm)  # blind: model/lens not passed in
             counts[verdict] += 1

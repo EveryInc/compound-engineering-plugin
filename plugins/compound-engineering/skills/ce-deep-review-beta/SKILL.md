@@ -38,6 +38,13 @@ wait for the reply — never skip the gate.
    bash "${CLAUDE_SKILL_DIR}/scripts/env-detect.sh"
    ```
 
+   `${CLAUDE_SKILL_DIR}` is the runtime path to this skill's directory and resolves on every
+   platform that ships the env var. On a target that does not set it (the path expands to
+   `/scripts/...` and the script does not run), do NOT treat the empty result as "zero arms" and
+   silently fall through to panel-only — that hides an available Codex/agy arm. Surface it instead:
+   report that arm detection could not run because the skill directory did not resolve, and run the
+   script via that platform's skill-relative path before deciding coverage.
+
    Parse `{"codex":"ok|unauthed|missing","agy":"ok|unauthed|missing|unavailable"}`. An arm is
    **available** only when `ok` (installed + an offline auth signal); `unavailable` means
    platform-gated off and is never offered. Arms are **codex + agy**. agy is **macOS-only** — its

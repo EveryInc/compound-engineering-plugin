@@ -254,8 +254,8 @@ python3 build_corpus.py to-manifest sf.json > manifest.json      # then fill pre
 
 # 2. Claude arms a/d, 3 trials each (orchestrator, in-process, no egress)
 # 3. cross-model arms b/c, 3 trials each (EGRESS — codex + gemini)
-python3 arms.py run-arm b_isolated      codex  <doc> <rubric>                 --doc-id <id> --trial <1..3> | run_arms.py ingest <run>/records -
-python3 arms.py run-arm c_fixed_context gemini <doc> <rubric> --context <ctx> --doc-id <id> --trial <1..3> | run_arms.py ingest <run>/records -
+python3 arms.py run-arm b_isolated      codex  <doc> <rubric>                 --doc-id <id> --trial <1..3> | python3 run_arms.py ingest <run>/records -
+python3 arms.py run-arm c_fixed_context gemini <doc> <rubric> --context <ctx> --doc-id <id> --trial <1..3> | python3 run_arms.py ingest <run>/records -
 
 # 4. pool, then the NON-CLAUDE judge over the blind pool (EGRESS)
 python3 run_arms.py gt-pool <run>/records/*.json > pool.json     # (glob-collect records into one array)

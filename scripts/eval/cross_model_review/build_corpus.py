@@ -91,6 +91,53 @@ def parse_hunk_ranges(diff):
     return {"files": files}
 
 
+def parse_blame_ranges(diff):
+    """Per-file old-side ranges of only the lines a fix actually deleted/changed.
+
+    Unlike `parse_hunk_ranges` (which returns the full old-side hunk range from the
+    `@@` header, context lines included), this walks the hunk body and records only
+    the pre-image lines marked `-` -- the lines the fix replaced or removed. Those
+    are the lines to `git blame` at the fix's parent: blaming the surrounding context
+    would attribute the fixed code to whoever last wrote the *neighboring* lines,
+    materializing the wrong culprit diff. Pure-addition hunks (no `-` lines)
+    contribute nothing. Consecutive deleted lines are coalesced into `[start, count]`.
+    """
+    files = []
+    current = None
+    old_lineno = None  # next old-side line number; only tracked inside a hunk body
+    for line in (diff or "").splitlines():
+        mg = DIFF_GIT.match(line)
+        if mg:
+            current = {"file": mg.group(2), "old_ranges": []}
+            files.append(current)
+            old_lineno = None
+            continue
+        mh = HUNK.match(line)
+        if mh and current is not None:
+            old_lineno = int(mh.group(1))
+            continue
+        if current is None or old_lineno is None:
+            continue
+        # File headers inside a hunk region never occur, but guard anyway so a
+        # stray `---`/`+++` is never miscounted as a context/deletion line.
+        if line.startswith("---") or line.startswith("+++"):
+            continue
+        if line.startswith("-"):
+            ranges = current["old_ranges"]
+            if ranges and ranges[-1][0] + ranges[-1][1] == old_lineno:
+                ranges[-1][1] += 1  # extend a contiguous run of deleted lines
+            else:
+                ranges.append([old_lineno, 1])
+            old_lineno += 1
+        elif line.startswith("+"):
+            continue  # added line: no pre-image counterpart, no old-side advance
+        elif line.startswith("\\"):
+            continue  # "\ No newline at end of file": not a content line
+        else:
+            old_lineno += 1  # context line (leading space): advances the old side
+    return {"files": files}
+
+
 def is_regression_subject(text):
     """Detect a fix subject that names a break; return matched terms (Tier-2)."""
     matched = [t for t, rx in REGRESSION_RE.items() if rx.search(text or "")]
@@ -296,10 +343,14 @@ def blame_candidates(repo, fix_sha, code_only=False):
     Returns [{culprit_sha, files}] ranked by how many of the fix's files each
     culprit last wrote (most first) — the heuristic best guess. When `code_only`,
     documentation files are skipped so a code-review corpus stays code-only.
+
+    Uses `parse_blame_ranges` (deleted lines only), not `parse_hunk_ranges`
+    (full header range): blaming a hunk's context lines would attribute the fixed
+    code to whoever last wrote the *neighboring* lines and pick the wrong culprit.
     """
     diff = _git(repo, ["show", fix_sha])
     candidates = {}
-    for f in parse_hunk_ranges(diff)["files"]:
+    for f in parse_blame_ranges(diff)["files"]:
         if code_only and not is_code_path(f["file"]):
             continue
         for start, count in f["old_ranges"]:
