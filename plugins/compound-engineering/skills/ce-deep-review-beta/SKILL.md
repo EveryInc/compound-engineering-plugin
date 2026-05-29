@@ -37,10 +37,12 @@ wait for the reply — never skip the gate.
    bash "${CLAUDE_SKILL_DIR}/scripts/env-detect.sh"
    ```
 
-   Parse `{"codex":"ok|unauthed|missing","gemini":...}`. An arm is **available** only when `ok`
-   (installed + an offline auth signal). Thin-slice arms are **codex + gemini** (the arms the
-   bundled `panel-critique.sh` runs). grok is deferred (0.2.8 relay-auth bug); agy is validated +
-   sandbox-wired but joins the panel runner in a later phase.
+   Parse `{"codex":"ok|unauthed|missing","gemini":...,"agy":"ok|unauthed|missing|unavailable"}`. An
+   arm is **available** only when `ok` (installed + an offline auth signal); `unavailable` means
+   platform-gated off and is never offered. Arms are **codex + agy by default**, with **gemini
+   selectable until its 2026-06-18 HTTP-410 cutoff**. agy is **macOS-only** — its read-only floor is
+   a macOS seatbelt, so env-detect reports it `unavailable` off-darwin and the gate must not offer it
+   (arms.py independently refuses agy off-darwin). grok is deferred (0.2.8 relay-auth bug).
 3. **Branch on availability:**
    - **≥1 arm available** → continue to Phase 1.
    - **zero arms available** → run Phase 1 (panel) only, then write a **panel-only** sidecar at
@@ -87,7 +89,8 @@ copy (do not paraphrase them).
    authorization to send the plan out — see `references/consent-gate.md` → "Egress-gate
    legibility":
    - **≥2 arms available:** a multi-select over the available models, default none. Label each
-     option with the egress verb + vendor: `Send the plan to codex (OpenAI)` and
+     option with the egress verb + vendor: `Send the plan to codex (OpenAI)`,
+     `Send the plan to agy (Antigravity)`, and — pre-cutoff, when still available —
      `Send the plan to gemini (Google)`. Submitting with ≥1 selected = consent + acknowledgment for
      that subset. Submitting with none, or choosing the free-text/Other escape to cancel → see
      routing below.

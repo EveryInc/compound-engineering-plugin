@@ -30,7 +30,8 @@ migrations, credentials, privacy, data cutover), not routine ones.
 | Arm | Status |
 |-----|--------|
 | **codex** (OpenAI) | available |
-| **gemini** (Google) | available (thin slice); migrating to **agy**/Antigravity |
+| **agy** (Antigravity) | available — **default non-codex arm**; macOS-only (its read-only floor is a seatbelt) |
+| **gemini** (Google) | selectable until its 2026-06-18 HTTP-410 cutoff |
 | **grok** (xAI) | deferred — blocked by a grok 0.2.8 headless relay-auth bug |
 
 You need at least one arm installed + authenticated. With none, the skill runs the Claude panel and

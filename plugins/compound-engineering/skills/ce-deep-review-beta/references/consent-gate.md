@@ -46,10 +46,11 @@ This is load-bearing for the harness egress classifier (see "Egress-gate legibil
 cosmetic. Selecting any model == consent.
 
 - **≥2 arms available** → `multiSelect: true` over the available models, labeled
-  `Send the plan to codex (OpenAI)`, `Send the plan to gemini (Google)`, default none. Each label
-  is self-contained, third-person, and states the egress + target vendor. The free-text/Other
-  escape serves as cancel. Submitting with ≥1 model selected grants consent for that subset;
-  submitting none triggers the one-time re-prompt (then cancel).
+  `Send the plan to codex (OpenAI)`, `Send the plan to agy (Antigravity)`, and (pre-cutoff)
+  `Send the plan to gemini (Google)`, default none. Each label is self-contained, third-person, and
+  states the egress + target vendor. The free-text/Other escape serves as cancel. Submitting with
+  ≥1 model selected grants consent for that subset; submitting none triggers the one-time re-prompt
+  (then cancel).
 - **exactly 1 arm available** → single-select with two options: `Send the plan to <model> (<Vendor>)`
   and `Cancel — panel-only, no egress`. (A lone toggle cannot be a multi-select; the blocking tool
   needs ≥2 options.)

@@ -6,12 +6,14 @@
 # PRESENCE (test -s). It makes NO vendor API calls (an authenticated call would be pre-consent
 # egress) and never reads credential file contents.
 #
-# Thin-slice (Phase 1) arms = codex + gemini (the arms the current panel-critique.sh runs).
+# Arms = codex + agy (default) + gemini (selectable until the 2026-06-18 HTTP-410 cutoff).
 #   - grok is deferred: grok 0.2.8 headless is blocked by a relay-auth bug
 #     (docs/solutions/skill-design/2026-05-28-grok-arm-posture-validation.md).
-#   - agy is validated + sandbox-wired in arms.py but joins the panel runner in Phase 2/U8.
+#   - agy's read-only floor is a macOS seatbelt, so agy is macOS-ONLY: off-darwin it reports
+#     "unavailable" regardless of install/auth, and the consent gate must not offer it (R5 — never
+#     offer an arm whose floor is unenforced; arms.py also refuses agy off-darwin).
 # Statuses: "ok" (installed + auth signal present), "unauthed" (installed, no auth signal),
-#           "missing" (binary not on PATH).
+#           "missing" (binary not on PATH), "unavailable" (platform-gated off — agy off macOS).
 set -u
 
 status_for() {
@@ -36,4 +38,15 @@ gemini_auth=no
 if [ -n "${GEMINI_API_KEY:-}" ] || [ -s "$HOME/.gemini/oauth_creds.json" ]; then gemini_auth=yes; fi
 gemini_status="$(status_for gemini "$gemini_auth")"
 
-printf '{"codex":"%s","gemini":"%s"}\n' "$codex_status" "$gemini_status"
+# agy: macOS-ONLY (its read-only floor is a macOS seatbelt; arms.py refuses agy off-darwin). Off
+# macOS -> "unavailable" so the gate never offers an unfloored arm. Auth = the same OAuth file as
+# gemini (~/.gemini/oauth_creds.json); presence only (test -s) — never read contents, and do NOT
+# gate on expiry (agy auto-refreshes).
+agy_status=unavailable
+if [ "$(uname -s)" = "Darwin" ]; then
+  agy_auth=no
+  [ -s "$HOME/.gemini/oauth_creds.json" ] && agy_auth=yes
+  agy_status="$(status_for agy "$agy_auth")"
+fi
+
+printf '{"codex":"%s","gemini":"%s","agy":"%s"}\n' "$codex_status" "$gemini_status" "$agy_status"

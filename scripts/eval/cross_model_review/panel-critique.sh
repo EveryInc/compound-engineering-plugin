@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Fair cross-model PANEL critique: run codex + gemini through the SAME six review lenses the
+# Fair cross-model PANEL critique: run the cross-model arms through the SAME six review lenses the
 # Claude ce-doc-review panel uses (coherence, feasibility, security, scope, product, adversarial),
 # so a Claude-panel-vs-cross-model comparison isn't confounded by prompt asymmetry. Persists the
 # FULL record per (model x lens) for post-hoc judging — nothing is truncated away.
 #
-# Usage:  panel-critique.sh <doc.md> [context.md]
-# Output: full records under $CMRE_OUT_DIR (default /tmp/cmre-panel/records); a summary to stdout.
-# Each run SENDS THE DOCUMENT to that vendor (codex -> OpenAI, gemini -> Google). gemini needs
-# GEMINI_API_KEY. 12 calls total (6 lenses x 2 models); gemini can be slow — raise CMRE_TIMEOUT.
+# Usage:  panel-critique.sh [--models <csv>] <doc.md> [context.md]
+# Default arms = codex + agy (macOS-ONLY; its read-only floor is a seatbelt). gemini stays
+# SELECTABLE via `--models codex,gemini` until the 2026-06-18 HTTP-410 cutoff. Records ->
+# $CMRE_OUT_DIR (default /tmp/cmre-panel/records). Each run SENDS THE DOCUMENT to that vendor
+# (codex -> OpenAI, agy -> Antigravity, gemini -> Google); arms can be slow — raise CMRE_TIMEOUT.
 set -u
 
 here="$(cd "$(dirname "$0")" && pwd)"
@@ -17,7 +18,7 @@ arms="$here/arms.py"
 # ce-deep-review-beta's consent gate) restrict egress to exactly the consented models. Egress must
 # equal consent, so the subset is filtered BEFORE running each arm -- never by discarding records
 # post-hoc (the document would already have been sent).
-models="codex gemini"
+models="codex agy"
 if [ "${1:-}" = "--models" ]; then
 	models="$(printf '%s' "${2:-}" | tr ',' ' ')"
 	shift 2
@@ -28,6 +29,13 @@ case "${1:-}" in -h|--help|"") sed -n '2,10p' "$0" | sed 's/^# \{0,1\}//'; exit 
 plan="$1"; context="${2:-}"
 [ -f "$plan" ] || { echo "error: doc not found: '$plan'" >&2; exit 2; }
 if [ -n "$context" ] && [ ! -f "$context" ]; then echo "error: context not found: '$context'" >&2; exit 2; fi
+
+# The agy arm's deny-write floor must deny writes to the REVIEWED document's repo, not arms.py's own
+# location (matters for the installed skill reviewing a user's plan). Resolve it from the plan's
+# directory; fall back to that directory when the plan isn't inside a git repo. arms.py reads CMRE_REPO_DIR.
+plan_dir="$(cd "$(dirname "$plan")" && pwd)"
+CMRE_REPO_DIR="$(git -C "$plan_dir" rev-parse --show-toplevel 2>/dev/null || printf '%s' "$plan_dir")"
+export CMRE_REPO_DIR
 
 out="${CMRE_OUT_DIR:-/tmp/cmre-panel}"; rec_dir="$out/records"; mkdir -p "$rec_dir"
 arm="b_isolated"; [ -n "$context" ] && arm="c_fixed_context"

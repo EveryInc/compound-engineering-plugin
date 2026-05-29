@@ -14,7 +14,7 @@ bash "${CLAUDE_SKILL_DIR}/scripts/panel-critique.sh" --models <subset> "<plan-pa
 - The bundled `panel-critique.sh` runs each selected model across the six lenses (coherence,
   feasibility, security, scope, product, adversarial) via `python3 arms.py run-arm`, writing one
   record per (model, lens). Records land at `${CMRE_OUT_DIR:-/tmp/cmre-panel}/records/<cli>__<lens>.json`.
-- Set `CMRE_TIMEOUT` (seconds, per (model, lens)) if the default is too tight; gemini can be slow.
+- Set `CMRE_TIMEOUT` (seconds, per (model, lens)) if the default is too tight; agy/gemini can be slow.
 
 ## If the dispatch is blocked (harness egress classifier)
 
@@ -70,16 +70,19 @@ The parsed findings are **unverified** at this stage. Present them to chat and w
 the UNVERIFIED banner). Verification tags (CONFIRMED / NOT-FOUND-IN-DOC / NEEDS-HUMAN) and the
 reconciled `<plan>.deep-review.md` are added in a later phase.
 
-## Phase-2 TODO (agy arm + bundled paths)
+## agy arm (RU2 — landed)
 
-The thin slice runs codex + gemini (the current `panel-critique.sh` arm set). When the gemini→agy
-migration lands, two bundled-context details must be handled (they don't affect the codex/gemini
-thin slice):
+The default arm set is now **codex + agy** (gemini stays selectable via `--models codex,gemini`
+until the 2026-06-18 cutoff). agy is **macOS-only**: its read-only floor is a macOS seatbelt, so
+`env-detect.sh` reports agy `unavailable` off-darwin and the gate must not offer it; `arms.py`
+independently refuses the agy arm when the seatbelt prefix is empty (off-darwin or a missing
+template) rather than running it unfloored.
+
+Two bundled-context details, now handled:
 
 - The bundled `arms.py` `agy_sandbox_prefix()` reads `validation/agy-readonly.sb.tmpl` relative to
-  itself — `bundle-harness.sh` copies the template into `scripts/validation/`, so it resolves, but
+  itself — `bundle-harness.sh` copies the template into `scripts/validation/`, so it resolves;
   verify after any restructure.
-- `arms.py` `_repo_root()` derives the deny-write repo from arms.py's own location, which is correct
-  for the in-repo eval harness but NOT for the installed skill reviewing a user's plan. The agy
-  REPO_DIR must be passed from the plan's actual repo (e.g. `git -C <plan-dir> rev-parse
-  --show-toplevel`) when agy joins the skill's dispatch.
+- `arms.py` `_repo_root()` now honors `CMRE_REPO_DIR` (the reviewed plan's repo) so the deny-write
+  floor protects the user's plan repo, not arms.py's own location. `panel-critique.sh` exports it
+  via `git -C <plan-dir> rev-parse --show-toplevel` (fallback: the plan's directory).

@@ -50,7 +50,17 @@ NUMBERED_ITEM = re.compile(r"^\s*\d+[.)]\s+(.*)$")
 
 
 def _repo_root():
-    """Canonical repo root (arms.py is at scripts/eval/cross_model_review/arms.py)."""
+    """Repo whose writes the agy seatbelt floor denies.
+
+    Honors CMRE_REPO_DIR when set — the REVIEWED document's repo, passed by the caller. The
+    installed skill reviews a user's plan, where arms.py's own location is NOT the right repo to
+    protect; panel-critique.sh exports CMRE_REPO_DIR from the plan's directory. Falls back to
+    arms.py's canonical in-repo location (scripts/eval/cross_model_review/arms.py) for the
+    eval-harness case where no caller supplies it.
+    """
+    env = os.environ.get("CMRE_REPO_DIR")
+    if env:
+        return os.path.realpath(env)
     return os.path.realpath(os.path.join(os.path.dirname(__file__), "..", "..", ".."))
 
 
@@ -211,6 +221,19 @@ def run_invocation(spec, timeout):
     sb_profile = None
     if spec.get("sandbox") == "seatbelt-deny-write":
         prefix, sb_profile = agy_sandbox_prefix()
+        # Defense-in-depth (R5): agy's read-only floor IS the macOS seatbelt. agy_sandbox_prefix()
+        # returns an empty prefix off-darwin OR when the profile template is missing — refuse rather
+        # than run agy unfloored, so a direct `arms.py run-arm ... agy` on a non-macOS host (or a
+        # mis-bundled skill) can't bypass env-detect's platform-gate and exfiltrate with no floor.
+        if not prefix:
+            return {
+                "status": "error",
+                "latency_ms": 0,
+                "findings": [],
+                "stderr": "agy arm refused: its read-only floor is macOS-only (seatbelt) and was "
+                "unavailable here (non-macOS host, or missing agy-readonly.sb.tmpl). "
+                "agy is macOS-only — use codex/gemini on other platforms.",
+            }
         argv = prefix + argv
     start = time.monotonic()
     try:
