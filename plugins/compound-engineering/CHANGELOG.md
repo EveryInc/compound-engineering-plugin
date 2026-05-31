@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.9.4](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.9.3...compound-engineering-v3.9.4) (2026-05-31)
+
+
+### Bug Fixes
+
+* **ce-plan:** add answer-seeking disposition to universal planning ([#886](https://github.com/EveryInc/compound-engineering-plugin/issues/886)) ([ece9fa1](https://github.com/EveryInc/compound-engineering-plugin/commit/ece9fa1f1f40a267b3ab7c4aa94126e3f5623b09))
+
 ## [3.9.3](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.9.2...compound-engineering-v3.9.3) (2026-05-28)
 
 
