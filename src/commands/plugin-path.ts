@@ -51,7 +51,6 @@ export default defineCommand({
 
     // Plugin path goes to stdout (for scripting); usage hint goes to stderr
     console.error(`\nReady. Use with:\n  claude --plugin-dir ${pluginPath}\n`)
-    console.log(pluginPath)
   },
 })
 
