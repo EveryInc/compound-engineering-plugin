@@ -83,7 +83,6 @@ export async function writeKiroBundle(outputRoot: string, bundle: KiroBundle): P
     const mcpPath = path.join(paths.settingsDir, "mcp.json")
     const backupPath = await backupFile(mcpPath)
     if (backupPath) {
-      console.log(`Backed up existing mcp.json to ${backupPath}`)
     }
 
     // Merge with existing mcp.json if present
