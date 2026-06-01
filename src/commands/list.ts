@@ -12,7 +12,6 @@ export default defineCommand({
     const root = process.cwd()
     const pluginsDir = path.join(root, "plugins")
     if (!(await pathExists(pluginsDir))) {
-      console.log("No plugins directory found.")
       return
     }
 
@@ -28,10 +27,8 @@ export default defineCommand({
     }
 
     if (plugins.length === 0) {
-      console.log("No Claude plugins found under plugins/.")
       return
     }
 
-    console.log(plugins.sort().join("\n"))
   },
 })
