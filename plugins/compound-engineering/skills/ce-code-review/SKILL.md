@@ -397,7 +397,7 @@ Each persona sub-agent writes full JSON (all schema fields) to `/tmp/compound-en
 }
 ```
 
-Detail-tier fields (`why_it_matters`, `evidence`) are in the artifact file only. `suggested_fix` is optional in both tiers -- included in compact returns when present so callers can apply fixes after review. If the file write fails, the compact return still provides everything the merge needs.
+The artifact file **must** carry the detail-tier fields (`why_it_matters`, `evidence`); the compact *return* omits them, but writing the compact shape to the artifact (a common reviewer slip) silently strips the detail Coverage and the keyed detail lines depend on. However review context is delivered — inlined, or staged to disk for a large diff — each reviewer still receives the full subagent-template output contract; staging context never licenses a thinner one. `suggested_fix` is optional in both tiers -- included in compact returns when present so callers can apply fixes after review. If the file write fails, the compact return still provides everything the merge needs.
 
 **CE always-on agents** (ce-agent-native-reviewer, ce-learnings-researcher) are dispatched as standard Agent calls through the same bounded parallel scheduler as the persona agents. Give them the same review context bundle the personas receive: entry mode, any PR metadata gathered in Stage 1, intent summary, review base branch name when known, `BASE:` marker, file list, diff, and `UNTRACKED:` scope notes. Do not invoke them with a generic "review this" prompt. Their output is unstructured and synthesized separately in Stage 6.
 
@@ -488,7 +488,7 @@ Severity, confidence, and cross-reviewer agreement tell you what to do first and
 
 **Commit when the pre-review tree was clean.** Before applying, note whether the working tree already had uncommitted changes (`git status --porcelain`). The permanence gate is the **push**, not the commit — a local commit is private and reversible (`git reset --soft HEAD~1`).
 
-- **Clean before the review:** after applying and verifying, commit the fixes as one isolated `fix(review): <summary>` commit — labeled and reversible, returning the tree to a known state.
+- **Clean before the review:** after applying and verifying, commit the fixes as one isolated, review-labeled fix commit — `fix(review): <summary>`, or the repo's nearest convention if `review` isn't an allowed scope. Labeled and reversible, returning the tree to a known state.
 - **Dirty before the review:** apply but do **not** commit — the fixes interleave with the user's in-flight work and ride along with the commit they were already going to make. The Applied section lists what changed.
 - **Never push, open a PR, or file tickets** — that's the outward-facing step the user owns.
 
@@ -518,7 +518,7 @@ Per-severity tables are **5 columns** — `Route` is not shown here (it appears 
 - **Inconsistent treatment across severities** (e.g. P1 as blocks while P2/P3 are tables) — every severity uses the same table + optional detail-line shape
 
 1. **Header.** Scope, intent, mode, reviewer team with per-conditional justifications.
-2. **Applied (default mode only).** When Stage 5c applied fixes, list them first — before the findings tables — in an Applied section (see review output template): `# | File | Fix | Reviewer`, then a one-line validation outcome (e.g. "pin tests 4 -> 6; suite 94 pass, lint clean") and commit status (committed as `fix(review): …` on a clean tree, or left uncommitted for the user on a dirty one). Flag green-but-unverifiable edits (auth/contract/concurrency) prominently. Omit this section in `mode:agent` and when nothing was applied. Applied findings appear here, not in the severity tables.
+2. **Applied (default mode only).** When Stage 5c applied fixes, list them first — before the findings tables — in an Applied section (see review output template): `# | File | Fix | Reviewer`, then a one-line validation outcome (e.g. "pin tests 4 -> 6; suite 94 pass, lint clean") and commit status (committed on a clean tree as `fix(review): …` or the repo's nearest convention, or left uncommitted for the user on a dirty one). Flag green-but-unverifiable edits (auth/contract/concurrency) prominently. Omit this section in `mode:agent` and when nothing was applied. Applied findings appear here, not in the severity tables.
 3. **Findings.** Pipe-delimited tables grouped by severity (`### P0 -- Critical`, `### P1 -- High`, `### P2 -- Moderate`, `### P3 -- Low`), using the shape above — the **same** shape for every severity. Omit empty severity levels. Finding numbers come from the stable assignment in Stage 5 -- never re-derive them per severity table.
 4. **Requirements Completeness.** Include only when a plan was found in Stage 2b. For each requirement (R1, R2, etc.) and implementation unit in the plan, report whether corresponding work appears in the diff. Use a simple checklist: met / not addressed / partially addressed. Routing depends on `plan_source`:
    - **`explicit`** (caller-provided or PR body): Flag unaddressed requirements or implementation units as P1 findings with `autofix_class: manual`, `owner: downstream-resolver`. These enter the actionable queue.
@@ -627,6 +627,7 @@ Always write run artifacts under `/tmp/compound-engineering/ce-code-review/<run-
 - actionable findings list
 - advisory outputs
 - per-agent `{reviewer_name}.json` from Stage 4
+- `report.md` — the rendered markdown report exactly as presented to the user (default mode only), so format and numbering stay auditable after the run
 
 `metadata.json` minimum fields:
 
