@@ -59,29 +59,43 @@ plan, and strategy artifacts as well.
   use as hint when auto-detecting. Strip the token before treating the remainder as a
   path.
 
-**0.2 Auto-detect if no path given.** Search in priority order:
+**0.2 Auto-detect if no path given.** Collect candidates from ALL CE locations at once,
+then pick the single most recently modified file across the combined set:
 
-| Priority | Location | Type |
-|---|---|---|
-| 1 | Most recently modified file under `docs/solutions/` | learning |
-| 2 | Most recently modified file under `docs/brainstorms/` | brainstorm |
-| 3 | Most recently modified file under `docs/plans/` | plan |
-| 4 | `STRATEGY.md` at repo root | strategy |
+| Location | Type |
+|---|---|
+| Files under `docs/solutions/` | learning |
+| Files under `docs/brainstorms/` | brainstorm |
+| Files under `docs/plans/` | plan |
+| `STRATEGY.md` at repo root | strategy |
 
-Use `git status --short` or modification timestamps to find the most recently written
-file. If nothing is found, emit: "No CE artifacts found. Run a CE skill first, or pass
-a file path." and exit.
+Use `git status --short` or modification timestamps across all four locations together.
+Rank by recency globally -- do not stop at the first non-empty directory. The most
+recently touched file across all locations wins. If nothing is found, emit: "No CE
+artifacts found. Run a CE skill first, or pass a file path." and exit.
 
 **0.3 Confirm target with user** (interactive only). One line: `Syncing <path> to
 gbrain as <type>. Continue? [y/n]`. Skip in headless mode.
 
 ### Phase 1: Check gbrain reachability
 
-**1.1 MCP check.** Use `ToolSearch` with `select:gbrain__put_page` (or the MCP tool
-name registered by your gbrain server). If the tool schema loads successfully,
-`GBRAIN_MODE=mcp`.
+**1.0 Read configured destination.** Read `gbrain_destination` from
+`.compound-engineering/config.local.yaml` (use `git rev-parse --show-toplevel` to
+resolve root). Apply the value as a hard constraint before any probing:
 
-**1.2 CLI check** (if MCP unavailable). Run `which gbrain 2>/dev/null`. If exit 0,
+| `gbrain_destination` | Behavior |
+|---|---|
+| `false` or absent | `GBRAIN_MODE=none` immediately -- skip all probing, go to 1.3 |
+| `cli` | Skip MCP probe entirely; go directly to CLI check (1.2) |
+| `mcp` | MCP only; skip CLI fallback even if MCP is unavailable |
+| absent but config file missing | Probe in default order (1.1 then 1.2) |
+
+**1.1 MCP check** (skip if `gbrain_destination: cli`). Use `ToolSearch` with
+`select:gbrain__put_page` (or the MCP tool name registered by your gbrain server).
+If the tool schema loads successfully, `GBRAIN_MODE=mcp`.
+
+**1.2 CLI check** (skip if `gbrain_destination: mcp`; run if MCP unavailable or
+`gbrain_destination: cli`). Run `which gbrain 2>/dev/null`. If exit 0,
 `GBRAIN_MODE=cli`. If exit nonzero, `GBRAIN_MODE=none`.
 
 **1.3 If `GBRAIN_MODE=none`**, emit:
@@ -106,16 +120,26 @@ Exit without error. Do NOT block the calling workflow.
 | `STRATEGY.md` | strategy | `engineering/strategy/` |
 | anything else | note | `engineering/notes/` |
 
-**2.3 Build the gbrain slug.** Pattern: `{gbrain_slug_prefix}{type-prefix}{repo-slug}/{filename-stem}`
+**2.3 Build the gbrain slug.** Pattern:
+`{gbrain_slug_prefix}{type-prefix}{repo-slug}/{relative-subpath-stem}`
 
 - `gbrain_slug_prefix`: read from `.compound-engineering/config.local.yaml`; default
   `engineering/`.
 - `repo-slug`: the current git repo name (`basename $(git rev-parse --show-toplevel)`).
-- `filename-stem`: the artifact filename without extension, lowercased, spaces/underscores
+- `relative-subpath-stem`: the artifact path relative to its CE root directory
+  (`docs/solutions/`, `docs/brainstorms/`, `docs/plans/`, or repo root for
+  `STRATEGY.md`), with the file extension stripped, lowercased, spaces/underscores
   replaced with hyphens.
 
+Include subdirectory segments so files in different subdirectories never collide.
+Two files with the same name in different categories (`docs/solutions/auth/jwt-expiry.md`
+and `docs/solutions/payments/jwt-expiry.md`) must produce distinct slugs.
+
 Example: `docs/solutions/auth/jwt-expiry.md` in repo `monolith` →
-`engineering/solutions/monolith/jwt-expiry`
+`engineering/solutions/monolith/auth/jwt-expiry`
+
+Example: `docs/solutions/payments/jwt-expiry.md` in repo `monolith` →
+`engineering/solutions/monolith/payments/jwt-expiry`
 
 **2.4 Extract or build gbrain frontmatter.** The artifact may already have CE YAML
 frontmatter. Map CE fields to gbrain fields:
