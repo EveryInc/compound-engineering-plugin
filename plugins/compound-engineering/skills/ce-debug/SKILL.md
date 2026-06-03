@@ -4,6 +4,8 @@ description: 'Systematically find root causes and fix bugs. Use when debugging e
 argument-hint: "[issue reference, error message, test path, or description of broken behavior]"
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Debug and Fix
 
 Find root causes, then fix them. This skill investigates bugs systematically — tracing the full causal chain before proposing a fix — and optionally implements the fix with test-first discipline.

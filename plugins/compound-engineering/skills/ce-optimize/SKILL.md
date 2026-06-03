@@ -4,6 +4,8 @@ description: "Run metric-driven iterative optimization loops -- define a measura
 argument-hint: "[path to optimization spec YAML, or describe the optimization goal]"
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Iterative Optimization Loop
 
 Run metric-driven iterative optimization. Define a goal, build measurement scaffolding, then run parallel experiments that converge toward the best solution.

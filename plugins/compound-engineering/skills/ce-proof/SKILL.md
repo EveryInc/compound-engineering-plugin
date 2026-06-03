@@ -8,6 +8,8 @@ allowed-tools:
   - WebFetch
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Proof - Collaborative Markdown Editor
 
 Proof is a collaborative document editor for humans and agents. It supports two modes:

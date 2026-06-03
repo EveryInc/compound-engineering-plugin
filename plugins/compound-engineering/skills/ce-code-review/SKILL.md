@@ -4,6 +4,8 @@ description: "Structured code review using tiered persona agents, confidence-gat
 argument-hint: "[mode:agent] [blank to review current branch, or provide PR link]"
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Code Review
 
 Reviews code changes using dynamically selected reviewer personas. Spawns parallel sub-agents that return structured JSON, then merges and deduplicates findings into a single report.

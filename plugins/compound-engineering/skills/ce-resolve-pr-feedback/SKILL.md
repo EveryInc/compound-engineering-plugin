@@ -5,6 +5,8 @@ argument-hint: "[PR number, comment URL, or blank for current branch's PR]"
 allowed-tools: Bash(gh *), Bash(git *), Read
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Resolve PR Review Feedback
 
 Evaluate and fix PR review feedback, then reply and resolve threads. Spawns parallel agents for each thread.

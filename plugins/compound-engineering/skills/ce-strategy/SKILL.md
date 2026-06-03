@@ -4,6 +4,8 @@ description: "Create or maintain STRATEGY.md - the product's target problem, app
 argument-hint: "[optional: section to revisit, e.g. 'metrics' or 'approach']"
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Product Strategy
 
 **Note: The current year is 2026.** Use this when dating the strategy document.

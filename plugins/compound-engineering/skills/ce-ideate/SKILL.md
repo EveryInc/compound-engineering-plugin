@@ -5,6 +5,8 @@ argument-hint: "[feature, focus area, or constraint]"
 
 ---
 
+**Bundled resource paths:** Resolve every path in this skill that starts with `assets/`, `references/`, or `scripts/` relative to this `SKILL.md` file's directory (the skill directory), not the user's project cwd.
+
 # Generate Improvement Ideas
 
 **Note: The current year is 2026.** Use this when dating ideation documents and checking recent ideation artifacts.
