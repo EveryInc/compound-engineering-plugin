@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.10.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.9.4...cli-v3.10.0) (2026-06-03)
+
+
+### Features
+
+* **skill:** introduce CONCEPTS.md as shared vocabulary substrate ([#838](https://github.com/EveryInc/compound-engineering-plugin/issues/838)) ([7c4bb16](https://github.com/EveryInc/compound-engineering-plugin/commit/7c4bb16123412d97ded593fc785d206ecb9684bc))
+
 ## [3.9.4](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.9.3...cli-v3.9.4) (2026-05-31)
 
 
