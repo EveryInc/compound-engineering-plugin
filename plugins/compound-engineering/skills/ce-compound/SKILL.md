@@ -256,6 +256,22 @@ When creating a new doc, preserve the section order from `assets/resolution-temp
 
 </sequential_tasks>
 
+### Phase 2.3: Brain Sync (if configured)
+
+After the solution doc is written and frontmatter validation passes, check for a brain knowledge destination.
+
+Read `.compound-engineering/config.local.yaml` from the repo root (use `git rev-parse --show-toplevel` to resolve root). Look for `gbrain_auto_sync`.
+
+| `gbrain_auto_sync` value | Action |
+|---|---|
+| `compound` | Invoke the `ce-brain-sync` skill with `mode:headless <written-file-path>` |
+| `all` | Same as `compound` |
+| `false`, absent, or any other value | Skip — proceed to Phase 2.4 |
+
+**Brain sync is additive and non-blocking.** If `ce-brain-sync` exits with an error or reports gbrain is unreachable, log a one-line note ("Brain sync skipped — gbrain not reachable") and continue to Phase 2.4 without interruption. Never let a brain sync failure block the learning from being written locally.
+
+In headless mode, skip this phase entirely — callers that want brain sync in headless contexts invoke `ce-brain-sync` directly after `ce-compound`.
+
 ### Phase 2.4: Vocabulary Capture
 
 **First, read `references/concepts-vocabulary.md`.** This is unconditional. Do not pre-judge from memory that nothing qualifies — the reference's criteria are non-obvious and qualifying terms often live in the surrounding conversation rather than the new doc itself. Reading the reference is what makes the rest of the phase possible.

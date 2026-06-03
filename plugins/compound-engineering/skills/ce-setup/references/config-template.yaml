@@ -40,3 +40,23 @@
 
 # plan_output: html              # md | html (default: md)
 # brainstorm_output: html        # md | html (default: md)
+
+# --- Brain destination (gbrain) ---
+# When configured, CE artifacts are also written to your gbrain knowledge base.
+# Requires gbrain MCP wired in (`gbrain connect <host> --install` or `gbrain serve`
+# added to your Claude Code MCP config) OR the gbrain CLI on $PATH.
+# Run /ce-brain-sync manually to sync any artifact regardless of this setting.
+
+# gbrain_destination: mcp        # mcp | cli | false (default: false)
+#   mcp = call put_page via gbrain MCP server (preferred)
+#   cli = call `gbrain capture --file <path>` via the gbrain CLI binary
+#   false = brain sync disabled
+
+# gbrain_slug_prefix: engineering/  # base slug prefix in gbrain (default: engineering/)
+#   CE artifacts land at: {gbrain_slug_prefix}{type}/{repo}/{stem}
+#   e.g. engineering/solutions/monolith/jwt-expiry-fix
+
+# gbrain_auto_sync: compound     # compound | all | false (default: false)
+#   compound = /ce-compound auto-syncs learnings after each doc write
+#   all      = /ce-compound, /ce-brainstorm, /ce-plan, /ce-strategy all auto-sync
+#   false    = manual only via /ce-brain-sync

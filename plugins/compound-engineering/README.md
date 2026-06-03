@@ -11,7 +11,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 | Component | Count |
 |-----------|-------|
 | Agents | 50+ |
-| Skills | 38+ |
+| Skills | 39+ |
 
 ## Skills
 
@@ -42,6 +42,7 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | [`/ce-sessions`](../../docs/skills/ce-sessions.md) | Ask questions about session history across Claude Code, Codex, and Cursor |
 | [`/ce-slack-research`](../../docs/skills/ce-slack-research.md) | Search Slack for interpreted organizational context -- decisions, constraints, and discussion arcs |
 | [`ce-riffrec-feedback-analysis`](../../docs/skills/ce-riffrec-feedback-analysis.md) | Convert [Riffrec](https://github.com/kieranklaassen/riffrec) recordings, videos, audio, or notes into structured feedback. Routes between setup, quick bug report, and extensive analysis that hands off to `ce-brainstorm` |
+| `/ce-brain-sync` | Sync any CE artifact (learning, brainstorm, plan, or strategy) to your gbrain knowledge base via MCP or CLI. Invoked automatically by `/ce-compound` when `gbrain_auto_sync` is configured |
 
 ### Git Workflow
 
