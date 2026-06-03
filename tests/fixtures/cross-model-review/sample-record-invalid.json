@@ -1,0 +1,8 @@
+{
+  "arm": "gpt_arm",
+  "doc_id": "x",
+  "trial": 0,
+  "status": "ok",
+  "latency_ms": 10,
+  "findings": []
+}

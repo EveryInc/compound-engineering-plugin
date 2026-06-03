@@ -1,0 +1,282 @@
+# Cross-Model Review Evaluation Harness
+
+A repeatable, four-arm evaluation that decides whether — and which — review-improvement
+lever is worth building, **before** any cross-model review machinery ships. It is a
+decision tool, not a shipped feature.
+
+Origin requirements: `docs/brainstorms/2026-05-24-multi-model-plan-review-requirements.md`
+Plan: `docs/plans/2026-05-24-001-feat-cross-model-review-eval-plan.md`
+
+## The four arms
+
+| Arm | What it is | Hypothesis it isolates |
+|-----|------------|------------------------|
+| `a_baseline` | Claude-only review (current `ce-doc-review`) | the control |
+| `b_isolated` | cross-model CLI, run isolated from the repo (no workspace context) | does a different model add unique value with no context? |
+| `c_fixed_context` | cross-model CLI + a fixed, documented repo-context set | is context-poverty (not the model) the limiting factor? |
+| `d_self_critic` | Claude re-reviews in-process, own failure modes supplied, prior output hidden | is the gain the model, or just a fresh adversarial pass? |
+
+Arms `b`/`c` shell out to external model CLIs (run by `run_arms.py`). Validated CLIs:
+`codex` (OpenAI, reliable) and `gemini` 0.43+ (Google; requires `GEMINI_API_KEY` and is
+invoked with `--approval-mode plan --skip-trust` for headless read-only review). **`agy`
+(Antigravity) is deprecated** — it proved unreliable as a non-interactive reviewer (hangs or
+returns empty; see `docs/solutions/skill-design/cross-model-eval-first-run-2026-05-25.md`).
+Defaults: arm `b` = `codex` isolated, arm `c` = `gemini` + context (override with
+`--cli-b`/`--cli-c`). Arms `a`/`d` and the judge are produced by the **orchestrator** via
+in-process subagent dispatch — there is no `claude -p` and arm `d` performs no document egress.
+
+## How the two halves cooperate (the record-store seam)
+
+Both producers write **schema-conformant record files** into a single shared run
+directory (an OS-temp dir created by `run_arms.py`). Neither half writes into the other's
+memory:
+
+- `run_arms.py` spawns the CLI arms (`b`, `c`) directly and writes their records.
+- The orchestrator dispatches the in-process arms (`a`, `d`) and the judge, then writes
+  each result as a record file into the same run directory (or via `run_arms.py ingest`).
+- Aggregation (`run_arms.py`) pools by reading **all** record files in the run dir,
+  regardless of which producer wrote them.
+
+The per-arm timeout and circuit breaker apply **only** to the CLI arms `run_arms.py`
+spawns. In-process arm records are ingested as-is.
+
+See `record-schema.json` for the canonical record contract both producers must satisfy.
+
+## Pre-registration (required before any arm runs)
+
+Editing `tests/fixtures/cross-model-review/corpus-manifest.json`, commit these values
+**before** running so the decision rule is independent of the observed counts (R9):
+
+- `go_threshold` — the per-arm count of confirmed unique decision-changing findings (on
+  the known-failure subset) that justifies building a lever.
+- `minimum_corpus_n` — the smallest corpus the run is allowed to draw a conclusion from.
+  A run below this N reports **inconclusive**, never "build nothing".
+- `trials_per_arm` — number of trials per (document × arm). Floor is **3**; model arms are
+  non-deterministic and a single trial produces confidently-wrong, reversed conclusions
+  (see `docs/solutions/skill-design/safe-auto-rubric-calibration-2026-04-25.md`).
+- `arm_c_context_rule` — the fixed, documented context set arm `c` receives, applied
+  identically to every document. This is the experimental control for the model-vs-context
+  comparison; it must be defined before running, not curated per-document.
+
+The corpus list itself (the `docs` array) is also filled at this step. The committed file
+in this repo is a **schema stub** with placeholder values and one example entry per
+subset; a run replaces them with the real corpus and pre-registered values.
+
+## Running
+
+Per (document × trial), produce one schema-conformant record per arm into a shared run
+dir, then pool, judge, and aggregate.
+
+**CLI arms (b, c)** — `arms.py` runs the external model and emits a record on stdout (both
+run from a clean CWD with auth preserved; arm b has no context, arm c adds the fixed
+`--context` set):
+
+```
+python3 arms.py run-arm b_isolated      codex <doc> <rubric>                 --doc-id <id> --trial <n> > rec.json
+python3 arms.py run-arm c_fixed_context gemini <doc> <rubric> --context <ctx> --doc-id <id> --trial <n> > rec.json
+python3 run_arms.py ingest <run_dir> rec.json
+```
+
+**In-process arms (a, d) and the judge** — produced by the orchestrator via subagent
+dispatch (see `prompts/baseline.md`, `prompts/self-critic.md`, `judge_rubric.md`), each
+written as a record and ingested into the same run dir.
+
+**Then** pool and decide:
+
+```
+python3 run_arms.py pool <run_dir>
+python3 run_arms.py aggregate <scored.json> <manifest.json>
+```
+
+The decision artifact is written under `docs/` from `decision-artifact-template.md`.
+
+### Quick one-off critique (turnkey)
+
+To get cross-model critiques of a single document without the full eval, use the wrapper —
+it runs `codex` and `agy` as isolated reviewers and prints each model's findings:
+
+```
+bash scripts/eval/cross_model_review/critique.sh <plan.md> [rubric.md] [context.md]
+```
+
+A built-in rubric is used if none is given; pass a `context.md` to switch the arms to the
+fixed-context variant. Override the per-arm timeout with `CMRE_TIMEOUT=<seconds>` (agy can
+be slow). A missing/unauthenticated CLI is skipped, not fatal. Each run sends the document
+to that vendor (codex -> OpenAI, agy -> Google).
+
+## Outcomes
+
+The decision artifact records exactly one of:
+
+- **build `<arm>`** — a lever cleared the pre-registered threshold; the winning arm shapes
+  the deferred build.
+- **build nothing** — corpus met `minimum_corpus_n` and no arm cleared the threshold.
+- **inconclusive / underpowered** — corpus below `minimum_corpus_n`, or the blind-integrity
+  check came back confounded; re-run larger / with a different judge.
+
+## Building a known-bug corpus (code-review breakpoint)
+
+The four-arm eval transfers from plan review to **code review** with the same harness —
+swap the document (a plan -> a diff), the rubric, and arms `a`/`d` (`ce-doc-review` ->
+`ce-code-review`). What makes code review *more* evaluable than plan review is ground
+truth: git history is a factory of changes the project itself later judged wrong, so the
+known-failure subset (R7) can be sourced automatically instead of hand-curated.
+
+`build_corpus.py` mines a repo for those, in descending attribution strength:
+
+| Tier | Signal | `attribution` | `trust` |
+|------|--------|---------------|---------|
+| 1 | a revert (the team's own verdict) | `revert` | `high` |
+| 2 | a fix subject that names what broke | `named_regression` | `high` |
+| 3 | a fix whose touched lines blame back to a recent change | `blame` | `needs_confirmation` |
+
+Each emitted entry extends the manifest's `known_failure` shape with a `ground_truth`
+block — the bug a reviewer should have caught — so the judge can score a **targeted
+hit/miss** per document (did any pooled finding describe the bug the fix proved mattered?)
+rather than only forward-rating actionability.
+
+```
+# Tier-1: discover reverts, materialize each culprit diff as a reviewable document
+python3 build_corpus.py scan --repo <path-to-target-repo> --out-dir <corpus-dir>
+
+# Tier-3: walk every code `fix:` commit, blame it to a culprit, emit needs_confirmation entries
+# The quality gate drops oversize/foundational culprits and dedups fixes that share one.
+python3 build_corpus.py scan-fixes --repo <path-to-target-repo> --out-dir <corpus-dir> \
+    --max-culprit-lines 2000 --max-culprit-files 30   # defaults; tighter = cleaner but smaller
+
+# Tier-2/3 (single fix): blame the lines a known fix touched to find candidate culprits
+python3 build_corpus.py attribute-fix --repo <path> <fix-sha>
+```
+
+Both `scan` and `scan-fixes` emit `{entries, stats}`; every entry passes `validate-entry`
+(the manifest conformance gate, the corpus analog of `validate-record`). `scan-fixes`
+keys one entry per fix, blames code files only (`is-code-path` filters out docs/markdown),
+picks the most-files-touched culprit, and keeps the runners-up in `culprit_alternates` for
+the human to confirm (R6). Its **quality gate** then drops culprits whose diff exceeds
+`--max-culprit-lines`/`--max-culprit-files` (too large to review, or a foundational/import
+commit) and dedups fixes that blame the same culprit (so N fixes touching one feature don't
+become N non-independent docs). On a repo that ships large feature commits this is decisive:
+an ungated run produced a corpus that collapsed to a handful of distinct, often huge diffs,
+while the gated run yields a smaller set of distinct, reviewable culprits — a corpus you can
+actually decide on. Tighter caps trade corpus size for cleanliness. A conventional `revert:` with no embedded SHA is **counted but
+not emitted** by `scan` — there is no reliable culprit diff — and likewise left to the human.
+
+**Which tier a repo yields depends on how the team works.**
+
+- This plugin's own history: ~5 Tier-1 items — well under any decidable N. Methodology
+  transfers; the sample is too small.
+- A team that doesn't use `git revert` produces **zero usable Tier-1 items** (its reverts
+  are conventional, SHA-less, often content reverts). Its ground truth lives in Tier-3:
+  walking its `fix:` commits with `scan-fixes` yields a large corpus (e.g. ~180–200 unique
+  known-failure candidates from ~200 fixes), with real latency (`surfaced_after_days` up to
+  weeks) — exactly the discovered-late signal review is meant to catch.
+
+Below a pre-registered `minimum_corpus_n` the eval reports `inconclusive` (R9), never a
+false "build nothing".
+
+**Corpus hygiene.** `--all` scans every ref and so double-counts a fix that appears as both
+a branch commit and a squashed merge; the default (HEAD history) avoids most of that. Tier-3
+entries are `trust: needs_confirmation` by design — blame is inferred, and `fix:` subjects
+include renames and test-only fixes — so the human-confirmed subset, not the raw emission,
+is the known-failure set the decision rests on (R6/R7).
+
+### Scoring a code-review corpus: GT-match
+
+Plan review can only forward-rate whether a finding *looks* decision-changing. A known-bug
+corpus has a target — the bug the fix proved mattered — so the known-failure metric becomes
+an objective **hit/miss**: did any of an arm's findings describe that bug? See
+`gt_match_rubric.md`.
+
+The judge stays blind (per-finding, label-stripped, never told the arm); the arm is
+re-attached afterward, so blinding holds:
+
+```
+# judge produces per-finding verdicts {uid, matches_bug} on the blind pool
+python3 run_arms.py gt-pool    <records.json> > pool.json                     # -> blind pool + provenance
+python3 run_arms.py gt-resolve <(jq .provenance pool.json) <verdicts.json>    # -> per-(arm,doc) gt_hit
+python3 run_arms.py gt-score   <manifest.json> <arm-matches.json>             # -> per-arm known-failure hits
+```
+
+`aggregate` uses `gt_hit` as the known-failure predicate when present, falling back to
+`decision_changing` for plan-review corpora — so the same three-way decision rule serves
+both breakpoints. Forward-rated and negative-control documents keep `decision_changing`.
+
+### End-to-end (the `drive_eval.py` spine)
+
+`drive_eval.py` wires the deterministic flow and makes the orchestrator handoff explicit.
+It cannot run arms `a`/`d` or the judge (model-driven, no `claude -p`); it runs the spine
+and consumes their outputs.
+
+```
+# 1. build a corpus and assemble a manifest skeleton (pre_registration left null)
+python3 build_corpus.py scan-fixes --repo <repo> --out-dir corpus/ > sf.json
+python3 build_corpus.py to-manifest sf.json > manifest.json
+
+# 2. HUMAN: confirm needs_confirmation entries, add negative_control + forward_rated docs,
+#    and FILL pre_registration (go_threshold / minimum_corpus_n / trials_per_arm). (R6, R9)
+
+# 3. plan -- enumerates arm x doc x trial work, emits the CLI-arm commands + the
+#    in-process/judge todo, and writes run-state.json. Refuses if pre-reg is unset.
+python3 drive_eval.py plan manifest.json --out-dir run/ --rubric code-review-rubric.md --context arm-c-context.md
+
+# 4. ORCHESTRATOR: run the emitted CLI-arm (b, c) commands and ingest; dispatch arms a/d
+#    in-process and ingest; run the judge (gt_match_rubric.md / judge_rubric.md) -> verdict files.
+
+# 5. finalize -- gt-resolve -> gt-score -> aggregate -> decision artifact under docs/
+python3 drive_eval.py finalize run/records manifest.json \
+  --gt-verdicts gt-verdicts.json [--class-verdicts class-verdicts.json] \
+  [--integrity <correct>,<total>] --judge-family <family> --out docs/<decision-record>.md
+```
+
+`plan` enforces R9 (no run without a pre-registered threshold/N); `finalize` forces
+`inconclusive` if the blind-integrity probe comes back confounded, below minimum N, or the
+negative control moves — the same guards the manual chain applies.
+
+### Decision-grade run (the full procedure)
+
+A decision-grade verdict requires all four guards on at once: a **non-Claude judge** (clears
+the family confound, R4), **`trials_per_arm >= 3`** (model arms are non-deterministic; a
+single trial gives confidently-wrong, reversed conclusions), a **human-confirmed known-failure
+corpus** at or above a pre-registered `minimum_corpus_n`, and **precision-weighting** (the
+negative control + spot-verification, so raw yield isn't rewarded for confabulation).
+
+Pre-register in the manifest **before running** (R9): `go_threshold`, `minimum_corpus_n`
+(set it to the real power floor, not the corpus you happen to have — a smaller corpus then
+correctly reports `inconclusive / underpowered` rather than a false confident call),
+`trials_per_arm: 3`, `arm_c_context_rule`, and the judge's model family (must not be Claude).
+
+Ordered steps:
+
+```
+# 1. corpus (git-only, no egress): build + assemble + HUMAN-CONFIRM the known-failure subset
+python3 build_corpus.py scan-fixes --repo <repo> --out-dir corpus/ > sf.json
+python3 build_corpus.py to-manifest sf.json > manifest.json      # then fill pre_registration + confirm
+
+# 2. Claude arms a/d, 3 trials each (orchestrator, in-process, no egress)
+# 3. cross-model arms b/c, 3 trials each (EGRESS — codex + gemini)
+python3 arms.py run-arm b_isolated      codex  <doc> <rubric>                 --doc-id <id> --trial <1..3> | python3 run_arms.py ingest <run>/records -
+python3 arms.py run-arm c_fixed_context gemini <doc> <rubric> --context <ctx> --doc-id <id> --trial <1..3> | python3 run_arms.py ingest <run>/records -
+
+# 4. pool, then the NON-CLAUDE judge over the blind pool (EGRESS)
+python3 run_arms.py gt-pool <run>/records/*.json > pool.json     # (glob-collect records into one array)
+bash run-judge.sh pool.json manifest.json codex verdicts.json    # judge family != Claude
+
+# 5. resolve (blind), score, decide
+python3 run_arms.py gt-resolve <(jq .provenance pool.json) verdicts.json > arm-matches.json
+python3 run_arms.py gt-score   manifest.json arm-matches.json    # per-arm known-failure hits
+python3 run_arms.py yield-score <(jq .provenance pool.json) verdicts.json   # precision-weight this
+python3 drive_eval.py finalize <run>/records manifest.json --gt-verdicts verdicts.json \
+    --yield-verdicts verdicts.json --integrity <correct>,<total> --judge-family <non-claude> --out docs/<decision>.md
+```
+
+**Power note:** the gated code corpus typically yields ~10 confirmed known-failure items —
+enough for a *directional* read (does the cross-model arm hit bugs the Claude arms miss, under
+a fair non-Claude judge), but below the `minimum_corpus_n` a *confident* build/kill needs. Set
+`minimum_corpus_n` honestly so the harness reports `inconclusive / underpowered` until the
+confirmed corpus is large enough — that honesty is the point (R9).
+
+The model arms (`b`/`c`) review a diff exactly as they review a plan — it is text on stdin
+— so `arms.py` is unchanged. Note that arm `b` (isolated, no repo) is more crippled by a
+raw diff than by a self-contained plan; pre-register that as an expected effect so a
+near-zero arm-`b` yield reads as "no-context code review is the floor", not "cross-model
+adds nothing".

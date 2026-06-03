@@ -1,0 +1,13 @@
+{
+  "pre_registration": {
+    "go_threshold": 2,
+    "minimum_corpus_n": 2,
+    "trials_per_arm": 3,
+    "arm_c_context_rule": "doc + CLAUDE.md + AGENTS.md + cited files"
+  },
+  "arms": ["a_baseline", "b_isolated", "c_fixed_context", "d_self_critic"],
+  "docs": [
+    { "id": "kf-1", "subset": "known_failure", "issue_that_mattered": "x" },
+    { "id": "kf-2", "subset": "known_failure", "issue_that_mattered": "y" }
+  ]
+}

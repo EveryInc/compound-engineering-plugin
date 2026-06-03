@@ -1,0 +1,21 @@
+;; ce-deep-review — agy cross-model arm filesystem floor (validated 2026-05-28, Phase 0 / U2).
+;;
+;; agy 1.0.3 is a heavy Electron/Node agent: a strict `(deny file-write*)` allowlist OR any
+;; `(deny file-read* ...)` rule makes it HANG indefinitely (it retries the denied syscall and
+;; ignores its own --print-timeout). So this is a deny-WRITE-only denylist: allow-default (agy
+;; writes its own state/caches freely -> no hang) and deny writes only to the paths that matter
+;; (the repo under review + home credentials/dotfiles). Network is allowed (the arm needs its
+;; vendor API). Reads are NOT denied -> secret-read-exfil is a documented residual, mitigated by
+;; a clean cwd + a review-only prompt; only a concern for untrusted docs.
+;;
+;; __REPO_DIR__ and __HOME__ are substituted at runtime (see agy-smoke.sh / the harness).
+(version 1)
+(allow default)
+(deny file-write*
+  (subpath "__REPO_DIR__")
+  (subpath "__HOME__/.ssh")
+  (subpath "__HOME__/.aws")
+  (subpath "__HOME__/.config/gcloud")
+  (literal "__HOME__/.zshrc")
+  (literal "__HOME__/.gitconfig")
+  (literal "__HOME__/.netrc"))

@@ -1,0 +1,29 @@
+{
+  "_about": "RU6b calibration corpus for the deterministic quote-grep verifier (scripts/verify-findings.py). Each item is a synthetic finding embedding a quote; `expected` is the ground-truth verdict. GROUNDED items quote text that IS in `document` (some with format variants — smart quotes, whitespace, case — to exercise normalization); CONFABULATED items quote plausible text that is NOT in `document`. Run: `python3 scripts/verify-findings.py measure references/calibration/verifier-corpus.json`. Gate: false-CONFIRM and false-NOT-FOUND each <= 5%. NOTE: the verifier is deterministic and model-blind, so v3's agy-voiced sampling / synthetic-fallback / N=3-trials machinery does not apply — this is a straight labeled eval, N=1.",
+  "document": "# Plan: migrate the billing pipeline\n\nThe goal is to move invoicing off the legacy cron job and onto the event bus before the Q3 freeze.\nUnits 1-3 land the new consumer; Unit 4 backfills historical invoices.\nThe migration must run in a single atomic deploy so readers never see partial state.\nAuth tokens are rotated weekly; the new consumer reads them from the secrets manager, never from env.\nRollback restores the cron job from the last green release and replays the dead-letter queue.\nWe will not change the customer-facing invoice format in this phase.\nPerformance budget: p95 invoice render under 400ms; anything slower is a release blocker.\nThe dead-letter queue is drained on a 5-minute schedule by a separate worker.\nThe cutover is *all or nothing*: a **partial deploy** is a release blocker.\n",
+  "items": [
+    { "id": "g01", "expected": "CONFIRMED", "text": "Coherence: the plan opens by promising to \"move invoicing off the legacy cron job\" but never names the cutover owner." },
+    { "id": "g02", "expected": "CONFIRMED", "text": "Feasibility: \"single atomic deploy so readers never see partial state\" is hard to guarantee across three units." },
+    { "id": "g03", "expected": "CONFIRMED", "text": "Security: tokens read \"from the secrets manager, never from env\" — good, but rotation cadence is unstated elsewhere." },
+    { "id": "g04", "expected": "CONFIRMED", "text": "Reliability: rollback \"replays the dead-letter queue\" — confirm replay is idempotent." },
+    { "id": "g05", "expected": "CONFIRMED", "text": "Scope: the doc says it \"will not change the customer-facing invoice format in this phase\" — verify downstream consumers agree." },
+    { "id": "g06", "expected": "CONFIRMED", "text": "Performance: \"p95 invoice render under 400ms\" lacks a measurement method." },
+    { "id": "g07", "expected": "CONFIRMED", "text": "The dead-letter queue \"drained on a 5-minute schedule\" may lag a real-time SLA." },
+    { "id": "g08", "expected": "CONFIRMED", "text": "Unit 4 \"backfills historical invoices\" with no batch-size or throttle named." },
+    { "id": "g09", "expected": "CONFIRMED", "text": "Timeline risk: moving \"onto the event bus before the Q3 freeze\" is aggressive." },
+    { "id": "g10", "expected": "CONFIRMED", "text": "Format-variant (smart quotes): the plan says invoicing moves “onto the event bus before the Q3 freeze”." },
+    { "id": "g11", "expected": "CONFIRMED", "text": "Format-variant (whitespace + case): rollback \"Restores  the cron job   from the last green release\"." },
+    { "id": "g12", "expected": "CONFIRMED", "text": "Format-variant (markdown emphasis): the plan calls the cutover \"all or nothing\" but never defines the abort signal." },
+    { "id": "c01", "expected": "NOT-FOUND-IN-DOC", "text": "Feasibility: the plan states \"we will rewrite the billing service in Rust\", a huge undertaking." },
+    { "id": "c02", "expected": "NOT-FOUND-IN-DOC", "text": "The doc mandates \"a zero-downtime blue-green cutover\" but gives no infra for it." },
+    { "id": "c03", "expected": "NOT-FOUND-IN-DOC", "text": "Security: \"tokens are stored in plaintext config\" is a serious exposure." },
+    { "id": "c04", "expected": "NOT-FOUND-IN-DOC", "text": "It claims invoices are \"stored in a MongoDB collection per tenant\"." },
+    { "id": "c05", "expected": "NOT-FOUND-IN-DOC", "text": "Performance: the plan sets \"p99 latency under 100 milliseconds\" as the bar." },
+    { "id": "c06", "expected": "NOT-FOUND-IN-DOC", "text": "It says \"the freeze is lifted at the start of Q4\", contradicting the timeline." },
+    { "id": "c07", "expected": "NOT-FOUND-IN-DOC", "text": "Reliability: \"rollback is performed manually over SSH\" by an on-call engineer." },
+    { "id": "c08", "expected": "NOT-FOUND-IN-DOC", "text": "Scope: \"customer notification emails are sent through SendGrid\" expands the blast radius." },
+    { "id": "c09", "expected": "NOT-FOUND-IN-DOC", "text": "It provisions \"a dedicated Kafka topic per customer account\"." },
+    { "id": "c10", "expected": "NOT-FOUND-IN-DOC", "text": "The plan promises \"the legacy cron job is deleted immediately on deploy\"." },
+    { "id": "c11", "expected": "NOT-FOUND-IN-DOC", "text": "Coherence: it asserts \"the dead-letter queue has a thirty-second drain SLA\"." }
+  ]
+}

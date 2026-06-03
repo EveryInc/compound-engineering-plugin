@@ -1,0 +1,5 @@
+[
+  { "arm": "c_fixed_context", "doc_id": "kf-1", "subset": "known_failure", "decision_changing": true },
+  { "arm": "c_fixed_context", "doc_id": "kf-2", "subset": "known_failure", "decision_changing": true },
+  { "arm": "b_isolated", "doc_id": "nc-1", "subset": "negative_control", "decision_changing": true }
+]
