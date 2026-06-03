@@ -51,13 +51,20 @@ Spawn `ce-deployment-verification-agent` when the migration-artifact gate applie
 
 | Agent | Focus |
 |-------|-------|
-| `ce-deployment-verification-agent` | Go/No-Go deployment checklist with SQL verification queries and rollback procedures |
+| `ce-deployment-verification-agent` | Probes live prod state for already-applied migrations, then produces a state-aware Go/No-Go deployment checklist (pristine / partial-prior / already-applied) with SQL verification queries and rollback procedures |
+
+## CE Conditional Agents (frontend-bundle-specific)
+
+| Agent | Focus |
+|-------|-------|
+| `ce-frontend-build-verifier` | Runs the project's production frontend build (`pnpm next build` / `pnpm vite build` / etc.) and surfaces compile failures that `tsc --noEmit` cannot catch — React Server Component / `"use client"` boundary violations, missing Suspense around `useSearchParams`, prerender errors, bad framework config. Every reported error is a P0 merge-block. |
 
 ## Selection rules
 
 1. **Always spawn all 4 always-on personas** plus the 2 CE always-on agents.
 2. **For each cross-cutting conditional persona**, the orchestrator reads the diff and decides whether the persona's domain is relevant. This is a judgment call, not a keyword match.
 3. **For each stack-specific conditional persona**, use file types and changed patterns as a starting point, then decide whether the diff actually introduces meaningful work for that reviewer. Do not spawn language-specific reviewers just because one config or generated file happens to match the extension.
-4. **For `data-migration`**, spawn only when the diff includes migration or schema artifacts (`db/migrate/*`, `db/schema.rb`, `db/structure.sql`, Alembic/Flyway/Liquibase paths, or explicit backfill/data-transform scripts). Do **not** spawn for model-only or query-only changes without those files.
-5. **For CE conditional agents**, spawn `ce-deployment-verification-agent` when the migration-artifact gate applies and the change is risky (see above).
-6. **Announce the team** before spawning with a one-line justification per conditional reviewer selected.
+4. **For `data-migration`**, spawn only when the diff includes migration or schema artifacts (`db/migrate/*`, `db/schema.rb`, `db/structure.sql`, Alembic/Flyway/Liquibase paths, `**/prisma/migrations/*/`, or explicit backfill/data-transform scripts). Do **not** spawn for model-only or query-only changes without those files.
+5. **For `ce-deployment-verification-agent`**, spawn when the migration-artifact gate from rule 4 applies and the change is risky (destructive DDL, backfills, NOT NULL without default, column renames/drops). The agent runs a read-only Stage 0 probe against the live migration tracking table before generating the checklist, then renders a state-aware Go/No-Go.
+6. **For `ce-frontend-build-verifier`**, spawn when the diff touches files that participate in a production frontend bundle: Next.js App Router pages (`**/app/**/*.tsx`), components reachable from the bundle (`**/components/**`, `**/pages/**`), framework config (`next.config.*`, `vite.config.*`, etc.), or the frontend `package.json` `dependencies` / `scripts`. The agent runs the actual prod build, so it costs 1–5 min wall-clock — worth it for any UI-touching PR, skip for server-only / mobile-only / docs-only diffs.
+7. **Announce the team** before spawning with a one-line justification per conditional reviewer selected.

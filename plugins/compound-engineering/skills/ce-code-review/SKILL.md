@@ -142,6 +142,12 @@ Routing rules:
 
 Schema drift detection is folded into `ce-data-migration-reviewer` (Step 0) and surfaces as P1 findings — not a separate agent or report section.
 
+**CE conditional (frontend-bundle-specific):**
+
+| Agent | Select when diff touches... |
+|-------|-----------------------------|
+| `ce-frontend-build-verifier` | Next.js App Router files (`**/app/**/*.tsx`), frontend components reachable from the bundle (`**/components/**/*.tsx`), framework config (`next.config.*`, `vite.config.*`, `remix.config.*`, etc.), or the frontend `package.json` `dependencies`/`scripts`. Runs the prod build (`pnpm next build` / `pnpm vite build` / etc.) and catches client-boundary, Suspense, and prerender errors that `tsc --noEmit` misses. |
+
 ## Review Scope
 
 Every review spawns all 4 always-on personas plus the 2 CE always-on agents, then adds whichever cross-cutting and stack-specific conditionals fit the diff. The model naturally right-sizes: a small config change triggers 0 conditionals = 6 reviewers. A Rails auth feature might trigger security + reliability + adversarial = 9 reviewers.
@@ -320,9 +326,11 @@ Skip it for standalone branch reviews with no associated PR, and skip it for PRs
 
 Stack-specific personas are additive when runtime behavior warrants them. A Hotwire UI change may warrant `julik-frontend-races`; a TypeScript API diff may warrant `api-contract` and `reliability`. Structural and maintainability concerns are handled by the always-on `maintainability` persona — do not spawn extra reviewers for convention or philosophy passes.
 
-**`data-migration` spawn gate.** Select `ce-data-migration-reviewer` only when the diff includes at least one migration or schema artifact: `db/migrate/*`, `db/schema.rb`, `db/structure.sql`, Alembic/Flyway/Liquibase migration paths, or explicit backfill/data-transform scripts (rake tasks, one-off data migration classes). **Do not spawn** for model-only changes, query-only refactors, serializers/controllers that reference columns without a migration or schema dump in the diff, or migration tests alone.
+**`data-migration` spawn gate.** Select `ce-data-migration-reviewer` only when the diff includes at least one migration or schema artifact: `db/migrate/*`, `db/schema.rb`, `db/structure.sql`, Alembic/Flyway/Liquibase migration paths, `**/prisma/migrations/*/`, or explicit backfill/data-transform scripts (rake tasks, one-off data migration classes). **Do not spawn** for model-only changes, query-only refactors, serializers/controllers that reference columns without a migration or schema dump in the diff, or migration tests alone.
 
-For `ce-deployment-verification-agent`, use the same migration-artifact gate when the change is risky (destructive DDL, backfills, NOT NULL without default, column renames/drops).
+For `ce-deployment-verification-agent`, use the same migration-artifact gate when the change is risky (destructive DDL, backfills, NOT NULL without default, column renames/drops). The agent's Stage 0 probe runs against the live migration tracking table before generating the checklist, so the output is state-aware (pristine / partial-prior / already-applied / unknown).
+
+**`ce-frontend-build-verifier` spawn gate.** Select this CE conditional agent when the diff touches files that participate in a production frontend bundle — Next.js App Router pages (`**/app/**/*.tsx`), components reachable from the bundle (`**/components/**`, `**/pages/**`), framework config (`next.config.*`, `vite.config.*`, `remix.config.*`, etc.), or the frontend `package.json` `dependencies` / `scripts`. The agent catches React Server Component / `"use client"` boundary violations, missing Suspense around `useSearchParams`, prerender errors, and bad framework config — failures the prod bundler enforces that `tsc --noEmit` cannot reach. **Do not spawn** for server-only / mobile-only / docs-only diffs.
 
 Announce the team before spawning:
 
@@ -423,7 +431,7 @@ Detail-tier fields (`why_it_matters`, `evidence`) are in the artifact file only.
 
 **CE always-on agents** (ce-agent-native-reviewer, ce-learnings-researcher) are dispatched as standard Agent calls through the same bounded parallel scheduler as the persona agents. Give them the same review context bundle the personas receive: entry mode, any PR metadata gathered in Stage 1, intent summary, review base branch name when known, `BASE:` marker, file list, diff, and `UNTRACKED:` scope notes. Do not invoke them with a generic "review this" prompt. Their output is unstructured and synthesized separately in Stage 6.
 
-**CE conditional agents** (`ce-deployment-verification-agent` only) are dispatched as standard Agent calls through the same bounded parallel scheduler when the migration-artifact gate applies. Pass the same review context bundle plus the applicability reason (for example, which migration files triggered the agent). Their output is unstructured and must be preserved for Stage 6 synthesis just like the CE always-on agents. Schema drift is handled by the `data-migration` persona as structured findings — not here.
+**CE conditional agents** (`ce-deployment-verification-agent`, `ce-frontend-build-verifier`) are dispatched as standard Agent calls through the same bounded parallel scheduler when their respective gates apply. Pass the same review context bundle plus the applicability reason (which migration files triggered the deployment-verification agent, or which UI files triggered the build verifier). For `ce-frontend-build-verifier`, the agent runs the project's production build command — expect 1–5 min runtime, longer than typical reviewer agents; the bounded scheduler handles this naturally. Their output is unstructured and must be preserved for Stage 6 synthesis just like the CE always-on agents. Schema drift is handled by the `data-migration` persona as structured findings — not in a separate CE agent.
 
 ### Stage 5: Merge findings
 
@@ -554,9 +562,10 @@ Per-severity tables are **5 columns** — `Route` is not shown here (it appears 
 6. **Pre-existing.** Separate section, does not count toward verdict.
 7. **Learnings & Past Solutions.** Surface ce-learnings-researcher results: if past solutions are relevant, flag them as "Known Pattern" with links to docs/solutions/ files.
 8. **Agent-Native Gaps.** Surface ce-agent-native-reviewer results. Omit section if no gaps found.
-9. **Deployment Notes.** If ce-deployment-verification-agent ran, surface the key Go/No-Go items: blocking pre-deploy checks, the most important verification queries, rollback caveats, and monitoring focus areas. Keep the checklist actionable rather than dropping it into Coverage. Schema drift appears in the findings tables as `data-migration` P1 rows — do not add a separate Schema Drift section.
-10. **Coverage.** Applied count (when Stage 5c ran), suppressed count by anchor (e.g., "N findings suppressed at anchor 50, M at anchor 25"), mode-aware demotion count, validator drop count and reasons (when Stage 5b ran), any P0/P1 with degraded validation (kept on validator infra failure), validator over-budget drops (when the 15-cap fired), residual risks, testing gaps, failed/timed-out reviewers, and inferred-intent uncertainty when applicable.
-11. **Verdict.** Ready to merge / Ready with fixes / Not ready. Fix order if applicable. When an `explicit` plan has unaddressed requirements or implementation units, the verdict must reflect it — a PR that's code-clean but missing planned requirements is "Not ready" unless the omission is intentional. When an `inferred` plan has unaddressed requirements or implementation units, note it in the verdict reasoning but do not block on it alone.
+9. **Deployment Notes.** If ce-deployment-verification-agent ran, surface the key Go/No-Go items: blocking pre-deploy checks, the most important verification queries, rollback caveats, and monitoring focus areas. The agent's Stage 0 state header (`Deployment State: PRISTINE` / `PARTIAL-PRIOR` / `ALREADY-APPLIED` / `UNKNOWN`) must appear verbatim — silent state assumptions are how wrong checklists ship. Keep the checklist actionable rather than dropping it into Coverage. Schema drift appears in the findings tables as `data-migration` P1 rows — do not add a separate Schema Drift section.
+10. **Frontend Build Verification.** If `ce-frontend-build-verifier` ran, surface its result. On pass: one line confirming the build succeeded + the build command used. On fail: every compile error with `file:line` + error type + likely fix. Treat every build failure as a P0 — promote into the primary findings table (Section 2) so the merge-block is unambiguous. Omit the section when the agent didn't run; do NOT omit when it ran and passed (the pass is an explicit pre-merge signal).
+11. **Coverage.** Applied count (when Stage 5c ran), suppressed count by anchor (e.g., "N findings suppressed at anchor 50, M at anchor 25"), mode-aware demotion count, validator drop count and reasons (when Stage 5b ran), any P0/P1 with degraded validation (kept on validator infra failure), validator over-budget drops (when the 15-cap fired), residual risks, testing gaps, failed/timed-out reviewers, and inferred-intent uncertainty when applicable.
+12. **Verdict.** Ready to merge / Ready with fixes / Not ready. Fix order if applicable. When an `explicit` plan has unaddressed requirements or implementation units, the verdict must reflect it — a PR that's code-clean but missing planned requirements is "Not ready" unless the omission is intentional. When an `inferred` plan has unaddressed requirements or implementation units, note it in the verdict reasoning but do not block on it alone. **A failed `ce-frontend-build-verifier` result is an unconditional "Not ready"** — no other finding pattern can override a broken prod build.
 
 Do not include time estimates.
 
@@ -591,6 +600,7 @@ Minimum shape:
   "learnings": [],
   "agent_native_gaps": [],
   "deployment_notes": [],
+  "frontend_build_verification": null,
   "residual_risks": [],
   "testing_gaps": [],
   "coverage": {},
