@@ -9,6 +9,18 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.10.0...compound-engineering-v3.11.0) (2026-06-04)
+
+
+### Features
+
+* **ce-plan:** approach-altitude plan-for-a-plan with ce-work non-code carve-out ([#905](https://github.com/EveryInc/compound-engineering-plugin/issues/905)) ([fbd0faf](https://github.com/EveryInc/compound-engineering-plugin/commit/fbd0fafd9358ab708b15fdc0030615525a0cd684))
+
+
+### Bug Fixes
+
+* **ce-polish:** promote from beta to stable ([#880](https://github.com/EveryInc/compound-engineering-plugin/issues/880)) ([63b6b26](https://github.com/EveryInc/compound-engineering-plugin/commit/63b6b260c345ba70ce9d9a393eeedefb64e4e0a0))
+
 ## [3.10.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.9.4...compound-engineering-v3.10.0) (2026-06-03)
 
 

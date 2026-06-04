@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.11.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.10.0...cli-v3.11.0) (2026-06-04)
+
+
+### Bug Fixes
+
+* **ce-polish:** promote from beta to stable ([#880](https://github.com/EveryInc/compound-engineering-plugin/issues/880)) ([63b6b26](https://github.com/EveryInc/compound-engineering-plugin/commit/63b6b260c345ba70ce9d9a393eeedefb64e4e0a0))
+
 ## [3.10.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.9.4...cli-v3.10.0) (2026-06-03)
 
 
