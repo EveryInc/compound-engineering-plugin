@@ -175,7 +175,7 @@ Reach for `ce-frontend-design` when:
 Skip `ce-frontend-design` when:
 
 - The work is non-frontend (API, backend, scripts) — wrong scope
-- You have a fixed Figma spec and want exact translation — `ce-design-iterator` or a design-sync agent fits better
+- You have a fixed Figma spec and want exact translation — `ce-figma-design-sync` fits better
 - The change is mechanical (typo in copy, single-line CSS tweak) — overkill
 
 ---
@@ -186,7 +186,7 @@ Skip `ce-frontend-design` when:
 
 - **`/ce-work` Phase 2** — when implementing a frontend feature, this skill provides the design pass
 - **`/ce-polish`** — for late-stage UX refinement after the feature is functional; complementary, not a substitute
-- **`ce-design-iterator` agent** — for multi-round iterative refinement beyond a single visual-verification pass
+- **`ce-figma-design-sync` agent** — for verifying UI against a Figma design with iterative pixel-perfect alignment
 - **`ce-design-implementation-reviewer` agent** — for verifying UI against a Figma design
 
 The skill's output is frontend code; downstream skills handle commit, PR, polish, and review.
@@ -230,10 +230,10 @@ Because catching a wrong direction *before* writing code is far cheaper than aft
 Defaults the user can override (purple-on-white isn't a quality bug, just a default the skill resists in greenfield). Always-avoid is the quality floor (broken contrast IS a bug, no user wants it). The split makes user override clean: the user can ask for purple-on-white, but they can't ask for broken contrast.
 
 **What about Figma-pixel-perfect work?**
-Different scope. This skill aims for distinctive, production-grade design with self-verification. For pixel-perfect Figma matching, the `ce-design-implementation-reviewer` agent or `ce-figma-design-sync` agent is the right tool.
+Different scope. This skill aims for distinctive, production-grade design with self-verification. For pixel-perfect Figma matching, the `ce-figma-design-sync` agent is the right tool.
 
 **Can I do multi-round iteration?**
-The skill does one visual-verification pass. For multi-round refinement, the `ce-design-iterator` agent handles that — `/ce-frontend-design` provides the foundation, the iterator polishes.
+The skill does one visual-verification pass. For multi-round Figma-pixel alignment, `ce-figma-design-sync` handles that — `/ce-frontend-design` provides the foundation.
 
 **What if the project has 1-3 design signals (Partial)?**
 Follow what exists; apply skill defaults only for areas where no convention was detected. E.g., Tailwind is configured (follow it for spacing/colors) but no component library exists — apply skill component-structure guidance.

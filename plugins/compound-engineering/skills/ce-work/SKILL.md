@@ -246,6 +246,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
 1. **Task Execution Loop**
 
+   **Delegation mode bypass:** If `delegation_active` is true, execute the Codex Delegation Execution Loop from `references/codex-delegation-workflow.md` now — all tasks are processed there as one or more batches. Skip the per-task loop below and return here for Phase 3 after the delegation loop completes.
+
    For each task in priority order:
 
    ```
@@ -255,9 +257,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
      - **If the unit's work is already present and matches the plan's intent** (files exist with the expected capability, or the unit's `Verification` criteria are already satisfied by the current code), the work has likely shipped on a prior branch or session. Verify it matches, mark the task complete, and move on. Do not silently reimplement.
      - Look for similar patterns in codebase
      - Find existing test files for implementation files being changed (Test Discovery — see below)
-     - If delegation_active: branch to the Codex Delegation Execution Loop
-       (see `references/codex-delegation-workflow.md`)
-     - Otherwise: implement following existing conventions
+     - Implement following existing conventions
      - Add, update, or remove tests to match implementation changes (see Test Discovery below)
      - Run System-Wide Test Check (see below)
      - Run tests after changes

@@ -152,10 +152,16 @@ describe("ce-work codex delegation contract", () => {
     expect(content).toContain("Codex delegation requires a plan file")
   })
 
-  test("delegation branches in Phase 2 task loop", async () => {
+  test("delegation bypass in Phase 2 runs before per-task loop", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
 
-    expect(content).toContain("If delegation_active: branch to the Codex Delegation Execution Loop")
+    // Bypass must exist as a phase-level gate, not a per-task check.
+    // When delegation_active, the batched workflow runs once — not once per task.
+    expect(content).toContain("Delegation mode bypass")
+    expect(content).toContain("delegation_active")
+    expect(content).toContain("codex-delegation-workflow.md")
+    // The old per-task branch must NOT be present — it caused per-task (not batched) delegation.
+    expect(content).not.toContain("If delegation_active: branch to the Codex Delegation Execution Loop")
   })
 
   test("delegation reference has all required sections", async () => {

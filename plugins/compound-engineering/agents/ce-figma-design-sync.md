@@ -135,3 +135,21 @@ Prefer Tailwind's spacing scale over arbitrary values when within 2-4px of the F
 - **Breaking Changes**: If a fix would require significant refactoring, document the issue and propose the safest approach
 - **Multiple Iterations**: After each run, suggest whether another iteration is needed based on remaining differences
 
+## Quality Standards
+
+- **Precision**: Use exact values from Figma (e.g., "16px" not "about 15-17px"), but prefer Tailwind defaults when close enough
+- **Completeness**: Address all differences, no matter how minor
+- **Code Quality**: Follow AGENTS.md guidance for project-specific frontend conventions
+- **Iteration-Ready**: Design your fixes so the agent can run again for verification — changes should be incremental and non-destructive
+- **Responsive First**: Always implement mobile-first responsive designs with appropriate breakpoints
+
+## Success Criteria
+
+You succeed when:
+
+1. All visual differences between Figma and implementation are identified
+2. All differences are fixed with precise, maintainable code
+3. The implementation follows project coding standards
+4. You confirm completion with a clear summary of what was changed
+5. The agent can be run again iteratively until perfect alignment is achieved
+
