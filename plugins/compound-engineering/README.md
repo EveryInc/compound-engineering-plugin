@@ -64,6 +64,7 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | Skill | Description |
 |-------|-------------|
 | `ce-agent-native-architecture` | Build AI agents using prompt-native architecture |
+| `ce-agent-native-audit` | Run comprehensive agent-native architecture review with scored principles |
 | [`ce-frontend-design`](../../docs/skills/ce-frontend-design.md) | Create production-grade frontend interfaces |
 | [`ce-polish`](../../docs/skills/ce-polish.md) | Conversational UX polish — start a dev server, open the feature in a browser, and iterate together; auto-detects 8 frameworks. Manual invocation only |
 
@@ -108,6 +109,7 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `ce-testing-reviewer` | Test coverage gaps, weak assertions |
 | `ce-project-standards-reviewer` | CLAUDE.md and AGENTS.md compliance |
 | `ce-adversarial-reviewer` | Construct failure scenarios to break implementations across component boundaries |
+| `ce-previous-comments-reviewer` | Conditional review persona that checks whether prior PR feedback has been addressed in the current diff |
 
 ### Document Review
 
