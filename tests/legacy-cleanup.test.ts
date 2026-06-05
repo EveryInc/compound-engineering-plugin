@@ -542,8 +542,9 @@ describe("cleanupStalePrompts", () => {
       path.join(root, "ce-work-beta.md"),
       legacyWorkflowPromptContent(
         "ce:work-beta",
-        (await pluginDescription("plugins/compound-engineering/skills/ce-work-beta/SKILL.md"))
-          .replaceAll("ce-", "ce:"),
+        // ce-work-beta was merged into ce-work; use the last shipped description
+        // (with ce- → ce: transform applied, matching a legacy-workflow install).
+        "[BETA] Execute work with external delegate support. Same as ce:work but includes experimental Codex delegation mode for token-conserving code implementation.",
       ),
     )
 

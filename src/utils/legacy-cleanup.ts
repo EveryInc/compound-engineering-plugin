@@ -121,6 +121,9 @@ export const STALE_SKILL_DIRS = [
 
   // Merged into ce-compound as mode:refresh (slim/plugin-lightweight)
   "ce-compound-refresh",
+
+  // Merged into ce-work (delegation mode absorbed into stable skill)
+  "ce-work-beta",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -275,7 +278,10 @@ const LEGACY_PROMPT_CURRENT_SKILL_FOR_FILE: Record<string, string> = {
   "ce-plan.md": "ce-plan",
   "ce-review.md": "ce-code-review",
   "ce-work.md": "ce-work",
-  "ce-work-beta.md": "ce-work-beta",
+  // ce-work-beta was merged into ce-work. Point at the successor so the current
+  // ce-work description is also accepted as an ownership signal alongside the
+  // historical beta descriptions already in LEGACY_PROMPT_DESCRIPTION_ALIASES.
+  "ce-work-beta.md": "ce-work",
 }
 
 /**
@@ -342,6 +348,14 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "Draft user-facing announcement and marketing copy for a feature that just shipped — an X post or thread, a changelog blurb, a LinkedIn post, an email, a blog intro, or a short demo script. Spiral-agnostic by default; voice-matched via the Spiral CLI when it is installed and authed. Use when the user says 'promote this', 'draft the announcement', 'write the launch copy', 'market this feature', 'announce this feature', 'write the release tweet', or 'ce-promote'.",
   "ce-gemini-imagegen":
     "This skill should be used when generating and editing images using the Gemini API (Nano Banana Pro). It applies when creating images from text prompts, editing existing images, applying style transfers, generating logos with text, creating stickers, product mockups, or any image generation/manipulation task. Supports text-to-image, image editing, multi-turn refinement, and composition from multiple reference images.",
+  // ce-work-beta was merged into ce-work (delegation mode promoted to stable).
+  // Provide descriptions for both the ce: and ce- naming eras so cleanup
+  // can fingerprint installs from either era after the skill dir is gone.
+  "ce:work-beta":
+    "[BETA] Execute work with external delegate support. Same as ce:work but includes experimental Codex delegation mode for token-conserving code implementation.",
+  "ce-work-beta":
+    "[BETA] Execute work with external delegate support. Same as ce-work but includes experimental Codex delegation mode for token-conserving code implementation.",
+
   // ce-commit was merged into ce-commit-push-pr (commit-only mode). Provide
   // the historical description for both the merged skill and the legacy
   // git-commit dir so cleanup can fingerprint installs from either era.

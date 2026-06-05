@@ -1,7 +1,7 @@
 ---
 name: ce-work
 description: Execute work efficiently while maintaining quality and finishing features
-argument-hint: "[Plan doc path or description of work. Blank to auto use latest plan doc]"
+argument-hint: "[Plan doc path or description of work. Blank to auto use latest plan doc] [delegate:codex]"
 ---
 
 # Work Execution Command
@@ -15,6 +15,57 @@ This command takes a work document (plan or specification) or a bare prompt desc
 ## Input Document
 
 <input_document> #$ARGUMENTS </input_document>
+
+## Argument Parsing
+
+Parse `$ARGUMENTS` for the following optional tokens. Strip each recognized token before interpreting the remainder as the plan file path or bare prompt.
+
+| Token | Example | Effect |
+|-------|---------|--------|
+| `delegate:codex` | `delegate:codex` | Activate Codex delegation mode for plan execution |
+| `delegate:local` | `delegate:local` | Deactivate delegation even if enabled in config |
+
+All tokens are optional. When absent, fall back to the resolution chain below.
+
+**Fuzzy activation:** Also recognize imperative delegation-intent phrases such as "use codex", "delegate to codex", "codex mode", or "delegate mode" as equivalent to `delegate:codex`. A bare mention of "codex" in a prompt (e.g., "fix codex converter bugs") must NOT activate delegation -- only clear delegation intent triggers it.
+
+**Fuzzy deactivation:** Also recognize phrases such as "no codex", "local mode", "standard mode" as equivalent to `delegate:local`.
+
+### Settings Resolution Chain
+
+After extracting tokens from arguments, resolve the delegation state using this precedence chain:
+
+1. **Argument flag** -- `delegate:codex` or `delegate:local` from the current invocation (highest priority)
+2. **Config file** -- extract settings from the config block below. Value `codex` for `work_delegate` activates delegation; `false` deactivates.
+3. **Hard default** -- `false` (delegation off)
+
+**Config (pre-resolved):**
+!`cat "$(git rev-parse --show-toplevel 2>/dev/null)/.compound-engineering/config.local.yaml" 2>/dev/null || echo '__NO_CONFIG__'`
+
+If the block above contains YAML key-value pairs, extract values for the keys listed below.
+If it shows `__NO_CONFIG__`, the file does not exist — all settings fall through to defaults.
+If it shows an unresolved command string, read `.compound-engineering/config.local.yaml` from the repo root using the native file-read tool (e.g., Read in Claude Code, read_file in Codex). If the file does not exist, all settings fall through to defaults.
+
+If any setting has an unrecognized value, fall through to the hard default for that setting. For optional settings without a hard default (`work_delegate_model`, `work_delegate_effort`), an unrecognized or unparseable value resolves to **unset** — the corresponding flag is omitted from the `codex exec` invocation so Codex resolves from `~/.codex/config.toml`. Never substitute an invalid value into the CLI flags.
+
+Config keys:
+- `work_delegate` -- `codex` or default `false`
+- `work_delegate_consent` -- `true` or default `false`
+- `work_delegate_sandbox` -- `yolo` (default) or `full-auto`
+- `work_delegate_decision` -- `auto` (default) or `ask`
+- `work_delegate_model` -- Codex model to use. Optional — when unset or unparseable, defers to the user's `~/.codex/config.toml` default. Passthrough — any non-empty string is accepted as valid; only YAML parse failures or empty values resolve to unset.
+- `work_delegate_effort` -- one of `minimal`, `low`, `medium`, `high`, or `xhigh`. Optional — when unset or set to a value outside this enum, resolves to unset and defers to the user's `~/.codex/config.toml` default.
+
+Store the resolved state for downstream consumption:
+- `delegation_active` -- boolean, whether delegation mode is on
+- `delegation_source` -- `argument` or `config` or `default` -- how delegation was resolved (used by environment guard to decide notification verbosity)
+- `sandbox_mode` -- `yolo` or `full-auto` (from config or default `yolo`)
+- `consent_granted` -- boolean (from config `work_delegate_consent`)
+- `delegate_model` -- string from config, or unset (defer to Codex config)
+- `delegate_effort` -- string from config, or unset (defer to Codex config). Floor for per-batch effort selection; not passed directly to `codex exec`.
+- `effective_effort` -- per-batch derived value (`default | medium | high | xhigh`), computed before each batch from `delegate_effort` and the picked level per `references/codex-delegation-workflow.md` ("Per-Batch Effort"). Feeds the `codex exec` invocation in place of `delegate_effort`.
+
+---
 
 ## Execution Workflow
 
@@ -128,6 +179,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
 4. **Choose Execution Strategy**
 
+   **Delegation routing gate:** If `delegation_active` is true AND the input is a plan file (not a bare prompt), read `references/codex-delegation-workflow.md` and follow its Pre-Delegation Checks and Delegation Decision flow. If all checks pass and delegation proceeds, force **serial execution** and proceed directly to Phase 2 using the workflow's batched execution loop. If any check disables delegation, fall through to the standard strategy table below. If delegation is active but the input is a bare prompt (no plan file), set `delegation_active` to false with a brief note: "Codex delegation requires a plan file -- using standard mode." and continue with the standard strategy selection below.
+
    After creating the task list, decide how to execute based on the plan's size and dependency structure:
 
    | Strategy | When to use |
@@ -202,7 +255,9 @@ Determine how to proceed based on what was provided in `<input_document>`.
      - **If the unit's work is already present and matches the plan's intent** (files exist with the expected capability, or the unit's `Verification` criteria are already satisfied by the current code), the work has likely shipped on a prior branch or session. Verify it matches, mark the task complete, and move on. Do not silently reimplement.
      - Look for similar patterns in codebase
      - Find existing test files for implementation files being changed (Test Discovery — see below)
-     - Implement following existing conventions
+     - If delegation_active: branch to the Codex Delegation Execution Loop
+       (see `references/codex-delegation-workflow.md`)
+     - Otherwise: implement following existing conventions
      - Add, update, or remove tests to match implementation changes (see Test Discovery below)
      - Run System-Wide Test Check (see below)
      - Run tests after changes
@@ -313,7 +368,15 @@ Determine how to proceed based on what was provided in `<input_document>`.
    - Fix visual differences identified
    - Repeat until implementation matches design
 
-6. **Track Progress**
+7. **Frontend Design Guidance** (if applicable)
+
+   For UI tasks without a Figma design -- where the implementation touches view, template, component, layout, or page files, creates user-visible routes, or the plan contains explicit UI/frontend/design language:
+
+   - Load the `ce-frontend-design` skill before implementing
+   - Follow its detection, guidance, and verification flow
+   - If the skill produced a verification screenshot, it satisfies Phase 4's screenshot requirement -- no need to capture separately. If the skill fell back to mental review (no browser access), Phase 4's screenshot capture still applies
+
+8. **Track Progress**
    - Keep the task list updated as you complete tasks
    - Note any blockers or unexpected discoveries
    - Create new tasks if scope expands
@@ -335,6 +398,14 @@ When Tier 2 applies:
 3. **Residual Work Gate** — Only after followup; unresolved actionable findings go through the gate in `shipping-workflow.md`.
 
 Tier 1 harness-native review may still fix inline; Tier 2 always separates review from apply.
+
+---
+
+## Codex Delegation Mode
+
+When `delegation_active` is true after argument parsing, read `references/codex-delegation-workflow.md` for the complete delegation workflow: pre-checks, batching, prompt template, execution loop, and result classification.
+
+---
 
 ## Key Principles
 

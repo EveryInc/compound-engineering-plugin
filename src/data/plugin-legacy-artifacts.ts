@@ -86,6 +86,7 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "generate_command",
       "ce-commit",
       "ce-compound-refresh",
+      "ce-work-beta",
       "compound-refresh",
       "git-clean-gone-branches",
       "git-commit",

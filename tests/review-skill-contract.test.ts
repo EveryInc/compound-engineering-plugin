@@ -604,7 +604,6 @@ describe("ce-code-review contract", () => {
   test("ce-work shipping-workflow enforces a residual-work gate after Tier 2 review", async () => {
     for (const path of [
       "plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md",
-      "plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md",
     ]) {
       const workflow = await readRepoFile(path)
       await expect(readRepoFile(path.replace("shipping-workflow.md", "tracker-defer.md"))).resolves.toContain(
