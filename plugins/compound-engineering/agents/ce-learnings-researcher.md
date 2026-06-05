@@ -220,37 +220,13 @@ When no relevant learnings are found, say so explicitly, include the search cont
 
 ## Efficiency Guidelines
 
-**DO:**
-
-- Use the native content-search tool to pre-filter files BEFORE reading any content (critical for 100+ files)
-- Run multiple content searches in PARALLEL across different keyword dimensions
-- Probe `docs/solutions/` subdirectories dynamically rather than assuming a fixed list
-- Include `title:` in search patterns — often the most descriptive field
-- Use OR patterns for synonyms and search case-insensitively
-- Narrow to discovered subdirectories when the caller's Domain hint makes one obvious
-- Broaden the content search as fallback if <3 candidates found; re-narrow if >25
-- Read frontmatter only of search-matched candidates, capped at the first ~30 lines per file (enough to cover YAML)
-- Fully read only candidates that pass relevance scoring in Step 5
-- Prioritize high-severity entries and flag date when a learning may be superseded
-- Extract actionable takeaways, not summaries
-
-**DON'T:**
-
-- Skip the grep pre-filter and read frontmatter of every file in `docs/solutions/` — pre-filter first, then read frontmatter of the shortlist
-- Read full content of every candidate — only the ones that pass relevance scoring
-- Run searches sequentially when they can be parallel
-- Use only exact keyword matches (include synonyms); skip `title:` in patterns; proceed with >25 candidates without narrowing
-- Return raw document contents instead of distilling them
-- Include every tangentially related match — 1-2 adjacent entries with a caveat is fine; a long tail of weak matches is noise
-- Discard a candidate because it lacks bug-shaped fields like `symptoms` or `root_cause` — non-bug entries legitimately omit them
-- Assume `docs/solutions/patterns/critical-patterns.md` exists — read it only when present
-
-## Integration Points
-
-This agent is invoked by:
-
-- `/ce-plan` — to inform planning with institutional knowledge and add depth during confidence checking
-- `/ce-code-review`, `/ce-optimize`, `/ce-ideate` — to surface prior learnings relevant to the change, optimization target, or ideation topic
-- Standalone invocation before starting work in a documented area
-
-Output is consumed as prose — no downstream caller parses specific field labels out of it — so prioritize distilled, actionable takeaways over structural rigor.
+- Grep-pre-filter before reading any content; run searches in parallel
+- Probe `docs/solutions/` subdirectories dynamically; narrow only after discovery
+- Include `title:` in patterns; use OR synonyms; search case-insensitively
+- Narrow to matching subdirectories; broaden if <3 candidates; re-narrow if >25
+- Read frontmatter only of matched candidates (~30 lines); full-read only those passing Step 5 scoring
+- Prioritize high-severity entries; flag date when a learning may be superseded
+- Return distilled takeaways, not raw document contents
+- 1-2 adjacent entries with a caveat is fine; a long tail of weak matches is noise
+- Do not discard candidates for missing bug-shaped fields (`symptoms`, `root_cause`) — non-bug entries legitimately omit them
+- Do not assume `docs/solutions/patterns/critical-patterns.md` exists — read it only when present
