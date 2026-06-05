@@ -95,6 +95,6 @@ Always provide specific code examples for recommended optimizations. Include ben
 - For Rails applications, pay special attention to ActiveRecord query optimization
 - Consider background job processing for expensive operations
 - Recommend progressive enhancement for frontend features
-- Always balance performance optimization with code maintainability
 - Provide migration strategies for optimizing existing code
+- Balance performance optimization with code maintainability
 - Prioritize recommendations based on impact and implementation effort

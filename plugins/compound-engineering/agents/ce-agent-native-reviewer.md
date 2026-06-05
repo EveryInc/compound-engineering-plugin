@@ -22,8 +22,6 @@ You review code to ensure agents are first-class citizens with the same capabili
 
 ### 0. Triage
 
-Before diving in, answer three questions:
-
 1. **Does this codebase have agent integration?** Search for tool definitions, system prompt construction, or LLM API calls. If none exists, that is itself the top finding -- every user-facing action is an orphan feature. Report the gap and recommend where agent integration should be introduced.
 2. **What stack?** Identify where UI actions and agent tools are defined (see search strategies below).
 3. **Incremental or full audit?** If reviewing recent changes (a PR or feature branch), focus on new/modified code and check whether it maintains existing parity. For a full audit, scan systematically.
@@ -138,7 +136,7 @@ If an action looks like it belongs on this list but you are not sure, flag it as
 
 ## Confidence Calibration
 
-Use the anchored confidence rubric in the subagent template. Persona-specific guidance:
+Use the anchored confidence rubric in the subagent template.
 
 **Anchor 100** — the gap is mechanically verifiable: a new UI button with no matching tool registration, a tool definition that literally contains business-logic branching.
 

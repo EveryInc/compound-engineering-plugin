@@ -38,27 +38,17 @@ Every token of fetched data competes with the context needed for clustering and 
 gh label list --json name --limit 100
 ```
 
-The label list serves two purposes:
+Scan for two purposes:
 - **Priority signals:** patterns like `P0`, `P1`, `priority:critical`, `severity:high`, `urgent`, `critical`
-- **Focus targeting:** if a focus hint was provided (e.g., "collaboration", "auth", "performance"), scan the label list for labels that match the focus area. Every repo's label taxonomy is different — some use `subsystem:collab`, others use `area/auth`, others have no structured labels at all. Use your judgment to identify which labels (if any) relate to the focus, then use `--label` to narrow the fetch. If no labels match the focus, fetch broadly and weight the focus area during clustering instead.
+- **Focus targeting:** if a focus hint was provided (e.g., "collaboration", "auth", "performance"), identify labels that match the focus area. Use `--label` to narrow the fetch. If no labels match the focus, fetch broadly and weight the focus area during clustering instead.
 
-**2b. Fetch open issues (priority-aware):**
+**2b. Fetch open issues:**
 
-If priority/severity labels were detected:
-- Fetch high-priority issues first (with truncated bodies for clustering):
-  ```
-  gh issue list --state open --label "{high-priority-labels}" --limit 50 --json number,title,labels,createdAt,body --jq '[.[] | {number, title, labels, createdAt, body: (.body[:500])}]'
-  ```
-- Backfill with remaining issues:
-  ```
-  gh issue list --state open --limit 100 --json number,title,labels,createdAt,body --jq '[.[] | {number, title, labels, createdAt, body: (.body[:500])}]'
-  ```
-- Deduplicate by issue number.
-
-If no priority labels detected:
 ```
 gh issue list --state open --limit 100 --json number,title,labels,createdAt,body --jq '[.[] | {number, title, labels, createdAt, body: (.body[:500])}]'
 ```
+
+If priority/severity labels were detected, weight those issues more heavily during clustering (Step 3) — do not split into separate fetches.
 
 **2c. Fetch recently closed issues:**
 
@@ -70,8 +60,6 @@ Then filter the output by reading it directly:
 - Keep only issues closed within the last 30 days (by `closedAt` date)
 - Exclude issues whose labels match common won't-fix patterns: `wontfix`, `won't fix`, `duplicate`, `invalid`, `by design`
 
-Perform date and label filtering by reasoning over the returned data directly. Do **not** write Python, Node, or shell scripts to process issue data.
-
 **How to interpret closed issues:** Closed issues are not evidence of current pain on their own — they may represent problems that were genuinely solved. Their value is as a **recurrence signal**: when a theme appears in both open AND recently closed issues, that means the problem keeps coming back despite fixes. That's the real smell.
 
 - A theme with 20 open issues + 10 recently closed issues → strong recurrence signal, high priority
@@ -81,7 +69,7 @@ Perform date and label filtering by reasoning over the returned data directly. D
 Cluster from open issues first. Then check whether closed issues reinforce those themes. Do not let closed issues create new themes that have no open issue support.
 
 **Hard rules:**
-- **One `gh` call per fetch** — fetch all needed issues in a single call with `--limit`. Do not paginate across multiple calls, pipe through `tail`/`head`, or split fetches. A single `gh issue list --limit 200` is fine; two calls to get issues 1-100 then 101-200 is unnecessary.
+- **One `gh` call per fetch** — fetch all needed issues in a single call with `--limit`. Do not paginate across multiple calls (e.g., issues 1-100 then 101-200), pipe through `tail`/`head`, or split fetches by label.
 - Do not fetch `comments`, `assignees`, or `milestone` — these fields are expensive and not needed.
 - Do not reformulate `gh` commands with custom `--jq` output formatting (tab-separated, CSV, etc.). Always return JSON arrays from `--jq` so the output is machine-readable and consistent.
 - Bodies are included truncated to 500 characters via `--jq` in the initial fetch, which provides enough signal for clustering without separate body reads.
@@ -201,12 +189,3 @@ Every theme MUST include ALL of the following fields. Do not skip fields, merge 
 - Use native file-search/glob tools (e.g., `Glob` in Claude Code) for any repo file exploration
 - Use native content-search/grep tools (e.g., `Grep` in Claude Code) for searching file contents
 - Do not use shell commands for tasks that have native tool equivalents (no `find`, `cat`, `rg` through shell)
-
-## Integration Points
-
-This agent is designed to be invoked by:
-- `ce-ideate` — as a third parallel Phase 1 scan when issue-tracker intent is detected
-- Direct user dispatch — for standalone issue landscape analysis
-- Other skills or workflows — any context where understanding issue patterns is valuable
-
-The output is self-contained and not coupled to any specific caller's context.

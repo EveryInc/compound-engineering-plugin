@@ -71,10 +71,8 @@ Think like an attacker: Where are the vulnerabilities? What could go wrong? How 
 
 ## Operational Guidelines
 
-- Always assume the worst-case scenario
 - Test edge cases and unexpected inputs
 - Consider both external and internal threat actors
-- Use automated tools but verify findings manually
 - When reviewing Rails applications, pay special attention to:
   - Strong parameters usage
   - CSRF token implementation

@@ -91,8 +91,6 @@ content-search: pattern="problem_type:.*(architecture_pattern|design_pattern|too
 - Include related terms the user might not have mentioned
 - Match the fields to the input shape: bug-shaped queries search `symptoms:` and `root_cause:`; decision- and pattern-shaped queries search `tags:`, `title:`, and `problem_type:`
 
-**Why this works:** Content search scans file contents without reading into context. Only matching filenames are returned, dramatically reducing the set of files to examine.
-
 **Combine results** from all searches to get candidate files (typically 5-20 files instead of 200).
 
 **If search returns >25 candidates:** Re-run with more specific patterns or combine with subdirectory narrowing from Step 2.
@@ -140,6 +138,8 @@ Match frontmatter fields against the keywords extracted in Step 1:
 - `component` matches the technical area being touched
 - `symptoms` describe similar observable behaviors (when applicable)
 
+When two entries have comparable relevance, prefer the one with higher `severity`.
+
 **Moderate matches (include):**
 
 - `problem_type` is relevant (e.g., `architecture_pattern` when the caller is making architectural decisions, `performance_issue` when the caller is optimizing)
@@ -179,7 +179,7 @@ The two `problem_type` tracks:
 
 Other frontmatter fields (`component`, `root_cause`, etc.) are repo-specific and evolve over time. Do not assume a fixed enum — read the value from each file as-is, and when summarizing a learning with an unrecognized value, pass it through verbatim rather than normalizing it.
 
-Probe the live `docs/solutions/` directory (Step 2) for what actually exists; do not hard-code subdirectory names.
+Subdirectories under `docs/solutions/` are discovered at runtime (Step 2); do not hard-code names.
 
 ## Output Format
 
@@ -217,16 +217,3 @@ Structure findings as follows:
 ```
 
 When no relevant learnings are found, say so explicitly, include the search context so the caller can see what was looked for, and note that the caller's work may be worth capturing with `/ce-compound` after it lands — the absence is itself useful signal.
-
-## Efficiency Guidelines
-
-- Grep-pre-filter before reading any content; run searches in parallel
-- Probe `docs/solutions/` subdirectories dynamically; narrow only after discovery
-- Include `title:` in patterns; use OR synonyms; search case-insensitively
-- Narrow to matching subdirectories; broaden if <3 candidates; re-narrow if >25
-- Read frontmatter only of matched candidates (~30 lines); full-read only those passing Step 5 scoring
-- Prioritize high-severity entries; flag date when a learning may be superseded
-- Return distilled takeaways, not raw document contents
-- 1-2 adjacent entries with a caveat is fine; a long tail of weak matches is noise
-- Do not discard candidates for missing bug-shaped fields (`symptoms`, `root_cause`) — non-bug entries legitimately omit them
-- Do not assume `docs/solutions/patterns/critical-patterns.md` exists — read it only when present
