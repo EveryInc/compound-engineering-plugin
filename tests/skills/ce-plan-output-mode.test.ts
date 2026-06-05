@@ -161,27 +161,28 @@ describe("ce-plan output:html mode", () => {
     ).toBe(true)
   })
 
-  test("post-generation menu offers format-keyed option 4 (Proof for md, browser for html)", () => {
-    // Under exclusive output mode, the plan is exactly one artifact — either
-    // .md or .html. The menu's option 4 is format-keyed: Proof for md (Proof
-    // operates on markdown), browser for html. The legacy mutual-exclusion
-    // gate with sibling-rerender logic is gone.
-    const phaseStart = SKILL_BODY.indexOf("##### 5.3.8")
-    expect(phaseStart).toBeGreaterThan(-1)
-    const phaseRegion = SKILL_BODY.slice(phaseStart)
+  test("post-generation menu has browser-only option 4 for html (no Proof option)", () => {
+    // ce-proof was removed. Option 4 is now browser-only, rendered only when
+    // OUTPUT_FORMAT=html. The menu's option 4 line must carry the browser label
+    // AND the OUTPUT_FORMAT=html gate in the same numbered-list entry.
+    // There must be no 'Open in Proof' option anywhere after the menu heading.
+    const menuHeading = "##### 5.3.8"
+    const headingIdx = SKILL_BODY.indexOf(menuHeading)
+    expect(headingIdx, `SKILL.md must contain the '${menuHeading}' heading`).toBeGreaterThan(-1)
+    const menuRegion = SKILL_BODY.slice(headingIdx)
 
+    // Option 4 line must name 'Open in browser' and gate on OUTPUT_FORMAT=html
+    // on the same numbered-list line (e.g. "4. **Open in browser** … OUTPUT_FORMAT=html")
     expect(
-      /Open in browser/.test(phaseRegion),
-      "SKILL.md Phase 5.4 menu must include 'Open in browser' option for HTML mode.",
+      /^4\.\s+\*\*Open in browser\*\*.*OUTPUT_FORMAT=html/m.test(menuRegion),
+      "SKILL.md option 4 must be 'Open in browser' with an OUTPUT_FORMAT=html gate on the same line.",
     ).toBe(true)
+
+    // No Proof option must appear anywhere in the post-generation region
     expect(
-      /Open in Proof/.test(phaseRegion),
-      "SKILL.md Phase 5.4 menu must include 'Open in Proof' option for markdown mode.",
-    ).toBe(true)
-    expect(
-      /OUTPUT_FORMAT=md|OUTPUT_FORMAT=html|format-keyed/i.test(phaseRegion),
-      "SKILL.md must state the format-keyed rendering rule for option 4.",
-    ).toBe(true)
+      /Open in Proof/.test(menuRegion),
+      "SKILL.md post-generation menu must NOT contain 'Open in Proof' — ce-proof was removed.",
+    ).toBe(false)
   })
 
   test("no sibling logic — exclusive output mode is documented", () => {
