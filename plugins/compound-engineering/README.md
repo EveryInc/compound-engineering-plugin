@@ -19,7 +19,7 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 
 ### Core Workflow
 
-`ce-strategy` anchors the loop upstream; `ce-product-pulse` closes it with a read on user outcomes.
+`ce-strategy` anchors the loop upstream.
 
 | Skill | Description |
 |-------|-------------|
@@ -33,14 +33,12 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | [`/ce-compound`](../../docs/skills/ce-compound.md) | Document solved problems to compound team knowledge |
 | [`/ce-compound-refresh`](../../docs/skills/ce-compound-refresh.md) | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
 | [`/ce-optimize`](../../docs/skills/ce-optimize.md) | Run iterative optimization loops with parallel experiments, measurement gates, and LLM-as-judge quality scoring |
-| [`/ce-product-pulse`](../../docs/skills/ce-product-pulse.md) | Generate a single-page, time-windowed report on usage, performance, errors, and followups. Saves reports to `docs/pulse-reports/` as a browseable timeline of what users experienced |
 
 ### Research & Context
 
 | Skill | Description |
 |-------|-------------|
 | [`/ce-sessions`](../../docs/skills/ce-sessions.md) | Ask questions about session history across Claude Code, Codex, and Cursor |
-| [`ce-riffrec-feedback-analysis`](../../docs/skills/ce-riffrec-feedback-analysis.md) | Convert [Riffrec](https://github.com/kieranklaassen/riffrec) recordings, videos, audio, or notes into structured feedback. Routes between setup, quick bug report, and extensive analysis that hands off to `ce-brainstorm` |
 
 ### Git Workflow
 
@@ -56,11 +54,9 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | Skill | Description |
 |-------|-------------|
 | [`/ce-demo-reel`](../../docs/skills/ce-demo-reel.md) | Capture a visual demo reel (GIF demos, terminal recordings, screenshots) for PRs with project-type-aware tier selection |
-| [`/ce-promote`](../../docs/skills/ce-promote.md) | Draft user-facing announcement copy for a shipped feature (X post, changelog blurb, LinkedIn, email); voice-matched via the Spiral CLI when installed, a lite layer of editorial & social expertise without it |
 | [`/ce-report-bug`](../../docs/skills/ce-report-bug.md) | Report a bug in the compound-engineering plugin |
 | [`/ce-resolve-pr-feedback`](../../docs/skills/ce-resolve-pr-feedback.md) | Resolve PR review feedback in parallel |
 | [`/ce-test-browser`](../../docs/skills/ce-test-browser.md) | Run browser tests on PR-affected pages |
-| [`/ce-test-xcode`](../../docs/skills/ce-test-xcode.md) | Build and test iOS apps on simulator using XcodeBuildMCP |
 | [`/ce-setup`](../../docs/skills/ce-setup.md) | Diagnose environment, install missing tools, and bootstrap project config |
 | [`/ce-update`](../../docs/skills/ce-update.md) | Check compound-engineering plugin version and fix stale cache (Claude Code only) |
 | [`/ce-release-notes`](../../docs/skills/ce-release-notes.md) | Summarize recent compound-engineering plugin releases, or answer a question about a past release with a version citation |
@@ -70,7 +66,6 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | Skill | Description |
 |-------|-------------|
 | `ce-agent-native-architecture` | Build AI agents using prompt-native architecture |
-| `ce-dhh-rails-style` | Write Ruby/Rails code in DHH's 37signals style |
 | [`ce-frontend-design`](../../docs/skills/ce-frontend-design.md) | Create production-grade frontend interfaces |
 | [`ce-polish`](../../docs/skills/ce-polish.md) | Conversational UX polish — start a dev server, open the feature in a browser, and iterate together; auto-detects 8 frameworks. Manual invocation only |
 
@@ -80,18 +75,6 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 |-------|-------------|
 | [`ce-doc-review`](../../docs/skills/ce-doc-review.md) | Review documents using parallel persona agents for role-specific feedback |
 | [`/ce-simplify-code`](../../docs/skills/ce-simplify-code.md) | Simplify recent code changes for reuse, quality, and efficiency — parallel reviewers find issues, fixes applied, behavior verified by tests |
-
-### Content & Collaboration
-
-| Skill | Description |
-|-------|-------------|
-| [`ce-proof`](../../docs/skills/ce-proof.md) | Create, edit, and share documents via Proof collaborative editor |
-
-### Automation & Tools
-
-| Skill | Description |
-|-------|-------------|
-| `ce-gemini-imagegen` | Generate and edit images using Google's Gemini API |
 
 ### Beta / Experimental
 

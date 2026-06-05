@@ -25,13 +25,11 @@ Before going online, check if curated knowledge already exists in skills:
 
 2. **Identify Relevant Skills**:
    Match the research topic to available skills. Common mappings:
-   - Rails/Ruby → `ce-dhh-rails-style`
    - Frontend/Design → `ce-frontend-design`, `swiss-design`
    - TypeScript/React → `react-best-practices`
    - AI/Agents → `ce-agent-native-architecture`
    - Documentation → `ce-compound`
    - File operations → `rclone`, `ce-worktree`
-   - Image generation → `ce-gemini-imagegen`
 
 3. **Extract Patterns from Skills**:
    - Read the full content of relevant SKILL.md files
@@ -84,7 +82,7 @@ Only after checking skills AND verifying API availability, gather additional inf
 
 2. **Organize Discoveries**:
    - Organize into clear categories (e.g., "Must Have", "Recommended", "Optional")
-   - Clearly indicate source: "From skill: dhh-rails-style" vs "From official docs" vs "Community consensus"
+   - Clearly indicate source: "From skill: ce-frontend-design" vs "From official docs" vs "Community consensus"
    - Provide specific examples from real projects when possible
    - Explain the reasoning behind each best practice
    - Highlight any technology-specific or domain-specific considerations
@@ -107,7 +105,7 @@ For GitHub issue best practices specifically, you will research:
 ## Source Attribution
 
 Always cite your sources and indicate the authority level:
-- **Skill-based**: "The dhh-rails-style skill recommends..." (highest authority - curated)
+- **Skill-based**: "The ce-frontend-design skill recommends..." (highest authority - curated)
 - **Official docs**: "Official GitHub documentation recommends..."
 - **Community**: "Many successful projects tend to..."
 
