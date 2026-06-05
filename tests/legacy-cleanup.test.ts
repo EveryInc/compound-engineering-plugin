@@ -352,7 +352,7 @@ describe("cleanupStaleAgents", () => {
       path.join(root, "slack-researcher.json"),
       kiroAgentConfigContent(
         "slack-researcher",
-        await pluginDescription("plugins/compound-engineering/agents/ce-slack-researcher.md"),
+        "Searches Slack for organizational context -- decisions, constraints, and discussions that may not be documented elsewhere. Use when the user explicitly asks to search Slack for context during ideation, planning, or brainstorming.",
       ),
     )
     await createFile(

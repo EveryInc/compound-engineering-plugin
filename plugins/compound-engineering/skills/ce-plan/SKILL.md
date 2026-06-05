@@ -298,12 +298,6 @@ Collect:
 - Institutional learnings from `docs/solutions/`
 - Product strategy context when `STRATEGY.md` is present — flag any plan decisions that pull away from the active tracks or the stated approach
 
-**Slack context** (opt-in) — never auto-dispatch. Route by condition:
-
-- **Tools available + user asked**: Dispatch `ce-slack-researcher` with the planning context summary in parallel with other Phase 1.1 agents. If the origin document has a Slack context section, pass it verbatim so the researcher focuses on gaps. Include findings in consolidation.
-- **Tools available + user didn't ask**: Note in output: "Slack tools detected. Ask me to search Slack for organizational context at any point, or include it in your next prompt."
-- **No tools + user asked**: Note in output: "Slack context was requested but no Slack tools are available. Install and authenticate the Slack plugin to enable organizational context search."
-
 #### 1.1b Detect Execution Posture Signals
 
 Decide whether the plan should carry a lightweight execution posture signal.

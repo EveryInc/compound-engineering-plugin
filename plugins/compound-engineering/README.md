@@ -40,7 +40,6 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | Skill | Description |
 |-------|-------------|
 | [`/ce-sessions`](../../docs/skills/ce-sessions.md) | Ask questions about session history across Claude Code, Codex, and Cursor |
-| [`/ce-slack-research`](../../docs/skills/ce-slack-research.md) | Search Slack for interpreted organizational context -- decisions, constraints, and discussion arcs |
 | [`ce-riffrec-feedback-analysis`](../../docs/skills/ce-riffrec-feedback-analysis.md) | Convert [Riffrec](https://github.com/kieranklaassen/riffrec) recordings, videos, audio, or notes into structured feedback. Routes between setup, quick bug report, and extensive analysis that hands off to `ce-brainstorm` |
 
 ### Git Workflow
@@ -152,7 +151,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `ce-learnings-researcher` | Search institutional learnings for relevant past solutions |
 | `ce-repo-research-analyst` | Research repository structure and conventions |
 | `ce-session-historian` | Search prior Claude Code, Codex, and Cursor sessions for related investigation context |
-| `ce-slack-researcher` | Search Slack for organizational context relevant to the current task |
 | `ce-web-researcher` | Perform iterative web research and return structured external grounding (prior art, adjacent solutions, market signals, cross-domain analogies) |
 
 ### Design

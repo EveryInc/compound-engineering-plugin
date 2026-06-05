@@ -103,6 +103,9 @@ export const STALE_SKILL_DIRS = [
   // their scripts moved into ce-sessions/scripts/ and the skills were removed.
   "ce-session-inventory",
   "ce-session-extract",
+
+  // Removed Slack feature (agent + skill dropped together)
+  "ce-slack-research",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -166,6 +169,7 @@ const STALE_AGENT_NAMES = [
   "schema-drift-detector",
   "session-historian",
   "slack-researcher",
+  "ce-slack-researcher",
   "scope-guardian-reviewer",
   "security-lens-reviewer",
   "security-reviewer",
@@ -305,6 +309,8 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "Extract conversation skeleton or error signals from a single session file at a given path. Invoked by session-research agents after they have selected which sessions to deep-dive — not intended for direct user queries.",
   "ce-session-inventory":
     "Discover session files for a repo across Claude Code, Codex, and Cursor, and extract session metadata (timestamps, branch, cwd, size, platform). Invoked by session-research agents — not intended for direct user queries.",
+  "ce-slack-research":
+    "Search Slack for interpreted organizational context -- decisions, constraints, and discussion arcs -- and produce a synthesized research digest with cross-cutting analysis. Use when the user says 'search slack for', 'what did we discuss about', 'slack context for', or 'what does the team think about'. Differs from slack:find-discussions, which returns raw message results without synthesis.",
 }
 
 /**
@@ -359,6 +365,10 @@ const LEGACY_ONLY_AGENT_DESCRIPTIONS: Record<string, string> = {
     "Visually compares live UI implementation against Figma designs and provides detailed feedback on discrepancies. Use after writing or modifying HTML/CSS/React components to verify design fidelity.",
   "ce-design-iterator":
     "Iteratively refines UI design through N screenshot-analyze-improve cycles. Use PROACTIVELY when design changes aren't coming together after 1-2 attempts, or when user requests iterative refinement.",
+  "slack-researcher":
+    "Searches Slack for organizational context -- decisions, constraints, and discussions that may not be documented elsewhere. Use when the user explicitly asks to search Slack for context during ideation, planning, or brainstorming.",
+  "ce-slack-researcher":
+    "Searches Slack for organizational context -- decisions, constraints, and discussions that may not be documented elsewhere. Use when the user explicitly asks to search Slack for context during ideation, planning, or brainstorming.",
 }
 
 type LegacyFingerprints = {
