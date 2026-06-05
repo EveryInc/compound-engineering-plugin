@@ -615,8 +615,7 @@ Based on problem type, these agents can enhance documentation:
 - **ce-data-integrity-guardian**: Reviews database_issue migrations and queries
 
 ### Enhancement & Research
-- **ce-best-practices-researcher**: Enriches solution with industry best practices
-- **ce-framework-docs-researcher**: Links to framework/library documentation references
+- **ce-best-practices-researcher**: Enriches solution with industry best practices and framework/library documentation references
 
 ### When to Invoke
 - **Auto-triggered** (optional): Agents can run post-documentation for enhancement

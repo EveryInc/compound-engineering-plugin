@@ -147,7 +147,7 @@ const STALE_AGENT_NAMES = [
   "dhh-rails-reviewer",
   "feasibility-reviewer",
   "figma-design-sync",
-  "framework-docs-researcher",
+  "ce-framework-docs-researcher",
   "git-history-analyzer",
   "issue-intelligence-analyst",
   "julik-frontend-races-reviewer",

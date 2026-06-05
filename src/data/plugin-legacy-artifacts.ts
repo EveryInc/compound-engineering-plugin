@@ -161,6 +161,7 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "feasibility-reviewer",
       "figma-design-sync",
       "framework-docs-researcher",
+      "ce-framework-docs-researcher",
       "git-history-analyzer",
       "issue-intelligence-analyst",
       "julik-frontend-races-reviewer",

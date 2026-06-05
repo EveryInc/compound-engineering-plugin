@@ -145,7 +145,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | Agent | Description |
 |-------|-------------|
 | `ce-best-practices-researcher` | Gather external best practices and examples |
-| `ce-framework-docs-researcher` | Research framework documentation and best practices |
 | `ce-git-history-analyzer` | Analyze git history and code evolution |
 | `ce-issue-intelligence-analyst` | Analyze GitHub issues to surface recurring themes and pain patterns |
 | `ce-learnings-researcher` | Search institutional learnings for relevant past solutions |

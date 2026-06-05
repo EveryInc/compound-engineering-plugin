@@ -104,14 +104,13 @@ Use fully-qualified agent names inside Task calls.
 
 **Context & Research / Sources & References gaps**
 - `ce-learnings-researcher` for institutional knowledge and past solved problems
-- `ce-framework-docs-researcher` for official framework or library behavior
-- `ce-best-practices-researcher` for current external patterns and industry guidance
+- `ce-best-practices-researcher` for official framework or library behavior, current external patterns, and industry guidance
 - `ce-web-researcher` for landscape/prior-art gaps — competitor patterns, market signals, or an unsettled external option set (which library/provider/approach) that recommendations depend on
 - Add `ce-git-history-analyzer` only when historical rationale or prior art is materially missing
 
 **Key Technical Decisions**
 - `ce-architecture-strategist` for design integrity, boundaries, and architectural tradeoffs
-- Add `ce-framework-docs-researcher` or `ce-best-practices-researcher` when the decision needs external grounding beyond repo evidence
+- Add `ce-best-practices-researcher` when the decision needs external grounding beyond repo evidence
 
 **High-Level Technical Design**
 - `ce-architecture-strategist` for validating that the technical design accurately represents the intended approach and identifying gaps
