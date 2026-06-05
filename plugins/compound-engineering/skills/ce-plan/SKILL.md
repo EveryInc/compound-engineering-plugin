@@ -378,7 +378,6 @@ If Step 1.2 indicates external research is useful, dispatch by the **intent** cl
 Summarize:
 - Relevant codebase patterns and file paths
 - Relevant institutional learnings
-- Organizational context from Slack conversations, if gathered (prior discussions, decisions, or domain knowledge relevant to the feature)
 - External references, prior art, competitor/landscape findings, and best practices, if gathered
 - Related issues, PRs, or prior art
 - Any constraints that should materially shape the plan
