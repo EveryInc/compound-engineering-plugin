@@ -172,28 +172,6 @@ test('Agent recovers from API failure', async () => {
 ```
 </integration_testing>
 
-<snapshot_testing>
-## Snapshot Testing for System Prompts
-
-```typescript
-test('System prompt structure matches snapshot', async () => {
-  const systemPrompt = await buildSystemPrompt();
-  const structure = systemPrompt
-    .replace(/id: \w+/g, 'id: [ID]')
-    .replace(/"[^"]+"/g, '"[TITLE]"')
-    .replace(/\d{4}-\d{2}-\d{2}/g, '[DATE]');
-  expect(structure).toMatchSnapshot();
-});
-
-test('All capability sections are present', async () => {
-  const systemPrompt = await buildSystemPrompt();
-  for (const section of ["Your Capabilities", "Available Books", "Recent Activity"]) {
-    expect(systemPrompt).toContain(section);
-  }
-});
-```
-</snapshot_testing>
-
 <manual_testing>
 ## Manual Testing
 

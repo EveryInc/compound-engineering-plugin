@@ -1,63 +1,40 @@
 <overview>
-Self-modification is the advanced tier of agent native engineering: agents that can evolve their own code, prompts, and behavior. Not required for every app, but a big part of the future.
-
-This is the logical extension of "whatever the developer can do, the agent can do."
+Self-modification is the advanced tier of agent-native engineering: agents that can evolve their own code, prompts, and behavior. The logical extension of "whatever the developer can do, the agent can do."
 </overview>
 
 <why_self_modification>
 ## Why Self-Modification?
 
-Traditional software is static—it does what you wrote, nothing more. Self-modifying agents can:
-
-- **Fix their own bugs** - See an error, patch the code, restart
-- **Add new capabilities** - User asks for something new, agent implements it
-- **Evolve behavior** - Learn from feedback and adjust prompts
-- **Deploy themselves** - Push code, trigger builds, restart
-
-The agent becomes a living system that improves over time, not frozen code.
+Self-modifying agents can:
+- **Fix their own bugs** — See an error, patch the code, restart
+- **Add new capabilities** — User asks for something new, agent implements it
+- **Evolve behavior** — Learn from feedback and adjust prompts
+- **Deploy themselves** — Push code, trigger builds, restart
 </why_self_modification>
 
 <capabilities>
 ## What Self-Modification Enables
 
-**Code modification:**
-- Read and understand source files
-- Write fixes and new features
-- Commit and push to version control
-- Trigger builds and verify they pass
+**Code modification:** Read source files, write fixes and new features, commit/push, trigger builds and verify they pass.
 
-**Prompt evolution:**
-- Edit the system prompt based on feedback
-- Add new features as prompt sections
-- Refine judgment criteria that aren't working
+**Prompt evolution:** Edit the system prompt based on feedback, add new feature sections, refine judgment criteria.
 
-**Infrastructure control:**
-- Pull latest code from upstream
-- Merge from other branches/instances
-- Restart after changes
-- Roll back if something breaks
+**Infrastructure control:** Pull latest code, merge branches, restart after changes, roll back if something breaks.
 
-**Site/output generation:**
-- Generate and maintain websites
-- Create documentation
-- Build dashboards from data
+**Site/output generation:** Generate and maintain websites, documentation, dashboards.
 </capabilities>
 
 <guardrails>
 ## Required Guardrails
 
-Self-modification is powerful. It needs safety mechanisms.
-
 **Approval gates for code changes:**
 ```typescript
 tool("write_file", async ({ path, content }) => {
   if (isCodeFile(path)) {
-    // Store for approval, don't apply immediately
     pendingChanges.set(path, content);
     const diff = generateDiff(path, content);
     return { text: `Requires approval:\n\n${diff}\n\nReply "yes" to apply.` };
   }
-  // Non-code files apply immediately
   writeFileSync(path, content);
   return { text: `Wrote ${path}` };
 });
@@ -66,28 +43,19 @@ tool("write_file", async ({ path, content }) => {
 **Auto-commit before changes:**
 ```typescript
 tool("self_deploy", async () => {
-  // Save current state first
-  runGit("stash");  // or commit uncommitted changes
-
-  // Then pull/merge
+  runGit("stash");
   runGit("fetch origin");
   runGit("merge origin/main --no-edit");
-
-  // Build and verify
   runCommand("npm run build");
-
-  // Only then restart
   scheduleRestart();
 });
 ```
 
 **Build verification:**
 ```typescript
-// Don't restart unless build passes
 try {
   runCommand("npm run build", { timeout: 120000 });
 } catch (error) {
-  // Rollback the merge
   runGit("merge --abort");
   return { text: "Build failed, aborting deploy", isError: true };
 }
@@ -96,16 +64,12 @@ try {
 **Health checks after restart:**
 ```typescript
 tool("health_check", async () => {
-  const uptime = process.uptime();
-  const buildValid = existsSync("dist/index.js");
-  const gitClean = !runGit("status --porcelain");
-
   return {
     text: JSON.stringify({
       status: "healthy",
-      uptime: `${Math.floor(uptime / 60)}m`,
-      build: buildValid ? "valid" : "missing",
-      git: gitClean ? "clean" : "uncommitted changes",
+      uptime: `${Math.floor(process.uptime() / 60)}m`,
+      build: existsSync("dist/index.js") ? "valid" : "missing",
+      git: !runGit("status --porcelain") ? "clean" : "uncommitted changes",
     }, null, 2),
   };
 });
@@ -115,11 +79,7 @@ tool("health_check", async () => {
 <git_architecture>
 ## Git-Based Self-Modification
 
-Use git as the foundation for self-modification. It provides:
-- Version history (rollback capability)
-- Branching (experiment safely)
-- Merge (sync with other instances)
-- Push/pull (deploy and collaborate)
+Git provides version history, branching, merge, and push/pull — the full safety net for self-modification.
 
 **Essential git tools:**
 ```typescript
@@ -140,25 +100,13 @@ main                      # Shared code
 └── instance/bot-c       # Instance C's branch
 ```
 
-Each instance can:
-- Pull updates from main
-- Push improvements back to main (via PR)
-- Sync features from other instances
-- Maintain instance-specific config
+Each instance can pull from main, push improvements back (via PR), sync from other instances, and maintain instance-specific config.
 </git_architecture>
 
 <prompt_evolution>
 ## Self-Modifying Prompts
 
-The system prompt is a file the agent can read and write.
-
-```typescript
-// Agent can read its own prompt
-tool("read_file", ...);  // Can read src/prompts/system.md
-
-// Agent can propose changes
-tool("write_file", ...);  // Can write to src/prompts/system.md (with approval)
-```
+The system prompt is a file the agent can read and write (with approval).
 
 **System prompt as living document:**
 ```markdown
@@ -173,11 +121,7 @@ When someone shares feedback:
      learned this from Dan's feedback on 2024-12-07 -->
 ```
 
-The agent can:
-- Add notes to itself
-- Refine judgment criteria
-- Add new feature sections
-- Document edge cases it learned
+The agent can add notes, refine judgment criteria, add new feature sections, and document learned edge cases.
 </prompt_evolution>
 
 <when_to_use>
@@ -191,8 +135,7 @@ The agent can:
 
 **Not necessary for:**
 - Simple single-task agents
-- Highly regulated environments
-- Systems where behavior must be auditable
+- Highly regulated or auditable environments
 - One-off or short-lived agents
 
 Start with a non-self-modifying prompt-native agent. Add self-modification when you need it.
@@ -201,7 +144,7 @@ Start with a non-self-modifying prompt-native agent. Add self-modification when 
 <checklist>
 ## Self-Modification Checklist
 
-Before enabling self-modification:
+Before enabling:
 - [ ] Git-based version control set up
 - [ ] Approval gates for code changes
 - [ ] Build verification before restart
