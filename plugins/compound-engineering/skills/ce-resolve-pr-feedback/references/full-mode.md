@@ -164,7 +164,7 @@ For `needs-human` verdicts, post the reply but do NOT resolve the thread. Leave 
 0. **Verify the thread ID** before replying. GitHub Enterprise can return inconsistent node IDs for the same thread depending on the query path. Always confirm the ID from `get-pr-comments` resolves to the correct thread using [scripts/get-thread-for-comment](../scripts/get-thread-for-comment) with the comment's numeric URL ID:
 ```bash
 # Extract numeric comment ID from the comment URL (e.g. discussion_r2589700 → 2589700)
-gh api repos/{owner}/{repo}/pulls/comments/COMMENT_ID --jq .node_id
+GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/comments/COMMENT_ID --jq .node_id
 bash scripts/get-thread-for-comment PR_NUMBER COMMENT_NODE_ID OWNER/REPO
 ```
 The returned `id` is the authoritative thread ID to use for reply and resolve. If it differs from what `get-pr-comments` returned, use the one from this script.
