@@ -128,6 +128,7 @@ const STALE_AGENT_NAMES = [
   "ce-kieran-rails-reviewer",
   "ce-kieran-typescript-reviewer",
   "ce-schema-drift-detector",
+  "ce-swift-ios-reviewer",
   "cli-agent-readiness-reviewer",
   "cli-readiness-reviewer",
   "code-simplicity-reviewer",

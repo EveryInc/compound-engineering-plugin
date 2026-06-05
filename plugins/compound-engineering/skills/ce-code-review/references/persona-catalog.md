@@ -43,7 +43,6 @@ These reviewers cover runtime behavior the always-on personas do not specialize 
 | Persona | Agent | Select when diff touches... |
 |---------|-------|---------------------------|
 | `julik-frontend-races` | `ce-julik-frontend-races-reviewer` | Stimulus/Turbo controllers, DOM event wiring, timers, async UI flows, animations, or frontend state transitions with race potential |
-| `swift-ios` | `ce-swift-ios-reviewer` | Swift files, SwiftUI views, UIKit controllers, `.entitlements`, `PrivacyInfo.xcprivacy`, `.xcdatamodeld`, `Package.swift`, `Package.resolved`, storyboards, XIBs, or semantic build-setting / target-membership / code-signing changes in `.pbxproj` |
 
 ## CE Conditional Agents (migration-specific)
 

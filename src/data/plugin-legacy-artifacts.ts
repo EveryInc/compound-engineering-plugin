@@ -183,6 +183,7 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "reliability-reviewer",
       "repo-research-analyst",
       "ce-schema-drift-detector",
+      "ce-swift-ios-reviewer",
       "schema-drift-detector",
       "scope-guardian-reviewer",
       "security-lens-reviewer",

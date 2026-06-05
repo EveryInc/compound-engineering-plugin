@@ -114,7 +114,7 @@ Routing rules:
 - `ce-adversarial-reviewer` — >=50 changed code lines, or auth / payments / data mutations / external APIs
 - `ce-previous-comments-reviewer` — PR with existing review comments (PR-only, comment-gated)
 
-**Stack-specific conditional (per diff):** `ce-julik-frontend-races-reviewer` (Stimulus/Turbo, DOM events, async UI) and `ce-swift-ios-reviewer` (Swift/SwiftUI/UIKit, entitlements, Core Data, `.pbxproj`).
+**Stack-specific conditional (per diff):** `ce-julik-frontend-races-reviewer` (Stimulus/Turbo, DOM events, async UI).
 
 **CE conditional (migration-specific):** `ce-deployment-verification-agent` — deployment checklist + rollback when the migration gate applies and the change is risky.
 
