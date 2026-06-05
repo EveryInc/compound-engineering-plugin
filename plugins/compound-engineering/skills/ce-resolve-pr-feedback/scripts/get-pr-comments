@@ -29,7 +29,7 @@ if [ -z "$OWNER" ] || [ -z "$REPO" ]; then
     exit 1
 fi
 
-# Output is a JSON object with three keys:
+# Output is a JSON object with four keys:
 #   review_threads   - unresolved inline review threads, edge-wrapped as
 #                      [{ node: { id, isResolved, isOutdated, path, line, ...,
 #                                 comments: { nodes: [...] } } }]
@@ -37,6 +37,9 @@ fi
 #                      and known CI/status bots)
 #   review_bodies    - review submissions with non-empty body text (same
 #                      filtering as pr_comments)
+#   cross_invocation - cross-invocation awareness envelope:
+#     signal: true when both resolved and unresolved threads exist (multi-round review)
+#     resolved_threads: last 10 resolved threads by recency, for cluster analysis input
 #
 # Pagination (issue #798): each top-level connection -- reviewThreads,
 # comments, reviews -- is fetched in its own paginated query because
@@ -146,6 +149,12 @@ jq -n \
   [$reviews[].data.repository.pullRequest.reviews.nodes[]] as $all_reviews |
   ["codecov"] as $ci_bot_logins |
   [$all_threads[] | select(.isResolved == false)] as $unresolved |
+  ([$all_threads[]
+    | select(.isResolved == true)
+    | { thread_id: .id, path: .path, line: .line,
+        first_comment_body: .comments.nodes[0].body,
+        last_comment_at: ([.comments.nodes[].createdAt] | sort | last) }]
+    | sort_by(.last_comment_at) | .[-10:] | reverse) as $resolved |
   {
     review_threads: [$unresolved[] | { node: . }],
     pr_comments: [$all_comments[]
@@ -155,5 +164,9 @@ jq -n \
     review_bodies: [$all_reviews[]
       | select(.body != null and .body != "")
       | select(.author.login != $author.login)
-      | select(.author.login as $l | $ci_bot_logins | index($l) | not)]
+      | select(.author.login as $l | $ci_bot_logins | index($l) | not)],
+    cross_invocation: {
+      signal: (($resolved | length) > 0 and ($unresolved | length) > 0),
+      resolved_threads: $resolved
+    }
   }'
