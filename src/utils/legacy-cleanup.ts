@@ -116,10 +116,13 @@ const STALE_AGENT_NAMES = [
   "architecture-strategist",
   "best-practices-researcher",
   "bug-reproduction-validator",
+  "ce-ankane-readme-writer",
   "ce-cli-agent-readiness-reviewer",
   "ce-cli-readiness-reviewer",
   "ce-data-migration-expert",
   "ce-data-migrations-reviewer",
+  "ce-design-implementation-reviewer",
+  "ce-design-iterator",
   "ce-dhh-rails-reviewer",
   "ce-kieran-python-reviewer",
   "ce-kieran-rails-reviewer",
@@ -349,6 +352,12 @@ const LEGACY_ONLY_AGENT_DESCRIPTIONS: Record<string, string> = {
     "Conditional code-review persona, selected when the diff touches TypeScript code. Reviews changes with Kieran's strict bar for type safety, clarity, and maintainability.",
   "ce-schema-drift-detector":
     "Detects unrelated schema.rb changes in PRs by cross-referencing against included migrations. Use when reviewing PRs with database schema changes.",
+  "ce-ankane-readme-writer":
+    "Creates or updates README files following Ankane-style template for Ruby gems. Use when writing gem documentation with imperative voice, concise prose, and standard section ordering.",
+  "ce-design-implementation-reviewer":
+    "Visually compares live UI implementation against Figma designs and provides detailed feedback on discrepancies. Use after writing or modifying HTML/CSS/React components to verify design fidelity.",
+  "ce-design-iterator":
+    "Iteratively refines UI design through N screenshot-analyze-improve cycles. Use PROACTIVELY when design changes aren't coming together after 1-2 attempts, or when user requests iterative refinement.",
 }
 
 type LegacyFingerprints = {

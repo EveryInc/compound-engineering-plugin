@@ -160,8 +160,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 
 | Agent | Description |
 |-------|-------------|
-| `ce-design-implementation-reviewer` | Verify UI implementations match Figma designs |
-| `ce-design-iterator` | Iteratively refine UI through systematic design iterations |
 | `ce-figma-design-sync` | Synchronize web implementations with Figma designs |
 
 ### Workflow
@@ -170,12 +168,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 |-------|-------------|
 | `ce-pr-comment-resolver` | Address PR comments and implement fixes |
 | `ce-spec-flow-analyzer` | Analyze user flows and identify gaps in specifications |
-
-### Docs
-
-| Agent | Description |
-|-------|-------------|
-| `ce-ankane-readme-writer` | Create READMEs following Ankane-style template for Ruby gems |
 
 ## Installation
 
