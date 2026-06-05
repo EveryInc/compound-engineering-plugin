@@ -29,14 +29,14 @@ Route by type to the matching recipe reference for start command and port defaul
 
 | Type | Recipe |
 |------|--------|
-| `rails` | `references/dev-server-rails.md` |
-| `next` | `references/dev-server-next.md` |
-| `vite` | `references/dev-server-vite.md` |
-| `nuxt` | `references/dev-server-nuxt.md` |
-| `astro` | `references/dev-server-astro.md` |
-| `remix` | `references/dev-server-remix.md` |
-| `sveltekit` | `references/dev-server-sveltekit.md` |
-| `procfile` | `references/dev-server-procfile.md` |
+| `rails` | `references/dev-server.md` §`## rails` |
+| `next` | `references/dev-server.md` §`## next` |
+| `vite` | `references/dev-server.md` §`## vite` |
+| `nuxt` | `references/dev-server.md` §`## nuxt` |
+| `astro` | `references/dev-server.md` §`## astro` |
+| `remix` | `references/dev-server.md` §`## remix` |
+| `sveltekit` | `references/dev-server.md` §`## sveltekit` |
+| `procfile` | `references/dev-server.md` §`## procfile` |
 | `unknown` | Ask the user how to start the project |
 
 For framework types that need a package manager, run `bash scripts/resolve-package-manager.sh` and substitute the result into the start command.
@@ -73,14 +73,7 @@ Reference files (loaded on demand):
 - `references/launch-json-schema.md` — launch.json schema + per-framework stubs
 - `references/ide-detection.md` — host IDE detection and browser-handoff
 - `references/dev-server-detection.md` — port resolution documentation
-- `references/dev-server-rails.md` — Rails dev-server defaults
-- `references/dev-server-next.md` — Next.js dev-server defaults
-- `references/dev-server-vite.md` — Vite dev-server defaults
-- `references/dev-server-nuxt.md` — Nuxt dev-server defaults
-- `references/dev-server-astro.md` — Astro dev-server defaults
-- `references/dev-server-remix.md` — Remix dev-server defaults
-- `references/dev-server-sveltekit.md` — SvelteKit dev-server defaults
-- `references/dev-server-procfile.md` — Procfile-based dev-server defaults
+- `references/dev-server.md` — unified dev-server recipes (rails, next, vite, nuxt, astro, remix, sveltekit, procfile)
 
 Scripts (invoked via `bash scripts/<name>`):
 - `scripts/read-launch-json.sh` — launch.json reader
