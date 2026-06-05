@@ -49,33 +49,27 @@ For a friendly overview of what this skill is for, when to use hard metrics vs L
 
 ## Persistence Discipline
 
-**CRITICAL: The experiment log on disk is the single source of truth. The conversation context is NOT durable storage. Results that exist only in the conversation WILL be lost.**
+**CRITICAL: The experiment log on disk is the single source of truth. Results that exist only in the conversation WILL be lost.**
 
-The files under `.context/compound-engineering/ce-optimize/<spec-name>/` are local scratch state. They are ignored by git, so they survive local resumes on the same machine but are not preserved by commits, branches, or pushes unless the user exports them separately.
-
-This skill runs for hours. Context windows compact, sessions crash, and agents restart. Every piece of state that matters MUST live on disk, not in the agent's memory.
-
-**If you produce a results table in the conversation without writing those results to disk first, you have a bug.** The conversation is for the user's benefit. The experiment log file is for durability.
+The files under `.context/compound-engineering/ce-optimize/<spec-name>/` are local scratch state, gitignored and not preserved by commits or pushes.
 
 ### Core Rules
 
-1. **Write each experiment result to disk IMMEDIATELY after measurement** — not after the batch, not after evaluation, IMMEDIATELY. Append the experiment entry to the experiment log file the moment its metrics are known, before evaluating the next experiment. This is the #1 crash-safety rule.
+1. **Write each experiment result to disk IMMEDIATELY after measurement** — before evaluating the next experiment. This is the #1 crash-safety rule.
 
-2. **VERIFY every critical write** — after writing the experiment log, read the file back and confirm the entry is present. This catches silent write failures. Do not proceed to the next experiment until verification passes.
+2. **VERIFY every critical write** — read the file back and confirm the entry is present. If verification fails twice, alert the user.
 
-3. **Re-read from disk at every phase boundary and before every decision** — never trust in-memory state across phase transitions, batch boundaries, or after any operation that might have taken significant time. Re-read the experiment log and strategy digest from disk.
+3. **Re-read from disk at every phase boundary and before every decision** — never trust in-memory state across phase transitions or batch boundaries.
 
-4. **The experiment log is append-only during Phase 3** — never rewrite the full file. Append new experiment entries. Update the `best` section in place only when a new best is found. This prevents data loss if a write is interrupted.
+4. **The experiment log is append-only during Phase 3** — never rewrite the full file. Update the `best` section in place only when a new best is found.
 
-5. **Per-experiment result markers for crash recovery** — each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments that were measured but not yet logged.
+5. **Per-experiment result markers for crash recovery** — each experiment writes a `result.yaml` marker in its worktree immediately after measurement. On resume, scan for these markers to recover experiments not yet logged.
 
 6. **Strategy digest is written after every batch, before generating new hypotheses** — the agent reads the digest (not its memory) when deciding what to try next.
 
-7. **Never present results to the user without writing them to disk first** — the pattern is: measure -> write to disk -> verify -> THEN show the user. Not the reverse.
+7. **Never present results to the user without writing them to disk first** — measure -> write to disk -> verify -> THEN show the user.
 
 ### Mandatory Disk Checkpoints
-
-These are non-negotiable write-then-verify steps. At each checkpoint, the agent MUST write the specified file and then read it back to confirm the write succeeded.
 
 | Checkpoint | File Written | Phase |
 |---|---|---|
@@ -85,12 +79,6 @@ These are non-negotiable write-then-verify steps. At each checkpoint, the agent 
 | CP-3: Each experiment result | `experiment-log.yaml` (append experiment entry) | Phase 3.3, immediately after each measurement |
 | CP-4: Batch summary | `experiment-log.yaml` (outcomes + best) + `strategy-digest.md` | Phase 3.5, after batch evaluation |
 | CP-5: Final summary | `experiment-log.yaml` (final state) | Phase 4, at wrap-up |
-
-**Format of a verification step:**
-1. Write the file using the native file-write tool
-2. Read the file back using the native file-read tool
-3. Confirm the expected content is present
-4. If verification fails, retry the write. If it fails twice, alert the user.
 
 ### File Locations (all under `.context/compound-engineering/ce-optimize/<spec-name>/`)
 
@@ -231,7 +219,7 @@ git rev-parse --verify "optimize/<spec-name>" 2>/dev/null
 **If branch exists**, check for an existing experiment log at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`.
 
 Present the user with a choice via the platform question tool:
-- **Resume**: read ALL state from the experiment log on disk (do not rely on any in-memory context from a prior session). Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Continue from the last iteration number in the log.
+- **Resume**: read ALL state from the experiment log on disk. Recover any measured-but-unlogged experiments by scanning worktree directories for `result.yaml` markers. Continue from the last iteration number in the log.
 - **Fresh start**: archive the old branch to `optimize-archive/<spec-name>/archived-<timestamp>`, clear the experiment log, start from scratch
 
 ### 0.5 Create Optimization Branch and Scratch Space
@@ -331,7 +319,7 @@ If count + `execution.max_concurrent` would exceed 12:
 
 ### 1.6 Write Baseline to Disk (CP-1)
 
-**MANDATORY CHECKPOINT.** Before presenting results to the user, write the initial experiment log with baseline metrics to disk:
+Write the initial experiment log with baseline metrics to disk (CP-1):
 
 1. Create the experiment log file at `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml`
 2. Include all required top-level sections from `references/experiment-log-schema.yaml`: `spec`, `run_id`, `started_at`, `baseline`, `experiments`, and `best`
@@ -359,8 +347,6 @@ Present to the user via the platform question tool:
 Do NOT proceed to Phase 2 until the user explicitly approves.
 
 If primary type is `judge` and `max_total_cost_usd` is null, call that out as uncapped spend and require explicit approval before proceeding.
-
-**State re-read:** After gate approval, re-read the spec and baseline from disk. Do not carry stale in-memory values forward.
 
 ---
 
@@ -400,7 +386,7 @@ Hypotheses with unapproved dependencies remain in the backlog but are skipped du
 
 ### 2.4 Record Hypothesis Backlog (CP-2)
 
-**MANDATORY CHECKPOINT.** Write the initial backlog to the experiment log file and verify:
+Write the initial backlog to the experiment log file and verify (CP-2):
 ```yaml
 hypothesis_backlog:
   - description: "Remove template boilerplate before embedding"
@@ -501,11 +487,9 @@ For each completed experiment, **immediately**:
 6. **If gates pass AND primary type is `hard`**:
    - Use the metric value directly from the measurement output
 
-7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use the transitional outcome `measured` once the experiment has valid metrics but has not yet been compared to the current best. Update the outcome to `kept`, `reverted`, or another terminal state in the evaluation step, but the raw metrics are on disk and safe from context compaction.
+7. **IMMEDIATELY append to experiment log on disk (CP-3)** — do not defer this to batch evaluation. Write the experiment entry (iteration, hypothesis, outcome, metrics, learnings) to `.context/compound-engineering/ce-optimize/<spec-name>/experiment-log.yaml` right now. Use the transitional outcome `measured` once the experiment has valid metrics but has not yet been compared to the current best. Update the outcome to `kept`, `reverted`, or another terminal state in the evaluation step.
 
 8. **VERIFY the write (CP-3 verification)** — read the experiment log back from disk and confirm the entry just written is present. If verification fails, retry the write. Do NOT proceed to the next experiment until this entry is confirmed on disk.
-
-**Why immediately + verify?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs. If results only exist in the agent's memory, they are lost. Karpathy's autoresearch writes to `results.tsv` after every single experiment — this skill must do the same with the experiment log. The verification step catches silent write failures that would otherwise lose data.
 
 ### 3.4 Evaluate Batch
 
@@ -539,8 +523,6 @@ After all experiments in the batch have been measured:
 
 ### 3.5 Update State (CP-4)
 
-**MANDATORY CHECKPOINT.** By this point, individual experiment results are already on disk (written in step 3.3). This step updates aggregate state and verifies.
-
 1. **Re-read the experiment log from disk** — do not trust in-memory state. The log is the source of truth.
 
 2. **Finalize outcomes** — update experiment entries from step 3.4 evaluation (mark `kept`, `reverted`, `runner_up_kept`, etc.). Write these outcome updates to disk immediately.
@@ -562,8 +544,6 @@ After all experiments in the batch have been measured:
 6. **Write updated hypothesis backlog to disk** — the backlog section of the experiment log must reflect newly added hypotheses and removed (tested) ones.
 
 **CP-4 Verification:** Read the experiment log back from disk. Confirm: (a) all experiment outcomes from this batch are finalized, (b) the `best` section reflects the current best, (c) the hypothesis backlog is updated. Read `strategy-digest.md` back and confirm it exists. Only THEN proceed to the next batch or stopping criteria check.
-
-**Checkpoint: at this point, all state for this batch is on disk. If the agent crashes and restarts, it can resume from the experiment log without loss.**
 
 ### 3.6 Check Stopping Criteria
 
@@ -592,8 +572,6 @@ If no stopping criterion is met, proceed to the next batch (step 3.1).
 - Experiments run this batch and total
 - Current best metric and improvement from baseline
 - Cumulative judge cost (if applicable)
-
-**Crash recovery**: See Persistence Discipline section. Per-experiment `result.yaml` markers are written in step 3.3. Individual experiment results are appended to the log immediately in step 3.3. Batch-level state (outcomes, best, digest) is written in step 3.5. On resume (Phase 0.4), the log on disk is the ground truth — scan for any `result.yaml` markers not yet reflected in the log.
 
 ---
 
@@ -636,7 +614,7 @@ Key improvements:
 ### 4.3 Preserve and Offer Next Steps
 
 The optimization branch (`optimize/<spec-name>`) is preserved with all commits from kept experiments.
-The experiment log and strategy digest remain in local `.context/...` scratch space for resume and audit on this machine only; they do not travel with the branch because `.context/` is gitignored.
+The experiment log remains in local `.context/...` scratch space for resume and audit on this machine only; it does not travel with the branch because `.context/` is gitignored.
 
 Present post-completion options via the platform question tool:
 

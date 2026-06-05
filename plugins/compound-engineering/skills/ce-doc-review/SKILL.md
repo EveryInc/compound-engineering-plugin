@@ -11,7 +11,7 @@ Review requirements or plan documents through multi-persona analysis. Dispatches
 ## Interactive mode rules
 
 - **Pre-load the platform question tool before any question fires.** In Claude Code, `AskUserQuestion` is a deferred tool — its schema is not available at session start. At the start of Interactive-mode work (before the routing question, per-finding walk-through questions, bulk-preview Proceed/Cancel, and Phase 5 terminal question), call `ToolSearch` with query `select:AskUserQuestion` to load the schema. Load it once, eagerly, at the top of the Interactive flow — do not wait for the first question site. On Codex, Gemini, and Pi this preload is not required.
-- **The numbered-list fallback applies only when the harness genuinely lacks a blocking question tool** — `ToolSearch` returns no match, the tool call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes where `request_user_input` is unavailable). A pending schema load is not a fallback trigger; call `ToolSearch` first per the pre-load rule. In genuine-fallback cases, present options as a numbered list and wait for the user's reply — never silently skip the question. Rendering a question as narrative text because the tool feels inconvenient, because the model is in report-formatting mode, or because the instruction was buried in a long skill is a bug. A question that calls for a user decision must either fire the tool or fall back loudly.
+- **The numbered-list fallback applies only when the harness genuinely lacks a blocking question tool** — `ToolSearch` returns no match, the tool call explicitly fails, or the runtime mode does not expose it (e.g., Codex edit modes where `request_user_input` is unavailable). A pending schema load is not a fallback trigger; call `ToolSearch` first per the pre-load rule. In genuine-fallback cases, present options as a numbered list and wait for the user's reply — never silently skip the question.
 
 ## Phase 0: Detect Mode
 
@@ -19,13 +19,11 @@ Check the skill arguments for `mode:headless`. Arguments may contain a document 
 
 If `mode:headless` is present, set **headless mode** for the rest of the workflow.
 
-**Headless mode** changes the interaction model, not the classification boundaries. ce-doc-review still applies the same judgment about which tier each finding belongs in. The only difference is how non-safe_auto findings are delivered:
+**Headless mode** changes the interaction model, not the classification boundaries. ce-doc-review still applies the same judgment about which tier each finding belongs in:
 
 - `safe_auto` fixes are applied silently (same as interactive)
 - `gated_auto`, `manual`, and FYI findings are returned as structured text for the caller to handle — no blocking-question prompts, no interactive routing
 - Phase 5 returns immediately with "Review complete" (no routing question, no terminal question)
-
-The caller receives findings with their original classifications intact and decides what to do with them.
 
 Callers invoke headless mode by including `mode:headless` in the skill arguments, e.g.:
 
@@ -45,7 +43,7 @@ If `mode:headless` is not present, the skill runs in its default interactive mod
 
 ### Classify Document Type
 
-Classify the document by reading its **content shape**, not its file path. Path is a tie-breaker hint, not the primary signal — a brainstorm-style doc placed under `docs/plans/` should still classify as `requirements`, and a plan-shaped doc under `docs/brainstorms/` should still classify as `plan`. The reviewers below operate differently depending on this classification, so misclassifying a plan-shaped doc as a requirements doc (or vice versa) produces noisy or under-scrutinized findings.
+Classify the document by reading its **content shape**, not its file path. Path is a tie-breaker hint, not the primary signal — a brainstorm-style doc placed under `docs/plans/` should still classify as `requirements`, and a plan-shaped doc under `docs/brainstorms/` should still classify as `plan`.
 
 Use these signals to decide:
 
@@ -200,7 +198,7 @@ Cross-session persistence is out of scope. A new invocation of ce-doc-review on 
 
 **Error handling:** If an agent fails or times out, proceed with findings from agents that completed. Note the failed agent in the Coverage section. Do not block the entire review on a single agent failure.
 
-**Dispatch limit:** Even at maximum (7 agents), use bounded parallel dispatch. If the harness cap is lower than the selected team size, queue the remainder and launch them as active reviewers complete.
+If the harness cap is lower than the selected team size, queue the remainder and launch them as active reviewers complete.
 
 ## Phases 3-5: Synthesis, Presentation, and Next Action
 

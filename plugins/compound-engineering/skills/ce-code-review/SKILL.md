@@ -24,7 +24,7 @@ Parse `$ARGUMENTS` for optional tokens. Strip each recognized token before inter
 |-------|---------|--------|
 | `mode:agent` | `mode:agent` | **Report-only**: return **JSON** instead of markdown tables and skip the Stage 5c apply (the caller applies). Does not change reviewer selection, merge logic, or scope rules (see Output format) |
 | `mode:headless` | `mode:headless` | **Deprecated alias** for `mode:agent` |
-| `mode:report-only` | `mode:report-only` | **Deprecated — ignored.** Former no-artifacts mode; default behavior is review-only without checkout |
+| `mode:report-only` | `mode:report-only` | **Deprecated — ignored.** Token has no effect; normal flow runs including Stage 5c. |
 | `base:<sha-or-ref>` | `base:abc1234` or `base:origin/main` | Diff base on the **current checkout** (explicit; skips auto base detection) |
 | `plan:<path>` | `plan:docs/plans/2026-03-25-001-feat-foo-plan.md` | Plan file for requirements verification (explicit) |
 
@@ -34,7 +34,7 @@ Parse `$ARGUMENTS` for optional tokens. Strip each recognized token before inter
 - Multiple incompatible scope selectors appear together (e.g. `base:` **and** a PR number/branch target — `base:` means "review the current checkout against this base")
 - Multiple distinct `mode:` tokens other than the `mode:agent`/`mode:headless` alias pair
 
-Deprecated `mode:autofix` is **not** a conflict — ignore the token and proceed with the normal flow (see below).
+**Deprecated:** `mode:autofix` is no longer supported — there is no apply *mode*. It is **not** a conflict — ignore the token and proceed with the normal flow (default applies safe fixes via Stage 5c; `mode:agent` reports and the caller applies).
 
 Emit a one-line failure reason. In `mode:agent`, return JSON: `{"status":"failed","reason":"..."}`.
 
@@ -42,9 +42,9 @@ Emit a one-line failure reason. In `mode:agent`, return JSON: `{"status":"failed
 
 Same pipeline for default and `mode:agent`:
 
-- **Apply locally; never push.** Never push, open PRs, or file tickets in any mode — push is the outward step the user owns. In **default (interactive)** mode the review applies safe, verified fixes and commits them when the pre-review tree was clean (Stage 5c owns the full rule). In **`mode:agent`** it never mutates the tree — it reports and the caller applies.
+- **Apply locally; never push.** In **default (interactive)** mode the review applies safe, verified fixes and commits them when the pre-review tree was clean (Stage 5c owns the full rule). In **`mode:agent`** it never mutates the tree — it reports and the caller applies.
 - **No blocking prompts.** Never use `AskUserQuestion`, `request_user_input`, `ask_user`, or other blocking question tools. Infer intent, plan, and scope from explicit tokens, git state, PR metadata, and conversation. Note uncertainty in Coverage or the verdict — do not stop to ask.
-- **Explicit mutations only.** Never run `gh pr checkout`, `git checkout`, `git switch`, or similar branch-switch commands. Passing a PR number, URL, or branch name selects **review scope**, not permission to mutate the working tree. To review local uncommitted work on a feature branch, check out that branch yourself (or stay on it) and pass `base:` or no target.
+- **Explicit mutations only.** Never run `gh pr checkout`, `git checkout`, `git switch`, or similar branch-switch commands. Passing a PR number, URL, or branch name selects **review scope**, not permission to mutate the working tree.
 - **Smart defaults.** Untracked files: review tracked changes only and list excluded paths in Coverage. Plan: use `plan:` when passed; otherwise discover conservatively from PR body or branch keywords. Weak advisory P2/P3 from testing/maintainability alone: demote to `testing_gaps` / `residual_risks` per Stage 5.
 
 ## Output format
@@ -54,7 +54,7 @@ Same pipeline for default and `mode:agent`:
 | **Default** | Markdown report (pipe-delimited finding tables) + Actionable Findings summary |
 | **`mode:agent`** | One JSON object (see ### JSON output format below) + the same `/tmp/.../ce-code-review/<run-id>/` artifacts |
 
-`mode:agent` is **report-only**: it skips the Stage 5c apply (the caller applies) and serializes findings as JSON instead of markdown. It does not change reviewer selection, merge logic, or scope rules — the JSON is the deterministic contract for programmatic and cross-harness callers (Codex, Gemini, etc.). The default markdown is the human view; keep it ASCII-safe (pipe tables, `->` not middot `·`, no box-drawing) so it degrades gracefully across terminals.
+`mode:agent` is **report-only**: skips Stage 5c (the caller applies) and serializes findings as JSON. The default markdown is the human view; keep it ASCII-safe (pipe tables, `->` not middot `·`, no box-drawing) so it degrades gracefully across terminals.
 
 ## Quick Review Short-Circuit
 
@@ -67,8 +67,6 @@ Sequence:
 1. **Run the harness's built-in code review.** Forward any review target after stripping tokens. Then stop — do not dispatch the multi-agent pipeline.
 2. **Exemption:** If no built-in review exists, continue into the full multi-agent review.
 3. **`mode:agent` bypasses this short-circuit** — always run the full multi-agent review and return JSON.
-
-**Deprecated:** `mode:autofix` is no longer supported — there is no apply *mode*. If passed, ignore the token and proceed with the normal flow (default applies safe fixes via Stage 5c; `mode:agent` reports and the caller applies).
 
 ## Severity Scale
 
@@ -472,7 +470,7 @@ Independent verification gate. Spawn one validator sub-agent per surviving findi
 - **P2/P3 at anchor 100** (verifiable from code alone — compile/type error, definitive logic bug, quotable standards violation, no interpretation): direct verification **may stand in for** the wave; note the method in Coverage.
 - **P2/P3 at anchor 75** (judgment call — "will affect users," not airtight): the independent wave is **required** — this is exactly where a fresh second opinion filters false positives, and the orchestrator cannot supply that for its own findings.
 
-**Why per-finding bounded dispatch (not batched):** Independence is the point. A single batched validator looking at all findings together pattern-matches across them and recreates the persona-bias problem. Per-finding dispatch preserves fresh context while the scheduler respects harness limits.
+**Why per-finding bounded dispatch (not batched):** Independence is the point.
 
 ### Stage 5c: Act on findings (default mode only)
 
@@ -538,7 +536,7 @@ Per-severity tables are **5 columns** — `Route` is not shown here (it appears 
 
 Do not include time estimates.
 
-**Format verification (default only — last gate before delivering).** Before delivering, scan **every table — the Applied table and each severity findings table** — for the forbidden shapes: `Field:`-prefixed blocks (`#:` / `File:` / `Fix:` / `Issue:`), box-drawing or horizontal-rule separators (`────`), middot `·`, or a list replacing a table. **The Applied table is the most common offender — check it explicitly.** If any table hit one of these, STOP and re-render it as the same pipe-delimited shape before delivering. (The keyed `- **#N** —` detail line under a table is expected — not a failure.) Skip only when `mode:agent` is active.
+**Format verification (default only — last gate before delivering).** Before delivering, scan **every table — the Applied table and each severity findings table** — for the forbidden shapes listed above. **The Applied table is the most common offender — check it explicitly.** If any table hit one of these, STOP and re-render it as the same pipe-delimited shape before delivering. (The keyed `- **#N** —` detail line under a table is expected — not a failure.) Skip only when `mode:agent` is active.
 
 ### JSON output format (`mode:agent` only)
 
@@ -587,12 +585,12 @@ On failure before review completes, set `"status": "failed"` and `"reason": "<on
 
 Before delivering the review, verify:
 
-1. **Every finding is actionable.** Re-read each finding. If it says "consider", "might want to", or "could be improved" without a concrete fix, rewrite it with a specific action. Vague findings waste engineering time.
-2. **No false positives from skimming.** For each finding, verify the surrounding code was actually read. Check that the "bug" isn't handled elsewhere in the same function, that the "unused import" isn't used in a type annotation, that the "missing null check" isn't guarded by the caller.
-3. **Severity is calibrated.** A style nit is never P0. A SQL injection is never P3. Re-check every severity assignment.
-4. **Line numbers are accurate.** Verify each cited line number against the file content. A finding pointing to the wrong line is worse than no finding.
+1. **Every finding is actionable.** If it says "consider" or "might want to" without a concrete fix, rewrite it with a specific action.
+2. **No false positives from skimming.** Verify the cited code was actually read; check the "bug" isn't handled elsewhere.
+3. **Severity is calibrated.** A style nit is never P0. A SQL injection is never P3.
+4. **Line numbers are accurate.** Verify each cited line against the file content.
 5. **Protected artifacts are respected.** Discard any findings that recommend deleting or gitignoring files in `docs/brainstorms/`, `docs/plans/`, or `docs/solutions/`.
-6. **Findings don't duplicate linter output.** Don't flag things the project's linter/formatter would catch (missing semicolons, wrong indentation). Focus on semantic issues.
+6. **Findings don't duplicate linter output.** Focus on semantic issues.
 
 ## Language-Aware Conditionals
 
@@ -600,7 +598,7 @@ Stack-specific reviewers fire only when the diff touches runtime behavior they s
 
 ## After Review
 
-After Stage 6, stop. Never push, open PRs, or file tickets from this skill. In default (interactive) mode, Stage 5c has already applied and (on a clean pre-review tree) committed the safe fixes; in `mode:agent` the review mutates nothing — the caller (for example `ce-work`) and the user apply fixes, file tickets, or accept residual risk using the report and artifact.
+After Stage 6, stop. Never push, open PRs, or file tickets from this skill.
 
 ### Emit actionable findings summary (default mode only)
 
@@ -613,13 +611,6 @@ After Stage 6 **in default mode**, emit a compact **Actionable Findings** summar
 In `mode:agent` do **not** emit this markdown summary — the actionable findings are carried solely by the `actionable_findings` field of the JSON object. Emit nothing after the JSON object, so the response stays a single parseable JSON value.
 
 Do not run post-review triage (no per-finding walk-through, bulk ticket filing, or routing questions). The report and summary are the complete handoff.
-
-### Mode-specific completion
-
-| Mode | After Stage 6 + actionable summary |
-|------|-----------------------------------|
-| **Default** | Markdown tables + Actionable Findings summary. |
-| **`mode:agent`** | JSON object + `review.json` in run artifact dir. |
 
 Do not offer push/PR/create-branch next steps from this skill.
 
@@ -644,8 +635,6 @@ Always write run artifacts under `/tmp/compound-engineering/ce-code-review/<run-
   "completed_at": "<ISO 8601 UTC timestamp>"
 }
 ```
-
-Capture `branch` and `head_sha` at dispatch time (no in-skill fixes will land afterward).
 
 ## Fallback
 
