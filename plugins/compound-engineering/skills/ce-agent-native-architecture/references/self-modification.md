@@ -198,56 +198,6 @@ The agent can:
 Start with a non-self-modifying prompt-native agent. Add self-modification when you need it.
 </when_to_use>
 
-<example_tools>
-## Complete Self-Modification Toolset
-
-```typescript
-const selfMcpServer = createSdkMcpServer({
-  name: "self",
-  version: "1.0.0",
-  tools: [
-    // FILE OPERATIONS
-    tool("read_file", "Read any project file", { path: z.string() }, ...),
-    tool("write_file", "Write a file (code requires approval)", { path, content }, ...),
-    tool("list_files", "List directory contents", { path: z.string() }, ...),
-    tool("search_code", "Search for patterns", { pattern: z.string() }, ...),
-
-    // APPROVAL WORKFLOW
-    tool("apply_pending", "Apply approved changes", {}, ...),
-    tool("get_pending", "Show pending changes", {}, ...),
-    tool("clear_pending", "Discard pending changes", {}, ...),
-
-    // RESTART
-    tool("restart", "Rebuild and restart", {}, ...),
-    tool("health_check", "Check if bot is healthy", {}, ...),
-  ],
-});
-
-const gitMcpServer = createSdkMcpServer({
-  name: "git",
-  version: "1.0.0",
-  tools: [
-    // STATUS
-    tool("status", "Show git status", {}, ...),
-    tool("diff", "Show changes", { path: z.string().optional() }, ...),
-    tool("log", "Show history", { count: z.number() }, ...),
-
-    // COMMIT & PUSH
-    tool("commit_code", "Commit code changes", { message: z.string() }, ...),
-    tool("git_push", "Push to GitHub", { branch: z.string().optional() }, ...),
-
-    // SYNC
-    tool("pull", "Pull from upstream", { source: z.enum(["main", "instance"]) }, ...),
-    tool("self_deploy", "Pull, build, restart", { source: z.enum(["main", "instance"]) }, ...),
-
-    // SAFETY
-    tool("rollback", "Revert commits", { commits: z.number() }, ...),
-    tool("health_check", "Detailed health report", {}, ...),
-  ],
-});
-```
-</example_tools>
-
 <checklist>
 ## Self-Modification Checklist
 

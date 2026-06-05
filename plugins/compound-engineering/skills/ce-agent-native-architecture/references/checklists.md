@@ -1,5 +1,5 @@
 <overview>
-Consolidated review material for agent-native systems: an architecture checklist for the design phase, anti-patterns to avoid, and success criteria for verifying a built system. Pull whichever section fits the moment.
+Consolidated review material for agent-native systems: an architecture checklist for the design phase, anti-patterns to avoid, and success criteria for verifying a built system.
 </overview>
 
 <architecture_checklist>
@@ -50,17 +50,15 @@ Verify these **before implementation** when designing an agent-native system.
 
 ### Common Approaches That Aren't Fully Agent-Native
 
-These aren't necessarily wrong—they may be appropriate for your use case. But they're different from the architecture this skill describes.
+**Agent as router** — Routes to functions instead of acting. Uses a fraction of agent capability.
 
-**Agent as router** — The agent figures out what the user wants, then calls the right function. The agent's intelligence is used to route, not to act. Uses a fraction of what agents can do.
+**Build the app, then add agent** — Agent can only do what existing features do; no emergent capability.
 
-**Build the app, then add agent** — You build features the traditional way (as code), then expose them to an agent. The agent can only do what your features already do. You won't get emergent capability.
+**Request/response thinking** — Misses the loop: agent gets an outcome to achieve, operates until done, handles unexpected situations.
 
-**Request/response thinking** — Agent gets input, does one thing, returns output. Misses the loop: agent gets an outcome to achieve, operates until it's done, handles unexpected situations along the way.
+**Defensive tool design** — Over-constrained inputs prevent the agent from doing things you didn't anticipate.
 
-**Defensive tool design** — Over-constrained tool inputs (strict enums, validation at every layer) borrowed from defensive programming. Safe, but prevents the agent from doing things you didn't anticipate.
-
-**Happy path in code, agent just executes** — Traditional software handles edge cases in code. Agent-native lets the agent handle edge cases with judgment. If your code handles all the edge cases, the agent is just a caller.
+**Happy path in code, agent just executes** — If code handles all edge cases, the agent is just a caller.
 
 ---
 
@@ -82,7 +80,7 @@ tools: store_item, send_message  // Primitives
 prompt: "Rate importance 1-5 based on actionability, store feedback, notify if >= 4"
 ```
 
-**Workflow-shaped tools** — `analyze_and_organize` bundles judgment into the tool. Break into primitives and let the agent compose them.
+**Workflow-shaped tools** — `analyze_and_organize` bundles judgment into the tool. Break into primitives.
 
 **Context starvation** — Agent doesn't know what resources exist in the app.
 ```
@@ -93,47 +91,32 @@ Fix: inject available resources, capabilities, and vocabulary into the system pr
 
 **Orphan UI actions** — User can do something through the UI that the agent can't achieve. Fix: maintain parity.
 
-**Silent actions** — Agent changes state but UI doesn't update. Fix: shared data stores with reactive binding, or file system observation.
+**Silent actions** — Agent changes state but UI doesn't update. Fix: shared data stores with reactive binding or file system observation.
 
-**Heuristic completion detection** — Detecting agent completion through heuristics (consecutive iterations without tool calls, checking for expected output files). Fragile. Fix: require agents to explicitly signal completion through a `complete_task` tool.
+**Heuristic completion detection** — Fragile. Fix: require agents to explicitly signal completion through a `complete_task` tool.
 
 **Static tool mapping for dynamic APIs** — Building 50 tools for 50 API endpoints when a `discover` + `access` pattern would give more flexibility.
 ```typescript
-// WRONG - Every API type needs a hardcoded tool
+// WRONG
 tool("read_steps", ...)
 tool("read_heart_rate", ...)
-tool("read_sleep", ...)
 
 // RIGHT - Dynamic capability discovery
 tool("list_available_types", ...)
 tool("read_health_data", { dataType: z.string() }, ...)
 ```
 
-**Incomplete CRUD** — Agent can create but not update or delete.
-```typescript
-// User: "Delete that journal entry"
-// Agent: "I don't have a tool for that"
-tool("create_journal_entry", ...)  // Missing: update, delete
-```
-Fix: every entity needs full CRUD.
+**Incomplete CRUD** — Agent can create but not update or delete. Fix: every entity needs full CRUD.
 
-**Sandbox isolation** — Agent works in a separate data space from the user.
-```
-Documents/
-├── user_files/        ← User's space
-└── agent_output/      ← Agent's space (isolated)
-```
-Fix: shared workspace where both operate on the same files.
+**Sandbox isolation** — Agent works in a separate data space from the user. Fix: shared workspace.
 
-**Gates without reason** — Domain tool is the only way to do something, and you didn't intend to restrict access. Default is open. Keep primitives available unless there's a specific reason to gate.
+**Gates without reason** — Default is open. Keep primitives available unless there's a specific reason to gate.
 
-**Artificial capability limits** — Restricting what the agent can do out of vague safety concerns rather than specific risks. The agent should generally be able to do what users can do.
+**Artificial capability limits** — The agent should generally be able to do what users can do.
 </anti_patterns>
 
 <success_criteria>
 ## Success Criteria
-
-A system is agent-native when:
 
 ### Architecture
 - [ ] The agent can achieve anything users can achieve through the UI (parity)
