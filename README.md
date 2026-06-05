@@ -71,7 +71,7 @@ For a focused bug investigation:
 
 After installing, run `/ce-setup` in any project. It checks your environment, installs missing tools, and bootstraps project config.
 
-The `compound-engineering` plugin currently ships 37 skills and 51 agents. See the [full component reference](plugins/compound-engineering/README.md) for the complete inventory.
+The `compound-engineering` plugin currently ships 28 skills and 37 agents. See the [full component reference](plugins/compound-engineering/README.md) for the complete inventory.
 
 ---
 

@@ -45,7 +45,7 @@ There's no decision tree, no envelope, no scoring rubric — just running iterat
 
 ### 1. Auto dev-server detection across 8 frameworks
 
-The skill detects the project type (Rails, Next.js, Vite, Nuxt, Astro, Remix, SvelteKit, Procfile-based) via `scripts/detect-project-type.sh` and routes to the matching recipe (`references/dev-server-<framework>.md`). Each recipe carries the framework's typical start command, port defaults, and quirks. For unknown projects, the skill asks how to start.
+The skill detects the project type (Rails, Next.js, Vite, Nuxt, Astro, Remix, SvelteKit, Procfile-based) via `scripts/detect-project-type.sh` and routes to the matching section in `references/dev-server.md`. Each section carries the framework's typical start command, port defaults, and quirks. For unknown projects, the skill asks how to start.
 
 ### 2. `.claude/launch.json` override
 
@@ -77,7 +77,7 @@ The dev server starts in the background with output logged to a temp file. The s
 
 You've just finished a notification settings page. It works, but the spacing feels off, the toggle states aren't quite right, and the empty-state copy is dry. You invoke `/ce-polish`.
 
-The skill verifies you're on a feature branch (not main), checks for `.claude/launch.json` (none), runs `detect-project-type.sh` (detects `next`), reads `references/dev-server-next.md` for the start command, resolves your package manager (pnpm) via `resolve-package-manager.sh`, picks port 3000, and starts `pnpm dev` in the background. After 4 seconds, `localhost:3000` responds. The skill opens it in Cursor's built-in browser.
+The skill verifies you're on a feature branch (not main), checks for `.claude/launch.json` (none), runs `detect-project-type.sh` (detects `next`), reads the `## next` section in `references/dev-server.md` for the start command, resolves your package manager (pnpm) via `resolve-package-manager.sh`, picks port 3000, and starts `pnpm dev` in the background. After 4 seconds, `localhost:3000` responds. The skill opens it in Cursor's built-in browser.
 
 You browse to `/settings/notifications`. You say "the spacing between the toggle rows feels too tight." The agent finds the component, adjusts the spacing, hot-reload kicks in. You say "now the toggle states need a clearer affordance — make the off state look more obviously off." The agent updates the component. You browse the empty state and say "this copy is sterile, make it warmer." The agent rewrites the copy.
 
@@ -137,7 +137,7 @@ When the framework is unknown to the auto-detector, the skill asks how to start 
 Supporting files:
 
 - `.claude/launch.json` (project-local override) — schema in `references/launch-json-schema.md`
-- Framework recipes — `references/dev-server-<rails|next|vite|nuxt|astro|remix|sveltekit|procfile>.md`
+- Framework recipes — `references/dev-server.md` (sections: rails, next, vite, nuxt, astro, remix, sveltekit, procfile)
 - IDE detection — `references/ide-detection.md`
 - Scripts — `scripts/detect-project-type.sh`, `scripts/read-launch-json.sh`, `scripts/resolve-package-manager.sh`, `scripts/resolve-port.sh`
 

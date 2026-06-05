@@ -10,8 +10,8 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 
 | Component | Count |
 |-----------|-------|
-| Agents | 50+ |
-| Skills | 29 |
+| Agents | 37 |
+| Skills | 28 |
 
 ## Skills
 
