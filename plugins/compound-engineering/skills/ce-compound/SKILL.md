@@ -8,12 +8,6 @@ argument-hint: "[optional: brief context] [mode:headless] [mode:refresh [scope h
 
 Coordinate multiple subagents working in parallel to document a recently solved problem, or (in refresh mode) maintain existing learnings against the current codebase.
 
-## Purpose
-
-Captures problem solutions while context is fresh, creating structured documentation in `docs/solutions/` with YAML frontmatter for searchability and future reference. Uses parallel subagents for maximum efficiency.
-
-**Why "compound"?** Each documented solution compounds your team's knowledge. The first time you solve a problem takes research. Document it, and the next occurrence takes minutes. Knowledge compounds.
-
 ## Usage
 
 ```bash
@@ -411,15 +405,6 @@ Read `references/refresh-workflow.md` and execute in order:
 - **Discoverability Check:** After Phase 4.5, before Phase 5 commit
 
 ---
-
-## What It Captures
-
-- **Problem symptom**: Exact error messages, observable behavior
-- **Investigation steps tried**: What didn't work and why
-- **Root cause analysis**: Technical explanation
-- **Working solution**: Step-by-step fix with code examples
-- **Prevention strategies**: How to avoid in future
-- **Cross-references**: Links to related issues and docs
 
 ## Preconditions
 

@@ -1,7 +1,5 @@
 # Deepening Workflow
 
-This file contains the confidence-check execution path (5.3.3-5.3.7). Load it only when the deepening gate at 5.3.2 determines that deepening is warranted.
-
 ## 5.3.3 Score Confidence Gaps
 
 Use a checklist-first, risk-weighted scoring pass.
@@ -146,11 +144,7 @@ For each selected section, pass:
 - The plan depth and risk profile
 - A specific question to answer
 
-Instruct the agent to return:
-- findings that change planning quality
-- stronger rationale, sequencing, verification, risk treatment, or references
-- no implementation code
-- no shell commands
+Instruct the agent to return findings that change planning quality (stronger rationale, sequencing, verification, risk treatment, or references) — no implementation code, no shell commands.
 
 ## 5.3.5 Choose Research Execution Mode
 
@@ -164,9 +158,7 @@ Signals that justify artifact-backed mode:
 - The selected section excerpts are long enough that repeating them in multiple agent outputs would be wasteful
 - The topic is high-risk and likely to attract bulky source-backed analysis
 
-If artifact-backed mode is not clearly warranted, stay in direct mode.
-
-Artifact-backed mode uses a per-run OS-temp scratch directory. Create it once before dispatching sub-agents and capture its **absolute path** — pass that absolute path to each sub-agent so they write to it directly. Do not use `.context/`; the artifacts are per-run throwaway that are cleaned up when deepening ends (see 5.3.6b), matching the repo Scratch Space convention for one-shot artifacts. Do not pass unresolved shell-variable strings to sub-agents; they need the resolved absolute path.
+Artifact-backed mode uses a per-run OS-temp scratch directory. Create it once, capture the **absolute path**, and pass that resolved path to each sub-agent — do not pass unresolved shell-variable strings.
 
 ```bash
 SCRATCH_DIR="$(mktemp -d -t ce-plan-deepen-XXXXXX)"
@@ -179,9 +171,7 @@ Refer to the echoed absolute path as `<scratch-dir>` throughout the rest of this
 
 Launch the selected agents in parallel using the execution mode chosen above. If the current platform does not support parallel dispatch, run them sequentially instead. Omit the `mode` parameter when dispatching so the user's configured permission settings apply.
 
-Prefer local repo and institutional evidence first. Use external research only when the gap cannot be closed responsibly from repo context or already-cited sources.
-
-If a selected section can be improved by reading the origin document more carefully, do that before dispatching external agents.
+Prefer local repo and institutional evidence first; use external research only when the gap cannot be closed from repo context or already-cited sources.
 
 **Direct mode:** Have each selected agent return its findings directly to the parent. Keep the return payload focused: strongest findings only, the evidence or sources that matter, the concrete planning improvement implied by the finding.
 
@@ -207,9 +197,7 @@ In interactive mode, present each agent's findings to the user before integratio
    - **Reject** — discard these findings entirely
    - **Discuss** — the user wants to talk through the findings before deciding
 
-If the user chooses "Discuss", engage in brief dialogue about the findings and then re-ask with only accept/reject (no discuss option on the second ask). The user makes a deliberate choice either way.
-
-When presenting findings from multiple agents targeting the same section, present them one agent at a time so the user can make independent decisions. Do not merge findings from different agents before showing them.
+If the user chooses "Discuss", engage briefly then re-ask with only accept/reject. When multiple agents target the same section, present them one at a time so the user makes independent decisions.
 
 After all agents have been reviewed, carry only the accepted findings forward to 5.3.7.
 
@@ -223,13 +211,13 @@ Strengthen only the selected sections. Keep the plan coherent and preserve its o
 
 **In interactive mode:** Only integrate findings the user accepted in 5.3.6b. If some findings from different agents touch the same section, reconcile them coherently but do not reintroduce rejected findings.
 
-Deepening may tighten, not only grow. A section can be strengthened by cutting as well as adding — collapse multi-idea sentences, drop hedges, and delete superseded text outright rather than leaving it as strikethrough or stacking a separate "resolutions" layer on top of it. A shorter, contradiction-free section is a stronger one. This is distinct from "rewrite the entire plan from scratch" below, which stays forbidden.
+Deepening may tighten, not only grow — cut hedges, collapse multi-idea sentences, delete superseded text outright rather than stacking resolutions on top.
 
 Allowed changes:
-- Tighten prose in a strengthened section: cut hedges, split sentences carrying more than one idea, and remove superseded text in place (version control holds the history)
+- Tighten prose: cut hedges, split multi-idea sentences, remove superseded text in place
 - Clarify or strengthen decision rationale
 - Tighten requirements trace or origin fidelity
-- Reorder or split implementation units when sequencing is weak — but **never renumber existing U-IDs**. Reordering preserves U-IDs in their new order (e.g., U1, U3, U5 reordered is correct; renumbering to U1, U2, U3 is not). Splitting keeps the original U-ID on the original concept and assigns the next unused number to the new unit. Renumbering breaks ce-work blocker and verification references that were written against the original IDs
+- Reorder or split implementation units when sequencing is weak — but **never renumber existing U-IDs**. Reordering preserves U-IDs in their new order; splitting keeps the original U-ID on the original concept and assigns the next unused number to the new unit
 - Add missing pattern references, file/test paths, or verification outcomes
 - Expand system-wide impact, risks, or rollout treatment where justified
 - Reclassify open questions between `Resolved During Planning` and `Deferred to Implementation` when evidence supports the change
@@ -238,12 +226,12 @@ Allowed changes:
 - Add or update `deepened: YYYY-MM-DD` in frontmatter when the plan was substantively improved
 
 Do **not**:
-- Add implementation code — no imports, exact method signatures, or framework-specific syntax. Pseudo-code sketches and DSL grammars are allowed
+- Add implementation code — no imports, exact method signatures, or framework-specific syntax (pseudo-code and DSL grammars are allowed)
 - Add git commands, commit choreography, or exact test command recipes
 - Add generic `Research Insights` subsections everywhere
 - Rewrite the entire plan from scratch
 - Invent new product requirements, scope changes, or success criteria without surfacing them explicitly
-- Renumber existing U-IDs as part of reordering, splitting, deletion, or "tidying" the unit list. Deepening is the most likely accidental-renumber vector — preserve U-IDs even when the new order would look cleaner with sequential numbering
+- Renumber existing U-IDs (deepening is the most likely accidental-renumber vector)
 
 If research reveals a product-level ambiguity that should change behavior or scope:
 - Do not silently decide it here

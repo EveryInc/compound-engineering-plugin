@@ -25,14 +25,6 @@ If `mode:headless` is present, set **headless mode** for the rest of the workflo
 - `gated_auto`, `manual`, and FYI findings are returned as structured text for the caller to handle — no blocking-question prompts, no interactive routing
 - Phase 5 returns immediately with "Review complete" (no routing question, no terminal question)
 
-Callers invoke headless mode by including `mode:headless` in the skill arguments, e.g.:
-
-```
-Skill("ce-doc-review", "mode:headless docs/plans/my-plan.md")
-```
-
-If `mode:headless` is not present, the skill runs in its default interactive mode with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
-
 ## Phase 1: Get and Analyze Document
 
 **If a document path is provided:** Read it, then proceed.
@@ -112,7 +104,7 @@ Analyze the document content to determine which conditional personas to activate
 - The document is a **plan that explicitly extends scope** beyond its origin requirements doc (new actors, new flows, deferred-then-restored features)
 - The document contains an **explicit alternatives section** or unresolved tradeoffs -- adversarial helps stress-test the chosen direction
 
-Do NOT activate adversarial on a routine plan document that derives from a validated origin requirements doc, stays within scope, and does not introduce high-stakes domains or new abstractions. The plan's structural decisions (more units, more rationale) are not by themselves adversarial signal -- those are the plan doing its job.
+Do NOT activate adversarial on a routine plan document that derives from a validated origin requirements doc, stays within scope, and does not introduce high-stakes domains or new abstractions.
 
 ## Phase 2: Announce and Dispatch Personas
 
@@ -190,7 +182,7 @@ Round 2 — applied (N entries):
 </prior-decisions>
 ```
 
-Each entry carries an `Evidence:` line because synthesis R29 (rejected-finding suppression) and R30 (fix-landed verification) both use an evidence-substring overlap check as part of their matching predicate — without the evidence snippet in the primer, the orchestrator cannot compute the `>50%` overlap test and has to fall back to fingerprint-only matching, which either re-surfaces rejected findings or suppresses too aggressively. The `{evidence_snippet}` is the first evidence quote from the finding, truncated to the first ~120 characters (preserving whole words at the boundary) and with internal quotes escaped. If a finding has multiple evidence entries, use the first one; the rest live in the run artifact and are not needed for the overlap check.
+Each entry carries an `Evidence:` line for synthesis R29/R30 overlap matching. The `{evidence_snippet}` is the first evidence quote from the finding, truncated to ~120 characters (preserving whole words at the boundary) with internal quotes escaped. If a finding has multiple evidence entries, use the first one.
 
 Accumulate across all rounds in the current session. Skip, Defer, and Acknowledge actions all count as "rejected" for suppression purposes — each signals the user decided the finding wasn't worth actioning this round (Acknowledge is the no-fix-guard variant: the user saw a finding with no `suggested_fix`, chose not to defer or skip explicitly, and recorded acknowledgement instead; for round-to-round suppression that is semantically equivalent to Skip). Applied findings stay on the applied list so round-N+1 personas can verify fixes landed (see R30 in `references/synthesis-and-presentation.md`).
 

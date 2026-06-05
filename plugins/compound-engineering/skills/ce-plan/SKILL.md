@@ -32,21 +32,20 @@ If the input is present but unclear or underspecified, ask one or two clarifying
 
 ## Core Principles
 
-1. **Use requirements as the source of truth** - If `ce-brainstorm` produced a requirements document, planning should build from it rather than re-inventing behavior.
-2. **Decisions, not code** - Capture approach, boundaries, files, dependencies, risks, and test scenarios. Do not pre-write implementation code or shell command choreography. Pseudo-code sketches or DSL grammars that communicate high-level technical design are welcome when they help a reviewer validate direction — but they must be explicitly framed as directional guidance, not implementation specification.
+1. **Use requirements as the source of truth** - Build from existing requirements documents rather than re-inventing behavior.
+2. **Decisions, not code** - Capture approach, boundaries, files, dependencies, risks, and test scenarios. Pseudo-code sketches or DSL grammars that communicate high-level technical design are welcome when they help a reviewer validate direction — but frame them explicitly as directional guidance, not implementation specification.
 3. **Research before structuring** - Explore the codebase, institutional learnings, and external guidance when warranted before finalizing the plan.
-4. **Right-size the artifact** - Small work gets a compact plan. Large work gets more structure. The philosophy stays the same at every depth.
+4. **Right-size the artifact** - Small work gets a compact plan. Large work gets more structure.
 5. **Separate planning from execution discovery** - Resolve planning-time questions here. Explicitly defer execution-time unknowns to implementation.
-6. **Keep the plan portable** - The plan should work as a living document, review artifact, or issue body without embedding tool-specific executor instructions.
-7. **Carry execution posture lightly when it matters** - If the request, origin document, or repo context clearly implies test-first, characterization-first, or another non-default execution posture, reflect that in the plan as a lightweight signal. Do not turn the plan into step-by-step execution choreography.
-8. **Honor user-named resources** - When the user names a specific resource — a CLI, MCP server, URL, file, doc link, or prior artifact — treat it as authoritative input, not a suggestion. Discover it if unknown (`command -v`, fetch, read) before assuming it's unavailable. Use it in place of generic alternatives. If it fails or doesn't exist, say so explicitly rather than silently substituting.
+6. **Carry execution posture lightly when it matters** - If the request, origin document, or repo context clearly implies test-first, characterization-first, or another non-default execution posture, reflect that in the plan as a lightweight signal.
+7. **Honor user-named resources** - When the user names a specific resource — a CLI, MCP server, URL, file, doc link, or prior artifact — treat it as authoritative input. Discover it if unknown (`command -v`, fetch, read) before assuming it's unavailable. If it fails or doesn't exist, say so explicitly rather than silently substituting.
 
 ## Plan Quality Bar
 
 Every plan should contain:
 - A clear problem frame and scope boundary
 - Concrete requirements traceability back to the request or origin document
-- Repo-relative file paths for the work being proposed (never absolute paths — see Planning Rules)
+- Repo-relative file paths for the work being proposed
 - Explicit test file paths for feature-bearing implementation units
 - Decisions with rationale, not just tasks
 - Existing patterns or code references to follow
@@ -126,7 +125,7 @@ Classify by task-type, not topic. A request that merely *references* code, a rep
 
 If the domain is genuinely ambiguous (e.g., "plan a migration" with no other context), ask the user before routing.
 
-Otherwise, read `references/universal-planning.md` and follow that workflow instead. Skip all subsequent phases. Named tools or source links don't change this routing — they're inputs, handled per Core Principle 8.
+Otherwise, read `references/universal-planning.md` and follow that workflow instead. Skip all subsequent phases. Named tools or source links don't change this routing — they're inputs, handled per Core Principle 7.
 
 #### 0.2 Find Upstream Requirements Document
 
@@ -171,8 +170,6 @@ The planning bootstrap should establish:
 - Scope boundaries and obvious non-goals
 - Success criteria
 - Blocking questions or assumptions
-
-Keep this bootstrap brief. It exists to preserve direct-entry convenience, not to replace a full brainstorm.
 
 If the bootstrap uncovers major unresolved product questions:
 - Recommend `ce-brainstorm` again
@@ -475,9 +472,9 @@ The tree is a scope declaration showing the expected output shape. It is not a c
 
 #### 3.5 Define Each Implementation Unit
 
-Each unit is a level-3 heading carrying a stable U-ID prefix matching the format used for R/A/F/AE in requirements docs: `### U1. [Name]`. Number sequentially within the plan starting at U1. Do not render units as bulleted list items or prefix them with `- [ ]` / `- [x]` checkbox markers. List-based unit titles fragment in every standard renderer because the per-unit fields (`**Goal:**`, `**Files:**`, `**Approach:**`, etc.) are written flush-left, which terminates CommonMark list continuation and detaches the fields from the unit they describe. Headings render correctly everywhere, are the right semantic match for sections containing multi-block content, and give each unit an anchor link. The plan is a decision artifact; execution progress is derived from git by `ce-work` rather than stored in the plan body.
+Each unit is a level-3 heading with a stable U-ID prefix: `### U1. [Name]`. Number sequentially starting at U1. Do not render units as bulleted list items or `- [ ]` checkboxes — flush-left per-unit fields terminate CommonMark list continuation and detach from the unit heading. Execution progress is derived from git by `ce-work`, not stored in the plan body.
 
-**Stability rule.** Once assigned, a U-ID is never renumbered. Reordering units leaves their IDs in place (e.g., U1, U3, U5 in their new order is correct; renumbering to U1, U2, U3 is not). Splitting a unit keeps the original U-ID on the original concept and assigns the next unused number to the new unit. Deletion leaves a gap; gaps are fine. This rule matters most during deepening (Phase 5.3), which is the most likely accidental-renumber vector.
+**Stability rule.** Once assigned, a U-ID is never renumbered. Reordering leaves IDs in place (U1, U3, U5 reordered is correct; renumbering to U1, U2, U3 is not). Splitting keeps the original U-ID on the original concept; the new unit takes the next unused number. Deletion leaves a gap; gaps are fine.
 
 For each unit, include:
 - **Goal** - what this unit accomplishes
@@ -506,19 +503,11 @@ Do not expand units into literal `RED/GREEN/REFACTOR` substeps.
 
 #### 3.6 Keep Planning-Time and Implementation-Time Unknowns Separate
 
-If something is important but not knowable yet, record it explicitly under deferred implementation notes rather than pretending to resolve it in the plan.
-
-Examples:
-- Exact method or helper names
-- Final SQL or query details after touching real code
-- Runtime behavior that depends on seeing actual test failures
-- Refactors that may become unnecessary once implementation starts
+Record execution-time unknowns explicitly under deferred implementation notes (exact method or helper names, final SQL after touching real code, runtime behavior dependent on test failures, refactors that may become unnecessary once implementation starts) rather than resolving them speculatively.
 
 #### 3.7 Anti-Expansion: Tangential Cleanup and Scope Creep Go to Deferred
 
-Distinct from 3.6 (which is about *unknowns* at plan time): 3.7 is about *known but tangential* work that the agent notices while planning but that falls outside the user's confirmed scope. When research surfaces an adjacent refactor, a "while we're here" cleanup, or a scope-adjacent nice-to-have, route it to the existing `### Deferred to Follow-Up Work` subsection in Scope Boundaries (Phase 4.2 Core Plan Template), not into active Implementation Units.
-
-This reinforces the synthesis discipline established at Phase 0.7 / Phase 5.1.5 — the user's confirmed scope is what the active plan executes; everything else is deferred. The user's explicit ask overrides this default — if the user explicitly requested a refactor, it's in-scope, not deferred.
+Distinct from 3.6 (unknowns): this covers *known but tangential* work that falls outside the user's confirmed scope. When research surfaces an adjacent refactor, a "while we're here" cleanup, or a scope-adjacent nice-to-have, route it to `### Deferred to Follow-Up Work` in Scope Boundaries, not into active Implementation Units. The user's explicit ask overrides this — if the user explicitly requested a refactor, it's in-scope.
 
 ### Phase 4: Write the Plan
 
@@ -528,21 +517,11 @@ Use one planning philosophy across all depths. Change the amount of detail, not 
 
 #### 4.1 Plan Depth Guidance
 
-**Lightweight**
-- Keep the plan compact
-- Usually 2-4 implementation units
-- Omit optional sections that add little value
+**Lightweight** — 2-4 units; omit optional sections that add no value.
 
-**Standard**
-- Use the full core template, omitting optional sections (including High-Level Technical Design) that add no value for this particular work
-- Usually 3-6 implementation units
-- Include risks, deferred questions, and system-wide impact when relevant
+**Standard** — full core template; omit optional sections (including HTD) that add no value; 3-6 units; include risks, deferred questions, and system-wide impact when relevant.
 
-**Deep**
-- Use the full core template plus optional analysis sections where warranted
-- Usually 4-8 implementation units
-- Group units into phases when that improves clarity
-- Include alternatives considered, documentation impacts, and deeper risk treatment when warranted
+**Deep** — full core template plus optional analysis sections where warranted; 4-8 units; group into phases when that improves clarity; include alternatives, documentation impacts, and deeper risk treatment when warranted.
 
 #### 4.1b Optional Deep Plan Extensions
 
@@ -564,16 +543,14 @@ Do not add these as boilerplate. Include them only when they improve execution q
 
 Compose the plan using two paired references:
 
-- `references/plan-sections.md` — the section contract. Describes what the plan contains: the outcome the plan must enable for downstream consumers, the hard floor (Summary, Problem Frame, Requirements, KTDs, Implementation Units), the include-when-material catalog (HTD, Scope Boundaries, Open Questions, System-Wide Impact, Risks & Dependencies, Acceptance Examples, Documentation/Operational Notes, Sources & Research), the agency-driven escape hatch (introduce new sections when content warrants), and the ID/content rules.
-- The format-rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`) — how to present the sections in the resolved output format.
-
-The section catalog is the same regardless of format. Format-specific principles (table-vs-prose by content shape, ID prefix format, diagram rendering, etc.) live in the rendering reference.
+- `references/plan-sections.md` — the section contract (hard floor, include-when-material catalog, ID/content rules).
+- The format-rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`) — format-specific presentation principles.
 
 Omit "include when material" sections that don't carry information for this specific plan. Filling a section with placeholder prose is worse than omitting it.
 
 #### 4.3 Planning Rules
 
-- **Horizontal rules (`---`) between top-level sections** in Standard and Deep plans, mirroring the `ce-brainstorm` requirements doc convention. Improves scannability of dense plans where many H2 sections sit close together. Omit for Lightweight plans where the whole doc fits on a single screen.
+- **Horizontal rules (`---`) between top-level sections** in Standard and Deep plans; omit for Lightweight.
 - **All file paths must be repo-relative** — never use absolute paths like `/Users/name/Code/project/src/file.ts`. Use `src/file.ts` instead. When a plan targets a different repo than the document's home, state the target repo once at the top of the plan and use repo-relative paths throughout
 - Prefer path plus class/component/pattern references over brittle line numbers
 - Do not include implementation code — no imports, exact method signatures, or framework-specific syntax
@@ -588,13 +565,11 @@ Omit "include when material" sections that don't carry information for this spec
 #### 5.1 Review Before Writing
 
 Before finalizing, check:
-- The plan does not invent product behavior that should have been defined in `ce-brainstorm`
-- If there was no origin document, the bounded planning bootstrap established enough product clarity to plan responsibly
+- No invented product behavior that should have been defined in `ce-brainstorm`
 - Every major decision is grounded in the origin document or research
 - Each implementation unit is concrete, dependency-ordered, and implementation-ready
 - If test-first or characterization-first posture was explicit or strongly implied, the relevant units carry it forward with a lightweight `Execution note`
-- Each feature-bearing unit has test scenarios from every applicable category (happy path, edge cases, error paths, integration) — right-sized to the unit's complexity, not padded or skimped
-- Test scenarios name specific inputs, actions, and expected outcomes without becoming test code
+- Each feature-bearing unit has test scenarios from every applicable category (happy path, edge cases, error paths, integration) — right-sized to the unit's complexity, not padded or skimped; scenarios name specific inputs, actions, and expected outcomes without becoming test code
 - Feature-bearing units with blank or missing test scenarios are flagged as incomplete — the `Test expectation: none -- [reason]` annotation is only valid for non-feature-bearing units
 - Deferred items are explicit and not hidden as fake certainty
 - **High-Level Technical Design presence audit (load-bearing).** For each architecture trigger in Phase 3.4 that the plan content satisfies (3+ components with directed relationships, 3+ protocol steps, 3+ state machine states, lifecycle, 3+ decision points, 3+ data-flow stages, mode/flag combinations, DSL/API surface design, non-obvious single-component shape), verify a corresponding sketch/diagram is present in the High-Level Technical Design section. Count the firing triggers; count the sketches; the sketch count must be at least the count of distinct trigger categories that fired. Missing the section when a trigger fired, OR including the section but skipping a triggered sketch within it, is incomplete — return to Phase 3.4 and add the missing sketch.
