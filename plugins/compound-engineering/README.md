@@ -28,7 +28,7 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | [`/ce-brainstorm`](../../docs/skills/ce-brainstorm.md) | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning. Pass `output:html` to write the doc as a single self-contained HTML file instead of markdown (exclusive — md OR html, never both) |
 | [`/ce-plan`](../../docs/skills/ce-plan.md) | Create structured plans for any multi-step task -- software features, research workflows, events, study plans -- with automatic confidence checking. Pass `output:html` to write the plan as a single self-contained HTML file instead of markdown (exclusive — md OR html, never both) |
 | [`/ce-code-review`](../../docs/skills/ce-code-review.md) | Structured code review with tiered persona agents, confidence gating, and dedup pipeline |
-| [`/ce-work`](../../docs/skills/ce-work.md) | Execute work items systematically |
+| [`/ce-work`](../../docs/skills/ce-work.md) | Execute work items systematically; pass `delegate:codex` to offload execution to Codex |
 | [`/ce-debug`](../../docs/skills/ce-debug.md) | Systematically find root causes and fix bugs -- traces causal chains, forms testable hypotheses, and implements test-first fixes |
 | [`/ce-compound`](../../docs/skills/ce-compound.md) | Document solved problems to compound team knowledge, or refresh stale learnings with `mode:refresh` |
 | [`/ce-optimize`](../../docs/skills/ce-optimize.md) | Run iterative optimization loops with parallel experiments, measurement gates, and LLM-as-judge quality scoring |
