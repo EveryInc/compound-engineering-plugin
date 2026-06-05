@@ -627,7 +627,7 @@ describe("ce-code-review contract", () => {
       // Accept-and-proceed path threads findings into the PR description.
       expect(workflow).toContain("Known Residuals")
       expect(workflow).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
-      expect(workflow).toContain("If the user later chooses the no-PR `ce-commit` path")
+      expect(workflow).toContain("If the user later chooses the no-PR commit-only path")
       expect(workflow).toContain("must not live only in the transient session")
     }
   })

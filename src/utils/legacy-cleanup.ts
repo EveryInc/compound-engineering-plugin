@@ -115,6 +115,9 @@ export const STALE_SKILL_DIRS = [
   "ce-proof",
   "ce-promote",
   "ce-gemini-imagegen",
+
+  // Merged into ce-commit-push-pr (commit-only mode covers this use case)
+  "ce-commit",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -334,6 +337,13 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "Draft user-facing announcement and marketing copy for a feature that just shipped — an X post or thread, a changelog blurb, a LinkedIn post, an email, a blog intro, or a short demo script. Spiral-agnostic by default; voice-matched via the Spiral CLI when it is installed and authed. Use when the user says 'promote this', 'draft the announcement', 'write the launch copy', 'market this feature', 'announce this feature', 'write the release tweet', or 'ce-promote'.",
   "ce-gemini-imagegen":
     "This skill should be used when generating and editing images using the Gemini API (Nano Banana Pro). It applies when creating images from text prompts, editing existing images, applying style transfers, generating logos with text, creating stickers, product mockups, or any image generation/manipulation task. Supports text-to-image, image editing, multi-turn refinement, and composition from multiple reference images.",
+  // ce-commit was merged into ce-commit-push-pr (commit-only mode). Provide
+  // the historical description for both the merged skill and the legacy
+  // git-commit dir so cleanup can fingerprint installs from either era.
+  "ce-commit":
+    "Create a git commit with a clear, value-communicating message. Use when the user says \"commit\", \"commit this\", \"save my changes\", \"create a commit\", or wants to commit staged or unstaged work. Produces well-structured commit messages that follow repo conventions when they exist, and defaults to conventional commit format otherwise.",
+  "git-commit":
+    "Create a git commit with a clear, value-communicating message. Use when the user says \"commit\", \"commit this\", \"save my changes\", \"create a commit\", or wants to commit staged or unstaged work. Produces well-structured commit messages that follow repo conventions when they exist, and defaults to conventional commit format otherwise.",
 }
 
 /**

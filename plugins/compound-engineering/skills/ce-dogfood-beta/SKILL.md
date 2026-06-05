@@ -35,7 +35,7 @@ This workflow drives the browser exclusively through the `agent-browser` CLI. Do
 | Phase 0 isolation | `ce-worktree` | Run the dogfood in an isolated worktree so the main checkout stays clean. |
 | agent-browser missing | `ce-setup` | Installs `agent-browser` and other deps. |
 | A failure's root cause is non-obvious | `ce-debug` | Systematic root-cause analysis instead of guess-and-check. |
-| Committing each fix | `ce-commit` | Consistent, well-scoped commit messages. |
+| Committing each fix | `ce-commit-push-pr` (commit-only mode) | Consistent, well-scoped commit messages without pushing. |
 | A bug reveals a reusable lesson | `ce-compound` | Capture the learning so the team compounds knowledge. |
 
 Reuse `ce-test-browser`'s mechanics for port detection and dev-server startup (see Phase 3) rather than reinventing them.
@@ -160,7 +160,7 @@ When a scenario fails, **fix it and prove it** — but first decide whether the 
 1. Investigate the root cause. If it's non-obvious, use `ce-debug`.
 2. Apply the fix in the code.
 3. **Add an automated regression test** that fails before the fix and passes after, so the bug can't return.
-4. Commit the fix with a clear message (use `ce-commit`). One logical fix per commit.
+4. Commit the fix with a clear message (use `ce-commit-push-pr` in commit-only mode). One logical fix per commit.
 5. Re-run the failing scenario in the browser to confirm it now passes; then continue the matrix.
 6. If the bug carried a reusable lesson, capture it with `ce-compound`.
 

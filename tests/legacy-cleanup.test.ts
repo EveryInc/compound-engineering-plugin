@@ -71,7 +71,8 @@ describe("cleanupStaleSkillDirs", () => {
       path.join(root, "git-commit"),
       skillContent(
         "git-commit",
-        await pluginDescription("plugins/compound-engineering/skills/ce-commit/SKILL.md"),
+        // ce-commit was merged into ce-commit-push-pr; use hardcoded historical description
+        "Create a git commit with a clear, value-communicating message. Use when the user says \"commit\", \"commit this\", \"save my changes\", \"create a commit\", or wants to commit staged or unstaged work. Produces well-structured commit messages that follow repo conventions when they exist, and defaults to conventional commit format otherwise.",
       ),
     )
     await createDir(
@@ -675,7 +676,8 @@ describe("idempotency", () => {
       path.join(root, "git-commit"),
       skillContent(
         "git-commit",
-        await pluginDescription("plugins/compound-engineering/skills/ce-commit/SKILL.md"),
+        // ce-commit was merged into ce-commit-push-pr; use hardcoded historical description
+        "Create a git commit with a clear, value-communicating message. Use when the user says \"commit\", \"commit this\", \"save my changes\", \"create a commit\", or wants to commit staged or unstaged work. Produces well-structured commit messages that follow repo conventions when they exist, and defaults to conventional commit format otherwise.",
       ),
     )
     await createFile(

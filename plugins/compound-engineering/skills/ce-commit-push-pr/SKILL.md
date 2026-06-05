@@ -11,6 +11,7 @@ description: Commit, push, and open a PR with an adaptive, value-first descripti
 
 - **Description-only** — user wants *just* a description ("write/draft a PR description", "describe this PR", or pasted a PR URL/number alone). Run Step 4 only; print the result. Apply only if the user asks. If a PR ref was pasted, pass it to Step 4 so Pre-A resolves the right range.
 - **Description update** — user wants to refresh/rewrite an existing PR's description with no commit/push intent. If no open PR, report and stop. Otherwise run Step 4 (PR mode using the existing PR's URL), then Step 5 to preview, confirm, and apply via `gh pr edit`.
+- **Commit-only** — user wants to commit but not push or open a PR ("commit this", "just commit", "save my changes", "create a commit"). Run Steps 1–3 only. After committing, run `git status` to confirm success, report the commit hash(es) and subject line(s), then stop. Do not push and do not open a PR.
 - **Full workflow** — otherwise. Run Steps 1-5 in order.
 
 ## Context
@@ -75,7 +76,9 @@ EOF
 )"
 ```
 
-Then push:
+**Commit-only mode:** After committing, run `git status` to confirm success, then report the commit hash(es) and subject line(s). Stop here — do not push.
+
+**Full workflow only:** Push after committing:
 
 ```bash
 git push -u origin HEAD

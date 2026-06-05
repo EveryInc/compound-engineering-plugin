@@ -58,7 +58,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    Options (four or fewer, self-contained labels):
    - `Apply/fix now` — load `references/review-findings-followup.md`, dispatch batched fix subagents for remaining eligible findings, run tests, commit if needed; optionally re-run `ce-code-review` only after the diff changed materially.
    - `File tickets via project tracker` — load `references/tracker-defer.md` in Interactive mode; the agent files tickets in the project's detected tracker (or `gh` fallback, or leaves them in the report if no sink exists) and proceeds to Final Validation.
-   - `Accept and proceed` — record the residual findings verbatim in a durable "Known Residuals" sink before shipping. If a PR will be created or updated in Phase 4, include them in the PR description's "Known Residuals" section (the agent owns this when calling `ce-commit-push-pr`). If the user later chooses the no-PR `ce-commit` path, create `docs/residual-review-findings/<branch-or-head-sha>.md`, include the accepted findings and source review-run context, stage it with the implementation commit, and mention the file path in the final summary. The user has acknowledged the risk, but the findings must not live only in the transient session.
+   - `Accept and proceed` — record the residual findings verbatim in a durable "Known Residuals" sink before shipping. If a PR will be created or updated in Phase 4, include them in the PR description's "Known Residuals" section (the agent owns this when calling `ce-commit-push-pr`). If the user later chooses the no-PR commit-only path, create `docs/residual-review-findings/<branch-or-head-sha>.md`, include the accepted findings and source review-run context, stage it with the implementation commit, and mention the file path in the final summary. The user has acknowledged the risk, but the findings must not live only in the transient session.
    - `Stop — do not ship` — abort the shipping workflow. The user will handle findings manually before re-invoking.
 
    Skip this gate entirely when the review reported `Actionable findings: none.` (and followup applied everything mechanical) or when only Tier 1 was used. Do not proceed past this gate on an `Accept and proceed` decision until the agent has recorded whether the durable sink is `PR Known Residuals` or `docs/residual-review-findings/<branch-or-head-sha>.md`.
@@ -122,7 +122,7 @@ This file contains the shipping workflow (Phase 3-4). It is loaded when all Phas
    - The Post-Deploy Monitoring & Validation section (see Phase 3 Step 6)
    - Any "Known Residuals" accepted in the Phase 3 Residual Work Gate, rendered as a dedicated section in the PR body with severity, file:line, and title per finding
 
-   If the user prefers to commit without creating a PR, load the `ce-commit` skill instead.
+   If the user prefers to commit without creating a PR, load the `ce-commit-push-pr` skill in commit-only mode ("commit this", "just commit", "save my changes").
 
 4. **Notify User**
    - Summarize what was completed

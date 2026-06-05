@@ -43,7 +43,6 @@ describe("ce-work review contract", () => {
     const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md")
 
     expect(shipping).toContain("`ce-commit-push-pr` skill")
-    expect(shipping).toContain("`ce-commit` skill")
 
     // Should not contain inline PR templates or attribution placeholders
     expect(content).not.toContain("gh pr create")
@@ -60,7 +59,6 @@ describe("ce-work review contract", () => {
     expect(shipping).toContain("2. **Simplify**")
     expect(shipping).toContain("3. **Code Review**")
     expect(shipping).toContain("`ce-commit-push-pr` skill")
-    expect(shipping).toContain("`ce-commit` skill")
 
     // Negative assertions stay on SKILL.md
     expect(beta).not.toContain("Consider Code Review")
