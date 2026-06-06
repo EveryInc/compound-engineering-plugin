@@ -9,6 +9,14 @@ It also contains:
 
 `AGENTS.md` is the canonical repo instruction file. Root `CLAUDE.md` exists only as a compatibility shim for tools and conversions that still look for it.
 
+## Scope & Lineage
+
+This is a deliberately slimmed (debloated) fork of the upstream Compound Engineering plugin. Components that are absent here were removed on purpose, not lost:
+
+- Treat the current inventory as intentional. Do not "restore" skills, agents, commands, or abstractions merely because upstream still has them — re-adding shed surface is scope creep against the fork's reason to exist.
+- Divergence from upstream is not drift to reconcile. Re-introduce an upstream behavior only when the user asks for that specific capability.
+- Removals are tracked, not silent. Deleting a skill/agent/command means registering it in the two legacy-cleanup registries (see "Plugin Maintenance") so stale flat-install artifacts get swept on upgrade; an unregistered removal leaves orphans on users' machines.
+
 ## Quick Start
 
 ```bash
@@ -96,12 +104,25 @@ Behavioral changes to a plugin agent or skill (anything under `plugins/*/agents/
 
 - **Mechanical changes do not have this restriction.** Skill scripts (e.g., `extract-metadata.py`), parser logic, conversion code, and anything `bun test` exercises always run the current source. The caching issue only affects LLM-driven agent or skill prose behavior dispatched through the plugin loader.
 
+- **Skill and agent *content* is guarded by file-parsing tests, not by dispatch.** Because skill/agent prose caches at session start (above), the only automated guard on their content is a set of tests that read the live files and assert on them. `tests/*-contract.test.ts` (e.g. `pipeline-review-contract`, `review-skill-contract`) assert exact structure and literal strings in `ce-work`/`ce-plan`/`ce-code-review` `SKILL.md` and their `references/` — review tiers, the SKILL.md-vs-`references/` extraction boundary, residual-work gate sentinels, delegation targets. `tests/skills/ce-*.test.ts` parse a single skill's files for mechanical invariants (output modes, routing, frontmatter shape). When an edit to one of these skills fails such a test, decide deliberately: the assertion either caught a regression or must be updated in lockstep with an intended wording change — do not reflexively weaken it. Add a `tests/skills/` test when a skill encodes a new parseable invariant worth protecting.
+
 ## Coding Conventions
 
 - Prefer explicit mappings over implicit magic when converting between platforms.
 - Keep target-specific behavior in dedicated converters/writers instead of scattering conditionals across unrelated files.
 - Preserve stable output paths and merge semantics for installed targets; do not casually change generated file locations.
 - When adding or changing a target, update fixtures/tests alongside implementation rather than treating docs or examples as sufficient proof.
+
+## Converter Pipeline Invariants
+
+The CLI is parser -> per-target converter -> per-target writer. The contracts below are easy to violate when editing `src/converters/`, `src/targets/`, or `src/utils/`, and they fail as data loss or unparseable output rather than a clean error:
+
+- **Installed-artifact ownership is by manifest, never by name, for manifest-managed targets.** The shared helpers in `src/targets/managed-artifacts.ts` record what a plugin installed in `install-manifest.json`; the next run reads that manifest, diffs its groups against the current bundle, and `fs.rm`s only the difference — that is what makes upgrade/rename/remove idempotent without clobbering user files that share a name. Those helpers honor a manifest only when `version === 1` and `pluginName` matches, and validate every path with `isSafeManagedPath` at both read and cleanup (defense in depth), so a corrupt entry like `../../config.toml` cannot delete outside the managed root. Codex has target-specific manifest helpers with the same ownership/safety shape; Kiro currently writes directly and is not manifest-managed. A writer that deletes by basename instead of consulting its ownership record leaves orphans on rename and can destroy user data.
+- **Manifest-managed writer order is fixed:** read the manifest (or target-specific equivalent) -> run cleanup against (manifest, current bundle) -> write the new artifacts -> write the new manifest -> archive legacy manifests and run legacy sweeps only for targets that implement those legacy paths. Writing the manifest before cleanup, or skipping the read, breaks the *next* run's cleanup. Codex runs its hooks merge even when `bundle.hooks` is empty so upgrades from a hooks-emitting version still clean the managed subset.
+- **Cross-plugin shared trees are owned by realpath, not basename.** `~/.agents/skills` (Codex) is shared, so a CE-named entry may be a user's own symlink or directory. Codex removes an entry only when it is a symlink whose resolved target is inside a CE-managed root (`isManagedCodexAgentsSymlink`), and `forceSymlink` (`src/utils/symlink.ts`) refuses to delete a real directory. Keep both guards when touching symlink install/cleanup.
+- **OpenCode model values are normalized only via `normalizeModelWithProvider`** (`src/utils/model.ts`). Agent file models are primary-agent-only: never write an explicit `model` onto a sub-agent, because sub-agents inherit the session provider and a hardcoded `anthropic/...` causes `ProviderModelNotFoundError` when the user's provider differs (#477). Command frontmatter still normalizes command-level models with the same helper. Bare family aliases (`haiku`/`sonnet`/`opus`) are Claude-Code-only — update `CLAUDE_FAMILY_ALIASES` when a new generation ships; unmapped names fall back to an `anthropic/` prefix.
+- **All emitted frontmatter goes through `formatFrontmatter`/`formatYamlValue`** (`src/utils/frontmatter.ts`) — never hand-write YAML or `js-yaml.dump` in a converter. `formatYamlValue` quotes any value containing `:`, starting with `[` or `{`, or equal to `*`, and block-scalars newlines; a hand-written unquoted colon throws a YAML parse error the next time the file loads.
+- **The parser output shape is the contract.** `src/parsers/claude.ts` returns a flat `ClaudePlugin` (`manifest.name` is a string; `agents`/`commands` are arrays, possibly empty; `skills` are pre-filtered from `SKILL.md` only; `mcpServers`/`hooks` are optional). Every converter reads those fields directly with no defensive guards, so changing the shape (a map instead of an array, nested objects, dropping `manifest.name`) is an all-converters-and-writers change. Do not add per-converter normalization to paper over a shape change — fix the shape and update every consumer.
 
 ## Commit Conventions
 

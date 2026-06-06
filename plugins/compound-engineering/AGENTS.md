@@ -258,6 +258,10 @@ Why: shell-heavy exploration causes avoidable permission prompts in sub-agent wo
 - [ ] Do not encode shell recipes for routine exploration when native tools can do the job; encode intent and preferred tool classes instead
 - [ ] For shell-only workflows (e.g., `gh`, `git`, `bundle show`, project CLIs), explicit command examples are acceptable when they are simple, task-scoped, and not chained together
 
+### Pure Document Reviewers Must Not Allow Bash
+
+A reviewer agent that reasons only over text passed in its prompt — and never inspects the codebase — must not list `Bash` in its `tools` allowlist. Weaker models granted Bash externalize state via temp-file scratchpads, which hang indefinitely on platforms whose bash tool blocks on heredocs (issue #832, the OpenCode coherence-reviewer stall). When adding such an agent, omit Bash and add its name to `NO_BASH_AGENTS` in `tests/frontmatter.test.ts`, which fails the build if Bash reappears. Codebase-inspecting agents are unaffected — they should keep their file/search tools.
+
 ### Passing Reference Material to Sub-Agents
 
 When a skill orchestrates sub-agents that need codebase reference material, prefer passing file paths over file contents. The sub-agent reads only what it needs. Content-passing is fine for small, static material consumed in full (e.g., a JSON schema under ~50 lines).
