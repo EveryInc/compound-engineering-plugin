@@ -185,7 +185,6 @@ Skip `ce-frontend-design` when:
 `ce-frontend-design` is mostly invoked directly when frontend work begins, but interlocks with:
 
 - **`/ce-work` Phase 2** — when implementing a frontend feature, this skill provides the design pass
-- **`/ce-polish`** — for late-stage UX refinement after the feature is functional; complementary, not a substitute
 - **`ce-figma-design-sync` agent** — for verifying UI against a Figma design with iterative pixel-perfect alignment
 
 The skill's output is frontend code; downstream skills handle commit, PR, polish, and review.
@@ -242,4 +241,3 @@ Follow what exists; apply skill defaults only for areas where no convention was 
 ## See Also
 
 - [`/ce-work`](./ce-work.md) — invokes this skill during frontend implementation
-- [`/ce-polish`](./ce-polish.md) — late-stage UX refinement after the feature is functional

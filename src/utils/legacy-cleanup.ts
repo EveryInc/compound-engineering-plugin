@@ -162,6 +162,10 @@ export const STALE_SKILL_DIRS = [
   // Removed big-picture ideation skill (slim/ultra-minimal). The colon-era
   // "ce:ideate" entry above stays; this is the current-era dash dir name.
   "ce-ideate",
+
+  // Removed conversational UX polish skill (slim/ultra-minimal). The
+  // "ce-polish-beta" entry above stays; this is the promoted stable dir name.
+  "ce-polish",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -462,6 +466,10 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
   // ce-ideate was the big-picture ideation skill (removed, no replacement).
   "ce-ideate":
     "Generate and critically evaluate grounded ideas about a topic. Use when asking what to improve, requesting idea generation, exploring surprising directions, or wanting the AI to proactively suggest strong options before brainstorming one in depth. Triggers on phrases like 'what should I improve', 'give me ideas', 'ideate on X', 'surprise me', 'what would you change', or any request for AI-generated suggestions rather than refining the user's own idea.",
+
+  // ce-polish was the conversational UX polish skill (removed, no replacement).
+  "ce-polish":
+    "Start the dev server, open the feature in a browser, and iterate on improvements together. Manual invocation only — type /ce-polish to run it.",
 }
 
 /**

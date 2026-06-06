@@ -11,7 +11,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 | Component | Count |
 |-----------|-------|
 | Agents | 35 |
-| Skills | 18 |
+| Skills | 17 |
 
 ## Skills
 
@@ -56,7 +56,6 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | `/ce-agent-native-architecture` | Build AI agents using prompt-native architecture |
 | `/ce-agent-native-audit` | Run comprehensive agent-native architecture review with scored principles |
 | [`/ce-frontend-design`](../../docs/skills/ce-frontend-design.md) | Create production-grade frontend interfaces |
-| [`/ce-polish`](../../docs/skills/ce-polish.md) | Conversational UX polish — start a dev server, open the feature in a browser, and iterate together; auto-detects 8 frameworks. Manual invocation only |
 
 ### Review & Quality
 
