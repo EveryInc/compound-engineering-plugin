@@ -10,7 +10,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 
 | Component | Count |
 |-----------|-------|
-| Agents | 19 |
+| Agents | 16 |
 | Skills | 14 |
 
 ## Skills
@@ -71,11 +71,8 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 |-------|-------------|
 | `ce-architecture-strategist` | Analyze architectural decisions and compliance, plus optional flow-analysis mode for specs and plans (absorbed spec-flow analysis) |
 | `ce-correctness-reviewer` | Logic errors, edge cases, state bugs, production reliability, structural quality, and code simplicity |
-| `ce-data-integrity-guardian` | Database migrations and data integrity |
-| `ce-performance-oracle` | Performance analysis and optimization |
 | `ce-performance-reviewer` | Runtime performance with confidence calibration |
 | `ce-security-reviewer` | Exploitable vulnerabilities with confidence calibration |
-| `ce-security-sentinel` | Security audits and vulnerability assessments |
 | `ce-testing-reviewer` | Test coverage gaps, weak assertions, API contract stability, and project-standards compliance |
 | `ce-adversarial-reviewer` | Construct failure scenarios to break implementations across component boundaries |
 | `ce-previous-comments-reviewer` | Conditional review persona that checks whether prior PR feedback has been addressed in the current diff |
@@ -98,11 +95,11 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | `ce-session-historian` | Search prior Claude Code, Codex, and Cursor sessions for related investigation context |
 | `ce-web-researcher` | Perform iterative web research and return structured external grounding (prior art, adjacent solutions, market signals, cross-domain analogies) |
 
-### Design
+### Planning
 
 | Agent | Description |
 |-------|-------------|
-| `ce-figma-design-sync` | Synchronize web implementations with Figma designs |
+| `ce-plan-specialist-reviewer` | Deep plan analysis for performance, security, and data-integrity risks, dispatched with a scope hint (absorbed performance-oracle, security-sentinel, and data-integrity-guardian) |
 
 ## Installation
 

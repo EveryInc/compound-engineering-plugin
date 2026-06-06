@@ -80,7 +80,7 @@ After capturing the new learning, `ce-compound` checks whether it should invoke 
 
 ### 6. Specialized post-review
 
-Based on the problem type, optional specialized agents review the documentation: `ce-performance-oracle` for performance issues, `ce-security-sentinel` for security, `ce-data-integrity-guardian` for database, and `ce-correctness-reviewer` for code-heavy issues.
+Based on the problem type, optional specialized agents review the documentation: `ce-plan-specialist-reviewer` with a scope hint for performance, security, or database issues (`Scope: performance`, `Scope: security`, or `Scope: data-integrity`), and `ce-correctness-reviewer` for code-heavy issues.
 
 ### 7. Session history integration (opt-in)
 
@@ -102,7 +102,7 @@ Three subagents dispatch in parallel: Context Analyzer reads conversation histor
 
 The orchestrator assembles the doc, validates frontmatter via the YAML safety script, and writes `docs/solutions/performance-issues/n-plus-one-brief-generation.md`. The discoverability check finds `AGENTS.md` doesn't mention `docs/solutions/`, proposes a one-line addition to the existing directory listing, and applies it after you confirm.
 
-Phase 3 dispatches `ce-performance-oracle` and `ce-correctness-reviewer` to validate the code examples and approach. Phase 2.5 surfaces a refresh recommendation: the older N+1 doc may benefit from consolidation review. The skill suggests `/ce-compound mode:refresh n-plus-one` as a narrow scope hint and ends.
+Phase 3 dispatches `ce-plan-specialist-reviewer` (`Scope: performance`) and `ce-correctness-reviewer` to validate the code examples and approach. Phase 2.5 surfaces a refresh recommendation: the older N+1 doc may benefit from consolidation review. The skill suggests `/ce-compound mode:refresh n-plus-one` as a narrow scope hint and ends.
 
 ---
 

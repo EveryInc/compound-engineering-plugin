@@ -266,9 +266,9 @@ After the learning is written and the refresh decision is made, check whether th
 <parallel_tasks>
 
 Based on problem type, optionally invoke specialized agents:
-- **performance_issue** → `ce-performance-oracle`
-- **security_issue** → `ce-security-sentinel`
-- **database_issue** → `ce-data-integrity-guardian`
+- **performance_issue** → `ce-plan-specialist-reviewer` (Scope: performance)
+- **security_issue** → `ce-plan-specialist-reviewer` (Scope: security)
+- **database_issue** → `ce-plan-specialist-reviewer` (Scope: data-integrity)
 - Any code-heavy issue → `ce-correctness-reviewer` (covers code simplicity and minimalism)
 
 </parallel_tasks>

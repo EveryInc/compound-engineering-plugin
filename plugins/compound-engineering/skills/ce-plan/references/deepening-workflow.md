@@ -121,17 +121,12 @@ Use fully-qualified agent names inside Task calls.
 
 **System-Wide Impact**
 - `ce-architecture-strategist` for cross-boundary effects, interface surfaces, and architectural knock-on impact
-- Add the specific specialist that matches the risk:
-  - `ce-performance-oracle` for scalability, latency, throughput, and resource-risk analysis
-  - `ce-security-sentinel` for auth, validation, exploit surfaces, and security boundary review
-  - `ce-data-integrity-guardian` for migrations, persistent state safety, consistency, and data lifecycle risks
+- Add `ce-plan-specialist-reviewer` with the scope hint that matches the risk: `Scope: performance` for scalability, latency, throughput, and resource risk; `Scope: security` for auth, validation, exploit surfaces, and security boundaries; `Scope: data-integrity` for migrations, persistent state safety, consistency, and data lifecycle risk
 
 **Risks & Dependencies / Operational Notes**
-- Use the specialist that matches the actual risk:
-  - `ce-security-sentinel` for security, auth, privacy, and exploit risk
-  - `ce-data-integrity-guardian` for migrations, backfills, persistent data safety, constraints, transaction boundaries, and production data transformation risk (plan context — not the PR-review `ce-data-migration-reviewer` persona)
-  - `ce-deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
-  - `ce-performance-oracle` for capacity, latency, and scaling concerns
+- Add `ce-plan-specialist-reviewer` with the scope hint that matches the actual risk: `Scope: security` for security, auth, privacy, and exploit risk; `Scope: data-integrity` for migrations, backfills, persistent data safety, constraints, transaction boundaries, and production data transformation risk; `Scope: performance` for capacity, latency, and scaling concerns
+
+The scope parameter disambiguates: `Scope: performance` for scalability, latency, and resource; `Scope: security` for auth, validation, and exploit; `Scope: data-integrity` for migrations, state safety, and consistency.
 
 **Agent Prompt Shape:**
 

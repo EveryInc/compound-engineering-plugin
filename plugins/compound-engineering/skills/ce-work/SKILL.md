@@ -362,9 +362,9 @@ Determine how to proceed based on what was provided in `<input_document>`.
    For UI work with Figma designs:
 
    - Implement components following design specs
-   - Use ce-figma-design-sync agent iteratively to compare
+   - Capture the Figma reference, then drive the agent-browser CLI directly (`agent-browser open <url>`, `agent-browser screenshot`) to capture the implementation and compare it against the design screenshot
    - Fix visual differences identified
-   - Repeat until implementation matches design
+   - Repeat until implementation matches design. The `ce-frontend-design` skill (next step) covers the same detection and verification flow when no Figma reference exists
 
 7. **Frontend Design Guidance** (if applicable)
 

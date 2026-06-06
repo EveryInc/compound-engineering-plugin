@@ -211,6 +211,7 @@ const STALE_AGENT_NAMES = [
   "coherence-reviewer",
   "correctness-reviewer",
   "data-integrity-guardian",
+  "ce-data-integrity-guardian",
   "data-migration-expert",
   "data-migration-reviewer",
   "ce-data-migration-reviewer",
@@ -224,6 +225,7 @@ const STALE_AGENT_NAMES = [
   "dhh-rails-reviewer",
   "feasibility-reviewer",
   "figma-design-sync",
+  "ce-figma-design-sync",
   "ce-framework-docs-researcher",
   "git-history-analyzer",
   "ce-git-history-analyzer",
@@ -241,6 +243,7 @@ const STALE_AGENT_NAMES = [
   "pattern-recognition-specialist",
   "ce-pattern-recognition-specialist",
   "performance-oracle",
+  "ce-performance-oracle",
   "performance-reviewer",
   "previous-comments-reviewer",
   "pr-comment-resolver",
@@ -262,6 +265,7 @@ const STALE_AGENT_NAMES = [
   "ce-security-lens-reviewer",
   "security-reviewer",
   "security-sentinel",
+  "ce-security-sentinel",
   "spec-flow-analyzer",
   "ce-spec-flow-analyzer",
   "testing-reviewer",
@@ -677,6 +681,29 @@ const LEGACY_ONLY_AGENT_DESCRIPTIONS: Record<string, string> = {
     "Analyzes specifications and feature descriptions for user flow completeness and gap identification. Use when a spec, plan, or feature description needs flow analysis, edge case discovery, or requirements validation.",
   "ce-spec-flow-analyzer":
     "Analyzes specifications and feature descriptions for user flow completeness and gap identification. Use when a spec, plan, or feature description needs flow analysis, edge case discovery, or requirements validation.",
+
+  // Deep-risk specialists consolidated into ce-plan-specialist-reviewer
+  // (performance, security, and data-integrity scopes), and ce-figma-design-sync
+  // pruned with no replacement (slim/ultra-minimal). The unprefixed names are
+  // fingerprinted via STALE_AGENT_NAMES; both the unprefixed and ce- entries
+  // carry the last shipped descriptions so cleanup can fingerprint installs from
+  // either era after the agent files are gone.
+  "performance-oracle":
+    "Analyzes code for performance bottlenecks, algorithmic complexity, database queries, memory usage, and scalability. Use after implementing features or when performance concerns arise.",
+  "ce-performance-oracle":
+    "Analyzes code for performance bottlenecks, algorithmic complexity, database queries, memory usage, and scalability. Use after implementing features or when performance concerns arise.",
+  "security-sentinel":
+    "Performs security audits for vulnerabilities, input validation, auth/authz, hardcoded secrets, and OWASP compliance. Use when reviewing code for security issues or before deployment.",
+  "ce-security-sentinel":
+    "Performs security audits for vulnerabilities, input validation, auth/authz, hardcoded secrets, and OWASP compliance. Use when reviewing code for security issues or before deployment.",
+  "data-integrity-guardian":
+    "Reviews database migrations, data models, and persistent data code for safety. Use when checking migration safety, data constraints, transaction boundaries, or privacy compliance.",
+  "ce-data-integrity-guardian":
+    "Reviews database migrations, data models, and persistent data code for safety. Use when checking migration safety, data constraints, transaction boundaries, or privacy compliance.",
+  "figma-design-sync":
+    "Detects and fixes visual differences between a web implementation and its Figma design. Use iteratively when syncing implementation to match Figma specs.",
+  "ce-figma-design-sync":
+    "Detects and fixes visual differences between a web implementation and its Figma design. Use iteratively when syncing implementation to match Figma specs.",
 }
 
 type LegacyFingerprints = {
