@@ -45,14 +45,15 @@ PROBLEM_TYPES_BUG = {
 }
 
 PROBLEM_TYPES_KNOWLEDGE = {
-    "best_practice",
-    "documentation_gap",
-    "workflow_issue",
-    "developer_experience",
     "architecture_pattern",
-    "design_pattern",
-    "tooling_decision",
+    "best_practice",
     "convention",
+    "design_pattern",
+    "developer_experience",
+    "documentation_gap",
+    "skill_design",
+    "tooling_decision",
+    "workflow_issue",
 }
 
 PROBLEM_TYPES = PROBLEM_TYPES_BUG | PROBLEM_TYPES_KNOWLEDGE
@@ -79,32 +80,21 @@ CATEGORY_MAP = {
 }
 
 COMPONENTS = {
-    "rails_model",
-    "rails_controller",
-    "rails_view",
-    "service_object",
-    "background_job",
-    "database",
-    "frontend_stimulus",
-    "hotwire_turbo",
-    "email_processing",
-    "brief_system",
-    "assistant",
-    "authentication",
-    "payments",
-    "development_workflow",
-    "testing_framework",
-    "documentation",
-    "tooling",
-    "converter-cli",
-    "plugin-development",
-    "markdown-rendering",
+    "bundling",
     "cli",
-    "agents",
+    "codex-target",
+    "converter-cli",
+    "development-workflow",
+    "integrations",
     "marketplace",
+    "markdown-rendering",
+    "plugin-development",
+    "release-automation",
+    "skill-design",
+    "tooling",
 }
 
-SEVERITIES = {"critical", "high", "medium", "low"}
+SEVERITIES = {"critical", "high", "medium", "low", "process"}
 
 ROOT_CAUSES = {
     "missing_association",
@@ -139,11 +129,12 @@ RESOLUTION_TYPES = {
     "seed_data_update",
 }
 
-SHARED_REQUIRED_FIELDS = {"module", "date", "problem_type", "component", "severity"}
+SHARED_REQUIRED_FIELDS = {"title", "problem_type", "severity", "tags"}
+DATE_FIELDS = {"date", "created"}  # at least one required
 BUG_REQUIRED_FIELDS = {"symptoms", "root_cause", "resolution_type"}
 
 ARRAY_FIELD_BOUNDS = {
-    "symptoms": (1, 5),
+    "symptoms": (0, 5),
     "applies_when": (0, 5),
     "tags": (0, 8),
     "related_components": (0, None),
@@ -313,17 +304,21 @@ def validate(fm, file_path, line_offset=0):
             + "allowed enum values: {}".format(sorted(SEVERITIES))
         )
 
-    # date format
-    date_val = fm.get("date")
-    if isinstance(date_val, str):
-        if not DATE_RE.match(date_val):
-            issues.append(
-                "line {}: 'date' value '{}' does not match ".format(
-                    line_offset, date_val
-                )
-                + "YYYY-MM-DD format"
+    # date format (date or created — at least one required)
+    date_val = fm.get("date") or fm.get("created")
+    if not date_val:
+        issues.append(
+            "line {}: missing required date field ('date' or 'created')".format(
+                line_offset
             )
-    elif "date" in fm:
+        )
+    elif isinstance(date_val, str) and not DATE_RE.match(date_val):
+        issues.append(
+            "line {}: date value '{}' does not match YYYY-MM-DD format".format(
+                line_offset, date_val
+            )
+        )
+    elif "date" in fm and not isinstance(fm.get("date"), str):
         issues.append(
             "line {}: 'date' must be a string in YYYY-MM-DD format".format(line_offset)
         )
@@ -356,17 +351,8 @@ def validate(fm, file_path, line_offset=0):
                 + "allowed enum values: {}".format(sorted(RESOLUTION_TYPES))
             )
 
-        rails_version = fm.get("rails_version")
-        if rails_version is not None:
-            if isinstance(rails_version, str) and not RAILS_VERSION_RE.match(
-                rails_version
-            ):
-                issues.append(
-                    "line {}: 'rails_version' value '{}' ".format(
-                        line_offset, rails_version
-                    )
-                    + "does not match X.Y.Z format"
-                )
+    #        rails_version is not applicable to this project
+    # (removed: old rails_version enum validation no longer needed)
 
     # Array field bounds
     for field, (min_items, max_items) in ARRAY_FIELD_BOUNDS.items():

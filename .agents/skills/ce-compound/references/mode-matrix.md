@@ -1,8 +1,6 @@
 # Mode + Side-Effect Matrix
 
-This table centralizes which features are active in each mode, eliminating
-the scattered "skip in headless" / "skip in lightweight" conditionals
-throughout SKILL.md.
+This table centralizes which features are active in each mode, eliminating the scattered "skip in headless" / "skip in lightweight" conditionals throughout SKILL.md.
 
 ## Modes
 
@@ -10,7 +8,7 @@ throughout SKILL.md.
 | --------------- | ---------------------------- | ---------------------- |
 | **Interactive** | Default (no mode token)      | Questions at each gate |
 | **Headless**    | `mode:headless` in arguments | None — automation-only |
-| **Lightweight** | User selects option 2        | Single prompt only     |
+| **Lightweight** | `mode:lightweight` in args   | Single prompt only     |
 
 ## Feature Matrix
 
@@ -24,8 +22,7 @@ throughout SKILL.md.
 | Phase 2.1: Overlap assessment                      |         ✓         |         ✓         |       skipped       |
 | Phase 2.2: Write doc                               |         ✓         |         ✓         |          ✓          |
 | Phase 2.4: Vocabulary capture on CONCEPTS.md       | ✓ (create/update) | ✓ (create/update) |   ✓ (update-only)   |
-| Phase 2.5: Selective refresh recommendation        |         ✓         |         ✓         |          ✓          |
-| Discoverability Check                              |    ✓ (consent)    |  ✓ (silent edit)  | ✓ (tip-only output) |
+| Phase 2.5: Discoverability Repair                  |    ✓ (consent)    |  ✓ (silent edit)  | ✓ (tip-only output) |
 | Phase 3: Optional enhancement (specialized agents) |         ✓         |      skipped      |       skipped       |
 | validate-frontmatter.py                            |         ✓         |         ✓         |          ✓          |
 | validate-schema.py                                 |         ✓         |         ✓         |          ✓          |
@@ -38,7 +35,7 @@ throughout SKILL.md.
 
 - **Headless forces Full mode** with session history disabled. The doc itself is
   identical to what an interactive Full run would produce.
-- **Lightweight skips cross-reference and overlap detection.** It may create a
+- **Lightweight skips overlap detection and Related Docs Finder.** It may create a
   doc that overlaps with an existing one. `ce-compound-refresh` will catch
   duplicates later.
 - **Vocabulary capture is a side effect, not a decision** — the orchestrator

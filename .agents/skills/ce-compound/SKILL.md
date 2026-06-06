@@ -22,12 +22,22 @@ ce-compound mode:headless [context]   # Headless with context hint
 
 ## Mode Detection
 
-Check `$ARGUMENTS` for `mode:headless`. Strip `mode:headless` before treating remaining text as the optional context hint.
+Check `$ARGUMENTS` for mode tokens:
+
+| Token              | Effect                                      |
+| ------------------ | ------------------------------------------- |
+| `mode:headless`    | Non-interactive automation                  |
+| `mode:lightweight` | Single-prompt mode, skips overlap detection |
+| `session:opt-in`   | Enable session history scan                 |
+| (anything else)    | Context hint for the research phase         |
+
+Strip mode tokens before treating remaining text as the optional context hint.
 
 | Mode                      | Effect                                                                                   |
 | ------------------------- | ---------------------------------------------------------------------------------------- |
 | **Interactive** (default) | Proceed through workflow. Await user review at key gates.                                |
 | **Headless**              | Skip blocking gates. Run same pipeline in one pass. End with structured terminal report. |
+| **Lightweight**           | Single prompt only. Skip overlap detection. Proceed directly to write → validate.        |
 
 ## Ref Bootstrap Redirect
 
@@ -47,9 +57,12 @@ If the line above resolved to a plain branch name (like `feat/my-branch`), inclu
 
 Read these on-demand at the step that needs them.
 
-- `references/schema.yaml` — frontmatter fields and enums (read when validating output)
-- `references/yaml-schema.md` — category to directory mapping (read when classifying doc target)
+- `references/schema.yaml` — frontmatter contract for docs/solutions/ (read when writing doc)
+- `references/yaml-schema.md` — category mapping and validation rules (read when classifying doc)
 - `references/concepts-vocabulary.md` — CONCEPTS.md format and inclusion rules (read when updating vocabulary)
+- `references/execution-timing.md` — phase dispatch order and wall-clock optimization (read when designing phase flow)
+- `references/mode-matrix.md` — mode features and side-effect matrix (read when implementing modes)
+- `references/platform-tools.md` — platform-specific tool names and blocking question primitives (read when implementing interactive gates)
 - `assets/resolution-template.md` — required section structure (read when assembling doc)
 
 When spawning subagents, pass the relevant file contents into the task prompt so they have the contract without cross-skill paths.
@@ -62,9 +75,19 @@ Produce exactly one markdown solution document. Writes outside this are side eff
 - `CONCEPTS.md` — update only when a qualifying domain term surfaces
 - Project instruction file — edit only if the Discoverability Check finds a gap
 
-## Phase 1: Context and Research
+## Phase 0.5: Auto Memory Scan
 
-Run three parallel researcher subagents. Await all completions before proceeding.
+Scan recent git history for the most recent solved problem:
+
+- Git log since last commit or tag
+- Look for fix commits, feature completion, or closed issues
+- If session history opted in, gather context from recent session via ce-sessions
+
+Pass findings to Phase 1 researchers.
+
+## Phase 1: Research
+
+Launch parallel subagents (background). Await all completions before proceeding.
 
 ### Researcher 1: Context Analyzer
 
@@ -104,12 +127,12 @@ Please find:
 - If the resolution covers a domain term, call that out explicitly
 ```
 
-### Researcher 3: Discoverability Check
+### Researcher 3: Related Docs Finder
 
-Verify the solution is discoverable under existing docs and instruction files.
+Identify existing docs in docs/solutions/ that overlap with the fix.
 
 ```text
-You are a documentation auditor. Your only job is to find gaps. Do NOT write documentation files.
+You are a documentation auditor. Your only job is to find related docs. Do NOT write documentation files.
 
 Discussion context: [Insert discussion summary]
 Pre-resolved branch: [Insert branch name if present]
