@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
@@ -39,6 +39,7 @@ const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
 async function createTestRepo(): Promise<string> {
   const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-repo-"))
+  __tempRoots.push(repoRoot)
   const pluginRoot = path.join(repoRoot, "plugins", "compound-engineering")
   await fs.mkdir(path.dirname(pluginRoot), { recursive: true })
   await fs.cp(fixtureRoot, pluginRoot, { recursive: true })
@@ -49,6 +50,14 @@ async function createTestRepo(): Promise<string> {
   return repoRoot
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 describe("plugin-path", () => {
   test("clones a branch to a stable cache path", async () => {
     const repoRoot = await createTestRepo()
@@ -56,6 +65,7 @@ describe("plugin-path", () => {
     await runGit(["checkout", "main"], repoRoot, gitEnv)
 
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-home-"))
+    __tempRoots.push(tempHome)
 
     const proc = Bun.spawn([
       "bun",
@@ -98,6 +108,7 @@ describe("plugin-path", () => {
     await runGit(["checkout", "main"], repoRoot, gitEnv)
 
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-sanitize-"))
+    __tempRoots.push(tempHome)
 
     const proc = Bun.spawn([
       "bun",
@@ -143,6 +154,7 @@ describe("plugin-path", () => {
     await runGit(["checkout", "main"], repoRoot, gitEnv)
 
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-update-"))
+    __tempRoots.push(tempHome)
     const cacheDir = path.join(tempHome, ".cache", "compound-engineering", "branches", "compound-engineering-feat~update-test")
 
     const runPluginPath = async () => {
@@ -195,6 +207,7 @@ describe("plugin-path", () => {
   test("fails with a clear error for a nonexistent branch", async () => {
     const repoRoot = await createTestRepo()
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-noexist-"))
+    __tempRoots.push(tempHome)
 
     const proc = Bun.spawn([
       "bun",
@@ -227,6 +240,7 @@ describe("plugin-path", () => {
     await runGit(["checkout", "main"], repoRoot, gitEnv)
 
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-collision-"))
+    __tempRoots.push(tempHome)
 
     const runForBranch = async (branch: string) => {
       const proc = Bun.spawn([
@@ -267,6 +281,7 @@ describe("plugin-path", () => {
   test("fails when plugin name does not exist in the repo", async () => {
     const repoRoot = await createTestRepo()
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-noplugin-"))
+    __tempRoots.push(tempHome)
 
     const proc = Bun.spawn([
       "bun",

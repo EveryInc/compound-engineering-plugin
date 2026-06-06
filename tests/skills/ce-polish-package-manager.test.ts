@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
@@ -46,8 +46,17 @@ async function runCommand(cmd: string[], cwd: string): Promise<RunResult> {
   return { exitCode, stdout, stderr }
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 async function initRepo(): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-polish-pkgmgr-"))
+  __tempRoots.push(root)
   await runCommand(["git", "init", "-b", "main"], root)
   return root
 }
@@ -184,6 +193,7 @@ describe("resolve-package-manager.sh", () => {
   test("not in a git repo AND no positional arg -> stderr contains ERROR:, exit 1", async () => {
     // Create a plain directory (not a git repo)
     const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ce-polish-pkgmgr-nogit-"))
+    __tempRoots.push(dir)
     const result = await runCommand(["bash", resolvePackageManager], dir)
     expect(result.exitCode).toBe(1)
     expect(result.stderr).toContain("ERROR:")

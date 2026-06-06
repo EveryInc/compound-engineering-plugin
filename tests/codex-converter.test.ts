@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
@@ -44,6 +44,14 @@ const fixturePlugin: ClaudePlugin = {
     local: { command: "echo", args: ["hello"] },
   },
 }
+
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
 
 describe("convertClaudeToCodex", () => {
   test("default (agents-only): emits only agent conversions, no skills or prompts or command-skills", () => {
@@ -484,6 +492,7 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
 
   test("preserves agent script paths and tracks referenced sidecar directories", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-agent-sidecar-"))
+    __tempRoots.push(tempRoot)
     const agentDir = path.join(tempRoot, "agents", "research")
     const scriptDir = path.join(agentDir, "session-history-scripts")
     await fs.mkdir(scriptDir, { recursive: true })

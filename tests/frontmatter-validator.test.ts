@@ -1,6 +1,6 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { spawnSync } from "node:child_process"
-import { mkdtempSync, writeFileSync, readFileSync } from "node:fs"
+import { mkdtempSync, rmSync, writeFileSync, readFileSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
@@ -29,8 +29,17 @@ function runValidator(
   }
 }
 
+const __tempRoots: string[] = []
+
+afterEach(() => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 function writeTempDoc(content: string): string {
   const dir = mkdtempSync(path.join(tmpdir(), "fm-validator-"))
+  __tempRoots.push(dir)
   const filePath = path.join(dir, "doc.md")
   writeFileSync(filePath, content, "utf8")
   return filePath

@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
@@ -16,9 +16,18 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 describe("writeGeminiBundle", () => {
   test("removes stale generated agent skill dirs before writing Gemini generated skills", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-cleanup-"))
+    __tempRoots.push(tempRoot)
     const legacySkillPath = path.join(tempRoot, ".gemini", "skills", "security-reviewer", "SKILL.md")
     await fs.mkdir(path.dirname(legacySkillPath), { recursive: true })
     await fs.writeFile(
@@ -45,6 +54,7 @@ describe("writeGeminiBundle", () => {
 
   test("writes agents, skills, commands, and settings.json", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-test-"))
+    __tempRoots.push(tempRoot)
     const bundle: GeminiBundle = {
       pluginName: "compound-engineering",
       generatedSkills: [],
@@ -99,6 +109,7 @@ describe("writeGeminiBundle", () => {
 
   test("transforms Task calls in copied SKILL.md files", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-skill-transform-"))
+    __tempRoots.push(tempRoot)
     const sourceSkillDir = path.join(tempRoot, "source-skill")
     await fs.mkdir(sourceSkillDir, { recursive: true })
     await fs.writeFile(
@@ -137,6 +148,7 @@ Run these research agents:
 
   test("namespaced commands create subdirectories", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-ns-"))
+    __tempRoots.push(tempRoot)
     const bundle: GeminiBundle = {
       generatedSkills: [],
       skillDirs: [],
@@ -155,6 +167,7 @@ Run these research agents:
 
   test("does not double-nest when output root is .gemini", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-home-"))
+    __tempRoots.push(tempRoot)
     const geminiRoot = path.join(tempRoot, ".gemini")
     const bundle: GeminiBundle = {
       generatedSkills: [],
@@ -175,6 +188,7 @@ Run these research agents:
 
   test("handles empty bundles gracefully", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-empty-"))
+    __tempRoots.push(tempRoot)
     const bundle: GeminiBundle = {
       generatedSkills: [],
       skillDirs: [],
@@ -187,6 +201,7 @@ Run these research agents:
 
   test("backs up existing settings.json before overwrite", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-backup-"))
+    __tempRoots.push(tempRoot)
     const geminiRoot = path.join(tempRoot, ".gemini")
     await fs.mkdir(geminiRoot, { recursive: true })
 
@@ -217,6 +232,7 @@ Run these research agents:
 
   test("merges mcpServers into existing settings.json without clobbering other keys", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-merge-"))
+    __tempRoots.push(tempRoot)
     const geminiRoot = path.join(tempRoot, ".gemini")
     await fs.mkdir(geminiRoot, { recursive: true })
 
@@ -249,6 +265,7 @@ Run these research agents:
 
   test("removes previously managed Gemini artifacts that disappear on reinstall", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-managed-cleanup-"))
+    __tempRoots.push(tempRoot)
 
     await writeGeminiBundle(tempRoot, {
       pluginName: "compound-engineering",
@@ -280,6 +297,7 @@ Run these research agents:
 
   test("namespaces managed install manifests per plugin so installs do not collide", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-multi-plugin-"))
+    __tempRoots.push(tempRoot)
 
     // Install plugin A first, with a skill and an agent
     await writeGeminiBundle(tempRoot, {
@@ -334,6 +352,7 @@ Run these research agents:
 
   test("moves legacy Gemini CE artifacts to a namespaced backup", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-legacy-artifacts-"))
+    __tempRoots.push(tempRoot)
     const geminiRoot = path.join(tempRoot, ".gemini")
 
     await fs.mkdir(path.join(geminiRoot, "skills", "reproduce-bug"), { recursive: true })

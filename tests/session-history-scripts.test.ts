@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import fs from "fs"
 import os from "os"
 import path from "path"
@@ -736,11 +736,18 @@ describe("extract-errors", () => {
 // stdout-mode behavior is preserved (covered by tests above).
 // ---------------------------------------------------------------------------
 describe("--output PATH mode", () => {
+  const __tempRoots: string[] = []
+
+  afterEach(() => {
+    for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+      fs.rmSync(dir, { recursive: true, force: true })
+    }
+  })
+
   function tmpFile(): string {
-    return path.join(
-      fs.mkdtempSync(path.join(os.tmpdir(), "ce-sessions-test-")),
-      "out.txt"
-    )
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ce-sessions-test-"))
+    __tempRoots.push(dir)
+    return path.join(dir, "out.txt")
   }
 
   test("extract-skeleton writes file and emits status to stdout", async () => {

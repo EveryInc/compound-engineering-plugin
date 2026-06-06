@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
@@ -17,9 +17,18 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 describe("writeOpenCodeBundle", () => {
   test("writes config, agents, plugins, and skills", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-test-"))
+    __tempRoots.push(tempRoot)
     const bundle: OpenCodeBundle = {
       pluginName: "compound-engineering",
       config: { $schema: "https://opencode.ai/config.json" },
@@ -45,6 +54,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("writes directly into a .opencode output root", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-root-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
     const bundle: OpenCodeBundle = {
       config: { $schema: "https://opencode.ai/config.json" },
@@ -70,6 +80,7 @@ describe("writeOpenCodeBundle", () => {
   test("writes directly into ~/.config/opencode style output root", async () => {
     // Simulates the global install path: ~/.config/opencode
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "config-opencode-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".config", "opencode")
     const bundle: OpenCodeBundle = {
       config: { $schema: "https://opencode.ai/config.json" },
@@ -97,6 +108,7 @@ describe("writeOpenCodeBundle", () => {
     // Simulates OPENCODE_CONFIG_DIR pointing to a directory whose basename is
     // neither "opencode" nor ".opencode" (e.g. NixOS, Docker, custom XDG_CONFIG_HOME).
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-env-dir-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, "custom-opencode-config")
     const bundle: OpenCodeBundle = {
       config: { $schema: "https://opencode.ai/config.json" },
@@ -121,6 +133,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("merges plugin config into existing opencode.json without destroying user keys", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-backup-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
     const configPath = path.join(outputRoot, "opencode.json")
 
@@ -160,6 +173,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("merges mcp servers without overwriting user entry", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-merge-mcp-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
     const configPath = path.join(outputRoot, "opencode.json")
 
@@ -198,6 +212,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("preserves unrelated user keys when merging opencode.json", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-preserve-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
     const configPath = path.join(outputRoot, "opencode.json")
 
@@ -235,6 +250,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("writes command files as .md in commands/ directory", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-cmd-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".config", "opencode")
     const bundle: OpenCodeBundle = {
       config: { $schema: "https://opencode.ai/config.json" },
@@ -255,6 +271,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("rewrites FQ agent names in copied skill markdown (#477)", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-skill-transform-"))
+    __tempRoots.push(tempRoot)
     const skillSrcDir = path.join(tempRoot, "src-skill")
     const refsDir = path.join(skillSrcDir, "references")
     await fs.mkdir(refsDir, { recursive: true })
@@ -295,6 +312,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("does not transform non-markdown files in skill directories", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-skill-nonmd-"))
+    __tempRoots.push(tempRoot)
     const skillSrcDir = path.join(tempRoot, "src-skill")
     const scriptsDir = path.join(skillSrcDir, "scripts")
     await fs.mkdir(scriptsDir, { recursive: true })
@@ -326,6 +344,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("backs up existing command .md file before overwriting", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-cmd-backup-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
     const commandsDir = path.join(outputRoot, "commands")
     await fs.mkdir(commandsDir, { recursive: true })
@@ -358,6 +377,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("removes previously managed OpenCode artifacts that disappear on reinstall", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-managed-cleanup-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
 
     await writeOpenCodeBundle(outputRoot, {
@@ -393,6 +413,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("namespaces managed install manifests per plugin so installs do not collide", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-multi-plugin-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
 
     // Install plugin A first, with a skill and an agent
@@ -451,6 +472,7 @@ describe("writeOpenCodeBundle", () => {
 
   test("moves legacy OpenCode CE artifacts to a namespaced backup", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-legacy-artifacts-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
 
     await fs.mkdir(path.join(outputRoot, "skills", "reproduce-bug"), { recursive: true })
@@ -486,6 +508,7 @@ describe("writeOpenCodeBundle", () => {
     // files from the pre-namespacing install in place. This test exercises
     // the fallback read of the legacy shared manifest.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-legacy-manifest-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
 
     // Seed the legacy shared manifest at the OLD path, recording artifacts
@@ -552,6 +575,7 @@ describe("writeOpenCodeBundle", () => {
     // A must not be consumed or cleaned up by plugin B's first namespaced
     // install. Plugin A's own next install is responsible for migrating it.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-legacy-other-plugin-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".opencode")
 
     await fs.mkdir(path.join(outputRoot, "compound-engineering"), { recursive: true })
@@ -600,6 +624,7 @@ describe("writeOpenCodeBundle", () => {
 describe("mergeJsonConfigAtKey", () => {
   test("incoming plugin entries overwrite same-named servers", async () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "json-merge-"))
+    __tempRoots.push(tempDir)
     const configPath = path.join(tempDir, "opencode.json")
 
     // User has an existing MCP server config

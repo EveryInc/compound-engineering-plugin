@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
@@ -26,9 +26,18 @@ async function runGit(args: string[], cwd: string, env?: NodeJS.ProcessEnv): Pro
   }
  }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 describe("CLI", () => {
   test("install converts fixture plugin to OpenCode output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-opencode-"))
+    __tempRoots.push(tempRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
@@ -65,6 +74,7 @@ describe("CLI", () => {
 
   test("install defaults output to ~/.config/opencode", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-local-default-"))
+    __tempRoots.push(tempRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const repoRoot = path.join(import.meta.dir, "..")
@@ -129,6 +139,7 @@ describe("CLI", () => {
 
   test("cleanup backs up legacy Codex artifacts on demand", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-codex-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const agentsRoot = path.join(tempRoot, ".agents")
     const repoRoot = path.join(import.meta.dir, "..")
@@ -236,6 +247,7 @@ describe("CLI", () => {
     //   2. Leaves a symlink pointing elsewhere (user-created) alone.
     //   3. Leaves a plain directory (user-created) alone.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-codex-shared-ownership-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const agentsRoot = path.join(tempRoot, ".agents")
     const repoRoot = path.join(import.meta.dir, "..")
@@ -314,6 +326,7 @@ describe("CLI", () => {
     // subsequent install) must migrate them to legacy-backup, otherwise they
     // shadow the current install.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-codex-manifest-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const agentsRoot = path.join(tempRoot, ".agents")
     const repoRoot = path.join(import.meta.dir, "..")
@@ -397,6 +410,7 @@ describe("CLI", () => {
 
   test("cleanup backs up legacy OpenCode artifacts on demand", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-opencode-"))
+    __tempRoots.push(tempRoot)
     const opencodeRoot = path.join(tempRoot, ".opencode")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -443,6 +457,7 @@ describe("CLI", () => {
 
   test("cleanup backs up legacy Pi artifacts on demand", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-pi-"))
+    __tempRoots.push(tempRoot)
     const piRoot = path.join(tempRoot, ".pi", "agent")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -486,6 +501,7 @@ describe("CLI", () => {
 
   test("cleanup backs up legacy Gemini artifacts on demand", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-gemini-"))
+    __tempRoots.push(tempRoot)
     const geminiRoot = path.join(tempRoot, ".gemini")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -532,6 +548,7 @@ describe("CLI", () => {
 
   test("cleanup defaults Gemini root to workspace ./.gemini when --gemini-home is not set", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-gemini-default-"))
+    __tempRoots.push(tempRoot)
     const workspaceRoot = path.join(tempRoot, "workspace")
     const workspaceGemini = path.join(workspaceRoot, ".gemini")
     const repoRoot = path.join(import.meta.dir, "..")
@@ -580,6 +597,7 @@ describe("CLI", () => {
 
   test("cleanup backs up legacy Copilot workspace artifacts for native migration", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-copilot-"))
+    __tempRoots.push(tempRoot)
     const repoRoot = path.join(import.meta.dir, "..")
     const githubRoot = path.join(tempRoot, ".github")
 
@@ -639,6 +657,7 @@ describe("CLI", () => {
 
   test("cleanup backs up legacy Droid artifacts for native migration", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-droid-"))
+    __tempRoots.push(tempRoot)
     const droidRoot = path.join(tempRoot, ".factory")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -700,6 +719,7 @@ describe("CLI", () => {
 
   test("cleanup backs up deprecated Windsurf artifacts", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-windsurf-"))
+    __tempRoots.push(tempRoot)
     const windsurfRoot = path.join(tempRoot, ".codeium", "windsurf")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -762,6 +782,7 @@ describe("CLI", () => {
 
   test("cleanup backs up legacy Qwen Bun artifacts for native migration", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-qwen-"))
+    __tempRoots.push(tempRoot)
     const qwenRoot = path.join(tempRoot, ".qwen")
     const extensionRoot = path.join(qwenRoot, "extensions", "compound-engineering")
     const repoRoot = path.join(import.meta.dir, "..")
@@ -825,6 +846,7 @@ describe("CLI", () => {
 
   test("cleanup preserves user-authored Qwen files at current-bundle names", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-qwen-preserve-"))
+    __tempRoots.push(tempRoot)
     const qwenRoot = path.join(tempRoot, ".qwen")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -902,6 +924,7 @@ describe("CLI", () => {
     // intermittently. The fix deduplicates on absolute path before fanning
     // out, so a single pass runs and the artifact is moved exactly once.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-gemini-dedup-"))
+    __tempRoots.push(tempRoot)
     const repoRoot = path.join(import.meta.dir, "..")
     // Make `cwd` and `$HOME` the same directory so `<cwd>/.gemini` ==
     // `$HOME/.gemini`, which is the collision the reviewer flagged.
@@ -951,6 +974,7 @@ describe("CLI", () => {
 
   test("cleanup backs up Kiro artifacts on demand", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-kiro-"))
+    __tempRoots.push(tempRoot)
     const kiroRoot = path.join(tempRoot, ".kiro")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -999,6 +1023,7 @@ describe("CLI", () => {
 
   test("list returns plugins in a temp workspace", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-list-"))
+    __tempRoots.push(tempRoot)
     const pluginsRoot = path.join(tempRoot, "plugins", "demo-plugin", ".claude-plugin")
     await fs.mkdir(pluginsRoot, { recursive: true })
     await fs.writeFile(path.join(pluginsRoot, "plugin.json"), "{\n  \"name\": \"demo-plugin\",\n  \"version\": \"1.0.0\"\n}\n")
@@ -1023,8 +1048,11 @@ describe("CLI", () => {
 
   test("install pulls from GitHub when local path is missing", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-github-install-"))
+    __tempRoots.push(tempRoot)
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-github-workspace-"))
+    __tempRoots.push(workspaceRoot)
     const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-github-repo-"))
+    __tempRoots.push(repoRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const pluginRoot = path.join(repoRoot, "plugins", "compound-engineering")
 
@@ -1079,7 +1107,9 @@ describe("CLI", () => {
 
   test("install uses bundled compound-engineering plugin for codex output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-bundled-codex-home-"))
+    __tempRoots.push(tempRoot)
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-bundled-codex-workspace-"))
+    __tempRoots.push(workspaceRoot)
     const projectRoot = path.join(import.meta.dir, "..")
     const codexRoot = path.join(tempRoot, ".codex")
 
@@ -1120,7 +1150,9 @@ describe("CLI", () => {
 
   test("install --to codex default is agents-only (skills handled by native plugin install)", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-agents-only-"))
+    __tempRoots.push(tempRoot)
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-agents-only-ws-"))
+    __tempRoots.push(workspaceRoot)
     const projectRoot = path.join(import.meta.dir, "..")
     const codexRoot = path.join(tempRoot, ".codex")
 
@@ -1164,7 +1196,9 @@ describe("CLI", () => {
 
   test("install --to codex respects CODEX_HOME when --codex-home is omitted", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-env-home-"))
+    __tempRoots.push(tempRoot)
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-env-home-ws-"))
+    __tempRoots.push(workspaceRoot)
     const projectRoot = path.join(import.meta.dir, "..")
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexHome = path.join(tempRoot, "profiles", "sstk")
@@ -1203,7 +1237,9 @@ describe("CLI", () => {
 
   test("install --to codex treats --codex-home as the Codex root even when it is not named .codex", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-explicit-home-"))
+    __tempRoots.push(tempRoot)
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-explicit-home-ws-"))
+    __tempRoots.push(workspaceRoot)
     const projectRoot = path.join(import.meta.dir, "..")
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexHome = path.join(tempRoot, "profiles", "sstk")
@@ -1242,8 +1278,11 @@ describe("CLI", () => {
 
   test("install by name ignores same-named local directory", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-shadow-"))
+    __tempRoots.push(tempRoot)
     const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-shadow-workspace-"))
+    __tempRoots.push(workspaceRoot)
     const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-shadow-repo-"))
+    __tempRoots.push(repoRoot)
 
     // Create a directory with the plugin name that is NOT a valid plugin
     const shadowDir = path.join(workspaceRoot, "compound-engineering")
@@ -1304,7 +1343,9 @@ describe("CLI", () => {
 
   test("install --branch clones a specific branch for non-Claude targets", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-branch-install-"))
+    __tempRoots.push(tempRoot)
     const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-branch-repo-"))
+    __tempRoots.push(repoRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const pluginRoot = path.join(repoRoot, "plugins", "compound-engineering")
 
@@ -1366,6 +1407,7 @@ describe("CLI", () => {
 
   test("convert writes OpenCode output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-convert-"))
+    __tempRoots.push(tempRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
@@ -1398,6 +1440,7 @@ describe("CLI", () => {
 
   test("convert supports --codex-home for codex output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-home-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
@@ -1436,6 +1479,7 @@ describe("CLI", () => {
 
   test("install supports --also with codex output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-"))
+    __tempRoots.push(tempRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexRoot = path.join(tempRoot, ".codex")
 
@@ -1486,6 +1530,7 @@ describe("CLI", () => {
     // resolveTargetOutputRoot, so --also opencode lands at the global config
     // root regardless of the primary target.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-opencode-from-codex-"))
+    __tempRoots.push(tempRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexRoot = path.join(tempRoot, ".codex")
     const repoRoot = path.join(import.meta.dir, "..")
@@ -1539,6 +1584,7 @@ describe("CLI", () => {
     // either. Without --output, opencode should still resolve to the global
     // config root.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-codex-from-opencode-"))
+    __tempRoots.push(tempRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const codexRoot = path.join(tempRoot, ".codex")
     const repoRoot = path.join(import.meta.dir, "..")
@@ -1582,6 +1628,7 @@ describe("CLI", () => {
 
   test("install --to opencode without --output respects OPENCODE_CONFIG_DIR", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-opencode-env-"))
+    __tempRoots.push(tempRoot)
     const customRoot = path.join(tempRoot, "custom-opencode-config")
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const repoRoot = path.join(import.meta.dir, "..")
@@ -1624,6 +1671,7 @@ describe("CLI", () => {
     // write to, so a setup that relocates OpenCode config via env (NixOS,
     // Docker, non-default XDG) gets its stale artifacts backed up.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-opencode-env-"))
+    __tempRoots.push(tempRoot)
     const customRoot = path.join(tempRoot, "custom-opencode-config")
     const repoRoot = path.join(import.meta.dir, "..")
 
@@ -1671,6 +1719,7 @@ describe("CLI", () => {
     // same workspace directory (and must NOT touch the global root) when
     // `--output` is supplied without an explicit `--opencode-home`.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-opencode-output-"))
+    __tempRoots.push(tempRoot)
     const workspace = path.join(tempRoot, "workspace")
     const workspaceOpenCode = path.join(workspace, ".opencode")
     const globalRoot = path.join(tempRoot, "global-opencode")
@@ -1728,6 +1777,7 @@ describe("CLI", () => {
 
   test("convert supports --pi-home for pi output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-pi-home-"))
+    __tempRoots.push(tempRoot)
     const piRoot = path.join(tempRoot, ".pi")
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
@@ -1771,6 +1821,7 @@ describe("CLI", () => {
 
   test("install supports --also with pi output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-also-pi-"))
+    __tempRoots.push(tempRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const piRoot = path.join(tempRoot, ".pi")
 
@@ -1810,6 +1861,7 @@ describe("CLI", () => {
 
   test("install --to opencode uses permissions:none by default", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-perms-none-"))
+    __tempRoots.push(tempRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
@@ -1848,6 +1900,7 @@ describe("CLI", () => {
 
   test("install --to opencode --permissions broad writes permission block", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-perms-broad-"))
+    __tempRoots.push(tempRoot)
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
     const proc = Bun.spawn([
@@ -1888,7 +1941,9 @@ describe("CLI", () => {
 
   test("install --to all detects custom-install targets and ignores stale cursor directories", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "cli-install-all-home-"))
+    __tempRoots.push(tempHome)
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "cli-install-all-cwd-"))
+    __tempRoots.push(tempCwd)
     const repoRoot = path.join(import.meta.dir, "..")
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 

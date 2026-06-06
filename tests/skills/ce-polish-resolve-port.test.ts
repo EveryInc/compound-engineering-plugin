@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
@@ -46,8 +46,17 @@ async function runCommand(cmd: string[], cwd: string): Promise<RunResult> {
   return { exitCode, stdout, stderr }
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 async function initRepo(): Promise<string> {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "ce-polish-resolve-port-"))
+  __tempRoots.push(root)
   await runCommand(["git", "init", "-b", "main"], root)
   return root
 }

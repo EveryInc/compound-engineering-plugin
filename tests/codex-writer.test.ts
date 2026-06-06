@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
@@ -25,9 +25,18 @@ async function entryExists(filePath: string): Promise<boolean> {
   }
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 describe("writeCodexBundle", () => {
   test("writes prompts, skills, and config", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    __tempRoots.push(tempRoot)
     const bundle: CodexBundle = {
       prompts: [{ name: "command-one", content: "Prompt content" }],
       skillDirs: [
@@ -81,6 +90,7 @@ describe("writeCodexBundle", () => {
 
   test("throws when two agents sanitize to the same Codex filename", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-agent-collision-"))
+    __tempRoots.push(tempRoot)
     const bundle: CodexBundle = {
       prompts: [],
       skillDirs: [],
@@ -113,6 +123,7 @@ describe("writeCodexBundle", () => {
 
   test("writes directly into a .codex output root", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-home-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const bundle: CodexBundle = {
       prompts: [{ name: "command-one", content: "Prompt content" }],
@@ -133,6 +144,7 @@ describe("writeCodexBundle", () => {
 
   test("copies generated skill sidecar directories", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-sidecar-"))
+    __tempRoots.push(tempRoot)
     const sidecarDir = path.join(tempRoot, "source", "session-history-scripts")
     await fs.mkdir(sidecarDir, { recursive: true })
     await fs.writeFile(path.join(sidecarDir, "discover-sessions.sh"), "#!/usr/bin/env bash\n")
@@ -165,6 +177,7 @@ describe("writeCodexBundle", () => {
 
   test("preserves same-named user prompts during stale prompt cleanup", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-prompts-preserve-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const promptsDir = path.join(codexRoot, "prompts")
     await fs.mkdir(promptsDir, { recursive: true })
@@ -189,6 +202,7 @@ describe("writeCodexBundle", () => {
     // the standalone `cleanupStalePrompts` helper uses before touching a
     // prompt file at a colliding legacy name.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-prompts-legacy-preserve-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const promptsDir = path.join(codexRoot, "prompts")
     await fs.mkdir(promptsDir, { recursive: true })
@@ -221,6 +235,7 @@ describe("writeCodexBundle", () => {
 
   test("writes plugin skills under a namespaced Codex skills root without .agents symlinks", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-managed-plugin-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const bundle: CodexBundle = {
       pluginName: "compound-engineering",
@@ -266,6 +281,7 @@ describe("writeCodexBundle", () => {
 
   test("removes legacy .agents symlinks that point to managed Codex skills", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-flat-symlink-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const previousManagedSkillsRoot = path.join(codexRoot, "compound-engineering", "skills")
     const agentsSkillsDir = path.join(tempRoot, ".agents", "skills")
@@ -312,6 +328,7 @@ describe("writeCodexBundle", () => {
 
   test("moves legacy flat Codex CE artifacts to a namespaced backup", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-legacy-skill-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     await fs.mkdir(path.join(codexRoot, "skills", "ce-plan"), { recursive: true })
     await fs.writeFile(path.join(codexRoot, "skills", "ce-plan", "SKILL.md"), "legacy current workflow skill")
@@ -350,6 +367,7 @@ describe("writeCodexBundle", () => {
 
   test("preserves unrelated user skills at flat ~/.codex/skills/<name>/ that share a name with a current CE skill", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-user-skill-collide-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
 
     // ce-demo-reel is the name of a current CE skill, but it has never been
@@ -404,6 +422,7 @@ describe("writeCodexBundle", () => {
     // path available for third-party plugins, which have no entry in the
     // historical allow-list used by getLegacyCodexArtifacts.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-nested-xmigrate-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const pluginName = "third-party-nested"
     const managedSkillsRoot = path.join(codexRoot, "skills", pluginName)
@@ -458,6 +477,7 @@ describe("writeCodexBundle", () => {
     // `externallyManagedSkillNames` with the allow-listed current skills so
     // `cleanupLegacyAgentSkillDirs` treats them as current rather than legacy.
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-agents-only-preserve-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
 
     // Simulate the tree produced by a native Codex plugin install: active
@@ -510,6 +530,7 @@ describe("writeCodexBundle", () => {
 
   test("preserves existing user config when writing MCP servers", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-backup-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const configPath = path.join(codexRoot, "config.toml")
 
@@ -548,6 +569,7 @@ describe("writeCodexBundle", () => {
 
   test("is idempotent — running twice does not duplicate managed block", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-idempotent-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const configPath = path.join(codexRoot, "config.toml")
 
@@ -572,6 +594,7 @@ describe("writeCodexBundle", () => {
 
   test("migrates old managed block markers to new ones", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-migrate-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const configPath = path.join(codexRoot, "config.toml")
 
@@ -605,6 +628,7 @@ describe("writeCodexBundle", () => {
 
   test("migrates unmarked legacy format (# Generated by compound-plugin)", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-unmarked-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const configPath = path.join(codexRoot, "config.toml")
 
@@ -638,6 +662,7 @@ describe("writeCodexBundle", () => {
 
   test("strips stale managed block when plugin has no MCP servers", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-stale-"))
+    __tempRoots.push(tempRoot)
     const codexRoot = path.join(tempRoot, ".codex")
     const configPath = path.join(codexRoot, "config.toml")
 
@@ -662,6 +687,7 @@ describe("writeCodexBundle", () => {
 
   test("transforms copied SKILL.md files using Codex invocation targets", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-skill-transform-"))
+    __tempRoots.push(tempRoot)
     const sourceSkillDir = path.join(tempRoot, "source-skill")
     await fs.mkdir(sourceSkillDir, { recursive: true })
     await fs.writeFile(
@@ -715,6 +741,7 @@ Use /todo-resolve for deeper research.
 
   test("transforms namespaced Task calls in copied SKILL.md files", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-ns-task-"))
+    __tempRoots.push(tempRoot)
     const sourceSkillDir = path.join(tempRoot, "source-skill")
     await fs.mkdir(sourceSkillDir, { recursive: true })
     await fs.writeFile(
@@ -769,6 +796,7 @@ Also run bare agents:
 
   test("preserves unknown slash text in copied SKILL.md files", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-skill-preserve-"))
+    __tempRoots.push(tempRoot)
     const sourceSkillDir = path.join(tempRoot, "source-skill")
     await fs.mkdir(sourceSkillDir, { recursive: true })
     await fs.writeFile(
@@ -822,6 +850,7 @@ Workflow handoff:
 
   test("removes orphan sidecar dir when retained agent declares no sidecars", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    __tempRoots.push(tempRoot)
     const agentsRoot = path.join(tempRoot, ".codex", "agents")
     const orphanDir = path.join(agentsRoot, "ce-foo", "stale-content")
     await fs.mkdir(orphanDir, { recursive: true })
@@ -850,7 +879,9 @@ Workflow handoff:
 
   test("keeps sidecar dir when retained agent declares sidecars", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    __tempRoots.push(tempRoot)
     const sidecarSource = await fs.mkdtemp(path.join(os.tmpdir(), "codex-sidecar-src-"))
+    __tempRoots.push(sidecarSource)
     await fs.writeFile(path.join(sidecarSource, "script.sh"), "#!/bin/sh\necho hi\n", "utf8")
 
     const bundle: CodexBundle = {
@@ -877,6 +908,7 @@ Workflow handoff:
 
   test("leaves unrelated directories under agentsRoot alone", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
+    __tempRoots.push(tempRoot)
     const agentsRoot = path.join(tempRoot, ".codex", "agents")
     const unrelatedDir = path.join(agentsRoot, "ce-bar-extra")
     await fs.mkdir(unrelatedDir, { recursive: true })

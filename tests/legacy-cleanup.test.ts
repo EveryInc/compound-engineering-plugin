@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import fs from "fs/promises"
 import path from "path"
 import os from "os"
@@ -64,9 +64,18 @@ function kiroAgentConfigContent(name: string, description: string) {
   })
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 describe("cleanupStaleSkillDirs", () => {
   test("removes known stale skill directories", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-skills-"))
+    __tempRoots.push(root)
     await createDir(
       path.join(root, "git-commit"),
       skillContent(
@@ -100,6 +109,7 @@ describe("cleanupStaleSkillDirs", () => {
 
   test("preserves non-stale directories", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-preserve-"))
+    __tempRoots.push(root)
     await createDir(path.join(root, "ce-plan"))
     await createDir(path.join(root, "ce-commit"))
     await createDir(path.join(root, "custom-user-skill"))
@@ -114,6 +124,7 @@ describe("cleanupStaleSkillDirs", () => {
 
   test("removes ce-review and ce-document-review (renamed skills)", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-renamed-"))
+    __tempRoots.push(root)
     await createDir(
       path.join(root, "ce-review"),
       skillContent(
@@ -138,6 +149,7 @@ describe("cleanupStaleSkillDirs", () => {
 
   test("removes raw colon workflow skill directories", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-colon-workflows-"))
+    __tempRoots.push(root)
     await createDir(
       path.join(root, "ce:plan"),
       skillContent(
@@ -175,6 +187,7 @@ describe("cleanupStaleSkillDirs", () => {
 
   test("preserves same-named user skill directories when content does not match plugin fingerprints", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-user-skill-"))
+    __tempRoots.push(root)
     await createDir(
       path.join(root, "setup"),
       skillContent("setup", "User-owned setup skill unrelated to compound-engineering."),
@@ -188,6 +201,7 @@ describe("cleanupStaleSkillDirs", () => {
 
   test("removes legacy setup skill even when current description has drifted", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-setup-legacy-"))
+    __tempRoots.push(root)
     await createDir(
       path.join(root, "setup"),
       skillContent(
@@ -204,6 +218,7 @@ describe("cleanupStaleSkillDirs", () => {
 
   test("removes legacy-only skills that no longer ship a ce-* replacement", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-legacy-only-skills-"))
+    __tempRoots.push(root)
     // `feature-video` and `reproduce-bug` were shipped by older plugin versions
     // but have no current ce-* counterpart. Their fingerprints come from the
     // LEGACY_ONLY_SKILL_DESCRIPTIONS map, not from a live plugin file.
@@ -281,6 +296,7 @@ describe("cleanupStaleSkillDirs", () => {
 
   test("preserves same-named user skills for legacy-only entries when content differs", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-legacy-only-user-"))
+    __tempRoots.push(root)
     await createDir(
       path.join(root, "reproduce-bug"),
       skillContent("reproduce-bug", "A project-local reproduce-bug helper unrelated to compound-engineering."),
@@ -296,6 +312,7 @@ describe("cleanupStaleSkillDirs", () => {
 describe("cleanupStaleAgents", () => {
   test("removes flat .md agent files", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-md-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "adversarial-reviewer.md"),
       agentContent(
@@ -326,6 +343,7 @@ describe("cleanupStaleAgents", () => {
     // `.agent.md` so a regression in that legacy extension path is caught
     // here -- the preceding test already covers the `.md` shape.
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-copilot-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "security-sentinel.agent.md"),
       agentContent(
@@ -349,6 +367,7 @@ describe("cleanupStaleAgents", () => {
 
   test("removes matching Kiro agent configs but preserves same-named user configs", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-kiro-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "slack-researcher.json"),
       kiroAgentConfigContent(
@@ -381,6 +400,7 @@ describe("cleanupStaleAgents", () => {
 
   test("removes agent directories when extension is null", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-dir-"))
+    __tempRoots.push(root)
     await createDir(
       path.join(root, "code-simplicity-reviewer"),
       skillContent(
@@ -405,6 +425,7 @@ describe("cleanupStaleAgents", () => {
 
   test("preserves ce-prefixed agent files", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-keep-"))
+    __tempRoots.push(root)
     await createFile(path.join(root, "ce-adversarial-reviewer.md"), agentContent("ce-adversarial-reviewer", "custom"))
     await createFile(path.join(root, "ce-learnings-researcher.md"), agentContent("ce-learnings-researcher", "custom"))
 
@@ -416,6 +437,7 @@ describe("cleanupStaleAgents", () => {
 
   test("preserves same-named user agent files when content does not match plugin fingerprints", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-user-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "lint.md"),
       agentContent("lint", "A project-local lint helper unrelated to compound-engineering."),
@@ -429,6 +451,7 @@ describe("cleanupStaleAgents", () => {
 
   test("removes ce-prefixed legacy-only agents removed from the plugin", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-ce-legacy-only-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "ce-dhh-rails-reviewer.md"),
       agentContent(
@@ -445,6 +468,7 @@ describe("cleanupStaleAgents", () => {
 
   test("removes legacy-only agents that no longer ship a ce-* replacement", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-legacy-only-"))
+    __tempRoots.push(root)
     // `lint` and `bug-reproduction-validator` were removed in an older plugin
     // release with no ce-* successor. Their fingerprints live in
     // LEGACY_ONLY_AGENT_DESCRIPTIONS so upgrades from pre-removal installs
@@ -475,6 +499,7 @@ describe("cleanupStaleAgents", () => {
 describe("cleanupStalePrompts", () => {
   test("removes old workflow prompt wrappers", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-prompts-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "ce-plan.md"),
       promptWrapperContent(
@@ -506,6 +531,7 @@ describe("cleanupStalePrompts", () => {
 
   test("preserves non-stale prompt files", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-prompts-keep-"))
+    __tempRoots.push(root)
     await createFile(path.join(root, "my-custom-prompt.md"))
     await createFile(path.join(root, "review-command.md"))
 
@@ -517,6 +543,7 @@ describe("cleanupStalePrompts", () => {
 
   test("preserves same-named user prompt files when content does not match plugin fingerprints", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-prompts-user-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "ce-plan.md"),
       "---\ndescription: \"A project-local ce-plan helper\"\n---\n\nCustom prompt body\n",
@@ -530,6 +557,7 @@ describe("cleanupStalePrompts", () => {
 
   test("removes pre-rename workflow prompt wrappers with ce:* references", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-prompts-legacy-workflow-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "ce-plan.md"),
       legacyWorkflowPromptContent(
@@ -568,6 +596,7 @@ describe("cleanupStalePrompts", () => {
     // descriptions compound-engineering has shipped in prior releases, so
     // they must be recognized as owned.
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-prompts-drifted-desc-"))
+    __tempRoots.push(root)
 
     // v2.66.1-style ce-plan description (no trailing ce-brainstorm guidance).
     await createFile(
@@ -618,6 +647,7 @@ describe("cleanupStalePrompts", () => {
     // compound-engineering has ever shipped, the file belongs to somebody
     // else and we refuse to delete it.
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-prompts-foreign-desc-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "ce-plan.md"),
       promptWrapperContent(
@@ -653,6 +683,7 @@ describe("cleanupStalePrompts", () => {
     // user-authored prompts that happen to share a stale file name but do
     // not carry the plugin-generated instruction sentence in their body.
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-prompts-user-body-"))
+    __tempRoots.push(root)
     await createFile(
       path.join(root, "ce-plan.md"),
       `---\ndescription: "User-authored ce-plan helper"\n---\n\nThis prompt does not invoke the ce-plan skill — it is a private workflow.\n`,
@@ -673,6 +704,7 @@ describe("cleanupStalePrompts", () => {
 describe("idempotency", () => {
   test("running cleanup twice returns 0 on second run", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-idempotent-"))
+    __tempRoots.push(root)
     await createDir(
       path.join(root, "git-commit"),
       skillContent(

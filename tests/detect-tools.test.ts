@@ -4,10 +4,20 @@ import path from "path"
 import os from "os"
 import { detectInstalledTools, getDetectedTargetNames } from "../src/utils/detect-tools"
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 describe("detectInstalledTools", () => {
   test("detects tools when config directories exist", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-tools-"))
+    __tempRoots.push(tempHome)
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-tools-cwd-"))
+    __tempRoots.push(tempCwd)
 
     // Create directories for some tools
     await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })
@@ -41,7 +51,9 @@ describe("detectInstalledTools", () => {
 
   test("returns all tools with detected=false when no directories exist", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-empty-"))
+    __tempRoots.push(tempHome)
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-empty-cwd-"))
+    __tempRoots.push(tempCwd)
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
@@ -54,7 +66,9 @@ describe("detectInstalledTools", () => {
 
   test("detects home-based tools", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-home-"))
+    __tempRoots.push(tempHome)
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-home-cwd-"))
+    __tempRoots.push(tempCwd)
 
     await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".factory"), { recursive: true })
@@ -80,8 +94,11 @@ describe("detectInstalledTools", () => {
 
     test("detects opencode at OPENCODE_CONFIG_DIR when set, even if ~/.config/opencode is absent", async () => {
       const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-home-"))
+      __tempRoots.push(tempHome)
       const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-cwd-"))
+      __tempRoots.push(tempCwd)
       const customRoot = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-env-root-"))
+      __tempRoots.push(customRoot)
 
       // Ensure no ~/.config/opencode exists under the sandbox home.
       process.env.OPENCODE_CONFIG_DIR = customRoot
@@ -94,7 +111,9 @@ describe("detectInstalledTools", () => {
 
     test("opencode is not detected when OPENCODE_CONFIG_DIR points at a missing directory", async () => {
       const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-missing-home-"))
+      __tempRoots.push(tempHome)
       const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-opencode-missing-cwd-"))
+      __tempRoots.push(tempCwd)
       const missingRoot = path.join(os.tmpdir(), `detect-opencode-missing-${Date.now()}-${Math.random()}`)
 
       process.env.OPENCODE_CONFIG_DIR = missingRoot
@@ -117,7 +136,9 @@ describe("detectInstalledTools", () => {
 
     test("detects codex at CODEX_HOME for default real-user detection", async () => {
       const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-env-cwd-"))
+      __tempRoots.push(tempCwd)
       const customRoot = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-env-root-"))
+      __tempRoots.push(customRoot)
 
       process.env.CODEX_HOME = customRoot
 
@@ -129,8 +150,11 @@ describe("detectInstalledTools", () => {
 
     test("ignores ambient CODEX_HOME when caller provides an explicit home", async () => {
       const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-explicit-home-"))
+      __tempRoots.push(tempHome)
       const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-explicit-cwd-"))
+      __tempRoots.push(tempCwd)
       const customRoot = await fs.mkdtemp(path.join(os.tmpdir(), "detect-codex-explicit-root-"))
+      __tempRoots.push(customRoot)
 
       process.env.CODEX_HOME = customRoot
 
@@ -143,7 +167,9 @@ describe("detectInstalledTools", () => {
 
   test("detects copilot from project-specific skills without generic .github false positives", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-copilot-home-"))
+    __tempRoots.push(tempHome)
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-copilot-cwd-"))
+    __tempRoots.push(tempCwd)
 
     await fs.mkdir(path.join(tempCwd, ".github"), { recursive: true })
 
@@ -161,7 +187,9 @@ describe("detectInstalledTools", () => {
 describe("getDetectedTargetNames", () => {
   test("returns only names of detected tools", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-names-"))
+    __tempRoots.push(tempHome)
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-names-cwd-"))
+    __tempRoots.push(tempCwd)
 
     await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".gemini"), { recursive: true })
@@ -178,7 +206,9 @@ describe("getDetectedTargetNames", () => {
 
   test("returns empty array when nothing detected", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-none-"))
+    __tempRoots.push(tempHome)
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-none-cwd-"))
+    __tempRoots.push(tempCwd)
 
     const names = await getDetectedTargetNames(tempHome, tempCwd)
     expect(names).toEqual([])

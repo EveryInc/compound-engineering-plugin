@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
@@ -26,9 +26,18 @@ async function pluginDescription(relativePath: string): Promise<string> {
   return data.description
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 describe("writePiBundle", () => {
   test("removes stale generated agent skills without touching prompt files", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-cleanup-targets-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".pi")
 
     const sessionHistorianDescription = await pluginDescription(
@@ -59,6 +68,7 @@ describe("writePiBundle", () => {
 
   test("writes prompts, skills, extensions, mcporter config, and AGENTS.md block", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-writer-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".pi")
 
     const bundle: PiBundle = {
@@ -101,6 +111,7 @@ describe("writePiBundle", () => {
 
   test("transforms Task calls in copied SKILL.md files", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-skill-transform-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".pi")
     const sourceSkillDir = path.join(tempRoot, "source-skill")
     await fs.mkdir(sourceSkillDir, { recursive: true })
@@ -142,6 +153,7 @@ Run these research agents:
 
   test("writes to ~/.pi/agent style roots without nesting under .pi", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-agent-root-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, "agent")
 
     const bundle: PiBundle = {
@@ -160,6 +172,7 @@ Run these research agents:
 
   test("backs up existing mcporter config before overwriting", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-backup-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".pi")
     const configPath = path.join(outputRoot, "compound-engineering", "mcporter.json")
 
@@ -191,6 +204,7 @@ Run these research agents:
 
   test("removes previously managed Pi artifacts that disappear on reinstall", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-managed-cleanup-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".pi")
 
     await writePiBundle(outputRoot, {
@@ -226,6 +240,7 @@ Run these research agents:
 
   test("namespaces managed install manifests per plugin so installs do not collide", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-multi-plugin-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".pi")
 
     // Install plugin A first, with a prompt, skill, generated skill, and extension
@@ -288,6 +303,7 @@ Run these research agents:
 
   test("moves stale compound-engineering mcporter.json to legacy backup when bundle has no mcporterConfig", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-legacy-mcporter-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".pi")
     const staleConfigPath = path.join(outputRoot, "compound-engineering", "mcporter.json")
 
@@ -335,6 +351,7 @@ Run these research agents:
 
   test("moves legacy flat Pi CE artifacts to a namespaced backup", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-legacy-artifacts-"))
+    __tempRoots.push(tempRoot)
     const outputRoot = path.join(tempRoot, ".pi")
 
     await fs.mkdir(path.join(outputRoot, "skills", "reproduce-bug"), { recursive: true })

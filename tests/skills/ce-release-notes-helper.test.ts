@@ -1,4 +1,4 @@
-import { afterAll, describe, expect, test } from "bun:test"
+import { afterAll, afterEach, describe, expect, test } from "bun:test"
 import type { Server } from "bun"
 import { promises as fs } from "fs"
 import os from "os"
@@ -39,8 +39,17 @@ async function runHelper(
   return { exitCode, stdout, stderr }
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 async function makeGhShim(stdout: string, exitCode = 0): Promise<string> {
   const dir = await fs.mkdtemp(path.join(os.tmpdir(), "ce-rn-gh-"))
+  __tempRoots.push(dir)
   const ghPath = path.join(dir, "gh")
   // Use printf to avoid heredoc quoting issues with arbitrary JSON content.
   const script = `#!/usr/bin/env bash\nprintf '%s' ${shellQuote(stdout)}\nexit ${exitCode}\n`
@@ -320,6 +329,7 @@ describe("list-plugin-releases.py", () => {
     test("invoked from an unrelated working directory still works", async () => {
       const ghBin = await makeGhShim(JSON.stringify([toApiShape(PLUGIN_267)]))
       const tmpdir = await fs.mkdtemp(path.join(os.tmpdir(), "ce-rn-cwd-"))
+      __tempRoots.push(tmpdir)
       const env: Record<string, string> = {}
       for (const [k, v] of Object.entries(process.env)) {
         if (v !== undefined) env[k] = v

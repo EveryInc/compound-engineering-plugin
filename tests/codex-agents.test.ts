@@ -1,4 +1,4 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
@@ -12,9 +12,18 @@ async function readFile(filePath: string): Promise<string> {
   return fs.readFile(filePath, "utf8")
 }
 
+const __tempRoots: string[] = []
+
+afterEach(async () => {
+  for (const dir of __tempRoots.splice(0, __tempRoots.length)) {
+    await fs.rm(dir, { recursive: true, force: true })
+  }
+})
+
 describe("ensureCodexAgentsFile", () => {
   test("creates AGENTS.md with managed block when missing", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-agents-"))
+    __tempRoots.push(tempRoot)
     await ensureCodexAgentsFile(tempRoot)
 
     const agentsPath = path.join(tempRoot, "AGENTS.md")
@@ -28,6 +37,7 @@ describe("ensureCodexAgentsFile", () => {
 
   test("appends block without touching existing content", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-agents-existing-"))
+    __tempRoots.push(tempRoot)
     const agentsPath = path.join(tempRoot, "AGENTS.md")
     await fs.writeFile(agentsPath, "# My Rules\n\nKeep this.")
 
@@ -42,6 +52,7 @@ describe("ensureCodexAgentsFile", () => {
 
   test("replaces only the managed block when present", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-agents-update-"))
+    __tempRoots.push(tempRoot)
     const agentsPath = path.join(tempRoot, "AGENTS.md")
     const seed = [
       "Intro text",
