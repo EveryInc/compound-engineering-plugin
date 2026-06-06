@@ -56,7 +56,7 @@ export type ClaudeSkill = {
 
 /**
  * Filter skills to those available on a given platform.
- * Skills without a `platforms` field are available everywhere.
+ * Skills without a `ce_platforms` field are available everywhere.
  */
 export function filterSkillsByPlatform(skills: ClaudeSkill[], platform: string): ClaudeSkill[] {
   return skills.filter((skill) => !skill.ce_platforms || skill.ce_platforms.includes(platform))
