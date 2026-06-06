@@ -97,14 +97,14 @@ Use fully-qualified agent names inside Task calls.
 **Deterministic Section-to-Agent Mapping:**
 
 **Requirements / Open Questions classification**
-- `ce-spec-flow-analyzer` for missing user flows, edge cases, and handoff gaps
+- `ce-architecture-strategist` (flow-analysis mode) for missing user flows, edge cases, and handoff gaps
 - `ce-repo-research-analyst` (Scope: `architecture, patterns`) for repo-grounded patterns, conventions, and implementation reality checks
 
 **Context & Research / Sources & References gaps**
 - `ce-learnings-researcher` for institutional knowledge and past solved problems
 - `ce-best-practices-researcher` for official framework or library behavior, current external patterns, and industry guidance
 - `ce-web-researcher` for landscape/prior-art gaps — competitor patterns, market signals, or an unsettled external option set (which library/provider/approach) that recommendations depend on
-- Add `ce-git-history-analyzer` only when historical rationale or prior art is materially missing
+- Add `ce-repo-research-analyst` (Scope: `history`) only when historical rationale or prior art is materially missing
 
 **Key Technical Decisions**
 - `ce-architecture-strategist` for design integrity, boundaries, and architectural tradeoffs
@@ -116,9 +116,8 @@ Use fully-qualified agent names inside Task calls.
 - Add `ce-best-practices-researcher` when the technical design involves a DSL, API surface, or pattern that benefits from external validation
 
 **Implementation Units / Verification**
-- `ce-repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, and repo-specific sequencing clues
-- `ce-pattern-recognition-specialist` for consistency, duplication risks, and alignment with existing patterns
-- Add `ce-spec-flow-analyzer` when sequencing depends on user flow or handoff completeness
+- `ce-repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, repo-specific sequencing clues, and consistency, duplication, and anti-pattern risks against existing patterns
+- Add `ce-architecture-strategist` (flow-analysis mode) when sequencing depends on user flow or handoff completeness
 
 **System-Wide Impact**
 - `ce-architecture-strategist` for cross-boundary effects, interface surfaces, and architectural knock-on impact

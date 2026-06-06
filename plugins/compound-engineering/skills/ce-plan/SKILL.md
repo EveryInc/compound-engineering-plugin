@@ -390,7 +390,7 @@ This ensures flow analysis (Phase 1.5) runs and the confidence check (Phase 5.3)
 
 For **Standard** or **Deep** plans, or when user flow completeness is still unclear, run:
 
-- Task ce-spec-flow-analyzer(planning context summary, research findings)
+- Task ce-architecture-strategist(flow-analysis mode: planning context summary, research findings)
 
 Use the output to:
 - Identify missing edge cases, state transitions, or handoff gaps

@@ -10,7 +10,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 
 | Component | Count |
 |-----------|-------|
-| Agents | 22 |
+| Agents | 19 |
 | Skills | 14 |
 
 ## Skills
@@ -69,10 +69,9 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 
 | Agent | Description |
 |-------|-------------|
-| `ce-architecture-strategist` | Analyze architectural decisions and compliance |
+| `ce-architecture-strategist` | Analyze architectural decisions and compliance, plus optional flow-analysis mode for specs and plans (absorbed spec-flow analysis) |
 | `ce-correctness-reviewer` | Logic errors, edge cases, state bugs, production reliability, structural quality, and code simplicity |
 | `ce-data-integrity-guardian` | Database migrations and data integrity |
-| `ce-pattern-recognition-specialist` | Analyze code for patterns and anti-patterns |
 | `ce-performance-oracle` | Performance analysis and optimization |
 | `ce-performance-reviewer` | Runtime performance with confidence calibration |
 | `ce-security-reviewer` | Exploitable vulnerabilities with confidence calibration |
@@ -94,9 +93,8 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | Agent | Description |
 |-------|-------------|
 | `ce-best-practices-researcher` | Gather external best practices and examples |
-| `ce-git-history-analyzer` | Analyze git history and code evolution |
 | `ce-learnings-researcher` | Search institutional learnings for relevant past solutions |
-| `ce-repo-research-analyst` | Research repository structure and conventions |
+| `ce-repo-research-analyst` | Research repository structure, conventions, and implementation patterns, with optional `history` (git evolution) and `patterns` (design/anti-pattern) scopes (absorbed git-history and pattern-recognition) |
 | `ce-session-historian` | Search prior Claude Code, Codex, and Cursor sessions for related investigation context |
 | `ce-web-researcher` | Perform iterative web research and return structured external grounding (prior art, adjacent solutions, market signals, cross-domain analogies) |
 
@@ -105,12 +103,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 | Agent | Description |
 |-------|-------------|
 | `ce-figma-design-sync` | Synchronize web implementations with Figma designs |
-
-### Workflow
-
-| Agent | Description |
-|-------|-------------|
-| `ce-spec-flow-analyzer` | Analyze user flows and identify gaps in specifications |
 
 ## Installation
 

@@ -226,6 +226,7 @@ const STALE_AGENT_NAMES = [
   "figma-design-sync",
   "ce-framework-docs-researcher",
   "git-history-analyzer",
+  "ce-git-history-analyzer",
   "issue-intelligence-analyst",
   "ce-issue-intelligence-analyst",
   "julik-frontend-races-reviewer",
@@ -238,6 +239,7 @@ const STALE_AGENT_NAMES = [
   "maintainability-reviewer",
   "ce-maintainability-reviewer",
   "pattern-recognition-specialist",
+  "ce-pattern-recognition-specialist",
   "performance-oracle",
   "performance-reviewer",
   "previous-comments-reviewer",
@@ -261,6 +263,7 @@ const STALE_AGENT_NAMES = [
   "security-reviewer",
   "security-sentinel",
   "spec-flow-analyzer",
+  "ce-spec-flow-analyzer",
   "testing-reviewer",
   "web-researcher",
 ]
@@ -653,6 +656,27 @@ const LEGACY_ONLY_AGENT_DESCRIPTIONS: Record<string, string> = {
     "Reviews planning documents for scope alignment and unjustified complexity -- challenges unnecessary abstractions, premature frameworks, and scope that exceeds stated goals. Spawned by the document-review skill.",
   "ce-scope-guardian-reviewer":
     "Reviews planning documents for scope alignment and unjustified complexity -- challenges unnecessary abstractions, premature frameworks, and scope that exceeds stated goals. Spawned by the document-review skill.",
+
+  // Planning research personas consolidated: ce-git-history-analyzer and
+  // ce-pattern-recognition-specialist folded into ce-repo-research-analyst
+  // (as the `history` and `patterns` scopes); ce-spec-flow-analyzer folded
+  // into ce-architecture-strategist (as flow-analysis mode) (slim/ultra-minimal).
+  // The unprefixed names were already in STALE_AGENT_NAMES and resolved their
+  // fingerprint by reading the live ce-* agent file; with those files removed,
+  // both the unprefixed and ce- entries carry the last shipped descriptions so
+  // cleanup can fingerprint installs from either era.
+  "git-history-analyzer":
+    "Performs archaeological analysis of git history to trace code evolution, identify contributors, and understand why code patterns exist. Use when you need historical context for code changes.",
+  "ce-git-history-analyzer":
+    "Performs archaeological analysis of git history to trace code evolution, identify contributors, and understand why code patterns exist. Use when you need historical context for code changes.",
+  "pattern-recognition-specialist":
+    "Analyzes code for design patterns, anti-patterns, naming conventions, and duplication. Use when checking codebase consistency or verifying new code follows established patterns.",
+  "ce-pattern-recognition-specialist":
+    "Analyzes code for design patterns, anti-patterns, naming conventions, and duplication. Use when checking codebase consistency or verifying new code follows established patterns.",
+  "spec-flow-analyzer":
+    "Analyzes specifications and feature descriptions for user flow completeness and gap identification. Use when a spec, plan, or feature description needs flow analysis, edge case discovery, or requirements validation.",
+  "ce-spec-flow-analyzer":
+    "Analyzes specifications and feature descriptions for user flow completeness and gap identification. Use when a spec, plan, or feature description needs flow analysis, edge case discovery, or requirements validation.",
 }
 
 type LegacyFingerprints = {
