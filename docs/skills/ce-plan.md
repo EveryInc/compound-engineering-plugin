@@ -28,7 +28,7 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 | What does it do? | Researches context, captures decisions and scope, breaks work into atomic units with stable IDs, enumerates test scenarios per unit, and auto-strengthens weak sections via a confidence check |
 | When to use it | Requirements ready and execution guardrails needed; solo planning when the task is clear; non-software multi-step tasks (study plans, research, maintenance, events, trips) |
 | What it produces | Plan in `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md` |
-| What's next | `/ce-work`, create a tracked issue, open in Proof for review, or pause |
+| What's next | `/ce-work`, create a tracked issue, or pause |
 | Distinguishing | Guardrails over choreography (WHAT, not HOW); U-IDs (stable); origin tracing (R/A/F/AE → U); test scenarios per unit; automatic deepening; multi-agent research |
 
 ---
@@ -88,7 +88,7 @@ After the plan is written, `ce-plan` automatically scores sections against check
 
 ### 6. Multi-agent research, in parallel
 
-Phase 1 always runs local research in parallel — repo-research-analyst (technology, architecture, patterns) and learnings-researcher (institutional memory from `docs/solutions/`), plus spec-flow-analyzer (edge-case completeness for Standard/Deep plans) and optional Slack research. External research is then decided **by intent**, not a single on/off switch: an explicit request ("research competitors", "best practices from the web", "which library") always runs and overrides strong local patterns, while implicit signals (thin local patterns, or an unsettled external option set the recommendations depend on) can trigger it too. The intent routes the agent — framework-docs-researcher and best-practices-researcher for *how to build it well* (implementation-guidance), web-researcher for *what options or prior art exist* (landscape/competitor scans); mixed requests run the landscape scan first, then docs on the shortlist.
+Phase 1 always runs local research in parallel — repo-research-analyst (technology, architecture, patterns) and learnings-researcher (institutional memory from `docs/solutions/`), plus spec-flow-analyzer (edge-case completeness for Standard/Deep plans). External research is then decided **by intent**, not a single on/off switch: an explicit request ("research competitors", "best practices from the web", "which library") always runs and overrides strong local patterns, while implicit signals (thin local patterns, or an unsettled external option set the recommendations depend on) can trigger it too. The intent routes the agent — best-practices-researcher for *how to build it well* (implementation-guidance), web-researcher for *what options or prior art exist* (landscape/competitor scans); mixed requests run the landscape scan first, then docs on the shortlist.
 
 ### 7. Universal planning — same engine for non-software work
 
@@ -110,7 +110,7 @@ It dispatches research in parallel — repo analyst, learnings researcher — an
 
 The plan is written. The confidence check then runs automatically — it identifies that `Risks & Dependencies` is thin on the mute-leak risk and that one unit's test scenarios miss permission edge cases, dispatches a data-integrity reviewer and a correctness reviewer, and synthesizes their findings back into the plan. The plan is stamped with a `deepened:` date.
 
-Document review then runs in headless mode. The cheap minimum dispatches (coherence + feasibility) since the plan has origin set and touches no high-stakes domains; `safe_auto` fixes (a typo, a broken cross-reference) apply silently. Remaining findings surface as a one-line summary above the post-generation menu — e.g., `Doc review applied 2 fixes. 3 decisions, 1 FYI remain.` The menu surfaces: start `/ce-work`, run deeper doc review (when actionable findings remain), create a tracked issue, open in Proof for HITL review, or pause.
+Document review then runs in headless mode. The cheap minimum dispatches (coherence + feasibility) since the plan has origin set and touches no high-stakes domains; `safe_auto` fixes (a typo, a broken cross-reference) apply silently. Remaining findings surface as a one-line summary above the post-generation menu — e.g., `Doc review applied 2 fixes. 3 decisions, 1 FYI remain.` The menu surfaces: start `/ce-work`, run deeper doc review (when actionable findings remain), create a tracked issue, or pause.
 
 ---
 

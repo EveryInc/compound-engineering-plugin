@@ -136,7 +136,7 @@ After implementing, the skill verifies visually — a sanity check, not a pixel-
 3. **`agent-browser` CLI** — fallback; if not installed, says "run `/ce-setup`"
 4. **Mental review** — when no browser access is possible, apply litmus checks as self-review and note that visual verification was skipped
 
-One iteration. Take a screenshot, assess against the litmus checks, fix glaring issues, move on. For multi-round iterative refinement, the `ce-design-iterator` agent handles that.
+One iteration. Take a screenshot, assess against the litmus checks, fix glaring issues, move on.
 
 ### 8. Creative energy — bold direction over formula
 
@@ -187,7 +187,6 @@ Skip `ce-frontend-design` when:
 - **`/ce-work` Phase 2** — when implementing a frontend feature, this skill provides the design pass
 - **`/ce-polish`** — for late-stage UX refinement after the feature is functional; complementary, not a substitute
 - **`ce-figma-design-sync` agent** — for verifying UI against a Figma design with iterative pixel-perfect alignment
-- **`ce-design-implementation-reviewer` agent** — for verifying UI against a Figma design
 
 The skill's output is frontend code; downstream skills handle commit, PR, polish, and review.
 

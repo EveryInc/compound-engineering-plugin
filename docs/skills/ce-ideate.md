@@ -2,7 +2,7 @@
 
 > Discover strong, qualified directions worth exploring — across any domain — and let the rest fall away.
 
-`ce-ideate` is the upstream **discovery** skill. It's where you reach when you don't yet have a specific idea — when the question is "which directions even matter here?" rather than "let me refine the one I already have." It does the homework first (parallel grounding agents pull from your codebase, past learnings, **external prior art on the open web**, and optionally Slack and your issue tracker), generates candidates from six different conceptual frames, requires a tagged **basis** for every idea, and presents only the survivors of an adversarial critique — with explicit reasons for what was rejected.
+`ce-ideate` is the upstream **discovery** skill. It's where you reach when you don't yet have a specific idea — when the question is "which directions even matter here?" rather than "let me refine the one I already have." It does the homework first (parallel grounding agents pull from your codebase, past learnings, **external prior art on the open web**, and optionally your issue tracker), generates candidates from six different conceptual frames, requires a tagged **basis** for every idea, and presents only the survivors of an adversarial critique — with explicit reasons for what was rejected.
 
 It runs equally well on software topics, product topics, and entirely non-software topics — naming, narrative, personal decisions, weekend trips, business strategy. The same generate-critique-survive engine; the same basis requirement; the same anti-slop discipline.
 
@@ -25,7 +25,7 @@ The chain works across domains — every step supports universal mode. `ce-ideat
 |----------|--------|
 | What does it do? | Grounds in real material, decomposes the topic into orthogonal axes, generates candidates across six conceptual frames spread over those axes, critiques them adversarially, presents 5-7 survivors — each with a tagged basis |
 | When to use it | Greenfield exploration, big-picture thinking, codebase audits, surprise-me runs, naming, decisions, business strategy — any domain where you want a qualified candidate set rather than a refined idea |
-| What it produces | Ranked ideation artifact in `docs/ideation/` (or to Proof for non-software topics) |
+| What it produces | Ranked ideation artifact in `docs/ideation/` |
 | What's next | `/ce-brainstorm` on a chosen survivor — or save and walk away |
 
 ---
@@ -44,7 +44,7 @@ Asking an AI "what's worth exploring here?" usually returns:
 
 `ce-ideate` separates **grounding**, **generation**, **critique**, and **selection** as discrete phases — and the quality mechanism is **explicit rejection with reasons**, not optimistic ranking.
 
-- Grounding agents do the homework first — codebase scan, past learnings, external prior art, optional Slack and issue intelligence
+- Grounding agents do the homework first — codebase scan, past learnings, external prior art, optional issue intelligence
 - The topic is decomposed into 3-5 orthogonal axes derived from grounding — *what aspects of the subject* sub-agents must cover, distinct from *how they think about it*
 - Six parallel ideation sub-agents work from different conceptual frames, each spreading ideas across the axes
 - Every idea must carry a tagged **basis** — direct evidence, named external prior art, or a written-out first-principles argument
@@ -58,7 +58,7 @@ Asking an AI "what's worth exploring here?" usually returns:
 
 ### 1. Comprehensive grounding before any idea is generated
 
-Every run starts with parallel grounding agents that supply the substance ideas will be qualified against — codebase scan (in repo mode), past institutional learnings from `docs/solutions/`, external prior art via web research, and optional Slack and issue intelligence when those tools are available. **External prior art is critical**: without it, the agent is just remixing what's already in your codebase or your head. With it, ideas can cite "this is how X solved this" — concrete, verifiable, named precedent.
+Every run starts with parallel grounding agents that supply the substance ideas will be qualified against — codebase scan (in repo mode), past institutional learnings from `docs/solutions/`, external prior art via web research, and optional issue intelligence when those tools are available. **External prior art is critical**: without it, the agent is just remixing what's already in your codebase or your head. With it, ideas can cite "this is how X solved this" — concrete, verifiable, named precedent.
 
 ### 2. Basis requirement — every idea cites its evidence
 
@@ -96,7 +96,7 @@ You invoke `ce-ideate "DX improvements"` from inside a code repo. The agent anno
 
 Grounding agents return in parallel — a codebase summary, relevant past learnings, external prior art on developer-experience patterns. The orchestrator decomposes the topic into 4-5 axes derived from that grounding (e.g., for "DX improvements" — feedback loops, environment friction, tooling ergonomics, knowledge accessibility, automation surface). Six ideation sub-agents then generate candidates from different frames, each tagged with the axis it targets. The orchestrator merges 40+ candidates into one list, synthesizes cross-cutting combinations, runs an axis-coverage check (any empty axis triggers one bounded recovery dispatch), and runs the adversarial critique pass — about 13 ideas are cut for being too vague, unjustified, or duplicative.
 
-You see six survivors spread across the axes. Each has a tagged basis (e.g., "tests/cli.test.ts:42 spawns 14 different bash invocations"), a rationale connecting that basis to the move's significance, the axis it targets, downsides, confidence, and complexity. A rejection summary lists what was cut and why, plus any axis that ended up uncovered as a deliberate gap. Then a four-option menu: refine in conversation, open in Proof, brainstorm a chosen survivor, or save and end.
+You see six survivors spread across the axes. Each has a tagged basis (e.g., "tests/cli.test.ts:42 spawns 14 different bash invocations"), a rationale connecting that basis to the move's significance, the axis it targets, downsides, confidence, and complexity. A rejection summary lists what was cut and why, plus any axis that ended up uncovered as a deliberate gap. Then a three-option menu: refine in conversation, brainstorm a chosen survivor, or save and end.
 
 ---
 
@@ -177,7 +177,7 @@ Refining without persisting is fully supported — pick "Refine in conversation"
 | `surprise me` | Surprise-me mode |
 | `top issue themes in <area>` | Triggers issue-tracker intent |
 
-Skip phrases supported anywhere in the prompt: `no external research`, `no slack`.
+Skip phrases supported anywhere in the prompt: `no external research`.
 
 ---
 

@@ -26,7 +26,7 @@ It's also the most common standalone entry point — for any feature, decision, 
 | What does it do? | Collaborative dialogue to clarify scope, pressure-test premises, explore approaches, and write a right-sized requirements doc |
 | When to use it | Vague feature ideas, "let's brainstorm", multiple plausible directions, unclear scope; non-software decisions and projects |
 | What it produces | Requirements doc in `docs/brainstorms/` (with R-IDs, A-IDs, F-IDs, AE-IDs in software mode) |
-| What's next | `/ce-plan`, `/ce-work` for trivial scope, doc review, or Proof iteration |
+| What's next | `/ce-plan`, `/ce-work` for trivial scope, or doc review |
 
 ---
 
@@ -106,7 +106,7 @@ The pressure test detects a specificity gap (who are these "users"?) and an atta
 
 Three approaches surface — per-notification-type mute with TTL, a global do-not-disturb schedule, mute on the rule rather than the channel — with tradeoffs and a recommendation. The Synthesis Summary reads back the shape that emerged ("per-channel mute on notification rules, 24h preset for the 3 AM support pings"), names the trade-offs made in dialogue (per-channel over per-user, mute lives on the rule), what's deferred (presence-based mute, quiet-hours schedules), and a single call-out about the rule-delete loss path. You confirm and add a 24h preset.
 
-A right-sized requirements doc is written and the Phase 4 menu offers next steps — `/ce-plan` (recommended), agent doc review, Proof iteration, or skip-to-build for trivial scope.
+A right-sized requirements doc is written and the Phase 4 menu offers next steps — `/ce-plan` (recommended), agent doc review, or skip-to-build for trivial scope.
 
 ---
 
@@ -163,7 +163,7 @@ When `ce-plan` loads with a requirements doc as input, it does not re-litigate p
 - **Strategic decisions** — Deep-product tier surfaces durability and adjacent-product risks
 - **Non-software brainstorms** — name a product, plan an event, decide a roadmap
 
-The Phase 4 handoff offers planning, agent doc review, Proof iteration, direct-to-work for lightweight scope, more clarifying questions, or pause.
+The Phase 4 handoff offers planning, agent doc review, direct-to-work for lightweight scope, more clarifying questions, or pause.
 
 ---
 

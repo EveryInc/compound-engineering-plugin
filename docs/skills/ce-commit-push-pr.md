@@ -128,7 +128,7 @@ Reach for `ce-commit-push-pr` when:
 
 Skip `ce-commit-push-pr` when:
 
-- You want only commits without pushing or PR → `/ce-commit`
+- You want only commits without pushing or PR → `/ce-commit-push-pr` in commit-only mode (say "just commit, no PR")
 - You're on the default branch and want to actually commit there → handle manually (this skill won't push to default without explicit feature-branch creation)
 - The PR shape is unusual enough that hand-crafted git work is needed (interactive rebase, complex history rewrite)
 
@@ -195,6 +195,5 @@ Use the description-only mode to generate the body, then apply yourself with `gh
 
 - [`ce-work`](./ce-work.md) — Phase 4 handoff target; standard upstream caller
 - [`ce-debug`](./ce-debug.md) — calls this skill after a successful fix on a skill-owned branch
-- [`ce-commit`](./ce-commit.md) — local-commit-only sibling; use when you don't want to push or open a PR
 - [`ce-demo-reel`](./ce-demo-reel.md) — invoked for evidence capture when behavior is observable
 - [`ce-compound`](./ce-compound.md) — capture reusable learning; can chain back into this skill to push the learning doc
