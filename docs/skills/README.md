@@ -9,9 +9,6 @@ For runtime behavior and contributor reference, the `SKILL.md` in each skill's s
 ## The compound-engineering core loop
 
 ```text
-   [/ce-ideate]       (optional) "What's worth exploring?"
-        │
-        ▼
 ┌─→ /ce-brainstorm    "What does this need to be?"
 │       │
 │       ▼
@@ -24,17 +21,16 @@ For runtime behavior and contributor reference, the `SKILL.md` in each skill's s
 └── /ce-compound      "Capture what we learned."
 ```
 
-`/ce-compound` is the closer that makes the loop *compound*: it writes learnings into `docs/solutions/`, which the next iteration's `/ce-brainstorm` and `/ce-plan` read as grounding — that return arrow is the whole point. `/ce-ideate` is an optional prelude for when you don't yet know what to work on. Everything else in this catalog is either an anchor around the loop or an on-demand tool used when a specific need arises — not a step you walk through every time.
+`/ce-compound` is the closer that makes the loop *compound*: it writes learnings into `docs/solutions/`, which the next iteration's `/ce-brainstorm` and `/ce-plan` read as grounding — that return arrow is the whole point. Everything else in this catalog is either an anchor around the loop or an on-demand tool used when a specific need arises — not a step you walk through every time.
 
 ---
 
 ## The Core Loop
 
-The steps of every engineering iteration. `/ce-ideate` runs only when you need to find a direction first; the other four run in order per piece of work.
+The steps of every engineering iteration. They run in order per piece of work.
 
 | Skill | Description |
 |-------|-------------|
-| [`/ce-ideate`](./ce-ideate.md) | *Optional first step* — discover strong, qualified directions worth exploring with six conceptual frames, warrant requirement, adversarial filtering |
 | [`/ce-brainstorm`](./ce-brainstorm.md) | Define what something should become — collaborative dialogue, named gap lenses, right-sized requirements doc |
 | [`/ce-plan`](./ce-plan.md) | Bound execution with guardrails — U-IDs, test scenarios, automatic confidence check; WHAT decisions, not HOW code |
 | [`/ce-work`](./ce-work.md) | Execute against the plan's guardrails — figure out the HOW with code in front of you, ship through quality gates |

@@ -2,9 +2,9 @@
 
 > Document a recently solved problem so the next encounter takes minutes instead of hours. Knowledge compounds.
 
-`ce-compound` is the **knowledge-capture** skill. After you solve a non-trivial problem, this skill writes a structured doc to `docs/solutions/` covering symptoms, root cause, what didn't work, the working solution, and prevention strategies. Future runs of `ce-plan`, `ce-ideate`, `ce-debug`, and `ce-work` consult this folder as institutional memory — so the same investigation never has to happen twice.
+`ce-compound` is the **knowledge-capture** skill. After you solve a non-trivial problem, this skill writes a structured doc to `docs/solutions/` covering symptoms, root cause, what didn't work, the working solution, and prevention strategies. Future runs of `ce-plan`, `ce-debug`, and `ce-work` consult this folder as institutional memory — so the same investigation never has to happen twice.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-compound` is the **closing loop** — captured at the end of a debugging or build session, the doc feeds back upstream as grounding for future runs. The first time you solve "N+1 query in brief generation" takes 30 minutes of research; the second time, you find the doc and the fix takes 2 minutes.
+The compound-engineering ideation chain is `/ce-brainstorm → /ce-plan → /ce-work`. `ce-compound` is the **closing loop** — captured at the end of a debugging or build session, the doc feeds back upstream as grounding for future runs. The first time you solve "N+1 query in brief generation" takes 30 minutes of research; the second time, you find the doc and the fix takes 2 minutes.
 
 ---
 
@@ -134,7 +134,6 @@ Skip `ce-compound` when:
 The output feeds back into upstream skills:
 
 - `/ce-plan` reads `docs/solutions/` via `ce-learnings-researcher` during Phase 1 research
-- `/ce-ideate` reads it as part of the comprehensive grounding step
 - `/ce-debug` reads it for prior context when an issue tracker reference is fetched
 
 When the new learning suggests an older doc may now be stale, `ce-compound` recommends `/ce-compound mode:refresh` with a narrow scope hint.
@@ -202,4 +201,3 @@ The skill asks for consent before applying the edit. You can decline; the doc st
 - [`ce-debug`](./ce-debug.md) — common upstream caller after a fix is verified
 - [`ce-work`](./ce-work.md) — common upstream caller after shipping
 - [`ce-plan`](./ce-plan.md) — reads `docs/solutions/` as institutional memory during planning
-- [`ce-ideate`](./ce-ideate.md) — reads `docs/solutions/` as part of grounding

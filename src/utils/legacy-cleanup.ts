@@ -158,6 +158,10 @@ export const STALE_SKILL_DIRS = [
   // renamed-era "resolve-pr-feedback" entry above stays; this is the
   // current-era dir name.
   "ce-resolve-pr-feedback",
+
+  // Removed big-picture ideation skill (slim/ultra-minimal). The colon-era
+  // "ce:ideate" entry above stays; this is the current-era dash dir name.
+  "ce-ideate",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -202,6 +206,7 @@ const STALE_AGENT_NAMES = [
   "ce-framework-docs-researcher",
   "git-history-analyzer",
   "issue-intelligence-analyst",
+  "ce-issue-intelligence-analyst",
   "julik-frontend-races-reviewer",
   "kieran-python-reviewer",
   "kieran-rails-reviewer",
@@ -453,6 +458,10 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "Resolve PR review feedback by evaluating validity and fixing issues in parallel. Use when addressing PR review comments, resolving review threads, or fixing code review feedback.",
   "ce-resolve-pr-feedback":
     "Resolve PR review feedback by evaluating validity and fixing issues in parallel. Use when addressing PR review comments, resolving review threads, or fixing code review feedback.",
+
+  // ce-ideate was the big-picture ideation skill (removed, no replacement).
+  "ce-ideate":
+    "Generate and critically evaluate grounded ideas about a topic. Use when asking what to improve, requesting idea generation, exploring surprising directions, or wanting the AI to proactively suggest strong options before brainstorming one in depth. Triggers on phrases like 'what should I improve', 'give me ideas', 'ideate on X', 'surprise me', 'what would you change', or any request for AI-generated suggestions rather than refining the user's own idea.",
 }
 
 /**
@@ -521,6 +530,11 @@ const LEGACY_ONLY_AGENT_DESCRIPTIONS: Record<string, string> = {
     "Evaluates and resolves one or more related PR review threads -- assesses validity, implements fixes, and returns structured summaries with reply text. Spawned by the resolve-pr-feedback skill.",
   "ce-pr-comment-resolver":
     "Evaluates and resolves one or more related PR review threads -- assesses validity, implements fixes, and returns structured summaries with reply text. Spawned by the resolve-pr-feedback skill.",
+
+  // ce-issue-intelligence-analyst was the issue-analysis agent exclusive to
+  // ce-ideate (removed, no replacement).
+  "ce-issue-intelligence-analyst":
+    "Fetches and analyzes GitHub issues to surface recurring themes, pain patterns, and severity trends. Use when understanding a project's issue landscape, analyzing bug patterns for ideation, or summarizing what users are reporting.",
 }
 
 type LegacyFingerprints = {

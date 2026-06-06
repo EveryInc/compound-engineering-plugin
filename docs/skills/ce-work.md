@@ -4,13 +4,13 @@
 
 `ce-work` is the **execution** skill. It takes a plan (or, for smaller scope, a bare prompt), executes the implementation against the plan's guardrails, runs tests continuously, dispatches subagents in isolated worktrees when scope warrants, runs quality gates, and hands off to a commit + PR flow. It treats the plan as a **decision artifact** — authoritative for scope, decisions, units, and tests — and figures out the actual implementation itself. **It is the HOW phase that `ce-plan` deliberately does not pre-write.**
 
-This is the fourth and final step in the compound-engineering ideation chain:
+This is the third and final step in the compound-engineering ideation chain:
 
 ```text
-/ce-ideate         /ce-brainstorm      /ce-plan             /ce-work
-"What's worth      "What does this     "What's needed       "Build it."
- exploring?"        need to be?"        to accomplish
-                                        this?"
+/ce-brainstorm      /ce-plan             /ce-work
+"What does this     "What's needed       "Build it."
+ need to be?"        to accomplish
+                     this?"
 ```
 
 `ce-work` is primarily software-focused — it commits, runs tests, opens PRs, and integrates with code review skills. It also has a lightweight **non-code carve-out**: a plan marked `execution: knowledge-work` (produced by `ce-plan`'s approach-altitude flow) routes to a knowledge-work path that reads sources, synthesizes, and produces a deliverable, skipping the code lifecycle. Other non-software work without that marker still effectively ends at `ce-plan`, and a human executes it.
@@ -121,9 +121,6 @@ Skip `ce-work` when:
 ## Use as Part of the Chained Workflow
 
 ```text
-/ce-ideate          (optional)
-   |
-   v
 /ce-brainstorm
    |  requirements / brief
    v
@@ -197,7 +194,6 @@ For a plan marked `execution: knowledge-work` (produced by `ce-plan`'s approach-
 
 - [`ce-plan`](./ce-plan.md) — produces the guardrails `ce-work` executes against
 - [`ce-brainstorm`](./ce-brainstorm.md) — defines what the plan should accomplish
-- [`ce-ideate`](./ce-ideate.md) — upstream "what's worth exploring" discovery
 - [`ce-code-review`](./ce-code-review.md) — Tier 2 escalation target
 - [`ce-commit-push-pr`](./ce-commit-push-pr.md) — handles the final commit + PR flow
 - [`ce-compound`](./ce-compound.md) — capture reusable learning after shipping

@@ -30,11 +30,8 @@ The point is not ceremony. The point is leverage. A good brainstorm makes the pl
 
 The core loop is: brainstorm the requirements, plan the implementation, work through the plan, review the result, compound the learning, then repeat with better context.
 
-Use `/ce-ideate` before the loop when you want the agent to generate and critique bigger ideas before choosing one to brainstorm. It produces a ranked ideation artifact, not requirements, plans, or code.
-
 | Skill | Purpose |
 |-------|---------|
-| `/ce-ideate` | Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming |
 | `/ce-brainstorm` | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning |
 | `/ce-plan` | Turn feature ideas into detailed implementation plans |
 | `/ce-work` | Execute plans with worktrees and task tracking |

@@ -10,8 +10,8 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 
 | Component | Count |
 |-----------|-------|
-| Agents | 36 |
-| Skills | 19 |
+| Agents | 35 |
+| Skills | 18 |
 
 ## Skills
 
@@ -21,7 +21,6 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 
 | Skill | Description |
 |-------|-------------|
-| [`/ce-ideate`](../../docs/skills/ce-ideate.md) | Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming |
 | [`/ce-brainstorm`](../../docs/skills/ce-brainstorm.md) | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning. Pass `output:html` to write the doc as a single self-contained HTML file instead of markdown (exclusive — md OR html, never both) |
 | [`/ce-plan`](../../docs/skills/ce-plan.md) | Create structured plans for any multi-step task -- software features, research workflows, events, study plans -- with automatic confidence checking. Pass `output:html` to write the plan as a single self-contained HTML file instead of markdown (exclusive — md OR html, never both) |
 | [`/ce-code-review`](../../docs/skills/ce-code-review.md) | Structured code review with tiered persona agents, confidence gating, and dedup pipeline |
@@ -113,7 +112,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 |-------|-------------|
 | `ce-best-practices-researcher` | Gather external best practices and examples |
 | `ce-git-history-analyzer` | Analyze git history and code evolution |
-| `ce-issue-intelligence-analyst` | Analyze GitHub issues to surface recurring themes and pain patterns |
 | `ce-learnings-researcher` | Search institutional learnings for relevant past solutions |
 | `ce-repo-research-analyst` | Research repository structure and conventions |
 | `ce-session-historian` | Search prior Claude Code, Codex, and Cursor sessions for related investigation context |

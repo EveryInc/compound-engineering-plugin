@@ -6,7 +6,7 @@
 
 The premise is that simplification preserves exact functionality. The skill enforces this by running typecheck, lint, and scoped tests after fixes. **It refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — that defeats the guarantee.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-simplify-code` runs as a quality gate inside `/ce-work` Phase 3 (for diffs ≥30 changed lines), and is directly invocable for refining a feature branch before you open a PR.
+The compound-engineering ideation chain is `/ce-brainstorm → /ce-plan → /ce-work`. `ce-simplify-code` runs as a quality gate inside `/ce-work` Phase 3 (for diffs ≥30 changed lines), and is directly invocable for refining a feature branch before you open a PR.
 
 ---
 

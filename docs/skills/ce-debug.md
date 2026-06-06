@@ -6,7 +6,7 @@
 
 It right-sizes. Trivial bugs (typos, missing imports, obvious one-line fixes) take an explicit fast-path in Phase 0 — fix it, leave a one-line note, stop. Anything else flows through the full framework, with complex bugs spending more time in each phase naturally. The fix is optional — diagnosis-only is a first-class outcome.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-debug` is the bug-shaped sibling to `/ce-work` — when the input is broken behavior rather than a feature to build, this skill takes over. It can also escalate to `/ce-brainstorm` when investigation reveals the bug isn't really a bug; it's a design problem.
+The compound-engineering ideation chain is `/ce-brainstorm → /ce-plan → /ce-work`. `ce-debug` is the bug-shaped sibling to `/ce-work` — when the input is broken behavior rather than a feature to build, this skill takes over. It can also escalate to `/ce-brainstorm` when investigation reveals the bug isn't really a bug; it's a design problem.
 
 ---
 

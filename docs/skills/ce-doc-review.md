@@ -4,7 +4,7 @@
 
 `ce-doc-review` is the **document review** skill — sibling to `/ce-code-review` for the docs side of the chain. It analyzes a requirements doc or implementation plan, selects reviewer personas based on what the doc contains (product framing, design surfaces, security implications, scope sprawl), dispatches them in parallel, then auto-applies safe fixes and routes the rest through a structured four-option interaction (per-finding walk-through, auto-resolve with best judgment, append to Open Questions, report-only).
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-doc-review` is the **review skill for the artifacts produced by `ce-brainstorm` and `ce-plan`** — invoked at their respective Phase 4 / Phase 5.3.8 handoffs, and also directly when you want a structured review of a doc on disk.
+The compound-engineering ideation chain is `/ce-brainstorm → /ce-plan → /ce-work`. `ce-doc-review` is the **review skill for the artifacts produced by `ce-brainstorm` and `ce-plan`** — invoked at their respective Phase 4 / Phase 5.3.8 handoffs, and also directly when you want a structured review of a doc on disk.
 
 ---
 

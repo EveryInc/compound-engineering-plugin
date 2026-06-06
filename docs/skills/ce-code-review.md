@@ -4,7 +4,7 @@
 
 `ce-code-review` is the **deep code review** skill. It analyzes the diff (PR, branch, or current changes), selects the right reviewer personas for what was actually touched, dispatches them in parallel, then merges and deduplicates their findings into a single report. Each finding carries a severity (P0-P3), an autofix class (`gated_auto`, `manual`, `advisory`) that signals follow-up shape, and an owner. In interactive mode the review applies the safe, verified fixes itself and commits them when the working tree is clean (it never pushes); in `mode:agent` it reports and the caller applies.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-code-review` is `/ce-work`'s **Tier 2 escalation** target — invoked automatically for sensitive surfaces, large diffs, or explicit deep-review requests, but also directly invocable any time you want a structured review of the current branch or a specific PR.
+The compound-engineering ideation chain is `/ce-brainstorm → /ce-plan → /ce-work`. `ce-code-review` is `/ce-work`'s **Tier 2 escalation** target — invoked automatically for sensitive surfaces, large diffs, or explicit deep-review requests, but also directly invocable any time you want a structured review of the current branch or a specific PR.
 
 ---
 
