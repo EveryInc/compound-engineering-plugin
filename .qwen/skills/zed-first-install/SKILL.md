@@ -9,8 +9,11 @@ learned_from: >
   Zed 前端上下文预算有限，大 reference 文件不要原样复制，先做 truncated 摘要版本放 references/；
   SKILL.md 内含强制输出契约（MUST follow）才能让 Zed 子代理按 sections.md 收束输出；
   可直接在 `.agents/skills/<name>/` 下开发，不用经 bun convert；验证以手动复制到 Zed + Zed 目录检查清单为准。
-  后续 2026-06-06 落地 ce-work 时发现：shipping-workflow.md 完整复制（165 行）后 Zed 可正常使用，没有之前担心的上下文负担问题；
-  因此 References 处理策略从"优先 symlink/优先 truncate"调整为"先完整复制、必要时再精简"。
+  2026-06-06 ce-work 落地后二次验证：shipping-workflow.md 完整复制（165 行）后 Zed 可正常使用，没有之前担心的上下文负担问题；
+  因此 References 处理策略从"优先 truncate"调整为"先完整复制、必要时再精简"。
+  2026-06-06 路线图阶段：Zed-first 交付物统一落在 .agents/skills/ce-*，不走 bun convert --to zed；
+  项目定位从"多平台转换器"改为"Zed-first universal agent content platform"；
+  README 需要同步改写叙事顺序，但保留 OpenCode/Codex/Pi/Gemini 等兼容安装说明。
 ---
 
 # Zed-First Install

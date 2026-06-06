@@ -111,7 +111,7 @@ Before:
 ```markdown
 # Project Instructions
 
-Use TypeScript strict mode. Run `npm test` before committing.
+Use TypeScript strict mode. Run `bun test` before committing.
 Prefer composition over inheritance.
 ```
 
@@ -119,7 +119,7 @@ After:
 ```markdown
 # Project Instructions
 
-Use TypeScript strict mode. Run `npm test` before committing.
+Use TypeScript strict mode. Run `bun test` before committing.
 Prefer composition over inheritance.
 
 ## Knowledge Store

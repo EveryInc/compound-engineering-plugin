@@ -24,10 +24,10 @@ ce-compound mode:headless [context]   # Headless with context hint
 
 Check `$ARGUMENTS` for `mode:headless`. Strip `mode:headless` before treating remaining text as the optional context hint.
 
-| Mode | Effect |
-|------|--------|
-| **Interactive** (default) | Proceed through workflow. Await user review at key gates. |
-| **Headless** | Skip blocking gates. Run same pipeline in one pass. End with structured terminal report. |
+| Mode                      | Effect                                                                                   |
+| ------------------------- | ---------------------------------------------------------------------------------------- |
+| **Interactive** (default) | Proceed through workflow. Await user review at key gates.                                |
+| **Headless**              | Skip blocking gates. Run same pipeline in one pass. End with structured terminal report. |
 
 ## Ref Bootstrap Redirect
 
@@ -57,6 +57,7 @@ When spawning subagents, pass the relevant file contents into the task prompt so
 ## Primary Output
 
 Produce exactly one markdown solution document. Writes outside this are side effects only:
+
 - `docs/solutions/<category>/<slug>.md` — required output
 - `CONCEPTS.md` — update only when a qualifying domain term surfaces
 - Project instruction file — edit only if the Discoverability Check finds a gap
@@ -127,6 +128,7 @@ Consolidate results after all three subagents complete. Deduplicate findings by 
 ### 2.1 Normalize Problem and Solution
 
 From consolidated research:
+
 - Derive a one-line problem statement written in past tense.
 - Derive the reusable solution summary.
 - Identify any domain-specific term worth capturing in `CONCEPTS.md`.
@@ -145,9 +147,31 @@ Read `assets/resolution-template.md` for required sections. Follow these rules:
 - Avoid restating information already present in git history or linked docs.
 - If a vocabulary term surfaced, update `CONCEPTS.md` per `references/concepts-vocabulary.md`.
 
-### 2.4 Discoverability Repair
+### 2.4 Validation Gate (after write)
+
+After writing the solution document, run these scripts in order.
+If any fails, stop, include the script's stderr in the report, and do not proceed to Phase 3.
+
+```bash
+python3 scripts/validate-frontmatter.py docs/solutions/<category>/<slug>.md
+python3 scripts/validate-schema.py      docs/solutions/<category>/<slug>.md
+python3 scripts/check-duplicates.py    docs/solutions/<category>/<slug>.md
+```
+
+- Use array-form invocation: `python3 scripts/validate-frontmatter.py docs/solutions/<category>/<slug>.md` (do not concatenate shell metacharacters into the path).
+
+If `CONCEPTS.md` was updated in 2.3 or earlier, also run:
+
+```bash
+python3 scripts/validate-concepts.py CONCEPTS.md
+```
+
+Record pass/fail for each script in the headless report's Validation section.
+
+### 2.5 Discoverability Repair
 
 If the Discoverability Check found a gap in project instruction files:
+
 - Apply the minimal needed edit.
 - Record the repair in the solution doc's frontmatter or body only when it materially affects that doc.
 
@@ -155,10 +179,20 @@ If the Discoverability Check found a gap in project instruction files:
 
 ### 3.1 Duplicate Check
 
-Cross-check the new doc against existing `docs/solutions/` entries by problem type and overlapping terms. If an existing doc covers the same ground:
-- Prefer extending the existing doc when the fix is a direct strengthening.
-- Prefer a new doc when this is a distinct decision or workflow.
-- Do not create two docs where one suffices.
+Run the pre-filter script first:
+
+```bash
+python3 scripts/check-duplicates.py docs/solutions/<category>/<slug>.md
+```
+
+Parse the JSON array output. For each candidate (excluding the target file itself):
+
+- Score `> 0.6`: strong overlap — prefer extending the existing doc
+- Score `0.3–0.6`: moderate overlap — read both and assess
+- Score `< 0.3`: low overlap — new doc is appropriate
+
+Only fall back to manual cross-reading when the script surfaces a candidate.
+Do not create two docs where one suffices.
 
 ### 3.2 Instruction File Check
 
@@ -167,9 +201,12 @@ Verify the chosen category page and related skill docs mention the new pattern i
 ## Headless Mode Behavior
 
 In headless mode, skip interactive gates and run the same pipeline end-to-end. End with a structured report containing:
+
 - Output path of the solution document
 - Whether it created a new file or appended to an existing one
 - Whether any side-effect writes were applied (`CONCEPTS.md`, instruction file)
+- Validation results: pass/fail per script (frontmatter, schema, duplicates, concepts if updated)
+- Whether validation blocked the pipeline (true only if a script failed)
 - Any unresolved blocking issues
 
 ## Zed execution rules
