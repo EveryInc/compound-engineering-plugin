@@ -120,7 +120,7 @@ tool("write_file", async ({ path, content }) => {
 
 One execution engine, many agent types. All agents use the same orchestrator but with different configurations (tools, system prompt, model tier).
 
-```
+```text
 AgentOrchestrator (lifecycle, checkpoint/resume, tool execution)
     ├── ResearchAgent  (web_search, write_file, read_file)
     ├── ChatAgent      (read_library, publish_to_feed, web_search)

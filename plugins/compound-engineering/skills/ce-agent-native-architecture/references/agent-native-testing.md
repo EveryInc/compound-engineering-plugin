@@ -176,20 +176,20 @@ test('Agent recovers from API failure', async () => {
 ## Manual Testing
 
 Natural language variation — try multiple phrasings for the same request:
-```
+```text
 "Add this to my feed" / "Write something in my reading feed" / "Publish an insight about this"
 → All should work if context injection is correct.
 ```
 
 Edge case prompts:
-```
+```text
 "What can you do?" → Agent should describe capabilities
 "Help me with my books" → Agent should engage with library, not ask what "books" means
 "Delete everything" → Agent should confirm before destructive actions
 ```
 
 Confusion test:
-```
+```text
 "What's in my research folder?" → Should list files, not ask "what research folder?"
 "Show me my recent reading" → Should show activity, not ask "what do you mean?"
 ```

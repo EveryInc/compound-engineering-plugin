@@ -53,7 +53,7 @@ Domain tools are shortcuts, not gates. Unless there's a specific reason to restr
 ## Graduating to Code
 
 The progression:
-```
+```text
 Stage 1: Agent uses primitives in a loop        (flexible, proves concept, slow/expensive)
 Stage 2: Add domain tools for common operations (faster, still agent-orchestrated)
 Stage 3: Hot paths implemented in optimized code (fast, deterministic, agent triggers it)

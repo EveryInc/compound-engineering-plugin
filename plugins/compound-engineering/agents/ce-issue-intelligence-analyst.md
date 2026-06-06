@@ -44,7 +44,7 @@ Scan for two purposes:
 
 **2b. Fetch open issues:**
 
-```
+```bash
 gh issue list --state open --limit 100 --json number,title,labels,createdAt,body --jq '[.[] | {number, title, labels, createdAt, body: (.body[:500])}]'
 ```
 

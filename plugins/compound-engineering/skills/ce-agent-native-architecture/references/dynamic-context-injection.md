@@ -8,7 +8,7 @@ How to inject dynamic runtime context into agent system prompts. Static prompts 
 ## Why Dynamic Context Injection?
 
 The failure case:
-```
+```text
 User: "Write a little thing about Catherine the Great in my reading feed"
 Agent: "What system are you referring to? I'm not sure what reading feed means."
 ```
@@ -54,19 +54,19 @@ func buildSystemPrompt() -> String {
 ## What Context to Inject
 
 **1. Available Resources** — what data/files exist that the agent can access:
-```
+```text
 Books: "Moby Dick" (id: book_123), "1984" (id: book_456)
 Research folders: Documents/Research/book_123/ (3 files)
 ```
 
 **2. Current State** — what the user has done recently:
-```
+```text
 - 2 hours ago: Highlighted passage in "1984" about surveillance
 - Yesterday: Completed research on "Moby Dick" whale symbolism
 ```
 
 **3. Capabilities Mapping** — what tool maps to what UI feature, in user language:
-```
+```text
 | User Says | You Should Use | Result |
 |-----------|----------------|--------|
 | "my feed" | `publish_to_feed` | Creates insight in Feed tab |
@@ -75,7 +75,7 @@ Research folders: Documents/Research/book_123/ (3 files)
 ```
 
 **4. Domain Vocabulary** — app-specific terms:
-```
+```text
 - **Feed**: The Feed tab showing reading insights
 - **Research folder**: Documents/Research/{bookId}/
 - **Highlight**: A passage the user marked in a book

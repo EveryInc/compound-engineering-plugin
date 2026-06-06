@@ -204,7 +204,7 @@ If both are missing, prompt the user for the start command rather than guessing.
 
 Default: `3000`. Procfile-based projects list their processes in `Procfile.dev`, so the authoritative port comes from the `web:` line:
 
-```
+```text
 web: bundle exec puma -p 3000 -C config/puma.rb
 worker: bundle exec sidekiq
 ```

@@ -57,7 +57,7 @@ class SharedWorkspace {
 
 ### Directory Structure
 
-```
+```text
 iCloud Drive/YourApp/Documents/
 ├── Journal/
 │   ├── user/2025-01-15.md

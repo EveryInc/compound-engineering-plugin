@@ -8,7 +8,7 @@ A structured discipline for ensuring agents can do everything users can do. Ever
 ## Why Action Parity Matters
 
 The failure case:
-```
+```text
 User: "Write something about Catherine the Great in my reading feed"
 Agent: "What system are you referring to? I'm not sure what reading feed means."
 ```

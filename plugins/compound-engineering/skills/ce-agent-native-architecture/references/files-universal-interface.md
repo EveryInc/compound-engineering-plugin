@@ -112,7 +112,7 @@ How it works:
 Files for legibility, databases for structure. When in doubt, files.
 
 Hybrid approach: maintain a file-based "source of truth" the agent works with, synced to the database for UI queries:
-```
+```text
 Files: Research/book_123/introduction.md  (agent workspace)
 DB:    research_index: { bookId, path, title, createdAt }  (UI queries)
 ```
