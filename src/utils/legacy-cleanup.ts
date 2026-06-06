@@ -124,6 +124,9 @@ export const STALE_SKILL_DIRS = [
 
   // Merged into ce-work (delegation mode absorbed into stable skill)
   "ce-work-beta",
+
+  // Removed autonomous pipeline orchestrator (slim/ultra-minimal)
+  "lfg",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -363,6 +366,10 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "Create a git commit with a clear, value-communicating message. Use when the user says \"commit\", \"commit this\", \"save my changes\", \"create a commit\", or wants to commit staged or unstaged work. Produces well-structured commit messages that follow repo conventions when they exist, and defaults to conventional commit format otherwise.",
   "git-commit":
     "Create a git commit with a clear, value-communicating message. Use when the user says \"commit\", \"commit this\", \"save my changes\", \"create a commit\", or wants to commit staged or unstaged work. Produces well-structured commit messages that follow repo conventions when they exist, and defaults to conventional commit format otherwise.",
+
+  // lfg was the autonomous end-to-end pipeline orchestrator (removed, no replacement).
+  "lfg":
+    "Run the full autonomous engineering pipeline end-to-end (plan, work, code review, test, commit, push, open PR, watch CI, fix CI failures until green). Use only when the user explicitly requests hands-off execution of a software task and provides a feature description; do not auto-route casual conversation here.",
 }
 
 /**

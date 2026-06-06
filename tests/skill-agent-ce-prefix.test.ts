@@ -11,10 +11,7 @@ const REF = `plugins/compound-engineering/AGENTS.md "Naming Convention"`
 
 // Exemptions from the ce- prefix rule. Add entries here only with a written
 // reason — the exemption list shouldn't become a silent junk drawer.
-const SKILL_EXEMPTIONS = new Set<string>([
-  // lfg ships as the public command `/lfg` (see plugins/compound-engineering/README.md).
-  "lfg",
-])
+const SKILL_EXEMPTIONS = new Set<string>([])
 const AGENT_EXEMPTIONS = new Set<string>([])
 
 function frontmatterName(filePath: string): string {

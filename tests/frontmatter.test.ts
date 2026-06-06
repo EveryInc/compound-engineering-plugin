@@ -111,13 +111,12 @@ describe("frontmatter YAML validity", () => {
         // All compound-engineering skills (and agents) must use the `ce-` prefix
         // so they are unambiguously identifiable as compound-engineering
         // components. See plugins/compound-engineering/AGENTS.md "Naming
-        // Convention". A small allowlist preserves three pre-existing skills
+        // Convention". A small allowlist preserves two pre-existing skills
         // that predate the rule -- no new entries should be added.
         if (pluginRoot === "plugins/compound-engineering") {
           const SKILL_PREFIX_ALLOWLIST = new Set([
             "every-style-editor",
             "file-todos",
-            "lfg",
           ])
           test(`${pluginRoot}/${rel} skill name uses ce- prefix`, () => {
             const dirName = path.basename(path.dirname(rel))

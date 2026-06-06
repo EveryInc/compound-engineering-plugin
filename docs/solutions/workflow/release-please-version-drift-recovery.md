@@ -183,7 +183,7 @@ Recovery used Path A (forward-sync to 3.0.7) because:
 - Path B would have orphaned those caches and triggered version-regression warnings
 - Path C would have reintroduced a `release-as` pin that had just been cleaned up
 
-PR #678 applied the full Path A fix across five fields in four files and updated a stale test assertion that was also hiding behind the release-validate failure (commit `1f20c384` renumbered steps in `lfg/SKILL.md` but didn't update `tests/review-skill-contract.test.ts`). See PR #678's commits for the exact diff.
+PR #678 applied the full Path A fix across five fields in four files and updated a stale test assertion that was also hiding behind the release-validate failure. See PR #678's commits for the exact diff.
 
 ## Prevention
 

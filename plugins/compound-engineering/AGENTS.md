@@ -88,7 +88,7 @@ Important: Just because the developer's installed plugin may be out of date, it'
 
 **Agents** follow the same convention: `ce-adversarial-reviewer`, `ce-learnings-researcher`, etc. When referencing agents from skills, use the bare `ce-<agent-name>` form (e.g., `ce-adversarial-reviewer`) — the `ce-` prefix is sufficient for uniqueness across plugins.
 
-**The `ce-` prefix is required for every new skill and agent — no exceptions.** Three legacy skills (`every-style-editor`, `file-todos`, `lfg`) predate the rule and remain unprefixed; they are pinned in `tests/frontmatter.test.ts` as the only allowed exceptions. Do not add to that allowlist. When adding a new skill, the directory name, the SKILL.md `name:` frontmatter, and any README references must all start with `ce-`. The frontmatter test enforces this and will fail on a missing prefix.
+**The `ce-` prefix is required for every new skill and agent — no exceptions.** Two legacy skills (`every-style-editor`, `file-todos`) predate the rule and remain unprefixed; they are pinned in `tests/frontmatter.test.ts` as the only allowed exceptions. Do not add to that allowlist. When adding a new skill, the directory name, the SKILL.md `name:` frontmatter, and any README references must all start with `ce-`. The frontmatter test enforces this and will fail on a missing prefix.
 
 ## Skill Design Principles
 

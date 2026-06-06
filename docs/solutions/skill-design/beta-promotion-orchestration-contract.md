@@ -32,7 +32,6 @@ Treat promotion as an orchestration contract change, not a file rename.
 
 This pattern was applied when promoting the review beta (`ce-review-beta`, tracked as the legacy artifact `ce:review-beta`/`ce-review-beta` in the cleanup registry) into the stable `ce-code-review` skill. The caller contract:
 
-- `lfg` -> `/ce-code-review mode:autofix` (enforced by `tests/review-skill-contract.test.ts`)
 - `slfg` parallel phase -> `/ce-code-review mode:report-only` (intended; not currently covered by a contract test)
 
 ## Prevention
