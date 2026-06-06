@@ -73,12 +73,12 @@ For each release, render:
 
 {body, soft-capped at 25 rendered lines}
 
-[Full release notes →]({url})
+Full release notes: {url}
 ```
 
 `{published_at_human}` is the date in `YYYY-MM-DD` form derived from `published_at`. `{body}` is the release-please body verbatim, with one transformation:
 
-**Soft 25-line cap.** If the body exceeds 25 rendered lines, keep the first 25 lines and append `— N more changes, [see full release notes →]({url})`. Truncation must be **markdown-fence aware**: count the triple-backtick fence lines that appear in the kept portion. If the count is odd, the cut landed inside an open code fence; close it with a `` ``` `` line on the truncated output before appending the "see more" link, so renderers do not swallow the link or following content.
+**Soft 25-line cap.** If the body exceeds 25 rendered lines, keep the first 25 lines and append `— N more changes, see full release notes: {url}`. Truncation must be **markdown-fence aware**: count the triple-backtick fence lines that appear in the kept portion. If the count is odd, the cut landed inside an open code fence; close it with a `` ``` `` line on the truncated output before appending the "see more" link, so renderers do not swallow the link or following content.
 
 After all releases are rendered, append a two-line footer:
 
@@ -135,7 +135,7 @@ Always pass the PR number as a separate argument (list-form) — never interpola
 Write a direct narrative answer to the user's question. Cite the **primary** matching release inline as a version, e.g., `(v2.67.0)`, with a markdown link to the release URL. If older matches exist, reference them inline as:
 
 ```
-previously: [v2.65.0]({older_url}), [v2.62.0]({older_url})
+previously: v2.65.0 ({older_url}), v2.62.0 ({older_url})
 ```
 
 Ground the narrative in the release body and (when available) the enriched PR title/body. Quote sparingly — paraphrase the change in the user's framing rather than dumping the release notes verbatim. Keep the answer scoped to the user's question; do not pad with unrelated changes from the same release.
