@@ -11,7 +11,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 | Component | Count |
 |-----------|-------|
 | Agents | 34 |
-| Skills | 15 |
+| Skills | 14 |
 
 ## Skills
 
@@ -27,7 +27,6 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | [`/ce-work`](../../docs/skills/ce-work.md) | Execute work items systematically; pass `delegate:codex` to offload execution to Codex |
 | [`/ce-debug`](../../docs/skills/ce-debug.md) | Systematically find root causes and fix bugs -- traces causal chains, forms testable hypotheses, and implements test-first fixes |
 | [`/ce-compound`](../../docs/skills/ce-compound.md) | Document solved problems to compound team knowledge, or refresh stale learnings with `mode:refresh` |
-| [`/ce-optimize`](../../docs/skills/ce-optimize.md) | Run iterative optimization loops with parallel experiments, measurement gates, and LLM-as-judge quality scoring |
 
 ### Research & Context
 

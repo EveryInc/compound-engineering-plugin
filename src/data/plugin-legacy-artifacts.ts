@@ -134,6 +134,7 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "ce-release-notes",
       "ce-resolve-pr-feedback",
       "ce-polish",
+      "ce-optimize",
       "todo-create",
       "todo-resolve",
       "todo-triage",

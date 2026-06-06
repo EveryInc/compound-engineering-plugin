@@ -130,7 +130,7 @@ Reach for `ce-code-review` when:
 - Your harness lacks a built-in `/review` and you still want a real review
 - You want structured handling of residual work, not just findings dumped in chat
 - You explicitly want a deeper, multi-persona pass (e.g., "review this thoroughly")
-- Another skill is escalating to it (`/ce-work` Phase 3.3 Tier 2, `/ce-optimize` Phase 4.3)
+- Another skill is escalating to it (`/ce-work` Phase 3.3 Tier 2)
 
 Skip `ce-code-review` when:
 
@@ -146,7 +146,6 @@ Skip `ce-code-review` when:
 
 - **`/ce-work` Phase 3.3** — escalates to `ce-code-review mode:agent` for sensitive surfaces, ≥400 lines + diffuse, ≥1,000 lines, or explicit thorough-review requests; ce-work then applies the findings
 - **`/ce-work` Phase 3.4 Residual Work Gate** — reads the Residual Actionable Work summary `ce-code-review` returned and presents user options
-- **`/ce-optimize` Phase 4.3** — runs against the cumulative optimization branch diff before merging
 - **`/ce-doc-review`** — sibling skill for docs (requirements, plans), not code
 
 Tier 1 (harness-native `/review`) handles most cases; `ce-code-review` is the Tier 2 escalation.

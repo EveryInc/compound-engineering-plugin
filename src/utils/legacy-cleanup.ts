@@ -172,6 +172,10 @@ export const STALE_SKILL_DIRS = [
   // are the current-era ce- prefixed dir names.
   "ce-agent-native-architecture",
   "ce-agent-native-audit",
+
+  // Removed metric-driven optimization skill (slim/ultra-minimal). Only ever
+  // shipped under the ce- prefix, so no colon/unprefixed variant is needed.
+  "ce-optimize",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -487,6 +491,11 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "Build applications where agents are first-class citizens. Use this skill when designing autonomous agents, creating MCP tools, implementing self-modifying systems, or building apps where features are outcomes achieved by agents operating in a loop.",
   "ce-agent-native-audit":
     "Run comprehensive agent-native architecture review with scored principles",
+
+  // ce-optimize was the metric-driven iterative optimization skill (removed, no
+  // replacement, slim/ultra-minimal). Only ever shipped under the ce- prefix.
+  "ce-optimize":
+    "Run metric-driven iterative optimization loops -- define a measurable goal, run parallel experiments, measure each against hard gates or LLM-as-judge scores, keep improvements, and converge on the best solution. Use when optimizing clustering quality, search relevance, build performance, prompt quality, or any measurable outcome that benefits from systematic experimentation.",
 }
 
 /**
