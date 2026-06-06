@@ -15,7 +15,6 @@ import type { ClaudeToOpenCodeOptions } from "./claude-to-opencode"
 export type ClaudeToKiroOptions = ClaudeToOpenCodeOptions
 
 const KIRO_SKILL_NAME_MAX_LENGTH = 64
-const KIRO_SKILL_NAME_PATTERN = /^[a-z][a-z0-9-]*$/
 const KIRO_DESCRIPTION_MAX_LENGTH = 1024
 
 const CLAUDE_TO_KIRO_TOOLS: Record<string, string> = {

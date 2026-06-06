@@ -114,11 +114,6 @@ export function detectComponentsFromFiles(files: string[]): Map<ReleaseComponent
     }
   }
 
-  for (const [component, matchedFiles] of componentFiles.entries()) {
-    if (component === "cli" && matchedFiles.length === 0) continue
-    if (component !== "cli" && matchedFiles.length === 0) continue
-  }
-
   return componentFiles
 }
 

@@ -430,10 +430,6 @@ function applyPermissions(
   config.permission = permission
 }
 
-function normalizeTool(raw: string): string | null {
-  return parseToolSpec(raw).tool
-}
-
 function parseToolSpec(raw: string): { tool: string | null; pattern?: string } {
   const trimmed = raw.trim()
   if (!trimmed) return { tool: null }
