@@ -18,13 +18,13 @@ const fixturePlugin: ClaudePlugin = {
   ],
   commands: [
     {
-      name: "workflows:plan",
+      name: "acme:plan",
       description: "Planning command",
       argumentHint: "[FOCUS]",
       model: "inherit",
       allowedTools: ["Read"],
       body: "Plan the work.",
-      sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+      sourcePath: "/tmp/plugin/commands/acme/plan.md",
     },
   ],
   skills: [
@@ -143,7 +143,7 @@ describe("convertClaudeToGemini", () => {
 
     expect(bundle.commands).toHaveLength(1)
     const command = bundle.commands[0]
-    expect(command.name).toBe("workflows/plan")
+    expect(command.name).toBe("acme/plan")
     expect(command.content).toContain('description = "Planning command"')
     expect(command.content).toContain('prompt = """')
     expect(command.content).toContain("Plan the work.")
@@ -156,7 +156,7 @@ describe("convertClaudeToGemini", () => {
       permissions: "none",
     })
 
-    const command = bundle.commands.find((c) => c.name === "workflows/plan")
+    const command = bundle.commands.find((c) => c.name === "acme/plan")
     expect(command).toBeDefined()
   })
 

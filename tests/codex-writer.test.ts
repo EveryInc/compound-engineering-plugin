@@ -672,7 +672,7 @@ description: Brainstorm workflow
 ---
 
 Continue with /ce-plan when ready.
-Or use /workflows:plan if you're following an older doc.
+Or use /acme:plan if you're following an older doc.
 Use /todo-resolve for deeper research.
 `,
     )
@@ -691,7 +691,7 @@ Use /todo-resolve for deeper research.
         },
         skillTargets: {
           "ce-plan": "ce-plan",
-          "workflows-plan": "ce-plan",
+          "acme-plan": "ce-plan",
         },
       },
     }
@@ -703,7 +703,7 @@ Use /todo-resolve for deeper research.
       "utf8",
     )
     expect(installedSkill).toContain("the ce-plan skill")
-    expect(installedSkill).not.toContain("/workflows:plan")
+    expect(installedSkill).not.toContain("/acme:plan")
     expect(installedSkill).toContain("/prompts:todo-resolve")
 
     const notes = await fs.readFile(

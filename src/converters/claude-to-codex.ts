@@ -28,13 +28,7 @@ export function convertClaudeToCodex(
 
   const platformSkills = filterSkillsByPlatform(plugin.skills, "codex")
   const invocableCommands = plugin.commands.filter((command) => !command.disableModelInvocation)
-  const applyCompoundWorkflowModel = shouldApplyCompoundWorkflowModel(plugin)
-  const deprecatedWorkflowAliases = applyCompoundWorkflowModel
-    ? platformSkills.filter((skill) => isDeprecatedCodexWorkflowAlias(skill.name))
-    : []
-  const copiedSkills = applyCompoundWorkflowModel
-    ? platformSkills.filter((skill) => !isDeprecatedCodexWorkflowAlias(skill.name))
-    : platformSkills
+  const copiedSkills = platformSkills
   const skillDirs = copiedSkills.map((skill) => ({
     name: skill.name,
     sourceDir: skill.sourceDir,
@@ -58,12 +52,6 @@ export function convertClaudeToCodex(
   for (const skill of copiedSkills) {
     skillTargets[normalizeCodexName(skill.name)] = skill.name
   }
-  for (const alias of deprecatedWorkflowAliases) {
-    const canonicalName = toCanonicalWorkflowSkillName(alias.name)
-    if (canonicalName) {
-      skillTargets[normalizeCodexName(alias.name)] = canonicalName
-    }
-  }
 
   // Agents are always converted to TOML custom agents regardless of mode —
   // that's the whole point of --to codex. invocationTargets is populated from
@@ -86,16 +74,8 @@ export function convertClaudeToCodex(
     // into backup because `currentSkills` (derived from skillDirs and
     // generatedSkills) would be empty while the legacy allow-list still
     // lists them.
-    // Mirror the skill-name set that full mode would emit via `skillDirs`:
-    // current skills plus the canonical rewrites of deprecated workflow
-    // aliases. Deduped via Set so the caller doesn't have to worry about
-    // overlap between `copiedSkills` names and `skillTargets` values.
-    const externallyManagedSkillNames = Array.from(new Set([
-      ...copiedSkills.map((skill) => skill.name),
-      ...deprecatedWorkflowAliases
-        .map((alias) => toCanonicalWorkflowSkillName(alias.name))
-        .filter((name): name is string => name !== null),
-    ]))
+    // Mirror the skill-name set that full mode would emit via `skillDirs`.
+    const externallyManagedSkillNames = copiedSkills.map((skill) => skill.name)
     return {
       pluginName: plugin.manifest.name,
       prompts: [],
@@ -187,23 +167,6 @@ function renderPrompt(
   const transformedBody = transformContentForCodex(command.body, invocationTargets)
   const body = [instructions, "", transformedBody].join("\n").trim()
   return formatFrontmatter(frontmatter, body)
-}
-
-function isDeprecatedCodexWorkflowAlias(name: string): boolean {
-  return name.startsWith("workflows:")
-}
-
-const WORKFLOW_ALIAS_OVERRIDES: Record<string, string> = {
-  "workflows:review": "ce-code-review",
-}
-
-function toCanonicalWorkflowSkillName(name: string): string | null {
-  if (!isDeprecatedCodexWorkflowAlias(name)) return null
-  return WORKFLOW_ALIAS_OVERRIDES[name] ?? `ce-${name.slice("workflows:".length)}`
-}
-
-function shouldApplyCompoundWorkflowModel(plugin: ClaudePlugin): boolean {
-  return plugin.manifest.name === "compound-engineering"
 }
 
 function buildAgentTargets(plugin: ClaudePlugin, agents: CodexAgent[]): Record<string, string> {

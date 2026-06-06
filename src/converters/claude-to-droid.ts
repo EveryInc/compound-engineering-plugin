@@ -118,7 +118,7 @@ function mapAgentTools(agent: ClaudeAgent): string[] | undefined {
 /**
  * Transform Claude Code content to Factory Droid-compatible content.
  *
- * 1. Slash commands: /workflows:plan → /plan, /command-name stays as-is
+ * 1. Slash commands: /acme:plan → /plan, /command-name stays as-is
  * 2. Task agent calls: Task agent-name(args) → Task agent-name: args
  * 3. Agent references: @agent-name → the agent-name droid
  */
@@ -138,7 +138,7 @@ export function transformContentForDroid(body: string): string {
   })
 
   // 2. Transform slash command references
-  // /workflows:plan → /plan, /command-name stays as-is
+  // /acme:plan → /plan, /command-name stays as-is
   const slashCommandPattern = /(?<![:\w])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
   result = result.replace(slashCommandPattern, (match, commandName: string) => {
     if (commandName.includes('/')) return match
@@ -158,7 +158,7 @@ export function transformContentForDroid(body: string): string {
 
 /**
  * Flatten a command name by stripping the namespace prefix.
- * "workflows:plan" → "plan"
+ * "acme:plan" → "plan"
  * "plan_review" → "plan_review"
  */
 function flattenCommandName(name: string): string {

@@ -127,7 +127,7 @@ function convertCommandToSkill(
  *
  * 1. Task agent calls: Task agent-name(args) -> Use the use_subagent tool ...
  * 2. Path rewriting: .claude/ -> .kiro/, ~/.claude/ -> ~/.kiro/
- * 3. Slash command refs: /workflows:plan -> use the workflows-plan skill
+ * 3. Slash command refs: /acme:plan -> use the acme-plan skill
  * 4. Claude tool names: Bash -> shell, Read -> read, etc.
  * 5. Agent refs: @agent-name -> the agent-name agent (only for known agent names)
  */

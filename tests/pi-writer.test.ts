@@ -63,7 +63,7 @@ describe("writePiBundle", () => {
 
     const bundle: PiBundle = {
       pluginName: "compound-engineering",
-      prompts: [{ name: "workflows-plan", content: "Prompt content" }],
+      prompts: [{ name: "acme-plan", content: "Prompt content" }],
       skillDirs: [
         {
           name: "skill-one",
@@ -82,7 +82,7 @@ describe("writePiBundle", () => {
 
     await writePiBundle(outputRoot, bundle)
 
-    expect(await exists(path.join(outputRoot, "prompts", "workflows-plan.md"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "prompts", "acme-plan.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
     // Claude agents are now written as Pi agent files (.pi/agents/<name>.md),
     // not skill directories, so nicobailon/pi-subagents can resolve them via
@@ -145,7 +145,7 @@ Run these research agents:
     const outputRoot = path.join(tempRoot, "agent")
 
     const bundle: PiBundle = {
-      prompts: [{ name: "workflows-work", content: "Prompt content" }],
+      prompts: [{ name: "acme-work", content: "Prompt content" }],
       skillDirs: [],
       generatedSkills: [],
       agents: [],
@@ -154,7 +154,7 @@ Run these research agents:
 
     await writePiBundle(outputRoot, bundle)
 
-    expect(await exists(path.join(outputRoot, "prompts", "workflows-work.md"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "prompts", "acme-work.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, ".pi"))).toBe(false)
   })
 

@@ -55,7 +55,7 @@ function convertAgent(agent: ClaudeAgent, usedNames: Set<string>): GeminiAgent {
 }
 
 function convertCommand(command: ClaudeCommand, usedNames: Set<string>): GeminiCommand {
-  // Preserve namespace structure: workflows:plan -> workflows/plan
+  // Preserve namespace structure: acme:plan -> acme/plan
   const commandPath = resolveCommandPath(command.name)
   const pathKey = commandPath.join("/")
   uniqueName(pathKey, usedNames) // Track for dedup
@@ -130,7 +130,7 @@ function convertMcpServers(
 
 /**
  * Resolve command name to path segments.
- * workflows:plan -> ["workflows", "plan"]
+ * acme:plan -> ["acme", "plan"]
  * plan -> ["plan"]
  */
 function resolveCommandPath(name: string): string[] {

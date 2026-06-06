@@ -21,13 +21,13 @@ const fixturePlugin: ClaudePlugin = {
   ],
   commands: [
     {
-      name: "workflows:plan",
+      name: "acme:plan",
       description: "Planning command",
       argumentHint: "[FOCUS]",
       model: "inherit",
       allowedTools: ["Read"],
       body: "Plan the work.",
-      sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+      sourcePath: "/tmp/plugin/commands/acme/plan.md",
     },
   ],
   skills: [
@@ -129,9 +129,9 @@ describe("convertClaudeToKiro", () => {
 
     expect(bundle.generatedSkills).toHaveLength(1)
     const skill = bundle.generatedSkills[0]
-    expect(skill.name).toBe("workflows-plan")
+    expect(skill.name).toBe("acme-plan")
     const parsed = parseFrontmatter(skill.content)
-    expect(parsed.data.name).toBe("workflows-plan")
+    expect(parsed.data.name).toBe("acme-plan")
     expect(parsed.data.description).toBe("Planning command")
     expect(parsed.body).toContain("Plan the work.")
   })
@@ -430,8 +430,8 @@ Task best-practices-researcher(topic)`
   })
 
   test("transforms slash command refs to skill activation", () => {
-    const result = transformContentForKiro("Run /workflows:plan to start planning.")
-    expect(result).toContain("the workflows-plan skill")
+    const result = transformContentForKiro("Run /acme:plan to start planning.")
+    expect(result).toContain("the acme-plan skill")
   })
 
   test("does not transform partial .claude paths like package/.claude-config/", () => {

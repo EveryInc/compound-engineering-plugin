@@ -54,7 +54,7 @@ describe("loadClaudePlugin", () => {
     const researchAgent = plugin.agents.find((agent) => agent.name === "repo-research-analyst")
     expect(researchAgent?.capabilities).toEqual(["Capability A", "Capability B"])
 
-    const reviewCommand = plugin.commands.find((command) => command.name === "workflows:review")
+    const reviewCommand = plugin.commands.find((command) => command.name === "acme:review")
     expect(reviewCommand?.allowedTools).toEqual([
       "Read",
       "Write",
@@ -74,13 +74,13 @@ describe("loadClaudePlugin", () => {
     const skillCommand = plugin.commands.find((command) => command.name === "create-agent-skill")
     expect(skillCommand?.allowedTools).toEqual(["Skill(create-agent-skills)"])
 
-    const modelCommand = plugin.commands.find((command) => command.name === "workflows:work")
+    const modelCommand = plugin.commands.find((command) => command.name === "acme:work")
     expect(modelCommand?.allowedTools).toEqual(["WebFetch"])
 
     const patternCommand = plugin.commands.find((command) => command.name === "report-bug")
     expect(patternCommand?.allowedTools).toEqual(["Read(.env)", "Bash(git:*)"])
 
-    const planCommand = plugin.commands.find((command) => command.name === "workflows:plan")
+    const planCommand = plugin.commands.find((command) => command.name === "acme:plan")
     expect(planCommand?.allowedTools).toEqual(["Question", "TodoWrite", "TodoRead"])
 
     expect(plugin.mcpServers?.context7?.url).toBe("https://mcp.context7.com/mcp")
@@ -93,7 +93,7 @@ describe("loadClaudePlugin", () => {
     expect(disabledCommand).toBeDefined()
     expect(disabledCommand?.disableModelInvocation).toBe(true)
 
-    const normalCommand = plugin.commands.find((command) => command.name === "workflows:review")
+    const normalCommand = plugin.commands.find((command) => command.name === "acme:review")
     expect(normalCommand?.disableModelInvocation).toBeUndefined()
   })
 

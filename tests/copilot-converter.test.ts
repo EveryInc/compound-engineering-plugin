@@ -18,13 +18,13 @@ const fixturePlugin: ClaudePlugin = {
   ],
   commands: [
     {
-      name: "workflows:plan",
+      name: "acme:plan",
       description: "Planning command",
       argumentHint: "[FOCUS]",
       model: "inherit",
       allowedTools: ["Read"],
       body: "Plan the work.",
-      sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+      sourcePath: "/tmp/plugin/commands/acme/plan.md",
     },
   ],
   skills: [
@@ -153,17 +153,17 @@ describe("convertClaudeToCopilot", () => {
 
     expect(bundle.generatedSkills).toHaveLength(1)
     const skill = bundle.generatedSkills[0]
-    expect(skill.name).toBe("workflows-plan")
+    expect(skill.name).toBe("acme-plan")
 
     const parsed = parseFrontmatter(skill.content)
-    expect(parsed.data.name).toBe("workflows-plan")
+    expect(parsed.data.name).toBe("acme-plan")
     expect(parsed.data.description).toBe("Planning command")
     expect(parsed.body).toContain("Plan the work.")
   })
 
   test("preserves namespaced command names with hyphens", () => {
     const bundle = convertClaudeToCopilot(fixturePlugin, defaultOptions)
-    expect(bundle.generatedSkills[0].name).toBe("workflows-plan")
+    expect(bundle.generatedSkills[0].name).toBe("acme-plan")
   })
 
   test("command name collision after normalization is deduplicated", () => {
@@ -171,16 +171,16 @@ describe("convertClaudeToCopilot", () => {
       ...fixturePlugin,
       commands: [
         {
-          name: "workflows:plan",
+          name: "acme:plan",
           description: "Workflow plan",
           body: "Plan body.",
-          sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+          sourcePath: "/tmp/plugin/commands/acme/plan.md",
         },
         {
-          name: "workflows:plan",
+          name: "acme:plan",
           description: "Duplicate plan",
           body: "Duplicate body.",
-          sourcePath: "/tmp/plugin/commands/workflows/plan2.md",
+          sourcePath: "/tmp/plugin/commands/acme/plan2.md",
         },
       ],
       agents: [],
@@ -189,7 +189,7 @@ describe("convertClaudeToCopilot", () => {
 
     const bundle = convertClaudeToCopilot(plugin, defaultOptions)
     const names = bundle.generatedSkills.map((s) => s.name)
-    expect(names).toEqual(["workflows-plan", "workflows-plan-2"])
+    expect(names).toEqual(["acme-plan", "acme-plan-2"])
   })
 
   test("namespaced and non-namespaced commands produce distinct names", () => {
@@ -197,10 +197,10 @@ describe("convertClaudeToCopilot", () => {
       ...fixturePlugin,
       commands: [
         {
-          name: "workflows:plan",
+          name: "acme:plan",
           description: "Workflow plan",
           body: "Plan body.",
-          sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+          sourcePath: "/tmp/plugin/commands/acme/plan.md",
         },
         {
           name: "plan",
@@ -215,7 +215,7 @@ describe("convertClaudeToCopilot", () => {
 
     const bundle = convertClaudeToCopilot(plugin, defaultOptions)
     const names = bundle.generatedSkills.map((s) => s.name)
-    expect(names).toEqual(["workflows-plan", "plan"])
+    expect(names).toEqual(["acme-plan", "plan"])
   })
 
   test("command allowedTools is silently dropped", () => {
@@ -451,13 +451,13 @@ Task best-practices-researcher(topic)`
 
   test("replaces colons with hyphens in slash commands", () => {
     const input = `1. Run /todo-resolve to enhance
-2. Start /workflows:work to implement
+2. Start /acme:work to implement
 3. File at /tmp/output.md`
 
     const result = transformContentForCopilot(input)
     expect(result).toContain("/todo-resolve")
-    expect(result).toContain("/workflows-work")
-    expect(result).not.toContain("/workflows:work")
+    expect(result).toContain("/acme-work")
+    expect(result).not.toContain("/acme:work")
     // File paths preserved
     expect(result).toContain("/tmp/output.md")
   })

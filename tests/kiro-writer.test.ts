@@ -112,8 +112,8 @@ describe("writeKiroBundle", () => {
       ],
       generatedSkills: [
         {
-          name: "workflows-plan",
-          content: "---\nname: workflows-plan\ndescription: Planning\n---\n\nPlan the work.",
+          name: "acme-plan",
+          content: "---\nname: acme-plan\ndescription: Planning\n---\n\nPlan the work.",
         },
       ],
       skillDirs: [
@@ -147,7 +147,7 @@ describe("writeKiroBundle", () => {
     expect(promptContent).toContain("Review code for vulnerabilities.")
 
     // Generated skill
-    const skillPath = path.join(tempRoot, ".kiro", "skills", "workflows-plan", "SKILL.md")
+    const skillPath = path.join(tempRoot, ".kiro", "skills", "acme-plan", "SKILL.md")
     expect(await exists(skillPath)).toBe(true)
     const skillContent = await fs.readFile(skillPath, "utf8")
     expect(skillContent).toContain("Plan the work.")

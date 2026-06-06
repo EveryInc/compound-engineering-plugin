@@ -142,7 +142,7 @@ Run these research agents:
       skillDirs: [],
       commands: [
         {
-          name: "workflows/plan",
+          name: "acme/plan",
           content: 'description = "Plan"\nprompt = """\nPlan.\n"""',
         },
       ],
@@ -150,7 +150,7 @@ Run these research agents:
 
     await writeGeminiBundle(tempRoot, bundle)
 
-    expect(await exists(path.join(tempRoot, ".gemini", "commands", "workflows", "plan.toml"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".gemini", "commands", "acme", "plan.toml"))).toBe(true)
   })
 
   test("does not double-nest when output root is .gemini", async () => {

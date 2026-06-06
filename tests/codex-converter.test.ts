@@ -21,13 +21,13 @@ const fixturePlugin: ClaudePlugin = {
   ],
   commands: [
     {
-      name: "workflows:plan",
+      name: "acme:plan",
       description: "Planning command",
       argumentHint: "[FOCUS]",
       model: "inherit",
       allowedTools: ["Read"],
       body: "Plan the work.",
-      sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+      sourcePath: "/tmp/plugin/commands/acme/plan.md",
     },
   ],
   skills: [
@@ -103,22 +103,22 @@ describe("convertClaudeToCodex", () => {
 
     expect(bundle.prompts).toHaveLength(1)
     const prompt = bundle.prompts[0]
-    expect(prompt.name).toBe("workflows-plan")
+    expect(prompt.name).toBe("acme-plan")
 
     const parsedPrompt = parseFrontmatter(prompt.content)
     expect(parsedPrompt.data.description).toBe("Planning command")
     expect(parsedPrompt.data["argument-hint"]).toBe("[FOCUS]")
-    expect(parsedPrompt.body).toContain("$workflows-plan")
+    expect(parsedPrompt.body).toContain("$acme-plan")
     expect(parsedPrompt.body).toContain("Plan the work.")
 
     expect(bundle.skillDirs[0]?.name).toBe("existing-skill")
     expect(bundle.generatedSkills).toHaveLength(1)
     expect(bundle.agents).toHaveLength(1)
 
-    const commandSkill = bundle.generatedSkills.find((skill) => skill.name === "workflows-plan")
+    const commandSkill = bundle.generatedSkills.find((skill) => skill.name === "acme-plan")
     expect(commandSkill).toBeDefined()
     const parsedCommandSkill = parseFrontmatter(commandSkill!.content)
-    expect(parsedCommandSkill.data.name).toBe("workflows-plan")
+    expect(parsedCommandSkill.data.name).toBe("acme-plan")
     expect(parsedCommandSkill.data.description).toBe("Planning command")
     expect(parsedCommandSkill.body).toContain("Allowed tools")
 
@@ -157,45 +157,7 @@ describe("convertClaudeToCodex", () => {
     expect("model" in agent!).toBe(false)
   })
 
-  test("copies workflow skills as regular skills and omits workflows aliases", () => {
-    const plugin: ClaudePlugin = {
-      ...fixturePlugin,
-      manifest: { name: "compound-engineering", version: "1.0.0" },
-      commands: [],
-      agents: [],
-      skills: [
-        {
-          name: "ce-plan",
-          description: "Planning workflow",
-          argumentHint: "[feature]",
-          sourceDir: "/tmp/plugin/skills/ce-plan",
-          skillPath: "/tmp/plugin/skills/ce-plan/SKILL.md",
-        },
-        {
-          name: "workflows:plan",
-          description: "Deprecated planning alias",
-          argumentHint: "[feature]",
-          sourceDir: "/tmp/plugin/skills/workflows-plan",
-          skillPath: "/tmp/plugin/skills/workflows-plan/SKILL.md",
-        },
-      ],
-    }
-
-    const bundle = convertClaudeToCodex(plugin, {
-      agentMode: "subagent",
-      inferTemperature: false,
-      permissions: "none",
-      codexIncludeSkills: true,
-    })
-
-    // No prompt wrappers for workflow skills — they're directly invocable as skills
-    expect(bundle.prompts).toHaveLength(0)
-
-    // ce-plan is copied as a regular skill, workflows:plan is omitted
-    expect(bundle.skillDirs.map((skill) => skill.name)).toEqual(["ce-plan"])
-  })
-
-  test("does not apply compound workflow canonicalization to other plugins", () => {
+  test("passes colon-namespaced skill names through unchanged", () => {
     const plugin: ClaudePlugin = {
       ...fixturePlugin,
       manifest: { name: "other-plugin", version: "1.0.0" },
@@ -210,11 +172,11 @@ describe("convertClaudeToCodex", () => {
           skillPath: "/tmp/plugin/skills/ce-plan/SKILL.md",
         },
         {
-          name: "workflows:plan",
-          description: "Custom workflows-namespaced skill",
+          name: "acme:plan",
+          description: "Custom acme-namespaced skill",
           argumentHint: "[feature]",
-          sourceDir: "/tmp/plugin/skills/workflows-plan",
-          skillPath: "/tmp/plugin/skills/workflows-plan/SKILL.md",
+          sourceDir: "/tmp/plugin/skills/acme-plan",
+          skillPath: "/tmp/plugin/skills/acme-plan/SKILL.md",
         },
       ],
     }
@@ -227,7 +189,7 @@ describe("convertClaudeToCodex", () => {
     })
 
     expect(bundle.prompts).toHaveLength(0)
-    expect(bundle.skillDirs.map((skill) => skill.name)).toEqual(["ce-plan", "workflows:plan"])
+    expect(bundle.skillDirs.map((skill) => skill.name)).toEqual(["ce-plan", "acme:plan"])
   })
 
   test("passes through MCP servers", () => {
@@ -451,7 +413,7 @@ Task compound-engineering:review:ce-security-reviewer(code_diff)`,
 
 1. Run /todo-resolve to enhance
 2. Run /plan_review for feedback
-3. Start /workflows:work to implement
+3. Start /acme:work to implement
 
 Don't confuse with file paths like /tmp/output.md or /dev/null.`,
           sourcePath: "/tmp/plugin/commands/plan.md",
@@ -475,7 +437,7 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
     // Slash commands should be transformed to /prompts: syntax
     expect(parsed.body).toContain("/prompts:todo-resolve")
     expect(parsed.body).toContain("/prompts:plan_review")
-    expect(parsed.body).toContain("/prompts:workflows-work")
+    expect(parsed.body).toContain("/prompts:acme-work")
 
     // File paths should NOT be transformed
     expect(parsed.body).toContain("/tmp/output.md")
@@ -551,13 +513,6 @@ If planning is complete, continue with /ce-work.`,
           argumentHint: "[feature]",
           sourceDir: "/tmp/plugin/skills/ce-work",
           skillPath: "/tmp/plugin/skills/ce-work/SKILL.md",
-        },
-        {
-          name: "workflows:work",
-          description: "Deprecated implementation alias",
-          argumentHint: "[feature]",
-          sourceDir: "/tmp/plugin/skills/workflows-work",
-          skillPath: "/tmp/plugin/skills/workflows-work/SKILL.md",
         },
       ],
     }

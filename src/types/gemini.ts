@@ -9,7 +9,7 @@ export type GeminiSkillDir = {
 }
 
 export type GeminiCommand = {
-  name: string // e.g. "plan" or "workflows/plan"
+  name: string // e.g. "plan" or "acme/plan"
   content: string // Full TOML content
 }
 

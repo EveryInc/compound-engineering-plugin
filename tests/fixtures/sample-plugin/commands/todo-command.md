@@ -1,7 +1,7 @@
 ---
-name: workflows:plan
+name: acme:plan
 description: Create a structured plan from requirements
 allowed-tools: Question, TodoWrite, TodoRead
 ---
 
-Workflows plan body.
+Acme plan body.

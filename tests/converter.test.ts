@@ -43,7 +43,7 @@ describe("convertClaudeToOpenCode", () => {
 
     expect(bundle.config.command).toBeUndefined()
     expect(bundle.config.tools).toBeUndefined()
-    expect(bundle.commandFiles.find((f) => f.name === "workflows:review")).toBeDefined()
+    expect(bundle.commandFiles.find((f) => f.name === "acme:review")).toBeDefined()
     expect(bundle.commandFiles.find((f) => f.name === "plan_review")).toBeDefined()
 
     const permission = bundle.config.permission as Record<string, string | Record<string, string>>
@@ -98,7 +98,7 @@ describe("convertClaudeToOpenCode", () => {
     expect(parsed.data.model).toBe("anthropic/claude-sonnet-4-20250514")
     expect(parsed.data.temperature).toBe(0.1)
 
-    const modelCommand = bundle.commandFiles.find((f) => f.name === "workflows:work")
+    const modelCommand = bundle.commandFiles.find((f) => f.name === "acme:work")
     expect(modelCommand).toBeDefined()
     const commandParsed = parseFrontmatter(modelCommand!.content)
     expect(commandParsed.data.model).toBe("openai/gpt-4o")
@@ -338,7 +338,7 @@ describe("convertClaudeToOpenCode", () => {
     expect(bundle.commandFiles.find((f) => f.name === "deploy-docs")).toBeUndefined()
 
     // Normal commands should still be present
-    expect(bundle.commandFiles.find((f) => f.name === "workflows:review")).toBeDefined()
+    expect(bundle.commandFiles.find((f) => f.name === "acme:review")).toBeDefined()
   })
 
   test("rewrites .claude/ paths to .opencode/ in command bodies", () => {

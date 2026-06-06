@@ -137,7 +137,7 @@ export function transformContentForPi(body: string): string {
   result = result.replace(/\bTodoWrite\b/g, "the platform's task-tracking primitive")
   result = result.replace(/\bTodoRead\b/g, "the platform's task-tracking primitive")
 
-  // /command-name or /workflows:command-name -> /workflows-command-name
+  // /command-name or /acme:command-name -> /acme-command-name
   const slashCommandPattern = /(?<![:\w])\/([a-z][a-z0-9_:-]*?)(?=[\s,."')\]}`]|$)/gi
   result = result.replace(slashCommandPattern, (match, commandName: string) => {
     if (commandName.includes("/")) return match

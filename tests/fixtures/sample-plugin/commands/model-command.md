@@ -1,8 +1,8 @@
 ---
-name: workflows:work
+name: acme:work
 description: Execute planned tasks step by step
 model: gpt-4o
 allowed-tools: WebFetch
 ---
 
-Workflows work body.
+Acme work body.

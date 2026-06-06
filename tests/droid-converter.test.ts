@@ -18,13 +18,13 @@ const fixturePlugin: ClaudePlugin = {
   ],
   commands: [
     {
-      name: "workflows:plan",
+      name: "acme:plan",
       description: "Planning command",
       argumentHint: "[FOCUS]",
       model: "inherit",
       allowedTools: ["Read"],
       body: "Plan the work.",
-      sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+      sourcePath: "/tmp/plugin/commands/acme/plan.md",
     },
   ],
   skills: [
@@ -240,7 +240,7 @@ Task best-practices-researcher(topic)`,
 
 1. Run /todo-resolve to enhance
 2. Run /plan_review for feedback
-3. Start /workflows:work to implement
+3. Start /acme:work to implement
 
 Don't confuse with file paths like /tmp/output.md or /dev/null.`,
           sourcePath: "/tmp/plugin/commands/plan.md",
@@ -260,7 +260,7 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
     expect(parsed.body).toContain("/todo-resolve")
     expect(parsed.body).toContain("/plan_review")
     expect(parsed.body).toContain("/work")
-    expect(parsed.body).not.toContain("/workflows:work")
+    expect(parsed.body).not.toContain("/acme:work")
     // File paths should NOT be transformed
     expect(parsed.body).toContain("/tmp/output.md")
     expect(parsed.body).toContain("/dev/null")
@@ -324,16 +324,16 @@ Don't confuse with file paths like /tmp/output.md or /dev/null.`,
       ...fixturePlugin,
       commands: [
         {
-          name: "workflows:plan",
+          name: "acme:plan",
           description: "Plan",
           body: "Plan body.",
-          sourcePath: "/tmp/plugin/commands/workflows/plan.md",
+          sourcePath: "/tmp/plugin/commands/acme/plan.md",
         },
         {
-          name: "workflows:work",
+          name: "acme:work",
           description: "Work",
           body: "Work body.",
-          sourcePath: "/tmp/plugin/commands/workflows/work.md",
+          sourcePath: "/tmp/plugin/commands/acme/work.md",
         },
         {
           name: "changelog",

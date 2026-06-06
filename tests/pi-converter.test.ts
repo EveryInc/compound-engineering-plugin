@@ -17,15 +17,15 @@ describe("convertClaudeToPi", () => {
     })
 
     // Prompts are normalized command names
-    expect(bundle.prompts.some((prompt) => prompt.name === "workflows-review")).toBe(true)
+    expect(bundle.prompts.some((prompt) => prompt.name === "acme-review")).toBe(true)
     expect(bundle.prompts.some((prompt) => prompt.name === "plan_review")).toBe(true)
 
     // Commands with disable-model-invocation are excluded
     expect(bundle.prompts.some((prompt) => prompt.name === "deploy-docs")).toBe(false)
 
-    const workflowsReview = bundle.prompts.find((prompt) => prompt.name === "workflows-review")
-    expect(workflowsReview).toBeDefined()
-    const parsedPrompt = parseFrontmatter(workflowsReview!.content)
+    const acmeReview = bundle.prompts.find((prompt) => prompt.name === "acme-review")
+    expect(acmeReview).toBeDefined()
+    const parsedPrompt = parseFrontmatter(acmeReview!.content)
     expect(parsedPrompt.data.description).toBe("Run a multi-agent review workflow")
 
     // Existing skills are copied as skill dirs; Claude agents are converted to
@@ -89,14 +89,14 @@ describe("convertClaudeToPi", () => {
       agents: [],
       commands: [
         {
-          name: "workflows:plan",
+          name: "acme:plan",
           description: "Plan workflow",
           body: [
             "Run these in order:",
             "- Task repo-research-analyst(feature_description)",
             "- Task learnings-researcher(feature_description)",
             "Use AskUserQuestion tool for follow-up.",
-            "Then use /workflows:work and /prompts:todo-resolve.",
+            "Then use /acme:work and /prompts:todo-resolve.",
             "Track progress with TodoWrite and TodoRead.",
           ].join("\n"),
           sourcePath: "/tmp/plugin/commands/plan.md",
@@ -122,7 +122,7 @@ describe("convertClaudeToPi", () => {
     // blocking-question tool (including `ask_user` for Pi via pi-ask-user), so the
     // converter no longer rewrites the token.
     expect(parsedPrompt.body).toContain("AskUserQuestion")
-    expect(parsedPrompt.body).toContain("/workflows-work")
+    expect(parsedPrompt.body).toContain("/acme-work")
     expect(parsedPrompt.body).toContain("/todo-resolve")
     expect(parsedPrompt.body).toContain("the platform's task-tracking primitive")
   })
@@ -134,7 +134,7 @@ describe("convertClaudeToPi", () => {
       agents: [],
       commands: [
         {
-          name: "workflows:work",
+          name: "acme:work",
           description: "Work with task tracking",
           body: [
             "Plan tasks with TaskCreate and update their state with TaskUpdate.",
