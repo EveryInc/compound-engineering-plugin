@@ -116,7 +116,7 @@ Substitute the resolved package manager (`npm` / `pnpm` / `yarn` / `bun`) and po
 
 ### Common gotchas
 
-- **App Router vs Pages Router:** dev-server behavior is the same; polish doesn't care. Checklist generation (Unit 5) does — pages in `app/` and `pages/` are different surfaces.
+- **App Router vs Pages Router:** dev-server behavior is the same; polish doesn't care.
 - **Monorepo roots:** in a pnpm/Turborepo monorepo, `npm run dev` at the root typically fans out to multiple packages. Users should set `cwd` in `.claude/launch.json` to the specific Next app (`cwd: "apps/web"`).
 - **Env loading:** `.env.local` is loaded automatically by Next; polish does not need to export it.
 
@@ -282,7 +282,7 @@ If the cascade resolved a non-3000 port, substitute it in the stub's `port` fiel
 
 - **Bundler path:** some machines require `bundle exec bin/dev`. If `bin/dev` fails with a load-path error, fall back to `bundle exec bin/dev`.
 - **Foreman vs overmind:** `Procfile` vs `Procfile.dev` often both exist. Rails' `bin/dev` resolves to `Procfile.dev`; if the project uses `overmind` explicitly, prefer `overmind start -f Procfile.dev` (see the `## procfile` section above).
-- **SSL dev server:** `rails s` with `--ssl` changes the URL scheme. Polish's reachability probe uses `http://`; users with SSL dev servers should set `port` explicitly in `.claude/launch.json` and note the scheme in the checklist.
+- **SSL dev server:** `rails s` with `--ssl` changes the URL scheme. Polish's reachability probe uses `http://`; users with SSL dev servers should set `port` explicitly in `.claude/launch.json`.
 
 ## remix
 
@@ -422,7 +422,7 @@ Vite's `--strictPort` flag causes the dev server to fail rather than increment t
 
 ### Host binding
 
-Vite binds to `127.0.0.1` by default. For polish running inside a devcontainer or WSL, users may need `--host 0.0.0.0` in `runtimeArgs`. The checklist can note this if relevant to the diff.
+Vite binds to `127.0.0.1` by default. For polish running inside a devcontainer or WSL, users may need `--host 0.0.0.0` in `runtimeArgs`.
 
 ### Stub generation
 
