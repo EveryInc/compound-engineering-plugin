@@ -35,7 +35,7 @@ Generalist code review prompts collapse in predictable ways:
 
 `ce-code-review` runs review as a structured pipeline with explicit gates:
 
-- **Diff-aware persona selection** — 4 always-on reviewers + 2 CE always-on agents, plus cross-cutting and stack-specific personas chosen for what the diff actually touches
+- **Diff-aware persona selection** — 4 always-on reviewers + 1 CE always-on agent, plus cross-cutting and stack-specific personas chosen for what the diff actually touches
 - **Parallel persona dispatch** — each reviewer focuses on its lens; results return in parallel
 - **Confidence-gated synthesis** — findings merge, dedupe, promote on cross-persona agreement, and route by autofix class
 - **Severity scale (P0-P3) + autofix class** — separates urgency from action ownership
@@ -49,9 +49,9 @@ Generalist code review prompts collapse in predictable ways:
 
 ### 1. Diff-aware persona selection
 
-A small config change triggers 6 reviewers (the 4 always-on + 2 CE always-on). A Rails auth feature with migrations might trigger 10. The skill decides which personas fit the diff:
+A small config change triggers 5 reviewers (the 4 always-on + 1 CE always-on). A Rails auth feature with migrations might trigger 9. The skill decides which personas fit the diff:
 
-- **Always-on (every review)** — `ce-correctness-reviewer`, `ce-testing-reviewer`, `ce-maintainability-reviewer`, `ce-project-standards-reviewer`, `ce-agent-native-reviewer`, `ce-learnings-researcher`
+- **Always-on (every review)** — `ce-correctness-reviewer`, `ce-testing-reviewer`, `ce-maintainability-reviewer`, `ce-project-standards-reviewer`, `ce-learnings-researcher`
 - **Cross-cutting conditional** — security, performance, API contract, data migrations, reliability, adversarial, previous-comments — each selected only when the diff touches its concern
 - **Stack-specific conditional** — Julik frontend races — only when the matching runtime domain is touched. Structural quality (complexity deletion, 1k-line regressions, spaghetti) lives in the always-on maintainability persona.
 - **CE conditional (migrations)** — `ce-deployment-verification-agent` for risky migration diffs; schema drift and migration safety are handled by the `data-migration` persona
@@ -114,7 +114,7 @@ You invoke `/ce-code-review` on a feature branch with a Rails auth change that i
 
 The skill detects you're on a feature branch (no PR yet), resolves the base from `origin/HEAD` (or PR metadata when an open PR exists), and computes the diff. Stage 2 reads commit messages and writes a 2-3 line intent summary. Stage 2b auto-discovers the plan in `docs/plans/` from the branch name and reads its Requirements (R1-R8, U1-U6).
 
-Stage 3 selects reviewers: the 6 always-on, plus security (auth touched), reliability (background job for token cleanup), data-migration (migration file present), and deployment-verification agent when the migration is risky. Seven or eight reviewers total, dispatched in parallel.
+Stage 3 selects reviewers: the 5 always-on, plus security (auth touched), reliability (background job for token cleanup), data-migration (migration file present), and deployment-verification agent when the migration is risky. Eight or nine reviewers total, dispatched in parallel.
 
 After all return, synthesis merges 23 raw findings into 14 distinct findings. Three are clean, reversible fixes (a typo, a rename, dead-code removal) the review applies and verifies itself (Stage 5c → Applied section). Six are `gated_auto` for the auth surface — concrete candidates the review applies, flagging them prominently as green-but-unverifiable (auth) for your review. Two are `manual` (deployment Go/No-Go checklist items). Three are `advisory` (FYI notes). Each finding has anchored evidence and a stable number.
 
@@ -188,7 +188,7 @@ Conflicting mode flags stop execution with an error. Combining `base:` with a PR
 Use it when it's the right tool — the quick-review short-circuit defers to it explicitly. `ce-code-review` is for cases where you want diff-aware persona selection, structured findings with calibrated severity, autofix routing, and residual work handling. It's the heavier tool; reach for it when the work warrants.
 
 **How does it decide which personas to dispatch?**
-Agent judgment over the actual diff — not keyword matching. The 4 always-on + 2 CE always-on personas run for every review. Cross-cutting and stack-specific personas are added when their concern is touched (e.g., security if auth files changed; `ce-data-migration-reviewer` when migration or schema dump files are present). Instruction-prose files skip runtime-focused reviewers (adversarial, races).
+Agent judgment over the actual diff — not keyword matching. The 4 always-on + 1 CE always-on personas run for every review. Cross-cutting and stack-specific personas are added when their concern is touched (e.g., security if auth files changed; `ce-data-migration-reviewer` when migration or schema dump files are present). Instruction-prose files skip runtime-focused reviewers (adversarial, races).
 
 **What's the difference between interactive (default) and `mode:agent`?**
 Interactive is the human-facing mode: a markdown report, and the review applies the safe, verified fixes itself (an Applied section) and commits them when your tree is clean (leaving them for your commit if it was dirty); it never pushes. `mode:agent` is the machine handoff: one JSON object, report-only — the review mutates nothing and the caller (e.g. `/ce-work`) applies findings on its own terms.

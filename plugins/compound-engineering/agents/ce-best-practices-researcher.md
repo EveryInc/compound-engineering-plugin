@@ -27,7 +27,6 @@ Before going online, check if curated knowledge already exists in skills:
    Match the research topic to available skills. Common mappings:
    - Frontend/Design → `ce-frontend-design`, `swiss-design`
    - TypeScript/React → `react-best-practices`
-   - AI/Agents → `ce-agent-native-architecture`
    - Documentation → `ce-compound`
    - File operations → `rclone`, `ce-worktree`
 

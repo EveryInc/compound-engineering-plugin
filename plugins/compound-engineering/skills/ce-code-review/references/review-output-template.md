@@ -76,10 +76,6 @@ Committed: `fix(review): cover empty-format branch + tighten export perms` (work
 
 - [Known Pattern] `docs/solutions/export-pagination.md` -- previous export pagination fix applies to this endpoint
 
-### Agent-Native Gaps
-
-- New export endpoint has no CLI/agent equivalent -- agent users cannot trigger exports
-
 ### Deployment Notes
 
 - Pre-deploy: capture baseline row counts before enabling the export backfill
@@ -139,7 +135,6 @@ This fails because: no pipe-delimited tables, no severity-grouped `###` headers,
 - **Actionable Findings section** -- include when the actionable queue is non-empty (findings for the caller to handle)
 - **Pre-existing section** -- separate table, no confidence column (these are informational)
 - **Learnings & Past Solutions section** -- results from ce-learnings-researcher, with links to docs/solutions/ files
-- **Agent-Native Gaps section** -- results from ce-agent-native-reviewer. Omit if no gaps found.
 - **Deployment Notes section** -- key checklist items from ce-deployment-verification-agent. Omit if the agent did not run. Schema drift surfaces as `data-migration` findings — no separate section.
 - **Coverage section** -- suppressed count, residual risks, testing gaps, failed reviewers
 - **Summary uses blockquotes** for verdict, reasoning, and fix order

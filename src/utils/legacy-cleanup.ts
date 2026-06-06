@@ -166,6 +166,12 @@ export const STALE_SKILL_DIRS = [
   // Removed conversational UX polish skill (slim/ultra-minimal). The
   // "ce-polish-beta" entry above stays; this is the promoted stable dir name.
   "ce-polish",
+
+  // Removed agent-native skill pair (slim/ultra-minimal). The unprefixed
+  // "agent-native-architecture"/"agent-native-audit" entries above stay; these
+  // are the current-era ce- prefixed dir names.
+  "ce-agent-native-architecture",
+  "ce-agent-native-audit",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -174,6 +180,7 @@ const STALE_AGENT_NAMES = [
   "adversarial-document-reviewer",
   "adversarial-reviewer",
   "agent-native-reviewer",
+  "ce-agent-native-reviewer",
   "ankane-readme-writer",
   "api-contract-reviewer",
   "architecture-strategist",
@@ -470,6 +477,16 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
   // ce-polish was the conversational UX polish skill (removed, no replacement).
   "ce-polish":
     "Start the dev server, open the feature in a browser, and iterate on improvements together. Manual invocation only — type /ce-polish to run it.",
+
+  // ce-agent-native-architecture and ce-agent-native-audit were the agent-native
+  // skill pair (removed, no replacement, slim/ultra-minimal). The unprefixed
+  // variants are fingerprinted via STALE_SKILL_DIRS; these ce- entries carry the
+  // last shipped descriptions so cleanup can fingerprint current-era installs
+  // after the skill dirs are gone.
+  "ce-agent-native-architecture":
+    "Build applications where agents are first-class citizens. Use this skill when designing autonomous agents, creating MCP tools, implementing self-modifying systems, or building apps where features are outcomes achieved by agents operating in a loop.",
+  "ce-agent-native-audit":
+    "Run comprehensive agent-native architecture review with scored principles",
 }
 
 /**
@@ -543,6 +560,14 @@ const LEGACY_ONLY_AGENT_DESCRIPTIONS: Record<string, string> = {
   // ce-ideate (removed, no replacement).
   "ce-issue-intelligence-analyst":
     "Fetches and analyzes GitHub issues to surface recurring themes, pain patterns, and severity trends. Use when understanding a project's issue landscape, analyzing bug patterns for ideation, or summarizing what users are reporting.",
+
+  // ce-agent-native-reviewer was the always-on agent-native parity reviewer
+  // (removed, no replacement, slim/ultra-minimal). The unprefixed
+  // "agent-native-reviewer" name is fingerprinted via STALE_AGENT_NAMES; this
+  // ce- entry carries the last shipped description so cleanup can fingerprint
+  // current-era installs after the agent file is gone.
+  "ce-agent-native-reviewer":
+    "Reviews code to ensure agent-native parity -- any action a user can take, an agent can also take. Use after adding UI features, agent tools, or system prompts.",
 }
 
 type LegacyFingerprints = {

@@ -10,8 +10,8 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 
 | Component | Count |
 |-----------|-------|
-| Agents | 35 |
-| Skills | 17 |
+| Agents | 34 |
+| Skills | 15 |
 
 ## Skills
 
@@ -53,8 +53,6 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 
 | Skill | Description |
 |-------|-------------|
-| `/ce-agent-native-architecture` | Build AI agents using prompt-native architecture |
-| `/ce-agent-native-audit` | Run comprehensive agent-native architecture review with scored principles |
 | [`/ce-frontend-design`](../../docs/skills/ce-frontend-design.md) | Create production-grade frontend interfaces |
 
 ### Review & Quality
@@ -72,7 +70,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 
 | Agent | Description |
 |-------|-------------|
-| `ce-agent-native-reviewer` | Verify features are agent-native (action + context parity) |
 | `ce-api-contract-reviewer` | Detect breaking API contract changes |
 | `ce-architecture-strategist` | Analyze architectural decisions and compliance |
 | `ce-code-simplicity-reviewer` | Final pass for simplicity and minimalism |

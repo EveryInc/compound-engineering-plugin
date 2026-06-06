@@ -450,7 +450,6 @@ describe("ce-code-review contract", () => {
       "ce-adversarial-reviewer",
       "ce-previous-comments-reviewer",
       "ce-julik-frontend-races-reviewer",
-      "ce-agent-native-reviewer",
     ]
 
     for (const persona of personas) {

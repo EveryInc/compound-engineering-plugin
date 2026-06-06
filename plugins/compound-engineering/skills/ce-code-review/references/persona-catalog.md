@@ -2,7 +2,7 @@
 
 12 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific agents. The orchestrator uses this catalog to select which reviewers to spawn for each review.
 
-## Always-on (4 personas + 2 CE agents)
+## Always-on (4 personas + 1 CE agent)
 
 Spawned on every review regardless of diff content.
 
@@ -19,7 +19,6 @@ Spawned on every review regardless of diff content.
 
 | Agent | Focus |
 |-------|-------|
-| `ce-agent-native-reviewer` | Verify new features are agent-accessible |
 | `ce-learnings-researcher` | Search docs/solutions/ for past issues related to this PR's modules and patterns |
 
 ## Conditional (7 personas)
@@ -54,7 +53,7 @@ Spawn `ce-deployment-verification-agent` when the migration-artifact gate applie
 
 ## Selection rules
 
-1. **Always spawn all 4 always-on personas** plus the 2 CE always-on agents.
+1. **Always spawn all 4 always-on personas** plus the CE always-on agent (`ce-learnings-researcher`).
 2. **For each cross-cutting conditional persona**, the orchestrator reads the diff and decides whether the persona's domain is relevant. This is a judgment call, not a keyword match.
 3. **For each stack-specific conditional persona**, use file types and changed patterns as a starting point, then decide whether the diff actually introduces meaningful work for that reviewer. Do not spawn language-specific reviewers just because one config or generated file happens to match the extension.
 4. **For `data-migration`**, spawn only when the diff includes migration or schema artifacts (`db/migrate/*`, `db/schema.rb`, `db/structure.sql`, Alembic/Flyway/Liquibase paths, or explicit backfill/data-transform scripts). Do **not** spawn for model-only or query-only changes without those files.
