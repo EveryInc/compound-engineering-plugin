@@ -153,6 +153,11 @@ export const STALE_SKILL_DIRS = [
   // "ce:release-notes" entry (in plugin-legacy-artifacts) stays; this is the
   // current-era dash dir name.
   "ce-release-notes",
+
+  // Removed parallel PR-feedback resolution skill (slim/ultra-minimal). The
+  // renamed-era "resolve-pr-feedback" entry above stays; this is the
+  // current-era dir name.
+  "ce-resolve-pr-feedback",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -209,6 +214,7 @@ const STALE_AGENT_NAMES = [
   "performance-reviewer",
   "previous-comments-reviewer",
   "pr-comment-resolver",
+  "ce-pr-comment-resolver",
   "product-lens-reviewer",
   "project-standards-reviewer",
   "reliability-reviewer",
@@ -436,6 +442,17 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "Summarize recent compound-engineering plugin releases, or answer a specific question about a past release with a version citation. Use when the user types `/ce-release-notes` or asks \"what changed in compound-engineering recently?\" or \"what happened to `<skill-name>`?\".",
   "ce:release-notes":
     "Summarize recent compound-engineering plugin releases, or answer a specific question about a past release with a version citation. Use when the user types `/ce-release-notes` or asks \"what changed in compound-engineering recently?\" or \"what happened to `<skill-name>`?\".",
+
+  // ce-resolve-pr-feedback was the parallel PR-feedback resolution skill
+  // (removed, no replacement). Provide the description for both the renamed-era
+  // "resolve-pr-feedback" name and the current-era "ce-resolve-pr-feedback" name
+  // so cleanup can fingerprint installs from either era after the skill dir is
+  // gone (its live description previously seeded the "resolve-pr-feedback"
+  // fingerprint).
+  "resolve-pr-feedback":
+    "Resolve PR review feedback by evaluating validity and fixing issues in parallel. Use when addressing PR review comments, resolving review threads, or fixing code review feedback.",
+  "ce-resolve-pr-feedback":
+    "Resolve PR review feedback by evaluating validity and fixing issues in parallel. Use when addressing PR review comments, resolving review threads, or fixing code review feedback.",
 }
 
 /**
@@ -494,6 +511,16 @@ const LEGACY_ONLY_AGENT_DESCRIPTIONS: Record<string, string> = {
     "Searches Slack for organizational context -- decisions, constraints, and discussions that may not be documented elsewhere. Use when the user explicitly asks to search Slack for context during ideation, planning, or brainstorming.",
   "ce-slack-researcher":
     "Searches Slack for organizational context -- decisions, constraints, and discussions that may not be documented elsewhere. Use when the user explicitly asks to search Slack for context during ideation, planning, or brainstorming.",
+  // ce-pr-comment-resolver was the worker agent spawned by ce-resolve-pr-feedback
+  // (removed, no replacement). Provide the description for both the renamed-era
+  // "pr-comment-resolver" name and the current-era "ce-pr-comment-resolver" name
+  // so cleanup can fingerprint installs from either era after the agent file is
+  // gone (its live description previously seeded the "pr-comment-resolver"
+  // fingerprint).
+  "pr-comment-resolver":
+    "Evaluates and resolves one or more related PR review threads -- assesses validity, implements fixes, and returns structured summaries with reply text. Spawned by the resolve-pr-feedback skill.",
+  "ce-pr-comment-resolver":
+    "Evaluates and resolves one or more related PR review threads -- assesses validity, implements fixes, and returns structured summaries with reply text. Spawned by the resolve-pr-feedback skill.",
 }
 
 type LegacyFingerprints = {

@@ -153,7 +153,6 @@ Skip `ce-doc-review` when:
 
 - **`/ce-brainstorm` Phase 4** — offered as one of the post-doc options ("Agent review of requirements doc"); runs interactive with full premise scrutiny, since validating premise is exactly what brainstorm exists for
 - **`/ce-plan` Phase 5.3.8** — runs in `mode:headless` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Run deeper doc review` is exposed as a first-class option for users who want the interactive walkthrough
-- **`/ce-resolve-pr-feedback`** — when reviewer feedback lands on a brainstorm or plan doc rather than code
 
 In headless mode, callers receive structured findings and route the user-decision options themselves.
 

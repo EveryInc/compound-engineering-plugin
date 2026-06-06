@@ -10,8 +10,8 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 
 | Component | Count |
 |-----------|-------|
-| Agents | 37 |
-| Skills | 20 |
+| Agents | 36 |
+| Skills | 19 |
 
 ## Skills
 
@@ -47,7 +47,6 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 
 | Skill | Description |
 |-------|-------------|
-| [`/ce-resolve-pr-feedback`](../../docs/skills/ce-resolve-pr-feedback.md) | Resolve PR review feedback in parallel |
 | [`/ce-setup`](../../docs/skills/ce-setup.md) | Diagnose environment, install missing tools, and bootstrap project config |
 | [`/ce-update`](../../docs/skills/ce-update.md) | Check compound-engineering plugin version and fix stale cache (Claude Code only) |
 
@@ -130,7 +129,6 @@ Agents are specialized subagents invoked by skills — you typically don't call 
 
 | Agent | Description |
 |-------|-------------|
-| `ce-pr-comment-resolver` | Address PR comments and implement fixes |
 | `ce-spec-flow-analyzer` | Analyze user flows and identify gaps in specifications |
 
 ## Installation

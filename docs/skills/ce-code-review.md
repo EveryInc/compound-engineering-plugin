@@ -212,5 +212,4 @@ No — the skill is tightly coupled to git, code reviewers, and PR contexts. For
 - [`ce-work`](./ce-work.md) — primary upstream caller; escalates to `ce-code-review` at Phase 3.3
 - [`ce-doc-review`](./ce-doc-review.md) — sibling skill for documents (requirements, plans), not code
 - [`ce-debug`](./ce-debug.md) — for fixing bugs found during review, when root-cause investigation matters
-- [`ce-resolve-pr-feedback`](./ce-resolve-pr-feedback.md) — handles incoming reviewer comments after a PR is open
 - [`ce-simplify-code`](./ce-simplify-code.md) — invoked by `ce-work` before review; complement, not substitute
