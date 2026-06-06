@@ -184,10 +184,10 @@ Design rules for blocking question menus (`AskUserQuestion` / `request_user_inpu
 - [ ] Do not offer "still working" / "I'll come back" options — the blocking tool already waits; such options are no-op wrappers. If the user needs to go do something, they simply leave the prompt open
 - [ ] Refer to the agent in third person ("the agent") in labels and stems — first-person "me" / "I'll" is ambiguous in a tool-mediated exchange where it's unclear whether the speaker is the user, the agent, or the tool
 - [ ] Phrase labels from the user's intent, not the system's internal state — each option should complete "I want to ___" from the user's POV; avoid leaking mode names like "end-sync" or "phase-3" into labels
-- [ ] Use the question stem as a teaching surface for first-time mechanics — teach the mechanic there (e.g., "Highlight text in Proof to leave a comment"), not in option descriptions that may be hidden
+- [ ] Use the question stem as a teaching surface for first-time mechanics — teach the mechanic there (e.g., "Open the saved requirements file in your browser to review the full draft"), not in option descriptions that may be hidden
 - [ ] When renaming a display label, rename its matching routing block (`**If user selects "X":**`) in the same edit — the model matches selections by verbatim label string, so a missed rename silently breaks routing
 - [ ] Front-load the distinguishing word when options share a prefix — "Proceed to planning" vs "Proceed directly to work" look identical when truncated; put the differentiator in the first 3-4 words
-- [ ] Name the target when an artifact is ambiguous — "save to my local file" beats "save to my file" when multiple artifacts (Proof doc, local markdown, cached copy) coexist
+- [ ] Name the target when an artifact is ambiguous — "save to my local file" beats "save to my file" when multiple artifacts (HTML export, local markdown, cached copy) coexist
 - [ ] Keep voice consistent across a menu — mixing imperative ("Pause") with user-voice status ("I'm done — save…") within the same set reads as authored by different agents
 
 ### Cross-Platform Task Tracking
