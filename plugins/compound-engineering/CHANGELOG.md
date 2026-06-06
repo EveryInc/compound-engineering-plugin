@@ -9,6 +9,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.11.2](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.11.1...compound-engineering-v3.11.2) (2026-06-06)
+
+
+### Bug Fixes
+
+* **ce-resolve-pr-feedback:** fail loudly when repo auto-detection fails ([#908](https://github.com/EveryInc/compound-engineering-plugin/issues/908)) ([bb0c9ab](https://github.com/EveryInc/compound-engineering-plugin/commit/bb0c9ab4ee596d546f2965222e0ec8c2a097ae53))
+* **ce-resolve-pr-feedback:** prevent replies landing on wrong PR from GHE node ID mismatch ([#910](https://github.com/EveryInc/compound-engineering-plugin/issues/910)) ([6f9ab03](https://github.com/EveryInc/compound-engineering-plugin/commit/6f9ab03a031c054a8046659926251fb6c149269f))
+
 ## [3.11.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.11.0...compound-engineering-v3.11.1) (2026-06-05)
 
 
