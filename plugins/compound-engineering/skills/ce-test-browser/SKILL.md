@@ -26,13 +26,7 @@ Platform-specific hints:
 
 ## Setup
 
-Check whether `agent-browser` is installed:
-
-```bash
-command -v agent-browser >/dev/null 2>&1 && echo "Installed" || echo "NOT INSTALLED"
-```
-
-If not installed, inform the user: "`agent-browser` is not installed. Run `/ce-setup` to install required dependencies." Then stop — this skill cannot function without agent-browser.
+`agent-browser` is installed via `/ce-setup`. The workflow below verifies availability before starting (step 1) and stops if it is missing.
 
 ## Workflow
 
