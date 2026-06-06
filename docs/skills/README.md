@@ -102,7 +102,6 @@ Invoked when a specific need arises — not part of any chain.
 | [`/ce-setup`](./ce-setup.md) | Diagnose environment, install missing tools, bootstrap project-local config — interactive onboarding in one flow |
 | [`/ce-update`](./ce-update.md) | Check the installed compound-engineering plugin version against `main` and recommend the update command (Claude Code only) |
 | [`/ce-release-notes`](./ce-release-notes.md) | Look up what shipped in recent compound-engineering plugin releases — summary or specific question with version citation |
-| [`/ce-report-bug`](./ce-report-bug.md) | Report a bug in the compound-engineering plugin — structured intake, automatic env gathering, GitHub issue creation |
 
 ---
 

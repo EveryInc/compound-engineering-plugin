@@ -130,6 +130,10 @@ export const STALE_SKILL_DIRS = [
 
   // Removed branch-hygiene skill (slim/ultra-minimal)
   "ce-clean-gone-branches",
+
+  // Removed bug-filing skill (slim/ultra-minimal). The renamed-era
+  // "report-bug-ce" entry above stays; this is the current-era dir name.
+  "ce-report-bug",
 ]
 
 /** Old agent names (used as generated skill dirs or flat .md files). */
@@ -382,6 +386,13 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "Clean up local branches whose remote tracking branch is gone. Use when the user says \"clean up branches\", \"delete gone branches\", \"prune local branches\", \"clean gone\", or wants to remove stale local branches that no longer exist on the remote. Also handles removing associated worktrees for branches that have them.",
   "git-clean-gone-branches":
     "Clean up local branches whose remote tracking branch is gone. Use when the user says \"clean up branches\", \"delete gone branches\", \"prune local branches\", \"clean gone\", or wants to remove stale local branches that no longer exist on the remote. Also handles removing associated worktrees for branches that have them.",
+
+  // ce-report-bug was the plugin bug-filing skill (removed, no replacement).
+  // currentSkillNameForLegacy normalizes the legacy "report-bug-ce" dir to
+  // "ce-report-bug", so this single entry fingerprints installs from both eras
+  // once the skill dir is gone.
+  "ce-report-bug":
+    "Report a bug in the compound-engineering plugin",
 }
 
 /**

@@ -218,4 +218,3 @@ Specifically to prevent it from drifting through string interpolation or LLM rew
 ## See Also
 
 - [`/ce-update`](./ce-update.md) — checks plugin version; useful before asking what changed
-- [`/ce-report-bug`](./ce-report-bug.md) — for filing issues against the plugin; checking release notes first can save the report

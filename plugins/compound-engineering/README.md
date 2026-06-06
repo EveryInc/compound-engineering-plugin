@@ -11,7 +11,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 | Component | Count |
 |-----------|-------|
 | Agents | 37 |
-| Skills | 26 |
+| Skills | 25 |
 
 ## Skills
 
@@ -51,7 +51,6 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | Skill | Description |
 |-------|-------------|
 | [`/ce-demo-reel`](../../docs/skills/ce-demo-reel.md) | Capture a visual demo reel (GIF demos, terminal recordings, screenshots) for PRs with project-type-aware tier selection |
-| [`/ce-report-bug`](../../docs/skills/ce-report-bug.md) | Report a bug in the compound-engineering plugin |
 | [`/ce-resolve-pr-feedback`](../../docs/skills/ce-resolve-pr-feedback.md) | Resolve PR review feedback in parallel |
 | [`/ce-test-browser`](../../docs/skills/ce-test-browser.md) | Run browser tests on PR-affected pages |
 | [`/ce-setup`](../../docs/skills/ce-setup.md) | Diagnose environment, install missing tools, and bootstrap project config |
