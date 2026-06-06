@@ -1,64 +1,64 @@
-# Concepts
+# 概念
 
-Shared domain vocabulary for this project — entities, named processes, and status concepts with project-specific meaning. Seeded with core domain vocabulary, then accretes as ce-compound and ce-compound-refresh process learnings; direct edits are fine. Glossary only, not a spec or catch-all.
+本项目的共享领域词汇表——具有项目特定含义的实体、命名过程和状态概念。以核心领域词汇为基础，随着 ce-compound 和 ce-compound-refresh 处理学习成果而逐步累积；支持直接编辑。仅为术语表，不是规范或包罗万象的文档。
 
-## The plugin and its parts
+## 插件及其组成部分
 
-### Plugin
-A distributable bundle of Skills, Agents, Commands, and Hooks (optionally MCP servers) described by a single manifest and installed into a coding-agent platform as one unit — the artifact the Converter translates for non-Claude Targets and the Marketplace distributes.
+### 插件（Plugin）
+可分发的技能、智能体、命令和钩子（可选 MCP 服务器） bundle，由单个清单描述，作为整体安装到编码智能体平台——即转换器为非 Claude 目标转换的产物，以及市场分发的对象。
 
-### Skill
-A slash-invoked capability defined in its own directory, and the primary entry point a user reaches for. A Skill orchestrates: it can progressively pull in its own reference files as needed and dispatch Agents to do scoped work. Distinct from an Agent in that a Skill is user-invoked and coordinates, whereas an Agent is dispatched by a Skill.
+### 技能（Skill）
+在自有目录中定义的、可通过斜杠命令调用的能力，是用户使用的主要入口点。技能进行编排：它可以根据需要逐步引入自身的引用文件，并派遣智能体来完成特定工作。与智能体的区别在于：技能由用户调用并进行协调，而智能体由技能派遣。
 
-### Agent
-A specialized, single-purpose worker a Skill dispatches to run in its own isolated context and return a result, rather than to converse with the user. Also called a subagent. Agents are not invoked directly by users; a Skill decides when and how many to run.
+### 智能体（Agent）
+专业化的单用途工作者，技能派遣它以在独立的上下文中运行并返回结果，而非与用户对话。也称为子智能体。智能体不由用户直接调用；技能决定何时以及运行多少。
 
-## Conversion
+## 转换
 
-### Target
-A destination coding-agent platform other than Claude Code (OpenCode, Codex, Gemini, and others) that a Plugin is converted into and installed onto, each with its own file layout and capability mapping. Also called a target provider.
+### 目标（Target）
+除 Claude Code 之外的目标编码智能体平台（OpenCode、Codex、Gemini 等），插件被转换并安装到其上，每个平台都有自己的文件布局和功能映射。也称为目标提供商。
 
-A Plugin is installed to a Target at one of two scopes: global (user-wide) or per-workspace.
+插件可以按以下两种范围之一安装到目标：全局（用户级）或每个工作区。
 
-### Converter
-The step that transforms a parsed Plugin into one Target's in-memory form, mapping tools, permissions, hooks, and model names explicitly rather than by convention.
+### 转换器（Converter）
+将解析后的插件转换为一个目标内存形式的步骤，显式地映射工具、权限、钩子和模型名称，而非按约定映射。
 
-### Writer
-The step that emits a Target's converted Bundle onto disk, in that Target's expected paths and merge semantics. Paired with a Converter, one per Target.
+### 写入器（Writer）
+将目标转换后的 bundle 以该目标预期的路径和合并语义写入磁盘的步骤。与转换器配对，每个目标一个。
 
 ### Bundle
-The in-memory converted form of a Plugin for a single Target — the handoff a Converter produces and a Writer consumes.
+插件针对单个目标转换后的内存形式——转换器产生、写入器消费的交接物。
 
-### Marketplace
-The catalog metadata listing installable plugins and their versions for distribution, kept consistent with each Plugin's manifest by release validation.
+### 市场（Marketplace）
+列出可安装插件及其版本的目录元数据，由发布验证与每个插件清单保持一致。
 
-## Compound engineering
+## 复合工程
 
-### Compound engineering
-The methodology this project embodies: structure engineering work so each unit makes the next one easier, capturing reusable knowledge as you go so the toolset gets smarter with every use.
+### 复合工程
+本项目体现的方法论：构建工程工作结构，使每个单元让下一个单元更轻松，在过程中捕获可重用知识，使工具集随每次使用而变得更智能。
 
-### Pipeline
-The chained progression of Skills that carries a piece of work from strategy and ideation through brainstorm, plan, execution, and review, and closes by capturing what was learned. Each stage hands a durable artifact to the next, and research is gathered at the stage that needs it rather than re-gathered downstream.
+### 流水线（Pipeline）
+技能的链式进展，将工作从策略和构思通过头脑风暴、规划、执行和评审传递，并以捕获所学内容结束。每个阶段将一个持久交付物交给下一个阶段，研究在需要的阶段收集，而非在下游重新收集。
 
-### Learning
-A documented solution to a past problem — a bug fix, a convention, or a workflow pattern — stored as the unit of compounded knowledge so future work can find and reuse it. Also called a solution doc. Carries structured metadata (category, tags, problem type) for retrieval; its creation date lives in the entry, not the filename.
+### 学习成果（Learning）
+对过去问题的文档化解决方案——bug 修复、约定或工作流模式——作为复合知识的单元存储，以便未来工作可以查找和重用。也称为解决方案文档。携带结构化元数据（类别、标签、问题类型）用于检索；其创建日期位于条目中，而非文件名中。
 
-### Pattern doc
-Guidance generalized from several Learnings into a broader rule. Higher-leverage than any single incident-level Learning, and higher-risk when stale, because future work treats it as broadly applicable.
+### 模式文档（Pattern doc）
+从多个学习成果中推广到更广泛规则的指导。比任何单一事件级学习成果都具有更高的杠杆作用，而过时时风险也更高，因为未来工作将其视为广泛适用。
 
-## Review and workflow vocabulary
+## 评审和工作流词汇
 
-### Reviewer persona
-A single-lens reviewer Agent that evaluates work from one specific perspective — security, correctness, scope, design, and so on. Review Skills dispatch a panel of personas and merge their findings.
+### 评审者角色（Reviewer persona）
+从特定视角评估工作的单镜头评审智能体——安全性、正确性、范围、设计等。评审技能派遣一组角色并合并其发现。
 
-### Confidence anchor
-A discrete, self-scored confidence value on a fixed small scale, each level tied to a behavioral criterion the model can honestly apply, used to gate and rank review findings instead of a continuous score that invites false precision. Each review Skill sets its own actionable threshold; corroboration across personas promotes a finding by one level.
+### 置信度锚点（Confidence anchor）
+在固定小规模上的离散、自我评分的置信度值，每个级别都绑定到模型可以诚实应用的的行为标准，用于门控和排序评审发现，而非邀请虚假精度的连续分数。每个评审技能设置自己的可操作阈值；跨角色的相互印证会将发现提升一个级别。
 
-### Autofix class
-The classification of a review finding by how safely its proposed fix can be applied: applied silently, applied only after user confirmation, left for a human to resolve, or recorded as advisory with no action.
+### 自动修复类（Autofix class）
+按建议修复的安全应用程度对评审发现进行分类：静默应用、仅在用户确认后应用、留给人工解决，或记录为建议而不采取行动。
 
-### Headless mode
-An explicit opt-in mode that runs a Skill unattended, with no user prompts — it produces a written report as its deliverable and conservatively defers genuinely ambiguous decisions rather than guessing.
+### 无头模式（Headless mode）
+明确的选择加入模式，在不提示用户的情况下运行技能无人值守——它生成书面报告作为交付物，保守地推迟真正模糊的决定而非猜测。
 
-### Beta skill
-A parallel copy of a stable Skill, suffixed `-beta`, used to trial a new version alongside the stable one without disrupting users. Invoked manually (model auto-invocation is disabled); promoting it to stable is an orchestration change, not just a rename — every caller must move in the same change so none silently inherits stale defaults.
+### Beta 技能
+稳定技能的并行副本，后缀为 `-beta`，用于在不干扰用户的情况下与新版本并行试用。手动调用（禁用模型自动调用）；将其提升为稳定版是编排变更，而不仅仅是重命名——每个调用者必须在同一变更中移动，以便没有调用者静默继承过时的默认值。
