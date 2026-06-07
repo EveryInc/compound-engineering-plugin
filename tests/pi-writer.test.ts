@@ -260,7 +260,7 @@ Run these research agents:
 
     // Install plugin B into the same Pi root
     await writePiBundle(outputRoot, {
-      pluginName: "secondary-plugin",
+      pluginName: "coding-tutor",
       prompts: [{ name: "tutor-prompt", content: "Tutor prompt" }],
       skillDirs: [
         {
@@ -275,7 +275,7 @@ Run these research agents:
 
     // Both plugins must keep their own namespaced manifest
     expect(await exists(path.join(outputRoot, "compound-engineering", "install-manifest.json"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "secondary-plugin", "install-manifest.json"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "coding-tutor", "install-manifest.json"))).toBe(true)
 
     // Reinstall plugin A with no artifacts — it must clean up only its own
     // managed artifacts, leaving plugin B's intact (the bug the namespacing fix
@@ -298,7 +298,7 @@ Run these research agents:
     expect(await exists(path.join(outputRoot, "skills", "tutor-skill"))).toBe(true)
     expect(await exists(path.join(outputRoot, "skills", "tutor-gen-skill"))).toBe(true)
     expect(await exists(path.join(outputRoot, "extensions", "tutor-ext.ts"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "secondary-plugin", "install-manifest.json"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "coding-tutor", "install-manifest.json"))).toBe(true)
   })
 
   test("moves stale compound-engineering mcporter.json to legacy backup when bundle has no mcporterConfig", async () => {

@@ -61,6 +61,7 @@ describe("frontmatter YAML validity", () => {
   const MAX_SKILL_DESCRIPTION_LENGTH = 1024
   const pluginRoots = [
     "plugins/compound-engineering",
+    "plugins/coding-tutor",
   ]
 
   for (const pluginRoot of pluginRoots) {

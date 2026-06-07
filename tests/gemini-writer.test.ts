@@ -315,7 +315,7 @@ Run these research agents:
 
     // Install plugin B into the same Gemini root
     await writeGeminiBundle(tempRoot, {
-      pluginName: "secondary-plugin",
+      pluginName: "coding-tutor",
       generatedSkills: [],
       agents: [{ name: "tutor-agent", content: "---\nname: tutor-agent\n---\n\nBody" }],
       skillDirs: [
@@ -329,7 +329,7 @@ Run these research agents:
 
     // Both plugins must keep their own namespaced manifest
     expect(await exists(path.join(tempRoot, ".gemini", "compound-engineering", "install-manifest.json"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".gemini", "secondary-plugin", "install-manifest.json"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".gemini", "coding-tutor", "install-manifest.json"))).toBe(true)
 
     // Reinstall plugin A with no agents/skills — it must clean up only its own
     // managed artifacts, leaving plugin B's intact (the bug the namespacing fix
@@ -347,7 +347,7 @@ Run these research agents:
     expect(await exists(path.join(tempRoot, ".gemini", "skills", "ce-skill"))).toBe(false)
     expect(await exists(path.join(tempRoot, ".gemini", "agents", "tutor-agent.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".gemini", "skills", "tutor-skill"))).toBe(true)
-    expect(await exists(path.join(tempRoot, ".gemini", "secondary-plugin", "install-manifest.json"))).toBe(true)
+    expect(await exists(path.join(tempRoot, ".gemini", "coding-tutor", "install-manifest.json"))).toBe(true)
   })
 
   test("moves legacy Gemini CE artifacts to a namespaced backup", async () => {

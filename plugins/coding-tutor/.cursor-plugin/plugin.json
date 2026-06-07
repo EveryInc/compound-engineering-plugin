@@ -1,0 +1,21 @@
+{
+  "name": "coding-tutor",
+  "displayName": "Coding Tutor",
+  "version": "1.3.0",
+  "description": "Personalized coding tutorials that use your actual codebase for examples with spaced repetition quizzes",
+  "author": {
+    "name": "Nityesh Agarwal"
+  },
+  "homepage": "https://github.com/OutlineDriven/compound-engineering-slim",
+  "repository": "https://github.com/OutlineDriven/compound-engineering-slim",
+  "license": "MIT",
+  "keywords": [
+    "cursor",
+    "plugin",
+    "coding",
+    "programming",
+    "tutorial",
+    "learning",
+    "spaced-repetition"
+  ]
+}
