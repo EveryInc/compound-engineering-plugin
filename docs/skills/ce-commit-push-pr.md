@@ -16,7 +16,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 |----------|--------|
 | What does it do? | Commits, pushes, and opens a PR — or just rewrites the description of an existing PR — or just generates a description without touching git |
 | When to use it | Anytime you want commits + PR; rewriting an existing PR description; drafting a description for a branch |
-| What it produces | An open PR (URL returned) — or an updated PR description — or a printed description for you to apply yourself |
+| What it produces | An open PR or draft PR (URL returned) — or an updated PR description — or a printed description for you to apply yourself |
 | What's next | Review the PR; merge when ready |
 
 ---
@@ -86,7 +86,7 @@ No silent commits to default, no surprise re-pushes, no missing-upstream errors 
 
 ### 5. Body-file safety — avoids the empty-PR-body trap
 
-Every PR description is written to a temporary file with a quoted heredoc sentinel and passed via `gh ... --body-file "$BODY_FILE"`. The skill explicitly never uses `--body-file -`, stdin pipes, heredoc-to-stdin, or `--body "$(cat ...)"` — those wrappers can silently produce an empty PR body while `gh` still exits 0 and returns a URL. The quoted sentinel prevents `$VAR`, backticks, and stray `EOF` markers inside the body from being expanded.
+Every PR description is written to a host temp file and passed via `gh ... --body-file <path>`. POSIX shells use `mktemp`; PowerShell uses `[System.IO.Path]::GetTempFileName()`. The skill explicitly never uses `--body-file -`, stdin pipes, heredoc-to-stdin, or `--body "$(cat ...)"` — those wrappers can silently produce an empty PR body while `gh` still exits 0 and returns a URL. The quoted sentinel prevents `$VAR`, backticks, and stray `EOF` markers inside the body from being expanded.
 
 ### 6. Convention detection in priority order
 
@@ -98,7 +98,15 @@ When the change has observable behavior (UI rendering, CLI output, API behavior 
 
 ### 8. Existing-PR confirmation before rewrite
 
-When the skill runs on a branch with an open PR and you want the description rewritten, it previews — first two sentences of the new Summary plus the total body line count — and asks for confirmation before applying. The first two sentences carry most of the reviewer's attention. If declined, you can pass focus text back for a regenerate without applying anything.
+When the skill runs on a branch with an open PR and you want the description rewritten, it previews — first two sentences of the new Summary plus the total body line count — and asks for confirmation before applying. The first two sentences carry most of the reviewer's attention. If declined, you can pass focus text back for a regenerate without applying anything. This confirmation is for interactive use; autopilot draft mode uses its plan/ledger context and applies the existing-PR description update without stopping for this optional confirmation.
+
+### 9. Draft PR mode for bounded autopilot
+
+Pass `draft:true` in full-workflow mode to create a new draft PR with `gh pr create --draft`. `/lfg` passes `draft:true autopilot:true plan:<plan-path> ledger:<ledger-path>` so the shipping step can use the approved plan and run ledger as caller context. This is the shipping boundary used by `/lfg`: the agent may commit, push, and open a draft PR when the run contract allows GitHub writes, but it does not mark a PR ready, merge, release, or cross production-impacting boundaries. If an open PR already exists, the skill leaves the existing PR draft/ready state unchanged and, in autopilot mode, updates the PR description from the composed run context without asking whether to rewrite it.
+
+In autopilot draft mode, nonessential PR-body and evidence prompts are suppressed. The skill uses available plan, ledger, verification, review, CI, and residual context, records skipped optional evidence when relevant, and only blocks on evidence when the run contract explicitly requires it.
+
+In autopilot mode, the composer preserves or includes durable caller-owned sections: `## Residual Review Findings`, `## Known Residuals`, and `## CI Failures Unresolved`. Existing PR rewrites preserve sections already present in the body unless refreshed content is supplied. When `ledger:<path>` is present, the skill reads the ledger file before composing the PR body, parses the fenced JSON, and uses `pr_body_sections.residual_review_findings` when present. New PRs include durable sections supplied through caller context or the run ledger, including LFG's no-PR residual fallback section.
 
 ---
 
@@ -162,6 +170,8 @@ When the skill's mode detection picks the wrong path, you can prompt explicitly 
 | Argument | Effect |
 |----------|--------|
 | _(empty)_ | Full workflow on the current branch |
+| `draft:true` | Full workflow creates a new draft PR with `gh pr create --draft`; existing PR readiness is unchanged |
+| `autopilot:true plan:<path> ledger:<path>` | Caller context for bounded-autopilot draft shipping; suppresses optional PR/evidence prompts, uses plan/ledger context, and preserves durable residual/CI sections on existing PRs |
 | `"draft a PR description"` / `"describe this PR"` | Description-only generation; printed back, not applied |
 | `"update the PR description"` / `"refresh the PR description"` | Description update on the existing PR |
 | `<PR URL or number>` | Operates on that PR (description-only or update, depending on intent) |
@@ -175,7 +185,7 @@ When the skill's mode detection picks the wrong path, you can prompt explicitly 
 Cookie-cutter templates make trivial PRs feel ceremonial and large PRs feel under-described. Adaptive composition picks structure and depth based on the change — a one-line fix gets a tight description; a large refactor gets the structure it warrants. The reviewer's job is easier when the description matches the change.
 
 **Why body-file instead of `--body` inline?**
-Wrappers and stdin handling can silently produce an empty PR body while `gh` still exits 0 and returns a URL. The skill writes every body to a temp file with a quoted heredoc sentinel and passes via `--body-file <path>`. The quoted sentinel prevents `$VAR`, backticks, and literal `EOF` markers inside the body from being expanded.
+Wrappers and stdin handling can silently produce an empty PR body while `gh` still exits 0 and returns a URL. The skill writes every body to a host temp file and passes via `--body-file <path>`. The quoted sentinel prevents `$VAR`, backticks, and literal `EOF` markers inside the body from being expanded; PowerShell writes use the platform temp-file API instead of POSIX `mktemp`.
 
 **What's the difference between description-only and description update?**
 Description-only generates a description and prints it back without touching anything (no `gh pr edit`, no commit, no push). Description update finds an existing open PR for the current branch, generates a new description, previews it, asks for confirmation, then applies via `gh pr edit`.
@@ -187,7 +197,7 @@ Yes. Repo conventions in `AGENTS.md`/`CLAUDE.md` win first; recent commit histor
 The skill respects your git config and pre-commit hooks. It never passes `--no-verify`, `--no-gpg-sign`, or similar flags to skip them. If a hook fails, the skill investigates and surfaces the underlying issue.
 
 **Can I get a draft PR?**
-Use the description-only mode to generate the body, then apply yourself with `gh pr create --draft --title "..." --body-file "..."`. The skill doesn't currently expose a draft flag in the full workflow.
+Yes. Pass `draft:true` with the full workflow. New PRs use `gh pr create --draft`; existing PRs keep their current draft/ready state. Autopilot callers should also pass `autopilot:true plan:<path> ledger:<path>` so optional prompts stay suppressed.
 
 ---
 

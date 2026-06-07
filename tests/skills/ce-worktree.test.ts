@@ -59,7 +59,7 @@ describe("ce-worktree SKILL.md", () => {
   // run the skill. The pattern is pinned to the script filename —
   // `Bash(bash *)` would be too broad.
   test("declares a narrow allowed-tools pattern for worktree-manager.sh", () => {
-    const frontmatter = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
+    const frontmatter = SKILL_BODY.match(/^---\r?\n([\s\S]*?)\r?\n---/)
     expect(frontmatter, "ce-worktree/SKILL.md must have YAML frontmatter").not.toBeNull()
     const allowedTools = frontmatter![1].match(/^allowed-tools:\s*(.+)$/m)
     expect(

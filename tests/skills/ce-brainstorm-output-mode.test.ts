@@ -27,7 +27,7 @@ const HTML_OUTPUT_PATH = path.join(
 // byte-for-byte from ce-plan (enforced by tests/compound-support-files.test.ts).
 describe("ce-brainstorm output:html mode", () => {
   test("argument-hint advertises output:html", () => {
-    const frontmatterMatch = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
+    const frontmatterMatch = SKILL_BODY.match(/^---\r?\n([\s\S]*?)\r?\n---/)
     expect(frontmatterMatch).not.toBeNull()
     const frontmatter = parseYaml(frontmatterMatch![1]) as Record<string, unknown>
     const hint = frontmatter["argument-hint"]

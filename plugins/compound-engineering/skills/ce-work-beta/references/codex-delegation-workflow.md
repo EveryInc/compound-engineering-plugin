@@ -129,6 +129,8 @@ Store `effective_effort` as a per-batch derived state value (alongside the sessi
 
 ## Prompt Template
 
+If the parent `ce-work-beta` invocation is running with `implementation_only=true`, include that fact in every delegate prompt and in the orchestrator's batch state. In that mode, delegates must not stage, commit, push, or open PRs; completed or partial delegate results are returned as working-tree diffs plus verification for the parent skill to summarize back to the caller.
+
 At the start of delegated execution, create a per-run OS-temp scratch directory via `mktemp -d` and capture its **absolute path** for all downstream use. All scratch files for this invocation live under that directory. Do not use `.context/` — these scratch files are per-run throwaway that get cleaned up when delegated execution ends (see Cleanup below), matching the repo Scratch Space convention for one-shot artifacts. Do not pass unresolved shell-variable strings to non-shell tools (Write, Read); use the absolute path returned by `mktemp -d`.
 
 ```bash
@@ -319,8 +321,8 @@ If the output is "Waiting for Codex...", issue the same polling command again as
 | 1 | Exit code != 0 | CLI failure | Rollback to HEAD. Fall back to standard mode for ALL remaining work. |
 | 2 | Exit code 0, result JSON missing or malformed | Task failure | Rollback to HEAD. Increment `consecutive_failures`. |
 | 3 | Exit code 0, `status: "failed"` | Task failure | Rollback to HEAD. Increment `consecutive_failures`. |
-| 4 | Exit code 0, `status: "partial"` | Partial success | Keep the diff. Complete remaining work locally, verify, and commit. Increment `consecutive_failures`. |
-| 5 | Exit code 0, `status: "completed"` | Success | Commit changes. Reset `consecutive_failures` to 0. |
+| 4 | Exit code 0, `status: "partial"` | Partial success | Keep the diff. Complete remaining work locally and verify. If `implementation_only=true`, do not commit; report the diff and verification to the caller. Otherwise commit and increment `consecutive_failures`. |
+| 5 | Exit code 0, `status: "completed"` | Success | If `implementation_only=true`, keep the diff and report changed files/verification to the caller without staging or committing. Otherwise commit changes. Reset `consecutive_failures` to 0. |
 
 **Result handoff — surface to user:** After reading the result JSON and before committing or rolling back, display a summary so the user sees what happened. Format:
 
@@ -345,6 +347,8 @@ git clean -fd -- <paths from the batch's combined Files list>
 Do NOT use bare `git clean -fd` without path arguments.
 
 **Commit on success:**
+
+Skip this entire commit step when `implementation_only=true`; commit ownership belongs to LFG or the external caller. Return the changed-file list, verification summary, and any residuals in the parent `ce-work-beta` implementation summary instead.
 
 ```bash
 git add $(git diff --name-only HEAD; git ls-files --others --exclude-standard)

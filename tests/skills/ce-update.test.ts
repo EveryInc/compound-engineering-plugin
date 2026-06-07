@@ -1,4 +1,4 @@
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs"
 import { execFileSync } from "child_process"
 import { tmpdir } from "os"
 import path from "path"
@@ -9,6 +9,29 @@ const SKILL_PATH = path.join(
   "plugins/compound-engineering/skills/ce-update/SKILL.md",
 )
 const SKILL_BODY = readFileSync(SKILL_PATH, "utf8")
+
+let bashDriveRoot: string | undefined
+
+function getBashDriveRoot(): string {
+  if (bashDriveRoot !== undefined) return bashDriveRoot
+
+  const bashPwd = execFileSync("bash", ["-lc", "pwd"], { encoding: "utf8" }).trim()
+  bashDriveRoot = bashPwd.startsWith("/mnt/") ? "/mnt" : ""
+  return bashDriveRoot
+}
+
+function toBashPath(filePath: string): string {
+  if (process.platform !== "win32") return filePath
+
+  return path.resolve(filePath).replace(
+    /^([A-Za-z]):\\(.*)$/,
+    (_, drive: string, rest: string) => `${getBashDriveRoot()}/${drive.toLowerCase()}/${rest.replace(/\\/g, "/")}`,
+  )
+}
+
+function bashQuote(value: string): string {
+  return `'${value.replace(/'/g, "'\\''")}'`
+}
 
 describe("ce-update SKILL.md", () => {
   // Regression guard for https://github.com/EveryInc/compound-engineering-plugin/issues/556.
@@ -66,7 +89,7 @@ describe("ce-update SKILL.md", () => {
   // get an approval prompt every time they run the skill. The patterns are
   // pinned to each script filename — `Bash(bash *)` would be too broad.
   test("declares narrow allowed-tools patterns for each probe script", () => {
-    const frontmatter = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
+    const frontmatter = SKILL_BODY.match(/^---\r?\n([\s\S]*?)\r?\n---/)
     expect(frontmatter, "ce-update/SKILL.md must have YAML frontmatter").not.toBeNull()
     const allowedTools = frontmatter![1].match(/^allowed-tools:\s*(.+)$/m)
     expect(
@@ -108,11 +131,11 @@ describe("ce-update probe scripts are self-locating", () => {
       mkdirSync(path.join(skillDir, "scripts"), { recursive: true })
       const sourceScript = path.join(path.dirname(SKILL_PATH), "scripts", scriptName)
       const targetScript = path.join(skillDir, "scripts", scriptName)
-      copyFileSync(sourceScript, targetScript)
+      writeFileSync(targetScript, readFileSync(sourceScript, "utf8").replace(/\r\n/g, "\n"))
       chmodSync(targetScript, 0o755)
       const env = { ...process.env }
       delete env.CLAUDE_SKILL_DIR
-      return execFileSync("bash", [targetScript], { env, encoding: "utf8" }).trim()
+      return execFileSync("bash", [toBashPath(targetScript)], { env, encoding: "utf8" }).trim()
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
@@ -186,6 +209,10 @@ function runUpstreamScript(scriptPath: string, options: MockOptions): string {
   const { pluginJsonVersion, releaseTagVersion, ghExitCode } = options
   const mockDir = mkdtempSync(path.join(tmpdir(), "ce-update-gh-"))
   try {
+    const runnableScript = path.join(mockDir, path.basename(scriptPath))
+    writeFileSync(runnableScript, readFileSync(scriptPath, "utf8").replace(/\r\n/g, "\n"))
+    chmodSync(runnableScript, 0o755)
+
     const pluginJsonB64 = pluginJsonVersion
       ? Buffer.from(
           JSON.stringify({ name: "compound-engineering", version: pluginJsonVersion }),
@@ -202,8 +229,8 @@ function runUpstreamScript(scriptPath: string, options: MockOptions): string {
     // it asks for `.tagName`, we emit the pre-computed release tag. Any other
     // filter is unexpected and the mock fails loudly so the test doesn't pass
     // by accident.
-    const ghScript = `#!/bin/bash
-${ghExitCode !== undefined ? `exit ${ghExitCode}` : `
+    const bashEnv = `gh() {
+${ghExitCode !== undefined ? `return ${ghExitCode}` : `
 subcommand="$1"; shift
 jq_filter=""
 while [ $# -gt 0 ]; do
@@ -230,15 +257,17 @@ case "$subcommand" in
     ;;
   *) exit 1 ;;
 esac
-`}`
-    const ghPath = path.join(mockDir, "gh")
-    writeFileSync(ghPath, ghScript)
-    chmodSync(ghPath, 0o755)
+`}
+}
+`
+    const bashEnvPath = path.join(mockDir, "bash-env")
+    writeFileSync(bashEnvPath, bashEnv.replace(/\r\n/g, "\n"))
 
-    return execFileSync("bash", [scriptPath], {
+    const command = `source ${bashQuote(toBashPath(bashEnvPath))}; source ${bashQuote(toBashPath(runnableScript))}`
+
+    return execFileSync("bash", ["-lc", command], {
       env: {
         ...process.env,
-        PATH: `${mockDir}:${process.env.PATH ?? ""}`,
       },
       encoding: "utf8",
     }).trim()

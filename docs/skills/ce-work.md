@@ -50,6 +50,7 @@ Asking an agent "implement this plan" goes wrong in predictable ways:
 - Test discovery + integration coverage + a system-wide test check before any task is marked done
 - Tiered code review with a residual-work gate — accept, file, fix, or stop, but never silently ship
 - Every PR carries an operational validation plan — what to monitor, what triggers rollback
+- When a plan includes an Autopilot Run Contract, execution carries its allowed actions, forbidden actions, escalation triggers, retry caps, GitHub write boundary, resume state, and evidence-research triggers instead of improvising autonomy
 
 ---
 
@@ -86,6 +87,12 @@ Every PR description includes a `Post-Deploy Monitoring & Validation` section: l
 ### 8. Smart triage on bare prompts
 
 Not every invocation has a plan. `ce-work` accepts a bare prompt and triages by complexity: trivial work (a couple of files, no behavioral change) goes straight to implementation; small/medium work builds a task list; large or sensitive work surfaces a recommendation to use `/ce-brainstorm` or `/ce-plan` first. The triage is what makes `ce-work` reasonable for direct invocation on small work, without forcing the full chain for everything.
+
+### 9. Autopilot contract awareness
+
+`ce-work` remains the same execution primitive for normal plans. Under a plan with an **Autopilot Run Contract**, it also enforces the autonomy boundary: forbidden actions are not crossed silently, escalation triggers stop or record residuals according to the contract, and fast-moving technical decisions use current external research when required. If that research is unavailable or thin, the decision becomes an explicit assumption or residual rather than hidden model-memory certainty.
+
+When called by `/lfg` with `autopilot:true implementation-only:true plan:<path> ledger:<path>`, `ce-work` runs implementation and verification only, continues automatically on the current feature branch, records branch-rename suggestions instead of prompting, and returns control before the shipping workflow. Review, residual handoff, commit, push, and draft PR updates stay owned by `/lfg`; implementation-only mode also suppresses incremental commits, subagent commits, delegation commits, and orchestrator merge commits before the caller regains control.
 
 ---
 
@@ -166,6 +173,7 @@ For large bare-prompt scope (cross-cutting, sensitive surfaces, many files), `ce
 | _(empty)_ | Auto-uses the latest plan in `docs/plans/` |
 | `<plan path>` | Origin-sourced execution |
 | `<bare prompt>` | Triage by complexity (Trivial / Small-Medium / Large) |
+| `autopilot:true implementation-only:true plan:<path> ledger:<path>` | Caller-owned bounded-autopilot execution; implement and verify, then return before shipping |
 
 Output: commits and (typically) a PR via `ce-commit-push-pr`. The plan body is read-only during execution; only the frontmatter `status` flips to `completed` at shipping.
 
@@ -181,6 +189,8 @@ Bare-prompt mode triages by complexity. Trivial goes straight to implementation;
 
 **What's the difference between worktree-isolated and shared-directory parallel mode?**
 Worktree isolation gives each subagent its own branch in its own directory — overlapping writes surface as merge conflicts the orchestrator handles explicitly. Shared-directory mode bars subagents from staging, committing, or running the test suite (the orchestrator does those after the batch). Both are safe; worktree isolation is the cleaner experience.
+
+Under implementation-only autopilot, every execution strategy switches to no-git mode so the external caller owns the commit boundary.
 
 **Why does it check whether work is already done before each task?**
 Resuming after context compaction, picking up someone else's branch, or returning to a partly-shipped plan are all common. Idempotency ensures `ce-work` doesn't silently reimplement what's already there.

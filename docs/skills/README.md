@@ -42,6 +42,16 @@ The steps of every engineering iteration. `/ce-ideate` runs only when you need t
 
 ---
 
+## Hands-Off Coordination
+
+Use this only when the user explicitly asks for plan-bounded autopilot rather than phase-by-phase interaction.
+
+| Skill | Description |
+|-------|-------------|
+| [`/lfg`](./lfg.md) | Plan-bounded autopilot — run or resume an approved plan through execution, capped review/CI loops, and draft PR creation without automatic merge or release |
+
+---
+
 ## Around the Loop
 
 Skills that anchor, feed, or maintain the loop without being steps inside it.

@@ -29,7 +29,7 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 | When to use it | Requirements ready and execution guardrails needed; solo planning when the task is clear; non-software multi-step tasks (study plans, research, maintenance, events, trips) |
 | What it produces | Plan in `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md` |
 | What's next | `/ce-work`, create a tracked issue, open in Proof for review, or pause |
-| Distinguishing | Guardrails over choreography (WHAT, not HOW); U-IDs (stable); origin tracing (R/A/F/AE → U); test scenarios per unit; automatic deepening; multi-agent research |
+| Distinguishing | Guardrails over choreography (WHAT, not HOW); U-IDs (stable); origin tracing (R/A/F/AE → U); test scenarios per unit; automatic deepening; multi-agent research; optional Autopilot Run Contract for explicit hands-off plans |
 
 ---
 
@@ -99,6 +99,10 @@ Universal planning also distinguishes two **dispositions**. *Plan-seeking* tasks
 ### 8. Approach altitude — a plan for the plan when a deliverable is hard
 
 For a hard problem, `ce-plan` can answer one level up: produce a grounded **approach-plan** (a plan for *how the deliverable will be made*) and hold at a checkpoint before committing — a way to get structure and certainty instead of zero-shotting a fragile result. It's entered explicitly ("plan for a plan", "don't write it yet — plan how you'd approach it") and, rarely, offered proactively — only when the method is genuinely unsettled *and* getting it wrong is costly, so it never becomes a nag. After light recon of the provided inputs (skim, not deep-read), it lays out the approach in chat, file-optional and deepenable. At the checkpoint you run it now or save it for later. The boundary it draws is **code vs. knowledge-work**, not plan vs. execute: code still flows to `ce-work`'s normal path, while a non-code deliverable is marked `execution: knowledge-work` and runs through `ce-work`'s lightweight carve-out (or any agent — the plan stays portable). `ce-plan` itself never executes; it produces the approach-plan and hands off.
+
+### 9. Optional Autopilot Run Contract for hands-off execution
+
+When a request explicitly asks for autopilot, hands-off execution, or `/lfg`, `ce-plan` can include a compact **Autopilot Run Contract**. The contract names allowed actions, forbidden actions, escalation triggers, retry caps, GitHub write boundaries, resume state, and evidence-research triggers. Its GitHub write boundary uses the exact booleans LFG parses: `commit_allowed`, `push_allowed`, `draft_pr_allowed`, and `pr_body_update_allowed`; missing or ambiguous permission is treated as false. Normal plans do not get this extra section; the point is bounded autonomy only when the user has asked for it.
 
 ---
 
@@ -197,6 +201,7 @@ In universal-planning mode, the U-IDs, dependency ordering, scope boundaries, an
 | `<requirements doc path>` | Origin-sourced planning |
 | `<plan path>` | Resume offer (or deepen, if intent matches) |
 | `deepen the plan` / `deepening pass` | Re-deepen fast path (interactive mode) |
+| `hands-off` / `autopilot` / `/lfg` context | Adds an Autopilot Run Contract only when explicitly requested, so downstream execution knows what it may continue, when it must escalate, and when current external research is required |
 | `<bug description>` | Routes to `ce-debug` suggestion menu |
 | `<task in another repo>` | Cross-repo announcement, plan lands in target |
 | `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive — the plan is `.md` OR `.html`, never both. Default is markdown. Set `plan_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. |

@@ -154,9 +154,9 @@ describe("ce-work review contract", () => {
   test("ce:work remains the stable non-delegating surface", async () => {
     const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
 
-    expect(content).not.toContain("## Argument Parsing")
     expect(content).not.toContain("## Codex Delegation Mode")
     expect(content).not.toContain("delegate:codex")
+    expect(content).not.toContain("references/codex-delegation-workflow.md")
   })
 })
 

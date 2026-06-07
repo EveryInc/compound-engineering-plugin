@@ -1,0 +1,465 @@
+{
+  "skill_name": "lfg",
+  "purpose": "Forward-test the plan-bounded autopilot contract through skill-creator subagents reading the current LFG skill source.",
+  "runner": "skill-creator",
+  "runs_per_eval": 1,
+  "workspace": "<os-temp>/compound-engineering/lfg/evals/iteration-<N>/",
+  "common_prompt": "Use the LFG skill at plugins/compound-engineering/skills/lfg/SKILL.md to handle this mock scenario. Do not edit files or run shell commands; produce the ordered actions you would take, including whether you would ask the user anything.",
+  "executable_dry_runs": [
+    {
+      "id": "no-pr-residual-fallback-to-new-draft-pr",
+      "risk": "fallback residual file is committed but omitted from the later newly created draft PR body",
+      "workspace": "<os-temp>/compound-engineering/lfg/evals/dry-run-no-pr-residual/",
+      "allow_file_writes": true,
+      "fake_commands": true,
+      "mock_state": {
+        "current_branch": "codex/plan-bounded-autopilot",
+        "open_pr": false,
+        "ledger_path": "ledger.md",
+        "github_write_boundary": {
+          "commit_allowed": true,
+          "push_allowed": true,
+          "draft_pr_allowed": true,
+          "pr_body_update_allowed": false
+        },
+        "ledger_json": {
+          "github_write_boundary": {
+            "commit_allowed": true,
+            "push_allowed": true,
+            "draft_pr_allowed": true,
+            "pr_body_update_allowed": false
+          },
+          "pr_body_sections": {
+            "residual_review_findings": "## Residual Review Findings\n\n- P1 plugins/compound-engineering/skills/lfg/SKILL.md:50 -- Human-owned review finding requires durable handoff."
+          },
+          "residual_fallback_path": "docs/residual-review-findings/codex-plan-bounded-autopilot.md"
+        },
+        "residual_fallback_path": "docs/residual-review-findings/codex-plan-bounded-autopilot.md"
+      },
+      "expected_files": [
+        "docs/residual-review-findings/codex-plan-bounded-autopilot.md",
+        "ledger.md",
+        "pr-body.md",
+        "command-log.json"
+      ],
+      "expected_pr_body_contains": [
+        "## Residual Review Findings",
+        "Human-owned review finding requires durable handoff"
+      ],
+      "expected_command_log_contains": [
+        "read ledger.md",
+        "git add docs/residual-review-findings/codex-plan-bounded-autopilot.md",
+        "git commit -m \"docs(review): record residual review findings\"",
+        "git push --set-upstream origin HEAD",
+        "gh pr create --draft --body-file pr-body.md"
+      ],
+      "forbidden_pr_body": [
+        "Summary only, residual omitted"
+      ]
+    }
+  ],
+  "evals": [
+    {
+      "id": "plan-path-autopilot-run",
+      "risk": "existing plan path accidentally re-plans or asks for another confirmation",
+      "user_prompt": "/lfg docs/plans/2026-06-07-001-feat-plan-bounded-autopilot-plan.md",
+      "mock_state": {
+        "plan_exists": true,
+        "plan_has_autopilot_run_contract": true,
+        "ledger_exists": false,
+        "current_branch": "codex/plan-bounded-autopilot",
+        "open_pr": false,
+        "user_message": "Run this plan hands-off."
+      },
+      "expected_behavior": [
+        "Read the existing plan path instead of invoking ce-plan to recreate it.",
+        "Create the run ledger before implementation.",
+        "Invoke ce-work with autopilot:true implementation-only:true plan:<plan-path> ledger:<ledger-path>.",
+        "Continue without asking for phase-by-phase confirmation."
+      ],
+      "forbidden_behavior": [
+        "Invokes ce-plan before reading the supplied plan path.",
+        "Starts implementation before creating or updating the ledger.",
+        "Asks whether to continue after the plan is already approved."
+      ]
+    },
+    {
+      "id": "resume-after-interruption",
+      "risk": "resume signal ignores repo identity or loses next_action",
+      "user_prompt": "/lfg resume",
+      "mock_state": {
+        "ledger_exists": true,
+        "ledger_repo_root": "/work/repo",
+        "current_repo_root": "/work/repo",
+        "ledger_repo_remote": "git@github.com:EveryInc/compound-engineering-plugin.git",
+        "current_repo_remote": "git@github.com:EveryInc/compound-engineering-plugin.git",
+        "ledger_branch": "codex/plan-bounded-autopilot",
+        "current_branch": "codex/plan-bounded-autopilot",
+        "current_phase": "review",
+        "next_action": "invoke ce-code-review mode:agent plan:<plan-path>",
+        "user_message": "Yes, continue."
+      },
+      "expected_behavior": [
+        "Select the ledger by matching repo identity before branch.",
+        "Treat the user's continuation message as context, not a new approval gate.",
+        "Continue from current_phase and next_action.",
+        "Update the ledger after the next major phase."
+      ],
+      "forbidden_behavior": [
+        "Asks the user to restate the plan.",
+        "Chooses a ledger only because a branch name matches.",
+        "Restarts from planning when next_action is unambiguous."
+      ]
+    },
+    {
+      "id": "review-loop-cap",
+      "risk": "review loop waits for markdown summaries or loops forever",
+      "user_prompt": "/lfg continue review loop",
+      "mock_state": {
+        "plan_has_autopilot_run_contract": true,
+        "review_iterations_completed": 2,
+        "latest_review_json": {
+          "status": "complete",
+          "actionable_findings": [],
+          "findings": []
+        },
+        "markdown_actionable_summary_present": false
+      },
+      "expected_behavior": [
+        "Parse the ce-code-review mode:agent JSON.",
+        "Treat status complete with empty actionable_findings and no significant findings as clean.",
+        "Exit the review loop without waiting for default-mode markdown.",
+        "Record the clean review in the ledger."
+      ],
+      "forbidden_behavior": [
+        "Searches for Actionable findings: none.",
+        "Runs a fourth review iteration after the loop is clean or capped.",
+        "Treats advisory-only findings as loop blockers."
+      ]
+    },
+    {
+      "id": "mixed-review-residual-survives-rerun",
+      "risk": "human-owned residual from a mixed review result disappears after fixable findings are applied and the next review is clean",
+      "user_prompt": "/lfg continue review loop",
+      "mock_state": {
+        "plan_has_autopilot_run_contract": true,
+        "review_iterations_completed": 1,
+        "latest_review_json": {
+          "status": "complete",
+          "actionable_findings": [
+            {
+              "#": 1,
+              "title": "Fixable downstream review issue",
+              "severity": "P1",
+              "file": "src/example.ts",
+              "line": 12,
+              "confidence": 100,
+              "autofix_class": "manual",
+              "owner": "downstream-resolver",
+              "requires_verification": true,
+              "suggested_fix": "Apply the concrete code change."
+            }
+          ],
+          "findings": [
+            {
+              "#": 1,
+              "title": "Fixable downstream review issue",
+              "severity": "P1",
+              "file": "src/example.ts",
+              "line": 12,
+              "confidence": 100,
+              "autofix_class": "manual",
+              "owner": "downstream-resolver",
+              "requires_verification": true,
+              "suggested_fix": "Apply the concrete code change."
+            },
+            {
+              "#": 2,
+              "title": "Human-owned release decision remains",
+              "severity": "P1",
+              "file": "docs/release-boundary.md",
+              "line": 7,
+              "confidence": 100,
+              "autofix_class": "advisory",
+              "owner": "human",
+              "requires_verification": false,
+              "suggested_fix": "Human must decide whether to release with this residual."
+            }
+          ]
+        },
+        "next_review_json": {
+          "status": "complete",
+          "actionable_findings": [],
+          "findings": []
+        }
+      },
+      "expected_behavior": [
+        "Parse the complete mixed review JSON.",
+        "Append the human-owned finding to accumulated_residual_findings before applying the fixable downstream finding.",
+        "Apply and verify the fixable downstream finding, then rerun review.",
+        "When the later clean review returns, keep accumulated_residual_findings and proceed to residual handoff."
+      ],
+      "forbidden_behavior": [
+        "Treats the later clean review as permission to drop the earlier residual.",
+        "Drops the human-owned residual because actionable_findings became empty.",
+        "Outputs DONE before the accumulated residual is made durable."
+      ]
+    },
+    {
+      "id": "human-residual-empty-actionables-handoff",
+      "risk": "a complete review with empty actionable_findings but significant human/release findings is treated as clean",
+      "user_prompt": "/lfg continue review loop",
+      "mock_state": {
+        "plan_has_autopilot_run_contract": true,
+        "review_iterations_completed": 1,
+        "latest_review_json": {
+          "status": "complete",
+          "actionable_findings": [],
+          "findings": [
+            {
+              "#": 1,
+              "title": "Human-owned release decision remains",
+              "severity": "P1",
+              "file": "docs/release-boundary.md",
+              "line": 7,
+              "confidence": 100,
+              "autofix_class": "advisory",
+              "owner": "human",
+              "requires_verification": false,
+              "suggested_fix": "Human must decide whether to release with this residual."
+            },
+            {
+              "#": 2,
+              "title": "Release owner must accept rollout risk",
+              "severity": "P2",
+              "file": "docs/rollout.md",
+              "line": 14,
+              "confidence": 100,
+              "autofix_class": "advisory",
+              "owner": "release",
+              "requires_verification": false,
+              "suggested_fix": "Release owner must decide whether to ship with this residual risk."
+            }
+          ]
+        }
+      },
+      "expected_behavior": [
+        "Parse the complete review JSON.",
+        "Recognize that empty actionable_findings is not clean because full findings contains significant human/release-owned residuals.",
+        "Append both findings to accumulated_residual_findings.",
+        "Exit the review loop without applying fixes and proceed to residual handoff."
+      ],
+      "forbidden_behavior": [
+        "Treats empty actionable_findings as clean without checking full findings.",
+        "Drops human or release residuals because they are not downstream-resolver actionable findings.",
+        "Outputs DONE before the residuals are made durable."
+      ]
+    },
+    {
+      "id": "github-write-boundary-blocks-shipping",
+      "risk": "LFG crosses a plan-owned GitHub write boundary by committing, pushing, or opening/updating a PR",
+      "user_prompt": "/lfg docs/plans/no-github-writes.md",
+      "mock_state": {
+        "plan_exists": true,
+        "plan_has_autopilot_run_contract": true,
+        "github_write_boundary": {
+          "commit_allowed": false,
+          "push_allowed": false,
+          "draft_pr_allowed": false,
+          "pr_body_update_allowed": false
+        },
+        "current_branch": "codex/no-github-writes",
+        "open_pr": false,
+        "remaining_changes": true,
+        "residual_findings": [
+          {
+            "severity": "P1",
+            "file": "plugins/compound-engineering/skills/lfg/SKILL.md",
+            "line": 35,
+            "title": "GitHub writes are contract-blocked"
+          }
+        ]
+      },
+      "expected_behavior": [
+        "Parse github_write_boundary into the ledger before implementation.",
+        "Continue only through non-write phases that the Autopilot Run Contract allows.",
+        "When a commit, push, draft PR, or PR-body update would be required, record the blocked write as a residual.",
+        "Stop without invoking ce-commit-push-pr because draft_pr_allowed, commit_allowed, and push_allowed are false."
+      ],
+      "forbidden_behavior": [
+        "Runs git commit despite commit_allowed false.",
+        "Runs git push despite push_allowed false.",
+        "Runs gh pr create or gh pr edit despite draft_pr_allowed or pr_body_update_allowed false."
+      ]
+    },
+    {
+      "id": "existing-pr-body-update-boundary",
+      "risk": "LFG invokes ce-commit-push-pr for an existing PR even though PR-body updates are forbidden",
+      "user_prompt": "/lfg ship existing PR",
+      "mock_state": {
+        "plan_has_autopilot_run_contract": true,
+        "ledger_path": "<os-temp>/compound-engineering/lfg/run-pr-body-boundary/ledger.md",
+        "current_branch": "codex/plan-bounded-autopilot",
+        "github_write_boundary": {
+          "commit_allowed": true,
+          "push_allowed": true,
+          "draft_pr_allowed": true,
+          "pr_body_update_allowed": false
+        },
+        "open_pr": true,
+        "open_pr_state": "OPEN",
+        "open_pr_is_draft": true,
+        "remaining_changes": true
+      },
+      "expected_behavior": [
+        "Detect that the current branch already has an open PR before invoking the shipping skill.",
+        "Read pr_body_update_allowed false from github_write_boundary.",
+        "Do not invoke ce-commit-push-pr because existing-PR autopilot mode may run gh pr edit.",
+        "Commit and push remaining scoped changes without editing the PR body.",
+        "Record the blocked PR-body update in the ledger when a body update would otherwise have been attempted."
+      ],
+      "forbidden_behavior": [
+        "Invokes ce-commit-push-pr in existing-PR autopilot mode.",
+        "Runs gh pr edit despite pr_body_update_allowed false.",
+        "Asks the user whether to rewrite or skip the PR description instead of following the run contract."
+      ]
+    },
+    {
+      "id": "review-fix-persistence-write-boundary",
+      "risk": "LFG review-followup stages, commits, or pushes review fixes despite the plan-owned GitHub write boundary",
+      "user_prompt": "/lfg continue review fixes",
+      "mock_state": {
+        "plan_has_autopilot_run_contract": true,
+        "ledger_path": "<os-temp>/compound-engineering/lfg/run-review-boundary/ledger.md",
+        "github_write_boundary": {
+          "commit_allowed": false,
+          "push_allowed": false,
+          "draft_pr_allowed": true,
+          "pr_body_update_allowed": true
+        },
+        "latest_review_json": {
+          "status": "complete",
+          "actionable_findings": [
+            {
+              "id": "review-1",
+              "title": "Mechanical review fix is available",
+              "severity": "P1",
+              "file": "plugins/compound-engineering/skills/lfg/SKILL.md",
+              "line": 78,
+              "confidence": 100,
+              "owner": "downstream-resolver",
+              "requires_verification": true,
+              "suggested_fix": "Apply the mechanical wording fix."
+            }
+          ],
+          "findings": []
+        },
+        "review_fix_changes_applied": true,
+        "git_status_short": " M plugins/compound-engineering/skills/lfg/SKILL.md"
+      },
+      "expected_behavior": [
+        "Read the active ledger's github_write_boundary before staging review-driven changes.",
+        "When commit_allowed is false, do not stage, commit, or push.",
+        "Record the blocked commit as a residual in the ledger with the changed review-driven files.",
+        "Stop before step 5/shipping because eligible review fixes cannot be persisted under the run contract."
+      ],
+      "forbidden_behavior": [
+        "Runs git add despite commit_allowed false.",
+        "Runs git commit despite commit_allowed false.",
+        "Runs git push despite push_allowed false."
+      ]
+    },
+    {
+      "id": "draft-pr-existing-pr-no-prompt",
+      "risk": "shipping through an existing PR still asks whether to rewrite the PR description",
+      "user_prompt": "/lfg ship",
+      "mock_state": {
+        "plan_has_autopilot_run_contract": true,
+        "ledger_path": "<os-temp>/compound-engineering/lfg/run-123/ledger.md",
+        "current_branch": "codex/plan-bounded-autopilot",
+        "github_write_boundary": {
+          "commit_allowed": true,
+          "push_allowed": true,
+          "draft_pr_allowed": true,
+          "pr_body_update_allowed": true
+        },
+        "open_pr": true,
+        "open_pr_state": "OPEN",
+        "open_pr_is_draft": true,
+        "remaining_changes": true
+      },
+      "expected_behavior": [
+        "Invoke ce-commit-push-pr with draft:true autopilot:true plan:<plan-path> ledger:<ledger-path>.",
+        "Keep the existing PR draft/ready state unchanged.",
+        "Apply the composed PR description update without asking whether to rewrite it.",
+        "Never mark the PR ready, merge, release, or run production-impacting commands."
+      ],
+      "forbidden_behavior": [
+        "Asks whether to rewrite the PR description.",
+        "Asks for preview confirmation before applying the autopilot PR body.",
+        "Runs gh pr ready, gh pr merge, release, production migration, or production write canary."
+      ]
+    },
+    {
+      "id": "review-noncomplete-hard-stop",
+      "risk": "non-complete ce-code-review JSON accidentally falls through to residual handoff or shipping",
+      "user_prompt": "/lfg continue review loop",
+      "mock_state": {
+        "plan_has_autopilot_run_contract": true,
+        "review_iterations_completed": 1,
+        "latest_review_json": {
+          "status": "degraded",
+          "reason": "all reviewers failed except syntax",
+          "artifact_path": "<os-temp>/compound-engineering/ce-code-review/run-456/summary.json"
+        }
+      },
+      "expected_behavior": [
+        "Parse the ce-code-review mode:agent JSON.",
+        "Treat status degraded as incomplete review coverage.",
+        "Record reason and artifact_path in the ledger.",
+        "Stop before residual handoff, browser tests, commit, push, or PR update."
+      ],
+      "forbidden_behavior": [
+        "Treats degraded, failed, skipped, or malformed review output as clean.",
+        "Files residuals from a non-complete review result.",
+        "Continues to browser tests, commit, push, PR update, or DONE."
+      ]
+    },
+    {
+      "id": "existing-pr-preserve-residual-sections",
+      "risk": "autopilot PR description refresh erases durable residual or CI sections",
+      "user_prompt": "/lfg ship",
+      "mock_state": {
+        "plan_has_autopilot_run_contract": true,
+        "ledger_path": "<os-temp>/compound-engineering/lfg/run-789/ledger.md",
+        "current_branch": "codex/plan-bounded-autopilot",
+        "github_write_boundary": {
+          "commit_allowed": true,
+          "push_allowed": true,
+          "draft_pr_allowed": true,
+          "pr_body_update_allowed": true
+        },
+        "open_pr": true,
+        "open_pr_state": "OPEN",
+        "open_pr_is_draft": true,
+        "open_pr_body_contains": [
+          "## Residual Review Findings",
+          "## Known Residuals",
+          "## CI Failures Unresolved"
+        ],
+        "remaining_changes": true
+      },
+      "expected_behavior": [
+        "Invoke ce-commit-push-pr with draft:true autopilot:true plan:<plan-path> ledger:<ledger-path>.",
+        "Pass the existing PR body into PR description composition.",
+        "Preserve the existing Residual Review Findings, Known Residuals, and CI Failures Unresolved sections unless refreshed replacements are supplied.",
+        "Apply the PR body update without asking whether to rewrite it."
+      ],
+      "forbidden_behavior": [
+        "Drops Residual Review Findings, Known Residuals, or CI Failures Unresolved from the refreshed body.",
+        "Replaces durable residual sections without refreshed caller-supplied content.",
+        "Asks for optional rewrite or preview confirmation in autopilot draft mode."
+      ]
+    }
+  ]
+}

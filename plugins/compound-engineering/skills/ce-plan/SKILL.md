@@ -52,6 +52,7 @@ Every plan should contain:
 - Existing patterns or code references to follow
 - Enumerated test scenarios for each feature-bearing unit, specific enough that an implementer knows exactly what to test without inventing coverage themselves
 - Clear dependencies and sequencing
+- An **Autopilot Run Contract** only when the request, origin document, or `/lfg` invocation explicitly asks for autopilot or hands-off execution
 
 A plan is ready when an implementer can start confidently without needing the plan to write the code for them.
 
@@ -81,6 +82,20 @@ Resolution steps:
 
 - When `OUTPUT_FORMAT=md`, read `references/markdown-rendering.md` for format principles.
 - When `OUTPUT_FORMAT=html`, read `references/html-rendering.md` for format principles.
+
+#### 0.0a Resolve Autopilot Run Contract Need
+
+Determine whether the plan needs an **Autopilot Run Contract** before writing section content.
+
+Set `AUTOPILOT_CONTRACT_REQUIRED=true` only when one of these signals is present:
+
+- The user's request explicitly asks for autopilot, hands-off execution, autonomous continuation, or an LFG-style full pipeline.
+- The origin requirements document names autopilot, hands-off execution, an autonomous run contract, or a resume ledger as in-scope behavior.
+- `/lfg` invokes planning for a hands-off/autopilot run.
+
+Do **not** infer the contract from pipeline mode alone. Pipeline mode or `disable-model-invocation` alone only forces markdown output; ordinary automated planning consumers should not gain Autopilot Run Contract ceremony unless the task actually asks for autopilot or hands-off execution.
+
+When `AUTOPILOT_CONTRACT_REQUIRED=true`, include a compact `## Autopilot Run Contract` section in the plan. It must define allowed actions, forbidden actions, escalation triggers, retry caps, GitHub write boundary, resume state, and evidence-research triggers. The GitHub write boundary must use the exact boolean keys LFG parses: `commit_allowed`, `push_allowed`, `draft_pr_allowed`, and `pr_body_update_allowed`. Missing or ambiguous permission is treated as `false` by downstream automation, so do not replace the keys with prose. When false, omit the section entirely; ordinary plans should not gain extra ceremony.
 
 #### 0.1 Resume Existing Plan Work When Appropriate
 

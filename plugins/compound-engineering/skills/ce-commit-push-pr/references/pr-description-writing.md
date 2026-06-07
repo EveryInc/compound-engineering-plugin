@@ -89,6 +89,8 @@ The opening goes under `## Summary` if the body uses any `##` headings; bare par
 
 **Evidence handling:** preserve any existing `## Demo` or `## Screenshots` block verbatim unless the user's focus asks to refresh it. If the caller passed a freshly captured URL or path, splice as `## Demo`. Otherwise omit. Place before the badge. Never label test output as "Demo" or "Screenshots."
 
+**Durable caller-owned sections:** preserve any existing `## Residual Review Findings`, `## Known Residuals`, or `## CI Failures Unresolved` section verbatim unless the caller supplies a refreshed replacement for that exact heading. These sections are durable sinks written by LFG or review/CI follow-up flows; a body rewrite must never erase them while refreshing the summary, tests, evidence, or badge. For a new PR with no existing body, include refreshed durable sections supplied through caller context or the run ledger, such as LFG's no-PR residual fallback section. Place preserved or caller-supplied residual and CI sections after the test/evidence context and before the badge.
+
 **Visual aids:** reach for a diagram or table when it conveys the change faster than prose — relationships, flows, state transitions, sequences, trade-offs, before/after data, or any structure prose would have to enumerate. Mermaid and markdown tables cover most shapes; don't be limited to a particular type if a different one fits the change better. Place inline at the point of relevance. Skip for simple, prose-clear, or rename/dep-bump changes. Prose is authoritative when it conflicts with a visual.
 
 **GitHub gotchas:** never prefix list items with `#` (GitHub auto-links `#1` as an issue ref). Use `org/repo#123` or full URL for actual references.

@@ -30,7 +30,7 @@ describe("ce-plan output:html mode", () => {
     // argument-hint is in the frontmatter. Extract and parse to confirm
     // the token is visible to humans discovering the flag, not just buried
     // in skill prose.
-    const frontmatterMatch = SKILL_BODY.match(/^---\n([\s\S]*?)\n---/)
+    const frontmatterMatch = SKILL_BODY.match(/^---\r?\n([\s\S]*?)\r?\n---/)
     expect(frontmatterMatch).not.toBeNull()
     const frontmatter = parseYaml(frontmatterMatch![1]) as Record<string, unknown>
     const hint = frontmatter["argument-hint"]

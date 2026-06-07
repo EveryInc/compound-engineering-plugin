@@ -16,12 +16,21 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("mode:report-only")
     expect(content).toContain("mode:agent")
     expect(content).toContain("mode:headless")
-    expect(content).toContain("/tmp/compound-engineering/ce-code-review/<run-id>/")
+    expect(content).toContain("<os-temp>/compound-engineering/ce-code-review/<run-id>/")
     expect(content).toMatch(/Never push, open PRs, or file tickets/i)
     expect(content).toContain("run artifact")
     expect(content).toMatch(/check out the PR branch/i)
     expect(content).toMatch(/Never run `gh pr checkout`/i)
     expect(content).not.toContain("Which severities should I fix?")
+  })
+
+  test("run artifact guidance stays aligned with the repo's Unix-like temp policy", async () => {
+    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
+
+    expect(content).toContain("/tmp/compound-engineering/ce-code-review/$RUN_ID")
+    expect(content).toContain("<os-temp>/compound-engineering/ce-code-review/<run-id>/")
+    expect(content).toMatch(/Skills authored here assume Unix-like shells|native Windows is not a current target/i)
+    expect(content).not.toMatch(/%TEMP%|\$env:TEMP|PowerShell|Join-Path/)
   })
 
   test("keeps plan requirements completeness compatible with current and legacy unit formats", async () => {
@@ -223,7 +232,7 @@ describe("ce-code-review contract", () => {
     // Imperative lives inside the Spawning subsection, not only in the rationale block.
     // Extract the Spawning subsection and assert the model-override directive appears there
     // with cross-platform dispatch primitives named at the call site.
-    const spawningMatch = content.match(/#### Spawning\n([\s\S]*?)(?=\n####|\n### )/)
+    const spawningMatch = content.match(/#### Spawning\r?\n([\s\S]*?)(?=\r?\n####|\r?\n### )/)
     expect(spawningMatch).not.toBeNull()
     const spawning = spawningMatch![1]
 
@@ -519,7 +528,7 @@ describe("ce-code-review contract", () => {
 
   test("JSON-pipeline persona agents grant Write so they can save run artifacts", async () => {
     // The ce-code-review subagent template instructs each persona to write its full
-    // analysis to /tmp/compound-engineering/ce-code-review/{run_id}/{reviewer}.json.
+    // analysis to <os-temp>/compound-engineering/ce-code-review/{run_id}/{reviewer}.json.
     // Without Write in tools, that "one permitted write" cannot happen and headless
     // detail enrichment loses its Why:/Evidence: source. See issue #733.
     const personas = [

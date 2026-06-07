@@ -103,6 +103,34 @@ a section with placeholder prose is worse than omitting it.
   data-flow) typically live here. Skip when the approach is a one-paragraph
   pattern application that the prose itself conveys.
 
+- **Autopilot Run Contract** — include only when the request, origin document,
+  or `/lfg` invocation explicitly asks for autopilot or hands-off execution.
+  Ordinary plans should not gain this section. When present, keep it compact
+  and make it executable by downstream automation:
+  - **Allowed actions** — what the agent may do without another prompt.
+  - **Forbidden actions** — actions that remain human-owned.
+  - **Escalation triggers** — stakes or conflict signals that pause the run.
+  - **Retry caps** — review, CI, and repeated tool-failure limits.
+  - **GitHub write boundary** — use this exact boolean key shape so LFG can
+    parse it consistently. Missing or ambiguous permission is treated as `false`;
+    do not replace these keys with prose:
+
+    ```json
+    {
+      "commit_allowed": true,
+      "push_allowed": true,
+      "draft_pr_allowed": true,
+      "pr_body_update_allowed": true
+    }
+    ```
+
+    The prose around this object may explain what readiness/merge actions are
+    forbidden, but the object itself is the machine-readable boundary.
+  - **Resume state** — durable ledger fields needed to continue safely.
+  - **Evidence-research triggers** — fast-moving or high-stakes decisions that
+    require current external research, or an explicit residual assumption when
+    research is unavailable.
+
 - **Scope Boundaries** — include when scope is contested, when there are
   tempting non-goals worth naming explicitly, or when "deferred for later"
   needs distinguishing from "outside the product's identity." Skip when scope

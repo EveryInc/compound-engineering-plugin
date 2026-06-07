@@ -13,6 +13,17 @@ description: Commit, push, and open a PR with an adaptive, value-first descripti
 - **Description update** — user wants to refresh/rewrite an existing PR's description with no commit/push intent. If no open PR, report and stop. Otherwise run Step 4 (PR mode using the existing PR's URL), then Step 5 to preview, confirm, and apply via `gh pr edit`.
 - **Full workflow** — otherwise. Run Steps 1-5 in order.
 
+## Argument Tokens
+
+Before mode dispatch, scan `$ARGUMENTS` for literal-prefix tokens:
+
+- `draft:true` — strip this exact token and set `draft_mode=true`.
+- `autopilot:true` — strip this exact token and set `autopilot_context=true`.
+- `plan:<path>` — strip this token, store the plan path as caller context, and use it when composing the body or evaluating run-contract evidence requirements.
+- `ledger:<path>` — strip this token, store the run-ledger path as caller context, and use it for verification, review, CI, residual, and skipped-evidence context.
+
+`draft_mode` only affects the full workflow path: new PR creation uses draft mode, existing PRs keep their current readiness state, and optional prompts are reduced when `autopilot_context=true` or the caller otherwise supplied autopilot/run-contract context. Other colon tokens remain ordinary user text unless this skill documents them.
+
 ## Context
 
 **On platforms other than Claude Code**, run the Context fallback below. **In Claude Code**, the labeled sections contain pre-populated data — use them directly.
@@ -33,13 +44,11 @@ description: Commit, push, and open a PR with an adaptive, value-first descripti
 !`git rev-parse --abbrev-ref origin/HEAD 2>/dev/null || echo 'DEFAULT_BRANCH_UNRESOLVED'`
 
 **Existing PR check:**
-!`gh pr view --json url,title,state 2>/dev/null || echo 'NO_OPEN_PR'`
+!`gh pr view --json url,title,state,body 2>/dev/null || echo 'NO_OPEN_PR'`
 
 ### Context fallback
 
-```bash
-printf '=== STATUS ===\n'; git status; printf '\n=== DIFF ===\n'; git diff HEAD; printf '\n=== BRANCH ===\n'; git branch --show-current; printf '\n=== LOG ===\n'; git log --oneline -10; printf '\n=== DEFAULT_BRANCH ===\n'; git rev-parse --abbrev-ref origin/HEAD 2>/dev/null || echo 'DEFAULT_BRANCH_UNRESOLVED'; printf '\n=== PR_CHECK ===\n'; gh pr view --json url,title,state 2>/dev/null || echo 'NO_OPEN_PR'
-```
+Run these probes one at a time and keep their outputs under the matching labels: `git status`, `git diff HEAD`, `git branch --show-current`, `git log --oneline -10`, `git rev-parse --abbrev-ref origin/HEAD`, and `gh pr view --json url,title,state,body`. If the default-branch probe fails, record `DEFAULT_BRANCH_UNRESOLVED`. If the PR probe fails because the branch has no open PR, record `NO_OPEN_PR`.
 
 ---
 
@@ -54,7 +63,7 @@ Branch routing:
 - **On default branch with no work** — report no feature branch work and stop.
 - **Feature branch** — continue.
 
-Note the existing PR URL from the PR check if `state: OPEN`. Step 5 uses it to route between new-PR and existing-PR application.
+Note the existing PR URL and body from the PR check if `state: OPEN`. Step 5 uses the URL to route between new-PR and existing-PR application; Step 4 uses the body to preserve caller-owned durable sections.
 
 ## Step 2: Determine conventions
 
@@ -66,16 +75,17 @@ If on the default branch, branch creation needs to handle stale local `<base>`, 
 
 Scan changed files for naturally distinct concerns. If they clearly group into separate logical changes, create separate commits (2-3 max). Group at file level only — no `git add -p`. When ambiguous, one commit is fine.
 
-Stage and commit each group. **Avoid `git add -A` and `git add .`** — they sweep in `.env`, build artifacts, and generated files:
+Stage and commit each group with one command at a time. **Avoid `git add -A` and `git add .`** — they sweep in `.env`, build artifacts, and generated files:
 
 ```bash
-git add file1 file2 file3 && git commit -m "$(cat <<'EOF'
+git add file1 file2 file3
+git commit -m "$(cat <<'EOF'
 commit message here
 EOF
 )"
 ```
 
-Then push:
+Then push in a separate command:
 
 ```bash
 git push -u origin HEAD
@@ -87,8 +97,13 @@ If the working tree is clean and all commits are already pushed, this step is a 
 
 **You MUST read `references/pr-description-writing.md`** in full — the core principle at the top governs every step. The only input it needs from this skill is the PR ref, if one was identified by mode dispatch (description-only with a pasted URL, or description update).
 
+When Step 1 found an existing PR, pass the existing PR body from the PR check into composition so `references/pr-description-writing.md` can preserve durable caller-owned sections such as residual review findings and unresolved CI failures.
+
+When `ledger:<path>` is present, read the file at that path before PR title/body composition. Parse the fenced JSON block in the ledger, extract `pr_body_sections.residual_review_findings` when present, and pass the extracted section into composition even if Step 1 found no existing PR. If the file cannot be read or the JSON cannot be parsed, stop and report the ledger-read failure instead of silently composing without caller-owned residuals. Other caller context may also supply refreshed durable PR sections. LFG's no-PR residual fallback records `pr_body_sections.residual_review_findings` and `residual_fallback_path` in the ledger; a new draft PR body must include that `## Residual Review Findings` section instead of relying on the fallback file alone.
+
 **Evidence decision** before composition. Two short-circuits, then the full decision:
 
+0. **Autopilot draft mode** — if `draft_mode=true` and (`autopilot_context=true` or the caller otherwise supplied autopilot/run-contract context), suppress nonessential PR-description and evidence-capture prompts. Use available verification, review, CI, residual, plan, and ledger context; record skipped optional evidence in the body or final summary. If the run contract explicitly requires demo or evidence capture, capture it when possible or record the unmet requirement as a residual instead of silently skipping it.
 1. **User explicitly asked for evidence** ("ship with a demo", "include a screenshot") — proceed directly to capture. If capture is impossible or clearly not useful, note briefly and proceed without.
 2. **Agent judgment on authored changes** — if you authored the commits and know the change is non-observable (internal plumbing, type-only, backend refactor without user-facing effect, docs/markdown/changelog/CI/test-only, pure refactors), skip the prompt without asking.
 
@@ -104,14 +119,18 @@ Then continue with the rest of the reference (Steps A through G) to compose the 
 
 **Description-only mode** — print the title and body. Stop unless the user asks to apply.
 
-**New PR** (full workflow, no existing PR from Step 1) — apply per "Applying via gh" below using `gh pr create`. Report the URL.
+**New PR** (full workflow, no existing PR from Step 1) — apply per "Applying via gh" below using `gh pr create --draft` when `draft_mode=true`; otherwise use `gh pr create`. If autopilot caller context supplied durable sections from the ledger or fallback file, verify the composed body includes them before running `gh pr create`; stop and report the missing section if it does not. Report the URL.
 
-**Existing PR** (full workflow, found in Step 1) — the new commits are already on the PR from Step 3. Report the PR URL, then ask whether to rewrite the description.
+**Existing PR autopilot draft mode** (full workflow, found in Step 1, with `draft_mode=true` and `autopilot_context=true`) — the new commits are already on the PR from Step 3. Report the PR URL, leave existing PR draft/ready state unchanged, then apply the composed title/body with `gh pr edit` using the same temp-file path below. Do not ask whether to rewrite the description and do not ask for the preview confirmation; the caller supplied the plan/ledger context so this is a routine authorized shipping step. If the edit fails, report the failed command and carry the unapplied PR-body update as a residual instead of prompting.
+
+**Existing PR interactive mode** (full workflow, found in Step 1, not autopilot draft mode) — the new commits are already on the PR from Step 3. Report the PR URL, leave existing PR draft/ready state unchanged, then ask whether to rewrite the description.
 
 - **No** — done.
 - **Yes** — run Step 4 if not already done, then preview and apply (see below).
 
 **Description update mode, or existing-PR rewrite confirmed** — preview before applying. Ask: "New title: `<title>` (`<N>` chars). Summary leads with: `<first two sentences>`. Total body: `<L>` lines. Apply?" If declined, the user may pass focus text back for a regenerate; do not apply. If confirmed, apply per "Applying via gh" below using `gh pr edit` and report the URL.
+
+For autopilot draft mode, the composed body must preserve or include caller-owned durable sections (`## Residual Review Findings`, `## Known Residuals`, `## CI Failures Unresolved`). Existing PRs preserve those sections from the current PR body unless the caller supplied refreshed replacements. New PRs include refreshed sections supplied through caller context or the ledger, including LFG's no-PR residual fallback section.
 
 ---
 
@@ -119,17 +138,28 @@ Then continue with the rest of the reference (Steps A through G) to compose the 
 
 The body **must** be written to a temp file and passed via `--body-file <path>`. Never use `--body-file -`, stdin pipes, heredoc-to-stdin, or `--body "$(cat ...)"` — wrappers and stdin handling can silently produce an empty PR body while `gh` still exits 0 and returns a URL.
 
+Create the temp file with the host platform's temp API:
+
 ```bash
-BODY_FILE=$(mktemp "${TMPDIR:-/tmp}/ce-pr-body.XXXXXX") && cat > "$BODY_FILE" <<'__CE_PR_BODY_END__'
+BODY_FILE="$(mktemp -t ce-pr-body.XXXXXX)"
+cat > "$BODY_FILE" <<'__CE_PR_BODY_END__'
 <the composed body markdown goes here, verbatim>
 __CE_PR_BODY_END__
 ```
 
-The quoted sentinel keeps `$VAR`, backticks, and any literal `EOF` inside the body from being expanded.
+```powershell
+$BodyFile = [System.IO.Path]::GetTempFileName()
+@'
+<the composed body markdown goes here, verbatim>
+'@ | Set-Content -LiteralPath $BodyFile -Encoding UTF8
+```
+
+Use the actual temp-file path returned by the command (`$BODY_FILE` in POSIX shell or `$BodyFile` in PowerShell). The quoted sentinel keeps `$VAR`, backticks, and any literal `EOF` inside the body from being expanded.
 
 For `<TITLE>`: substitute verbatim. If it contains `"`, `` ` ``, `$`, or `\`, escape them or switch to single quotes.
 
 ```bash
+gh pr create --draft --title "<TITLE>" --body-file "$BODY_FILE"   # new draft PR when draft_mode=true
 gh pr create --title "<TITLE>" --body-file "$BODY_FILE"   # new PR
 gh pr edit   --title "<TITLE>" --body-file "$BODY_FILE"   # existing PR
 ```

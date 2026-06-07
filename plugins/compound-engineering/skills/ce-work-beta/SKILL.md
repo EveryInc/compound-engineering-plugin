@@ -2,7 +2,7 @@
 name: ce-work-beta
 description: "[BETA] Execute work with external delegate support. Same as ce-work but includes experimental Codex delegation mode for token-conserving code implementation."
 disable-model-invocation: true
-argument-hint: "[Plan doc path or description of work. Blank to auto use latest plan doc] [delegate:codex]"
+argument-hint: "[Plan doc path or description of work. Blank to auto use latest plan doc] [delegate:codex] [autopilot:true implementation-only:true plan:<path> ledger:<path>]"
 ---
 
 # Work Execution Command
@@ -21,14 +21,18 @@ This command takes a work document (plan or specification) or a bare prompt desc
 
 ## Argument Parsing
 
-Parse `$ARGUMENTS` for the following optional tokens. Strip each recognized token before interpreting the remainder as the plan file path or bare prompt.
+Parse `$ARGUMENTS` for the following optional literal-prefix tokens. Strip each recognized token before interpreting the remainder as the plan file path or bare prompt.
 
 | Token | Example | Effect |
 |-------|---------|--------|
 | `delegate:codex` | `delegate:codex` | Activate Codex delegation mode for plan execution |
 | `delegate:local` | `delegate:local` | Deactivate delegation even if enabled in config |
+| `autopilot:true` | `autopilot:true` | Set `autopilot_context=true`; treat the caller as an authorized bounded-autopilot coordinator. |
+| `implementation-only:true` | `implementation-only:true` | Set `implementation_only=true`; execute implementation and verification, then return control to the caller before shipping. |
+| `plan:<path>` | `plan:docs/plans/feature.md` | Store `caller_plan_path=<path>` and use it as the plan input unless a non-token plan path remains. |
+| `ledger:<path>` | `ledger:.context/compound-engineering/autopilot-runs/123/ledger.json` | Store `caller_ledger_path=<path>` for verification, residual, and handoff notes. |
 
-All tokens are optional. When absent, fall back to the resolution chain below.
+All tokens are optional. When absent, fall back to the resolution chain below. `implementation_only=true` is only honored when either `autopilot_context=true` or the input plan contains an `## Autopilot Run Contract`; otherwise treat it as malformed caller context and ask before suppressing shipping. Other colon tokens remain ordinary user text unless this skill documents them.
 
 **Fuzzy activation:** Also recognize imperative delegation-intent phrases such as "use codex", "delegate to codex", "codex mode", or "delegate mode" as equivalent to `delegate:codex`. A bare mention of "codex" in a prompt (e.g., "fix codex converter bugs") must NOT activate delegation -- only clear delegation intent triggers it.
 
@@ -62,6 +66,10 @@ Config keys:
 Store the resolved state for downstream consumption:
 - `delegation_active` -- boolean, whether delegation mode is on
 - `delegation_source` -- `argument` or `config` or `default` -- how delegation was resolved (used by environment guard to decide notification verbosity)
+- `autopilot_context` -- boolean, whether a bounded-autopilot caller supplied `autopilot:true`
+- `implementation_only` -- boolean, whether the skill must return control before shipping
+- `caller_plan_path` -- string from `plan:<path>`, or unset
+- `caller_ledger_path` -- string from `ledger:<path>`, or unset
 - `sandbox_mode` -- `yolo` or `full-auto` (from config or default `yolo`)
 - `consent_granted` -- boolean (from config `work_delegate_consent`)
 - `delegate_model` -- string from config, or unset (defer to Codex config)
@@ -106,12 +114,15 @@ Determine how to proceed based on what was provided in `<input_document>`.
    - Check for `Execution note` on each implementation unit — these carry the plan's execution posture signal for that unit (for example, test-first or characterization-first). Note them when creating tasks.
    - Check for a `Deferred to Implementation` or `Implementation-Time Unknowns` section — these are questions the planner intentionally left for you to resolve during execution. Note them before starting so they inform your approach rather than surprising you mid-task
    - Check for a `Scope Boundaries` section — these are explicit non-goals. Refer back to them if implementation starts pulling you toward adjacent work
+   - Check for an `Autopilot Run Contract` section. When present, carry its allowed actions, forbidden actions, escalation triggers, retry caps, GitHub write boundary, resume state, and Evidence-research triggers into execution.
    - Review any references or links provided in the plan
    - If the user explicitly asks for TDD, test-first, or characterization-first execution in this session, honor that request even if the plan has no `Execution note`
    - If anything is unclear or ambiguous, ask clarifying questions now
    - If clarifying questions were needed above, get user approval on the resolved answers. If no clarifications were needed, proceed without a separate approval step — plan scope is the plan's authority, not something to renegotiate
    - **Do not skip this** - better to ask questions now than build the wrong thing
    - **Do not edit the plan body during execution.** The plan is a decision artifact; progress lives in git commits and the task tracker. The only plan mutation during ce-work is the final `status: active → completed` flip at shipping (see `references/shipping-workflow.md` Phase 4 Step 2). Legacy plans may contain `- [ ]` / `- [x]` marks on unit headings — ignore them as state; per-unit completion is determined during execution by reading the current file state.
+
+   **Autopilot Run Contract execution rules:** If the plan includes this section, it is the authority for how much autonomy to take. Never silently cross forbidden actions. If execution discovers a major architecture, technology stack, provider, model/API, security-sensitive, destructive, production-impacting, or cost-bearing decision covered by escalation triggers, pause for the user or record the residual exactly as the contract permits. For fast-moving technical decisions, use current external research when tools are available and the contract asks for it; if research is unavailable or thin, record the explicit assumption or residual instead of treating stale model knowledge as settled.
 
 2. **Setup Environment**
 
@@ -130,6 +141,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
    **If already on a feature branch** (not the default branch):
 
    First, check whether the branch name is **meaningful** — a name like `feat/crowd-sniff` or `fix/email-validation` tells future readers what the work is about. Auto-generated worktree names (e.g., `worktree-jolly-beaming-raven`) or other opaque names do not.
+
+   If `implementation_only=true` and (`autopilot_context=true` or the plan contains an `## Autopilot Run Contract`), continue automatically on the current feature branch. If the branch name is meaningless or auto-generated, record a rename suggestion in the task tracker, final implementation summary, and `caller_ledger_path` when present; do not prompt and do not rename unless the run contract explicitly authorizes branch renames. If the current branch is the default branch or detached HEAD, stop for the normal branch routing below unless the run contract explicitly authorizes branch creation.
 
    If the branch name is meaningless or auto-generated, suggest renaming it before continuing:
    ```bash
@@ -181,7 +194,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
 4. **Choose Execution Strategy**
 
-   **Delegation routing gate:** If `delegation_active` is true AND the input is a plan file (not a bare prompt), read `references/codex-delegation-workflow.md` and follow its Pre-Delegation Checks and Delegation Decision flow. If all checks pass and delegation proceeds, force **serial execution** and proceed directly to Phase 2 using the workflow's batched execution loop. If any check disables delegation, fall through to the standard strategy table below. If delegation is active but the input is a bare prompt (no plan file), set `delegation_active` to false with a brief note: "Codex delegation requires a plan file -- using standard mode." and continue with the standard strategy selection below.
+   **Delegation routing gate:** If `delegation_active` is true AND the input is a plan file (not a bare prompt), read `references/codex-delegation-workflow.md` and follow its Pre-Delegation Checks and Delegation Decision flow. Pass through `implementation_only`, `autopilot_context`, and caller plan/ledger context so the delegation workflow can preserve caller-owned commit boundaries. If all checks pass and delegation proceeds, force **serial execution** and proceed directly to Phase 2 using the workflow's batched execution loop. If any check disables delegation, fall through to the standard strategy table below. If delegation is active but the input is a bare prompt (no plan file), set `delegation_active` to false with a brief note: "Codex delegation requires a plan file -- using standard mode." and continue with the standard strategy selection below.
 
    After creating the task list, decide how to execute based on the plan's size and dependency structure:
 
@@ -215,6 +228,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
    - These constraints prevent git index contention and test interference between concurrent subagents.
    - With worktree isolation active, omit these constraints — subagents may stage, commit, and run their unit's tests within their own worktree branch.
 
+   **Implementation-only override** — if `implementation_only=true` and (`autopilot_context=true` or the plan contains an `## Autopilot Run Contract`), the caller owns every commit. Do not use any execution path that requires subagents to create commits or the orchestrator to merge commit-bearing branches before returning. Force all subagents and Codex delegates into no-git mode: "Do not stage files (`git add`), create commits, push, or open PRs. Return changed files, verification, and residuals only." If the harness can only provide write-capable subagents through isolated commit branches, execute the unit inline or serially in the orchestrator working tree instead. In this mode, progress is carried by the task tracker, the working-tree diff, verification output, and the final implementation summary.
+
    **Permission mode:** Omit the `mode` parameter when dispatching subagents so the user's configured permission settings apply. Do not pass `mode: "auto"` — it overrides user-level settings like `bypassPermissions`.
 
    **After each subagent completes (serial mode):**
@@ -225,6 +240,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
    5. Dispatch the next unit
 
    **After all parallel subagents in a batch complete (worktree-isolated mode):**
+   Skip this worktree-isolated commit/merge path entirely when the implementation-only override is active.
+
    1. Wait for every subagent in the current parallel batch to finish.
    2. For each completed subagent, in dependency order: review the worktree's diff against the orchestrator's branch. If the subagent did not commit its own work, stage and commit it inside that worktree.
    3. Merge each subagent's branch into the orchestrator's branch sequentially in dependency order. **If a merge conflict surfaces, abort the merge (`git merge --abort`) and re-dispatch the conflicting unit serially against the now-merged tree** — hand-resolving silently picks a side and discards one unit's intent. (Predicted overlap from the Parallel Safety Check surfaces here as a conflict, not as silent data loss in shared-directory mode.)
@@ -238,8 +255,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
    **After all parallel subagents in a batch complete (shared-directory fallback):**
    1. Wait for every subagent in the current parallel batch to finish before acting on any of their results
-   2. Cross-check for discovered file collisions: compare the actual files modified by all subagents in the batch (not just their declared `Files:` lists). Subagents may create or modify files not anticipated during planning — this is expected, since plans describe *what* not *how*. A collision only matters when 2+ subagents in the same batch modified the same file. In a shared working directory, only the last writer's version survives — the other unit's changes to that file are lost. If a collision is detected: commit all non-colliding files from all units first, then re-run the affected units serially for the shared file so each builds on the other's committed work
-   3. For each completed unit, in dependency order: review the diff, run the relevant test suite, stage only that unit's files, and commit with a conventional message derived from the unit's Goal
+   2. Cross-check for discovered file collisions: compare the actual files modified by all subagents in the batch (not just their declared `Files:` lists). Subagents may create or modify files not anticipated during planning — this is expected, since plans describe *what* not *how*. A collision only matters when 2+ subagents in the same batch modified the same file. In a shared working directory, only the last writer's version survives — the other unit's changes to that file are lost. If a collision is detected: when implementation-only is active, preserve the non-colliding working-tree changes, re-run the affected units serially, and do not commit; otherwise commit all non-colliding files from all units first, then re-run the affected units serially for the shared file so each builds on the other's committed work
+   3. For each completed unit, in dependency order: review the diff and run the relevant test suite. When implementation-only is active, do not stage or commit; record the unit's changed files and verification in the task tracker/final summary. Otherwise stage only that unit's files and commit with a conventional message derived from the unit's Goal
    4. If tests fail after committing a unit's changes, diagnose and fix before committing the next unit
    5. Update the task list (do not edit the plan body — progress is carried by the commits just made)
    6. Dispatch the next batch of independent units, or the next dependent unit
@@ -304,6 +321,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
 2. **Incremental Commits**
 
+   If `implementation_only=true` and (`autopilot_context=true` or the plan contains an `## Autopilot Run Contract`), skip incremental commits entirely. Do not run `git add`, do not run `git commit`, and do not ask the caller whether to commit. Track logical completion boundaries in the task tracker and final implementation summary so LFG or another caller can make the single caller-owned commit later.
+
    After completing each task, evaluate whether to create an incremental commit:
 
    | Commit when... | Don't commit when... |
@@ -336,6 +355,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
    **Parallel subagent mode:** Commit ownership is split by isolation mode (see Phase 1 Step 4):
    - **Worktree-isolated:** subagents may stage and commit inside their own worktree branch; the orchestrator merges those branches in dependency order after the batch.
    - **Shared-directory fallback:** subagents do not commit; the orchestrator stages and commits each unit after the entire parallel batch completes.
+   - **Implementation-only:** neither subagents nor the orchestrator commit; return the dirty-tree diff, changed-file list, verification, and residuals to the caller.
 
 3. **Follow Existing Patterns**
 
@@ -386,6 +406,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
    - When the plan defines U-IDs for Implementation Units, or the plan or origin document carries stable R-IDs (and optionally A/F/AE IDs), reference them in blockers, deferred-work notes, task summaries, and final verification — not routine status updates. U-IDs anchor units across plan edits; R/A/F/AE anchor product intent across the brainstorm-plan handoff. Use the IDs the plan supplies and do not invent ones it does not. This preserves traceability without burying signal under noise.
 
 ### Phase 3-4: Quality Check and Finishing Work
+
+If `implementation_only=true` and (`autopilot_context=true` or the plan contains an `## Autopilot Run Contract`), stop before the shipping workflow and return control to the caller. Run the plan/unit verification that Phase 2 identified, update the task tracker, and summarize changed files, tests run, residuals/escalations, and the next suggested caller action. Do not enter `references/shipping-workflow.md`, do not flip plan frontmatter to `completed`, do not invoke `ce-code-review`, and do not invoke `ce-commit-push-pr`; LFG or another caller owns review, residual handoff, commits, push, and PR creation in this mode. If any subagent or delegation path created a commit despite the implementation-only override, stop and report the unexpected commit before the caller proceeds.
 
 When all Phase 2 tasks are complete and execution transitions to quality check, read `references/shipping-workflow.md` for the full shipping workflow: quality checks, code review, final validation, PR creation, and notification.
 
