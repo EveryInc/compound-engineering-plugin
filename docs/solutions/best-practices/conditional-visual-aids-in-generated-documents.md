@@ -219,4 +219,3 @@ Concrete guidance for any skill that generates documents with visual aids:
 - GitHub issue #44 -- mermaid dark mode rendering, relevant when considering diagram styling
 - PR #437 -- ce:brainstorm visual aids implementation
 - PR #440 -- ce:plan visual aids implementation
-- `docs/plans/2026-03-29-003-feat-pr-description-visual-aids-plan.md` -- git-commit-push-pr visual aids plan

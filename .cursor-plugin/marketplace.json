@@ -15,11 +15,6 @@
       "name": "compound-engineering",
       "source": "compound-engineering",
       "description": "AI-powered development tools that get smarter with every use. Make each unit of engineering work easier than the last."
-    },
-    {
-      "name": "coding-tutor",
-      "source": "coding-tutor",
-      "description": "Personalized coding tutorials with spaced repetition quizzes using your real codebase."
     }
   ]
 }

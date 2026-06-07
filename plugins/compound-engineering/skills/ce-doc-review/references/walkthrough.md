@@ -1,6 +1,6 @@
 # Per-finding Walk-through
 
-This reference defines Interactive mode's per-finding walk-through — the path the user enters by picking option A (`Review each finding one by one — accept the recommendation or choose another action`) from the routing question, plus the unified completion report that every terminal path (walk-through, best-judgment, Append-to-Open-Questions, zero findings) emits.
+Interactive mode's per-finding walk-through — the path the user enters by picking option A (`Review each finding one by one — accept the recommendation or choose another action`) from the routing question, plus the unified completion report that every terminal path (walk-through, best-judgment, Append-to-Open-Questions, zero findings) emits.
 
 Interactive mode only.
 
@@ -23,7 +23,7 @@ C. Append findings to the doc's Open Questions section and proceed
 D. Report only — take no further action
 ```
 
-The per-finding `(recommended)` labeling lives inside the walk-through (option A) and the bulk preview (options B/C), where it's applied per-finding from synthesis step 3.5b's `recommended_action`. The routing question itself does not recommend one of A/B/C/D because the right route depends on user intent (engage / trust / triage / skim), not on the finding-set shape — a rule that mapped finding-set shape to routing recommendation (e.g., "most findings are Apply-shaped → recommend best-judgment") would pressure users toward automated paths in ways that conflict with the user-intent framing.
+The per-finding `(recommended)` labeling lives inside the walk-through (option A) and the bulk preview (options B/C), applied per-finding from synthesis step 3.5b's `recommended_action`. The routing question itself recommends none of A/B/C/D because the right route depends on user intent (engage / trust / triage / skim), not finding-set shape — mapping shape to a routing recommendation (e.g., "most findings are Apply-shaped → recommend best-judgment") would pressure users toward automated paths against the user-intent framing.
 
 If all remaining findings are FYI-subsection-only (no `gated_auto` or `manual` findings at confidence anchor `75` or `100`), skip the routing question entirely and flow to the Phase 5 terminal question.
 
@@ -133,7 +133,7 @@ After the user answers and before printing the next finding's terminal block, em
 
 ### Options (four; adapted as noted)
 
-These four options are the **complete, exclusive set** for the regular per-finding question. Fixed order — never reorder, never add, never substitute. In particular, **`Acknowledge` is NOT one of these options** — it appears only in the no-fix sub-question described under "Per-finding routing" below, which fires only when the user picks Apply on a finding that lacks a `suggested_fix`. Importing `Acknowledge` into the regular menu (in place of D, or as a fifth option) is a bug — it silently drops the `Auto-resolve with best judgment on the rest` workflow shortcut, and surfacing `Acknowledge` outside the no-fix path mislabels the user's choice in the completion report's bucket counts.
+These four options are the **complete, exclusive set** for the regular per-finding question. Fixed order — never reorder, add, or substitute. In particular, **`Acknowledge` is NOT one of these options** — it appears only in the no-fix sub-question under "Per-finding routing" below, which fires only when the user picks Apply on a finding lacking a `suggested_fix`. Importing `Acknowledge` into the regular menu (in place of D, or as a fifth option) is a bug: it silently drops the `Auto-resolve with best judgment on the rest` shortcut, and surfacing `Acknowledge` outside the no-fix path mislabels the user's choice in the completion report's bucket counts.
 
 ```
 A. Apply the proposed fix
@@ -142,7 +142,7 @@ C. Skip — don't apply, don't append
 D. Auto-resolve with best judgment on the rest
 ```
 
-**Mark the post-tie-break recommendation with `(recommended)` on its option label.** Required, not optional. Only A, B, or C can carry it — synthesis emits `recommended_action` as Apply/Defer/Skip, which maps to A/B/C. D (`Auto-resolve with best judgment on the rest`) is a workflow shortcut for bulk execution across remaining findings, not a finding-level resolution action, so it is never marked `(recommended)`.
+**Mark the post-tie-break recommendation with `(recommended)` on its option label.** Required. Only A, B, or C can carry it — synthesis emits `recommended_action` as Apply/Defer/Skip, mapping to A/B/C. D (`Auto-resolve with best judgment on the rest`) is a bulk-execution shortcut, not a finding-level resolution action, so it is never marked `(recommended)`.
 
 ```
 A. Apply the proposed fix  (recommended)
@@ -176,11 +176,11 @@ For each finding's answer:
 
 ### No-fix sub-question (Apply picked on a finding with no `suggested_fix`)
 
-This sub-question — and the `Acknowledge without applying` option in particular — is **exclusive to the no-fix path**. It fires only after the user picks Apply on a finding whose merged record has no `suggested_fix`. Do not surface this sub-question, or its `Acknowledge` option, in the regular per-finding menu. The regular menu's fourth option is always `Auto-resolve with best judgment on the rest` (per "Options" above), never `Acknowledge`.
+This sub-question — and the `Acknowledge without applying` option in particular — is **exclusive to the no-fix path**. It fires only after the user picks Apply on a finding whose merged record has no `suggested_fix`. Do not surface this sub-question, or its `Acknowledge` option, in the regular per-finding menu, whose fourth option is always `Auto-resolve with best judgment on the rest` (per "Options" above), never `Acknowledge`.
 
-Synthesis step 3.5b demotes the default recommendation from Apply to Defer for any merged finding without a `suggested_fix`, so `(recommended)` never lands on Apply for these findings. But the menu still lets the user pick Apply manually. When that happens, do not add the finding to the Apply set — the execution pass has no edit payload to apply, which would either fail the batch or record a misleading "applied" outcome.
+Synthesis step 3.5b demotes the default recommendation from Apply to Defer for any merged finding without a `suggested_fix`, so `(recommended)` never lands on Apply here. The menu still lets the user pick Apply manually. When that happens, do not add the finding to the Apply set — the execution pass has no edit payload, which would either fail the batch or record a misleading "applied" outcome.
 
-Fire a blocking sub-question using the platform's question tool. The stem explains why Apply is not executable in one line, then offers three self-contained options. Position indicator stays on the current finding while the sub-question is open.
+Fire a blocking sub-question via the platform's question tool. The stem explains in one line why Apply is not executable, then offers three self-contained options. Position indicator stays on the current finding while the sub-question is open.
 
 **Stem:** `Apply isn't executable for this finding — the review surfaced the issue without a concrete fix. How should the agent proceed?`
 
@@ -206,7 +206,7 @@ C. Acknowledge without applying — record the decision, no document edit
 
 ## Override rule
 
-"Override" means the user picks a different preset action (Defer or Skip in place of Apply, or Apply in place of the agent's recommendation). No inline freeform custom-fix authoring — the walk-through is a decision loop, not a pair-editing surface. A user who wants a variant of the proposed fix picks Skip and hand-edits outside the flow; if they also want the finding tracked, they can Defer first and edit afterward.
+"Override" means the user picks a different preset action (Defer or Skip in place of Apply, or Apply in place of the agent's recommendation). No inline freeform custom-fix authoring — the walk-through is a decision loop, not a pair-editing surface. A user who wants a variant of the proposed fix picks Skip and hand-edits outside the flow; to track it too, Defer first and edit afterward.
 
 ---
 
@@ -218,7 +218,7 @@ Walk-through state is **in-memory only**. The orchestrator maintains:
 - A decision list (every answered finding with its action and any metadata like `append_location` for Deferred or `reason` for Skipped)
 - The current position in the findings list
 
-Nothing is written to disk per-decision except the in-doc Open Questions appends (which are external side effects — those cannot be rolled back). An interrupted walk-through (user cancels the prompt, session compacts, network dies) discards all in-memory state. Apply decisions have not been dispatched yet (they batch at end-of-walk-through), so they are cleanly lost with no document changes.
+Nothing is written to disk per-decision except the in-doc Open Questions appends (external side effects that cannot be rolled back). An interrupted walk-through (user cancels the prompt, session compacts, network dies) discards all in-memory state. Apply decisions batch at end-of-walk-through and have not dispatched yet, so they are cleanly lost with no document changes.
 
 Cross-session persistence is out of scope. Mirrors `ce-code-review`'s walk-through state rules.
 

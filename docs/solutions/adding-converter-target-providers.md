@@ -70,8 +70,6 @@ export type {TargetName}Agent = {
 
 **Reference Implementations:**
 - OpenCode: `src/types/opencode.ts` (command + agent split)
-- Copilot: `src/types/copilot.ts` (agents + skills + MCP)
-- Windsurf: `src/types/windsurf.ts` (rules-based format)
 
 ---
 
@@ -216,8 +214,6 @@ function flattenCommandName(name: string): string {
 
 **Reference Implementations:**
 - OpenCode: `src/converters/claude-to-opencode.ts` (most comprehensive)
-- Copilot: `src/converters/claude-to-copilot.ts` (MCP prefixing pattern)
-- Windsurf: `src/converters/claude-to-windsurf.ts` (rules-based conversion)
 
 ---
 
@@ -338,9 +334,9 @@ export async function backupFile(filePath: string): Promise<string | null> {
    ```
 
 **Reference Implementations:**
-- Droid: `src/targets/droid.ts` (simpler pattern, good for learning)
-- Copilot: `src/targets/copilot.ts` (double-nesting pattern)
-- Windsurf: `src/targets/windsurf.ts` (rules-based output)
+- OpenCode: `src/targets/opencode.ts` (config merge + agent/command writers)
+- Codex: `src/targets/codex.ts` (manifest-managed cleanup, MCP merge)
+- Kiro: `src/targets/kiro.ts` (direct-write pattern)
 
 ---
 
@@ -665,10 +661,7 @@ Use this checklist when adding a new target provider:
 
 **Reference implementations by priority (easiest to hardest):**
 
-1. **Droid** (`src/targets/droid.ts`, `src/converters/claude-to-droid.ts`) — Simplest pattern, good learning baseline
-2. **Copilot** (`src/targets/copilot.ts`, `src/converters/claude-to-copilot.ts`) — MCP prefixing, double-nesting guard
-3. **Windsurf** (`src/targets/windsurf.ts`, `src/converters/claude-to-windsurf.ts`) — Rules-based conversion
-4. **OpenCode** (`src/converters/claude-to-opencode.ts`) — Most comprehensive, handles command structure and config merging
+1. **OpenCode** (`src/converters/claude-to-opencode.ts`) — Most comprehensive, handles command structure and config merging
 
 ### Key Utilities
 
@@ -678,8 +671,8 @@ Use this checklist when adding a new target provider:
 
 ### Existing Tests
 
-- `tests/copilot-writer.test.ts` — Writer tests with temp directories
-- `tests/sync-copilot.test.ts` — Sync pattern with symlinks and config merge
+- `tests/opencode-writer.test.ts` — Writer tests with temp directories
+- `tests/path-sanitization.test.ts` — Name-collision and path-sanitization coverage shared across writers
 
 ---
 

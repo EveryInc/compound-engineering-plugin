@@ -2,9 +2,9 @@
 
 > Document a recently solved problem so the next encounter takes minutes instead of hours. Knowledge compounds.
 
-`ce-compound` is the **knowledge-capture** skill. After you solve a non-trivial problem, this skill writes a structured doc to `docs/solutions/` covering symptoms, root cause, what didn't work, the working solution, and prevention strategies. Future runs of `ce-plan`, `ce-ideate`, `ce-debug`, and `ce-work` consult this folder as institutional memory — so the same investigation never has to happen twice.
+`ce-compound` is the **knowledge-capture** skill. After you solve a non-trivial problem, this skill writes a structured doc to `docs/solutions/` covering symptoms, root cause, what didn't work, the working solution, and prevention strategies. Future runs of `ce-plan`, `ce-debug`, and `ce-work` consult this folder as institutional memory — so the same investigation never has to happen twice.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-compound` is the **closing loop** — captured at the end of a debugging or build session, the doc feeds back upstream as grounding for future runs. The first time you solve "N+1 query in brief generation" takes 30 minutes of research; the second time, you find the doc and the fix takes 2 minutes.
+The compound-engineering ideation chain is `/ce-brainstorm → /ce-plan → /ce-work`. `ce-compound` is the **closing loop** — captured at the end of a debugging or build session, the doc feeds back upstream as grounding for future runs. The first time you solve "N+1 query in brief generation" takes 30 minutes of research; the second time, you find the doc and the fix takes 2 minutes.
 
 ---
 
@@ -80,7 +80,7 @@ After capturing the new learning, `ce-compound` checks whether it should invoke 
 
 ### 6. Specialized post-review
 
-Based on the problem type, optional specialized agents review the documentation: `ce-performance-oracle` for performance issues, `ce-security-sentinel` for security, `ce-data-integrity-guardian` for database, and `ce-code-simplicity-reviewer` for code-heavy issues.
+Based on the problem type, optional specialized agents review the documentation: `ce-plan-specialist-reviewer` with a scope hint for performance, security, or database issues (`Scope: performance`, `Scope: security`, or `Scope: data-integrity`), and `ce-correctness-reviewer` for code-heavy issues.
 
 ### 7. Session history integration (opt-in)
 
@@ -102,7 +102,7 @@ Three subagents dispatch in parallel: Context Analyzer reads conversation histor
 
 The orchestrator assembles the doc, validates frontmatter via the YAML safety script, and writes `docs/solutions/performance-issues/n-plus-one-brief-generation.md`. The discoverability check finds `AGENTS.md` doesn't mention `docs/solutions/`, proposes a one-line addition to the existing directory listing, and applies it after you confirm.
 
-Phase 3 dispatches `ce-performance-oracle` and `ce-code-simplicity-reviewer` to validate the code examples and approach. Phase 2.5 surfaces a refresh recommendation: the older N+1 doc may benefit from consolidation review. The skill suggests `/ce-compound mode:refresh n-plus-one` as a narrow scope hint and ends.
+Phase 3 dispatches `ce-plan-specialist-reviewer` (`Scope: performance`) and `ce-correctness-reviewer` to validate the code examples and approach. Phase 2.5 surfaces a refresh recommendation: the older N+1 doc may benefit from consolidation review. The skill suggests `/ce-compound mode:refresh n-plus-one` as a narrow scope hint and ends.
 
 ---
 
@@ -134,7 +134,6 @@ Skip `ce-compound` when:
 The output feeds back into upstream skills:
 
 - `/ce-plan` reads `docs/solutions/` via `ce-learnings-researcher` during Phase 1 research
-- `/ce-ideate` reads it as part of the comprehensive grounding step
 - `/ce-debug` reads it for prior context when an issue tracker reference is fetched
 
 When the new learning suggests an older doc may now be stale, `ce-compound` recommends `/ce-compound mode:refresh` with a narrow scope hint.
@@ -202,4 +201,3 @@ The skill asks for consent before applying the edit. You can decline; the doc st
 - [`ce-debug`](./ce-debug.md) — common upstream caller after a fix is verified
 - [`ce-work`](./ce-work.md) — common upstream caller after shipping
 - [`ce-plan`](./ce-plan.md) — reads `docs/solutions/` as institutional memory during planning
-- [`ce-ideate`](./ce-ideate.md) — reads `docs/solutions/` as part of grounding

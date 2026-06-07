@@ -30,7 +30,7 @@ export function resolveManagedSegment(pluginName?: string): string {
 /**
  * Resolves the legacy shared managed directory that lived next to the
  * current plugin-scoped directory before the per-plugin namespacing fix.
- * `managedDir` is the plugin-scoped path (e.g. `<root>/coding-tutor`);
+ * `managedDir` is the plugin-scoped path (e.g. `<root>/some-plugin`);
  * the legacy sibling is `<root>/compound-engineering`. When `pluginName`
  * is the historical `compound-engineering`, the legacy path and the
  * current path are the same, so there is nothing to migrate -- this

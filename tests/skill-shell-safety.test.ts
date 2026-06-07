@@ -32,7 +32,7 @@ import { describe, expect, test } from "bun:test"
  *     pair `2>/dev/null` with `|| true` or `|| echo '__SENTINEL__'`.
  */
 
-const PLUGIN_SKILLS_GLOB = ["plugins/compound-engineering/skills", "plugins/coding-tutor/skills"]
+const PLUGIN_SKILLS_GLOB = ["plugins/compound-engineering/skills"]
 
 function listSkillFiles(): string[] {
   const out: string[] = []

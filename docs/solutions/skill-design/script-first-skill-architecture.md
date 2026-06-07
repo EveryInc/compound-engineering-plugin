@@ -88,6 +88,5 @@ Apply script-first architecture when a skill meets **any** of these:
 
 ## Related
 
-- [Reduce plugin context token usage](../../plans/2026-02-08-refactor-reduce-plugin-context-token-usage-plan.md) -- established the principle that descriptions are for discovery, detailed content belongs in the body
 - [Compound refresh skill improvements](compound-refresh-skill-improvements.md) -- patterns for autonomous skill execution and subagent architecture
 - [Beta skills framework](beta-skills-framework.md) -- skill organization and rollout conventions

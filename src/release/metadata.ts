@@ -153,24 +153,16 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
 
   const compoundClaudePath = path.join(root, "plugins", "compound-engineering", ".claude-plugin", "plugin.json")
   const compoundCursorPath = path.join(root, "plugins", "compound-engineering", ".cursor-plugin", "plugin.json")
-  const codingTutorClaudePath = path.join(root, "plugins", "coding-tutor", ".claude-plugin", "plugin.json")
-  const codingTutorCursorPath = path.join(root, "plugins", "coding-tutor", ".cursor-plugin", "plugin.json")
   const marketplaceClaudePath = path.join(root, ".claude-plugin", "marketplace.json")
   const marketplaceCursorPath = path.join(root, ".cursor-plugin", "marketplace.json")
 
   const compoundClaude = await readJson<ClaudePluginManifest>(compoundClaudePath)
   const compoundCursor = await readJson<CursorPluginManifest>(compoundCursorPath)
-  const codingTutorClaude = await readJson<ClaudePluginManifest>(codingTutorClaudePath)
-  const codingTutorCursor = await readJson<CursorPluginManifest>(codingTutorCursorPath)
   const marketplaceClaude = await readJson<MarketplaceManifest>(marketplaceClaudePath)
   const marketplaceCursor = await readJson<MarketplaceManifest>(marketplaceCursorPath)
   const expectedCompoundVersion = resolveExpectedVersion(
     versions["compound-engineering"],
     compoundClaude.version,
-  )
-  const expectedCodingTutorVersion = resolveExpectedVersion(
-    versions["coding-tutor"],
-    codingTutorClaude.version,
   )
 
   let changed = false
@@ -196,22 +188,6 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   }
   updates.push({ path: compoundCursorPath, changed })
   if (write && changed) await writeJson(compoundCursorPath, compoundCursor)
-
-  changed = false
-  if (codingTutorClaude.version !== expectedCodingTutorVersion) {
-    codingTutorClaude.version = expectedCodingTutorVersion
-    changed = true
-  }
-  updates.push({ path: codingTutorClaudePath, changed })
-  if (write && changed) await writeJson(codingTutorClaudePath, codingTutorClaude)
-
-  changed = false
-  if (codingTutorCursor.version !== expectedCodingTutorVersion) {
-    codingTutorCursor.version = expectedCodingTutorVersion
-    changed = true
-  }
-  updates.push({ path: codingTutorCursorPath, changed })
-  if (write && changed) await writeJson(codingTutorCursorPath, codingTutorCursor)
 
   changed = false
   if (versions.marketplace && marketplaceClaude.metadata.version !== versions.marketplace) {
@@ -259,7 +235,6 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   // `extra-files` in `.github/release-please-config.json`. Duplicating the
   // write would create a second authority for the same field.
   const compoundCodexPath = path.join(root, "plugins", "compound-engineering", ".codex-plugin", "plugin.json")
-  const codingTutorCodexPath = path.join(root, "plugins", "coding-tutor", ".codex-plugin", "plugin.json")
   const marketplaceCodexPath = path.join(root, ".agents", "plugins", "marketplace.json")
 
   const codexPluginTargets: Array<{
@@ -273,12 +248,6 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
       claude: compoundClaude,
       codexPath: compoundCodexPath,
       expectedName: "compound-engineering",
-    },
-    {
-      claudePath: codingTutorClaudePath,
-      claude: codingTutorClaude,
-      codexPath: codingTutorCodexPath,
-      expectedName: "coding-tutor",
     },
   ]
 

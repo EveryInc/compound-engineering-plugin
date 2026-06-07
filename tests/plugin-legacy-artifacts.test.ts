@@ -26,6 +26,7 @@ describe("plugin legacy artifacts", () => {
     expect(artifacts.skills).toContain("ce:review-beta")
     expect(artifacts.skills).toContain("ce-document-review")
     expect(artifacts.skills).toContain("demo-reel")
+    expect(artifacts.skills).toContain("ce-demo-reel")
     expect(artifacts.skills).toContain("ce:polish-beta")
     expect(artifacts.skills).toContain("ce:release-notes")
     expect(artifacts.skills).toContain("ce-update")
@@ -40,7 +41,7 @@ describe("plugin legacy artifacts", () => {
     // NOT be flagged as legacy candidates. Otherwise a first install would
     // sweep an unrelated user skill at ~/.codex/skills/<name>/ into backup
     // simply because its name collides with a current CE skill.
-    expect(artifacts.skills).not.toContain("ce-demo-reel")
+    expect(artifacts.skills).not.toContain("ce-debug")
     // Synthesized agent name variants (e.g. ce-<final-segment>) are not on
     // the historical allow-list either, so they should not be probed against
     // unrelated user skills at flat ~/.codex/skills/<name>/ paths.

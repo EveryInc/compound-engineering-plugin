@@ -35,18 +35,6 @@ async function makeFixtureRoot(): Promise<string> {
   await mkdir(path.join(root, "plugins", "compound-engineering", ".codex-plugin"), {
     recursive: true,
   })
-  await mkdir(path.join(root, "plugins", "coding-tutor", "skills", "coding-tutor"), {
-    recursive: true,
-  })
-  await mkdir(path.join(root, "plugins", "coding-tutor", ".claude-plugin"), {
-    recursive: true,
-  })
-  await mkdir(path.join(root, "plugins", "coding-tutor", ".cursor-plugin"), {
-    recursive: true,
-  })
-  await mkdir(path.join(root, "plugins", "coding-tutor", ".codex-plugin"), {
-    recursive: true,
-  })
   await mkdir(path.join(root, ".claude-plugin"), { recursive: true })
   await mkdir(path.join(root, ".cursor-plugin"), { recursive: true })
   await mkdir(path.join(root, ".agents", "plugins"), { recursive: true })
@@ -72,14 +60,6 @@ async function makeFixtureRoot(): Promise<string> {
     JSON.stringify({ version: "2.33.0", description: "old" }, null, 2),
   )
   await writeFile(
-    path.join(root, "plugins", "coding-tutor", ".claude-plugin", "plugin.json"),
-    JSON.stringify({ version: "1.2.1" }, null, 2),
-  )
-  await writeFile(
-    path.join(root, "plugins", "coding-tutor", ".cursor-plugin", "plugin.json"),
-    JSON.stringify({ version: "1.2.1" }, null, 2),
-  )
-  await writeFile(
     path.join(root, "plugins", "compound-engineering", ".codex-plugin", "plugin.json"),
     JSON.stringify(
       {
@@ -93,19 +73,11 @@ async function makeFixtureRoot(): Promise<string> {
     ),
   )
   await writeFile(
-    path.join(root, "plugins", "coding-tutor", ".codex-plugin", "plugin.json"),
-    JSON.stringify(
-      { name: "coding-tutor", version: "1.2.1", skills: "./skills/" },
-      null,
-      2,
-    ),
-  )
-  await writeFile(
     path.join(root, ".agents", "plugins", "marketplace.json"),
     JSON.stringify(
       {
         name: "compound-engineering-plugin",
-        plugins: [{ name: "compound-engineering" }, { name: "coding-tutor" }],
+        plugins: [{ name: "compound-engineering" }],
       },
       null,
       2,
@@ -118,7 +90,6 @@ async function makeFixtureRoot(): Promise<string> {
         metadata: { version: "1.0.0", description: "marketplace" },
         plugins: [
           { name: "compound-engineering", version: "2.41.0", description: "old" },
-          { name: "coding-tutor", version: "1.2.0", description: "old" },
         ],
       },
       null,
@@ -132,7 +103,6 @@ async function makeFixtureRoot(): Promise<string> {
         metadata: { version: "1.0.0", description: "marketplace" },
         plugins: [
           { name: "compound-engineering", version: "2.41.0", description: "old" },
-          { name: "coding-tutor", version: "1.2.0", description: "old" },
         ],
       },
       null,
@@ -265,17 +235,17 @@ describe("release metadata", () => {
 
   test("reports missing skills field on Codex manifest as structural error", async () => {
     const root = await makeFixtureRoot()
-    // Drop the `skills` field entirely from the coding-tutor Codex manifest.
+    // Drop the `skills` field entirely from the compound-engineering Codex manifest.
     await writeFile(
-      path.join(root, "plugins", "coding-tutor", ".codex-plugin", "plugin.json"),
-      JSON.stringify({ name: "coding-tutor", version: "1.2.1" }, null, 2),
+      path.join(root, "plugins", "compound-engineering", ".codex-plugin", "plugin.json"),
+      JSON.stringify({ name: "compound-engineering", version: "2.42.0" }, null, 2),
     )
     const result = await syncReleaseMetadata({ root, write: false })
 
     expect(
       result.errors.some(
         (err) =>
-          err.includes("coding-tutor") &&
+          err.includes("compound-engineering") &&
           err.includes("missing required field") &&
           err.includes("skills"),
       ),
@@ -284,27 +254,27 @@ describe("release metadata", () => {
 
   test("reports missing skills directory when Codex manifest declares one", async () => {
     const root = await makeFixtureRoot()
-    // Remove coding-tutor's skills dir but keep the skills declaration.
-    await Bun.$`rm -rf ${path.join(root, "plugins", "coding-tutor", "skills")}`.quiet()
+    // Remove compound-engineering's skills dir but keep the skills declaration.
+    await Bun.$`rm -rf ${path.join(root, "plugins", "compound-engineering", "skills")}`.quiet()
     const result = await syncReleaseMetadata({ root, write: false })
 
     expect(
       result.errors.some(
         (err) =>
-          err.includes("coding-tutor") && err.includes("skills:") && err.includes("does not exist"),
+          err.includes("compound-engineering") && err.includes("skills:") && err.includes("does not exist"),
       ),
     ).toBe(true)
   })
 
   test("reports Codex marketplace plugin-list mismatch as structural error", async () => {
     const root = await makeFixtureRoot()
-    // Remove one plugin from Codex marketplace so Claude has a plugin Codex doesn't.
+    // Empty the Codex marketplace so Claude has a plugin Codex doesn't.
     await writeFile(
       path.join(root, ".agents", "plugins", "marketplace.json"),
       JSON.stringify(
         {
           name: "compound-engineering-plugin",
-          plugins: [{ name: "compound-engineering" }],
+          plugins: [],
         },
         null,
         2,
@@ -328,7 +298,6 @@ describe("release metadata", () => {
           name: "compound-engineering-plugin",
           plugins: [
             { name: "compound-engineering" },
-            { name: "coding-tutor" },
             { name: "rogue-plugin" },
           ],
         },

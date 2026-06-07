@@ -5,16 +5,12 @@ import path from "path"
 import { fileURLToPath } from "url"
 import { loadClaudePlugin } from "../parsers/claude"
 import { convertClaudeToCodex } from "../converters/claude-to-codex"
-import { convertClaudeToCopilot } from "../converters/claude-to-copilot"
-import { convertClaudeToDroid } from "../converters/claude-to-droid"
 import { convertClaudeToGemini } from "../converters/claude-to-gemini"
 import { convertClaudeToKiro } from "../converters/claude-to-kiro"
 import { convertClaudeToOpenCode } from "../converters/claude-to-opencode"
 import { convertClaudeToPi } from "../converters/claude-to-pi"
 import {
   getLegacyCodexArtifacts,
-  getLegacyCopilotArtifacts,
-  getLegacyDroidArtifacts,
   getLegacyGeminiArtifacts,
   getLegacyKiroArtifacts,
   getLegacyOpenCodeArtifacts,
@@ -24,12 +20,12 @@ import {
 } from "../data/plugin-legacy-artifacts"
 import { moveLegacyArtifactToBackup } from "../targets/managed-artifacts"
 import { isManagedCodexAgentsSymlink, readCodexInstallManifest, resolveCodexManagedRoots } from "../targets/codex"
-import { classifyCodexLegacyPromptOwnership } from "../utils/legacy-cleanup"
+import { classifyCodexLegacyPromptOwnership, classifyCodexLegacySkillDirOwnership } from "../utils/legacy-cleanup"
 import { isSafeManagedPath, pathExists, readJson, sanitizePathName } from "../utils/files"
 import { resolveOpenCodeGlobalRoot } from "../utils/opencode-config"
 import { expandHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
 
-const cleanupTargets = ["codex", "opencode", "pi", "gemini", "kiro", "copilot", "droid", "qwen", "windsurf"] as const
+const cleanupTargets = ["codex", "opencode", "pi", "gemini", "kiro", "qwen", "windsurf"] as const
 type CleanupTarget = typeof cleanupTargets[number]
 
 type CleanupResult = {
@@ -52,7 +48,7 @@ export default defineCommand({
     target: {
       type: "string",
       default: "all",
-      description: "Target to clean: codex | opencode | pi | gemini | kiro | copilot | droid | qwen | windsurf | all",
+      description: "Target to clean: codex | opencode | pi | gemini | kiro | qwen | windsurf | all",
     },
     output: {
       type: "string",
@@ -83,16 +79,6 @@ export default defineCommand({
       type: "string",
       alias: "kiro-home",
       description: "Kiro root to clean (default: ./.kiro)",
-    },
-    copilotHome: {
-      type: "string",
-      alias: "copilot-home",
-      description: "Copilot root to clean (default: ~/.copilot)",
-    },
-    droidHome: {
-      type: "string",
-      alias: "droid-home",
-      description: "Droid root to clean (default: ~/.factory)",
     },
     qwenHome: {
       type: "string",
@@ -128,8 +114,6 @@ export default defineCommand({
       opencodeHome: resolveTargetHome(args.opencodeHome, resolveOpenCodeGlobalRoot()),
       geminiHome: resolveTargetHome(args.geminiHome, path.join(os.homedir(), ".gemini")),
       kiroHome: resolveTargetHome(args.kiroHome, path.join(outputRoot, ".kiro")),
-      copilotHome: resolveTargetHome(args.copilotHome, path.join(os.homedir(), ".copilot")),
-      droidHome: resolveTargetHome(args.droidHome, path.join(os.homedir(), ".factory")),
       qwenHome: resolveTargetHome(args.qwenHome, path.join(os.homedir(), ".qwen")),
       windsurfHome: resolveTargetHome(args.windsurfHome, path.join(os.homedir(), ".codeium", "windsurf")),
       agentsHome: resolveTargetHome(args.agentsHome, path.join(os.homedir(), ".agents")),
@@ -161,8 +145,6 @@ async function cleanupTarget(
     opencodeHome: string
     geminiHome: string
     kiroHome: string
-    copilotHome: string
-    droidHome: string
     qwenHome: string
     windsurfHome: string
     agentsHome: string
@@ -221,23 +203,10 @@ async function cleanupTarget(
     }
     case "kiro":
       return [await cleanupKiro(plugin, roots.kiroHome)]
-    case "copilot": {
-      // Same race-prevention as Gemini: if a user points `--copilot-home`,
-      // `--output`, or `--agents-home` at the same directory these parallel
-      // passes collide on renames. Default values are distinct so the dedup
-      // is mostly defensive, but keep the shape consistent across targets
-      // that fan out with `Promise.all`.
-      const rootsToClean = roots.hasExplicitOutput
-        ? [resolveCopilotWorkspaceRoot(roots.workspaceRoot)]
-        : await dedupeRoots([roots.copilotHome, resolveCopilotWorkspaceRoot(roots.workspaceRoot), roots.agentsHome])
-      return await Promise.all(rootsToClean.map((root) => cleanupCopilot(plugin, root)))
-    }
-    case "droid":
-      return [await cleanupDroid(plugin, roots.hasExplicitOutput ? resolveDroidWorkspaceRoot(roots.workspaceRoot) : roots.droidHome)]
     case "qwen":
       return [await cleanupQwen(plugin, roots.qwenHome)]
     case "windsurf": {
-      // Same race-prevention as Gemini/Copilot: dedup after path resolution
+      // Same race-prevention as Gemini: dedup after path resolution
       // so overlapping overrides can't produce concurrent renames on the
       // same directory.
       const rootsToClean = roots.hasExplicitOutput
@@ -269,7 +238,18 @@ async function cleanupCodex(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>
   const managedDir = path.join(codexRoot, plugin.manifest.name)
   let moved = 0
   for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(codexRoot, "skills"), skillName, "Codex")
+    // Ownership gate on the FLAT `~/.codex/skills/<name>/` path only: that
+    // directory is shared across plugins and user-authored skills, so a name
+    // match against the historical allow-list is not a strong enough signal to
+    // move it (a user who authored `~/.codex/skills/ce-demo-reel/` must not have
+    // it claimed by name alone). Mirror the prompts gate above. "unknown" (no
+    // fingerprint on record) falls through so fully-retired orphans still sweep.
+    // The managed-store move below stays UNGATED: `~/.codex/skills/<plugin>/` is
+    // CE-owned by location, not by name, so it does not need a content check.
+    const flatSkillPath = path.join(codexRoot, "skills", skillName)
+    if ((await classifyCodexLegacySkillDirOwnership(flatSkillPath)) !== "foreign") {
+      moved += await moveIfExists(managedDir, "skills", path.join(codexRoot, "skills"), skillName, "Codex")
+    }
     if (!currentNamespacedSkills.has(skillName)) {
       moved += await moveIfExists(
         managedDir,
@@ -483,68 +463,11 @@ async function cleanupKiro(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>,
   return { target: "kiro", root: kiroRoot, moved }
 }
 
-async function cleanupCopilot(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>, copilotRoot: string): Promise<CleanupResult> {
-  // IMPORTANT: legacy detection for Copilot roots must be driven exclusively
-  // by the historical allow-list returned from `getLegacyCopilotArtifacts`
-  // (see EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN). Mirrors the Codex/Droid/Windsurf
-  // cleanup fixes: seeding candidates from the current plugin bundle would
-  // sweep up user-authored files at workspace paths like
-  // `.github/skills/ce-plan/SKILL.md` or `.github/agents/<name>.agent.md` that
-  // happen to share a name with a current CE artifact but were never
-  // installed by this plugin. The Copilot writer has been removed — users now
-  // install via `copilot plugin install` — so this cleanup exists solely to
-  // back up stale files from past manual installs, which means the current
-  // bundle was never a valid candidate source.
-  const bundle = convertClaudeToCopilot(plugin, {
-    agentMode: "subagent",
-    inferTemperature: true,
-    permissions: "none",
-  })
-  const artifacts = getLegacyCopilotArtifacts(bundle)
-  const managedDir = path.join(copilotRoot, "compound-engineering")
-  let moved = 0
-  for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(copilotRoot, "skills"), skillName, "Copilot")
-  }
-  for (const agentPath of artifacts.agents) {
-    moved += await moveIfExists(managedDir, "agents", path.join(copilotRoot, "agents"), agentPath, "Copilot")
-  }
-  return { target: "copilot", root: copilotRoot, moved }
-}
-
-async function cleanupDroid(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>, droidRoot: string): Promise<CleanupResult> {
-  // IMPORTANT: legacy detection for `~/.factory/{skills,droids,commands}` must
-  // be driven exclusively by the historical allow-list returned from
-  // `getLegacyDroidArtifacts` (see EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN). Mirrors
-  // the Codex cleanup fix: seeding candidates from the current plugin bundle
-  // would sweep up user-authored files at `~/.factory/commands/<name>.md`
-  // (or the skills/droids equivalents) that happen to share a name with a
-  // current CE artifact but were never installed by this plugin.
-  const bundle = convertClaudeToDroid(plugin, {
-    agentMode: "subagent",
-    inferTemperature: true,
-    permissions: "none",
-  })
-  const artifacts = getLegacyDroidArtifacts(bundle)
-  const managedDir = path.join(droidRoot, "compound-engineering")
-  let moved = 0
-  for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(droidRoot, "skills"), skillName, "Droid")
-  }
-  for (const droidPath of artifacts.droids) {
-    moved += await moveIfExists(managedDir, "droids", path.join(droidRoot, "droids"), droidPath, "Droid")
-  }
-  for (const commandPath of artifacts.commands) {
-    moved += await moveIfExists(managedDir, "commands", path.join(droidRoot, "commands"), commandPath, "Droid")
-  }
-  return { target: "droid", root: droidRoot, moved }
-}
-
 async function cleanupQwen(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>, qwenRoot: string): Promise<CleanupResult> {
   // IMPORTANT: legacy detection for `~/.qwen/{skills,agents,commands}` must be
   // driven exclusively by the historical allow-list in
-  // `EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN`. Mirrors the Codex/Droid/Windsurf/
-  // Copilot cleanup fixes: the Bun-based Qwen writer was replaced by native
+  // `EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN`. Mirrors the Codex/Windsurf
+  // cleanup fixes: the Bun-based Qwen writer was replaced by native
   // `qwen extensions install`, so this cleanup exists solely to back up stale
   // files from legacy manual installs. Seeding from the current plugin bundle
   // (`plugin.skills`, `plugin.agents`, `plugin.commands`) would sweep up
@@ -674,10 +597,6 @@ function resolveWorkspaceRoot(value: unknown): string {
   return process.cwd()
 }
 
-function resolveCopilotWorkspaceRoot(outputRoot: string): string {
-  return path.basename(outputRoot) === ".github" ? outputRoot : path.join(outputRoot, ".github")
-}
-
 function resolveGeminiWorkspaceRoot(outputRoot: string): string {
   return path.basename(outputRoot) === ".gemini" ? outputRoot : path.join(outputRoot, ".gemini")
 }
@@ -719,10 +638,6 @@ async function resolveCanonicalPath(target: string): Promise<string> {
     // against.
     return normalized
   }
-}
-
-function resolveDroidWorkspaceRoot(outputRoot: string): string {
-  return path.basename(outputRoot) === ".factory" ? outputRoot : path.join(outputRoot, ".factory")
 }
 
 function resolveWindsurfWorkspaceRoot(outputRoot: string): string {

@@ -19,12 +19,6 @@ on:
         type: choice
         options: [auto, patch, minor, major]
         default: auto
-      coding_tutor_bump:
-        description: "coding-tutor bump override"
-        required: false
-        type: choice
-        options: [auto, patch, minor, major]
-        default: auto
       marketplace_bump:
         description: "marketplace bump override"
         required: false
@@ -90,7 +84,6 @@ jobs:
 
           args+=(--override "cli=${{ github.event.inputs.cli_bump || 'auto' }}")
           args+=(--override "compound-engineering=${{ github.event.inputs.compound_engineering_bump || 'auto' }}")
-          args+=(--override "coding-tutor=${{ github.event.inputs.coding_tutor_bump || 'auto' }}")
           args+=(--override "marketplace=${{ github.event.inputs.marketplace_bump || 'auto' }}")
           args+=(--override "cursor-marketplace=${{ github.event.inputs.cursor_marketplace_bump || 'auto' }}")
 

@@ -4,7 +4,7 @@
 
 `ce-code-review` is the **deep code review** skill. It analyzes the diff (PR, branch, or current changes), selects the right reviewer personas for what was actually touched, dispatches them in parallel, then merges and deduplicates their findings into a single report. Each finding carries a severity (P0-P3), an autofix class (`gated_auto`, `manual`, `advisory`) that signals follow-up shape, and an owner. In interactive mode the review applies the safe, verified fixes itself and commits them when the working tree is clean (it never pushes); in `mode:agent` it reports and the caller applies.
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-code-review` is `/ce-work`'s **Tier 2 escalation** target — invoked automatically for sensitive surfaces, large diffs, or explicit deep-review requests, but also directly invocable any time you want a structured review of the current branch or a specific PR.
+The compound-engineering ideation chain is `/ce-brainstorm → /ce-plan → /ce-work`. `ce-code-review` is `/ce-work`'s **Tier 2 escalation** target — invoked automatically for sensitive surfaces, large diffs, or explicit deep-review requests, but also directly invocable any time you want a structured review of the current branch or a specific PR.
 
 ---
 
@@ -35,7 +35,7 @@ Generalist code review prompts collapse in predictable ways:
 
 `ce-code-review` runs review as a structured pipeline with explicit gates:
 
-- **Diff-aware persona selection** — 4 always-on reviewers + 2 CE always-on agents, plus cross-cutting and stack-specific personas chosen for what the diff actually touches
+- **Diff-aware persona selection** — 2 always-on reviewers + 1 CE always-on agent, plus cross-cutting personas chosen for what the diff actually touches
 - **Parallel persona dispatch** — each reviewer focuses on its lens; results return in parallel
 - **Confidence-gated synthesis** — findings merge, dedupe, promote on cross-persona agreement, and route by autofix class
 - **Severity scale (P0-P3) + autofix class** — separates urgency from action ownership
@@ -49,14 +49,12 @@ Generalist code review prompts collapse in predictable ways:
 
 ### 1. Diff-aware persona selection
 
-A small config change triggers 6 reviewers (the 4 always-on + 2 CE always-on). A Rails auth feature with migrations might trigger 10. The skill decides which personas fit the diff:
+A small config change triggers 3 reviewers (the 2 always-on + 1 CE always-on). A Rails auth feature might trigger 6. The skill decides which personas fit the diff:
 
-- **Always-on (every review)** — `ce-correctness-reviewer`, `ce-testing-reviewer`, `ce-maintainability-reviewer`, `ce-project-standards-reviewer`, `ce-agent-native-reviewer`, `ce-learnings-researcher`
-- **Cross-cutting conditional** — security, performance, API contract, data migrations, reliability, adversarial, previous-comments — each selected only when the diff touches its concern
-- **Stack-specific conditional** — Julik frontend races — only when the matching runtime domain is touched. Structural quality (complexity deletion, 1k-line regressions, spaghetti) lives in the always-on maintainability persona.
-- **CE conditional (migrations)** — `ce-deployment-verification-agent` for risky migration diffs; schema drift and migration safety are handled by the `data-migration` persona
+- **Always-on (every review)** — `ce-correctness-reviewer` (logic, reliability, structural quality, simplicity), `ce-testing-reviewer` (coverage, API contract, project standards), `ce-learnings-researcher`
+- **Cross-cutting conditional** — security, performance, adversarial, previous-comments — each selected only when the diff touches its concern
 
-Persona selection is agent judgment, not keyword matching. Instruction-prose files (Markdown skills, JSON schemas) are product code but skip runtime-focused reviewers (adversarial, races) — they wouldn't apply.
+Persona selection is agent judgment, not keyword matching. Instruction-prose files (Markdown skills, JSON schemas) are product code but skip runtime-focused reviewers (adversarial) — they wouldn't apply.
 
 ### 2. Severity (P0-P3) and autofix class are orthogonal
 
@@ -114,9 +112,9 @@ You invoke `/ce-code-review` on a feature branch with a Rails auth change that i
 
 The skill detects you're on a feature branch (no PR yet), resolves the base from `origin/HEAD` (or PR metadata when an open PR exists), and computes the diff. Stage 2 reads commit messages and writes a 2-3 line intent summary. Stage 2b auto-discovers the plan in `docs/plans/` from the branch name and reads its Requirements (R1-R8, U1-U6).
 
-Stage 3 selects reviewers: the 6 always-on, plus security (auth touched), reliability (background job for token cleanup), data-migration (migration file present), and deployment-verification agent when the migration is risky. Seven or eight reviewers total, dispatched in parallel.
+Stage 3 selects reviewers: the 3 always-on, plus security (auth touched), performance (the migration touches hot queries), and adversarial (auth surface). Six reviewers total, dispatched in parallel.
 
-After all return, synthesis merges 23 raw findings into 14 distinct findings. Three are clean, reversible fixes (a typo, a rename, dead-code removal) the review applies and verifies itself (Stage 5c → Applied section). Six are `gated_auto` for the auth surface — concrete candidates the review applies, flagging them prominently as green-but-unverifiable (auth) for your review. Two are `manual` (deployment Go/No-Go checklist items). Three are `advisory` (FYI notes). Each finding has anchored evidence and a stable number.
+After all return, synthesis merges 23 raw findings into 14 distinct findings. Three are clean, reversible fixes (a typo, a rename, dead-code removal) the review applies and verifies itself (Stage 5c → Applied section). Six are `gated_auto` for the auth surface — concrete candidates the review applies, flagging them prominently as green-but-unverifiable (auth) for your review. Two are `manual` (multi-step fixes needing design input). Three are `advisory` (FYI notes). Each finding has anchored evidence and a stable number.
 
 You walk through the 6 gated findings, apply 4, defer 1 to follow-up via the tracker, and decline 1 with a cited harm. Final validation runs; the report is saved.
 
@@ -130,7 +128,7 @@ Reach for `ce-code-review` when:
 - Your harness lacks a built-in `/review` and you still want a real review
 - You want structured handling of residual work, not just findings dumped in chat
 - You explicitly want a deeper, multi-persona pass (e.g., "review this thoroughly")
-- Another skill is escalating to it (`/ce-work` Phase 3.3 Tier 2, `/ce-optimize` Phase 4.3)
+- Another skill is escalating to it (`/ce-work` Phase 3.3 Tier 2)
 
 Skip `ce-code-review` when:
 
@@ -146,7 +144,6 @@ Skip `ce-code-review` when:
 
 - **`/ce-work` Phase 3.3** — escalates to `ce-code-review mode:agent` for sensitive surfaces, ≥400 lines + diffuse, ≥1,000 lines, or explicit thorough-review requests; ce-work then applies the findings
 - **`/ce-work` Phase 3.4 Residual Work Gate** — reads the Residual Actionable Work summary `ce-code-review` returned and presents user options
-- **`/ce-optimize` Phase 4.3** — runs against the cumulative optimization branch diff before merging
 - **`/ce-doc-review`** — sibling skill for docs (requirements, plans), not code
 
 Tier 1 (harness-native `/review`) handles most cases; `ce-code-review` is the Tier 2 escalation.
@@ -188,7 +185,7 @@ Conflicting mode flags stop execution with an error. Combining `base:` with a PR
 Use it when it's the right tool — the quick-review short-circuit defers to it explicitly. `ce-code-review` is for cases where you want diff-aware persona selection, structured findings with calibrated severity, autofix routing, and residual work handling. It's the heavier tool; reach for it when the work warrants.
 
 **How does it decide which personas to dispatch?**
-Agent judgment over the actual diff — not keyword matching. The 4 always-on + 2 CE always-on personas run for every review. Cross-cutting and stack-specific personas are added when their concern is touched (e.g., security if auth files changed; `ce-data-migration-reviewer` when migration or schema dump files are present). Instruction-prose files skip runtime-focused reviewers (adversarial, races).
+Agent judgment over the actual diff — not keyword matching. The 2 always-on personas + 1 CE always-on agent run for every review. Cross-cutting personas are added when their concern is touched (e.g., security if auth files changed; performance for query-heavy paths). Instruction-prose files skip runtime-focused reviewers (adversarial).
 
 **What's the difference between interactive (default) and `mode:agent`?**
 Interactive is the human-facing mode: a markdown report, and the review applies the safe, verified fixes itself (an Applied section) and commits them when your tree is clean (leaving them for your commit if it was dirty); it never pushes. `mode:agent` is the machine handoff: one JSON object, report-only — the review mutates nothing and the caller (e.g. `/ce-work`) applies findings on its own terms.
@@ -212,5 +209,4 @@ No — the skill is tightly coupled to git, code reviewers, and PR contexts. For
 - [`ce-work`](./ce-work.md) — primary upstream caller; escalates to `ce-code-review` at Phase 3.3
 - [`ce-doc-review`](./ce-doc-review.md) — sibling skill for documents (requirements, plans), not code
 - [`ce-debug`](./ce-debug.md) — for fixing bugs found during review, when root-cause investigation matters
-- [`ce-resolve-pr-feedback`](./ce-resolve-pr-feedback.md) — handles incoming reviewer comments after a PR is open
 - [`ce-simplify-code`](./ce-simplify-code.md) — invoked by `ce-work` before review; complement, not substitute

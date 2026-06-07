@@ -28,16 +28,10 @@ The point is not ceremony. The point is leverage. A good brainstorm makes the pl
 
 ## Workflow
 
-`/ce-strategy` is upstream of the loop -- it captures the product's target problem, approach, persona, metrics, and tracks as a short durable anchor at `STRATEGY.md`. Ideate, brainstorm, and plan read it as grounding when present, so strategy choices flow into feature conception, prioritization, and spec.
-
 The core loop is: brainstorm the requirements, plan the implementation, work through the plan, review the result, compound the learning, then repeat with better context.
-
-Use `/ce-ideate` before the loop when you want the agent to generate and critique bigger ideas before choosing one to brainstorm. It produces a ranked ideation artifact, not requirements, plans, or code.
 
 | Skill | Purpose |
 |-------|---------|
-| `/ce-strategy` | Create or maintain `STRATEGY.md` -- the product's target problem, approach, persona, key metrics, and tracks. Read as grounding by ideate, brainstorm, and plan |
-| `/ce-ideate` | Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming |
 | `/ce-brainstorm` | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning |
 | `/ce-plan` | Turn feature ideas into detailed implementation plans |
 | `/ce-work` | Execute plans with worktrees and task tracking |
@@ -71,7 +65,7 @@ For a focused bug investigation:
 
 After installing, run `/ce-setup` in any project. It checks your environment, installs missing tools, and bootstraps project config.
 
-The `compound-engineering` plugin currently ships 28 skills and 37 agents. See the [full component reference](plugins/compound-engineering/README.md) for the complete inventory.
+The `compound-engineering` plugin ships 14 skills and 16 agents. See the [full component reference](plugins/compound-engineering/README.md) for the complete inventory.
 
 ---
 
@@ -140,55 +134,6 @@ If you previously used the Bun-only Codex install, back up stale CE artifacts be
 bunx @every-env/compound-plugin cleanup --target codex
 ```
 
-### GitHub Copilot
-
-For **VS Code Copilot Agent Plugins**:
-
-1. Run `Chat: Install Plugin from Source` from the VS Code command palette
-2. Use `EveryInc/compound-engineering-plugin` for the repo
-3. Select `compound-engineering` when VS Code shows the plugins in this repository
-
-For **Copilot CLI**, use:
-
-Inside Copilot CLI:
-
-```text
-/plugin marketplace add EveryInc/compound-engineering-plugin
-/plugin install compound-engineering@compound-engineering-plugin
-```
-
-From a shell with the `copilot` binary:
-
-```bash
-copilot plugin marketplace add EveryInc/compound-engineering-plugin
-copilot plugin install compound-engineering@compound-engineering-plugin
-```
-
-Copilot CLI reads the existing Claude-compatible plugin manifests, so no separate Bun install step is needed.
-
-If you previously used the old Bun Copilot install, back up stale CE artifacts before switching to the native plugin:
-
-```bash
-bunx @every-env/compound-plugin cleanup --target copilot
-```
-
-### Factory Droid
-
-From a shell with the `droid` binary:
-
-```bash
-droid plugin marketplace add https://github.com/EveryInc/compound-engineering-plugin
-droid plugin install compound-engineering@compound-engineering-plugin
-```
-
-Droid uses `plugin@marketplace` plugin IDs; here `compound-engineering` is the plugin and `compound-engineering-plugin` is the marketplace name. Droid installs the existing Claude Code-compatible plugin and translates the format automatically, so no Bun install step is needed.
-
-If you previously used the old Bun Droid install, back up stale CE artifacts before switching to the native plugin:
-
-```bash
-bunx @every-env/compound-plugin cleanup --target droid
-```
-
 ### Qwen Code
 
 ```bash
@@ -235,8 +180,6 @@ bunx @every-env/compound-plugin cleanup --target opencode
 bunx @every-env/compound-plugin cleanup --target pi
 bunx @every-env/compound-plugin cleanup --target gemini
 bunx @every-env/compound-plugin cleanup --target kiro
-bunx @every-env/compound-plugin cleanup --target copilot   # old Bun installs only
-bunx @every-env/compound-plugin cleanup --target droid     # old Bun installs only
 bunx @every-env/compound-plugin cleanup --target qwen      # old Bun installs only
 bunx @every-env/compound-plugin cleanup --target windsurf  # deprecated legacy installs only
 ```
@@ -365,13 +308,11 @@ Back up old Bun-installed artifacts before switching to the native Codex plugin 
 bunx @every-env/compound-plugin cleanup --target codex
 ```
 
-### Copilot, Droid, or Qwen loads stale CE skills
+### Qwen loads stale CE skills
 
 Back up old Bun-installed artifacts before using the native plugin path:
 
 ```bash
-bunx @every-env/compound-plugin cleanup --target copilot
-bunx @every-env/compound-plugin cleanup --target droid
 bunx @every-env/compound-plugin cleanup --target qwen
 ```
 

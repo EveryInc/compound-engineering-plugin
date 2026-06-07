@@ -2,6 +2,21 @@ import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
+import { parseFrontmatter } from "../src/utils/frontmatter"
+
+function skillFrontmatter(name: string, description: string): string {
+  return `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n# ${name}\n`
+}
+
+async function liveSkillDescription(skillName: string): Promise<string> {
+  const skillPath = path.join(import.meta.dir, "..", "plugins", "compound-engineering", "skills", skillName, "SKILL.md")
+  const raw = await fs.readFile(skillPath, "utf8")
+  const { data } = parseFrontmatter(raw, skillPath)
+  if (typeof data.description !== "string") {
+    throw new Error(`Missing description in ${skillName}/SKILL.md`)
+  }
+  return data.description
+}
 
 async function exists(filePath: string): Promise<boolean> {
   try {
@@ -114,7 +129,7 @@ describe("CLI", () => {
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
     const repoRoot = path.join(import.meta.dir, "..")
 
-    for (const target of ["copilot", "droid", "qwen"]) {
+    for (const target of ["qwen"]) {
       const proc = Bun.spawn([
         "bun",
         "run",
@@ -144,10 +159,26 @@ describe("CLI", () => {
     const agentsRoot = path.join(tempRoot, ".agents")
     const repoRoot = path.join(import.meta.dir, "..")
 
+    // `ce:plan` and `ce:review-beta` are fingerprinted flat legacy skill dirs
+    // (a live ce-plan successor ships; ce:review-beta has a
+    // LEGACY_ONLY_SKILL_DESCRIPTIONS entry). The flat-path ownership gate in
+    // cleanupCodex requires their SKILL.md to carry frontmatter matching that
+    // fingerprint to classify as ce-owned and still sweep. `ce-update` below
+    // stays placeholder: it is on the codex allow-list but absent from
+    // STALE_SKILL_DIRS, so it classifies "unknown" and falls through.
     await fs.mkdir(path.join(codexRoot, "skills", "ce:plan"), { recursive: true })
-    await fs.writeFile(path.join(codexRoot, "skills", "ce:plan", "SKILL.md"), "legacy raw colon skill")
+    await fs.writeFile(
+      path.join(codexRoot, "skills", "ce:plan", "SKILL.md"),
+      skillFrontmatter("ce:plan", await liveSkillDescription("ce-plan")),
+    )
     await fs.mkdir(path.join(codexRoot, "skills", "ce:review-beta"), { recursive: true })
-    await fs.writeFile(path.join(codexRoot, "skills", "ce:review-beta", "SKILL.md"), "legacy raw colon beta skill")
+    await fs.writeFile(
+      path.join(codexRoot, "skills", "ce:review-beta", "SKILL.md"),
+      skillFrontmatter(
+        "ce:review-beta",
+        "[BETA] Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+      ),
+    )
     await fs.mkdir(path.join(codexRoot, "skills", "ce-update"), { recursive: true })
     await fs.writeFile(path.join(codexRoot, "skills", "ce-update", "SKILL.md"), "legacy pre-namespaced flat skill")
     // A user-authored skill at a flat path whose name happens to collide with
@@ -234,6 +265,67 @@ describe("CLI", () => {
     // The user's flat-path skill survives with its original content.
     expect(await exists(path.join(userOwnedSkillDir, "SKILL.md"))).toBe(true)
     expect(await fs.readFile(path.join(userOwnedSkillDir, "SKILL.md"), "utf8")).toBe(userOwnedSkillContent)
+  })
+
+  test("cleanup preserves a foreign-described flat skill dir whose name is on the legacy allow-list", async () => {
+    // Regression coverage for the cleanupCodex flat-path ownership gate.
+    // `ce-demo-reel` IS on the historical codex allow-list (a removed CE skill),
+    // so cleanup iterates it. But a user could have authored their own
+    // `~/.codex/skills/ce-demo-reel/` with a non-CE description. A name match
+    // alone must not relocate it -- the gate classifies it "foreign" and leaves
+    // it in place. (Its "ce-owned" sibling case -- exact fingerprint match still
+    // sweeps -- is covered in codex-writer.test.ts for the install path.)
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-codex-foreign-skilldir-"))
+    __tempRoots.push(tempRoot)
+    const codexRoot = path.join(tempRoot, ".codex")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    const userDemoDir = path.join(codexRoot, "skills", "ce-demo-reel")
+    await fs.mkdir(userDemoDir, { recursive: true })
+    const userDemoContent = skillFrontmatter(
+      "ce-demo-reel",
+      "User-authored demo reel skill, unrelated to compound-engineering.",
+    )
+    await fs.writeFile(path.join(userDemoDir, "SKILL.md"), userDemoContent)
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "cleanup",
+      "--target",
+      "codex",
+      "--codex-home",
+      codexRoot,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    // The foreign skill survives in place with its original content.
+    expect(await exists(path.join(userDemoDir, "SKILL.md"))).toBe(true)
+    expect(await fs.readFile(path.join(userDemoDir, "SKILL.md"), "utf8")).toBe(userDemoContent)
+
+    // And it is not relocated into the legacy backup.
+    const backupRoot = path.join(codexRoot, "compound-engineering", "legacy-backup")
+    if (await exists(backupRoot)) {
+      const timestamps = await fs.readdir(backupRoot)
+      for (const ts of timestamps) {
+        const skillsBackup = path.join(backupRoot, ts, "skills")
+        if (!(await exists(skillsBackup))) continue
+        const backed = await fs.readdir(skillsBackup)
+        expect(backed).not.toContain("ce-demo-reel")
+      }
+    }
   })
 
   test("cleanup only backs up CE-owned symlinks under ~/.agents/skills", async () => {
@@ -593,128 +685,6 @@ describe("CLI", () => {
     expect(stdout).toContain("Cleaned gemini")
     expect(await exists(path.join(workspaceGemini, "skills", "creating-agent-skills"))).toBe(false)
     expect(await exists(path.join(workspaceGemini, "compound-engineering", "legacy-backup"))).toBe(true)
-  })
-
-  test("cleanup backs up legacy Copilot workspace artifacts for native migration", async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-copilot-"))
-    __tempRoots.push(tempRoot)
-    const repoRoot = path.join(import.meta.dir, "..")
-    const githubRoot = path.join(tempRoot, ".github")
-
-    await fs.mkdir(path.join(githubRoot, "skills", "git-commit-push-pr"), { recursive: true })
-    await fs.writeFile(path.join(githubRoot, "skills", "git-commit-push-pr", "SKILL.md"), "legacy skill")
-    await fs.mkdir(path.join(githubRoot, "agents"), { recursive: true })
-    await fs.writeFile(path.join(githubRoot, "agents", "repo-research-analyst.agent.md"), "legacy agent")
-
-    // User-authored artifacts whose names match current CE bundle output but
-    // are NOT on the historical allow-list. The Copilot writer has been
-    // removed (users now install via `copilot plugin install`), so these
-    // were never installed by CE — cleanup must leave them alone.
-    await fs.mkdir(path.join(githubRoot, "skills", "ce-debug"), { recursive: true })
-    await fs.writeFile(path.join(githubRoot, "skills", "ce-debug", "SKILL.md"), "user-authored skill")
-    await fs.mkdir(path.join(githubRoot, "skills", "my-user-skill"), { recursive: true })
-    await fs.writeFile(path.join(githubRoot, "skills", "my-user-skill", "SKILL.md"), "user-authored skill")
-    await fs.writeFile(path.join(githubRoot, "agents", "ce-adversarial-reviewer.agent.md"), "user-authored agent")
-
-    const proc = Bun.spawn([
-      "bun",
-      "run",
-      path.join(repoRoot, "src", "index.ts"),
-      "cleanup",
-      "--target",
-      "copilot",
-      "--output",
-      tempRoot,
-    ], {
-      cwd: repoRoot,
-      stdout: "pipe",
-      stderr: "pipe",
-      env: {
-        ...process.env,
-        HOME: tempRoot,
-      },
-    })
-
-    const exitCode = await proc.exited
-    const stdout = await new Response(proc.stdout).text()
-    const stderr = await new Response(proc.stderr).text()
-
-    if (exitCode !== 0) {
-      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
-    }
-
-    expect(stdout).toContain("Cleaned copilot")
-    expect(await exists(path.join(githubRoot, "skills", "git-commit-push-pr"))).toBe(false)
-    expect(await exists(path.join(githubRoot, "agents", "repo-research-analyst.agent.md"))).toBe(false)
-    expect(await exists(path.join(githubRoot, "compound-engineering", "legacy-backup"))).toBe(true)
-
-    // User-authored files that only match current CE bundle names (not on
-    // the historical allow-list) must be left untouched.
-    expect(await exists(path.join(githubRoot, "skills", "ce-debug"))).toBe(true)
-    expect(await exists(path.join(githubRoot, "skills", "my-user-skill"))).toBe(true)
-    expect(await exists(path.join(githubRoot, "agents", "ce-adversarial-reviewer.agent.md"))).toBe(true)
-  })
-
-  test("cleanup backs up legacy Droid artifacts for native migration", async () => {
-    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-droid-"))
-    __tempRoots.push(tempRoot)
-    const droidRoot = path.join(tempRoot, ".factory")
-    const repoRoot = path.join(import.meta.dir, "..")
-
-    await fs.mkdir(path.join(droidRoot, "skills", "creating-agent-skills"), { recursive: true })
-    await fs.writeFile(path.join(droidRoot, "skills", "creating-agent-skills", "SKILL.md"), "legacy deleted skill")
-    await fs.mkdir(path.join(droidRoot, "droids"), { recursive: true })
-    await fs.writeFile(path.join(droidRoot, "droids", "bug-reproduction-validator.md"), "legacy deleted droid")
-    await fs.mkdir(path.join(droidRoot, "commands"), { recursive: true })
-    await fs.writeFile(path.join(droidRoot, "commands", "plan.md"), "legacy flattened command")
-
-    // User-authored artifacts whose names match current CE bundle output (via
-    // the Droid converter) but are NOT on the historical allow-list. These
-    // must survive cleanup — the Droid writer was never wired up to install
-    // these, so sweeping them would be destructive.
-    await fs.writeFile(path.join(droidRoot, "droids", "ce-adversarial-reviewer.md"), "user-authored droid")
-    await fs.writeFile(path.join(droidRoot, "commands", "my-user-command.md"), "user-authored command")
-    await fs.mkdir(path.join(droidRoot, "skills", "my-user-skill"), { recursive: true })
-    await fs.writeFile(path.join(droidRoot, "skills", "my-user-skill", "SKILL.md"), "user-authored skill")
-
-    const proc = Bun.spawn([
-      "bun",
-      "run",
-      path.join(repoRoot, "src", "index.ts"),
-      "cleanup",
-      "--target",
-      "droid",
-      "--droid-home",
-      droidRoot,
-    ], {
-      cwd: repoRoot,
-      stdout: "pipe",
-      stderr: "pipe",
-      env: {
-        ...process.env,
-        HOME: tempRoot,
-      },
-    })
-
-    const exitCode = await proc.exited
-    const stdout = await new Response(proc.stdout).text()
-    const stderr = await new Response(proc.stderr).text()
-
-    if (exitCode !== 0) {
-      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
-    }
-
-    expect(stdout).toContain("Cleaned droid")
-    expect(await exists(path.join(droidRoot, "skills", "creating-agent-skills"))).toBe(false)
-    expect(await exists(path.join(droidRoot, "droids", "bug-reproduction-validator.md"))).toBe(false)
-    expect(await exists(path.join(droidRoot, "commands", "plan.md"))).toBe(false)
-    expect(await exists(path.join(droidRoot, "compound-engineering", "legacy-backup"))).toBe(true)
-
-    // User-authored files that only match current CE bundle names (not on the
-    // historical allow-list) must be left untouched.
-    expect(await exists(path.join(droidRoot, "droids", "ce-adversarial-reviewer.md"))).toBe(true)
-    expect(await exists(path.join(droidRoot, "commands", "my-user-command.md"))).toBe(true)
-    expect(await exists(path.join(droidRoot, "skills", "my-user-skill"))).toBe(true)
   })
 
   test("cleanup backs up deprecated Windsurf artifacts", async () => {
@@ -1950,8 +1920,6 @@ describe("CLI", () => {
     await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".pi"), { recursive: true })
-    await fs.mkdir(path.join(tempHome, ".factory"), { recursive: true })
-    await fs.mkdir(path.join(tempHome, ".copilot"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".gemini"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".kiro"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".qwen"), { recursive: true })
@@ -1988,8 +1956,6 @@ describe("CLI", () => {
     expect(stdout).toContain("Installed compound-engineering to pi")
     expect(stdout).toContain("Installed compound-engineering to kiro")
     expect(stdout).toContain("Installed compound-engineering to gemini")
-    expect(stdout).toContain("droid — native plugin install; skipped")
-    expect(stdout).toContain("copilot — native plugin install; skipped")
     expect(stdout).toContain("qwen — native plugin install; skipped")
     expect(stdout).not.toContain("cursor")
 

@@ -18,18 +18,18 @@ describe("release preview", () => {
   test("supports per-component overrides without affecting unrelated components", async () => {
     const versions = await loadCurrentVersions()
     const preview = await buildReleasePreview({
-      title: "fix: update coding tutor prompts",
-      files: ["plugins/coding-tutor/README.md"],
+      title: "fix: update compound-engineering prompts",
+      files: ["plugins/compound-engineering/README.md"],
       overrides: {
-        "coding-tutor": "minor",
+        "compound-engineering": "minor",
       },
     })
 
     expect(preview.components).toHaveLength(1)
-    expect(preview.components[0].component).toBe("coding-tutor")
+    expect(preview.components[0].component).toBe("compound-engineering")
     expect(preview.components[0].inferredBump).toBe("patch")
     expect(preview.components[0].effectiveBump).toBe("minor")
-    expect(preview.components[0].nextVersion).toBe(bumpVersion(versions["coding-tutor"], "minor"))
+    expect(preview.components[0].nextVersion).toBe(bumpVersion(versions["compound-engineering"], "minor"))
   })
 
   test("docs-only changes remain non-releasable by default", async () => {

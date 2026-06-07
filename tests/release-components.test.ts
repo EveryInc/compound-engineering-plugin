@@ -18,19 +18,18 @@ describe("release component detection", () => {
       "plugins/compound-engineering/skills/ce-plan/SKILL.md",
     ])
     expect(components.get("cli")).toEqual([])
-    expect(components.get("coding-tutor")).toEqual([])
     expect(components.get("marketplace")).toEqual([])
   })
 
   test("maps cli and plugin changes independently", () => {
     const components = detectComponentsFromFiles([
       "src/commands/install.ts",
-      "plugins/coding-tutor/.claude-plugin/plugin.json",
+      "plugins/compound-engineering/.claude-plugin/plugin.json",
     ])
 
     expect(components.get("cli")).toEqual(["src/commands/install.ts"])
-    expect(components.get("coding-tutor")).toEqual([
-      "plugins/coding-tutor/.claude-plugin/plugin.json",
+    expect(components.get("compound-engineering")).toEqual([
+      "plugins/compound-engineering/.claude-plugin/plugin.json",
     ])
   })
 
@@ -39,7 +38,6 @@ describe("release component detection", () => {
     expect(components.get("marketplace")).toEqual([".claude-plugin/marketplace.json"])
     expect(components.get("cursor-marketplace")).toEqual([])
     expect(components.get("compound-engineering")).toEqual([])
-    expect(components.get("coding-tutor")).toEqual([])
   })
 
   test("maps cursor marketplace metadata to cursor-marketplace component", () => {
@@ -47,17 +45,16 @@ describe("release component detection", () => {
     expect(components.get("cursor-marketplace")).toEqual([".cursor-plugin/marketplace.json"])
     expect(components.get("marketplace")).toEqual([])
     expect(components.get("compound-engineering")).toEqual([])
-    expect(components.get("coding-tutor")).toEqual([])
   })
 })
 
 describe("release intent parsing", () => {
   test("parses conventional titles with optional scope and breaking marker", () => {
-    const parsed = parseReleaseIntent("feat(coding-tutor)!: add tutor reset flow")
+    const parsed = parseReleaseIntent("feat(compound-engineering)!: add ce reset flow")
     expect(parsed.type).toBe("feat")
-    expect(parsed.scope).toBe("coding-tutor")
+    expect(parsed.scope).toBe("compound-engineering")
     expect(parsed.breaking).toBe(true)
-    expect(parsed.description).toBe("add tutor reset flow")
+    expect(parsed.description).toBe("add ce reset flow")
   })
 
   test("supports conventional titles without scope", () => {
@@ -103,8 +100,8 @@ describe("scope mismatch warnings", () => {
 
   test("warns when explicit scope contradicts detected files", () => {
     const warnings = resolveComponentWarnings(
-      parseReleaseIntent("fix(cli): update coding tutor text"),
-      ["coding-tutor"],
+      parseReleaseIntent("fix(cli): update ce plan text"),
+      ["compound-engineering"],
     )
     expect(warnings[0]).toContain('Optional scope "cli" does not match')
   })

@@ -46,10 +46,9 @@ Move the repo to a manual `release-please` model with one standing release PR an
 
 Key decisions:
 
-- Use `release-please` manifest mode for five release components:
+- Use `release-please` manifest mode for four release components:
   - `cli`
   - `compound-engineering`
-  - `coding-tutor`
   - `marketplace` (Claude marketplace, `.claude-plugin/`)
   - `cursor-marketplace` (Cursor marketplace, `.cursor-plugin/`)
 - Keep release timing manual: the actual release happens when the generated release PR is merged.
@@ -100,7 +99,6 @@ After the migration:
 - File paths determine component ownership:
   - `src/**`, `package.json`, `bun.lock`, `tests/cli.test.ts` => `cli`
   - `plugins/compound-engineering/**` => `compound-engineering`
-  - `plugins/coding-tutor/**` => `coding-tutor`
   - `.claude-plugin/marketplace.json` => `marketplace`
   - `.cursor-plugin/marketplace.json` => `cursor-marketplace`
 - Optional title scopes are advisory only.
@@ -121,12 +119,12 @@ This keeps titles simple while still letting the release system decide the corre
 - The same open release PR updates to include both changes
 - The pending bump can increase based on total unreleased work
 
-### Plugin-only release
+### Plugin release
 
-- A change lands only under `plugins/coding-tutor/**`
-- Only `coding-tutor` should bump
-- `compound-engineering`, `marketplace`, and `cli` should remain untouched
-- npm publish should not run unless `cli` is also part of that release
+- A change lands only under `plugins/compound-engineering/**`
+- `compound-engineering` bumps, and `cli` bumps with it because `linked-versions` keeps the two synced
+- `marketplace` and `cursor-marketplace` should remain untouched
+- npm publish runs because the linked `cli` component is part of that release
 
 ### Marketplace-only release
 
@@ -147,7 +145,6 @@ This keeps titles simple while still letting the release system decide the corre
 - Component identity is carried by component-specific tags such as:
   - `cli-vX.Y.Z`
   - `compound-engineering-vX.Y.Z`
-  - `coding-tutor-vX.Y.Z`
   - `marketplace-vX.Y.Z`
   - `cursor-marketplace-vX.Y.Z`
 - Root `CHANGELOG.md` is only a pointer to GitHub Releases and is not the canonical source for new releases.

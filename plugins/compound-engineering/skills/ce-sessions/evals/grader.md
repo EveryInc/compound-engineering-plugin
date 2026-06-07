@@ -1,6 +1,6 @@
 # ce-sessions terminology-preservation grader
 
-This grader evaluates whether ce-sessions findings preserve enough terminology resolution context to make downstream vocabulary capture (ce-compound Phase 2.4) work. It is NOT a general quality grader for ce-sessions; the narrow question is "would Phase 2.4 be able to extract qualifying domain terms from these findings?"
+This grader evaluates whether ce-sessions findings preserve enough terminology resolution context for downstream vocabulary capture (ce-compound Phase 2.4) to work. It is NOT a general quality grader; the narrow question is "could Phase 2.4 extract qualifying domain terms from these findings?"
 
 ## Inputs to the grader
 
@@ -8,11 +8,11 @@ For each eval run, the grader receives:
 
 1. **The eval definition** from `evals.json` (terms, tiers, expected_context, notes).
 2. **The findings text** that ce-sessions returned to the orchestrating agent.
-3. **(Optional) The full agent transcript** for the ce-sessions invocation, if available — useful for distinguishing "ce-sessions returned this and the agent paraphrased it" from "ce-sessions returned this verbatim."
+3. **(Optional) The full agent transcript** for the ce-sessions invocation, if available; useful for distinguishing "ce-sessions returned this and the agent paraphrased it" from "ce-sessions returned this verbatim."
 
 ## Two-stage grading
 
-### Stage 1 — Programmatic term recall (substring match)
+### Stage 1: Programmatic term recall (substring match)
 
 For each entry in `expected_terms`:
 - Score 1 if the term (case-insensitive, substring match) appears anywhere in the findings text.
@@ -25,23 +25,23 @@ Aggregate by tier:
 
 **Stage 1 pass criterion:** `must_recall == 1.0` (every must-tier term appears).
 
-If Stage 1 fails, ce-sessions is dropping the most distinctive coined terms — synthesis loss is severe and Stage 2 is moot. Record the failure and stop.
+If Stage 1 fails, ce-sessions is dropping the most distinctive coined terms; synthesis loss is severe and Stage 2 is moot. Record the failure and stop.
 
-### Stage 2 — Context preservation (LLM-graded)
+### Stage 2: Context preservation (LLM-graded)
 
 For each entry in `expected_context`:
 
 Read the findings text. Decide whether the expected context item is **preserved with rationale** or **mentioned without context**. Apply this rubric:
 
-- **`preserved` (1.0)** — the finding text discusses the term AND its meaning, role, or the reasoning behind it. Example: "synthesis gate was introduced to prevent ce-plan from silently proceeding past synthesis without showing the user a Stated/Inferred/Out of scope summary."
-- **`keyword_only` (0.0)** — the finding mentions the term but in a way that doesn't convey why it matters or what it means. Example: "the user worked on the synthesis gate."
-- **`absent` (0.0)** — the term doesn't appear in the relevant section at all.
+- **`preserved` (1.0)**: the finding text discusses the term AND its meaning, role, or the reasoning behind it. Example: "synthesis gate was introduced to prevent ce-plan from silently proceeding past synthesis without showing the user a Stated/Inferred/Out of scope summary."
+- **`keyword_only` (0.0)**: the finding mentions the term but doesn't convey why it matters or what it means. Example: "the user worked on the synthesis gate."
+- **`absent` (0.0)**: the term doesn't appear in the relevant section at all.
 
 **Stage 2 pass criterion:** every entry in `expected_context` scores `preserved`.
 
 For eval id #4 (near-miss-false-positive), Stage 2 instead checks `must_not_contain_in_relevant_findings`:
 - For each `must_not` entry, search the findings.
-- If the entry appears **as a relevant result** (not, e.g., as a "not relevant — different context" caveat), Stage 2 fails.
+- If the entry appears **as a relevant result** (not, e.g., as a "not relevant, different context" caveat), Stage 2 fails.
 - "Not relevant" mentions are fine; surfacing the ce-compound feature PR work as if it answered a CI/CD deployment query is the failure mode.
 
 ## Aggregating across runs (variance)

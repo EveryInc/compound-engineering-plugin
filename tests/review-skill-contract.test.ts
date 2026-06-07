@@ -415,8 +415,9 @@ describe("ce-code-review contract", () => {
     // Mode-aware demotion step exists (sub-step within Stage 5; numbering may shift if steps reorder)
     expect(content).toMatch(/Mode-aware demotion of weak general-quality findings/i)
 
-    // Conservative scope: testing + maintainability personas only
-    expect(content).toContain("`testing` or `maintainability`")
+    // Conservative scope: testing persona only (maintainability findings now arrive
+    // tagged `correctness` and are not demotable as a testing-only signal).
+    expect(content).toContain("The only** contributing reviewer is `testing`")
 
     // Severity P2 or P3 only (P0/P1 always stay primary)
     expect(content).toMatch(/Severity is P2 or P3/)
@@ -424,9 +425,10 @@ describe("ce-code-review contract", () => {
     // autofix_class is advisory
     expect(content).toMatch(/`autofix_class` is `advisory`/)
 
-    // Route demoted findings to soft buckets
+    // Route demoted findings to the testing_gaps soft bucket. Maintainability
+    // findings no longer have a demotion path (they arrive tagged `correctness`
+    // after the persona merge), so residual_risks is no longer a demotion target.
     expect(content).toMatch(/`testing_gaps`/)
-    expect(content).toMatch(/`residual_risks`/)
 
     // Demotion entry uses title-only (compact return omits why_it_matters)
     expect(content).toMatch(/append `<file:line> -- <title>` to/)
@@ -440,17 +442,10 @@ describe("ce-code-review contract", () => {
     const personas = [
       "ce-correctness-reviewer",
       "ce-testing-reviewer",
-      "ce-maintainability-reviewer",
-      "ce-project-standards-reviewer",
       "ce-security-reviewer",
       "ce-performance-reviewer",
-      "ce-api-contract-reviewer",
-      "ce-data-migration-reviewer",
-      "ce-reliability-reviewer",
       "ce-adversarial-reviewer",
       "ce-previous-comments-reviewer",
-      "ce-julik-frontend-races-reviewer",
-      "ce-agent-native-reviewer",
     ]
 
     for (const persona of personas) {
@@ -467,56 +462,6 @@ describe("ce-code-review contract", () => {
     }
   })
 
-  test("documents stack-specific conditional reviewers for the JSON pipeline", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
-    const catalog = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-code-review/references/persona-catalog.md",
-    )
-
-    for (const agent of ["ce-julik-frontend-races-reviewer"]) {
-      expect(content).toContain(agent)
-      expect(catalog).toContain(agent)
-    }
-
-    for (const removed of [
-      "ce-dhh-rails-reviewer",
-      "ce-kieran-rails-reviewer",
-      "ce-kieran-python-reviewer",
-      "ce-kieran-typescript-reviewer",
-    ]) {
-      expect(content).not.toContain(removed)
-      expect(catalog).not.toContain(removed)
-    }
-
-    expect(content).toContain("## Language-Aware Conditionals")
-    expect(content).not.toContain("## Language-Agnostic")
-  })
-
-  test("stack-specific reviewer agents follow the structured findings contract", async () => {
-    const reviewers = [
-      {
-        path: "plugins/compound-engineering/agents/ce-julik-frontend-races-reviewer.md",
-        reviewer: "julik-frontend-races",
-      },
-    ]
-
-    for (const reviewer of reviewers) {
-      const content = await readRepoFile(reviewer.path)
-      const parsed = parseFrontmatter(content)
-      const tools = String(parsed.data.tools ?? "")
-
-      expect(String(parsed.data.description)).toContain("Conditional code-review persona")
-      expect(tools).toContain("Read")
-      expect(tools).toContain("Grep")
-      expect(tools).toContain("Glob")
-      expect(tools).toContain("Bash")
-      expect(content).toContain("## Confidence calibration")
-      expect(content).toContain("## What you don't flag")
-      expect(content).toContain("Return your findings as JSON matching the findings schema. No prose outside the JSON.")
-      expect(content).toContain(`"reviewer": "${reviewer.reviewer}"`)
-    }
-  })
-
   test("JSON-pipeline persona agents grant Write so they can save run artifacts", async () => {
     // The ce-code-review subagent template instructs each persona to write its full
     // analysis to /tmp/compound-engineering/ce-code-review/{run_id}/{reviewer}.json.
@@ -525,16 +470,10 @@ describe("ce-code-review contract", () => {
     const personas = [
       "ce-correctness-reviewer",
       "ce-testing-reviewer",
-      "ce-maintainability-reviewer",
-      "ce-project-standards-reviewer",
       "ce-security-reviewer",
       "ce-performance-reviewer",
-      "ce-api-contract-reviewer",
-      "ce-data-migration-reviewer",
-      "ce-reliability-reviewer",
       "ce-adversarial-reviewer",
       "ce-previous-comments-reviewer",
-      "ce-julik-frontend-races-reviewer",
     ]
 
     for (const persona of personas) {
@@ -544,21 +483,6 @@ describe("ce-code-review contract", () => {
 
       expect(tools).toContain("Write")
     }
-  })
-
-  test("data-migration reviewer consolidates schema drift and migration safety", async () => {
-    const content = await readRepoFile(
-      "plugins/compound-engineering/agents/ce-data-migration-reviewer.md",
-    )
-    const skill = await readRepoFile("plugins/compound-engineering/skills/ce-code-review/SKILL.md")
-
-    expect(content).toContain("## Step 0: Schema drift")
-    expect(content).toContain('"reviewer": "data-migration"')
-    expect(content).toContain("Return your findings as JSON matching the findings schema.")
-    expect(skill).toContain("data-migration` spawn gate")
-    expect(skill).not.toContain("ce-schema-drift-detector")
-    expect(skill).not.toContain("ce-data-migration-expert")
-    expect(skill).not.toContain("ce-data-migrations-reviewer")
   })
 
   test("PR mode uses gh pr diff without checkout; branch/standalone fail closed on missing base", async () => {
@@ -577,13 +501,6 @@ describe("ce-code-review contract", () => {
     // Branch and standalone modes must stop when no base can be resolved
     const stopGuardMatches = content.match(/Do not fall back to `git diff HEAD`/g)
     expect(stopGuardMatches?.length).toBeGreaterThanOrEqual(1)
-  })
-
-  test("orchestration callers invoke review-only code review", async () => {
-    const lfg = await readRepoFile("plugins/compound-engineering/skills/lfg/SKILL.md")
-    expect(lfg).toMatch(/ce-code-review[^\n]*mode:agent/)
-    expect(lfg).toContain("references/review-followup.md")
-    expect(lfg).not.toMatch(/mode:autofix/)
   })
 
   test("ce-work documents review-findings followup after Tier 2", async () => {
@@ -634,52 +551,6 @@ describe("ce-code-review contract", () => {
       expect(workflow).toContain("If the user later chooses the no-PR commit-only path")
       expect(workflow).toContain("must not live only in the transient session")
     }
-  })
-
-  test("lfg autonomously handles residuals via non-interactive tracker-defer and PR description", async () => {
-    const lfg = await readRepoFile("plugins/compound-engineering/skills/lfg/SKILL.md")
-    await expect(readRepoFile("plugins/compound-engineering/skills/lfg/references/tracker-defer.md")).resolves.toContain(
-      "Non-interactive mode",
-    )
-    await expect(readRepoFile("plugins/compound-engineering/skills/lfg/references/tracker-defer.md")).resolves.not.toMatch(
-      /no-sink/,
-    )
-
-    // Autonomous residual handoff step exists between code review and test-browser.
-    expect(lfg).toContain("Apply and persist review fixes")
-    const followup = await readRepoFile("plugins/compound-engineering/skills/lfg/references/review-followup.md")
-    expect(followup).toContain("fix(review): apply review findings")
-    expect(lfg).toContain("references/review-followup.md")
-    expect(lfg).toContain("Autonomous residual handoff")
-    expect(lfg).toMatch(/Do not prompt the user/)
-
-    // tracker-defer is invoked in non-interactive mode.
-    expect(lfg).toContain("references/tracker-defer.md")
-    expect(lfg).not.toContain("plugins/compound-engineering/skills/ce-code-review/references/tracker-defer.md")
-
-    // Structured return buckets drive PR description content.
-    expect(lfg).toMatch(/filed/)
-    expect(lfg).toMatch(/failed/)
-    expect(lfg).toMatch(/no_sink/)
-
-    // PR description update path is non-interactive and does not route through
-    // confirmation-driven PR update skills. The positive assertion on
-    // `gh pr edit` below is the actual check; a broad `not.toContain` would
-    // falsely trip on step 7's legitimate use of ce-commit-push-pr for the
-    // post-work commit/PR-open step.
-    expect(lfg).toContain("do not load any confirmation-driven PR update skill")
-    expect(lfg).toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
-    expect(lfg).toContain("## Residual Review Findings")
-    expect(lfg).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
-    expect(lfg).toContain("prefer `origin` when present")
-    expect(lfg).toContain("choose the first configured remote")
-    expect(lfg).toContain("git push --set-upstream <remote> HEAD")
-    expect(lfg).not.toContain("git push --set-upstream origin HEAD")
-    expect(lfg).toContain("Do not output DONE until either the existing PR body has been updated or this fallback file commit has been pushed.")
-
-    // Autopilot contract: never prompt, but require a durable sink before DONE.
-    expect(lfg).toContain("Do not prompt the user")
-    expect(lfg).toMatch(/Never block DONE on tracker filing failures/i)
   })
 
   test("ce-code-review emits actionable findings summary for callers", async () => {

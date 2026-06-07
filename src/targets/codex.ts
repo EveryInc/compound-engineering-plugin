@@ -5,7 +5,7 @@ import type { CodexBundle } from "../types/codex"
 import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
 import { getLegacyCodexArtifacts } from "../data/plugin-legacy-artifacts"
-import { classifyCodexLegacyPromptOwnership } from "../utils/legacy-cleanup"
+import { classifyCodexLegacyPromptOwnership, classifyCodexLegacySkillDirOwnership } from "../utils/legacy-cleanup"
 
 const MANAGED_START_MARKER = "# BEGIN Compound Engineering plugin MCP -- do not edit this block"
 const MANAGED_END_MARKER = "# END Compound Engineering plugin MCP"
@@ -305,6 +305,17 @@ async function cleanupKnownLegacyCodexArtifacts(codexRoot: string, bundle: Codex
   const legacyArtifacts = getLegacyCodexArtifacts(bundle)
   for (const skillName of legacyArtifacts.skills) {
     const legacySkillPath = path.join(codexRoot, "skills", skillName)
+    // Ownership gate: `~/.codex/skills/` is a shared directory across plugins
+    // and user-authored skills. A name match against the legacy allow-list is
+    // not a strong enough signal to move a directory — a user who creates
+    // `~/.codex/skills/ce-demo-reel/` for their own workflow must not have it
+    // claimed by name alone and swept into `compound-engineering/legacy-backup/`
+    // on every install. Mirror the prompts gate above. "unknown" (no
+    // fingerprint on record) falls through to the historical allow-list
+    // behavior so genuinely-owned orphans with no description on record still
+    // sweep.
+    const ownership = await classifyCodexLegacySkillDirOwnership(legacySkillPath)
+    if (ownership === "foreign") continue
     await moveLegacyArtifactToBackup(codexRoot, pluginName, "skills", legacySkillPath)
   }
 

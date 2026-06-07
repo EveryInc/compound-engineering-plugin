@@ -23,7 +23,7 @@ related_pr: https://github.com/EveryInc/compound-engineering-plugin/pull/747
 
 ## Problem
 
-`plugins/compound-engineering/AGENTS.md` already stated that "all skills and agents use the `ce-` prefix to unambiguously identify them as compound-engineering components." But the rule was prose-only, and legacy skills sat unprefixed in the same directory as their `ce-`-prefixed siblings. The combination — a soft rule plus visible exceptions — let a new skill (`riffrec-feedback-analysis`) ship in PR #747 without the prefix. The user caught it post-merge of the first commit, requiring a rename commit on the same PR. (That skill is now `ce-riffrec-feedback-analysis`; the once-unprefixed `every-style-editor` and `file-todos` skills have since been removed, leaving `lfg` as the sole exemption.)
+`plugins/compound-engineering/AGENTS.md` already stated that "all skills and agents use the `ce-` prefix to unambiguously identify them as compound-engineering components." But the rule was prose-only, and legacy skills sat unprefixed in the same directory as their `ce-`-prefixed siblings. The combination — a soft rule plus visible exceptions — let a new skill (`riffrec-feedback-analysis`) ship in PR #747 without the prefix. The user caught it post-merge of the first commit, requiring a rename commit on the same PR. (That skill is now `ce-riffrec-feedback-analysis`; the once-unprefixed `every-style-editor` and `file-todos` skills remain as legacy exemptions.)
 
 A prose convention that has visible counterexamples and no machine check is, in practice, an *advisory* convention. Any author skim-reading the directory listing sees an unprefixed skill next to `ce-brainstorm` and reasonably concludes the prefix is optional.
 
@@ -47,10 +47,7 @@ const PREFIX = "ce-"
 
 // Exemptions from the ce- prefix rule. Add entries here only with a written
 // reason — the exemption list shouldn't become a silent junk drawer.
-const SKILL_EXEMPTIONS = new Set<string>([
-  // lfg ships as the public command `/lfg` (see plugins/compound-engineering/README.md).
-  "lfg",
-])
+const SKILL_EXEMPTIONS = new Set<string>([])
 const AGENT_EXEMPTIONS = new Set<string>([])
 ```
 

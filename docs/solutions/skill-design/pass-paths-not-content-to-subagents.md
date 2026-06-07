@@ -23,7 +23,7 @@ When orchestrating sub-agents that need codebase reference material (config file
 
 ## What Didn't Work
 
-Having the orchestrator read all relevant file contents and pass them in a content block. This was the initial approach for the `ce-project-standards-reviewer` agent in ce-code-review: Stage 3b collected all CLAUDE.md/AGENTS.md content into a `<standards>` block passed in the sub-agent prompt.
+Having the orchestrator read all relevant file contents and pass them in a content block. This was the initial approach for project-standards review in ce-code-review: Stage 3b collected all CLAUDE.md/AGENTS.md content into a `<standards>` block passed in the sub-agent prompt.
 
 Problems:
 - Orchestrator did expensive read work that may be partially wasted
@@ -44,7 +44,7 @@ The reviewing agents then receive those paths and read the files themselves.
 **How we applied it in ce-code-review:**
 
 1. Stage 3b: orchestrator globs for CLAUDE.md/AGENTS.md paths in changed directories, emits a `<standards-paths>` block
-2. Sub-agent prompt: `ce-project-standards-reviewer` reads the listed files itself, targeting sections relevant to the changed file types
+2. Sub-agent prompt: the `testing` persona (`ce-testing-reviewer`, which now runs the project-standards audit) reads the listed files itself, targeting sections relevant to the changed file types
 3. Standalone fallback: if no `<standards-paths>` block is present, the agent discovers paths independently
 
 **General template:**

@@ -126,7 +126,6 @@ Skip `ce-update` when:
 
 `ce-update` is a standalone utility — it doesn't sit inside the chain. It's invoked when version drift is suspected:
 
-- **From `/ce-report-bug`** — checking version is the first thing a bug report should establish
 - **From the user directly** when the agent's behavior smells stale
 
 The output is read directly by the user — no downstream skill consumes it.
@@ -185,5 +184,3 @@ The skill recognizes the case (`__CE_UPDATE_NOT_MARKETPLACE__` from the path-par
 ## See Also
 
 - [`ce-setup`](./ce-setup.md) — installs missing dependencies; complementary to version checks
-- [`ce-report-bug`](./ce-report-bug.md) — reporting a bug; should establish version first
-- [`ce-release-notes`](./ce-release-notes.md) — summarize recent compound-engineering plugin releases

@@ -3,7 +3,7 @@ import fs from "fs/promises"
 import path from "path"
 import os from "os"
 import { parseFrontmatter } from "../src/utils/frontmatter"
-import { cleanupStaleSkillDirs, cleanupStaleAgents, cleanupStalePrompts } from "../src/utils/legacy-cleanup"
+import { cleanupStaleSkillDirs, cleanupStaleAgents, cleanupStalePrompts, classifyCodexLegacySkillDirOwnership } from "../src/utils/legacy-cleanup"
 
 async function createDir(dir: string, content = "placeholder") {
   await fs.mkdir(dir, { recursive: true })
@@ -335,36 +335,6 @@ describe("cleanupStaleAgents", () => {
     expect(await exists(path.join(root, "learnings-researcher.md"))).toBe(false)
   })
 
-  test("removes .agent.md files (legacy Copilot extension)", async () => {
-    // Even though current CE agent source files are now `.md` (renamed for VS
-    // Code Copilot tool access in PR #846), `getLegacyCopilotArtifacts` still
-    // enumerates `<name>.agent.md` candidates so `cleanupCopilot` can sweep
-    // stale flat installs from the pre-rename era. Keep this fixture on
-    // `.agent.md` so a regression in that legacy extension path is caught
-    // here -- the preceding test already covers the `.md` shape.
-    const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-copilot-"))
-    __tempRoots.push(root)
-    await createFile(
-      path.join(root, "security-sentinel.agent.md"),
-      agentContent(
-        "security-sentinel",
-        await pluginDescription("plugins/compound-engineering/agents/ce-security-sentinel.md"),
-      ),
-    )
-    await createFile(
-      path.join(root, "performance-oracle.agent.md"),
-      agentContent(
-        "performance-oracle",
-        await pluginDescription("plugins/compound-engineering/agents/ce-performance-oracle.md"),
-      ),
-    )
-
-    const removed = await cleanupStaleAgents(root, ".agent.md")
-
-    expect(removed).toBe(2)
-    expect(await exists(path.join(root, "security-sentinel.agent.md"))).toBe(false)
-  })
-
   test("removes matching Kiro agent configs but preserves same-named user configs", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-kiro-"))
     __tempRoots.push(root)
@@ -402,10 +372,10 @@ describe("cleanupStaleAgents", () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-agents-dir-"))
     __tempRoots.push(root)
     await createDir(
-      path.join(root, "code-simplicity-reviewer"),
+      path.join(root, "performance-reviewer"),
       skillContent(
-        "code-simplicity-reviewer",
-        await pluginDescription("plugins/compound-engineering/agents/ce-code-simplicity-reviewer.md"),
+        "performance-reviewer",
+        await pluginDescription("plugins/compound-engineering/agents/ce-performance-reviewer.md"),
       ),
     )
     await createDir(
@@ -419,7 +389,7 @@ describe("cleanupStaleAgents", () => {
     const removed = await cleanupStaleAgents(root, null)
 
     expect(removed).toBe(2)
-    expect(await exists(path.join(root, "code-simplicity-reviewer"))).toBe(false)
+    expect(await exists(path.join(root, "performance-reviewer"))).toBe(false)
     expect(await exists(path.join(root, "repo-research-analyst"))).toBe(false)
   })
 
@@ -726,5 +696,67 @@ describe("idempotency", () => {
 
     const second = await cleanupStaleSkillDirs(root) + await cleanupStaleAgents(root, ".md")
     expect(second).toBe(0)
+  })
+})
+
+describe("classifyCodexLegacySkillDirOwnership", () => {
+  test("returns 'ce-owned' for a flat skill dir whose SKILL.md matches the CE fingerprint", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "classify-skilldir-owned-"))
+    __tempRoots.push(root)
+    const skillDir = path.join(root, "ce-demo-reel")
+    await createDir(
+      skillDir,
+      skillContent(
+        "ce-demo-reel",
+        // Exact LEGACY_ONLY_SKILL_DESCRIPTIONS["ce-demo-reel"] string.
+        "Capture a visual demo reel (GIF, terminal recording, screenshots) for PR descriptions. Use when shipping UI changes, CLI features, or any work with observable behavior that benefits from visual proof. Also use when asked to add a demo, record a GIF, screenshot a feature, show what changed visually, create a demo reel, capture evidence, add proof to a PR, or create a before/after comparison.",
+      ),
+    )
+
+    expect(await classifyCodexLegacySkillDirOwnership(skillDir)).toBe("ce-owned")
+  })
+
+  test("returns 'ce-owned' for a flat skill dir carrying a DRIFTED historical description (alias map)", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "classify-skilldir-drift-"))
+    __tempRoots.push(root)
+    const skillDir = path.join(root, "ce-review")
+    // A real reworded description ce-review shipped before it was renamed to
+    // ce-code-review. It differs from the current ce-code-review fingerprint,
+    // so without LEGACY_SKILL_DESCRIPTION_ALIASES["ce-review"] this would
+    // classify "foreign" and strand instead of sweeping.
+    const driftedHistorical =
+      "Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees"
+    const currentSuccessor = await pluginDescription(
+      "plugins/compound-engineering/skills/ce-code-review/SKILL.md",
+    )
+    // Guard the test's premise: the value must actually be drift, otherwise it
+    // would pass via the current-fingerprint path and prove nothing about the
+    // alias map.
+    expect(driftedHistorical).not.toBe(currentSuccessor)
+
+    await createDir(skillDir, skillContent("ce-review", driftedHistorical))
+
+    expect(await classifyCodexLegacySkillDirOwnership(skillDir)).toBe("ce-owned")
+  })
+
+  test("returns 'foreign' for a fingerprinted name whose SKILL.md description does not match", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "classify-skilldir-foreign-"))
+    __tempRoots.push(root)
+    const skillDir = path.join(root, "ce-demo-reel")
+    await createDir(
+      skillDir,
+      skillContent("ce-demo-reel", "User-authored demo reel skill, unrelated to compound-engineering."),
+    )
+
+    expect(await classifyCodexLegacySkillDirOwnership(skillDir)).toBe("foreign")
+  })
+
+  test("returns 'unknown' for a name with no fingerprint on record", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "classify-skilldir-unknown-"))
+    __tempRoots.push(root)
+    const skillDir = path.join(root, "totally-user-skill")
+    await createDir(skillDir, skillContent("totally-user-skill", "Some user skill not known to CE."))
+
+    expect(await classifyCodexLegacySkillDirOwnership(skillDir)).toBe("unknown")
   })
 })

@@ -19,17 +19,16 @@ Verify the installed compound-engineering plugin version matches the upstream
 Claude Code only.
 
 The upstream version comes from `plugins/compound-engineering/.claude-plugin/plugin.json`
-on `main` rather than the latest GitHub release tag, because the marketplace
-installs plugin contents from `main` HEAD. Comparing against release tags
-false-positives whenever `main` is ahead of the last tag (the normal state
-between releases).
+on `main`, not the latest GitHub release tag, because the marketplace installs
+plugin contents from `main` HEAD. Comparing against release tags false-positives
+whenever `main` is ahead of the last tag (the normal state between releases).
 
 ## Step 1: Probe versions
 
 Run these three scripts in parallel via the Bash tool. Each prints a single
-line of output; capture the values for the decision logic below. Use
-`${CLAUDE_SKILL_DIR}` so the path resolves correctly in both `claude --plugin-dir`
-local-development sessions and standard marketplace-cached installs.
+line; capture the values for the decision logic below. `${CLAUDE_SKILL_DIR}`
+resolves the path in both `claude --plugin-dir` local-development sessions and
+standard marketplace-cached installs.
 
 ```bash
 bash "${CLAUDE_SKILL_DIR}/scripts/upstream-version.sh"
@@ -53,15 +52,15 @@ They print the version segment / marketplace segment, or the sentinel
 ### Handle failure cases
 
 If `scripts/upstream-version.sh` printed `__CE_UPDATE_VERSION_FAILED__`: tell
-the user the upstream version could not be fetched (gh may be unavailable or
+the user the upstream version could not be fetched (gh unavailable or
 rate-limited) and stop.
 
 If `scripts/currently-loaded-version.sh` printed
-`__CE_UPDATE_NOT_MARKETPLACE__`: the skill is loaded from outside the
-standard marketplace cache. Two cases collapse to the same handling: a
-`claude --plugin-dir` local-development session, or a non-Claude-Code
-platform (this skill is Claude Code-only because it relies on the plugin
-harness cache layout). Tell the user:
+`__CE_UPDATE_NOT_MARKETPLACE__`: the skill is loaded from outside the standard
+marketplace cache. Two cases collapse to the same handling: a
+`claude --plugin-dir` local-development session, or a non-Claude-Code platform
+(this skill is Claude Code-only because it relies on the plugin harness cache
+layout). Tell the user:
 
 > "Skill is loaded from outside the marketplace cache at
 > `~/.claude/plugins/cache/`. This is normal when using
@@ -87,9 +86,9 @@ Then stop.
 > ```
 > Then restart Claude Code to apply."
 
-The `claude plugin update` command ships with Claude Code itself and updates
-installed plugins to their latest version; it replaces earlier manual cache
-sweep / marketplace-refresh workarounds. The marketplace name is derived from
-the skill path rather than hardcoded because this plugin is distributed under
-multiple marketplace names (for example, `compound-engineering-plugin` for
-public installs per the README, or other names for internal/team marketplaces).
+The `claude plugin update` command ships with Claude Code and updates installed
+plugins to their latest version, replacing earlier manual cache-sweep /
+marketplace-refresh workarounds. The marketplace name is derived from the skill
+path rather than hardcoded because this plugin is distributed under multiple
+marketplace names (e.g. `compound-engineering-plugin` for public installs per
+the README, or other names for internal/team marketplaces).

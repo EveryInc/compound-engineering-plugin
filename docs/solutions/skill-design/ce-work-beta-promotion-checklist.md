@@ -18,7 +18,7 @@ related:
 
 ## Problem
 
-`ce-work-beta` is intentionally a manual-invocation beta skill. During beta, `ce-plan`, `ce-brainstorm`, `lfg`, `slfg`, and other workflow handoffs remain pointed at stable `ce-work` so the repo does not need to support two execution paths at once.
+`ce-work-beta` is intentionally a manual-invocation beta skill. During beta, `ce-plan`, `ce-brainstorm`, and other workflow handoffs remain pointed at stable `ce-work` so the repo does not need to support two execution paths at once.
 
 That means promoting `ce-work-beta` to stable is not just a content copy. The rollout flips multiple contracts at once:
 

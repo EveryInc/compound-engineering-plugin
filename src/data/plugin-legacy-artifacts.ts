@@ -1,6 +1,4 @@
 import type { CodexBundle } from "../types/codex"
-import type { CopilotBundle } from "../types/copilot"
-import type { DroidBundle } from "../types/droid"
 import type { ClaudePlugin } from "../types/claude"
 import type { GeminiBundle } from "../types/gemini"
 import type { KiroBundle } from "../types/kiro"
@@ -23,14 +21,18 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "agent-browser",
       "agent-native-architecture",
       "agent-native-audit",
+      "ce-agent-native-architecture",
+      "ce-agent-native-audit",
       "andrew-kane-gem-writer",
       "brainstorming",
       "ce-andrew-kane-gem-writer",
       "ce-changelog",
+      "ce-clean-gone-branches",
       "ce-deploy-docs",
       "ce-dspy-ruby",
       "ce-every-style-editor",
       "ce-onboarding",
+      "ce-ideate",
       "ce:brainstorm",
       "ce:compound",
       "ce:compound-refresh",
@@ -121,6 +123,16 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "ce-proof",
       "ce-promote",
       "ce-gemini-imagegen",
+      "lfg",
+      "ce-report-bug",
+      "ce-strategy",
+      "ce-dogfood-beta",
+      "ce-test-browser",
+      "ce-demo-reel",
+      "ce-release-notes",
+      "ce-resolve-pr-feedback",
+      "ce-polish",
+      "ce-optimize",
       "todo-create",
       "todo-resolve",
       "todo-triage",
@@ -140,9 +152,11 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "adversarial-document-reviewer",
       "adversarial-reviewer",
       "agent-native-reviewer",
+      "ce-agent-native-reviewer",
       "ankane-readme-writer",
       "ce-ankane-readme-writer",
       "api-contract-reviewer",
+      "ce-api-contract-reviewer",
       "architecture-strategist",
       "best-practices-researcher",
       "bug-reproduction-validator",
@@ -153,29 +167,39 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "cli-agent-readiness-reviewer",
       "cli-readiness-reviewer",
       "code-simplicity-reviewer",
+      "ce-code-simplicity-reviewer",
       "coherence-reviewer",
       "correctness-reviewer",
       "data-integrity-guardian",
+      "ce-data-integrity-guardian",
       "ce-data-migration-expert",
       "ce-data-migrations-reviewer",
       "ce-design-implementation-reviewer",
       "ce-design-iterator",
       "data-migration-expert",
+      "data-migration-reviewer",
+      "ce-data-migration-reviewer",
       "data-migrations-reviewer",
       "deployment-verification-agent",
+      "ce-deployment-verification-agent",
       "design-implementation-reviewer",
       "design-iterator",
       "design-lens-reviewer",
+      "ce-design-lens-reviewer",
       "ce-dhh-rails-reviewer",
       "dhh-rails-reviewer",
       "every-style-editor",
       "feasibility-reviewer",
       "figma-design-sync",
+      "ce-figma-design-sync",
       "framework-docs-researcher",
       "ce-framework-docs-researcher",
       "git-history-analyzer",
+      "ce-git-history-analyzer",
       "issue-intelligence-analyst",
+      "ce-issue-intelligence-analyst",
       "julik-frontend-races-reviewer",
+      "ce-julik-frontend-races-reviewer",
       "ce-kieran-python-reviewer",
       "ce-kieran-rails-reviewer",
       "ce-kieran-typescript-reviewer",
@@ -185,28 +209,39 @@ const EXTRA_LEGACY_ARTIFACTS_BY_PLUGIN: Record<string, LegacyPluginArtifacts> = 
       "learnings-researcher",
       "lint",
       "maintainability-reviewer",
+      "ce-maintainability-reviewer",
       "pattern-recognition-specialist",
+      "ce-pattern-recognition-specialist",
       "performance-oracle",
+      "ce-performance-oracle",
       "performance-reviewer",
       "pr-comment-resolver",
+      "ce-pr-comment-resolver",
       "pr-reviewability-analyst",
       "previous-comments-reviewer",
       "product-lens-reviewer",
+      "ce-product-lens-reviewer",
       "project-standards-reviewer",
+      "ce-project-standards-reviewer",
       "reliability-reviewer",
+      "ce-reliability-reviewer",
       "repo-research-analyst",
       "ce-schema-drift-detector",
       "ce-swift-ios-reviewer",
       "schema-drift-detector",
       "scope-guardian-reviewer",
+      "ce-scope-guardian-reviewer",
       "security-lens-reviewer",
+      "ce-security-lens-reviewer",
       "security-reviewer",
       "security-sentinel",
+      "ce-security-sentinel",
       "session-historian",
       "session-history-researcher",
       "slack-researcher",
       "ce-slack-researcher",
       "spec-flow-analyzer",
+      "ce-spec-flow-analyzer",
       "testing-reviewer",
       "web-researcher",
     ],
@@ -276,12 +311,6 @@ export type LegacyTargetFileArtifacts = {
   commands: string[]
 }
 
-export type LegacyDroidArtifacts = {
-  skills: string[]
-  commands: string[]
-  droids: string[]
-}
-
 export type LegacyOpenCodeArtifacts = {
   skills: string[]
   commands: string[]
@@ -289,11 +318,6 @@ export type LegacyOpenCodeArtifacts = {
 }
 
 export type LegacyKiroArtifacts = {
-  skills: string[]
-  agents: string[]
-}
-
-export type LegacyCopilotArtifacts = {
   skills: string[]
   agents: string[]
 }
@@ -429,38 +453,6 @@ export function getLegacyGeminiArtifacts(bundle: GeminiBundle): LegacyTargetFile
   }
 }
 
-export function getLegacyDroidArtifacts(bundle: DroidBundle): LegacyDroidArtifacts {
-  const skills = new Set<string>()
-  const commands = new Set<string>()
-  const droids = new Set<string>()
-  const currentSkills = new Set<string>(bundle.skillDirs.map((skill) => sanitizePathName(skill.name)))
-  const currentCommands = new Set<string>(bundle.commands.map((command) => `${command.name}.md`))
-  const currentDroids = new Set<string>(bundle.droids.map((droid) => `${sanitizePathName(droid.name)}.md`))
-  const extras = getLegacyPluginArtifacts(bundle.pluginName)
-
-  for (const name of extras.skills ?? []) {
-    addLegacySkillVariants(skills, name, { currentSkills })
-  }
-  for (const name of extras.agents ?? []) {
-    const droidPath = `${normalizeLegacyName(name)}.md`
-    if (!currentDroids.has(droidPath)) {
-      droids.add(droidPath)
-    }
-  }
-  for (const name of extras.commands ?? []) {
-    const commandPath = `${flattenLegacyCommandName(name)}.md`
-    if (!currentCommands.has(commandPath)) {
-      commands.add(commandPath)
-    }
-  }
-
-  return {
-    skills: [...skills].sort(),
-    commands: [...commands].sort(),
-    droids: [...droids].sort(),
-  }
-}
-
 export function getLegacyOpenCodeArtifacts(bundle: OpenCodeBundle): LegacyOpenCodeArtifacts {
   const skills = new Set<string>()
   const commands = new Set<string>()
@@ -514,39 +506,6 @@ export function getLegacyKiroArtifacts(bundle: KiroBundle): LegacyKiroArtifacts 
     const agentName = normalizeLegacyName(name)
     if (!currentAgents.has(agentName)) {
       agents.add(agentName)
-    }
-  }
-  for (const name of extras.commands ?? []) {
-    for (const skillName of legacyCommandSkillNames(name)) {
-      if (!currentSkills.has(skillName)) {
-        skills.add(skillName)
-      }
-    }
-  }
-
-  return {
-    skills: [...skills].sort(),
-    agents: [...agents].sort(),
-  }
-}
-
-export function getLegacyCopilotArtifacts(bundle: CopilotBundle): LegacyCopilotArtifacts {
-  const skills = new Set<string>()
-  const agents = new Set<string>()
-  const currentSkills = new Set<string>([
-    ...bundle.generatedSkills.map((skill) => sanitizePathName(skill.name)),
-    ...bundle.skillDirs.map((skill) => sanitizePathName(skill.name)),
-  ])
-  const currentAgents = new Set<string>(bundle.agents.map((agent) => `${sanitizePathName(agent.name)}.agent.md`))
-  const extras = getLegacyPluginArtifacts(bundle.pluginName)
-
-  for (const name of extras.skills ?? []) {
-    addLegacySkillVariants(skills, name, { currentSkills })
-  }
-  for (const name of extras.agents ?? []) {
-    const agentPath = `${normalizeLegacyName(name)}.agent.md`
-    if (!currentAgents.has(agentPath)) {
-      agents.add(agentPath)
     }
   }
   for (const name of extras.commands ?? []) {

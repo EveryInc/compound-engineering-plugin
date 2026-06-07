@@ -1,6 +1,6 @@
 # Defense-in-Depth
 
-When a bug is caused by invalid state reaching a vulnerable code path, fixing just one layer leaves the door open for different code paths, refactors, or mocks to re-introduce the same bug. Defense-in-depth makes the bug structurally harder to re-create by validating at multiple layers.
+When invalid state reaches a vulnerable code path, fixing one layer leaves the door open for other code paths, refactors, or mocks to re-introduce the same bug. Defense-in-depth validates at multiple layers so the bug is structurally harder to re-create.
 
 Not every bug warrants this. Use when:
 
@@ -24,12 +24,12 @@ Pick the layers that apply. Not every bug needs all four.
 ## Applying the pattern
 
 1. Trace the data flow from the bad value's origin through every function that passed it along.
-2. Map the checkpoints: at which of those points could validation have rejected the bad value earlier?
-3. Add guards at the appropriate layers. Each guard should be as narrow as possible — validating exactly what this layer is responsible for, not duplicating checks from other layers.
+2. Map the checkpoints: at which points could validation have rejected the bad value earlier?
+3. Add guards at the appropriate layers. Keep each guard as narrow as possible: validate exactly what this layer is responsible for, not checks from other layers.
 4. Test each guard independently: construct a case that bypasses layer 1 and verify layer 2 still catches it.
 
 ## Common mistakes
 
-- **Duplicating the same check at every layer.** Each layer should catch a distinct class of failure. If layer 2 just repeats layer 1, the second one is noise.
-- **Adding guards speculatively without a bug to justify them.** Defense-in-depth is a response to an observed failure mode, not a generic code-hygiene practice.
-- **Leaving layer 4 (diagnostic breadcrumb) out.** When layers 1-3 still get bypassed — they will, eventually — the breadcrumb is what makes the next bug debuggable.
+- **Duplicating the same check at every layer.** Each layer should catch a distinct class of failure. If layer 2 repeats layer 1, the second is noise.
+- **Adding guards speculatively without a bug to justify them.** Defense-in-depth responds to an observed failure mode; it is not generic code hygiene.
+- **Leaving layer 4 (diagnostic breadcrumb) out.** Layers 1-3 will eventually get bypassed; the breadcrumb is what makes the next bug debuggable.

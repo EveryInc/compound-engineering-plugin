@@ -1,6 +1,6 @@
 # Open Questions Deferral
 
-This reference defines the Defer action's in-doc append mechanic. When the user chooses Defer on a finding (from the walk-through or from the bulk-preview Append-to-Open-Questions path), an entry for that finding appends to a `## Deferred / Open Questions` section at the end of the document under review.
+The Defer action's in-doc append mechanic. When the user chooses Defer on a finding (from the walk-through or the bulk-preview Append-to-Open-Questions path), an entry appends to a `## Deferred / Open Questions` section at the end of the document under review.
 
 Interactive mode only. Invoked by `references/walkthrough.md` (per-finding Defer option) and `references/bulk-preview.md` (routing option C Proceed).
 
@@ -27,7 +27,7 @@ Date format: ISO 8601 calendar date (`YYYY-MM-DD`). If multiple reviews occur on
 
 ### Step 3: Format and append the entry
 
-Per deferred finding, append a reader-facing bullet-point entry. The entry carries no HTML comment — the markdown rendering contract forbids mixed-in HTML, and every field Step 4's dedup needs is reconstructable from the visible entry text:
+Per deferred finding, append a reader-facing bullet-point entry. No HTML comment — the markdown rendering contract forbids mixed-in HTML, and every field Step 4's dedup needs reconstructs from the visible entry text:
 
 ```
 - **{title}** — {section} ({severity}, {reviewer}, confidence {confidence})
@@ -44,7 +44,7 @@ Fields come from the finding's schema:
 - `{confidence}` — the integer anchor (`50`, `75`, or `100`), emitted without a decimal point or percent sign
 - `{why_it_matters}` — the full why_it_matters text, preserving the framing guidance from the subagent template
 
-Do not include `suggested_fix` or the full `evidence` array in the appended entry. Those live in the review run artifact (when applicable) and do not belong in the document's Open Questions section — the entry is a concern summary for the reader returning later, not a full decision packet.
+Do not include `suggested_fix` or the full `evidence` array in the appended entry. Those live in the review run artifact (when applicable); the entry is a concern summary for the reader returning later, not a full decision packet.
 
 ### Step 4: Idempotence on compound-key collisions
 
@@ -58,7 +58,7 @@ If an entry with the same compound key already exists under the same `### From Y
 - `normalize(section)` and `normalize(title)` use the same normalization as synthesis step 3.3 dedup (lowercase, strip punctuation, collapse whitespace). For a new finding, compute from the schema; for an existing entry, parse `{title}` (the bold leader) and `{section}` (the text between the em-dash and the opening `(`) out of the rendered bullet.
 - `why_fingerprint` is the first ~120 characters of the entry's `{why_it_matters}` prose, word-boundary-preserving, with any run of whitespace collapsed to a single space. Because why_it_matters renders verbatim in the entry, the same fingerprint recomputes from the visible bullet on any retry or reread. When why_it_matters is empty, fall back to `normalize(section) + normalize(title)` alone.
 
-Title-only dedup is not sufficient: two different findings in the same document (even on the same review date) can legitimately share a short title if their sections or rationale differ. Using only `{title}` would silently drop one — losing user-visible backlog context. Matching on section and the why-fingerprint keeps distinct findings distinct, and stays close to the R29/R30 matching predicate (`section + title + evidence-substring overlap`) so cross-round and intra-round dedup behave consistently.
+Title-only dedup is insufficient: two different findings in the same document (even on the same date) can share a short title when sections or rationale differ. Using only `{title}` would silently drop one, losing user-visible backlog context. Matching on section and why-fingerprint keeps distinct findings distinct and stays close to the R29/R30 matching predicate (`section + title + evidence-substring overlap`) so cross-round and intra-round dedup behave consistently.
 
 **Pre-existing entries with a `dedup-key` HTML comment:** entries written by the prior format carry a trailing `<!-- dedup-key: ... -->` comment. Ignore it for matching — the visible-text key above is authoritative — and strip the comment if the entry is otherwise edited. Do not write new ones.
 
@@ -68,15 +68,15 @@ On collision, record the no-op in the completion report's Coverage section so th
 
 ## Concurrent edit safety
 
-Document edits happen via the platform's edit tool (Edit in Claude Code, or equivalent). Before every append, re-read the document from disk to reduce the window for user-in-editor concurrent-write collisions. If the document's mtime or content has changed unexpectedly between a prior read and the append attempt, abort the append and surface the situation via the failure path below. The user may be editing in their editor during the review session and simultaneous writes would corrupt the document.
+Document edits happen via the platform's edit tool (Edit in Claude Code, or equivalent). Before every append, re-read the document from disk to shrink the window for user-in-editor concurrent-write collisions. If mtime or content changed unexpectedly between a prior read and the append attempt, abort and surface via the failure path below — the user may be editing during the review session and simultaneous writes would corrupt the document.
 
-The orchestrator only holds the most recent read in memory, not a persistent lock — interactive review doesn't need lock coordination; it needs observation-before-write.
+The orchestrator holds only the most recent read in memory, not a persistent lock: interactive review needs observation-before-write, not lock coordination.
 
 ---
 
 ## Failure path
 
-When the append cannot complete — document is read-only on disk, path is invalid, the platform's edit tool returns an error, concurrent-edit collision detected, or any other write failure — surface the failure inline to the user via the platform's blocking question tool with the following sub-question:
+When the append cannot complete — document read-only on disk, invalid path, the edit tool returns an error, concurrent-edit collision, or any other write failure — surface the failure inline via the platform's blocking question tool with this sub-question:
 
 **Stem:** `Couldn't append the finding to Open Questions. What should the agent do?`
 
@@ -92,17 +92,17 @@ C. Convert this finding to Skip
 
 - **A Retry** — try the append again. On repeated failure, loop back to the same sub-question.
 - **B Record only** — skip the document mutation; record the Deferred action in the completion report with a note that the append failed. The finding does not end up in the document but the user sees in the report that they deferred it.
-- **C Convert to Skip** — record the finding as Skip with an explanatory reason ("append to Open Questions failed: <error>"). The finding is treated as no-action for the remainder of the session.
+- **C Convert to Skip** — record the finding as Skip with a reason ("append to Open Questions failed: <error>"). Treated as no-action for the rest of the session.
 
-Silent failure is not acceptable. If the user does not respond to the sub-question (session ends, terminal disconnects), default to option B so the in-memory decision state stays consistent even if the document wasn't written.
+Silent failure is not acceptable. If the user does not respond (session ends, terminal disconnects), default to option B so the in-memory decision state stays consistent even when the document wasn't written.
 
 ---
 
 ## Upstream availability signal
 
-The walk-through and bulk-preview check append-availability before offering Defer as an option. When the document is known-unwritable (e.g., initial read shows it's on a read-only filesystem), the orchestrator caches an `append_available: false` signal at Phase 4 start and Defer is suppressed in the walk-through menu and in the routing question's option C. See `references/walkthrough.md` under "Adaptations" for the menu behavior and `references/bulk-preview.md` under "Edge cases" for the preview behavior.
+The walk-through and bulk-preview check append-availability before offering Defer. When the document is known-unwritable (e.g., initial read shows a read-only filesystem), the orchestrator caches `append_available: false` at Phase 4 start and Defer is suppressed in the walk-through menu and the routing question's option C. See `references/walkthrough.md` under "Adaptations" for the menu behavior and `references/bulk-preview.md` under "Edge cases" for the preview behavior.
 
-When append-availability is true at Phase 4 start but an individual append fails mid-flow, the failure path above handles the specific finding — this does not flip the session-level cached signal (other findings may still append successfully if the failure was transient).
+When append-availability is true at Phase 4 start but an individual append fails mid-flow, the failure path above handles that finding without flipping the session-level cached signal (other findings may still append if the failure was transient).
 
 ---
 

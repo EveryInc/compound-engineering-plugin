@@ -30,13 +30,12 @@ This doc is the playbook when drift is detected. It exists because investigating
 
 ## File relationship map
 
-The repo has five release components. Each owns one or more files. Release-please reads the manifest and writes the extra-files.
+The repo has four release components. Each owns one or more files. Release-please reads the manifest and writes the extra-files.
 
 ```
 .github/.release-please-manifest.json       (release-please memory: last released per component)
 ├── "."                                     → cli component              (v = X.Y.Z)
 ├── "plugins/compound-engineering"          → compound-engineering       (v = X.Y.Z)
-├── "plugins/coding-tutor"                  → coding-tutor               (v = A.B.C)
 ├── ".claude-plugin"                        → marketplace                (v = M.N.O)
 └── ".cursor-plugin"                        → cursor-marketplace         (v = P.Q.R)
 
@@ -51,10 +50,8 @@ Each component's extra-files get rewritten by release-please when a release is c
                                           ├── .cursor-plugin/plugin.json  ($.version)
                                           └── .codex-plugin/plugin.json   ($.version)
 
-  coding-tutor                            marketplace / cursor-marketplace
-  ├── .claude-plugin/plugin.json          ├── marketplace.json ($.metadata.version)
-  ├── .cursor-plugin/plugin.json
-  └── .codex-plugin/plugin.json
+  marketplace / cursor-marketplace
+  └── marketplace.json ($.metadata.version)
 ```
 
 **Key invariants:**
@@ -183,7 +180,7 @@ Recovery used Path A (forward-sync to 3.0.7) because:
 - Path B would have orphaned those caches and triggered version-regression warnings
 - Path C would have reintroduced a `release-as` pin that had just been cleaned up
 
-PR #678 applied the full Path A fix across five fields in four files and updated a stale test assertion that was also hiding behind the release-validate failure (commit `1f20c384` renumbered steps in `lfg/SKILL.md` but didn't update `tests/review-skill-contract.test.ts`). See PR #678's commits for the exact diff.
+PR #678 applied the full Path A fix across five fields in four files and updated a stale test assertion that was also hiding behind the release-validate failure. See PR #678's commits for the exact diff.
 
 ## Prevention
 

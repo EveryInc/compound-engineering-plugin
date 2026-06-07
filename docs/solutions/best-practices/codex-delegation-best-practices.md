@@ -197,7 +197,6 @@ Iteration 5: Extracted delegation to reference file, SKILL.md back to 514 lines.
 ## Related
 
 - [Codex delegation requirements](../../brainstorms/2026-03-31-codex-delegation-requirements.md) — origin requirements defining the delegation flow
-- [Codex delegation implementation plan](../../plans/2026-03-31-001-feat-codex-delegation-plan.md) — implementation plan with prompt template and circuit breaker design
 - [Pass paths not content to subagents](../skill-design/pass-paths-not-content-to-subagents.md) — foundational token efficiency pattern for multi-agent orchestration
 - [Script-first skill architecture](../skill-design/script-first-skill-architecture.md) — complementary token reduction pattern (60-75% savings by moving processing to scripts)
 - [Agent-friendly CLI principles](../agent-friendly-cli-principles.md) — CLI design principles relevant to how `codex exec` is consumed

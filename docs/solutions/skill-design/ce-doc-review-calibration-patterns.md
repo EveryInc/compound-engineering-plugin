@@ -68,7 +68,7 @@ Synthesis defaults to picking a single root when multiple candidates match. A ph
 
 Advisory observations with no articulable consequence need somewhere to land, or they get either promoted above the gate (appearing as real decisions) or suppressed entirely. The FYI bucket gives them a home, but it stays empty unless two changes are made together:
 
-1. **Per-persona advisory band** tailored to each persona's scope. Each of the 7 personas needs its own band; a single template-level rule doesn't override persona-specific calibrations.
+1. **Per-lens advisory band** tailored to each lens's scope. Each domain lens needs its own band; a single template-level rule doesn't override lens-specific calibrations. Historical persona counts changed, but advisory bands remain calibrated per review lens.
 2. **Template-level advisory rule** in `subagent-template.md`'s output-contract using the "what actually breaks if we don't fix this?" heuristic. Anchors the scoring decision when a persona's own rubric doesn't make the band's applicability obvious.
 
 Either alone is insufficient. Persona bands without the template rule produce inconsistent results across personas; the template rule without per-persona bands has nothing to calibrate against.
@@ -105,6 +105,6 @@ Across 7+ runs on the rename fixture, the same document produced user-engagement
 
 - `plugins/compound-engineering/skills/ce-doc-review/references/synthesis-and-presentation.md` — canonical synthesis pipeline spec, including 3.5c premise-dependency chain linking
 - `plugins/compound-engineering/skills/ce-doc-review/references/subagent-template.md` — output contract with schema conformance block and advisory routing rule
-- `plugins/compound-engineering/agents/` — the 7 doc-review persona agents (flat `ce-*-reviewer.md` files: `ce-coherence-reviewer.md`, `ce-feasibility-reviewer.md`, `ce-design-lens-reviewer.md`, `ce-security-lens-reviewer.md`, `ce-scope-guardian-reviewer.md`, `ce-product-lens-reviewer.md`, `ce-adversarial-document-reviewer.md`) with their confidence calibration bands
+- `plugins/compound-engineering/agents/` — the 3 doc-review persona agents (flat `ce-*-reviewer.md` files: `ce-coherence-reviewer.md`, `ce-feasibility-reviewer.md` (carries the design and security lenses), `ce-adversarial-document-reviewer.md` (carries the strategic-consequence and scope lenses)) with their confidence calibration bands
 - `tests/fixtures/ce-doc-review/` — three seeded fixtures (rename, auth, feature) for manual calibration testing; see each fixture's header comment for its specific seed map
 - `docs/solutions/developer-experience/branch-based-plugin-install-and-testing.md` — how to run the skill from a branch checkout for testing

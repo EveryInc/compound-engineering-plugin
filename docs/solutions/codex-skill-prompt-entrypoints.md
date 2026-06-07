@@ -117,7 +117,7 @@ Instead, use a stable rule:
 - non-`ce:*` skills = skill-only by default
   - if a non-`ce:*` skill should also be a prompt entrypoint, mark it explicitly with Codex-specific metadata
 
-This means future skills like `ce:ideate` should work without manual converter changes.
+This means future `ce:*` workflow skills should work without manual converter changes.
 
 ## Implementation Guidance
 

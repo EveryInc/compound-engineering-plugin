@@ -180,7 +180,7 @@ Because `.envrc` can source other files that direnv doesn't validate. Auto-trust
 Run `cp .env* .worktrees/<branch>/` from the main repo (not from inside the worktree, since branch names often contain slashes that confuse relative paths from inside).
 
 **How do I clean up a worktree?**
-`cd "$(git rev-parse --show-toplevel)"` to leave the worktree, then `git worktree remove .worktrees/<branch>`. If the branch was deleted upstream, `/ce-clean-gone-branches` handles worktree-and-branch cleanup together.
+`cd "$(git rev-parse --show-toplevel)"` to leave the worktree, then `git worktree remove .worktrees/<branch>`. If the branch was deleted upstream, use `git worktree remove` directly (no automated cleanup available).
 
 **Why `.worktrees/<branch>` and not somewhere else?**
 Predictability. Tooling that scans for worktrees, tab-completion, branch-to-path lookup all benefit from one canonical location. The directory is gitignored so it doesn't pollute git status.
@@ -194,4 +194,3 @@ Yes — the new branch is created locally at the resolved base ref. The skill fe
 
 - [`/ce-work`](./ce-work.md) — calls this skill at Phase 1.2 when the user picks worktree mode for parallel features
 - [`/ce-code-review`](./ce-code-review.md) — recommends worktree for review concurrent with browser tests
-- [`/ce-clean-gone-branches`](./ce-clean-gone-branches.md) — cleans up worktrees and branches together when the remote tracking branch is gone

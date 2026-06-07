@@ -119,7 +119,7 @@
       "P3": "Low-impact, narrow scope, minor improvement. User's discretion."
     },
     "autofix_classes": {
-      "gated_auto": "Concrete suggested_fix proposed. Caller may apply after judgment — not by this skill.",
+      "gated_auto": "Concrete suggested_fix proposed. Caller may apply after judgment, not by this skill.",
       "manual": "Actionable issue requiring design decisions or cross-cutting changes.",
       "advisory": "Informational or operational item for the report only."
     },

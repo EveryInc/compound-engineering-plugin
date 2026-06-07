@@ -1,7 +1,7 @@
 # Brainstorm Sections
 
 This reference describes what makes a great brainstorm requirements document.
-It does NOT prescribe how the doc looks on the page — rendering is handled by
+It does NOT prescribe how the doc looks on the page, rendering is handled by
 the format-specific references (`markdown-rendering.md`, `html-rendering.md`).
 
 ## The outcome
@@ -10,7 +10,7 @@ A great brainstorm produces a doc that enables three audiences to act:
 
 - **The planning agent** (`ce-plan` or a human) produces an implementation
   plan without inventing user behavior, scope boundaries, or success
-  criteria — the brainstorm answered those.
+  criteria, the brainstorm answered those.
 - **The reviewer** sees the framing choices, distinguishes pinned from open,
   and catches scope gaps before planning.
 - **The future reader** traces why the proposed thing matters, who it's for,
@@ -23,7 +23,7 @@ Sections earn their place by serving one of these audiences. Omit padding.
 Brainstorm dialogue does not always need to produce a durable document.
 Skip document creation when **both** hold:
 
-- The user only needs brief alignment — no exploration produced novel scope,
+- The user only needs brief alignment, no exploration produced novel scope,
   framing, or decisions worth preserving in IDed shape.
 - Any durable decisions made during the dialogue can flow naturally to
   downstream artifacts (`ce-plan`, the commit message, `docs/solutions/`)
@@ -32,7 +32,7 @@ Skip document creation when **both** hold:
 The trigger for creating a doc is when the dialogue surfaced enough
 structural decisions, scope boundaries, or acceptance criteria that
 downstream consumers (planner, reviewer, future reader) need them in a
-durable, IDed form — not just as conversational artifacts.
+durable, IDed form, not just as conversational artifacts.
 
 **Stress test:** a brainstorm about a tiny bug fix where the user asks "fix
 this with a null check or with upstream validation?" and the agent confirms
@@ -42,7 +42,7 @@ decision flows to `ce-plan` (or directly to commit message, or to
 artifact in the middle.
 
 Conversely, a brainstorm about a multi-actor feature with contested scope
-and several behavioral conditions probably does need a doc — the planning
+and several behavioral conditions probably does need a doc, the planning
 agent needs the structured content the dialogue produced.
 
 ## Match depth to content
@@ -56,7 +56,7 @@ substantial.
 
 Match-depth-to-content sizes *which* sections appear and how deep each goes.
 This sizes *how the kept prose reads*. A section can be material and still be
-written loosely — the failure mode is a material section padded into a wall of
+written loosely, the failure mode is a material section padded into a wall of
 text where contradictions hide and a downstream agent loses the thread. Length
 that earns its place is fine; wordiness around that length is not.
 
@@ -67,7 +67,7 @@ Hold every kept section to these:
   second parenthetical to stay true, split it.
 - **A requirement is one sentence of intent plus at most one qualifier.** When
   a requirement would specify two outcomes ("either A or B, planning decides"),
-  state the intent and send the fork to Outstanding Questions — don't write both
+  state the intent and send the fork to Outstanding Questions, don't write both
   arms in full inside the requirement.
 - **Cut hedges and intensifiers.** "Critically", "deliberately", "explicitly",
   "genuinely", "actually", "simply" carry nothing a downstream agent acts on.
@@ -79,7 +79,7 @@ verbatim. Economy targets the connective tissue around them, never the precision
 itself.
 
 **Resolve in place; don't stratify.** When a later decision answers a parked
-question or supersedes earlier text, rewrite or remove the original entry —
+question or supersedes earlier text, rewrite or remove the original entry ,
 don't append a separate "resolutions" layer that leaves the superseded text
 standing, and don't keep superseded prose as strikethrough. Version control
 holds the history. Stacked question/resolution strata double the reading surface
@@ -87,24 +87,24 @@ and hide which text is live.
 
 **Named test, run before the doc is declared written:** could a reader find a
 contradiction in each section in one pass? A sentence carrying more than one
-parenthetical, or a requirement specifying two outcomes, fails the test — split
+parenthetical, or a requirement specifying two outcomes, fails the test, split
 it or defer it.
 
 ## Hard floor
 
 When a doc is warranted, these are present.
 
-- **Summary** — what is being proposed, in 1-3 lines. Forward-looking.
+- **Summary**: what is being proposed, in 1-3 lines. Forward-looking.
   Orients the reader before they invest in detail.
-- **Requirements** (with stable R-IDs) — what must be true about the
+- **Requirements** (with stable R-IDs), what must be true about the
   proposed thing. For very sparse brainstorms (≤3 simple items where the
   bullets ARE the summary), plain bullets without IDs are acceptable; the
   trigger for R-IDs is whether downstream consumers will reference them.
   When requirements span distinct concerns (e.g., "Packaging" /
   "Migration and compatibility" / "Contributor workflow"), group them
-  under bold inline headers within the Requirements section — group by
+  under bold inline headers within the Requirements section, group by
   capability or concern, not by the order requirements were discussed.
-  The trigger is distinct concerns, not item count — even four
+  The trigger is distinct concerns, not item count, even four
   requirements benefit if they cover three different topics. Skip
   grouping only when all requirements are genuinely about the same thing;
   a long flat list is a smell that subgroups were missed. R-IDs stay
@@ -117,38 +117,38 @@ The agent decides per brainstorm whether each section carries information
 that isn't covered elsewhere. Filling a section with placeholder prose is
 worse than omitting it.
 
-- **Problem Frame** — include when motivation isn't obvious from Summary
+- **Problem Frame**: include when motivation isn't obvious from Summary
   alone (the *why* needs paragraphs, not a sentence). Backward-looking /
   situational. Does NOT restate the proposal; the remedy lives in Summary.
 
-- **Key Decisions** — include when the brainstorm produced opinionated
+- **Key Decisions**: include when the brainstorm produced opinionated
   framing choices (defaults, scope narrowings, foundational technical picks)
   that constrain Requirements / Flows / Scope below. Each entry names the
   decision in bold with prose rationale. Sits high in the rendered doc so
   readers encounter the framing choices before descending into detail.
 
-- **Actors** — include when the proposed thing has multi-party behavior
+- **Actors**: include when the proposed thing has multi-party behavior
   (multiple humans, agents, or systems meaningfully involved). Skip for
   non-behavioral brainstorms (naming briefs, data-shape briefs, pure
   research, decision frameworks).
 
-- **Key Flows** — include when the proposed thing has multi-step behavior.
+- **Key Flows**: include when the proposed thing has multi-step behavior.
   Expected by default for behavioral brainstorms unless the proposed thing
   is genuinely non-flow-shaped (pure API surface, policy, artifact output)
   and Actors / Requirements / Scope Boundaries / Acceptance Examples
   together prevent downstream invention of paths. When omitting from a
   behavioral brainstorm, note the reason in the doc.
 
-- **Visualizations** — include a diagram when the brainstorm contains a
+- **Visualizations**: include a diagram when the brainstorm contains a
   diagram-shaped concept that a picture carries faster than prose. Common
   shapes: a data-shape transformation (before/after schema or field
   mapping), a source-of-truth fan-out (one authority feeding many derived
   surfaces), state-or-lifecycle logic, a multi-step flow, or a quantitative
-  comparison. A diagram is cross-cutting, not a section of its own — it sits
+  comparison. A diagram is cross-cutting, not a section of its own, it sits
   next to the Key Decision, Requirements group, or Flow it illustrates. The
   named test: *does the picture let a reader grasp the concept faster than
   the paragraph alone?* If yes, add it; if the prose already conveys it at a
-  glance, skip it. One diagram per load-bearing concept — don't add visuals
+  glance, skip it. One diagram per load-bearing concept, don't add visuals
   for ceremony. This affordance is the conceptual-diagram path; it is
   distinct from the wireframe affordance (a wireframe is for visual-product
   UI and does not apply to non-visual systems like data models or agent
@@ -157,50 +157,50 @@ worse than omitting it.
   **Diagrams complement prose; they never replace it.** A diagram is an
   on-ramp to the prose it illustrates, not a substitute. The IDed prose
   (Requirements, Key Decisions, Acceptance Examples) stays complete and
-  standalone — a reader who ignores every diagram still gets the full
+  standalone, a reader who ignores every diagram still gets the full
   content in text, and a downstream agent that reads the artifact as linear
   text is never left with a relationship that exists only in an SVG. Adding
   a before/after diagram is not license to thin the requirement or decision
   prose it depicts.
 
-- **Acceptance Examples** — include when any requirement has a
+- **Acceptance Examples**: include when any requirement has a
   state-dependent or conditional shape ("When X, Y") where prose alone leaves
   ambiguity about edge cases. **Always include AEs covering
-  behavioral-conditional requirements** — that's where the ambiguity bites
+  behavioral-conditional requirements**, that's where the ambiguity bites
   hardest. Skip when all requirements are unconditional and unambiguous.
 
-- **Success Criteria** — include when there are quality / metric / handoff
+- **Success Criteria**: include when there are quality / metric / handoff
   signals that Requirements don't already carry: quantitative metrics ("p95
   latency under 200ms"), qualitative criteria ("the agent's output reads as
   one voice"), process / handoff quality ("ce-doc-review can act on this
   without follow-ups"). Skip when Requirements ARE the success criteria
   (every R is "done when the R is true").
 
-- **Scope Boundaries** — include when scope is contested or there are
+- **Scope Boundaries**: include when scope is contested or there are
   tempting non-goals worth naming explicitly. When the brainstorm is about
   positioning a product against adjacent ones the team could have built but
   is rejecting, split into "Deferred for later" (eventually but not v1) and
   "Outside this product's identity" (positioning decision). Otherwise, a
   single list is fine.
 
-- **Dependencies / Assumptions** — include when material upstream
+- **Dependencies / Assumptions**: include when material upstream
   dependencies exist or when load-bearing assumptions need to be surfaced.
 
-- **Outstanding Questions** — include when there are unresolved items.
+- **Outstanding Questions**: include when there are unresolved items.
   Distinguish "Resolve Before Planning" (blocks planning) from "Deferred to
   Planning" (answered during planning or codebase exploration).
 
-- **Sources / Research** — surface research that orients the planner or
+- **Sources / Research**: surface research that orients the planner or
   justifies framing choices. The test: *"if I were the planner reading this
   cold, would this breadcrumb help me make better choices?"* Yes → surface
-  (code locations, external docs, RFCs, constraints, prior plans — the
+  (code locations, external docs, RFCs, constraints, prior plans, the
   category is inclusive, not enumerated). Process exhaust (reading the
   user's prompt, glancing at obvious files) → omit.
 
 ## Agent agency
 
 The catalog is a floor, not a ceiling. When the brainstorm's content doesn't
-fit any catalog section, introduce a new one — don't force the content into
+fit any catalog section, introduce a new one, don't force the content into
 a section it doesn't belong in. Content drives section choices, not vice
 versa.
 
@@ -210,7 +210,7 @@ The agent also picks per artifact:
   requirement
 - How much depth each present section gets
 
-(Requirements grouping is covered above in the Hard Floor item — group by
+(Requirements grouping is covered above in the Hard Floor item, group by
 concern by default, rendering a flat list only when all requirements are
 about the same thing, with continuous R-IDs across groups.)
 
@@ -226,16 +226,16 @@ the brainstorm.
 
 ### Required
 
-- **`date`** — creation date in ISO 8601 (`YYYY-MM-DD`), ASCII digits only.
+- **`date`**: creation date in ISO 8601 (`YYYY-MM-DD`), ASCII digits only.
   Used in the filename (`docs/brainstorms/YYYY-MM-DD-<topic>-requirements.<md|html>`).
-- **`topic`** — kebab-case slug identifying the brainstorm subject (e.g.,
-  `surface-scope-earlier`, `demo-reel-local-save`). Used in the filename
+- **`topic`**: kebab-case slug identifying the brainstorm subject (e.g.,
+  `surface-scope-earlier`, `add-local-save`). Used in the filename
   alongside `date` and as the resume-detection key when `ce-brainstorm`'s
   Phase 0.1 scans `docs/brainstorms/` for an existing artifact to continue.
 
 ### Status flip does not apply to brainstorm
 
-Unlike plans, brainstorm artifacts have no `status` field — there is no
+Unlike plans, brainstorm artifacts have no `status` field, there is no
 `active → completed` lifecycle. A brainstorm is a one-time output that
 downstream consumers (`ce-plan`, `ce-doc-review`) reference via the plan's
 `origin:` field. The `<span class="status">` HTML hook described in
@@ -244,7 +244,7 @@ brainstorm artifacts.
 
 ### Field-name stability
 
-Field names are stable across brainstorm revisions — never rename a field
+Field names are stable across brainstorm revisions; never rename a field
 or repurpose its semantics. Agents composing new brainstorms MUST use these
 exact names; adding new fields is fine, but renaming `topic` to `subject`
 or `date` to `created` breaks filename construction and resume detection.
@@ -282,7 +282,7 @@ to different purposes:
 - **Summary doesn't need problem context.** A reader scanning Summary gets
   the proposal at a glance.
 - **Problem Frame doesn't restate the proposal.** It establishes the
-  situation, the specific moment of pain, and the cost shape — then stops.
+  situation, the specific moment of pain, and the cost shape, then stops.
   The remedy lives in Summary; restating it in Problem Frame is the
   duplication that makes the two sections feel redundant.
 
@@ -296,6 +296,6 @@ output format:
 
 This reference (`brainstorm-sections.md`) is about WHAT the brainstorm
 contains; rendering references are about HOW each format presents it. The
-brainstorm is written in one format — markdown OR HTML, never both — based
+brainstorm is written in one format (markdown OR HTML, never both) based
 on the resolved output mode. The section catalog is the same regardless of
 format.

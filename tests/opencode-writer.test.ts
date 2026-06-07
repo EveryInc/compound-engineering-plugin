@@ -433,7 +433,7 @@ describe("writeOpenCodeBundle", () => {
 
     // Install plugin B into the same OpenCode root
     await writeOpenCodeBundle(outputRoot, {
-      pluginName: "coding-tutor",
+      pluginName: "secondary-plugin",
       config: { $schema: "https://opencode.ai/config.json" },
       agents: [{ name: "tutor-agent", content: "tutor agent" }],
       plugins: [],
@@ -448,7 +448,7 @@ describe("writeOpenCodeBundle", () => {
 
     // Both plugins must keep their own namespaced manifest
     expect(await exists(path.join(outputRoot, "compound-engineering", "install-manifest.json"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "coding-tutor", "install-manifest.json"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "secondary-plugin", "install-manifest.json"))).toBe(true)
 
     // Reinstall plugin A with no agents/skills — it must clean up only its own
     // managed artifacts, leaving plugin B's intact (the bug the namespacing fix
@@ -467,7 +467,7 @@ describe("writeOpenCodeBundle", () => {
     expect(await exists(path.join(outputRoot, "skills", "ce-skill"))).toBe(false)
     expect(await exists(path.join(outputRoot, "agents", "tutor-agent.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "skills", "tutor-skill"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "coding-tutor", "install-manifest.json"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "secondary-plugin", "install-manifest.json"))).toBe(true)
   })
 
   test("moves legacy OpenCode CE artifacts to a namespaced backup", async () => {
@@ -501,8 +501,8 @@ describe("writeOpenCodeBundle", () => {
   test("upgrades from pre-namespacing legacy shared manifest for non-CE plugins", async () => {
     // Pre-namespacing, ALL plugins wrote their install manifest to the same
     // shared path: `<root>/compound-engineering/install-manifest.json`. After
-    // the namespacing fix, a plugin like `coding-tutor` reads from its own
-    // scoped path (`<root>/coding-tutor/install-manifest.json`), which does
+    // the namespacing fix, a plugin like `secondary-plugin` reads from its own
+    // scoped path (`<root>/secondary-plugin/install-manifest.json`), which does
     // not exist on the first reinstall after upgrade. Without a fallback, the
     // manifest resolves to null and the writer skips cleanup, leaving stale
     // files from the pre-namespacing install in place. This test exercises
@@ -512,13 +512,13 @@ describe("writeOpenCodeBundle", () => {
     const outputRoot = path.join(tempRoot, ".opencode")
 
     // Seed the legacy shared manifest at the OLD path, recording artifacts
-    // that the previous coding-tutor install placed in the root.
+    // that the previous secondary-plugin install placed in the root.
     await fs.mkdir(path.join(outputRoot, "compound-engineering"), { recursive: true })
     await fs.writeFile(
       path.join(outputRoot, "compound-engineering", "install-manifest.json"),
       JSON.stringify({
         version: 1,
-        pluginName: "coding-tutor",
+        pluginName: "secondary-plugin",
         groups: {
           agents: ["stale-tutor-agent.md"],
           commands: ["stale-tutor-cmd.md"],
@@ -539,9 +539,9 @@ describe("writeOpenCodeBundle", () => {
       "stale",
     )
 
-    // Reinstall coding-tutor with a new, non-overlapping set of artifacts.
+    // Reinstall secondary-plugin with a new, non-overlapping set of artifacts.
     await writeOpenCodeBundle(outputRoot, {
-      pluginName: "coding-tutor",
+      pluginName: "secondary-plugin",
       config: { $schema: "https://opencode.ai/config.json" },
       agents: [{ name: "fresh-tutor-agent", content: "fresh" }],
       plugins: [],
@@ -562,12 +562,12 @@ describe("writeOpenCodeBundle", () => {
     // Fresh artifacts must be written under the plugin-scoped manifest path.
     expect(await exists(path.join(outputRoot, "agents", "fresh-tutor-agent.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "skills", "fresh-tutor-skill", "SKILL.md"))).toBe(true)
-    expect(await exists(path.join(outputRoot, "coding-tutor", "install-manifest.json"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "secondary-plugin", "install-manifest.json"))).toBe(true)
 
     // The legacy shared manifest must be archived so it doesn't keep
     // misleading a future install (and must no longer exist at the old path).
     expect(await exists(path.join(outputRoot, "compound-engineering", "install-manifest.json"))).toBe(false)
-    expect(await exists(path.join(outputRoot, "coding-tutor", "legacy-backup"))).toBe(true)
+    expect(await exists(path.join(outputRoot, "secondary-plugin", "legacy-backup"))).toBe(true)
   })
 
   test("leaves legacy shared manifest alone when it belongs to a different plugin", async () => {
@@ -597,7 +597,7 @@ describe("writeOpenCodeBundle", () => {
     await fs.writeFile(path.join(outputRoot, "agents", "other-plugin-agent.md"), "other")
 
     await writeOpenCodeBundle(outputRoot, {
-      pluginName: "coding-tutor",
+      pluginName: "secondary-plugin",
       config: { $schema: "https://opencode.ai/config.json" },
       agents: [{ name: "tutor-agent", content: "tutor" }],
       plugins: [],

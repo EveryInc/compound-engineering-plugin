@@ -6,13 +6,13 @@
 
 It runs equally well on software features, on entirely non-software topics (event planning, business decisions, personal-project framing, travel itineraries, naming briefs), and anywhere in between. The same one-question-at-a-time discipline; the same right-sized template; the same Synthesis Summary before any artifact lands.
 
-This is the middle step in the compound-engineering ideation chain:
+This is the opening step in the compound-engineering ideation chain:
 
 ```text
-/ce-ideate         /ce-brainstorm      /ce-plan             /ce-work
-"What's worth      "What does this     "What's needed       "Build it."
- exploring?"        need to be?"        to accomplish
-                                        this?"
+/ce-brainstorm      /ce-plan             /ce-work
+"What does this     "What's needed       "Build it."
+ need to be?"        to accomplish
+                     this?"
 ```
 
 It's also the most common standalone entry point — for any feature, decision, or project where the question isn't "how do I do it?" but "what am I really doing, and is it the right shape?"
@@ -123,7 +123,6 @@ Reach for `ce-brainstorm` when:
 
 Skip `ce-brainstorm` when:
 
-- You don't yet know what to work on → `/ce-ideate` first
 - Requirements are already specified (PRD exists, GitHub issue is detailed) → `/ce-plan` directly
 - You have a known root cause for a bug → `/ce-debug`
 - The change is trivial and obvious → just do it
@@ -133,9 +132,6 @@ Skip `ce-brainstorm` when:
 ## Use as Part of the Chained Workflow
 
 ```text
-/ce-ideate          (optional — discover candidate directions)
-   |  picks one survivor + carries warrant + rationale
-   v
 /ce-brainstorm
    |  produces requirements / brief
    |  software mode: R-IDs, A-IDs, F-IDs, AE-IDs + scope boundaries
@@ -155,7 +151,7 @@ When `ce-plan` loads with a requirements doc as input, it does not re-litigate p
 
 ## Use Standalone
 
-`ce-brainstorm` is the most common standalone entry point. Many teams skip `ce-ideate` (they already know what to explore) and skip `ce-plan` (the brainstorm is their full thinking artifact).
+`ce-brainstorm` is the most common standalone entry point. Many teams skip `ce-plan` (the brainstorm is their full thinking artifact).
 
 - **Feature briefs** — turn a vague idea into a stable artifact for stakeholders or new contributors
 - **Onboarding existing work** — when a feature is in flight but the rationale was never written down
@@ -203,8 +199,6 @@ Yes — a domain-agnostic facilitator preserves the one-question-at-a-time disci
 
 ## See Also
 
-- [`ce-ideate`](./ce-ideate.md) — upstream "what's worth exploring" discovery
 - [`ce-plan`](./ce-plan.md) — turn the requirements doc into an implementation plan
 - [`ce-doc-review`](./ce-doc-review.md) — persona-based review of the requirements doc
 - [`ce-work`](./ce-work.md) — execute lightweight changes directly from a brainstorm
-- [`ce-strategy`](./ce-strategy.md) — anchor brainstorms to a documented product strategy

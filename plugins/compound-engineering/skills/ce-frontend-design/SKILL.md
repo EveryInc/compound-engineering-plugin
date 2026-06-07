@@ -5,7 +5,7 @@ description: 'Build web interfaces with genuine design quality, not AI slop. Use
 
 # Frontend Design
 
-Guide creation of distinctive, production-grade frontend interfaces that avoid generic AI aesthetics. This skill covers the full lifecycle: detect what exists, plan the design, build with intention, and verify visually.
+Build distinctive, production-grade frontend interfaces that avoid generic AI aesthetics. Full lifecycle: detect what exists, plan the design, build, verify visually.
 
 ## Authority Hierarchy
 
@@ -14,8 +14,6 @@ Every rule in this skill is a default, not a mandate.
 1. **Existing design system / codebase patterns** -- highest priority, always respected
 2. **User's explicit instructions** -- override skill defaults
 3. **Skill defaults** -- apply in greenfield work or when the user asks for design guidance
-
-When working in an existing codebase with established patterns, follow those patterns. When the user specifies a direction that contradicts a default, follow the user.
 
 ## Workflow
 
@@ -27,7 +25,7 @@ Detect context -> Plan the design -> Build -> Verify visually
 
 ## Layer 0: Context Detection
 
-Before any design work, examine the codebase for existing design signals. This determines how much of the skill's opinionated guidance applies.
+Before any design work, examine the codebase for existing design signals. This determines how much opinionated guidance applies.
 
 ### What to Look For
 
@@ -45,10 +43,10 @@ Use the platform's native file-search and content-search tools (e.g., Glob/Grep 
 
 Based on detected signals, choose a mode:
 
-- **Existing system** (4+ signals across multiple categories): Defer to it. The skill's aesthetic opinions (typography, color, motion) yield to the established system. Structural guidance (composition, copy, accessibility, verification) still applies.
-- **Partial system** (1-3 signals): Follow what exists; apply skill defaults only for areas where no convention was detected. For example, if Tailwind is configured but no component library exists, follow the Tailwind tokens and apply skill guidance for component structure.
+- **Existing system** (4+ signals across multiple categories): Defer to it. Aesthetic opinions (typography, color, motion) yield to the established system; structural guidance (composition, copy, accessibility, verification) still applies.
+- **Partial system** (1-3 signals): Follow what exists; apply skill defaults only where no convention was detected. E.g. if Tailwind is configured but no component library exists, follow the Tailwind tokens and apply skill guidance for component structure.
 - **Greenfield** (no signals detected): Full skill guidance applies.
-- **Ambiguous** (signals are contradictory or unclear): Ask the user before proceeding.
+- **Ambiguous** (signals contradictory or unclear): Ask the user before proceeding.
 
 ### Asking the User
 
@@ -60,11 +58,11 @@ Example question: "I found [detected signals]. Should I follow your existing des
 
 ## Layer 1: Pre-Build Planning
 
-Before writing code, write three short statements. These create coherence and give the user a checkpoint to redirect before code is written.
+Before writing code, write three short statements. These create coherence and give the user a checkpoint to redirect before code lands.
 
-1. **Visual thesis** -- one sentence describing the mood, material, and energy
+1. **Visual thesis** -- one sentence on mood, material, and energy
    - Greenfield examples: "Clean editorial feel, lots of whitespace, serif headlines, muted earth tones" or "Dense data-forward dashboard, monospace accents, dark surface hierarchy"
-   - Existing codebase: Describe the *existing* aesthetic and how the new work will extend it
+   - Existing codebase: describe the *existing* aesthetic and how the new work extends it
 
 2. **Content plan** -- what goes on the page and in what order
    - Landing page: hero, support, detail, CTA
@@ -79,7 +77,7 @@ Before writing code, write three short statements. These create coherence and gi
 
 ## Layer 2: Design Guidance Core
 
-These principles apply across all context types. Each yields to existing design systems and user instructions per the authority hierarchy.
+These principles apply across all context types. Each yields to existing design systems and user instructions per the hierarchy.
 
 ### Typography
 
@@ -98,14 +96,14 @@ These principles apply across all context types. Each yields to existing design 
 
 - Start with composition, not components. Treat the first viewport as a poster, not a document.
 - Use whitespace, alignment, scale, cropping, and contrast before adding chrome (borders, shadows, cards).
-- Default to cardless layouts. Cards are allowed when they serve as the container for a user interaction (clickable item, draggable unit, selectable option). If removing the card styling would not hurt comprehension, it should not be a card.
-- *All composition rules are defaults. The user can override them.*
+- Default to cardless layouts. Cards are for containing a user interaction (clickable item, draggable unit, selectable option). If removing the card styling would not hurt comprehension, it should not be a card.
+- *All composition rules are defaults; the user can override them.*
 
 ### Motion
 
 - Ship 2-3 intentional motions for visually-led work: one entrance sequence, one scroll-linked or depth effect, one hover/reveal transition.
-- Use the project's existing animation library if one is present.
-- When no existing library is found, use framework-conditional defaults:
+- Use the project's existing animation library if present.
+- When none is found, use framework-conditional defaults:
   - **CSS animations** as the universal baseline
   - **Framer Motion** for React projects
   - **Vue Transition / Motion One** for Vue projects
@@ -117,19 +115,18 @@ These principles apply across all context types. Each yields to existing design 
 - Semantic HTML by default: `nav`, `main`, `section`, `article`, `button` -- not divs for everything.
 - Color contrast meeting WCAG AA minimum.
 - Focus states on all interactive elements.
-- Accessibility and aesthetics are not in tension when done well.
 
 ### Imagery
 
 - When images are needed, prefer real or realistic photography over abstract gradients or fake 3D objects.
 - Choose or generate images with a stable tonal area for text overlay.
-- If image generation tools are available in the environment, use them to create contextually appropriate visuals rather than placeholder stock.
+- If image generation tools are available, use them for contextually appropriate visuals rather than placeholder stock.
 
 ---
 
 ## Context Modules
 
-Select the module that fits what is being built. When working inside an existing application, default to Module C regardless of what the feature is.
+Select the module that fits what is being built. Inside an existing application, default to Module C regardless of the feature.
 
 ### Module A: Landing Pages & Marketing (Greenfield)
 
@@ -150,7 +147,7 @@ Select the module that fits what is being built. When working inside an existing
 - Let the headline carry the meaning. Supporting copy is usually one short sentence.
 - Write in product language, not design commentary. No prompt language or AI commentary in the UI.
 - Each section gets one job: explain, prove, deepen, or convert.
-- Every sentence should earn its place. Default to less copy, not more.
+- Every sentence earns its place. Default to less copy.
 
 ### Module B: Apps & Dashboards (Greenfield)
 
@@ -169,9 +166,9 @@ Select the module that fits what is being built. When working inside an existing
 
 For adding to an existing application:
 
-- Match the existing visual language. This module is about making something that belongs, not something that stands out.
+- Match the existing visual language. Make something that belongs, not something that stands out.
 - Inherit spacing scale, border radius, color tokens, and typography from surrounding code.
-- Focus on interaction quality: clear states (default, hover, active, disabled, loading, error), smooth transitions between states, obvious affordances.
+- Focus on interaction quality: clear states (default, hover, active, disabled, loading, error), smooth transitions, obvious affordances.
 - One new component should not introduce a new design system. If the existing app uses 4px border radius, do not add a component with 8px.
 
 ---
@@ -180,7 +177,7 @@ For adding to an existing application:
 
 ### Default Against (Overridable)
 
-These are the skill being opinionated. The user can override any of them.
+The skill being opinionated. The user can override any of them.
 
 - Generic SaaS card grid as the first impression
 - Purple-on-white color schemes, dark-mode bias
@@ -195,7 +192,7 @@ These are the skill being opinionated. The user can override any of them.
 
 ### Always Avoid (Quality Floor)
 
-These are genuine quality failures no user would want.
+Genuine quality failures no user would want.
 
 - Prompt language or AI commentary leaking into the UI
 - Broken contrast -- text unreadable over images or backgrounds
@@ -206,7 +203,7 @@ These are genuine quality failures no user would want.
 
 ## Litmus Checks
 
-Quick self-review before moving to visual verification. Not all checks apply in every context -- apply judgment about which are relevant.
+Quick self-review before visual verification. Not all checks apply in every context -- judge which are relevant.
 
 - Is the brand or product unmistakable in the first screen?
 - Is there one strong visual anchor?
@@ -222,35 +219,33 @@ Quick self-review before moving to visual verification. Not all checks apply in 
 
 ## Visual Verification
 
-After implementing, verify visually. This is a sanity check, not a pixel-perfect review. One pass. If there is a glaring issue, fix it. If it looks solid, move on.
+After implementing, verify visually. A sanity check, not a pixel-perfect review. One pass: fix glaring issues, otherwise move on.
 
 ### Tool Preference Cascade
 
 Use the first available option:
 
-1. **Existing project browser tooling** -- if Playwright, Puppeteer, Cypress, or similar is already in the project's dependencies, use it. Do not introduce new dependencies just for verification.
-2. **Browser MCP tools** -- if browser automation tools (e.g., claude-in-chrome) are available in the agent's environment, use them.
-3. **agent-browser CLI** -- if nothing else is available and `agent-browser` is installed, use it. If not installed, inform the user: "`agent-browser` is not installed. Run `/ce-setup` to install required dependencies." Then skip to the next option.
-4. **Mental review** -- if no browser access is possible (headless CI, no permissions to install), apply the litmus checks as a self-review and note that visual verification was skipped.
+1. **Existing project browser tooling** -- if Playwright, Puppeteer, Cypress, or similar is already in the project's dependencies, use it. Do not add new dependencies just for verification.
+2. **Browser MCP tools** -- if browser automation tools (e.g., claude-in-chrome) are available, use them.
+3. **agent-browser CLI** -- if nothing else is available and `agent-browser` is installed, use it. If not installed, tell the user: "`agent-browser` is not installed. Run `/ce-setup` to install required dependencies." Then skip to the next option.
+4. **Mental review** -- if no browser access is possible (headless CI, no install permissions), apply the litmus checks as self-review and note that visual verification was skipped.
 
 ### What to Assess
 
 - Does the output match the visual thesis from the pre-build plan?
-- Are there obvious visual problems (broken layout, unreadable text, missing images)?
+- Any obvious visual problems (broken layout, unreadable text, missing images)?
 - Does it look like the context module intended (landing page feels like a landing page, dashboard feels like a dashboard, component fits its surroundings)?
 
 ### Scope Control
 
-One iteration. Take a screenshot, assess against the litmus checks, fix any glaring issues, and move on. Include the screenshot in the deliverable (PR description, conversation output, etc.).
+One iteration. Screenshot, assess against the litmus checks, fix any glaring issues, move on. Include the screenshot in the deliverable (PR description, conversation output, etc.).
 
 ---
 
 ## Creative Energy
 
-This skill provides structure, but the goal is distinctive work that avoids AI slop -- not formulaic output.
+The skill provides structure; the goal is distinctive work that avoids AI slop, not formulaic output.
 
-For greenfield work, commit to a bold aesthetic direction. Consider the tone: brutally minimal, maximalist, retro-futuristic, organic/natural, luxury/refined, playful, editorial, brutalist, art deco, soft/pastel, industrial -- or invent something that fits the context. There are endless flavors. Use these for inspiration but design one that is true to the project.
+For greenfield work, commit to a bold aesthetic direction. Consider the tone: brutally minimal, maximalist, retro-futuristic, organic/natural, luxury/refined, playful, editorial, brutalist, art deco, soft/pastel, industrial -- or invent one that fits. Use these for inspiration but design something true to the project. Ask: what makes this unforgettable?
 
-Ask: what makes this unforgettable? What is the one thing someone will remember?
-
-Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects. Minimalist designs need restraint, precision, and careful attention to spacing, typography, and subtle details. Elegance comes from executing the vision well, not from intensity.
+Match implementation complexity to the aesthetic vision. Maximalist designs need elaborate code with extensive animations and effects; minimalist designs need restraint, precision, and attention to spacing, typography, and subtle details. Elegance comes from executing the vision well, not from intensity.

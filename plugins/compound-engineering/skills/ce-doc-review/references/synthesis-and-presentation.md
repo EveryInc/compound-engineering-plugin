@@ -16,7 +16,7 @@ Check each agent's returned JSON against the findings schema:
 
 ### 3.2 Confidence Gate (Anchor-Based)
 
-Gate findings by their `confidence` anchor value. Anchors are discrete integers (`0`, `25`, `50`, `75`, `100`) with behavioral definitions documented in `references/findings-schema.json` and embedded in the persona rubric (`references/subagent-template.md`). This replaces the prior continuous 0.0-1.0 scale with per-severity gates — doc-review economics do not warrant threshold gradation by severity, and coarse anchors prevent false-precision gaming.
+Gate findings by their `confidence` anchor value. Anchors are discrete integers (`0`, `25`, `50`, `75`, `100`) with behavioral definitions in `references/findings-schema.json` and embedded in the persona rubric (`references/subagent-template.md`). Coarse anchors replace the prior continuous 0.0-1.0 scale and prevent false-precision gaming.
 
 | Anchor | Meaning | Route |
 |--------|---------|-------|
@@ -30,7 +30,7 @@ Gate findings by their `confidence` anchor value. Anchors are discrete integers 
 - **FYI-subsection** (anchor `50`): surface in the presentation layer's FYI subsection regardless of `autofix_class`. These do not enter the walk-through or any bulk action — observational value without forcing a decision. Advisory observations ("nothing breaks, but...") naturally land here.
 - **Actionable** (anchors `75` and `100`): enter the classification pipeline. Route by `autofix_class` (see 3.7).
 
-**Why this threshold, not Anthropic's ≥ 80 code-review threshold:** Document review has opposite economics from code review. There is no linter backstop — the review IS the backstop. Premise-level concerns (product-lens, adversarial) naturally cap at anchors 50-75 because "is the motivation valid?" cannot be verified against ground truth. The routing menu already makes dismissal cheap (Skip, Append to Open Questions), so surfaced-and-skipped is a low-cost outcome while missed-and-shipped derails downstream implementation. Filter low (`≥ 50`) and let the routing menu handle volume.
+**Why `≥ 50`, not code-review's `≥ 80`:** Document review has opposite economics. There is no linter backstop — the review IS the backstop. Premise-level concerns (product-lens, adversarial) cap at anchors 50-75 because "is the motivation valid?" cannot be verified against ground truth. The routing menu makes dismissal cheap (Skip, Append to Open Questions), so surfaced-and-skipped is low-cost while missed-and-shipped derails downstream implementation. Filter low and let the routing menu handle volume.
 
 ### 3.3 Deduplicate
 
@@ -44,7 +44,7 @@ When fingerprints match across personas:
 
 ### 3.3b Same-Persona Premise Redundancy Collapse
 
-A single persona sometimes files multiple findings that share the same root premise expressed at different sections or wrapped in different framing (e.g., product-lens firing five variants of "motivation is weak" attached to Motivation, Unit 4b, Key Technical Decisions, and two other sections). Cross-persona dedup (3.3) does not catch this — it fingerprints on section+title, which differ even when the underlying concern is the same. Surfacing all N variants over-weights one persona's perspective relative to the other five and inflates the P2 Decisions tier with near-duplicate signal.
+A single persona sometimes files multiple findings sharing the same root premise across different sections or framings (e.g., product-lens firing five "motivation is weak" variants attached to Motivation, Unit 4b, Key Technical Decisions, and two others). Cross-persona dedup (3.3) does not catch this — it fingerprints on section+title, which differ even when the concern is the same. Surfacing all N variants over-weights one persona and inflates the P2 Decisions tier with near-duplicate signal.
 
 For each persona, cluster that persona's surviving findings by shared root premise. A cluster forms when 3 or more findings from the same persona share:
 
@@ -64,13 +64,13 @@ Do NOT collapse across personas at this step — different personas surfacing th
 
 ### 3.4 Cross-Persona Agreement Promotion
 
-When 2+ independent personas flagged the same merged finding (from 3.3), promote the merged finding's anchor by one step: `50 → 75`, `75 → 100`. Anchor `100` does not promote further (already at the ceiling). Findings at anchors `0` or `25` do not reach this step (they were dropped in 3.2).
+When 2+ independent personas flagged the same merged finding (from 3.3), promote the merged finding's anchor by one step: `50 → 75`, `75 → 100`. Anchor `100` is the ceiling and does not promote further. Findings at anchors `0` or `25` do not reach this step (dropped in 3.2).
 
-Independent corroboration is strong signal — multiple reviewers converging on the same issue is more reliable than any single reviewer's anchor. Promoting by one anchor step is semantically meaningful (a "verified but nitpick" finding that two personas independently surface is plausibly "will hit in practice"). This replaces the prior `+0.10` boost — the magic-number bump was calibrated to the continuous scale and no longer applies.
+Independent corroboration is strong signal: multiple reviewers converging is more reliable than any single anchor, and one anchor step is semantically meaningful (a "verified but nitpick" finding two personas independently surface is plausibly "will hit in practice"). This replaces the prior `+0.10` continuous-scale boost.
 
-Note the promotion in the Reviewer column of the output (e.g., `coherence, feasibility (+1 anchor)`).
+Note the promotion in the Reviewer column (e.g., `coherence, feasibility (+1 anchor)`).
 
-This replaces the earlier residual-concern promotion step. Findings at anchors `0` / `25` are not promoted back into the review surface; they appear only as drop counts in Coverage. If a dropped finding is genuinely important, the reviewer should raise their anchor to `50` or higher through stronger evidence rather than relying on a promotion rule.
+This replaces the earlier residual-concern promotion step. Findings at anchors `0` / `25` are not promoted back into the review surface; they appear only as drop counts in Coverage. To resurface a dropped finding, raise its anchor to `50`+ through stronger evidence.
 
 ### 3.5 Resolve Contradictions
 
@@ -89,7 +89,7 @@ Specific conflict patterns:
 
 ### 3.5b Deterministic Recommended-Action Tie-Break
 
-Every merged finding carries exactly one `recommended_action` field consumed by the walk-through (`references/walkthrough.md`) to mark the `(recommended)` option, by the best-judgment path (`references/bulk-preview.md`) to choose what to execute in bulk, and by the stem's yes/no framing. When a merged finding was flagged by multiple personas who implied different actions, synthesis picks the recommended action deterministically so identical review artifacts produce identical walk-through and best-judgment behavior across runs.
+Every merged finding carries exactly one `recommended_action` field consumed by the walk-through (`references/walkthrough.md`) to mark the `(recommended)` option, by the best-judgment path (`references/bulk-preview.md`) to choose what to execute in bulk, and by the stem's yes/no framing. When multiple personas imply different actions, synthesis picks deterministically so identical review artifacts produce identical walk-through and best-judgment behavior across runs.
 
 **Tie-break order (most conservative first):** `Skip > Defer > Apply`. The first action that at least one contributing persona implied wins, scanning in that order.
 
@@ -114,11 +114,11 @@ This gate holds for every branch of the tie-break: if the winning action is `App
 
 **Conflict-context surface.** When the tie-break fires (contributing personas implied different actions), record a one-line conflict-context string on the merged finding. The walk-through renders this on the R15 conflict-context line (see `references/walkthrough.md`). Example: `Coherence recommends Apply; scope-guardian recommends Skip. Agent's recommendation: Skip.`
 
-**Downstream invariant.** The walk-through and bulk-preview never recompute the recommendation — they read `recommended_action` and render `(recommended)` on the matching option. Best-judgment-the-rest and routing option B execute the `recommended_action` across the scoped finding set in bulk. This keeps best-judgment outcomes reproducible and auditable: the same review artifact always produces the same bulk plan.
+**Downstream invariant.** The walk-through and bulk-preview never recompute the recommendation — they read `recommended_action` and render `(recommended)` on the matching option. Best-judgment-the-rest and routing option B execute the `recommended_action` across the scoped set in bulk, so the same review artifact always produces the same bulk plan.
 
 ### 3.5c Premise-Dependency Chain Linking
 
-Document reviews often produce fanout: a single premise challenge ("is this work justified?") generates downstream findings that all evaporate if the premise is rejected ("alias unjustified", "abstraction overkill", "migration lacks rollback", "naming forecloses future"). Surfacing each as an independent decision forces the user to re-litigate the same root question N times. This step links dependent findings to their root so presentation can group them and the walk-through can cascade a single root decision across the chain.
+Document reviews often produce fanout: a single premise challenge ("is this work justified?") generates downstream findings that all evaporate if the premise is rejected ("alias unjustified", "abstraction overkill", "migration lacks rollback", "naming forecloses future"). Surfacing each as an independent decision forces the user to re-litigate the root N times. This step links dependents to their root so presentation can group them and the walk-through can cascade a single root decision across the chain.
 
 Run this step after 3.5b (recommended_action normalized) and before 3.6 (auto-promotion), operating on the merged finding set.
 
@@ -393,11 +393,11 @@ The `<next stage>` substitution uses the document type from Phase 1:
 
 **Label adaptation:** when no decisions are queued to apply, the primary option drops the `Apply decisions and` prefix — the label should match what the system is doing. `Apply decisions and proceed` when fixes are queued; `Proceed` when nothing is queued.
 
-**Caller-context handling (implicit):** the terminal question's "Proceed to <next stage>" option is interpreted contextually by the agent from the visible conversation state. When ce-doc-review is invoked from inside another skill's flow (e.g., ce-brainstorm Phase 4 re-review, ce-plan phase 5.3.8), the agent does not fire a nested `/ce-plan` or `/ce-work` dispatch — it returns control to the caller's flow which continues its own logic. When invoked standalone, "Proceed" dispatches the appropriate next skill. No explicit caller-hint argument is required; if this implicit handling proves unreliable in practice, an explicit `nested:true` flag can be added as a follow-up.
+**Caller-context handling (implicit):** the agent interprets "Proceed to <next stage>" from the visible conversation state. When ce-doc-review is invoked inside another skill's flow (e.g., ce-brainstorm Phase 4 re-review, ce-plan phase 5.3.8), the agent does not fire a nested `/ce-plan` or `/ce-work` dispatch — it returns control to the caller's flow. When invoked standalone, "Proceed" dispatches the appropriate next skill. No explicit caller-hint argument is required; if this proves unreliable, add an explicit `nested:true` flag as a follow-up.
 
 ### Iteration limit
 
-After 2 refinement passes, recommend completion — diminishing returns are likely. But if the user wants to continue, allow it; the primer carries all prior-round decisions so later rounds suppress repeat findings cleanly.
+After 2 refinement passes, recommend completion (diminishing returns), but allow the user to continue — the primer carries all prior-round decisions so later rounds suppress repeats cleanly.
 
 Return "Review complete" as the terminal signal for callers, regardless of which option the user picked.
 
@@ -411,4 +411,4 @@ Return "Review complete" as the terminal signal for callers, regardless of which
 
 ## Iteration Guidance
 
-On subsequent passes, re-dispatch personas with the multi-round decision primer (see Unit 7) and re-synthesize. Fixed findings self-suppress because their evidence is gone from the current doc; rejected findings are handled by the R29 pattern-match suppression rule; applied-fix verification uses the R30 matching predicate above. If findings are repetitive across passes after these mechanisms run, recommend completion.
+On subsequent passes, re-dispatch personas with the multi-round decision primer (see Unit 7) and re-synthesize. Fixed findings self-suppress (their evidence is gone from the current doc); rejected findings are handled by the R29 pattern-match suppression rule; applied-fix verification uses the R30 matching predicate above. If findings stay repetitive after these mechanisms run, recommend completion.

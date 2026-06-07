@@ -8,13 +8,13 @@ This separation matters. Plans that pre-write implementation tend to be wrong by
 
 It works for any multi-step task where structure helps — software features, refactors, bug fixes, study plans, research workflows, event planning, even things like annual hot-water-tank maintenance. The same engine; the same U-ID stability; the same right-sized template.
 
-This is the third step in the compound-engineering ideation chain:
+This is the second step in the compound-engineering ideation chain:
 
 ```text
-/ce-ideate         /ce-brainstorm      /ce-plan             /ce-work
-"What's worth      "What does this     "What's needed       "Build it."
- exploring?"        need to be?"        to accomplish
-                                        this?"
+/ce-brainstorm      /ce-plan             /ce-work
+"What does this     "What's needed       "Build it."
+ need to be?"        to accomplish
+                     this?"
 ```
 
 But it stands alone just as well — many teams reach for `ce-plan` directly with a requirements doc, GitHub issue, PRD, rough description, or non-software multi-step task.
@@ -136,9 +136,6 @@ Skip `ce-plan` when:
 ## Use as Part of the Chained Workflow
 
 ```text
-/ce-ideate          (optional)
-   |
-   v
 /ce-brainstorm      (define one direction)
    |  requirements / brief — R/A/F/AE-IDs in software mode
    v
@@ -228,8 +225,6 @@ Yes — and it's increasingly common. Universal-planning preserves the U-ID conc
 ## See Also
 
 - [`ce-brainstorm`](./ce-brainstorm.md) — produce the requirements doc that becomes the plan's origin
-- [`ce-ideate`](./ce-ideate.md) — upstream "what to even work on" ideation
 - [`ce-work`](./ce-work.md) — execute the plan U-ID by U-ID
 - [`ce-doc-review`](./ce-doc-review.md) — persona-based review of the plan
 - [`ce-debug`](./ce-debug.md) — bug-shaped prompts route here
-- [`ce-strategy`](./ce-strategy.md) — anchor plans to documented product strategy

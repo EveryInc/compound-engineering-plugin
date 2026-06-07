@@ -6,7 +6,7 @@
 
 The skill is opinionated about a few specific things that have burned past contributors: it never `git add -A`, it splits naturally distinct concerns into separate commits when present, and it writes PR bodies via temp files (never via stdin pipes, which can silently produce empty PR bodies while `gh` still exits 0).
 
-The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-commit-push-pr` is `/ce-work`'s Phase 4 handoff target — it produces the PR with summary, testing notes, evidence (when behavior is observable), and the operational validation section. It's also commonly invoked directly when you've already written the code and want to ship.
+The compound-engineering ideation chain is `/ce-brainstorm → /ce-plan → /ce-work`. `ce-commit-push-pr` is `/ce-work`'s Phase 4 handoff target — it produces the PR with summary, testing notes, evidence (when behavior is observable), and the operational validation section. It's also commonly invoked directly when you've already written the code and want to ship.
 
 ---
 
@@ -94,7 +94,7 @@ For commit messages and PR titles: repo conventions in context win first; recent
 
 ### 7. Evidence integration
 
-When the change has observable behavior (UI rendering, CLI output, API behavior with a runnable example, generated artifacts), the skill asks whether to capture evidence and (if yes) loads `/ce-demo-reel` to capture a GIF, terminal recording, or screenshot, then splices it into the body as a `## Demo` section. Categorical no-evidence cases (docs-only, markdown-only, changelog-only, CI/config-only, test-only, or pure internal refactors) skip the prompt without asking. Agent judgment can also skip the prompt for changes the agent authored and knows to be non-observable (internal plumbing, type-only changes, etc.).
+When the change has observable behavior (UI rendering, CLI output, API behavior with a runnable example, generated artifacts), the skill asks whether to capture evidence and (if yes) captures a GIF, terminal recording, or screenshot of the actual feature in use, then splices it into the body as a `## Demo` section. Categorical no-evidence cases (docs-only, markdown-only, changelog-only, CI/config-only, test-only, or pure internal refactors) skip the prompt without asking. Agent judgment can also skip the prompt for changes the agent authored and knows to be non-observable (internal plumbing, type-only changes, etc.).
 
 ### 8. Existing-PR confirmation before rewrite
 
@@ -108,7 +108,7 @@ You finish a notification-mute feature on a feature branch. You invoke `/ce-comm
 
 The skill detects you're on a meaningfully-named feature branch with no upstream and four uncommitted files spanning a database migration, a model change, a controller update, and a UI component. It picks up your repo's convention from recent commits (conventional commits with scope) and splits the work into two commits (data layer; UI), grouped at the file level — no interactive hunk staging. It pushes with `-u`.
 
-It resolves the PR commit range, reads the diff over all commits (not just the working-tree diff), and detects the change has observable UI behavior. It asks whether to capture evidence; you say yes; it loads `/ce-demo-reel` and gets a GIF.
+It resolves the PR commit range, reads the diff over all commits (not just the working-tree diff), and detects the change has observable UI behavior. It asks whether to capture evidence; you say yes; it captures a GIF.
 
 The composition pass produces a title (`feat(notifications): add per-type mute with TTL`) and a body with summary, key decisions, test plan, the demo GIF, and an operational validation section. It writes the body to a temp file with a quoted heredoc sentinel and runs `gh pr create --title ... --body-file ...`.
 
@@ -195,5 +195,4 @@ Use the description-only mode to generate the body, then apply yourself with `gh
 
 - [`ce-work`](./ce-work.md) — Phase 4 handoff target; standard upstream caller
 - [`ce-debug`](./ce-debug.md) — calls this skill after a successful fix on a skill-owned branch
-- [`ce-demo-reel`](./ce-demo-reel.md) — invoked for evidence capture when behavior is observable
 - [`ce-compound`](./ce-compound.md) — capture reusable learning; can chain back into this skill to push the learning doc

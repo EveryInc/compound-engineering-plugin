@@ -97,14 +97,14 @@ Use fully-qualified agent names inside Task calls.
 **Deterministic Section-to-Agent Mapping:**
 
 **Requirements / Open Questions classification**
-- `ce-spec-flow-analyzer` for missing user flows, edge cases, and handoff gaps
+- `ce-architecture-strategist` (flow-analysis mode) for missing user flows, edge cases, and handoff gaps
 - `ce-repo-research-analyst` (Scope: `architecture, patterns`) for repo-grounded patterns, conventions, and implementation reality checks
 
 **Context & Research / Sources & References gaps**
 - `ce-learnings-researcher` for institutional knowledge and past solved problems
 - `ce-best-practices-researcher` for official framework or library behavior, current external patterns, and industry guidance
-- `ce-web-researcher` for landscape/prior-art gaps — competitor patterns, market signals, or an unsettled external option set (which library/provider/approach) that recommendations depend on
-- Add `ce-git-history-analyzer` only when historical rationale or prior art is materially missing
+- `ce-web-researcher` for landscape/prior-art gaps, competitor patterns, market signals, or an unsettled external option set (which library/provider/approach) that recommendations depend on
+- Add `ce-repo-research-analyst` (Scope: `history`) only when historical rationale or prior art is materially missing
 
 **Key Technical Decisions**
 - `ce-architecture-strategist` for design integrity, boundaries, and architectural tradeoffs
@@ -116,23 +116,17 @@ Use fully-qualified agent names inside Task calls.
 - Add `ce-best-practices-researcher` when the technical design involves a DSL, API surface, or pattern that benefits from external validation
 
 **Implementation Units / Verification**
-- `ce-repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, and repo-specific sequencing clues
-- `ce-pattern-recognition-specialist` for consistency, duplication risks, and alignment with existing patterns
-- Add `ce-spec-flow-analyzer` when sequencing depends on user flow or handoff completeness
+- `ce-repo-research-analyst` (Scope: `patterns`) for concrete file targets, patterns to follow, repo-specific sequencing clues, and consistency, duplication, and anti-pattern risks against existing patterns
+- Add `ce-architecture-strategist` (flow-analysis mode) when sequencing depends on user flow or handoff completeness
 
 **System-Wide Impact**
 - `ce-architecture-strategist` for cross-boundary effects, interface surfaces, and architectural knock-on impact
-- Add the specific specialist that matches the risk:
-  - `ce-performance-oracle` for scalability, latency, throughput, and resource-risk analysis
-  - `ce-security-sentinel` for auth, validation, exploit surfaces, and security boundary review
-  - `ce-data-integrity-guardian` for migrations, persistent state safety, consistency, and data lifecycle risks
+- Add `ce-plan-specialist-reviewer` with the scope hint that matches the risk: `Scope: performance` for scalability, latency, throughput, and resource risk; `Scope: security` for auth, validation, exploit surfaces, and security boundaries; `Scope: data-integrity` for migrations, persistent state safety, consistency, and data lifecycle risk
 
 **Risks & Dependencies / Operational Notes**
-- Use the specialist that matches the actual risk:
-  - `ce-security-sentinel` for security, auth, privacy, and exploit risk
-  - `ce-data-integrity-guardian` for migrations, backfills, persistent data safety, constraints, transaction boundaries, and production data transformation risk (plan context — not the PR-review `ce-data-migration-reviewer` persona)
-  - `ce-deployment-verification-agent` for rollout checklists, rollback planning, and launch verification
-  - `ce-performance-oracle` for capacity, latency, and scaling concerns
+- Add `ce-plan-specialist-reviewer` with the scope hint that matches the actual risk: `Scope: security` for security, auth, privacy, and exploit risk; `Scope: data-integrity` for migrations, backfills, persistent data safety, constraints, transaction boundaries, and production data transformation risk; `Scope: performance` for capacity, latency, and scaling concerns
+
+The scope parameter disambiguates: `Scope: performance` for scalability, latency, and resource; `Scope: security` for auth, validation, and exploit; `Scope: data-integrity` for migrations, state safety, and consistency.
 
 **Agent Prompt Shape:**
 
@@ -144,21 +138,21 @@ For each selected section, pass:
 - The plan depth and risk profile
 - A specific question to answer
 
-Instruct the agent to return findings that change planning quality (stronger rationale, sequencing, verification, risk treatment, or references) — no implementation code, no shell commands.
+Instruct the agent to return findings that change planning quality (stronger rationale, sequencing, verification, risk treatment, or references), no implementation code, no shell commands.
 
 ## 5.3.5 Choose Research Execution Mode
 
 Use the lightest mode that will work:
 
-- **Direct mode** - Default. Use when the selected section set is small and the parent can safely read the agent outputs inline.
-- **Artifact-backed mode** - Use only when the selected research scope is large enough that inline returns would create unnecessary context pressure.
+- **Direct mode** - Default. Use when the selected section set is small and the parent can safely read agent outputs inline.
+- **Artifact-backed mode** - Use only when the research scope is large enough that inline returns would create context pressure.
 
 Signals that justify artifact-backed mode:
 - More than 5 agents are likely to return meaningful findings
-- The selected section excerpts are long enough that repeating them in multiple agent outputs would be wasteful
+- The selected section excerpts are long enough that repeating them across multiple agent outputs would be wasteful
 - The topic is high-risk and likely to attract bulky source-backed analysis
 
-Artifact-backed mode uses a per-run OS-temp scratch directory. Create it once, capture the **absolute path**, and pass that resolved path to each sub-agent — do not pass unresolved shell-variable strings.
+Artifact-backed mode uses a per-run OS-temp scratch directory. Create it once, capture the **absolute path**, and pass that resolved path to each sub-agent; do not pass unresolved shell-variable strings.
 
 ```bash
 SCRATCH_DIR="$(mktemp -d -t ce-plan-deepen-XXXXXX)"
@@ -186,24 +180,24 @@ If agent outputs conflict:
 
 ## 5.3.6b Interactive Finding Review (Interactive Mode Only)
 
-Skip this step in auto mode — proceed directly to 5.3.7.
+Skip this step in auto mode, proceed directly to 5.3.7.
 
 In interactive mode, present each agent's findings to the user before integration. For each agent that returned findings:
 
-1. **Summarize the agent and its target section** — e.g., "The ce-architecture-strategist reviewed Key Technical Decisions and found:"
-2. **Present the findings concisely** — bullet the key points, not the raw agent output. Include enough context for the user to evaluate: what the agent found, what evidence supports it, and what plan change it implies.
+1. **Summarize the agent and its target section**: e.g., "The ce-architecture-strategist reviewed Key Technical Decisions and found:"
+2. **Present the findings concisely**: bullet the key points, not the raw agent output. Include enough context for the user to evaluate: what the agent found, what evidence supports it, and what plan change it implies.
 3. **Ask the user** using the platform's blocking question tool when available (see Interaction Method):
-   - **Accept** — integrate these findings into the plan
-   - **Reject** — discard these findings entirely
-   - **Discuss** — the user wants to talk through the findings before deciding
+   - **Accept**: integrate these findings into the plan
+   - **Reject**: discard these findings entirely
+   - **Discuss**: the user wants to talk through the findings before deciding
 
 If the user chooses "Discuss", engage briefly then re-ask with only accept/reject. When multiple agents target the same section, present them one at a time so the user makes independent decisions.
 
 After all agents have been reviewed, carry only the accepted findings forward to 5.3.7.
 
-If the user accepted no findings, report "No findings accepted — plan unchanged." Then proceed directly to Phase 5.4 (skip document-review and synthesis — the plan was not modified). This interactive-mode-only skip does not apply in auto mode; auto mode always proceeds through 5.3.7 and 5.3.8. No explicit scratch cleanup needed — `$SCRATCH_DIR` is OS temp and will be cleaned up by the OS; leaving it in place preserves the rejected agent artifacts for debugging.
+If the user accepted no findings, report "No findings accepted, plan unchanged." Then proceed directly to Phase 5.4 (skip document-review and synthesis, the plan was not modified). This interactive-mode-only skip does not apply in auto mode; auto mode always proceeds through 5.3.7 and 5.3.8. No explicit scratch cleanup needed, `$SCRATCH_DIR` is OS temp and will be cleaned up by the OS; leaving it in place preserves the rejected agent artifacts for debugging.
 
-If findings were accepted and the plan was modified, proceed through 5.3.7 and 5.3.8 as normal — document-review acts as a quality gate on the changes.
+If findings were accepted and the plan was modified, proceed through 5.3.7 and 5.3.8 as normal, document-review acts as a quality gate on the changes.
 
 ## 5.3.7 Synthesize and Update the Plan
 
@@ -211,13 +205,13 @@ Strengthen only the selected sections. Keep the plan coherent and preserve its o
 
 **In interactive mode:** Only integrate findings the user accepted in 5.3.6b. If some findings from different agents touch the same section, reconcile them coherently but do not reintroduce rejected findings.
 
-Deepening may tighten, not only grow — cut hedges, collapse multi-idea sentences, delete superseded text outright rather than stacking resolutions on top.
+Deepening may tighten, not only grow, cut hedges, collapse multi-idea sentences, delete superseded text outright rather than stacking resolutions on top.
 
 Allowed changes:
 - Tighten prose: cut hedges, split multi-idea sentences, remove superseded text in place
 - Clarify or strengthen decision rationale
 - Tighten requirements trace or origin fidelity
-- Reorder or split implementation units when sequencing is weak — but **never renumber existing U-IDs**. Reordering preserves U-IDs in their new order; splitting keeps the original U-ID on the original concept and assigns the next unused number to the new unit
+- Reorder or split implementation units when sequencing is weak, but **never renumber existing U-IDs**. Reordering preserves U-IDs in their new order; splitting keeps the original U-ID on the original concept and assigns the next unused number to the new unit
 - Add missing pattern references, file/test paths, or verification outcomes
 - Expand system-wide impact, risks, or rollout treatment where justified
 - Reclassify open questions between `Resolved During Planning` and `Deferred to Implementation` when evidence supports the change
@@ -226,7 +220,7 @@ Allowed changes:
 - Add or update `deepened: YYYY-MM-DD` in frontmatter when the plan was substantively improved
 
 Do **not**:
-- Add implementation code — no imports, exact method signatures, or framework-specific syntax (pseudo-code and DSL grammars are allowed)
+- Add implementation code, no imports, exact method signatures, or framework-specific syntax (pseudo-code and DSL grammars are allowed)
 - Add git commands, commit choreography, or exact test command recipes
 - Add generic `Research Insights` subsections everywhere
 - Rewrite the entire plan from scratch

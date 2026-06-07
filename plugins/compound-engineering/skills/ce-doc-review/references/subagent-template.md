@@ -111,12 +111,12 @@ Rules:
 
 Writing `why_it_matters` (required field, every finding):
 
-The `why_it_matters` field is how the reader — a developer triaging findings, a reader returning to the doc months later, a downstream automated surface — understands the problem without re-reading the file. Treat it as the most important prose field in your output; every downstream surface (walk-through questions, bulk-action previews, Open Questions entries, headless output) depends on it being good.
+The `why_it_matters` field is how the reader — a developer triaging findings, someone returning to the doc months later, a downstream automated surface — understands the problem without re-reading the file. It is the most important prose field in your output; every downstream surface (walk-through questions, bulk-action previews, Open Questions entries, headless output) depends on it.
 
 - **Lead with observable consequence.** Describe what goes wrong from the reader's or implementer's perspective — what breaks, what gets misread, what decision gets made wrong, what the downstream audience experiences. Do not lead with document structure ("Section X on line Y says...") or with quoted document text — a "The plan says X. The brainstorm says Y. Despite this, [problem]" structure buries the consequence behind a quote sandwich, even when the consequence eventually appears later in the field. Start with the effect ("Implementers will disagree on which tier applies when..."), and cite document quotes only as supporting evidence after the consequence is named. Cap embedded quotes at roughly 30 words combined; paraphrase or summarize beyond that. Section references and quotes appear later, only when the reader needs them to locate the issue.
 - **Explain why the fix resolves the problem.** If you include a `suggested_fix`, the `why_it_matters` should make clear why that specific fix addresses the root cause. When a similar pattern exists elsewhere in the document or codebase (a parallel section, an established convention, a cited code pattern), reference it so the recommendation is grounded in what the team has already chosen.
-- **Keep it tight.** Approximately 2-4 sentences. Longer framings are a regression — downstream surfaces have narrow display budgets, and verbose content gets truncated or skimmed.
-- **Always produce substantive content.** `why_it_matters` is required by the schema. Empty strings, nulls, and single-phrase entries are validation failures. If you found something worth flagging at anchor `50` or higher, you can explain it — the field exists because every finding needs a reason.
+- **Keep it tight.** Roughly 2-4 sentences. Longer framings are a regression — downstream surfaces have narrow display budgets and verbose content gets truncated or skimmed.
+- **Always produce substantive content.** `why_it_matters` is schema-required. Empty strings, nulls, and single-phrase entries are validation failures. If you flagged something at anchor `50` or higher, you can explain it.
 
 Illustrative pair — same finding, weak vs. strong framing:
 

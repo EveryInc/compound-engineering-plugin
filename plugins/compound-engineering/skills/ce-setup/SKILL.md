@@ -10,15 +10,15 @@ disable-model-invocation: true
 
 Ask the user each question below using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting each question as a numbered list in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip or auto-configure. For multiSelect questions, accept comma-separated numbers (e.g. `1, 3`).
 
-Interactive setup for compound-engineering — diagnoses environment health and helps configure required tools. Review agent selection is handled automatically by `ce-code-review`; project-specific review guidance belongs in `CLAUDE.md` or `AGENTS.md`.
+Interactive setup for compound-engineering: diagnose environment health, configure required tools. Review agent selection is handled by `ce-code-review`; project-specific review guidance belongs in `CLAUDE.md` or `AGENTS.md`.
 
 ## Phase 1: Diagnose
 
 ### Step 1: Determine Plugin Version
 
-Detect the installed compound-engineering plugin version by reading the plugin metadata or manifest. This is platform-specific -- use whatever mechanism is available (e.g., reading `plugin.json` from the plugin root or cache directory). If the version cannot be determined, skip this step.
+Detect the installed plugin version from the plugin metadata or manifest. This is platform-specific -- use whatever mechanism is available (e.g., reading `plugin.json` from the plugin root or cache directory). If the version cannot be determined, skip this step.
 
-If a version is found, pass it to the check script via `--version`. Otherwise omit the flag.
+If a version is found, pass it to the check script via `--version`; otherwise omit the flag.
 
 ### Step 2: Run the Health Check Script
 
@@ -36,24 +36,22 @@ Or without version if Step 1 could not determine it:
 bash scripts/check-health
 ```
 
-Script reference: `scripts/check-health`
-
 Display the script's output to the user.
 
 ### Step 3: Evaluate Results
 
 **Plugin root (pre-resolved):** !`echo "${CLAUDE_PLUGIN_ROOT}"`
 
-If the line above resolved to an absolute path (starts with `/` and contains no `${`), this is a Claude Code session and `/ce-update` is available. Anything else — empty, the literal `${CLAUDE_PLUGIN_ROOT}` token, or an unresolved command string like `echo "${CLAUDE_PLUGIN_ROOT}"` left in place by a non-Claude harness that doesn't process `!` pre-resolution — means this is not Claude Code; omit any `/ce-update` references from output.
+If the line above resolved to an absolute path (starts with `/`, no `${`), this is a Claude Code session and `/ce-update` is available. Anything else — empty, the literal `${CLAUDE_PLUGIN_ROOT}` token, or an unresolved command string like `echo "${CLAUDE_PLUGIN_ROOT}"` left in place by a non-Claude harness that doesn't process `!` pre-resolution — means this is not Claude Code; omit any `/ce-update` references from output.
 
 After the diagnostic report, check whether:
 
-- any CLI tools are missing (reported as yellow in the Tools section)
-- any agent skills are missing (reported as yellow in the Skills section)
+- any CLI tools are missing (yellow in the Tools section)
+- any agent skills are missing (yellow in the Skills section)
 - `.compound-engineering/config.local.yaml` does not exist or is not safely gitignored
 - `.compound-engineering/config.local.example.yaml` is missing or outdated
 
-If everything is installed and `.compound-engineering/config.local.yaml` already exists and is gitignored, display the tool and skill list and completion message. Parse the tool and skill names from the script output and list each with a green circle. Omit the Skills line if the Skills section is absent from the script output:
+If everything is installed and `.compound-engineering/config.local.yaml` exists and is gitignored, display the tool and skill list and completion message. Parse the tool and skill names from the script output and list each with a green circle. Omit the Skills line if that section is absent from the script output:
 
 ```
  ✅ Compound Engineering setup complete
@@ -65,11 +63,11 @@ If everything is installed and `.compound-engineering/config.local.yaml` already
     Run /ce-setup anytime to re-check.
 ```
 
-If this is a Claude Code session (the **Plugin root** above resolved to a non-empty path), append to the message: "Run /ce-update to grab the latest plugin version."
+If this is a Claude Code session (**Plugin root** above resolved to a non-empty path), append: "Run /ce-update to grab the latest plugin version."
 
 Stop here.
 
-Otherwise proceed to Phase 2 to resolve any issues. Handle config bootstrapping (Step 4) first, then missing dependencies (Step 5).
+Otherwise proceed to Phase 2. Handle config bootstrapping (Step 4) first, then missing dependencies (Step 5).
 
 ## Phase 2: Fix
 
@@ -77,7 +75,7 @@ Otherwise proceed to Phase 2 to resolve any issues. Handle config bootstrapping 
 
 Resolve the repository root (`git rev-parse --show-toplevel`). All paths below are relative to the repo root, not the current working directory.
 
-**Example file (always refresh):** Copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.example.yaml`, creating the directory if needed. This file is committed to the repo and always overwritten with the latest template so teammates can see available settings.
+**Example file (always refresh):** Copy `references/config-template.yaml` to `<repo-root>/.compound-engineering/config.local.example.yaml`, creating the directory if needed. This file is committed and always overwritten with the latest template so teammates can see available settings.
 
 **Local config (create once):** If `.compound-engineering/config.local.yaml` does not exist, ask whether to create it:
 
@@ -96,11 +94,11 @@ If the user approves, copy `references/config-template.yaml` to `<repo-root>/.co
 .compound-engineering/*.local.yaml
 ```
 
-If the local config already exists, check whether it is safely gitignored. If not, offer to add the `.gitignore` entry as above.
+If the local config already exists, check whether it is safely gitignored. If not, offer the `.gitignore` entry as above.
 
 ### Step 5: Offer Installation
 
-Present the missing tools and skills using a multiSelect question with all items pre-selected. Use the install commands and URLs from the script's diagnostic output. Group items under `Tools:` and `Skills:` so the user can see which runtime each item targets; omit a group whose items are all installed.
+Present the missing tools and skills using a multiSelect question with all items pre-selected. Use the install commands and URLs from the script's diagnostic output. Group items under `Tools:` and `Skills:` so the user sees which runtime each targets; omit a group whose items are all installed.
 
 ```
 The following items are missing. Select which to install:
@@ -119,7 +117,7 @@ Skills:
   [x] ast-grep - Agent skill for structural code search with ast-grep
 ```
 
-Only show items that are actually missing. Omit installed ones.
+Only show missing items. Omit installed ones.
 
 ### Step 6: Install Selected Dependencies
 
@@ -135,9 +133,9 @@ For each selected dependency, in order:
    2. Skip - I'll install it manually
    ```
 
-2. **If approved:** Run the install command using a shell execution tool. After the command completes, verify installation:
+2. **If approved:** Run the install command via a shell execution tool. After it completes, verify installation:
    - For a CLI tool, run the dependency's check command (e.g., `command -v agent-browser`).
-   - For an agent skill, prefer `npx --yes skills list --global --json | jq -r '.[].name' | grep -qx <skill-name>` when `npx` is available; otherwise fall back to checking that `~/.claude/skills/<skill-name>`, `~/.agents/skills/<skill-name>`, or `~/.codex/skills/<skill-name>` exists (file, directory, or symlink).
+   - For an agent skill, prefer `npx --yes skills list --global --json | jq -r '.[].name' | grep -qx <skill-name>` when `npx` is available; otherwise check that `~/.claude/skills/<skill-name>`, `~/.agents/skills/<skill-name>`, or `~/.codex/skills/<skill-name>` exists (file, directory, or symlink).
 
 3. **If verification succeeds:** Report success.
 
@@ -156,4 +154,4 @@ Display a brief summary:
     Run /ce-setup anytime to re-check.
 ```
 
-If this is a Claude Code session (per platform detection in Step 3), append: "Run /ce-update to grab the latest plugin version."
+If this is a Claude Code session (per Step 3 detection), append: "Run /ce-update to grab the latest plugin version."

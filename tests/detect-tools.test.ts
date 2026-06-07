@@ -22,7 +22,6 @@ describe("detectInstalledTools", () => {
     // Create directories for some tools
     await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".gemini"), { recursive: true })
-    await fs.mkdir(path.join(tempHome, ".copilot"), { recursive: true })
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
@@ -34,16 +33,9 @@ describe("detectInstalledTools", () => {
     expect(gemini?.detected).toBe(true)
     expect(gemini?.reason).toContain(".gemini")
 
-    const copilot = results.find((t) => t.name === "copilot")
-    expect(copilot?.detected).toBe(true)
-    expect(copilot?.reason).toContain(".copilot")
-
     // Tools without directories should not be detected
     const opencode = results.find((t) => t.name === "opencode")
     expect(opencode?.detected).toBe(false)
-
-    const droid = results.find((t) => t.name === "droid")
-    expect(droid?.detected).toBe(false)
 
     const pi = results.find((t) => t.name === "pi")
     expect(pi?.detected).toBe(false)
@@ -57,7 +49,7 @@ describe("detectInstalledTools", () => {
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
-    expect(results.length).toBe(8)
+    expect(results.length).toBe(6)
     for (const tool of results) {
       expect(tool.detected).toBe(false)
       expect(tool.reason).toBe("not found")
@@ -71,13 +63,11 @@ describe("detectInstalledTools", () => {
     __tempRoots.push(tempCwd)
 
     await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
-    await fs.mkdir(path.join(tempHome, ".factory"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".pi"), { recursive: true })
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
     expect(results.find((t) => t.name === "opencode")?.detected).toBe(true)
-    expect(results.find((t) => t.name === "droid")?.detected).toBe(true)
     expect(results.find((t) => t.name === "pi")?.detected).toBe(true)
   })
 
@@ -165,23 +155,6 @@ describe("detectInstalledTools", () => {
     })
   })
 
-  test("detects copilot from project-specific skills without generic .github false positives", async () => {
-    const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-copilot-home-"))
-    __tempRoots.push(tempHome)
-    const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-copilot-cwd-"))
-    __tempRoots.push(tempCwd)
-
-    await fs.mkdir(path.join(tempCwd, ".github"), { recursive: true })
-
-    let results = await detectInstalledTools(tempHome, tempCwd)
-    expect(results.find((t) => t.name === "copilot")?.detected).toBe(false)
-
-    await fs.mkdir(path.join(tempCwd, ".github", "skills"), { recursive: true })
-
-    results = await detectInstalledTools(tempHome, tempCwd)
-    expect(results.find((t) => t.name === "copilot")?.detected).toBe(true)
-    expect(results.find((t) => t.name === "copilot")?.reason).toContain(".github/skills")
-  })
 })
 
 describe("getDetectedTargetNames", () => {
@@ -199,7 +172,6 @@ describe("getDetectedTargetNames", () => {
     expect(names).toContain("codex")
     expect(names).toContain("gemini")
     expect(names).not.toContain("opencode")
-    expect(names).not.toContain("droid")
     expect(names).not.toContain("pi")
     expect(names).not.toContain("cursor")
   })

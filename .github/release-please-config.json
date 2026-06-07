@@ -64,27 +64,6 @@
         }
       ]
     },
-    "plugins/coding-tutor": {
-      "release-type": "simple",
-      "package-name": "coding-tutor",
-      "extra-files": [
-        {
-          "type": "json",
-          "path": ".claude-plugin/plugin.json",
-          "jsonpath": "$.version"
-        },
-        {
-          "type": "json",
-          "path": ".cursor-plugin/plugin.json",
-          "jsonpath": "$.version"
-        },
-        {
-          "type": "json",
-          "path": ".codex-plugin/plugin.json",
-          "jsonpath": "$.version"
-        }
-      ]
-    },
     ".claude-plugin": {
       "release-type": "simple",
       "package-name": "marketplace",

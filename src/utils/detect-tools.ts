@@ -50,19 +50,6 @@ const detectableTools: DetectableTool[] = [
     detectPaths: (home) => [path.join(home, ".pi")],
   },
   {
-    name: "droid",
-    detectPaths: (home) => [path.join(home, ".factory")],
-  },
-  {
-    name: "copilot",
-    detectPaths: (home, cwd) => [
-      path.join(home, ".copilot"),
-      path.join(cwd, ".github", "skills"),
-      path.join(cwd, ".github", "agents"),
-      path.join(cwd, ".github", "copilot-instructions.md"),
-    ],
-  },
-  {
     name: "gemini",
     detectPaths: (home, cwd) => [
       path.join(cwd, ".gemini"),
