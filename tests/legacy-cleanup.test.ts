@@ -716,6 +716,29 @@ describe("classifyCodexLegacySkillDirOwnership", () => {
     expect(await classifyCodexLegacySkillDirOwnership(skillDir)).toBe("ce-owned")
   })
 
+  test("returns 'ce-owned' for a flat skill dir carrying a DRIFTED historical description (alias map)", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "classify-skilldir-drift-"))
+    __tempRoots.push(root)
+    const skillDir = path.join(root, "ce-review")
+    // A real reworded description ce-review shipped before it was renamed to
+    // ce-code-review. It differs from the current ce-code-review fingerprint,
+    // so without LEGACY_SKILL_DESCRIPTION_ALIASES["ce-review"] this would
+    // classify "foreign" and strand instead of sweeping.
+    const driftedHistorical =
+      "Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees"
+    const currentSuccessor = await pluginDescription(
+      "plugins/compound-engineering/skills/ce-code-review/SKILL.md",
+    )
+    // Guard the test's premise: the value must actually be drift, otherwise it
+    // would pass via the current-fingerprint path and prove nothing about the
+    // alias map.
+    expect(driftedHistorical).not.toBe(currentSuccessor)
+
+    await createDir(skillDir, skillContent("ce-review", driftedHistorical))
+
+    expect(await classifyCodexLegacySkillDirOwnership(skillDir)).toBe("ce-owned")
+  })
+
   test("returns 'foreign' for a fingerprinted name whose SKILL.md description does not match", async () => {
     const root = await fs.mkdtemp(path.join(os.tmpdir(), "classify-skilldir-foreign-"))
     __tempRoots.push(root)

@@ -285,9 +285,224 @@ const STALE_PROMPT_FILES = [
   "ce-work-beta.md",
 ]
 
+/**
+ * Known historical `description:` frontmatter values we have shipped for each
+ * stale skill dir, keyed by the flat dir name the Codex skill-dir cleanup path
+ * probes (`~/.codex/skills/<name>/`). Pairs with the SKILL.md description match
+ * in `isLegacyPluginOwned` to gate ownership: the current shipped description of
+ * the renamed skill is accepted automatically via `loadLegacyFingerprints`, so
+ * only historical (now-reworded) values need to live here.
+ *
+ * This mirrors the contract of `LEGACY_PROMPT_DESCRIPTION_ALIASES`: each entry
+ * is the exact, character-for-character `description:` string from a shipped
+ * compound-engineering release (all skill rewords across versions, including the
+ * ce:/ce- and workflows-* naming eras). Colon-variant dir names (e.g.
+ * `workflows:plan`) alias to the same underlying skill as their sanitized
+ * sibling and share its description history, so both are keyed here.
+ *
+ * Adding a release that rewords one of these descriptions means adding the
+ * previous description here so a flat-era install from that version still
+ * classifies as ce-owned and sweeps cleanly. Missing an entry only strands one
+ * orphaned skill dir on upgrade (a mild regression); matching too broadly would
+ * relocate another plugin's or a user's same-named skill (destructive). The
+ * strings are mined verbatim from git history, never paraphrased.
+ */
 const LEGACY_SKILL_DESCRIPTION_ALIASES: Record<string, string[]> = {
+  "ce-agent-native-architecture": [
+    "This skill should be used when building AI agents using prompt-native architecture where features are defined in prompts, not code. Use it when creating autonomous agents, designing MCP servers, implementing self-modifying systems, or adopting the \"trust the agent's intelligence\" philosophy.",
+    "Build AI agents using prompt-native architecture where features are defined in prompts, not code. Use when creating autonomous agents, designing MCP servers, implementing self-modifying systems, or adopting the \"trust the agent's intelligence\" philosophy.",
+  ],
+  "ce-andrew-kane-gem-writer": [
+    "Write Ruby gems following Andrew Kane's proven patterns and philosophy. Use when creating new Ruby gems, refactoring existing gems, designing gem APIs, or when the user wants clean, minimal, production-ready Ruby library code. Triggers on requests like \"create a gem\", \"write a Ruby library\", \"design a gem API\", or mentions of Andrew Kane's style.",
+  ],
+  "ce-dhh-rails-style": [
+    "Write Ruby and Rails code in DHH's distinctive 37signals style. Use this skill when writing Ruby code, Rails applications, creating models, controllers, or any Ruby file. Triggers on Ruby/Rails code generation, refactoring requests, code review, or when the user mentions DHH, 37signals, Basecamp, HEY, or Campfire style. Embodies REST purity, fat models, thin controllers, Current attributes, Hotwire patterns, and the \"clarity over cleverness\" philosophy.",
+  ],
+  "ce-document-review": [
+    "This skill should be used to refine requirements or plan documents before proceeding to the next workflow step. It applies when a requirements document or plan document exists and the user wants to improve it.",
+    "This skill should be used to refine brainstorm or plan documents before proceeding to the next workflow step. It applies when a brainstorm or plan document exists and the user wants to improve it.",
+  ],
+  "ce-dspy-ruby": [
+    "This skill should be used when working with DSPy.rb, a Ruby framework for building type-safe, composable LLM applications. Use this when implementing predictable AI features, creating LLM signatures and modules, configuring language model providers (OpenAI, Anthropic, Gemini, Ollama), building agent systems with tools, optimizing prompts, or testing LLM-powered functionality in Ruby applications.",
+  ],
+  "ce-gemini-imagegen": [
+    "Generate and edit images using the Gemini API (Nano Banana Pro). Use this skill when creating images from text prompts, editing existing images, applying style transfers, generating logos with text, creating stickers, product mockups, or any image generation/manipulation task. Supports text-to-image, image editing, multi-turn refinement, and composition from multiple reference images.",
+    "Generate and edit images using the Gemini API (Nano Banana). Use this skill when creating images from text prompts, editing existing images, applying style transfers, generating logos with text, creating stickers, product mockups, or any image generation/manipulation task. Supports text-to-image, image editing, multi-turn refinement, and composition from multiple reference images.",
+  ],
+  "ce-ideate": [
+    "Generate and critically evaluate grounded improvement ideas for the current project. Use when asking what to improve, requesting idea generation, exploring surprising improvements, or wanting the AI to proactively suggest strong project directions before brainstorming one in depth. Triggers on phrases like 'what should I improve', 'give me ideas', 'ideate on this project', 'surprise me with improvements', 'what would you change', or any request for AI-generated project improvement suggestions rather than refining the user's own idea.",
+  ],
+  "ce-optimize": [
+    "Run metric-driven iterative optimization loops. Define a measurable goal, build measurement scaffolding, then run parallel experiments that try many approaches, measure each against hard gates and/or LLM-as-judge quality scores, keep improvements, and converge toward the best solution. Use when optimizing clustering quality, search relevance, build performance, prompt quality, or any measurable outcome that benefits from systematic experimentation. Inspired by Karpathy's autoresearch, generalized for multi-file code changes and non-ML domains.",
+  ],
+  "ce-plan-beta": [
+    "[BETA] Transform feature descriptions or requirements into structured, decision-first implementation plans. Use when testing the new planning workflow. Produces plans focused on decisions, boundaries, and verification rather than pre-written implementation choreography.",
+    "Transform feature descriptions into well-structured project plans following conventions",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Use when the user says \"plan this\", \"create a plan\", \"how should we build\", \"write a tech plan\", \"plan the implementation\", or when a brainstorm/requirements document is ready for implementation planning. Also triggers on \"what's the approach for\", \"break this down\", or references to an existing requirements doc that needs a technical plan.",
+  ],
+  "ce-polish": [
+    "[BETA] Start the dev server, open the feature in a browser, and iterate on improvements together.",
+  ],
+  "ce-pr-description": [
+    "Write or regenerate a value-first pull-request description (title + body) for the current branch's commits or for a specified PR. Use when the user says 'write a PR description', 'refresh the PR description', 'regenerate the PR body', 'rewrite this PR', 'freshen the PR', 'update the PR description', 'draft a PR body for this diff', 'describe this PR properly', 'generate the PR title', or pastes a GitHub PR URL / #NN / number. Also used internally by git-commit-push-pr (single-PR flow) and ce-pr-stack (per-layer stack descriptions) so all callers share one writing voice. Input is a natural-language prompt. A PR reference (a full GitHub PR URL, `pr:561`, `#561`, or a bare number alone) picks a specific PR; anything else is treated as optional steering for the default 'describe my current branch' mode. Returns structured {title, body_file} (body written to an OS temp file) for the caller to apply via gh pr edit or gh pr create — this skill never edits the PR itself and never prompts for confirmation.",
+    "Write or regenerate a value-first pull-request description (title + body) for the current branch's commits or for a specified PR. Use when the user says 'write a PR description', 'refresh the PR description', 'regenerate the PR body', 'rewrite this PR', 'freshen the PR', 'update the PR description', 'draft a PR body for this diff', 'describe this PR properly', 'generate the PR title', or pastes a GitHub PR URL / #NN / number. Also used internally by git-commit-push-pr (single-PR flow) and ce-pr-stack (per-layer stack descriptions) so all callers share one writing voice. Input is a natural-language prompt. A PR reference (a full GitHub PR URL, `pr:561`, `#561`, or a bare number alone) picks a specific PR; anything else is treated as optional steering for the default 'describe my current branch' mode. Returns structured {title, body} for the caller to apply via gh pr edit or gh pr create — this skill never edits the PR itself and never prompts for confirmation.",
+  ],
+  "ce-proof": [
+    "Create, share, view, comment on, edit, and run human-in-the-loop review loops over markdown documents via Proof, the collaborative markdown editor at proofeditor.ai (\"Proof editor\"). Use when the user wants to render or view a local markdown file in Proof, share markdown to get a URL, iterate collaboratively on a Proof doc, comment on or suggest edits in Proof, HITL a spec/plan/draft for human review, sync a Proof doc back to local, or work from a proofeditor.ai URL. Trigger on phrases like \"view this in proof\", \"share to proof\", \"iterate with proof\", or \"HITL this doc\", and on ce-brainstorm / ce-ideate / ce-plan handoffs for human review. Also match clear requests for a rendered/shared markdown review surface even if the user does not name Proof. Do not trigger on \"proof\" meaning evidence, math/logic proof, burden of proof, proof-of-concept, or bare \"proofread this\" requests where inline text review is expected.",
+    "Create, share, view, comment on, edit, and run human-in-the-loop review loops over markdown documents via Proof — the collaborative markdown editor and renderer at proofeditor.ai (also called \"Proof editor\"). Use this skill whenever the user wants to view or render a local markdown file in Proof for easier reading, share a markdown file to Proof to get a shareable URL, iterate on a Proof doc collaboratively, comment on or suggest edits in a Proof doc, HITL a spec/plan/draft for human review, sync a Proof doc back to local, or when given a proofeditor.ai URL. Common phrasings include \"view this in proof\", \"render this markdown in proof\", \"open this md file in proof\", \"share it to proof\", \"share to proof editor\", \"iterate with proof\", \"HITL this doc\". Upstream handoffs from ce-brainstorm / ce-ideate / ce-plan for human review also belong here. Match these intents even when the user doesn't name Proof, as long as they clearly want a rendered/shared markdown surface. Do NOT trigger on \"proof\" meaning evidence, a mathematical/logical proof, burden of proof, proof-of-concept, or a bare \"proofread this\" request where the model is expected to review text inline.",
+    "Create, edit, comment on, share, and run human-in-the-loop iteration loops over markdown documents via Proof's web API. Use when asked to \"proof\", \"share a doc\", \"create a proof doc\", \"comment on a document\", \"suggest edits\", \"review in proof\", \"iterate on this doc in proof\", \"HITL this doc\", \"sync a Proof doc to local\", when a caller needs an HITL review loop over a local markdown file (e.g., ce-brainstorm, ce-ideate, or ce-plan handoff), or when given a proofeditor.ai URL. Prefer this skill for any workflow whose output is a Proof URL or that uses a Proof doc as the review surface, even when not named explicitly.",
+    "Create, edit, comment on, and share markdown documents via Proof's web API and local bridge. Use when asked to \"proof\", \"share a doc\", \"create a proof doc\", \"comment on a document\", \"suggest edits\", \"review in proof\", or when given a proofeditor.ai URL.",
+  ],
+  "ce-release-notes": [
+    "Summarize recent compound-engineering plugin releases, or answer a specific question about a past release with a version citation. Use when the user types `/ce-release-notes` or asks \"what changed in compound-engineering recently?\" or \"what happened to <skill-name>?\".",
+    "Summarize recent compound-engineering plugin releases, or answer a specific question about a past release with a version citation. Use when the user types `/ce:release-notes` or asks \"what changed in compound-engineering recently?\" or \"what happened to <skill-name>?\".",
+  ],
+  "ce-review": [
+    "Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+    "Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees",
+    "[BETA] Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+    "[DEPRECATED] Use /ce:review instead — renamed for clarity.",
+  ],
+  "ce-slack-research": [
+    "Search Slack for interpreted organizational context -- decisions, constraints, and discussion arcs that shape the current task. Produces a research digest with cross-cutting analysis and research-value assessment, not raw message lists. Use when searching Slack for context during planning, brainstorming, or any task where organizational knowledge matters. Trigger phrases: 'search slack for', 'what did we discuss about', 'slack context for', 'organizational context about', 'what does the team think about', 'any slack discussions on'. Differs from slack:find-discussions which returns individual message results without synthesis.",
+  ],
+  "ce-strategy": [
+    "Create or maintain docs/strategy.md - the product's target problem, approach, users, key metrics, and tracks of work. Use when starting a new product, updating direction, or when prompts like 'write our strategy', 'update the roadmap', 'what are we working on', or 'set up the strategy doc' come up. Also triggers when ce-ideate, ce-brainstorm, or ce-plan need upstream grounding and no strategy doc exists yet.",
+  ],
+  "ce-test-xcode": [
+    "Build and test iOS apps on simulator using XcodeBuildMCP",
+  ],
+  "ce-work-beta": [
+    "[BETA] Execute work plans with external delegate support. Same as ce:work but includes experimental Codex delegation mode for token-conserving code implementation.",
+    "Execute work plans efficiently while maintaining quality and finishing features",
+  ],
+  "ce:brainstorm": [
+    "Explore requirements and approaches through collaborative dialogue before writing a right-sized requirements document and planning implementation. Use for feature ideas, problem framing, when the user says 'let's brainstorm', or when they want to think through options before deciding what to build. Also use when a user describes a vague or ambitious feature request, asks 'what should we build', 'help me think through X', presents a problem with multiple valid solutions, or seems unsure about scope or direction — even if they don't explicitly ask to brainstorm.",
+    "Explore requirements and approaches through collaborative dialogue before planning implementation",
+    "[DEPRECATED] Use /ce:brainstorm instead — renamed for clarity.",
+  ],
+  "ce:compound": [
+    "Document a recently solved problem to compound your team's knowledge or CONCEPTS.md, the project's shared domain vocabulary.",
+    "Document a recently solved problem to compound your team's knowledge",
+    "[DEPRECATED] Use /ce:compound instead — renamed for clarity.",
+  ],
+  "ce:plan": [
+    "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. For exploratory or ambiguous requests where the user is unsure what to do, prefer ce-brainstorm first.",
+    "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan.",
+    "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. For exploratory or ambiguous requests where the user is unsure what to do, prefer ce:brainstorm first.",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', or when a brainstorm/requirements document is ready for technical planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. Best when requirements are at least roughly defined; for exploratory or ambiguous requests, prefer ce:brainstorm first.",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Use when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', or when a brainstorm/requirements document is ready for technical planning. Best when requirements are at least roughly defined; for exploratory or ambiguous requests, prefer ce:brainstorm first.",
+    "Transform feature descriptions into well-structured project plans following conventions",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Use when the user says \"plan this\", \"create a plan\", \"how should we build\", \"write a tech plan\", \"plan the implementation\", or when a brainstorm/requirements document is ready for implementation planning. Also triggers on \"what's the approach for\", \"break this down\", or references to an existing requirements doc that needs a technical plan.",
+    "[DEPRECATED] Use /ce:plan instead — renamed for clarity.",
+  ],
+  "ce:plan-beta": [
+    "[BETA] Transform feature descriptions or requirements into structured, decision-first implementation plans. Use when testing the new planning workflow. Produces plans focused on decisions, boundaries, and verification rather than pre-written implementation choreography.",
+    "Transform feature descriptions into well-structured project plans following conventions",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Use when the user says \"plan this\", \"create a plan\", \"how should we build\", \"write a tech plan\", \"plan the implementation\", or when a brainstorm/requirements document is ready for implementation planning. Also triggers on \"what's the approach for\", \"break this down\", or references to an existing requirements doc that needs a technical plan.",
+  ],
+  "ce:review": [
+    "Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+    "Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees",
+    "[BETA] Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+    "[DEPRECATED] Use /ce:review instead — renamed for clarity.",
+  ],
+  "ce:work": [
+    "Execute work plans efficiently while maintaining quality and finishing features",
+    "[DEPRECATED] Use /ce:work instead — renamed for clarity.",
+  ],
+  "ce:work-beta": [
+    "[BETA] Execute work plans with external delegate support. Same as ce:work but includes experimental Codex delegation mode for token-conserving code implementation.",
+    "Execute work plans efficiently while maintaining quality and finishing features",
+  ],
+  "document-review": [
+    "This skill should be used to refine requirements or plan documents before proceeding to the next workflow step. It applies when a requirements document or plan document exists and the user wants to improve it.",
+    "This skill should be used to refine brainstorm or plan documents before proceeding to the next workflow step. It applies when a brainstorm or plan document exists and the user wants to improve it.",
+  ],
+  "feature-video": [
+    "Record a video walkthrough of a feature and add it to the PR description",
+  ],
+  "frontend-design": [
+    "This skill should be used when creating distinctive, production-grade frontend interfaces with high design quality. It applies when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics.",
+    "Create distinctive, production-grade frontend interfaces with high design quality. Use this skill when the user asks to build web components, pages, or applications. Generates creative, polished code that avoids generic AI aesthetics.",
+  ],
+  "git-commit-push-pr": [
+    "Commit, push, and open a PR with an adaptive, value-first description. Use when the user says \"commit and PR\", \"push and open a PR\", \"ship this\", \"create a PR\", \"open a pull request\", \"commit push PR\", or wants to go from working changes to an open pull request in one step. Also use when the user says \"update the PR description\", \"refresh the PR description\", \"freshen the PR\", or wants to rewrite an existing PR description. Produces PR descriptions that scale in depth with the complexity of the change, avoiding cookie-cutter templates.",
+    "Commit, push, and open a PR with an adaptive, value-first description. Use when the user says \"commit and PR\", \"push and open a PR\", \"ship this\", \"create a PR\", \"open a pull request\", \"commit push PR\", or wants to go from working changes to an open pull request in one step. Produces PR descriptions that scale in depth with the complexity of the change, avoiding cookie-cutter templates.",
+    "Commit, push, and open a PR with an adaptive, value-first description. Use when the user says \"commit and PR\", \"push and open a PR\", \"ship this\", \"create a PR\", \"open a pull request\", \"commit push PR\", or wants to go from working changes to an open pull request in one step. Also use when the user says \"update the PR description\", \"refresh the PR description\", \"freshen the PR\", \"rewrite the PR body\", \"write a PR description\", \"draft a PR description\", or \"describe this PR\" — the skill will produce a description without committing or pushing if that is all the user wants. Produces PR descriptions that scale in depth with the complexity of the change, avoiding cookie-cutter templates.",
+  ],
+  "git-worktree": [
+    "This skill manages Git worktrees for isolated parallel development. It handles creating, listing, switching, and cleaning up worktrees with a simple interactive interface, following KISS principles.",
+  ],
+  lfg: [
+    "Full autonomous engineering workflow",
+  ],
+  "reproduce-bug": [
+    "Reproduce and investigate a bug using logs, console inspection, and browser screenshots",
+  ],
   setup: [
     "Configure project-level settings for compound-engineering workflows. Currently a placeholder — review agent selection is handled automatically by ce:review.",
+    "Configure which review agents run for your project. Auto-detects stack and writes compound-engineering.local.md.",
+  ],
+  "workflows-brainstorm": [
+    "Explore requirements and approaches through collaborative dialogue before writing a right-sized requirements document and planning implementation. Use for feature ideas, problem framing, when the user says 'let's brainstorm', or when they want to think through options before deciding what to build. Also use when a user describes a vague or ambitious feature request, asks 'what should we build', 'help me think through X', presents a problem with multiple valid solutions, or seems unsure about scope or direction — even if they don't explicitly ask to brainstorm.",
+    "Explore requirements and approaches through collaborative dialogue before planning implementation",
+    "[DEPRECATED] Use /ce:brainstorm instead — renamed for clarity.",
+  ],
+  "workflows-compound": [
+    "Document a recently solved problem to compound your team's knowledge or CONCEPTS.md, the project's shared domain vocabulary.",
+    "Document a recently solved problem to compound your team's knowledge",
+    "[DEPRECATED] Use /ce:compound instead — renamed for clarity.",
+  ],
+  "workflows-plan": [
+    "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. For exploratory or ambiguous requests where the user is unsure what to do, prefer ce-brainstorm first.",
+    "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan.",
+    "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. For exploratory or ambiguous requests where the user is unsure what to do, prefer ce:brainstorm first.",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', or when a brainstorm/requirements document is ready for technical planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. Best when requirements are at least roughly defined; for exploratory or ambiguous requests, prefer ce:brainstorm first.",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Use when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', or when a brainstorm/requirements document is ready for technical planning. Best when requirements are at least roughly defined; for exploratory or ambiguous requests, prefer ce:brainstorm first.",
+    "Transform feature descriptions into well-structured project plans following conventions",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Use when the user says \"plan this\", \"create a plan\", \"how should we build\", \"write a tech plan\", \"plan the implementation\", or when a brainstorm/requirements document is ready for implementation planning. Also triggers on \"what's the approach for\", \"break this down\", or references to an existing requirements doc that needs a technical plan.",
+    "[DEPRECATED] Use /ce:plan instead — renamed for clarity.",
+  ],
+  "workflows-review": [
+    "Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+    "Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees",
+    "[BETA] Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+    "[DEPRECATED] Use /ce:review instead — renamed for clarity.",
+  ],
+  "workflows-work": [
+    "Execute work plans efficiently while maintaining quality and finishing features",
+    "[DEPRECATED] Use /ce:work instead — renamed for clarity.",
+  ],
+  "workflows:brainstorm": [
+    "Explore requirements and approaches through collaborative dialogue before writing a right-sized requirements document and planning implementation. Use for feature ideas, problem framing, when the user says 'let's brainstorm', or when they want to think through options before deciding what to build. Also use when a user describes a vague or ambitious feature request, asks 'what should we build', 'help me think through X', presents a problem with multiple valid solutions, or seems unsure about scope or direction — even if they don't explicitly ask to brainstorm.",
+    "Explore requirements and approaches through collaborative dialogue before planning implementation",
+    "[DEPRECATED] Use /ce:brainstorm instead — renamed for clarity.",
+  ],
+  "workflows:compound": [
+    "Document a recently solved problem to compound your team's knowledge or CONCEPTS.md, the project's shared domain vocabulary.",
+    "Document a recently solved problem to compound your team's knowledge",
+    "[DEPRECATED] Use /ce:compound instead — renamed for clarity.",
+  ],
+  "workflows:plan": [
+    "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. For exploratory or ambiguous requests where the user is unsure what to do, prefer ce-brainstorm first.",
+    "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan.",
+    "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', 'plan a trip', 'create a study plan', or when a brainstorm/requirements document is ready for planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. For exploratory or ambiguous requests where the user is unsure what to do, prefer ce:brainstorm first.",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Also deepen existing plans with interactive review of sub-agent findings. Use for plan creation when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', or when a brainstorm/requirements document is ready for technical planning. Use for plan deepening when the user says 'deepen the plan', 'deepen my plan', 'deepening pass', or uses 'deepen' in reference to a plan. Best when requirements are at least roughly defined; for exploratory or ambiguous requests, prefer ce:brainstorm first.",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Use when the user says 'plan this', 'create a plan', 'write a tech plan', 'plan the implementation', 'how should we build', 'what's the approach for', 'break this down', or when a brainstorm/requirements document is ready for technical planning. Best when requirements are at least roughly defined; for exploratory or ambiguous requests, prefer ce:brainstorm first.",
+    "Transform feature descriptions into well-structured project plans following conventions",
+    "Transform feature descriptions or requirements into structured implementation plans grounded in repo patterns and research. Use when the user says \"plan this\", \"create a plan\", \"how should we build\", \"write a tech plan\", \"plan the implementation\", or when a brainstorm/requirements document is ready for implementation planning. Also triggers on \"what's the approach for\", \"break this down\", or references to an existing requirements doc that needs a technical plan.",
+    "[DEPRECATED] Use /ce:plan instead — renamed for clarity.",
+  ],
+  "workflows:review": [
+    "Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+    "Perform exhaustive code reviews using multi-agent analysis, ultra-thinking, and worktrees",
+    "[BETA] Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+    "[DEPRECATED] Use /ce:review instead — renamed for clarity.",
+  ],
+  "workflows:work": [
+    "Execute work plans efficiently while maintaining quality and finishing features",
+    "[DEPRECATED] Use /ce:work instead — renamed for clarity.",
   ],
 }
 
