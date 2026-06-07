@@ -1,6 +1,6 @@
 # Compound Engineering
 
-[![Build Status](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml)
+[![Build Status](https://github.com/OutlineDriven/compound-engineering-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/OutlineDriven/compound-engineering-plugin/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/@every-env/compound-plugin)](https://www.npmjs.com/package/@every-env/compound-plugin)
 
 AI skills and agents that make each unit of engineering work easier than the last.
@@ -74,7 +74,7 @@ The `compound-engineering` plugin ships 14 skills and 16 agents. See the [full c
 ### Claude Code
 
 ```text
-/plugin marketplace add EveryInc/compound-engineering-plugin
+/plugin marketplace add OutlineDriven/compound-engineering-plugin
 /plugin install compound-engineering
 ```
 
@@ -95,7 +95,7 @@ Three steps: register the marketplace, install the agent set, then install the p
 1. **Register the marketplace with Codex:**
 
    ```bash
-   codex plugin marketplace add EveryInc/compound-engineering-plugin
+   codex plugin marketplace add OutlineDriven/compound-engineering-plugin
    ```
 
 2. **Install the Compound Engineering agents** (Codex's plugin spec does not register custom agents yet):
@@ -111,7 +111,7 @@ All three steps are needed. The marketplace registration plus TUI install handle
 For a non-default Codex profile, run every Codex-related step against the same `CODEX_HOME`. This example installs CE into a `work` profile:
 
 ```bash
-CODEX_HOME="$HOME/.codex/profiles/work" codex plugin marketplace add EveryInc/compound-engineering-plugin
+CODEX_HOME="$HOME/.codex/profiles/work" codex plugin marketplace add OutlineDriven/compound-engineering-plugin
 CODEX_HOME="$HOME/.codex/profiles/work" bunx @every-env/compound-plugin install compound-engineering --to codex
 CODEX_HOME="$HOME/.codex/profiles/work" codex
 ```
@@ -137,7 +137,7 @@ bunx @every-env/compound-plugin cleanup --target codex
 ### Qwen Code
 
 ```bash
-qwen extensions install EveryInc/compound-engineering-plugin:compound-engineering
+qwen extensions install OutlineDriven/compound-engineering-plugin:compound-engineering
 ```
 
 Qwen Code installs Claude Code-compatible plugins directly from GitHub and converts the plugin format during install, so no Bun install step is needed.
@@ -248,7 +248,7 @@ bun run src/index.ts install compound-engineering --to opencode --branch feat/ne
 bun run src/index.ts install compound-engineering --to codex --also opencode --branch feat/new-agents
 ```
 
-Both features use the `COMPOUND_PLUGIN_GITHUB_SOURCE` env var to resolve the repository, defaulting to `https://github.com/EveryInc/compound-engineering-plugin`.
+Both features use the `COMPOUND_PLUGIN_GITHUB_SOURCE` env var to resolve the repository, defaulting to `https://github.com/OutlineDriven/compound-engineering-plugin`.
 
 ### Shell aliases
 
