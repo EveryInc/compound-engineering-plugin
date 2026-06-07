@@ -303,7 +303,7 @@ grep -E '^description:' skills/*/SKILL.md
 
 ### Adding a New Plugin to This Repo
 
-When adding a new plugin alongside `compound-engineering` and `coding-tutor`, the repo ships to three marketplace formats (Claude, Cursor, Codex). All three must stay in parity or `bun run release:validate` will fail on next run. Checklist:
+When adding a new plugin alongside `compound-engineering`, the repo ships to three marketplace formats (Claude, Cursor, Codex). All three must stay in parity or `bun run release:validate` will fail on next run. Checklist:
 
 - [ ] `.claude-plugin/marketplace.json` — add the plugin to `plugins[]`
 - [ ] `.cursor-plugin/marketplace.json` — add the plugin to `plugins[]`
@@ -322,7 +322,7 @@ The validator enforces: plugin-list parity across all three marketplaces, name/v
 
 Beta skills use a `-beta` suffix and `disable-model-invocation: true` to prevent accidental auto-triggering. See `docs/solutions/skill-design/beta-skills-framework.md` for naming, validation, and promotion rules.
 
-**Caveat on non-beta use of `disable-model-invocation`:** The flag blocks all model-initiated invocations via the Skill tool, which includes scheduled re-entry from `/loop`. Only a user typing a slash command directly bypasses it. If a skill is intended to be schedulable (e.g., `resolve-pr-feedback`), do not set this flag — rely on description specificity and argument requirements to prevent accidental auto-fire instead.
+**Caveat on non-beta use of `disable-model-invocation`:** The flag blocks all model-initiated invocations via the Skill tool, which includes scheduled re-entry from `/loop`. Only a user typing a slash command directly bypasses it. If a skill is intended to be schedulable, do not set this flag — rely on description specificity and argument requirements to prevent accidental auto-fire instead.
 
 ### Stable/Beta Sync
 
