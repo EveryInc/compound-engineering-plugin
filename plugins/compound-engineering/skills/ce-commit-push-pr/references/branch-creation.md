@@ -1,6 +1,6 @@
 # Branch creation from default branch
 
-Local `<base>` may have stale commits (another session/worktree advanced it) or commits the user authored intending to branch from later. Local git can't distinguish these — ask when unpushed commits are present.
+Local `<base>` may have stale commits (another session/worktree advanced it) or commits the user authored intending to branch from later. Local git can't distinguish these, so ask when unpushed commits are present.
 
 ## Decision flow
 
@@ -26,7 +26,7 @@ git log origin/<base>..HEAD --oneline
   - **Carry forward** → `BASE_REF=HEAD`. The new branch starts from local HEAD, preserving the commits.
   - **Leave on `<base>`** → `BASE_REF=origin/<base>`. The new branch starts clean; commits remain on local `<base>`.
 
-  Never default silently — carrying foreign commits into a PR is worse than asking again.
+  Never default silently: carrying foreign commits into a PR is worse than asking again.
 
 ### 3. Create the feature branch
 
@@ -42,7 +42,7 @@ git checkout -b <branch-name> "$BASE_REF"
 git stash pop
 ```
 
-If `git stash pop` reports conflicts, surface the conflict output and the stash ref to the user — do not auto-resolve.
+If `git stash pop` reports conflicts, surface the conflict output and the stash ref to the user; do not auto-resolve.
 
 ## Fetch failure fallback
 
@@ -52,4 +52,4 @@ If `git fetch` fails, branch from current local HEAD:
 git checkout -b <branch-name>
 ```
 
-Note in the user-facing summary that base freshness was not verified. Skip the unpushed-commits check — without a fresh `origin/<base>`, the answer is unreliable.
+Note in the user-facing summary that base freshness was not verified. Skip the unpushed-commits check: without a fresh `origin/<base>`, the answer is unreliable.
