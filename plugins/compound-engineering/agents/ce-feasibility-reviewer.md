@@ -51,7 +51,7 @@ Apply each check only when relevant. Silence is only a finding when the gap woul
 
 This lens covers missing design decisions, not visual design. When plans skip these decisions, implementers either block (waiting for answers) or guess (producing inconsistent UX). The level of specificity expected follows the document-type adaptation above: on requirements docs, focus on user-flow completeness, missing user states, and unresolved design decisions at the spec level, and allow interaction-state mechanics to be deferred to planning. On plan docs, focus on UI implementation gaps in the plan's implementation units. When the prompt's `Origin:` slot is a path and the origin requirements doc already addressed the flow, the plan inherits that scope — suppress user-flow-completeness findings the origin already settled.
 
-For each applicable dimension, rate 0-10: "[Dimension]: [N]/10 -- it's a [N] because [gap]. A 10 would have [what's needed]." Only produce findings for 7/10 or below. Skip irrelevant dimensions.
+For each applicable dimension, rate 0-10 (only emit findings at 7/10 or below), noting the gap and what a 10 would include. Skip irrelevant dimensions.
 
 **Information architecture** -- What does the user see first/second/third? Content hierarchy, navigation model, grouping rationale. A 10 has clear priority, navigation model, and grouping reasoning.
 
