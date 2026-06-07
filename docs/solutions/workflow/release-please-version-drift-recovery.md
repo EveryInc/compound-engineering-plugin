@@ -30,13 +30,12 @@ This doc is the playbook when drift is detected. It exists because investigating
 
 ## File relationship map
 
-The repo has five release components. Each owns one or more files. Release-please reads the manifest and writes the extra-files.
+The repo has four release components. Each owns one or more files. Release-please reads the manifest and writes the extra-files.
 
 ```
 .github/.release-please-manifest.json       (release-please memory: last released per component)
 ├── "."                                     → cli component              (v = X.Y.Z)
 ├── "plugins/compound-engineering"          → compound-engineering       (v = X.Y.Z)
-├── "plugins/coding-tutor"                  → coding-tutor               (v = A.B.C)
 ├── ".claude-plugin"                        → marketplace                (v = M.N.O)
 └── ".cursor-plugin"                        → cursor-marketplace         (v = P.Q.R)
 
@@ -51,10 +50,8 @@ Each component's extra-files get rewritten by release-please when a release is c
                                           ├── .cursor-plugin/plugin.json  ($.version)
                                           └── .codex-plugin/plugin.json   ($.version)
 
-  coding-tutor                            marketplace / cursor-marketplace
-  ├── .claude-plugin/plugin.json          ├── marketplace.json ($.metadata.version)
-  ├── .cursor-plugin/plugin.json
-  └── .codex-plugin/plugin.json
+  marketplace / cursor-marketplace
+  └── marketplace.json ($.metadata.version)
 ```
 
 **Key invariants:**

@@ -82,7 +82,7 @@ Currently applied in `src/targets/{opencode,codex,gemini,kiro,pi,managed-artifac
 
 Sanitizing paths in writers created a secondary bug: converter dedupe logic used unsanitized names, so a pass-through skill `ce:plan` and a generated skill normalizing to `ce-plan` wouldn't detect the collision — both would write to `skills/ce-plan/` on disk.
 
-Fixed in converters that maintain dedupe sets — currently `src/converters/claude-to-copilot.ts`:
+Fixed in converters that maintain dedupe sets, which sanitize names before adding them to the set:
 
 - `usedSkillNames.add(sanitizePathName(skill.name))` instead of raw `skill.name`
 

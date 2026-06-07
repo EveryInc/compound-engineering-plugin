@@ -282,7 +282,7 @@ Coding agents have no visibility into organizational knowledge that lives in Sla
 
 ## Sources & References
 
-- **Origin document:** [docs/brainstorms/2026-04-02-slack-researcher-agent-requirements.md](docs/brainstorms/2026-04-02-slack-researcher-agent-requirements.md)
+- **Origin document:** [docs/brainstorms/2026-04-02-slack-analyst-agent-requirements.md](docs/brainstorms/2026-04-02-slack-analyst-agent-requirements.md)
 - Related agent: `plugins/compound-engineering/agents/research/ce-issue-intelligence-analyst.agent.md`
 - Related skills: `plugins/compound-engineering/skills/ce-ideate/SKILL.md`, `plugins/compound-engineering/skills/ce-plan/SKILL.md`, `plugins/compound-engineering/skills/ce-brainstorm/SKILL.md`
 - Slack MCP docs: `https://docs.slack.dev/ai/slack-mcp-server/`
