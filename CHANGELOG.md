@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.12.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.11.2...cli-v3.12.0) (2026-06-09)
+
+
+### Features
+
+* HTML-first ideation docs and a status-free plan model ([#921](https://github.com/EveryInc/compound-engineering-plugin/issues/921)) ([e74e298](https://github.com/EveryInc/compound-engineering-plugin/commit/e74e29864fbfa2f800fc3e08509e2966e4947f1e))
+
 ## [3.11.2](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.11.1...cli-v3.11.2) (2026-06-06)
 
 
