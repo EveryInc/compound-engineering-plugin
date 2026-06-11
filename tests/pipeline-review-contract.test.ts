@@ -233,8 +233,11 @@ describe("ce:work-beta codex delegation contract", () => {
     // Prompt template
     expect(content).toContain("## Prompt Template")
     expect(content).toContain("<task>")
+    expect(content).toContain("<execution_note>")
     expect(content).toContain("<constraints>")
     expect(content).toContain("<output_contract>")
+    expect(content).toContain("test-first")
+    expect(content).toContain("characterization-first")
     expect(content).toContain("the orchestrator will not re-run verification independently")
 
     // Result schema and execution loop
