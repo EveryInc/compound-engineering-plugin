@@ -18,6 +18,9 @@ export async function loadClaudePlugin(inputPath: string): Promise<ClaudePlugin>
   const manifestPath = path.join(root, PLUGIN_MANIFEST)
   const manifest = await readJson<ClaudeManifest>(manifestPath)
 
+  // New Feature: Validate that the manifest components actually exist on disk
+  await validatePluginStructure(root, manifest)
+
   const agents = await loadAgents(resolveComponentDirs(root, "agents", manifest.agents))
   const commands = await loadCommands(resolveComponentDirs(root, "commands", manifest.commands))
   const skills = await loadSkills(resolveComponentDirs(root, "skills", manifest.skills))
@@ -34,6 +37,29 @@ export async function loadClaudePlugin(inputPath: string): Promise<ClaudePlugin>
     hooks,
     mcpServers,
   }
+}
+
+/**
+ * New Helper: Validates that directories declared in the manifest exist.
+ * Logs a warning for missing components to assist in debugging.
+ */
+async function validatePluginStructure(root: string, manifest: ClaudeManifest): Promise<void> {
+  const componentsToCheck: Array<{ name: string; declared: any }> = [
+    { name: "agents", declared: manifest.agents },
+    { name: "commands", declared: manifest.commands },
+    { name: "skills", declared: manifest.skills },
+  ]
+
+  for (const { name, declared } of componentsToCheck) {
+    if (declared) {
+      const dirPath = path.join(root, name)
+      const exists = await pathExists(dirPath)
+      if (!exists) {
+        console.warn(`[Claude Plugin Warning]: "${name}" is defined in manifest but directory missing at: ${dirPath}`)
+      }
+    }
+  }
+}
 }
 
 async function resolveClaudeRoot(inputPath: string): Promise<string> {
