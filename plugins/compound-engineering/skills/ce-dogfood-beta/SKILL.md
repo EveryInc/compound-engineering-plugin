@@ -1,30 +1,51 @@
 ---
 name: ce-dogfood-beta
-description: "[BETA] Dogfood the active branch end-to-end as a QA engineer. Diffs the branch against main, builds an exhaustive browser test matrix of every change (full user journeys, not just features), drives the app with agent-browser, then auto-fixes issues, adds regression tests, and commits each fix until the matrix is green. Use when you want a hands-off 'test everything we just built and make it actually work' pass before shipping."
+description: "[BETA] Dogfood the active branch end-to-end as a QA engineer. Diffs the branch against main, builds an exhaustive test matrix of every user-visible change, drives web flows with agent-browser and native desktop flows with agent-desktop, then auto-fixes issues, adds regression tests, and commits each fix until the matrix is green. Use when you want a hands-off 'test everything we just built and make it actually work' pass before shipping."
 disable-model-invocation: true
 argument-hint: "[PR number, branch name, or blank for current branch] [--port PORT]"
 ---
 
 # Dogfood (Beta)
 
-Act as a QA engineer who dogfoods the **active branch** end-to-end: understand every change, test every change in a real browser as a user would, and fix what's broken — autonomously — until the branch is genuinely ready.
+Act as a QA engineer who dogfoods the **active branch** end-to-end: understand every change, test every user-visible surface as a real user would, and fix what's broken — autonomously — until the branch is genuinely ready.
 
 This is **diff-scoped**, not whole-app exploration. You test what *this branch* introduced or modified versus `main`. (For full-app exploratory QA, use the `dogfood` skill instead.)
 
-## Use `agent-browser` Only For Browser Automation
+## Use the Right Automation Driver
 
-This workflow drives the browser exclusively through the `agent-browser` CLI. Do not use Chrome MCP tools (`mcp__claude-in-chrome__*`), any browser MCP integration, or other built-in browser-control tools. If the platform offers multiple ways to control a browser, always choose `agent-browser`. Use the direct binary, never `npx agent-browser` (the direct binary uses the fast Rust client).
+This workflow uses dedicated CLI automation drivers by surface:
+
+- **Web/browser flows:** use `agent-browser` exclusively. Do not use Chrome MCP tools (`mcp__claude-in-chrome__*`), browser MCP integrations, or other built-in browser-control tools. If the platform offers multiple ways to control a browser, choose `agent-browser`. Use the direct binary, never `npx agent-browser` (the direct binary uses the fast Rust client).
+- **Native desktop app flows:** use `agent-desktop`. It observes native apps through OS accessibility trees, returns structured JSON with snapshot-scoped refs, and executes actions like `snapshot`, `click`, `type`, `press`, `wait`, `list-windows`, and `screenshot`.
+- **Cross-surface flows:** use both drivers. Example: a web admin action in `agent-browser` triggers a native desktop notification or helper app that must be verified with `agent-desktop`.
+
+Do not substitute generic platform desktop-control tools for `agent-desktop` when the real `agent-desktop` binary is available. Do not substitute generic browser tooling for `agent-browser`.
 
 ## Prerequisites
 
 - A local dev server you can start (`bin/dev`, `rails server`, `npm run dev`, etc.).
-- `agent-browser` installed. Check:
+- `agent-browser` installed for web/browser scenarios. Check:
 
   ```bash
   command -v agent-browser >/dev/null 2>&1 && echo "Ready" || echo "NOT INSTALLED"
   ```
 
-  If not installed, run the `ce-setup` skill to install dependencies, then resume. Do not continue without it.
+  If not installed and the matrix includes browser scenarios, run the `ce-setup` skill to install dependencies, then resume. Do not continue with browser scenarios without it.
+
+- `agent-desktop` installed for native desktop scenarios. Check:
+
+  ```bash
+  command -v agent-desktop >/dev/null 2>&1 && echo "Ready" || echo "NOT INSTALLED"
+  ```
+
+  If not installed and the matrix includes native desktop scenarios, install it before continuing. After installation, load its version-matched guide:
+
+  ```bash
+  agent-desktop skills get desktop --full
+  agent-desktop permissions
+  ```
+
+  Do not continue with native desktop scenarios if Accessibility permission is denied; surface the permission guidance from `agent-desktop permissions`.
 
 ## Reusing Compound-Engineering Skills
 
@@ -33,12 +54,12 @@ This workflow drives the browser exclusively through the `agent-browser` CLI. Do
 | When | Skill | Why |
 |------|-------|-----|
 | Phase 0 isolation | `ce-worktree` | Run the dogfood in an isolated worktree so the main checkout stays clean. |
-| agent-browser missing | `ce-setup` | Installs `agent-browser` and other deps. |
+| agent-browser missing | `ce-setup` | Installs `agent-browser` and other project deps. |
 | A failure's root cause is non-obvious | `ce-debug` | Systematic root-cause analysis instead of guess-and-check. |
 | Committing each fix | `ce-commit` | Consistent, well-scoped commit messages. |
 | A bug reveals a reusable lesson | `ce-compound` | Capture the learning so the team compounds knowledge. |
 
-Reuse `ce-test-browser`'s mechanics for port detection and dev-server startup (see Phase 3) rather than reinventing them.
+Reuse `ce-test-browser`'s mechanics for port detection and dev-server startup for web flows (see Phase 3) rather than reinventing them.
 
 ## Workflow
 
@@ -46,8 +67,8 @@ Reuse `ce-test-browser`'s mechanics for port detection and dev-server startup (s
 0. Scope        Pick the branch, get onto it (offer worktree), never touch main
 1. Analyze      Diff branch vs main, understand every change
 2. Map+Matrix   Map user flows as Mermaid flowcharts, then derive the test matrix as a task list
-3. Serve        Detect port, start dev server, open agent-browser
-4. Execute      Work the matrix one item at a time with agent-browser
+3. Prepare      Start required app surfaces: web server for browser flows, native app for desktop flows
+4. Execute      Work the matrix one item at a time with agent-browser and/or agent-desktop
 5. Fix loop     On failure: fix -> add regression test -> commit -> continue
 6. Report       Write durable doc to docs/dogfood-reports/ (flows, matrix, fixes, learnings, verdict)
 ```
@@ -82,7 +103,7 @@ git diff --name-only main...HEAD     # what changed
 git diff main...HEAD                 # how it changed
 ```
 
-Build a mental model of every change: new features, modified behavior, new routes/views/components, touched data flows. Note anything that produces user-visible behavior — that is what the matrix must cover.
+Build a mental model of every change: new features, modified behavior, new routes/views/components, native windows/dialogs/menus, touched data flows. Note anything that produces user-visible behavior — that is what the matrix must cover.
 
 **Ground in the product's personas and vision.** Look for persona and vision context so flows can be judged from real users' eyes, not just "does it work." Check, in order: `STRATEGY.md` (its "Who it's for" section names the primary persona and their job-to-be-done), `VISION.md`, and any persona docs (e.g. `docs/personas/`, `PERSONAS.md`). Capture the 1-3 primary personas and what each cares about. If none exist, infer a reasonable primary persona from the product and the diff, and say so in the report.
 
@@ -114,17 +135,25 @@ Produce one flowchart per distinct journey. Cover the happy path **and** the bra
 
 Walk each flowchart and turn every node and branch into one or more test scenarios. Read `references/test-matrix-taxonomy.md` for the full set of dimensions (journeys, functional checks, experiential checks, edge/error/empty states, accessibility, responsiveness). Cover both **functional** ("does it work?") and **experiential** ("does it feel right and align with the product?").
 
-Map changed files to concrete routes (views -> their pages, components -> pages rendering them, layouts -> all pages, stylesheets -> visual regression on key pages) and attach those routes to the flows that exercise them.
+Map changed files to concrete surfaces (web views -> their routes, components -> pages rendering them, native UI code -> windows/dialogs/menus, layouts/stylesheets -> visual regression on key pages) and attach those surfaces to the flows that exercise them.
 
 **Load the matrix as a task list** (`TaskCreate`), one task per scenario, so progress is tracked and nothing is skipped. Order tasks by flow, following the flowcharts, not by file.
 
-### Phase 3: Detect Port and Start the Dev Server
+### Phase 3: Prepare App Surfaces
 
-Determine the port (priority: explicit `--port` > `AGENTS.md`/`CLAUDE.md` > `package.json` dev script > `.env*` `PORT=` > default `3000`). If a server is already listening, reuse it; otherwise start the project's dev command in the background and wait for the port to come up. This is the same mechanism `ce-test-browser` uses — follow its Phase 5–6 logic.
+For web/browser scenarios, determine the port (priority: explicit `--port` > `AGENTS.md`/`CLAUDE.md` > `package.json` dev script > `.env*` `PORT=` > default `3000`). If a server is already listening, reuse it; otherwise start the project's dev command in the background and wait for the port to come up. This is the same mechanism `ce-test-browser` uses — follow its Phase 5–6 logic.
 
 ```bash
 agent-browser open "http://localhost:${PORT}"
 agent-browser snapshot -i
+```
+
+For native desktop scenarios, launch or focus the target app and take an initial accessibility snapshot. Keep the returned `snapshot_id`; pass it to every ref-consuming action and snapshot again after UI-changing actions.
+
+```bash
+agent-desktop permissions
+agent-desktop launch "App Name"
+agent-desktop snapshot --app "App Name" -i --compact
 ```
 
 ### Phase 4: Execute the Matrix
@@ -132,7 +161,9 @@ agent-browser snapshot -i
 Work the task list **one item at a time**. For each scenario, mark the task `in_progress`, then:
 
 1. **Document** what you're testing (the journey and the expected outcome).
-2. **Drive it** with agent-browser — navigate, snapshot for interactive refs, click, fill, submit, follow the journey to its real end state:
+2. **Drive it** with the right automation driver and follow the journey to its real end state.
+
+   Web/browser example:
 
    ```bash
    agent-browser open "http://localhost:${PORT}/<route>"
@@ -143,7 +174,18 @@ Work the task list **one item at a time**. For each scenario, mark the task `in_
    agent-browser errors      # check console/page errors
    ```
 
-3. **Judge** both correctness and experience: right data, right destination, sensible content, no console errors, and does it feel aligned with the product?
+   Native desktop example:
+
+   ```bash
+   agent-desktop snapshot --app "App Name" -i --compact
+   agent-desktop click @e1 --snapshot <snapshot_id>
+   agent-desktop type @e2 --snapshot <snapshot_id> "value"
+   agent-desktop wait --text "Done" --app "App Name" --timeout 5000
+   agent-desktop screenshot --app "App Name" <scenario>.png
+   ```
+
+   For cross-surface scenarios, use both drivers and record which leg each driver verified.
+3. **Judge** both correctness and experience: right data, right destination, sensible content, no console/page/runtime errors, and does it feel aligned with the product?
 4. **Walk it as each persona.** Re-run the journey in your head from each primary persona's perspective (from Phase 1) and ask where they'd feel a **paper cut** — a small friction that wouldn't fail a functional test but degrades the experience: a confusing label, an extra click, an unexpected jump, a slow-feeling step, missing feedback, copy that doesn't match how that persona thinks. A scenario can be functionally `Pass` yet still carry paper cuts. Note each paper cut, which persona feels it, and its severity.
 5. **Record** pass/fail plus any paper cuts, with specifics. Mark the task `completed` only when it genuinely passes (paper cuts are logged, not blockers — fix the sharp ones in Phase 5, surface the rest in the report).
 
@@ -161,7 +203,7 @@ When a scenario fails, **fix it and prove it** — but first decide whether the 
 2. Apply the fix in the code.
 3. **Add an automated regression test** that fails before the fix and passes after, so the bug can't return.
 4. Commit the fix with a clear message (use `ce-commit`). One logical fix per commit.
-5. Re-run the failing scenario in the browser to confirm it now passes; then continue the matrix.
+5. Re-run the failing scenario with the same driver(s) that exposed it to confirm it now passes; then continue the matrix.
 6. If the bug carried a reusable lesson, capture it with `ce-compound`.
 
 **For changes too big to make autonomously:** do not implement. Record it in the report's **Decisions for a human** section with: what's broken, why it's not a safe autonomous fix, the options you see (with trade-offs), and your recommendation. Mark the scenario `Blocked (human decision)` in the matrix, then continue with the rest. Never make a large, irreversible, or product-altering change just to clear a matrix item.

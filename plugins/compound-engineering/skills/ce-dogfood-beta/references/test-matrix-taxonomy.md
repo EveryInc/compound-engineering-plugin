@@ -1,6 +1,6 @@
 # Test Matrix Taxonomy
 
-Use these dimensions to turn a branch diff into an exhaustive browser test matrix. Not every dimension applies to every change — pick the ones the diff actually touches, but err toward coverage. The goal is to test **complete user journeys**, not isolated widgets.
+Use these dimensions to turn a branch diff into an exhaustive product-surface test matrix. Not every dimension applies to every change — pick the ones the diff actually touches, but err toward coverage. The goal is to test **complete user journeys**, not isolated widgets.
 
 ## 1. Journeys (the spine of the matrix)
 
@@ -20,7 +20,7 @@ The email test is the canonical example: "an email sends" is not a pass. Right r
 - Forms have the expected fields; validation accepts good input and rejects bad input with clear messages.
 - Buttons/links go where they claim; nothing dead-ends.
 - Data shown matches data saved (round-trip create -> view -> edit -> view).
-- No console errors or failed network requests during the journey (`agent-browser errors`).
+- No runtime errors during the journey. For browser flows, check console errors and failed network requests with `agent-browser errors`. For native desktop flows, check `agent-desktop` command errors, permission state, and visible app error states.
 - Auth/permission boundaries hold (the right users can/can't do the thing).
 
 ## 3. Experiential checks — "does it feel right?"
@@ -48,15 +48,17 @@ Walk each flow as each primary persona (from STRATEGY.md "Who it's for", VISION.
 - **Accessibility:** focus order, labels on inputs, keyboard operability of new interactive elements.
 - **Regression:** adjacent journeys a change could plausibly have broken, even if not directly modified.
 
-## Mapping files to routes
+## Mapping files to surfaces
 
-| Changed file | Routes to test |
-|--------------|----------------|
+| Changed file | Surfaces to test |
+|--------------|------------------|
 | `app/views/<x>/*`, `src/app/<x>/*` | The pages for `<x>` (index, show, new, edit) |
 | component files | Every page that renders the component |
 | layout / global stylesheet | All key pages (visual regression) — at minimum the homepage |
 | controller / route handler | The routes it serves |
 | helper / util used in views | Pages relying on it |
 | JS / Stimulus / client controller | Pages where that behavior is wired |
+| native UI files | The windows, dialogs, menus, notifications, or app flows that render that UI |
+| desktop integration files | The cross-surface journey that launches, focuses, notifies, or hands off to the native app |
 
-Build the URL list from this mapping, then expand each URL into the journeys above.
+Build the route and native-surface list from this mapping, then expand each surface into the journeys above. Mark every scenario with its automation driver: `agent-browser`, `agent-desktop`, or `both`.

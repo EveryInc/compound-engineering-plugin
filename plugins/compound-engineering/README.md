@@ -98,7 +98,7 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 
 | Skill | Description |
 |-------|-------------|
-| `ce-dogfood-beta` | Diff-scoped browser QA of the active branch: builds an exhaustive test matrix of every change, drives the app with agent-browser, then auto-fixes issues, adds regression tests, and commits each fix until green |
+| `ce-dogfood-beta` | Diff-scoped product-surface QA of the active branch: builds an exhaustive test matrix of every change, drives web flows with agent-browser and native desktop flows with agent-desktop, then auto-fixes issues, adds regression tests, and commits each fix until green |
 | `/lfg` | Full autonomous engineering workflow |
 
 ## Agents
