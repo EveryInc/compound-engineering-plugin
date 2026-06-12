@@ -94,7 +94,7 @@ After all dispatched personas return, synthesis:
 
 The output is one report with calibrated severity, evidence quotes, and explicit ownership — not a flat list of every reviewer's raw output.
 
-Synthesis also builds **thematic triage groups** (`grouping:auto`, the default): when findings span distinct concerns, related ones are grouped under a short theme — shared root cause, overlapping fix path, one design decision resolving several findings — so a 20-finding review reads as a handful of themes instead of 20 independent items. Groups are a triage lens, not a restructure: findings keep their stable `#`s and severity tables, groups reference them (`#2, #3`), and the `mode:agent` JSON carries the same groups in a `triage_groups` field so callers can batch fixes by theme. Pass `grouping:off` for a flat report or `grouping:always` to group even small reviews.
+Synthesis also builds **thematic triage groups** (`grouping:auto`, the default): when findings span distinct concerns, related ones are grouped under a short theme — shared root cause, overlapping fix path, one design decision resolving several findings — so a 20-finding review reads as a handful of themes instead of 20 independent items. Groups are a triage lens, not a restructure: findings keep their stable `#`s and severity tables, groups reference them (`#2, #3`), and the `mode:agent` JSON carries the same groups in a `triage_groups` field — a lens over every finding, not an apply queue, so a caller batches by theme only after filtering each group to the actionable subset. Pass `grouping:off` for a flat report or `grouping:always` to group even small reviews.
 
 ### 6. Plan discovery for requirements verification
 
