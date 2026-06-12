@@ -9,6 +9,21 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.12.0...compound-engineering-v3.13.0) (2026-06-12)
+
+
+### Features
+
+* **ce-brainstorm:** grounding scout, claim verifier, tiered dispatch ([#927](https://github.com/EveryInc/compound-engineering-plugin/issues/927)) ([4fc24ee](https://github.com/EveryInc/compound-engineering-plugin/commit/4fc24eeb2c4cfc521e66fd18ee1c28c57e962955))
+* **ce-code-review:** add thematic triage grouping ([#845](https://github.com/EveryInc/compound-engineering-plugin/issues/845)) ([8092abe](https://github.com/EveryInc/compound-engineering-plugin/commit/8092abead5ab04355f55fb5ccddedfffd28c8901))
+* **ce-ideate:** distill user-supplied research files into dossiers ([#931](https://github.com/EveryInc/compound-engineering-plugin/issues/931)) ([a82a358](https://github.com/EveryInc/compound-engineering-plugin/commit/a82a358050bf44781c8f84f9b110702648fff27b))
+* **ce-ideate:** improve for Fable model ([#924](https://github.com/EveryInc/compound-engineering-plugin/issues/924)) ([622fbfa](https://github.com/EveryInc/compound-engineering-plugin/commit/622fbfa60de346101e3177af243c79430b189a42))
+
+
+### Bug Fixes
+
+* **skills:** enforce content conventions in CI and fix violations ([#930](https://github.com/EveryInc/compound-engineering-plugin/issues/930)) ([c8e7d90](https://github.com/EveryInc/compound-engineering-plugin/commit/c8e7d908fa7e230dc8723639ea48498e3e499f3c))
+
 ## [3.12.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.11.2...compound-engineering-v3.12.0) (2026-06-09)
 
 
