@@ -147,6 +147,29 @@ function hasNestedQuotedStringInCommandSubst(cmd: string): boolean {
 }
 
 /**
+ * Returns true when a command substitution appears inside a double-quoted
+ * string argument (e.g., `cat "$(git rev-parse --show-toplevel)/file"`).
+ * Claude Code rejects this at skill-load time before the skill body can run.
+ */
+function hasCommandSubstitutionInsideDoubleQuotes(cmd: string): boolean {
+  let inSingleQuote = false
+  let inDoubleQuote = false
+
+  for (let i = 0; i < cmd.length; i++) {
+    const c = cmd[i]
+    const next = cmd[i + 1]
+
+    if (!inDoubleQuote && c === "'") { inSingleQuote = !inSingleQuote; continue }
+    if (!inSingleQuote && c === '"') { inDoubleQuote = !inDoubleQuote; continue }
+    if (inSingleQuote) continue
+
+    if (inDoubleQuote && c === '$' && next === '(') return true
+  }
+
+  return false
+}
+
+/**
  * Returns true when the command's *trailing* top-level statement suppresses
  * stderr with `2>/dev/null` but has no `||` fallback. The trailing statement
  * determines the command's overall exit code (after `;` or `&&` chains). When
@@ -291,6 +314,20 @@ describe("hasNestedQuotedStringInCommandSubst", () => {
   })
 })
 
+describe("hasCommandSubstitutionInsideDoubleQuotes", () => {
+  test("flags `cat \"$(git rev-parse ...)/file\"`", () => {
+    expect(hasCommandSubstitutionInsideDoubleQuotes('cat "$(git rev-parse --show-toplevel 2>/dev/null)/file" 2>/dev/null || echo fallback')).toBe(true)
+  })
+
+  test("does not flag subshell assignment followed by a quoted variable path", () => {
+    expect(hasCommandSubstitutionInsideDoubleQuotes('(top=$(git rev-parse --show-toplevel 2>/dev/null); cat "$top/file" 2>/dev/null) || echo fallback')).toBe(false)
+  })
+
+  test("does not flag command substitutions outside double-quoted strings", () => {
+    expect(hasCommandSubstitutionInsideDoubleQuotes("top=$(git rev-parse --show-toplevel 2>/dev/null)")).toBe(false)
+  })
+})
+
 describe("hasUnguardedErrorSuppression", () => {
   test("flags single-statement `2>/dev/null` with no fallback", () => {
     expect(hasUnguardedErrorSuppression("git rev-parse --abbrev-ref HEAD 2>/dev/null")).toBe(true)
@@ -382,6 +419,18 @@ describe("hasTopLevelPipe", () => {
 
   test("does not flag commands with no pipe", () => {
     expect(hasTopLevelPipe("git rev-parse --abbrev-ref HEAD 2>/dev/null")).toBe(false)
+  })
+})
+
+describe("ce-plan config pre-resolution command", () => {
+  test("uses subshell assignment instead of command substitution inside a quoted cat path", () => {
+    const body = readFileSync(path.join(process.cwd(), "plugins/compound-engineering/skills/ce-plan/SKILL.md"), "utf8")
+    const command = findPreResolutionCommands(body).find(({ command }) =>
+      command.includes(".compound-engineering/config.local.yaml"),
+    )?.command
+
+    expect(command).toBe('(top=$(git rev-parse --show-toplevel 2>/dev/null); cat "$top/.compound-engineering/config.local.yaml" 2>/dev/null) || echo \'__NO_CONFIG__\'')
+    expect(hasCommandSubstitutionInsideDoubleQuotes(command ?? "")).toBe(false)
   })
 })
 
