@@ -22,7 +22,7 @@
  *   Work          — ce-work: execute the plan.
  *   Code Review   — ce-code-review: persona reviewers per dimension, deduped by
  *                   file:line, adversarially verified; severity gate.
- *   Autofix       — apply confirmed blocker/high/medium findings (defer low to PR).
+ *   Autofix       — apply confirmed P0/P1/P2 findings (defer P3 to PR).
  *   Re-review     — re-review the fix diff for regressions the fixes introduced.
  *   Simplify      — ce-simplify-code: behavior-preserving cleanup.
  *   Test          — suite/build/lint + ce-test-browser (web) / simulator (iOS).
@@ -63,7 +63,7 @@ export const meta = {
     { title: 'Doc Review', detail: 'ce-doc-review — adversarially stress-test the plan (fatal -> abort)' },
     { title: 'Work', detail: 'ce-work executes the plan with the Doc Review concerns in view' },
     { title: 'Code Review', detail: 'ce-code-review — persona reviewers per dimension, dedup by file:line, adversarially verify, severity gate' },
-    { title: 'Autofix', detail: 'Apply confirmed blocker/high/medium findings; defer low to the PR' },
+    { title: 'Autofix', detail: 'Apply confirmed P0/P1/P2 findings; defer P3 to the PR' },
     { title: 'Re-review', detail: 'Re-review the fix diff for regressions the fixes introduced; fix them' },
     { title: 'Simplify', detail: 'ce-simplify-code — behavior-preserving cleanup of the corrected code' },
     { title: 'Test', detail: 'Suite/build/lint + ce-test-browser (web) / simulator (iOS)' },
@@ -141,7 +141,7 @@ const PLANCHECK_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        properties: { issue: { type: 'string' }, severity: { type: 'string', enum: ['blocker', 'high', 'medium', 'low'] } },
+        properties: { issue: { type: 'string' }, severity: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3'] } },
         required: ['issue', 'severity'],
       },
     },
@@ -175,7 +175,7 @@ const FINDINGS_SCHEMA = {
           title: { type: 'string' },
           file: { type: 'string' },
           line: { type: ['integer', 'null'] },
-          severity: { type: 'string', enum: ['blocker', 'high', 'medium', 'low'] },
+          severity: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3'], description: 'P0 critical, P1 high, P2 moderate, P3 low — the ce-code-review severity scale' },
           rationale: { type: 'string' },
           suggestedFix: { type: 'string' },
         },
@@ -190,7 +190,7 @@ const VERDICT_SCHEMA = {
   type: 'object',
   properties: {
     isReal: { type: 'boolean', description: 'True only if the finding can be confirmed from the actual code' },
-    confidence: { type: 'string', enum: ['low', 'medium', 'high'] },
+    confidence: { type: 'integer', enum: [0, 25, 50, 75, 100], description: 'Confidence anchor in the isReal verdict (ce-code-review scale): 0/25/50/75/100' },
     reasoning: { type: 'string' },
   },
   required: ['isReal', 'reasoning'],
@@ -240,7 +240,7 @@ const DOGFOOD_SCHEMA = {
       type: 'array',
       items: {
         type: 'object',
-        properties: { title: { type: 'string' }, severity: { type: 'string', enum: ['blocker', 'high', 'medium', 'low'] } },
+        properties: { title: { type: 'string' }, severity: { type: 'string', enum: ['P0', 'P1', 'P2', 'P3'] } },
         required: ['title'],
       },
     },
@@ -292,8 +292,8 @@ const NON_INTERACTIVE = 'Run NON-INTERACTIVELY: do NOT call AskUserQuestion or a
 // Helpers (no Date.now/Math.random — those are unavailable in workflow scripts).
 // ---------------------------------------------------------------------------
 
-const SEVERITY_RANK = { blocker: 3, high: 2, medium: 1, low: 0 }
-const AUTO_FIX_SEVERITIES = ['blocker', 'high', 'medium']
+const SEVERITY_RANK = { P0: 3, P1: 2, P2: 1, P3: 0 }
+const AUTO_FIX_SEVERITIES = ['P0', 'P1', 'P2']
 
 // Worktree-isolation instruction prepended to every mutating phase. Assigned in
 // the Worktree phase; empty (no-op) when worktree creation fails or is skipped.
@@ -571,7 +571,7 @@ const { raw: rawFindings, confirmed } = await reviewAndVerify(DIMENSIONS, review
 
 const toFix = confirmed.filter(f => AUTO_FIX_SEVERITIES.includes(f.severity))
 const deferredNits = confirmed.filter(f => !AUTO_FIX_SEVERITIES.includes(f.severity))
-log(`${rawFindings.length} raw -> ${confirmed.length} confirmed — ${toFix.length} to fix, ${deferredNits.length} low deferred to PR`)
+log(`${rawFindings.length} raw -> ${confirmed.length} confirmed — ${toFix.length} to fix, ${deferredNits.length} P3 deferred to PR`)
 
 // ---------------------------------------------------------------------------
 // Autofix. Apply auto-fixable confirmed findings; record skipped + nits.
@@ -588,8 +588,8 @@ if (toFix.length) {
 } else {
   log('No auto-fixable findings — skipping Autofix.')
 }
-// Low-severity confirmed findings ride along as residual so they surface on the PR.
-fix.residual = (fix.residual || []).concat(deferredNits.map(f => ({ title: `[${f.severity}] ${f.title}`, reason: f.rationale || 'deferred low-severity finding' })))
+// P3 (deferred) confirmed findings ride along as residual so they surface on the PR.
+fix.residual = (fix.residual || []).concat(deferredNits.map(f => ({ title: `[${f.severity}] ${f.title}`, reason: f.rationale || 'deferred P3 finding' })))
 
 // ---------------------------------------------------------------------------
 // Re-review. The fixes themselves can introduce regressions. Re-review the fix
