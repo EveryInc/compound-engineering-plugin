@@ -70,9 +70,9 @@ Determine how to proceed based on what was provided in `<input_document>`.
    fi
    ```
 
-   **If already on a feature branch** (not the default branch):
+   **Check branch name meaningfulness**
 
-   First, check whether the branch name is **meaningful** -- a name like `feat/crowd-sniff` or `fix/email-validation` tells future readers what the work is about. Auto-generated worktree names (e.g., `worktree-jolly-beaming-raven`) or other opaque names do not.
+   Whether on the default branch or a feature branch, first check if the branch name is **meaningful** -- a name like `feat/crowd-sniff` or `fix/email-validation` tells future readers what the work is about. Auto-generated worktree names (e.g., `worktree-jolly-beaming-raven`) or other opaque names do not.
 
    If the branch name is meaningless or auto-generated, suggest renaming it before continuing:
 
@@ -82,38 +82,50 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
    Derive the new name from the plan title or work description (e.g., `feat/crowd-sniff`). Present the rename as a recommended option alongside continuing as-is.
 
-   Then ask: "Continue working on `[current_branch]`, or create a new branch?"
-   - If continuing (with or without rename), proceed to step 3
-   - If creating new, follow Option A below
+   **If already on a feature branch** (not the default branch):
 
-   **If on the default branch**, choose how to proceed:
+   Ask: "Continue working on `[current_branch]`, or create a new branch?"
+   - If continuing (with or without rename), proceed to worktree decision below
+   - If creating new, create the branch first, then proceed to worktree decision:
+     ```bash
+     git pull origin "$default_branch"
+     git checkout -b <feature-branch-name>
+     ```
 
-   **Option A: Create a new branch**
+   **If on the default branch**:
+
+   Ask: "Create a new branch for this work, or continue on `[current_branch]`?"
+   - If creating new branch:
+     ```bash
+     git pull origin "$default_branch"
+     git checkout -b <feature-branch-name>
+     ```
+     Then proceed to worktree decision
+   - If continuing on default: Requires explicit user confirmation. Only proceed after user explicitly says "yes, commit to [default_branch]" -- never commit directly to default without permission.
+
+   **Worktree Decision** (after branch is settled)
+
+   Once the branch is confirmed (either continued on existing or newly created), ask:
+
+   > "Create an isolated worktree for this branch? (Recommended for parallel development)"
+
+   **Yes -- Create worktree:**
 
    ```bash
-   git pull origin [default_branch]
-   git checkout -b feature-branch-name
+   bash .agents/skills/ce-worktree/scripts/worktree-manager.sh create "$(git branch --show-current)"
+   cd ".worktrees/$(git branch --show-current)"
    ```
 
-   Use a meaningful name based on the work (e.g., `feat/user-authentication`, `fix/email-validation`).
+   The worktree is created under `.worktrees/<branch>/`. Continue execution from this new working directory. You can open it as a separate Zed window.
 
-   **Option B: Use a worktree (recommended for parallel development)**
+   **No -- Continue in current checkout:**
+   Proceed with step 3 in the current working directory.
 
-   ```bash
-   bash .agents/skills/ce-worktree/scripts/worktree-manager.sh create <branch-name>
-   ```
-
-   The ce-worktree skill creates an isolated working directory under `.worktrees/<branch>`. You can open it as a separate Zed window.
-
-   **Option C: Continue on the default branch**
-   - Requires explicit user confirmation
-   - Only proceed after user explicitly says "yes, commit to [default_branch]"
-   - Never commit directly to the default branch without explicit permission
-
-   **Recommendation**: Use worktree if:
+   **When to use worktree:**
    - You want to work on multiple features simultaneously
    - You want to keep the default branch clean while experimenting
    - You plan to switch between branches frequently
+   - The plan involves significant changes that might benefit from isolation
 
 3. **Create Task List** _(skip if Phase 0 already built one, or if Phase 0 routed as Trivial)_
    - Break the plan into actionable tasks
