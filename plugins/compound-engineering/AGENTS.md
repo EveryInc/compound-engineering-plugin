@@ -207,9 +207,9 @@ Design rules for blocking question menus (`AskUserQuestion` / `request_user_inpu
 
 ### Script Path References in Skills
 
-- [ ] In bash code blocks, reference co-located scripts using relative paths (e.g., `bash scripts/my-script ARG`) — not `${CLAUDE_PLUGIN_ROOT}` or other platform-specific variables
-- [ ] All platforms resolve script paths relative to the skill's directory; no env var prefix is needed
-- [ ] Reference the script with a backtick path (e.g., `` `scripts/my-script` ``) so agents can locate it; a markdown link is not needed since the bash code block already provides the invocation
+- [ ] In bash code blocks, invoke co-located scripts through `${CLAUDE_SKILL_DIR:-.}` (e.g., `bash "${CLAUDE_SKILL_DIR:-.}/scripts/my-script" ARG`) — not a bare relative path, and not `${CLAUDE_PLUGIN_ROOT}`. The runtime Bash tool runs from the user's project CWD, not the skill directory, so a bare `bash scripts/my-script` resolves against `<project>/scripts/` and fails — the recurring bug class behind #764, #811, and #898.
+- [ ] On Claude Code `${CLAUDE_SKILL_DIR}` resolves to the skill directory; on other targets it is unset and the `:-.` fallback only keeps the command syntactically valid — it does **not** resolve to the bundled script there, so runtime bundled-script invocation is currently unsolved on Codex/Gemini. Do not gate a skill's core behavior on a runtime bundled-script call when portability to those targets matters. See "Permission gate on extracted scripts" under *Tool Selection in Agents and Skills* below for the `allowed-tools` pinning that pairs with this.
+- [ ] Reference the script with a backtick *read-time* path (e.g., `` `scripts/my-script` ``) so agents can locate it to read it — read-time references do resolve against the skill directory on all platforms; a markdown link is not needed since the bash code block already provides the invocation
 
 ### Cross-Platform Reference Rules
 
