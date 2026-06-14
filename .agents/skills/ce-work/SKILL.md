@@ -28,33 +28,33 @@ Determine how to proceed based on what was provided in `<input_document>`.
 **Bare prompt** (input is a description of work, not a file path):
 
 1. **Scan the work area**
-
    - Identify files likely to change based on the prompt
    - Find existing test files for those areas (search for test/spec files that import, reference, or share names with the implementation files)
    - Note local patterns and conventions in the affected areas
 
 2. **Assess complexity and route**
 
-   | Complexity | Signals | Action |
-   |-----------|---------|--------|
-   | **Trivial** | 1-2 files, no behavioral change (typo, config, rename) | Proceed to Phase 1 step 2 (environment setup), then implement directly -- no task list, no execution loop. Apply Test Discovery if the change touches behavior-bearing code |
-   | **Small / Medium** | Clear scope, under ~10 files | Build a task list from discovery. Proceed to Phase 1 step 2 |
-   | **Large** | Cross-cutting, architectural decisions, 10+ files, touches auth/payments/migrations | Inform the user this would benefit from `/ce-brainstorm` or `/ce-plan` to surface edge cases and scope boundaries. Honor their choice. If proceeding, build a task list and continue to Phase 1 step 2 |
+   | Complexity         | Signals                                                                             | Action                                                                                                                                                                                                 |
+   | ------------------ | ----------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+   | **Trivial**        | 1-2 files, no behavioral change (typo, config, rename)                              | Proceed to Phase 1 step 2 (environment setup), then implement directly -- no task list, no execution loop. Apply Test Discovery if the change touches behavior-bearing code                            |
+   | **Small / Medium** | Clear scope, under ~10 files                                                        | Build a task list from discovery. Proceed to Phase 1 step 2                                                                                                                                            |
+   | **Large**          | Cross-cutting, architectural decisions, 10+ files, touches auth/payments/migrations | Inform the user this would benefit from `/ce-brainstorm` or `/ce-plan` to surface edge cases and scope boundaries. Honor their choice. If proceeding, build a task list and continue to Phase 1 step 2 |
 
 ---
 
 ### Phase 1: Quick Start
 
 1. **Read Plan and Clarify** _(skip if arriving from Phase 0 with a bare prompt)_
-
-   - Read the work document completely.
-   - Treat the plan as a decision artifact, not an execution script
+   - Read the work document completely. Plans are markdown (`.md`) files. Treat the plan as a decision artifact, not an execution script.
+   - When auto-detecting the latest plan (blank invocation), glob `docs/plans/*.md` and pick the most recent.
    - If the plan includes sections such as `Implementation Units`, `Work Breakdown`, `Requirements` (or legacy `Requirements Trace`), `Files`, `Test Scenarios`, or `Verification`, use those as the primary source material for execution
-   - Check for `Execution note` on each implementation unit -- note them when creating tasks
-   - Check for a `Deferred to Implementation` or `Implementation-Time Unknowns` section -- note them before starting so they inform your approach
-   - Check for a `Scope Boundaries` section -- refer back to them if implementation starts pulling you toward adjacent work
-   - If anything is unclear or ambiguous, ask clarifying questions now
-   - **Do not edit the plan body during execution.** The plan is a decision artifact. The only plan mutation during ce-work is the final status flip at shipping (see `references/shipping-workflow.md` Phase 4 Step 2).
+   - Check for `Execution note` on each implementation unit -- these carry the plan's execution posture signal for that unit (for example, test-first or characterization-first). Note them when creating tasks.
+   - Check for a `Deferred to Implementation` or `Implementation-Time Unknowns` section -- these are questions the planner intentionally left for you to resolve during execution. Note them before starting so they inform your approach rather than surprising you mid-task.
+   - Check for a `Scope Boundaries` section -- these are explicit non-goals. Refer back to them if implementation starts pulling you toward adjacent work.
+   - Review any references or links provided in the plan.
+   - If the user explicitly asks for TDD, test-first, or characterization-first execution, honor that request even if the plan has no `Execution note`.
+   - If anything is unclear or ambiguous, ask clarifying questions now. Get user approval on the resolved answers. If no clarifications were needed, proceed without a separate approval step -- plan scope is the plan's authority.
+   - **Do not edit the plan body during execution.** The plan is a decision artifact; progress lives in git commits. The only plan mutation during ce-work is the final `status: active -> completed` flip at shipping (see `references/shipping-workflow.md` Phase 4 Step 2).
 
 2. **Setup Environment**
 
@@ -64,6 +64,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
    current_branch=$(git branch --show-current)
    default_branch=$(git symbolic-ref refs/remotes/origin/HEAD 2>/dev/null | sed 's@^refs/remotes/origin/@@')
 
+   # Fallback if remote HEAD isn't set
    if [ -z "$default_branch" ]; then
      default_branch=$(git rev-parse --verify origin/main >/dev/null 2>&1 && echo "main" || echo "master")
    fi
@@ -71,7 +72,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
    **If already on a feature branch** (not the default branch):
 
-   First, check whether the branch name is **meaningful**. Auto-generated worktree names do not.
+   First, check whether the branch name is **meaningful** -- a name like `feat/crowd-sniff` or `fix/email-validation` tells future readers what the work is about. Auto-generated worktree names (e.g., `worktree-jolly-beaming-raven`) or other opaque names do not.
 
    If the branch name is meaningless or auto-generated, suggest renaming it before continuing:
 
@@ -82,31 +83,71 @@ Determine how to proceed based on what was provided in `<input_document>`.
    Derive the new name from the plan title or work description (e.g., `feat/crowd-sniff`). Present the rename as a recommended option alongside continuing as-is.
 
    Then ask: "Continue working on `[current_branch]`, or create a new branch?"
+   - If continuing (with or without rename), proceed to step 3
+   - If creating new, follow Option A below
+
+   **If on the default branch**, choose how to proceed:
+
+   **Option A: Create a new branch**
+
+   ```bash
+   git pull origin [default_branch]
+   git checkout -b feature-branch-name
+   ```
+
+   Use a meaningful name based on the work (e.g., `feat/user-authentication`, `fix/email-validation`).
+
+   **Option B: Use a worktree (recommended for parallel development)**
+
+   ```bash
+   bash .agents/skills/ce-worktree/scripts/worktree-manager.sh create <branch-name>
+   ```
+
+   The ce-worktree skill creates an isolated working directory under `.worktrees/<branch>`. You can open it as a separate Zed window.
+
+   **Option C: Continue on the default branch**
+   - Requires explicit user confirmation
+   - Only proceed after user explicitly says "yes, commit to [default_branch]"
+   - Never commit directly to the default branch without explicit permission
+
+   **Recommendation**: Use worktree if:
+   - You want to work on multiple features simultaneously
+   - You want to keep the default branch clean while experimenting
+   - You plan to switch between branches frequently
 
 3. **Create Task List** _(skip if Phase 0 already built one, or if Phase 0 routed as Trivial)_
-
    - Break the plan into actionable tasks
    - Derive tasks from the plan's implementation units, dependencies, files, test targets, and verification criteria
-   - Preserve U-ID prefixes when the plan defines them
+   - When the plan defines U-IDs for Implementation Units, preserve the unit's U-ID as a prefix in the task subject (e.g., "U3: Add parser coverage"). This keeps blocker references and final summaries anchored to the same identifier.
    - Carry each unit's `Execution note` into the task when present
+   - For each unit, read the `Patterns to follow` field before implementing -- these point to specific files or conventions to mirror
+   - Use each unit's `Verification` field as the primary "done" signal for that task
    - Include dependencies between tasks
+   - Prioritize based on what needs to be done first
    - Keep tasks specific and completable
 
 4. **Choose Execution Strategy**
 
    After creating the task list, decide how to execute based on the plan's size and dependency structure:
 
-   | Strategy | When to use |
-   |----------|-------------|
-   | **Inline** | 1-2 small tasks, or tasks needing user interaction mid-flight. **Default for bare-prompt work** |
+   | Strategy             | When to use                                                                                            |
+   | -------------------- | ------------------------------------------------------------------------------------------------------ |
+   | **Inline**           | 1-2 small tasks, or tasks needing user interaction mid-flight. **Default for bare-prompt work**        |
    | **Serial subagents** | 3+ tasks with dependencies between them. Each subagent gets a fresh context window focused on one unit |
 
-   For Zed-native execution:
+   **Subagent dispatch** uses `spawn_agent`. For each unit, give the subagent:
+   - The full plan file path (for overall context)
+   - The specific unit's Goal, Files, Approach, Execution note, Patterns, Test scenarios, and Verification
+   - Any resolved deferred questions relevant to that unit
+   - Instruction to check whether the unit's test scenarios cover all applicable categories and supplement gaps before writing tests
+   - Instruct: "Do not stage files (`git add`), create commits, or run the project test suite. The orchestrator handles testing, staging, and committing after each subagent completes."
 
-   - Use `spawn_agent` when you need isolated context on one unit or one concern.
-   - Keep orchestration in the main session so the plan's guardrails remain visible.
-
-   If execution reveals overlap or scope that benefits from parallelism, prefer splitting the work into serial `spawn_agent` batches instead of broad parallel dispatch.
+   **After each subagent completes:**
+   1. Review the subagent's diff -- verify changes match the unit's scope and files list
+   2. Run the relevant test suite to confirm the tree is healthy
+   3. If tests fail, diagnose and fix before proceeding
+   4. Update the task list (do not edit the plan body)
+   5. Dispatch the next unit
 
 ### Phase 2: Execute
 
@@ -124,31 +165,39 @@ Determine how to proceed based on what was provided in `<input_document>`.
      - Implement following existing conventions
      - Add, update, or remove tests to match implementation changes
      - Run tests after changes
+     - Assess testing coverage: did this task change behavior? If yes, were tests written or updated? If no tests were added, is the justification deliberate (e.g., pure config, no behavioral change)?
+     - Evaluate for incremental commit (see below)
      - Mark task as completed
    ```
 
-   When a unit carries an `Execution note`, honor it. For test-first units, write the failing test before implementation for that unit. For characterization-first units, capture existing behavior before changing it.
+   When a unit carries an `Execution note`, honor it. For test-first units, write the failing test before implementation for that unit. For characterization-first units, capture existing behavior before changing it. For units without an `Execution note`, proceed pragmatically.
+
+   Guardrails for execution posture:
+   - Do not write the test and implementation in the same step when working test-first
+   - Do not skip verifying that a new test fails before implementing the fix or feature
+   - Do not over-implement beyond the current behavior slice when working test-first
+   - Skip test-first discipline for trivial renames, pure configuration, and pure styling work
 
    **Test Discovery** -- Before implementing changes to a file, find its existing test files (search for test/spec files that import, reference, or share naming patterns with the implementation file). Changes to implementation files should be accompanied by corresponding test updates.
 
    **Test Scenario Completeness** -- Before writing tests for a feature-bearing unit, check whether the plan's `Test scenarios` cover all categories that apply to this unit. If a category is missing or scenarios are vague, supplement from the unit's own context before writing tests:
 
-   | Category | When it applies | How to derive if missing |
-   |----------|----------------|------------------------|
-   | **Happy path** | Always for feature-bearing units | Read the unit's Goal and Approach for core input/output pairs |
-   | **Edge cases** | When the unit has meaningful boundaries | Identify boundary values, empty/nil inputs, and concurrent access patterns |
-   | **Error/failure paths** | When the unit has failure modes | Enumerate invalid inputs the unit should reject, permission/auth denials it should enforce, and downstream failures it should handle |
-   | **Integration** | When the unit crosses layers | Identify the cross-layer chain and write a scenario that exercises it without mocks |
+   | Category                | When it applies                         | How to derive if missing                                                                                                             |
+   | ----------------------- | --------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+   | **Happy path**          | Always for feature-bearing units        | Read the unit's Goal and Approach for core input/output pairs                                                                        |
+   | **Edge cases**          | When the unit has meaningful boundaries | Identify boundary values, empty/nil inputs, and concurrent access patterns                                                           |
+   | **Error/failure paths** | When the unit has failure modes         | Enumerate invalid inputs the unit should reject, permission/auth denials it should enforce, and downstream failures it should handle |
+   | **Integration**         | When the unit crosses layers            | Identify the cross-layer chain and write a scenario that exercises it without mocks                                                  |
 
    **System-Wide Test Check** -- Before marking a task done, ask:
 
-   | Question | What to do |
-   |----------|------------|
-   | **What fires when this runs?** Callbacks, middleware, observers, event handlers -- trace two levels out from your change. | Read the actual code for callbacks on models you touch, middleware in the request chain, hooks. |
-   | **Do my tests exercise the real chain?** If every dependency is mocked, the test proves your logic works in isolation -- it says nothing about the interaction. | Write at least one integration test that uses real objects through the full callback/middleware chain. |
-   | **Can failure leave orphaned state?** If your code persists state before calling an external service, what happens when the service fails? | Trace the failure path with real objects. Verify failure cleans up or that retry is idempotent when state is created before the risky call. |
-   | **What other interfaces expose this?** Mixins, DSLs, alternative entry points. | Grep for the method/behavior in related classes. If parity is needed, add it now. |
-   | **Do error strategies align across layers?** Retry middleware + application fallback + framework error handling -- do they conflict or create double execution? | Verify your rescue list matches what the lower layer actually raises. |
+   | Question                                                                                                                                                        | What to do                                                                                                                                  |
+   | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+   | **What fires when this runs?** Callbacks, middleware, observers, event handlers -- trace two levels out from your change.                                       | Read the actual code for callbacks on models you touch, middleware in the request chain, hooks.                                             |
+   | **Do my tests exercise the real chain?** If every dependency is mocked, the test proves your logic works in isolation -- it says nothing about the interaction. | Write at least one integration test that uses real objects through the full callback/middleware chain.                                      |
+   | **Can failure leave orphaned state?** If your code persists state before calling an external service, what happens when the service fails?                      | Trace the failure path with real objects. Verify failure cleans up or that retry is idempotent when state is created before the risky call. |
+   | **What other interfaces expose this?** Mixins, DSLs, alternative entry points.                                                                                  | Grep for the method/behavior in related classes. If parity is needed, add it now.                                                           |
+   | **Do error strategies align across layers?** Retry middleware + application fallback + framework error handling -- do they conflict or create double execution? | Verify your rescue list matches what the lower layer actually raises.                                                                       |
 
    **When to skip:** Leaf-node changes with no callbacks, no state persistence, no parallel interfaces.
 
@@ -158,16 +207,144 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
    After completing each task, evaluate whether to create an incremental commit:
 
-   | Commit when... | Don't commit when... |
-   |----------------|---------------------|
-   | Logical unit complete (model, service, component) | Small part of a larger unit |
-   | Tests pass + meaningful progress | Tests failing |
-   | About to switch contexts (backend -> frontend) | Purely scaffolding with no behavior |
-   | About to attempt risky/uncertain changes | Would need a "WIP" commit message |
+   | Commit when...                                    | Don't commit when...                |
+   | ------------------------------------------------- | ----------------------------------- |
+   | Logical unit complete (model, service, component) | Small part of a larger unit         |
+   | Tests pass + meaningful progress                  | Tests failing                       |
+   | About to switch contexts (backend -> frontend)    | Purely scaffolding with no behavior |
+   | About to attempt risky/uncertain changes          | Would need a "WIP" commit message   |
+
+   **Heuristic:** "Can I write a commit message that describes a complete, valuable change? If yes, commit. If the message would be 'WIP' or 'partial X', wait."
+
+   If the plan has Implementation Units, use them as a starting guide for commit boundaries -- but adapt based on what you find during implementation. A unit might need multiple commits if it's larger than expected, or small related units might land together. Use each unit's Goal to inform the commit message.
+
+   **Commit workflow:**
+
+   ```bash
+   # 1. Verify tests pass (use project's test command)
+   # 2. Stage only files related to this logical unit (not `git add .`)
+   git add <files related to this logical unit>
+   # 3. Commit with conventional message
+   git commit -m "feat(scope): description of this unit"
+   ```
+
+   **Handling merge conflicts:** If conflicts arise during rebasing or merging, resolve them immediately. Incremental commits make conflict resolution easier since each commit is small and focused.
+
+3. **Follow Existing Patterns**
+   - The plan should reference similar code - read those files first
+   - Match naming conventions exactly
+   - Reuse existing components where possible
+   - Follow project coding standards (see AGENTS.md)
+   - When in doubt, grep for similar implementations
+
+4. **Test Continuously**
+   - Run relevant tests after each significant change
+   - Don't wait until the end to test
+   - Fix failures immediately
+   - Add new tests for new behavior, update tests for changed behavior, remove tests for deleted behavior
+   - **Unit tests with mocks prove logic in isolation. Integration tests with real objects prove the layers work together.** If your change touches callbacks, middleware, or error handling -- you need both.
+
+5. **Simplify as You Go**
+
+   After completing a cluster of related implementation units (or every 2-3 units), review recently changed files for simplification opportunities -- consolidate duplicated patterns, extract shared helpers, and improve code reuse and efficiency.
+
+   Don't simplify after every single unit -- early patterns may look duplicated but diverge intentionally in later units. Wait for a natural phase boundary or when you notice accumulated complexity.
+
+   If **`ce-simplify-code`** is available, invoke it at phase boundaries (especially before Phase 3 when the diff is >=30 lines). Otherwise, review the changed files yourself for reuse and consolidation opportunities.
+
+6. **Track Progress**
+   - Keep the task list updated as you complete tasks
+   - Note any blockers or unexpected discoveries
+   - Create new tasks if scope expands
+   - Keep user informed of major milestones
+   - When the plan defines U-IDs for Implementation Units, reference them in blockers, deferred-work notes, and task summaries -- not routine status updates. U-IDs anchor units across plan edits.
 
 ### Phase 3-4: Quality Check and Finishing Work
 
-When all Phase 2 tasks are complete and execution transitions to quality check, you must read `references/shipping-workflow.md` for the full shipping workflow. Do not skip this.
+When all Phase 2 tasks are complete and execution transitions to quality check, run the full shipping workflow below.
+
+#### Phase 3: Quality Check
+
+1. **Run Core Quality Checks**
+
+   Always run before submitting:
+   - Run the project's test suite (e.g., `bun test`, `npm test`, `pytest`)
+   - Run linting per AGENTS.md
+
+2. **Simplify** (conditional)
+
+   Before code review, invoke **`ce-simplify-code`** when the diff is non-mechanical and large enough to benefit (default: **>=30 changed lines**). Skip when the diff is purely mechanical (formatting, dependency bumps, lint-only fixes).
+
+   If `ce-simplify-code` is unavailable on the harness, skip or do a brief manual pass for obvious duplicate/dead code.
+
+3. **Code Review**
+
+   Use **Tier 1** when possible (self-review using `spawn_agent`). Use **Tier 2** (`ce-code-review` skill) only when escalation criteria below match.
+
+   **Tier 1 -- self-review (default when available).** Review the diff yourself against the plan's requirements and test scenarios. Address any issues before Final Validation.
+
+   **Tier 2 -- `ce-code-review` (escalation only).** Load the `ce-code-review` skill to run structured multi-persona review. Address findings, then proceed to the Residual Work Gate.
+
+   Escalate to Tier 2 when **any** of the following is true:
+   - **Sensitive surface touched.** The diff modifies any of: authentication or authorization, payments or billing, data migrations or backfills, security-relevant configuration, public API or library contracts, or dependency manifests.
+   - **Large and diffuse change.** The diff exceeds >=400 changed lines **and** spans more than 3 directories or 2 distinct subsystems.
+   - **Very large change.** The diff exceeds >=1,000 changed lines regardless of diffusion.
+   - **Plan or task explicitly requests it.** The plan calls for a full / deep / thorough code review.
+
+   **When neither Tier 1 nor Tier 2 is run:** skip a dedicated review step. Phase 2 testing, simplify (when run), lint, and Final Validation still apply.
+
+4. **Residual Work Gate** (REQUIRED when Tier 2 ran)
+
+   After Tier 2 code review, if one or more actionable findings were not fixed, present to the user using the blocking question tool:
+
+   > Code review left N actionable finding(s) not yet fixed. How should the agent proceed?
+
+   Options:
+   - `Apply/fix now` -- apply remaining eligible findings
+   - `Accept and proceed` -- record findings in the PR description's "Known Residuals" section or to `docs/residual-review-findings/<branch>.md`
+   - `Stop -- do not ship` -- abort the shipping workflow
+
+   Skip this gate entirely when only Tier 1 was used or no actionable findings remain.
+
+5. **Final Validation**
+   - All tasks marked completed
+   - Testing addressed -- tests pass and new/changed behavior has corresponding test coverage (or an explicit justification for why tests are not needed)
+   - Linting passes
+   - Code follows existing patterns
+   - No console errors or warnings
+   - If the plan has a `Requirements` section, verify each requirement is satisfied
+   - If any `Deferred to Implementation` questions were noted, confirm they were resolved
+
+#### Phase 4: Ship It
+
+1. **Prepare Evidence Context**
+
+   Note whether the completed work has observable behavior (UI rendering, CLI output, API/library behavior, generated artifacts, or workflow output). The `ce-commit-push-pr` skill will ask about capturing evidence when applicable.
+
+2. **Update Plan Status**
+
+   Update the plan's `status` field from `active` to `completed` in the plan file frontmatter:
+
+   ```
+   status: active  ->  status: completed
+   ```
+
+   If no status field exists in the plan, skip this step.
+
+3. **Commit and Create Pull Request**
+
+   Load the `ce-commit-push-pr` skill (or `ce-commit` if no PR is needed) to handle committing, pushing, and PR creation.
+
+   When providing context for the PR description, include:
+   - The plan's summary and key decisions
+   - Testing notes (tests added/modified, manual testing performed)
+   - Any "Known Residuals" accepted in the Residual Work Gate
+
+4. **Notify User**
+   - Summarize what was completed
+   - Link to PR (if one was created)
+   - Note any follow-up work needed
+   - Suggest next steps if applicable
 
 ## Key Principles
 
@@ -208,4 +385,5 @@ When all Phase 2 tasks are complete and execution transitions to quality check, 
 - **Testing at the end** - Test continuously or suffer later
 - **Forgetting to track progress** - Update task status as you go or lose track of what's done
 - **80% done syndrome** - Finish the feature, don't move on early
-- **Skipping review without reason** -- Use Tier 1 when available; escalate to Tier 2 only on criteria in `references/shipping-workflow.md`; document when both are skipped
+- **Skipping review without reason** -- Use Tier 1 when available; escalate to Tier 2 only on criteria above; document when both are skipped
+- **Re-scoping the plan into human-time phases** - The plan's Implementation Units define the scope of execution. Do not estimate human-hours per unit, propose multi-day breakdowns, or ask the user to pick a subset of units for "this session". Agents execute at agent speed, and context-window pressure is addressed by subagent dispatch (Phase 1 Step 4), not by phased sessions.
