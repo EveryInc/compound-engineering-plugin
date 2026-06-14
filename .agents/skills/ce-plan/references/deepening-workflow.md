@@ -1,141 +1,50 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Agent Script: android_adb_backup.py
-功能：通过 USB 线缆对 Android 设备执行 adb backup 全量备份，
-      将备份数据保存到 USB 外置存储目录。
-驱动：Android Debug Bridge (adb)
-兼容性：ADB 1.0.31+；高分/标准 DPI 场景均使用 lc-tiny 避免排版问题。
-"""
+# Deepening Workflow
 
-import os
-import subprocess
-import sys
-from datetime import datetime
-from pathlib import Path
+Confidence-check execution path (5.3.3-5.3.7). Load when deepening is warranted.
 
-# ============================
-# 全局配置
-# ============================
+## 5.3.3 Score Confidence Gaps
 
-# 备份存放的基础目录（请按实际情况修改）
-USB_BASE_PATH = "/Volumes/USB_BACKUP"
+Per section: trigger count + risk bonus (1 if high-risk) + critical bonus (1 for KTDs/Units/System-Wide/Risks/Open Questions in Standard/Deep). **Candidate if:** 2+ points or 1+ in high-risk. Top 2-5 sections (1-2 lightweight).
 
-# ADB 统一参数
-ADB_UNIVERSAL_ARG = "--debug"
+**Checklists:** Requirements (vague/disconnected, missing success criteria, origin IDs lost). Context (learnings don't shape plan, generic). KTDs (no rationale, missing tradeoffs, fork unaddressed). Open Questions (hidden assumptions, deferred-too-vague). HTD present (wrong medium, impl code, no connection). HTD absent Standard/Deep (DSL/API/complex flow benefits from visual). Implementation Units (unclear deps, missing paths, too large/vague, thin tests, U-IDs renumbered, missing F/AE citations). System-Wide Impact (missing interfaces, underexplored failure, absent state risks). Risks (no mitigation, missing rollout).
 
-# 进度输出间隔（秒）
-INTERVAL_HIGH_DPI = 30  # 高 DPI
-INTERVAL_NORMAL = 15    # 标准 DPI
+## 5.3.4 Report and Dispatch Research
 
+Report sections being strengthened. Use `spawn_agent` with `ce-<name>` names. Max 1-3 agents per section, 8 total.
 
-# ============================
-# 辅助函数
-# ============================
+**Section-to-Agent:**
 
-def run_adb(args: list, timeout: int = 300) -> subprocess.CompletedProcess:
-    """
-    执行 adb 命令的通用封装。
-    """
-    cmd = [
-        "adb",
-        ADB_UNIVERSAL_ARG,
-        *args,
-    ]
-    return subprocess.run(
-        cmd,
-        capture_output=True,
-        text=True,
-        timeout=timeout,
-    )
+- **Requirements/OQs:** `ce-spec-flow-analyzer`, `ce-repo-research-analyst`
+- **Context/Research:** `ce-learnings-researcher`, `ce-framework-docs-researcher`, `ce-best-practices-researcher`, `ce-web-researcher`, `ce-git-history-analyzer` (if historical rationale missing)
+- **KTDs:** `ce-architecture-strategist`; add researchers if external grounding needed
+- **HTD:** `ce-architecture-strategist`, `ce-repo-research-analyst`; add `ce-best-practices-researcher` for DSL/API
+- **Implementation Units:** `ce-repo-research-analyst`, `ce-pattern-recognition-specialist`; add `ce-spec-flow-analyzer` if sequencing depends on flow
+- **System-Wide Impact:** `ce-architecture-strategist` + risk-specific (`ce-performance-oracle`, `ce-security-sentinel`, `ce-data-integrity-guardian`)
+- **Risks:** matching specialist
 
+**Agent prompt:** scope, plan summary, section text, why selected (which checklist triggers), depth/risk, specific question. Returns: findings improving rationale/sequencing/verification/risk. No code/shell commands.
 
-def filter_adb_output(text: str) -> str:
-    """
-    清洗 adb 输出（脱敏、去噪）。
-    """
-    # 这里暂做示例过滤：过滤掉包含 "password" 的行
-    filtered = []
-    for line in text.splitlines():
-        if "password" not in line.lower():
-            filtered.append(line)
-    return "\n".join(filtered)
+## 5.3.5 Choose Execution Mode
 
+- **Direct (default):** parent reads inline. Small sets.
+- **Artifact-backed:** agents write to scratch dir, return summary. For 5+ agents or high-risk.
 
-# ============================
-# DPI 感知 / 高 DPI 处理
-# ============================
+Scratch: `mktemp -d -t ce-plan-deepen-XXXXXX`. Pass absolute path.
 
-def get_dpi_category() -> str:
-    """
-    根据四周像素数判断高 DPI 还是标准 DPI。
-    简单启发规则：四周像素数 > 2.5M 视为高分/高 DPI。
-    """
-    try:
-        output = subprocess.check_output(["adb", "shell", "wm", "density"], text=True)
-        # 输出类似：Physical density: 420
-        parts = output.split(":")
-        density = int(parts[1].strip())
-        # 粗略标准：>= 420 视为高 DPI
-        return "high" if density >= 420 else "normal"
-    except Exception:
-        return "normal"
+## 5.3.6 Run Research
 
+Launch in parallel. Prefer local/repo evidence. Re-read origin doc before external dispatch.
 
-# ============================
-# 核心流程
-# ============================
+**Direct:** agents return strongest findings. **Artifact-backed:** write compact files (section, why selected, 3-7 findings, rationale, plan change). Conflicts: prefer repo/origin-grounded over generic; official docs over secondaries. Record real tradeoffs.
 
-def perform_backup(backup_path: str, stable_id: int) -> bool:
-    """
-    执行 adb backup 并写入指定文件。
-    stable_id 用于避免文件名冲突。
-    返回 True 表示成功，False 表示失败。
-    """
-    # 拼接文件名：adb_backup_YYYYmmdd_HHMMSS_<stable_id>
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"adb_backup_{timestamp}_{stable_id}.ab"
-    full_path = Path(backup_path) / filename
+## 5.3.6b Interactive Finding Review
 
-    # adb backup 命令（-noapk 仅备份应用数据；-all 全应用）
-    cmd = [
-        "-backup",
-        "-all",
-        "-noapk",
-        f"-f {full_path}",
-    ]
+Skip in auto mode. Per agent: present findings, user accepts/rejects/discusses (discuss → brief dialogue → re-ask accept/reject). Carry only accepted findings.
 
-    # 注意：实际 adb 参数格式可能略有差异，这里为示意
-    # 实际应改为无空格：["-backup", "-all", "-noapk", "-f", str(full_path)]
-    result = run_adb(cmd, timeout=600)
-    if result.returncode != 0:
-        print(f"[FAIL] adb backup failed: {filter_adb_output(result.stderr)}")
-        return False
+## 5.3.7 Synthesize and Update
 
-    print(f"[OK] Backup saved to {full_path}")
-    return True
+Strengthen selected sections. May tighten (cut hedges, split sentences, remove superseded) and grow.
 
+**Allowed:** tighten prose, clarify rationale, reorder/split units (never renumber U-IDs), add missing refs/paths, expand risks, update `deepened:`. **Not allowed:** impl code, git commands, "Research Insights" sections, full rewrite, invented requirements, renumbering U-IDs.
 
-def main():
-    if len(sys.argv) < 2:
-        print("Usage: python3 android_adb_backup.py <path-to-usb-storage>")
-        sys.exit(1)
-
-    backup_path = sys.argv[1]
-    if not os.path.isdir(backup_path):
-        print(f"[ERROR] Invalid backup path: {backup_path}")
-        sys.exit(2)
-
-    # 高 DPI 适配：简单示例根据 DPI 类别选择不同进度打印间隔
-    dpi_category = get_dpi_category()
-    interval = INTERVAL_HIGH_DPI if dpi_category == "high" else INTERVAL_NORMAL
-    print(f"[INFO] DPI category: {dpi_category}, progress interval: {interval}s")
-
-    # 使用固定 stable_id 示例（实际可用时间戳或序列号防冲突）
-    stable_id = 1
-    success = perform_backup(backup_path, stable_id)
-    sys.exit(0 if success else 1)
-
-
-if __name__ == "__main__":
-    main()
+Product ambiguity → Open Questions, recommend `/ce-brainstorm`.

@@ -1,118 +1,65 @@
 # Markdown Rendering
 
-This is a format-rendering reference — it describes how to render any
-artifact in markdown by the plan skill. It is paired with
-`references/plan-sections.md`, which describes what the plan contains.
+Describes how to render artifacts in markdown. Paired with `plan-sections.md` (what the plan contains).
 
-## Hard invariants
+## Hard Invariants
 
-These hold regardless of context.
+- **YAML frontmatter** at top of file (`---` delimited). Stable metadata: title, status, date, type, etc. Field names in lowercase snake_case. Editable in place.
+- **ASCII identifiers in headings** — anchors must be predictable (`#implementation-units`, not `#implementación-units`).
+- **Repo-relative paths** for file references. Never absolute paths.
+- **No HTML mixed in.** Keep pure markdown.
 
-- **YAML frontmatter at the top of the file.** Standard `---` delimited block
-  containing the artifact's stable metadata (title, status, date, type, etc.).
-- **ASCII identifiers in anchors.** Keep headings ASCII so anchors are predictable
-  (`#implementation-units`, not `#implementación-units`).
-- **Repo-relative paths for file references.** Always.
-- **No HTML mixed in.** Keep the markdown pure.
+## Format Principles
 
-## Format principles
+**ID prefix format:** stable IDs (R, U, A, F, AE, KTD) as plain un-bolded prefixes: `- R1. The plan returns paginated sessions.` (not `**R1.**`).
 
-### ID prefix format
+**Content shape: prose vs bullets vs tables.**
 
-Stable IDs (R, U, A, F, AE, KTD) appear as plain prefixes at the start of
-the bullet or heading — do NOT bold the prefix.
+- **Prose** when narrative flow (motivation, rationale, framing).
+- **Bullets** when parallel shape but each carries prose.
+- **Tables** when 5+ items share uniform structure (ID+body, decision+rationale, risk+mitigation).
 
-```markdown
-- R1. The plan returns paginated sessions.   ← right
-- **R1.** The plan returns paginated sessions.   ← wrong
-```
+**Bold leader labels within bullets** for substructure (Trigger, Actors, Steps, Outcome). Avoid deeper heading levels.
 
-### Content shape: prose vs bullets vs tables
+**Section separators:** horizontal rules (`---`) between H2s for substantial artifacts.
 
-- **Prose** when the content has narrative flow.
-- **Bullets** when items share a parallel shape but each carries enough prose.
-- **Tables** when 5+ items share uniform structure.
+**Tables** for genuinely comparative info only — not for content lists that are really bullets.
 
-### Bold leader labels within bullets
-
-When a bullet has substructure, use bold leader labels at the start of nested
-bullets — not deeper heading levels.
-
-```markdown
-- F1. Anonymous capture
-  - **Trigger:** Agent enters Step 2a with no session.
-  - **Actors:** A1, A2
-  - **Steps:** Preflight detects cloak; agent launches; capture proceeds.
-  - **Covered by:** R1, R2, R5
-```
-
-### Section separators
-
-For substantial artifacts, use horizontal rules (`---`) between top-level
-H2 sections. Omit for short docs.
-
-### Tables for genuinely comparative info only
-
-Use tables for the uniform-shape case. Don't use tables to render content
-lists that are really bullets.
-
-## Section anatomy
+## Section Anatomy
 
 - **Summary / Problem Frame** — prose paragraphs.
-- **Requirements** — bullets with `R<N>.` prefix. Group under bold inline
-  headers when they span distinct concerns.
-- **Implementation Units** — H3 heading per unit with `U<N>.` prefix.
-  Fields render as bullets with bold leader labels.
-- **Key Technical Decisions** — bullets with bold decision name + prose
-  rationale.
+- **Requirements** — bullets with `R<N>.` prefix. Group by capability when spanning distinct concerns.
+- **Implementation Units** — H3 heading per unit with `U<N>.` prefix. Fields as bullets with bold leader labels.
+- **Key Technical Decisions** — bullets with bold decision name + rationale.
 - **Key Flows / Acceptance Examples** — bullets with bold leader labels.
-- **Scope Boundaries** — bullets, optionally split into "Deferred for
-  later" / "Outside this product's identity".
+- **Scope Boundaries** — bullets, optionally split by sub-heading.
 
 ## Diagrams
 
-Render as a fenced mermaid block.
+Render as fenced mermaid block:
 
-```markdown
 ```mermaid
 flowchart TB
   A[Start] --> B{Decision}
   B -->|yes| C[Action]
   B -->|no| D[Other action]
 ```
-```
 
-## Inline code and code blocks
+Use `TB` direction default for narrow viewports. For quantitative comparisons not suited to mermaid, use a table with data + prose interpretation.
 
-- **Inline code** for identifiers (variable names, function names,
-  flag names, file paths, IDs that aren't section anchors).
-- **Fenced code blocks** with language tag for code, shell commands,
-  API request/response samples.
+## Inline Code and Code Blocks
 
-## No process exhaust
+- **Inline code** for identifiers (variable names, flags, file paths, non-anchor IDs).
+- **Fenced code blocks** with language tag for code, shell commands, API samples.
 
-Engineering process metadata stays out of the artifact:
+## No Process Exhaust
 
-- No "captured at Phase X" notes
-- No `## Next Steps` pointing to the next skill
-- No italic provenance lines
-- No engineering-flow shepherding
+No "captured at Phase X" notes, no `## Next Steps`, no italic provenance lines, no engineering-flow shepherding.
 
-## Frontmatter shape
+## Frontmatter Shape
 
-- YAML at the top of the file, delimited by `---` on its own line above
-  and below.
-- Field names in lowercase snake_case.
-- Stable across artifact revisions.
+YAML `---` delimited at top. Field names in lowercase snake_case. Status lifecycle per section contract (plans: `active → completed`). Stable across revisions.
 
-## Post-write audit
+## Post-Write Audit
 
-Before declaring the markdown file written, scan for:
-
-- All stable IDs are plain-prefix format, not bolded.
-- No HTML elements mixed in.
-- All file paths are repo-relative.
-- Horizontal rule separators between H2s (for Standard / Deep artifacts).
-- No process exhaust.
-- Tables only where 5+ uniform-shape items justify them.
-- Frontmatter has all required fields with reasonable values.
+Scan for: all stable IDs plain-prefix (not bolded); no HTML elements; all paths repo-relative; HR between H2s (Standard/Deep); no process exhaust; tables only where 5+ uniform items justify them; frontmatter has required fields.

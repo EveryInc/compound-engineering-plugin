@@ -1,87 +1,111 @@
 # Scoping Synthesis
 
-Surfaces scope/decisions before plan-write. Two variants:
-- **Solo** (Phase 0.7): fires after bootstrap, before research.
-- **Brainstorm-sourced** (Phase 5.1.5): fires after research, before plan-write.
+Scoping synthesis ≠ plan doc. It is the scope/decisions checkpoint consumed by plan-write (Phase 5.2). Two-stage shape: internal draft, then chat-time synthesis. Two variants share structure but differ in timing and content focus:
 
-## Stage 1: internal three-bucket draft
+- **Solo variant (Phase 0.7):** after bootstrap, before research. Full breadth — problem frame, intended behavior, in/out scope.
+- **Brainstorm-sourced variant (Phase 5.1.5):** after research, before plan-write. Plan-time decisions only (files/modules, patterns, test/refactor scope).
 
-- **Stated** — user said directly (in prompt, dialogue, or upstream doc).
+## Stage 1: Internal Three-Bucket Draft
+
+- **Stated** — what user said directly. Explicit anchors.
 - **Inferred** — agent's bets to fill gaps. Most actionable bucket.
 - **Out of scope** — deliberately excluded items.
 
-This draft is internal. Compress to stage 2 for chat output.
+This draft is internal. Compose as thinking step. Do not paste verbatim into chat.
 
-## Stage 2: chat-time scoping synthesis
+## Stage 2: Chat-Time Scoping Synthesis
 
-### Brainstorm-sourced shape
-1. **Restatement** (1-2 sentences): brainstorm's scope in its own vocabulary. Do NOT enumerate Implementation Units or constraints.
-2. **Plan-specific decisions** (prose or bullets): coverage scope, test scope, adjacent refactors in/out. Each item must pass **affirmability test** — user can affirm/redirect without reading code.
-3. **Call outs** (zero or more): real forks where user input materially changes the plan. Cap by plan depth: Lightweight 3, Standard 4, Deep 6.
+### Brainstorm-Sourced Shape
 
-### Solo shape
-1. **Scope claim** (prose or bullets): what will be planned, what will not.
-2. **Call outs**: same rules as above.
+1. **Brainstorm-scope restatement** (1-2 sentences). In brainstorm's own vocabulary. Do NOT enumerate Implementation Units.
+2. **Plan-specific scoping decisions** (prose/bullets). Scope commitments brainstorm didn't make: coverage, test scope, adjacent refactors. Each must pass affirmability test.
+3. **Call outs** (zero or more, capped). Forks where user input materially changes the plan.
 
-### Shape budgets (ceilings, not targets)
+### Solo Shape
 
-| Depth | Restatement | Decisions/Claim |
-|---|---|---|
-| Lightweight | 1 sentence | 1-3 lines |
-| Standard | 1-2 sentences | up to 3-5 lines or 2-4 bullets |
-| Deep | 1-2 sentences | up to 4-6 lines or 3-6 bullets |
+1. **Scope claim** (prose/bullets). What will be planned, what won't. NOT an enumeration of Implementation Units.
+2. **Call outs** — same rules.
 
-## The keep test for each call-out
+### Shape Budgets (ceilings, not targets)
 
-Before keeping a candidate:
-1. Would the user need to read code to evaluate it? If yes → cut (plan-body content).
-2. Does it survive one of: real fork, non-obvious behavioral choice, non-obvious exclusion, cheap-now-expensive-later correction? If no → cut.
+| Depth       | Restatement   | Decisions/Claim                |
+| ----------- | ------------- | ------------------------------ |
+| Lightweight | 1 sentence    | 1-3 lines                      |
+| Standard    | 1-2 sentences | up to 3-5 lines or 2-4 bullets |
+| Deep        | 1-2 sentences | up to 4-6 lines or 3-6 bullets |
 
-Cut mechanical items ("no new dependencies"), implementation choices settled during work, and items already implied by the summary.
+### Shared Rules
 
-## The detail test
+- No "Stated" or "Out of scope" buckets in chat — fold into scope claim or call-outs.
+- Source-document vocabulary. Never use bare IDs in chat — name in plain terms.
+- Pre-emit: scan for bare IDs (`R\d+`, `F\d+`, etc.) → replace. Cut file paths unless they ARE the fork topic.
 
-Every surviving call-out or summary bullet: **1-2 lines max**. If it runs to 4+ lines, re-cut at higher abstraction. Collapse related sub-decisions into one decision.
+## The Keep Test for Each Call-Out
 
-## Anti-patterns in call-outs
+Before keeping: **affirmability test** — would user need to read code to evaluate? If yes, cut (plan-body content).
 
-Call-out fails affirmability test if it:
-- Names a file path or module
-- Names a flag, env var, or exact value
+Survives only if one of:
+
+- **Real fork:** another agent might choose differently.
+- **Non-obvious behavioral choice:** default user wouldn't infer from summary.
+- **Non-obvious exclusion:** deliberately excluded item user might add back.
+- **Cheap-now-expensive-later correction:** bet well-placed to redirect now.
+
+Cut mechanical items, impl choices settled during work, items implied by summary.
+
+## The Detail Test
+
+Every surviving call-out or summary bullet: **1-2 lines max**. If running to 4+ lines, re-cut at higher abstraction. Collapse related sub-decisions into one.
+
+## Call-Out Caps
+
+| Depth       | Typical | Cap |
+| ----------- | ------- | --- |
+| Lightweight | 0-2     | 3   |
+| Standard    | 1-3     | 4   |
+| Deep        | 2-5     | 6   |
+
+If exceeding cap or any item runs 4+ lines, re-cut — do not raise cap. Collapse sub-decisions of one fork.
+
+## Anti-Patterns in Call-Outs
+
+Fails affirmability test if it:
+
+- Names file path or module
+- Names flag, env var, or exact value
 - Specifies JSON shape or response format
 - Names HTTP status codes or exact error wording
 - Describes implementation flow ("first X, then Y")
 - Names exact method signatures or SQL syntax
 
-## Auto-proceed vs confirmation
+## Auto-Proceed vs Confirmation
 
-- **Auto-proceed**: Lightweight depth AND zero call-outs survive. Emit one-line announcement and continue.
-- **Confirmation gate**: Standard/Depth regardless of call-out count, OR any tier with 1+ call-outs. Fire confirmation template; wait for explicit "Confirm" before proceeding.
+- **Auto-proceed:** Lightweight depth AND zero call-outs. Emit one-line announcement and continue.
+- **Confirmation gate:** Standard/Depth regardless of call-out count, OR any tier with 1+ call-outs. Fire confirmation; wait for explicit "Confirm" before proceeding.
 
-## Soft-cut on circularity
+## Soft-Cut on Circularity
 
-Track which call-outs the user touched per round. Fire blocking question only when **the same call-out is revised twice** (identity by decision dimension, not surface wording).
+Track which call-outs the user touched per round. Fire blocking question only when **same call-out is revised twice** (identity by decision dimension, not surface wording).
 
-Options:
-- Proceed and continue to [research / plan-write]
-- Hold off — keep discussing
+Options: proceed, or hold off. Never silently skip.
 
-## Headless mode (non-interactive)
+## Headless Mode (Non-Interactive)
 
-Compose internal draft, skip stage 2 entirely. Route content directly:
+Compose internal draft, skip stage 2. Route content:
+
 - **Stated** → Requirements
 - **Inferred** → `## Assumptions` section (explicitly labeled as un-validated bets)
 - **Out of scope** → Scope Boundaries
 
 No user prompt, no call-outs, no auto-proceed announcement.
 
-## Self-redirect
+## Self-Redirect
 
-If user indicates wrong skill or different workflow, stop ce-plan and suggest the alternative (e.g., `/ce-brainstorm`, `/ce-work`, `/ce-debug`). Do not push back.
+If user indicates wrong skill, stop ce-plan and suggest alternative (`/ce-brainstorm`, `/ce-work`, `/ce-debug`). Do not push back.
 
-## What does NOT belong in the synthesis
+## What Does NOT Belong
 
 - Implementation code, file paths, exact method signatures
-- Re-statement of the entire upstream doc
-- Numerical attestation ("all nine requirements covered") — cut counts, keep scope claims
+- Restatement of entire upstream doc
+- Numerical attestation ("all nine requirements covered") — cut counts, keep claims
 - Floating questions adjacent to stage 2 — resolve before presenting

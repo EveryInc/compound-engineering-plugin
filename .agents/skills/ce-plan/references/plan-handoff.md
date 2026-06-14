@@ -1,28 +1,32 @@
 # Plan Handoff
 
-Post-plan-writing instructions: final checks and options.
+Post-plan-writing instructions: final checks and post-generation options. Load after plan file is written.
 
 ## 5.3.9 Final Checks
 
 Before completing:
-- Confirm the plan is stronger, not merely longer
-- Confirm the planning boundary is intact
-- Confirm origin decisions are preserved (when origin exists)
+
+- Plan is stronger in specific ways, not merely longer
+- Planning boundary is intact
+- Origin decisions are preserved (when origin exists)
+- Artifact-backed scratch dir is cleaned up if used
 
 ## 5.4 Post-Generation Options
 
-**Summary line:** `Plan written to <absolute path>. What would you like to do next?`
+**Summary line:** `Plan written to <absolute-path>. What would you like to do next?`
 
 **Options:**
-1. **Start `/ce-work`** - Begin implementing this plan in the current session
-2. **Open in browser** - Open the markdown plan file locally for review
-3. **Create Issue** - Create a tracked issue from this plan
-4. **Done for now** - Pause; plan saved for later
+
+1. **Start `/ce-work`** (recommended) — Begin implementing in the current session. Use `spawn_agent` on `ce-work` skill with plan path as argument. Do not merely tell the user to type `/ce-work` — fire the invocation now.
+
+2. **Open in browser** — Display the absolute path to the markdown plan file. Use `open <path>` on macOS if available, otherwise print the absolute path for the user.
+
+3. **Done for now** — End the turn. Plan file is saved and can be resumed later. No follow-up work without explicit user prompt.
 
 **Routing:**
-- **Start `/ce-work`** - Invoke `Skill ce-work` with the plan path
-- **Open in browser** - Display absolute path to the `.md` plan file
-- **Create Issue** - Detect tracker from `AGENTS.md`, then run appropriate CLI command
-- **Done for now** - End session, plan saved
 
-**Note:** Issue/Proof/HITL flows are Claude Code ecosystem features. The Zed version keeps only the core options (ce-work, browser, done) to stay focused on the planning output.
+- **Start `/ce-work`** → `spawn_agent` invoking `ce-work` skill with plan path
+- **Open in browser** → `open` command or print absolute path
+- **Done for now** → End session
+
+**Path format:** Use absolute paths for chat output — relative paths are not auto-linked in most terminals.
