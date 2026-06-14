@@ -1,7 +1,7 @@
 ---
 title: feat: Synchronize .agents/skills/ce-plan with plugins source
 type: feat
-status: active
+status: completed
 date: 2026-06-14
 ---
 
