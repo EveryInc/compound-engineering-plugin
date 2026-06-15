@@ -168,6 +168,47 @@ describe("loadClaudePlugin", () => {
     )
   })
 
+  test("warns when a manifest-declared component path is missing on disk", async () => {
+    const root = await makeMinimalPluginRoot()
+    await fs.writeFile(
+      path.join(root, ".claude-plugin", "plugin.json"),
+      JSON.stringify({ name: "test-plugin", version: "1.0.0", commands: "custom/commands" }, null, 2),
+    )
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (message?: unknown) => {
+      warnings.push(String(message))
+    }
+    try {
+      await loadClaudePlugin(root)
+    } finally {
+      console.warn = originalWarn
+    }
+
+    expect(warnings).toContainEqual(
+      expect.stringContaining('manifest declares commands path "custom/commands" but nothing exists'),
+    )
+  })
+
+  test("does not warn when default component directories are absent", async () => {
+    const root = await makeMinimalPluginRoot()
+    await fs.rm(path.join(root, "agents"), { recursive: true, force: true })
+
+    const warnings: string[] = []
+    const originalWarn = console.warn
+    console.warn = (message?: unknown) => {
+      warnings.push(String(message))
+    }
+    try {
+      await loadClaudePlugin(root)
+    } finally {
+      console.warn = originalWarn
+    }
+
+    expect(warnings).toHaveLength(0)
+  })
+
   test("loads .agent.md files with explicit frontmatter names", async () => {
     const root = await makeMinimalPluginRoot()
     await fs.writeFile(

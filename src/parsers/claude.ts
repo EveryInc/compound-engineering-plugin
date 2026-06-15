@@ -18,8 +18,7 @@ export async function loadClaudePlugin(inputPath: string): Promise<ClaudePlugin>
   const manifestPath = path.join(root, PLUGIN_MANIFEST)
   const manifest = await readJson<ClaudeManifest>(manifestPath)
 
-  // New Feature: Validate that the manifest components actually exist on disk
-  await validatePluginStructure(root, manifest)
+  await warnOnMissingDeclaredComponents(root, manifest)
 
   const agents = await loadAgents(resolveComponentDirs(root, "agents", manifest.agents))
   const commands = await loadCommands(resolveComponentDirs(root, "commands", manifest.commands))
@@ -40,26 +39,31 @@ export async function loadClaudePlugin(inputPath: string): Promise<ClaudePlugin>
 }
 
 /**
- * New Helper: Validates that directories declared in the manifest exist.
- * Logs a warning for missing components to assist in debugging.
+ * Warn when a component path explicitly declared in the manifest is missing on disk.
+ *
+ * Default component directories (`agents/`, `commands/`, `skills/`) are optional by
+ * design -- a plugin may legitimately ship only some component types, and missing
+ * defaults are skipped silently when collecting files. Only the custom paths an
+ * author opts into are validated here, since a typo there otherwise loads nothing
+ * with no feedback. Paths are resolved the same way the loader resolves them, so an
+ * out-of-root entry surfaces the existing "must stay within the plugin root" error
+ * rather than a warning.
  */
-async function validatePluginStructure(root: string, manifest: ClaudeManifest): Promise<void> {
-  const componentsToCheck: Array<{ name: string; declared: any }> = [
-    { name: "agents", declared: manifest.agents },
-    { name: "commands", declared: manifest.commands },
-    { name: "skills", declared: manifest.skills },
+async function warnOnMissingDeclaredComponents(root: string, manifest: ClaudeManifest): Promise<void> {
+  const declaredComponents: Array<{ name: string; paths: string | string[] | undefined }> = [
+    { name: "agents", paths: manifest.agents },
+    { name: "commands", paths: manifest.commands },
+    { name: "skills", paths: manifest.skills },
   ]
 
-  for (const { name, declared } of componentsToCheck) {
-    if (declared) {
-      const dirPath = path.join(root, name)
-      const exists = await pathExists(dirPath)
-      if (!exists) {
-        console.warn(`[Claude Plugin Warning]: "${name}" is defined in manifest but directory missing at: ${dirPath}`)
+  for (const { name, paths } of declaredComponents) {
+    for (const entry of toPathList(paths)) {
+      const resolved = resolveWithinRoot(root, entry, `${name} path`)
+      if (!(await pathExists(resolved))) {
+        console.warn(`Warning: manifest declares ${name} path "${entry}" but nothing exists at ${resolved}.`)
       }
     }
   }
-}
 }
 
 async function resolveClaudeRoot(inputPath: string): Promise<string> {
