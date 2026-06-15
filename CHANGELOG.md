@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.13.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.12.0...cli-v3.13.0) (2026-06-15)
+
+
+### Features
+
+* **ce-code-review:** add thematic triage grouping ([#845](https://github.com/EveryInc/compound-engineering-plugin/issues/845)) ([8092abe](https://github.com/EveryInc/compound-engineering-plugin/commit/8092abead5ab04355f55fb5ccddedfffd28c8901))
+* **ce-ideate:** improve for Fable model ([#924](https://github.com/EveryInc/compound-engineering-plugin/issues/924)) ([622fbfa](https://github.com/EveryInc/compound-engineering-plugin/commit/622fbfa60de346101e3177af243c79430b189a42))
+
+
+### Bug Fixes
+
+* **ce-compound:** guard validate-frontmatter.py on non-Claude platforms ([#947](https://github.com/EveryInc/compound-engineering-plugin/issues/947)) ([5e6ecca](https://github.com/EveryInc/compound-engineering-plugin/commit/5e6eccabb10e46fb2c149d06f82c4f46299e44b5))
+* **ce-worktree:** replace bundled-script creator with a portable isolation guardrail ([#948](https://github.com/EveryInc/compound-engineering-plugin/issues/948)) ([3437de3](https://github.com/EveryInc/compound-engineering-plugin/commit/3437de3049ea975bceec2688940d696e16cc5f87))
+* **config-read:** read config via native tool, not $() pre-resolution ([#942](https://github.com/EveryInc/compound-engineering-plugin/issues/942)) ([0757e85](https://github.com/EveryInc/compound-engineering-plugin/commit/0757e859d21e860a1fc0424bfcbbb35a1e597771))
+* **release:** bump marketplace catalogs for coding-tutor removal ([#951](https://github.com/EveryInc/compound-engineering-plugin/issues/951)) ([d4cb8ee](https://github.com/EveryInc/compound-engineering-plugin/commit/d4cb8eec0db5dc279f1671d3c362022c7617f615))
+* **skills:** enforce content conventions in CI and fix violations ([#930](https://github.com/EveryInc/compound-engineering-plugin/issues/930)) ([c8e7d90](https://github.com/EveryInc/compound-engineering-plugin/commit/c8e7d908fa7e230dc8723639ea48498e3e499f3c))
+
 ## [3.12.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.11.2...cli-v3.12.0) (2026-06-09)
 
 
