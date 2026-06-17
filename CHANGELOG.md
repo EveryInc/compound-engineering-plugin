@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.13.1](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.13.0...cli-v3.13.1) (2026-06-17)
+
+
+### Bug Fixes
+
+* **proof:** replace HITL review loop with one-way publish ([#957](https://github.com/EveryInc/compound-engineering-plugin/issues/957)) ([68dd787](https://github.com/EveryInc/compound-engineering-plugin/commit/68dd787f98c734f57f6e40f1e8a6e29cb8584719))
+
 ## [3.13.0](https://github.com/EveryInc/compound-engineering-plugin/compare/cli-v3.12.0...cli-v3.13.0) (2026-06-15)
 
 

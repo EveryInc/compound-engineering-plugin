@@ -9,6 +9,14 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [3.13.1](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.13.0...compound-engineering-v3.13.1) (2026-06-17)
+
+
+### Bug Fixes
+
+* **lfg:** run ce-simplify-code before review; clarify report-only contract ([#952](https://github.com/EveryInc/compound-engineering-plugin/issues/952)) ([d8d688b](https://github.com/EveryInc/compound-engineering-plugin/commit/d8d688b30d97eb5efc3142cec16dd8314ac48e47))
+* **proof:** replace HITL review loop with one-way publish ([#957](https://github.com/EveryInc/compound-engineering-plugin/issues/957)) ([68dd787](https://github.com/EveryInc/compound-engineering-plugin/commit/68dd787f98c734f57f6e40f1e8a6e29cb8584719))
+
 ## [3.13.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v3.12.0...compound-engineering-v3.13.0) (2026-06-15)
 
 
