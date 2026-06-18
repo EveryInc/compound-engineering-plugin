@@ -88,7 +88,9 @@ def handle_codex(obj):
                 stats["errors_found"] += 1
 
 
-# Auto-detect platform from first few lines, then process all
+# Auto-detect platform, then process all lines. Current Claude Code sessions
+# can front-load more than ten metadata records before the first message, so
+# scan until a decisive record appears instead of capping detection early.
 detected = None
 buffer = []
 
@@ -99,7 +101,7 @@ for line in sys.stdin:
     buffer.append(line)
     stats["lines"] += 1
 
-    if not detected and len(buffer) <= 10:
+    if not detected:
         try:
             obj = json.loads(line)
             if obj.get("type") in ("user", "assistant"):
