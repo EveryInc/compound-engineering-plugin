@@ -23,6 +23,16 @@ These hold regardless of which skill produced the artifact.
 - **No HTML mixed in.** Keep the markdown pure. No `<div>`, no `<details>`,
   no inline `<style>`. If a layout idea only works as HTML, defer it to the
   HTML rendering. Markdown stays markdown.
+- **Unified plan sections use stable headings.** For unified plan artifacts,
+  render the required sections with exact ASCII headings so agents can find
+  them by heading scan: `## Goal Launch Block`, `## Reader Index`,
+  `## Goal Capsule`, `## Product Contract`, `## Planning Contract`,
+  `## Implementation Units`, `## Verification Contract`, `## Definition of
+  Done`, and optional `## Appendix`. Requirements-only artifacts omit the
+  plan-only sections rather than emitting empty placeholders.
+- **Reader sections are top-loaded.** When present, Goal Launch Block, Reader
+  Index, and Goal Capsule appear before Product Contract and long appendices.
+  They are for routing and completion discipline, not a hidden machine copy.
 
 ## Format principles
 
@@ -96,6 +106,19 @@ are noisier in raw form and worse for diffs.
 How section types commonly render in markdown. These are patterns, not
 contracts — the agent picks the shape that fits the content.
 
+- **Goal Launch Block** — fenced `text` block containing the launch prompt,
+  followed by short prose naming when it applies. Keep it thin; reference the
+  plan sections that hold authority instead of duplicating them.
+- **Reader Index** — compact table with section name, heading, and when to
+  read it. Keep it extractable and short.
+- **Goal Capsule** — bullets or a small table for objective, authority,
+  execution profile, stop conditions, and tail ownership.
+- **Product Contract** — H2 section containing Summary, Problem Frame,
+  Requirements, and product-scope subsections. Put Requirements under
+  `### Requirements` so review tools can distinguish Product Requirements
+  from implementation detail.
+- **Planning Contract** — H2 section for KTDs, high-level technical design,
+  assumptions, and sequencing.
 - **Summary / Problem Frame** — prose paragraphs.
 - **Requirements** — bullets with `R<N>.` prefix. When requirements span
   more than one concern, grouping under bold inline headers is the default
@@ -107,6 +130,10 @@ contracts — the agent picks the shape that fits the content.
   Fields (Goal, Files, Patterns, Test Scenarios, Verification) render as
   bullets with bold leader labels, or as sub-headings if the field has
   multi-paragraph content.
+- **Verification Contract / Definition of Done** — use tables when commands,
+  applicability, unit IDs, and done signals share a uniform shape. Name
+  concrete repo commands such as `bun test` rather than generic "run tests"
+  when the repo has known commands.
 - **Key Technical Decisions** — bullets with bold decision name + prose
   rationale, or numbered KTD-N pattern when traceability matters.
 - **Key Flows / Acceptance Examples** — bullets with bold leader labels

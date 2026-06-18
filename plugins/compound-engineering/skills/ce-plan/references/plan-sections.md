@@ -19,6 +19,74 @@ A great plan enables three audiences to act:
 
 Sections earn their place by serving one of these audiences. Omit padding.
 
+## Unified plan artifact contract
+
+`ce-plan` writes the canonical compound-engineering plan artifact. The same
+artifact may begin as a requirements-only skeleton from `ce-brainstorm` and
+later be enriched by `ce-plan`; it is still one plan file moving through
+readiness states, not a requirements doc plus a separate implementation doc.
+
+When the artifact is meant to be consumed by implementation agents, use:
+
+- **`artifact_contract: ce-unified-plan/v1`** — declares this contract.
+- **`artifact_readiness`** — document completeness, not work progress. Valid
+  values are:
+  - `requirements-only` — Product Contract exists; planning sections are not
+    complete and the artifact is not executable.
+  - `implementation-ready` — Product Contract, Planning Contract,
+    Implementation Units, Verification Contract, and Definition of Done are
+    complete enough for `ce-work`, `/goal`, or an equivalent executor.
+- **`product_contract_source`** — where the Product Contract came from:
+  `ce-brainstorm`, `ce-plan-bootstrap`, `legacy-requirements`, or another
+  explicit source string when a repo has a specialized producer.
+- **`execution`** — `code` for implementation plans, `knowledge-work` for
+  non-code deliverables. Absence remains legacy-compatible and means `code`
+  only for older plans without `artifact_contract`.
+
+Do **not** use progress-like readiness values such as `active`,
+`in_progress`, `completed`, or `done`. Readiness answers "can the artifact be
+executed?", not "has execution happened?" Plans still carry no `status` field
+and no mutable execution lifecycle.
+
+Do **not** use `artifact_readiness: approach-plan`. Approach-plans,
+answer-seeking outputs, and universal-planning outputs are outside this
+software implementation artifact contract unless they include the full Product
+Contract, Planning Contract, Implementation Units, Verification Contract, and
+Definition of Done required for software execution. Route those artifacts by
+their own shape or by `execution: knowledge-work`, not by adding a third
+unified readiness value.
+
+## Section ID Registry
+
+Unified artifacts use these stable logical sections. Markdown uses the
+heading text; HTML uses matching visible headings and anchor IDs. Downstream
+skills grep or anchor-scan for these names before reading large bodies.
+
+| Logical section | Markdown heading | HTML id | Reader use |
+|---|---|---|---|
+| Goal Launch Block | `## Goal Launch Block` | `goal-launch-block` | Copyable launch prompts and host-specific execution guidance |
+| Reader Index | `## Reader Index` | `reader-index` | Compact map of where to read first and what to skip |
+| Goal Capsule | `## Goal Capsule` | `goal-capsule` | Objective, authority hierarchy, and stop conditions |
+| Product Contract | `## Product Contract` | `product-contract` | Requirements, actors, flows, acceptance examples, product scope |
+| Product Requirements | `### Requirements` under Product Contract | `product-requirements` | Requirement extraction for review and implementation trace |
+| Planning Contract | `## Planning Contract` | `planning-contract` | KTDs, technical design, assumptions, sequencing |
+| Implementation Units | `## Implementation Units` | `implementation-units` | U-ID work packets for execution |
+| Verification Contract | `## Verification Contract` | `verification-contract` | Repo-specific test commands and quality gates |
+| Definition of Done | `## Definition of Done` | `definition-of-done` | Global and per-unit completion criteria |
+| Appendix | `## Appendix` | `appendix` | Long research, raw notes, or supporting detail |
+
+Requirements-only artifacts include the first three sections plus Product
+Contract. They must not point implementers at absent Planning Contract,
+Implementation Units, Verification Contract, or Definition of Done sections.
+Implementation-ready artifacts include the full registry above, except
+Appendix remains optional.
+
+The document exposes the `Reader Index`; consuming skills still own the
+reading algorithm. A downstream skill should locate metadata, the heading map,
+Reader Index, Goal Capsule, Definition of Done, Verification Contract, and the
+active U-ID before deciding whether to read more. Do not rely on the document
+alone to teach that behavior.
+
 ## Decide whether a plan doc is warranted at all
 
 Not every invocation of `ce-plan` should produce a plan document. For
@@ -32,7 +100,7 @@ one was warranted costs the implementer real time (reinvented decisions,
 lost unit boundaries, no IDed requirements to verify against). When unsure,
 write the plan.
 
-**Skip plan creation only when ALL of these hold:**
+**Skip implementation-ready plan creation only when ALL of these hold:**
 
 - The work is **atomic** — fits in one commit, no meaningful unit boundaries
   to break out independently.
@@ -69,25 +137,39 @@ When skipping the plan doc, the work proceeds directly to `ce-work` or to
 implementation, and any decisions made along the way land in the commit
 message or `docs/solutions/` if they're worth carrying forward.
 
-## Hard floor
+## Implementation-ready hard floor
 
-When a plan doc is warranted, these sections are present. They carry the
-contracts downstream consumers depend on.
+When an implementation-ready software plan is warranted, these sections are
+present. They carry the contracts downstream consumers depend on.
 
-- **Summary** — what the plan proposes, in 1-3 lines. Forward-looking; orients
-  the reader before they invest in detail.
-- **Problem Frame** — why the work is being done. Backward-looking /
-  situational. May merge with Summary for compact plans where the motivation
-  is a single sentence.
-- **Requirements** (with stable R-IDs) — what must be true after the work
-  ships. Reviewer's checklist; downstream code review verifies against these.
-- **Key Technical Decisions** (KTDs) — the load-bearing choices that constrain
-  implementation. Each entry is `<decision>: <rationale>`. Without these, the
-  implementer can't tell which design choices are open and which are pinned.
-- **Implementation Units** (with stable U-IDs) — the discrete units of work,
-  sized so each is independently landable. `ce-work` consumes these to
-  execute. For trivial single-step plans the work may collapse into Summary
-  prose and U-IDs may be omitted; this is rare.
+- **Goal Launch Block** — a thin, copyable prompt block for top-level `/goal`,
+  dynamic workflow, or fallback `ce-work` usage. It points to authoritative
+  sections; it does not duplicate the requirements, verification matrix, or
+  implementation details.
+- **Reader Index** — compact section map and read strategy for downstream
+  agents. It tells readers which sections to load for common tasks and which
+  large sections to skip until referenced.
+- **Goal Capsule** — objective, authority hierarchy, stop conditions, execution
+  profile, and tail ownership. This is the fastest way for an executor to
+  avoid drifting from the plan.
+- **Product Contract** — product scope and behavior. Contains Summary, Problem
+  Frame, Requirements with stable R-IDs, and any material Actors, Flows,
+  Acceptance Examples, Success Criteria, Scope Boundaries, Dependencies,
+  Outstanding Questions, and Sources. This replaces the separate requirements
+  artifact in new brainstorm-to-plan flows.
+- **Planning Contract** — the implementation-facing decisions: Key Technical
+  Decisions, high-level design, assumptions, implementation constraints,
+  sequencing, and research that shapes how the Product Contract will be built.
+- **Implementation Units** (with stable U-IDs) — discrete work packets sized so
+  each is independently executable. Each unit names Goal, Requirements,
+  Files, Approach, Test Scenarios, and Verification. `ce-work` and goal-mode
+  executors consume these units.
+- **Verification Contract** — repo-specific commands and quality gates,
+  including which tests prove the plan, when `release:validate` applies, and
+  what behavioral skill evaluation is required. Avoid generic "run tests"
+  language when the repo has concrete commands.
+- **Definition of Done** — global and per-unit done criteria. This is the
+  completion contract for `/goal` or equivalent long-running workflows.
 
 ## Include when material
 

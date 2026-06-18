@@ -22,7 +22,17 @@ This command takes a work document (plan or specification) or a bare prompt desc
 
 Determine how to proceed based on what was provided in `<input_document>`.
 
-**Plan document** (input is a file path to an existing plan or specification): read the plan's metadata first — YAML frontmatter for a markdown plan, or the visible header text for an HTML plan (both formats carry the same fields). If it carries `execution: knowledge-work`, this is a **non-code plan** — read `references/non-code-execution.md` and follow that carve-out instead of the rest of this workflow. Otherwise (the field is absent or `execution: code`) → skip to Phase 1 and run the normal code lifecycle. (The marker check lives here, inside plan-document handling, because detecting the marker requires already having a file; "Bare prompt" below is unaffected.)
+**Plan document** (input is a file path to an existing plan or specification): read the plan's metadata first — YAML frontmatter for a markdown plan, or the visible header text for an HTML plan (both formats carry the same fields).
+
+- If it carries `artifact_contract: ce-unified-plan/v1`, classify `artifact_readiness` before reading the body.
+  - `artifact_readiness: requirements-only` -> stop and tell the user this Product Contract needs `ce-plan` enrichment before implementation. Offer the exact `ce-plan <plan-path>` handoff.
+  - `artifact_readiness: implementation-ready` plus `execution: code` -> continue to Phase 1 using the unified-plan reader strategy below.
+  - Any other readiness value or any non-code/unclassified execution mode -> do not auto-execute as code. Route `execution: knowledge-work` to the non-code carve-out; otherwise ask the user to return to `ce-plan` to produce an implementation-ready code plan.
+  - Progress-like values (`active`, `in_progress`, `completed`, `done`) are invalid readiness values. Stop and ask for plan repair rather than guessing.
+- If it carries `execution: knowledge-work`, this is a **non-code plan** — read `references/non-code-execution.md` and follow that carve-out instead of the rest of this workflow.
+- Otherwise (legacy plan, field absent, or `execution: code`) -> continue to Phase 1 and run the normal code lifecycle.
+
+**Blank invocation latest-plan discovery:** when `<input_document>` is blank, glob `docs/plans/*.md` and `docs/plans/*.html`, inspect metadata for the newest candidates, and only auto-select a plan that is `artifact_readiness: implementation-ready` plus `execution: code` or a legacy code plan. Stop instead of silently executing when the newest matching artifact is requirements-only, `execution: knowledge-work`, an approach-plan, or an unclassified universal/answer-seeking output. Ask for an explicit path or a `ce-plan` enrichment step.
 
 **Bare prompt** (input is a description of work, not a file path):
 
@@ -46,8 +56,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
 1. **Read Plan and Clarify** _(skip if arriving from Phase 0 with a bare prompt)_
 
-   - Read the work document completely. Plans may be markdown (`.md`) or HTML (`.html`) — both formats are read as text linearly. HTML plans carry the same section names and IDs as markdown plans, just wrapped in semantic HTML elements (`<section>`, `<article>`, etc.); section-finding works the same way (substring match on section names, ignoring HTML wrapper noise).
-   - When auto-detecting the latest plan (blank invocation), glob `docs/plans/*.md` AND `docs/plans/*.html` and pick the most recent regardless of extension.
+   - For unified plans, do **not** read the whole document first. Read metadata, build a heading/anchor map, then read `Reader Index`, `Goal Capsule`, `Verification Contract`, `Definition of Done`, the `Implementation Units` heading list, and only the active U-ID section plus referenced R/F/AE/KTD excerpts. Read appendices or unrelated U-IDs only when the active unit cites them.
+   - For legacy plans, read the work document completely. Plans may be markdown (`.md`) or HTML (`.html`) — both formats are read as text linearly. HTML plans carry the same section names and IDs as markdown plans, just wrapped in semantic HTML elements (`<section>`, `<article>`, etc.); section-finding works the same way (substring match on section names, ignoring HTML wrapper noise).
    - Treat the plan as a decision artifact, not an execution script
    - If the plan includes sections such as `Implementation Units`, `Work Breakdown`, `Requirements` (or legacy `Requirements Trace`), `Files`, `Test Scenarios`, or `Verification`, use those as the primary source material for execution
    - Check for `Execution note` on each implementation unit — these carry the plan's execution posture signal for that unit (for example, test-first or characterization-first). Note them when creating tasks.
@@ -151,7 +161,8 @@ Determine how to proceed based on what was provided in `<input_document>`.
    - **Other platforms** without built-in worktree isolation (e.g., Codex `spawn_agent`, Pi `subagent`): subagents share the orchestrator's directory.
 
    **Subagent dispatch** uses your available subagent or task spawning mechanism. For each unit, give the subagent:
-   - The full plan file path (for overall context)
+   - The plan file path plus a bounded unit packet. For unified artifacts, include Goal Capsule, Definition of Done, Verification Contract entries relevant to the unit, the selected U-ID section, and any referenced R/F/AE/KTD excerpts. Do not send "read the whole plan" as the default worker prompt.
+   - For legacy artifacts only, the full plan file path may serve as overall context
    - The specific unit's Goal, Files, Approach, Execution note, Patterns, Test scenarios, and Verification
    - Any resolved deferred questions relevant to that unit
    - Instruction to check whether the unit's test scenarios cover all applicable categories (happy paths, edge cases, error paths, integration) and supplement gaps before writing tests
@@ -336,6 +347,34 @@ When Tier 2 applies:
 3. **Residual Work Gate** — Only after followup; unresolved actionable findings go through the gate in `shipping-workflow.md`.
 
 Tier 1 harness-native review may still fix inline; Tier 2 always separates review from apply.
+
+## Caller-Owned Tail Mode
+
+`mode:caller-owned-tail <plan-path>` is reserved for orchestrators such as
+`lfg` that own simplification, code review, PR creation, and CI watching after
+implementation. In this mode `ce-work` performs implementation and local
+verification only, then returns a structured summary instead of running the
+standalone shipping tail.
+
+Return:
+
+- `status`: `complete`, `blocked`, or `failed`
+- `plan_path`
+- `changed_files`
+- `u_ids_attempted`
+- `u_ids_completed`
+- `verification_results`
+- `blockers`
+- `behavior_change`: whether behavior-bearing code changed
+- `standalone_shipping_skipped: true`
+
+Goal-mode or dynamic-workflow engines may be used inside `ce-work` only when
+the host supports them and only for implementation. If the host cannot expose a
+callable goal/dynamic-workflow primitive from a skill, print a copyable prompt
+only in interactive standalone use; in caller-owned-tail mode, return a blocker
+instead of stranding LFG behind a manual copy/paste step. Goal prompts generated
+here explicitly do not open PRs, run the owner workflow tail, or bypass the
+caller-owned gates.
 
 ## Key Principles
 

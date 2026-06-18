@@ -34,7 +34,7 @@ Hold at the approach. Use the platform's blocking question tool (`AskUserQuestio
 
 ## Stage 4: Route
 
-**Save for later.** Persist the approach-plan to `docs/plans/` so it survives. If the deliverable is non-code, write the marker (`execution: knowledge-work`, see `references/plan-sections.md`) at persist time — so a later `ce-work` invocation on the saved plan routes to the carve-out, not the code path. Offer to deepen it. Keep the plan **agent-agnostic** (no `ce-work`-specific choreography in the body) so any agent can execute it later.
+**Save for later.** Persist the approach-plan to `docs/plans/` so it survives. If the deliverable is non-code, write the marker (`execution: knowledge-work`, see `references/plan-sections.md`) at persist time — so a later `ce-work` invocation on the saved plan routes to the carve-out, not the code path. Do not label an approach-plan as `artifact_contract: ce-unified-plan/v1` unless it also contains Product Contract, Planning Contract, Implementation Units, Verification Contract, and Definition of Done for a software implementation. A plan-for-a-plan is usually not suitable for `/goal`; its job is to guide a later planning or knowledge-work pass, not to execute code. Offer to deepen it. Keep the plan **agent-agnostic** (no `ce-work`-specific choreography in the body) so any agent can execute it later.
 
 **Execute now -- code deliverable.** The approach-plan's job is done; continue into the normal `ce-plan` flow (Phase 0.1b onward) to produce the implementation plan, then hand off to `ce-work` for the code. `ce-plan` never writes the code itself.
 

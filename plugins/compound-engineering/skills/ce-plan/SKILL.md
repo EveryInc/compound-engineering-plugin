@@ -8,7 +8,7 @@ argument-hint: "[optional: feature description, requirements doc path, plan path
 
 **Note: The current year is 2026.** Use this when dating plans and searching for recent documentation.
 
-`ce-brainstorm` defines **WHAT** to build. `ce-plan` defines **HOW** to build it. `ce-work` executes the plan. A prior brainstorm is useful context but never required — `ce-plan` works from any input: a requirements doc, a bug report, a feature idea, or a rough description.
+`ce-brainstorm` defines **WHAT** to build by creating a requirements-only unified plan. `ce-plan` enriches that same artifact with **HOW** to build it. `ce-work` executes implementation-ready plans. A prior brainstorm is useful context but never required — `ce-plan` works from any input: a requirements-only unified plan, a legacy requirements doc, a bug report, a feature idea, or a rough description.
 
 **When directly invoked, always plan.** Never classify a direct invocation as "not a planning task" and abandon the workflow. If the input is unclear, ask clarifying questions or use the planning bootstrap (Phase 0.4) to establish enough context — but always stay in the planning workflow.
 
@@ -32,7 +32,7 @@ If the input is present but unclear or underspecified, do not abandon — ask on
 
 ## Core Principles
 
-1. **Use requirements as the source of truth** - If `ce-brainstorm` produced a requirements document, planning should build from it rather than re-inventing behavior.
+1. **Use the Product Contract as the source of truth** - If `ce-brainstorm` produced a requirements-only unified plan, planning should enrich it in place rather than re-inventing behavior or creating a second artifact.
 2. **Decisions, not code** - Capture approach, boundaries, files, dependencies, risks, and test scenarios. Do not pre-write implementation code or shell command choreography. Pseudo-code sketches or DSL grammars that communicate high-level technical design are welcome when they help a reviewer validate direction — but they must be explicitly framed as directional guidance, not implementation specification.
 3. **Research before structuring** - Explore the codebase, institutional learnings, and external guidance when warranted before finalizing the plan.
 4. **Right-size the artifact** - Small work gets a compact plan. Large work gets more structure. The philosophy stays the same at every depth.
@@ -138,20 +138,32 @@ If the domain is genuinely ambiguous (e.g., "plan a migration" with no other con
 
 Otherwise, read `references/universal-planning.md` and follow that workflow instead. Skip all subsequent phases. Named tools or source links don't change this routing — they're inputs, handled per Core Principle 8.
 
-#### 0.2 Find Upstream Requirements Document
+#### 0.2 Find Upstream Product Contract
 
-Before asking planning questions, search `docs/brainstorms/` for files matching `*-requirements.md` or `*-requirements.html` (ce-brainstorm emits whichever extension matches its resolved output format; both are valid upstream requirements docs and either may be carried as the plan's `origin:`).
+Before asking planning questions, resolve the upstream product source in this order:
 
-**Relevance criteria:** A requirements document is relevant if:
+1. **Explicit path from the user.** If it points to a unified plan with `artifact_contract: ce-unified-plan/v1` and `artifact_readiness: requirements-only`, this run enriches that same file in place. If it is already `artifact_readiness: implementation-ready`, treat it as a resume/deepening target. If it is a legacy `docs/brainstorms/*-requirements.{md,html}` file, use it as a legacy origin and write a new unified plan in `docs/plans/`.
+2. **Recent requirements-only unified plans.** Search `docs/plans/*.{md,html}` for visible/frontmatter metadata containing `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`.
+3. **Legacy requirements docs.** Search `docs/brainstorms/` for files matching `*-requirements.md` or `*-requirements.html`. These remain readable historical inputs; do not migrate or rewrite them.
+
+**Relevance criteria:** A Product Contract source is relevant if:
 - The topic semantically matches the feature description
 - It was created within the last 30 days (use judgment to override if the document is clearly still relevant or clearly stale)
 - It appears to cover the same user problem or scope
 
 If multiple source documents match, ask which one to use using the platform's blocking question tool when available (see Interaction Method). Otherwise, present numbered options in chat and wait for the user's reply before proceeding.
 
-#### 0.3 Use the Source Document as Primary Input
+#### 0.3 Use the Product Contract as Primary Input
 
-If a relevant requirements document exists:
+If a relevant requirements-only unified plan exists:
+1. Read metadata, Reader Index, Goal Capsule, Product Contract, Open Questions, and Sources. Do not read long appendices unless referenced.
+2. Announce that `ce-plan` will enrich that same file to `artifact_readiness: implementation-ready`.
+3. Preserve the existing Product Contract text and stable R/A/F/AE IDs unless planning discovers a direct conflict. Conflicts become explicit assumptions or questions; do not silently rewrite product scope.
+4. Carry forward all applicable Product Contract sections listed below.
+5. Use the Product Contract as the primary input to planning and research.
+6. Do not create a duplicate plan unless an explicit `output:` conversion or pipeline override requires a new canonical path; when conversion happens, report old path and new canonical path.
+
+If a relevant legacy requirements document exists:
 1. Read it thoroughly
 2. Announce that it will serve as the origin document for planning
 3. Carry forward all of the following:
@@ -166,7 +178,7 @@ If a relevant requirements document exists:
 5. Reference important carried-forward decisions in the plan with `(see origin: <source-path>)`
 6. Do not silently omit source content — if the origin document discussed it, the plan must address it even if briefly. Before finalizing, scan each section of the origin document to verify nothing was dropped.
 
-If no relevant requirements document exists, planning may proceed from the user's request directly.
+If no relevant Product Contract source exists, planning may proceed from the user's request directly and will create a complete unified plan with `product_contract_source: ce-plan-bootstrap`.
 
 #### 0.4 Planning Bootstrap (No Requirements Doc or Unclear Input)
 
@@ -689,6 +701,10 @@ Then continue to Phase 5.2 without a blocking question.
 
 **REQUIRED: Write the plan file to disk before presenting any options.**
 
+HTML note: `ce-doc-review` is markdown-only today. HTML plans still render the
+unified artifact, but the Phase 5.3.8 document-review autofix pass is skipped
+for HTML by the format gate in `references/plan-handoff.md`.
+
 Use the Write tool to save the complete plan to the resolved format's extension:
 
 ```text
@@ -700,6 +716,15 @@ Extension follows `OUTPUT_FORMAT` from Phase 0.0 — `.md` when markdown, `.html
 Compose the plan using the content from `references/plan-sections.md` and the format-specific principles from the rendering reference loaded at Phase 0.0 (`markdown-rendering.md` OR `html-rendering.md`).
 
 **Write tight.** A section being material is not license to pad it. Hold every kept section to the prose-economy discipline in `references/plan-sections.md`: one idea per sentence, a requirement or unit is intent plus at most one qualifier, defer forks to Open Questions rather than specifying both arms, resolve superseded text in place rather than stacking strata. Before declaring the plan written, run the named test there — could the implementer find a contradiction in each section in one pass?
+
+Write the unified plan artifact according to `references/plan-sections.md`.
+
+- If the source is a requirements-only unified plan, update that file in place unless `OUTPUT_FORMAT`, pipeline mode, or an explicit conversion requires a new canonical path. Preserve Product Contract IDs and content; add Planning Contract, Implementation Units, Verification Contract, Definition of Done, and an implementation-ready Goal Launch Block.
+- If the source is a legacy requirements doc, create a new unified plan in `docs/plans/` and carry the legacy path in `origin:`.
+- If this is direct planning, create a complete unified plan in `docs/plans/` with `product_contract_source: ce-plan-bootstrap`.
+- Set `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: implementation-ready`, and `execution: code` for software implementation plans.
+- Do not set `artifact_contract: ce-unified-plan/v1` on universal-planning outputs, answer-seeking outputs, or approach-plans unless they include the full software implementation contract.
+- The Goal Launch Block is a thin launcher. It may include copyable `/goal`, `ultracode:`, or fallback `ce-work` prompts, but it must point to Reader Index, Goal Capsule, Verification Contract, Definition of Done, and U-IDs instead of duplicating their content.
 
 **HTML composition timing.** When `OUTPUT_FORMAT=html`, Phase 5.3 deepening runs before this write completes its final form, but `ce-doc-review` is skipped in HTML mode (its mutation mechanics are markdown-only today — see Phase 5.3.8 format gate in `references/plan-handoff.md`). The HTML artifact reflects deepening synthesis but not doc-review autofixes; this is a known gap until ce-doc-review gains HTML-aware mutation.
 
@@ -770,7 +795,7 @@ After document review and final checks, print a one-line summary of the headless
 
 **Options.** Option 4's label matches the artifact's format. Under exclusive output mode, exactly one of "Publish to Proof" or "Open in browser" applies per run — `OUTPUT_FORMAT=md` shows Proof; `OUTPUT_FORMAT=html` shows browser. Proof operates on markdown and cannot ingest HTML; the browser option opens the local `.html` file. Render the option matching the format produced this run.
 
-1. **Start `/ce-work`** (recommended) - Begin implementing this plan in the current session
+1. **Start `/ce-work`** (recommended) - Begin implementing this plan in the current session. For implementation-ready code plans, offer a copyable top-level `/goal` launch prompt when the host supports goal mode; otherwise use `ce-work`.
 2. **Run deeper doc review** - Walk through the remaining findings interactively (full ce-doc-review walkthrough)
 3. **Create Issue** - Create a tracked issue from this plan in your configured issue tracker (GitHub or Linear)
 4. **Publish to Proof — shareable link** - Publish the plan to Every's Proof editor and get a shareable link to read, comment on, or share with others. One-way: the local plan file stays canonical. **Render only when `OUTPUT_FORMAT=md`.**
@@ -779,7 +804,7 @@ After document review and final checks, print a one-line summary of the headless
 
 **Routing.** Act on the user's selection — do not just announce it. Elaborate sub-flows (Issue Creation tracker detection) live in `references/plan-handoff.md`.
 
-- **Start `/ce-work`** — Invoke the `ce-work` skill via the platform's skill-invocation primitive (`Skill` in Claude Code, `Skill` in Codex, the equivalent on Gemini/Pi), passing the plan path as the skill argument. Do not merely tell the user to type `/ce-work` — fire the invocation now so the plan executes in this session.
+- **Start `/ce-work`** — If the artifact is `artifact_readiness: implementation-ready` and `execution: code`, either invoke the `ce-work` skill via the platform's skill-invocation primitive (`Skill` in Claude Code, `Skill` in Codex, the equivalent on Gemini/Pi), passing the plan path as the skill argument, or offer the copyable Goal Launch Block when the host supports top-level goal mode that cannot be invoked from a skill. Do not merely tell the user to type `/ce-work` when a skill invocation primitive is available. Do not offer this action for requirements-only, universal-planning, answer-seeking, or approach-plan outputs.
 - **Run deeper doc review** — Re-invoke the `ce-doc-review` skill on the plan path **without** `mode:headless` so the interactive routing question and walkthrough fire. After it returns, re-render this menu with refreshed counts so the user can pick a next-stage action.
 - **Create Issue** — Detect the project tracker (`gh` for GitHub, `linear` for Linear) and create the issue from the plan file as described under "Issue Creation" in `references/plan-handoff.md`. After creation, display the issue URL and ask whether to proceed to `/ce-work` via the platform's blocking question tool.
 - **Publish to Proof — shareable link** — Load the `ce-proof` skill to publish the plan: create a shared Proof doc from the plan file (title = plan title; identity `ai:compound-engineering` / `Compound Engineering`), surface the share URL to the user, then return to this menu. One-way publish — the local plan file stays canonical, nothing syncs back. If the upload fails, see the graceful-fallback note in `references/plan-handoff.md`.

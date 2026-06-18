@@ -74,7 +74,18 @@ Store the resolved state for downstream consumption:
 
 Determine how to proceed based on what was provided in `<input_document>`.
 
-**Plan document** (input is a file path to an existing plan or specification): read the plan's metadata first — YAML frontmatter for a markdown plan, or the visible header text for an HTML plan (both formats carry the same fields). If it carries `execution: knowledge-work`, this is a **non-code plan** — read `references/non-code-execution.md` and follow that carve-out instead of the rest of this workflow. Otherwise (the field is absent or `execution: code`) → skip to Phase 1 and run the normal code lifecycle. (The marker check lives here, inside plan-document handling, because detecting the marker requires already having a file; "Bare prompt" below is unaffected.)
+**Plan document** (input is a file path to an existing plan or specification): read the plan's metadata first — YAML frontmatter for a markdown plan, or the visible header text for an HTML plan (both formats carry the same fields).
+
+`ce-work-beta` is not the primary unified-plan executor during rollout. If the
+metadata contains `artifact_contract: ce-unified-plan/v1`, mirror stable
+`ce-work` guards before doing anything else: reject `artifact_readiness:
+requirements-only`, reject invalid progress-like readiness values (`active`,
+`in_progress`, `completed`, `done`), route `execution: knowledge-work` to the
+non-code carve-out, and only continue for `artifact_readiness:
+implementation-ready` plus `execution: code`. If any of those checks are
+ambiguous, stop and route the user to stable `ce-work <plan-path>`.
+
+If it carries `execution: knowledge-work`, this is a **non-code plan** — read `references/non-code-execution.md` and follow that carve-out instead of the rest of this workflow. Otherwise (the field is absent or `execution: code`) → skip to Phase 1 and run the normal code lifecycle. (The marker check lives here, inside plan-document handling, because detecting the marker requires already having a file; "Bare prompt" below is unaffected.)
 
 **Bare prompt** (input is a description of work, not a file path):
 
@@ -98,7 +109,7 @@ Determine how to proceed based on what was provided in `<input_document>`.
 
 1. **Read Plan and Clarify** _(skip if arriving from Phase 0 with a bare prompt)_
 
-   - Read the work document completely
+   - For unified plans, do not read the whole document first. Read metadata, heading/anchor map, Reader Index, Goal Capsule, Verification Contract, Definition of Done, the Implementation Units heading list, and active U-ID sections plus referenced R/F/AE/KTD excerpts. For legacy plans, read the work document completely.
    - Treat the plan as a decision artifact, not an execution script
    - If the plan includes sections such as `Implementation Units`, `Work Breakdown`, `Requirements` (or legacy `Requirements Trace`), `Files`, `Test Scenarios`, or `Verification`, use those as the primary source material for execution
    - Check for `Execution note` on each implementation unit — these carry the plan's execution posture signal for that unit (for example, test-first or characterization-first). Note them when creating tasks.

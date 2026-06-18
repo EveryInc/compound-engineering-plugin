@@ -89,7 +89,7 @@ Offer four options (self-contained labels with the distinguishing word front-loa
 
 1. *(when `OUTPUT_FORMAT=html`)* **Open in browser** — open the saved HTML deliverable (re-open if it was already opened).
    *(when `OUTPUT_FORMAT=md`)* **Publish to Proof** — publish the saved markdown to Proof and get a shareable link; one-way, the local file stays canonical.
-2. **Brainstorm one idea with `ce-brainstorm`** — commit a chosen idea to a requirements doc; leaves ce-ideate. Asks which idea first.
+2. **Brainstorm one idea with `ce-brainstorm`** — commit a chosen idea to a requirements-only unified plan under `docs/plans/`; leaves ce-ideate. Asks which idea first.
 3. **Iterate on one idea (adjust / ask, stay here)** — sharpen or interrogate a chosen idea before committing. Asks which idea and how.
 4. **Done — keep the file and stop.**
 
@@ -117,7 +117,7 @@ If the user already named an idea inline (e.g. "brainstorm the table tool", "tig
    The basis/evidence directly feeds `ce-brainstorm`'s product-pressure-test, so it won't re-derive what we already know. Append a one-line provenance pointer: `(Seeded from ce-ideate: <path>, idea "<title>")` — it records origin and lets brainstorm pull adjacent detail if it wants, without being forced to read anything.
 3. **Load the `ce-brainstorm` skill** with that seed. The saved file is already the record — no extra write step.
 
-**Repo mode only:** do **not** skip brainstorming and go straight to `ce-plan` — `ce-plan` wants brainstorm-grounded requirements. In elsewhere modes, ideation is a legitimate terminal state; brainstorming is optional deeper development of one idea, not a required next rung on an implementation ladder that does not exist in these modes.
+**Repo mode only:** do **not** skip brainstorming and go straight to `ce-plan` — `ce-plan` wants a brainstorm-grounded Product Contract. In elsewhere modes, ideation is a legitimate terminal state; brainstorming is optional deeper development of one idea, not a required next rung on an implementation ladder that does not exist in these modes.
 
 ### 5.3 Iterate on One Idea
 

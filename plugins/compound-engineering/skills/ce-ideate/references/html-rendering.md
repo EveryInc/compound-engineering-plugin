@@ -55,6 +55,17 @@ These hold regardless of which skill produced the artifact.
   leaves readers unable to tell how stale the rendering is.
 - **ASCII identifiers.** Class names, element IDs, data attribute names
   are ASCII-only.
+- **Unified plan navigation.** Unified plan artifacts include a visible
+  navigation region near the top of the document. It links to stable section
+  anchors for `goal-launch-block`, `reader-index`, `goal-capsule`,
+  `product-contract`, `planning-contract`, `implementation-units`,
+  `verification-contract`, `definition-of-done`, and `appendix` when those
+  sections exist. Requirements-only artifacts omit links to absent
+  implementation sections.
+- **Visible readiness metadata.** If the artifact has `artifact_contract`,
+  `artifact_readiness`, `product_contract_source`, or `execution`, render
+  those values in the visible header metadata. Do not hide a duplicate copy in
+  JSON, `data-*`, or `<meta>` tags.
 
 ## Precedence stack for style preferences
 
@@ -243,6 +254,28 @@ guessed link is worse than no link.
 mentions of paths or PRs inside paragraph prose stay as code or text.
 Linking every mention would clutter; readers expect clickable jumps
 where the doc presents itself as a reference index.
+
+### Stable section anchors for unified plans
+
+When rendering a unified plan, every major logical section gets a stable
+anchor ID and visible heading text:
+
+| Logical section | Required id |
+|---|---|
+| Goal Launch Block | `goal-launch-block` |
+| Reader Index | `reader-index` |
+| Goal Capsule | `goal-capsule` |
+| Product Contract | `product-contract` |
+| Product Requirements | `product-requirements` |
+| Planning Contract | `planning-contract` |
+| Implementation Units | `implementation-units` |
+| Verification Contract | `verification-contract` |
+| Definition of Done | `definition-of-done` |
+| Appendix | `appendix` |
+
+Long HTML plans are agent-consumed as source text as often as they are read in
+a browser. Keep the heading text visible and adjacent to the `id`; do not rely
+on a nav link alone to carry the section name.
 
 ### Text contrast is local
 

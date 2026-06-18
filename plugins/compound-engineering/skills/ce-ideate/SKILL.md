@@ -12,7 +12,7 @@ argument-hint: "[feature, focus area, or constraint] [output:md]"
 `ce-ideate` precedes `ce-brainstorm`.
 
 - `ce-ideate` answers: "What are the strongest ideas worth exploring?"
-- `ce-brainstorm` answers: "What exactly should one chosen idea mean?"
+- `ce-brainstorm` answers: "What exactly should one chosen idea mean?" and writes a requirements-only unified plan under `docs/plans/`.
 - `ce-plan` answers: "How should it be built?"
 
 This workflow produces a ranked ideation artifact — written to `docs/ideation/` when present, else a CE temp path (see Phase 4). It does **not** produce requirements, plans, or code.
@@ -85,7 +85,7 @@ Resolution steps:
 
 **Defer loading the format-rendering reference.** The deliverable is written at Phase 4 (after generation), so `references/ideation-sections.md` and the format-rendering references (`markdown-rendering.md` / `html-rendering.md`) are only needed then — loading them at Phase 0.0 would carry them through the entire grounding and ideation dispatch for no benefit. Resolve `OUTPUT_FORMAT` now, but load the section contract and the matching rendering reference at write time (see `references/post-ideation-workflow.md` §4.1).
 
-The `output:` preference does NOT auto-propagate to `ce-brainstorm` on handoff (Phase 5) — ce-brainstorm re-resolves its own `brainstorm_output` config independently. Asymmetric output (`ideation.html` + `requirements.md`) is acceptable; users who want HTML for both set both keys in `.compound-engineering/config.local.yaml`.
+The `output:` preference does NOT auto-propagate to `ce-brainstorm` on handoff (Phase 5) — ce-brainstorm re-resolves its own `brainstorm_output` config independently. Asymmetric output (`ideation.html` + unified-plan markdown) is acceptable; users who want HTML for both set both keys in `.compound-engineering/config.local.yaml`.
 
 #### 0.1 Check for Recent Ideation Work
 

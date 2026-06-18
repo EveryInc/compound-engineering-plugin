@@ -164,8 +164,10 @@ Document content:
 </review-context>
 
 <context-slots-rules>
-- `Document type:` is the orchestrator's authoritative classification (`requirements` or `plan`). Trust it; do not re-classify by inspecting content shape. The orchestrator already used frontmatter and section structure to decide.
-- `Origin:` carries the value of the document's `origin:` frontmatter field when one is present, or the literal token `none` when no origin was declared. This is how the orchestrator surfaces upstream provenance to personas that adapt on origin (e.g., suppressing premise-challenge techniques on origin'd plans). Read this line directly — do not parse the document's frontmatter yourself for this signal.
+- `Document type:` is the orchestrator's authoritative classification (`requirements`, `plan`, `unified-requirements`, or `unified-plan`). Trust it; do not re-classify by inspecting content shape. The orchestrator already used frontmatter, readiness metadata, and section structure to decide.
+- For `unified-requirements`, review the Product Contract slice as product requirements. Do not flag missing Planning Contract, Implementation Units, Verification Contract, or Definition of Done; those are added by `ce-plan`.
+- For `unified-plan`, treat Product Contract as the what-to-build authority and Planning Contract / Implementation Units / Verification Contract / Definition of Done as the how-to-build and completion contract. Findings should name which contract is affected.
+- `Origin:` carries upstream Product Contract provenance prepared by the orchestrator. It is a legacy `origin:` path when one is present, otherwise `product_contract_source:<value>` when the unified plan declares `product_contract_source`, otherwise the literal token `none`. Treat `product_contract_source:ce-brainstorm`, `product_contract_source:legacy-requirements`, and legacy brainstorm `origin:` paths as validated upstream premise signals. Treat `product_contract_source:ce-plan-bootstrap` and `none` as greenfield unless the document itself proves otherwise. Read this line directly — do not parse the document's frontmatter yourself for this signal.
 </context-slots-rules>
 
 <decision-primer-rules>
