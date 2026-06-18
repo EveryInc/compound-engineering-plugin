@@ -729,6 +729,57 @@ describe("extract-errors", () => {
     expect(stdout).toContain("String to replace not found")
   })
 
+  test("extracts Claude errors after long metadata preambles", async () => {
+    const lines = [
+      "last-prompt",
+      "custom-title",
+      "agent-name",
+      "mode",
+      "permission-mode",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+    ].map((type, index) =>
+      JSON.stringify({
+        type,
+        timestamp: `2026-06-17T10:00:${String(index).padStart(2, "0")}.000Z`,
+      })
+    )
+
+    lines.push(
+      JSON.stringify({
+        type: "user",
+        message: {
+          role: "user",
+          content: [
+            {
+              type: "tool_result",
+              tool_use_id: "toolu_1",
+              is_error: true,
+              content: "Permission denied while reading session history",
+            },
+          ],
+        },
+        timestamp: "2026-06-17T10:00:12.000Z",
+      })
+    )
+
+    const { stdout, exitCode } = await runScript(
+      "extract-errors.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("[error] Permission denied while reading session history")
+    const meta = JSON.parse(stdout.trim().split("\n").at(-1)!)
+    expect(meta.errors_found).toBe(1)
+    expect(meta.parse_errors).toBe(0)
+  })
+
   test("Claude errors are summarized, not raw", async () => {
     const fixture = await Bun.file(
       path.join(FIXTURES_DIR, "claude-session.jsonl")
