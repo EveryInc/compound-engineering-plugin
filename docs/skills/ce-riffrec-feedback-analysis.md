@@ -71,7 +71,7 @@ This is what makes the skill useful beyond Riffrec — any recorded feedback fit
 
 ### 4. Context-aware output location
 
-In repos with `docs/brainstorms/`, the default output directory is `docs/brainstorms/riffrec-feedback/` so the analysis lands where downstream skills (`ce-brainstorm`, `ce-plan`) expect to find requirements material. The quick path overrides to a temp location so it doesn't pollute the repo with single-issue bug reports.
+In repos with `docs/brainstorms/`, the default output directory remains `docs/brainstorms/riffrec-feedback/` as an evidence/kickoff-artifact exception. The durable downstream artifact is still produced by `ce-brainstorm` as a requirements-only unified plan under `docs/plans/`. The quick path overrides to a temp location so it doesn't pollute the repo with single-issue bug reports.
 
 ### 5. Compound Engineering output format for extensive analysis
 
@@ -99,7 +99,7 @@ The analyzer extracts: synchronized voice transcript, screen capture frames at e
 
 It produces a structured analysis at `docs/brainstorms/riffrec-feedback/2026-05-04-checkout-flow-analysis.md` with each issue, the relevant frames, and timestamps. Raw recording stays local-only.
 
-The skill loads `/ce-brainstorm` with the analysis as the starting point. Brainstorm clarifies which issue to address first, what success looks like, and produces the requirements doc.
+The skill loads `/ce-brainstorm` with the analysis as the starting point. Brainstorm clarifies which issue to address first, what success looks like, and produces the requirements-only unified plan.
 
 ---
 
@@ -185,6 +185,6 @@ The skill inspects length and event count first. If still unclear, it asks the u
 ## See Also
 
 - [`ce-brainstorm`](./ce-brainstorm.md) — extensive-analysis output feeds directly into brainstorm
-- [`ce-plan`](./ce-plan.md) — downstream of brainstorm; receives the requirements doc that came from the recording
+- [`ce-plan`](./ce-plan.md) — downstream of brainstorm; enriches the unified plan that came from the recording
 - [`ce-debug`](./ce-debug.md) — when a quick-path bug report has a clear root cause to investigate
 - [Riffrec](https://github.com/kieranklaassen/riffrec) — the capture-side tool (separate project)

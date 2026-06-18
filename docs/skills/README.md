@@ -35,9 +35,9 @@ The steps of every engineering iteration. `/ce-ideate` runs only when you need t
 | Skill | Description |
 |-------|-------------|
 | [`/ce-ideate`](./ce-ideate.md) | *Optional first step* — discover strong, qualified directions worth exploring with six conceptual frames, warrant requirement, adversarial filtering |
-| [`/ce-brainstorm`](./ce-brainstorm.md) | Define what something should become — collaborative dialogue, named gap lenses, right-sized requirements doc |
-| [`/ce-plan`](./ce-plan.md) | Bound execution with guardrails — U-IDs, test scenarios, automatic confidence check; WHAT decisions, not HOW code |
-| [`/ce-work`](./ce-work.md) | Execute against the plan's guardrails — figure out the HOW with code in front of you, ship through quality gates |
+| [`/ce-brainstorm`](./ce-brainstorm.md) | Define what something should become — collaborative dialogue, named gap lenses, requirements-only unified plan |
+| [`/ce-plan`](./ce-plan.md) | Bound execution with guardrails — enrich unified plans with U-IDs, test scenarios, automatic confidence check; WHAT decisions, not HOW code |
+| [`/ce-work`](./ce-work.md) | Execute against implementation-ready plan guardrails — figure out the HOW with code in front of you, ship through quality gates |
 | [`/ce-compound`](./ce-compound.md) | Close the loop by capturing what you learned into `docs/solutions/` so the next iteration starts smarter — bug track + knowledge track |
 
 ---

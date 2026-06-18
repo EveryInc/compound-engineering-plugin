@@ -2,7 +2,7 @@
 
 > Review requirements or plan documents using parallel persona agents that surface role-specific issues.
 
-`ce-doc-review` is the **document review** skill — sibling to `/ce-code-review` for the docs side of the chain. It analyzes a requirements doc or implementation plan, selects reviewer personas based on what the doc contains (product framing, design surfaces, security implications, scope sprawl), dispatches them in parallel, then auto-applies safe fixes and routes the rest through a structured four-option interaction (per-finding walk-through, auto-resolve with best judgment, append to Open Questions, report-only).
+`ce-doc-review` is the **document review** skill — sibling to `/ce-code-review` for the docs side of the chain. It analyzes a requirements-only unified plan, implementation-ready plan, or legacy document, selects reviewer personas based on what the doc contains (product framing, design surfaces, security implications, scope sprawl), dispatches them in parallel, then auto-applies safe markdown fixes and routes the rest through a structured four-option interaction (per-finding walk-through, auto-resolve with best judgment, append to Open Questions, report-only).
 
 The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-doc-review` is the **review skill for the artifacts produced by `ce-brainstorm` and `ce-plan`** — invoked at their respective Phase 4 / Phase 5.3.8 handoffs, and also directly when you want a structured review of a doc on disk.
 
@@ -13,8 +13,8 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 | Question | Answer |
 |----------|--------|
 | What does it do? | Selects reviewer personas based on doc content, dispatches them in parallel, applies `safe_auto` fixes, routes remaining findings through structured interaction |
-| When to use it | After `ce-brainstorm` produces a requirements doc; after `ce-plan` writes a plan; before handing either to implementation |
-| What it produces | An updated doc with `safe_auto` fixes applied, plus structured handling of `gated_auto` / `manual` findings |
+| When to use it | After `ce-brainstorm` produces a requirements-only unified plan; after `ce-plan` writes or enriches a plan; before handing an implementation-ready plan to execution |
+| What it produces | An updated markdown doc with `safe_auto` fixes applied, plus structured handling of `gated_auto` / `manual` findings; HTML unified plans are report-only/skipped until HTML-safe mutation exists |
 | Modes | Interactive (direct invocation), Headless (default when chained from `/ce-plan`) |
 
 ---
@@ -57,7 +57,7 @@ Conditional personas activate based on what the doc actually says, not keyword m
 
 The 2 always-on (`ce-coherence-reviewer`, `ce-feasibility-reviewer`) run on every review. Conditional personas add depth where the doc's content warrants it.
 
-Personas also **scope their techniques by doc shape**. On plan-shape docs with `Origin:` set — meaning premise has already been pressure-tested at brainstorm — `ce-product-lens-reviewer`, `ce-adversarial-document-reviewer`, and `ce-scope-guardian-reviewer` suppress their premise-level techniques and run only implementation-level checks (technical assumptions, decision stress-testing, architectural alternatives, deferred-work scope creep). On requirements-shape docs they run their full technique set. `ce-feasibility-reviewer` inverts: shadow-path tracing, implementability, and migration mechanics are scoped to plan-shape docs; on requirements docs it runs a tight "would this direction force a fundamental rework?" check. Doc-type classification happens once in the orchestrator (content-shape signals — frontmatter, R-IDs vs U-IDs, section structure) and the result is passed to every persona via the `Origin:` slot, so personas don't re-classify themselves.
+Personas also **scope their techniques by doc shape**. On plan-shape docs with validated upstream Product Contract provenance — legacy `Origin:` requirements docs, `product_contract_source: ce-brainstorm`, or `product_contract_source: legacy-requirements` — `ce-product-lens-reviewer`, `ce-adversarial-document-reviewer`, and `ce-scope-guardian-reviewer` suppress their premise-level techniques and run only implementation-level checks (technical assumptions, decision stress-testing, architectural alternatives, deferred-work scope creep). On requirements-shape docs they run their full technique set. `ce-feasibility-reviewer` inverts: shadow-path tracing, implementability, and migration mechanics are scoped to plan-shape docs; on requirements docs it runs a tight "would this direction force a fundamental rework?" check. Doc-type classification happens once in the orchestrator (readiness metadata, content-shape signals, frontmatter, R-IDs vs U-IDs, section structure) and the result is passed to every persona. Unified artifacts are sliced: requirements-only plans review the Product Contract, while implementation-ready plans review Product Contract, Planning Contract, Implementation Units, Verification Contract, and Definition of Done without sending the whole artifact to every reviewer by default.
 
 ### 2. Synthesis pipeline with three-tier routing
 
@@ -134,7 +134,7 @@ The 2 `safe_auto` apply directly. Headless mode returns the rest as structured t
 
 Reach for `ce-doc-review` when:
 
-- A requirements doc just landed from `/ce-brainstorm` and you want a structured review before planning
+- A requirements-only unified plan just landed from `/ce-brainstorm` and you want a structured Product Contract review before planning
 - A plan just landed from `/ce-plan` and you want a deeper review before execution
 - You're in headless mode and a programmatic caller (the chain skills) needs review with structured output
 - You want round-to-round refinement on a doc — the decision primer prevents loops
@@ -151,7 +151,7 @@ Skip `ce-doc-review` when:
 
 `ce-doc-review` is invoked from doc-producing skills as their review pass:
 
-- **`/ce-brainstorm` Phase 4** — offered as one of the post-doc options ("Agent review of requirements doc"); runs interactive with full premise scrutiny, since validating premise is exactly what brainstorm exists for
+- **`/ce-brainstorm` Phase 4** — offered as one of the post-doc options ("Agent review of Product Contract"); runs interactive with full premise scrutiny, since validating premise is exactly what brainstorm exists for
 - **`/ce-plan` Phase 5.3.8** — runs in `mode:headless` by default after the confidence check. `safe_auto` fixes apply silently; remaining findings surface as a one-line summary above the post-generation menu, where `Run deeper doc review` is exposed as a first-class option for users who want the interactive walkthrough
 - **`/ce-resolve-pr-feedback`** — when reviewer feedback lands on a brainstorm or plan doc rather than code
 
@@ -161,7 +161,7 @@ In headless mode, callers receive structured findings and route the user-decisio
 
 ## Use Standalone
 
-The skill works directly on any requirements or plan doc:
+The skill works directly on unified plan artifacts, legacy requirements docs, and plan docs:
 
 - **Specific path** — `/ce-doc-review docs/plans/2026-05-04-001-feat-notification-mute-plan.md`
 - **Ask the user** — `/ce-doc-review` with no path asks which doc to review (or auto-finds the most recent in `docs/brainstorms/` or `docs/plans/`)
@@ -205,7 +205,7 @@ The personas are tuned for those two types specifically. Reviewing a learning do
 
 ## See Also
 
-- [`ce-brainstorm`](./ce-brainstorm.md) — produces the requirements docs this skill reviews
+- [`ce-brainstorm`](./ce-brainstorm.md) — produces requirements-only unified plans whose Product Contract this skill reviews
 - [`ce-plan`](./ce-plan.md) — produces the plan docs this skill reviews; invokes this skill at Phase 5.3.8
 - [`ce-code-review`](./ce-code-review.md) — sibling skill for code (diffs); same multi-persona pattern, different artifact
 - [`ce-proof`](./ce-proof.md) — publish a doc to Every's collaborative editor for human review and sharing; complementary, not a substitute

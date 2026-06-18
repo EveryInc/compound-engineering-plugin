@@ -17,7 +17,7 @@ This is the third step in the compound-engineering ideation chain:
                                         this?"
 ```
 
-But it stands alone just as well — many teams reach for `ce-plan` directly with a requirements doc, GitHub issue, PRD, rough description, or non-software multi-step task.
+But it stands alone just as well — many teams reach for `ce-plan` directly with a requirements-only unified plan, legacy requirements doc, GitHub issue, PRD, rough description, or non-software multi-step task.
 
 ---
 
@@ -27,8 +27,8 @@ But it stands alone just as well — many teams reach for `ce-plan` directly wit
 |----------|--------|
 | What does it do? | Researches context, captures decisions and scope, breaks work into atomic units with stable IDs, enumerates test scenarios per unit, and auto-strengthens weak sections via a confidence check |
 | When to use it | Requirements ready and execution guardrails needed; solo planning when the task is clear; non-software multi-step tasks (study plans, research, maintenance, events, trips) |
-| What it produces | Plan in `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md` |
-| What's next | `/ce-work`, create a tracked issue, publish to Proof for sharing, or pause |
+| What it produces | Unified plan in `docs/plans/YYYY-MM-DD-NNN-<type>-<name>-plan.md`; brainstorm-sourced plans move from `artifact_readiness: requirements-only` to `implementation-ready` in place |
+| What's next | `/ce-work`, goal-mode prompt when supported, create a tracked issue, publish to Proof for sharing, or pause |
 | Distinguishing | Guardrails over choreography (WHAT, not HOW); U-IDs (stable); origin tracing (R/A/F/AE → U); test scenarios per unit; automatic deepening; multi-agent research |
 
 ---
@@ -76,7 +76,7 @@ This matters because `ce-work` references units by U-ID across plan edits. Renum
 
 ### 3. Origin tracing — R/A/F/AE IDs from brainstorm flow through the plan
 
-When the plan is sourced from a `ce-brainstorm` requirements doc, identifiers flow through: Requirements (R-IDs) trace into the plan's Requirements section; Actors (A-IDs) carry forward when they affect behavior or permissions; Key Flows (F-IDs) cite into implementation units that realize them; Acceptance Examples (AE-IDs) cite into test scenarios that enforce them (`Covers AE3. <scenario>`). Every section of the origin doc is verified against the plan before finalization. Nothing silently drops.
+When the plan is sourced from a `ce-brainstorm` requirements-only unified plan, identifiers flow through in the same file: Requirements (R-IDs) stay in the Product Contract; Actors (A-IDs) carry forward when they affect behavior or permissions; Key Flows (F-IDs) cite into implementation units that realize them; Acceptance Examples (AE-IDs) cite into test scenarios that enforce them (`Covers AE3. <scenario>`). Every Product Contract section is verified against the Planning Contract before finalization. Nothing silently drops.
 
 ### 4. Test scenarios per unit, in named categories
 
@@ -104,7 +104,7 @@ For a hard problem, `ce-plan` can answer one level up: produce a grounded **appr
 
 ## Quick Example
 
-You invoke `ce-plan` with a requirements doc from `ce-brainstorm`. The skill detects the origin, uses it as primary input, and verifies no resolve-before-planning blockers remain.
+You invoke `ce-plan` with a requirements-only unified plan from `ce-brainstorm`. The skill detects `artifact_readiness: requirements-only`, uses the Product Contract as primary input, and verifies no resolve-before-planning blockers remain.
 
 It dispatches research in parallel — repo analyst, learnings researcher — and detects strong local patterns with no external comparison requested, so it skips external research (an explicit "research competitors" or "best practices from the web" request would have overridden that and run a landscape or implementation-guidance scan instead). A spec-flow analyzer runs to surface edge cases. The brainstorm-sourced scoping synthesis surfaces a tier-shaped summary (prose, bullets, or mix depending on plan depth and what communicates best) plus zero or more "Call outs" — the plan-time forks where another reasonable agent might choose differently (e.g., "mute state stored on the subscription, not the user"). Confirm or redirect; the auto-proceed skip only fires for Lightweight plans with no forks worth flagging — Standard and Deep plans always get the explicit checkpoint.
 
@@ -118,7 +118,7 @@ Document review then runs in headless mode. The cheap minimum dispatches (cohere
 
 Reach for `ce-plan` when:
 
-- You have a requirements doc from `ce-brainstorm` ready
+- You have a requirements-only unified plan from `ce-brainstorm` ready
 - You have a GitHub issue, PRD, or feature description that's clear enough
 - The work is multi-step and benefits from sequencing, dependency ordering, and scope boundaries
 - You want test or verification scenarios enumerated before execution
@@ -140,7 +140,7 @@ Skip `ce-plan` when:
    |
    v
 /ce-brainstorm      (define one direction)
-   |  requirements / brief — R/A/F/AE-IDs in software mode
+   |  requirements-only unified plan — R/A/F/AE-IDs in software mode
    v
 /ce-plan
    |  guardrails — U-IDs traced to R/A/F/AE-IDs
@@ -194,7 +194,8 @@ In universal-planning mode, the U-IDs, dependency ordering, scope boundaries, an
 |----------|--------|
 | _(empty)_ | Asks for the task description |
 | `<feature description>` | Solo planning; runs the bootstrap |
-| `<requirements doc path>` | Origin-sourced planning |
+| `<requirements-only plan path>` | Enrich the same unified plan in place |
+| `<legacy requirements doc path>` | Origin-sourced planning into a new unified plan |
 | `<plan path>` | Resume offer (or deepen, if intent matches) |
 | `deepen the plan` / `deepening pass` | Re-deepen fast path (interactive mode) |
 | `<bug description>` | Routes to `ce-debug` suggestion menu |
@@ -227,7 +228,7 @@ Yes — and it's increasingly common. Universal-planning preserves the U-ID conc
 
 ## See Also
 
-- [`ce-brainstorm`](./ce-brainstorm.md) — produce the requirements doc that becomes the plan's origin
+- [`ce-brainstorm`](./ce-brainstorm.md) — produce the requirements-only unified plan that `ce-plan` enriches
 - [`ce-ideate`](./ce-ideate.md) — upstream "what to even work on" ideation
 - [`ce-work`](./ce-work.md) — execute the plan U-ID by U-ID
 - [`ce-doc-review`](./ce-doc-review.md) — persona-based review of the plan

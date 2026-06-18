@@ -204,7 +204,7 @@ A subject-identification gate asks one scope question when the prompt refers onl
 
 ## See Also
 
-- [`ce-brainstorm`](./ce-brainstorm.md) — once you've picked a survivor, brainstorm the chosen direction into a requirements doc
+- [`ce-brainstorm`](./ce-brainstorm.md) — once you've picked a survivor, brainstorm the chosen direction into a requirements-only unified plan
 - [`ce-plan`](./ce-plan.md) — once requirements are clear, plan the implementation
 - [`ce-strategy`](./ce-strategy.md) — anchor ideation to a documented product strategy
 - [`ce-doc-review`](./ce-doc-review.md) — review the saved ideation artifact for clarity and completeness (markdown output only — run with `output:md` first)

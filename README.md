@@ -13,7 +13,7 @@ Traditional development accumulates technical debt. Every feature adds complexit
 
 Compound engineering inverts this. 80% is in planning and review, 20% is in execution:
 
-- Plan thoroughly before writing code with `/ce-brainstorm` and `/ce-plan`
+- Plan thoroughly before writing code with `/ce-brainstorm` and `/ce-plan` using one readiness-based plan artifact
 - Review to catch issues and calibrate judgment with `/ce-code-review` and `/ce-doc-review`
 - Codify knowledge so it is reusable with `/ce-compound`
 - Keep quality high so future changes are easy
@@ -38,9 +38,9 @@ Use `/ce-ideate` before the loop when you want the agent to generate and critiqu
 |-------|---------|
 | `/ce-strategy` | Create or maintain `STRATEGY.md` -- the product's target problem, approach, persona, key metrics, and tracks. Read as grounding by ideate, brainstorm, and plan |
 | `/ce-ideate` | Optional big-picture ideation: generate and critically evaluate grounded ideas, then route the strongest one into brainstorming |
-| `/ce-brainstorm` | Interactive Q&A to think through a feature or problem and write a right-sized requirements doc before planning |
-| `/ce-plan` | Turn feature ideas into detailed implementation plans |
-| `/ce-work` | Execute plans with worktrees and task tracking |
+| `/ce-brainstorm` | Interactive Q&A to think through a feature or problem and write a requirements-only unified plan before planning |
+| `/ce-plan` | Enrich feature ideas or requirements-only plans into implementation-ready plans |
+| `/ce-work` | Execute implementation-ready plans with worktrees and task tracking |
 | `/ce-debug` | Systematically reproduce failures, trace root cause, and implement fixes |
 | `/ce-code-review` | Multi-agent code review before merging |
 | `/ce-compound` | Document learnings to make future work easier |
@@ -52,12 +52,12 @@ Each cycle compounds: brainstorms sharpen plans, plans inform future plans, revi
 
 ## Quick Example
 
-A typical cycle starts by turning a rough idea into a requirements doc, then planning from that doc before handing execution to `/ce-work`:
+A typical cycle starts by turning a rough idea into a requirements-only unified plan, enriching that same plan, then handing execution to `/ce-work`:
 
 ```text
 /ce-brainstorm "make background job retries safer"
-/ce-plan docs/brainstorms/background-job-retry-safety-requirements.md
-/ce-work
+/ce-plan docs/plans/2026-06-18-001-feat-background-job-retry-safety-plan.md
+/ce-work docs/plans/2026-06-18-001-feat-background-job-retry-safety-plan.md
 /ce-code-review
 /ce-compound
 ```

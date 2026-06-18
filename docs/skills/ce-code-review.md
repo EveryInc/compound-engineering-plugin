@@ -106,7 +106,7 @@ When autofix mode runs and the in-skill fixer can't resolve everything, the resi
 
 ### 8. Protected artifacts
 
-Compound-engineering pipeline artifacts (`docs/brainstorms/*`, `docs/plans/*.md`, `docs/solutions/*.md`) are protected — reviewers' findings to delete or gitignore them are discarded during synthesis. These are decision artifacts the pipeline depends on; reviewers shouldn't garbage-collect them.
+Compound-engineering pipeline artifacts (`docs/brainstorms/*` legacy/evidence artifacts, `docs/plans/*.{md,html}` unified plans, `docs/solutions/*.md`) are protected — reviewers' findings to delete or gitignore them are discarded during synthesis. These are decision artifacts the pipeline depends on; reviewers shouldn't garbage-collect them.
 
 ---
 
@@ -114,7 +114,7 @@ Compound-engineering pipeline artifacts (`docs/brainstorms/*`, `docs/plans/*.md`
 
 You invoke `/ce-code-review` on a feature branch with a Rails auth change that includes a database migration.
 
-The skill detects you're on a feature branch (no PR yet), resolves the base from `origin/HEAD` (or PR metadata when an open PR exists), and computes the diff. Stage 2 reads commit messages and writes a 2-3 line intent summary. Stage 2b auto-discovers the plan in `docs/plans/` from the branch name and reads its Requirements (R1-R8, U1-U6).
+The skill detects you're on a feature branch (no PR yet), resolves the base from `origin/HEAD` (or PR metadata when an open PR exists), and computes the diff. Stage 2 reads commit messages and writes a 2-3 line intent summary. Stage 2b auto-discovers the plan in `docs/plans/` from the branch name, classifies readiness, and reads Product Contract Requirements plus implementation U-IDs when the artifact is implementation-ready.
 
 Stage 3 selects reviewers: the 6 always-on, plus security (auth touched), reliability (background job for token cleanup), data-migration (migration file present), and deployment-verification agent when the migration is risky. Seven or eight reviewers total, dispatched in parallel.
 

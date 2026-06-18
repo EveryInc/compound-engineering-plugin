@@ -176,7 +176,7 @@ Skip `ce-proof` when:
 
 `ce-proof` integrates with the chain at multiple publish touchpoints:
 
-- **`/ce-brainstorm` Phase 4** — "Publish to Proof" handoff for sharing the requirements doc
+- **`/ce-brainstorm` Phase 4** — "Publish to Proof" handoff for sharing the markdown requirements-only unified plan
 - **`/ce-plan` Phase 5.4** — "Publish to Proof" handoff for sharing the plan
 - **`/ce-ideate` Phase 5** — "Publish to Proof" option (markdown output only)
 - **`/ce-compound`** — for sharing a learning before committing to `docs/solutions/`

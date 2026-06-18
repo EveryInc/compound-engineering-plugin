@@ -21,8 +21,8 @@ This is the fourth and final step in the compound-engineering ideation chain:
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Reads a plan (or scopes a bare prompt), executes against the guardrails, runs tests continuously, ships a reviewed PR |
-| When to use it | Implementing a `ce-plan` plan; small/medium bare-prompt work; resuming partly-shipped work |
+| What does it do? | Reads an implementation-ready plan (or scopes a bare prompt), executes against the guardrails, runs tests continuously, ships a reviewed PR |
+| When to use it | Implementing a `ce-plan` plan with `artifact_readiness: implementation-ready`; small/medium bare-prompt work; resuming partly-shipped work |
 | What it produces | Commits + a PR (or just commits, no-PR path) |
 | What's next | Review the PR; run `/ce-compound` to capture learnings |
 | Distinguishing | Plan-aware idempotency, subagent dispatch with worktree isolation, tiered review with residual gate, operational validation in PR |
@@ -57,7 +57,7 @@ Asking an agent "implement this plan" goes wrong in predictable ways:
 
 ### 1. Plan-aware execution — honors the WHAT/HOW separation
 
-`ce-work` reads the plan as a decision artifact, not a script. Scope, decisions, U-IDs, files, test scenarios, and verification criteria are authoritative — the agent figures out the actual implementation itself. The plan body stays read-only during execution; progress lives in git commits and the task tracker.
+`ce-work` reads the plan as a decision artifact, not a script. For unified plans, it first checks metadata and refuses `artifact_readiness: requirements-only` artifacts until `ce-plan` enriches them. Scope, decisions, U-IDs, files, test scenarios, and verification criteria are authoritative — the agent figures out the actual implementation itself. The plan body stays read-only during execution; progress lives in git commits and the task tracker.
 
 ### 2. Idempotent re-execution
 
@@ -125,10 +125,10 @@ Skip `ce-work` when:
    |
    v
 /ce-brainstorm
-   |  requirements / brief
+   |  requirements-only unified plan
    v
 /ce-plan
-   |  guardrails — U-IDs, files, test scenarios, scope, risks
+   |  implementation-ready guardrails — U-IDs, files, test scenarios, scope, risks
    v
 /ce-work
    |  honors the guardrails; figures out the HOW with code in front of it
