@@ -92,7 +92,7 @@ If the user says yes, invoke `ce-sessions` in Phase 1 (see step 4). If no, skip 
 <critical_requirement>
 **The primary deliverable is ONE file - the final documentation.**
 
-Phase 1 subagents return TEXT DATA to the orchestrator. They must NOT use Write, Edit, or create any files. Only the orchestrator writes files. Beyond the Phase 2 solution doc, its other writes are maintenance side effects — not additional deliverables, and creating one when absent is expected, not a violation of this rule:
+Phase 1 research subagents write their full structured outputs to scratch artifacts under `/tmp/compound-engineering/ce-compound/<run-id>/` and return only a one-line confirmation containing the artifact path. The orchestrator reads those files during Phase 2 assembly. These `/tmp` files are intermediate research artifacts, not deliverables. Only the orchestrator writes final project files. Beyond the Phase 2 solution doc, its other project writes are maintenance side effects — not additional deliverables, and creating one when absent is expected, not a violation of this rule:
 - **`CONCEPTS.md`** — create or update in Phase 2.4 (Vocabulary Capture) when a qualifying domain term surfaces.
 - **A project instruction file** (AGENTS.md or CLAUDE.md) — a small edit when the Discoverability Check finds a gap.
 
@@ -122,11 +122,29 @@ If no relevant entries are found, proceed to Phase 1 without passing memory cont
 
 ### Phase 1: Research
 
-Launch research subagents. Each returns text data to the orchestrator.
+Create a run id and scratch directory before launching research:
+
+```bash
+RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
+SCRATCH_DIR="/tmp/compound-engineering/ce-compound/$RUN_ID"
+mkdir -p "$SCRATCH_DIR"
+```
+
+Launch research subagents. Each research subagent writes its full output to its assigned artifact path and returns only the path. If a subagent cannot write the artifact, treat that as a failed research input and retry that subagent once with the same artifact path before falling back to lightweight mode.
 
 **Dispatch order:**
 - Launch `Context Analyzer`, `Solution Extractor`, and `Related Docs Finder` in parallel (background)
 - **Then** invoke the `ce-sessions` skill via the platform's skill-invocation primitive (see step 4 below) — only if the user opted in to session history. The skill call is synchronous from this orchestrator's main-context turn, but the already-dispatched background subagents continue running in parallel underneath, so the wall-clock benefit is preserved (`max(ce-sessions, slowest background subagent)`, not their sum). Issuing the skill call before the parallel block would serialize ce-sessions in front of the research subagents and regress wall-clock time.
+
+Pass this output contract to each research subagent:
+
+```
+Write your complete structured output to: <artifact-path>
+Return exactly one line: Artifact: <artifact-path>
+Do not write project files. The /tmp artifact is the only permitted write.
+```
+
+Dispatch these research subagents with file-write capability enabled. If a platform offers separate read-only and write-capable subagent/persona modes, choose the write-capable mode for Phase 1 so the artifact write can succeed.
 
 <parallel_tasks>
 
@@ -140,7 +158,8 @@ Launch research subagents. Each returns text data to the orchestrator.
    - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence
    - Reads `references/yaml-schema.md` for category mapping into `docs/solutions/`
    - Suggests a filename using the pattern `[sanitized-problem-slug].md` — no date suffix, even if existing files in the target directory have one; the `date:` frontmatter field is the canonical creation date
-   - Returns: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, suggested filename, and which track applies
+   - Artifact path: `$SCRATCH_DIR/context-analyzer.md`
+   - Writes: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, suggested filename, and which track applies
    - Does not invent enum values, categories, or frontmatter fields from memory; reads the schema and mapping files above
    - Does not force bug-track fields onto knowledge-track learnings or vice versa
 
@@ -148,8 +167,9 @@ Launch research subagents. Each returns text data to the orchestrator.
    - Reads `references/schema.yaml` for track classification (bug vs knowledge)
    - Adapts output structure based on the problem_type track
    - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence -- conversation history and the verified fix take priority; if memory notes contradict the conversation, note the contradiction as cautionary context
+   - Artifact path: `$SCRATCH_DIR/solution-extractor.md`
 
-   **Bug track output sections:**
+   **Bug track artifact sections:**
 
    - **Problem**: 1-2 sentence description of the issue
    - **Symptoms**: Observable symptoms (error messages, behavior)
@@ -158,7 +178,7 @@ Launch research subagents. Each returns text data to the orchestrator.
    - **Why This Works**: Root cause explanation and why the solution addresses it
    - **Prevention**: Strategies to avoid recurrence, best practices, and test cases. Include concrete code examples where applicable (e.g., gem configurations, test assertions, linting rules)
 
-   **Knowledge track output sections:**
+   **Knowledge track artifact sections:**
 
    - **Context**: What situation, gap, or friction prompted this guidance
    - **Guidance**: The practice, pattern, or recommendation with code examples when useful
@@ -175,7 +195,8 @@ Launch research subagents. Each returns text data to the orchestrator.
      - **High**: 4-5 dimensions match — essentially the same problem solved again
      - **Moderate**: 2-3 dimensions match — same area but different angle or solution
      - **Low**: 0-1 dimensions match — related but distinct
-   - Returns: Links, relationships, refresh candidates, and overlap assessment (score + which dimensions matched)
+   - Artifact path: `$SCRATCH_DIR/related-docs-finder.md`
+   - Writes: Links, relationships, refresh candidates, and overlap assessment (score + which dimensions matched)
 
    **Search strategy (grep-first filtering for efficiency):**
 
@@ -229,7 +250,7 @@ Launch research subagents. Each returns text data to the orchestrator.
 
 The orchestrating agent (main conversation) performs these steps:
 
-1. Collect all text results from Phase 1 subagents
+1. Collect Phase 1 artifact paths from the research subagents, read each artifact, and verify all three files exist and contain non-empty structured output. If any artifact is missing or empty, retry that subagent once before proceeding.
 2. **Check the overlap assessment** from the Related Docs Finder before deciding what to write:
 
    | Overlap | Action |
