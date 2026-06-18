@@ -582,10 +582,6 @@ function findPlatformVarOccurrences(markdown: string): PlatformVarOccurrence[] {
  */
 const PLATFORM_VAR_ACKNOWLEDGED = new Map<string, string>([
   [
-    "plugins/compound-engineering/skills/ce-setup/SKILL.md#CLAUDE_PLUGIN_ROOT",
-    "AGENTS.md pre-resolution pattern: the prose under the pre-resolved line says exactly what to do when it is empty or an unresolved literal (treat as non-Claude-Code; omit /ce-update references).",
-  ],
-  [
     "plugins/compound-engineering/skills/ce-update/SKILL.md#CLAUDE_SKILL_DIR",
     "SKILL.md routes unset/unresolved CLAUDE_SKILL_DIR (scripts failing) to its __CE_UPDATE_NOT_MARKETPLACE__ handling.",
   ],
@@ -1189,4 +1185,3 @@ describe("findPlatformVarViolations", () => {
     expect(findPlatformVarViolations(sample).map((v) => v.variable)).toEqual(["CLAUDE_SKILL_DIR"])
   })
 })
-

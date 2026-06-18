@@ -20,6 +20,11 @@ Detect the installed compound-engineering plugin version by reading the plugin m
 
 If a version is found, pass it to the check script via `--version`. Otherwise omit the flag.
 
+Also keep two local state values for later summary text:
+
+- `claude_code_plugin_detected`: true only when the version came from Claude Code plugin metadata or a Claude Code plugin manifest path.
+- `claude_code_plugin_source`: the plugin root or manifest path when known; otherwise empty.
+
 ### Step 2: Run the Health Check Script
 
 Before running the script, display: "Compound Engineering -- checking your environment..."
@@ -42,9 +47,7 @@ Display the script's output to the user.
 
 ### Step 3: Evaluate Results
 
-**Plugin root (pre-resolved):** !`echo "${CLAUDE_PLUGIN_ROOT}"`
-
-If the line above resolved to an absolute path (starts with `/` and contains no `${`), this is a Claude Code session and `/ce-update` is available. Anything else — empty, the literal `${CLAUDE_PLUGIN_ROOT}` token, or an unresolved command string like `echo "${CLAUDE_PLUGIN_ROOT}"` left in place by a non-Claude harness that doesn't process `!` pre-resolution — means this is not Claude Code; omit any `/ce-update` references from output.
+If `claude_code_plugin_detected` is true, this is a Claude Code session and `/ce-update` is available. If it is false or unknown, omit `/ce-update` references from output. Do not use `!` pre-resolution or shell expansion of the Claude plugin root environment variable for this check; Claude Code can reject those commands before the skill body runs.
 
 After the diagnostic report, check whether:
 
@@ -66,7 +69,7 @@ If everything is installed, no repo-local cleanup is needed, and `.compound-engi
     Run /ce-setup anytime to re-check.
 ```
 
-If this is a Claude Code session (the **Plugin root** above resolved to a non-empty path), append to the message: "Run /ce-update to grab the latest plugin version."
+If `claude_code_plugin_detected` is true, append to the message: "Run /ce-update to grab the latest plugin version."
 
 Stop here.
 
@@ -161,4 +164,4 @@ Display a brief summary:
     Run /ce-setup anytime to re-check.
 ```
 
-If this is a Claude Code session (per platform detection in Step 3), append: "Run /ce-update to grab the latest plugin version."
+If `claude_code_plugin_detected` is true, append: "Run /ce-update to grab the latest plugin version."

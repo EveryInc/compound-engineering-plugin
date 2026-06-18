@@ -78,9 +78,9 @@ If verification succeeds, success is reported. If it fails, the project URL is d
 
 The skill detects if the obsolete `compound-engineering.local.md` exists at the repo root. If so, it explains the file is obsolete (review-agent selection is now automatic, machine-local state moved to `.compound-engineering/config.local.yaml`) and asks whether to delete. The user controls the cleanup; the skill doesn't silently delete repo files.
 
-### 6. Pre-resolved plugin root for Claude Code detection
+### 6. Claude Code update hint
 
-The skill uses pre-resolution (`!` backtick at skill load) to capture `${CLAUDE_PLUGIN_ROOT}`. If it resolves to an absolute path, this is Claude Code and the skill recommends `/ce-update` for upgrades. If it doesn't resolve (empty, literal token, or non-Claude harness), `/ce-update` references are omitted. No guessing at platform.
+When the setup flow can determine that the installed plugin version came from Claude Code plugin metadata, it records that as local detection state and recommends `/ce-update` for upgrades. Otherwise, `/ce-update` references are omitted. The skill does not use `!` pre-resolution or shell expansion of the Claude plugin root environment variable for this check, because Claude Code can reject those commands at skill-load time.
 
 ### 7. Explicit-invocation only
 
