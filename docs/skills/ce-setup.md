@@ -80,7 +80,7 @@ The skill detects if the obsolete `compound-engineering.local.md` exists at the 
 
 ### 6. Claude Code update hint
 
-When the setup flow can determine that the installed plugin version came from Claude Code plugin metadata, it recommends `/ce-update` for upgrades. Otherwise, `/ce-update` references are omitted. The skill does not use `!` pre-resolution or shell expansion of the Claude plugin root environment variable for this check, because Claude Code can reject those commands at skill-load time.
+When the setup flow can determine that the installed plugin version came from Claude Code plugin metadata, it records that as local detection state and recommends `/ce-update` for upgrades. Otherwise, `/ce-update` references are omitted. The skill does not use `!` pre-resolution or shell expansion of the Claude plugin root environment variable for this check, because Claude Code can reject those commands at skill-load time.
 
 ### 7. Explicit-invocation only
 
