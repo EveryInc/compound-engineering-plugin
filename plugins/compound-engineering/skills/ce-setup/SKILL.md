@@ -42,9 +42,7 @@ Display the script's output to the user.
 
 ### Step 3: Evaluate Results
 
-**Plugin root (pre-resolved):** !`echo "${CLAUDE_PLUGIN_ROOT}"`
-
-If the line above resolved to an absolute path (starts with `/` and contains no `${`), this is a Claude Code session and `/ce-update` is available. Anything else — empty, the literal `${CLAUDE_PLUGIN_ROOT}` token, or an unresolved command string like `echo "${CLAUDE_PLUGIN_ROOT}"` left in place by a non-Claude harness that doesn't process `!` pre-resolution — means this is not Claude Code; omit any `/ce-update` references from output.
+If Step 1 found a Claude Code plugin root or manifest path while determining the installed plugin version, this is a Claude Code session and `/ce-update` is available. If Step 1 could not determine that the installed plugin came from Claude Code plugin metadata, omit `/ce-update` references from output. Do not use `!` pre-resolution or shell expansion of the Claude plugin root environment variable for this check; Claude Code can reject those commands before the skill body runs.
 
 After the diagnostic report, check whether:
 
