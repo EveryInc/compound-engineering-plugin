@@ -361,6 +361,65 @@ describe("extract-skeleton", () => {
     )
   })
 
+  test("detects Claude sessions after long metadata preambles", async () => {
+    const lines = [
+      "last-prompt",
+      "custom-title",
+      "agent-name",
+      "mode",
+      "permission-mode",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+    ].map((type, index) =>
+      JSON.stringify({
+        type,
+        timestamp: `2026-06-17T10:00:${String(index).padStart(2, "0")}.000Z`,
+      })
+    )
+
+    lines.push(
+      JSON.stringify({
+        type: "user",
+        message: {
+          role: "user",
+          content: "please summarize this current Claude session",
+        },
+        timestamp: "2026-06-17T10:00:12.000Z",
+      }),
+      JSON.stringify({
+        type: "assistant",
+        message: {
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "I found the relevant session history and summarized it.",
+            },
+          ],
+        },
+        timestamp: "2026-06-17T10:00:13.000Z",
+      })
+    )
+
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      [],
+      lines.join("\n")
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("[user] please summarize this current Claude session")
+    expect(stdout).toContain("[assistant] I found the relevant session history")
+    const meta = JSON.parse(stdout.trim().split("\n").at(-1)!)
+    expect(meta.user).toBe(1)
+    expect(meta.assistant).toBe(1)
+    expect(meta.parse_errors).toBe(0)
+  })
+
   test("extracts Claude tool calls with targets", async () => {
     const fixture = await Bun.file(
       path.join(FIXTURES_DIR, "claude-session.jsonl")
