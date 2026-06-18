@@ -128,7 +128,10 @@ Create a run id and scratch directory before launching research:
 RUN_ID="$(date +%Y%m%d-%H%M%S)-$$"
 SCRATCH_DIR="/tmp/compound-engineering/ce-compound/$RUN_ID"
 mkdir -p "$SCRATCH_DIR"
+printf 'ce-compound scratch dir: %s\n' "$SCRATCH_DIR"
 ```
+
+Copy the absolute path printed by the command and use it as `<scratch-dir>` in the subagent prompts below. Do not pass the literal `$SCRATCH_DIR` variable to subagents; later tool calls and subagent prompts do not share the shell process that created it.
 
 Launch research subagents. Each research subagent writes its full output to its assigned artifact path and returns only the path. If a subagent cannot write the artifact, treat that as a failed research input and retry that subagent once with the same artifact path before falling back to lightweight mode.
 
@@ -158,7 +161,7 @@ Dispatch these research subagents with file-write capability enabled. If a platf
    - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence
    - Reads `references/yaml-schema.md` for category mapping into `docs/solutions/`
    - Suggests a filename using the pattern `[sanitized-problem-slug].md` — no date suffix, even if existing files in the target directory have one; the `date:` frontmatter field is the canonical creation date
-   - Artifact path: `$SCRATCH_DIR/context-analyzer.md`
+   - Artifact path: `<scratch-dir>/context-analyzer.md`
    - Writes: YAML frontmatter skeleton (must include `category:` field mapped from problem_type), category directory path, suggested filename, and which track applies
    - Does not invent enum values, categories, or frontmatter fields from memory; reads the schema and mapping files above
    - Does not force bug-track fields onto knowledge-track learnings or vice versa
@@ -167,7 +170,7 @@ Dispatch these research subagents with file-write capability enabled. If a platf
    - Reads `references/schema.yaml` for track classification (bug vs knowledge)
    - Adapts output structure based on the problem_type track
    - Incorporates auto memory excerpts (if provided by the orchestrator) as supplementary evidence -- conversation history and the verified fix take priority; if memory notes contradict the conversation, note the contradiction as cautionary context
-   - Artifact path: `$SCRATCH_DIR/solution-extractor.md`
+   - Artifact path: `<scratch-dir>/solution-extractor.md`
 
    **Bug track artifact sections:**
 
@@ -195,7 +198,7 @@ Dispatch these research subagents with file-write capability enabled. If a platf
      - **High**: 4-5 dimensions match — essentially the same problem solved again
      - **Moderate**: 2-3 dimensions match — same area but different angle or solution
      - **Low**: 0-1 dimensions match — related but distinct
-   - Artifact path: `$SCRATCH_DIR/related-docs-finder.md`
+   - Artifact path: `<scratch-dir>/related-docs-finder.md`
    - Writes: Links, relationships, refresh candidates, and overlap assessment (score + which dimensions matched)
 
    **Search strategy (grep-first filtering for efficiency):**
@@ -527,7 +530,7 @@ Knowledge track:
 
 | ❌ Wrong | ✅ Correct |
 |----------|-----------|
-| Subagents write files like `context-analysis.md`, `solution-draft.md` | Subagents return text data; orchestrator writes one final file |
+| Subagents write project files like `context-analysis.md`, `solution-draft.md` | Research subagents write only assigned `/tmp/compound-engineering/ce-compound/<run-id>/` artifacts; orchestrator reads them and writes one final project file |
 | Research and assembly run in parallel | Research completes → then assembly runs |
 | Multiple files created during workflow | One solution doc written or updated: `docs/solutions/[category]/[filename].md` (plus optional maintenance writes: a `CONCEPTS.md` create/update from Phase 2.4 and a small instruction-file edit for discoverability) |
 | Creating a new doc when an existing doc covers the same problem | Check overlap assessment; update the existing doc when overlap is high |
