@@ -366,8 +366,8 @@ Omit the `mode` parameter when dispatching sub-agents so the user's configured p
 
 **Model override at dispatch time — check this before every dispatch call.** Omitting it on Opus sessions silently 3-4x's the cost of a review. For each reviewer, read the `[session model]` / `[mid-tier]` annotation from the Stage 3 team announce and apply it:
 
-- `[session model]` → no override; the reviewer inherits the session model.
-- `[mid-tier]` → in Claude Code, add `model: "claude-sonnet-4-5"` to the `Agent` tool call. In Codex, pass `gpt-5.4-mini` (or current equivalent) on `spawn_agent`. In Pi, pass the equivalent on `subagent` via the `pi-subagents` extension. On platforms where the dispatch primitive has no model-override parameter or the available model names are unknown, omit the override — a working review on the parent model beats a broken dispatch on an unrecognized name.
+- `[session model]` → no override; the reviewer inherits the session model. This applies to `ce-correctness-reviewer`, `ce-security-reviewer`, and `ce-adversarial-reviewer`.
+- `[mid-tier]` → in Claude Code, add `model: "sonnet"` to the `Agent` tool call. In Codex, pass `gpt-5.4-mini` (or current equivalent) on `spawn_agent`. In Pi, pass the equivalent on `subagent` via the `pi-subagents` extension. On platforms where the dispatch primitive has no model-override parameter or the available model names are unknown, omit the override — a working review on the parent model beats a broken dispatch on an unrecognized name.
 
 The Stage 3 annotation is the single source of truth for model assignment; do not re-derive it from the tiering rules at dispatch time.
 
