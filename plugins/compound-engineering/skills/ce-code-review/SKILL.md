@@ -306,21 +306,25 @@ Stack-specific personas are additive when runtime behavior warrants them. A Hotw
 
 For `ce-deployment-verification-agent`, use the same migration-artifact gate when the change is risky (destructive DDL, backfills, NOT NULL without default, column renames/drops).
 
-Announce the team before spawning:
+Announce the team before spawning. Include the intended model tier for each reviewer — this annotation is the authoritative input Stage 4 reads to apply the dispatch-time override, so it must be present and accurate before any agent is dispatched:
 
 ```
 Review team:
-- correctness (always)
-- testing (always)
-- maintainability (always)
-- project-standards (always)
-- ce-agent-native-reviewer (always)
-- ce-learnings-researcher (always)
-- security -- new endpoint in routes.rb accepts user-provided redirect URL
-- julik-frontend-races -- Stimulus controller with async DOM updates
-- data-migration -- adds migration 20260303_add_index_to_orders
-- ce-deployment-verification-agent -- destructive migration with backfill
+- correctness (always) [session model]
+- testing (always) [mid-tier]
+- maintainability (always) [mid-tier]
+- project-standards (always) [mid-tier]
+- ce-agent-native-reviewer (always) [mid-tier]
+- ce-learnings-researcher (always) [mid-tier]
+- security -- new endpoint in routes.rb accepts user-provided redirect URL [session model]
+- julik-frontend-races -- Stimulus controller with async DOM updates [mid-tier]
+- data-migration -- adds migration 20260303_add_index_to_orders [mid-tier]
+- ce-deployment-verification-agent -- destructive migration with backfill [mid-tier]
 ```
+
+**Model tier rules for the annotation:**
+- `[session model]` — `ce-correctness-reviewer`, `ce-security-reviewer`, `ce-adversarial-reviewer` only.
+- `[mid-tier]` — every other persona and CE agent.
 
 This is progress reporting, not a blocking confirmation.
 
@@ -360,7 +364,12 @@ Pass `{run_id}` to every persona sub-agent so they can write their full analysis
 
 Omit the `mode` parameter when dispatching sub-agents so the user's configured permission settings apply. Do not pass `mode: "auto"`.
 
-**Model override at dispatch time.** Pass the platform's mid-tier model on every dispatch except `ce-correctness-reviewer`, `ce-security-reviewer`, and `ce-adversarial-reviewer`, which inherit the session model (per the Model tiering subsection above). In Claude Code, add `model: "sonnet"` to the `Agent` tool call. In Codex, pass the equivalent mid-tier on `spawn_agent` (e.g., `gpt-5.4-mini` as of April 2026). In Pi, pass the equivalent on `subagent` via the `pi-subagents` extension. On platforms where the dispatch primitive has no model-override parameter or the available model names are unknown, omit the override — a working review on the parent model beats a broken dispatch on an unrecognized name. Check this on every Agent / `spawn_agent` / `subagent` call in the parallel dispatch; omitting it on Opus sessions silently 3-4x's the cost of a review.
+**Model override at dispatch time — check this before every dispatch call.** Omitting it on Opus sessions silently 3-4x's the cost of a review. For each reviewer, read the `[session model]` / `[mid-tier]` annotation from the Stage 3 team announce and apply it:
+
+- `[session model]` → no override; the reviewer inherits the session model.
+- `[mid-tier]` → in Claude Code, add `model: "claude-sonnet-4-5"` to the `Agent` tool call. In Codex, pass `gpt-5.4-mini` (or current equivalent) on `spawn_agent`. In Pi, pass the equivalent on `subagent` via the `pi-subagents` extension. On platforms where the dispatch primitive has no model-override parameter or the available model names are unknown, omit the override — a working review on the parent model beats a broken dispatch on an unrecognized name.
+
+The Stage 3 annotation is the single source of truth for model assignment; do not re-derive it from the tiering rules at dispatch time.
 
 **Bounded parallel dispatch.** Respect the current harness's active-subagent limit. Queue selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure: leave the reviewer queued and retry after a slot frees. Record a reviewer as failed only after a successful dispatch times out/fails, or when dispatch fails for a non-capacity reason.
 
