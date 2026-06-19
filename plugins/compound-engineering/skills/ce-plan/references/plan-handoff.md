@@ -94,25 +94,26 @@ Based on selection (the bare per-option routing is also stated inline in the SKI
 
 When the user selects "Create Issue", detect their project tracker:
 
-1. Read `AGENTS.md` (or `CLAUDE.md` for compatibility) at the repo root and look for `project_tracker: github` or `project_tracker: linear`.
-2. If `project_tracker: github`:
+1. Read `AGENTS.md` (or `CLAUDE.md` for compatibility) at the repo root and look for `project_tracker: github` or `project_tracker: linear`. Also honor obvious tracker documentation in `README.md`, `CONTRIBUTING.md`, PR templates, or linked tracker URLs when the root instructions are silent.
+2. If `project_tracker: github`, use GitHub Issues through `gh`:
 
    ```bash
    gh issue create --title "<type>: <title>" --body-file <plan_path>
    ```
 
-3. If `project_tracker: linear`:
+3. If `project_tracker: linear`, create the issue through whatever Linear interface is actually available in this environment. Prefer, in order:
+   - a platform-provided Linear connector or MCP tool that can create issues;
+   - documented direct API/GraphQL credentials and endpoint details from the project's active instructions or configured secrets location;
+   - a documented local Linear CLI, only when the project or user explicitly says that CLI is installed and authenticated.
 
-   ```bash
-   linear issue create --title "<title>" --description "$(cat <plan_path>)"
-   ```
+   Do not infer Linear is unavailable just because there is no `linear` binary, no `LINEAR_API_KEY`, or no Linear MCP server. Those probes can be false negatives in workspaces that use a connector or raw GraphQL with credentials stored outside the shell environment. If direct API/GraphQL is used, never print secret values; read the plan body from disk and send it as markdown/description content according to the API contract.
 
 4. If no tracker is configured, ask the user which tracker they use with the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_user` in Gemini, `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to asking in chat only when no blocking tool exists or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip. Options: `GitHub`, `Linear`, `Skip`. Then:
-   - Proceed with the chosen tracker's command above
+   - Proceed with the chosen tracker's creation path above
    - Offer to persist the choice by adding `project_tracker: <value>` to `AGENTS.md`, where `<value>` is the lowercase tracker key (`github` or `linear`) — not the display label — so future runs match the detector in step 1 and skip this prompt
    - If `Skip`, return to the options without creating an issue
 
-5. If the detected tracker's CLI is not installed or not authenticated, surface a clear error (e.g., "`gh` CLI not found — install it or create the issue manually") and return to the options.
+5. If the detected tracker has no usable connector, MCP tool, CLI, or direct API path after following its documented access method, surface a clear error (e.g., "`gh` CLI not found or not authenticated for GitHub Issues", "Linear is documented for this project, but no connector/tool/API credentials were found in the configured locations") and return to the options. Do not create a local issue-plan fallback unless the user explicitly asks for a local-only artifact.
 
 After issue creation:
 - Display the issue URL

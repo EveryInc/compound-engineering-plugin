@@ -131,6 +131,47 @@ describe("ce-plan post-generation menu routing", () => {
     ).toBe(true)
   })
 
+  test("Create Issue routing does not assume a Linear CLI", () => {
+    const phaseStart = SKILL_BODY.indexOf("##### 5.3.8")
+    const phaseRegion = SKILL_BODY.slice(phaseStart)
+
+    const createIssueRoutingMatch = phaseRegion.match(
+      /^- \*\*Create Issue\*\*[\s\S]{0,700}/m,
+    )
+    expect(
+      createIssueRoutingMatch,
+      "ce-plan SKILL.md Phase 5.4 is missing the inline '- **Create Issue** ...' routing bullet.",
+    ).not.toBeNull()
+
+    const createIssueRouting = createIssueRoutingMatch![0]
+    expect(
+      /Do not assume Linear means a `linear` CLI/i.test(createIssueRouting),
+      "ce-plan SKILL.md Create Issue routing must warn that Linear access is not synonymous with a `linear` CLI.",
+    ).toBe(true)
+
+    expect(
+      /connector\/MCP tool|direct API\/GraphQL|documented local CLI/i.test(
+        createIssueRouting,
+      ),
+      "ce-plan SKILL.md Create Issue routing must name the accepted Linear access surfaces: connector/MCP, direct API/GraphQL, or documented local CLI.",
+    ).toBe(true)
+
+    expect(
+      HANDOFF_BODY.includes("linear issue create"),
+      "references/plan-handoff.md must not prescribe `linear issue create`; Linear has no guaranteed first-party CLI and workspaces may use connector or API access.",
+    ).toBe(false)
+
+    expect(
+      HANDOFF_BODY.includes("Do not infer Linear is unavailable just because there is no `linear` binary"),
+      "references/plan-handoff.md must explicitly guard against the false-negative probe that caused agents to create local issue-plan docs instead of using configured Linear access.",
+    ).toBe(true)
+
+    expect(
+      HANDOFF_BODY.includes("Do not create a local issue-plan fallback unless the user explicitly asks"),
+      "references/plan-handoff.md must prevent silent local issue-plan fallbacks when durable Linear access should be used.",
+    ).toBe(true)
+  })
+
   test("inline-routing regex rejects empty-action bullets even when followed by another bullet", () => {
     // Regression guard for Codex P2 finding on PR #715: the previous
     // `\s*(?:...)\s*` shape allowed newline consumption, so a bullet with no
