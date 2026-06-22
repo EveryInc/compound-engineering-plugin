@@ -35,7 +35,7 @@ The shipped change is mostly a determinism patch, not a safe_auto-rate increase.
 
 ## Context
 
-[`ce-code-review`'s subagent template](../../plugins/compound-engineering/skills/ce-code-review/references/subagent-template.md) classifies each finding into one of four `autofix_class` buckets — `safe_auto`, `gated_auto`, `manual`, `advisory` — that govern downstream fixer dispatch. Headless mode auto-applies only `safe_auto`; everything else surfaces for user routing.
+[`ce-code-review`'s subagent template](../../skills/ce-code-review/references/subagent-template.md) classifies each finding into one of four `autofix_class` buckets — `safe_auto`, `gated_auto`, `manual`, `advisory` — that govern downstream fixer dispatch. Headless mode auto-applies only `safe_auto`; everything else surfaces for user routing.
 
 Issue #686 cited an incident pre-#685 ("8 findings ended up in tickets that should have been fixes") and inferred personas were too conservative on `safe_auto`, pushing genuinely-mechanical fixes into `gated_auto` or `manual`. PR #685 fixed the LFG defer-bias directly via `suggested_fix` propagation. #686 asked: should we also tighten the `safe_auto` boundary so more findings flow into auto-apply?
 

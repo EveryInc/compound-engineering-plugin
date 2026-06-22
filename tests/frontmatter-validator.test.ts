@@ -7,11 +7,11 @@ import path from "node:path"
 const SKILL_DIRS = [
   path.join(
     __dirname,
-    "../plugins/compound-engineering/skills/ce-compound",
+    "../skills/ce-compound",
   ),
   path.join(
     __dirname,
-    "../plugins/compound-engineering/skills/ce-compound-refresh",
+    "../skills/ce-compound-refresh",
   ),
 ] as const
 

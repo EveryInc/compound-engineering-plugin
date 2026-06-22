@@ -7,8 +7,6 @@ const detectProjectType = path.join(
   import.meta.dir,
   "..",
   "..",
-  "plugins",
-  "compound-engineering",
   "skills",
   "ce-polish",
   "scripts",

@@ -3,7 +3,7 @@ import path from "path"
 import { describe, expect, test } from "bun:test"
 import { load } from "js-yaml"
 
-const PLUGIN_ROOT = path.join(process.cwd(), "plugins", "compound-engineering", "skills")
+const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 
 /** Canonical copies live in ce-compound; mirrors must stay identical. */
 const SHARED_SUPPORT_FILES = [
@@ -32,7 +32,7 @@ describe("ce-compound support file drift", () => {
 
 // Format-rendering refs (markdown-rendering.md, html-rendering.md) are
 // byte-duplicated across ce-plan, ce-brainstorm, and ce-ideate. There is no
-// cross-skill shared-file mechanism (see plugins/compound-engineering/AGENTS.md
+// cross-skill shared-file mechanism (see AGENTS.md
 // "Runtime vs Authoring Context"); all copies must stay identical so the
 // agent renders artifacts the same way regardless of which skill composed
 // them.

@@ -69,7 +69,7 @@ jobs:
       #
       # --strict (warnings-as-errors) should be enabled once this known
       # warning is fixed:
-      #   plugins/compound-engineering -- 1 warning:
+      #   . -- 1 warning:
       #     "root: CLAUDE.md at the plugin root is not loaded as project context. To ship context with your plugin, use a skill (skills/<name>/SKILL.md) instead."
       - name: Validate plugin schema (claude plugin validate)
         run: |

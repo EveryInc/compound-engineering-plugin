@@ -13,6 +13,7 @@ describe("detectInstalledTools", () => {
     await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".gemini"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".copilot"), { recursive: true })
+    delete process.env.OPENCODE_CONFIG_DIR
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
@@ -42,10 +43,11 @@ describe("detectInstalledTools", () => {
   test("returns all tools with detected=false when no directories exist", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-empty-"))
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-empty-cwd-"))
+    delete process.env.OPENCODE_CONFIG_DIR
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
-    expect(results.length).toBe(8)
+    expect(results.length).toBe(7)
     for (const tool of results) {
       expect(tool.detected).toBe(false)
       expect(tool.reason).toBe("not found")
@@ -165,6 +167,7 @@ describe("getDetectedTargetNames", () => {
 
     await fs.mkdir(path.join(tempHome, ".codex"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".gemini"), { recursive: true })
+    delete process.env.OPENCODE_CONFIG_DIR
 
     const names = await getDetectedTargetNames(tempHome, tempCwd)
 
@@ -179,6 +182,7 @@ describe("getDetectedTargetNames", () => {
   test("returns empty array when nothing detected", async () => {
     const tempHome = await fs.mkdtemp(path.join(os.tmpdir(), "detect-none-"))
     const tempCwd = await fs.mkdtemp(path.join(os.tmpdir(), "detect-none-cwd-"))
+    delete process.env.OPENCODE_CONFIG_DIR
 
     const names = await getDetectedTargetNames(tempHome, tempCwd)
     expect(names).toEqual([])

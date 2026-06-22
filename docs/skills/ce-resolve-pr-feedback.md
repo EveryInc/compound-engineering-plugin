@@ -140,7 +140,7 @@ A reviewer (and a review bot) leave 8 comments on your PR. You invoke `/ce-resol
 
 The skill detects the PR from the current branch, fetches via GraphQL: 6 unresolved review threads, 2 review bodies (one is a CodeRabbit wrapper), 0 PR comments. Triage: the CodeRabbit wrapper is non-actionable boilerplate — dropped silently. One review thread has a substantive reply from yesterday deferring action — pending, skip. That leaves 5 review threads + 1 review body as **new**.
 
-Step 4 dispatches 6 `ce-pr-comment-resolver` agents in batches of 4. File-collision check: two threads touch `app/services/dispatcher.rb` → those two serialize; the rest run in parallel. Each agent reads the actual code and judges its finding on the merits:
+Step 4 dispatches 6 generic resolver subagents seeded with the skill-local `pr-comment-resolver.md` prompt, in batches of 4. File-collision check: two threads touch `app/services/dispatcher.rb` → those two serialize; the rest run in parallel. Each resolver reads the actual code and judges its finding on the merits:
 
 - 2 findings are clearly correct → `fixed`
 - 1 suggests an approach that works, but a cleaner one exists → `fixed-differently`

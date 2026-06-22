@@ -24,7 +24,7 @@ import {
 } from "../data/plugin-legacy-artifacts"
 import { moveLegacyArtifactToBackup } from "../targets/managed-artifacts"
 import { isManagedCodexAgentsSymlink, readCodexInstallManifest, resolveCodexManagedRoots } from "../targets/codex"
-import { classifyCodexLegacyPromptOwnership } from "../utils/legacy-cleanup"
+import { classifyCodexLegacyPromptOwnership, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
 import { isSafeManagedPath, pathExists, readJson, sanitizePathName } from "../utils/files"
 import { resolveOpenCodeGlobalRoot } from "../utils/opencode-config"
 import { expandHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
@@ -269,7 +269,7 @@ async function cleanupCodex(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>
   const managedDir = path.join(codexRoot, plugin.manifest.name)
   let moved = 0
   for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(codexRoot, "skills"), skillName, "Codex")
+    moved += await moveLegacySkillIfOwned(managedDir, "skills", path.join(codexRoot, "skills"), skillName, "Codex")
     if (!currentNamespacedSkills.has(skillName)) {
       moved += await moveIfExists(
         managedDir,
@@ -295,6 +295,16 @@ async function cleanupCodex(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>
     const ownership = await classifyCodexLegacyPromptOwnership(promptPath)
     if (ownership === "foreign") continue
     moved += await moveIfExists(managedDir, "prompts", path.join(codexRoot, "prompts"), promptFile, "Codex")
+  }
+  for (const agentFile of artifacts.agents ?? []) {
+    moved += await moveIfExists(
+      managedDir,
+      "agents",
+      path.join(codexRoot, "agents", plugin.manifest.name),
+      agentFile,
+      "Codex",
+    )
+    moved += await moveLegacyAgentIfOwned(managedDir, "agents", path.join(codexRoot, "agents"), agentFile, "Codex", ".toml")
   }
 
   // Manifest-driven migration: read the previous install's manifest and
@@ -405,10 +415,10 @@ async function cleanupOpenCode(plugin: Awaited<ReturnType<typeof loadClaudePlugi
   const managedDir = path.join(opencodeRoot, "compound-engineering")
   let moved = 0
   for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(opencodeRoot, "skills"), skillName, "OpenCode")
+    moved += await moveLegacySkillIfOwned(managedDir, "skills", path.join(opencodeRoot, "skills"), skillName, "OpenCode")
   }
   for (const agentPath of artifacts.agents) {
-    moved += await moveIfExists(managedDir, "agents", path.join(opencodeRoot, "agents"), agentPath, "OpenCode")
+    moved += await moveLegacyAgentIfOwned(managedDir, "agents", path.join(opencodeRoot, "agents"), agentPath, "OpenCode", ".md")
   }
   for (const commandPath of artifacts.commands) {
     moved += await moveIfExists(managedDir, "commands", path.join(opencodeRoot, "commands"), commandPath, "OpenCode")
@@ -426,10 +436,13 @@ async function cleanupPi(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>, p
   const managedDir = path.join(piRoot, "compound-engineering")
   let moved = 0
   for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(piRoot, "skills"), skillName, "Pi")
+    moved += await moveLegacySkillIfOwned(managedDir, "skills", path.join(piRoot, "skills"), skillName, "Pi")
   }
   for (const promptFile of artifacts.prompts) {
     moved += await moveIfExists(managedDir, "prompts", path.join(piRoot, "prompts"), promptFile, "Pi")
+  }
+  for (const agentPath of artifacts.agents ?? []) {
+    moved += await moveLegacyAgentIfOwned(managedDir, "agents", path.join(piRoot, "agents"), agentPath, "Pi", ".md")
   }
   return { target: "pi", root: piRoot, moved }
 }
@@ -444,10 +457,10 @@ async function cleanupGemini(plugin: Awaited<ReturnType<typeof loadClaudePlugin>
   const managedDir = path.join(geminiRoot, "compound-engineering")
   let moved = 0
   for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(geminiRoot, "skills"), skillName, "Gemini")
+    moved += await moveLegacySkillIfOwned(managedDir, "skills", path.join(geminiRoot, "skills"), skillName, "Gemini")
   }
   for (const agentPath of artifacts.agents) {
-    moved += await moveIfExists(managedDir, "agents", path.join(geminiRoot, "agents"), agentPath, "Gemini")
+    moved += await moveLegacyAgentIfOwned(managedDir, "agents", path.join(geminiRoot, "agents"), agentPath, "Gemini", ".md")
   }
   for (const commandPath of artifacts.commands) {
     moved += await moveIfExists(managedDir, "commands", path.join(geminiRoot, "commands"), commandPath, "Gemini")
@@ -474,11 +487,11 @@ async function cleanupKiro(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>,
   const managedDir = path.join(kiroRoot, "compound-engineering")
   let moved = 0
   for (const skillName of skillNames) {
-    moved += await moveIfExists(managedDir, "skills", path.join(kiroRoot, "skills"), skillName, "Kiro")
+    moved += await moveLegacySkillIfOwned(managedDir, "skills", path.join(kiroRoot, "skills"), skillName, "Kiro")
   }
   for (const agentName of agentNames) {
-    moved += await moveIfExists(managedDir, "agents", path.join(kiroRoot, "agents"), `${agentName}.json`, "Kiro")
-    moved += await moveIfExists(managedDir, "agents", path.join(kiroRoot, "agents", "prompts"), `${agentName}.md`, "Kiro")
+    moved += await moveLegacyAgentIfOwned(managedDir, "agents", path.join(kiroRoot, "agents", "prompts"), `${agentName}.md`, "Kiro", ".md")
+    moved += await moveLegacyAgentIfOwned(managedDir, "agents", path.join(kiroRoot, "agents"), `${agentName}.json`, "Kiro", ".json")
   }
   return { target: "kiro", root: kiroRoot, moved }
 }
@@ -504,10 +517,10 @@ async function cleanupCopilot(plugin: Awaited<ReturnType<typeof loadClaudePlugin
   const managedDir = path.join(copilotRoot, "compound-engineering")
   let moved = 0
   for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(copilotRoot, "skills"), skillName, "Copilot")
+    moved += await moveLegacySkillIfOwned(managedDir, "skills", path.join(copilotRoot, "skills"), skillName, "Copilot")
   }
   for (const agentPath of artifacts.agents) {
-    moved += await moveIfExists(managedDir, "agents", path.join(copilotRoot, "agents"), agentPath, "Copilot")
+    moved += await moveLegacyAgentIfOwned(managedDir, "agents", path.join(copilotRoot, "agents"), agentPath, "Copilot", ".agent.md")
   }
   return { target: "copilot", root: copilotRoot, moved }
 }
@@ -529,10 +542,10 @@ async function cleanupDroid(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>
   const managedDir = path.join(droidRoot, "compound-engineering")
   let moved = 0
   for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(droidRoot, "skills"), skillName, "Droid")
+    moved += await moveLegacySkillIfOwned(managedDir, "skills", path.join(droidRoot, "skills"), skillName, "Droid")
   }
   for (const droidPath of artifacts.droids) {
-    moved += await moveIfExists(managedDir, "droids", path.join(droidRoot, "droids"), droidPath, "Droid")
+    moved += await moveLegacyAgentIfOwned(managedDir, "droids", path.join(droidRoot, "droids"), droidPath, "Droid", ".md")
   }
   for (const commandPath of artifacts.commands) {
     moved += await moveIfExists(managedDir, "commands", path.join(droidRoot, "commands"), commandPath, "Droid")
@@ -583,11 +596,11 @@ async function cleanupQwen(plugin: Awaited<ReturnType<typeof loadClaudePlugin>>,
   }
 
   for (const skillName of skillNames) {
-    moved += await moveIfExists(managedDir, "skills", path.join(qwenRoot, "skills"), skillName, "Qwen")
+    moved += await moveLegacySkillIfOwned(managedDir, "skills", path.join(qwenRoot, "skills"), skillName, "Qwen")
   }
   for (const agentName of agentNames) {
-    moved += await moveIfExists(managedDir, "agents", path.join(qwenRoot, "agents"), `${agentName}.yaml`, "Qwen")
-    moved += await moveIfExists(managedDir, "agents", path.join(qwenRoot, "agents"), `${agentName}.md`, "Qwen")
+    moved += await moveLegacyAgentIfOwned(managedDir, "agents", path.join(qwenRoot, "agents"), `${agentName}.yaml`, "Qwen", ".yaml")
+    moved += await moveLegacyAgentIfOwned(managedDir, "agents", path.join(qwenRoot, "agents"), `${agentName}.md`, "Qwen", ".md")
   }
   for (const commandPath of commandPaths) {
     moved += await moveIfExists(managedDir, "commands", path.join(qwenRoot, "commands"), commandPath, "Qwen")
@@ -612,7 +625,7 @@ async function cleanupWindsurf(plugin: Awaited<ReturnType<typeof loadClaudePlugi
   const managedDir = path.join(windsurfRoot, "compound-engineering")
   let moved = 0
   for (const skillName of artifacts.skills) {
-    moved += await moveIfExists(managedDir, "skills", path.join(windsurfRoot, "skills"), skillName, "Windsurf")
+    moved += await moveLegacySkillIfOwned(managedDir, "skills", path.join(windsurfRoot, "skills"), skillName, "Windsurf")
   }
   for (const workflowPath of artifacts.workflows) {
     moved += await moveIfExists(managedDir, "global_workflows", path.join(windsurfRoot, "global_workflows"), workflowPath, "Windsurf")
@@ -640,6 +653,46 @@ async function moveIfExists(
   return 1
 }
 
+async function moveLegacySkillIfOwned(
+  managedDir: string,
+  kind: string,
+  artifactRoot: string,
+  relativePath: string,
+  label: string,
+): Promise<number> {
+  if (!isSafeManagedPath(artifactRoot, relativePath)) return 0
+  const artifactPath = path.join(artifactRoot, ...relativePath.split("/"))
+  if (!(await pathExists(artifactPath))) return 0
+  if (!(await isLegacySkillArtifactOwned(artifactPath, path.basename(relativePath)))) return 0
+  await moveLegacyArtifactToBackup(managedDir, kind, artifactRoot, relativePath, label)
+  return 1
+}
+
+async function moveLegacyAgentIfOwned(
+  managedDir: string,
+  kind: string,
+  artifactRoot: string,
+  relativePath: string,
+  label: string,
+  extension: string | null,
+): Promise<number> {
+  if (!isSafeManagedPath(artifactRoot, relativePath)) return 0
+  const artifactPath = path.join(artifactRoot, ...relativePath.split("/"))
+  if (!(await pathExists(artifactPath))) return 0
+  const legacyName = legacyAgentNameFromPath(relativePath, extension)
+  if (!(await isLegacyAgentArtifactOwned(artifactPath, legacyName, extension))) return 0
+  await moveLegacyArtifactToBackup(managedDir, kind, artifactRoot, relativePath, label)
+  return 1
+}
+
+function legacyAgentNameFromPath(relativePath: string, extension: string | null): string {
+  const baseName = path.basename(relativePath)
+  if (!extension) return baseName
+  return baseName.endsWith(extension)
+    ? baseName.slice(0, -extension.length)
+    : path.basename(baseName, path.extname(baseName))
+}
+
 function resolveCleanupTargets(targetArg: string): CleanupTarget[] {
   if (targetArg === "all") return [...cleanupTargets]
   const targets = targetArg.split(",").map((entry) => entry.trim()).filter(Boolean)
@@ -659,10 +712,21 @@ async function resolveCleanupPluginPath(input: string): Promise<string> {
     throw new Error(`Local plugin path not found: ${directPath}`)
   }
 
-  const bundledRoot = fileURLToPath(new URL("../../plugins/", import.meta.url))
-  const pluginPath = path.join(bundledRoot, input)
-  const manifestPath = path.join(pluginPath, ".claude-plugin", "plugin.json")
-  if (await pathExists(manifestPath)) return pluginPath
+  const repoRoot = fileURLToPath(new URL("../..", import.meta.url))
+  const rootManifestPath = path.join(repoRoot, ".claude-plugin", "plugin.json")
+  if (await pathExists(rootManifestPath)) {
+    try {
+      const raw = await fs.readFile(rootManifestPath, "utf8")
+      const manifest = JSON.parse(raw) as { name?: string }
+      if (manifest.name === input) return repoRoot
+    } catch {
+      // Fall through to legacy multi-plugin layout.
+    }
+  }
+
+  const legacyPluginPath = path.join(repoRoot, "plugins", input)
+  const legacyManifestPath = path.join(legacyPluginPath, ".claude-plugin", "plugin.json")
+  if (await pathExists(legacyManifestPath)) return legacyPluginPath
 
   throw new Error(`Unknown bundled plugin: ${input}`)
 }

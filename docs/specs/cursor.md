@@ -26,7 +26,7 @@ The repo-owned marketplace files are:
 
 ```text
 .cursor-plugin/marketplace.json
-plugins/compound-engineering/.cursor-plugin/plugin.json
+.cursor-plugin/plugin.json
 ```
 
 Do not use the old custom Bun converter/install path for Cursor.

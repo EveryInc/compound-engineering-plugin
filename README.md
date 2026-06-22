@@ -1,9 +1,8 @@
 # Compound Engineering
 
 [![Build Status](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/EveryInc/compound-engineering-plugin/actions/workflows/ci.yml)
-[![npm](https://img.shields.io/npm/v/@every-env/compound-plugin)](https://www.npmjs.com/package/@every-env/compound-plugin)
 
-AI skills and agents that make each unit of engineering work easier than the last.
+AI skills that make each unit of engineering work easier than the last.
 
 ## Philosophy
 
@@ -22,7 +21,6 @@ The point is not ceremony. The point is leverage. A good brainstorm makes the pl
 
 **Learn more**
 
-- [Full component reference](plugins/compound-engineering/README.md) - all agents and skills
 - [Compound engineering: how Every codes with agents](https://every.to/chain-of-thought/compound-engineering-how-every-codes-with-agents)
 - [The story behind compounding engineering](https://every.to/source-code/my-ai-had-already-fixed-the-code-before-i-saw-it)
 
@@ -72,9 +70,42 @@ For a focused bug investigation:
 
 ## Getting Started
 
-After installing, run `/ce-setup` in any project. It checks your environment, installs missing tools, and bootstraps project config.
+After installing, run `/ce-setup` in any project. It checks repo-local config, reports optional tool capabilities, and helps keep machine-local CE settings safely gitignored.
 
-The `compound-engineering` plugin currently ships 37 skills and 51 agents. See the [full component reference](plugins/compound-engineering/README.md) for the complete inventory.
+The `compound-engineering` plugin currently ships 28 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
+
+### Full Skill Inventory
+
+| Skill | Purpose |
+|-------|---------|
+| `/ce-strategy` | Create or maintain `STRATEGY.md` |
+| `/ce-ideate` | Generate and critically evaluate grounded ideas |
+| `/ce-brainstorm` | Explore requirements and write a right-sized requirements doc |
+| `/ce-plan` | Create structured implementation plans |
+| `/ce-work` | Execute implementation plans systematically |
+| `/ce-code-review` | Review code with skill-local reviewer personas |
+| `/ce-doc-review` | Review requirements and plan documents |
+| `/ce-debug` | Reproduce failures, trace root cause, and fix bugs |
+| `/ce-compound` | Document solved problems to compound team knowledge |
+| `/ce-compound-refresh` | Refresh stale or drifting learnings |
+| `/ce-optimize` | Run iterative optimization loops |
+| `/ce-product-pulse` | Generate time-windowed product pulse reports |
+| `/ce-riffrec-feedback-analysis` | Convert Riffrec recordings or notes into structured feedback |
+| `/ce-resolve-pr-feedback` | Resolve PR review feedback |
+| `/ce-commit` | Create a git commit with a clear message |
+| `/ce-commit-push-pr` | Commit, push, and open a PR |
+| `/ce-worktree` | Ensure work happens in an isolated git worktree |
+| `/ce-promote` | Draft user-facing announcement copy |
+| `/ce-test-browser` | Run browser tests on PR-affected pages |
+| `/ce-test-xcode` | Build and test iOS apps on simulator |
+| `/ce-setup` | Diagnose optional tool capabilities and project config |
+| `/ce-simplify-code` | Simplify recent code changes |
+| `/ce-polish` | Start a dev server and iterate on UX polish |
+| `/ce-proof` | Create, edit, and share Proof documents |
+| `/ce-dogfood-beta` | Diff-scoped browser QA of the active branch |
+| `/ce-work-beta` | Experimental execution workflow with Codex delegation mode |
+| `/ce-decompose-beta` | Decompose a project into a committed task-graph (markdown index + one file per node), each tagged with its next CE stage and model tier; audits the dependency graph and offers to drive the first ready node |
+| `/lfg` | Full autonomous engineering workflow |
 
 ---
 
@@ -97,9 +128,28 @@ In Cursor Agent chat, install from the plugin marketplace:
 
 Or search for "compound engineering" in the plugin marketplace.
 
-### Codex
+### Codex App
 
-Three steps: register the marketplace, install the agent set, then install the plugin through Codex's TUI.
+Compound Engineering is not listed in Codex's built-in plugin marketplace yet. Add it as a custom marketplace:
+
+1. In the Codex app, open **Plugins** from the sidebar.
+2. Click **Add** / **Add plugin marketplace**.
+3. Enter:
+
+   | Field | Value |
+   | --- | --- |
+   | Source | `EveryInc/compound-engineering-plugin` |
+   | Git ref | `main` |
+   | Sparse paths | leave blank |
+
+4. Click **Add marketplace**.
+5. Select **Compound Engineering**, install **compound-engineering**, then restart Codex.
+
+The Codex app install is self-contained for Compound Engineering. Specialist reviewer and research behavior lives inside the skills as local prompt assets; no separate custom-agent install step is required.
+
+### Codex CLI
+
+Register the marketplace, then install the plugin.
 
 1. **Register the marketplace with Codex:**
 
@@ -107,41 +157,24 @@ Three steps: register the marketplace, install the agent set, then install the p
    codex plugin marketplace add EveryInc/compound-engineering-plugin
    ```
 
-2. **Install the Compound Engineering agents** (Codex's plugin spec does not register custom agents yet):
+2. **Install the plugin:**
 
    ```bash
-   bunx @every-env/compound-plugin install compound-engineering --to codex
+   codex plugin add compound-engineering@compound-engineering-plugin
    ```
 
-3. **Install the plugin through Codex's TUI:** launch `codex`, run `/plugins`, find the **Compound Engineering** marketplace, select the **compound-engineering** plugin, and choose **Install**. Restart Codex after install completes. Codex's CLI can register marketplaces, but it does not currently expose a plugin-install subcommand for plugins from an added marketplace -- the `/plugins` TUI install is required for CE skills.
+   You can also launch `codex`, run `/plugins`, find the **Compound Engineering** marketplace, select the **compound-engineering** plugin, and choose **Install**. Restart Codex after install completes.
 
-All three steps are needed. The marketplace registration plus TUI install handles skills; the Bun step adds the review, research, and workflow agents that skills like `$ce-code-review`, `$ce-plan`, and `$ce-work` spawn in Codex. Without the agent step, delegating skills will report missing agents.
+The native Codex plugin install is self-contained for Compound Engineering. Specialist reviewer and research behavior lives inside the skills as local prompt assets; no separate custom-agent install step is required.
 
 For a non-default Codex profile, run every Codex-related step against the same `CODEX_HOME`. This example installs CE into a `work` profile:
 
 ```bash
 CODEX_HOME="$HOME/.codex/profiles/work" codex plugin marketplace add EveryInc/compound-engineering-plugin
-CODEX_HOME="$HOME/.codex/profiles/work" bunx @every-env/compound-plugin install compound-engineering --to codex
-CODEX_HOME="$HOME/.codex/profiles/work" codex
+CODEX_HOME="$HOME/.codex/profiles/work" codex plugin add compound-engineering@compound-engineering-plugin
 ```
 
-Inside Codex, run `/plugins`, select **Compound Engineering**, then install **compound-engineering**. The marketplace step only makes the plugin available; the TUI install is what activates the native CE skills for that profile.
-
-For local development from this checkout, register the current worktree and use the local CLI:
-
-```bash
-CODEX_HOME="$HOME/.codex/profiles/work" codex plugin marketplace add "$PWD"
-CODEX_HOME="$HOME/.codex/profiles/work" bun run src/index.ts install ./plugins/compound-engineering --to codex
-CODEX_HOME="$HOME/.codex/profiles/work" codex
-```
-
-> **Heads up:** once Codex's native plugin spec supports custom agents, the Bun agent step goes away. The TUI install alone will be sufficient.
-
-If you previously used the Bun-only Codex install, back up stale CE artifacts before switching:
-
-```bash
-bunx @every-env/compound-plugin cleanup --target codex
-```
+The marketplace step only makes the plugin available; the plugin install is what activates the native CE skills for that profile.
 
 ### GitHub Copilot
 
@@ -169,12 +202,6 @@ copilot plugin install compound-engineering@compound-engineering-plugin
 
 Copilot CLI reads the existing Claude-compatible plugin manifests, so no separate Bun install step is needed.
 
-If you previously used the old Bun Copilot install, back up stale CE artifacts before switching to the native plugin:
-
-```bash
-bunx @every-env/compound-plugin cleanup --target copilot
-```
-
 ### Factory Droid
 
 From a shell with the `droid` binary:
@@ -186,12 +213,6 @@ droid plugin install compound-engineering@compound-engineering-plugin
 
 Droid uses `plugin@marketplace` plugin IDs; here `compound-engineering` is the plugin and `compound-engineering-plugin` is the marketplace name. Droid installs the existing Claude Code-compatible plugin and translates the format automatically, so no Bun install step is needed.
 
-If you previously used the old Bun Droid install, back up stale CE artifacts before switching to the native plugin:
-
-```bash
-bunx @every-env/compound-plugin cleanup --target droid
-```
-
 ### Qwen Code
 
 ```bash
@@ -200,51 +221,71 @@ qwen extensions install EveryInc/compound-engineering-plugin:compound-engineerin
 
 Qwen Code installs Claude Code-compatible plugins directly from GitHub and converts the plugin format during install, so no Bun install step is needed.
 
-If you previously used the old Bun Qwen install, back up stale CE artifacts before switching to the native extension:
+### OpenCode
 
-```bash
-bunx @every-env/compound-plugin cleanup --target qwen
+Add Compound Engineering to the `plugin` array in your global or project `opencode.json`:
+
+```json
+{
+  "plugin": ["compound-engineering@git+https://github.com/EveryInc/compound-engineering-plugin.git"]
+}
 ```
 
-### OpenCode, Pi, Gemini, and Kiro
+Restart OpenCode after changing the config. The OpenCode plugin registers the Compound Engineering skills directory directly; no Bun installer or generated skill copy is required. See [`.opencode/INSTALL.md`](.opencode/INSTALL.md) for pinning examples.
 
-This repo includes a Bun/TypeScript installer that converts the Compound Engineering plugin to OpenCode, Pi, Gemini CLI, and Kiro CLI.
+### Pi
 
-```bash
-bunx @every-env/compound-plugin install compound-engineering --to opencode
-bunx @every-env/compound-plugin install compound-engineering --to pi
-bunx @every-env/compound-plugin install compound-engineering --to gemini
-bunx @every-env/compound-plugin install compound-engineering --to kiro
-```
-
-**Pi prerequisites.** Pi does not ship a native subagent primitive, so the Pi install depends on [nicobailon/pi-subagents](https://github.com/nicobailon/pi-subagents) (required) and recommends [edlsh/pi-ask-user](https://github.com/edlsh/pi-ask-user) for richer blocking user questions:
+Install Compound Engineering as a Pi package from this repository:
 
 ```bash
-pi install npm:pi-subagents    # required — provides the `subagent` tool used by skills that dispatch parallel agents
-pi install npm:pi-ask-user     # recommended — provides the `ask_user` tool; skills fall back to numbered options in chat when it is missing
+pi install git:github.com/EveryInc/compound-engineering-plugin
 ```
 
-To auto-detect custom-install targets and install to all:
+Required companion for CE workflows that dispatch reviewer, research, or implementation subagents:
 
 ```bash
-bunx @every-env/compound-plugin install compound-engineering --to all
+pi install npm:pi-subagents
 ```
 
-The custom install targets run CE legacy cleanup during install. To run cleanup manually for a specific target:
+Recommended companion for richer blocking questions:
 
 ```bash
-bunx @every-env/compound-plugin cleanup --target codex
-bunx @every-env/compound-plugin cleanup --target opencode
-bunx @every-env/compound-plugin cleanup --target pi
-bunx @every-env/compound-plugin cleanup --target gemini
-bunx @every-env/compound-plugin cleanup --target kiro
-bunx @every-env/compound-plugin cleanup --target copilot   # old Bun installs only
-bunx @every-env/compound-plugin cleanup --target droid     # old Bun installs only
-bunx @every-env/compound-plugin cleanup --target qwen      # old Bun installs only
-bunx @every-env/compound-plugin cleanup --target windsurf  # deprecated legacy installs only
+pi install npm:pi-ask-user
 ```
 
-Cleanup moves known CE artifacts into a `compound-engineering/legacy-backup/` directory under the target root.
+### Gemini CLI
+
+Install the native Gemini extension from this repository:
+
+```bash
+gemini extensions install https://github.com/EveryInc/compound-engineering-plugin
+```
+
+Update it later with:
+
+```bash
+gemini extensions update compound-engineering
+```
+
+### Existing Installs
+
+Marketplace-managed installs should move to the root plugin layout when the marketplace/plugin version updates. On Claude Code, refresh the cached marketplace definition before updating the plugin:
+
+```text
+/plugin marketplace update compound-engineering-plugin
+/plugin update compound-engineering
+```
+
+A plugin update by itself can still read the stale cached marketplace entry that points at the old `plugins/compound-engineering` path. If you configured a host with a direct path or sparse path under `plugins/compound-engineering`, edit or reinstall that source so it points at the repository root with no sparse path.
+
+If a previous Bun-installed copy is still shadowing native plugin skills, run the current cleanup command from a checkout of this repository:
+
+```bash
+git clone https://github.com/EveryInc/compound-engineering-plugin.git /tmp/compound-engineering-plugin-cleanup
+cd /tmp/compound-engineering-plugin-cleanup
+bun install
+bun run cleanup --target all
+```
 
 ---
 
@@ -258,147 +299,70 @@ bun run release:validate
 
 ### From your local checkout
 
-For active development -- edits to the plugin source are reflected immediately.
+For active development, load this checkout directly in the harness you want to test.
 
-**Claude Code** -- add a shell alias so your local copy loads alongside your normal plugins:
+**Claude Code**
 
 ```bash
-alias cce='claude --plugin-dir ~/Code/compound-engineering-plugin/plugins/compound-engineering'
+claude --plugin-dir "$PWD"
 ```
 
-Run `cce` instead of `claude` to test your changes. Your production install stays untouched.
+**Codex App**
 
-**Codex and other targets** -- run the local CLI against your checkout:
+In the app's **Add plugin marketplace** form, use this checkout as the source:
+
+| Field | Value |
+| --- | --- |
+| Source | `/path/to/compound-engineering-plugin` |
+| Git ref | current branch, or leave blank for a local folder |
+| Sparse paths | leave blank |
+
+**Codex CLI**
 
 ```bash
-# from the repo root
-bun run src/index.ts install ./plugins/compound-engineering --to codex
-
-# same pattern for other targets
-bun run src/index.ts install ./plugins/compound-engineering --to opencode
+codex plugin marketplace add "$PWD"
+codex plugin add compound-engineering@compound-engineering-plugin
 ```
 
-### From a pushed branch
+Use a separate `CODEX_HOME` when you want to keep local testing isolated from your normal Codex profile. The Codex marketplace entry points at the public Git plugin source so root-shaped plugin repos install correctly; use a temporary marketplace catalog with a `source.url` plus `ref` when testing unpublished plugin-content changes end to end.
 
-For testing someone else's branch or your own branch from a worktree, without switching checkouts. Uses `--branch` to clone the branch to a deterministic cache directory.
+**OpenCode**
 
-> **Unpushed local branches**: If the branch exists only in a local worktree and has not been pushed, point `--plugin-dir` directly at the worktree path instead (e.g. `claude --plugin-dir /path/to/worktree/plugins/compound-engineering`).
-
-**Claude Code** -- use `plugin-path` to get the cached clone path:
-
-```bash
-# from the repo root
-bun run src/index.ts plugin-path compound-engineering --branch feat/new-agents
-# Output:
-#   claude --plugin-dir ~/.cache/compound-engineering/branches/compound-engineering-feat~new-agents/plugins/compound-engineering
-```
-
-The cache path is deterministic. Re-running updates the checkout to the latest commit on that branch.
-
-**Codex, OpenCode, and other targets** -- pass `--branch` to `install`:
-
-```bash
-# from the repo root
-bun run src/index.ts install compound-engineering --to codex --branch feat/new-agents
-
-# works with any target
-bun run src/index.ts install compound-engineering --to opencode --branch feat/new-agents
-
-# combine with --also for multiple targets
-bun run src/index.ts install compound-engineering --to codex --also opencode --branch feat/new-agents
-```
-
-Both features use the `COMPOUND_PLUGIN_GITHUB_SOURCE` env var to resolve the repository, defaulting to `https://github.com/EveryInc/compound-engineering-plugin`.
-
-### Shell aliases
-
-Add to `~/.zshrc` or `~/.bashrc`. All aliases use the local CLI so there is no dependency on npm publishing. `plugin-path` prints just the path to stdout, so it composes with `$()`.
-
-```bash
-CE_REPO=~/Code/compound-engineering-plugin
-
-ce-cli() { bun run "$CE_REPO/src/index.ts" "$@"; }
-
-# --- Local checkout (active development) ---
-alias cce='claude --plugin-dir $CE_REPO/plugins/compound-engineering'
-
-codex-ce() {
-  ce-cli install "$CE_REPO/plugins/compound-engineering" --to codex "$@"
-}
-
-# --- Pushed branch (testing PRs, worktree workflows) ---
-ccb() {
-  claude --plugin-dir "$(ce-cli plugin-path compound-engineering --branch "$1")" "${@:2}"
-}
-
-codex-ceb() {
-  ce-cli install compound-engineering --to codex --branch "$1" "${@:2}"
+```json
+{
+  "plugin": ["/path/to/compound-engineering-plugin"]
 }
 ```
 
-Usage:
+Restart OpenCode after changing `opencode.json`.
+
+**Pi**
 
 ```bash
-cce                              # local checkout with Claude Code
-codex-ce                         # install local checkout to Codex
-ccb feat/new-agents              # test a pushed branch with Claude Code
-ccb feat/new-agents --verbose    # extra flags forwarded to claude
-codex-ceb feat/new-agents        # install a pushed branch to Codex
+pi -e "$PWD"
 ```
 
-Codex installs keep generated plugin skills isolated under `~/.codex/skills/compound-engineering/` and do not write new files into `~/.agents`. The installer removes old CE-managed `.agents/skills` symlinks when it can prove they point back to CE's Codex-managed store, which prevents stale Codex installs from shadowing Copilot's native plugin install.
-
-## Troubleshooting
-
-### Codex skills work but review or research delegation fails
-
-Run the agent install step:
+**Gemini CLI**
 
 ```bash
-bunx @every-env/compound-plugin install compound-engineering --to codex
-```
-
-Native Codex plugin install handles skills. The Bun step installs the custom agents those skills delegate to.
-
-### Codex shows stale or duplicate CE skills
-
-Back up old Bun-installed artifacts before switching to the native Codex plugin flow:
-
-```bash
-bunx @every-env/compound-plugin cleanup --target codex
-```
-
-### Copilot, Droid, or Qwen loads stale CE skills
-
-Back up old Bun-installed artifacts before using the native plugin path:
-
-```bash
-bunx @every-env/compound-plugin cleanup --target copilot
-bunx @every-env/compound-plugin cleanup --target droid
-bunx @every-env/compound-plugin cleanup --target qwen
+gemini extensions install "$PWD"
 ```
 
 ## Limitations
 
-Codex native plugin install currently handles skills, not custom agents. The documented Bun followup is required until Codex supports agents in its native plugin spec.
-
-OpenCode, Pi, Gemini, and Kiro installs are converter-backed and may change as those target formats evolve.
+OpenCode, Pi, and Gemini use native package/plugin loading from this repository. The Bun CLI remains for repository development and converter maintenance, not normal installation.
 
 Release versions are owned by release automation. Routine feature PRs should not hand-bump plugin or marketplace manifest versions.
 
 ## FAQ
 
-### Do I need Bun for Claude Code?
+### Do I need Bun to install Compound Engineering?
 
-No. Claude Code installs directly from the plugin marketplace. Bun is only needed for converter-backed targets, Codex's current agent followup, local development, and cleanup of old converted installs.
+No. Bun is only needed for repo development tasks and converter maintenance.
 
-### Why does Codex need a separate Bun step?
+### Where do I see all available skills?
 
-Codex's native plugin flow installs skills from the Codex plugin manifest. It does not currently install the custom reviewer, researcher, and workflow agents that Compound Engineering skills delegate to. The Bun step fills that gap.
-
-### Where do I see all available skills and agents?
-
-Read the [Compound Engineering plugin README](plugins/compound-engineering/README.md). It lists the current skill and agent inventory.
+The skill inventory is in this README. Each skill's authoritative runtime spec lives in `skills/<skill>/SKILL.md`.
 
 ### Where is release history?
 

@@ -5,7 +5,7 @@ import type { CodexBundle } from "../types/codex"
 import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
 import { getLegacyCodexArtifacts } from "../data/plugin-legacy-artifacts"
-import { classifyCodexLegacyPromptOwnership } from "../utils/legacy-cleanup"
+import { classifyCodexLegacyPromptOwnership, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
 
 const MANAGED_START_MARKER = "# BEGIN Compound Engineering plugin MCP -- do not edit this block"
 const MANAGED_END_MARKER = "# END Compound Engineering plugin MCP"
@@ -305,6 +305,7 @@ async function cleanupKnownLegacyCodexArtifacts(codexRoot: string, bundle: Codex
   const legacyArtifacts = getLegacyCodexArtifacts(bundle)
   for (const skillName of legacyArtifacts.skills) {
     const legacySkillPath = path.join(codexRoot, "skills", skillName)
+    if (!(await isLegacySkillArtifactOwned(legacySkillPath, skillName))) continue
     await moveLegacyArtifactToBackup(codexRoot, pluginName, "skills", legacySkillPath)
   }
 
@@ -323,6 +324,19 @@ async function cleanupKnownLegacyCodexArtifacts(codexRoot: string, bundle: Codex
     const ownership = await classifyCodexLegacyPromptOwnership(legacyPromptPath)
     if (ownership === "foreign") continue
     await moveLegacyArtifactToBackup(codexRoot, pluginName, "prompts", legacyPromptPath)
+  }
+
+  for (const agentFile of legacyArtifacts.agents ?? []) {
+    await moveLegacyArtifactToBackup(
+      codexRoot,
+      pluginName,
+      "agents",
+      path.join(codexRoot, "agents", pluginName, agentFile),
+    )
+    const flatAgentPath = path.join(codexRoot, "agents", agentFile)
+    if (await isLegacyAgentArtifactOwned(flatAgentPath, path.basename(agentFile, ".toml"), ".toml")) {
+      await moveLegacyArtifactToBackup(codexRoot, pluginName, "agents", flatAgentPath)
+    }
   }
 }
 

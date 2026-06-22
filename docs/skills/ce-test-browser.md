@@ -53,7 +53,7 @@ The skill enforces a single browser-automation substrate: **the `agent-browser` 
 - Same snapshot/click/screenshot pattern across all tests
 - Platform-specific hints (e.g., "in Claude Code, do not use `mcp__claude-in-chrome__*`") are explicit
 
-When `agent-browser` isn't installed, the skill stops with `/ce-setup` as the install path — it doesn't try to fall back.
+When `agent-browser` isn't installed, the skill stops and points to `/ce-setup` for the current install command — it doesn't try to fall back.
 
 ### 2. File-to-route mapping table
 
@@ -233,6 +233,6 @@ Only when code review uses `mode:report-only` (read-only). Other review modes mu
 
 - [`ce-code-review`](./ce-code-review.md) — can spawn this skill for browser-affecting PRs (use `mode:report-only` for concurrent runs on the same checkout)
 - [`ce-test-xcode`](./ce-test-xcode.md) — sibling skill for iOS simulator testing
-- [`ce-demo-reel`](./ce-demo-reel.md) — captures visual evidence for PR descriptions; complementary to test summary
+- [`ce-commit-push-pr`](./ce-commit-push-pr.md) — can include user-supplied evidence or summarize validation in PR descriptions
 - [`ce-work`](./ce-work.md) — orchestrator that may invoke this skill during Phase 3 verification
-- [`ce-setup`](./ce-setup.md) — installs `agent-browser` and other dependencies
+- [`ce-setup`](./ce-setup.md) — reports whether `agent-browser` is available and prints the install command when missing

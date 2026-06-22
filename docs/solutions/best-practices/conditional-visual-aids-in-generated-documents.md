@@ -34,7 +34,7 @@ AI-generated documents and PR descriptions default to prose-only output, even wh
 ## Symptoms
 
 - Readers mentally reconstruct workflows, dependency graphs, or mode differences from dense prose paragraphs
-- Downstream consumers (ce:plan reading a brainstorm, reviewers reading a PR) create their own visual aids from scratch because the upstream document didn't include them
+- Downstream consumers (ce-plan reading a brainstorm, reviewers reading a PR) create their own visual aids from scratch because the upstream document didn't include them
 - Plans with 5+ implementation units and non-linear dependencies force readers to scan every unit's Dependencies field to reconstruct the execution graph
 - System-Wide Impact sections naming multiple interacting surfaces read as a wall of prose when a component diagram would take seconds to scan
 - PR descriptions for architecturally significant changes are text-only even though they were built from plans that contained visual aids
@@ -134,9 +134,9 @@ Each output surface has different reading patterns. The trigger bar and diagram 
 
 | Surface | Reading pattern | Trigger bar | Abstraction level | Typical diagram size |
 |---|---|---|---|---|
-| Requirements (ce:brainstorm) | Studied deeply | Standard | Conceptual/product-level: user flows, information flows, mode comparisons | 5-20 nodes |
-| Plan -- Technical Design (ce:plan 3.4) | Studied deeply | Work-characteristic-driven | Solution architecture: component interactions, data flow, state machines | 5-15 nodes |
-| Plan -- Readability (ce:plan 4.4) | Studied deeply | Standard | Document structure: unit dependencies, impact surfaces, mode overviews | 5-15 nodes |
+| Requirements (ce-brainstorm) | Studied deeply | Standard | Conceptual/product-level: user flows, information flows, mode comparisons | 5-20 nodes |
+| Plan -- Technical Design (ce-plan 3.4) | Studied deeply | Work-characteristic-driven | Solution architecture: component interactions, data flow, state machines | 5-15 nodes |
+| Plan -- Readability (ce-plan 4.4) | Studied deeply | Standard | Document structure: unit dependencies, impact surfaces, mode overviews | 5-15 nodes |
 | PR description (git-commit-push-pr) | Scanned quickly | High | Change impact: what changed architecturally, what flows differently | 5-10 nodes |
 
 Key distinctions:
@@ -217,6 +217,6 @@ Concrete guidance for any skill that generates documents with visual aids:
 
 - `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` -- related but distinct: covers git-commit-push-pr state machine correctness, not output content quality
 - GitHub issue #44 -- mermaid dark mode rendering, relevant when considering diagram styling
-- PR #437 -- ce:brainstorm visual aids implementation
-- PR #440 -- ce:plan visual aids implementation
+- PR #437 -- ce-brainstorm visual aids implementation
+- PR #440 -- ce-plan visual aids implementation
 - `docs/plans/2026-03-29-003-feat-pr-description-visual-aids-plan.md` -- git-commit-push-pr visual aids plan

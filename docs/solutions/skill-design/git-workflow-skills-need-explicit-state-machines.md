@@ -2,7 +2,7 @@
 title: "Git workflow skills need explicit state machines for branch, push, and PR state"
 category: skill-design
 date: 2026-03-27
-module: plugins/compound-engineering/skills/ce-commit and ce-commit-push-pr
+module: skills/ce-commit and ce-commit-push-pr
 problem_type: architecture_pattern
 component: tooling
 symptoms:

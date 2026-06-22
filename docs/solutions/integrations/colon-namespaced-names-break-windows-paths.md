@@ -1,6 +1,7 @@
 ---
 title: "Colon-namespaced skill names break filesystem paths on Windows"
 date: 2026-03-26
+last_refreshed: 2026-06-20
 category: integration-issues
 module: cli-converter
 problem_type: integration_issue
@@ -30,7 +31,7 @@ tags:
 
 ## Problem
 
-Skill names containing colons (e.g., `ce:brainstorm`, `ce:plan`) were used directly as directory names in all target writers and sync paths. Colons are illegal in Windows filenames, causing `ENOTDIR` errors during `bun convert` or `bun install`.
+Earlier plugin versions allowed skill names containing colons (e.g., `ce:brainstorm`, `ce:plan`) to flow directly into target writer paths. Colons are illegal in Windows filenames, causing `ENOTDIR` errors during `bun convert` or `bun install`.
 
 ## Symptoms
 
@@ -42,7 +43,7 @@ Skill names containing colons (e.g., `ce:brainstorm`, `ce:plan`) were used direc
   errno: -20 }
 ```
 
-This affected every target (OpenCode, Codex, Copilot, Gemini, Kiro, Droid, Pi, and others present at the time) because all used `skill.name` directly in `path.join()` calls.
+This affected every target present at the time because all used `skill.name` directly in `path.join()` calls. Current CE source skills are hyphenated (`ce-brainstorm`, `ce-plan`), but the sanitizer still matters for compatibility fixtures, imported third-party plugins, and legacy artifact cleanup.
 
 ## What Didn't Work
 
@@ -76,7 +77,7 @@ await copyDir(skill.sourceDir, path.join(skillsRoot, skill.name))
 await copyDir(skill.sourceDir, path.join(skillsRoot, sanitizePathName(skill.name)))
 ```
 
-Currently applied in `src/targets/{opencode,codex,gemini,kiro,pi,managed-artifacts}.ts`. (When this fix was first written, a separate `src/sync/` directory also held path-construction logic that needed the same treatment. That layer has since been consolidated into target writers.)
+Currently applied in the maintained target writers and managed-artifact cleanup path. When this fix was first written, a separate `src/sync/` directory also held path-construction logic that needed the same treatment; that layer has since been consolidated into target writers.
 
 ### Layer 2: Converter dedupe sets and manifests
 
@@ -90,7 +91,7 @@ Any future converter that maintains a name-collision set or emits a manifest mus
 
 ## Why This Works
 
-The core issue was a mismatch between the logical name domain (colons as namespace separators) and the filesystem domain (colons illegal on Windows). The fix sanitizes at the boundary — names keep colons in data structures and frontmatter, but paths use hyphens. This matches the source directory convention (`skills/ce-brainstorm/` with frontmatter `name: ce:brainstorm`).
+The core issue was a mismatch between the logical name domain (where older plugin data used colons as namespace separators) and the filesystem domain (where colons are illegal on Windows). The fix sanitizes at the boundary: legacy/imported names can keep colons in data structures, but paths use hyphens. Current CE source directories and frontmatter use hyphenated names directly (`skills/ce-brainstorm/`, `name: ce-brainstorm`), so the sanitizer is now primarily a compatibility guard.
 
 ## Prevention
 
@@ -109,7 +110,7 @@ test("no two skill names collide after sanitization", async () => {
 
 ### 2. When adding names to filesystem paths
 
-Always use `sanitizePathName()` when constructing output paths from skill, agent, or component names. Never pass `skill.name` or `agent.name` directly to `path.join()` in target writers or sync files.
+Always use `sanitizePathName()` when constructing output paths from skill, agent, or component names. Never pass `skill.name` or `agent.name` directly to `path.join()` in target writers or managed artifact paths.
 
 ### 3. When building dedupe sets in converters
 
@@ -117,4 +118,4 @@ If a converter reserves names for collision detection, the reserved names must b
 
 ### 4. Inconsistency with `resolveCommandPath`
 
-Note that `resolveCommandPath` (used for commands) converts colons to nested directories (`ce:plan` -> `ce/plan.md`), while `sanitizePathName` (used for skills/agents) converts to hyphens (`ce:plan` -> `ce-plan`). This is intentional — commands and skills are different surfaces with different resolution patterns. If a new component type is added, decide which pattern fits and document the choice.
+Note that `resolveCommandPath` (used for commands) converts colons to nested directories (`ce:plan` -> `ce/plan.md`), while `sanitizePathName` (used for skills/agents and compatibility artifact paths) converts to hyphens (`ce:plan` -> `ce-plan`). This is intentional — commands and skills are different surfaces with different resolution patterns. If a new component type is added, decide which pattern fits and document the choice.

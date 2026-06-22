@@ -1,4 +1,4 @@
-export type ReleaseComponent = "cli" | "compound-engineering" | "marketplace" | "cursor-marketplace"
+export type ReleaseComponent = "compound-engineering" | "marketplace" | "cursor-marketplace"
 
 export type BumpLevel = "patch" | "minor" | "major"
 

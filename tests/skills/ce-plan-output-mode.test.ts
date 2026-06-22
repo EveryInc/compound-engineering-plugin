@@ -5,18 +5,18 @@ import { load as parseYaml } from "js-yaml"
 
 const SKILL_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-plan/SKILL.md",
+  "skills/ce-plan/SKILL.md",
 )
 const SKILL_BODY = readFileSync(SKILL_PATH, "utf8")
 
 const HTML_RENDERING_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-plan/references/html-rendering.md",
+  "skills/ce-plan/references/html-rendering.md",
 )
 
 const PLAN_SECTIONS_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-plan/references/plan-sections.md",
+  "skills/ce-plan/references/plan-sections.md",
 )
 
 // Regression guard for the `output:html` / `output:md` argument on ce-plan.

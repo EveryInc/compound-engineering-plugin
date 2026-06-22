@@ -3,7 +3,6 @@ import { promises as fs } from "fs"
 import path from "path"
 import os from "os"
 import { writePiBundle } from "../src/targets/pi"
-import { parseFrontmatter } from "../src/utils/frontmatter"
 import type { PiBundle } from "../src/types/pi"
 import { loadClaudePlugin } from "../src/parsers/claude"
 import { convertClaudeToPi } from "../src/converters/claude-to-pi"
@@ -17,28 +16,84 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
-async function pluginDescription(relativePath: string): Promise<string> {
-  const raw = await fs.readFile(path.join(import.meta.dir, "..", relativePath), "utf8")
-  const { data } = parseFrontmatter(raw, relativePath)
-  if (typeof data.description !== "string") {
-    throw new Error(`Missing description in ${relativePath}`)
-  }
-  return data.description
+const SESSION_HISTORIAN_DESCRIPTION =
+  "Synthesizes findings from prior coding-agent sessions about the same problem or topic. Receives pre-extracted skeleton/error file paths from a `ce-sessions` orchestrator and returns prose findings — investigation journey, what didn't work, key decisions, related context. Not intended for direct dispatch — use `/ce-sessions` (or another caller that runs the full discovery + extract pipeline first)."
+
+const REPRODUCE_BUG_DESCRIPTION =
+  "Systematically reproduce and investigate a bug from a GitHub issue. Use when the user provides a GitHub issue number or URL for a bug they want reproduced or investigated."
+const BUG_REPRODUCTION_VALIDATOR_DESCRIPTION =
+  "Systematically reproduces and validates bug reports to confirm whether reported behavior is an actual bug. Use when you receive a bug report or issue that needs verification."
+
+function skillContent(name: string, description: string): string {
+  return `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n# ${name}\n`
 }
 
 describe("writePiBundle", () => {
+  test("moves CE-owned legacy Pi agent files without touching user agents", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-legacy-agent-cleanup-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+    const agentsRoot = path.join(outputRoot, "agents")
+    await fs.mkdir(agentsRoot, { recursive: true })
+    await fs.writeFile(
+      path.join(agentsRoot, "repo-research-analyst.md"),
+      [
+        "---",
+        "name: repo-research-analyst",
+        "description: Conducts thorough research on repository structure, documentation, conventions, and implementation patterns. Use when onboarding to a new codebase or understanding project conventions.",
+        "---",
+        "",
+        "Legacy CE agent body",
+        "",
+      ].join("\n"),
+    )
+    const userAgentBody = [
+      "---",
+      "name: ce-repo-research-analyst",
+      "description: Personal Pi agent for local research",
+      "---",
+      "",
+      "User-authored agent body",
+      "",
+    ].join("\n")
+    await fs.writeFile(path.join(agentsRoot, "ce-repo-research-analyst.md"), userAgentBody)
+
+    const bundle: PiBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [],
+      extensions: [],
+    }
+
+    await writePiBundle(outputRoot, bundle)
+
+    expect(await exists(path.join(agentsRoot, "repo-research-analyst.md"))).toBe(false)
+    expect(await exists(path.join(agentsRoot, "ce-repo-research-analyst.md"))).toBe(true)
+    expect(await fs.readFile(path.join(agentsRoot, "ce-repo-research-analyst.md"), "utf8")).toBe(userAgentBody)
+
+    const backupRoot = path.join(outputRoot, "compound-engineering", "legacy-backup")
+    expect(await exists(backupRoot)).toBe(true)
+    const timestamps = await fs.readdir(backupRoot)
+    let foundAgentBackup = false
+    for (const timestamp of timestamps) {
+      const agentsBackup = path.join(backupRoot, timestamp, "agents")
+      if (!(await exists(agentsBackup))) continue
+      const backedUp = await fs.readdir(agentsBackup)
+      if (backedUp.includes("repo-research-analyst.md")) foundAgentBackup = true
+      expect(backedUp).not.toContain("ce-repo-research-analyst.md")
+    }
+    expect(foundAgentBackup).toBe(true)
+  })
+
   test("removes stale generated agent skills without touching prompt files", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-cleanup-targets-"))
     const outputRoot = path.join(tempRoot, ".pi")
 
-    const sessionHistorianDescription = await pluginDescription(
-      "plugins/compound-engineering/agents/ce-session-historian.md",
-    )
-
     await fs.mkdir(path.join(outputRoot, "skills", "session-historian"), { recursive: true })
     await fs.writeFile(
       path.join(outputRoot, "skills", "session-historian", "SKILL.md"),
-      `---\nname: session-historian\ndescription: ${JSON.stringify(sessionHistorianDescription)}\n---\n\nLegacy agent\n`,
+      `---\nname: session-historian\ndescription: ${JSON.stringify(SESSION_HISTORIAN_DESCRIPTION)}\n---\n\nLegacy agent\n`,
     )
     await fs.mkdir(path.join(outputRoot, "prompts"), { recursive: true })
     await fs.writeFile(path.join(outputRoot, "prompts", "session-historian.md"), "user-owned prompt")
@@ -84,9 +139,8 @@ describe("writePiBundle", () => {
 
     expect(await exists(path.join(outputRoot, "prompts", "workflows-plan.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "skills", "skill-one", "SKILL.md"))).toBe(true)
-    // Claude agents are now written as Pi agent files (.pi/agents/<name>.md),
-    // not skill directories, so nicobailon/pi-subagents can resolve them via
-    // the `subagent` tool.
+    // Claude agents are written as Pi agent files (.pi/agents/<name>.md), not
+    // skill directories, for runtimes and tools that read Pi agent files.
     expect(await exists(path.join(outputRoot, "agents", "repo-research-analyst.md"))).toBe(true)
     expect(await exists(path.join(outputRoot, "extensions", "compound-engineering-compat.ts"))).toBe(true)
     expect(await exists(path.join(outputRoot, "compound-engineering", "mcporter.json"))).toBe(true)
@@ -338,14 +392,14 @@ Run these research agents:
     const outputRoot = path.join(tempRoot, ".pi")
 
     await fs.mkdir(path.join(outputRoot, "skills", "reproduce-bug"), { recursive: true })
-    await fs.writeFile(path.join(outputRoot, "skills", "reproduce-bug", "SKILL.md"), "legacy removed skill")
+    await fs.writeFile(path.join(outputRoot, "skills", "reproduce-bug", "SKILL.md"), skillContent("reproduce-bug", REPRODUCE_BUG_DESCRIPTION))
     await fs.mkdir(path.join(outputRoot, "skills", "bug-reproduction-validator"), { recursive: true })
-    await fs.writeFile(path.join(outputRoot, "skills", "bug-reproduction-validator", "SKILL.md"), "legacy removed agent skill")
+    await fs.writeFile(path.join(outputRoot, "skills", "bug-reproduction-validator", "SKILL.md"), skillContent("bug-reproduction-validator", BUG_REPRODUCTION_VALIDATOR_DESCRIPTION))
     await fs.mkdir(path.join(outputRoot, "prompts"), { recursive: true })
     await fs.writeFile(path.join(outputRoot, "prompts", "reproduce-bug.md"), "legacy removed prompt")
     await fs.writeFile(path.join(outputRoot, "prompts", "report-bug.md"), "legacy deleted command prompt")
 
-    const plugin = await loadClaudePlugin(path.join(import.meta.dir, "..", "plugins", "compound-engineering"))
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
     const bundle = convertClaudeToPi(plugin, {
       agentMode: "subagent",
       inferTemperature: true,
@@ -358,9 +412,9 @@ Run these research agents:
     expect(await exists(path.join(outputRoot, "prompts", "reproduce-bug.md"))).toBe(false)
     expect(await exists(path.join(outputRoot, "prompts", "report-bug.md"))).toBe(false)
     expect(await exists(path.join(outputRoot, "skills", "ce-plan", "SKILL.md"))).toBe(true)
-    // ce-repo-research-analyst is a Claude agent, so it installs to .pi/agents/<name>.md
-    // (not .pi/skills/<name>/SKILL.md) so nicobailon/pi-subagents can resolve it.
-    expect(await exists(path.join(outputRoot, "agents", "ce-repo-research-analyst.md"))).toBe(true)
+    // Compound Engineering no longer ships standalone agents; specialist
+    // prompts live inside the consuming skill directories.
+    expect(await exists(path.join(outputRoot, "agents", "ce-repo-research-analyst.md"))).toBe(false)
     expect(await exists(path.join(outputRoot, "compound-engineering", "legacy-backup"))).toBe(true)
   })
 })

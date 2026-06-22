@@ -5,19 +5,19 @@ import { load as parseYaml } from "js-yaml"
 
 const SKILL_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-brainstorm/SKILL.md",
+  "skills/ce-brainstorm/SKILL.md",
 )
 const SKILL_BODY = readFileSync(SKILL_PATH, "utf8")
 
 const HANDOFF_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-brainstorm/references/handoff.md",
+  "skills/ce-brainstorm/references/handoff.md",
 )
 const HANDOFF_BODY = readFileSync(HANDOFF_PATH, "utf8")
 
 const HTML_OUTPUT_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-brainstorm/references/html-rendering.md",
+  "skills/ce-brainstorm/references/html-rendering.md",
 )
 
 // Mirror of the ce-plan output-mode tests. ce-brainstorm gains the same

@@ -8,7 +8,7 @@ tags:
   - bundled-scripts
   - data-processing
 severity: "high"
-component: "plugins/compound-engineering/skills"
+component: "skills"
 ---
 
 # Script-First Skill Architecture
@@ -17,7 +17,7 @@ When a skill processes large datasets (session transcripts, log files, configura
 
 ## Origin
 
-Learned while building the `claude-permissions-optimizer` skill (since retired from the plugin in favor of `/less-permission-prompts`), which analyzed Claude Code session transcripts to find safe Bash commands to auto-allow. Initial iterations had the model reading JSONL session files, classifying commands against a 370-line reference doc, and normalizing patterns -- averaging 85-115k tokens per run. After moving all processing into the extraction script, runs dropped to ~40k tokens with equivalent output quality. The same pattern is live today in `ce-sessions`, whose bundled `extract-metadata.py` / `extract-skeleton.py` scripts do session discovery and classification while the model only presents.
+Learned while building the `claude-permissions-optimizer` skill (since retired from the plugin in favor of `/less-permission-prompts`), which analyzed Claude Code session transcripts to find safe Bash commands to auto-allow. Initial iterations had the model reading JSONL session files, classifying commands against a 370-line reference doc, and normalizing patterns -- averaging 85-115k tokens per run. After moving all processing into the extraction script, runs dropped to ~40k tokens with equivalent output quality. The same pattern is live today in `skills/ce-compound/scripts/session-history/`, whose bundled `extract-metadata.py` / `extract-skeleton.py` scripts do session discovery and classification while the model only presents.
 
 ## The Anti-Pattern: Model-as-Processor
 

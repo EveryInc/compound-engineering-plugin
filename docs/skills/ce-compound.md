@@ -37,7 +37,7 @@ Most teams solve the same problem twice — sometimes with the same person — b
 - Bug track and knowledge track produce different section structures matched to the doc type
 - An overlap check decides whether to update an existing doc rather than create a duplicate
 - A discoverability check ensures the project's `AGENTS.md`/`CLAUDE.md` surfaces `docs/solutions/` so future agents find it
-- Specialized agent reviews (kieran reviewer, code simplicity, performance/security/data integrity) optionally enhance the doc
+- Specialized post-review optionally enhances the doc: performance, security, data-integrity, and read-only simplification checks review the drafted learning without mutating product code
 
 ---
 
@@ -80,11 +80,11 @@ After capturing the new learning, `ce-compound` checks whether it should invoke 
 
 ### 6. Specialized post-review
 
-Based on the problem type, optional specialized agents review the documentation: `ce-performance-oracle` for performance issues, `ce-security-sentinel` for security, `ce-data-integrity-guardian` for database, and `ce-code-simplicity-reviewer` for code-heavy issues.
+Based on the problem type, optional skill-local prompt assets review the documentation: `performance-oracle` for performance issues, `security-sentinel` for security, and `data-integrity-guardian` for database-oriented issues. Code-heavy docs may also get a read-only simplification review of the drafted examples and explanatory claims; this does not invoke `ce-simplify-code` and does not mutate product code.
 
 ### 7. Session history integration (opt-in)
 
-Full mode optionally dispatches `ce-session-historian` to search prior sessions across harnesses for related context — what was tried before, what didn't work, key decisions. Findings are folded into "What Didn't Work" (bug track) or "Context" (knowledge track). Off by default because of token cost; the user explicitly opts in.
+Full mode optionally dispatches a skill-local session-history prompt to search prior sessions across harnesses for related context — what was tried before, what didn't work, key decisions. Findings are folded into "What Didn't Work" (bug track) or "Context" (knowledge track). Off by default because of token cost; the user explicitly opts in.
 
 ### 8. Auto-invoke triggers
 
@@ -102,7 +102,7 @@ Three subagents dispatch in parallel: Context Analyzer reads conversation histor
 
 The orchestrator assembles the doc, validates frontmatter via the YAML safety script, and writes `docs/solutions/performance-issues/n-plus-one-brief-generation.md`. The discoverability check finds `AGENTS.md` doesn't mention `docs/solutions/`, proposes a one-line addition to the existing directory listing, and applies it after you confirm.
 
-Phase 3 dispatches `ce-performance-oracle` and `ce-code-simplicity-reviewer` to validate the code examples and approach. Phase 2.5 surfaces a refresh recommendation: the older N+1 doc may benefit from consolidation review. The skill suggests `/ce-compound-refresh n-plus-one` as a narrow scope hint and ends.
+Phase 3 dispatches the local `performance-oracle` prompt and, because the doc includes code examples, performs a read-only simplification check on the drafted examples and approach. Phase 2.5 surfaces a refresh recommendation: the older N+1 doc may benefit from consolidation review. The skill suggests `/ce-compound-refresh n-plus-one` as a narrow scope hint and ends.
 
 ---
 
@@ -133,7 +133,7 @@ Skip `ce-compound` when:
 
 The output feeds back into upstream skills:
 
-- `/ce-plan` reads `docs/solutions/` via `ce-learnings-researcher` during Phase 1 research
+- `/ce-plan` reads `docs/solutions/` via `learnings-researcher` during Phase 1 research
 - `/ce-ideate` reads it as part of the comprehensive grounding step
 - `/ce-debug` reads it for prior context when an issue tracker reference is fetched
 

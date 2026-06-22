@@ -44,7 +44,7 @@ export default defineCommand({
       await cloneBranch(source, targetDir, branch)
     }
 
-    const pluginPath = path.join(targetDir, "plugins", pluginName)
+    const pluginPath = await resolvePluginRoot(targetDir, pluginName)
     if (!(await dirExists(pluginPath))) {
       throw new Error(`Plugin directory not found: ${pluginPath}`)
     }
@@ -62,6 +62,21 @@ async function dirExists(p: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+async function resolvePluginRoot(repoDir: string, pluginName: string): Promise<string> {
+  const rootManifest = path.join(repoDir, ".claude-plugin", "plugin.json")
+  if (await dirExists(path.dirname(rootManifest))) {
+    try {
+      const raw = await fs.readFile(rootManifest, "utf8")
+      const manifest = JSON.parse(raw) as { name?: string }
+      if (manifest.name === pluginName) return repoDir
+    } catch {
+      // Fall through to the legacy multi-plugin layout.
+    }
+  }
+
+  return path.join(repoDir, "plugins", pluginName)
 }
 
 async function cloneBranch(source: string, destination: string, branch: string): Promise<void> {

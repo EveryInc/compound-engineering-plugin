@@ -14,7 +14,7 @@ import {
 import { transformContentForPi } from "../converters/claude-to-pi"
 import type { PiBundle } from "../types/pi"
 import { getLegacyPiArtifacts } from "../data/plugin-legacy-artifacts"
-import { cleanupStaleAgents } from "../utils/legacy-cleanup"
+import { cleanupStaleAgents, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
 import { resolveLegacyManagedDir, resolveManagedSegment } from "./managed-artifacts"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
@@ -25,9 +25,11 @@ const PI_AGENTS_BLOCK_BODY = `## Compound Engineering (Pi compatibility)
 
 This block is managed by compound-plugin.
 
-Pi extensions used by this plugin:
-- Required: \`pi-subagents\` (by nicobailon) provides the \`subagent\` tool used by skills that dispatch parallel agents
-- Recommended: \`pi-ask-user\` (by edlsh) provides the \`ask_user\` tool; skills fall back to numbered options in chat when it is missing
+Required Pi companion for multi-agent CE workflows:
+- \`pi-subagents\` provides the subagent primitive used by ce-code-review, ce-doc-review, ce-plan, and ce-work
+
+Recommended Pi companion:
+- \`pi-ask-user\` (by edlsh) provides the \`ask_user\` tool; skills fall back to numbered options in chat when it is missing
 
 Install with:
   pi install npm:pi-subagents
@@ -425,7 +427,7 @@ const LEGACY_PI_EXTENSIONS_BY_PLUGIN: Record<string, string[]> = {
 // plugins that still legitimately emit one.
 const LEGACY_PI_MCPORTER_PLUGINS = new Set<string>(["compound-engineering"])
 
-type LegacyArtifactKind = "skills" | "prompts" | "extensions" | "mcporter"
+type LegacyArtifactKind = "skills" | "prompts" | "extensions" | "agents" | "mcporter"
 
 // Display label used in the "Moved legacy Pi <label> artifact ..." log line.
 // Most kinds are a simple plural→singular trim, but "mcporter" isn't a plural,
@@ -435,6 +437,7 @@ const LEGACY_ARTIFACT_LABELS: Record<LegacyArtifactKind, string> = {
   skills: "skill",
   prompts: "prompt",
   extensions: "extension",
+  agents: "agent",
   mcporter: "mcporter config",
 }
 
@@ -445,12 +448,20 @@ async function cleanupKnownLegacyPiArtifacts(paths: PiPaths, bundle: PiBundle): 
   const legacyArtifacts = getLegacyPiArtifacts(bundle)
   for (const skillName of legacyArtifacts.skills) {
     const legacySkillPath = path.join(paths.skillsDir, skillName)
+    if (!(await isLegacySkillArtifactOwned(legacySkillPath, skillName))) continue
     await moveLegacyArtifactToBackup(paths.managedDir, "skills", legacySkillPath)
   }
 
   for (const promptFile of legacyArtifacts.prompts) {
     const legacyPromptPath = path.join(paths.promptsDir, promptFile)
     await moveLegacyArtifactToBackup(paths.managedDir, "prompts", legacyPromptPath)
+  }
+
+  for (const agentFile of legacyArtifacts.agents ?? []) {
+    const legacyAgentPath = path.join(paths.agentsDir, agentFile)
+    if (await isLegacyAgentArtifactOwned(legacyAgentPath, path.basename(agentFile, ".md"), ".md")) {
+      await moveLegacyArtifactToBackup(paths.managedDir, "agents", legacyAgentPath)
+    }
   }
 
   // Only sweep legacy extensions the current bundle is not actively writing.

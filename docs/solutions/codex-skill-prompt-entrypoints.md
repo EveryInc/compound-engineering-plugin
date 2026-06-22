@@ -1,152 +1,94 @@
 ---
-title: Codex Conversion Skills, Prompts, and Canonical Entry Points
+title: Codex native skills, legacy prompts, and converter entry points
 category: architecture
 tags: [codex, converter, skills, prompts, workflows, deprecation]
 created: 2026-03-15
+last_refreshed: 2026-06-20
 severity: medium
 component: codex-target
 problem_type: convention
 root_cause: outdated_target_model
 ---
 
-# Codex Conversion Skills, Prompts, and Canonical Entry Points
+# Codex native skills, legacy prompts, and converter entry points
 
 ## Problem
 
-The Codex target had two conflicting assumptions:
+The Codex target used to treat Compound workflow entrypoints as converter-generated skill/prompt artifacts. That made sense when Codex lacked a native plugin install path and the plugin still shipped standalone agents, but it is no longer the primary model.
 
-1. Compound workflow entrypoints like `ce:brainstorm` and `ce:plan` were treated in docs as slash-command-style surfaces.
-2. The Codex converter installed those entries as copied skills, not as generated prompts.
+The current Compound Engineering package is root-native and skills-only:
 
-That created an inconsistent runtime for cross-workflow handoffs. Copied skill content still contained Claude-style references like `/ce:plan`, but no Codex-native translation was applied to copied `SKILL.md` files, and there was no clear canonical Codex entrypoint model for those workflow skills.
+- Codex native install reads `.codex-plugin/plugin.json`.
+- The Codex manifest declares `skills: "./skills/"`.
+- User-facing skills are root directories like `skills/ce-plan`, `skills/ce-work`, and `skills/ce-code-review`.
+- Specialist review/research behavior lives in skill-local prompt assets under `references/agents/` or `references/personas/`.
+- There are 0 standalone CE agents in the plugin surface.
 
-## What We Learned
+The old copied-skill/prompt-wrapper model still matters for legacy cleanup and for `--to codex --codex-include-skills` style converter tests, but it should not be documented as the normal install path.
 
-### 1. Codex supports both skills and prompts, and they are different surfaces
+## Current Codex model
 
-- Skills are loaded from skill roots such as `~/.codex/skills`, and newer Codex code also supports `.agents/skills`.
-- Prompts are a separate explicit entrypoint surface under `.codex/prompts`.
-- A skill is not automatically a prompt, and a prompt is not automatically a skill.
+### Native install is the source of skills
 
-For this repo, that means a copied skill like `ce:plan` is only a skill unless the converter also generates a prompt wrapper for it.
+For users, Codex skills come from the native plugin install:
 
-### 2. Codex skill names come from the directory name
+```json
+{
+  "name": "compound-engineering",
+  "skills": "./skills/"
+}
+```
 
-Codex derives the skill name from the skill directory basename, not from our normalized hyphenated converter name.
+The Bun converter's default `--to codex` behavior is intentionally not a second skill installer. It suppresses skills, prompts, command-skills, and MCP so the native plugin install remains the sole source for those artifact types.
 
-Implication:
+### Converter default mode is compatibility-only
 
-- `~/.codex/skills/ce:plan` loads as the skill `ce:plan`
-- Rewriting that to `ce-plan` is wrong for skill-to-skill references
+`convertClaudeToCodex()` still converts formal Claude agents to Codex custom-agent TOML because older plugin shapes and fixtures may contain agents. For the current Compound Engineering package, `plugin.agents` is empty, so default Codex conversion emits no standalone agents.
 
-### 3. The original bug was structural, not just wording
+Default mode passes `externallyManagedSkillNames` to the writer so cleanup does not mistake natively installed skills for stale converter-owned artifacts.
 
-The issue was not that `ce:brainstorm` needed slightly different prose. The real problem was:
+### Full converter mode is legacy
 
-- copied skills bypassed Codex-specific transformation
-- workflow handoffs referenced a surface that was not clearly represented in installed Codex artifacts
+When `codexIncludeSkills` is enabled, the converter can still emit copied skills and generated prompts. That mode exists for compatibility and tests, not for the current recommended install documentation.
 
-### 4. Deprecated `workflows:*` aliases add noise in Codex
+In that mode:
 
-The `workflows:*` names exist only for backward compatibility in Claude.
+- Deprecated `workflows:*` aliases are filtered or canonicalized.
+- Command prompts delegate to generated command-skills.
+- `transformContentForCodex()` rewrites known slash references while preserving unknown routes, URLs, and application paths.
 
-Copying them into Codex would:
+## Rewrite and cleanup rules
 
-- duplicate user-facing entrypoints
-- complicate handoff rewriting
-- increase ambiguity around which name is canonical
+When maintaining Codex conversion code:
 
-For Codex, the simpler model is to treat `ce:*` as the only canonical workflow namespace and omit `workflows:*` aliases from installed output.
-
-## Recommended Codex Model
-
-Use a two-layer mapping for workflow entrypoints:
-
-1. **Skills remain the implementation units**
-   - Copy the canonical workflow skills using their exact names, such as `ce:plan`
-   - Preserve exact skill names for any Codex skill references
-
-2. **Prompts are the explicit entrypoint layer**
-   - Generate prompt wrappers for canonical user-facing workflow entrypoints
-   - Use Codex-safe prompt slugs such as `ce-plan`, `ce-work`, `ce-review`
-   - Prompt wrappers delegate to the exact underlying skill name, such as `ce:plan`
-
-This gives Codex one clear manual invocation surface while preserving the real loaded skill names internally.
-
-## Rewrite Rules
-
-When converting copied `SKILL.md` content for Codex:
-
-- References to canonical workflow entrypoints should point to generated prompt wrappers
-  - `/ce:plan` -> `/prompts:ce-plan`
-  - `/ce:work` -> `/prompts:ce-work`
-- References to deprecated aliases should canonicalize to the modern `ce:*` prompt
-  - `/workflows:plan` -> `/prompts:ce-plan`
-- References to non-entrypoint skills should use the exact skill name, not a normalized alias
-- Actual Claude commands that are converted to Codex prompts can continue using `/prompts:...`
-
-### Regression hardening
-
-When rewriting copied `SKILL.md` files, only known workflow and command references should be rewritten.
-
-Do not rewrite arbitrary slash-shaped text such as:
-
-- application routes like `/users` or `/settings`
-- API path segments like `/state` or `/ops`
-- URLs such as `https://www.proofeditor.ai/...`
-
-Unknown slash references should remain unchanged in copied skill content. Otherwise Codex installs silently corrupt unrelated skills while trying to canonicalize workflow handoffs.
-
-Personal skills loaded from `~/.claude/skills` also need tolerant metadata parsing:
-
-- malformed YAML frontmatter should not cause the entire skill to disappear
-- keep the directory name as the stable skill name
-- treat frontmatter metadata as best-effort only
-
-## Future Entry Points
-
-Do not hard-code an allowlist of workflow names in the converter.
-
-Instead, use a stable rule:
-
-- `ce:*` = canonical workflow entrypoint
-  - auto-generate a prompt wrapper
-- `workflows:*` = deprecated alias
-  - omit from Codex output
-  - rewrite references to the canonical `ce:*` target
-- non-`ce:*` skills = skill-only by default
-  - if a non-`ce:*` skill should also be a prompt entrypoint, mark it explicitly with Codex-specific metadata
-
-This means future skills like `ce:ideate` should work without manual converter changes.
-
-## Implementation Guidance
-
-For the Codex target:
-
-1. Parse enough skill frontmatter to distinguish command-like entrypoint skills from background skills
-2. Filter deprecated `workflows:*` alias skills out of Codex installation
-3. Generate prompt wrappers for canonical `ce:*` workflow skills
-4. Apply Codex-specific transformation to copied `SKILL.md` files
-5. Preserve exact Codex skill names internally
-6. Update README language so Codex entrypoints are documented as Codex-native surfaces, not assumed to be identical to Claude slash commands
+- Do not reintroduce prompt wrappers for current native CE skills.
+- Keep unknown slash references unchanged in copied skill content; otherwise the converter can corrupt URLs or app routes.
+- Treat old `ce:*` and `workflows:*` names as legacy artifacts for cleanup and reference rewriting only.
+- Keep native skill names hyphenated (`ce-plan`, not `ce:plan`) because current source directories and frontmatter use hyphenated names.
+- Preserve `externallyManagedSkillNames` in default mode so re-running `install --to codex` cannot sweep active native skills into backup.
 
 ## Prevention
 
 Before changing the Codex converter again:
 
-1. Verify whether the target surface is a skill, a prompt, or both
-2. Check how Codex derives names from installed artifacts
-3. Decide which names are canonical before copying deprecated aliases
-4. Add tests for copied skill content, not just generated prompt content
+1. Decide whether the target behavior belongs to native plugin install, default compatibility conversion, or full legacy conversion.
+2. Verify whether the artifact surface is a skill, prompt, custom agent, or cleanup-only legacy path.
+3. Add tests for copied skill content when changing full converter mode.
+4. Add cleanup tests when changing stale prompt or old `ce:*` ownership detection.
+5. Keep README language focused on native Codex plugin install, not converter-generated prompts.
 
-## Related Files
+## Related files
 
 - `src/converters/claude-to-codex.ts`
 - `src/targets/codex.ts`
 - `src/types/codex.ts`
+- `src/utils/codex-content.ts`
+- `src/utils/legacy-cleanup.ts`
 - `tests/codex-converter.test.ts`
 - `tests/codex-writer.test.ts`
+- `tests/legacy-cleanup.test.ts`
+- `.codex-plugin/plugin.json`
 - `README.md`
-- `plugins/compound-engineering/skills/ce-brainstorm/SKILL.md`
-- `plugins/compound-engineering/skills/ce-plan/SKILL.md`
-- `docs/solutions/adding-converter-target-providers.md`
+- `skills/ce-brainstorm/SKILL.md`
+- `skills/ce-plan/SKILL.md`
+- `docs/solutions/integrations/native-plugin-install-strategy.md`

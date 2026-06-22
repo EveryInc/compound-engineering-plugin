@@ -18,7 +18,7 @@ import { parseFrontmatter } from "../src/utils/frontmatter"
  *    designed to avoid false positives on documentation examples:
  *      - Fenced code blocks are stripped before scanning. Teaching samples,
  *        message templates, and anti-pattern demos live in fences (e.g.,
- *        ce-demo-reel's `![Before](url-1)` PR template), and fences are where
+ *        screenshot markdown like `![Before](url-1)`), and fences are where
  *        skills quote code they are ABOUT rather than files they USE. This
  *        fence policy is Rule-1-specific — Rule 2 deliberately differs (see
  *        below): self-containment looks for ESCAPING references, which in
@@ -36,7 +36,7 @@ import { parseFrontmatter } from "../src/utils/frontmatter"
  *        are exempted below with written reasons.
  *      - Bare absolute paths in prose are NOT flagged: skills legitimately
  *        discuss `/tmp` scratch conventions and quote `/Users/...` as
- *        anti-pattern examples (ce-plan, ce-sessions, ce-ideate).
+ *        anti-pattern examples (ce-plan, ce-compound, ce-ideate).
  *
  * 2. REFERENCE INTEGRITY (AGENTS.md "File References in Skills"): every
  *    skill-local path mentioned in a skill's markdown must exist on disk
@@ -69,7 +69,7 @@ import { parseFrontmatter } from "../src/utils/frontmatter"
  *    filename), which name no file to check.
  *    (c) is where this rule's fence policy deliberately diverges
  *    from Rule 1: fenced bash blocks are where skills put their REAL bundled
- *    script invocations (ce-clean-gone-branches' `bash scripts/clean-gone`),
+ *    script invocations (for example, `bash scripts/session-history/extract-metadata.py`),
  *    so stripping fences here would let a deleted or renamed script pass CI
  *    while the skill fails at runtime. Markdown-link syntax inside fences is
  *    still NOT a candidate — fenced `[text](references/x.md)` is teaching
@@ -126,7 +126,7 @@ import { parseFrontmatter } from "../src/utils/frontmatter"
  */
 
 const REPO_ROOT = process.cwd()
-const PLUGINS_ROOT = path.join(REPO_ROOT, "plugins")
+const SKILLS_ROOT = path.join(REPO_ROOT, "skills")
 const AGENTS_MD_REF = `AGENTS.md (repo root)`
 
 // ---------------------------------------------------------------------------
@@ -137,16 +137,7 @@ const AGENTS_MD_REF = `AGENTS.md (repo root)`
 // ---------------------------------------------------------------------------
 
 // Rule 1: files allowed to mention installed-plugin paths (~/.claude/plugins/...).
-const INSTALLED_PLUGIN_PATH_EXEMPTIONS = new Map<string, string>([
-  [
-    "plugins/compound-engineering/skills/ce-update/SKILL.md",
-    "ce-update is explicitly Claude-Code-only; its purpose is reasoning about the marketplace cache layout it READS (never edits).",
-  ],
-  [
-    "plugins/compound-engineering/skills/ce-report-bug/SKILL.md",
-    "ce-report-bug reads ~/.claude/plugins/installed_plugins.json to capture the installed plugin version for bug reports — runtime machine-state read, not a skill-content reference.",
-  ],
-])
+const INSTALLED_PLUGIN_PATH_EXEMPTIONS = new Map<string, string>([])
 
 const DESCRIPTION_CHAR_BUDGET = 1024
 const NAME_CHAR_BUDGET = 64
@@ -156,33 +147,23 @@ const NAME_CHAR_BUDGET = 64
 // ---------------------------------------------------------------------------
 
 type SkillDir = {
-  /** repo-root-relative skill dir, e.g. plugins/compound-engineering/skills/ce-plan */
+  /** repo-root-relative skill dir, e.g. skills/ce-plan */
   relPath: string
   absPath: string
 }
 
 function listSkillDirs(): SkillDir[] {
   const out: SkillDir[] = []
-  let plugins: Dirent[]
+  let skillEntries: Dirent[]
   try {
-    plugins = readdirSync(PLUGINS_ROOT, { withFileTypes: true })
+    skillEntries = readdirSync(SKILLS_ROOT, { withFileTypes: true })
   } catch {
     return out
   }
-  for (const plugin of plugins) {
-    if (!plugin.isDirectory()) continue
-    const skillsRoot = path.join(PLUGINS_ROOT, plugin.name, "skills")
-    let skillEntries: Dirent[]
-    try {
-      skillEntries = readdirSync(skillsRoot, { withFileTypes: true })
-    } catch {
-      continue
-    }
-    for (const entry of skillEntries) {
-      if (!entry.isDirectory()) continue
-      const absPath = path.join(skillsRoot, entry.name)
-      out.push({ relPath: path.relative(REPO_ROOT, absPath), absPath })
-    }
+  for (const entry of skillEntries) {
+    if (!entry.isDirectory()) continue
+    const absPath = path.join(SKILLS_ROOT, entry.name)
+    out.push({ relPath: path.relative(REPO_ROOT, absPath), absPath })
   }
   return out
 }
@@ -580,16 +561,7 @@ function findPlatformVarOccurrences(markdown: string): PlatformVarOccurrence[] {
  * once, at review time, when an entry is added here — and the stale-entry
  * test below forces removal when the underlying use disappears.
  */
-const PLATFORM_VAR_ACKNOWLEDGED = new Map<string, string>([
-  [
-    "plugins/compound-engineering/skills/ce-setup/SKILL.md#CLAUDE_PLUGIN_ROOT",
-    "AGENTS.md pre-resolution pattern: the prose under the pre-resolved line says exactly what to do when it is empty or an unresolved literal (treat as non-Claude-Code; omit /ce-update references).",
-  ],
-  [
-    "plugins/compound-engineering/skills/ce-update/SKILL.md#CLAUDE_SKILL_DIR",
-    "SKILL.md routes unset/unresolved CLAUDE_SKILL_DIR (scripts failing) to its __CE_UPDATE_NOT_MARKETPLACE__ handling.",
-  ],
-])
+const PLATFORM_VAR_ACKNOWLEDGED = new Map<string, string>()
 
 /** Rule 4 scanner for one markdown file: every non-graceful occurrence. */
 function findPlatformVarViolations(markdown: string): PlatformVarOccurrence[] {
@@ -979,13 +951,13 @@ describe("extractLocalReferenceCandidates", () => {
     // Extraction is what makes a fenced mention visible to the existence
     // check; resolution + statSync against the real skill then demonstrates
     // the pass/caught split the repo scan enforces.
-    const sample = "```bash\nbash scripts/clean-gone\nbash scripts/deleted-tool.sh\n```"
+    const sample = "```bash\nbash scripts/session-history/extract-metadata.py\nbash scripts/deleted-tool.sh\n```"
     expect(extractLocalReferenceCandidates(sample).map((c) => c.value)).toEqual([
-      "scripts/clean-gone",
+      "scripts/session-history/extract-metadata.py",
       "scripts/deleted-tool.sh",
     ])
-    const skillRoot = path.join(PLUGINS_ROOT, "compound-engineering", "skills", "ce-clean-gone-branches")
-    const existing = resolveInsideSkill(skillRoot, skillRoot, "scripts/clean-gone")
+    const skillRoot = path.join(SKILLS_ROOT, "ce-compound")
+    const existing = resolveInsideSkill(skillRoot, skillRoot, "scripts/session-history/extract-metadata.py")
     const missing = resolveInsideSkill(skillRoot, skillRoot, "scripts/deleted-tool.sh")
     expect(existing).not.toBeNull()
     expect(statSync(existing!).isFile()).toBe(true)
@@ -1008,14 +980,14 @@ describe("extractLocalReferenceCandidates", () => {
     // The documented cross-platform style: the variable prefix means
     // "skill-root-relative" (AGENTS.md "Platform-Specific Variables in
     // Skills"), so the unwrapped remainder must resolve at the skill root —
-    // demonstrated against a real bundled script (ce-update's).
+    // demonstrated against a real bundled script (ce-compound's).
     const sample =
-      '```bash\nbash "${CLAUDE_SKILL_DIR:-.}/scripts/upstream-version.sh"\n```'
+      '```bash\nbash "${CLAUDE_SKILL_DIR:-.}/scripts/validate-frontmatter.py"\n```'
     expect(extractLocalReferenceCandidates(sample).map((c) => c.value)).toEqual([
-      "scripts/upstream-version.sh",
+      "scripts/validate-frontmatter.py",
     ])
-    const skillRoot = path.join(PLUGINS_ROOT, "compound-engineering", "skills", "ce-update")
-    const resolved = resolveInsideSkill(skillRoot, skillRoot, "scripts/upstream-version.sh")
+    const skillRoot = path.join(SKILLS_ROOT, "ce-compound")
+    const resolved = resolveInsideSkill(skillRoot, skillRoot, "scripts/validate-frontmatter.py")
     expect(resolved).not.toBeNull()
     expect(statSync(resolved!).isFile()).toBe(true)
   })
@@ -1023,9 +995,7 @@ describe("extractLocalReferenceCandidates", () => {
 
 describe("resolveInsideSkill", () => {
   const skillRoot = path.join(
-    PLUGINS_ROOT,
-    "compound-engineering",
-    "skills",
+    SKILLS_ROOT,
     "ce-resolve-pr-feedback",
   )
 
@@ -1189,4 +1159,3 @@ describe("findPlatformVarViolations", () => {
     expect(findPlatformVarViolations(sample).map((v) => v.variable)).toEqual(["CLAUDE_SKILL_DIR"])
   })
 })
-

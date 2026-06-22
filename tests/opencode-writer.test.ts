@@ -17,6 +17,19 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
+const REPRODUCE_BUG_DESCRIPTION =
+  "Systematically reproduce and investigate a bug from a GitHub issue. Use when the user provides a GitHub issue number or URL for a bug they want reproduced or investigated."
+const BUG_REPRODUCTION_VALIDATOR_DESCRIPTION =
+  "Systematically reproduces and validates bug reports to confirm whether reported behavior is an actual bug. Use when you receive a bug report or issue that needs verification."
+
+function skillContent(name: string, description: string): string {
+  return `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n# ${name}\n`
+}
+
+function agentContent(name: string, description: string): string {
+  return `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\nLegacy agent\n`
+}
+
 describe("writeOpenCodeBundle", () => {
   test("writes config, agents, plugins, and skills", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-test-"))
@@ -454,14 +467,14 @@ describe("writeOpenCodeBundle", () => {
     const outputRoot = path.join(tempRoot, ".opencode")
 
     await fs.mkdir(path.join(outputRoot, "skills", "reproduce-bug"), { recursive: true })
-    await fs.writeFile(path.join(outputRoot, "skills", "reproduce-bug", "SKILL.md"), "legacy removed skill")
+    await fs.writeFile(path.join(outputRoot, "skills", "reproduce-bug", "SKILL.md"), skillContent("reproduce-bug", REPRODUCE_BUG_DESCRIPTION))
     await fs.mkdir(path.join(outputRoot, "agents"), { recursive: true })
-    await fs.writeFile(path.join(outputRoot, "agents", "bug-reproduction-validator.md"), "legacy removed agent")
+    await fs.writeFile(path.join(outputRoot, "agents", "bug-reproduction-validator.md"), agentContent("bug-reproduction-validator", BUG_REPRODUCTION_VALIDATOR_DESCRIPTION))
     await fs.mkdir(path.join(outputRoot, "commands"), { recursive: true })
     await fs.writeFile(path.join(outputRoot, "commands", "reproduce-bug.md"), "legacy removed command")
     await fs.writeFile(path.join(outputRoot, "commands", "report-bug.md"), "legacy deleted command")
 
-    const plugin = await loadClaudePlugin(path.join(import.meta.dir, "..", "plugins", "compound-engineering"))
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
     const bundle = convertClaudeToOpenCode(plugin, {
       agentMode: "subagent",
       inferTemperature: true,
@@ -474,6 +487,26 @@ describe("writeOpenCodeBundle", () => {
     expect(await exists(path.join(outputRoot, "commands", "reproduce-bug.md"))).toBe(false)
     expect(await exists(path.join(outputRoot, "commands", "report-bug.md"))).toBe(false)
     expect(await exists(path.join(outputRoot, "compound-engineering", "legacy-backup"))).toBe(true)
+  })
+
+  test("preserves user-authored legacy-name OpenCode agents during install cleanup", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-legacy-agent-preserve-"))
+    const outputRoot = path.join(tempRoot, ".opencode")
+    const agentsRoot = path.join(outputRoot, "agents")
+    await fs.mkdir(agentsRoot, { recursive: true })
+    const userAgent = agentContent("ce-repo-research-analyst", "Personal OpenCode research helper.")
+    await fs.writeFile(path.join(agentsRoot, "ce-repo-research-analyst.md"), userAgent)
+
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "subagent",
+      inferTemperature: true,
+      permissions: "none",
+    })
+    await writeOpenCodeBundle(outputRoot, bundle)
+
+    expect(await exists(path.join(agentsRoot, "ce-repo-research-analyst.md"))).toBe(true)
+    expect(await fs.readFile(path.join(agentsRoot, "ce-repo-research-analyst.md"), "utf8")).toBe(userAgent)
   })
 
   test("upgrades from pre-namespacing legacy shared manifest for non-CE plugins", async () => {

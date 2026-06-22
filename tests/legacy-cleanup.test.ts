@@ -33,6 +33,31 @@ async function pluginDescription(relativePath: string): Promise<string> {
   return data.description
 }
 
+const HISTORICAL_AGENT_DESCRIPTIONS: Record<string, string> = {
+  "ce-adversarial-reviewer":
+    "Conditional code-review persona, selected when the diff is large (>=50 changed lines) or touches high-risk domains like auth, payments, data mutations, or external APIs. Actively constructs failure scenarios to break the implementation rather than checking against known patterns.",
+  "ce-code-simplicity-reviewer":
+    "Final review pass to ensure code is as simple and minimal as possible. Use after implementation is complete to identify YAGNI violations and simplification opportunities.",
+  "ce-learnings-researcher":
+    "Searches docs/solutions/ for applicable past learnings via frontmatter metadata (bugs, architecture, design patterns, conventions, workflow learnings). Use before implementing features, making decisions, or starting work in a documented area so institutional knowledge carries forward.",
+  "ce-performance-oracle":
+    "Analyzes code for performance bottlenecks, algorithmic complexity, database queries, memory usage, and scalability. Use after implementing features or when performance concerns arise.",
+  "ce-repo-research-analyst":
+    "Conducts thorough research on repository structure, documentation, conventions, and implementation patterns. Use when onboarding to a new codebase or understanding project conventions.",
+  "ce-security-sentinel":
+    "Performs security audits for vulnerabilities, input validation, auth/authz, hardcoded secrets, and OWASP compliance. Use when reviewing code for security issues or before deployment.",
+  "ce-session-historian":
+    "Synthesizes findings from prior coding-agent sessions about the same problem or topic. Receives pre-extracted skeleton/error file paths from a `ce-sessions` orchestrator and returns prose findings — investigation journey, what didn't work, key decisions, related context. Not intended for direct dispatch — use `/ce-sessions` (or another caller that runs the full discovery + extract pipeline first).",
+  "ce-slack-researcher":
+    "Searches Slack for organizational context -- decisions, constraints, and discussions that may not be documented elsewhere. Use when the user explicitly asks to search Slack for context during ideation, planning, or brainstorming.",
+}
+
+function historicalAgentDescription(name: string): string {
+  const description = HISTORICAL_AGENT_DESCRIPTIONS[name]
+  if (!description) throw new Error(`Missing historical agent description for ${name}`)
+  return description
+}
+
 function skillContent(name: string, description: string): string {
   return `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n# ${name}\n`
 }
@@ -71,21 +96,21 @@ describe("cleanupStaleSkillDirs", () => {
       path.join(root, "git-commit"),
       skillContent(
         "git-commit",
-        await pluginDescription("plugins/compound-engineering/skills/ce-commit/SKILL.md"),
+        await pluginDescription("skills/ce-commit/SKILL.md"),
       ),
     )
     await createDir(
       path.join(root, "setup"),
       skillContent(
         "setup",
-        await pluginDescription("plugins/compound-engineering/skills/ce-setup/SKILL.md"),
+        await pluginDescription("skills/ce-setup/SKILL.md"),
       ),
     )
     await createDir(
       path.join(root, "document-review"),
       skillContent(
         "document-review",
-        await pluginDescription("plugins/compound-engineering/skills/ce-doc-review/SKILL.md"),
+        await pluginDescription("skills/ce-doc-review/SKILL.md"),
       ),
     )
 
@@ -117,14 +142,14 @@ describe("cleanupStaleSkillDirs", () => {
       path.join(root, "ce-review"),
       skillContent(
         "ce-review",
-        await pluginDescription("plugins/compound-engineering/skills/ce-code-review/SKILL.md"),
+        await pluginDescription("skills/ce-code-review/SKILL.md"),
       ),
     )
     await createDir(
       path.join(root, "ce-document-review"),
       skillContent(
         "ce-document-review",
-        await pluginDescription("plugins/compound-engineering/skills/ce-doc-review/SKILL.md"),
+        await pluginDescription("skills/ce-doc-review/SKILL.md"),
       ),
     )
 
@@ -141,14 +166,14 @@ describe("cleanupStaleSkillDirs", () => {
       path.join(root, "ce:plan"),
       skillContent(
         "ce:plan",
-        await pluginDescription("plugins/compound-engineering/skills/ce-plan/SKILL.md"),
+        await pluginDescription("skills/ce-plan/SKILL.md"),
       ),
     )
     await createDir(
       path.join(root, "workflows:review"),
       skillContent(
         "workflows:review",
-        await pluginDescription("plugins/compound-engineering/skills/ce-code-review/SKILL.md"),
+        await pluginDescription("skills/ce-code-review/SKILL.md"),
       ),
     )
     await createDir(
@@ -263,10 +288,33 @@ describe("cleanupStaleSkillDirs", () => {
         "This skill should be used when reviewing or editing copy to ensure adherence to Every's style guide. It provides a systematic line-by-line review process for grammar, punctuation, mechanics, and style guide compliance.",
       ),
     )
+    await createDir(
+      path.join(root, "ce-update"),
+      `---
+name: ce-update
+description: |
+  Check if the compound-engineering plugin is up to date and recommend the
+  update command if not. Use when the user says "update compound engineering",
+  "check compound engineering version", "ce update", "is compound engineering
+  up to date", "update ce plugin", or reports issues that might stem from a
+  stale compound-engineering plugin version. This skill only works in Claude
+  Code — it relies on the plugin harness cache layout.
+---
+
+# ce-update
+`,
+    )
+    await createDir(
+      path.join(root, "git-clean-gone-branches"),
+      skillContent(
+        "git-clean-gone-branches",
+        "Clean up local branches whose remote tracking branch is gone. Use when the user says \"clean up branches\", \"delete gone branches\", \"prune local branches\", \"clean gone\", or wants to remove stale local branches that no longer exist on the remote. Also handles removing associated worktrees for branches that have them.",
+      ),
+    )
 
     const removed = await cleanupStaleSkillDirs(root)
 
-    expect(removed).toBe(9)
+    expect(removed).toBe(11)
     expect(await exists(path.join(root, "feature-video"))).toBe(false)
     expect(await exists(path.join(root, "reproduce-bug"))).toBe(false)
     expect(await exists(path.join(root, "claude-permissions-optimizer"))).toBe(false)
@@ -276,6 +324,8 @@ describe("cleanupStaleSkillDirs", () => {
     expect(await exists(path.join(root, "ce-deploy-docs"))).toBe(false)
     expect(await exists(path.join(root, "ce-dspy-ruby"))).toBe(false)
     expect(await exists(path.join(root, "ce-every-style-editor"))).toBe(false)
+    expect(await exists(path.join(root, "ce-update"))).toBe(false)
+    expect(await exists(path.join(root, "git-clean-gone-branches"))).toBe(false)
   })
 
   test("preserves same-named user skills for legacy-only entries when content differs", async () => {
@@ -299,14 +349,14 @@ describe("cleanupStaleAgents", () => {
       path.join(root, "adversarial-reviewer.md"),
       agentContent(
         "adversarial-reviewer",
-        await pluginDescription("plugins/compound-engineering/agents/ce-adversarial-reviewer.md"),
+        historicalAgentDescription("ce-adversarial-reviewer"),
       ),
     )
     await createFile(
       path.join(root, "learnings-researcher.md"),
       agentContent(
         "learnings-researcher",
-        await pluginDescription("plugins/compound-engineering/agents/ce-learnings-researcher.md"),
+        historicalAgentDescription("ce-learnings-researcher"),
       ),
     )
 
@@ -329,14 +379,14 @@ describe("cleanupStaleAgents", () => {
       path.join(root, "security-sentinel.agent.md"),
       agentContent(
         "security-sentinel",
-        await pluginDescription("plugins/compound-engineering/agents/ce-security-sentinel.md"),
+        historicalAgentDescription("ce-security-sentinel"),
       ),
     )
     await createFile(
       path.join(root, "performance-oracle.agent.md"),
       agentContent(
         "performance-oracle",
-        await pluginDescription("plugins/compound-engineering/agents/ce-performance-oracle.md"),
+        historicalAgentDescription("ce-performance-oracle"),
       ),
     )
 
@@ -352,14 +402,14 @@ describe("cleanupStaleAgents", () => {
       path.join(root, "slack-researcher.json"),
       kiroAgentConfigContent(
         "slack-researcher",
-        await pluginDescription("plugins/compound-engineering/agents/ce-slack-researcher.md"),
+        historicalAgentDescription("ce-slack-researcher"),
       ),
     )
     await createFile(
       path.join(root, "session-historian.json"),
       kiroAgentConfigContent(
         "session-historian",
-        await pluginDescription("plugins/compound-engineering/agents/ce-session-historian.md"),
+        historicalAgentDescription("ce-session-historian"),
       ),
     )
     await createFile(
@@ -384,14 +434,14 @@ describe("cleanupStaleAgents", () => {
       path.join(root, "code-simplicity-reviewer"),
       skillContent(
         "code-simplicity-reviewer",
-        await pluginDescription("plugins/compound-engineering/agents/ce-code-simplicity-reviewer.md"),
+        historicalAgentDescription("ce-code-simplicity-reviewer"),
       ),
     )
     await createDir(
       path.join(root, "repo-research-analyst"),
       skillContent(
         "repo-research-analyst",
-        await pluginDescription("plugins/compound-engineering/agents/ce-repo-research-analyst.md"),
+        historicalAgentDescription("ce-repo-research-analyst"),
       ),
     )
 
@@ -478,21 +528,21 @@ describe("cleanupStalePrompts", () => {
       path.join(root, "ce-plan.md"),
       promptWrapperContent(
         "ce-plan",
-        await pluginDescription("plugins/compound-engineering/skills/ce-plan/SKILL.md"),
+        await pluginDescription("skills/ce-plan/SKILL.md"),
       ),
     )
     await createFile(
       path.join(root, "ce-review.md"),
       promptWrapperContent(
         "ce-review",
-        await pluginDescription("plugins/compound-engineering/skills/ce-code-review/SKILL.md"),
+        await pluginDescription("skills/ce-code-review/SKILL.md"),
       ),
     )
     await createFile(
       path.join(root, "ce-brainstorm.md"),
       promptWrapperContent(
         "ce-brainstorm",
-        await pluginDescription("plugins/compound-engineering/skills/ce-brainstorm/SKILL.md"),
+        await pluginDescription("skills/ce-brainstorm/SKILL.md"),
       ),
     )
 
@@ -533,7 +583,7 @@ describe("cleanupStalePrompts", () => {
       path.join(root, "ce-plan.md"),
       legacyWorkflowPromptContent(
         "ce:plan",
-        (await pluginDescription("plugins/compound-engineering/skills/ce-plan/SKILL.md"))
+        (await pluginDescription("skills/ce-plan/SKILL.md"))
           .replaceAll("ce-", "ce:"),
       ),
     )
@@ -541,7 +591,7 @@ describe("cleanupStalePrompts", () => {
       path.join(root, "ce-work-beta.md"),
       legacyWorkflowPromptContent(
         "ce:work-beta",
-        (await pluginDescription("plugins/compound-engineering/skills/ce-work-beta/SKILL.md"))
+        (await pluginDescription("skills/ce-work-beta/SKILL.md"))
           .replaceAll("ce-", "ce:"),
       ),
     )
@@ -675,14 +725,14 @@ describe("idempotency", () => {
       path.join(root, "git-commit"),
       skillContent(
         "git-commit",
-        await pluginDescription("plugins/compound-engineering/skills/ce-commit/SKILL.md"),
+        await pluginDescription("skills/ce-commit/SKILL.md"),
       ),
     )
     await createFile(
       path.join(root, "adversarial-reviewer.md"),
       agentContent(
         "adversarial-reviewer",
-        await pluginDescription("plugins/compound-engineering/agents/ce-adversarial-reviewer.md"),
+        historicalAgentDescription("ce-adversarial-reviewer"),
       ),
     )
 

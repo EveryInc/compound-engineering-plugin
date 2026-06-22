@@ -8,9 +8,9 @@ async function readRepoFile(relativePath: string): Promise<string> {
 
 describe("ce-work review contract", () => {
   test("requires code review before shipping", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
     // Review content extracted to references/shipping-workflow.md
-    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
 
     // SKILL.md should not contain extracted content
     expect(content).not.toContain("3. **Code Review**")
@@ -38,9 +38,9 @@ describe("ce-work review contract", () => {
   })
 
   test("delegates commit and PR to dedicated skills", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
     // Commit/PR delegation content extracted to references/shipping-workflow.md
-    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
 
     expect(shipping).toContain("`ce-commit-push-pr` skill")
     expect(shipping).toContain("`ce-commit` skill")
@@ -51,9 +51,9 @@ describe("ce-work review contract", () => {
   })
 
   test("ce-work-beta mirrors review and commit delegation", async () => {
-    const beta = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const beta = await readRepoFile("skills/ce-work-beta/SKILL.md")
     // Review/commit content extracted to references/shipping-workflow.md
-    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md")
+    const shipping = await readRepoFile("skills/ce-work-beta/references/shipping-workflow.md")
 
     // Extracted content in reference file: Simplify step at position 2,
     // Code Review at position 3
@@ -69,10 +69,10 @@ describe("ce-work review contract", () => {
 
   test("ce-work-beta mirrors residual work gate sentinel with ce-work", async () => {
     const workShipping = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md",
+      "skills/ce-work/references/shipping-workflow.md",
     )
     const betaShipping = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md",
+      "skills/ce-work-beta/references/shipping-workflow.md",
     )
 
     expect(workShipping).toContain("Actionable findings: none.")
@@ -83,7 +83,7 @@ describe("ce-work review contract", () => {
   })
 
   test("includes per-task testing deliberation in execution loop", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
 
     // Testing deliberation exists in the execution loop
     expect(content).toContain("Assess testing coverage")
@@ -97,9 +97,9 @@ describe("ce-work review contract", () => {
   })
 
   test("quality checklist says 'Testing addressed' not 'Tests pass'", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
     // Quality checklist extracted to references/shipping-workflow.md
-    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work/references/shipping-workflow.md")
+    const shipping = await readRepoFile("skills/ce-work/references/shipping-workflow.md")
 
     // New language present in reference file
     expect(shipping).toContain("Testing addressed")
@@ -111,9 +111,9 @@ describe("ce-work review contract", () => {
   })
 
   test("ce-work-beta mirrors testing deliberation and checklist changes", async () => {
-    const beta = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const beta = await readRepoFile("skills/ce-work-beta/SKILL.md")
     // Checklist extracted to references/shipping-workflow.md
-    const shipping = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/references/shipping-workflow.md")
+    const shipping = await readRepoFile("skills/ce-work-beta/references/shipping-workflow.md")
 
     // Testing deliberation stays in SKILL.md (Phase 2 content)
     expect(beta).toContain("Assess testing coverage")
@@ -128,7 +128,7 @@ describe("ce-work review contract", () => {
   })
 
   test("SKILL.md stub points to shipping-workflow reference", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
 
     // Stub references the shipping-workflow file
     expect(content).toContain("`references/shipping-workflow.md`")
@@ -140,7 +140,7 @@ describe("ce-work review contract", () => {
   })
 
   test("ce:work-beta SKILL.md stub points to shipping-workflow reference", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const content = await readRepoFile("skills/ce-work-beta/SKILL.md")
 
     // Stub references the shipping-workflow file
     expect(content).toContain("`references/shipping-workflow.md`")
@@ -152,7 +152,7 @@ describe("ce-work review contract", () => {
   })
 
   test("ce:work remains the stable non-delegating surface", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work/SKILL.md")
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
 
     expect(content).not.toContain("## Argument Parsing")
     expect(content).not.toContain("## Codex Delegation Mode")
@@ -162,7 +162,7 @@ describe("ce-work review contract", () => {
 
 describe("ce:work-beta codex delegation contract", () => {
   test("has argument parsing with delegate tokens", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const content = await readRepoFile("skills/ce-work-beta/SKILL.md")
 
     // Argument parsing section exists with delegation tokens
     expect(content).toContain("## Argument Parsing")
@@ -176,14 +176,14 @@ describe("ce:work-beta codex delegation contract", () => {
   })
 
   test("argument-hint includes delegate:codex for discoverability", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const content = await readRepoFile("skills/ce-work-beta/SKILL.md")
 
     expect(content).toContain("argument-hint:")
     expect(content).toContain("delegate:codex")
   })
 
   test("remains manual-invocation beta during rollout", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const content = await readRepoFile("skills/ce-work-beta/SKILL.md")
 
     expect(content).toContain("disable-model-invocation: true")
     expect(content).toContain("Invoke `ce-work-beta` manually")
@@ -191,7 +191,7 @@ describe("ce:work-beta codex delegation contract", () => {
   })
 
   test("SKILL.md has delegation routing stub pointing to reference", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const content = await readRepoFile("skills/ce-work-beta/SKILL.md")
 
     expect(content).toContain("## Codex Delegation Mode")
     expect(content).toContain("references/codex-delegation-workflow.md")
@@ -202,7 +202,7 @@ describe("ce:work-beta codex delegation contract", () => {
   })
 
   test("delegation routing gate in Phase 1 Step 4", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const content = await readRepoFile("skills/ce-work-beta/SKILL.md")
 
     const gateIdx = content.indexOf("Delegation routing gate")
     const strategyTableIdx = content.indexOf("| **Inline**")
@@ -212,13 +212,13 @@ describe("ce:work-beta codex delegation contract", () => {
   })
 
   test("delegation branches in Phase 2 task loop", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const content = await readRepoFile("skills/ce-work-beta/SKILL.md")
 
     expect(content).toContain("If delegation_active: branch to the Codex Delegation Execution Loop")
   })
 
   test("delegation reference has all required sections", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/references/codex-delegation-workflow.md")
+    const content = await readRepoFile("skills/ce-work-beta/references/codex-delegation-workflow.md")
 
     // Pre-delegation checks
     expect(content).toContain("## Pre-Delegation Checks")
@@ -256,7 +256,7 @@ describe("ce:work-beta codex delegation contract", () => {
   })
 
   test("delegation reference has decision prompts for ask mode", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/references/codex-delegation-workflow.md")
+    const content = await readRepoFile("skills/ce-work-beta/references/codex-delegation-workflow.md")
 
     expect(content).toContain("## Delegation Decision")
     expect(content).toContain("work_delegate_decision")
@@ -266,7 +266,7 @@ describe("ce:work-beta codex delegation contract", () => {
   })
 
   test("settings resolution includes delegation decision setting", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const content = await readRepoFile("skills/ce-work-beta/SKILL.md")
 
     expect(content).toContain("work_delegate_decision")
     expect(content).toContain("`auto`")
@@ -274,16 +274,16 @@ describe("ce:work-beta codex delegation contract", () => {
   })
 
   test("has frontend design guidance ported from beta", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-work-beta/SKILL.md")
+    const content = await readRepoFile("skills/ce-work-beta/SKILL.md")
 
     expect(content).toContain("**Frontend Design Guidance**")
-    expect(content).toContain("`ce-frontend-design` skill")
+    expect(content).toContain("Apply the frontend guidance embedded in this skill")
   })
 })
 
 describe("ce:plan remains neutral during ce:work-beta rollout", () => {
   test("removes delegation-specific execution posture guidance", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
+    const content = await readRepoFile("skills/ce-plan/SKILL.md")
 
     // Old tag removed from execution posture signals
     expect(content).not.toContain("add `Execution target: external-delegate`")
@@ -298,8 +298,8 @@ describe("ce:plan remains neutral during ce:work-beta rollout", () => {
 
 describe("ce-brainstorm review contract", () => {
   test("exposes document review as an opt-in handoff option", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-brainstorm/SKILL.md")
-    const handoff = await readRepoFile("plugins/compound-engineering/skills/ce-brainstorm/references/handoff.md")
+    const content = await readRepoFile("skills/ce-brainstorm/SKILL.md")
+    const handoff = await readRepoFile("skills/ce-brainstorm/references/handoff.md")
 
     // Document review is no longer a forced Phase 3.5 step. Users opt in from the Phase 4 menu.
     expect(content).not.toContain("Phase 3.5")
@@ -322,7 +322,7 @@ describe("ce-brainstorm review contract", () => {
 
 describe("ce-plan testing contract", () => {
   test("flags blank test scenarios on feature-bearing units as incomplete", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
+    const content = await readRepoFile("skills/ce-plan/SKILL.md")
 
     // Phase 5.1 review checklist addresses blank test scenarios
     expect(content).toContain("blank or missing test scenarios")
@@ -336,7 +336,7 @@ describe("ce-plan testing contract", () => {
 describe("ce-plan review contract", () => {
   test("requires document review after confidence check", async () => {
     // Document review instructions extracted to references/plan-handoff.md
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md")
+    const content = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
 
     // Phase 5.3.8 runs document-review before final checks (5.3.9)
     expect(content).toContain("## 5.3.8 Document Review")
@@ -349,7 +349,7 @@ describe("ce-plan review contract", () => {
   })
 
   test("SKILL.md stub points to plan-handoff reference", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/SKILL.md")
+    const content = await readRepoFile("skills/ce-plan/SKILL.md")
 
     // Stub references the handoff file and marks document review as mandatory
     expect(content).toContain("`references/plan-handoff.md`")
@@ -357,7 +357,7 @@ describe("ce-plan review contract", () => {
   })
 
   test("uses headless mode by default and in pipeline context", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md")
+    const content = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
 
     // Default at Phase 5.3.8 is `mode:headless` so users opt into deeper interactive review
     // explicitly from the post-generation menu rather than being forced through it.
@@ -369,7 +369,7 @@ describe("ce-plan review contract", () => {
   })
 
   test("handoff options expose deeper-review opt-in alongside ce-work", async () => {
-    const content = await readRepoFile("plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md")
+    const content = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
 
     // ce-work remains the recommended next-stage action (planning is done; review already ran)
     expect(content).toContain("**Start `/ce-work`** (recommended) - Begin implementing this plan in the current session")
@@ -399,7 +399,7 @@ describe("ce-plan review contract", () => {
 describe("ce-doc-review contract", () => {
   test("findings-schema autofix_class enum uses ce-code-review-aligned tier names", async () => {
     const schema = JSON.parse(
-      await readRepoFile("plugins/compound-engineering/skills/ce-doc-review/references/findings-schema.json")
+      await readRepoFile("skills/ce-doc-review/references/findings-schema.json")
     )
     const enumValues = schema.properties.findings.items.properties.autofix_class.enum
 
@@ -416,7 +416,7 @@ describe("ce-doc-review contract", () => {
 
   test("findings schema enforces discrete confidence anchors", async () => {
     const schema = JSON.parse(
-      await readRepoFile("plugins/compound-engineering/skills/ce-doc-review/references/findings-schema.json")
+      await readRepoFile("skills/ce-doc-review/references/findings-schema.json")
     )
     const confidence = schema.properties.findings.items.properties.confidence
 
@@ -438,7 +438,7 @@ describe("ce-doc-review contract", () => {
 
   test("subagent template embeds anchor rubric and bans float confidence", async () => {
     const template = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-doc-review/references/subagent-template.md"
+      "skills/ce-doc-review/references/subagent-template.md"
     )
 
     // Rubric section embedded verbatim in the persona-facing template
@@ -461,7 +461,7 @@ describe("ce-doc-review contract", () => {
 
   test("subagent template carries framing guidance and strawman rule", async () => {
     const template = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-doc-review/references/subagent-template.md"
+      "skills/ce-doc-review/references/subagent-template.md"
     )
 
     // Framing guidance block present
@@ -486,7 +486,7 @@ describe("ce-doc-review contract", () => {
 
   test("synthesis pipeline routes three tiers with anchor-based gating and FYI subsection", async () => {
     const synthesis = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-doc-review/references/synthesis-and-presentation.md"
+      "skills/ce-doc-review/references/synthesis-and-presentation.md"
     )
 
     // Anchor-based confidence gate
@@ -516,7 +516,7 @@ describe("ce-doc-review contract", () => {
 
   test("headless envelope surfaces new tiers distinctly", async () => {
     const synthesis = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-doc-review/references/synthesis-and-presentation.md"
+      "skills/ce-doc-review/references/synthesis-and-presentation.md"
     )
 
     // Bucket headers for the new tiers appear in the headless envelope template.
@@ -533,7 +533,7 @@ describe("ce-doc-review contract", () => {
 
   test("terminal question is three-option by default with label adaptation", async () => {
     const synthesis = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-doc-review/references/synthesis-and-presentation.md"
+      "skills/ce-doc-review/references/synthesis-and-presentation.md"
     )
 
     // Three options when fixes are queued
@@ -554,7 +554,7 @@ describe("ce-doc-review contract", () => {
 
   test("SKILL.md has Interactive mode rules with AskUserQuestion pre-load", async () => {
     const content = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-doc-review/SKILL.md"
+      "skills/ce-doc-review/SKILL.md"
     )
 
     // Interactive mode rules section at top
@@ -578,10 +578,10 @@ describe("ce-doc-review contract", () => {
 
   test("walkthrough and bulk-preview reference files exist with required mechanics", async () => {
     const walkthrough = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-doc-review/references/walkthrough.md"
+      "skills/ce-doc-review/references/walkthrough.md"
     )
     const bulkPreview = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-doc-review/references/bulk-preview.md"
+      "skills/ce-doc-review/references/bulk-preview.md"
     )
 
     // Routing question distinguishing words present (front-loaded per AGENTS.md Interactive Question Tool Design)
@@ -620,7 +620,7 @@ describe("ce-doc-review contract", () => {
 
   test("open-questions-defer reference implements append mechanic with failure path", async () => {
     const defer = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-doc-review/references/open-questions-defer.md"
+      "skills/ce-doc-review/references/open-questions-defer.md"
     )
 
     // Append mechanic steps
@@ -648,7 +648,7 @@ describe("ce-doc-review contract", () => {
 describe("ce-compound frontmatter schema expansion contract", () => {
   test("problem_type enum includes the four new knowledge-track values", async () => {
     const schema = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-compound/references/schema.yaml"
+      "skills/ce-compound/references/schema.yaml"
     )
 
     // Four new knowledge-track values present in the enum
@@ -663,10 +663,10 @@ describe("ce-compound frontmatter schema expansion contract", () => {
 
   test("ce-compound-refresh schema stays in sync with canonical ce-compound schema", async () => {
     const canonical = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-compound/references/schema.yaml"
+      "skills/ce-compound/references/schema.yaml"
     )
     const refresh = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-compound-refresh/references/schema.yaml"
+      "skills/ce-compound-refresh/references/schema.yaml"
     )
 
     // Duplicate schemas must be identical (kept in sync intentionally per AGENTS.md)
@@ -675,7 +675,7 @@ describe("ce-compound frontmatter schema expansion contract", () => {
 
   test("yaml-schema.md documents category mappings for the four new values", async () => {
     const mapping = await readRepoFile(
-      "plugins/compound-engineering/skills/ce-compound/references/yaml-schema.md"
+      "skills/ce-compound/references/yaml-schema.md"
     )
 
     expect(mapping).toContain("architecture_pattern` -> `docs/solutions/architecture-patterns/")
@@ -685,10 +685,10 @@ describe("ce-compound frontmatter schema expansion contract", () => {
   })
 })
 
-describe("ce-learnings-researcher domain-agnostic contract", () => {
-  test("agent prompt frames as domain-agnostic not bug-focused", async () => {
+describe("learnings-researcher local prompt domain-agnostic contract", () => {
+  test("local prompt frames as domain-agnostic not bug-focused", async () => {
     const agent = await readRepoFile(
-      "plugins/compound-engineering/agents/ce-learnings-researcher.md"
+      "skills/ce-plan/references/agents/learnings-researcher.md"
     )
 
     // Domain-agnostic identity framing

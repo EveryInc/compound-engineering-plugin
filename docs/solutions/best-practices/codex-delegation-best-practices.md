@@ -120,9 +120,9 @@ Every delegation decision — whether to delegate, how to batch, what to include
 | Triviality signals (Goal, Approach) | Whether delegation is considered at all ("config change" vs "recursive validation engine") |
 | Dependencies between units | Batch boundary decisions for plans >5 units |
 
-A well-structured ce:plan output provides all of these. A hand-written requirements doc or TODO list may provide few or none — the delegation logic still works (the skill handles non-standard plans), but the decisions are less informed. For example, without explicit file lists, the batching rule cannot check for shared files; without test scenarios, the Codex prompt's `<testing>` section has nothing to supplement.
+A well-structured ce-plan output provides all of these. A hand-written requirements doc or TODO list may provide few or none — the delegation logic still works (the skill handles non-standard plans), but the decisions are less informed. For example, without explicit file lists, the batching rule cannot check for shared files; without test scenarios, the Codex prompt's `<testing>` section has nothing to supplement.
 
-This does not mean delegation requires ce:plan output. It means the quality of delegation improves proportionally with the structure of the plan. Users who invest in structured plans get smarter delegation decisions. Users with lightweight plans get delegation that works but makes conservative choices (e.g., single-batch everything, generic test guidance).
+This does not mean delegation requires ce-plan output. It means the quality of delegation improves proportionally with the structure of the plan. Users who invest in structured plans get smarter delegation decisions. Users with lightweight plans get delegation that works but makes conservative choices (e.g., single-batch everything, generic test guidance).
 
 ### Prompt Engineering for Delegation Quality
 

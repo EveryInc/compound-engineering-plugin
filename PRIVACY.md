@@ -1,7 +1,7 @@
 # Privacy & Data Handling
 
 This repository contains:
-- a plugin package (`plugins/compound-engineering`) made of markdown/config content
+- a root plugin package made of markdown/config content
 - a CLI (`@every-env/compound-plugin`) that converts and installs plugin content for different AI coding tools
 
 ## Summary
@@ -14,7 +14,7 @@ This repository contains:
 
 1. AI host/model providers
 
-If you run the plugin in tools like Claude Code, Cursor, Gemini CLI, Copilot, Kiro, Windsurf, etc., those tools may send prompts/context/code to their configured model providers. This behavior is controlled by those tools and providers, not by this plugin repository.
+If you run the plugin in tools like Claude Code, Cursor, Codex, Gemini CLI, Copilot, Windsurf, etc., those tools may send prompts/context/code to their configured model providers. This behavior is controlled by those tools and providers, not by this plugin repository.
 
 2. Optional integrations and tools
 

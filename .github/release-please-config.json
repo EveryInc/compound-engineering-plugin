@@ -3,22 +3,35 @@
   "include-component-in-tag": true,
   "release-search-depth": 20,
   "commit-search-depth": 50,
-  "plugins": [
-    {
-      "type": "linked-versions",
-      "groupName": "compound-engineering",
-      "components": ["cli", "compound-engineering"]
-    }
-  ],
+  "plugins": [],
   "packages": {
     ".": {
       "release-type": "simple",
-      "package-name": "cli",
+      "package-name": "compound-engineering",
+      "changelog-sections": [
+        {
+          "type": "feat",
+          "section": "Features",
+          "hidden": false
+        },
+        {
+          "type": "fix",
+          "section": "Bug Fixes",
+          "hidden": false
+        },
+        {
+          "type": "deps",
+          "section": "Dependencies",
+          "hidden": false
+        },
+        {
+          "type": "refactor",
+          "section": "Refactoring",
+          "hidden": false
+        }
+      ],
+      "skip-changelog": true,
       "exclude-paths": [
-        "AGENTS.md",
-        "CLAUDE.md",
-        "README.md",
-        "LICENSE",
         "SECURITY.md",
         "PRIVACY.md",
         "favicon.png",
@@ -27,26 +40,19 @@
         ".github/",
         ".claude/",
         ".codex/",
-        ".agents/",
         ".gemini/",
         ".cursor/",
         ".windsurf/",
-        ".claude-plugin/",
-        ".cursor-plugin/",
-        "plugins/"
+        ".agents/plugins/marketplace.json",
+        ".claude-plugin/marketplace.json",
+        ".cursor-plugin/marketplace.json"
       ],
       "extra-files": [
         {
           "type": "json",
           "path": "package.json",
           "jsonpath": "$.version"
-        }
-      ]
-    },
-    "plugins/compound-engineering": {
-      "release-type": "simple",
-      "package-name": "compound-engineering",
-      "extra-files": [
+        },
         {
           "type": "json",
           "path": ".claude-plugin/plugin.json",
@@ -60,6 +66,11 @@
         {
           "type": "json",
           "path": ".codex-plugin/plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": "gemini-extension.json",
           "jsonpath": "$.version"
         }
       ]

@@ -3,6 +3,7 @@ title: "refactor: Recenter installs on native packages and shared skill cleanup"
 type: refactor
 status: active
 date: 2026-04-18
+superseded_by: "2026-06-19-agentless-plugin-surface-reduction"
 ---
 
 # Recenter Installs on Native Packages and Shared Skill Cleanup
@@ -15,6 +16,8 @@ Rework the install strategy around current agent-harness behavior:
 - Avoid `~/.agents` for CE-owned installs because shared skills there can shadow native plugin installs such as Copilot.
 - Keep agents target-native unless the harness's package format explicitly supports bundled agents.
 - Add a first-class cleanup path for old CE-owned flat installs, renamed skills, removed skills, converted-agent skills, prompts, commands, and target-specific artifacts.
+
+Superseded note (2026-06-19): current CE no longer ships standalone agents. Codex now uses native plugin install for self-contained skills, while cleanup remains responsible for backing up artifacts from older converted installs.
 
 This plan supersedes the Copilot-only native plugin plan because the same decision now affects Codex, Gemini, Pi, OpenCode, and every retained custom converter target.
 
@@ -50,7 +53,7 @@ At the same time, our legacy installs leave stale flat artifacts behind. Example
 | Harness | Shared `~/.agents/skills` | Native package/plugin install | Agent support path | Planning conclusion |
 | --- | --- | --- | --- | --- |
 | Claude Code | Not the primary install path for this repo | Yes, `/plugin marketplace add` + `/plugin install` | Plugin `agents/` | Keep Claude native plugin as canonical. No Bun install needed for Claude. |
-| Codex | Yes, but CE should avoid it to prevent Copilot plugin shadowing. Codex also discovers `~/.codex/skills` in current local behavior. | Yes, but current docs describe official plugin directory plus local repo/personal marketplace files. | Custom agents are TOML under `~/.codex/agents` or `.codex/agents`, not `~/.agents/agents`. | Keep custom Codex install. Write CE skills under `~/.codex/skills/compound-engineering` and convert Claude agents to flat Codex TOML custom agents under `~/.codex/agents`. |
+| Codex | Yes, but CE should avoid it to prevent Copilot plugin shadowing. Codex also discovers `~/.codex/skills` in current local behavior. | Yes, native plugin install through marketplace registration plus `/plugins` TUI. | Generic Codex custom agents are TOML under `~/.codex/agents` or `.codex/agents`, but current CE no longer ships standalone agents. | Superseded: current CE uses native skills with skill-local prompt assets; keep cleanup for legacy generated Codex artifacts only. |
 | Copilot CLI | Yes. Docs list project `.agents/skills` and personal `~/.agents/skills`. | Yes. `copilot plugin marketplace add OWNER/REPO`, then `copilot plugin install NAME@MARKETPLACE`. Copilot can read existing `.claude-plugin/marketplace.json` and `.claude-plugin/plugin.json`. | Personal `~/.copilot/agents`, project `.github/agents`, Claude-compatible `~/.claude/agents` / `.claude/agents`, and plugin `agents/`. No documented `~/.agents/agents`. | Move Copilot to native plugin distribution using the existing Claude plugin metadata. Remove user-facing Bun install. |
 | Gemini CLI | Yes, but CE should avoid it to prevent Copilot plugin shadowing. | Yes. `gemini extensions install <github-url-or-local-path>`, but monorepo subdirectory install is not documented. | Project `.gemini/agents`, user `~/.gemini/agents`, and extension `agents/`. The verified `.agents/*` alias is for skills, not subagents. | Keep custom Bun install to `~/.gemini/{skills,agents,commands}` for now; revisit native extension distribution later. |
 | Pi | Yes. Docs list `~/.agents/skills` and `.agents/skills`. | Yes. `pi install npm:...`, `pi install git:...`, URL, or local path. | Core Pi has no built-in subagents; subagents are extension/package-provided. Packages can bundle extensions, skills, prompts, themes. | Prefer a Pi package if we can package the existing compat extension, prompts, and skills cleanly. Until then, keep custom writer and cleanup. |
@@ -98,7 +101,7 @@ Native targets should have target-native packaging:
 
 - Copilot agents: markdown agent files under `~/.copilot/agents`, `.github/agents`, Claude-compatible `.claude/agents` / `~/.claude/agents`, or plugin `agents`.
 - Gemini sub-agents: markdown files under `.gemini/agents`, `~/.gemini/agents`, or extension `agents/`.
-- Codex custom agents: TOML files under `.codex/agents` / `~/.codex/agents`. CE should generate these from Claude Markdown agents instead of degrading them into skills.
+- Codex custom agents: TOML files under `.codex/agents` / `~/.codex/agents`. This remains generic converter context; current CE no longer generates Codex custom agents because standalone CE agents were removed.
 - OpenCode agents: markdown/config under `.opencode/agents` / `~/.config/opencode/agents`.
 - Kiro agents: JSON configs and prompt files under `.kiro/agents`.
 - Pi: no built-in subagents; package an extension if CE needs subagent behavior.
@@ -311,9 +314,8 @@ The result should be committed as data, and tests should fail when the current o
 - Run shared cleanup for each custom install.
 - Deprecate Windsurf from user-facing `convert`, `install`, `sync`, README, and target lists.
 - Preserve Windsurf cleanup support so old CE artifacts can be removed from `~/.codeium/windsurf/` even after active support is gone.
-- For Codex, keep current custom install as primary until native plugin distribution from a GitHub repo is as simple as Copilot/Gemini/Pi or until official directory publishing is available.
-- For Codex skills, write to `~/.codex/skills/compound-engineering/<skill>` with a manifest under `~/.codex/compound-engineering/`; do not write to `~/.agents/skills`.
-- For Codex agents, convert Claude Markdown agents to flat TOML custom agents under `~/.codex/agents` using CE-prefixed names such as `ce-review-correctness-reviewer`, and update converted skill content so `Task`/agent references explicitly ask Codex to spawn the named custom agent.
+- For Codex, use native plugin install for current CE. Keep the custom install and cleanup code only for converter-backed/generic plugin support and for backing up legacy CE artifacts.
+- For Codex legacy cleanup, remove old CE-owned flat skills, generated agent skills, and generated TOML custom agents from previous converted installs.
 - The Codex skill-plus-agent split was smoke-tested on 2026-04-18: a skill in `~/.agents/skills/ce-codex-agent-smoke` successfully spawned a TOML custom agent from `~/.codex/agents/ce-codex-agent-smoke.toml` and returned `CODEX_TOML_AGENT_SMOKE_OK`.
 - Codex duplicate discovery was also smoke-tested on 2026-04-18: the same skill name installed under both `~/.agents/skills` and legacy `~/.codex/skills` appeared twice in the skill picker. Codex cleanup must remove old CE-owned skills from both roots before writing the namespaced `~/.codex/skills/compound-engineering` install.
 - Shared skill nesting was smoke-tested on 2026-04-18: Codex discovered flat, nested, and Superpowers-style symlink-pack skills under `~/.agents/skills`, but Copilot and Gemini only discovered the flat direct `~/.agents/skills/<skill>/SKILL.md` shape. CE should avoid this root anyway because of Copilot shadowing.

@@ -151,7 +151,7 @@ Skip `ce-test-xcode` when:
 - **`/ce-code-review` Tier 2** — when reviewing iOS-touching PRs, the workflow can spawn an agent to run this skill, build on simulator, test key screens, and check for crashes
 - **`/ce-work` Phase 3 / Phase 4** — appropriate before opening the PR for iOS-heavy work; the test summary becomes part of the PR description's verification narrative
 
-The skill's output (test summary) is suitable evidence to include in PR descriptions, complementing what `/ce-demo-reel` produces for visual demos.
+The skill's output (test summary) is suitable evidence to include in PR descriptions, alongside any screenshots or recordings captured by the current harness.
 
 ---
 
@@ -216,5 +216,5 @@ The skill captures build errors and reports them with specific details. It doesn
 
 - [`ce-code-review`](./ce-code-review.md) — can spawn this skill for iOS-touching PRs as a verification step
 - [`ce-test-browser`](./ce-test-browser.md) — sibling skill for web-app testing via agent-browser
-- [`ce-demo-reel`](./ce-demo-reel.md) — captures visual evidence for PR descriptions; complementary to test summary
+- [`ce-commit-push-pr`](./ce-commit-push-pr.md) — can include user-supplied evidence or summarize validation in PR descriptions
 - [`ce-work`](./ce-work.md) — orchestrator that may invoke this skill during Phase 3 verification

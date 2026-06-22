@@ -6,7 +6,7 @@ import { loadClaudePlugin } from "../src/parsers/claude"
 import { filterSkillsByPlatform } from "../src/types/claude"
 
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
-const compoundPluginRoot = path.join(import.meta.dir, "..", "plugins", "compound-engineering")
+const compoundPluginRoot = path.join(import.meta.dir, "..")
 const mcpFixtureRoot = path.join(import.meta.dir, "fixtures", "mcp-file")
 const customPathsRoot = path.join(import.meta.dir, "fixtures", "custom-paths")
 const invalidCommandPathRoot = path.join(import.meta.dir, "fixtures", "invalid-command-path")
@@ -33,12 +33,12 @@ async function makeMinimalPluginRoot(): Promise<string> {
 }
 
 describe("loadClaudePlugin", () => {
-  test("current compound-engineering plugin ships skills and agents but no source commands", async () => {
+  test("current compound-engineering plugin ships skills but no source commands or standalone agents", async () => {
     const plugin = await loadClaudePlugin(compoundPluginRoot)
 
     expect(plugin.commands).toHaveLength(0)
     expect(plugin.skills.length).toBeGreaterThan(0)
-    expect(plugin.agents.length).toBeGreaterThan(0)
+    expect(plugin.agents).toHaveLength(0)
   })
 
   test("loads manifest, agents, commands, skills, hooks", async () => {

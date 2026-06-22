@@ -4,15 +4,19 @@ import { describe, expect, test } from "bun:test"
 
 const SKILL_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-plan/SKILL.md",
+  "skills/ce-plan/SKILL.md",
 )
 const SKILL_BODY = readFileSync(SKILL_PATH, "utf8")
 
 const HANDOFF_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-plan/references/plan-handoff.md",
+  "skills/ce-plan/references/plan-handoff.md",
 )
 const HANDOFF_BODY = readFileSync(HANDOFF_PATH, "utf8")
+
+const ISSUE_CREATION_START = HANDOFF_BODY.indexOf("## Issue Creation")
+const ISSUE_CREATION_SECTION =
+  ISSUE_CREATION_START > -1 ? HANDOFF_BODY.slice(ISSUE_CREATION_START) : ""
 
 // Regression guard for https://github.com/EveryInc/compound-engineering-plugin/issues/714.
 //
@@ -160,5 +164,110 @@ describe("ce-plan post-generation menu routing", () => {
     // the negative case isn't masking a positive-case breakage.
     const valid = "- **Start `/ce-work`** — Invoke the ce-work skill, passing the plan path."
     expect(fixedRegex.test(valid)).toBe(true)
+  })
+
+  // Regression guard for PR #961's underlying problem: Issue Creation hardcoded
+  // a `linear issue create` CLI and instructed the agent to "Read AGENTS.md /
+  // CLAUDE.md" to detect the tracker. Both are wrong — Linear has no guaranteed
+  // first-party CLI (false-negative probes caused silent local-doc fallbacks),
+  // and the project's instruction files are already in context, so naming them
+  // for a re-read is redundant, harness-brittle, and an injection smell. These
+  // assertions are behavior-focused (capability language present, bad patterns
+  // absent) rather than locking exact prose.
+  describe("Issue Creation is capability-based, not CLI/filename-coupled", () => {
+    // Shared anchor guard: a renamed/removed "## Issue Creation" heading would
+    // leave ISSUE_CREATION_SECTION empty, making the absence assertions below
+    // vacuously pass. Fail loudly here instead so the cause is obvious.
+    test("plan-handoff.md still has an '## Issue Creation' section", () => {
+      expect(
+        ISSUE_CREATION_START,
+        "plan-handoff.md is missing the '## Issue Creation' section — the other assertions in this block anchor on it.",
+      ).toBeGreaterThan(-1)
+    })
+
+    test("does not prescribe a `linear issue create` CLI", () => {
+      expect(
+        HANDOFF_BODY.includes("linear issue create"),
+        "references/plan-handoff.md must not prescribe `linear issue create`; Linear has no guaranteed first-party CLI. Route through whatever interface Linear exposes (connector/MCP, documented API/GraphQL, or a documented CLI).",
+      ).toBe(false)
+    })
+
+    test("names the accepted Linear access surfaces and guards the false-negative probe", () => {
+      expect(
+        /connector|MCP/i.test(ISSUE_CREATION_SECTION) && /API|GraphQL/i.test(ISSUE_CREATION_SECTION),
+        "Issue Creation must name capability-based Linear access surfaces (connector/MCP and documented API/GraphQL), not a single hardcoded CLI.",
+      ).toBe(true)
+
+      expect(
+        /do not (?:assume|treat|infer)[\s\S]{0,200}(?:missing|no )[\s\S]{0,120}(?:binary|MCP|env|unavailable)/i.test(ISSUE_CREATION_SECTION),
+        "Issue Creation must guard against the false-negative probe: a missing binary / env var / MCP server is not proof the tracker is unavailable.",
+      ).toBe(true)
+    })
+
+    test("tracker detection reads from context, not by re-opening named instruction files", () => {
+      // The detection step must not instruct re-reading a named root instruction
+      // file (the old "Read `AGENTS.md` (or `CLAUDE.md` ...)" probe). It should
+      // reference the project instructions already in context instead. Naming
+      // AGENTS.md is still allowed on the WRITE path (persisting project_tracker).
+      expect(
+        /Read `?AGENTS\.md`?\s*\(or\s*`?CLAUDE\.md`?/i.test(ISSUE_CREATION_SECTION),
+        'Issue Creation tracker detection must not instruct "Read AGENTS.md (or CLAUDE.md ...)"; reference the project instructions already in context. Naming a file is reserved for the write-back path.',
+      ).toBe(false)
+
+      expect(
+        /already in your context|active instructions/i.test(ISSUE_CREATION_SECTION),
+        "Issue Creation tracker detection must point at the project instructions already in the agent's context rather than a file to open.",
+      ).toBe(true)
+    })
+
+    // Codex review of PR #971 (P1): the prose named the tracker category, but
+    // the visible menu still said "(GitHub or Linear)" and the no-config prompt
+    // offered no path for any other tracker — keeping the closed set exactly
+    // when recovering from missing config. Guard both surfaces.
+    test("menu labels name the tracker category, not a closed GitHub/Linear set", () => {
+      expect(
+        /configured issue tracker \(GitHub or Linear\)/i.test(SKILL_BODY),
+        'ce-plan SKILL.md "Create Issue" menu label must name the category (e.g., GitHub Issues, Linear, Jira), not the closed "(GitHub or Linear)" set.',
+      ).toBe(false)
+      expect(
+        /configured issue tracker \(GitHub or Linear\)/i.test(HANDOFF_BODY),
+        'plan-handoff.md "Create Issue" menu label must name the category, not the closed "(GitHub or Linear)" set.',
+      ).toBe(false)
+    })
+
+    test("no-config prompt routes other trackers via free-form, not a 4th explicit option", () => {
+      // Non-GitHub/Linear trackers must not be locked out, but the path is the
+      // blocking tool's built-in free-form/Other input — not an explicit fourth
+      // `Other` option, which is redundant where the tool already offers free-form
+      // and exceeds the 2-3 explicit-option cap on Codex `request_user_input`.
+      expect(
+        /free-form|different tracker|another tracker|other-tracker/i.test(ISSUE_CREATION_SECTION),
+        "Issue Creation no-config prompt must let the user reach a non-GitHub/Linear tracker via the tool's free-form path.",
+      ).toBe(true)
+      expect(
+        /Options:[^\n]*`Other`|`Linear`,\s*`Other`/.test(ISSUE_CREATION_SECTION),
+        "Issue Creation no-config prompt must NOT add an explicit fourth `Other` option (redundant + exceeds Codex's explicit-option cap); rely on the tool's built-in free-form input.",
+      ).toBe(false)
+    })
+
+    // Codex review of PR #971 (P3): the inline SKILL.md routing caches at session
+    // start while the reference loads on demand, so the capability-based Linear
+    // guidance must also live inline — not only in plan-handoff.md.
+    test("inline SKILL.md Create Issue routing is capability-based for Linear", () => {
+      const phaseStart = SKILL_BODY.indexOf("##### 5.3.8")
+      const phaseRegion = SKILL_BODY.slice(phaseStart)
+      const createIssueRouting = phaseRegion.match(
+        /^- \*\*Create Issue\*\*[^\n]+/m,
+      )
+      expect(
+        createIssueRouting,
+        "ce-plan SKILL.md is missing the inline '- **Create Issue** ...' routing bullet.",
+      ).not.toBeNull()
+      const bullet = createIssueRouting![0]
+      expect(
+        /connector|MCP|API|GraphQL/i.test(bullet) && /no guaranteed `linear` CLI|not.*proof|do not treat/i.test(bullet),
+        "ce-plan SKILL.md inline Create Issue routing must carry the capability-based Linear guidance (named access surfaces + 'missing binary is not proof unavailable'), since inline routing is what an agent sees when the reference isn't loaded.",
+      ).toBe(true)
+    })
   })
 })

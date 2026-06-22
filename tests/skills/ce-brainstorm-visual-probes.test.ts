@@ -4,13 +4,13 @@ import { describe, expect, test } from "bun:test"
 
 const SKILL_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-brainstorm/SKILL.md",
+  "skills/ce-brainstorm/SKILL.md",
 )
 const SKILL_BODY = readFileSync(SKILL_PATH, "utf8")
 
 const VISUAL_PROBES_PATH = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-brainstorm/references/visual-probes.md",
+  "skills/ce-brainstorm/references/visual-probes.md",
 )
 
 describe("ce-brainstorm visual probes", () => {

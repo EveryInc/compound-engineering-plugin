@@ -78,7 +78,7 @@ Reach for `ce-promote` when:
 Skip it when:
 
 - Nothing user-facing shipped (internal refactor, CI-only, test-only)
-- You only need internal release notes — use `/ce-release-notes` for plugin release history
+- You only need internal release history — use GitHub Releases for plugin release history
 
 ---
 
@@ -96,5 +96,4 @@ Detailed Spiral CLI mechanics live in the skill's `references/spiral-cli.md`.
 
 ## See Also
 
-- [`ce-release-notes`](./ce-release-notes.md) — internal release history of the plugin (different audience: developers, not end users)
-- [`ce-demo-reel`](./ce-demo-reel.md) — capture visual evidence of a shipped feature for a PR (pairs well as the visual to accompany announcement copy)
+- Harness-native screenshots or recordings — useful visual context to pair with announcement copy when available

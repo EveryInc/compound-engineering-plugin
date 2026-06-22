@@ -10,7 +10,7 @@ tags:
   - parser-robustness
   - silent-data-loss
 severity: "medium"
-component: "plugins/compound-engineering/skills/ce-decompose-beta"
+component: "skills/ce-decompose-beta"
 ---
 
 # Validate Artifact-Producing Skills with a Blind Eval Against Real Source

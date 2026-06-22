@@ -1,19 +1,11 @@
-import { chmod, mkdir, mkdtemp, rm, writeFile } from "fs/promises"
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from "fs/promises"
 import os from "os"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 
-const checkHealthScript = path.join(
-  import.meta.dir,
-  "..",
-  "..",
-  "plugins",
-  "compound-engineering",
-  "skills",
-  "ce-setup",
-  "scripts",
-  "check-health",
-)
+const repoRoot = path.join(import.meta.dir, "..", "..")
+const checkHealthScript = path.join(repoRoot, "skills", "ce-setup", "scripts", "check-health")
+const configTemplate = path.join(repoRoot, "skills", "ce-setup", "references", "config-template.yaml")
 
 type RunResult = {
   exitCode: number
@@ -21,12 +13,12 @@ type RunResult = {
   stderr: string
 }
 
-async function runCheckHealth(home: string, pathValue: string): Promise<RunResult> {
+async function runCheckHealth(cwd: string, pathValue: string): Promise<RunResult> {
   const proc = Bun.spawn(["bash", checkHealthScript], {
-    cwd: home,
+    cwd,
     env: {
       ...process.env,
-      HOME: home,
+      HOME: cwd,
       PATH: pathValue,
     },
     stderr: "pipe",
@@ -42,30 +34,60 @@ async function runCheckHealth(home: string, pathValue: string): Promise<RunResul
   return { exitCode, stdout, stderr }
 }
 
-async function writeExecutable(filePath: string, content: string): Promise<void> {
-  await mkdir(path.dirname(filePath), { recursive: true })
-  await writeFile(filePath, content)
-  await chmod(filePath, 0o755)
+async function initGitRepo(root: string): Promise<void> {
+  await Bun.$`git init`.cwd(root).quiet()
 }
 
 describe("ce-setup check-health", () => {
-  test("detects global Codex skills under ~/.agents/skills when skills CLI misses them", async () => {
+  test("reports missing optional tools without treating them as setup failures", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
-      await mkdir(path.join(root, ".agents", "skills", "ast-grep"), { recursive: true })
-
-      const binDir = path.join(root, "bin")
-      await writeExecutable(
-        path.join(binDir, "npx"),
-        "#!/usr/bin/env bash\nprintf '%s\\n' '[{\"name\":\"other-skill\"}]'\n",
-      )
-
-      const result = await runCheckHealth(root, `${binDir}:/usr/bin:/bin`)
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("Skills  1/1")
-      expect(result.stdout).toContain("1/1 skills")
+      expect(result.stdout).toContain("Optional capabilities")
+      expect(result.stdout).toContain("Missing optional tools do not block setup")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("reports a healthy repo config when local config is gitignored and example is current", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.yaml"))
+      await writeFile(path.join(root, ".gitignore"), ".compound-engineering/*.local.yaml\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Project config")
+      expect(result.stdout).toContain("Local config is gitignored")
+      expect(result.stdout).toContain("Project config healthy")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("reports unignored local config as a project issue", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initGitRepo(root)
+      await mkdir(path.join(root, ".compound-engineering"), { recursive: true })
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.example.yaml"))
+      await copyFile(configTemplate, path.join(root, ".compound-engineering", "config.local.yaml"))
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("Local config is not safely gitignored")
+      expect(result.stdout).toContain("1 project issue(s) found")
     } finally {
       await rm(root, { recursive: true, force: true })
     }

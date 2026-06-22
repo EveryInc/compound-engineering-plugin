@@ -3,6 +3,7 @@ import { backupFile, copySkillDir, ensureDir, pathExists, readJson, sanitizePath
 import { transformSkillContentForOpenCode } from "../converters/claude-to-opencode"
 import type { OpenCodeBundle, OpenCodeConfig } from "../types/opencode"
 import { getLegacyOpenCodeArtifacts } from "../data/plugin-legacy-artifacts"
+import { isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
 import {
   archiveLegacyInstallManifestIfOwned,
   cleanupCurrentManagedDirectory,
@@ -187,12 +188,16 @@ async function cleanupKnownLegacyOpenCodeArtifacts(
 ): Promise<void> {
   const legacyArtifacts = getLegacyOpenCodeArtifacts(bundle)
   for (const skillName of legacyArtifacts.skills) {
+    const legacySkillPath = path.join(paths.skillsDir, skillName)
+    if (!(await isLegacySkillArtifactOwned(legacySkillPath, skillName))) continue
     await moveLegacyArtifactToBackup(paths.managedDir, "skills", paths.skillsDir, skillName, "OpenCode skill")
   }
   for (const commandPath of legacyArtifacts.commands) {
     await moveLegacyArtifactToBackup(paths.managedDir, "commands", paths.commandDir, commandPath, "OpenCode command")
   }
   for (const agentPath of legacyArtifacts.agents) {
+    const legacyAgentPath = path.join(paths.agentsDir, agentPath)
+    if (!(await isLegacyAgentArtifactOwned(legacyAgentPath, path.basename(agentPath, ".md"), ".md"))) continue
     await moveLegacyArtifactToBackup(paths.managedDir, "agents", paths.agentsDir, agentPath, "OpenCode agent")
   }
 }

@@ -3,6 +3,7 @@ title: Adding New Converter Target Providers
 category: architecture
 tags: [converter, target-provider, plugin-conversion, multi-platform, pattern]
 created: 2026-02-23
+last_refreshed: 2026-06-20
 severity: medium
 component: converter-cli
 problem_type: architecture_pattern
@@ -13,22 +14,18 @@ root_cause: architectural_pattern
 
 ## Problem
 
-When adding support for a new AI platform (e.g., Copilot, Windsurf, Qwen), the converter CLI architecture requires consistent implementation across types, converters, writers, CLI integration, and tests. Without documented patterns and learnings, new targets take longer to implement and risk architectural inconsistency.
+When adding support for a new AI platform, the converter CLI architecture requires consistent implementation across types, converters, writers, CLI integration, and tests. Without documented patterns and learnings, new targets take longer to implement and risk architectural inconsistency.
 
 ## Solution
 
-The compound-engineering-plugin uses a proven **6-phase target provider pattern** that has been successfully applied to 10 targets:
+The compound-engineering-plugin uses a proven **6-phase target provider pattern** that has been applied across converter targets this repo maintains. Some older converter modules remain in tests or cleanup paths for compatibility, but new user-facing installs should prefer native package/plugin mechanisms when the harness supports them.
 
 1. **OpenCode** (primary target, reference implementation)
 2. **Codex** (second target, established pattern)
-3. **Droid/Factory** (workflow/agent conversion)
-4. **Pi** (MCPorter ecosystem)
-5. **Gemini CLI** (content transformation patterns)
-6. **Copilot** (GitHub native, MCP prefixing)
-7. **Kiro** (limited MCP support)
-8. **Windsurf** (rules-based format)
-9. **OpenClaw** (open agent format)
-10. **Qwen** (Qwen agent format)
+3. **Pi** (MCPorter ecosystem)
+4. **Gemini CLI** (content transformation patterns)
+5. **Compatibility converter modules** such as Copilot, Droid, and Kiro (kept where regression coverage or cleanup support still matters)
+6. **Historical removed targets** such as Windsurf, OpenClaw, and Qwen (use as archived lessons only)
 
 Each implementation follows this architecture precisely, ensuring consistency and maintainability.
 
@@ -70,8 +67,9 @@ export type {TargetName}Agent = {
 
 **Reference Implementations:**
 - OpenCode: `src/types/opencode.ts` (command + agent split)
-- Copilot: `src/types/copilot.ts` (agents + skills + MCP)
-- Windsurf: `src/types/windsurf.ts` (rules-based format)
+- Codex: `src/types/codex.ts` (agents plus optional copied skills)
+- Pi: `src/types/pi.ts` (plugin/extension output)
+- Gemini: `src/types/gemini.ts` (extension-style output)
 
 ---
 
@@ -159,7 +157,7 @@ export function transformContentFor{Target}(body: string): string {
 
 **Deduplication Pattern (`uniqueName`):**
 
-Used when target has flat namespaces (Copilot, Windsurf) or when name collisions occur:
+Used when target has flat namespaces or when name collisions occur:
 
 ```typescript
 function uniqueName(base: string, used: Set<string>): string {
@@ -208,16 +206,16 @@ function flattenCommandName(name: string): string {
 
 5. **MCP servers need target-specific handling:**
    - **OpenCode:** Merge into `opencode.json` (preserve user keys)
-   - **Copilot:** Prefix env vars with `COPILOT_MCP_`, emit JSON
-   - **Windsurf:** Write MCP config in target-specific format
-   - **Kiro:** Limited MCP support, check compatibility
+   - **Pi:** Emit extension/package metadata without requiring CE-owned subagent extensions
+   - **Gemini:** Prefer native extension manifests and skip unsupported Claude-only surfaces
 
-6. **Warn on unsupported features** — Hooks, Gemini extensions, Kiro-incompatible MCP types. Emit to stderr and continue conversion.
+6. **Warn on unsupported features** — Hooks and target-incompatible MCP types should emit to stderr and continue conversion.
 
 **Reference Implementations:**
 - OpenCode: `src/converters/claude-to-opencode.ts` (most comprehensive)
-- Copilot: `src/converters/claude-to-copilot.ts` (MCP prefixing pattern)
-- Windsurf: `src/converters/claude-to-windsurf.ts` (rules-based conversion)
+- Codex: `src/converters/claude-to-codex.ts` (native-plugin-compatible default with legacy include-skills path)
+- Pi: `src/converters/claude-to-pi.ts` (Pi plugin metadata)
+- Gemini: `src/converters/claude-to-gemini.ts` (Gemini extension output)
 
 ---
 
@@ -328,9 +326,8 @@ export async function backupFile(filePath: string): Promise<string | null> {
 4. **Empty bundles should succeed gracefully** — Don't fail if a component array is empty. Many plugins may have no commands or no skills.
 
 5. **File extensions matter** — Match target conventions exactly:
-   - Copilot: `.md` for agents (VS Code parses `.agent.md` as Copilot format and silently drops Claude-style tool names; `.md` triggers Claude format detection and maps tools to VS Code equivalents)
-   - Windsurf: `.md` for rules
    - OpenCode: `.md` for commands
+   - Codex/Gemini/Pi: preserve the target's native skill or extension filenames exactly
 
 6. **Permissions for sensitive files** — MCP config with API keys should use `0o600`:
    ```typescript
@@ -338,9 +335,10 @@ export async function backupFile(filePath: string): Promise<string | null> {
    ```
 
 **Reference Implementations:**
-- Droid: `src/targets/droid.ts` (simpler pattern, good for learning)
-- Copilot: `src/targets/copilot.ts` (double-nesting pattern)
-- Windsurf: `src/targets/windsurf.ts` (rules-based output)
+- OpenCode: `src/targets/opencode.ts` (merge-preserving workspace/global writer)
+- Codex: `src/targets/codex.ts` (Codex home writer with optional legacy skill output)
+- Pi: `src/targets/pi.ts` (Pi plugin output)
+- Gemini: `src/targets/gemini.ts` (Gemini extension output)
 
 ---
 
@@ -377,16 +375,16 @@ if (targetName === "{target}") {
 }
 
 // Update --to flag description
-const toDescription = "Target format (opencode | codex | droid | cursor | pi | copilot | gemini | kiro | windsurf | openclaw | qwen | all)"
+const toDescription = "Target format (opencode | codex | pi | gemini | all)"
 ```
 
 ---
 
-### Phase 5: Sync Support (Optional)
+### Phase 5: Personal Sync Support (Historical/Optional)
 
-**File: `src/sync/{target}.ts`**
+The current target registry does not have a separate `src/sync/` layer. Earlier versions used sync modules for personal skills and MCP servers; if a future target reintroduces that behavior, keep it separate from conversion and treat it as optional platform glue.
 
-If the target supports syncing personal skills and MCP servers:
+If the target supports syncing personal skills and MCP servers, the shape looks like:
 
 ```typescript
 export async function syncTo{Target}(outputRoot: string): Promise<void> {
@@ -423,11 +421,11 @@ export async function syncTo{Target}(outputRoot: string): Promise<void> {
 }
 ```
 
-**File: `src/commands/sync.ts`**
+Then wire the optional command path in the same explicit-target style as `src/commands/convert.ts`:
 
 ```typescript
 // Add to validTargets array
-const validTargets = ["opencode", "codex", "droid", "pi", "copilot", "gemini", "kiro", "windsurf", "openclaw", "qwen", "{target}"] as const
+const validTargets = ["opencode", "codex", "pi", "gemini", "{target}"] as const
 
 // In resolveOutputRoot()
 case "{target}":
@@ -614,7 +612,7 @@ Add to supported targets list and include usage examples.
 
 | Pitfall | Solution |
 |---------|----------|
-| **Double-nesting** (`.copilot/.copilot/`) | Check `path.basename(outputRoot)` before nesting |
+| **Double-nesting** (`.target/.target/`) | Check `path.basename(outputRoot)` before nesting |
 | **Inconsistent name normalization** | Use single `normalizeName()` function everywhere |
 | **Fragile content transformation** | Test regex patterns against edge cases (file paths, URLs) |
 | **Heuristic section extraction fails** | Use structural mapping (description → Overview, body → Procedure) instead |
@@ -638,14 +636,14 @@ Use this checklist when adding a new target provider:
 - [ ] Register target in `src/targets/index.ts`
 - [ ] Update `src/commands/convert.ts` (add output root resolution, update help text)
 - [ ] Update `src/commands/install.ts` (same as convert.ts)
-- [ ] (Optional) Implement `src/sync/{target}.ts` and update `src/commands/sync.ts`
+- [ ] (Optional/historical) Add a separate sync command only if the target truly needs personal-skill synchronization outside conversion
 
 ### Testing
 - [ ] Create `tests/{target}-converter.test.ts` with converter tests
 - [ ] Create `tests/{target}-writer.test.ts` with writer tests
 - [ ] (Optional) Create `tests/sync-{target}.test.ts` with sync tests
 - [ ] Run full test suite: `bun test`
-- [ ] Manual test: `bun run src/index.ts convert --to {target} ./plugins/compound-engineering`
+- [ ] Manual test: `bun run src/index.ts convert --to {target} .`
 
 ### Documentation
 - [ ] Create `docs/specs/{target}.md` with format specification
@@ -665,10 +663,10 @@ Use this checklist when adding a new target provider:
 
 **Reference implementations by priority (easiest to hardest):**
 
-1. **Droid** (`src/targets/droid.ts`, `src/converters/claude-to-droid.ts`) — Simplest pattern, good learning baseline
-2. **Copilot** (`src/targets/copilot.ts`, `src/converters/claude-to-copilot.ts`) — MCP prefixing, double-nesting guard
-3. **Windsurf** (`src/targets/windsurf.ts`, `src/converters/claude-to-windsurf.ts`) — Rules-based conversion
-4. **OpenCode** (`src/converters/claude-to-opencode.ts`) — Most comprehensive, handles command structure and config merging
+1. **OpenCode** (`src/targets/opencode.ts`, `src/converters/claude-to-opencode.ts`) — Most comprehensive, handles command structure and config merging
+2. **Codex** (`src/targets/codex.ts`, `src/converters/claude-to-codex.ts`) — Native-plugin-compatible default plus legacy include-skills path
+3. **Pi** (`src/targets/pi.ts`, `src/converters/claude-to-pi.ts`) — Plugin metadata and Pi extension output
+4. **Gemini** (`src/targets/gemini.ts`, `src/converters/claude-to-gemini.ts`) — Gemini extension output
 
 ### Key Utilities
 
@@ -678,14 +676,16 @@ Use this checklist when adding a new target provider:
 
 ### Existing Tests
 
-- `tests/copilot-writer.test.ts` — Writer tests with temp directories
-- `tests/sync-copilot.test.ts` — Sync pattern with symlinks and config merge
+- `tests/opencode-writer.test.ts` — Writer tests with temp directories and merge behavior
+- `tests/codex-writer.test.ts` — Codex writer layout and cleanup behavior
+- `tests/gemini-writer.test.ts` — Gemini writer output
+- `tests/kiro-writer.test.ts` — Compatibility writer coverage for a historical target
 
 ---
 
 ## Related Files
 
-- `plugins/compound-engineering/.claude-plugin/plugin.json` — Version and component counts
+- `.claude-plugin/plugin.json` — Version and component counts
 - `CHANGELOG.md` — Pointer to canonical GitHub release history
 - `README.md` — Usage examples for all targets
 - `docs/solutions/plugin-versioning-requirements.md` — Checklist for releases

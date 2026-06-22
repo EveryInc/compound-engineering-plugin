@@ -3,6 +3,7 @@ title: "feat: Ship Codex-format plugin manifests alongside Claude manifests"
 type: feat
 status: active
 date: 2026-04-20
+superseded_by: "2026-06-19-agentless-plugin-surface-reduction"
 ---
 
 # feat: Ship Codex-format plugin manifests alongside Claude manifests
@@ -11,7 +12,7 @@ date: 2026-04-20
 
 Add Codex-format plugin manifests (`.agents/plugins/marketplace.json` plus per-plugin `.codex-plugin/plugin.json`) to the repo alongside the existing Claude-format manifests, so Codex users can install CE's skills via the native `codex plugin marketplace add EveryInc/compound-engineering-plugin` flow.
 
-Agents are not supported by Codex's native plugin spec, so the existing Bun converter (`bunx @every-env/compound-plugin install compound-engineering --to codex`) remains required to complete a CE install. To prevent skill double-registration when users run both flows, the Bun converter's `--to codex` default is changed to **agents-only**; an opt-in `--include-skills` flag re-enables the full bundle for standalone installs. The README documents the two-step flow.
+Superseded note (2026-06-19): this plan records the pre-agentless Codex migration. Compound Engineering no longer ships standalone agents, so the native Codex plugin install is self-contained through skills and skill-local prompt assets. The old converted Codex companion step is obsolete.
 
 ## Problem Frame
 
@@ -21,7 +22,7 @@ Shipping the Codex manifests:
 
 * Puts Codex in the "native install" tier alongside Copilot/Droid/Qwen for discovery and lifecycle (install/uninstall/update via `codex plugin`)
 
-* Does not change the agent install path (native Codex plugin install does not register custom agents per the spec and our empirical test)
+* Historically did not change the agent install path; this was superseded by the agentless migration, which removed CE's standalone agent dependency instead
 
 * Costs \~two hand-authored JSON files per plugin plus a small release-infra extension, because the repo already supports dual-format manifests (Claude + Cursor) and adding a third format is a parallel entry, not a new pattern
 
@@ -35,17 +36,17 @@ Shipping the Codex manifests:
 
 * R4. `bun run release:validate` must fail if the Codex manifests drift out of sync with the Claude manifests (plugin list mismatch, name mismatch, version mismatch)
 
-* R5. README documents the Codex native install flow with a followup step for agents
+* R5. README documents the Codex native install flow
 
 * R6. No regressions to existing Claude, Cursor, Copilot, Droid, Qwen, or Bun-converter install paths
 
 ## Scope Boundaries
 
-* Native Codex plugin install handles skills only (Codex spec does not register custom agents or slash commands). Agents still flow through the Bun converter; the converter's default behavior is changed in Unit 9 so skills are NOT emitted by default, preventing double-registration.
+* Historical boundary: at the time of this plan, native Codex plugin install handled skills only. The later agentless migration removed the CE companion-agent requirement rather than waiting for native agent registration.
 
 * Commands are not installed via native Codex plugin install (Codex spec limitation). Only affects the `coding-tutor` plugin, which ships commands. Coding-tutor users wanting commands run the Bun converter with `--include-skills`.
 
-* No single-command hybrid UX (the two-step `codex plugin install` + `bunx ... --to codex` flow is documented, not automated). This becomes obsolete when Codex supports custom agents natively — at which point the entire `--to codex` converter path is deprecated.
+* Historical note: this plan originally deferred single-command hybrid UX. That path is obsolete for CE because the agentless migration made native Codex install self-contained.
 
 * No logo asset — `interface.logo` is omitted; can be added in a followup when a branded icon is available
 
@@ -55,13 +56,13 @@ Shipping the Codex manifests:
 
 ### Deferred to Separate Tasks
 
-* Hybrid install UX that bundles `codex plugin install` with the agent followup into a single command: future plan once Codex's native spec is more settled
+* Historical hybrid install UX is obsolete for CE after the agentless migration
 
 * Codex-specific skill metadata tuning (priority, path patterns, bash patterns) for discoverability: evaluate per-skill in followups as use patterns emerge
 
 * Plugin logo asset design: hand off to design; drop in later
 
-* Removal of the `--to codex` Bun converter path entirely once Codex supports custom agents natively; at that point `codex plugin install` is sufficient on its own
+* Removal of CE's Codex companion-agent path was achieved by moving specialist prompts into skills
 
 ## Context & Research
 
@@ -453,11 +454,11 @@ Required fields per docs: `name`, `version`, `description`. All others optional.
 
   * The native install command: `codex plugin marketplace add EveryInc/compound-engineering-plugin` + `codex plugin install compound-engineering`
 
-  * A brief note that native install handles skills; for the full CE experience including agents, run the followup `bunx @every-env/compound-plugin install compound-engineering --to codex`
+  * A brief note that native install is self-contained for CE skills and skill-local prompt assets
 
   * A cleanup pointer for users migrating from the old Bun-only install: `bunx @every-env/compound-plugin cleanup --target codex` (already exists)
 
-* Keep Codex in the Bun converter section too (line 129+) as an `--also` option for users who want a scripted install, but reframe: "the Bun converter remains the way to install CE's custom agents on Codex after the native plugin install."
+* Keep generic Codex converter documentation only for plugins that still ship standalone agents; current CE native install should be documented as self-contained.
 
 **Patterns to follow:**
 
@@ -529,7 +530,7 @@ Required fields per docs: `name`, `version`, `description`. All others optional.
 
 * No new errors in Codex logs that weren't present before
 
-* **Merge gate:** Unit 7 must complete successfully before this PR merges. If empirical install fails, iterate on Units 1-3 manifests until install succeeds. Do not land Units 1-6 separately — the whole hybrid-install promise relies on native install actually working against these manifests, so a PR that ships the manifests untested would break CE's install story for any Codex user who follows the README.
+* **Merge gate:** Unit 7 must complete successfully before this PR merges. If empirical install fails, iterate on Units 1-3 manifests until install succeeds. Do not land Units 1-6 separately — native install must work against these manifests, so a PR that ships the manifests untested would break CE's install story for any Codex user who follows the README.
 
   ***
 
@@ -603,7 +604,7 @@ Required fields per docs: `name`, `version`, `description`. All others optional.
 - Add `codexIncludeSkills?: boolean` to `ClaudeToOpenCodeOptions`. Document that it is Codex-only; other targets ignore it.
 - In `convertClaudeToCodex`, default `includeSkills = options.codexIncludeSkills ?? false`. When false, return a bundle with empty `skillDirs`, empty `prompts`, empty command-skills, empty `mcpServers`; `generatedSkills` contains only agent conversions. When true, current full behavior.
 - Agent bodies still get `transformContentForCodex` applied in both modes so `Task(...)` / slash refs rewrite against the skill graph that native install registers at runtime.
-- CLI flag: `--include-skills` boolean, default false. Help text explicitly calls out that it is Codex-only, explains why (pairing with `codex plugin install`), and notes the flag's transience (will be unnecessary when Codex supports custom agents natively).
+- CLI flag: `--include-skills` boolean, default false. Historical note: this flag was added for the pre-agentless split install. Current CE no longer needs a companion generated-agent install, but the generic converter behavior remains for other plugin payloads.
 - `sync` command (legacy personal-config flow) pins the flag true — those users don't have native install as an option.
 - Coding-tutor: no special-casing. With 0 agents, agents-only default emits an empty bundle — "bare minimum" per the product decision. Users wanting coding-tutor's commands run with `--include-skills`.
 
@@ -659,8 +660,8 @@ Required fields per docs: `name`, `version`, `description`. All others optional.
 | Codex plugin.json requires a field we haven't identified from docs                                                           | Unit 7 empirical test catches this pre-merge; iterate on the manifest until install succeeds                                                                                                                                                                         |
 | Codex skills registration requires the `metadata.*` frontmatter extensions to work, not just `name`/`description`            | Unit 7 empirical test catches this. If confirmed, escalate to user: either add minimal default metadata to CE skills (in scope), or accept degraded trigger behavior and defer full metadata tuning (deferred to later plan)                                         |
 | Release-please `extra-files` path change silently breaks version bump flow                                                   | Unit 5 validator catches drift *after* a release produces it — retroactive, not pre-merge. Before merging Unit 4, run release-please's preview/dry-run locally (`npx release-please manifest-pr --dry-run` or equivalent) and confirm both `.codex-plugin/plugin.json` files appear in the proposed bump list. AGENTS.md notes `linked-versions` has edge cases around `exclude-paths` — verify those don't interfere. |
-| Skills that delegate to agents via `Task` silently fail on native-only install. CE skills like `ce-code-review`, `ce-plan`, `ce-work` spawn agents in `review/`, `research/`, `workflow/` subdirectories. Users who run native install and skip the `bunx ... --to codex` followup invoke those skills and see delegation failures that look like CE is broken. | Unit 6 README change is the primary mitigation (explicit two-step sequencing, with the agent followup called out as required for agent-heavy workflows). The `cleanup --target codex` command points users at the same CE namespace for a clean slate. **Followup plan to evaluate:** skill-side detection — delegating skills check for their required agents and emit a clear "run the agent followup to enable this" message when missing. Not in scope for this plan. Acceptable risk for the first release given the README is explicit. |
-| User confusion about the two-step install (skills via native, agents via Bun) beyond the delegation failure above           | Same README mitigation. If confusion is common post-launch, a followup plan automates the hybrid into a single command.                                                                                                                                              |
+| Skills that delegated to standalone agents via `Task` silently failed on native-only install. | Superseded by the agentless migration: CE skills now seed generic subagents from skill-local prompt assets. Users switching from older converted installs should run `cleanup --target codex` once. |
+| User confusion about the old two-step install | Superseded by self-contained native Codex install documentation. |
 | Codex marketplace schema evolves (OpenAI updates the spec)                                                                   | Low probability in the short term; the worked-out schema matches both the bundled example and the canonical reference repo. Monitor Codex release notes; if `version` becomes required on marketplace.json, add it as an `extra-files` entry then                    |
 | `coding-tutor`'s commands silently don't install and users don't notice                                                      | README explicitly calls this out in the coding-tutor install section. Acceptable gap — coding-tutor is lightly used and the commands gap is upstream (Codex spec limitation), not fixable in this repo                                                               |
 

@@ -20,7 +20,7 @@ The broader repo-level release model now lives in:
 
 - `docs/solutions/workflow/manual-release-please-github-releases.md`
 
-That doc covers the standing release PR, component ownership across `cli`, `compound-engineering`, `coding-tutor`, and `marketplace`, and the GitHub Releases model for published release notes. This document stays narrower: it is the plugin-scoped reminder for contributors changing `plugins/compound-engineering/**`.
+That doc covers the standing release PR, component ownership across the root `compound-engineering` package and the marketplace packages, and the GitHub Releases model for published release notes. This document stays narrower: it is the plugin-scoped reminder for contributors changing the root plugin surface.
 
 ## Solution
 
@@ -31,7 +31,7 @@ Embedded plugin versions are release-owned metadata. Release automation prepares
 Contributors should:
 
 1. **Avoid release bookkeeping in normal PRs**
-   - Do not manually bump `plugins/compound-engineering/.claude-plugin/plugin.json`
+   - Do not manually bump `package.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, or `gemini-extension.json`
    - Do not manually bump the `compound-engineering` entry in `.claude-plugin/marketplace.json`
    - Do not cut release sections in the root `CHANGELOG.md`
 
@@ -46,7 +46,7 @@ Contributors should:
 ```markdown
 Before committing changes to compound-engineering plugin:
 
-- [ ] No manual version bump in `plugins/compound-engineering/.claude-plugin/plugin.json`
+- [ ] No manual version bump in root package/plugin manifests
 - [ ] No manual version bump in the `compound-engineering` entry inside `.claude-plugin/marketplace.json`
 - [ ] No manual release section added to `CHANGELOG.md`
 - [ ] README.md component counts verified
@@ -57,17 +57,17 @@ Before committing changes to compound-engineering plugin:
 
 ## File Locations
 
-- Plugin version is release-owned: `plugins/compound-engineering/.claude-plugin/plugin.json`
+- Plugin version is release-owned: `package.json`, `.claude-plugin/plugin.json`, `.cursor-plugin/plugin.json`, `.codex-plugin/plugin.json`, and `gemini-extension.json`
 - Marketplace entry is release-owned: `.claude-plugin/marketplace.json`
 - Release notes are release-owned: GitHub release PRs and GitHub Releases
-- Readme: `plugins/compound-engineering/README.md`
+- Readme: `README.md`
 
 ## Example Workflow
 
-When adding a new agent:
+When adding, removing, or renaming a skill:
 
-1. Create the agent file in `plugins/compound-engineering/agents/[category]/`
-2. Update `plugins/compound-engineering/README.md`
+1. Create or remove the directory under `skills/`
+2. Update `README.md`
 3. Leave plugin version selection and canonical release-note generation to release automation
 4. Run `bun run release:validate`
 
@@ -82,8 +82,11 @@ This documentation serves as a reminder. When maintainers or agents work on this
 
 ## Related Files
 
-- `plugins/compound-engineering/.claude-plugin/plugin.json`
-- `plugins/compound-engineering/README.md`
+- `.claude-plugin/plugin.json`
+- `.cursor-plugin/plugin.json`
+- `.codex-plugin/plugin.json`
+- `gemini-extension.json`
+- `README.md`
 - `package.json`
 - `CHANGELOG.md`
 - `docs/solutions/workflow/manual-release-please-github-releases.md`

@@ -4,7 +4,7 @@
 
 `ce-worktree` is the **isolation guardrail** skill. Its value is judgment, not mechanics: most coding harnesses now create a worktree by default at session start, so the common case is that you are *already* isolated. The skill encodes the discipline to recognize that, defer to the harness's own worktree tooling, and only create a worktree with plain git as a last resort — so you never nest worktrees or create state the harness can't manage.
 
-It is pure prose + inline git, with **no bundled script**, so it works verbatim on every target (Claude Code, Codex, Gemini, OpenCode, Pi, Kiro).
+It is pure prose + inline git, with **no bundled script**, so it works verbatim on every supported target (Claude Code, Codex, Gemini, OpenCode, Pi).
 
 ---
 
@@ -117,7 +117,7 @@ The value isn't the `git worktree add` command — the agent knows that. It's th
 No. Step 0 detects existing isolation and works in place. A worktree-from-worktree is exactly the failure mode the skill prevents.
 
 **How do I clean up a worktree?**
-`cd "$(git rev-parse --show-toplevel)"` to leave it, then `git worktree remove .worktrees/<branch>`. `/ce-clean-gone-branches` handles worktree-and-branch cleanup together when the remote tracking branch is gone.
+`cd "$(git rev-parse --show-toplevel)"` to leave it, then `git worktree remove .worktrees/<branch>`. If the remote tracking branch is gone, prune with normal git commands such as `git fetch --prune` followed by `git branch -d <branch>` after verifying the branch is merged.
 
 ---
 
@@ -125,4 +125,3 @@ No. Step 0 detects existing isolation and works in place. A worktree-from-worktr
 
 - [`/ce-work`](./ce-work.md) — offers this skill as its isolation option
 - [`/ce-code-review`](./ce-code-review.md) — offers worktree isolation for concurrent review
-- [`/ce-clean-gone-branches`](./ce-clean-gone-branches.md) — cleans up worktrees and branches together when the remote tracking branch is gone

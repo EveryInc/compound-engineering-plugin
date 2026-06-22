@@ -16,6 +16,19 @@ async function exists(filePath: string): Promise<boolean> {
   }
 }
 
+const REPRODUCE_BUG_DESCRIPTION =
+  "Systematically reproduce and investigate a bug from a GitHub issue. Use when the user provides a GitHub issue number or URL for a bug they want reproduced or investigated."
+const BUG_REPRODUCTION_VALIDATOR_DESCRIPTION =
+  "Systematically reproduces and validates bug reports to confirm whether reported behavior is an actual bug. Use when you receive a bug report or issue that needs verification."
+
+function skillContent(name: string, description: string): string {
+  return `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\n# ${name}\n`
+}
+
+function agentContent(name: string, description: string): string {
+  return `---\nname: ${name}\ndescription: ${JSON.stringify(description)}\n---\n\nLegacy agent\n`
+}
+
 describe("writeGeminiBundle", () => {
   test("removes stale generated agent skill dirs before writing Gemini generated skills", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-cleanup-"))
@@ -337,16 +350,16 @@ Run these research agents:
     const geminiRoot = path.join(tempRoot, ".gemini")
 
     await fs.mkdir(path.join(geminiRoot, "skills", "reproduce-bug"), { recursive: true })
-    await fs.writeFile(path.join(geminiRoot, "skills", "reproduce-bug", "SKILL.md"), "legacy removed skill")
+    await fs.writeFile(path.join(geminiRoot, "skills", "reproduce-bug", "SKILL.md"), skillContent("reproduce-bug", REPRODUCE_BUG_DESCRIPTION))
     await fs.mkdir(path.join(geminiRoot, "skills", "bug-reproduction-validator"), { recursive: true })
-    await fs.writeFile(path.join(geminiRoot, "skills", "bug-reproduction-validator", "SKILL.md"), "legacy removed agent skill")
+    await fs.writeFile(path.join(geminiRoot, "skills", "bug-reproduction-validator", "SKILL.md"), skillContent("bug-reproduction-validator", BUG_REPRODUCTION_VALIDATOR_DESCRIPTION))
     await fs.mkdir(path.join(geminiRoot, "agents"), { recursive: true })
-    await fs.writeFile(path.join(geminiRoot, "agents", "bug-reproduction-validator.md"), "legacy removed agent")
+    await fs.writeFile(path.join(geminiRoot, "agents", "bug-reproduction-validator.md"), agentContent("bug-reproduction-validator", BUG_REPRODUCTION_VALIDATOR_DESCRIPTION))
     await fs.mkdir(path.join(geminiRoot, "commands"), { recursive: true })
     await fs.writeFile(path.join(geminiRoot, "commands", "reproduce-bug.toml"), "legacy removed command")
     await fs.writeFile(path.join(geminiRoot, "commands", "report-bug.toml"), "legacy deleted command")
 
-    const plugin = await loadClaudePlugin(path.join(import.meta.dir, "..", "plugins", "compound-engineering"))
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
     const bundle = convertClaudeToGemini(plugin, {
       agentMode: "subagent",
       inferTemperature: true,
@@ -360,5 +373,25 @@ Run these research agents:
     expect(await exists(path.join(geminiRoot, "commands", "reproduce-bug.toml"))).toBe(false)
     expect(await exists(path.join(geminiRoot, "commands", "report-bug.toml"))).toBe(false)
     expect(await exists(path.join(geminiRoot, "compound-engineering", "legacy-backup"))).toBe(true)
+  })
+
+  test("preserves user-authored legacy-name Gemini agents during install cleanup", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "gemini-legacy-agent-preserve-"))
+    const geminiRoot = path.join(tempRoot, ".gemini")
+    const agentsRoot = path.join(geminiRoot, "agents")
+    await fs.mkdir(agentsRoot, { recursive: true })
+    const userAgent = agentContent("ce-repo-research-analyst", "Personal Gemini research helper.")
+    await fs.writeFile(path.join(agentsRoot, "ce-repo-research-analyst.md"), userAgent)
+
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
+    const bundle = convertClaudeToGemini(plugin, {
+      agentMode: "subagent",
+      inferTemperature: true,
+      permissions: "none",
+    })
+    await writeGeminiBundle(geminiRoot, bundle)
+
+    expect(await exists(path.join(agentsRoot, "ce-repo-research-analyst.md"))).toBe(true)
+    expect(await fs.readFile(path.join(agentsRoot, "ce-repo-research-analyst.md"), "utf8")).toBe(userAgent)
   })
 })

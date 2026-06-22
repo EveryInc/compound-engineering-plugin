@@ -5,7 +5,7 @@ import { describe, expect, test } from "bun:test"
 const BODY = readFileSync(
   path.join(
     process.cwd(),
-    "plugins/compound-engineering/skills/ce-brainstorm/references/brainstorm-sections.md",
+    "skills/ce-brainstorm/references/brainstorm-sections.md",
   ),
   "utf8",
 )

@@ -56,10 +56,10 @@ Within-severity sort: anchor descending, then document order as the deterministi
 
 ### Files
 
-- `plugins/compound-engineering/skills/ce-doc-review/references/findings-schema.json` — `confidence` is an integer enum `[0, 25, 50, 75, 100]` with behavioral definitions embedded in the `description` field
-- `plugins/compound-engineering/skills/ce-doc-review/references/subagent-template.md` — the rubric section personas see verbatim, plus the consolidated false-positive catalog
-- `plugins/compound-engineering/skills/ce-doc-review/references/synthesis-and-presentation.md` — anchor-based gate in 3.2, anchor-step promotion in 3.4, anchor-sorted ordering in 3.8, anchor+autofix routing in 3.7
-- `plugins/compound-engineering/agents/ce-*-reviewer.md` (the 7 doc-review personas, flat files) — each carries a persona-specific calibration section that maps domain criteria to the shared anchors
+- `skills/ce-doc-review/references/findings-schema.json` — `confidence` is an integer enum `[0, 25, 50, 75, 100]` with behavioral definitions embedded in the `description` field
+- `skills/ce-doc-review/references/subagent-template.md` — the rubric section personas see verbatim, plus the consolidated false-positive catalog
+- `skills/ce-doc-review/references/synthesis-and-presentation.md` — anchor-based gate in 3.2, anchor-step promotion in 3.4, anchor-sorted ordering in 3.8, anchor+autofix routing in 3.7
+- `skills/ce-doc-review/references/personas/*.md` — the 7 doc-review persona prompts; each carries a persona-specific calibration section that maps domain criteria to the shared anchors
 - `tests/pipeline-review-contract.test.ts` — contract tests that assert the schema enforces discrete anchors and the template embeds the rubric
 
 ## Why the threshold diverges from Anthropic
@@ -173,12 +173,12 @@ This avoids the wasted multi-agent review cost on PRs that should not be reviewe
 
 ### Files
 
-- `plugins/compound-engineering/skills/ce-code-review/references/findings-schema.json` — `confidence` is integer enum `[0, 25, 50, 75, 100]` with code-review-specific behavioral definitions in the description; `_meta.confidence_anchors` and `_meta.confidence_thresholds` document the anchors and `>= 75` gate
-- `plugins/compound-engineering/skills/ce-code-review/references/subagent-template.md` — verbatim 5-anchor rubric with code-review framing, expanded false-positive catalog including lint-ignore rule, hard schema-conformance constraints rejecting floats
-- `plugins/compound-engineering/skills/ce-code-review/references/validator-template.md` — Stage 5b validator subagent prompt
-- `plugins/compound-engineering/skills/ce-code-review/SKILL.md` — Stage 5 anchor gate and one-anchor promotion (replaces `+0.10`), Stage 5 step 7c mode-aware demotion, Stage 5b validation pass with budget cap, Stage 1 PR-mode skip-condition pre-check, After-Review options B and C invoke validation before externalizing
-- `plugins/compound-engineering/agents/ce-*-reviewer.md` — the code-review reviewer personas updated from float bands to anchored language, preserving each persona's specific calibration signal
-- `plugins/compound-engineering/skills/ce-code-review/references/review-output-template.md` — Confidence column renders as integer (`75`, `100`), not float
+- `skills/ce-code-review/references/findings-schema.json` — `confidence` is integer enum `[0, 25, 50, 75, 100]` with code-review-specific behavioral definitions in the description; `_meta.confidence_anchors` and `_meta.confidence_thresholds` document the anchors and `>= 75` gate
+- `skills/ce-code-review/references/subagent-template.md` — verbatim 5-anchor rubric with code-review framing, expanded false-positive catalog including lint-ignore rule, hard schema-conformance constraints rejecting floats
+- `skills/ce-code-review/references/validator-template.md` — Stage 5b validator subagent prompt
+- `skills/ce-code-review/SKILL.md` — Stage 5 anchor gate and one-anchor promotion (replaces `+0.10`), Stage 5 step 7c mode-aware demotion, Stage 5b validation pass with budget cap, Stage 1 PR-mode skip-condition pre-check, After-Review options B and C invoke validation before externalizing
+- `skills/ce-code-review/references/personas/*.md` — the code-review reviewer personas updated from float bands to anchored language, preserving each persona's specific calibration signal
+- `skills/ce-code-review/references/review-output-template.md` — Confidence column renders as integer (`75`, `100`), not float
 - `tests/review-skill-contract.test.ts` — schema, synthesis, validation pass, skip-conditions, mode-aware demotion, and per-persona anchored-language assertions
 
 ### When to apply this combined pattern to a new skill

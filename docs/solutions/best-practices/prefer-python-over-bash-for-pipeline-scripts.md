@@ -1,8 +1,9 @@
 ---
 title: "Prefer Python over bash for multi-step pipeline scripts"
 date: 2026-04-09
+last_refreshed: 2026-06-20
 category: best-practices
-module: "skill scripting / ce-demo-reel"
+module: "skill scripting / historical ce-demo-reel"
 problem_type: tooling_decision
 component: tooling
 severity: medium
@@ -25,7 +26,9 @@ tags:
 
 ## Context
 
-When building the `ce-demo-reel` skill, the initial implementation used a bash script (`capture-evidence.sh`) to orchestrate ffmpeg stitching, frame normalization, and catbox.moe upload. Over 4 review rounds, the script hit 4 distinct bug classes that are inherent to bash's execution model rather than simple coding mistakes.
+When building the now-removed `ce-demo-reel` skill, the initial implementation used a bash script (`capture-evidence.sh`) to orchestrate ffmpeg stitching, frame normalization, and catbox.moe upload. Over 4 review rounds, the script hit 4 distinct bug classes that are inherent to bash's execution model rather than simple coding mistakes.
+
+The skill is gone, but the lesson survives for any future multi-step skill script that coordinates external CLIs.
 
 ## Guidance
 

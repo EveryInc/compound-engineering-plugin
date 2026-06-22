@@ -51,10 +51,10 @@ Generalist code review prompts collapse in predictable ways:
 
 A small config change triggers 6 reviewers (the 4 always-on + 2 CE always-on). A Rails auth feature with migrations might trigger 10. The skill decides which personas fit the diff:
 
-- **Always-on (every review)** — `ce-correctness-reviewer`, `ce-testing-reviewer`, `ce-maintainability-reviewer`, `ce-project-standards-reviewer`, `ce-agent-native-reviewer`, `ce-learnings-researcher`
+- **Always-on (every review)** — `correctness-reviewer`, `testing-reviewer`, `maintainability-reviewer`, `project-standards-reviewer`, `agent-native-reviewer`, `learnings-researcher`
 - **Cross-cutting conditional** — security, performance, API contract, data migrations, reliability, adversarial, previous-comments — each selected only when the diff touches its concern
 - **Stack-specific conditional** — Julik frontend races, Swift/iOS — only when the matching runtime domain is touched. Structural quality (complexity deletion, 1k-line regressions, spaghetti) lives in the always-on maintainability persona.
-- **CE conditional (migrations)** — `ce-deployment-verification-agent` for risky migration diffs; schema drift and migration safety are handled by the `data-migration` persona
+- **CE conditional (migrations)** — `deployment-verification-agent` for risky migration diffs; schema drift and migration safety are handled by the `data-migration` persona
 
 Persona selection is agent judgment, not keyword matching. Instruction-prose files (Markdown skills, JSON schemas) are product code but skip runtime-focused reviewers (adversarial, races) — they wouldn't apply.
 
@@ -191,7 +191,7 @@ Conflicting mode flags (or conflicting grouping flags) stop execution with an er
 Use it when it's the right tool — the quick-review short-circuit defers to it explicitly. `ce-code-review` is for cases where you want diff-aware persona selection, structured findings with calibrated severity, autofix routing, and residual work handling. It's the heavier tool; reach for it when the work warrants.
 
 **How does it decide which personas to dispatch?**
-Agent judgment over the actual diff — not keyword matching. The 4 always-on + 2 CE always-on personas run for every review. Cross-cutting and stack-specific personas are added when their concern is touched (e.g., security if auth files changed; `ce-data-migration-reviewer` when migration or schema dump files are present). Instruction-prose files skip runtime-focused reviewers (adversarial, races).
+Agent judgment over the actual diff — not keyword matching. The 4 always-on + 2 CE always-on personas run for every review. Cross-cutting and stack-specific personas are added when their concern is touched (e.g., security if auth files changed; `data-migration-reviewer` when migration or schema dump files are present). Instruction-prose files skip runtime-focused reviewers (adversarial, races).
 
 **What's the difference between interactive (default) and `mode:agent`?**
 Interactive is the human-facing mode: a markdown report, and the review applies the safe, verified fixes itself (an Applied section) and commits them when your tree is clean (leaving them for your commit if it was dirty); it never pushes. `mode:agent` is the machine handoff: one JSON object, report-only — the review mutates nothing and the caller (e.g. `/ce-work`) applies findings on its own terms. `mode:headless` is a deprecated alias for `mode:agent`.

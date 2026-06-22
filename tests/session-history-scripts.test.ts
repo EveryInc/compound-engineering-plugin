@@ -5,7 +5,7 @@ import path from "path"
 
 const SCRIPTS_DIR = path.join(
   __dirname,
-  "../plugins/compound-engineering/skills/ce-sessions/scripts"
+  "../skills/ce-compound/scripts/session-history"
 )
 const FIXTURES_DIR = path.join(__dirname, "fixtures/session-history")
 
@@ -731,14 +731,14 @@ describe("extract-errors", () => {
 //
 // When --output PATH is set, scripts write extracted bytes to PATH and emit
 // only a one-line _meta status to stdout (with wrote/bytes fields).
-// This lets ce-sessions route bulk extraction content to a scratch file
+// This lets ce-compound's internal session-history flow route bulk extraction content to a scratch file
 // without round-tripping through orchestrator tool results. Without --output,
 // stdout-mode behavior is preserved (covered by tests above).
 // ---------------------------------------------------------------------------
 describe("--output PATH mode", () => {
   function tmpFile(): string {
     return path.join(
-      fs.mkdtempSync(path.join(os.tmpdir(), "ce-sessions-test-")),
+      fs.mkdtempSync(path.join(os.tmpdir(), "ce-session-history-test-")),
       "out.txt"
     )
   }

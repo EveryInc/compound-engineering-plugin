@@ -4,7 +4,7 @@ import { describe, expect, test } from "bun:test"
 
 const SKILL_DIR = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-worktree",
+  "skills/ce-worktree",
 )
 const SKILL_BODY = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 

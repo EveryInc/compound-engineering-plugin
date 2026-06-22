@@ -29,17 +29,17 @@ describe("convertClaudeToPi", () => {
     expect(parsedPrompt.data.description).toBe("Run a multi-agent review workflow")
 
     // Existing skills are copied as skill dirs; Claude agents are converted to
-    // Pi agent files (under bundle.agents, written to .pi/agents/<name>.md) so
-    // that nicobailon/pi-subagents' `subagent` tool can resolve them by name.
+    // Pi agent files (under bundle.agents, written to .pi/agents/<name>.md) for
+    // runtimes and tools that read Pi agent files.
     expect(bundle.skillDirs.some((skill) => skill.name === "skill-one")).toBe(true)
     expect(bundle.agents.some((agent) => agent.name === "repo-research-analyst")).toBe(true)
     // Agents no longer leak into generatedSkills — that field is reserved for
     // commands-as-skills on other targets; Pi keeps it empty.
     expect(bundle.generatedSkills).toEqual([])
 
-    // Pi installs now depend on the community pi-subagents and pi-ask-user extensions,
-    // so the converter emits no bundled extension. Legacy cleanup in the Pi writer
-    // removes any prior compound-engineering-compat.ts on upgrade.
+    // Pi installs no longer ship a plugin-authored compat extension. Legacy
+    // cleanup in the Pi writer removes any prior compound-engineering-compat.ts
+    // on upgrade.
     expect(bundle.extensions).toEqual([])
 
     // MCP servers declared in plugin.json are translated to Pi's mcporter.json

@@ -2,12 +2,12 @@
 title: "End-to-end learnings from running the full CE pipeline on a substantial feature"
 date: 2026-04-17
 category: best-practices
-module: plugins/compound-engineering
+module: compound-engineering
 problem_type: best_practice
 component: development_workflow
 severity: medium
 applies_when:
-  - Running ce:brainstorm → ce:plan → ce:work → ce:review on any non-trivial feature (more than ~1 unit of implementation work)
+  - Running ce-brainstorm -> ce-plan -> ce-work -> ce-code-review on any non-trivial feature (more than ~1 unit of implementation work)
   - Orchestrating the full compound-engineering pipeline end-to-end in a single session
   - Deciding when to insert document-review passes between pipeline stages
   - Any feature that introduces a new user-facing flow, especially bulk actions or single-keystroke commitments
@@ -19,9 +19,9 @@ tags: [compound-engineering, ce-pipeline, ce-brainstorm, ce-plan, ce-work, ce-re
 
 ## Context
 
-The compound-engineering pipeline is designed as a sequence of progressively more expensive stages: `ce:brainstorm` → `document-review` → `ce:plan` → `document-review` → `ce:work` → `ce:review` → `resolve-pr-feedback`. Each stage operates on a different artifact (requirements doc, plan doc, diff, PR) and applies a different lens (exploration, critique, execution, synthesis, defense).
+The compound-engineering pipeline is designed as a sequence of progressively more expensive stages: `ce-brainstorm` -> `ce-doc-review` -> `ce-plan` -> `ce-doc-review` -> `ce-work` -> `ce-code-review` -> `ce-resolve-pr-feedback`. Each stage operates on a different artifact (requirements doc, plan doc, diff, PR) and applies a different lens (exploration, critique, execution, synthesis, defense).
 
-It is tempting, on a substantial feature, to collapse this sequence — jump from a rough idea to implementation, or skip document-review because the plan "looks right." A recent session ran the full pipeline end-to-end on a non-trivial feature: redesigning the Interactive mode of `ce:review` with a per-finding walk-through, a compact bulk-action preview, a four-option routing model, and defer-to-tracker integration.
+It is tempting, on a substantial feature, to collapse this sequence — jump from a rough idea to implementation, or skip document-review because the plan "looks right." A recent session ran the full pipeline end-to-end on a non-trivial feature: redesigning the Interactive mode of `ce-code-review` with a per-finding walk-through, a compact bulk-action preview, a four-option routing model, and defer-to-tracker integration.
 
 The cross-cutting insight from that run is that **the pipeline itself compounds**. Issues that would have been cheap to fix at brainstorm time became expensive in PR review; issues document-review caught at plan time would have corrupted implementation if they had slipped through. Each stage catches a different class of problem, and each cheaper stage eliminates issues before they become expensive ones downstream. The value of running the pipeline in full isn't process-for-its-own-sake — it is that the stages are not redundant. They find different things.
 
@@ -122,7 +122,7 @@ Don't skip stages because "the previous one looked fine." The value distribution
 | Plan | Wrong design | Medium |
 | Doc-review (plan) | Self-contradicting plan, scope violations | Medium |
 | Work | Execution bugs | Expensive |
-| ce:review | Scope drift in implementation | Expensive |
+| ce-code-review | Scope drift in implementation | Expensive |
 | PR review | Subtle semantic conflations (flags, schema, contracts) | Most expensive |
 
 The stages are not redundant. Each catches things the others structurally cannot.
@@ -141,7 +141,7 @@ The stages are not redundant. Each catches things the others structurally cannot
 
 ## When to Apply
 
-- Running `ce:brainstorm` → `ce:plan` → `ce:work` → `ce:review` on any non-trivial feature (more than ~1 unit of implementation work).
+- Running `ce-brainstorm` -> `ce-plan` -> `ce-work` -> `ce-code-review` on any non-trivial feature (more than ~1 unit of implementation work).
 - Any feature that introduces a new user-facing flow, especially one with bulk actions, routing decisions, or single-keystroke commitments.
 - Any time a research agent or sub-agent returns a confident architectural recommendation that would add a stage, a schema field, or a module.
 - Any PR whose scope boundary is explicitly stated ("no changes to X schema", "no new stages") — doc-review both the requirements and the plan before implementation starts.
@@ -285,15 +285,15 @@ The plan is visible. Rubber-stamping is now an explicit, informed act rather tha
 
 **Artifact (not acceptable):** "Findings are grouped by action class, similar to plugin X's review flow but adapted for our decision-driven Interactive mode."
 
-The artifact version stands on its own without the external reference. A future reader does not need to know X to understand the design. *(auto memory [claude]: this rule was applied throughout the ce:review redesign session — the requirements doc, plan, and PR description all re-framed externally-inspired patterns in self-contained terms.)*
+The artifact version stands on its own without the external reference. A future reader does not need to know X to understand the design. *(auto memory [claude]: this rule was applied throughout the ce-code-review redesign session — the requirements doc, plan, and PR description all re-framed externally-inspired patterns in self-contained terms.)*
 
 ---
 
 ## Related
 
-- [research-agent-pipeline-separation.md](../skill-design/research-agent-pipeline-separation.md) — Establishes the brainstorm / plan / work stage separation. This learning extends downstream to doc-review, ce:review, and resolve-pr-feedback, and focuses on what issues surface at each stage rather than what research dispatches.
+- [research-agent-pipeline-separation.md](../skill-design/research-agent-pipeline-separation.md) — Establishes the brainstorm / plan / work stage separation. This learning extends downstream to doc-review, ce-code-review, and resolve-pr-feedback, and focuses on what issues surface at each stage rather than what research dispatches.
 - [compound-refresh-skill-improvements.md](../skill-design/compound-refresh-skill-improvements.md) — The 6-item skill review checklist is a natural companion for review-time prevention rules, particularly around cross-phase consistency and blind-user-question avoidance.
-- [beta-promotion-orchestration-contract.md](../skill-design/beta-promotion-orchestration-contract.md) — Contract-tests-enforce-orchestration-assumptions pattern for the ce:review surface; direct prior art for structural assertion philosophy.
+- [beta-promotion-orchestration-contract.md](../skill-design/beta-promotion-orchestration-contract.md) — Contract-tests-enforce-orchestration-assumptions pattern for the ce-code-review surface; direct prior art for structural assertion philosophy.
 - [git-workflow-skills-need-explicit-state-machines.md](../skill-design/git-workflow-skills-need-explicit-state-machines.md) — Methodologically aligned ("state machine over prose" ≈ "structural assertions over prose"), different domain.
 - [pass-paths-not-content-to-subagents.md](../skill-design/pass-paths-not-content-to-subagents.md) — Companion for any subagent-template changes, particularly around instruction phrasing.
 - [codex-delegation-best-practices.md](codex-delegation-best-practices.md) — Canonical example of sampling-evidence-over-assumption at depth (6 evaluation iterations, empirical token measurement).

@@ -34,7 +34,22 @@ function collectFrontmatterFiles(pluginRoot: string): [string, string][] {
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       const full = path.join(dir, entry.name)
       if (entry.isDirectory()) {
-        if (entry.name === "node_modules" || entry.name === ".git") continue
+        if ([
+          "node_modules",
+          ".git",
+          "docs",
+          "src",
+          "tests",
+          "scripts",
+          ".github",
+          ".claude",
+          ".codex",
+          ".cursor",
+          ".windsurf",
+          ".agents",
+          ".opencode",
+          ".pi",
+        ].includes(entry.name)) continue
         walk(full)
         continue
       }
@@ -60,7 +75,7 @@ function collectFrontmatterFiles(pluginRoot: string): [string, string][] {
 describe("frontmatter YAML validity", () => {
   const MAX_SKILL_DESCRIPTION_LENGTH = 1024
   const pluginRoots = [
-    "plugins/compound-engineering",
+    ".",
   ]
 
   for (const pluginRoot of pluginRoots) {
@@ -109,10 +124,10 @@ describe("frontmatter YAML validity", () => {
 
         // All compound-engineering skills (and agents) must use the `ce-` prefix
         // so they are unambiguously identifiable as compound-engineering
-        // components. See plugins/compound-engineering/AGENTS.md "Naming
+        // components. See AGENTS.md "Naming
         // Convention". A small allowlist preserves three pre-existing skills
         // that predate the rule -- no new entries should be added.
-        if (pluginRoot === "plugins/compound-engineering") {
+        if (pluginRoot === ".") {
           const SKILL_PREFIX_ALLOWLIST = new Set([
             "every-style-editor",
             "file-todos",
@@ -132,7 +147,7 @@ describe("frontmatter YAML validity", () => {
       }
 
       if (
-        pluginRoot === "plugins/compound-engineering" &&
+        pluginRoot === "." &&
         /^agents\/[^/]+\.md$/.test(rel)
       ) {
         test(`${pluginRoot}/${rel} agent name uses ce- prefix`, () => {

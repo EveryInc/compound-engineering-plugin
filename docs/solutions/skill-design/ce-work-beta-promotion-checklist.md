@@ -2,7 +2,7 @@
 title: "ce-work-beta promotion needs manual-handoff cleanup and contract migration"
 category: skill-design
 date: 2026-03-31
-module: plugins/compound-engineering/skills
+module: skills
 component: SKILL.md
 tags:
   - skill-design
@@ -18,7 +18,7 @@ related:
 
 ## Problem
 
-`ce-work-beta` is intentionally a manual-invocation beta skill. During beta, `ce-plan`, `ce-brainstorm`, `lfg`, `slfg`, and other workflow handoffs remain pointed at stable `ce-work` so the repo does not need to support two execution paths at once.
+`ce-work-beta` is intentionally a manual-invocation beta skill. During beta, `ce-plan`, `ce-brainstorm`, `lfg`, and other workflow handoffs remain pointed at stable `ce-work` so the repo does not need to support two execution paths at once.
 
 That means promoting `ce-work-beta` to stable is not just a content copy. The rollout flips multiple contracts at once:
 
@@ -44,7 +44,7 @@ This limitation is deliberate. It avoids pushing beta-specific branching into ev
 
 When `ce-work-beta` is ready to promote:
 
-1. Copy the validated implementation from `plugins/compound-engineering/skills/ce-work-beta/SKILL.md` into `plugins/compound-engineering/skills/ce-work/SKILL.md`.
+1. Copy the validated implementation from `skills/ce-work-beta/SKILL.md` into `skills/ce-work/SKILL.md`.
 2. Restore stable frontmatter on `ce-work`:
    - stable `name:`
    - stable description without `[BETA]`

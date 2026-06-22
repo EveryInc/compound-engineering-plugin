@@ -39,9 +39,7 @@ const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
 
 async function createTestRepo(): Promise<string> {
   const repoRoot = await fs.mkdtemp(path.join(os.tmpdir(), "plugin-path-repo-"))
-  const pluginRoot = path.join(repoRoot, "plugins", "compound-engineering")
-  await fs.mkdir(path.dirname(pluginRoot), { recursive: true })
-  await fs.cp(fixtureRoot, pluginRoot, { recursive: true })
+  await fs.cp(fixtureRoot, repoRoot, { recursive: true })
 
   await runGit(["init", "-b", "main"], repoRoot, gitEnv)
   await runGit(["add", "."], repoRoot, gitEnv)
@@ -85,7 +83,7 @@ describe("plugin-path", () => {
     }
 
     const cacheDir = path.join(tempHome, ".cache", "compound-engineering", "branches", "compound-engineering-feat~test-branch")
-    const pluginDir = path.join(cacheDir, "plugins", "compound-engineering")
+    const pluginDir = cacheDir
 
     expect(stderr).toContain("claude --plugin-dir")
     expect(stdout.trim()).toBe(pluginDir)
@@ -135,7 +133,7 @@ describe("plugin-path", () => {
     await runGit(["checkout", "-b", "feat/update-test"], repoRoot, gitEnv)
 
     // Add a marker file on the branch
-    const markerPath = path.join(repoRoot, "plugins", "compound-engineering", "MARKER.txt")
+    const markerPath = path.join(repoRoot, "MARKER.txt")
     await fs.writeFile(markerPath, "v1")
     await runGit(["add", "."], repoRoot, gitEnv)
     await runGit(["commit", "-m", "add marker v1"], repoRoot, gitEnv)
@@ -176,7 +174,7 @@ describe("plugin-path", () => {
     // First run: clone
     const first = await runPluginPath()
     expect(first.stderr).toContain("Cloning")
-    const cachedMarker = path.join(cacheDir, "plugins", "compound-engineering", "MARKER.txt")
+    const cachedMarker = path.join(cacheDir, "MARKER.txt")
     expect(await fs.readFile(cachedMarker, "utf-8")).toBe("v1")
 
     // Push a new commit to the branch

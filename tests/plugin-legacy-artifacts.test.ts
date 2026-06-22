@@ -8,7 +8,7 @@ import { getLegacyCodexArtifacts, getLegacyKiroArtifacts, getLegacyPiArtifacts, 
 
 describe("plugin legacy artifacts", () => {
   test("Codex legacy detection is restricted to the explicit historical allow-list", async () => {
-    const plugin = await loadClaudePlugin(path.join(import.meta.dir, "..", "plugins", "compound-engineering"))
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
     const bundle = convertClaudeToCodex(plugin, {
       agentMode: "subagent",
       inferTemperature: true,
@@ -35,17 +35,14 @@ describe("plugin legacy artifacts", () => {
     expect(artifacts.skills).toContain("report-bug")
     expect(artifacts.skills).toContain("reproduce-bug")
     expect(artifacts.skills).toContain("resolve_pr_parallel")
-
-    // Current CE skill names that were never on the historical allow-list MUST
-    // NOT be flagged as legacy candidates. Otherwise a first install would
-    // sweep an unrelated user skill at ~/.codex/skills/<name>/ into backup
-    // simply because its name collides with a current CE skill.
-    expect(artifacts.skills).not.toContain("ce-demo-reel")
-    // Synthesized agent name variants (e.g. ce-<final-segment>) are not on
-    // the historical allow-list either, so they should not be probed against
-    // unrelated user skills at flat ~/.codex/skills/<name>/ paths.
-    expect(artifacts.skills).not.toContain("ce-repo-research-analyst")
-    expect(artifacts.skills).not.toContain("research-ce-repo-research-analyst")
+    expect(artifacts.skills).toContain("ce-demo-reel")
+    expect(artifacts.skills).toContain("ce-agent-native-architecture")
+    // Removed standalone CE agent names are intentionally swept now that the
+    // plugin ships those behaviors as skill-local prompt assets.
+    expect(artifacts.skills).toContain("ce-repo-research-analyst")
+    expect(artifacts.skills).toContain("ce-learnings-researcher")
+    expect(artifacts.agents).toContain("ce-repo-research-analyst.toml")
+    expect(artifacts.agents).toContain("ce-learnings-researcher.toml")
 
     expect(artifacts.prompts).toContain("codify.md")
     expect(artifacts.prompts).toContain("compound-plan.md")
@@ -77,6 +74,8 @@ describe("plugin legacy artifacts", () => {
     expect(artifacts.skills).not.toContain("another-novel-skill")
     expect(artifacts.skills).not.toContain("my-novel-agent")
     expect(artifacts.skills).not.toContain("ce-my-novel-agent")
+    expect(artifacts.agents).not.toContain("my-novel-agent.toml")
+    expect(artifacts.agents).not.toContain("ce-my-novel-agent.toml")
   })
 
   test("Codex legacy detection returns nothing for plugins without an allow-list", () => {
@@ -93,7 +92,7 @@ describe("plugin legacy artifacts", () => {
   })
 
   test("includes current and historical CE artifacts for Pi cleanup", async () => {
-    const plugin = await loadClaudePlugin(path.join(import.meta.dir, "..", "plugins", "compound-engineering"))
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
     const bundle = convertClaudeToPi(plugin, {
       agentMode: "subagent",
       inferTemperature: true,
@@ -109,6 +108,8 @@ describe("plugin legacy artifacts", () => {
     expect(artifacts.skills).toContain("resolve_pr_parallel")
     expect(artifacts.skills).not.toContain("ce:plan")
     expect(artifacts.skills).not.toContain("ce-plan")
+    expect(artifacts.agents).toContain("repo-research-analyst.md")
+    expect(artifacts.agents).toContain("ce-repo-research-analyst.md")
 
     expect(artifacts.prompts).toContain("codify.md")
     expect(artifacts.prompts).toContain("compound-plan.md")
@@ -119,7 +120,7 @@ describe("plugin legacy artifacts", () => {
   })
 
   test("includes historical CE artifacts for Kiro install cleanup", async () => {
-    const plugin = await loadClaudePlugin(path.join(import.meta.dir, "..", "plugins", "compound-engineering"))
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
     const bundle = convertClaudeToKiro(plugin, {
       agentMode: "subagent",
       inferTemperature: true,
@@ -137,11 +138,11 @@ describe("plugin legacy artifacts", () => {
     expect(artifacts.skills).not.toContain("ce-plan")
 
     expect(artifacts.agents).toContain("repo-research-analyst")
-    expect(artifacts.agents).not.toContain("ce-repo-research-analyst")
+    expect(artifacts.agents).toContain("ce-repo-research-analyst")
   })
 
   test("includes only historical CE artifacts for deprecated Windsurf cleanup", async () => {
-    const plugin = await loadClaudePlugin(path.join(import.meta.dir, "..", "plugins", "compound-engineering"))
+    const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
 
     const artifacts = getLegacyWindsurfArtifacts(plugin)
 

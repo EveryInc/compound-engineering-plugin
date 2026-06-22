@@ -7,13 +7,12 @@
   },
   "metadata": {
     "description": "Cursor plugin marketplace for Every Inc plugins",
-    "version": "1.0.1",
-    "pluginRoot": "plugins"
+    "version": "1.0.1"
   },
   "plugins": [
     {
       "name": "compound-engineering",
-      "source": "compound-engineering",
+      "source": ".",
       "description": "AI-powered development tools that get smarter with every use. Make each unit of engineering work easier than the last."
     }
   ]

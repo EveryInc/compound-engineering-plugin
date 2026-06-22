@@ -9,7 +9,6 @@ import type {
 } from "./types"
 
 const RELEASE_COMPONENTS: ReleaseComponent[] = [
-  "cli",
   "compound-engineering",
   "marketplace",
   "cursor-marketplace",
@@ -17,12 +16,23 @@ const RELEASE_COMPONENTS: ReleaseComponent[] = [
 
 const FILE_COMPONENT_MAP: Array<{ component: ReleaseComponent; prefixes: string[] }> = [
   {
-    component: "cli",
-    prefixes: ["src/", "package.json", "bun.lock", "tests/cli.test.ts"],
-  },
-  {
     component: "compound-engineering",
-    prefixes: ["plugins/compound-engineering/"],
+    prefixes: [
+      "skills/",
+      ".claude-plugin/plugin.json",
+      ".cursor-plugin/plugin.json",
+      ".codex-plugin/",
+      ".opencode/",
+      ".pi/",
+      "AGENTS.md",
+      "CLAUDE.md",
+      "gemini-extension.json",
+      "GEMINI.md",
+      "README.md",
+      "package.json",
+      "src/",
+      "tests/",
+    ],
   },
   {
     component: "marketplace",
@@ -35,7 +45,6 @@ const FILE_COMPONENT_MAP: Array<{ component: ReleaseComponent; prefixes: string[
 ]
 
 const SCOPES_TO_COMPONENTS: Record<string, ReleaseComponent> = {
-  cli: "cli",
   compound: "compound-engineering",
   "compound-engineering": "compound-engineering",
   marketplace: "marketplace",
@@ -43,7 +52,7 @@ const SCOPES_TO_COMPONENTS: Record<string, ReleaseComponent> = {
 }
 
 const NON_RELEASABLE_TYPES = new Set(["docs", "chore", "test", "ci", "build", "style"])
-const PATCH_TYPES = new Set(["fix", "perf", "refactor", "revert"])
+const PATCH_TYPES = new Set(["fix", "perf", "revert"])
 
 type VersionSources = Record<ReleaseComponent, string>
 
@@ -106,11 +115,6 @@ export function detectComponentsFromFiles(files: string[]): Map<ReleaseComponent
         componentFiles.get(mapping.component)!.push(file)
       }
     }
-  }
-
-  for (const [component, matchedFiles] of componentFiles.entries()) {
-    if (component === "cli" && matchedFiles.length === 0) continue
-    if (component !== "cli" && matchedFiles.length === 0) continue
   }
 
   return componentFiles
@@ -176,12 +180,20 @@ export function bumpVersion(version: string, bump: BumpLevel | null): string | n
 
 export async function loadCurrentVersions(cwd = process.cwd()): Promise<VersionSources> {
   const root = await readJson<RootPackageJson>(`${cwd}/package.json`)
-  const ce = await readJson<PluginManifest>(`${cwd}/plugins/compound-engineering/.claude-plugin/plugin.json`)
+  const ce = await readJson<PluginManifest>(`${cwd}/.claude-plugin/plugin.json`)
+  const gemini = await readJson<PluginManifest>(`${cwd}/gemini-extension.json`)
   const marketplace = await readJson<MarketplaceManifest>(`${cwd}/.claude-plugin/marketplace.json`)
   const cursorMarketplace = await readJson<MarketplaceManifest>(`${cwd}/.cursor-plugin/marketplace.json`)
 
+  if (root.version !== ce.version) {
+    throw new Error(`package.json version ${root.version} does not match .claude-plugin/plugin.json version ${ce.version}`)
+  }
+
+  if (root.version !== gemini.version) {
+    throw new Error(`package.json version ${root.version} does not match gemini-extension.json version ${gemini.version}`)
+  }
+
   return {
-    cli: root.version,
     "compound-engineering": ce.version,
     marketplace: marketplace.metadata.version,
     "cursor-marketplace": cursorMarketplace.metadata.version,

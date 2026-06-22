@@ -1,4 +1,5 @@
 import { promises as fs } from "fs"
+import type { Dirent } from "fs"
 import path from "path"
 import { readJson, writeJson } from "../utils/files"
 import type { ReleaseComponent } from "./types"
@@ -14,11 +15,19 @@ type CursorPluginManifest = {
   description?: string
 }
 
+type RootPackageJson = {
+  version: string
+}
+
 type CodexPluginManifest = {
   name: string
   version: string
   description?: string
   skills?: string
+}
+
+type GeminiExtensionManifest = {
+  version: string
 }
 
 type MarketplaceManifest = {
@@ -37,6 +46,11 @@ type CodexMarketplaceManifest = {
   name: string
   plugins: Array<{
     name: string
+    source?: {
+      source?: string
+      path?: string
+      url?: string
+    }
   }>
 }
 
@@ -76,7 +90,13 @@ function resolveExpectedVersion(
 }
 
 export async function countMarkdownFiles(root: string): Promise<number> {
-  const entries = await fs.readdir(root, { withFileTypes: true })
+  let entries: Dirent[]
+  try {
+    entries = await fs.readdir(root, { withFileTypes: true })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return 0
+    throw err
+  }
   let total = 0
 
   for (const entry of entries) {
@@ -123,7 +143,7 @@ export async function countMcpServers(pluginRoot: string): Promise<number> {
 }
 
 export async function getCompoundEngineeringCounts(root: string): Promise<CompoundEngineeringCounts> {
-  const pluginRoot = path.join(root, "plugins", "compound-engineering")
+  const pluginRoot = root
   const [agents, skills, mcpServers] = await Promise.all([
     countMarkdownFiles(path.join(pluginRoot, "agents")),
     countSkillDirectories(path.join(pluginRoot, "skills")),
@@ -151,11 +171,14 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   const compoundDescription = await buildCompoundEngineeringDescription(root)
   const compoundMarketplaceDescription = await buildCompoundEngineeringMarketplaceDescription(root)
 
-  const compoundClaudePath = path.join(root, "plugins", "compound-engineering", ".claude-plugin", "plugin.json")
-  const compoundCursorPath = path.join(root, "plugins", "compound-engineering", ".cursor-plugin", "plugin.json")
+  const compoundPackagePath = path.join(root, "package.json")
+  const compoundClaudePath = path.join(root, ".claude-plugin", "plugin.json")
+  const compoundCursorPath = path.join(root, ".cursor-plugin", "plugin.json")
+  const compoundGeminiPath = path.join(root, "gemini-extension.json")
   const marketplaceClaudePath = path.join(root, ".claude-plugin", "marketplace.json")
   const marketplaceCursorPath = path.join(root, ".cursor-plugin", "marketplace.json")
 
+  const compoundPackage = await readJson<RootPackageJson>(compoundPackagePath)
   const compoundClaude = await readJson<ClaudePluginManifest>(compoundClaudePath)
   const compoundCursor = await readJson<CursorPluginManifest>(compoundCursorPath)
   const marketplaceClaude = await readJson<MarketplaceManifest>(marketplaceClaudePath)
@@ -164,6 +187,11 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
     versions["compound-engineering"],
     compoundClaude.version,
   )
+
+  updates.push({
+    path: compoundPackagePath,
+    changed: compoundPackage.version !== expectedCompoundVersion,
+  })
 
   let changed = false
   if (compoundClaude.version !== expectedCompoundVersion) {
@@ -188,6 +216,23 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   }
   updates.push({ path: compoundCursorPath, changed })
   if (write && changed) await writeJson(compoundCursorPath, compoundCursor)
+
+  // Gemini extension version sync is detect-only. release-please owns the
+  // write via extra-files, same as the Codex native plugin manifest.
+  try {
+    const compoundGemini = await readJson<GeminiExtensionManifest>(compoundGeminiPath)
+    updates.push({
+      path: compoundGeminiPath,
+      changed: compoundGemini.version !== expectedCompoundVersion,
+    })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${compoundGeminiPath} is missing but ${compoundClaudePath} exists. Gemini extension parity required.`)
+      updates.push({ path: compoundGeminiPath, changed: false })
+    } else {
+      throw err
+    }
+  }
 
   changed = false
   if (versions.marketplace && marketplaceClaude.metadata.version !== versions.marketplace) {
@@ -234,7 +279,7 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   // version sync is DETECT-ONLY here — release-please owns the bump via
   // `extra-files` in `.github/release-please-config.json`. Duplicating the
   // write would create a second authority for the same field.
-  const compoundCodexPath = path.join(root, "plugins", "compound-engineering", ".codex-plugin", "plugin.json")
+  const compoundCodexPath = path.join(root, ".codex-plugin", "plugin.json")
   const marketplaceCodexPath = path.join(root, ".agents", "plugins", "marketplace.json")
 
   const codexPluginTargets: Array<{
@@ -319,6 +364,13 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
       errors.push(
         `${marketplaceCodexPath}: plugin list [${codexNames.join(", ")}] does not match ${marketplaceClaudePath} [${claudeNames.join(", ")}]`,
       )
+    }
+    for (const plugin of marketplaceCodex.plugins) {
+      if (plugin.source?.source === "local" && plugin.source.path === "./") {
+        errors.push(
+          `${marketplaceCodexPath}: plugin "${plugin.name}" uses source.path "./"; Codex does not enumerate marketplace entries that point back at the marketplace root. Use a plugin subdirectory path or a Git URL source.`,
+        )
+      }
     }
     updates.push({ path: marketplaceCodexPath, changed: false })
   } catch (err: unknown) {

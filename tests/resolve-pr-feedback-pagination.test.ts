@@ -18,7 +18,7 @@ import { describe, expect, test } from "bun:test"
 
 const SCRIPTS_DIR = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-resolve-pr-feedback/scripts",
+  "skills/ce-resolve-pr-feedback/scripts",
 )
 
 const PAGE_INFO_SELECTION = /pageInfo\s*\{\s*hasNextPage\s+endCursor\s*\}/

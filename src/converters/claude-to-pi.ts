@@ -20,8 +20,7 @@ export function convertClaudeToPi(
   const promptNames = new Set<string>()
   // Pi agents and skills live in separate directories (.pi/agents/<name>.md vs
   // .pi/skills/<name>/SKILL.md), so their names don't need to be deduplicated
-  // against each other — nicobailon/pi-subagents resolves agents by filename
-  // match and ignores skill dirs.
+  // against each other.
   const usedAgentNames = new Set<string>()
 
   const prompts = plugin.commands

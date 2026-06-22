@@ -5,7 +5,7 @@ import { load as parseYaml } from "js-yaml"
 
 const SKILL_DIR = path.join(
   process.cwd(),
-  "plugins/compound-engineering/skills/ce-ideate",
+  "skills/ce-ideate",
 )
 const SKILL_BODY = readFileSync(path.join(SKILL_DIR, "SKILL.md"), "utf8")
 const POST_IDEATION_BODY = readFileSync(

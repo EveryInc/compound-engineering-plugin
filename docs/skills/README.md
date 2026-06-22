@@ -2,7 +2,7 @@
 
 End-user-facing documentation for compound-engineering plugin skills. Each page covers the skill's high-level purpose, novel mechanics, use cases, and chain position relative to other skills.
 
-For runtime behavior and contributor reference, the `SKILL.md` in each skill's source folder under `plugins/compound-engineering/skills/` is authoritative.
+For runtime behavior and contributor reference, the `SKILL.md` in each skill's source folder under `skills/` is authoritative.
 
 ---
 
@@ -61,9 +61,9 @@ Invoked when a specific need arises — not part of any chain.
 | Skill | Description |
 |-------|-------------|
 | [`/ce-debug`](./ce-debug.md) | Find root causes systematically — causal chain gate, predictions for uncertain links, smart escalation |
-| [`/ce-code-review`](./ce-code-review.md) | Structured code review with tiered persona agents, confidence-gated findings, four modes |
-| [`/ce-doc-review`](./ce-doc-review.md) | Review requirements or plan documents using parallel persona agents — coherence, feasibility, product-lens, design-lens, security-lens, scope-guardian, adversarial |
-| [`/ce-simplify-code`](./ce-simplify-code.md) | Refine recently changed code — three parallel reviewer agents (reuse, quality, efficiency); behavior preservation verified |
+| [`/ce-code-review`](./ce-code-review.md) | Structured code review with skill-local reviewer personas, confidence-gated findings, four modes |
+| [`/ce-doc-review`](./ce-doc-review.md) | Review requirements or plan documents using skill-local reviewer personas — coherence, feasibility, product-lens, design-lens, security-lens, scope-guardian, adversarial |
+| [`/ce-simplify-code`](./ce-simplify-code.md) | Refine recently changed code — reuse, quality, and efficiency review; behavior preservation verified |
 | [`/ce-optimize`](./ce-optimize.md) | Metric-driven iterative optimization loops — three-tier evaluation, parallel experiments, persistence discipline |
 
 ---
@@ -72,8 +72,6 @@ Invoked when a specific need arises — not part of any chain.
 
 | Skill | Description |
 |-------|-------------|
-| [`/ce-sessions`](./ce-sessions.md) | Search session history across Claude Code, Codex, and Cursor for context relevant to a question |
-| [`/ce-slack-research`](./ce-slack-research.md) | Search Slack for interpreted organizational context — workspace identity, research-value assessment, cross-cutting analysis |
 | [`/ce-riffrec-feedback-analysis`](./ce-riffrec-feedback-analysis.md) | Turn raw [Riffrec](https://github.com/kieranklaassen/riffrec) recordings into structured feedback — quick bug or extensive analysis with `ce-brainstorm` handoff |
 
 ---
@@ -84,7 +82,6 @@ Invoked when a specific need arises — not part of any chain.
 |-------|-------------|
 | [`/ce-commit`](./ce-commit.md) | Create a single, well-crafted git commit — convention-aware, sensitive-file-safe, file-level logical splitting |
 | [`/ce-commit-push-pr`](./ce-commit-push-pr.md) | Go from working changes to an open PR with adaptive descriptions — three modes (full workflow / description update / description-only generation) |
-| [`/ce-clean-gone-branches`](./ce-clean-gone-branches.md) | Delete local branches whose remote tracking branch is gone, including any associated worktrees |
 | [`/ce-worktree`](./ce-worktree.md) | Ensure work happens in an isolated git worktree — detect existing isolation, prefer the harness's native worktree tool, fall back to plain git |
 
 ---
@@ -93,7 +90,6 @@ Invoked when a specific need arises — not part of any chain.
 
 | Skill | Description |
 |-------|-------------|
-| [`/ce-frontend-design`](./ce-frontend-design.md) | Build web interfaces with genuine design quality — context detection, visual-thesis pre-build, opinionated defaults, visual verification |
 | [`/ce-polish`](./ce-polish.md) | Conversational UX polish — start dev server, open browser, iterate together; auto-detects 8 frameworks (manual invocation only) |
 
 ---
@@ -110,18 +106,14 @@ Invoked when a specific need arises — not part of any chain.
 
 | Skill | Description |
 |-------|-------------|
-| [`/ce-demo-reel`](./ce-demo-reel.md) | Capture visual evidence (GIF, terminal recording, screenshots) for PR descriptions — strict separation from test output |
 | [`/ce-promote`](./ce-promote.md) | Draft user-facing announcement copy for a shipped feature (X, changelog, LinkedIn, email) — voice-matched via the optional Spiral CLI, a lite layer of editorial & social expertise without it, drafts only |
 | [`/ce-resolve-pr-feedback`](./ce-resolve-pr-feedback.md) | Evaluate, fix, and reply to PR review feedback in parallel — including nitpicks |
 | [`/ce-test-browser`](./ce-test-browser.md) | End-to-end browser tests on PR / branch-affected pages using `agent-browser` exclusively |
 | [`/ce-test-xcode`](./ce-test-xcode.md) | Build and test iOS apps on simulator using XcodeBuildMCP — screenshots, logs, human verification |
-| [`/ce-setup`](./ce-setup.md) | Diagnose environment, install missing tools, bootstrap project-local config — interactive onboarding in one flow |
-| [`/ce-update`](./ce-update.md) | Check the installed compound-engineering plugin version against `main` and recommend the update command (Claude Code only) |
-| [`/ce-release-notes`](./ce-release-notes.md) | Look up what shipped in recent compound-engineering plugin releases — summary or specific question with version citation |
-| [`/ce-report-bug`](./ce-report-bug.md) | Report a bug in the compound-engineering plugin — structured intake, automatic env gathering, GitHub issue creation |
+| [`/ce-setup`](./ce-setup.md) | Diagnose optional tool capabilities and bootstrap safe project-local config |
 
 ---
 
 ## See also
 
-For the complete catalog of skills (including those without dedicated docs here), see [`plugins/compound-engineering/README.md`](../../plugins/compound-engineering/README.md). Each skill's authoritative runtime spec is in `plugins/compound-engineering/skills/<skill>/SKILL.md`.
+For the complete catalog of skills (including those without dedicated docs here), see [`README.md`](../../README.md). Each skill's authoritative runtime spec is in `skills/<skill>/SKILL.md`.

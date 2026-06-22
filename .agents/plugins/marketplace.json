@@ -7,8 +7,8 @@
     {
       "name": "compound-engineering",
       "source": {
-        "source": "local",
-        "path": "./plugins/compound-engineering"
+        "source": "url",
+        "url": "https://github.com/EveryInc/compound-engineering-plugin.git"
       },
       "policy": {
         "installation": "AVAILABLE",

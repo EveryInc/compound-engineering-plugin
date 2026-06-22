@@ -16,7 +16,7 @@ import { STALE_SKILL_DIRS } from "../src/utils/legacy-cleanup"
 // pre-namespaced flat install at `~/.codex/skills/ce-update`). Sweeping the
 // flat path is correct even while the skill is current.
 
-const PLUGIN_ROOT = path.join(import.meta.dir, "..", "plugins", "compound-engineering")
+const PLUGIN_ROOT = path.join(import.meta.dir, "..")
 
 async function listCurrentSkillDirs(): Promise<Set<string>> {
   const entries = await fs.readdir(path.join(PLUGIN_ROOT, "skills"), { withFileTypes: true })

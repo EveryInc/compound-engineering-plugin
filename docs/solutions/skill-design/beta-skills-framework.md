@@ -2,7 +2,7 @@
 title: "Beta skills framework: parallel skills with -beta suffix for safe rollouts"
 category: skill-design
 date: 2026-03-17
-module: plugins/compound-engineering/skills
+module: skills
 component: SKILL.md
 tags:
   - skill-design
@@ -18,7 +18,7 @@ related:
 
 ## Problem
 
-Core workflow skills like `ce-plan` are deeply chained (`ce-brainstorm` → `ce-plan` → `ce-work`) and orchestrated by `lfg` and `slfg`. Rewriting these skills risks breaking the entire workflow for all users simultaneously. There was no mechanism to let users trial new skill versions alongside stable ones.
+Core workflow skills like `ce-plan` are deeply chained (`ce-brainstorm` -> `ce-plan` -> `ce-work`) and orchestrated by `lfg`. Rewriting these skills risks breaking the entire workflow for all users simultaneously. There was no mechanism to let users trial new skill versions alongside stable ones.
 
 Alternatives considered and rejected:
 - **Beta gate in SKILL.md** with config-driven routing (`beta: true` in `compound-engineering.local.md`): relies on prompt-level conditional routing which risks instruction blending, requires setup integration, and adds complexity to the skill files themselves.
@@ -54,13 +54,13 @@ Beta skills must reference other beta skills by their beta names. For example, i
 ### What doesn't change
 
 - Stable skills are completely untouched
-- `lfg`/`slfg` orchestration continues to use stable skills — no modification needed
+- `lfg` orchestration continues to use stable skills — no modification needed
 - `ce-brainstorm` still hands off to stable `ce-plan` — no modification needed
 - `ce-work` consumes plan files from either version (reads the file, doesn't care which skill wrote it)
 
 ### Tradeoffs
 
-**Simplicity over seamless integration.** Beta skills exist as standalone, manually-invoked skills. They won't be auto-triggered by `ce-brainstorm` handoffs or `lfg`/`slfg` orchestration without further surgery to those skills, which isn't worth the complexity for a trial period.
+**Simplicity over seamless integration.** Beta skills exist as standalone, manually-invoked skills. They won't be auto-triggered by `ce-brainstorm` handoffs or `lfg` orchestration without further surgery to those skills, which isn't worth the complexity for a trial period.
 
 **Intended usage pattern:** A user can run `/ce-plan` for the stable output, then run `/ce-plan-beta` on the same input to compare the two plan documents side by side. The `-beta-plan.md` suffix ensures both outputs coexist in `docs/plans/` without collision.
 
@@ -75,7 +75,7 @@ When the beta version is validated:
 5. Restore stable plan file naming (remove `-beta` from the convention)
 6. Delete the beta skill directory
 7. Update README.md: remove from Beta Skills section, verify counts
-8. Verify `lfg`/`slfg` work with the promoted skill
+8. Verify `lfg` works with the promoted skill
 9. Verify `ce-work` consumes plans from the promoted skill
 
 If the beta skill changed its invocation contract, promotion must also update all orchestration callers in the same PR instead of relying on the stable default behavior. See [beta-promotion-orchestration-contract.md](./beta-promotion-orchestration-contract.md) for the concrete review-skill example.

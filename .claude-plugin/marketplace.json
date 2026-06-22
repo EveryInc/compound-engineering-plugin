@@ -24,10 +24,9 @@
         "workflow-automation",
         "code-review",
         "quality",
-        "knowledge-management",
-        "image-generation"
+        "knowledge-management"
       ],
-      "source": "./plugins/compound-engineering"
+      "source": "./"
     }
   ]
 }

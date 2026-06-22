@@ -66,11 +66,11 @@ https://developers.openai.com/codex/mcp
   - `developer_instructions`
 - Optional fields can include `nickname_candidates`, `model`, `model_reasoning_effort`, `sandbox_mode`, `mcp_servers`, and `skills.config`.
 - The TOML `name` field is the source of truth; matching the filename to the agent name is only a convention.
-- CE converts Claude Markdown agents into Codex custom-agent TOML files under `~/.codex/agents/compound-engineering/`.
-- CE keeps generated agents under `~/.codex/agents`, not `~/.agents/skills`, because `~/.agents` is shared across harnesses and can shadow native plugin installs.
-- Generated TOML agent names preserve CE's hyphenated naming and include the source category, such as `review-ce-correctness-reviewer` and `research-ce-repo-research-analyst`.
-- Empirical test on 2026-04-19 confirmed Codex discovers nested custom-agent TOML files under `~/.codex/agents/compound-engineering/` and accepts hyphenated TOML `name` values.
-- Empirical plugin test on 2026-04-19 found Codex native plugins did not register custom agents bundled under plugin-local `agents/`, plugin-local `.codex/agents/`, or an undocumented plugin manifest `agents` field. Therefore CE still needs the custom Bun Codex installer for agent-heavy workflows.
+- The generic converter can convert Claude Markdown agents into Codex custom-agent TOML files under `~/.codex/agents/<plugin>/` for plugins that still ship standalone agents.
+- Generated agents should live under `~/.codex/agents`, not `~/.agents/skills`, because `~/.agents` is shared across harnesses and can shadow native plugin installs.
+- Generated TOML agent names preserve source naming and may include source category context for nested agent trees.
+- Empirical test on 2026-04-19 confirmed Codex discovers nested custom-agent TOML files under `~/.codex/agents/<plugin>/` and accepts hyphenated TOML `name` values.
+- Empirical plugin test on 2026-04-19 found Codex native plugins did not register custom agents bundled under plugin-local `agents/`, plugin-local `.codex/agents/`, or an undocumented plugin manifest `agents` field. Compound Engineering now avoids that gap by shipping specialist behavior as skill-local prompt assets inside native skills; no CE custom-agent installer is required.
 
 ## MCP (Model Context Protocol)
 

@@ -7,20 +7,8 @@ on:
         description: "Conventional title to evaluate (defaults to the latest commit title on this ref)"
         required: false
         type: string
-      cli_bump:
-        description: "CLI bump override"
-        required: false
-        type: choice
-        options: [auto, patch, minor, major]
-        default: auto
       compound_engineering_bump:
         description: "compound-engineering bump override"
-        required: false
-        type: choice
-        options: [auto, patch, minor, major]
-        default: auto
-      coding_tutor_bump:
-        description: "coding-tutor bump override"
         required: false
         type: choice
         options: [auto, patch, minor, major]
@@ -88,9 +76,7 @@ jobs:
             args+=(--file "$file")
           done
 
-          args+=(--override "cli=${{ github.event.inputs.cli_bump || 'auto' }}")
           args+=(--override "compound-engineering=${{ github.event.inputs.compound_engineering_bump || 'auto' }}")
-          args+=(--override "coding-tutor=${{ github.event.inputs.coding_tutor_bump || 'auto' }}")
           args+=(--override "marketplace=${{ github.event.inputs.marketplace_bump || 'auto' }}")
           args+=(--override "cursor-marketplace=${{ github.event.inputs.cursor_marketplace_bump || 'auto' }}")
 

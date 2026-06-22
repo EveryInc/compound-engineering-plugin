@@ -8,10 +8,13 @@ Shared domain vocabulary for this project — entities, named processes, and sta
 A distributable bundle of Skills, Agents, Commands, and Hooks (optionally MCP servers) described by a single manifest and installed into a coding-agent platform as one unit — the artifact the Converter translates for non-Claude Targets and the Marketplace distributes.
 
 ### Skill
-A slash-invoked capability defined in its own directory, and the primary entry point a user reaches for. A Skill orchestrates: it can progressively pull in its own reference files as needed and dispatch Agents to do scoped work. Distinct from an Agent in that a Skill is user-invoked and coordinates, whereas an Agent is dispatched by a Skill.
+A user-invoked capability defined in its own directory, and the primary entry point a user reaches for. A Skill orchestrates: it can progressively pull in its own reference files as needed and dispatch generic subagents seeded with Specialist prompt assets. Distinct from an Agent in that a Skill is user-invoked and coordinates, whereas an Agent or subagent is dispatched to perform scoped work.
 
 ### Agent
-A specialized, single-purpose worker a Skill dispatches to run in its own isolated context and return a result, rather than to converse with the user. Also called a subagent. Agents are not invoked directly by users; a Skill decides when and how many to run.
+A specialized, single-purpose worker running in its own isolated context and returning a result, rather than conversing with the user. Also called a subagent. In the current plugin design, most CE specialist behavior is not exposed as standalone Agent definitions; Skills seed generic subagents with Skill-local prompt material instead.
+
+### Specialist prompt asset
+An internal prompt file owned by one Skill that defines a specialist persona or research/review role for a generic subagent. It is not an externally exposed plugin component: the owning Skill controls when it is loaded, which model or tool policy applies, and how its output is merged.
 
 ## Conversion
 
@@ -65,7 +68,7 @@ The inline remnant left in a Skill when load-bearing content moves to a referenc
 ## Review and workflow vocabulary
 
 ### Reviewer persona
-A single-lens reviewer Agent that evaluates work from one specific perspective — security, correctness, scope, design, and so on. Review Skills dispatch a panel of personas and merge their findings.
+A single-lens reviewer role that evaluates work from one specific perspective — security, correctness, scope, design, and so on. Review Skills dispatch a panel of personas as subagents and merge their findings.
 
 ### Confidence anchor
 A discrete, self-scored confidence value on a fixed small scale, each level tied to a behavioral criterion the model can honestly apply, used to gate and rank review findings instead of a continuous score that invites false precision. Each review Skill sets its own actionable threshold; corroboration across personas promotes a finding by one level.

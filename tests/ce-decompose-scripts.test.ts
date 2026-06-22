@@ -3,7 +3,7 @@ import path from "path"
 
 const SCRIPTS_DIR = path.join(
   __dirname,
-  "../plugins/compound-engineering/skills/ce-decompose-beta/scripts"
+  "../skills/ce-decompose-beta/scripts"
 )
 const FIXTURES_DIR = path.join(__dirname, "fixtures/ce-decompose")
 

@@ -7,15 +7,10 @@ import { parseFrontmatter } from "../src/utils/frontmatter"
 import type { ClaudePlugin } from "../src/types/claude"
 
 const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
-const compoundEngineeringRoot = path.join(
-  import.meta.dir,
-  "..",
-  "plugins",
-  "compound-engineering",
-)
+const compoundEngineeringRoot = path.join(import.meta.dir, "..")
 
 describe("convertClaudeToOpenCode", () => {
-  test("current compound-engineering output is skills and subagents, not commands", async () => {
+  test("current compound-engineering output is skills only, not commands or standalone agents", async () => {
     const plugin = await loadClaudePlugin(compoundEngineeringRoot)
     const bundle = convertClaudeToOpenCode(plugin, {
       agentMode: "subagent",
@@ -23,14 +18,11 @@ describe("convertClaudeToOpenCode", () => {
       permissions: "none",
     })
 
-    expect(bundle.agents.length).toBeGreaterThan(0)
+    expect(bundle.agents).toHaveLength(0)
     expect(bundle.skillDirs.length).toBeGreaterThan(0)
     expect(bundle.commandFiles).toHaveLength(0)
     expect(bundle.plugins).toHaveLength(0)
     expect(bundle.config.tools).toBeUndefined()
-
-    const parsedAgents = bundle.agents.map((agent) => parseFrontmatter(agent.content))
-    expect(parsedAgents.every((agent) => agent.data.mode === "subagent")).toBe(true)
   })
 
   test("from-command mode: map allowedTools to global permission block", async () => {

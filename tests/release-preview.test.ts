@@ -1,3 +1,6 @@
+import { mkdtemp, mkdir, writeFile } from "fs/promises"
+import os from "os"
+import path from "path"
 import { describe, expect, test } from "bun:test"
 import { buildReleasePreview, bumpVersion, loadCurrentVersions } from "../src/release/components"
 
@@ -6,7 +9,7 @@ describe("release preview", () => {
     const versions = await loadCurrentVersions()
     const preview = await buildReleasePreview({
       title: "fix: adjust ce-plan wording",
-      files: ["plugins/compound-engineering/skills/ce-plan/SKILL.md"],
+      files: ["skills/ce-plan/SKILL.md"],
     })
 
     expect(preview.components).toHaveLength(1)
@@ -19,7 +22,7 @@ describe("release preview", () => {
     const versions = await loadCurrentVersions()
     const preview = await buildReleasePreview({
       title: "fix: refine compound-engineering prompts",
-      files: ["plugins/compound-engineering/README.md"],
+      files: ["README.md"],
       overrides: {
         "compound-engineering": "minor",
       },
@@ -39,5 +42,26 @@ describe("release preview", () => {
     })
 
     expect(preview.components).toHaveLength(0)
+  })
+
+  test("rejects Gemini extension version drift from the root plugin version", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "release-preview-"))
+    await mkdir(path.join(root, ".claude-plugin"), { recursive: true })
+    await mkdir(path.join(root, ".cursor-plugin"), { recursive: true })
+
+    await writeFile(path.join(root, "package.json"), JSON.stringify({ version: "3.13.1" }))
+    await writeFile(path.join(root, ".claude-plugin", "plugin.json"), JSON.stringify({ version: "3.13.1" }))
+    await writeFile(path.join(root, "gemini-extension.json"), JSON.stringify({ version: "3.13.0" }))
+    await writeFile(
+      path.join(root, ".claude-plugin", "marketplace.json"),
+      JSON.stringify({ metadata: { version: "3.13.1" } }),
+    )
+    await writeFile(
+      path.join(root, ".cursor-plugin", "marketplace.json"),
+      JSON.stringify({ metadata: { version: "3.13.1" } }),
+    )
+
+    await expect(loadCurrentVersions(root)).rejects.toThrow("gemini-extension.json version 3.13.0")
+    await Bun.$`rm -rf ${root}`.quiet()
   })
 })

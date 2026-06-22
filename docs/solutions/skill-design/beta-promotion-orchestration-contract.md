@@ -2,7 +2,7 @@
 title: "Beta-to-stable promotions must update orchestration callers atomically"
 category: skill-design
 date: 2026-03-23
-module: plugins/compound-engineering/skills
+module: skills
 component: SKILL.md
 tags:
   - skill-design
@@ -30,10 +30,10 @@ Treat promotion as an orchestration contract change, not a file rename.
 
 ## Applied: ce-review-beta -> ce-code-review (2026-03-24)
 
-This pattern was applied when promoting the review beta (`ce-review-beta`, tracked as the legacy artifact `ce:review-beta`/`ce-review-beta` in the cleanup registry) into the stable `ce-code-review` skill. The caller contract:
+This pattern was applied when promoting the review beta (`ce-review-beta`, tracked as the legacy artifact `ce:review-beta`/`ce-review-beta` in the cleanup registry) into the stable `ce-code-review` skill. The caller contract at the time:
 
 - `lfg` -> `/ce-code-review mode:autofix` (enforced by `tests/review-skill-contract.test.ts`)
-- `slfg` parallel phase -> `/ce-code-review mode:report-only` (intended; not currently covered by a contract test)
+`slfg` has since been removed, but the durable rule remains: every orchestrator that invokes the promoted skill must pass the intended mode explicitly and have contract coverage where the caller still exists.
 
 ## Prevention
 

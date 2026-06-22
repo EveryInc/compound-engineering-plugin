@@ -101,7 +101,7 @@ You want to improve clustering quality on a notification-categorization feature.
 
 You invoke `/ce-optimize "clustering quality on notification categorization"`. The skill detects this is qualitative — recommends `type: judge` because hard metrics like cluster count would optimize a misleading proxy. Walks you through defining stratified sampling (top by size, mid range, small clusters, plus singletons), the rubric (1-5 with concrete level descriptions), and the gates (`solo_pct <= 0.95`, `max_cluster_size <= 500`). Recommends serial mode and 4-iteration cap for the first run.
 
-Phase 1 runs the measurement harness on baseline, dispatches `ce-learnings-researcher` for prior optimization context, runs the parallelism probe, and asks for explicit approval given the judge cost estimate. You approve.
+Phase 1 runs the measurement harness on baseline, dispatches `learnings-researcher` for prior optimization context, runs the parallelism probe, and asks for explicit approval given the judge cost estimate. You approve.
 
 Phase 2 generates 18 hypotheses (signal-extraction, embedding, algorithm, parameter-tuning categories). One needs a new dependency; you bulk-approve.
 
@@ -134,7 +134,7 @@ Skip `ce-optimize` when:
 `ce-optimize` is its own loop, but it interlocks with the chain:
 
 - **Triggered from a brainstorm or plan** — when the work is "make X better" rather than "build X new", the brainstorm or plan often surfaces optimization as the right shape
-- **Calls `ce-learnings-researcher`** during Phase 0.3 to consult `docs/solutions/` for prior optimization work on similar topics
+- **Calls `learnings-researcher`** during Phase 0.3 to consult `docs/solutions/` for prior optimization work on similar topics
 - **Hands off to `/ce-code-review`** at Phase 4.3 — the cumulative diff (baseline to final) gets reviewed before merging
 - **Hands off to `/ce-compound`** to document the winning strategy as institutional learning
 

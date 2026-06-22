@@ -1,24 +1,28 @@
 {
-  "name": "@every-env/compound-plugin",
+  "name": "compound-engineering",
   "version": "3.13.1",
-  "description": "Official Compound Engineering plugin for Claude Code, Codex, and more",
+  "description": "Official Compound Engineering skills plugin for coding agents",
   "type": "module",
-  "private": false,
-  "bin": {
-    "compound-plugin": "src/index.ts"
+  "private": true,
+  "main": ".opencode/plugins/compound-engineering.js",
+  "pi": {
+    "extensions": [
+      "./.pi/extensions/compound-engineering.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
   },
   "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
   "repository": "https://github.com/EveryInc/compound-engineering-plugin",
-  "publishConfig": {
-    "access": "public"
-  },
   "scripts": {
     "dev": "bun run src/index.ts",
     "convert": "bun run src/index.ts convert",
+    "cleanup": "bun run src/index.ts cleanup",
     "list": "bun run src/index.ts list",
     "cli:install": "bun run src/index.ts install",
     "test": "bun test",
-    "plugin:validate": "claude plugin validate .claude-plugin/marketplace.json && claude plugin validate plugins/compound-engineering",
+    "plugin:validate": "claude plugin validate .claude-plugin/marketplace.json && claude plugin validate .",
     "release:preview": "bun run scripts/release/preview.ts",
     "release:sync-metadata": "bun run scripts/release/sync-metadata.ts --write",
     "release:validate": "bun run scripts/release/validate.ts"

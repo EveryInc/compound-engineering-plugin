@@ -1,6 +1,5 @@
 {
   ".": "3.13.1",
-  "plugins/compound-engineering": "3.13.1",
   ".claude-plugin": "1.0.2",
   ".cursor-plugin": "1.0.1"
 }
