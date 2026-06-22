@@ -99,6 +99,20 @@ describe("graph_compute.py", () => {
     const { exitCode } = await runScript("graph_compute.py", [])
     expect(exitCode).toBe(2)
   })
+
+  test("golden fixture (real LAB-867 decomposition) parses clean", async () => {
+    const { result, exitCode } = await compute("golden")
+    expect(exitCode).toBe(0)
+    expect(result.findings).toHaveLength(0)
+    expect(result.node_count).toBe(10)
+    expect(result.is_forest).toBe(true)
+    expect(result.roots.sort()).toEqual(["n1", "n7"])
+    // canopy is delivered live only at the ops node n10, on the critical path
+    expect(result.critical_path[result.critical_path.length - 1]).toBe("n10")
+    // brief/plan and no_pr nodes are reported skipped, not silently passed
+    expect(result.dependency_checks.n6).toContain("skip")
+    expect(result.dependency_checks.n10).toContain("no_pr")
+  })
 })
 
 describe("reorient.py", () => {
