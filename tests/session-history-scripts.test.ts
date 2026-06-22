@@ -114,6 +114,67 @@ function createBranchedPiSession(): string {
   return `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`
 }
 
+function createPiSummaryContextSession(): string {
+  const lines = [
+    {
+      type: "session",
+      version: 3,
+      id: "test-pi-summary-session",
+      timestamp: "2026-04-07T09:00:00.000Z",
+      cwd: "/Users/test/Code/my-repo",
+    },
+    {
+      type: "message",
+      id: "old-user",
+      parentId: null,
+      timestamp: "2026-04-07T09:01:00.000Z",
+      message: {
+        role: "user",
+        content: [{ type: "text", text: "old_compacted_keyword only" }],
+        timestamp: 1775542860000,
+      },
+    },
+    {
+      type: "message",
+      id: "kept-user",
+      parentId: "old-user",
+      timestamp: "2026-04-07T09:02:00.000Z",
+      message: {
+        role: "user",
+        content: [{ type: "text", text: "kept_after_compaction_keyword only" }],
+        timestamp: 1775542920000,
+      },
+    },
+    {
+      type: "compaction",
+      id: "compact1",
+      parentId: "kept-user",
+      timestamp: "2026-04-07T09:03:00.000Z",
+      summary: "compaction_summary_keyword survived in summary",
+      firstKeptEntryId: "kept-user",
+      tokensBefore: 50000,
+    },
+    {
+      type: "branch_summary",
+      id: "branch-summary1",
+      parentId: "compact1",
+      timestamp: "2026-04-07T09:04:00.000Z",
+      fromId: "abandoned-user",
+      summary: "branch_summary_keyword from the abandoned path",
+    },
+    {
+      type: "custom_message",
+      id: "custom-message1",
+      parentId: "branch-summary1",
+      timestamp: "2026-04-07T09:05:00.000Z",
+      customType: "test-extension",
+      content: [{ type: "text", text: "custom_message_keyword injected context" }],
+      display: true,
+    },
+  ]
+  return `${lines.map((line) => JSON.stringify(line)).join("\n")}\n`
+}
+
 // ---------------------------------------------------------------------------
 // extract-metadata.py
 // ---------------------------------------------------------------------------
@@ -395,6 +456,46 @@ describe("extract-metadata", () => {
         const abandonedLines = parseJsonLines(abandonedResult.stdout)
         expect(abandonedLines.filter((l) => !l._meta).length).toBe(0)
         expect(abandonedLines.find((l) => l._meta).files_matched).toBe(0)
+      } finally {
+        await fs.promises.rm(tempDir, { recursive: true, force: true })
+      }
+    })
+
+    test("Pi keyword matching scans context summaries and honors compaction firstKeptEntryId", async () => {
+      const tempDir = await fs.promises.mkdtemp(
+        path.join(os.tmpdir(), "pi-summary-keyword-")
+      )
+      const sessionPath = path.join(tempDir, "pi-summary-session.jsonl")
+
+      try {
+        await fs.promises.writeFile(sessionPath, createPiSummaryContextSession())
+
+        for (const keyword of [
+          "compaction_summary_keyword",
+          "branch_summary_keyword",
+          "custom_message_keyword",
+          "kept_after_compaction_keyword",
+        ]) {
+          const { stdout, exitCode } = await runScript("extract-metadata.py", [
+            "--keyword",
+            keyword,
+            sessionPath,
+          ])
+          expect(exitCode).toBe(0)
+          const lines = parseJsonLines(stdout)
+          expect(lines.filter((l) => !l._meta).length).toBe(1)
+          expect(lines.find((l) => l._meta).files_matched).toBe(1)
+        }
+
+        const compactedResult = await runScript("extract-metadata.py", [
+          "--keyword",
+          "old_compacted_keyword",
+          sessionPath,
+        ])
+        expect(compactedResult.exitCode).toBe(0)
+        const compactedLines = parseJsonLines(compactedResult.stdout)
+        expect(compactedLines.filter((l) => !l._meta).length).toBe(0)
+        expect(compactedLines.find((l) => l._meta).files_matched).toBe(0)
       } finally {
         await fs.promises.rm(tempDir, { recursive: true, force: true })
       }

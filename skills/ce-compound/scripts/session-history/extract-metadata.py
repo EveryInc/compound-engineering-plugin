@@ -144,6 +144,41 @@ def _pi_active_path_objects(objects):
     ]
 
 
+def _pi_context_objects(objects):
+    """Return Pi entries that participate in active LLM context."""
+    active = _pi_active_path_objects(objects)
+    compactions = [obj for obj in active if obj.get("type") == "compaction"]
+    if not compactions:
+        return active
+
+    # Pi emits compaction summary first, then entries from firstKeptEntryId
+    # onward. Exclude older ancestors so keyword search mirrors context.
+    first_kept = compactions[-1].get("firstKeptEntryId")
+    if not isinstance(first_kept, str):
+        return active
+
+    started = False
+    context = []
+    for obj in active:
+        if obj.get("type") == "session":
+            context.append(obj)
+            continue
+        if obj.get("id") == first_kept:
+            started = True
+        if started:
+            context.append(obj)
+    return context if len(context) > 1 else active
+
+
+def _append_pi_content_text(chunks, content):
+    if isinstance(content, str):
+        chunks.append(content)
+    elif isinstance(content, list):
+        for block in content:
+            if isinstance(block, dict) and block.get("type") == "text":
+                chunks.append(block.get("text", ""))
+
+
 def _extract_user_assistant_text(filepath):
     """Return concatenated user + assistant text content from a session JSONL.
 
@@ -169,7 +204,7 @@ def _extract_user_assistant_text(filepath):
             obj.get("type") == "session" and "cwd" in obj for obj in objects
         )
         if is_pi:
-            objects = _pi_active_path_objects(objects)
+            objects = _pi_context_objects(objects)
 
         for obj in objects:
             # Claude Code: type-tagged top-level
@@ -230,14 +265,17 @@ def _extract_user_assistant_text(filepath):
                     continue
                 if role not in ("user", "assistant"):
                     continue
-                content = msg.get("content", [])
-                if isinstance(content, str):
-                    chunks.append(content)
-                elif isinstance(content, list):
-                    for block in content:
-                        if isinstance(block, dict) and block.get("type") == "text":
-                            chunks.append(block.get("text", ""))
-                        # Skip thinking, toolCall, and toolResult blocks.
+                _append_pi_content_text(chunks, msg.get("content", []))
+                continue
+
+            if t in ("compaction", "branch_summary"):
+                summary = obj.get("summary", "")
+                if isinstance(summary, str):
+                    chunks.append(summary)
+                continue
+
+            if t == "custom_message":
+                _append_pi_content_text(chunks, obj.get("content", []))
                 continue
 
             # Cursor: role-tagged with no top-level type
