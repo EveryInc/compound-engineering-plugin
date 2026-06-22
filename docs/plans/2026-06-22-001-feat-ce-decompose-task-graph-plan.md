@@ -244,7 +244,7 @@ These are the later rungs of the family roadmap — separate releases, each its 
 
 - Exact markdown-table column ordering and list-cell escaping format — settle in U2 against the script parsers (the column set and ID/token form are decided; the dry-run validated comma-no-space list cells and empty optional cells, so only the precise written spec remains).
 - Over/under-decomposition heuristic thresholds (distinct-concerns weighting + mirror-suppression signal per dry-run F3) and the blind decomposition-soundness scoring rubric — tune against the golden fixture during U3/U5.
-- Golden-fixture promotion: the dry-run produced an excellent fixture at `docs/plans/ce-decompose-dryrun/environmental-route-features/` (1:N PRs, multi-root DAG, a `no_pr` ops node, a merged-but-inert feature, full stage range). Promote + re-serialize it into `tests/fixtures/ce-decompose/` **after** U2 locks the serialization — not before, or the fixture and parser disagree on day one.
+- Golden fixture (resolved): a real-project dry-run produced an excellent fixture (1:N PRs, multi-root DAG, a `no_pr` ops node, a merged-but-inert feature, full stage range), now re-serialized to the U2 format and promoted to `tests/fixtures/ce-decompose/golden/`. Its soundness baseline still carries the answer-key caveat — pair it with a blind re-decompose for the U5 soundness check.
 - Resolved in U1: beta skills get no `docs/skills/` entry.
 
 ---
@@ -252,8 +252,8 @@ These are the later rungs of the family roadmap — separate releases, each its 
 ## Sources & Research
 
 - Origin requirements: `docs/brainstorms/2026-06-21-ce-decompose-task-graph-requirements.md`
-- Ideation: `docs/ideation/2026-06-21-project-orchestration-skills-ideation.html` (the 7-rung family this foundation anchors)
-- **Design dry-run findings: `docs/plans/ce-decompose-dryrun/environmental-route-features/FINDINGS.md`** — hand-simulation of the design against a real manually-decomposed project (Linear epic LAB-867), the source of findings F1–F8 + H5 folded into KTD3/6/7/10 and U2–U6 above. Includes the candidate golden fixture (`index.md` + 10 node files).
+- Origin ideation: a `ce-ideate` session that produced the 7-rung orchestration family this foundation anchors.
+- **Design dry-run:** a hand-simulation of the skill against a real manually-decomposed project (Linear epic LAB-867) — the source of findings F1–F8 + H5 folded into KTD3/6/7/10 and U2–U6 above. The validated graph became the golden fixture at `tests/fixtures/ce-decompose/golden/`.
 - `plugins/compound-engineering/skills/ce-plan/SKILL.md`, `plugins/compound-engineering/skills/ce-plan/references/plan-sections.md` — unit schema, U-ID stability, metadata fields (reused/duplicated in U2)
 - `tests/session-history-scripts.test.ts` — the established Python-script-via-`bun test`/`Bun.spawn` pattern (U3/U4 harness model)
 - `plugins/compound-engineering/skills/ce-compound/scripts/validate-frontmatter.py` — stdlib-only validator template and its "no YAML parser dependency" constraint (the reason for the markdown-table index, KTD2)

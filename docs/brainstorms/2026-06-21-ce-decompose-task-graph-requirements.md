@@ -117,5 +117,5 @@ flowchart TB
 - `plugins/compound-engineering/skills/ce-work/` — parallel worktree-isolated dispatch, dependency-order merge, and the "progress lives in git commits and the task tracker, not the plan body" stance behind the split-ownership decision.
 - `plugins/compound-engineering/skills/lfg/` — the single-unit autonomous pipeline a work-ready node hands off to.
 - `plugins/compound-engineering/skills/ce-worktree/` — the detect → native → git isolation state machine downstream execution relies on.
-- `docs/ideation/2026-06-21-project-orchestration-skills-ideation.html` — origin ideation (ideas "ce-decompose", "committed task-graph as coordination bus", and the stage/model routing fields folded in here).
+- Origin ideation: a `ce-ideate` session that produced a 7-idea orchestration family; this foundation is the "ce-decompose" + "committed task-graph as coordination bus" ideas, with the stage/model routing fields folded in here.
 - External: Spec-Kit epic → plan → tasks hierarchy; Graph-Harness DAG scheduling and its named decomposition failure modes (missing/spurious dependencies, over/under-decomposition) — the basis for the granularity guard (R13).
