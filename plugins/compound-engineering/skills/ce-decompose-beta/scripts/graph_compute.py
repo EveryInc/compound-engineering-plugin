@@ -46,8 +46,13 @@ def parse_index(index_path):
         fail(f"No markdown table found in {index_path}")
 
     header = _split_row(table_lines[0])
-    # table_lines[1] is the |---|---| separator; data rows follow.
-    data_lines = table_lines[2:]
+    # The second line is conventionally the |---|---| separator, but detect it by
+    # content rather than position so a malformed table missing the separator does
+    # not silently drop its first data row.
+    rest = table_lines[1:]
+    if rest and _is_separator_row(rest[0]):
+        rest = rest[1:]
+    data_lines = rest
 
     nodes = []
     for raw in data_lines:
@@ -63,6 +68,13 @@ def parse_index(index_path):
         if row.get("id"):
             nodes.append(row)
     return schema_version, nodes
+
+
+def _is_separator_row(line):
+    """True if a table row is a |---|:--:|---| header separator (all dash/colon cells)."""
+    cells = _split_row(line)
+    return bool(cells) and all(re.fullmatch(r":?-+:?", c) for c in cells if c != "") \
+        and any(c for c in cells)
 
 
 def _split_row(line):

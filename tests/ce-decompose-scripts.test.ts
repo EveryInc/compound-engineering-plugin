@@ -100,6 +100,14 @@ describe("graph_compute.py", () => {
     expect(exitCode).toBe(2)
   })
 
+  test("malformed table missing the |---| separator still parses every node (no silent drop)", async () => {
+    // Regression: a separator-less table once dropped its first data row, cascading
+    // into bogus unknown_dependency + orphan findings. Surfaced by a skill-creator eval.
+    const { result } = await compute("no-separator")
+    expect(result.node_count).toBe(2)
+    expect(result.findings).toHaveLength(0)
+  })
+
   test("golden fixture (real LAB-867 decomposition) parses clean", async () => {
     const { result, exitCode } = await compute("golden")
     expect(exitCode).toBe(0)

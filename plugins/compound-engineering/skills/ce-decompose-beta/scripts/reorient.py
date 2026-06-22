@@ -42,8 +42,11 @@ def parse_index(index_path):
     if len(table) < 2:
         fail(f"No markdown table found in {index_path}")
     header = _split_row(table[0])
+    rest = table[1:]
+    if rest and _is_separator_row(rest[0]):
+        rest = rest[1:]
     nodes = []
-    for raw in table[2:]:
+    for raw in rest:
         cells = _split_row(raw)
         if not any(cells):
             continue
@@ -54,6 +57,12 @@ def parse_index(index_path):
         if row.get("id"):
             nodes.append(row)
     return nodes
+
+
+def _is_separator_row(line):
+    cells = _split_row(line)
+    return bool(cells) and all(re.fullmatch(r":?-+:?", c) for c in cells if c != "") \
+        and any(c for c in cells)
 
 
 def _split_row(line):
