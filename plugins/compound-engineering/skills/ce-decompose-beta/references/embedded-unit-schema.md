@@ -2,7 +2,7 @@
 
 A `work`-stage node file embeds a plan in the **same field contract `ce-plan` uses for its Implementation Units**, so the node is directly consumable by `ce-work` / `lfg` with no new format. This contract is duplicated here because skills are self-contained (no cross-skill file references).
 
-> **Drift note.** The canonical source is `ce-plan`'s `references/plan-sections.md` (Implementation Units + ID rules). When that contract changes, update this copy in the same change. There is no shared-file mechanism between skills.
+> **Drift note.** The canonical source is the `ce-plan` skill's Implementation Units contract (its `plan-sections.md` reference, in the `ce-plan` skill directory). When that contract changes, update this copy in the same change. There is no shared-file mechanism between skills.
 
 ## Node-file shape (work stage)
 
