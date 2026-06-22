@@ -9,10 +9,17 @@ The committed files own project **structure**. Live **status** is derived from g
 
 ## `index.md` format
 
-The file begins with a single schema-version comment line, then exactly one markdown table:
+The file begins with a single schema-version comment line, then an **optional prose preamble** (a project title and a short "Decisions locked at decompose time" block capturing framing the cut depends on), then exactly one markdown table. The preamble is encouraged — it carries context a bare table loses — and is safe because the parser locates the table by its `|`-prefixed lines and reads the version from the comment, so any prose above the table is ignored. The one rule: **no preamble line may start with `|`** (that would be read as a table row).
 
 ```markdown
 <!-- ce-decompose task-graph · schema_version: 1 -->
+
+# <Project name> — task graph
+
+<One- or two-line description of what the project delivers.>
+
+Decisions locked at decompose time:
+- <a framing decision the cut depends on>
 
 | id | title | stage | model | status | manual_status | depends_on | node_file | branch_ref | pr_refs | base_commit | no_pr | source |
 |----|-------|-------|-------|--------|---------------|------------|-----------|------------|---------|-------------|-------|--------|

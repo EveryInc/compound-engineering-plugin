@@ -108,6 +108,16 @@ describe("graph_compute.py", () => {
     expect(result.findings).toHaveLength(0)
   })
 
+  test("optional prose preamble above the table parses clean (title + locked decisions)", async () => {
+    // Real-world runs write a project title + "Decisions locked" block above the
+    // table; the parser must read the table by |-lines and skip the prose.
+    const { result, exitCode } = await compute("with-preamble")
+    expect(exitCode).toBe(0)
+    expect(result.schema_version).toBe(1)
+    expect(result.node_count).toBe(2)
+    expect(result.findings).toHaveLength(0)
+  })
+
   test("golden fixture (real LAB-867 decomposition) parses clean", async () => {
     const { result, exitCode } = await compute("golden")
     expect(exitCode).toBe(0)
