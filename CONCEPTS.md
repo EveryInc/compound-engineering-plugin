@@ -40,6 +40,9 @@ The methodology this project embodies: structure engineering work so each unit m
 ### Pipeline
 The chained progression of Skills that carries a piece of work from strategy and ideation through brainstorm, plan, execution, and review, and closes by capturing what was learned. Each stage hands a durable artifact to the next, and research is gathered at the stage that needs it rather than re-gathered downstream.
 
+### Task-graph
+A committed, diffable decomposition of a whole project, sitting one level above a single Plan: a markdown index plus one file per node, where each node is a feature-sized unit tagged with the pipeline stage it next enters and a recommended model tier, carrying an embedded plan when settled or a brief otherwise. The repo owns project structure; a node's live status is derived from git on read rather than stored. Produced by the ce-decompose Skill.
+
 ### Learning
 A documented solution to a past problem — a bug fix, a convention, or a workflow pattern — stored as the unit of compounded knowledge so future work can find and reuse it. Also called a solution doc. Carries structured metadata (category, tags, problem type) for retrieval; its creation date lives in the entry, not the filename.
 
