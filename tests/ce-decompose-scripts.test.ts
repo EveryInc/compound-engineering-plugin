@@ -100,3 +100,61 @@ describe("graph_compute.py", () => {
     expect(exitCode).toBe(2)
   })
 })
+
+describe("reorient.py", () => {
+  async function reorient(args: string[]) {
+    const { stdout, exitCode } = await runScript("reorient.py", args)
+    return { result: JSON.parse(stdout), exitCode }
+  }
+
+  const FIX = path.join(FIXTURES_DIR, "reorient")
+  const FACTS = path.join(FIX, "facts.json")
+
+  test("derives every state-machine branch from facts", async () => {
+    const { result, exitCode } = await reorient([FIX, "--facts", FACTS])
+    expect(exitCode).toBe(0)
+    const s = result.nodes
+    expect(s.n1.status).toBe("not-started") // no branch
+    expect(s.n2.status).toBe("in-progress") // branch + commits, no PR
+    expect(s.n3.status).toBe("in-review") // one open PR
+    expect(s.n4.status).toBe("done") // one merged PR
+    expect(s.n5.status).toBe("in-review") // 2 merged + 1 open -> not done
+    expect(s.n6.status).toBe("done") // all merged
+  })
+
+  test("manual_status pin overrides derivation", async () => {
+    const { result } = await reorient([FIX, "--facts", FACTS])
+    expect(result.nodes.n7.status).toBe("done") // pinned, no PR
+    expect(result.nodes.n8.status).toBe("blocked") // pinned
+  })
+
+  test("no_pr node awaits manual completion, never derives done from git", async () => {
+    const { result } = await reorient([FIX, "--facts", FACTS])
+    expect(result.nodes.n9.status).toBe("not-started")
+    expect(result.nodes.n9.annotation).toContain("manual completion")
+  })
+
+  test("ambiguous anchored-token match is flagged, not silently picked", async () => {
+    const { result } = await reorient([FIX, "--facts", FACTS])
+    expect(result.nodes.n10.status).toBe("not-started")
+    expect(result.nodes.n10.annotation).toContain("ambiguous")
+  })
+
+  test("done node with a not-done no_pr dependent gets the activation annotation (F1)", async () => {
+    const { result } = await reorient([FIX, "--facts", FACTS])
+    expect(result.nodes.n4.status).toBe("done")
+    expect(result.nodes.n4.annotation).toContain("awaiting activation by n11")
+  })
+
+  // NOTE: real mode (no --facts) shells out to live git/gh per node — slow and
+  // network/auth-dependent, so it is not run in the automated suite. The pure
+  // state machine above is the logic worth testing; real-mode I/O (base-branch
+  // resolution, graceful "no PR" handling, pins-still-honored) is verified
+  // manually. A fixture-git-repo harness for real mode is deferred (see plan).
+
+  test("determinism: identical output across runs", async () => {
+    const a = await reorient([FIX, "--facts", FACTS])
+    const b = await reorient([FIX, "--facts", FACTS])
+    expect(JSON.stringify(a.result)).toBe(JSON.stringify(b.result))
+  })
+})

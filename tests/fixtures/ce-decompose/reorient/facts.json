@@ -1,0 +1,14 @@
+{
+  "__base__": "main",
+  "n1": {},
+  "n2": { "branch_exists": true, "commits_ahead": 3 },
+  "n3": { "prs": [{ "id": "#1", "state": "open" }] },
+  "n4": { "prs": [{ "id": "#2", "state": "merged" }] },
+  "n5": { "prs": [{ "id": "#3", "state": "merged" }, { "id": "#4", "state": "merged" }, { "id": "#5", "state": "open" }] },
+  "n6": { "prs": [{ "id": "#6", "state": "merged" }, { "id": "#7", "state": "merged" }] },
+  "n7": {},
+  "n8": {},
+  "n9": {},
+  "n10": { "token_ambiguous": true },
+  "n11": {}
+}
