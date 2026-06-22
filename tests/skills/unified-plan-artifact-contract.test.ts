@@ -195,6 +195,30 @@ describe("unified plan artifact contract", () => {
     expect(planSkill).toContain("the local plan file stays canonical")
   })
 
+  test("ce-work Phase 0 parses the caller-owned-tail mode token before triage", () => {
+    // Codex #972 P1: lfg passes `mode:caller-owned-tail <plan-path>`; ce-work
+    // must strip the mode token, not treat the whole string as a bare prompt.
+    expect(ceWork).toMatch(/begins with `mode:caller-owned-tail`/i)
+    expect(ceWork).toMatch(/strip that token/i)
+    expect(ceWork).toContain("after any mode token is stripped")
+  })
+
+  test("ce-code-review discovery/extraction covers HTML and Product Contract requirements", () => {
+    // Codex #972 P2: discovery must scan .html and extraction must read
+    // Product Contract > Requirements, matching the completeness contract.
+    expect(codeReview).toContain("docs/plans/*.{md,html}")
+    expect(codeReview).toMatch(/unified `Product Contract` -> `### Requirements`/)
+    expect(codeReview).toMatch(/requirements-only artifact[\s\S]{0,80}product intent only/i)
+  })
+
+  test("ce-plan 5.1.5 synthesis gate fires for unified-plan sources, not only legacy docs", () => {
+    // Codex #972 P2: new ce-brainstorm -> ce-plan <unified-plan> enrichment
+    // must still get the plan-time scoping-synthesis checkpoint.
+    expect(planSkill).toMatch(/whenever Phase 0\.2 resolved an upstream Product Contract source/i)
+    expect(planSkill).toMatch(/enrichment flow is brainstorm-sourced and MUST fire this gate/i)
+    expect(planSkill).toMatch(/Skip Phase 0\.7 only in solo invocation|Skip Phase 5\.1\.5 only in solo invocation/i)
+  })
+
   test("ce-work defines the execution-engine selection lane", () => {
     expect(ceWork).toContain("Choose Execution Engine")
     expect(ceWork).toContain("references/execution-engines.md")

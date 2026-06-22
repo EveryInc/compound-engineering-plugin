@@ -20,7 +20,9 @@ This command takes a work document (plan or specification) or a bare prompt desc
 
 ### Phase 0: Input Triage
 
-Determine how to proceed based on what was provided in `<input_document>`.
+**First, parse a leading mode token.** If `<input_document>` begins with `mode:caller-owned-tail` (or the equivalent `caller:lfg`), strip that token before anything else: the remainder of the string is the plan path, and this run executes in **Caller-Owned Tail Mode** (see § Caller-Owned Tail Mode) — implement and locally verify only, then return the structured envelope instead of running the standalone shipping tail. Classify the stripped plan path with the rules below. A mode token with no following path is an error: report it rather than treating `mode:caller-owned-tail` as a bare prompt.
+
+Determine how to proceed based on what was provided in `<input_document>` (after any mode token is stripped).
 
 **Plan document** (input is a file path to an existing plan or specification): read the plan's metadata first — YAML frontmatter for a markdown plan, or the visible header text for an HTML plan (both formats carry the same fields).
 
