@@ -209,6 +209,7 @@ This applies equally to any platform's variables — a skill converted from Code
 
 - **Requirements** live in `docs/brainstorms/` — requirements exploration and ideation.
 - **Plans** live in `docs/plans/` — implementation plans and progress tracking.
+- **Task-graphs** live in `docs/plans/<project>/` — a committed markdown `index.md` plus one file per node, produced by `ce-decompose-beta` to decompose a multi-feature project into dependency-mapped, individually-drivable nodes; read one when coordinating work whose status spans several tickets or PRs.
 - **Solutions** live in `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
 - **Specs** live in `docs/specs/` — target platform format specifications.
 
