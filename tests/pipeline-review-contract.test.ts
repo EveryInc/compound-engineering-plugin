@@ -191,7 +191,7 @@ describe("ce-plan review contract", () => {
     expect(content).not.toContain("skip document-review and return control")
 
     // The interactive walkthrough is opt-in via the post-generation menu, not automatic
-    expect(content).toContain("Review remaining findings")
+    expect(content).toContain("Decide on the review's open items")
   })
 
   test("handoff options expose deeper-review opt-in alongside ce-work", async () => {
@@ -204,7 +204,7 @@ describe("ce-plan review contract", () => {
 
     // Deeper review is a first-class menu fixture so users can engage with surfaced findings
     // without relying on free-form prompting; routed through ce-doc-review without headless mode.
-    expect(content).toContain("**Review remaining findings**")
+    expect(content).toContain("**Decide on the review's open items**")
     expect(content).toContain("`ce-doc-review`")
     expect(content).toContain("without** `mode:headless`")
 
@@ -212,7 +212,7 @@ describe("ce-plan review contract", () => {
     // collapses back to a 4-option AskUserQuestion-friendly shape on Claude Code. FYI-only
     // state also hides the option since ce-doc-review's walkthrough is gated to actionable
     // findings (anchor 75/100, gated_auto/manual) and FYIs (anchor 50) bypass it.
-    expect(content).toContain("Hide `Review remaining findings` (option 3) when no actionable findings remain")
+    expect(content).toContain("Hide `Decide on the review's open items` (option 3) when no actionable findings remain")
     expect(content).toContain("proposed_fixes_count + decisions_count > 0")
 
     // Summary line above the menu surfaces autofix counts and remaining-bucket counts
