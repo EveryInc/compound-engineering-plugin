@@ -11,7 +11,7 @@ After installing, run `/ce-setup` in any project. It diagnoses your environment,
 | Component | Count |
 |-----------|-------|
 | Agents | 50+ |
-| Skills | 38+ |
+| Skills | 40+ |
 
 ## Skills
 
@@ -99,6 +99,7 @@ The primary entry points for engineering work, invoked as slash commands. Detail
 | Skill | Description |
 |-------|-------------|
 | `ce-dogfood-beta` | Diff-scoped browser QA of the active branch: builds an exhaustive test matrix of every change, drives the app with agent-browser, then auto-fixes issues, adds regression tests, and commits each fix until green |
+| `ce-decompose-beta` | Decompose a large project into a committed, diffable task-graph (markdown index + one file per node under `docs/plans/`), each node tagged with its next CE stage and model tier; embeds a ready plan when a node is settled or a brief otherwise, audits the dependency graph, and offers to drive the first ready node |
 | `/lfg` | Full autonomous engineering workflow |
 
 ## Agents
