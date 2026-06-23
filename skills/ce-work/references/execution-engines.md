@@ -47,16 +47,16 @@ Follow the dispatch strategy in `SKILL.md` Phase 1 Step 4 (inline, serial subage
 
 Whichever path, the goal/workflow must not open a PR, finalize the session, or bypass the owning workflow's gates.
 
-Copyable goal-mode prompt (standalone — emit verbatim, with the literal plan path substituted):
+Copyable goal-mode prompt (standalone — emit verbatim, substituting only the literal plan path). **Keep it thin: point to the plan's sections, never copy them.** Do not paste the plan's resolved decisions, exact verification commands, or requirements into the prompt — they live in the doc, and a copy only drifts as the plan changes. The prompt carries direction, exit criteria, and the few persistent guardrails; the document carries the detail.
 
 ```text
-/goal Implement <plan-path> through its Definition of Done.
+/goal Implement <plan-path> to its Definition of Done.
 
-First read: Goal Capsule, Definition of Done, and the Implementation Units heading map (do not read the whole plan — scan headings to find sections). Work unit-by-unit. For each U-ID, read only that unit plus referenced R/F/AE/KTD sections. Track progress outside the doc. Before each major phase and before declaring done, re-open the plan path and re-check the active U-IDs, Verification Contract, and Definition of Done against the current diff — context may have been compacted to a summary that dropped detail.
+The plan is the authority — don't read it whole. Scan headings, read the Goal Capsule, then work the units in dependency order, reading each unit plus its cited R/F/AE/KTD as you go. Run the plan's Verification Contract gates and satisfy each unit's test scenarios. Track progress outside the plan file, not in it.
 
-This top-level goal owns implementation quality gates: run simplification and code review when the diff meets the repo's normal criteria, apply eligible fixes, and surface residual findings. Do not open a PR.
+This top-level goal owns the implementation tail: run simplification and code review when the diff meets the repo's normal criteria, apply eligible fixes, and surface residual findings. Do not open a PR. Surface a genuine blocker — something that changes scope or contradicts the plan — instead of guessing; use your judgment on details the plan leaves open.
 
-Done when the transcript shows: all non-deferrable U-IDs completed; each Per-Unit DoD row has an observed verification result; required repo checks passed or are documented as not applicable; applicable simplification/review gates ran or were explicitly skipped with reason; dead-end or experimental code from approaches that did not pan out has been removed from the diff; no plan body progress/status was written; and no PR was opened. Stop early only when a named blocker prevents completion.
+Done when the transcript shows: every non-deferrable Per-Unit DoD row has an observed verification result; the Verification Contract's required checks passed or are documented as not applicable; applicable simplification/review gates ran or were explicitly skipped with reason; dead-end or experimental code from approaches that did not pan out has been removed from the diff; no progress/status was written into the plan file; and no PR was opened. Before declaring done, re-open the plan and re-check the active units, Verification Contract, and Definition of Done against the diff — context may have been compacted to a summary that dropped detail.
 ```
 
 Copyable dynamic-workflow prompt (large fan-out — emit verbatim):
