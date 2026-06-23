@@ -30,14 +30,14 @@ These hold regardless of which skill produced the artifact.
   breaks within a paragraph, so wrapping never changes the rendered output.
 - **Unified plan sections use stable headings.** For unified plan artifacts,
   render the required sections with exact ASCII headings so agents can find
-  them by heading scan: `## Goal Launch Block`, `## Reader Index`,
-  `## Goal Capsule`, `## Product Contract`, `## Planning Contract`,
-  `## Implementation Units`, `## Verification Contract`, `## Definition of
-  Done`, and optional `## Appendix`. Requirements-only artifacts omit the
-  plan-only sections rather than emitting empty placeholders.
-- **Reader sections are top-loaded.** When present, Goal Launch Block, Reader
-  Index, and Goal Capsule appear before Product Contract and long appendices.
-  They are for routing and completion discipline, not a hidden machine copy.
+  them by heading scan: `## Reader Index`, `## Goal Capsule`,
+  `## Product Contract`, `## Planning Contract`, `## Implementation Units`,
+  `## Verification Contract`, `## Definition of Done`, and optional
+  `## Appendix`. Requirements-only artifacts omit the plan-only sections
+  rather than emitting empty placeholders.
+- **Reader sections are top-loaded.** When present, Reader Index and Goal
+  Capsule appear before Product Contract and long appendices. They are for
+  routing and orientation, not a hidden machine copy.
 
 ## Format principles
 
@@ -111,9 +111,6 @@ are noisier in raw form and worse for diffs.
 How section types commonly render in markdown. These are patterns, not
 contracts — the agent picks the shape that fits the content.
 
-- **Goal Launch Block** — fenced `text` block containing the launch prompt,
-  followed by short prose naming when it applies. Keep it thin; reference the
-  plan sections that hold authority instead of duplicating them.
 - **Reader Index** — compact table with section name, heading, and when to
   read it. Keep it extractable and short.
 - **Goal Capsule** — bullets or a small table for objective, authority,

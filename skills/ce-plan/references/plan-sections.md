@@ -38,8 +38,8 @@ When the artifact is meant to be consumed by implementation agents, use:
     complete enough for `ce-work`, `/goal`, or an equivalent executor, **and no
     launch-blocking open question remains**. A plan that is otherwise complete
     but still has a blocking product/architecture question stays
-    `requirements-only`; its Goal Launch Block becomes a blocker-resolution /
-    planning goal, not an implementation goal. Deferred (non-blocking) questions
+    `requirements-only`, so the next step it routes to is blocker resolution /
+    planning, not implementation. Deferred (non-blocking) questions
     do not hold readiness back — mark each open question as blocking or deferred
     so this distinction is explicit.
 - **`product_contract_source`** — where the Product Contract came from:
@@ -70,7 +70,6 @@ skills grep or anchor-scan for these names before reading large bodies.
 
 | Logical section | Markdown heading | HTML id | Reader use |
 |---|---|---|---|
-| Goal Launch Block | `## Goal Launch Block` | `goal-launch-block` | Copyable launch prompts and host-specific execution guidance |
 | Reader Index | `## Reader Index` | `reader-index` | Compact map of where to read first and what to skip |
 | Goal Capsule | `## Goal Capsule` | `goal-capsule` | Objective, authority hierarchy, and stop conditions |
 | Product Contract | `## Product Contract` | `product-contract` | Requirements, actors, flows, acceptance examples, product scope |
@@ -81,13 +80,13 @@ skills grep or anchor-scan for these names before reading large bodies.
 | Definition of Done | `## Definition of Done` | `definition-of-done` | Global and per-unit completion criteria |
 | Appendix | `## Appendix` | `appendix` | Long research, raw notes, or supporting detail |
 
-Requirements-only artifacts are kept light: a single-line Goal Launch Block,
-a Goal Capsule, and the Product Contract. They omit the Reader Index (nothing
-to route across two sections) and must not point implementers at absent
-Planning Contract, Implementation Units, Verification Contract, or Definition
-of Done sections. `ce-plan` adds the Reader Index and those implementation
-sections when it enriches to implementation-ready. Implementation-ready
-artifacts include the full registry above, except Appendix remains optional.
+Requirements-only artifacts are kept light: a Goal Capsule and the Product
+Contract. They omit the Reader Index (nothing to route across two sections)
+and must not point implementers at absent Planning Contract, Implementation
+Units, Verification Contract, or Definition of Done sections. `ce-plan` adds
+the Reader Index and those implementation sections when it enriches to
+implementation-ready. Implementation-ready artifacts include the full registry
+above, except Appendix remains optional.
 
 The document exposes the `Reader Index`; consuming skills still own the
 reading algorithm. A downstream skill should locate metadata, the heading map,
@@ -150,20 +149,6 @@ message or `docs/solutions/` if they're worth carrying forward.
 When an implementation-ready software plan is warranted, these sections are
 present. They carry the contracts downstream consumers depend on.
 
-- **Goal Launch Block** — copyable launch prompts. The document is the
-  *detailed* authority, but the launch prompt must still be **evaluator-complete**:
-  goal-mode treats the prompt as both the objective and the completion criteria,
-  so every block carries a self-contained objective, stop/blocker rules,
-  top-level non-negotiables, and transcript-visible verification — then points to
-  document sections for detail. It does not duplicate the full requirements,
-  verification matrix, or implementation specifics. Keep two **visibly separate**
-  blocks when both apply: a **Human standalone launch** (`/goal` / dynamic
-  workflow) and a **Pipeline/caller launch**. Pipeline mode shows only
-  `ce-work mode:caller-owned-tail <plan-path>` — never `/goal` — because a caller
-  needs a synchronous structured return, not a thread the user must drive.
-  Launch prompts name the canonical **markdown** plan path: markdown is the
-  execution artifact for `ce-work`, `lfg`, and `/goal`; an HTML rendering is a
-  human-facing/report-only view and is never the goal-launch target.
 - **Reader Index** — compact section map and read strategy for downstream
   agents. It tells readers which sections to load for common tasks and which
   large sections to skip until referenced.

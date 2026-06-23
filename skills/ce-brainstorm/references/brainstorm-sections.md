@@ -37,26 +37,17 @@ artifact contract:
 A requirements-only unified plan is kept **light and standalone-readable** — it
 is a shareable requirements doc, not an agent-scaffolding dump. It includes:
 
-- `## Goal Launch Block` holding a **single** next-step line, e.g.
-  `Next step: run \`/ce-plan <path>\` to add the technical design,
-  implementation units, and verification.` No execution lecture, no
-  "do not run ce-work/goal", no stop-condition prose — `artifact_readiness:
-  requirements-only` in the frontmatter already carries that signal for agents,
-  and restating it as human-facing prose is process exhaust.
-- `## Goal Capsule` with objective, product authority, and open blockers. Do
-  **not** add a "stop condition: do not execute until implementation-ready"
-  line — that duplicates the frontmatter.
+- `## Goal Capsule` with objective, product authority, and open blockers.
 - `## Product Contract` containing the brainstorm sections below.
 
-Do **not** emit a `## Reader Index` for a requirements-only plan — with only a
-Goal Capsule and Product Contract there is nothing to route, and the index
-reads as ceremony. `ce-plan` adds the Reader Index (and the implementation
-sections) when it enriches the file to implementation-ready.
-
-It also omits empty `Planning Contract`, `Implementation Units`, `Verification
-Contract`, and `Definition of Done` sections. Empty placeholders make
-requirements-only docs look executable and waste downstream tokens. `ce-plan`
-adds those sections when it enriches the same file in place.
+Do **not** emit a `## Goal Launch Block` or `## Reader Index`: the launch prompt
+is skill-emitted at handoff, not a doc section, and a two-section requirements
+doc has nothing to route. It also omits empty `Planning Contract`,
+`Implementation Units`, `Verification Contract`, and `Definition of Done`
+sections — empty placeholders make requirements-only docs look executable and
+waste downstream tokens. `ce-plan` adds the Reader Index and those sections when
+it enriches the same file in place. The next step (planning) is conveyed by the
+Phase 4 handoff menu, not by a section in the doc.
 
 Historical `docs/brainstorms/*-requirements.*` files remain valid legacy
 inputs. Do not migrate or rewrite them when creating new artifacts.

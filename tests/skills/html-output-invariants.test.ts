@@ -384,7 +384,6 @@ describe("html-rendering.md reference content invariants", () => {
       "Reference must require a visible navigation region for unified plan artifacts.",
     ).toBe(true)
     for (const anchor of [
-      "goal-launch-block",
       "reader-index",
       "goal-capsule",
       "product-contract",
@@ -398,6 +397,8 @@ describe("html-rendering.md reference content invariants", () => {
         `Reference must name the stable section anchor "${anchor}" for unified-plan navigation.`,
       ).toBe(true)
     }
+    // The launch prompt is skill-emitted, not a doc section/anchor.
+    expect(REFERENCE.includes("goal-launch-block")).toBe(false)
   })
 
   test("requirements-only artifacts omit links to absent implementation sections", () => {
@@ -440,7 +441,6 @@ describe("html-rendering.md reference content invariants", () => {
     const tableStart = REFERENCE.indexOf("Stable section anchors for unified plans")
     const tableRegion = REFERENCE.slice(tableStart, tableStart + 1200)
     for (const anchor of [
-      "goal-launch-block",
       "reader-index",
       "product-contract",
     ]) {
