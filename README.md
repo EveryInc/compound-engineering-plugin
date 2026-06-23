@@ -254,9 +254,14 @@ pi install npm:pi-ask-user
 
 ### Antigravity CLI (`agy`)
 
-Google has replaced the consumer Gemini CLI with [Antigravity CLI](https://antigravity.google) (`agy`), which still runs on Gemini models. Unlike Gemini CLI, `agy` installs plugins from a **local checkout** (`agy plugin install <path>`), not a repository URL — so the supported flow is to clone this repository and install from the local path.
+Google has replaced the consumer Gemini CLI with [Antigravity CLI](https://antigravity.google) (`agy`), which still runs on Gemini models. Unlike Gemini CLI, `agy` installs plugins from a **local checkout** (not a repository URL), so clone this repository and install the bundled `.agy` plugin directory:
 
-Native `agy plugin install` packaging for this plugin is rolling out; in the meantime `agy` already loads `GEMINI.md` workspace context from a checkout.
+```bash
+git clone https://github.com/EveryInc/compound-engineering-plugin
+agy plugin install ./compound-engineering-plugin/.agy
+```
+
+`agy` also loads `GEMINI.md` workspace context from the checkout.
 
 ### Existing Installs
 
@@ -335,7 +340,11 @@ pi -e "$PWD"
 
 **Antigravity CLI (`agy`)**
 
-`agy` installs plugins from a local checkout (`agy plugin install <path>`). Native packaging for this plugin is rolling out; `agy` already loads `GEMINI.md` workspace context from this checkout.
+```bash
+agy plugin install "$PWD/.agy"
+```
+
+`agy` installs the bundled `.agy` plugin directory from your checkout and loads `GEMINI.md` workspace context.
 
 ## Limitations
 
