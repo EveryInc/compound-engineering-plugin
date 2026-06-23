@@ -429,6 +429,21 @@ function applyPermissions(
     if (hasSkillStubs) {
       enabled.add("skill")
       delete patterns["skill"]
+      // `from-commands` only allows tools that explicit commands declare. A
+      // generated stub can load its skill, but the skill body may need tools
+      // (read/bash/edit/...) that no command declared, so this mode denies
+      // them and the skill stalls mid-run. We allow `skill` so the stub at
+      // least loads; warn so the user can pick `none`/`broad` if their skills
+      // need to act. (The default install mode is `none`, which writes no
+      // permission block and is unaffected.)
+      if (enabled.size === 1) {
+        console.warn(
+          "Warning: --permissions from-commands restricts tools to those declared by explicit commands, " +
+            "but this plugin's slash commands are skill stubs with no declared tools. The stubs can load " +
+            "their skills, but the skills may be blocked from using read/bash/edit/etc. Use --permissions none " +
+            "(default) or broad if your skills need to act.",
+        )
+      }
     }
   }
 
