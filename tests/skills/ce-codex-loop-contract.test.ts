@@ -6,6 +6,68 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
+type FileSet = {
+  created: string[]
+  modified: string[]
+  deleted: string[]
+}
+
+type Manifest = FileSet & {
+  temporarily_indexed: string[]
+}
+
+type PlannedScope = FileSet & {
+  test_paths: string[]
+}
+
+type Fixture = {
+  scenario: string
+  terminal_status: string
+  stage_sequence: string[]
+  review_attempt_count: number
+  review_attempts: Array<{ attempt: number; status?: string; verdict?: string; eligible_actionable_findings?: string[] }>
+  planned_scope: PlannedScope
+  reviewed_manifest: Manifest
+  compound_outputs: FileSet
+  final_repository_delta: Manifest
+  finding_decisions: Array<Record<string, unknown>>
+  compound_invocation_count: number
+  actions: {
+    commit: boolean
+    push: boolean
+    pr: boolean
+    ci_watch: boolean
+    release: boolean
+  }
+  [key: string]: unknown
+}
+
+async function readFixture(name: string): Promise<Fixture> {
+  return JSON.parse(await readRepoFile(`tests/fixtures/ce-codex-loop/${name}.json`)) as Fixture
+}
+
+function manifestPaths(manifest: Manifest): string[] {
+  return [...manifest.created, ...manifest.modified, ...manifest.deleted, ...manifest.temporarily_indexed]
+}
+
+function fileSetPaths(fileSet: FileSet): string[] {
+  return [...fileSet.created, ...fileSet.modified, ...fileSet.deleted]
+}
+
+function uniqueSorted(values: string[]): string[] {
+  return [...new Set(values)].sort()
+}
+
+function expectNoShippingActions(fixture: Fixture): void {
+  expect(fixture.actions).toEqual({
+    commit: false,
+    push: false,
+    pr: false,
+    ci_watch: false,
+    release: false,
+  })
+}
+
 describe("ce-codex-loop contract", () => {
   test("defines a self-contained public orchestrator skill", async () => {
     const content = await readRepoFile("skills/ce-codex-loop/SKILL.md")
@@ -37,6 +99,10 @@ describe("ce-codex-loop contract", () => {
     expect(content).toContain("ce-compound mode:headless")
     expect(content).toContain("run exactly once")
     expect(content).toContain("only after clean review and green final verification")
+    expect(content).toContain("reviewed_manifest")
+    expect(content).toContain("compound_outputs")
+    expect(content).toContain("final_repository_delta")
+    expect(content).toContain("`compound_outputs` are reported separately")
 
     expect(content).toMatch(/must never commit/i)
     expect(content).toMatch(/must never push/i)
@@ -70,6 +136,22 @@ describe("ce-codex-loop contract", () => {
     }
   })
 
+  test("documents complete planned-scope extraction before the overlap gate", async () => {
+    const content = await readRepoFile("skills/ce-codex-loop/SKILL.md")
+
+    expect(content).toContain("## Planned Scope Extraction")
+    expect(content).toContain('"created": []')
+    expect(content).toContain('"modified": []')
+    expect(content).toContain('"deleted": []')
+    expect(content).toContain('"test_paths": []')
+    expect(content).toContain("Create, Modify, Delete, Test")
+    expect(content).toContain("inline test path phrases")
+    expect(content).toContain("Do not guess paths from ambiguous prose")
+    expect(content).toContain("Staged and unstaged changes both count")
+    expect(content).toContain("tests/math.test.ts")
+    expect(content).toContain("before `ce-work` runs")
+  })
+
   test("uses skill-local review followup policy only", async () => {
     const content = await readRepoFile("skills/ce-codex-loop/SKILL.md")
     const policy = await readRepoFile("skills/ce-codex-loop/references/review-followup-eligibility.md")
@@ -85,16 +167,21 @@ describe("ce-codex-loop contract", () => {
     expect(policy).not.toContain("skills/lfg")
   })
 
-  test("fixtures cover every terminal path", async () => {
+  test("fixtures cover every terminal path and common invariant", async () => {
     const fixtureDir = path.join(process.cwd(), "tests/fixtures/ce-codex-loop")
     const files = await readdir(fixtureDir)
     const statuses = new Set<string>()
 
     for (const file of files.filter((name) => name.endsWith(".json"))) {
-      const fixture = JSON.parse(await readFile(path.join(fixtureDir, file), "utf8")) as {
-        terminal_status?: string
-      }
+      const fixture = JSON.parse(await readFile(path.join(fixtureDir, file), "utf8")) as Fixture
       if (fixture.terminal_status) statuses.add(fixture.terminal_status)
+      expect(fixture.stage_sequence.length).toBeGreaterThan(0)
+      expect(fixture.review_attempts).toHaveLength(fixture.review_attempt_count)
+      expect(fixture).toHaveProperty("planned_scope")
+      expect(fixture).toHaveProperty("reviewed_manifest")
+      expect(fixture).toHaveProperty("compound_outputs")
+      expect(fixture).toHaveProperty("final_repository_delta")
+      expectNoShippingActions(fixture)
     }
 
     expect([...statuses].sort()).toEqual([
@@ -104,5 +191,146 @@ describe("ce-codex-loop contract", () => {
       "success",
       "unverified",
     ])
+  })
+
+  test("success fixture proves one review fix cycle and post-review compound separation", async () => {
+    const fixture = await readFixture("success")
+
+    expect(fixture.terminal_status).toBe("success")
+    expect(fixture.stage_sequence).toEqual([
+      "preflight",
+      "snapshot",
+      "overlap_gate",
+      "implementation",
+      "manifest_refresh:implementation",
+      "simplification",
+      "verification:simplification",
+      "review:attempt-1",
+      "review_followup",
+      "fix_wave:1",
+      "verification:fix_wave",
+      "manifest_refresh:fix_wave",
+      "review:attempt-2",
+      "final_verification",
+      "compound",
+      "report",
+    ])
+    expect(fixture.review_attempt_count).toBe(2)
+    expect(fixture.review_attempts[0]?.eligible_actionable_findings).toEqual(["F-001"])
+    expect(fixture.review_attempts[1]?.eligible_actionable_findings).toEqual([])
+    expect(fixture.fix_waves).toEqual([{ wave: 1, finding_ids: ["F-001"], verification_status: "passed" }])
+    expect(fixture.manifest_refreshes).toContain("after_fix_wave")
+    expect(fixture.compound_invocation_count).toBe(1)
+
+    const reviewed = manifestPaths(fixture.reviewed_manifest)
+    expect(reviewed).toEqual(["src/math.ts", "tests/math.test.ts"])
+    expect(fileSetPaths(fixture.compound_outputs)).toEqual(["docs/solutions/clamp-helper.md"])
+    expect(reviewed).not.toContain("docs/solutions/clamp-helper.md")
+    expect(uniqueSorted(manifestPaths(fixture.final_repository_delta))).toEqual(
+      uniqueSorted([...reviewed, ...fileSetPaths(fixture.compound_outputs)]),
+    )
+    expect(fixture.finding_decisions).toEqual([{ id: "F-001", decision: "applied", fix_wave: 1 }])
+  })
+
+  test("review exhaustion fixture proves exactly three attempts and no compound", async () => {
+    const fixture = await readFixture("failed-review-exhausted")
+
+    expect(fixture.terminal_status).toBe("failed")
+    expect(fixture.reason).toBe("review_attempts_exhausted")
+    expect(fixture.review_attempts.map((attempt) => attempt.attempt)).toEqual([1, 2, 3])
+    expect(fixture.absent_attempts).toEqual([4])
+    expect(fixture.stage_sequence).not.toContain("review:attempt-4")
+    expect(fixture.compound_invocation_count).toBe(0)
+    expect(fixture.finding_decisions.at(-1)).toEqual({
+      id: "F-003",
+      decision: "unresolved",
+      attempt: 3,
+    })
+  })
+
+  test("malformed primary JSON fallback accepts only the correlated artifact", async () => {
+    const fixture = await readFixture("malformed-primary-json-fallback")
+
+    expect(fixture.primary_response).toEqual({ malformed: true })
+    expect(fixture.stage_sequence).toContain("review_artifact_fallback")
+    expect(fixture.artifact_recovery).toEqual({
+      supplied_run_id: "ce-loop-review-1",
+      supplied_artifact_dir: "/tmp/ce-loop/review-1",
+      accepted_artifact: "/tmp/ce-loop/review-1/review.json",
+      rejected_artifacts: ["/tmp/ce-loop/review-newer-unrelated/review.json"],
+    })
+    expect(fixture.review_attempt_count).toBe(1)
+    expect(fixture.compound_invocation_count).toBe(1)
+  })
+
+  test("unverified fixture stops before review and compound when no command exists", async () => {
+    const fixture = await readFixture("unverified")
+
+    expect(fixture.terminal_status).toBe("unverified")
+    expect(fixture.verification_resolution).toEqual({
+      found: [],
+      inferred: [],
+      executed: [],
+    })
+    expect(fixture.review_attempt_count).toBe(0)
+    expect(fixture.compound_invocation_count).toBe(0)
+    expect(fixture.stage_sequence).not.toContain("review:attempt-1")
+    expect(fixture.stage_sequence).not.toContain("compound")
+  })
+
+  test("compound failure fixture proves one failed invocation without retry", async () => {
+    const fixture = await readFixture("compound-failed")
+
+    expect(fixture.terminal_status).toBe("quality_verified_but_compound_failed")
+    expect(fixture.quality_gates).toEqual({
+      simplification_verification: "passed",
+      review: "clean",
+      final_verification: "passed",
+    })
+    expect(fixture.compound_invocation_count).toBe(1)
+    expect(fixture.compound).toEqual({ status: "failed", retry_count: 0 })
+  })
+
+  test("out-of-manifest finding fixture rejects the finding and preserves unrelated content", async () => {
+    const fixture = await readFixture("out-of-manifest-finding")
+
+    expect(fixture.terminal_status).toBe("failed")
+    expect(fixture.finding_decisions).toEqual([
+      {
+        id: "F-OUT-001",
+        file: "docs/solutions/unreviewed.md",
+        decision: "rejected",
+        reason: "out_of_scope",
+        applied: false,
+      },
+    ])
+    expect(manifestPaths(fixture.reviewed_manifest)).not.toContain("docs/solutions/unreviewed.md")
+    expect(fixture.unrelated_file).toEqual({
+      path: "docs/solutions/unreviewed.md",
+      content_changed: false,
+    })
+    expect(fixture.compound_invocation_count).toBe(0)
+  })
+
+  test("pre-existing overlap fixture blocks before ce-work and preserves staged state", async () => {
+    const fixture = await readFixture("pre-existing-overlap")
+
+    expect(fixture.terminal_status).toBe("failed")
+    expect(fixture.stage_sequence).toEqual(["preflight", "snapshot", "overlap_gate", "report"])
+    expect(fixture.planned_scope).toEqual({
+      created: ["src/clamp.ts"],
+      modified: ["src/math.ts"],
+      deleted: ["src/legacyClamp.ts"],
+      test_paths: ["tests/math.test.ts"],
+    })
+    expect(fixture.overlap).toEqual({
+      tracked: ["tests/math.test.ts"],
+      untracked_create_collisions: ["src/clamp.ts"],
+      staged: ["tests/math.test.ts"],
+      unstaged: ["src/math.ts"],
+    })
+    expect(fixture.ce_work_invocation_count).toBe(0)
+    expect(fixture.original_bytes_preserved).toBe(true)
+    expect(fixture.staged_state_preserved).toBe(true)
   })
 })

@@ -1,6 +1,6 @@
 {
-  "scenario": "B5-compound-failure",
-  "terminal_status": "quality_verified_but_compound_failed",
+  "scenario": "B3-malformed-primary-json-fallback",
+  "terminal_status": "success",
   "stage_sequence": [
     "preflight",
     "snapshot",
@@ -10,6 +10,7 @@
     "simplification",
     "verification:simplification",
     "review:attempt-1",
+    "review_artifact_fallback",
     "final_verification",
     "compound",
     "report"
@@ -18,15 +19,22 @@
   "review_attempts": [
     {
       "attempt": 1,
+      "run_id": "ce-loop-review-1",
+      "artifact_path": "/tmp/ce-loop/review-1",
       "status": "complete",
-      "verdict": "Ready to merge",
-      "eligible_actionable_findings": []
+      "verdict": "Ready to merge"
     }
   ],
-  "quality_gates": {
-    "simplification_verification": "passed",
-    "review": "clean",
-    "final_verification": "passed"
+  "primary_response": {
+    "malformed": true
+  },
+  "artifact_recovery": {
+    "supplied_run_id": "ce-loop-review-1",
+    "supplied_artifact_dir": "/tmp/ce-loop/review-1",
+    "accepted_artifact": "/tmp/ce-loop/review-1/review.json",
+    "rejected_artifacts": [
+      "/tmp/ce-loop/review-newer-unrelated/review.json"
+    ]
   },
   "planned_scope": {
     "created": [],
@@ -41,21 +49,17 @@
     "temporarily_indexed": []
   },
   "compound_outputs": {
-    "created": [],
+    "created": ["docs/solutions/clamp-helper.md"],
     "modified": [],
     "deleted": []
   },
   "final_repository_delta": {
-    "created": [],
+    "created": ["docs/solutions/clamp-helper.md"],
     "modified": ["src/math.ts", "tests/math.test.ts"],
     "deleted": [],
     "temporarily_indexed": []
   },
   "finding_decisions": [],
-  "compound": {
-    "status": "failed",
-    "retry_count": 0
-  },
   "compound_invocation_count": 1,
   "actions": {
     "commit": false,

@@ -1,25 +1,30 @@
 {
-  "scenario": "already-satisfied",
-  "terminal_status": "already_satisfied",
+  "scenario": "B7-pre-existing-overlap",
+  "terminal_status": "failed",
+  "reason": "pre_existing_overlap",
   "stage_sequence": [
     "preflight",
     "snapshot",
     "overlap_gate",
-    "implementation",
     "report"
   ],
-  "already_satisfied_proof": {
-    "summary": "plan already satisfied",
-    "files": ["skills/example/SKILL.md"]
-  },
   "review_attempt_count": 0,
   "review_attempts": [],
   "planned_scope": {
-    "created": [],
-    "modified": ["skills/example/SKILL.md"],
-    "deleted": [],
-    "test_paths": []
+    "created": ["src/clamp.ts"],
+    "modified": ["src/math.ts"],
+    "deleted": ["src/legacyClamp.ts"],
+    "test_paths": ["tests/math.test.ts"]
   },
+  "overlap": {
+    "tracked": ["tests/math.test.ts"],
+    "untracked_create_collisions": ["src/clamp.ts"],
+    "staged": ["tests/math.test.ts"],
+    "unstaged": ["src/math.ts"]
+  },
+  "ce_work_invocation_count": 0,
+  "original_bytes_preserved": true,
+  "staged_state_preserved": true,
   "reviewed_manifest": {
     "created": [],
     "modified": [],

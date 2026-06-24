@@ -1,6 +1,7 @@
 {
-  "scenario": "B5-compound-failure",
-  "terminal_status": "quality_verified_but_compound_failed",
+  "scenario": "B6-out-of-manifest-finding",
+  "terminal_status": "failed",
+  "reason": "no_eligible_findings_after_non_clean_review",
   "stage_sequence": [
     "preflight",
     "snapshot",
@@ -10,8 +11,7 @@
     "simplification",
     "verification:simplification",
     "review:attempt-1",
-    "final_verification",
-    "compound",
+    "review_followup",
     "report"
   ],
   "review_attempt_count": 1,
@@ -19,15 +19,9 @@
     {
       "attempt": 1,
       "status": "complete",
-      "verdict": "Ready to merge",
-      "eligible_actionable_findings": []
+      "verdict": "Ready with fixes"
     }
   ],
-  "quality_gates": {
-    "simplification_verification": "passed",
-    "review": "clean",
-    "final_verification": "passed"
-  },
   "planned_scope": {
     "created": [],
     "modified": ["src/math.ts"],
@@ -51,12 +45,20 @@
     "deleted": [],
     "temporarily_indexed": []
   },
-  "finding_decisions": [],
-  "compound": {
-    "status": "failed",
-    "retry_count": 0
+  "finding_decisions": [
+    {
+      "id": "F-OUT-001",
+      "file": "docs/solutions/unreviewed.md",
+      "decision": "rejected",
+      "reason": "out_of_scope",
+      "applied": false
+    }
+  ],
+  "unrelated_file": {
+    "path": "docs/solutions/unreviewed.md",
+    "content_changed": false
   },
-  "compound_invocation_count": 1,
+  "compound_invocation_count": 0,
   "actions": {
     "commit": false,
     "push": false,

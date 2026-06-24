@@ -19,7 +19,24 @@ Every terminal report includes:
   "terminal_status": "success | failed | unverified | already_satisfied | quality_verified_but_compound_failed",
   "plan_path": "string",
   "stable_review_base": "string",
-  "manifest": {
+  "planned_scope": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "test_paths": []
+  },
+  "reviewed_manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "compound_outputs": {
+    "created": [],
+    "modified": [],
+    "deleted": []
+  },
+  "final_repository_delta": {
     "created": [],
     "modified": [],
     "deleted": [],
@@ -43,6 +60,12 @@ Every terminal report includes:
   }
 }
 ```
+
+`reviewed_manifest` is the exact refreshed loop-owned manifest supplied to the final `ce-code-review mode:agent` attempt. It contains only files that were included in simplification, review, review-followup, and final code verification.
+
+`compound_outputs` is captured by comparing repository state immediately before and after the single `ce-compound mode:headless` invocation. These paths are post-review outputs and must not be represented as reviewed.
+
+`final_repository_delta` is the complete repository delta from the initial workflow snapshot to terminal completion. It may contain both reviewed implementation files and later permitted compound outputs.
 
 ## Status Meanings
 

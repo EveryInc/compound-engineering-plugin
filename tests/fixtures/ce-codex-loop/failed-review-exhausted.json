@@ -1,5 +1,69 @@
 {
+  "scenario": "B2-review-exhaustion",
   "terminal_status": "failed",
   "reason": "review_attempts_exhausted",
-  "review_attempts": 3
+  "stage_sequence": [
+    "preflight",
+    "snapshot",
+    "overlap_gate",
+    "implementation",
+    "manifest_refresh:implementation",
+    "simplification",
+    "verification:simplification",
+    "review:attempt-1",
+    "review_followup",
+    "fix_wave:1",
+    "verification:fix_wave",
+    "manifest_refresh:fix_wave",
+    "review:attempt-2",
+    "review_followup",
+    "fix_wave:2",
+    "verification:fix_wave",
+    "manifest_refresh:fix_wave",
+    "review:attempt-3",
+    "report"
+  ],
+  "review_attempt_count": 3,
+  "review_attempts": [
+    { "attempt": 1, "status": "complete", "verdict": "Ready with fixes" },
+    { "attempt": 2, "status": "complete", "verdict": "Ready with fixes" },
+    { "attempt": 3, "status": "complete", "verdict": "Ready with fixes" }
+  ],
+  "absent_attempts": [4],
+  "planned_scope": {
+    "created": [],
+    "modified": ["src/math.ts"],
+    "deleted": [],
+    "test_paths": ["tests/math.test.ts"]
+  },
+  "reviewed_manifest": {
+    "created": [],
+    "modified": ["src/math.ts", "tests/math.test.ts"],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "compound_outputs": {
+    "created": [],
+    "modified": [],
+    "deleted": []
+  },
+  "final_repository_delta": {
+    "created": [],
+    "modified": ["src/math.ts", "tests/math.test.ts"],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "finding_decisions": [
+    { "id": "F-001", "decision": "applied", "fix_wave": 1 },
+    { "id": "F-002", "decision": "applied", "fix_wave": 2 },
+    { "id": "F-003", "decision": "unresolved", "attempt": 3 }
+  ],
+  "compound_invocation_count": 0,
+  "actions": {
+    "commit": false,
+    "push": false,
+    "pr": false,
+    "ci_watch": false,
+    "release": false
+  }
 }

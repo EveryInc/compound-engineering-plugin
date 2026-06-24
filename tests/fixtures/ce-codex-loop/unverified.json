@@ -1,4 +1,53 @@
 {
+  "scenario": "B4-unverified",
   "terminal_status": "unverified",
-  "reason": "no_relevant_verification_available"
+  "reason": "no_relevant_verification_available",
+  "stage_sequence": [
+    "preflight",
+    "snapshot",
+    "overlap_gate",
+    "implementation",
+    "manifest_refresh:implementation",
+    "simplification",
+    "report"
+  ],
+  "review_attempt_count": 0,
+  "review_attempts": [],
+  "verification_resolution": {
+    "found": [],
+    "inferred": [],
+    "executed": []
+  },
+  "planned_scope": {
+    "created": [],
+    "modified": ["src/math.ts"],
+    "deleted": [],
+    "test_paths": []
+  },
+  "reviewed_manifest": {
+    "created": [],
+    "modified": ["src/math.ts"],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "compound_outputs": {
+    "created": [],
+    "modified": [],
+    "deleted": []
+  },
+  "final_repository_delta": {
+    "created": [],
+    "modified": ["src/math.ts"],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "finding_decisions": [],
+  "compound_invocation_count": 0,
+  "actions": {
+    "commit": false,
+    "push": false,
+    "pr": false,
+    "ci_watch": false,
+    "release": false
+  }
 }

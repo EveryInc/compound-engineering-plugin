@@ -28,6 +28,9 @@ describe("ce-codex-loop schema contract", () => {
       "skipped_simplifications",
       "run_id",
       "artifact_path",
+      "planned_scope",
+      "reviewed_manifest",
+      "compound_outputs",
       "actionable_findings",
     ]) {
       expect(schemas).toContain(field)
@@ -51,7 +54,10 @@ describe("ce-codex-loop schema contract", () => {
     for (const field of [
       "plan_path",
       "stable_review_base",
-      "manifest",
+      "planned_scope",
+      "reviewed_manifest",
+      "compound_outputs",
+      "final_repository_delta",
       "stage_results",
       "verification",
       "review_attempts",
@@ -63,6 +69,8 @@ describe("ce-codex-loop schema contract", () => {
     ]) {
       expect(statuses).toContain(field)
     }
+    expect(statuses).not.toMatch(/\n\s+"manifest":\s*\{/)
+    expect(statuses).toContain("must not be represented as reviewed")
   })
 
   test("review success gate requires all clean-review predicates", async () => {

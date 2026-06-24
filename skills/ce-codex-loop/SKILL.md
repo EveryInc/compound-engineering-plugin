@@ -18,7 +18,7 @@ Allowed mutations are limited to implementation changes, behavior-preserving sim
 
 Input is a required existing code-execution plan path. Strip no shipping options because there are no shipping options.
 
-Reject missing, unreadable, `execution: knowledge-work`, or unsafe-scope plans before mutation. A safe plan has a concrete file scope from sections such as `Files`, `Implementation Units`, `Requirements`, `Test Scenarios`, or `Verification`. Plans without enough scope to distinguish loop-owned work fail closed.
+Reject missing, unreadable, `execution: knowledge-work`, or unsafe-scope plans before mutation. A safe plan has concrete repo-relative paths under each implementation unit's `Files:` section. Plans that declare mutation work but do not expose enough concrete `Files:` scope to distinguish loop-owned implementation and test work fail closed.
 
 Preflight downstream contracts before mutation:
 
@@ -42,17 +42,32 @@ Load `references/review-followup-eligibility.md` only after a valid review JSON 
 
 ## Execution Flow
 
-1. **Preflight.** Parse the plan, reject invalid input, resolve the downstream public tokens above, and record the verification commands implied by the plan.
+1. **Preflight.** Parse the plan, reject invalid input, extract planned scope, resolve the downstream public tokens above, and record the verification commands implied by the plan.
 2. **Snapshot.** Capture `HEAD`, staged entries, unstaged paths, untracked paths, and one stable review base. This `stable_review_base` is passed to every review attempt.
-3. **Overlap gate.** Build the initial loop-owned manifest from Plan file scope, stage structured file lists when available, and working-tree delta. Stop before mutation if pre-existing work overlaps the planned scope.
+3. **Overlap gate.** Build the initial loop-owned manifest from the precise planned scope, stage structured file lists when available, and working-tree delta. Stop before mutation if pre-existing staged or unstaged tracked work overlaps any planned implementation or test path, or if an untracked file already exists at a planned Create path.
 4. **Implementation.** Invoke `ce-work mode:implementation-only <plan-path>` and require a structured implementation result. `already_satisfied` is terminal only when it includes proof and identified files.
 5. **Manifest refresh.** Refresh the manifest after implementation, simplification, each fix wave, and each repair-or-revert pass. The manifest always distinguishes created, modified, deleted, and temporarily_indexed paths; v1 keeps `temporarily_indexed` empty.
-6. **Simplification.** Invoke `ce-simplify-code mode:structured manifest:<manifest-path>`. If relevant verification cannot be identified, return terminal `unverified`. If verification fails, return terminal `failed`.
-7. **Review loop.** Invoke `ce-code-review mode:agent base:<stable-base> manifest:<manifest-path> run-id:<run-id>`. Clean review requires all three predicates: status == complete, verdict == Ready to merge, and actionable_findings.length == 0.
+6. **Simplification.** Invoke `ce-simplify-code mode:structured manifest:<manifest-path>` with the refreshed loop-owned manifest only. If relevant verification cannot be identified, return terminal `unverified`. If verification fails, return terminal `failed`.
+7. **Review loop.** Invoke `ce-code-review mode:agent base:<stable-base> manifest:<manifest-path> run-id:<run-id>` with the refreshed loop-owned manifest only. The exact manifest supplied to the final review attempt becomes `reviewed_manifest`. Clean review requires all three predicates: status == complete, verdict == Ready to merge, and actionable_findings.length == 0.
 8. **Review followup.** For a non-clean review, process only `actionable_findings` through the local eligibility reference. Each non-clean attempt permits one eligible fix wave and one repair-or-revert pass, then requires green verification before re-review.
 9. **Final verification.** Run final verification commands after clean review. A red final verification is terminal `failed`.
-10. **Compound.** Invoke `ce-compound mode:headless` exactly once, run exactly once, only after clean review and green final verification. A compounding failure after quality is verified returns `quality_verified_but_compound_failed`.
+10. **Compound.** Invoke `ce-compound mode:headless` exactly once, run exactly once, only after clean review and green final verification. Snapshot repository state immediately before and after the invocation; the delta is `compound_outputs`. A compounding failure after quality is verified returns `quality_verified_but_compound_failed` without retry.
 11. **Report.** Emit the terminal report shape from `references/terminal-statuses.md`.
+
+## Planned Scope Extraction
+
+Before the overlap gate, inspect every implementation unit and parse every concrete repo-relative path declared under its `Files:` entry. Classify paths into:
+
+```json
+{
+  "created": [],
+  "modified": [],
+  "deleted": [],
+  "test_paths": []
+}
+```
+
+Treat labels equivalent to Create, Modify, Delete, Test, and inline test path phrases inside the `Files:` section as scope declarations. Do not guess paths from ambiguous prose in `Test Scenarios`, `Approach`, or `Verification`. The overlap gate evaluates the union of `created`, `modified`, `deleted`, and `test_paths` before `ce-work` runs. A pre-existing tracked edit to any planned implementation or test path blocks mutation; an existing untracked file at any planned Create path blocks mutation. Staged and unstaged changes both count. Test paths such as `tests/math.test.ts` remain in scope even when they are declared in a separate implementation unit from the production file.
 
 ## Review Attempt Rules
 
@@ -74,4 +89,4 @@ The only terminal statuses are:
 - `already_satisfied`
 - `quality_verified_but_compound_failed`
 
-Every terminal report includes the plan path, stable base, manifest, stage results, verification outcomes, review attempts with run IDs and artifact paths, finding decisions, compound state, and terminal status.
+Every terminal report includes the plan path, stable base, planned scope, `reviewed_manifest`, `compound_outputs`, `final_repository_delta`, stage results, verification outcomes, review attempts with run IDs and artifact paths, finding decisions, compound state, and terminal status. `reviewed_manifest` is the only repository-state manifest represented as having passed simplification, review, review-followup, and final code verification. `compound_outputs` are reported separately and must not be described as reviewed.

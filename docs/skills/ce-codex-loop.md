@@ -6,6 +6,8 @@
 
 It is intentionally narrower than `/lfg`. `/lfg` is the broad autonomous shipping path that can commit, push, open a PR, watch CI, and repair failures. `ce-codex-loop` stops at a structured terminal report and never performs outward shipping actions.
 
+The preflight step extracts concrete Create, Modify, Delete, and Test paths from each implementation unit's `Files:` entry before mutation. Existing staged or unstaged edits to any planned implementation or test path stop the run before `ce-work`; existing untracked files at planned Create paths also stop the run.
+
 ---
 
 ## Reference
@@ -22,6 +24,14 @@ The runtime uses these explicit composition contracts:
 - `ce-compound mode:headless`
 
 Terminal statuses are `success`, `failed`, `unverified`, `already_satisfied`, and `quality_verified_but_compound_failed`.
+
+Terminal reports separate repository state by lifecycle boundary:
+
+- `reviewed_manifest` is the exact loop-owned manifest supplied to simplification and the final code-review attempt.
+- `compound_outputs` lists files changed later by the single post-success `ce-compound mode:headless` invocation.
+- `final_repository_delta` is the complete delta from the initial snapshot to terminal completion.
+
+Compound outputs are reported as post-review side effects, not as files that passed the earlier code-review attempt.
 
 ## See Also
 

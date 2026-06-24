@@ -98,7 +98,7 @@ For the full catalog and how each skill chains together, see [docs/skills](docs/
 /ce-codex-loop docs/plans/2026-06-24-001-feat-example-plan.md
 ```
 
-`/ce-codex-loop` composes implementation-only work, manifest-scoped simplification, manifest-scoped JSON review, bounded review fixes, final verification, and post-success compounding. It never commits, pushes, creates or edits a PR, watches CI, or runs release automation.
+`/ce-codex-loop` composes implementation-only work, manifest-scoped simplification, manifest-scoped JSON review, bounded review fixes, final verification, and post-success compounding. It extracts concrete Create/Modify/Delete/Test paths before mutation, fails closed on overlapping pre-existing implementation or test edits, and reports reviewed work separately from later compound outputs. It never commits, pushes, creates or edits a PR, watches CI, or runs release automation.
 
 ## Getting Started
 
