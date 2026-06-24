@@ -16,6 +16,12 @@ type Manifest = FileSet & {
   temporarily_indexed: string[]
 }
 
+type ManifestCheckpoint = {
+  label: string
+  manifest: Manifest
+  validated: boolean
+}
+
 type PlannedScope = FileSet & {
   test_paths: string[]
 }
@@ -27,6 +33,7 @@ type Fixture = {
   review_attempt_count: number
   review_attempts: Array<{ attempt: number; status?: string; verdict?: string; eligible_actionable_findings?: string[] }>
   planned_scope: PlannedScope
+  manifest_checkpoints?: ManifestCheckpoint[]
   reviewed_manifest: Manifest
   compound_outputs: FileSet
   final_repository_delta: Manifest
@@ -68,6 +75,17 @@ function expectNoShippingActions(fixture: Fixture): void {
   })
 }
 
+function checkpoint(fixture: Fixture, label: string): ManifestCheckpoint {
+  const found = fixture.manifest_checkpoints?.find((entry) => entry.label === label)
+  expect(found).toBeDefined()
+  expect(found?.validated).toBe(true)
+  return found as ManifestCheckpoint
+}
+
+function expectManifestEquals(actual: Manifest, expected: Manifest): void {
+  expect(actual).toEqual(expected)
+}
+
 describe("ce-codex-loop contract", () => {
   test("defines a self-contained public orchestrator skill", async () => {
     const content = await readRepoFile("skills/ce-codex-loop/SKILL.md")
@@ -103,6 +121,9 @@ describe("ce-codex-loop contract", () => {
     expect(content).toContain("compound_outputs")
     expect(content).toContain("final_repository_delta")
     expect(content).toContain("`compound_outputs` are reported separately")
+    expect(content).toContain("## Manifest Checkpoints")
+    expect(content).toContain("before_review_attempt:<n>")
+    expect(content).toContain("before_final_verification")
 
     expect(content).toMatch(/must never commit/i)
     expect(content).toMatch(/must never push/i)
@@ -181,6 +202,11 @@ describe("ce-codex-loop contract", () => {
       expect(fixture).toHaveProperty("reviewed_manifest")
       expect(fixture).toHaveProperty("compound_outputs")
       expect(fixture).toHaveProperty("final_repository_delta")
+      for (const checkpoint of fixture.manifest_checkpoints ?? []) {
+        expect(checkpoint.label.length).toBeGreaterThan(0)
+        expect(checkpoint.validated).toBe(true)
+        expect(checkpoint.manifest).toHaveProperty("temporarily_indexed")
+      }
       expectNoShippingActions(fixture)
     }
 
@@ -230,6 +256,170 @@ describe("ce-codex-loop contract", () => {
       uniqueSorted([...reviewed, ...fileSetPaths(fixture.compound_outputs)]),
     )
     expect(fixture.finding_decisions).toEqual([{ id: "F-001", decision: "applied", fix_wave: 1 }])
+  })
+
+  test("simplification scope changes refresh the manifest before verification and review", async () => {
+    const fixture = await readFixture("simplification-changes-scope")
+
+    expect(fixture.terminal_status).toBe("success")
+    expect(fixture.stage_sequence).toEqual([
+      "preflight",
+      "snapshot",
+      "overlap_gate",
+      "implementation",
+      "manifest_checkpoint:after_implementation",
+      "simplification",
+      "manifest_checkpoint:after_simplification",
+      "manifest_checkpoint:before_simplification_verification",
+      "verification:simplification",
+      "manifest_checkpoint:before_review_attempt-1",
+      "review:attempt-1",
+      "manifest_checkpoint:before_final_verification",
+      "final_verification",
+      "compound",
+      "report",
+    ])
+    expect(fixture.review_attempt_count).toBe(1)
+    expect(fixture.compound_invocation_count).toBe(1)
+
+    const postSimplification = checkpoint(fixture, "after_simplification").manifest
+    expect(postSimplification.created).toEqual(["src/clamp.ts"])
+    expectManifestEquals(checkpoint(fixture, "before_simplification_verification").manifest, postSimplification)
+    expectManifestEquals(checkpoint(fixture, "before_review_attempt:1").manifest, postSimplification)
+    expectManifestEquals(fixture.reviewed_manifest, postSimplification)
+    expect(fixture.simplification).toEqual({
+      files: {
+        created: ["src/clamp.ts"],
+        modified: [],
+        deleted: [],
+      },
+    })
+    expect(fileSetPaths(fixture.compound_outputs)).toEqual(["docs/solutions/clamp-helper.md"])
+    expect(manifestPaths(fixture.reviewed_manifest)).not.toContain("docs/solutions/clamp-helper.md")
+  })
+
+  test("no-op simplification still records a validated post-simplification checkpoint", async () => {
+    const fixture = await readFixture("noop-simplification-checkpoint")
+
+    expect(fixture.terminal_status).toBe("success")
+    expect(fixture.stage_sequence).toEqual([
+      "preflight",
+      "snapshot",
+      "overlap_gate",
+      "implementation",
+      "manifest_checkpoint:after_implementation",
+      "simplification",
+      "manifest_checkpoint:after_simplification",
+      "manifest_checkpoint:before_simplification_verification",
+      "verification:simplification",
+      "manifest_checkpoint:before_review_attempt-1",
+      "review:attempt-1",
+      "manifest_checkpoint:before_final_verification",
+      "final_verification",
+      "compound",
+      "report",
+    ])
+    expect(fixture.review_attempt_count).toBe(1)
+    expect(fixture.compound_invocation_count).toBe(1)
+    expect(fixture.simplification).toEqual({
+      files: {
+        created: [],
+        modified: [],
+        deleted: [],
+      },
+    })
+
+    const afterImplementation = checkpoint(fixture, "after_implementation").manifest
+    expectManifestEquals(checkpoint(fixture, "after_simplification").manifest, afterImplementation)
+    expectManifestEquals(checkpoint(fixture, "before_simplification_verification").manifest, afterImplementation)
+    expectManifestEquals(checkpoint(fixture, "before_review_attempt:1").manifest, afterImplementation)
+    expectManifestEquals(fixture.reviewed_manifest, afterImplementation)
+  })
+
+  test("review fixes that change scope refresh before verification and re-review", async () => {
+    const fixture = await readFixture("review-fix-changes-scope")
+
+    expect(fixture.terminal_status).toBe("success")
+    expect(fixture.stage_sequence).toEqual([
+      "preflight",
+      "snapshot",
+      "overlap_gate",
+      "implementation",
+      "manifest_checkpoint:after_implementation",
+      "simplification",
+      "manifest_checkpoint:after_simplification",
+      "manifest_checkpoint:before_simplification_verification",
+      "verification:simplification",
+      "manifest_checkpoint:before_review_attempt-1",
+      "review:attempt-1",
+      "review_followup",
+      "fix_wave:1",
+      "manifest_checkpoint:after_review_fix-1",
+      "manifest_checkpoint:before_fix_verification-1",
+      "verification:fix_wave-1",
+      "manifest_checkpoint:before_review_attempt-2",
+      "review:attempt-2",
+      "manifest_checkpoint:before_final_verification",
+      "final_verification",
+      "compound",
+      "report",
+    ])
+    expect(fixture.review_attempt_count).toBe(2)
+    expect(fixture.compound_invocation_count).toBe(1)
+    expect(fixture.finding_decisions).toEqual([{ id: "F-TEST-001", decision: "applied", fix_wave: 1 }])
+
+    const afterFix = checkpoint(fixture, "after_review_fix:1").manifest
+    expect(afterFix.created).toEqual(["tests/clamp-edge.test.ts"])
+    expectManifestEquals(checkpoint(fixture, "before_fix_verification:1").manifest, afterFix)
+    expectManifestEquals(checkpoint(fixture, "before_review_attempt:2").manifest, afterFix)
+    expectManifestEquals(fixture.reviewed_manifest, afterFix)
+  })
+
+  test("repair or revert after red verification refreshes before repair verification and re-review", async () => {
+    const fixture = await readFixture("repair-revert-refresh")
+
+    expect(fixture.terminal_status).toBe("success")
+    expect(fixture.stage_sequence).toEqual([
+      "preflight",
+      "snapshot",
+      "overlap_gate",
+      "implementation",
+      "manifest_checkpoint:after_implementation",
+      "simplification",
+      "manifest_checkpoint:after_simplification",
+      "manifest_checkpoint:before_simplification_verification",
+      "verification:simplification",
+      "manifest_checkpoint:before_review_attempt-1",
+      "review:attempt-1",
+      "review_followup",
+      "fix_wave:1",
+      "manifest_checkpoint:after_review_fix-1",
+      "manifest_checkpoint:before_fix_verification-1",
+      "verification:fix_wave-1:red",
+      "repair_or_revert:1",
+      "manifest_checkpoint:after_repair_or_revert-1",
+      "manifest_checkpoint:before_repair_verification-1",
+      "verification:repair-1",
+      "manifest_checkpoint:before_review_attempt-2",
+      "review:attempt-2",
+      "manifest_checkpoint:before_final_verification",
+      "final_verification",
+      "compound",
+      "report",
+    ])
+    expect(fixture.review_attempt_count).toBe(2)
+    expect(fixture.compound_invocation_count).toBe(1)
+    expect(fixture.verification_gates).toEqual({
+      fix_wave_1: "failed",
+      repair_1: "passed",
+    })
+
+    const repaired = checkpoint(fixture, "after_repair_or_revert:1").manifest
+    expect(repaired.created).toEqual([])
+    expect(repaired.modified).toEqual(["src/math.ts", "tests/math.test.ts"])
+    expectManifestEquals(checkpoint(fixture, "before_repair_verification:1").manifest, repaired)
+    expectManifestEquals(checkpoint(fixture, "before_review_attempt:2").manifest, repaired)
+    expectManifestEquals(fixture.reviewed_manifest, repaired)
   })
 
   test("review exhaustion fixture proves exactly three attempts and no compound", async () => {

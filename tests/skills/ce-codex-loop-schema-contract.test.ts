@@ -29,6 +29,9 @@ describe("ce-codex-loop schema contract", () => {
       "run_id",
       "artifact_path",
       "planned_scope",
+      "manifest_checkpoint",
+      "manifest_checkpoints",
+      "validated",
       "reviewed_manifest",
       "compound_outputs",
       "actionable_findings",
@@ -55,6 +58,7 @@ describe("ce-codex-loop schema contract", () => {
       "plan_path",
       "stable_review_base",
       "planned_scope",
+      "manifest_checkpoints",
       "reviewed_manifest",
       "compound_outputs",
       "final_repository_delta",
@@ -69,7 +73,8 @@ describe("ce-codex-loop schema contract", () => {
     ]) {
       expect(statuses).toContain(field)
     }
-    expect(statuses).not.toMatch(/\n\s+"manifest":\s*\{/)
+    expect(statuses).not.toMatch(/\n  "manifest":\s*\{/)
+    expect(statuses).toContain("checkpoint immediately before the final review attempt must equal `reviewed_manifest`")
     expect(statuses).toContain("must not be represented as reviewed")
   })
 

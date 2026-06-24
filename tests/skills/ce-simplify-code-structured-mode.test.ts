@@ -45,5 +45,7 @@ describe("ce-simplify-code structured manifest mode", () => {
     }
     expect(schema).toContain("Failed verification reports `failed`")
     expect(schema).toContain("does not claim behavior preservation")
+    expect(schema).toContain("Orchestrators must refresh their manifest after this stage even when every list is empty")
+    expect(schema).toContain("downstream verification and review must receive the refreshed post-simplification manifest")
   })
 })

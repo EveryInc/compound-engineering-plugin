@@ -38,11 +38,28 @@ describe("ce-codex-loop manifest contract", () => {
   test("orchestrator refreshes manifest after each mutating stage", async () => {
     const content = await readRepoFile("skills/ce-codex-loop/SKILL.md")
 
-    expect(content).toContain("Refresh the manifest after implementation, simplification, each fix wave, and each repair-or-revert pass")
+    expect(content).toContain("Refresh and validate the manifest after implementation")
+    expect(content).toContain("immediately before every verification command")
+    expect(content).toContain("immediately before every review attempt")
     expect(content).toContain("created, modified, deleted, and temporarily_indexed")
     expect(content).toContain("precise planned scope")
     expect(content).toContain("stage structured file lists")
     expect(content).toContain("working-tree delta")
+  })
+
+  test("manifest reference defines checkpoint gates for simplify, review, fix, and repair", async () => {
+    const content = await readRepoFile("skills/ce-codex-loop/references/working-tree-manifest.md")
+
+    expect(content).toContain("## Manifest Checkpoints")
+    expect(content).toContain('"label": "after_simplification | before_review_attempt:1 | before_final_verification"')
+    expect(content).toContain('"validated": true')
+    expect(content).toContain("before post-simplification verification")
+    expect(content).toContain("before every review attempt")
+    expect(content).toContain("before every post-fix verification")
+    expect(content).toContain("before every post-repair verification")
+    expect(content).toContain("post-simplification checkpoint must include that file")
+    expect(content).toContain("no-op simplification may preserve the same manifest content")
+    expect(content).toContain("Review fixes and repair/revert passes follow the same rule")
   })
 
   test("terminal report separates reviewed manifest, compound outputs, and final delta", async () => {

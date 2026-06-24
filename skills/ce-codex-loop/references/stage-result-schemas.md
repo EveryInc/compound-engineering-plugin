@@ -75,6 +75,30 @@ Required fields:
 
 Failed verification reports `failed` and does not claim behavior preservation.
 
+The `files` object is the simplification delta. Any created, modified, or deleted path in that delta must be folded into a refreshed manifest checkpoint before verification or review. A no-op simplification still produces a post-simplification checkpoint with the current manifest.
+
+## Manifest Checkpoint Stage
+
+Required fields:
+
+```json
+{
+  "stage": "manifest_checkpoint",
+  "label": "string",
+  "manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "validated": true
+}
+```
+
+Manifest checkpoints are required after implementation, after simplification, after each fix wave, after each repair or revert, immediately before every verification, and immediately before every review attempt.
+
+Terminal reports aggregate these records in `manifest_checkpoints`.
+
 ## Review Stage
 
 Required fields:

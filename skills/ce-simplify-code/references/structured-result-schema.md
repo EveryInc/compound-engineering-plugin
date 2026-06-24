@@ -38,3 +38,5 @@ The manifest is the only scope. Missing, unreadable, or empty manifest fails clo
 ```
 
 Failed verification reports `failed` and does not claim behavior preservation.
+
+The `files` object is the simplification delta. Orchestrators must refresh their manifest after this stage even when every list is empty. If any list contains a path, downstream verification and review must receive the refreshed post-simplification manifest rather than the pre-simplification input manifest.

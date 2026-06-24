@@ -62,6 +62,37 @@ The overlap gate evaluates the union of `created`, `modified`, `deleted`, and `t
 
 Refresh the manifest after implementation, simplification, each fix wave, and each repair-or-revert pass.
 
+## Manifest Checkpoints
+
+Every refreshed manifest used as an orchestration gate is recorded as a checkpoint:
+
+```json
+{
+  "label": "after_simplification | before_review_attempt:1 | before_final_verification",
+  "manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "validated": true
+}
+```
+
+Required checkpoints:
+
+- after implementation,
+- after simplification,
+- before post-simplification verification,
+- before every review attempt,
+- after every review-fix wave,
+- before every post-fix verification,
+- after every repair or revert,
+- before every post-repair verification,
+- before final verification.
+
+If simplification changes scope by creating, modifying, or deleting a file, the post-simplification checkpoint must include that file and all later verification and review gates use the refreshed checkpoint. A no-op simplification may preserve the same manifest content, but it still records a checkpoint proving the current manifest was validated. Review fixes and repair/revert passes follow the same rule: refresh before testing and before any subsequent review.
+
 ## Terminal Deltas
 
 The terminal report separates repository state by lifecycle boundary:

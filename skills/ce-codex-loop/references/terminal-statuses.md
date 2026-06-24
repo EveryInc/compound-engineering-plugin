@@ -31,6 +31,18 @@ Every terminal report includes:
     "deleted": [],
     "temporarily_indexed": []
   },
+  "manifest_checkpoints": [
+    {
+      "label": "string",
+      "manifest": {
+        "created": [],
+        "modified": [],
+        "deleted": [],
+        "temporarily_indexed": []
+      },
+      "validated": true
+    }
+  ],
   "compound_outputs": {
     "created": [],
     "modified": [],
@@ -62,6 +74,8 @@ Every terminal report includes:
 ```
 
 `reviewed_manifest` is the exact refreshed loop-owned manifest supplied to the final `ce-code-review mode:agent` attempt. It contains only files that were included in simplification, review, review-followup, and final code verification.
+
+`manifest_checkpoints` records every refreshed manifest used at orchestration gates. The checkpoint immediately before the final review attempt must equal `reviewed_manifest`.
 
 `compound_outputs` is captured by comparing repository state immediately before and after the single `ce-compound mode:headless` invocation. These paths are post-review outputs and must not be represented as reviewed.
 

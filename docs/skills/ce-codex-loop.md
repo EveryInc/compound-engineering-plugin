@@ -8,6 +8,8 @@ It is intentionally narrower than `/lfg`. `/lfg` is the broad autonomous shippin
 
 The preflight step extracts concrete Create, Modify, Delete, and Test paths from each implementation unit's `Files:` entry before mutation. Existing staged or unstaged edits to any planned implementation or test path stop the run before `ce-work`; existing untracked files at planned Create paths also stop the run.
 
+The loop records manifest checkpoints after implementation, after simplification, after review fixes and repairs, and immediately before verification and review gates. A simplification or review fix that changes file scope refreshes the manifest before the next verification or review; a no-op simplification still records a validated checkpoint.
+
 ---
 
 ## Reference
