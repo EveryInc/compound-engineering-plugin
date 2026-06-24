@@ -64,6 +64,31 @@
       "attempt": 1,
       "plan_path": "docs/plans/clamp-feature.md",
       "plan_source": "explicit",
+      "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
+      "reviewed_manifest": {
+        "created": [],
+        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "deleted": [],
+        "temporarily_indexed": []
+      },
+      "review_json": {
+        "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
+        "reviewed_manifest": {
+          "created": [],
+          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "deleted": [],
+          "temporarily_indexed": []
+        }
+      },
+      "metadata_json": {
+        "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
+        "reviewed_manifest": {
+          "created": [],
+          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "deleted": [],
+          "temporarily_indexed": []
+        }
+      },
       "requirements_completeness": {
         "plan_source": "explicit",
         "status": "evaluated"
@@ -73,6 +98,31 @@
       "attempt": 2,
       "plan_path": "docs/plans/clamp-feature.md",
       "plan_source": "explicit",
+      "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
+      "reviewed_manifest": {
+        "created": [],
+        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "deleted": [],
+        "temporarily_indexed": []
+      },
+      "review_json": {
+        "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
+        "reviewed_manifest": {
+          "created": [],
+          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "deleted": [],
+          "temporarily_indexed": []
+        }
+      },
+      "metadata_json": {
+        "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
+        "reviewed_manifest": {
+          "created": [],
+          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "deleted": [],
+          "temporarily_indexed": []
+        }
+      },
       "requirements_completeness": {
         "plan_source": "explicit",
         "status": "evaluated"
@@ -82,6 +132,31 @@
       "attempt": 3,
       "plan_path": "docs/plans/clamp-feature.md",
       "plan_source": "explicit",
+      "manifest_path": "/tmp/ce-loop/manifest-attempt-3.json",
+      "reviewed_manifest": {
+        "created": [],
+        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "deleted": [],
+        "temporarily_indexed": []
+      },
+      "review_json": {
+        "manifest_path": "/tmp/ce-loop/manifest-attempt-3.json",
+        "reviewed_manifest": {
+          "created": [],
+          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "deleted": [],
+          "temporarily_indexed": []
+        }
+      },
+      "metadata_json": {
+        "manifest_path": "/tmp/ce-loop/manifest-attempt-3.json",
+        "reviewed_manifest": {
+          "created": [],
+          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "deleted": [],
+          "temporarily_indexed": []
+        }
+      },
       "requirements_completeness": {
         "plan_source": "explicit",
         "status": "evaluated"

@@ -45,6 +45,16 @@ type Fixture = {
     attempt: number
     plan_path: string
     plan_source: string
+    manifest_path: string
+    reviewed_manifest: Manifest
+    review_json?: {
+      manifest_path: string
+      reviewed_manifest: Manifest
+    }
+    metadata_json?: {
+      manifest_path: string
+      reviewed_manifest: Manifest
+    }
     requirements_completeness: Record<string, unknown> | null
   }>
   planned_scope: PlannedScope
@@ -120,8 +130,15 @@ function expectExplicitPlanReviewInvocations(fixture: Fixture, expectedAttempts:
   }
 
   for (const output of fixture.review_outputs ?? []) {
+    const invocation = fixture.review_invocations?.find((entry) => entry.attempt === output.attempt)
+    expect(invocation).toBeDefined()
     expect(output.plan_path).toBe(expectedPlan)
     expect(output.plan_source).toBe("explicit")
+    expect(output.manifest_path).toBe(invocation?.manifest_path)
+    expect(output.reviewed_manifest).toEqual(output.review_json?.reviewed_manifest)
+    expect(output.reviewed_manifest).toEqual(output.metadata_json?.reviewed_manifest)
+    expect(output.review_json?.manifest_path).toBe(output.manifest_path)
+    expect(output.metadata_json?.manifest_path).toBe(output.manifest_path)
     expect(output.requirements_completeness).not.toBeNull()
     expect(output.requirements_completeness?.plan_source).toBe("explicit")
   }
@@ -443,6 +460,17 @@ describe("ce-codex-loop contract", () => {
     expectManifestEquals(checkpoint(fixture, "before_fix_verification:1").manifest, afterFix)
     expectManifestEquals(checkpoint(fixture, "before_review_attempt:2").manifest, afterFix)
     expectManifestEquals(fixture.reviewed_manifest, afterFix)
+    expect(fixture.review_outputs?.at(0)?.reviewed_manifest).toEqual(
+      checkpoint(fixture, "before_review_attempt:1").manifest,
+    )
+    expect(fixture.review_outputs?.at(1)?.reviewed_manifest).toEqual(afterFix)
+    expect(fixture.stale_manifest_guard).toEqual({
+      mismatched_attempt: 2,
+      expected_manifest: afterFix,
+      returned_manifest: checkpoint(fixture, "before_review_attempt:1").manifest,
+      terminal_status: "failed",
+      stopped_before: ["review_followup", "fix_wave", "review:attempt-3", "compound"],
+    })
   })
 
   test("repair or revert after red verification refreshes before repair verification and re-review", async () => {
@@ -518,6 +546,11 @@ describe("ce-codex-loop contract", () => {
       supplied_artifact_dir: "/tmp/ce-loop/review-1",
       accepted_artifact: "/tmp/ce-loop/review-1/review.json",
       rejected_artifacts: ["/tmp/ce-loop/review-newer-unrelated/review.json"],
+    })
+    expect(fixture.recovered_review_json).toEqual(fixture.recovered_metadata_json)
+    expect(fixture.recovered_review_json).toMatchObject({
+      manifest_path: "/tmp/ce-loop/manifest-attempt-1.json",
+      reviewed_manifest: fixture.reviewed_manifest,
     })
     expect(fixture.review_attempt_count).toBe(1)
     expect(fixture.compound_invocation_count).toBe(1)

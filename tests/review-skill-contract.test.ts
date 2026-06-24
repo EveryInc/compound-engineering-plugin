@@ -53,6 +53,8 @@ describe("ce-code-review contract", () => {
     expect(content).toContain('"status": "complete"')
     expect(content).toContain('"plan_path": "docs/plans/example.md | null"')
     expect(content).toContain('"plan_source": "explicit | inferred | none"')
+    expect(content).toContain('"manifest_path": "/absolute/path/to/manifest.json | null"')
+    expect(content).toContain('"reviewed_manifest": {')
     expect(content).toContain("requirements_completeness` carries the detailed requirement/unit assessment")
     expect(content).toContain("review.json")
 

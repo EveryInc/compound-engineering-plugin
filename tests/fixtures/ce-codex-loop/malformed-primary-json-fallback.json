@@ -48,6 +48,24 @@
     "deleted": [],
     "temporarily_indexed": []
   },
+  "recovered_review_json": {
+    "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["src/math.ts", "tests/math.test.ts"],
+      "deleted": [],
+      "temporarily_indexed": []
+    }
+  },
+  "recovered_metadata_json": {
+    "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["src/math.ts", "tests/math.test.ts"],
+      "deleted": [],
+      "temporarily_indexed": []
+    }
+  },
   "compound_outputs": {
     "created": ["docs/solutions/clamp-helper.md"],
     "modified": [],

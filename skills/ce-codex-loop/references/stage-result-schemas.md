@@ -111,6 +111,7 @@ Required fields:
   "run_id": "string",
   "artifact_path": "string",
   "plan_path": "string",
+  "manifest_path": "string",
   "reviewed_manifest": {
     "created": [],
     "modified": [],
@@ -125,7 +126,7 @@ Required fields:
 }
 ```
 
-Every review stage is produced from `ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>`. `plan_path` must equal the original supplied plan path for every attempt. `artifact_path` must equal the exact per-attempt artifact directory supplied to `ce-code-review` with a trailing slash, and malformed-primary fallback reads only `<artifact_path>/review.json`. Review JSON must report top-level `plan_path`, top-level `plan_source: "explicit"`, and non-null `requirements_completeness`; missing, malformed, or inferred plan context is terminal `failed` for `ce-codex-loop`.
+Every review stage is produced from `ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>`. `plan_path` must equal the original supplied plan path for every attempt. `artifact_path` must equal the exact per-attempt artifact directory supplied to `ce-code-review` with a trailing slash, and malformed-primary fallback reads only `<artifact_path>/review.json`. Review JSON must report top-level `plan_path`, top-level `plan_source: "explicit"`, and non-null `requirements_completeness`; missing, malformed, or inferred plan context is terminal `failed` for `ce-codex-loop`. Review JSON must also report `manifest_path` equal to the supplied manifest path and `reviewed_manifest` exactly equal to the manifest supplied to that attempt. Primary JSON, `review.json`, and `metadata.json` must agree on `manifest_path` and `reviewed_manifest`; mismatch or stale manifest echo is terminal `failed` before fixes, re-review, final verification, or compound.
 
 Clean review requires all three predicates: status == complete, verdict == Ready to merge, and actionable_findings.length == 0.
 

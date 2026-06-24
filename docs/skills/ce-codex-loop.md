@@ -25,7 +25,7 @@ The runtime uses these explicit composition contracts:
 - `ce-code-review mode:agent plan:<plan-path> base:<ref> manifest:<path> run-id:<id> artifact-dir:<path>`
 - `ce-compound mode:headless`
 
-Every review response is checked for top-level `plan_path` and `plan_source` correlation: the returned `plan_path` must match the original plan, `plan_source` must be `explicit`, and detailed `requirements_completeness` must be present.
+Every review response is checked for top-level `plan_path` and `plan_source` correlation: the returned `plan_path` must match the original plan, `plan_source` must be `explicit`, and detailed `requirements_completeness` must be present. The loop also verifies `manifest_path` and `reviewed_manifest` against the manifest supplied to that review attempt, and requires primary JSON, `review.json`, and `metadata.json` to agree before any fix, re-review, final verification, or compound stage can continue.
 
 Terminal statuses are `success`, `failed`, `unverified`, `already_satisfied`, and `quality_verified_but_compound_failed`.
 

@@ -29,6 +29,16 @@ type ArtifactRoutingFixture = {
     inferred_plan: PlanCorrelationCase
     no_plan: PlanCorrelationCase
   }
+  manifest_correlation: {
+    with_manifest: ManifestCorrelationCase
+    no_manifest: ManifestCorrelationCase
+    invalid_manifests: Array<{
+      case: string
+      status: string
+      reviewer_dispatch_count: number
+      reason: string
+    }>
+  }
   collision: {
     artifact_dir: string
     status: string
@@ -60,6 +70,21 @@ type PlanCorrelationCase = {
   plan_path: string | null
   plan_source: "explicit" | "inferred" | "none"
   requirements_completeness: Record<string, unknown> | null
+}
+
+type ReviewedManifest = {
+  created: string[]
+  modified: string[]
+  deleted: string[]
+  temporarily_indexed: string[]
+}
+
+type ManifestCorrelationCase = {
+  input: { mode: string; manifest_path: string | null }
+  manifest_path: string | null
+  reviewed_manifest: ReviewedManifest | null
+  review_json?: { manifest_path: string; reviewed_manifest: ReviewedManifest }
+  metadata_json?: { manifest_path: string; reviewed_manifest: ReviewedManifest }
 }
 
 async function readArtifactRoutingFixture(): Promise<ArtifactRoutingFixture> {
@@ -95,13 +120,40 @@ describe("ce-code-review run correlation", () => {
     expect(content).toContain('"artifact_path": "<resolved_artifact_dir>/"')
     expect(content).toContain('"plan_path": "docs/plans/example.md | null"')
     expect(content).toContain('"plan_source": "explicit | inferred | none"')
+    expect(content).toContain('"manifest_path": "/absolute/path/to/manifest.json | null"')
+    expect(content).toContain('"reviewed_manifest": {')
     expect(content).toContain("top-level `plan_path` and `plan_source`")
     expect(content).toContain("primary JSON, `review.json`, and `metadata.json`")
     expect(content).toMatch(/metadata\.json[\s\S]*"plan_path": "docs\/plans\/example\.md \| null"/)
     expect(content).toMatch(/metadata\.json[\s\S]*"plan_source": "explicit \| inferred \| none"/)
+    expect(content).toMatch(/metadata\.json[\s\S]*"manifest_path": "\/absolute\/path\/to\/manifest\.json \| null"/)
     expect(content).toContain("review.json")
     expect(content).toContain("metadata.json")
     expect(content).toContain("wrong-run artifact is ignored")
+  })
+
+  test("mode:agent JSON and metadata carry manifest correlation fields", async () => {
+    const content = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const fixture = await readArtifactRoutingFixture()
+    const withManifest = fixture.manifest_correlation.with_manifest
+
+    expect(content).toContain("echo `manifest_path` plus `reviewed_manifest`")
+    expect(content).toContain("reviewed_manifest` is the exact canonical manifest object")
+    expect(withManifest.manifest_path).toBe("/tmp/ce-loop/manifest-review.json")
+    expect(withManifest.reviewed_manifest).toEqual({
+      created: ["src/new-helper.ts"],
+      modified: ["src/math.ts", "tests/math.test.ts"],
+      deleted: ["src/old-helper.ts"],
+      temporarily_indexed: [],
+    })
+    expect(withManifest.review_json).toEqual({
+      manifest_path: withManifest.manifest_path,
+      reviewed_manifest: withManifest.reviewed_manifest,
+    })
+    expect(withManifest.metadata_json).toEqual(withManifest.review_json)
+
+    expect(fixture.manifest_correlation.no_manifest.manifest_path).toBeNull()
+    expect(fixture.manifest_correlation.no_manifest.reviewed_manifest).toBeNull()
   })
 
   test("mode:agent JSON carries top-level plan correlation separately from requirements detail", async () => {

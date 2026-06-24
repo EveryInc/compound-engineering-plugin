@@ -29,6 +29,7 @@ describe("ce-codex-loop schema contract", () => {
       "run_id",
       "artifact_path",
       "plan_path",
+      "manifest_path",
       "plan_source",
       "requirements_completeness",
       "planned_scope",
@@ -50,6 +51,8 @@ describe("ce-codex-loop schema contract", () => {
     )
     expect(schemas).toContain("artifact_path` must equal the exact per-attempt artifact directory")
     expect(schemas).toContain("Review JSON must report top-level `plan_path`, top-level `plan_source: \"explicit\"`")
+    expect(schemas).toContain("Review JSON must also report `manifest_path` equal to the supplied manifest path")
+    expect(schemas).toContain("Primary JSON, `review.json`, and `metadata.json` must agree")
     expect(schemas).toContain("missing, malformed, or inferred plan context is terminal `failed`")
   })
 

@@ -27,7 +27,7 @@ Parse `$ARGUMENTS` for optional tokens. Strip each recognized token before inter
 | `mode:report-only` | `mode:report-only` | **Deprecated — ignored.** Former no-artifacts mode; default behavior is review-only without checkout |
 | `base:<sha-or-ref>` | `base:abc1234` or `base:origin/main` | Diff base on the **current checkout** (explicit; skips auto base detection) |
 | `plan:<path>` | `plan:docs/plans/2026-03-25-001-feat-foo-plan.md` | Plan file for requirements verification (explicit) |
-| `manifest:<path>` | `manifest:/tmp/ce-loop/manifest.json` | Recognized only in `mode:agent`: manifest-scoped review over loop-owned paths; missing manifest fails in `mode:agent` |
+| `manifest:<path>` | `manifest:/tmp/ce-loop/manifest.json` | Recognized only in `mode:agent`: manifest-scoped review over loop-owned paths; when omitted, agent JSON echoes null manifest fields and standalone review behavior remains unchanged |
 | `run-id:<id>` | `run-id:ce-loop-001-review-2` | `mode:agent` run correlation; validates a path-safe caller-provided run id |
 | `artifact-dir:<path>` | `artifact-dir:/tmp/ce-loop/review-2` | `mode:agent` artifact routing override; must be an unused absolute safe directory and becomes the canonical run directory |
 | `grouping:auto` | `grouping:auto` | **Default** — build thematic triage groups when findings span distinct concerns (Stage 5 step 9b) |
@@ -47,7 +47,7 @@ Deprecated `mode:autofix` is **not** a conflict — ignore the token and proceed
 
 Emit a one-line failure reason. In `mode:agent`, return JSON: `{"status":"failed","reason":"..."}`.
 
-**Manifest, plan, and correlation compatibility:** Default review behavior without manifest remains unchanged. `manifest:<path>`, `run-id:<id>`, and `artifact-dir:<path>` are composition tokens for `mode:agent`; they do not enable mutation. `plan:<path>` is accepted in every mode for requirements verification, and `mode:agent` must echo the resolved top-level `plan_path` and `plan_source` fields in the primary JSON, `review.json`, and `metadata.json`. Validate `run-id:` for path safety (`[A-Za-z0-9._-]+`, no slash, no traversal). Resolve one `resolved_artifact_dir` before reviewer dispatch, route every artifact through that directory, and fail closed on collisions. Do not recover by newest modification time; a wrong-run artifact is ignored.
+**Manifest, plan, and correlation compatibility:** Default review behavior without manifest remains unchanged. `manifest:<path>`, `run-id:<id>`, and `artifact-dir:<path>` are composition tokens for `mode:agent`; they do not enable mutation. `plan:<path>` is accepted in every mode for requirements verification, and `mode:agent` must echo the resolved top-level `plan_path` and `plan_source` fields in the primary JSON, `review.json`, and `metadata.json`. When `manifest:<path>` is supplied, parse and validate it once before reviewer dispatch, use that same canonical manifest object for review scope, and echo `manifest_path` plus `reviewed_manifest` in the primary JSON, `review.json`, and `metadata.json`. Validate `run-id:` for path safety (`[A-Za-z0-9._-]+`, no slash, no traversal). Resolve one `resolved_artifact_dir` before reviewer dispatch, route every artifact through that directory, and fail closed on collisions. Do not recover by newest modification time; a wrong-run artifact is ignored.
 
 ## Operating principles
 
@@ -168,7 +168,9 @@ This path works with any ref — a SHA, `origin/main`, a branch name. Callers re
 
 **Manifest-scoped review (`mode:agent` only):**
 
-When `manifest:<path>` is present, read the manifest before dispatch. Missing manifest fails in `mode:agent`. Build `FILES:` and `DIFF:` by intersecting the stable `base:<ref>` diff with manifest entries. Created untracked files declared in the manifest are included with generated create-file diff snippets and full file content, without changing the git index. Deleted manifest paths are represented with delete snippets when the base contains the file.
+When `manifest:<path>` is present, read the manifest before dispatch. Parse the manifest as JSON and normalize it into one canonical object with exactly these arrays: `created`, `modified`, `deleted`, and `temporarily_indexed`. Preserve created untracked file paths and deleted paths. Reject malformed JSON, missing arrays, non-string entries, absolute paths, parent traversal, empty paths, duplicate paths across categories, or paths that cannot be compared safely as repo-relative paths. Invalid or unsafe manifests fail before reviewer dispatch with JSON `{"status":"failed","reason":"..."}`.
+
+Use the canonical manifest object for review scope. Build `FILES:` and `DIFF:` by intersecting the stable `base:<ref>` diff with manifest entries. Created untracked files declared in the manifest are included with generated create-file diff snippets and full file content, without changing the git index. Deleted manifest paths are represented with delete snippets when the base contains the file.
 
 Out-of-manifest findings are never added to `actionable_findings`; they are reported in `coverage.out_of_scope_findings` instead. The manifest-scoped review context includes excluded unrelated paths in coverage. This mode never widens to the full branch diff.
 
@@ -380,7 +382,7 @@ mkdir -p "$RESOLVED_ARTIFACT_DIR"
 
 Pass both `{run_id}` and `{resolved_artifact_dir}` to every persona sub-agent so they can write their full analysis to `{resolved_artifact_dir}/{reviewer_name}.json`. Sub-agents must not reconstruct `/tmp/compound-engineering/ce-code-review/{run_id}/` independently.
 
-Caller-provided run IDs and artifact directories must be deterministic for the caller: echo the same `run_id` and `artifact_path` in primary JSON, `review.json`, and `metadata.json`. `artifact_path` is always `resolved_artifact_dir` with a trailing slash. If the primary JSON is malformed, callers may recover only from `{resolved_artifact_dir}/review.json`; never select another run by latest modification time.
+Caller-provided run IDs, artifact directories, and manifest scopes must be deterministic for the caller: echo the same `run_id`, `artifact_path`, `manifest_path`, and `reviewed_manifest` in primary JSON, `review.json`, and `metadata.json`. `artifact_path` is always `resolved_artifact_dir` with a trailing slash. If the primary JSON is malformed, callers may recover only from `{resolved_artifact_dir}/review.json`; never select another run by latest modification time.
 
 **Large shared context — pass paths, not contents.** The diff and file list go to every reviewer and validator. When inlining them into each subagent prompt would be wasteful (many files / a big diff), write them once into the run dir (e.g. `full.diff`, `files.txt`) and pass those **paths** in the diff / changed-files slots instead of inline content — the subagent and validator templates instruct the child to Read a staged path. Inline a small diff directly.
 
@@ -613,6 +615,13 @@ Minimum shape:
   "intent_confidence": "explicit | inferred | uncertain",
   "plan_path": "docs/plans/example.md | null",
   "plan_source": "explicit | inferred | none",
+  "manifest_path": "/absolute/path/to/manifest.json | null",
+  "reviewed_manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
   "reviewers": ["correctness", "security"],
   "findings": [],
   "actionable_findings": [],
@@ -631,6 +640,8 @@ Minimum shape:
 ```
 
 `plan_path` and `plan_source` are always present in `mode:agent`. When `plan_source` is `explicit` or `inferred`, `plan_path` is non-null and `requirements_completeness` is populated with the Stage 6 requirement/unit assessment. When no plan is found, `plan_source` is `none`, `plan_path` is `null`, and `requirements_completeness` is `null`.
+
+`manifest_path` and `reviewed_manifest` are always present in `mode:agent`. When `manifest:<path>` is supplied, `manifest_path` is the absolute path supplied by the caller after safety validation, and `reviewed_manifest` is the exact canonical manifest object used to scope review. When no manifest is supplied, `manifest_path` is `null` and `reviewed_manifest` is `null`; standalone review behavior remains unchanged.
 
 Each object in `findings` uses the merged finding fields: `#`, `title`, `severity`, `file`, `line`, `confidence`, `autofix_class`, `owner`, `requires_verification`, `pre_existing`, `suggested_fix`, `why_it_matters`, `evidence`, `reviewers`.
 
@@ -706,6 +717,13 @@ Do not leave a second partial run directory under `/tmp/compound-engineering/ce-
   "head_sha": "<git rev-parse HEAD at dispatch time>",
   "plan_path": "docs/plans/example.md | null",
   "plan_source": "explicit | inferred | none",
+  "manifest_path": "/absolute/path/to/manifest.json | null",
+  "reviewed_manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
   "verdict": "<Ready to merge | Ready with fixes | Not ready>",
   "completed_at": "<ISO 8601 UTC timestamp>"
 }
