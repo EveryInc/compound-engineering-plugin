@@ -34,7 +34,8 @@
     "termsOfServiceURL": "https://every.to/legal",
     "defaultPrompt": [
       "Brainstorm a new feature with me",
-      "Ideate and surprise me!"
+      "Ideate and surprise me!",
+      "Simplify the code in my most-churned file"
     ],
     "brandColor": "#C9EFFA",
     "composerIcon": "./assets/icon.svg",

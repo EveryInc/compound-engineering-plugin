@@ -74,6 +74,15 @@ For the full catalog and how each skill chains together, see [docs/skills](docs/
 /ce-compound
 ```
 
+**Simplifying code** -- use it after fresh implementation work, or point it at code that keeps slowing changes down:
+
+```text
+/ce-simplify-code
+/ce-simplify-code "simplify the code in my most-churned file"
+```
+
+The first pass tightens recent branch changes before review. The targeted pass is useful when one file keeps absorbing unrelated fixes, follow-ups, or merge conflicts.
+
 **Debugging a bug** -- when you start from broken behavior instead of a feature:
 
 ```text
