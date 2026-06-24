@@ -1,0 +1,121 @@
+{
+  "default_routing": {
+    "input": {
+      "mode": "agent",
+      "run_id": "default-routing-smoke",
+      "artifact_dir": null
+    },
+    "resolved_artifact_dir": "/tmp/compound-engineering/ce-code-review/default-routing-smoke",
+    "artifact_path": "/tmp/compound-engineering/ce-code-review/default-routing-smoke/",
+    "run_id": "default-routing-smoke",
+    "artifacts": [
+      "/tmp/compound-engineering/ce-code-review/default-routing-smoke/review.json",
+      "/tmp/compound-engineering/ce-code-review/default-routing-smoke/metadata.json",
+      "/tmp/compound-engineering/ce-code-review/default-routing-smoke/files.txt",
+      "/tmp/compound-engineering/ce-code-review/default-routing-smoke/full.diff",
+      "/tmp/compound-engineering/ce-code-review/default-routing-smoke/correctness-reviewer.json",
+      "/tmp/compound-engineering/ce-code-review/default-routing-smoke/testing-reviewer.json",
+      "/tmp/compound-engineering/ce-code-review/default-routing-smoke/validator.json",
+      "/tmp/compound-engineering/ce-code-review/default-routing-smoke/agent-native-reviewer.md",
+      "/tmp/compound-engineering/ce-code-review/default-routing-smoke/learnings-researcher.md"
+    ]
+  },
+  "override_routing": {
+    "input": {
+      "mode": "agent",
+      "run_id": "artifact-override-smoke",
+      "artifact_dir": "/tmp/ce-code-review-artifact-override-smoke"
+    },
+    "resolved_artifact_dir": "/tmp/ce-code-review-artifact-override-smoke",
+    "artifact_path": "/tmp/ce-code-review-artifact-override-smoke/",
+    "run_id": "artifact-override-smoke",
+    "default_run_dir": "/tmp/compound-engineering/ce-code-review/artifact-override-smoke",
+    "artifacts": [
+      "/tmp/ce-code-review-artifact-override-smoke/review.json",
+      "/tmp/ce-code-review-artifact-override-smoke/metadata.json",
+      "/tmp/ce-code-review-artifact-override-smoke/files.txt",
+      "/tmp/ce-code-review-artifact-override-smoke/full.diff",
+      "/tmp/ce-code-review-artifact-override-smoke/correctness-reviewer.json",
+      "/tmp/ce-code-review-artifact-override-smoke/testing-reviewer.json",
+      "/tmp/ce-code-review-artifact-override-smoke/validator.json",
+      "/tmp/ce-code-review-artifact-override-smoke/agent-native-reviewer.md",
+      "/tmp/ce-code-review-artifact-override-smoke/learnings-researcher.md"
+    ],
+    "forbidden_artifacts": [
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/review.json",
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/metadata.json",
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/files.txt",
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/full.diff",
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/correctness-reviewer.json",
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/testing-reviewer.json",
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/validator.json",
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/agent-native-reviewer.md",
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/learnings-researcher.md"
+    ]
+  },
+  "both_tokens": {
+    "input": {
+      "mode": "agent",
+      "run_id": "logical-review-id",
+      "artifact_dir": "/tmp/custom-review-output"
+    },
+    "run_id": "logical-review-id",
+    "artifact_path": "/tmp/custom-review-output/",
+    "resolved_artifact_dir": "/tmp/custom-review-output"
+  },
+  "malformed_primary_fallback": {
+    "run_id": "artifact-override-smoke",
+    "artifact_path": "/tmp/ce-code-review-artifact-override-smoke/",
+    "accepted_artifact": "/tmp/ce-code-review-artifact-override-smoke/review.json",
+    "rejected_artifacts": [
+      "/tmp/compound-engineering/ce-code-review/artifact-override-smoke/review.json",
+      "/tmp/compound-engineering/ce-code-review/newer-unrelated/review.json"
+    ]
+  },
+  "collision": {
+    "artifact_dir": "/tmp/existing-non-empty-review-dir",
+    "status": "failed",
+    "reviewer_dispatch_count": 0,
+    "reason": "artifact-dir exists and is non-empty"
+  },
+  "unsafe_paths": [
+    {
+      "artifact_dir": "relative/review",
+      "reason": "relative path"
+    },
+    {
+      "artifact_dir": "/tmp/../tmp/review",
+      "reason": "parent traversal"
+    },
+    {
+      "artifact_dir": "/",
+      "reason": "root path"
+    },
+    {
+      "artifact_dir": "/tmp/<run-id>",
+      "reason": "unresolved placeholder"
+    },
+    {
+      "artifact_dir": "/tmp/symlinked-review-dir",
+      "reason": "symlink target"
+    }
+  ],
+  "ce_codex_loop_integration": {
+    "attempts": [
+      {
+        "attempt": 1,
+        "run_id": "ce-loop-review-1",
+        "artifact_dir": "/tmp/ce-loop/review-1",
+        "artifact_path": "/tmp/ce-loop/review-1/",
+        "fallback_artifact": "/tmp/ce-loop/review-1/review.json"
+      },
+      {
+        "attempt": 2,
+        "run_id": "ce-loop-review-2",
+        "artifact_dir": "/tmp/ce-loop/review-2",
+        "artifact_path": "/tmp/ce-loop/review-2/",
+        "fallback_artifact": "/tmp/ce-loop/review-2/review.json"
+      }
+    ]
+  }
+}

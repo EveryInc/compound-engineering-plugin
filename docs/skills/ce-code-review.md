@@ -180,11 +180,13 @@ Concurrent use note: `mode:agent` is report-only and never mutates, so it's safe
 | `plan:<path>` | Loads the plan for requirements verification |
 | `mode:agent` | JSON machine handoff; report-only (the caller applies). `mode:headless` is a deprecated alias; `mode:report-only` is ignored |
 | `manifest:<path>` | `mode:agent` composition scope: review only manifest-owned files, including declared untracked files without staging them |
-| `run-id:<id>` | `mode:agent` run correlation: preserve the caller-provided run id in JSON, `review.json`, and `metadata.json` |
-| `artifact-dir:<path>` | `mode:agent` artifact correlation override for deterministic caller lookup |
+| `run-id:<id>` | `mode:agent` run correlation: preserve the caller-provided logical run id in JSON, `review.json`, and `metadata.json` |
+| `artifact-dir:<path>` | `mode:agent` artifact routing override: every artifact is written under this absolute safe directory instead of `/tmp/compound-engineering/ce-code-review/<run-id>/` |
 | `grouping:auto` / `grouping:off` / `grouping:always` | Thematic triage grouping of findings (default `auto`: group when findings span distinct concerns). Presentation only — never changes reviewer selection, merge logic, or apply behavior |
 
 Conflicting mode flags (or conflicting grouping flags) stop execution with an error. Combining `base:` with a PR/branch target also errors — pass one or the other.
+
+When `artifact-dir:<path>` is omitted, `mode:agent` keeps the default layout at `/tmp/compound-engineering/ce-code-review/<run-id>/`. When it is supplied, the supplied directory becomes the canonical run directory for `review.json`, `metadata.json`, diff/list artifacts, per-reviewer artifacts, validator artifacts, and agent-native/learnings artifacts. The primary JSON reports the logical `run_id` and an `artifact_path` equal to that resolved directory with a trailing slash; malformed-primary fallback reads only `<artifact_path>/review.json`.
 
 ---
 

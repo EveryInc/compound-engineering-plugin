@@ -22,7 +22,7 @@ The runtime uses these explicit composition contracts:
 
 - `ce-work mode:implementation-only`
 - `ce-simplify-code mode:structured manifest:<path>`
-- `ce-code-review mode:agent plan:<plan-path> base:<ref> manifest:<path> run-id:<id>`
+- `ce-code-review mode:agent plan:<plan-path> base:<ref> manifest:<path> run-id:<id> artifact-dir:<path>`
 - `ce-compound mode:headless`
 
 Terminal statuses are `success`, `failed`, `unverified`, `already_satisfied`, and `quality_verified_but_compound_failed`.

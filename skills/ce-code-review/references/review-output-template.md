@@ -156,9 +156,9 @@ This fails because: no pipe-delimited tables, no severity-grouped `###` headers,
 
 ## Agent mode (JSON)
 
-When `mode:agent` is active, **do not** emit the markdown table report above. Emit **one parseable JSON object** as the primary response and write the same payload to `review.json` under `/tmp/compound-engineering/ce-code-review/<run-id>/`.
+When `mode:agent` is active, **do not** emit the markdown table report above. Emit **one parseable JSON object** as the primary response and write the same payload to `review.json` under the Stage 4 `resolved_artifact_dir`.
 
-The contract is defined in SKILL.md under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`.
+The contract is defined in SKILL.md under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`. `artifact_path` must equal `resolved_artifact_dir` with a trailing slash. When a primary response is malformed, fallback reads only `<resolved_artifact_dir>/review.json`.
 
 Key differences from the interactive markdown format:
 

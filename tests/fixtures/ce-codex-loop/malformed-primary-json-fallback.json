@@ -20,7 +20,7 @@
     {
       "attempt": 1,
       "run_id": "ce-loop-review-1",
-      "artifact_path": "/tmp/ce-loop/review-1",
+      "artifact_path": "/tmp/ce-loop/review-1/",
       "status": "complete",
       "verdict": "Ready to merge"
     }

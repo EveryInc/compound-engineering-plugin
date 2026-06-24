@@ -24,7 +24,7 @@
     {
       "attempt": 1,
       "run_id": "ce-loop-review-unrelated-untracked-1",
-      "artifact_path": "/tmp/ce-loop/review-unrelated-untracked-1",
+      "artifact_path": "/tmp/ce-loop/review-unrelated-untracked-1/",
       "status": "complete",
       "verdict": "Ready to merge",
       "eligible_actionable_findings": []

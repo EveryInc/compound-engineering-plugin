@@ -125,7 +125,7 @@ Required fields:
 }
 ```
 
-Every review stage is produced from `ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id>`. `plan_path` must equal the original supplied plan path for every attempt. Review JSON must report requirements completeness from an explicit plan source via `plan_source: "explicit"` and non-null `requirements_completeness`; missing, malformed, or inferred plan context is terminal `failed` for `ce-codex-loop`.
+Every review stage is produced from `ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>`. `plan_path` must equal the original supplied plan path for every attempt. `artifact_path` must equal the exact per-attempt artifact directory supplied to `ce-code-review` with a trailing slash, and malformed-primary fallback reads only `<artifact_path>/review.json`. Review JSON must report requirements completeness from an explicit plan source via `plan_source: "explicit"` and non-null `requirements_completeness`; missing, malformed, or inferred plan context is terminal `failed` for `ce-codex-loop`.
 
 Clean review requires all three predicates: status == complete, verdict == Ready to merge, and actionable_findings.length == 0.
 

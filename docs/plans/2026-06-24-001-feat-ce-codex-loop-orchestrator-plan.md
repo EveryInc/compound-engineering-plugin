@@ -80,7 +80,7 @@ flowchart TB
   Work --> Manifest1["Loop-owned manifest"]
   Manifest1 --> Simplify["ce-simplify-code mode:structured manifest:<path>"]
   Simplify --> Verify1["Post-simplification verification"]
-  Verify1 --> Review["ce-code-review mode:agent plan:<path> base:<ref> manifest:<path> run-id:<id>"]
+  Verify1 --> Review["ce-code-review mode:agent plan:<path> base:<ref> manifest:<path> run-id:<id> artifact-dir:<path>"]
   Review --> Followup["Skill-local review-followup eligibility"]
   Followup --> Verify2["Post-fix verification"]
   Verify2 --> Review
@@ -186,7 +186,7 @@ docs/skills/
 - **Files:** Modify `skills/ce-code-review/SKILL.md`; update artifact docs in `docs/skills/ce-code-review.md`; modify `tests/review-skill-contract.test.ts`; create `tests/skills/ce-code-review-run-correlation.test.ts`.
 - **Dependencies:** None. Coordinate token parsing and JSON coverage updates with U4.
 - **Patterns to follow:** Existing `/tmp/compound-engineering/ce-code-review/<run-id>/` artifact layout, `metadata.json` minimum fields, and `mode:agent` raw JSON output shape.
-- **Approach:** Add `run-id:<id>` and optionally `artifact-dir:<path>` tokens for `mode:agent`. Validate the run ID for path safety, write `review.json` and `metadata.json` under the caller-correlated directory, echo the same `run_id` and `artifact_path` in the primary JSON, and fail closed on collisions or unsafe paths.
+- **Approach:** Add `run-id:<id>` and optionally `artifact-dir:<path>` tokens for `mode:agent`. Validate the run ID for path safety, resolve one canonical artifact directory, write `review.json`, `metadata.json`, shared diff/list artifacts, reviewer artifacts, and validator artifacts under that directory, echo the same `run_id` and resolved `artifact_path` in the primary JSON, and fail closed on collisions or unsafe paths.
 - **Test scenarios:** Caller-provided run ID is preserved in primary JSON and artifact path. Unsafe run ID is rejected. Concurrent simulated run IDs produce distinct directories. Primary malformed response with valid matching artifact is recoverable by `ce-codex-loop`; wrong-run artifact is ignored.
 - **Verification:** `bun test tests/skills/ce-code-review-run-correlation.test.ts tests/review-skill-contract.test.ts`.
 
@@ -296,7 +296,7 @@ This change adds a new public skill to the plugin inventory, so conversion and m
 
 - Update the public skill inventory to describe `ce-codex-loop` as a local implementation-quality loop, not an autopilot shipping pipeline.
 - Keep `/lfg` documentation distinct: `/lfg` remains the broad autonomous plan/work/review/test/commit/push/PR/CI flow.
-- Document `ce-work mode:implementation-only`, `ce-simplify-code mode:structured manifest:<path>`, and `ce-code-review mode:agent plan:<plan-path> base:<ref> manifest:<path> run-id:<id>` as composition contracts with default human workflows unchanged.
+- Document `ce-work mode:implementation-only`, `ce-simplify-code mode:structured manifest:<path>`, and `ce-code-review mode:agent plan:<plan-path> base:<ref> manifest:<path> run-id:<id> artifact-dir:<path>` as composition contracts with default human workflows unchanged.
 - Do not hand-bump release-owned versions or changelog entries; release automation owns those fields.
 
 ---

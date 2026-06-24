@@ -30,7 +30,7 @@
     {
       "attempt": 1,
       "run_id": "ce-loop-review-fix-scope-1",
-      "artifact_path": "/tmp/ce-loop/review-fix-scope-1",
+      "artifact_path": "/tmp/ce-loop/review-fix-scope-1/",
       "status": "complete",
       "verdict": "Ready with fixes",
       "eligible_actionable_findings": ["F-TEST-001"]
@@ -38,7 +38,7 @@
     {
       "attempt": 2,
       "run_id": "ce-loop-review-fix-scope-2",
-      "artifact_path": "/tmp/ce-loop/review-fix-scope-2",
+      "artifact_path": "/tmp/ce-loop/review-fix-scope-2/",
       "status": "complete",
       "verdict": "Ready to merge",
       "eligible_actionable_findings": []

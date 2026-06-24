@@ -29,7 +29,7 @@ Parse `$ARGUMENTS` for optional tokens. Strip each recognized token before inter
 | `plan:<path>` | `plan:docs/plans/2026-03-25-001-feat-foo-plan.md` | Plan file for requirements verification (explicit) |
 | `manifest:<path>` | `manifest:/tmp/ce-loop/manifest.json` | Recognized only in `mode:agent`: manifest-scoped review over loop-owned paths; missing manifest fails in `mode:agent` |
 | `run-id:<id>` | `run-id:ce-loop-001-review-2` | `mode:agent` run correlation; validates a path-safe caller-provided run id |
-| `artifact-dir:<path>` | `artifact-dir:/tmp/ce-loop/review-2` | `mode:agent` artifact correlation override; must be an unused safe directory |
+| `artifact-dir:<path>` | `artifact-dir:/tmp/ce-loop/review-2` | `mode:agent` artifact routing override; must be an unused absolute safe directory and becomes the canonical run directory |
 | `grouping:auto` | `grouping:auto` | **Default** — build thematic triage groups when findings span distinct concerns (Stage 5 step 9b) |
 | `grouping:off` | `grouping:off` | Suppress triage groups: no Triage Groups section, empty `triage_groups` in JSON |
 | `grouping:always` | `grouping:always` | Always build triage groups, even for small reviews |
@@ -47,7 +47,7 @@ Deprecated `mode:autofix` is **not** a conflict — ignore the token and proceed
 
 Emit a one-line failure reason. In `mode:agent`, return JSON: `{"status":"failed","reason":"..."}`.
 
-**Manifest and correlation compatibility:** Default review behavior without manifest remains unchanged. `manifest:<path>`, `run-id:<id>`, and `artifact-dir:<path>` are composition tokens for `mode:agent`; they do not enable mutation. Validate `run-id:` for path safety (`[A-Za-z0-9._-]+`, no slash, no traversal) and fail closed on collisions. Do not recover by newest modification time; a wrong-run artifact is ignored.
+**Manifest and correlation compatibility:** Default review behavior without manifest remains unchanged. `manifest:<path>`, `run-id:<id>`, and `artifact-dir:<path>` are composition tokens for `mode:agent`; they do not enable mutation. Validate `run-id:` for path safety (`[A-Za-z0-9._-]+`, no slash, no traversal). Resolve one `resolved_artifact_dir` before reviewer dispatch, route every artifact through that directory, and fail closed on collisions. Do not recover by newest modification time; a wrong-run artifact is ignored.
 
 ## Operating principles
 
@@ -63,7 +63,7 @@ Same pipeline for default and `mode:agent`:
 | Invocation | Deliverable |
 |------------|-------------|
 | **Default** | Markdown report (pipe-delimited finding tables) + Actionable Findings summary |
-| **`mode:agent`** | One JSON object (see ### JSON output format below) + the same `/tmp/.../ce-code-review/<run-id>/` artifacts |
+| **`mode:agent`** | One JSON object (see ### JSON output format below) + artifacts in `resolved_artifact_dir` |
 
 `mode:agent` is **report-only**: it skips the Stage 5c apply (the caller applies) and serializes findings as JSON instead of markdown. It does not change reviewer selection, merge logic, or scope rules — the JSON is the deterministic contract for programmatic and cross-harness callers (Codex, Gemini, etc.). The default markdown is the human view; keep it ASCII-safe (pipe tables, `->` not middot `·`, no box-drawing) so it degrades gracefully across terminals.
 
@@ -356,18 +356,28 @@ All other persona subagents and CE local prompt assets use the platform's mid-ti
 
 The orchestrator (this skill) also inherits the session model; it handles intent discovery, reviewer selection, finding merge/dedup, and synthesis.
 
-#### Run ID
+#### Run ID and artifact directory
 
-Generate or validate a run identifier before dispatching any agents. This ID scopes all agent artifact files and the post-review run artifact to the same directory. If the caller passed `run-id:<id>`, preserve it exactly after path-safety validation. If the caller passed `artifact-dir:<path>`, use that directory after safety and collision checks. Otherwise generate a unique run identifier.
+Generate or validate a logical run identifier before dispatching any agents. If the caller passed `run-id:<id>`, preserve it exactly after path-safety validation. Otherwise generate a unique run identifier. The run ID remains the logical review identifier in JSON and metadata even when a caller overrides artifact location.
+
+Resolve exactly one canonical artifact directory as `resolved_artifact_dir` before reviewer dispatch:
+
+- `artifact-dir:<path>` is accepted only in `mode:agent`.
+- When `artifact-dir:<path>` is supplied, require an absolute normalized filesystem path. Reject relative paths, root paths, parent traversal, unresolved placeholders such as `<...>` or `{...}`, empty path components, and paths whose final target is or resolves through a symlink.
+- Reject an existing non-empty directory. An existing empty directory may be claimed; a missing directory may be created. If the directory cannot be created or claimed, fail closed before reviewer dispatch.
+- When `artifact-dir:<path>` is omitted, preserve existing behavior and use `/tmp/compound-engineering/ce-code-review/<run-id>/`.
+- When both `run-id:` and `artifact-dir:` are supplied, `run-id` identifies the review and `artifact-dir` determines where every artifact is written.
+- Collision, safety, and malformed-correlation failures return `{"status":"failed","reason":"..."}` in `mode:agent` and dispatch no reviewers.
 
 ```bash
 RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ')
-mkdir -p "/tmp/compound-engineering/ce-code-review/$RUN_ID"
+RESOLVED_ARTIFACT_DIR="/tmp/compound-engineering/ce-code-review/$RUN_ID"
+mkdir -p "$RESOLVED_ARTIFACT_DIR"
 ```
 
-Pass `{run_id}` to every persona sub-agent so they can write their full analysis to `/tmp/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`.
+Pass both `{run_id}` and `{resolved_artifact_dir}` to every persona sub-agent so they can write their full analysis to `{resolved_artifact_dir}/{reviewer_name}.json`. Sub-agents must not reconstruct `/tmp/compound-engineering/ce-code-review/{run_id}/` independently.
 
-Caller-provided run IDs and artifact directories must be deterministic for the caller: echo the same `run_id` and `artifact_path` in primary JSON, `review.json`, and `metadata.json`. Fail closed on collisions or unsafe paths.
+Caller-provided run IDs and artifact directories must be deterministic for the caller: echo the same `run_id` and `artifact_path` in primary JSON, `review.json`, and `metadata.json`. `artifact_path` is always `resolved_artifact_dir` with a trailing slash. If the primary JSON is malformed, callers may recover only from `{resolved_artifact_dir}/review.json`; never select another run by latest modification time.
 
 **Large shared context — pass paths, not contents.** The diff and file list go to every reviewer and validator. When inlining them into each subagent prompt would be wasteful (many files / a big diff), write them once into the run dir (e.g. `full.diff`, `files.txt`) and pass those **paths** in the diff / changed-files slots instead of inline content — the subagent and validator templates instruct the child to Read a staged path. Inline a small diff directly.
 
@@ -391,15 +401,15 @@ For each selected reviewer, read the corresponding local prompt asset from `refe
 3. The JSON output contract from the findings schema included below
 4. PR metadata: title, body, and URL when reviewing a PR (empty string otherwise). Passed in a `<pr-context>` block so reviewers can verify code against stated intent
 5. Review context: intent summary, file list, diff, scope mode (`local-aligned` | `pr-remote` | `branch-remote`), and remote head ref (`PR_HEAD_REF` or `<branch-head-ref>`) when set
-6. Run ID and reviewer name for the artifact file path
+6. Run ID, resolved artifact directory, and reviewer name for the artifact file path
 7. **For `project-standards` only:** the standards file path list from Stage 3b, wrapped in a `<standards-paths>` block appended to the review context
 8. **For `data-migration` only:** the resolved review base ref from Stage 1 (`BASE:` marker), wrapped in `<review-base>` inside the review context so schema drift checks never assume `main`
 
-Persona sub-agents are **read-only** with respect to the project: they review and return structured JSON. They do not edit project files or propose refactors. The one permitted write is saving their full analysis to the run-artifact path specified in the output contract (under `/tmp/compound-engineering/ce-code-review/<run-id>/`).
+Persona sub-agents are **read-only** with respect to the project: they review and return structured JSON. They do not edit project files or propose refactors. The one permitted write is saving their full analysis to the run-artifact path specified in the output contract (under `{resolved_artifact_dir}/`).
 
 Read-only here means **non-mutating**, not "no shell access." Reviewer sub-agents may use non-mutating inspection commands when needed to gather evidence or verify scope, including read-oriented `git` / `gh` usage such as `git diff`, `git show`, `git blame`, `git log`, and `gh pr view`. In **`pr-remote`** or **`branch-remote`** scope (see Stage 1), inspect changed files via `git show <remote-head-ref>:<path>` or diff hunks — do not Read/Grep workspace paths for files in scope. They must not edit project files, change branches, commit, push, create PRs, or otherwise mutate the checkout or repository state.
 
-Each persona sub-agent writes full JSON (all schema fields) to `/tmp/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json` and returns compact JSON with merge-tier fields only:
+Each persona sub-agent writes full JSON (all schema fields) to `{resolved_artifact_dir}/{reviewer_name}.json` and returns compact JSON with merge-tier fields only:
 
 ```json
 {
@@ -488,7 +498,7 @@ Independent verification gate. Spawn one validator sub-agent per surviving findi
 2. **Apply dispatch budget cap.** If the selected set exceeds 15 findings, validate the highest-severity 15 (P0 first, then P1, then P2, then P3, breaking ties by anchor descending), dropping only from the P2/P3 tail. **Never drop a P0 or P1 from validation** — if P0/P1 findings alone exceed 15, raise the cap to include all of them. Record the over-budget count (the dropped P2/P3 tail) for the Coverage section.
 3. **Spawn validators with bounded parallelism.** One sub-agent per finding, dispatched independently using the validator template and the same bounded scheduler from Stage 4. Each validator receives:
    - The finding's title, severity, file, line, suggested_fix, original reviewer name, and confidence anchor
-   - `why_it_matters` when available — loaded from the per-agent artifact file at `/tmp/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`; omit when the file is absent or the artifact write failed. The validator proceeds without it, using the diff and cited code directly.
+   - `why_it_matters` when available — loaded from the per-agent artifact file at `{resolved_artifact_dir}/{reviewer_name}.json`; omit when the file is absent or the artifact write failed. The validator proceeds without it, using the diff and cited code directly.
    - The full diff
    - The scope mode and remote head ref, mirroring the Stage 4 reviewer bundle: inject `<pr-scope-mode>local-aligned | pr-remote | branch-remote</pr-scope-mode>` and, when set, `<pr-head-ref>...</pr-head-ref>` or `<branch-head-ref>...</branch-head-ref>`. The validator template defaults to local-aligned workspace inspection when these are absent, so omitting them in `pr-remote`/`branch-remote` makes validators verify findings against the stale working tree — dropping valid findings or confirming false ones on the wrong tree.
    - Inspection access scoped by mode: in `local-aligned`, Read/Grep/git blame the cited code, callers, guards, framework defaults, and history; in `pr-remote`/`branch-remote`, inspect via `git show <remote-head-ref>:<path>` or the provided diff hunks only — do not Read/Grep workspace paths for files in scope.
@@ -579,7 +589,7 @@ Do not include time estimates.
 
 ### JSON output format (`mode:agent` only)
 
-Emit **one raw JSON object** as the primary response — a single bare JSON value, **no markdown code fence**. A leading ```` ```json ```` fence makes the response start with backticks and breaks naive `JSON.parse` consumers, so never wrap it. Also write `review.json` under `/tmp/compound-engineering/ce-code-review/<run-id>/` with the same payload.
+Emit **one raw JSON object** as the primary response — a single bare JSON value, **no markdown code fence**. A leading ```` ```json ```` fence makes the response start with backticks and breaks naive `JSON.parse` consumers, so never wrap it. Also write `review.json` under `resolved_artifact_dir` with the same payload.
 
 `mode:agent` does not apply fixes — the caller does — so there is no `applied_fixes` field; the handoff is `actionable_findings`. Applied work surfaces only in the default-mode markdown Applied section (Stage 5c/6).
 
@@ -610,7 +620,7 @@ Minimum shape:
   "residual_risks": [],
   "testing_gaps": [],
   "coverage": {},
-  "artifact_path": "/tmp/compound-engineering/ce-code-review/<run-id>/",
+  "artifact_path": "<resolved_artifact_dir>/",
   "run_id": "<run-id>"
 }
 ```
@@ -647,7 +657,7 @@ After Stage 6, stop. Never push, open PRs, or file tickets from this skill. In d
 After Stage 6 **in default mode**, emit a compact **Actionable Findings** summary for callers:
 
 - List each actionable finding (`gated_auto` or `manual` with `downstream-resolver`) with stable `#`, severity, file:line, title, `autofix_class`, whether `suggested_fix` is present, and `confidence`.
-- Include the run-artifact path when one was written: `/tmp/compound-engineering/ce-code-review/<run-id>/`
+- Include the run-artifact path when one was written: `<resolved_artifact_dir>/`
 - When the actionable queue is empty, state `Actionable findings: none.` explicitly.
 
 In `mode:agent` do **not** emit this markdown summary — the actionable findings are carried solely by the `actionable_findings` field of the JSON object. Emit nothing after the JSON object, so the response stays a single parseable JSON value.
@@ -659,19 +669,26 @@ Do not run post-review triage (no per-finding walk-through, bulk ticket filing, 
 | Mode | After Stage 6 + actionable summary |
 |------|-----------------------------------|
 | **Default** | Markdown tables + Actionable Findings summary. |
-| **`mode:agent`** | JSON object + `review.json` in run artifact dir. |
+| **`mode:agent`** | JSON object + `review.json` in `resolved_artifact_dir`. |
 
 Do not offer push/PR/create-branch next steps from this skill.
 
 #### Run artifacts
 
-Always write run artifacts under `/tmp/compound-engineering/ce-code-review/<run-id>/`:
+Always write run artifacts under `resolved_artifact_dir`:
 
 - synthesized findings
 - actionable findings list
 - advisory outputs
 - per-agent `{reviewer_name}.json` from Stage 4
+- shared diff/list artifacts such as `full.diff` and `files.txt`
+- validator artifacts
+- learnings and agent-native artifacts
 - `report.md` — the rendered markdown report exactly as presented to the user (default mode only), so format and numbering stay auditable after the run
+- `review.json` — the primary `mode:agent` payload when `mode:agent` is active
+- `metadata.json`
+
+Do not leave a second partial run directory under `/tmp/compound-engineering/ce-code-review/<run-id>/` when `artifact-dir:<path>` is supplied.
 
 `metadata.json` minimum fields:
 

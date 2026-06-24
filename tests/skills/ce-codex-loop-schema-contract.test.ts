@@ -46,8 +46,9 @@ describe("ce-codex-loop schema contract", () => {
     expect(schemas).toContain("Malformed or prose-only stage output is terminal `failed`")
     expect(schemas).toContain("`already_satisfied` requires proof and identified files")
     expect(schemas).toContain(
-      "ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id>",
+      "ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>",
     )
+    expect(schemas).toContain("artifact_path` must equal the exact per-attempt artifact directory")
     expect(schemas).toContain("missing, malformed, or inferred plan context is terminal `failed`")
   })
 

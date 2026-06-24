@@ -38,6 +38,7 @@ type Fixture = {
     stable_base: string
     manifest_path: string
     run_id: string
+    artifact_dir: string
     command: string
   }>
   review_outputs?: Array<{
@@ -113,6 +114,7 @@ function expectExplicitPlanReviewInvocations(fixture: Fixture, expectedAttempts:
     expect(invocation.command).toContain(`base:${invocation.stable_base}`)
     expect(invocation.command).toContain(`manifest:${invocation.manifest_path}`)
     expect(invocation.command).toContain(`run-id:${invocation.run_id}`)
+    expect(invocation.command).toContain(`artifact-dir:${invocation.artifact_dir}`)
     expect(invocation.command).not.toMatch(/mode:agent base:/)
   }
 
@@ -151,7 +153,7 @@ describe("ce-codex-loop contract", () => {
     expect(content).toContain("ce-work mode:implementation-only")
     expect(content).toContain("ce-simplify-code mode:structured manifest:<manifest-path>")
     expect(content).toContain(
-      "ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id>",
+      "ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>",
     )
     expect(content).not.toContain("ce-code-review mode:agent base:<stable-base> manifest:<manifest-path> run-id:<run-id>")
     expect(content).toContain("ce-compound mode:headless")

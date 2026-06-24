@@ -37,7 +37,8 @@
       "stable_base": "HEAD0",
       "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
       "run_id": "ce-loop-review-1",
-      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-1.json run-id:ce-loop-review-1"
+      "artifact_dir": "/tmp/ce-loop/review-1",
+      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-1.json run-id:ce-loop-review-1 artifact-dir:/tmp/ce-loop/review-1"
     },
     {
       "attempt": 2,
@@ -45,7 +46,8 @@
       "stable_base": "HEAD0",
       "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
       "run_id": "ce-loop-review-2",
-      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-2.json run-id:ce-loop-review-2"
+      "artifact_dir": "/tmp/ce-loop/review-2",
+      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-2.json run-id:ce-loop-review-2 artifact-dir:/tmp/ce-loop/review-2"
     },
     {
       "attempt": 3,
@@ -53,7 +55,8 @@
       "stable_base": "HEAD0",
       "manifest_path": "/tmp/ce-loop/manifest-attempt-3.json",
       "run_id": "ce-loop-review-3",
-      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-3.json run-id:ce-loop-review-3"
+      "artifact_dir": "/tmp/ce-loop/review-3",
+      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-3.json run-id:ce-loop-review-3 artifact-dir:/tmp/ce-loop/review-3"
     }
   ],
   "review_outputs": [

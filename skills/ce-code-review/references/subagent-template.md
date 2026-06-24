@@ -20,11 +20,12 @@ You are a specialist code reviewer.
 <output-contract>
 You produce up to two outputs depending on whether a run ID was provided:
 
-1. **Artifact file (when run ID is present).** If a Run ID appears in <review-context> below, WRITE your full analysis (all schema fields, including why_it_matters, evidence, and suggested_fix) as JSON to:
-   /tmp/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json
+1. **Artifact file (when run ID and resolved artifact directory are present).** If both a Run ID and Resolved artifact directory appear in <review-context> below, WRITE your full analysis (all schema fields, including why_it_matters, evidence, and suggested_fix) as JSON to:
+   {resolved_artifact_dir}/{reviewer_name}.json
    This is the ONE write operation you are permitted to make. Use the platform's file-write tool.
    If the write fails, continue -- the compact return still provides everything the merge needs.
-   If no Run ID is provided (the field is empty or absent), skip this step entirely -- do not attempt any file write.
+   If no Run ID or no Resolved artifact directory is provided (the field is empty or absent), skip this step entirely -- do not attempt any file write.
+   Do not reconstruct `/tmp/compound-engineering/ce-code-review/{run_id}/` yourself; the resolved artifact directory is authoritative and may be a caller-supplied override.
 
 2. **Compact return (always).** RETURN compact JSON to the parent with ONLY merge-tier fields per finding:
    title, severity, file, line, confidence, autofix_class, owner, requires_verification, pre_existing, suggested_fix.
@@ -161,6 +162,7 @@ Rules:
 
 <review-context>
 Run ID: {run_id}
+Resolved artifact directory: {resolved_artifact_dir}
 Reviewer name: {reviewer_name}
 
 Intent: {intent_summary}
@@ -185,5 +187,6 @@ Diff:
 | `{pr_metadata}` | Stage 1 output | PR title, body, and URL when reviewing a PR. Empty string when reviewing a branch or standalone checkout |
 | `{file_list}` | Stage 1 output | Changed-file list — inline, or a staged file path to Read for a large review |
 | `{diff}` | Stage 1 output | The diff to review — inline hunks, or a staged file path to Read for a large review |
-| `{run_id}` | Stage 4 output | Unique review run identifier for the artifact directory |
+| `{run_id}` | Stage 4 output | Logical review run identifier |
+| `{resolved_artifact_dir}` | Stage 4 output | Canonical directory for every artifact written during the review run |
 | `{reviewer_name}` | Stage 3 output | Persona or agent name used as the artifact filename stem |
