@@ -28,7 +28,11 @@ describe("ce-codex-loop schema contract", () => {
       "skipped_simplifications",
       "run_id",
       "artifact_path",
+      "plan_path",
+      "plan_source",
+      "requirements_completeness",
       "planned_scope",
+      "untracked_planned_collisions",
       "manifest_checkpoint",
       "manifest_checkpoints",
       "validated",
@@ -41,6 +45,10 @@ describe("ce-codex-loop schema contract", () => {
 
     expect(schemas).toContain("Malformed or prose-only stage output is terminal `failed`")
     expect(schemas).toContain("`already_satisfied` requires proof and identified files")
+    expect(schemas).toContain(
+      "ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id>",
+    )
+    expect(schemas).toContain("missing, malformed, or inferred plan context is terminal `failed`")
   })
 
   test("terminal statuses are exact and include report fields", async () => {

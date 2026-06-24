@@ -45,13 +45,13 @@ Required fields:
   },
   "overlap": {
     "tracked": [],
-    "untracked_create_collisions": []
+    "untracked_planned_collisions": []
   },
   "issues": []
 }
 ```
 
-When the plan declares mutation work but concrete safe scope cannot be extracted, this stage reports `failed` and the loop stops before mutation. The overlap check evaluates the union of all planned mutation and test paths before `ce-work` runs.
+When the plan declares mutation work but concrete safe scope cannot be extracted, this stage reports `failed` and the loop stops before mutation. The overlap check evaluates the union of all planned mutation and test paths before `ce-work` runs. `untracked_planned_collisions` contains untracked snapshot paths that intersect any planned Create, Modify, Delete, or Test path.
 
 ## Simplification Stage
 
@@ -110,6 +110,7 @@ Required fields:
   "verdict": "Ready to merge | Ready with fixes | Not ready",
   "run_id": "string",
   "artifact_path": "string",
+  "plan_path": "string",
   "reviewed_manifest": {
     "created": [],
     "modified": [],
@@ -118,9 +119,13 @@ Required fields:
   },
   "findings": [],
   "actionable_findings": [],
+  "plan_source": "explicit",
+  "requirements_completeness": {},
   "coverage": {}
 }
 ```
+
+Every review stage is produced from `ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id>`. `plan_path` must equal the original supplied plan path for every attempt. Review JSON must report requirements completeness from an explicit plan source via `plan_source: "explicit"` and non-null `requirements_completeness`; missing, malformed, or inferred plan context is terminal `failed` for `ce-codex-loop`.
 
 Clean review requires all three predicates: status == complete, verdict == Ready to merge, and actionable_findings.length == 0.
 

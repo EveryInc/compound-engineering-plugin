@@ -80,7 +80,7 @@ flowchart TB
   Work --> Manifest1["Loop-owned manifest"]
   Manifest1 --> Simplify["ce-simplify-code mode:structured manifest:<path>"]
   Simplify --> Verify1["Post-simplification verification"]
-  Verify1 --> Review["ce-code-review mode:agent base:<ref> manifest:<path> run-id:<id>"]
+  Verify1 --> Review["ce-code-review mode:agent plan:<path> base:<ref> manifest:<path> run-id:<id>"]
   Review --> Followup["Skill-local review-followup eligibility"]
   Followup --> Verify2["Post-fix verification"]
   Verify2 --> Review
@@ -170,13 +170,13 @@ docs/skills/
 
 ### U4. Add manifest-scoped review support to `ce-code-review`
 
-- **Goal:** Restrict `ce-code-review mode:agent` to the loop-owned manifest so unrelated local changes and out-of-manifest findings never enter the orchestrator queue.
+- **Goal:** Restrict `ce-code-review mode:agent` to the explicit plan and loop-owned manifest so requirements completeness, unrelated local changes, and out-of-manifest findings are handled from caller-supplied scope rather than inferred intent.
 - **Requirement traceability:** Plan R3, R4, R9, R11, R12, R14, R16; origin R33-R41, R58-R60, R62-R66; covers AE11, AE12, AE13, AE19, AE20, AE22.
 - **Files:** Modify `skills/ce-code-review/SKILL.md`, `skills/ce-code-review/references/diff-scope.md`, `skills/ce-code-review/references/findings-schema.json` only if schema wording needs manifest clarification; modify `tests/review-skill-contract.test.ts`; create `tests/skills/ce-code-review-manifest-scope.test.ts`.
 - **Dependencies:** U7 for manifest shape. Coordinate token parsing and artifact fields with U5, but manifest scope can be specified independently.
 - **Patterns to follow:** Existing `base:<ref>` fast path, `plan:<path>` parsing, `mode:agent` no-mutation contract, protected-artifact filtering, and remote-scope workspace-inspection restrictions.
 - **Approach:** Add `manifest:<path>` as a recognized scope token for `mode:agent` and reject incompatible scope selectors when necessary. Build `FILES:` and `DIFF:` by intersecting the stable `base:<ref>` diff with manifest entries. Include manifest-declared created untracked files through generated create-file diff snippets plus full file content in the review context, not by staging them. Record excluded unrelated paths in coverage. Filter synthesized findings so any finding outside the manifest is excluded from `actionable_findings` and reported as out-of-scope coverage rather than caller work.
-- **Test scenarios:** `mode:agent base:<ref> manifest:<path>` reviews only manifest paths. Out-of-manifest findings are never in `actionable_findings`. Created untracked files in the manifest are included through explicit review content without changing the git index. Missing manifest fails in `mode:agent`. Default review behavior without manifest remains unchanged.
+- **Test scenarios:** `mode:agent plan:<plan-path> base:<ref> manifest:<path>` reviews only manifest paths and evaluates requirements completeness from the explicit plan. Out-of-manifest findings are never in `actionable_findings`. Created untracked files in the manifest are included through explicit review content without changing the git index. Missing manifest fails in `mode:agent`. Default review behavior without manifest remains unchanged.
 - **Verification:** `bun test tests/skills/ce-code-review-manifest-scope.test.ts tests/review-skill-contract.test.ts`.
 
 ### U5. Add deterministic review run and artifact correlation
@@ -296,7 +296,7 @@ This change adds a new public skill to the plugin inventory, so conversion and m
 
 - Update the public skill inventory to describe `ce-codex-loop` as a local implementation-quality loop, not an autopilot shipping pipeline.
 - Keep `/lfg` documentation distinct: `/lfg` remains the broad autonomous plan/work/review/test/commit/push/PR/CI flow.
-- Document `ce-work mode:implementation-only`, `ce-simplify-code mode:structured manifest:<path>`, and `ce-code-review mode:agent manifest:<path> run-id:<id>` as composition contracts with default human workflows unchanged.
+- Document `ce-work mode:implementation-only`, `ce-simplify-code mode:structured manifest:<path>`, and `ce-code-review mode:agent plan:<plan-path> base:<ref> manifest:<path> run-id:<id>` as composition contracts with default human workflows unchanged.
 - Do not hand-bump release-owned versions or changelog entries; release automation owns those fields.
 
 ---

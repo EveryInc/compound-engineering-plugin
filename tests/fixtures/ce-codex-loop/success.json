@@ -1,5 +1,6 @@
 {
   "scenario": "B1-one-review-fix-cycle",
+  "plan_path": "docs/plans/clamp-feature.md",
   "terminal_status": "success",
   "stage_sequence": [
     "preflight",
@@ -36,6 +37,44 @@
       "status": "complete",
       "verdict": "Ready to merge",
       "eligible_actionable_findings": []
+    }
+  ],
+  "review_invocations": [
+    {
+      "attempt": 1,
+      "plan_path": "docs/plans/clamp-feature.md",
+      "stable_base": "HEAD0",
+      "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
+      "run_id": "ce-loop-review-1",
+      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-1.json run-id:ce-loop-review-1"
+    },
+    {
+      "attempt": 2,
+      "plan_path": "docs/plans/clamp-feature.md",
+      "stable_base": "HEAD0",
+      "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
+      "run_id": "ce-loop-review-2",
+      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-2.json run-id:ce-loop-review-2"
+    }
+  ],
+  "review_outputs": [
+    {
+      "attempt": 1,
+      "plan_source": "explicit",
+      "requirements_completeness": {
+        "plan_source": "explicit",
+        "status": "evaluated",
+        "requirements_checked": ["R1", "R2", "R3", "R4", "R5"]
+      }
+    },
+    {
+      "attempt": 2,
+      "plan_source": "explicit",
+      "requirements_completeness": {
+        "plan_source": "explicit",
+        "status": "evaluated",
+        "requirements_checked": ["R1", "R2", "R3", "R4", "R5"]
+      }
     }
   ],
   "fix_waves": [

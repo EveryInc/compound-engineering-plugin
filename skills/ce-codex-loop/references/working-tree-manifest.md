@@ -48,7 +48,9 @@ Before mutation, parse every implementation unit's `Files:` entry into separate 
 
 Recognize Create, Modify, Delete, Test labels and equivalent inline test path phrases inside the `Files:` section. Do not guess paths from ambiguous prose in `Test Scenarios`, `Approach`, or `Verification`.
 
-The overlap gate evaluates the union of `created`, `modified`, `deleted`, and `test_paths` before `ce-work` runs. Staged and unstaged tracked edits to any planned implementation or test path block mutation. Existing untracked files at planned Create paths block mutation. A plan that declares mutation work but lacks concrete safe scope fails closed before mutation. Test paths remain overlap-relevant even when declared in a different implementation unit from the production file.
+The overlap gate evaluates the union of `created`, `modified`, `deleted`, and `test_paths` before `ce-work` runs. Staged and unstaged tracked edits to any planned implementation or test path block mutation. Existing untracked files at any planned Create, Modify, Delete, or Test path block mutation. Unrelated untracked paths are allowed only when they remain excluded from loop ownership, simplification, and review. A plan that declares mutation work but lacks concrete safe scope fails closed before mutation. Test paths remain overlap-relevant even when declared in a different implementation unit from the production file.
+
+Normalize declared planned paths and snapshot paths to repo-relative paths before comparison. Reject absolute paths, parent-directory traversal, empty path entries, or other path forms that cannot be compared safely. Do not stage untracked user files as part of overlap detection.
 
 ## Ownership Rules
 
@@ -56,6 +58,7 @@ The overlap gate evaluates the union of `created`, `modified`, `deleted`, and `t
 - Stage structured file lists from implementation, simplification, review fixes, and repair passes refresh ownership.
 - The working-tree delta classifies created, modified, and deleted paths after each stage.
 - Pre-existing overlapping tracked edit means stop before mutation.
+- Pre-existing overlapping untracked work at any planned created, modified, deleted, or test path means stop before mutation.
 - Pre-existing unrelated edits remain excluded from the manifest and must not enter simplify or review.
 - Loop-created untracked files are included in the manifest and review scope without staging.
 - Deletions are explicit manifest entries, not inferred from absence.

@@ -1,5 +1,6 @@
 {
   "scenario": "B2-review-exhaustion",
+  "plan_path": "docs/plans/clamp-feature.md",
   "terminal_status": "failed",
   "reason": "review_attempts_exhausted",
   "stage_sequence": [
@@ -28,6 +29,58 @@
     { "attempt": 1, "status": "complete", "verdict": "Ready with fixes" },
     { "attempt": 2, "status": "complete", "verdict": "Ready with fixes" },
     { "attempt": 3, "status": "complete", "verdict": "Ready with fixes" }
+  ],
+  "review_invocations": [
+    {
+      "attempt": 1,
+      "plan_path": "docs/plans/clamp-feature.md",
+      "stable_base": "HEAD0",
+      "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
+      "run_id": "ce-loop-review-1",
+      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-1.json run-id:ce-loop-review-1"
+    },
+    {
+      "attempt": 2,
+      "plan_path": "docs/plans/clamp-feature.md",
+      "stable_base": "HEAD0",
+      "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
+      "run_id": "ce-loop-review-2",
+      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-2.json run-id:ce-loop-review-2"
+    },
+    {
+      "attempt": 3,
+      "plan_path": "docs/plans/clamp-feature.md",
+      "stable_base": "HEAD0",
+      "manifest_path": "/tmp/ce-loop/manifest-attempt-3.json",
+      "run_id": "ce-loop-review-3",
+      "command": "ce-code-review mode:agent plan:docs/plans/clamp-feature.md base:HEAD0 manifest:/tmp/ce-loop/manifest-attempt-3.json run-id:ce-loop-review-3"
+    }
+  ],
+  "review_outputs": [
+    {
+      "attempt": 1,
+      "plan_source": "explicit",
+      "requirements_completeness": {
+        "plan_source": "explicit",
+        "status": "evaluated"
+      }
+    },
+    {
+      "attempt": 2,
+      "plan_source": "explicit",
+      "requirements_completeness": {
+        "plan_source": "explicit",
+        "status": "evaluated"
+      }
+    },
+    {
+      "attempt": 3,
+      "plan_source": "explicit",
+      "requirements_completeness": {
+        "plan_source": "explicit",
+        "status": "evaluated"
+      }
+    }
   ],
   "absent_attempts": [4],
   "planned_scope": {

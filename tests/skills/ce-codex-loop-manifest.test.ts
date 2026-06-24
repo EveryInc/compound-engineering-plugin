@@ -31,7 +31,9 @@ describe("ce-codex-loop manifest contract", () => {
     expect(content).toContain('"test_paths": []')
     expect(content).toContain("Create, Modify, Delete, Test")
     expect(content).toContain("Staged and unstaged tracked edits")
-    expect(content).toContain("planned Create paths")
+    expect(content).toContain("any planned Create, Modify, Delete, or Test path")
+    expect(content).toContain("Unrelated untracked paths are allowed")
+    expect(content).toContain("Do not stage untracked user files")
     expect(content).toContain("fails closed before mutation")
   })
 

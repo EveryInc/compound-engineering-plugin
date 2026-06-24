@@ -1,30 +1,32 @@
 {
-  "scenario": "B7-pre-existing-overlap",
+  "scenario": "missing-review-plan-argument",
+  "plan_path": "docs/plans/clamp-feature.md",
   "terminal_status": "failed",
-  "reason": "pre_existing_overlap",
+  "reason": "missing_review_plan_argument",
   "stage_sequence": [
     "preflight",
     "snapshot",
     "overlap_gate",
+    "implementation",
+    "manifest_checkpoint:after_implementation",
+    "simplification",
+    "manifest_checkpoint:after_simplification",
+    "manifest_checkpoint:before_simplification_verification",
+    "verification:simplification",
+    "review_contract_validation",
     "report"
   ],
   "review_attempt_count": 0,
   "review_attempts": [],
+  "review_invocations": [],
+  "review_outputs": [],
+  "inferred_intent_fallback_used": false,
   "planned_scope": {
-    "created": ["src/clamp.ts"],
+    "created": [],
     "modified": ["src/math.ts"],
-    "deleted": ["src/legacyClamp.ts"],
+    "deleted": [],
     "test_paths": ["tests/math.test.ts"]
   },
-  "overlap": {
-    "tracked": ["tests/math.test.ts"],
-    "untracked_planned_collisions": ["src/clamp.ts"],
-    "staged": ["tests/math.test.ts"],
-    "unstaged": ["src/math.ts"]
-  },
-  "ce_work_invocation_count": 0,
-  "original_bytes_preserved": true,
-  "staged_state_preserved": true,
   "reviewed_manifest": {
     "created": [],
     "modified": [],
@@ -38,7 +40,7 @@
   },
   "final_repository_delta": {
     "created": [],
-    "modified": [],
+    "modified": ["src/math.ts", "tests/math.test.ts"],
     "deleted": [],
     "temporarily_indexed": []
   },

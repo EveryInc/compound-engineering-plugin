@@ -1,13 +1,8 @@
 {
-  "scenario": "B7-pre-existing-overlap",
+  "scenario": "untracked-modify-overlap",
   "terminal_status": "failed",
-  "reason": "pre_existing_overlap",
-  "stage_sequence": [
-    "preflight",
-    "snapshot",
-    "overlap_gate",
-    "report"
-  ],
+  "reason": "pre_existing_untracked_overlap",
+  "stage_sequence": ["preflight", "snapshot", "overlap_gate", "report"],
   "review_attempt_count": 0,
   "review_attempts": [],
   "planned_scope": {
@@ -17,14 +12,16 @@
     "test_paths": ["tests/math.test.ts"]
   },
   "overlap": {
-    "tracked": ["tests/math.test.ts"],
-    "untracked_planned_collisions": ["src/clamp.ts"],
-    "staged": ["tests/math.test.ts"],
-    "unstaged": ["src/math.ts"]
+    "tracked": [],
+    "untracked_planned_collisions": ["src/math.ts"],
+    "staged": [],
+    "unstaged": []
   },
   "ce_work_invocation_count": 0,
   "original_bytes_preserved": true,
   "staged_state_preserved": true,
+  "head_preserved": true,
+  "unrelated_work_preserved": true,
   "reviewed_manifest": {
     "created": [],
     "modified": [],

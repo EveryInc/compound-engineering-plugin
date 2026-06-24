@@ -1,0 +1,79 @@
+{
+  "scenario": "unrelated-untracked-allowed",
+  "plan_path": "docs/plans/clamp-feature.md",
+  "terminal_status": "success",
+  "stage_sequence": [
+    "preflight",
+    "snapshot",
+    "overlap_gate",
+    "implementation",
+    "manifest_checkpoint:after_implementation",
+    "simplification",
+    "manifest_checkpoint:after_simplification",
+    "manifest_checkpoint:before_simplification_verification",
+    "verification:simplification",
+    "manifest_checkpoint:before_review_attempt-1",
+    "review:attempt-1",
+    "manifest_checkpoint:before_final_verification",
+    "final_verification",
+    "compound",
+    "report"
+  ],
+  "review_attempt_count": 1,
+  "review_attempts": [
+    {
+      "attempt": 1,
+      "run_id": "ce-loop-review-unrelated-untracked-1",
+      "artifact_path": "/tmp/ce-loop/review-unrelated-untracked-1",
+      "status": "complete",
+      "verdict": "Ready to merge",
+      "eligible_actionable_findings": []
+    }
+  ],
+  "planned_scope": {
+    "created": [],
+    "modified": ["src/math.ts"],
+    "deleted": [],
+    "test_paths": ["tests/math.test.ts"]
+  },
+  "overlap": {
+    "tracked": [],
+    "untracked_planned_collisions": [],
+    "staged": [],
+    "unstaged": []
+  },
+  "unrelated_untracked": {
+    "path": "notes/local-scratch.md",
+    "byte_identical": true,
+    "staged": false,
+    "in_planned_scope": false,
+    "in_reviewed_manifest": false
+  },
+  "ce_work_invocation_count": 1,
+  "reviewed_manifest": {
+    "created": [],
+    "modified": ["src/math.ts", "tests/math.test.ts"],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "compound_outputs": {
+    "created": ["docs/solutions/clamp-helper.md"],
+    "modified": [],
+    "deleted": []
+  },
+  "final_repository_delta": {
+    "created": ["docs/solutions/clamp-helper.md"],
+    "modified": ["src/math.ts", "tests/math.test.ts"],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "finding_decisions": [],
+  "compound_invocation_count": 1,
+  "actions": {
+    "commit": false,
+    "push": false,
+    "pr": false,
+    "ci_watch": false,
+    "release": false
+  }
+}

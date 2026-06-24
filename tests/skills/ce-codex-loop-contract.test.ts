@@ -32,6 +32,19 @@ type Fixture = {
   stage_sequence: string[]
   review_attempt_count: number
   review_attempts: Array<{ attempt: number; status?: string; verdict?: string; eligible_actionable_findings?: string[] }>
+  review_invocations?: Array<{
+    attempt: number
+    plan_path: string
+    stable_base: string
+    manifest_path: string
+    run_id: string
+    command: string
+  }>
+  review_outputs?: Array<{
+    attempt: number
+    plan_source: string
+    requirements_completeness: Record<string, unknown> | null
+  }>
   planned_scope: PlannedScope
   manifest_checkpoints?: ManifestCheckpoint[]
   reviewed_manifest: Manifest
@@ -86,6 +99,30 @@ function expectManifestEquals(actual: Manifest, expected: Manifest): void {
   expect(actual).toEqual(expected)
 }
 
+function expectExplicitPlanReviewInvocations(fixture: Fixture, expectedAttempts: number[]): void {
+  const expectedPlan = "docs/plans/clamp-feature.md"
+
+  expect(fixture.plan_path).toBe(expectedPlan)
+  expect(fixture.review_invocations?.map((invocation) => invocation.attempt)).toEqual(expectedAttempts)
+  expect(fixture.review_outputs?.map((output) => output.attempt)).toEqual(expectedAttempts)
+
+  for (const invocation of fixture.review_invocations ?? []) {
+    expect(invocation.plan_path).toBe(expectedPlan)
+    expect(invocation.command).toContain("ce-code-review mode:agent")
+    expect(invocation.command).toContain(`plan:${expectedPlan}`)
+    expect(invocation.command).toContain(`base:${invocation.stable_base}`)
+    expect(invocation.command).toContain(`manifest:${invocation.manifest_path}`)
+    expect(invocation.command).toContain(`run-id:${invocation.run_id}`)
+    expect(invocation.command).not.toMatch(/mode:agent base:/)
+  }
+
+  for (const output of fixture.review_outputs ?? []) {
+    expect(output.plan_source).toBe("explicit")
+    expect(output.requirements_completeness).not.toBeNull()
+    expect(output.requirements_completeness?.plan_source).toBe("explicit")
+  }
+}
+
 describe("ce-codex-loop contract", () => {
   test("defines a self-contained public orchestrator skill", async () => {
     const content = await readRepoFile("skills/ce-codex-loop/SKILL.md")
@@ -113,7 +150,10 @@ describe("ce-codex-loop contract", () => {
 
     expect(content).toContain("ce-work mode:implementation-only")
     expect(content).toContain("ce-simplify-code mode:structured manifest:<manifest-path>")
-    expect(content).toContain("ce-code-review mode:agent base:<stable-base> manifest:<manifest-path> run-id:<run-id>")
+    expect(content).toContain(
+      "ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id>",
+    )
+    expect(content).not.toContain("ce-code-review mode:agent base:<stable-base> manifest:<manifest-path> run-id:<run-id>")
     expect(content).toContain("ce-compound mode:headless")
     expect(content).toContain("run exactly once")
     expect(content).toContain("only after clean review and green final verification")
@@ -169,8 +209,34 @@ describe("ce-codex-loop contract", () => {
     expect(content).toContain("inline test path phrases")
     expect(content).toContain("Do not guess paths from ambiguous prose")
     expect(content).toContain("Staged and unstaged changes both count")
+    expect(content).toContain("untracked file at any planned Create, Modify, Delete, or Test path")
+    expect(content).toContain("Unrelated untracked paths remain outside loop ownership")
     expect(content).toContain("tests/math.test.ts")
     expect(content).toContain("before `ce-work` runs")
+  })
+
+  test("review invocations always forward the supplied plan path explicitly", async () => {
+    const fixture = await readFixture("success")
+
+    expectExplicitPlanReviewInvocations(fixture, [1, 2])
+  })
+
+  test("subsequent review attempts retain the same explicit plan argument", async () => {
+    const fixture = await readFixture("failed-review-exhausted")
+
+    expectExplicitPlanReviewInvocations(fixture, [1, 2, 3])
+  })
+
+  test("missing or malformed review plan argument fails closed before inferred intent", async () => {
+    const fixture = await readFixture("missing-review-plan-argument")
+
+    expect(fixture.terminal_status).toBe("failed")
+    expect(fixture.reason).toBe("missing_review_plan_argument")
+    expect(fixture.review_attempt_count).toBe(0)
+    expect(fixture.review_invocations).toEqual([])
+    expect(fixture.review_outputs).toEqual([])
+    expect(fixture.inferred_intent_fallback_used).toBe(false)
+    expect(fixture.compound_invocation_count).toBe(0)
   })
 
   test("uses skill-local review followup policy only", async () => {
@@ -515,12 +581,61 @@ describe("ce-codex-loop contract", () => {
     })
     expect(fixture.overlap).toEqual({
       tracked: ["tests/math.test.ts"],
-      untracked_create_collisions: ["src/clamp.ts"],
+      untracked_planned_collisions: ["src/clamp.ts"],
       staged: ["tests/math.test.ts"],
       unstaged: ["src/math.ts"],
     })
     expect(fixture.ce_work_invocation_count).toBe(0)
     expect(fixture.original_bytes_preserved).toBe(true)
     expect(fixture.staged_state_preserved).toBe(true)
+  })
+
+  for (const [fixtureName, expectedPath] of [
+    ["untracked-create-overlap", "src/clamp.ts"],
+    ["untracked-modify-overlap", "src/math.ts"],
+    ["untracked-delete-overlap", "src/legacyClamp.ts"],
+    ["untracked-test-overlap", "tests/math.test.ts"],
+  ] as const) {
+    test(`${fixtureName} blocks before ce-work and preserves state`, async () => {
+      const fixture = await readFixture(fixtureName)
+
+      expect(fixture.terminal_status).toBe("failed")
+      expect(fixture.reason).toBe("pre_existing_untracked_overlap")
+      expect(fixture.stage_sequence).toEqual(["preflight", "snapshot", "overlap_gate", "report"])
+      expect(fixture.overlap).toEqual({
+        tracked: [],
+        untracked_planned_collisions: [expectedPath],
+        staged: [],
+        unstaged: [],
+      })
+      expect(fixture.ce_work_invocation_count).toBe(0)
+      expect(fixture.original_bytes_preserved).toBe(true)
+      expect(fixture.staged_state_preserved).toBe(true)
+      expect(fixture.head_preserved).toBe(true)
+      expect(fixture.unrelated_work_preserved).toBe(true)
+      expect(fixture.review_attempt_count).toBe(0)
+      expect(fixture.compound_invocation_count).toBe(0)
+    })
+  }
+
+  test("unrelated untracked file remains outside planned scope and reviewed manifest", async () => {
+    const fixture = await readFixture("unrelated-untracked-allowed")
+
+    expect(fixture.terminal_status).toBe("success")
+    expect(fixture.ce_work_invocation_count).toBe(1)
+    expect(fixture.unrelated_untracked).toEqual({
+      path: "notes/local-scratch.md",
+      byte_identical: true,
+      staged: false,
+      in_planned_scope: false,
+      in_reviewed_manifest: false,
+    })
+    expect(manifestPaths(fixture.reviewed_manifest)).not.toContain("notes/local-scratch.md")
+    expect(uniqueSorted([
+      ...fixture.planned_scope.created,
+      ...fixture.planned_scope.modified,
+      ...fixture.planned_scope.deleted,
+      ...fixture.planned_scope.test_paths,
+    ])).not.toContain("notes/local-scratch.md")
   })
 })
