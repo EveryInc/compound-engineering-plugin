@@ -38,6 +38,9 @@ describe("detectInstalledTools", () => {
 
     const pi = results.find((t) => t.name === "pi")
     expect(pi?.detected).toBe(false)
+
+    const kimi = results.find((t) => t.name === "kimi")
+    expect(kimi?.detected).toBe(false)
   })
 
   test("returns all tools with detected=false when no directories exist", async () => {
@@ -47,7 +50,7 @@ describe("detectInstalledTools", () => {
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
-    expect(results.length).toBe(7)
+    expect(results.length).toBe(8)
     for (const tool of results) {
       expect(tool.detected).toBe(false)
       expect(tool.reason).toBe("not found")
@@ -61,12 +64,17 @@ describe("detectInstalledTools", () => {
     await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".factory"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".pi"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".kimi"), { recursive: true })
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
     expect(results.find((t) => t.name === "opencode")?.detected).toBe(true)
     expect(results.find((t) => t.name === "droid")?.detected).toBe(true)
     expect(results.find((t) => t.name === "pi")?.detected).toBe(true)
+
+    const kimi = results.find((t) => t.name === "kimi")
+    expect(kimi?.detected).toBe(true)
+    expect(kimi?.reason).toContain(".kimi")
   })
 
   test("detects antigravity at ~/.gemini/antigravity-cli", async () => {

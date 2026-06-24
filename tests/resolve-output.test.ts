@@ -1,13 +1,14 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import os from "os"
 import path from "path"
-import { resolveCodexHome } from "../src/utils/resolve-home"
+import { resolveCodexHome, resolveKimiHome } from "../src/utils/resolve-home"
 import { resolveOpenCodeWriteScope, resolveTargetOutputRoot } from "../src/utils/resolve-output"
 
 const baseOptions = {
   outputRoot: "/tmp/output",
   codexHome: path.join(os.homedir(), ".codex"),
   piHome: path.join(os.homedir(), ".pi", "agent"),
+  kimiHome: path.join(os.homedir(), ".kimi"),
   hasExplicitOutput: false,
 }
 
@@ -20,6 +21,11 @@ describe("resolveTargetOutputRoot", () => {
   test("pi returns piHome", () => {
     const result = resolveTargetOutputRoot({ ...baseOptions, targetName: "pi" })
     expect(result).toBe(baseOptions.piHome)
+  })
+
+  test("kimi returns kimiHome", () => {
+    const result = resolveTargetOutputRoot({ ...baseOptions, targetName: "kimi" })
+    expect(result).toBe(baseOptions.kimiHome)
   })
 
   test("opencode with explicit output returns outputRoot as-is", () => {
@@ -77,6 +83,33 @@ describe("resolveCodexHome", () => {
     process.env.CODEX_HOME = "/tmp/custom-codex-profile"
 
     expect(resolveCodexHome("/tmp/explicit-codex")).toBe("/tmp/explicit-codex")
+  })
+})
+
+describe("resolveKimiHome", () => {
+  const originalKimiHome = process.env.KIMI_HOME
+
+  afterEach(() => {
+    if (originalKimiHome === undefined) {
+      delete process.env.KIMI_HOME
+    } else {
+      process.env.KIMI_HOME = originalKimiHome
+    }
+  })
+
+  test("defaults to ~/.kimi when KIMI_HOME is unset", () => {
+    delete process.env.KIMI_HOME
+    expect(resolveKimiHome(undefined)).toBe(path.join(os.homedir(), ".kimi"))
+  })
+
+  test("uses KIMI_HOME when no explicit --kimi-home is provided", () => {
+    process.env.KIMI_HOME = "/tmp/custom-kimi-profile"
+    expect(resolveKimiHome(undefined)).toBe("/tmp/custom-kimi-profile")
+  })
+
+  test("lets explicit --kimi-home override KIMI_HOME", () => {
+    process.env.KIMI_HOME = "/tmp/custom-kimi-profile"
+    expect(resolveKimiHome("/tmp/explicit-kimi")).toBe("/tmp/explicit-kimi")
   })
 })
 

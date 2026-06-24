@@ -298,6 +298,26 @@ agy plugin install ./compound-engineering-plugin/.agy
 
 `agy` also loads `GEMINI.md` workspace context from the checkout.
 
+### Kimi CLI
+
+[Kimi CLI](https://github.com/MoonshotAI/kimi-cli) discovers Agent Skills from a brand group of directories that **includes `~/.claude/skills/`** (with `merge_all_available_skills` on by default). If you already run Compound Engineering in Claude Code, Kimi picks up its skills automatically — no extra step.
+
+To install directly into Kimi's own root (`~/.kimi`) instead, use the converter CLI from a checkout:
+
+```bash
+git clone https://github.com/EveryInc/compound-engineering-plugin
+cd compound-engineering-plugin && bun install
+bun run cli:install . --to kimi
+```
+
+This writes:
+
+- Skills (plus commands and agents, converted to skills invoked via `/skill:<name>`) to `~/.kimi/skills/<name>/SKILL.md`
+- MCP servers to `~/.kimi/mcp.json`
+- Hooks to `~/.kimi/config.toml` (`[[hooks]]`), with tool-name matchers remapped to Kimi equivalents
+
+Override the destination with `--kimi-home <dir>` (or `$KIMI_HOME`). Kimi has no command-file or auto-discovered agent format, so commands and agents both surface as skills.
+
 ### Existing Installs
 
 Compound Engineering moved to a root-native, skills-only layout. An existing marketplace install keeps a **cached** marketplace snapshot that still points at the old `plugins/compound-engineering` path, so updating the plugin on its own reads that stale snapshot and leaves you on the previous version. Refresh the cached marketplace **first**, then update the plugin — order matters.

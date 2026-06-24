@@ -3,10 +3,12 @@ import { convertClaudeToOpenCode, type ClaudeToOpenCodeOptions } from "../conver
 import { convertClaudeToCodex } from "../converters/claude-to-codex"
 import { convertClaudeToPi } from "../converters/claude-to-pi"
 import { convertClaudeToAntigravity } from "../converters/claude-to-antigravity"
+import { convertClaudeToKimi } from "../converters/claude-to-kimi"
 import { writeOpenCodeBundle } from "./opencode"
 import { writeCodexBundle } from "./codex"
 import { writePiBundle } from "./pi"
 import { writeAntigravityBundle } from "./antigravity"
+import { writeKimiBundle } from "./kimi"
 
 export type TargetScope = "global" | "workspace"
 
@@ -72,5 +74,14 @@ export const targets: Record<string, TargetHandler> = {
     implemented: true,
     convert: convertClaudeToAntigravity as TargetHandler["convert"],
     write: writeAntigravityBundle as TargetHandler["write"],
+  },
+  kimi: {
+    name: "kimi",
+    implemented: true,
+    convert: convertClaudeToKimi as TargetHandler["convert"],
+    write: ((outputRoot, bundle) =>
+      writeKimiBundle(outputRoot, bundle as Parameters<typeof writeKimiBundle>[1], {
+        outputIsKimiRoot: true,
+      })) as TargetHandler["write"],
   },
 }

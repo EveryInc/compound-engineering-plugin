@@ -8,7 +8,7 @@ import { targets, validateScope } from "../targets"
 import { pathExists } from "../utils/files"
 import type { ClaudeToOpenCodeOptions, PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
-import { expandHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
+import { expandHome, resolveCodexHome, resolveKimiHome, resolveTargetHome } from "../utils/resolve-home"
 import { resolveOpenCodeWriteScope, resolveTargetOutputRoot } from "../utils/resolve-output"
 import { detectInstalledTools } from "../utils/detect-tools"
 
@@ -28,7 +28,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | pi | antigravity | all)",
+      description: "Target format (opencode | codex | pi | antigravity | kimi | all)",
     },
     output: {
       type: "string",
@@ -44,6 +44,11 @@ export default defineCommand({
       type: "string",
       alias: "pi-home",
       description: "Write Pi output to this Pi root (ex: ~/.pi/agent or ./.pi)",
+    },
+    kimiHome: {
+      type: "string",
+      alias: "kimi-home",
+      description: "Write Kimi output to this Kimi root (default: $KIMI_HOME or ~/.kimi)",
     },
     scope: {
       type: "string",
@@ -95,6 +100,7 @@ export default defineCommand({
       const outputRoot = resolveOutputRoot(args.output)
       const codexHome = resolveCodexHome(args.codexHome)
       const piHome = resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent"))
+      const kimiHome = resolveKimiHome(args.kimiHome)
       const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
 
       const options: ClaudeToOpenCodeOptions = {
@@ -138,6 +144,7 @@ export default defineCommand({
             outputRoot,
             codexHome,
             piHome,
+            kimiHome,
             pluginName: plugin.manifest.name,
             hasExplicitOutput,
           })
@@ -172,6 +179,7 @@ export default defineCommand({
         outputRoot,
         codexHome,
         piHome,
+        kimiHome,
         pluginName: plugin.manifest.name,
         hasExplicitOutput,
         scope: resolvedScope,
@@ -203,6 +211,7 @@ export default defineCommand({
           outputRoot,
           codexHome,
           piHome,
+          kimiHome,
           pluginName: plugin.manifest.name,
           hasExplicitOutput,
           scope: handler.defaultScope,

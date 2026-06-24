@@ -193,6 +193,57 @@ describe("CLI", () => {
     }
   })
 
+  test("install converts fixture plugin to Kimi output", async () => {
+    const kimiHome = await fs.mkdtemp(path.join(os.tmpdir(), "cli-kimi-"))
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const repoRoot = path.join(import.meta.dir, "..")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "kimi",
+      "--kimi-home",
+      kimiHome,
+    ], {
+      cwd: repoRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect(stdout).toContain("Installed compound-engineering")
+
+    // Pass-through skill, agent-as-skill, and command-as-skill all land flat
+    // in <root>/skills/<name>/SKILL.md.
+    expect(await exists(path.join(kimiHome, "skills", "skill-one", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(kimiHome, "skills", "repo-research-analyst", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(kimiHome, "skills", "security-sentinel", "SKILL.md"))).toBe(true)
+    expect(await exists(path.join(kimiHome, "skills", "workflows-review", "SKILL.md"))).toBe(true)
+
+    // claude-only skill (ce_platforms: [claude]) is excluded from the kimi target.
+    expect(await exists(path.join(kimiHome, "skills", "claude-only-skill"))).toBe(false)
+
+    // Manifest records the managed skill set.
+    expect(await exists(path.join(kimiHome, "compound-engineering", "install-manifest.json"))).toBe(true)
+
+    // Hooks land in config.toml with remapped tool-name matchers.
+    const config = await fs.readFile(path.join(kimiHome, "config.toml"), "utf8")
+    expect(config).toContain("[[hooks]]")
+    expect(config).toContain('event = "PreToolUse"')
+    expect(config).toContain('matcher = "Shell"')
+  })
+
   test("cleanup backs up legacy Codex artifacts on demand", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-cleanup-codex-"))
     const codexRoot = path.join(tempRoot, ".codex")

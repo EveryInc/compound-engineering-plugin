@@ -7,13 +7,15 @@ export function resolveTargetOutputRoot(options: {
   outputRoot: string
   codexHome: string
   piHome: string
+  kimiHome: string
   pluginName?: string
   hasExplicitOutput: boolean
   scope?: TargetScope
 }): string {
-  const { targetName, outputRoot, codexHome, piHome, hasExplicitOutput } = options
+  const { targetName, outputRoot, codexHome, piHome, kimiHome, hasExplicitOutput } = options
   if (targetName === "codex") return codexHome
   if (targetName === "pi") return piHome
+  if (targetName === "kimi") return kimiHome
   if (targetName === "antigravity") {
     const base = hasExplicitOutput ? outputRoot : process.cwd()
     return path.join(base, ".agy")

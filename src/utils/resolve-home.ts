@@ -20,3 +20,8 @@ export function resolveCodexHome(value: unknown): string {
   const defaultPath = process.env.CODEX_HOME?.trim() || path.join(os.homedir(), ".codex")
   return resolveTargetHome(value, path.resolve(expandHome(defaultPath)))
 }
+
+export function resolveKimiHome(value: unknown): string {
+  const defaultPath = process.env.KIMI_HOME?.trim() || path.join(os.homedir(), ".kimi")
+  return resolveTargetHome(value, path.resolve(expandHome(defaultPath)))
+}
