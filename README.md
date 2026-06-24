@@ -267,12 +267,27 @@ agy plugin install ./compound-engineering-plugin/.agy
 
 ### Existing Installs
 
-Compound Engineering moved to a root-native, skills-only layout. An existing marketplace install keeps a **cached** marketplace entry that still points at the old `plugins/compound-engineering` path, so running `/plugin update` on its own reads that stale entry and leaves you on the previous version. On Claude Code, refresh the cached marketplace definition **first**, then update the plugin — order matters:
+Compound Engineering moved to a root-native, skills-only layout. An existing marketplace install keeps a **cached** marketplace snapshot that still points at the old `plugins/compound-engineering` path, so updating the plugin on its own reads that stale snapshot and leaves you on the previous version. Refresh the cached marketplace **first**, then update the plugin — order matters.
+
+**Claude Code**
 
 ```text
 /plugin marketplace update compound-engineering-plugin
 /plugin update compound-engineering
 ```
+
+**Codex CLI**
+
+```bash
+codex plugin marketplace upgrade compound-engineering-plugin
+codex plugin add compound-engineering@compound-engineering-plugin
+```
+
+There is no `codex plugin update`; re-running `add` reinstalls from the refreshed snapshot. For a non-default profile, run both commands against the same `CODEX_HOME`.
+
+**Codex App**
+
+Refresh the marketplace from the **Plugins** panel (remove and re-add the `EveryInc/compound-engineering-plugin` marketplace if there is no refresh control), then reinstall **compound-engineering** and restart Codex.
 
 If you configured a host with a direct path or sparse path under `plugins/compound-engineering`, edit or reinstall that source so it points at the repository root with no sparse path.
 
