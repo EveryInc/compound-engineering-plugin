@@ -51,7 +51,10 @@ const detectableTools: DetectableTool[] = [
   },
   {
     name: "kimi",
-    detectPaths: (home) => [path.join(home, ".kimi")],
+    // Kimi Code CLI (the current product) uses ~/.kimi-code; the legacy
+    // kimi-cli root ~/.kimi is kept as a fallback so migrated installs still
+    // register as detected.
+    detectPaths: (home) => [path.join(home, ".kimi-code"), path.join(home, ".kimi")],
   },
   {
     name: "droid",

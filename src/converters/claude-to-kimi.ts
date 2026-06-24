@@ -180,7 +180,7 @@ function collectReferencedSidecarDirs(agent: ClaudeAgent): KimiGeneratedSkillSid
 }
 
 /**
- * Kimi hooks are `[[hooks]]` shell commands keyed on its own 13 lifecycle
+ * Kimi hooks are `[[hooks]]` shell commands keyed on its own lifecycle
  * events. Claude events Kimi lacks, and prompt/agent-type hook entries (which
  * have no shell command), are dropped during conversion. Warn so the loss is
  * visible rather than silent.

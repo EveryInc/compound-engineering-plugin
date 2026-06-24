@@ -29,7 +29,7 @@ export type KimiInstallManifest = {
 }
 
 export type KimiWriteOptions = {
-  /** When true, `outputRoot` is already the Kimi root (e.g. ~/.kimi). */
+  /** When true, `outputRoot` is already the Kimi root (e.g. ~/.kimi-code). */
   outputIsKimiRoot?: boolean
 }
 
@@ -56,19 +56,26 @@ export async function writeKimiBundle(
     ]),
   )
 
+  // Skill names we previously installed (and may therefore safely overwrite).
+  // Anything else occupying a target name is foreign and is backed up, never
+  // silently deleted, since the skills root is flat and shared.
+  const managedSkills = new Set(manifest?.skills ?? [])
+
   await cleanupRemovedSkills(skillsRoot, manifest, currentSkills)
 
   for (const skill of bundle.skillDirs) {
-    const targetDir = path.join(skillsRoot, sanitizePathName(skill.name))
-    await fs.rm(targetDir, { recursive: true, force: true })
+    const name = sanitizePathName(skill.name)
+    const targetDir = path.join(skillsRoot, name)
+    await clearSkillTarget(targetDir, name, managedSkills)
     await copySkillDir(skill.sourceDir, targetDir, (content) =>
       transformContentForKimi(content, bundle.invocationTargets),
     )
   }
 
   for (const skill of bundle.generatedSkills) {
-    const skillDir = path.join(skillsRoot, sanitizePathName(skill.name))
-    await fs.rm(skillDir, { recursive: true, force: true })
+    const name = sanitizePathName(skill.name)
+    const skillDir = path.join(skillsRoot, name)
+    await clearSkillTarget(skillDir, name, managedSkills)
     await writeText(path.join(skillDir, "SKILL.md"), skill.content + "\n")
     for (const sidecar of skill.sidecarDirs ?? []) {
       await copyDir(sidecar.sourceDir, path.join(skillDir, sidecar.targetName))
@@ -90,7 +97,7 @@ export async function writeKimiBundle(
 
 function resolveKimiRoot(outputRoot: string, options: KimiWriteOptions): string {
   if (options.outputIsKimiRoot) return outputRoot
-  return path.basename(outputRoot) === ".kimi" ? outputRoot : path.join(outputRoot, ".kimi")
+  return path.basename(outputRoot) === ".kimi-code" ? outputRoot : path.join(outputRoot, ".kimi-code")
 }
 
 function sanitizeKimiPathComponent(name: string): string {
@@ -147,6 +154,30 @@ async function writeInstallManifest(kimiRoot: string, manifest: KimiInstallManif
   await writeJson(path.join(kimiRoot, manifest.pluginName, MANAGED_INSTALL_MANIFEST), manifest)
 }
 
+/**
+ * Clear a skill's target directory before (re)writing it. The Kimi skills root
+ * is flat and shared with user-authored skills and other tools, so a name we
+ * ship can collide with a directory this plugin never created. A directory we
+ * previously managed (recorded in the prior install manifest) is removed; any
+ * other existing directory is moved aside to a timestamped backup so a
+ * collision never silently destroys foreign data.
+ */
+async function clearSkillTarget(
+  targetDir: string,
+  name: string,
+  managedSkills: Set<string>,
+): Promise<void> {
+  if (managedSkills.has(name)) {
+    await fs.rm(targetDir, { recursive: true, force: true })
+    return
+  }
+  if (!(await pathExists(targetDir))) return
+  const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
+  const backupPath = `${targetDir}.bak.${timestamp}`
+  await fs.rename(targetDir, backupPath)
+  console.log(`Backed up unmanaged Kimi skill directory to ${backupPath}`)
+}
+
 async function cleanupRemovedSkills(
   skillsRoot: string,
   manifest: KimiInstallManifest | null,
@@ -163,7 +194,7 @@ async function cleanupRemovedSkills(
   }
 }
 
-// ── MCP servers (~/.kimi/mcp.json) ─────────────────────────
+// ── MCP servers (~/.kimi-code/mcp.json) ────────────────────
 
 type McpJson = { mcpServers?: Record<string, ClaudeMcpServer> } & Record<string, unknown>
 
@@ -217,20 +248,18 @@ async function readJsonSafe(filePath: string): Promise<McpJson | null> {
   }
 }
 
-// ── Hooks (~/.kimi/config.toml [[hooks]]) ──────────────────
+// ── Hooks (~/.kimi-code/config.toml [[hooks]]) ─────────────
 
+// Claude tool names -> Kimi Code CLI tool names (used as hook `matcher`
+// tokens). Kimi Code CLI's built-in tool names largely match Claude's
+// (Bash, Read, Write, Edit, Grep, Glob, WebSearch), so those pass through
+// unchanged via the `?? trimmed` fallback in remapMatcher; only the few that
+// genuinely differ are listed here.
 const KIMI_TOOL_NAMES: Record<string, string> = {
-  Write: "WriteFile",
-  Edit: "StrReplaceFile",
-  MultiEdit: "StrReplaceFile",
-  Read: "ReadFile",
-  Bash: "Shell",
-  Grep: "Grep",
-  Glob: "Glob",
+  MultiEdit: "Edit",
   WebFetch: "FetchURL",
-  WebSearch: "SearchWeb",
   Task: "Agent",
-  TodoWrite: "SetTodoList",
+  TodoWrite: "TodoList",
 }
 
 async function writeHooksConfig(kimiRoot: string, hooks?: ClaudeHooks): Promise<void> {

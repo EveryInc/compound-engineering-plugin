@@ -25,7 +25,7 @@ export type KimiTransformOptions = {
  * 1. Task agent calls: `Task agent-name(args)` -> `Use the \`agent-name\` skill to: args`
  * 2. Slash command references: known commands/skills -> `/skill:<name>`
  * 3. Agent references: `@agent-name` -> the `agent-name` skill
- * 4. Claude config paths: `.claude/` -> `.kimi/`
+ * 4. Claude config paths: `.claude/` -> `.kimi-code/`
  */
 export function transformContentForKimi(
   body: string,
@@ -60,8 +60,8 @@ export function transformContentForKimi(
   })
 
   result = result
-    .replace(/~\/\.claude\//g, "~/.kimi/")
-    .replace(/\.claude\//g, ".kimi/")
+    .replace(/~\/\.claude\//g, "~/.kimi-code/")
+    .replace(/\.claude\//g, ".kimi-code/")
 
   const agentRefPattern = /@([a-z][a-z0-9-]*-(?:agent|reviewer|researcher|analyst|specialist|oracle|sentinel|guardian|strategist))/gi
   result = result.replace(agentRefPattern, (_match, agentName: string) => {
@@ -98,21 +98,24 @@ function finalSegment(value: string): string {
 }
 
 /**
- * Kimi's 13 supported hook lifecycle events. Claude events outside this set
- * (e.g. PermissionRequest, Setup) have no Kimi equivalent and are dropped.
- * Shared by the converter (to warn) and the writer (to render).
+ * Kimi Code CLI's supported hook lifecycle events. Claude events outside this
+ * set have no Kimi equivalent and are dropped. Shared by the converter (to
+ * warn) and the writer (to render).
  */
 export const KIMI_HOOK_EVENTS = new Set<string>([
+  "UserPromptSubmit",
   "PreToolUse",
+  "Stop",
   "PostToolUse",
   "PostToolUseFailure",
-  "UserPromptSubmit",
-  "Stop",
-  "StopFailure",
+  "PermissionRequest",
+  "PermissionResult",
   "SessionStart",
   "SessionEnd",
   "SubagentStart",
   "SubagentStop",
+  "StopFailure",
+  "Interrupt",
   "PreCompact",
   "PostCompact",
   "Notification",

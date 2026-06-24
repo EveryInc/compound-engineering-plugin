@@ -46,7 +46,7 @@ describe("writeKimiBundle", () => {
 
     // Content transform applied to pass-through skill.
     const passthrough = await fs.readFile(path.join(root, "skills", "existing", "SKILL.md"), "utf8")
-    expect(passthrough).toContain(".kimi/rules")
+    expect(passthrough).toContain(".kimi-code/rules")
     expect(passthrough).not.toContain(".claude/rules")
 
     const manifest = JSON.parse(await fs.readFile(path.join(root, "fixture", "install-manifest.json"), "utf8"))
@@ -70,6 +70,30 @@ describe("writeKimiBundle", () => {
     expect(await exists(path.join(root, "skills", "temp"))).toBe(false)
     // Foreign skill is untouched.
     expect(await exists(path.join(root, "skills", "user-skill"))).toBe(true)
+  })
+
+  test("backs up an unmanaged skill dir instead of clobbering it on name collision", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "kimi-root-"))
+
+    // A foreign skill (no install manifest yet) occupies a name we then ship.
+    await fs.mkdir(path.join(root, "skills", "shared-name"), { recursive: true })
+    await fs.writeFile(path.join(root, "skills", "shared-name", "SKILL.md"), "foreign", "utf8")
+    await fs.writeFile(path.join(root, "skills", "shared-name", "user-data.txt"), "keep me", "utf8")
+
+    await writeKimiBundle(root, baseBundle({
+      generatedSkills: [{ name: "shared-name", content: "---\nname: shared-name\n---\n\nours" }],
+    }), { outputIsKimiRoot: true })
+
+    // Our content is written...
+    const written = await fs.readFile(path.join(root, "skills", "shared-name", "SKILL.md"), "utf8")
+    expect(written).toContain("ours")
+
+    // ...and the foreign directory was preserved in a timestamped backup.
+    const entries = await fs.readdir(path.join(root, "skills"))
+    const backup = entries.find((name) => name.startsWith("shared-name.bak."))
+    expect(backup).toBeDefined()
+    const preserved = await fs.readFile(path.join(root, "skills", backup!, "user-data.txt"), "utf8")
+    expect(preserved).toBe("keep me")
   })
 
   test("merges MCP servers into mcp.json preserving user entries", async () => {
@@ -109,8 +133,8 @@ describe("writeKimiBundle", () => {
     const config = await fs.readFile(path.join(root, "config.toml"), "utf8")
     expect(config).toContain("[[hooks]]")
     expect(config).toContain('event = "PostToolUse"')
-    // Claude tool names are remapped to Kimi equivalents.
-    expect(config).toContain('matcher = "WriteFile|StrReplaceFile"')
+    // Kimi Code CLI shares Claude's Write/Edit tool names, so they pass through.
+    expect(config).toContain('matcher = "Write|Edit"')
     expect(config).toContain('command = "prettier --write"')
   })
 })

@@ -64,7 +64,7 @@ describe("detectInstalledTools", () => {
     await fs.mkdir(path.join(tempHome, ".config", "opencode"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".factory"), { recursive: true })
     await fs.mkdir(path.join(tempHome, ".pi"), { recursive: true })
-    await fs.mkdir(path.join(tempHome, ".kimi"), { recursive: true })
+    await fs.mkdir(path.join(tempHome, ".kimi-code"), { recursive: true })
 
     const results = await detectInstalledTools(tempHome, tempCwd)
 
@@ -74,7 +74,7 @@ describe("detectInstalledTools", () => {
 
     const kimi = results.find((t) => t.name === "kimi")
     expect(kimi?.detected).toBe(true)
-    expect(kimi?.reason).toContain(".kimi")
+    expect(kimi?.reason).toContain(".kimi-code")
   })
 
   test("detects antigravity at ~/.gemini/antigravity-cli", async () => {

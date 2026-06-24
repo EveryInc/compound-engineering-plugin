@@ -45,7 +45,7 @@ export default defineCommand({
     kimiHome: {
       type: "string",
       alias: "kimi-home",
-      description: "Write Kimi output to this Kimi root (default: $KIMI_HOME or ~/.kimi)",
+      description: "Write Kimi output to this Kimi root (default: $KIMI_CODE_HOME or ~/.kimi-code)",
     },
     scope: {
       type: "string",

@@ -237,11 +237,12 @@ describe("CLI", () => {
     // Manifest records the managed skill set.
     expect(await exists(path.join(kimiHome, "compound-engineering", "install-manifest.json"))).toBe(true)
 
-    // Hooks land in config.toml with remapped tool-name matchers.
+    // Hooks land in config.toml. Kimi Code CLI shares Claude's Bash tool name,
+    // so the PreToolUse matcher passes through unchanged.
     const config = await fs.readFile(path.join(kimiHome, "config.toml"), "utf8")
     expect(config).toContain("[[hooks]]")
     expect(config).toContain('event = "PreToolUse"')
-    expect(config).toContain('matcher = "Shell"')
+    expect(config).toContain('matcher = "Bash"')
   })
 
   test("cleanup backs up legacy Codex artifacts on demand", async () => {

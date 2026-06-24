@@ -22,6 +22,6 @@ export function resolveCodexHome(value: unknown): string {
 }
 
 export function resolveKimiHome(value: unknown): string {
-  const defaultPath = process.env.KIMI_HOME?.trim() || path.join(os.homedir(), ".kimi")
+  const defaultPath = process.env.KIMI_CODE_HOME?.trim() || path.join(os.homedir(), ".kimi-code")
   return resolveTargetHome(value, path.resolve(expandHome(defaultPath)))
 }

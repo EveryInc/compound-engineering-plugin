@@ -8,7 +8,7 @@ const baseOptions = {
   outputRoot: "/tmp/output",
   codexHome: path.join(os.homedir(), ".codex"),
   piHome: path.join(os.homedir(), ".pi", "agent"),
-  kimiHome: path.join(os.homedir(), ".kimi"),
+  kimiHome: path.join(os.homedir(), ".kimi-code"),
   hasExplicitOutput: false,
 }
 
@@ -87,28 +87,28 @@ describe("resolveCodexHome", () => {
 })
 
 describe("resolveKimiHome", () => {
-  const originalKimiHome = process.env.KIMI_HOME
+  const originalKimiHome = process.env.KIMI_CODE_HOME
 
   afterEach(() => {
     if (originalKimiHome === undefined) {
-      delete process.env.KIMI_HOME
+      delete process.env.KIMI_CODE_HOME
     } else {
-      process.env.KIMI_HOME = originalKimiHome
+      process.env.KIMI_CODE_HOME = originalKimiHome
     }
   })
 
-  test("defaults to ~/.kimi when KIMI_HOME is unset", () => {
-    delete process.env.KIMI_HOME
-    expect(resolveKimiHome(undefined)).toBe(path.join(os.homedir(), ".kimi"))
+  test("defaults to ~/.kimi-code when KIMI_CODE_HOME is unset", () => {
+    delete process.env.KIMI_CODE_HOME
+    expect(resolveKimiHome(undefined)).toBe(path.join(os.homedir(), ".kimi-code"))
   })
 
-  test("uses KIMI_HOME when no explicit --kimi-home is provided", () => {
-    process.env.KIMI_HOME = "/tmp/custom-kimi-profile"
+  test("uses KIMI_CODE_HOME when no explicit --kimi-home is provided", () => {
+    process.env.KIMI_CODE_HOME = "/tmp/custom-kimi-profile"
     expect(resolveKimiHome(undefined)).toBe("/tmp/custom-kimi-profile")
   })
 
-  test("lets explicit --kimi-home override KIMI_HOME", () => {
-    process.env.KIMI_HOME = "/tmp/custom-kimi-profile"
+  test("lets explicit --kimi-home override KIMI_CODE_HOME", () => {
+    process.env.KIMI_CODE_HOME = "/tmp/custom-kimi-profile"
     expect(resolveKimiHome("/tmp/explicit-kimi")).toBe("/tmp/explicit-kimi")
   })
 })

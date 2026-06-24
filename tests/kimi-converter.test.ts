@@ -78,8 +78,8 @@ describe("convertClaudeToKimi", () => {
     expect(data.description).toBe("Security-focused agent")
     expect(body).toContain("## Capabilities")
     expect(body).toContain("- Threat modeling")
-    // .claude/ paths are rewritten to .kimi/
-    expect(body).toContain(".kimi/")
+    // .claude/ paths are rewritten to .kimi-code/
+    expect(body).toContain(".kimi-code/")
     expect(body).not.toContain(".claude/")
   })
 
@@ -103,8 +103,9 @@ describe("convertClaudeToKimi", () => {
     try {
       const hooks: ClaudeHooks = {
         hooks: {
-          // Unsupported event -> warned.
-          PermissionRequest: [{ matcher: "Bash", hooks: [{ type: "command", command: "x" }] }],
+          // Unsupported event -> warned. (Use a synthetic name: Kimi Code CLI
+          // supports every real Claude hook event, including PermissionRequest.)
+          MadeUpEvent: [{ matcher: "Bash", hooks: [{ type: "command", command: "x" }] }],
           // Supported event but prompt/agent entries -> warned, not converted.
           PostToolUse: [
             { matcher: "Write", hooks: [{ type: "prompt", prompt: "p" }, { type: "agent", agent: "a" }] },
@@ -114,7 +115,7 @@ describe("convertClaudeToKimi", () => {
       convertClaudeToKimi({ ...fixturePlugin, hooks }, options)
       expect(warn).toHaveBeenCalled()
       const message = warn.mock.calls.map((c) => String(c[0])).join("\n")
-      expect(message).toContain("PermissionRequest")
+      expect(message).toContain("MadeUpEvent")
       expect(message).toContain("shell commands only")
     } finally {
       warn.mockRestore()

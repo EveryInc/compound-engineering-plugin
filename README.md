@@ -298,11 +298,9 @@ agy plugin install ./compound-engineering-plugin/.agy
 
 `agy` also loads `GEMINI.md` workspace context from the checkout.
 
-### Kimi CLI
+### Kimi Code CLI
 
-[Kimi CLI](https://github.com/MoonshotAI/kimi-cli) discovers Agent Skills from a brand group of directories that **includes `~/.claude/skills/`** (with `merge_all_available_skills` on by default). If you already run Compound Engineering in Claude Code, Kimi picks up its skills automatically — no extra step.
-
-To install directly into Kimi's own root (`~/.kimi`) instead, use the converter CLI from a checkout:
+The `kimi` target writes for [Kimi Code CLI](https://www.kimi.com/code/) (binary `kimi`, installed via `code.kimi.com/kimi-code/install.sh` or `npm i -g @moonshot-ai/kimi-code`), the successor to the legacy Python `kimi-cli`. Kimi Code CLI discovers Agent Skills from `~/.kimi-code/skills/` (and `~/.agents/skills/`) — it does **not** scan `~/.claude/skills/`, so the converter writes into Kimi Code's own root. Use the converter CLI from a checkout:
 
 ```bash
 git clone https://github.com/EveryInc/compound-engineering-plugin
@@ -312,11 +310,11 @@ bun run cli:install . --to kimi
 
 This writes:
 
-- Skills (plus commands and agents, converted to skills invoked via `/skill:<name>`) to `~/.kimi/skills/<name>/SKILL.md`
-- MCP servers to `~/.kimi/mcp.json`
-- Hooks to `~/.kimi/config.toml` (`[[hooks]]`), with tool-name matchers remapped to Kimi equivalents
+- Skills (plus commands and agents, converted to skills invoked via `/skill:<name>`) to `~/.kimi-code/skills/<name>/SKILL.md`
+- MCP servers to `~/.kimi-code/mcp.json`
+- Hooks to `~/.kimi-code/config.toml` (`[[hooks]]`); most Claude tool-name matchers (`Bash`, `Read`, `Write`, `Edit`, ...) pass through unchanged, with a few remapped (`WebFetch` → `FetchURL`, `Task` → `Agent`, `TodoWrite` → `TodoList`)
 
-Override the destination with `--kimi-home <dir>` (or `$KIMI_HOME`). Kimi has no command-file or auto-discovered agent format, so commands and agents both surface as skills.
+Override the destination with `--kimi-home <dir>` (or `$KIMI_CODE_HOME`). Kimi has no command-file or auto-discovered agent format, so commands and agents both surface as skills.
 
 ### Existing Installs
 
