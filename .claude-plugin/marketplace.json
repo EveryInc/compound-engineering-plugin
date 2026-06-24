@@ -5,7 +5,7 @@
   },
   "metadata": {
     "description": "Plugin marketplace for Claude Code and Codex extensions",
-    "version": "1.0.2"
+    "version": "1.0.3"
   },
   "plugins": [
     {
