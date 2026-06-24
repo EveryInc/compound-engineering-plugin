@@ -34,8 +34,8 @@ artifact contract:
   For non-code deliverables, follow the universal-brainstorming route instead
   of pretending the artifact is executable code.
 
-A requirements-only unified plan is kept **light and standalone-readable** — it
-is a shareable requirements doc, not an agent-scaffolding dump. It includes:
+A requirements-only unified plan is kept **light and standalone-readable**. It
+includes:
 
 - `## Goal Capsule` with objective, product authority, and open blockers.
 - `## Product Contract` containing the brainstorm sections below.
