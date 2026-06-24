@@ -46,6 +46,12 @@ type ArtifactRoutingFixture = {
     reason: string
   }
   unsafe_paths: Array<{ artifact_dir: string; reason: string }>
+  safe_platform_symlink_paths: Array<{
+    artifact_dir: string
+    real_parent: string
+    reason: string
+    status: string
+  }>
   ce_codex_loop_integration: {
     attempts: Array<{
       attempt: number
@@ -162,9 +168,11 @@ describe("ce-code-review run correlation", () => {
     const fixture = await readArtifactRoutingFixture()
 
     expect(content).toContain("the primary JSON must always include top-level plan correlation fields")
+    expect(content).toContain("normalized repo-relative POSIX plan path")
     expect(content).toContain("requirements_completeness` carries the detailed requirement/unit assessment")
-    expect(docs).toContain("top-level `plan_path` and `plan_source`")
+    expect(docs).toContain("repo-relative POSIX path")
 
+    expect(fixture.plan_correlation.explicit_plan.input.plan).toBe("./docs/plans/../plans/clamp-feature.md")
     expect(fixture.plan_correlation.explicit_plan).toMatchObject({
       plan_path: "docs/plans/clamp-feature.md",
       plan_source: "explicit",
@@ -273,6 +281,26 @@ describe("ce-code-review run correlation", () => {
       "unresolved placeholder",
       "symlink target",
     ])
+  })
+
+  test("artifact-dir allows safe parent symlink resolution such as macOS /tmp", async () => {
+    const content = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const docs = await readRepoFile("docs/skills/ce-code-review.md")
+    const fixture = await readArtifactRoutingFixture()
+    const safeTmp = fixture.safe_platform_symlink_paths[0]
+
+    expect(content).toContain("ancestor component resolves through a platform symlink")
+    expect(content).toContain("macOS `/tmp -> /private/tmp`")
+    expect(docs).toContain("Safe parent symlink resolution")
+    expect(safeTmp).toEqual({
+      artifact_dir: "/tmp/ce-loop/review-1",
+      real_parent: "/private/tmp/ce-loop",
+      reason: "ancestor symlink allowed",
+      status: "accepted",
+    })
+    expect(fixture.unsafe_paths.map((pathCase) => pathCase.artifact_dir)).not.toContain(
+      safeTmp.artifact_dir,
+    )
   })
 
   test("ce-codex-loop records and parses the exact artifact directory used", async () => {

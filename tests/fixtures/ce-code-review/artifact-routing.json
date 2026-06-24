@@ -67,7 +67,7 @@
     "explicit_plan": {
       "input": {
         "mode": "agent",
-        "plan": "docs/plans/clamp-feature.md"
+        "plan": "./docs/plans/../plans/clamp-feature.md"
       },
       "plan_path": "docs/plans/clamp-feature.md",
       "plan_source": "explicit",
@@ -202,6 +202,14 @@
     {
       "artifact_dir": "/tmp/symlinked-review-dir",
       "reason": "symlink target"
+    }
+  ],
+  "safe_platform_symlink_paths": [
+    {
+      "artifact_dir": "/tmp/ce-loop/review-1",
+      "real_parent": "/private/tmp/ce-loop",
+      "reason": "ancestor symlink allowed",
+      "status": "accepted"
     }
   ],
   "ce_codex_loop_integration": {

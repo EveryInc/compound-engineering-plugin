@@ -18,14 +18,16 @@ The loop records manifest checkpoints after implementation, after simplification
 |----------|--------|
 | `<plan path>` | Required existing code-execution plan path |
 
+The supplied plan argument is preserved as `raw_plan_argument`, then normalized once into `canonical_plan_path`: a repo-relative POSIX path that resolves inside the repository, points to an existing readable regular file, and contains no `.` or `..` segments. Relative, `./`-prefixed, absolute-in-repo, and lexical-equivalent paths are accepted; repo escapes, escaping symlinks, directories, placeholders, and missing files fail before mutation.
+
 The runtime uses these explicit composition contracts:
 
 - `ce-work mode:implementation-only`
 - `ce-simplify-code mode:structured manifest:<path>`
-- `ce-code-review mode:agent plan:<plan-path> base:<ref> manifest:<path> run-id:<id> artifact-dir:<path>`
+- `ce-code-review mode:agent plan:<canonical-plan-path> base:<ref> manifest:<path> run-id:<id> artifact-dir:<path>`
 - `ce-compound mode:headless`
 
-Every review response is checked for top-level `plan_path` and `plan_source` correlation: the returned `plan_path` must match the original plan, `plan_source` must be `explicit`, and detailed `requirements_completeness` must be present. The loop also verifies `manifest_path` and `reviewed_manifest` against the manifest supplied to that review attempt, and requires primary JSON, `review.json`, and `metadata.json` to agree before any fix, re-review, final verification, or compound stage can continue.
+Every review response is checked for top-level `plan_path` and `plan_source` correlation: the returned `plan_path` must match `canonical_plan_path`, never the raw user string, `plan_source` must be `explicit`, and detailed `requirements_completeness` must be present. The loop also verifies `manifest_path` and `reviewed_manifest` against the manifest supplied to that review attempt, and requires primary JSON, `review.json`, and `metadata.json` to agree before any fix, re-review, final verification, or compound stage can continue.
 
 Terminal statuses are `success`, `failed`, `unverified`, `already_satisfied`, and `quality_verified_but_compound_failed`.
 

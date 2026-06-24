@@ -1,6 +1,50 @@
 {
   "scenario": "B1-one-review-fix-cycle",
+  "raw_plan_argument": "./docs/plans/../plans/clamp-feature.md",
+  "canonical_plan_path": "docs/plans/clamp-feature.md",
   "plan_path": "docs/plans/clamp-feature.md",
+  "plan_path_normalization": {
+    "accepted": [
+      {
+        "raw": "docs/plans/clamp-feature.md",
+        "canonical": "docs/plans/clamp-feature.md"
+      },
+      {
+        "raw": "./docs/plans/clamp-feature.md",
+        "canonical": "docs/plans/clamp-feature.md"
+      },
+      {
+        "raw": "/repo/docs/plans/clamp-feature.md",
+        "canonical": "docs/plans/clamp-feature.md"
+      },
+      {
+        "raw": "docs/plans/../plans/clamp-feature.md",
+        "canonical": "docs/plans/clamp-feature.md"
+      }
+    ],
+    "rejected": [
+      {
+        "raw": "../outside.md",
+        "reason": "repo escape"
+      },
+      {
+        "raw": "docs/plans/escaping-symlink.md",
+        "reason": "symlink target escapes repository"
+      },
+      {
+        "raw": "docs/plans",
+        "reason": "directory"
+      },
+      {
+        "raw": "<plan-path>",
+        "reason": "unresolved placeholder"
+      },
+      {
+        "raw": "docs/plans/missing.md",
+        "reason": "missing file"
+      }
+    ]
+  },
   "terminal_status": "success",
   "stage_sequence": [
     "preflight",

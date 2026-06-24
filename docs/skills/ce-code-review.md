@@ -178,10 +178,10 @@ Concurrent use note: `mode:agent` is report-only and never mutates, so it's safe
 | `<branch name>` | Reviews that branch without checking it out (remote/local ref diff) |
 | `base:<sha-or-ref>` | Skips scope detection; reviews current checkout against that ref |
 | `mode:agent` | JSON machine handoff; report-only (the caller applies). `mode:headless` is a deprecated alias; `mode:report-only` is ignored |
-| `plan:<path>` | Loads a requirements plan. In `mode:agent`, the primary JSON always includes top-level `plan_path` and `plan_source` (`explicit`, `inferred`, or `none`) so orchestration callers can validate plan correlation separately from detailed requirements completeness. |
+| `plan:<path>` | Loads a requirements plan. In `mode:agent`, the primary JSON always includes top-level `plan_path` normalized to a repo-relative POSIX path and `plan_source` (`explicit`, `inferred`, or `none`) so orchestration callers can validate plan correlation separately from detailed requirements completeness. |
 | `manifest:<path>` | `mode:agent` composition scope: review only manifest-owned files, including declared untracked files without staging them. Agent JSON echoes top-level `manifest_path` and `reviewed_manifest`; both are `null` when omitted. |
 | `run-id:<id>` | `mode:agent` run correlation: preserve the caller-provided logical run id in JSON, `review.json`, and `metadata.json` |
-| `artifact-dir:<path>` | `mode:agent` artifact routing override: every artifact is written under this absolute safe directory instead of `/tmp/compound-engineering/ce-code-review/<run-id>/` |
+| `artifact-dir:<path>` | `mode:agent` artifact routing override: every artifact is written under this absolute safe directory instead of `/tmp/compound-engineering/ce-code-review/<run-id>/`. Safe parent symlink resolution, such as macOS `/tmp -> /private/tmp`, is allowed; a symlinked final target is rejected. |
 | `grouping:auto` / `grouping:off` / `grouping:always` | Thematic triage grouping of findings (default `auto`: group when findings span distinct concerns). Presentation only — never changes reviewer selection, merge logic, or apply behavior |
 
 Conflicting mode flags (or conflicting grouping flags) stop execution with an error. Combining `base:` with a PR/branch target also errors — pass one or the other.

@@ -288,7 +288,7 @@ Pass this to every reviewer in their spawn prompt. Intent shapes *how hard each 
 
 Locate the plan document so Stage 6 can verify requirements completeness. Check these sources in priority order — stop at the first hit:
 
-1. **`plan:` argument.** If the caller passed a plan path, use it directly. Read the file to confirm it exists.
+1. **`plan:` argument.** If the caller passed a plan path, resolve it against the repository root, require that it exists inside the repository, and normalize it to a repo-relative POSIX path before recording `plan_path`. Read the file to confirm it exists.
 2. **PR body.** If PR metadata was fetched in Stage 1, scan the body for paths matching `docs/plans/*.md`. If exactly one match is found and the file exists, use it as `plan_source: explicit`. If multiple plan paths appear, treat as ambiguous — demote to `plan_source: inferred` for the most recent match that exists on disk, or skip if none exist or none clearly relate to the PR title/intent. Always verify the selected file exists before using it — stale or copied plan links in PR descriptions are common.
 3. **Auto-discover.** Extract 2-3 keywords from the branch name (e.g., `feat/onboarding-skill` -> `onboarding`, `skill`). Glob `docs/plans/*` and filter filenames containing those keywords. If exactly one match, use it. If multiple matches or the match looks ambiguous (e.g., generic keywords like `review`, `fix`, `update` that could hit many plans), **skip auto-discovery** — a wrong plan is worse than no plan. If zero matches, skip.
 
@@ -301,7 +301,7 @@ Locate the plan document so Stage 6 can verify requirements completeness. Check 
 
 If a plan is found, read its **Requirements** section — `## Requirements` in current plans, `## Requirements Trace` in legacy ones — and the R-IDs (R1, R2, etc.) listed there, plus **Implementation Units** (current numeric subsections such as `### U1.`, `### U2.`, or `### Unit 1:` under `## Implementation Units`; legacy bullet or checkbox unit entries under that section also count). Store the resolved repo-relative plan path, extracted requirements list, and `plan_source` for Stage 6. Do not block the review if no plan is found — requirements verification is additive, not required.
 
-For `mode:agent`, the primary JSON must always include top-level plan correlation fields: `plan_path` is the resolved repo-relative plan path or `null`, and `plan_source` is exactly one of `explicit`, `inferred`, or `none`. These fields are separate from `requirements_completeness`: callers use the top-level fields for contract validation, while `requirements_completeness` carries the detailed requirement/unit assessment when a plan exists.
+For `mode:agent`, the primary JSON must always include top-level plan correlation fields: `plan_path` is the normalized repo-relative POSIX plan path or `null`, and `plan_source` is exactly one of `explicit`, `inferred`, or `none`. These fields are separate from `requirements_completeness`: callers use the top-level fields for contract validation, while `requirements_completeness` carries the detailed requirement/unit assessment when a plan exists.
 
 ### Stage 3: Select reviewers
 
@@ -368,7 +368,7 @@ Generate or validate a logical run identifier before dispatching any agents. If 
 Resolve exactly one canonical artifact directory as `resolved_artifact_dir` before reviewer dispatch:
 
 - `artifact-dir:<path>` is accepted only in `mode:agent`.
-- When `artifact-dir:<path>` is supplied, require an absolute normalized filesystem path. Reject relative paths, root paths, parent traversal, unresolved placeholders such as `<...>` or `{...}`, empty path components, and paths whose final target is or resolves through a symlink.
+- When `artifact-dir:<path>` is supplied, require an absolute normalized filesystem path. Reject relative paths, root paths, parent traversal, unresolved placeholders such as `<...>` or `{...}`, empty path components, and paths whose final target path component is a symlink or resolves outside its requested parent. Do not reject a safe artifact directory merely because an ancestor component resolves through a platform symlink such as macOS `/tmp -> /private/tmp`.
 - Reject an existing non-empty directory. An existing empty directory may be claimed; a missing directory may be created. If the directory cannot be created or claimed, fail closed before reviewer dispatch.
 - When `artifact-dir:<path>` is omitted, preserve existing behavior and use `/tmp/compound-engineering/ce-code-review/<run-id>/`.
 - When both `run-id:` and `artifact-dir:` are supplied, `run-id` identifies the review and `artifact-dir` determines where every artifact is written.

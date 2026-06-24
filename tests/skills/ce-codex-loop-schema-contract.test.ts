@@ -17,6 +17,8 @@ describe("ce-codex-loop schema contract", () => {
     for (const field of [
       "stage",
       "status",
+      "raw_plan_argument",
+      "canonical_plan_path",
       "files",
       "created",
       "modified",
@@ -47,8 +49,10 @@ describe("ce-codex-loop schema contract", () => {
     expect(schemas).toContain("Malformed or prose-only stage output is terminal `failed`")
     expect(schemas).toContain("`already_satisfied` requires proof and identified files")
     expect(schemas).toContain(
-      "ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>",
+      "ce-code-review mode:agent plan:<canonical-plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>",
     )
+    expect(schemas).toContain("`plan_path` must equal `canonical_plan_path`")
+    expect(schemas).toContain("never compare review output to `raw_plan_argument`")
     expect(schemas).toContain("artifact_path` must equal the exact per-attempt artifact directory")
     expect(schemas).toContain("Review JSON must report top-level `plan_path`, top-level `plan_source: \"explicit\"`")
     expect(schemas).toContain("Review JSON must also report `manifest_path` equal to the supplied manifest path")

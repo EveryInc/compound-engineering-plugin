@@ -17,6 +17,8 @@ Every terminal report includes:
 ```json
 {
   "terminal_status": "success | failed | unverified | already_satisfied | quality_verified_but_compound_failed",
+  "raw_plan_argument": "string",
+  "canonical_plan_path": "string",
   "plan_path": "string",
   "stable_review_base": "string",
   "planned_scope": {
@@ -72,6 +74,8 @@ Every terminal report includes:
   }
 }
 ```
+
+`plan_path` is the terminal-report alias for `canonical_plan_path`. `raw_plan_argument` is recorded for audit only and must not be used for review correlation comparisons.
 
 `reviewed_manifest` is the exact refreshed loop-owned manifest supplied to the final `ce-code-review mode:agent` attempt. It contains only files that were included in simplification, review, review-followup, and final code verification.
 

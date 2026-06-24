@@ -26,8 +26,16 @@ type PlannedScope = FileSet & {
   test_paths: string[]
 }
 
+type PlanPathNormalization = {
+  accepted: Array<{ raw: string; canonical: string }>
+  rejected: Array<{ raw: string; reason: string }>
+}
+
 type Fixture = {
   scenario: string
+  raw_plan_argument?: string
+  canonical_plan_path?: string
+  plan_path_normalization?: PlanPathNormalization
   terminal_status: string
   stage_sequence: string[]
   review_attempt_count: number
@@ -112,9 +120,12 @@ function expectManifestEquals(actual: Manifest, expected: Manifest): void {
 }
 
 function expectExplicitPlanReviewInvocations(fixture: Fixture, expectedAttempts: number[]): void {
-  const expectedPlan = "docs/plans/clamp-feature.md"
+  const expectedPlan = fixture.canonical_plan_path ?? "docs/plans/clamp-feature.md"
 
   expect(fixture.plan_path).toBe(expectedPlan)
+  if (fixture.raw_plan_argument) {
+    expect(fixture.raw_plan_argument).not.toBe(expectedPlan)
+  }
   expect(fixture.review_invocations?.map((invocation) => invocation.attempt)).toEqual(expectedAttempts)
   expect(fixture.review_outputs?.map((output) => output.attempt)).toEqual(expectedAttempts)
 
@@ -122,6 +133,7 @@ function expectExplicitPlanReviewInvocations(fixture: Fixture, expectedAttempts:
     expect(invocation.plan_path).toBe(expectedPlan)
     expect(invocation.command).toContain("ce-code-review mode:agent")
     expect(invocation.command).toContain(`plan:${expectedPlan}`)
+    expect(invocation.command).not.toContain(`plan:${fixture.raw_plan_argument}`)
     expect(invocation.command).toContain(`base:${invocation.stable_base}`)
     expect(invocation.command).toContain(`manifest:${invocation.manifest_path}`)
     expect(invocation.command).toContain(`run-id:${invocation.run_id}`)
@@ -172,7 +184,7 @@ describe("ce-codex-loop contract", () => {
     expect(content).toContain("ce-work mode:implementation-only")
     expect(content).toContain("ce-simplify-code mode:structured manifest:<manifest-path>")
     expect(content).toContain(
-      "ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>",
+      "ce-code-review mode:agent plan:<canonical-plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>",
     )
     expect(content).not.toContain("ce-code-review mode:agent base:<stable-base> manifest:<manifest-path> run-id:<run-id>")
     expect(content).toContain("ce-compound mode:headless")
@@ -234,6 +246,37 @@ describe("ce-codex-loop contract", () => {
     expect(content).toContain("Unrelated untracked paths remain outside loop ownership")
     expect(content).toContain("tests/math.test.ts")
     expect(content).toContain("before `ce-work` runs")
+  })
+
+  test("normalizes raw plan arguments before mutation and review correlation", async () => {
+    const content = await readRepoFile("skills/ce-codex-loop/SKILL.md")
+    const docs = await readRepoFile("docs/skills/ce-codex-loop.md")
+    const statuses = await readRepoFile("skills/ce-codex-loop/references/terminal-statuses.md")
+    const fixture = await readFixture("success")
+
+    expect(content).toContain("raw_plan_argument")
+    expect(content).toContain("canonical_plan_path")
+    expect(content).toContain("Do not compare review `plan_path` with `raw_plan_argument`")
+    expect(docs).toContain("raw_plan_argument")
+    expect(docs).toContain("canonical_plan_path")
+    expect(statuses).toContain("`plan_path` is the terminal-report alias for `canonical_plan_path`")
+
+    expect(fixture.raw_plan_argument).toBe("./docs/plans/../plans/clamp-feature.md")
+    expect(fixture.canonical_plan_path).toBe("docs/plans/clamp-feature.md")
+    expect(fixture.plan_path).toBe(fixture.canonical_plan_path)
+    expect(fixture.plan_path_normalization).toBeDefined()
+    for (const accepted of fixture.plan_path_normalization?.accepted ?? []) {
+      expect(accepted.canonical).toBe(fixture.canonical_plan_path)
+      expect(accepted.raw).not.toContain("<")
+    }
+    expect(fixture.plan_path_normalization?.rejected.map((entry) => entry.reason)).toEqual([
+      "repo escape",
+      "symlink target escapes repository",
+      "directory",
+      "unresolved placeholder",
+      "missing file",
+    ])
+    expectExplicitPlanReviewInvocations(fixture, [1, 2])
   })
 
   test("review invocations always forward the supplied plan path explicitly", async () => {
