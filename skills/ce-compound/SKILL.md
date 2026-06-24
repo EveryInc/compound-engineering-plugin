@@ -139,14 +139,14 @@ RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ')
 mkdir -p "/tmp/compound-engineering/ce-compound/$RUN_ID"
 ```
 
-Pass `{run_id}` (the resolved `$RUN_ID` value) into every Phase 1 subagent prompt. Each subagent **writes its full structured output** to its own file under `/tmp/compound-engineering/ce-compound/{run_id}/` and **returns only a one-line confirmation containing the artifact path** — not the prose body inline. Artifact filenames by subagent:
+Pass `{run_id}` (the resolved `$RUN_ID` value) into every Phase 1 subagent prompt. Each subagent **writes its full structured output** to its own file under `/tmp/compound-engineering/ce-compound/{run_id}/`, **confirms the write succeeded** (the file exists and is non-empty), and then **returns only a one-line confirmation containing the artifact path** — not the prose body inline. Artifact filenames by subagent:
 
 - **Context Analyzer** → `/tmp/compound-engineering/ce-compound/{run_id}/context.json` (frontmatter skeleton, category path, filename, track)
 - **Solution Extractor** → `/tmp/compound-engineering/ce-compound/{run_id}/solution.md` (the full doc-body prose sections)
 - **Related Docs Finder** → `/tmp/compound-engineering/ce-compound/{run_id}/related.json` (links, refresh candidates, overlap assessment)
 - **Session History** synthesis subagent (when run) → `/tmp/compound-engineering/ce-compound/{run_id}/session-history.md` (prose findings)
 
-If `{run_id}` is empty or did not resolve (non-Claude-Code platforms where the pre-resolution failed), fall back to having each subagent return its full output inline as before — the artifact pattern is a reliability improvement, not a hard requirement, and the orchestrator handles a missing artifact in Phase 2 by using the inline return.
+**Return the full output inline whenever the artifact write did not succeed.** This covers both cases where the orchestrator's Phase 2 inline fallback would otherwise have nothing to read: (a) `{run_id}` is empty or did not resolve (non-Claude-Code platforms where the pre-resolution failed), so there is no path to write to; and (b) `{run_id}` resolved but the write itself failed — tool permission denied, absolute-path writes unavailable, disk error, or the post-write existence check came back empty. In either case the subagent must return its complete structured output inline instead of a path, because the path would point at a file that does not exist. Return only the bare path when — and only when — the write is confirmed on disk. The artifact pattern is a reliability improvement, not a hard requirement; the orchestrator handles a missing artifact in Phase 2 by using the inline return.
 
 **Dispatch order:**
 - Launch `Context Analyzer`, `Solution Extractor`, and `Related Docs Finder` in parallel (background)
@@ -284,7 +284,7 @@ If `{run_id}` is empty or did not resolve (non-Claude-Code platforms where the p
    - the output schema above
    - the filter rule above
 
-   The subagent reads only the scratch paths, **writes its prose findings to `/tmp/compound-engineering/ce-compound/{run_id}/session-history.md`, and returns only that artifact path** (same #956 reliability rationale — session-history findings are long-form prose prone to summary-collapse). If `{run_id}` did not resolve, it returns the prose inline instead. If synthesis fails, note the failure and continue without session context.
+   The subagent reads only the scratch paths, **writes its prose findings to `/tmp/compound-engineering/ce-compound/{run_id}/session-history.md`, and returns only that artifact path once the write is confirmed** (same #956 reliability rationale — session-history findings are long-form prose prone to summary-collapse). If `{run_id}` did not resolve or the artifact write failed, it returns the prose inline instead (per the inline-fallback rule above). If synthesis fails, note the failure and continue without session context.
 
 ### Phase 2: Assembly & Write
 

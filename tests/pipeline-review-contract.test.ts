@@ -716,6 +716,10 @@ describe("ce-compound Phase 1 artifact contract", () => {
     expect(phase1).toContain("/tmp/compound-engineering/ce-compound/")
     // ...and return a compact confirmation containing the artifact path
     expect(phase1.toLowerCase()).toContain("artifact path")
+    // Inline return is required whenever the write did not succeed (not only when
+    // {run_id} is missing) so Phase 2's fallback always has content to read.
+    expect(phase1.toLowerCase()).toContain("write did not succeed")
+    expect(phase1.toLowerCase()).toContain("the write itself failed")
   })
 
   test("Phase 2 assembly reads artifacts with inline-return fallback", async () => {
