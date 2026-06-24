@@ -151,10 +151,11 @@ describe("ce-work review contract", () => {
     expect(content).not.toContain("## Code Review Tiers")
   })
 
-  test("ce:work remains the stable non-delegating surface", async () => {
+  test("ce:work remains the stable non-delegating surface while exposing implementation-only composition", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")
 
-    expect(content).not.toContain("## Argument Parsing")
+    expect(content).toContain("## Argument Parsing")
+    expect(content).toContain("mode:implementation-only")
     expect(content).not.toContain("## Codex Delegation Mode")
     expect(content).not.toContain("delegate:codex")
   })

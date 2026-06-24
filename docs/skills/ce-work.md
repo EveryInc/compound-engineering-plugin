@@ -166,6 +166,7 @@ For large bare-prompt scope (cross-cutting, sensitive surfaces, many files), `ce
 | _(empty)_ | Auto-uses the latest plan in `docs/plans/` |
 | `<plan path>` | Origin-sourced execution |
 | `<bare prompt>` | Triage by complexity (Trivial / Small-Medium / Large) |
+| `mode:implementation-only <plan path>` | Composition mode for orchestrators: implement only, return structured status, and skip branch creation, commits, simplify, review, PR, CI, and release automation |
 
 Output: commits and (typically) a PR via `ce-commit-push-pr`. The plan is read-only throughout — `ce-work` never mutates it; whether it shipped is derived from git, not recorded in the doc.
 

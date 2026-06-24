@@ -1,0 +1,75 @@
+import { readFile } from "fs/promises"
+import path from "path"
+import { describe, expect, test } from "bun:test"
+
+async function readRepoFile(relativePath: string): Promise<string> {
+  return readFile(path.join(process.cwd(), relativePath), "utf8")
+}
+
+describe("ce-codex-loop schema contract", () => {
+  test("stage schemas document required status enums and fields", async () => {
+    const schemas = await readRepoFile("skills/ce-codex-loop/references/stage-result-schemas.md")
+
+    for (const status of ["completed", "already_satisfied", "partial", "failed"]) {
+      expect(schemas).toContain(status)
+    }
+
+    for (const field of [
+      "stage",
+      "status",
+      "files",
+      "created",
+      "modified",
+      "deleted",
+      "verification",
+      "issues",
+      "already_satisfied_proof",
+      "applied_simplifications",
+      "skipped_simplifications",
+      "run_id",
+      "artifact_path",
+      "actionable_findings",
+    ]) {
+      expect(schemas).toContain(field)
+    }
+
+    expect(schemas).toContain("Malformed or prose-only stage output is terminal `failed`")
+    expect(schemas).toContain("`already_satisfied` requires proof and identified files")
+  })
+
+  test("terminal statuses are exact and include report fields", async () => {
+    const statuses = await readRepoFile("skills/ce-codex-loop/references/terminal-statuses.md")
+
+    expect(statuses).toContain("Terminal status enum is exact")
+    expect(statuses).toContain("`success`")
+    expect(statuses).toContain("`failed`")
+    expect(statuses).toContain("`unverified`")
+    expect(statuses).toContain("`already_satisfied`")
+    expect(statuses).toContain("`quality_verified_but_compound_failed`")
+    expect(statuses).not.toContain("partially_successful")
+
+    for (const field of [
+      "plan_path",
+      "stable_review_base",
+      "manifest",
+      "stage_results",
+      "verification",
+      "review_attempts",
+      "run_id",
+      "artifact_path",
+      "finding_decisions",
+      "compound",
+      "terminal_status",
+    ]) {
+      expect(statuses).toContain(field)
+    }
+  })
+
+  test("review success gate requires all clean-review predicates", async () => {
+    const schemas = await readRepoFile("skills/ce-codex-loop/references/stage-result-schemas.md")
+
+    expect(schemas).toContain("status == complete")
+    expect(schemas).toContain("verdict == Ready to merge")
+    expect(schemas).toContain("actionable_findings.length == 0")
+  })
+})

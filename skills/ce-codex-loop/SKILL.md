@@ -1,0 +1,77 @@
+---
+name: ce-codex-loop
+description: Run a bounded local Codex-oriented implementation, simplification, review, and compound loop from an existing plan without shipping actions.
+argument-hint: "<plan path>"
+---
+
+# ce-codex-loop
+
+Run a bounded local implementation-quality loop from an existing code-execution plan. This skill composes the public skill contracts for implementation, simplification, review, and compounding, but it is not `/lfg`: it does not ship outward.
+
+## Runtime Boundary
+
+The runtime skill must never commit, must never push, must never create or edit a PR, must never watch CI, and must never run release automation. Local commits made by a developer while authoring this skill are outside this runtime boundary.
+
+Allowed mutations are limited to implementation changes, behavior-preserving simplification, eligible review fixes, one repair-or-revert pass after a fix wave, and verified-success compounding side effects.
+
+## Argument Parsing
+
+Input is a required existing code-execution plan path. Strip no shipping options because there are no shipping options.
+
+Reject missing, unreadable, `execution: knowledge-work`, or unsafe-scope plans before mutation. A safe plan has a concrete file scope from sections such as `Files`, `Implementation Units`, `Requirements`, `Test Scenarios`, or `Verification`. Plans without enough scope to distinguish loop-owned work fail closed.
+
+Preflight downstream contracts before mutation:
+
+- `ce-work mode:implementation-only` exists and documents structured statuses.
+- `ce-simplify-code mode:structured manifest:<manifest-path>` exists and disables branch-diff fallback.
+- `ce-code-review mode:agent base:<stable-base> manifest:<manifest-path> run-id:<run-id>` exists and is report-only.
+- `ce-compound mode:headless` is available for post-success compounding.
+
+If any contract is missing, stop with terminal `failed` and do not mutate the checkout.
+
+## References
+
+Load these local references before running stages:
+
+- `references/stage-result-schemas.md`
+- `references/terminal-statuses.md`
+- `references/working-tree-manifest.md`
+- `references/review-followup-eligibility.md`
+
+Load `references/review-followup-eligibility.md` only after a valid review JSON result has been parsed.
+
+## Execution Flow
+
+1. **Preflight.** Parse the plan, reject invalid input, resolve the downstream public tokens above, and record the verification commands implied by the plan.
+2. **Snapshot.** Capture `HEAD`, staged entries, unstaged paths, untracked paths, and one stable review base. This `stable_review_base` is passed to every review attempt.
+3. **Overlap gate.** Build the initial loop-owned manifest from Plan file scope, stage structured file lists when available, and working-tree delta. Stop before mutation if pre-existing work overlaps the planned scope.
+4. **Implementation.** Invoke `ce-work mode:implementation-only <plan-path>` and require a structured implementation result. `already_satisfied` is terminal only when it includes proof and identified files.
+5. **Manifest refresh.** Refresh the manifest after implementation, simplification, each fix wave, and each repair-or-revert pass. The manifest always distinguishes created, modified, deleted, and temporarily_indexed paths; v1 keeps `temporarily_indexed` empty.
+6. **Simplification.** Invoke `ce-simplify-code mode:structured manifest:<manifest-path>`. If relevant verification cannot be identified, return terminal `unverified`. If verification fails, return terminal `failed`.
+7. **Review loop.** Invoke `ce-code-review mode:agent base:<stable-base> manifest:<manifest-path> run-id:<run-id>`. Clean review requires all three predicates: status == complete, verdict == Ready to merge, and actionable_findings.length == 0.
+8. **Review followup.** For a non-clean review, process only `actionable_findings` through the local eligibility reference. Each non-clean attempt permits one eligible fix wave and one repair-or-revert pass, then requires green verification before re-review.
+9. **Final verification.** Run final verification commands after clean review. A red final verification is terminal `failed`.
+10. **Compound.** Invoke `ce-compound mode:headless` exactly once, run exactly once, only after clean review and green final verification. A compounding failure after quality is verified returns `quality_verified_but_compound_failed`.
+11. **Report.** Emit the terminal report shape from `references/terminal-statuses.md`.
+
+## Review Attempt Rules
+
+At most three total review attempts. Never review an unchanged tree. Never review a known red tree. Never review findings outside the current manifest. If no eligible findings remain after a non-clean review, stop with terminal `failed` rather than running another unchanged review.
+
+Clean review requires all three predicates:
+
+- status == complete
+- verdict == Ready to merge
+- actionable_findings.length == 0
+
+## Terminal Statuses
+
+The only terminal statuses are:
+
+- `success`
+- `failed`
+- `unverified`
+- `already_satisfied`
+- `quality_verified_but_compound_failed`
+
+Every terminal report includes the plan path, stable base, manifest, stage results, verification outcomes, review attempts with run IDs and artifact paths, finding decisions, compound state, and terminal status.

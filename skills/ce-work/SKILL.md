@@ -16,6 +16,12 @@ This command takes a work document (plan or specification) or a bare prompt desc
 
 <input_document> #$ARGUMENTS </input_document>
 
+## Argument Parsing
+
+Recognize `mode:implementation-only` as an explicit composition token. When present, read `references/implementation-only-mode.md` and follow that carve-out after Phase 0 plan-file validation. The token is valid only with a plan-file input; reject bare prompts in that mode.
+
+Default behavior is unchanged when `mode:implementation-only` is absent.
+
 ## Execution Workflow
 
 ### Phase 0: Input Triage

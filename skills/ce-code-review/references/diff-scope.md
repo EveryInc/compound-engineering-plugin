@@ -2,6 +2,12 @@
 
 These rules apply to every reviewer. They define what is "your code to review" versus pre-existing context.
 
+## Manifest-scoped review
+
+When the review context says `manifest-scoped review`, use these rules. Inspect only manifest paths. Do not Read/Grep out-of-manifest paths. Use the provided file list, generated create/delete snippets, full file content for manifest-created untracked files, and the manifest-filtered diff as the complete review scope.
+
+Findings outside manifest paths are out of scope. Return them only as coverage notes when explicitly asked; they must not become actionable findings.
+
 ## Scope Discovery
 
 Determine the diff to review using this priority order:

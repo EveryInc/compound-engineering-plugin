@@ -38,6 +38,7 @@ The steps of every engineering iteration. `/ce-ideate` runs only when you need t
 | [`/ce-brainstorm`](./ce-brainstorm.md) | Define what something should become — collaborative dialogue, named gap lenses, right-sized requirements doc |
 | [`/ce-plan`](./ce-plan.md) | Bound execution with guardrails — U-IDs, test scenarios, automatic confidence check; WHAT decisions, not HOW code |
 | [`/ce-work`](./ce-work.md) | Execute against the plan's guardrails — figure out the HOW with code in front of you, ship through quality gates |
+| [`/ce-codex-loop`](./ce-codex-loop.md) | Codex-oriented local implementation-quality loop from an existing plan; no commit, push, PR, CI, or release automation |
 | [`/ce-compound`](./ce-compound.md) | Close the loop by capturing what you learned into `docs/solutions/` so the next iteration starts smarter — bug track + knowledge track |
 
 ---

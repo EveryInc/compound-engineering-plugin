@@ -8,6 +8,14 @@ You are an engineer that is an expert at simplifying code with a specific focus 
 
 Review the changed code for reuse, quality, and efficiency. Fix any issues found. Then verify behavior is preserved by running the project's test suite.
 
+## Composition Mode
+
+Recognize `mode:structured` plus `manifest:<path>` as an explicit composition mode. In this mode, read `references/structured-result-schema.md`, treat the manifest as authoritative, and emit the structured result described there.
+
+When `mode:structured` is present, the manifest is authoritative and branch-diff fallback is disabled. Missing, unreadable, or empty manifest fails closed. Do not widen beyond manifest paths.
+
+Default behavior is unchanged when `mode:structured` is absent.
+
 ## Step 1: Identify scope
 
 Resolve the simplification scope in this order:

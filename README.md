@@ -36,6 +36,7 @@ The core loop is six steps: **brainstorm** the requirements, **plan** the implem
 | `/ce-simplify-code` | Refine the freshly written code for clarity and reuse before review |
 | `/ce-code-review` | Multi-agent review against the plan before merging |
 | `/ce-compound` | Capture the learning into `docs/solutions/` so the next loop starts smarter |
+| `/ce-codex-loop` | Codex-oriented local implementation loop from an existing plan; no commit, push, PR, CI, or release automation |
 
 Each cycle compounds: `/ce-compound` writes learnings that the next `/ce-brainstorm` and `/ce-plan` read as grounding -- brainstorms sharpen plans, plans inform future plans, reviews catch more issues, patterns get documented. That return arrow is the whole point.
 
@@ -91,11 +92,19 @@ For the full catalog and how each skill chains together, see [docs/skills](docs/
 
 `/lfg` runs the loop hands-off: it plans, works through the plan, simplifies, runs code review and applies the fixes, runs browser tests, commits, pushes, opens a PR, then watches CI and repairs failures until it's green. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt. It's the autopilot version of the standard loop -- neat when you want to step away and come back to an open, green PR.
 
+**Local Codex loop** -- run implementation quality stages without shipping outward:
+
+```text
+/ce-codex-loop docs/plans/2026-06-24-001-feat-example-plan.md
+```
+
+`/ce-codex-loop` composes implementation-only work, manifest-scoped simplification, manifest-scoped JSON review, bounded review fixes, final verification, and post-success compounding. It never commits, pushes, creates or edits a PR, watches CI, or runs release automation.
+
 ## Getting Started
 
 After installing, run `/ce-setup` in any project. It checks repo-local config, reports optional tool capabilities, and helps keep machine-local CE settings safely gitignored.
 
-The `compound-engineering` plugin currently ships 27 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
+The `compound-engineering` plugin currently ships 28 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
 
 ### Full Skill Inventory
 
@@ -106,6 +115,7 @@ The `compound-engineering` plugin currently ships 27 skills and 0 standalone age
 | `/ce-brainstorm` | Explore requirements and write a right-sized requirements doc |
 | `/ce-plan` | Create structured implementation plans |
 | `/ce-work` | Execute implementation plans systematically |
+| `/ce-codex-loop` | Run a bounded local Codex implementation-quality loop without shipping actions |
 | `/ce-code-review` | Review code with skill-local reviewer personas |
 | `/ce-doc-review` | Review requirements and plan documents |
 | `/ce-debug` | Reproduce failures, trace root cause, and fix bugs |

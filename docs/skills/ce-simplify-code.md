@@ -135,6 +135,7 @@ When invoked outside a git repository or when no diff is available, the skill fa
 | _(empty)_ | Default: branch diff vs base; falls back to staged + unstaged; falls back to recent edits |
 | `<file path>` | Limits scope to that file |
 | `<description>` | e.g., "the function I just wrote", "the changes from this morning" — user-named scope is authoritative |
+| `mode:structured manifest:<path>` | Composition mode: simplify only manifest-owned files, disable branch-diff fallback, and return structured status/files/verification JSON |
 
 ---
 

@@ -1,0 +1,7 @@
+{
+  "terminal_status": "already_satisfied",
+  "already_satisfied_proof": {
+    "summary": "plan already satisfied",
+    "files": ["skills/example/SKILL.md"]
+  }
+}

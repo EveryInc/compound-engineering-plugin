@@ -27,6 +27,9 @@ Parse `$ARGUMENTS` for optional tokens. Strip each recognized token before inter
 | `mode:report-only` | `mode:report-only` | **Deprecated — ignored.** Former no-artifacts mode; default behavior is review-only without checkout |
 | `base:<sha-or-ref>` | `base:abc1234` or `base:origin/main` | Diff base on the **current checkout** (explicit; skips auto base detection) |
 | `plan:<path>` | `plan:docs/plans/2026-03-25-001-feat-foo-plan.md` | Plan file for requirements verification (explicit) |
+| `manifest:<path>` | `manifest:/tmp/ce-loop/manifest.json` | Recognized only in `mode:agent`: manifest-scoped review over loop-owned paths; missing manifest fails in `mode:agent` |
+| `run-id:<id>` | `run-id:ce-loop-001-review-2` | `mode:agent` run correlation; validates a path-safe caller-provided run id |
+| `artifact-dir:<path>` | `artifact-dir:/tmp/ce-loop/review-2` | `mode:agent` artifact correlation override; must be an unused safe directory |
 | `grouping:auto` | `grouping:auto` | **Default** — build thematic triage groups when findings span distinct concerns (Stage 5 step 9b) |
 | `grouping:off` | `grouping:off` | Suppress triage groups: no Triage Groups section, empty `triage_groups` in JSON |
 | `grouping:always` | `grouping:always` | Always build triage groups, even for small reviews |
@@ -43,6 +46,8 @@ Parse `$ARGUMENTS` for optional tokens. Strip each recognized token before inter
 Deprecated `mode:autofix` is **not** a conflict — ignore the token and proceed with the normal flow (see below).
 
 Emit a one-line failure reason. In `mode:agent`, return JSON: `{"status":"failed","reason":"..."}`.
+
+**Manifest and correlation compatibility:** Default review behavior without manifest remains unchanged. `manifest:<path>`, `run-id:<id>`, and `artifact-dir:<path>` are composition tokens for `mode:agent`; they do not enable mutation. Validate `run-id:` for path safety (`[A-Za-z0-9._-]+`, no slash, no traversal) and fail closed on collisions. Do not recover by newest modification time; a wrong-run artifact is ignored.
 
 ## Operating principles
 
@@ -160,6 +165,12 @@ echo "BASE:$BASE" && echo "FILES:" && git diff --name-only $BASE && echo "DIFF:"
 ```
 
 This path works with any ref — a SHA, `origin/main`, a branch name. Callers reviewing the current checkout should pass explicit `base:` when auto-detection is unnecessary. **Do not combine `base:` with a PR number or branch target.** If both are present, stop with an error: "Cannot use `base:` with a PR number or branch target — `base:` implies the current checkout is already the correct branch. Pass `base:` alone, or pass the target alone and let scope detection resolve the base."
+
+**Manifest-scoped review (`mode:agent` only):**
+
+When `manifest:<path>` is present, read the manifest before dispatch. Missing manifest fails in `mode:agent`. Build `FILES:` and `DIFF:` by intersecting the stable `base:<ref>` diff with manifest entries. Created untracked files declared in the manifest are included with generated create-file diff snippets and full file content, without changing the git index. Deleted manifest paths are represented with delete snippets when the base contains the file.
+
+Out-of-manifest findings are never added to `actionable_findings`; they are reported in `coverage.out_of_scope_findings` instead. The manifest-scoped review context includes excluded unrelated paths in coverage. This mode never widens to the full branch diff.
 
 **If a PR number or GitHub URL is provided as an argument:**
 
@@ -347,7 +358,7 @@ The orchestrator (this skill) also inherits the session model; it handles intent
 
 #### Run ID
 
-Generate a unique run identifier before dispatching any agents. This ID scopes all agent artifact files and the post-review run artifact to the same directory.
+Generate or validate a run identifier before dispatching any agents. This ID scopes all agent artifact files and the post-review run artifact to the same directory. If the caller passed `run-id:<id>`, preserve it exactly after path-safety validation. If the caller passed `artifact-dir:<path>`, use that directory after safety and collision checks. Otherwise generate a unique run identifier.
 
 ```bash
 RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ')
@@ -355,6 +366,8 @@ mkdir -p "/tmp/compound-engineering/ce-code-review/$RUN_ID"
 ```
 
 Pass `{run_id}` to every persona sub-agent so they can write their full analysis to `/tmp/compound-engineering/ce-code-review/{run_id}/{reviewer_name}.json`.
+
+Caller-provided run IDs and artifact directories must be deterministic for the caller: echo the same `run_id` and `artifact_path` in primary JSON, `review.json`, and `metadata.json`. Fail closed on collisions or unsafe paths.
 
 **Large shared context — pass paths, not contents.** The diff and file list go to every reviewer and validator. When inlining them into each subagent prompt would be wasteful (many files / a big diff), write them once into the run dir (e.g. `full.diff`, `files.txt`) and pass those **paths** in the diff / changed-files slots instead of inline content — the subagent and validator templates instruct the child to Read a staged path. Inline a small diff directly.
 
