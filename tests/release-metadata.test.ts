@@ -125,7 +125,7 @@ describe("release metadata", () => {
     const description = await buildCompoundEngineeringDescription(process.cwd())
 
     expect(description).toBe(
-      "AI-powered development tools for code review, research, design, and workflow automation.",
+      "Brainstorm, plan, debug, review, and compound learnings with AI agents",
     )
   })
 
@@ -216,7 +216,7 @@ describe("release metadata", () => {
       JSON.stringify(
         {
           version: "2.42.0",
-          description: "AI-powered development tools for code review, research, design, and workflow automation.",
+          description: "Brainstorm, plan, debug, review, and compound learnings with AI agents",
         },
         null,
         2,
@@ -240,7 +240,7 @@ describe("release metadata", () => {
 
     const afterContents = JSON.parse(await Bun.file(codexPath).text())
     expect(afterContents.description).toBe(
-      "AI-powered development tools for code review, research, design, and workflow automation.",
+      "Brainstorm, plan, debug, review, and compound learnings with AI agents",
     )
   })
 

@@ -1,7 +1,7 @@
 {
   "name": "compound-engineering",
   "version": "3.14.0",
-  "description": "Brainstorming, planning, debugging, and autonomous workflows for AI agents",
+  "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
   "author": {
     "name": "Kieran Klaassen and Trevin Chow"
   },
@@ -20,7 +20,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Compound Engineering",
-    "shortDescription": "Brainstorming, planning, debugging, and autonomous workflows for AI agents",
+    "shortDescription": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
     "longDescription": "Compound Engineering guides AI agents through the full engineering loop: strategy, ideation, requirements, planning, execution, debugging, review, PR feedback, and captured learnings that make future work easier.",
     "developerName": "Kieran Klaassen and Trevin Chow",
     "category": "Coding",

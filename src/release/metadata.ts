@@ -77,10 +77,10 @@ export type CompoundEngineeringCounts = {
 }
 
 const COMPOUND_ENGINEERING_DESCRIPTION =
-  "Brainstorming, planning, debugging, and autonomous workflows for AI agents"
+  "Brainstorm, plan, debug, review, and compound learnings with AI agents"
 
 const COMPOUND_ENGINEERING_MARKETPLACE_DESCRIPTION =
-  "Brainstorming, planning, debugging, and autonomous workflows for AI agents"
+  "Brainstorm, plan, debug, review, and compound learnings with AI agents"
 
 function resolveExpectedVersion(
   explicitVersion: string | undefined,

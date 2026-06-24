@@ -10,7 +10,7 @@
   "plugins": [
     {
       "name": "compound-engineering",
-      "description": "Brainstorming, planning, debugging, and autonomous workflows for AI agents",
+      "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
       "author": {
         "name": "Kieran Klaassen and Trevin Chow"
       },
