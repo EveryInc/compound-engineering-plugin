@@ -51,6 +51,9 @@ describe("ce-code-review contract", () => {
     // JSON output format
     expect(content).toContain("### JSON output format")
     expect(content).toContain('"status": "complete"')
+    expect(content).toContain('"plan_path": "docs/plans/example.md | null"')
+    expect(content).toContain('"plan_source": "explicit | inferred | none"')
+    expect(content).toContain("requirements_completeness` carries the detailed requirement/unit assessment")
     expect(content).toContain("review.json")
 
     // mode:agent never mutates; default mode applies safe fixes (this test owns the mutate-contract assertions)

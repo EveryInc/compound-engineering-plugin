@@ -49,6 +49,7 @@ describe("ce-codex-loop schema contract", () => {
       "ce-code-review mode:agent plan:<plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>",
     )
     expect(schemas).toContain("artifact_path` must equal the exact per-attempt artifact directory")
+    expect(schemas).toContain("Review JSON must report top-level `plan_path`, top-level `plan_source: \"explicit\"`")
     expect(schemas).toContain("missing, malformed, or inferred plan context is terminal `failed`")
   })
 

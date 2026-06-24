@@ -43,6 +43,7 @@ type Fixture = {
   }>
   review_outputs?: Array<{
     attempt: number
+    plan_path: string
     plan_source: string
     requirements_completeness: Record<string, unknown> | null
   }>
@@ -119,6 +120,7 @@ function expectExplicitPlanReviewInvocations(fixture: Fixture, expectedAttempts:
   }
 
   for (const output of fixture.review_outputs ?? []) {
+    expect(output.plan_path).toBe(expectedPlan)
     expect(output.plan_source).toBe("explicit")
     expect(output.requirements_completeness).not.toBeNull()
     expect(output.requirements_completeness?.plan_source).toBe("explicit")

@@ -24,6 +24,11 @@ type ArtifactRoutingFixture = {
     accepted_artifact: string
     rejected_artifacts: string[]
   }
+  plan_correlation: {
+    explicit_plan: PlanCorrelationCase
+    inferred_plan: PlanCorrelationCase
+    no_plan: PlanCorrelationCase
+  }
   collision: {
     artifact_dir: string
     status: string
@@ -48,6 +53,13 @@ type RoutingCase = {
   artifact_path: string
   run_id: string
   artifacts: string[]
+}
+
+type PlanCorrelationCase = {
+  input: { mode: string; plan: string | null }
+  plan_path: string | null
+  plan_source: "explicit" | "inferred" | "none"
+  requirements_completeness: Record<string, unknown> | null
 }
 
 async function readArtifactRoutingFixture(): Promise<ArtifactRoutingFixture> {
@@ -81,9 +93,42 @@ describe("ce-code-review run correlation", () => {
 
     expect(content).toContain('"run_id": "<run-id>"')
     expect(content).toContain('"artifact_path": "<resolved_artifact_dir>/"')
+    expect(content).toContain('"plan_path": "docs/plans/example.md | null"')
+    expect(content).toContain('"plan_source": "explicit | inferred | none"')
+    expect(content).toContain("top-level `plan_path` and `plan_source`")
+    expect(content).toContain("primary JSON, `review.json`, and `metadata.json`")
+    expect(content).toMatch(/metadata\.json[\s\S]*"plan_path": "docs\/plans\/example\.md \| null"/)
+    expect(content).toMatch(/metadata\.json[\s\S]*"plan_source": "explicit \| inferred \| none"/)
     expect(content).toContain("review.json")
     expect(content).toContain("metadata.json")
     expect(content).toContain("wrong-run artifact is ignored")
+  })
+
+  test("mode:agent JSON carries top-level plan correlation separately from requirements detail", async () => {
+    const content = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const docs = await readRepoFile("docs/skills/ce-code-review.md")
+    const fixture = await readArtifactRoutingFixture()
+
+    expect(content).toContain("the primary JSON must always include top-level plan correlation fields")
+    expect(content).toContain("requirements_completeness` carries the detailed requirement/unit assessment")
+    expect(docs).toContain("top-level `plan_path` and `plan_source`")
+
+    expect(fixture.plan_correlation.explicit_plan).toMatchObject({
+      plan_path: "docs/plans/clamp-feature.md",
+      plan_source: "explicit",
+    })
+    expect(fixture.plan_correlation.explicit_plan.requirements_completeness).toMatchObject({
+      plan: "docs/plans/clamp-feature.md",
+      plan_source: "explicit",
+    })
+
+    expect(fixture.plan_correlation.inferred_plan.plan_path).toBe("docs/plans/inferred-feature.md")
+    expect(fixture.plan_correlation.inferred_plan.plan_source).toBe("inferred")
+    expect(fixture.plan_correlation.inferred_plan.requirements_completeness).not.toBeNull()
+
+    expect(fixture.plan_correlation.no_plan.plan_path).toBeNull()
+    expect(fixture.plan_correlation.no_plan.plan_source).toBe("none")
+    expect(fixture.plan_correlation.no_plan.requirements_completeness).toBeNull()
   })
 
   test("default routing uses the run-id directory and reports it as artifact_path", async () => {

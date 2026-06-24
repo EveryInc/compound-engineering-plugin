@@ -47,7 +47,7 @@ Deprecated `mode:autofix` is **not** a conflict — ignore the token and proceed
 
 Emit a one-line failure reason. In `mode:agent`, return JSON: `{"status":"failed","reason":"..."}`.
 
-**Manifest and correlation compatibility:** Default review behavior without manifest remains unchanged. `manifest:<path>`, `run-id:<id>`, and `artifact-dir:<path>` are composition tokens for `mode:agent`; they do not enable mutation. Validate `run-id:` for path safety (`[A-Za-z0-9._-]+`, no slash, no traversal). Resolve one `resolved_artifact_dir` before reviewer dispatch, route every artifact through that directory, and fail closed on collisions. Do not recover by newest modification time; a wrong-run artifact is ignored.
+**Manifest, plan, and correlation compatibility:** Default review behavior without manifest remains unchanged. `manifest:<path>`, `run-id:<id>`, and `artifact-dir:<path>` are composition tokens for `mode:agent`; they do not enable mutation. `plan:<path>` is accepted in every mode for requirements verification, and `mode:agent` must echo the resolved top-level `plan_path` and `plan_source` fields in the primary JSON, `review.json`, and `metadata.json`. Validate `run-id:` for path safety (`[A-Za-z0-9._-]+`, no slash, no traversal). Resolve one `resolved_artifact_dir` before reviewer dispatch, route every artifact through that directory, and fail closed on collisions. Do not recover by newest modification time; a wrong-run artifact is ignored.
 
 ## Operating principles
 
@@ -295,8 +295,11 @@ Locate the plan document so Stage 6 can verify requirements completeness. Check 
 - Single unambiguous PR body match -> `plan_source: explicit` (high confidence)
 - Multiple/ambiguous PR body matches -> `plan_source: inferred` (lower confidence)
 - Auto-discover with single unambiguous match -> `plan_source: inferred` (lower confidence)
+- No plan found -> `plan_source: none`
 
-If a plan is found, read its **Requirements** section — `## Requirements` in current plans, `## Requirements Trace` in legacy ones — and the R-IDs (R1, R2, etc.) listed there, plus **Implementation Units** (current numeric subsections such as `### U1.`, `### U2.`, or `### Unit 1:` under `## Implementation Units`; legacy bullet or checkbox unit entries under that section also count). Store the extracted requirements list and `plan_source` for Stage 6. Do not block the review if no plan is found — requirements verification is additive, not required.
+If a plan is found, read its **Requirements** section — `## Requirements` in current plans, `## Requirements Trace` in legacy ones — and the R-IDs (R1, R2, etc.) listed there, plus **Implementation Units** (current numeric subsections such as `### U1.`, `### U2.`, or `### Unit 1:` under `## Implementation Units`; legacy bullet or checkbox unit entries under that section also count). Store the resolved repo-relative plan path, extracted requirements list, and `plan_source` for Stage 6. Do not block the review if no plan is found — requirements verification is additive, not required.
+
+For `mode:agent`, the primary JSON must always include top-level plan correlation fields: `plan_path` is the resolved repo-relative plan path or `null`, and `plan_source` is exactly one of `explicit`, `inferred`, or `none`. These fields are separate from `requirements_completeness`: callers use the top-level fields for contract validation, while `requirements_completeness` carries the detailed requirement/unit assessment when a plan exists.
 
 ### Stage 3: Select reviewers
 
@@ -608,6 +611,8 @@ Minimum shape:
   },
   "intent": "<2-3 line summary>",
   "intent_confidence": "explicit | inferred | uncertain",
+  "plan_path": "docs/plans/example.md | null",
+  "plan_source": "explicit | inferred | none",
   "reviewers": ["correctness", "security"],
   "findings": [],
   "actionable_findings": [],
@@ -624,6 +629,8 @@ Minimum shape:
   "run_id": "<run-id>"
 }
 ```
+
+`plan_path` and `plan_source` are always present in `mode:agent`. When `plan_source` is `explicit` or `inferred`, `plan_path` is non-null and `requirements_completeness` is populated with the Stage 6 requirement/unit assessment. When no plan is found, `plan_source` is `none`, `plan_path` is `null`, and `requirements_completeness` is `null`.
 
 Each object in `findings` uses the merged finding fields: `#`, `title`, `severity`, `file`, `line`, `confidence`, `autofix_class`, `owner`, `requires_verification`, `pre_existing`, `suggested_fix`, `why_it_matters`, `evidence`, `reviewers`.
 
@@ -697,6 +704,8 @@ Do not leave a second partial run directory under `/tmp/compound-engineering/ce-
   "run_id": "<run-id>",
   "branch": "<git branch --show-current at dispatch time>",
   "head_sha": "<git rev-parse HEAD at dispatch time>",
+  "plan_path": "docs/plans/example.md | null",
+  "plan_source": "explicit | inferred | none",
   "verdict": "<Ready to merge | Ready with fixes | Not ready>",
   "completed_at": "<ISO 8601 UTC timestamp>"
 }

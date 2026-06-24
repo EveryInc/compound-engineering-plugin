@@ -62,6 +62,7 @@
   "review_outputs": [
     {
       "attempt": 1,
+      "plan_path": "docs/plans/clamp-feature.md",
       "plan_source": "explicit",
       "requirements_completeness": {
         "plan_source": "explicit",
@@ -70,6 +71,7 @@
     },
     {
       "attempt": 2,
+      "plan_path": "docs/plans/clamp-feature.md",
       "plan_source": "explicit",
       "requirements_completeness": {
         "plan_source": "explicit",
@@ -78,6 +80,7 @@
     },
     {
       "attempt": 3,
+      "plan_path": "docs/plans/clamp-feature.md",
       "plan_source": "explicit",
       "requirements_completeness": {
         "plan_source": "explicit",
