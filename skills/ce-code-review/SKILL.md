@@ -172,6 +172,8 @@ When `manifest:<path>` is present, read the manifest before dispatch. Parse the 
 
 Use the canonical manifest object for review scope. Build `FILES:` and `DIFF:` by intersecting the stable `base:<ref>` diff with manifest entries. Created untracked files declared in the manifest are included with generated create-file diff snippets and full file content, without changing the git index. Deleted manifest paths are represented with delete snippets when the base contains the file.
 
+Manifest paths are **review target paths**. Only those paths may be reported in a finding's `file` field, count as changed/reviewed product files, enter `actionable_findings`, be modified by downstream resolvers, or appear in `reviewed_manifest`. Context-only paths are separate. In v1, only the `project-standards` reviewer may receive a context-only allowlist: the exact `<standards-paths>` discovered in Stage 3b. These standards paths are not part of `FILES:`, `DIFF:`, the manifest, or `reviewed_manifest`.
+
 Out-of-manifest findings are never added to `actionable_findings`; they are reported in `coverage.out_of_scope_findings` instead. The manifest-scoped review context includes excluded unrelated paths in coverage. This mode never widens to the full branch diff.
 
 **If a PR number or GitHub URL is provided as an argument:**
@@ -348,6 +350,11 @@ Before spawning sub-agents, find the file paths (not contents) of all relevant s
 
 1. Use the native file-search tool (e.g., Glob in Claude Code) to find all `**/CLAUDE.md` and `**/AGENTS.md` in the repo.
 2. Filter to those whose directory is an ancestor of at least one changed file. A standards file governs all files below it (e.g., `AGENTS.md` at the repo root applies to the whole checkout, while `skills/AGENTS.md` would apply to everything under `skills/`).
+3. Deduplicate and normalize the surviving paths as repo-relative POSIX paths. Discard standards files that govern none of the changed paths.
+
+In manifest-scoped review, "changed file" above means a manifest review target path, not the full branch diff. The resulting `<standards-paths>` block is an explicit **context-only allowlist** for the `project-standards` persona. It is not part of `FILES:`, `DIFF:`, the manifest, or `reviewed_manifest`, and it does not give any other reviewer a general out-of-manifest read exemption. When no standards paths are present in manifest mode, do not let the project-standards reviewer run unrestricted repository discovery; record standards context as unavailable in Coverage instead of widening scope silently.
+
+In `pr-remote` or `branch-remote` scope, local workspace standards may not match the reviewed head. Still discover relevant path names cheaply, but the review context must instruct the project-standards reviewer to read those paths from the reviewed head with `git show <remote-head-ref>:<standards-path>` when a head ref is available. If the reviewed-head content cannot be read, use standards content explicitly supplied by the orchestrator; if neither is possible, record degraded standards coverage.
 
 Pass the resulting path list to the `project-standards` persona inside a `<standards-paths>` block in its review context (see Stage 4). The persona reads the files itself, targeting only the sections relevant to the changed file types. This keeps the orchestrator's work cheap (path discovery only) and avoids bloating the subagent prompt with content the reviewer may not fully need.
 
@@ -407,7 +414,7 @@ For each selected reviewer, read the corresponding local prompt asset from `refe
 4. PR metadata: title, body, and URL when reviewing a PR (empty string otherwise). Passed in a `<pr-context>` block so reviewers can verify code against stated intent
 5. Review context: intent summary, file list, diff, scope mode (`local-aligned` | `pr-remote` | `branch-remote`), and remote head ref (`PR_HEAD_REF` or `<branch-head-ref>`) when set
 6. Run ID, resolved artifact directory, and reviewer name for the artifact file path
-7. **For `project-standards` only:** the standards file path list from Stage 3b, wrapped in a `<standards-paths>` block appended to the review context
+7. **For `project-standards` only:** the standards file path list from Stage 3b, wrapped in a `<standards-paths>` block appended to the review context. In manifest-scoped review this block is a context-only read allowlist: the reviewer may read exactly those standards files as criteria, but findings must still target manifest paths only. When the review context is `pr-remote` or `branch-remote`, include the remote head ref and instruct standards reads through `git show <remote-head-ref>:<standards-path>`; never treat local workspace standards as authoritative for a different remote head. If no standards paths are available in manifest mode, pass no unrestricted discovery permission and record the coverage gap.
 8. **For `data-migration` only:** the resolved review base ref from Stage 1 (`BASE:` marker), wrapped in `<review-base>` inside the review context so schema drift checks never assume `main`
 
 Persona sub-agents are **read-only** with respect to the project: they review and return structured JSON. They do not edit project files or propose refactors. The one permitted write is saving their full analysis to the run-artifact path specified in the output contract (under `{resolved_artifact_dir}/`).
@@ -459,8 +466,9 @@ Convert multiple reviewer compact JSON returns into one deduplicated, confidence
      - owner: downstream-resolver | human | release
      - confidence: integer in {0, 25, 50, 75, 100}
      - line: positive integer
-     - pre_existing, requires_verification: boolean
+   - pre_existing, requires_verification: boolean
    - Do not validate against the full schema here -- the full schema (including why_it_matters and evidence) applies to the artifact files on disk, not the compact returns.
+   - In manifest-scoped review, reject or reclassify any finding whose `file` is outside the canonical manifest target paths, including findings that target context-only standards files. Context-only standards files may appear only as cited rule sources in artifact `evidence` or `why_it_matters`, unless the standards file is itself also a manifest target.
 2. **Deduplicate.** Compute fingerprint: `normalize(file) + line_bucket(line, +/-3) + normalize(title)`. When fingerprints match, merge: keep highest severity, keep highest anchor, note which reviewers flagged it. Dedup runs over the full validated set (including anchor 50) so cross-reviewer promotion in step 3 can lift matching anchor-50 findings into the actionable tier.
 3. **Cross-reviewer agreement.** When 2+ independent reviewers flag the same issue (same fingerprint), promote the merged finding by one anchor step: `50 -> 75`, `75 -> 100`, `100 -> 100`. Note the agreement in the Reviewer column of the output (e.g., "security, correctness").
 4. **Separate pre-existing.** Pull out findings with `pre_existing: true` into a separate list.

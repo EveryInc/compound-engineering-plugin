@@ -6,6 +6,22 @@ async function readRepoFile(relativePath: string): Promise<string> {
   return readFile(path.join(process.cwd(), relativePath), "utf8")
 }
 
+describe("ce-code-review composition contract", () => {
+  test("manifest mode keeps standards context separate from review targets", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const diffScope = await readRepoFile(
+      "skills/ce-code-review/references/diff-scope.md",
+    )
+
+    expect(skill).toContain("manifest:<path>")
+    expect(skill).toContain("review target paths")
+    expect(skill).toContain("context-only allowlist")
+    expect(skill).toContain("not part of `FILES:`, `DIFF:`, the manifest, or `reviewed_manifest`")
+    expect(diffScope).toContain("The `project-standards` reviewer may read exactly")
+    expect(diffScope).toContain("Findings outside manifest paths")
+  })
+})
+
 describe("ce-work review contract", () => {
   test("requires code review before shipping", async () => {
     const content = await readRepoFile("skills/ce-work/SKILL.md")

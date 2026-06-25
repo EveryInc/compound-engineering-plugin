@@ -4,7 +4,11 @@ These rules apply to every reviewer. They define what is "your code to review" v
 
 ## Manifest-scoped review
 
-When the review context says `manifest-scoped review`, use these rules. Inspect only manifest paths. Do not Read/Grep out-of-manifest paths. Use the provided file list, generated create/delete snippets, full file content for manifest-created untracked files, and the manifest-filtered diff as the complete review scope.
+When the review context says `manifest-scoped review`, use these rules. Treat the manifest as the exclusive **review target scope**. Only manifest paths may appear in a finding's `file` field, count as reviewed product files, enter `actionable_findings`, be modified by downstream resolvers, or appear in `reviewed_manifest`.
+
+Inspect only manifest paths except for explicit context-only paths. Do not Read/Grep out-of-manifest paths unless this review context grants a named context-only allowlist. For v1, the only such allowlist is `<standards-paths>` for the `project-standards` reviewer. Those paths are read-only criteria sources, not review targets.
+
+The `project-standards` reviewer may read exactly the CLAUDE.md / AGENTS.md paths supplied in `<standards-paths>` to obtain governing rules for manifest paths. It must not discover arbitrary neighboring files, recurse through those directories, use the exception to read unrelated source files, add standards files to the manifest, modify standards files, or report a finding against a standards file unless that standards file is itself also a manifest target. A standards file may be quoted in `evidence` or `why_it_matters` as the rule source while the finding's `file` and `line` point to the violating manifest path.
 
 Findings outside manifest paths are out of scope. Return them only as coverage notes when explicitly asked; they must not become actionable findings.
 
@@ -27,6 +31,8 @@ Instead:
 - Prefer `git show <remote-head-ref>:<path>` when `<pr-head-ref>` or `<branch-head-ref>` is provided in context.
 - Otherwise rely on diff hunks in the provided `<diff>` only.
 - Do not treat local workspace contents as evidence for findings on changed files.
+
+The same remote-scope rule applies to manifest-mode context-only standards files. Do not read a local workspace `AGENTS.md` / `CLAUDE.md` as authoritative for a remote head. Prefer `git show <pr-head-ref>:<standards-path>` or `git show <branch-head-ref>:<standards-path>` when available; otherwise use standards content explicitly supplied by the orchestrator. If neither is available, record degraded standards coverage instead of widening scope or trusting unrelated local files.
 
 ## Finding Classification Tiers
 

@@ -188,6 +188,8 @@ Conflicting mode flags (or conflicting grouping flags) stop execution with an er
 
 When `artifact-dir:<path>` is omitted, `mode:agent` keeps the default layout at `/tmp/compound-engineering/ce-code-review/<run-id>/`. When it is supplied, the supplied directory becomes the canonical run directory for `review.json`, `metadata.json`, diff/list artifacts, per-reviewer artifacts, validator artifacts, and agent-native/learnings artifacts. The primary JSON reports the logical `run_id`, top-level `plan_path` / `plan_source`, top-level `manifest_path` / `reviewed_manifest`, and an `artifact_path` equal to that resolved directory with a trailing slash; malformed-primary fallback reads only `<artifact_path>/review.json`.
 
+Manifest-scoped reviews separate target scope from context scope. The manifest remains the exclusive target scope: only manifest paths may be finding targets, enter `actionable_findings`, be modified by downstream resolvers, or appear in `reviewed_manifest`. Project standards files discovered as governing context (`AGENTS.md` / `CLAUDE.md`) are passed only to the `project-standards-reviewer` in `<standards-paths>` as read-only context. They are not added to `FILES`, `DIFF`, the manifest, or `reviewed_manifest`; they may be cited as rule evidence for a finding against a manifest file. In remote review scope, standards content must come from the reviewed head via `git show <head-ref>:<standards-path>` or from explicitly supplied content, not from an unrelated local workspace copy.
+
 ---
 
 ## FAQ

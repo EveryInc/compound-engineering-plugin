@@ -414,6 +414,54 @@ describe("ce-code-review contract", () => {
     expect(validator).toContain("branch-remote")
   })
 
+  test("manifest standards context separates review targets from read-only criteria", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const diffScope = await readRepoFile(
+      "skills/ce-code-review/references/diff-scope.md",
+    )
+    const template = await readRepoFile(
+      "skills/ce-code-review/references/subagent-template.md",
+    )
+    const standards = await readRepoFile(
+      "skills/ce-code-review/references/personas/project-standards-reviewer.md",
+    )
+
+    expect(skill).toContain("review target paths")
+    expect(skill).toContain("Context-only paths are separate")
+    expect(skill).toContain("not part of `FILES:`, `DIFF:`, the manifest, or `reviewed_manifest`")
+    expect(skill).toContain("reject or reclassify any finding whose `file` is outside")
+
+    expect(diffScope).toContain("exclusive **review target scope**")
+    expect(diffScope).toContain("For v1, the only such allowlist is `<standards-paths>`")
+    expect(diffScope).toContain("must not become actionable findings")
+
+    expect(template).toContain("Findings may target only manifest paths")
+    expect(template).toContain("other reviewers do not inherit that exception")
+
+    expect(standards).toContain("`<standards-paths>` is a context-only allowlist")
+    expect(standards).toContain("Do not glob for more standards files")
+    expect(standards).toContain("Findings must target the violating manifest path")
+    expect(standards).toContain("Do not report a finding against AGENTS.md or CLAUDE.md")
+  })
+
+  test("remote standards context comes from reviewed head or degrades coverage", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const diffScope = await readRepoFile(
+      "skills/ce-code-review/references/diff-scope.md",
+    )
+    const standards = await readRepoFile(
+      "skills/ce-code-review/references/personas/project-standards-reviewer.md",
+    )
+
+    for (const content of [skill, diffScope, standards]) {
+      expect(content).toContain("git show")
+      expect(content).toContain("local workspace")
+      expect(content).toMatch(/degraded standards coverage|degraded_coverage|coverage gap/i)
+    }
+    expect(skill).toContain("never treat local workspace standards as authoritative")
+    expect(standards).toContain("do not read the local workspace copy")
+  })
+
   test("mode-aware demotion routes weak general-quality findings to soft buckets", async () => {
     const content = await readRepoFile("skills/ce-code-review/SKILL.md")
 

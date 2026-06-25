@@ -1,0 +1,122 @@
+{
+  "root_standards_context": {
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["src/example.ts"],
+      "deleted": [],
+      "temporarily_indexed": []
+    },
+    "standards_paths": ["AGENTS.md"],
+    "project_standards_allowed_reads": ["AGENTS.md"],
+    "finding": {
+      "file": "src/example.ts",
+      "line": 4,
+      "evidence": ["AGENTS.md:3 -- Exported helpers must include explicit return types."]
+    },
+    "reviewed_manifest_after_review": {
+      "created": [],
+      "modified": ["src/example.ts"],
+      "deleted": [],
+      "temporarily_indexed": []
+    }
+  },
+  "directory_standards_context": {
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["skills/foo/SKILL.md"],
+      "deleted": [],
+      "temporarily_indexed": []
+    },
+    "standards_paths": ["AGENTS.md", "skills/AGENTS.md"],
+    "project_standards_allowed_reads": ["AGENTS.md", "skills/AGENTS.md"]
+  },
+  "finding_target_restriction": {
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["src/example.ts"],
+      "deleted": [],
+      "temporarily_indexed": []
+    },
+    "standards_paths": ["AGENTS.md"],
+    "attempted_finding": {
+      "file": "AGENTS.md",
+      "line": 3
+    },
+    "classification": "out_of_scope",
+    "actionable": false
+  },
+  "standards_file_changed_in_manifest": {
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["AGENTS.md"],
+      "deleted": [],
+      "temporarily_indexed": []
+    },
+    "standards_paths": ["AGENTS.md"],
+    "attempted_finding": {
+      "file": "AGENTS.md",
+      "line": 3
+    },
+    "classification": "in_scope",
+    "actionable": true
+  },
+  "arbitrary_out_of_manifest_read": {
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["src/example.ts"],
+      "deleted": [],
+      "temporarily_indexed": []
+    },
+    "standards_paths": ["AGENTS.md"],
+    "attempted_read": "src/secret.ts",
+    "allowed": false
+  },
+  "reviewer_isolation": {
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["src/example.ts"],
+      "deleted": [],
+      "temporarily_indexed": []
+    },
+    "standards_paths": ["AGENTS.md"],
+    "allowed_reads_by_reviewer": {
+      "project-standards": ["src/example.ts", "AGENTS.md"],
+      "correctness": ["src/example.ts"],
+      "testing": ["src/example.ts"],
+      "maintainability": ["src/example.ts"]
+    }
+  },
+  "no_standards_paths_manifest_mode": {
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["src/example.ts"],
+      "deleted": [],
+      "temporarily_indexed": []
+    },
+    "standards_paths": [],
+    "unrestricted_discovery": false,
+    "coverage": {
+      "standards_context": "unavailable"
+    }
+  },
+  "manifest_integrity": {
+    "reviewed_manifest": {
+      "created": [],
+      "modified": ["src/example.ts"],
+      "deleted": [],
+      "temporarily_indexed": []
+    },
+    "standards_paths": ["AGENTS.md"],
+    "files": ["src/example.ts"],
+    "actionable_finding_targets": ["src/example.ts"],
+    "downstream_fix_batches": [["src/example.ts"]]
+  },
+  "remote_context": {
+    "scope_mode": "pr-remote",
+    "head_ref": "refs/review/pr-994-head",
+    "standards_paths": ["AGENTS.md"],
+    "local_workspace_standards_used": false,
+    "read_strategy": "git show refs/review/pr-994-head:AGENTS.md",
+    "fallback_without_head_or_supplied_content": "degraded_coverage"
+  }
+}
