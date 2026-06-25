@@ -5,6 +5,7 @@ import convert from "./commands/convert"
 import cleanup from "./commands/cleanup"
 import install from "./commands/install"
 import listCommand from "./commands/list"
+import lfg from "./commands/lfg"
 import pluginPath from "./commands/plugin-path"
 
 const main = defineCommand({
@@ -17,6 +18,7 @@ const main = defineCommand({
     cleanup: () => cleanup,
     convert: () => convert,
     install: () => install,
+    lfg: () => lfg,
     list: () => listCommand,
     "plugin-path": () => pluginPath,
   },

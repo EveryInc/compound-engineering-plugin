@@ -95,7 +95,166 @@ function envWithoutOpenCodeConfig(overrides: NodeJS.ProcessEnv = {}): NodeJS.Pro
   return env
 }
 
+async function createCodexStub(tempRoot: string): Promise<string> {
+  const stubPath = path.join(tempRoot, "codex-stub")
+  await fs.writeFile(
+    stubPath,
+    `#!/bin/sh
+printf '%s\n' "$@" > "$CAPTURE_ARGS"
+pwd > "$CAPTURE_CWD"
+cat > "$CAPTURE_STDIN"
+exit "\${CODEX_STUB_EXIT:-0}"
+`,
+  )
+  await fs.chmod(stubPath, 0o755)
+  return stubPath
+}
+
 describe("CLI", () => {
+  test("lfg forwards feature descriptions to the Codex skill", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-lfg-"))
+    const workspaceRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "cli-lfg-workspace-")))
+    const repoRoot = path.join(import.meta.dir, "..")
+    const stubPath = await createCodexStub(tempRoot)
+    const captureArgs = path.join(tempRoot, "args.txt")
+    const captureCwd = path.join(tempRoot, "cwd.txt")
+    const captureStdin = path.join(tempRoot, "stdin.txt")
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(repoRoot, "src", "index.ts"),
+      "lfg",
+      "add",
+      "cli",
+      "support",
+    ], {
+      cwd: workspaceRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        COMPOUND_ENGINEERING_CODEX_BIN: stubPath,
+        CAPTURE_ARGS: captureArgs,
+        CAPTURE_CWD: captureCwd,
+        CAPTURE_STDIN: captureStdin,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect((await fs.readFile(captureArgs, "utf8")).trim().split("\n")).toEqual([
+      "exec",
+      "-C",
+      workspaceRoot,
+      "-",
+    ])
+    expect((await fs.readFile(captureCwd, "utf8")).trim()).toBe(workspaceRoot)
+    const prompt = await fs.readFile(captureStdin, "utf8")
+    expect(prompt).toContain("$compound-engineering:lfg")
+    expect(prompt).toContain("add cli support")
+  })
+
+  test("lfg supports an empty feature description", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-lfg-empty-"))
+    const workspaceRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "cli-lfg-empty-workspace-")))
+    const repoRoot = path.join(import.meta.dir, "..")
+    const stubPath = await createCodexStub(tempRoot)
+    const captureStdin = path.join(tempRoot, "stdin.txt")
+
+    const proc = Bun.spawn(["bun", "run", path.join(repoRoot, "src", "index.ts"), "lfg"], {
+      cwd: workspaceRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        COMPOUND_ENGINEERING_CODEX_BIN: stubPath,
+        CAPTURE_ARGS: path.join(tempRoot, "args.txt"),
+        CAPTURE_CWD: path.join(tempRoot, "cwd.txt"),
+        CAPTURE_STDIN: captureStdin,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    expect((await fs.readFile(captureStdin, "utf8")).trim()).toBe("$compound-engineering:lfg")
+  })
+
+  test("lfg reports missing Codex binary failures", async () => {
+    const workspaceRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "cli-lfg-missing-workspace-")))
+    const repoRoot = path.join(import.meta.dir, "..")
+    const missingCodex = path.join(workspaceRoot, "missing-codex")
+
+    const proc = Bun.spawn(["bun", "run", path.join(repoRoot, "src", "index.ts"), "lfg", "ship", "it"], {
+      cwd: workspaceRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        COMPOUND_ENGINEERING_CODEX_BIN: missingCodex,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stderr = await new Response(proc.stderr).text()
+
+    expect(exitCode).not.toBe(0)
+    expect(stderr).toContain("Failed to start")
+    expect(stderr).toContain("compound-engineering:lfg")
+    expect(stderr).toContain(missingCodex)
+  })
+
+  test("lfg reports Codex failures", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-lfg-failure-"))
+    const workspaceRoot = await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(), "cli-lfg-failure-workspace-")))
+    const repoRoot = path.join(import.meta.dir, "..")
+    const stubPath = await createCodexStub(tempRoot)
+
+    const proc = Bun.spawn(["bun", "run", path.join(repoRoot, "src", "index.ts"), "lfg", "ship", "it"], {
+      cwd: workspaceRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        COMPOUND_ENGINEERING_CODEX_BIN: stubPath,
+        CODEX_STUB_EXIT: "7",
+        CAPTURE_ARGS: path.join(tempRoot, "args.txt"),
+        CAPTURE_CWD: path.join(tempRoot, "cwd.txt"),
+        CAPTURE_STDIN: path.join(tempRoot, "stdin.txt"),
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stderr = await new Response(proc.stderr).text()
+
+    expect(exitCode).not.toBe(0)
+    expect(stderr).toContain("exited with code 7")
+    expect(stderr).toContain("compound-engineering:lfg")
+  })
+
+  test("lfg is discoverable from command metadata and package scripts", async () => {
+    const repoRoot = path.join(import.meta.dir, "..")
+    const lfgCommand = (await import("../src/commands/lfg")).default as { meta: { name: string; description: string } }
+
+    expect(lfgCommand.meta.name).toBe("lfg")
+    expect(lfgCommand.meta.description).toBe("Run the Compound Engineering LFG pipeline through Codex")
+
+    const packageJson = JSON.parse(await fs.readFile(path.join(repoRoot, "package.json"), "utf8")) as { scripts: Record<string, string> }
+    expect(packageJson.scripts.lfg).toBe("bun run src/index.ts lfg")
+  })
+
   test("install converts fixture plugin to OpenCode output", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-opencode-"))
     const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")

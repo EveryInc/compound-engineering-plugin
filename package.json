@@ -20,6 +20,7 @@
     "convert": "bun run src/index.ts convert",
     "cleanup": "bun run src/index.ts cleanup",
     "list": "bun run src/index.ts list",
+    "lfg": "bun run src/index.ts lfg",
     "cli:install": "bun run src/index.ts install",
     "test": "bun test",
     "plugin:validate": "claude plugin validate .claude-plugin/marketplace.json && claude plugin validate .",
