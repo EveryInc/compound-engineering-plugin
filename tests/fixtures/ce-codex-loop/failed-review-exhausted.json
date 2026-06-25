@@ -26,9 +26,21 @@
   ],
   "review_attempt_count": 3,
   "review_attempts": [
-    { "attempt": 1, "status": "complete", "verdict": "Ready with fixes" },
-    { "attempt": 2, "status": "complete", "verdict": "Ready with fixes" },
-    { "attempt": 3, "status": "complete", "verdict": "Ready with fixes" }
+    {
+      "attempt": 1,
+      "status": "complete",
+      "verdict": "Ready with fixes"
+    },
+    {
+      "attempt": 2,
+      "status": "complete",
+      "verdict": "Ready with fixes"
+    },
+    {
+      "attempt": 3,
+      "status": "complete",
+      "verdict": "Ready with fixes"
+    }
   ],
   "review_invocations": [
     {
@@ -67,7 +79,10 @@
       "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
       "reviewed_manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -75,7 +90,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -84,7 +102,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -101,7 +122,10 @@
       "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
       "reviewed_manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -109,7 +133,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -118,7 +145,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -135,7 +165,10 @@
       "manifest_path": "/tmp/ce-loop/manifest-attempt-3.json",
       "reviewed_manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -143,7 +176,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-3.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -152,7 +188,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-3.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -163,19 +202,20 @@
       }
     }
   ],
-  "absent_attempts": [4],
+  "absent_attempts": [
+    4
+  ],
   "planned_scope": {
     "created": [],
-    "modified": ["src/math.ts"],
+    "modified": [
+      "src/math.ts"
+    ],
     "deleted": [],
-    "test_paths": ["tests/math.test.ts"]
+    "test_paths": [
+      "tests/math.test.ts"
+    ]
   },
-  "reviewed_manifest": {
-    "created": [],
-    "modified": ["src/math.ts", "tests/math.test.ts"],
-    "deleted": [],
-    "temporarily_indexed": []
-  },
+  "reviewed_manifest": null,
   "compound_outputs": {
     "created": [],
     "modified": [],
@@ -183,14 +223,29 @@
   },
   "final_repository_delta": {
     "created": [],
-    "modified": ["src/math.ts", "tests/math.test.ts"],
+    "modified": [
+      "src/math.ts",
+      "tests/math.test.ts"
+    ],
     "deleted": [],
     "temporarily_indexed": []
   },
   "finding_decisions": [
-    { "id": "F-001", "decision": "applied", "fix_wave": 1 },
-    { "id": "F-002", "decision": "applied", "fix_wave": 2 },
-    { "id": "F-003", "decision": "unresolved", "attempt": 3 }
+    {
+      "id": "F-001",
+      "decision": "applied",
+      "fix_wave": 1
+    },
+    {
+      "id": "F-002",
+      "decision": "applied",
+      "fix_wave": 2
+    },
+    {
+      "id": "F-003",
+      "decision": "unresolved",
+      "attempt": 3
+    }
   ],
   "compound_invocation_count": 0,
   "actions": {
@@ -199,5 +254,14 @@
     "pr": false,
     "ci_watch": false,
     "release": false
+  },
+  "current_manifest": {
+    "created": [],
+    "modified": [
+      "src/math.ts",
+      "tests/math.test.ts"
+    ],
+    "deleted": [],
+    "temporarily_indexed": []
   }
 }

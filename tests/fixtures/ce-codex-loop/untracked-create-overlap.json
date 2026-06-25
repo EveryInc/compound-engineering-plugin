@@ -2,18 +2,33 @@
   "scenario": "untracked-create-overlap",
   "terminal_status": "failed",
   "reason": "pre_existing_untracked_overlap",
-  "stage_sequence": ["preflight", "snapshot", "overlap_gate", "report"],
+  "stage_sequence": [
+    "preflight",
+    "snapshot",
+    "overlap_gate",
+    "report"
+  ],
   "review_attempt_count": 0,
   "review_attempts": [],
   "planned_scope": {
-    "created": ["src/clamp.ts"],
-    "modified": ["src/math.ts"],
-    "deleted": ["src/legacyClamp.ts"],
-    "test_paths": ["tests/math.test.ts"]
+    "created": [
+      "src/clamp.ts"
+    ],
+    "modified": [
+      "src/math.ts"
+    ],
+    "deleted": [
+      "src/legacyClamp.ts"
+    ],
+    "test_paths": [
+      "tests/math.test.ts"
+    ]
   },
   "overlap": {
     "tracked": [],
-    "untracked_planned_collisions": ["src/clamp.ts"],
+    "untracked_planned_collisions": [
+      "src/clamp.ts"
+    ],
     "staged": [],
     "unstaged": []
   },
@@ -22,12 +37,7 @@
   "staged_state_preserved": true,
   "head_preserved": true,
   "unrelated_work_preserved": true,
-  "reviewed_manifest": {
-    "created": [],
-    "modified": [],
-    "deleted": [],
-    "temporarily_indexed": []
-  },
+  "reviewed_manifest": null,
   "compound_outputs": {
     "created": [],
     "modified": [],
@@ -47,5 +57,11 @@
     "pr": false,
     "ci_watch": false,
     "release": false
+  },
+  "current_manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
   }
 }

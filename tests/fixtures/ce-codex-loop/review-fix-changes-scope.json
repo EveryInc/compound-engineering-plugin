@@ -33,7 +33,9 @@
       "artifact_path": "/tmp/ce-loop/review-fix-scope-1/",
       "status": "complete",
       "verdict": "Ready with fixes",
-      "eligible_actionable_findings": ["F-TEST-001"]
+      "eligible_actionable_findings": [
+        "F-TEST-001"
+      ]
     },
     {
       "attempt": 2,
@@ -52,7 +54,10 @@
       "manifest_path": "/tmp/ce-loop/manifest-review-fix-scope-1.json",
       "reviewed_manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -60,7 +65,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-review-fix-scope-1.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -69,7 +77,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-review-fix-scope-1.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -85,16 +96,26 @@
       "plan_source": "explicit",
       "manifest_path": "/tmp/ce-loop/manifest-review-fix-scope-2.json",
       "reviewed_manifest": {
-        "created": ["tests/clamp-edge.test.ts"],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "created": [
+          "tests/clamp-edge.test.ts"
+        ],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
       "review_json": {
         "manifest_path": "/tmp/ce-loop/manifest-review-fix-scope-2.json",
         "reviewed_manifest": {
-          "created": ["tests/clamp-edge.test.ts"],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "created": [
+            "tests/clamp-edge.test.ts"
+          ],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -102,8 +123,13 @@
       "metadata_json": {
         "manifest_path": "/tmp/ce-loop/manifest-review-fix-scope-2.json",
         "reviewed_manifest": {
-          "created": ["tests/clamp-edge.test.ts"],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "created": [
+            "tests/clamp-edge.test.ts"
+          ],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -116,16 +142,23 @@
   ],
   "planned_scope": {
     "created": [],
-    "modified": ["src/math.ts"],
+    "modified": [
+      "src/math.ts"
+    ],
     "deleted": [],
-    "test_paths": ["tests/math.test.ts"]
+    "test_paths": [
+      "tests/math.test.ts"
+    ]
   },
   "manifest_checkpoints": [
     {
       "label": "after_implementation",
       "manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -135,7 +168,10 @@
       "label": "after_simplification",
       "manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -145,7 +181,10 @@
       "label": "before_simplification_verification",
       "manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -155,7 +194,10 @@
       "label": "before_review_attempt:1",
       "manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -164,8 +206,13 @@
     {
       "label": "after_review_fix:1",
       "manifest": {
-        "created": ["tests/clamp-edge.test.ts"],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "created": [
+          "tests/clamp-edge.test.ts"
+        ],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -174,8 +221,13 @@
     {
       "label": "before_fix_verification:1",
       "manifest": {
-        "created": ["tests/clamp-edge.test.ts"],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "created": [
+          "tests/clamp-edge.test.ts"
+        ],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -184,8 +236,13 @@
     {
       "label": "before_review_attempt:2",
       "manifest": {
-        "created": ["tests/clamp-edge.test.ts"],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "created": [
+          "tests/clamp-edge.test.ts"
+        ],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -194,8 +251,13 @@
     {
       "label": "before_final_verification",
       "manifest": {
-        "created": ["tests/clamp-edge.test.ts"],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "created": [
+          "tests/clamp-edge.test.ts"
+        ],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -203,19 +265,32 @@
     }
   ],
   "reviewed_manifest": {
-    "created": ["tests/clamp-edge.test.ts"],
-    "modified": ["src/math.ts", "tests/math.test.ts"],
+    "created": [
+      "tests/clamp-edge.test.ts"
+    ],
+    "modified": [
+      "src/math.ts",
+      "tests/math.test.ts"
+    ],
     "deleted": [],
     "temporarily_indexed": []
   },
   "compound_outputs": {
-    "created": ["docs/solutions/clamp-helper.md"],
+    "created": [
+      "docs/solutions/clamp-helper.md"
+    ],
     "modified": [],
     "deleted": []
   },
   "final_repository_delta": {
-    "created": ["tests/clamp-edge.test.ts", "docs/solutions/clamp-helper.md"],
-    "modified": ["src/math.ts", "tests/math.test.ts"],
+    "created": [
+      "tests/clamp-edge.test.ts",
+      "docs/solutions/clamp-helper.md"
+    ],
+    "modified": [
+      "src/math.ts",
+      "tests/math.test.ts"
+    ],
     "deleted": [],
     "temporarily_indexed": []
   },
@@ -229,19 +304,32 @@
   "stale_manifest_guard": {
     "mismatched_attempt": 2,
     "expected_manifest": {
-      "created": ["tests/clamp-edge.test.ts"],
-      "modified": ["src/math.ts", "tests/math.test.ts"],
+      "created": [
+        "tests/clamp-edge.test.ts"
+      ],
+      "modified": [
+        "src/math.ts",
+        "tests/math.test.ts"
+      ],
       "deleted": [],
       "temporarily_indexed": []
     },
     "returned_manifest": {
       "created": [],
-      "modified": ["src/math.ts", "tests/math.test.ts"],
+      "modified": [
+        "src/math.ts",
+        "tests/math.test.ts"
+      ],
       "deleted": [],
       "temporarily_indexed": []
     },
     "terminal_status": "failed",
-    "stopped_before": ["review_followup", "fix_wave", "review:attempt-3", "compound"]
+    "stopped_before": [
+      "review_followup",
+      "fix_wave",
+      "review:attempt-3",
+      "compound"
+    ]
   },
   "compound_invocation_count": 1,
   "actions": {
@@ -250,5 +338,16 @@
     "pr": false,
     "ci_watch": false,
     "release": false
+  },
+  "current_manifest": {
+    "created": [
+      "tests/clamp-edge.test.ts"
+    ],
+    "modified": [
+      "src/math.ts",
+      "tests/math.test.ts"
+    ],
+    "deleted": [],
+    "temporarily_indexed": []
   }
 }

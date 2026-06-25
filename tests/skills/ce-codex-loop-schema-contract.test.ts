@@ -78,6 +78,7 @@ describe("ce-codex-loop schema contract", () => {
       "stable_review_base",
       "planned_scope",
       "manifest_checkpoints",
+      "current_manifest",
       "reviewed_manifest",
       "compound_outputs",
       "final_repository_delta",
@@ -98,7 +99,9 @@ describe("ce-codex-loop schema contract", () => {
     expect(statuses).toContain('"stable_review_base": "string | null"')
     expect(statuses).toContain("may be `null` only for preflight failures")
     expect(statuses).toContain("Do not invent placeholder strings")
-    expect(statuses).toContain("checkpoint immediately before the final review attempt must equal `reviewed_manifest`")
+    expect(statuses).toContain("If no clean review attempt exists, `reviewed_manifest` must be `null`")
+    expect(statuses).toContain("do not copy `current_manifest` into it")
+    expect(statuses).toContain("checkpoint immediately before the final clean review attempt must equal non-null `reviewed_manifest`")
     expect(statuses).toContain("must not be represented as reviewed")
   })
 

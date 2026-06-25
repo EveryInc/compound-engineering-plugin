@@ -20,16 +20,13 @@
   },
   "planned_scope": {
     "created": [],
-    "modified": ["src/math.ts"],
+    "modified": [
+      "src/math.ts"
+    ],
     "deleted": [],
     "test_paths": []
   },
-  "reviewed_manifest": {
-    "created": [],
-    "modified": ["src/math.ts"],
-    "deleted": [],
-    "temporarily_indexed": []
-  },
+  "reviewed_manifest": null,
   "compound_outputs": {
     "created": [],
     "modified": [],
@@ -37,7 +34,9 @@
   },
   "final_repository_delta": {
     "created": [],
-    "modified": ["src/math.ts"],
+    "modified": [
+      "src/math.ts"
+    ],
     "deleted": [],
     "temporarily_indexed": []
   },
@@ -49,5 +48,13 @@
     "pr": false,
     "ci_watch": false,
     "release": false
+  },
+  "current_manifest": {
+    "created": [],
+    "modified": [
+      "src/math.ts"
+    ],
+    "deleted": [],
+    "temporarily_indexed": []
   }
 }

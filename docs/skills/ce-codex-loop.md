@@ -35,7 +35,8 @@ Terminal statuses are `success`, `failed`, `unverified`, `already_satisfied`, an
 
 Terminal reports separate repository state by lifecycle boundary:
 
-- `reviewed_manifest` is the exact loop-owned manifest supplied to simplification and the final code-review attempt.
+- `current_manifest` is the latest loop-owned manifest at terminal completion.
+- `reviewed_manifest` is the exact loop-owned manifest supplied to the final clean code-review attempt, or `null` when the workflow stops before clean review.
 - `compound_outputs` lists files changed later by the single post-success `ce-compound mode:headless` invocation.
 - `final_repository_delta` is the complete delta from the initial snapshot to terminal completion.
 

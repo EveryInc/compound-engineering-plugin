@@ -132,6 +132,8 @@ Every review stage is produced from `ce-code-review mode:agent plan:<canonical-p
 
 Terminal reports for failures before plan normalization or snapshot/base capture may set `canonical_plan_path`, `plan_path`, and `stable_review_base` to `null`. Once those stages succeed, the fields must be strings and remain stable for downstream review correlation. Do not invent placeholder path/base strings for preflight failures.
 
+Terminal reports use `current_manifest` for the latest loop-owned manifest at terminal completion. `reviewed_manifest` is non-null only after a clean review exists; terminal paths that stop before clean review, including `unverified`, must leave `reviewed_manifest` as `null` so unreviewed deltas are not represented as reviewed.
+
 Clean review requires all three predicates: status == complete, verdict == Ready to merge, and actionable_findings.length == 0.
 
 ## Verification Stage

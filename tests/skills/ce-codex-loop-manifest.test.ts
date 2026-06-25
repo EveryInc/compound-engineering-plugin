@@ -69,6 +69,8 @@ describe("ce-codex-loop manifest contract", () => {
 
     expect(content).toContain("## Terminal Deltas")
     expect(content).toContain("reviewed_manifest")
+    expect(content).toContain("current_manifest")
+    expect(content).toContain("If no clean review occurred, `reviewed_manifest` is `null`")
     expect(content).toContain("compound_outputs")
     expect(content).toContain("final_repository_delta")
     expect(content).toContain("must never be folded into `reviewed_manifest`")

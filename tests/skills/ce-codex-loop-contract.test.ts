@@ -67,7 +67,8 @@ type Fixture = {
   }>
   planned_scope: PlannedScope
   manifest_checkpoints?: ManifestCheckpoint[]
-  reviewed_manifest: Manifest
+  current_manifest?: Manifest
+  reviewed_manifest: Manifest | null
   compound_outputs: FileSet
   final_repository_delta: Manifest
   finding_decisions: Array<Record<string, unknown>>
@@ -329,7 +330,11 @@ describe("ce-codex-loop contract", () => {
       expect(fixture.stage_sequence.length).toBeGreaterThan(0)
       expect(fixture.review_attempts).toHaveLength(fixture.review_attempt_count)
       expect(fixture).toHaveProperty("planned_scope")
+      expect(fixture).toHaveProperty("current_manifest")
       expect(fixture).toHaveProperty("reviewed_manifest")
+      if (fixture.review_attempt_count === 0) {
+        expect(fixture.reviewed_manifest).toBeNull()
+      }
       expect(fixture).toHaveProperty("compound_outputs")
       expect(fixture).toHaveProperty("final_repository_delta")
       for (const checkpoint of fixture.manifest_checkpoints ?? []) {
@@ -572,6 +577,13 @@ describe("ce-codex-loop contract", () => {
     expect(fixture.absent_attempts).toEqual([4])
     expect(fixture.stage_sequence).not.toContain("review:attempt-4")
     expect(fixture.compound_invocation_count).toBe(0)
+    expect(fixture.reviewed_manifest).toBeNull()
+    expect(fixture.current_manifest).toEqual({
+      created: [],
+      modified: ["src/math.ts", "tests/math.test.ts"],
+      deleted: [],
+      temporarily_indexed: [],
+    })
     expect(fixture.finding_decisions.at(-1)).toEqual({
       id: "F-003",
       decision: "unresolved",
@@ -612,6 +624,13 @@ describe("ce-codex-loop contract", () => {
     expect(fixture.compound_invocation_count).toBe(0)
     expect(fixture.stage_sequence).not.toContain("review:attempt-1")
     expect(fixture.stage_sequence).not.toContain("compound")
+    expect(fixture.reviewed_manifest).toBeNull()
+    expect(fixture.current_manifest).toEqual({
+      created: [],
+      modified: ["src/math.ts"],
+      deleted: [],
+      temporarily_indexed: [],
+    })
   })
 
   test("compound failure fixture proves one failed invocation without retry", async () => {
@@ -640,7 +659,8 @@ describe("ce-codex-loop contract", () => {
         applied: false,
       },
     ])
-    expect(manifestPaths(fixture.reviewed_manifest)).not.toContain("docs/solutions/unreviewed.md")
+    expect(fixture.reviewed_manifest).toBeNull()
+    expect(manifestPaths(fixture.current_manifest!)).not.toContain("docs/solutions/unreviewed.md")
     expect(fixture.unrelated_file).toEqual({
       path: "docs/solutions/unreviewed.md",
       content_changed: false,
@@ -680,6 +700,13 @@ describe("ce-codex-loop contract", () => {
     expect(fixture.canonical_plan_path).toBeNull()
     expect(fixture.plan_path).toBeNull()
     expect(fixture.stable_review_base).toBeNull()
+    expect(fixture.reviewed_manifest).toBeNull()
+    expect(fixture.current_manifest).toEqual({
+      created: [],
+      modified: [],
+      deleted: [],
+      temporarily_indexed: [],
+    })
     expect(fixture.review_attempt_count).toBe(0)
     expect(fixture.compound_invocation_count).toBe(0)
     expect(fixture.stage_results).toEqual([

@@ -10,22 +10,21 @@
   ],
   "already_satisfied_proof": {
     "summary": "plan already satisfied",
-    "files": ["skills/example/SKILL.md"]
+    "files": [
+      "skills/example/SKILL.md"
+    ]
   },
   "review_attempt_count": 0,
   "review_attempts": [],
   "planned_scope": {
     "created": [],
-    "modified": ["skills/example/SKILL.md"],
+    "modified": [
+      "skills/example/SKILL.md"
+    ],
     "deleted": [],
     "test_paths": []
   },
-  "reviewed_manifest": {
-    "created": [],
-    "modified": [],
-    "deleted": [],
-    "temporarily_indexed": []
-  },
+  "reviewed_manifest": null,
   "compound_outputs": {
     "created": [],
     "modified": [],
@@ -45,5 +44,11 @@
     "pr": false,
     "ci_watch": false,
     "release": false
+  },
+  "current_manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
   }
 }

@@ -6,7 +6,10 @@
   "stable_review_base": null,
   "terminal_status": "failed",
   "reason": "unsafe_plan_path",
-  "stage_sequence": ["preflight", "report"],
+  "stage_sequence": [
+    "preflight",
+    "report"
+  ],
   "review_attempt_count": 0,
   "review_attempts": [],
   "planned_scope": {
@@ -15,12 +18,7 @@
     "deleted": [],
     "test_paths": []
   },
-  "reviewed_manifest": {
-    "created": [],
-    "modified": [],
-    "deleted": [],
-    "temporarily_indexed": []
-  },
+  "reviewed_manifest": null,
   "compound_outputs": {
     "created": [],
     "modified": [],
@@ -36,7 +34,9 @@
     {
       "stage": "preflight",
       "status": "failed",
-      "issues": ["unsafe plan path escapes repository"]
+      "issues": [
+        "unsafe plan path escapes repository"
+      ]
     }
   ],
   "finding_decisions": [],
@@ -47,5 +47,11 @@
     "pr": false,
     "ci_watch": false,
     "release": false
+  },
+  "current_manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
   }
 }

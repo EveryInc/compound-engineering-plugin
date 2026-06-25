@@ -72,7 +72,9 @@
       "artifact_path": "/tmp/ce-loop/review-1/",
       "status": "complete",
       "verdict": "Ready with fixes",
-      "eligible_actionable_findings": ["F-001"]
+      "eligible_actionable_findings": [
+        "F-001"
+      ]
     },
     {
       "attempt": 2,
@@ -111,7 +113,10 @@
       "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
       "reviewed_manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -119,7 +124,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -128,7 +136,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -136,7 +147,13 @@
       "requirements_completeness": {
         "plan_source": "explicit",
         "status": "evaluated",
-        "requirements_checked": ["R1", "R2", "R3", "R4", "R5"]
+        "requirements_checked": [
+          "R1",
+          "R2",
+          "R3",
+          "R4",
+          "R5"
+        ]
       }
     },
     {
@@ -146,7 +163,10 @@
       "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
       "reviewed_manifest": {
         "created": [],
-        "modified": ["src/math.ts", "tests/math.test.ts"],
+        "modified": [
+          "src/math.ts",
+          "tests/math.test.ts"
+        ],
         "deleted": [],
         "temporarily_indexed": []
       },
@@ -154,7 +174,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -163,7 +186,10 @@
         "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",
         "reviewed_manifest": {
           "created": [],
-          "modified": ["src/math.ts", "tests/math.test.ts"],
+          "modified": [
+            "src/math.ts",
+            "tests/math.test.ts"
+          ],
           "deleted": [],
           "temporarily_indexed": []
         }
@@ -171,14 +197,22 @@
       "requirements_completeness": {
         "plan_source": "explicit",
         "status": "evaluated",
-        "requirements_checked": ["R1", "R2", "R3", "R4", "R5"]
+        "requirements_checked": [
+          "R1",
+          "R2",
+          "R3",
+          "R4",
+          "R5"
+        ]
       }
     }
   ],
   "fix_waves": [
     {
       "wave": 1,
-      "finding_ids": ["F-001"],
+      "finding_ids": [
+        "F-001"
+      ],
       "verification_status": "passed"
     }
   ],
@@ -188,25 +222,41 @@
     "after_fix_wave"
   ],
   "planned_scope": {
-    "created": ["docs/solutions/clamp-helper.md"],
-    "modified": ["src/math.ts"],
+    "created": [
+      "docs/solutions/clamp-helper.md"
+    ],
+    "modified": [
+      "src/math.ts"
+    ],
     "deleted": [],
-    "test_paths": ["tests/math.test.ts"]
+    "test_paths": [
+      "tests/math.test.ts"
+    ]
   },
   "reviewed_manifest": {
     "created": [],
-    "modified": ["src/math.ts", "tests/math.test.ts"],
+    "modified": [
+      "src/math.ts",
+      "tests/math.test.ts"
+    ],
     "deleted": [],
     "temporarily_indexed": []
   },
   "compound_outputs": {
-    "created": ["docs/solutions/clamp-helper.md"],
+    "created": [
+      "docs/solutions/clamp-helper.md"
+    ],
     "modified": [],
     "deleted": []
   },
   "final_repository_delta": {
-    "created": ["docs/solutions/clamp-helper.md"],
-    "modified": ["src/math.ts", "tests/math.test.ts"],
+    "created": [
+      "docs/solutions/clamp-helper.md"
+    ],
+    "modified": [
+      "src/math.ts",
+      "tests/math.test.ts"
+    ],
     "deleted": [],
     "temporarily_indexed": []
   },
@@ -224,5 +274,14 @@
     "pr": false,
     "ci_watch": false,
     "release": false
+  },
+  "current_manifest": {
+    "created": [],
+    "modified": [
+      "src/math.ts",
+      "tests/math.test.ts"
+    ],
+    "deleted": [],
+    "temporarily_indexed": []
   }
 }

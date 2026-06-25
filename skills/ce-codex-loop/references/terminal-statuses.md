@@ -27,12 +27,18 @@ Every terminal report includes:
     "deleted": [],
     "test_paths": []
   },
-  "reviewed_manifest": {
+  "current_manifest": {
     "created": [],
     "modified": [],
     "deleted": [],
     "temporarily_indexed": []
   },
+  "reviewed_manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
+  } | null,
   "manifest_checkpoints": [
     {
       "label": "string",
@@ -79,9 +85,11 @@ Every terminal report includes:
 
 `canonical_plan_path`, `plan_path`, and `stable_review_base` are strings after the relevant preflight/snapshot steps succeed. They may be `null` only for preflight failures that occur before the plan can be normalized or before the stable snapshot/base can be captured, such as missing, unreadable, unsafe, or malformed plan input. Do not invent placeholder strings for unavailable preflight fields; use `null` and include the failure reason in `stage_results` / `issues`.
 
-`reviewed_manifest` is the exact refreshed loop-owned manifest supplied to the final `ce-code-review mode:agent` attempt. It contains only files that were included in simplification, review, review-followup, and final code verification.
+`current_manifest` is the latest refreshed loop-owned manifest at terminal completion. It may include unreviewed work when the workflow stops before a clean review.
 
-`manifest_checkpoints` records every refreshed manifest used at orchestration gates. The checkpoint immediately before the final review attempt must equal `reviewed_manifest`.
+`reviewed_manifest` is the exact refreshed loop-owned manifest supplied to the final clean `ce-code-review mode:agent` attempt. It contains only files that were included in simplification, review, review-followup, and final code verification. If no clean review attempt exists, `reviewed_manifest` must be `null`; do not copy `current_manifest` into it for `failed`, `unverified`, `already_satisfied`, or any other terminal path that did not complete a clean review.
+
+`manifest_checkpoints` records every refreshed manifest used at orchestration gates. The checkpoint immediately before the final clean review attempt must equal non-null `reviewed_manifest`.
 
 `compound_outputs` is captured by comparing repository state immediately before and after the single `ce-compound mode:headless` invocation. These paths are post-review outputs and must not be represented as reviewed.
 

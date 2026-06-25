@@ -100,7 +100,8 @@ If simplification changes scope by creating, modifying, or deleting a file, the 
 
 The terminal report separates repository state by lifecycle boundary:
 
-- `reviewed_manifest` is the exact refreshed loop-owned manifest supplied to the final code-review attempt and used for simplification, review-followup, and final code verification.
+- `current_manifest` is the latest refreshed loop-owned manifest at terminal completion, including paths that may not have reached review on early terminal paths.
+- `reviewed_manifest` is the exact refreshed loop-owned manifest supplied to the final clean code-review attempt and used for simplification, review-followup, and final code verification. If no clean review occurred, `reviewed_manifest` is `null` and callers must use `current_manifest` only as unreviewed state.
 - `compound_outputs` is the repository delta between the immediate pre-compound and post-compound snapshots.
 - `final_repository_delta` is the full delta from the initial workflow snapshot to terminal completion.
 

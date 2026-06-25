@@ -11,26 +11,37 @@
   "review_attempt_count": 0,
   "review_attempts": [],
   "planned_scope": {
-    "created": ["src/clamp.ts"],
-    "modified": ["src/math.ts"],
-    "deleted": ["src/legacyClamp.ts"],
-    "test_paths": ["tests/math.test.ts"]
+    "created": [
+      "src/clamp.ts"
+    ],
+    "modified": [
+      "src/math.ts"
+    ],
+    "deleted": [
+      "src/legacyClamp.ts"
+    ],
+    "test_paths": [
+      "tests/math.test.ts"
+    ]
   },
   "overlap": {
-    "tracked": ["tests/math.test.ts"],
-    "untracked_planned_collisions": ["src/clamp.ts"],
-    "staged": ["tests/math.test.ts"],
-    "unstaged": ["src/math.ts"]
+    "tracked": [
+      "tests/math.test.ts"
+    ],
+    "untracked_planned_collisions": [
+      "src/clamp.ts"
+    ],
+    "staged": [
+      "tests/math.test.ts"
+    ],
+    "unstaged": [
+      "src/math.ts"
+    ]
   },
   "ce_work_invocation_count": 0,
   "original_bytes_preserved": true,
   "staged_state_preserved": true,
-  "reviewed_manifest": {
-    "created": [],
-    "modified": [],
-    "deleted": [],
-    "temporarily_indexed": []
-  },
+  "reviewed_manifest": null,
   "compound_outputs": {
     "created": [],
     "modified": [],
@@ -50,5 +61,11 @@
     "pr": false,
     "ci_watch": false,
     "release": false
+  },
+  "current_manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
   }
 }
