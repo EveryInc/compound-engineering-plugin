@@ -156,6 +156,10 @@ describe("ce-work review contract", () => {
 
     expect(content).toContain("## Argument Parsing")
     expect(content).toContain("mode:implementation-only")
+    expect(content).toContain("Capture raw `$ARGUMENTS` before Phase 0 triage")
+    expect(content).toContain("Strip the mode token from the argument string")
+    expect(content).toContain("Phase 0 must never classify `mode:implementation-only docs/plans/foo.md`")
+    expect(content).toContain("skip branch/worktree setup, commits, simplification, code review")
     expect(content).not.toContain("## Codex Delegation Mode")
     expect(content).not.toContain("delegate:codex")
   })

@@ -18,7 +18,18 @@ This command takes a work document (plan or specification) or a bare prompt desc
 
 ## Argument Parsing
 
-Recognize `mode:implementation-only` as an explicit composition token. When present, read `references/implementation-only-mode.md` and follow that carve-out after Phase 0 plan-file validation. The token is valid only with a plan-file input; reject bare prompts in that mode.
+Capture raw `$ARGUMENTS` before Phase 0 triage. Parse shell-like tokens while preserving quoted paths that contain spaces. Recognize `mode:implementation-only` only when it is one complete standalone token; do not recognize token-like substrings inside filenames or prose.
+
+When `mode:implementation-only` is present, perform this pre-Phase-0 parsing sequence:
+
+1. Require exactly one `mode:implementation-only` token; duplicate mode tokens fail before mutation.
+2. Strip the mode token from the argument string.
+3. Normalize the remaining value as the work-document input.
+4. Require exactly one non-blank readable plan-file path remains; reject blank input, bare prompts, multiple non-mode tokens, unreadable paths, directories, and `execution: knowledge-work` plans before mutation.
+5. Read `references/implementation-only-mode.md` and activate implementation-only mode.
+6. Enter Phase 0 with `<input_document>` set only to the stripped plan path. Phase 0 must never classify `mode:implementation-only docs/plans/foo.md` or `docs/plans/foo.md mode:implementation-only` as the candidate path.
+
+In implementation-only mode, skip branch/worktree setup, commits, simplification, code review, shipping workflow loading, push, PR mutation, CI watching, and release automation, and return the structured implementation result described in the reference.
 
 Default behavior is unchanged when `mode:implementation-only` is absent.
 

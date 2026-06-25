@@ -4,7 +4,21 @@
 
 ## Parsing
 
-Strip `mode:implementation-only` before reading the remaining argument as the work document. The mode is valid only with a plan-file input. Reject bare prompts, blank invocation, unreadable plans, and knowledge-work plans in this mode.
+This reference is loaded only after the top-level argument parser has detected exactly one standalone `mode:implementation-only` token and stripped it from raw `$ARGUMENTS`.
+
+Required parsing order:
+
+1. Capture raw `$ARGUMENTS`.
+2. Detect `mode:implementation-only` as one standalone token.
+3. Reject duplicate mode tokens.
+4. Strip the token before Phase 0 input triage.
+5. Normalize the remaining value as the work-document input.
+6. Require exactly one readable plan-file path remains.
+7. Reject blank input, bare prompts, unreadable paths, directories, and knowledge-work plans before mutation.
+8. Activate implementation-only mode.
+9. Only then enter Phase 0 plan-file triage with the stripped path.
+
+The mode token may appear before or after the plan path, but it must be a complete token. Preserve quoted paths containing spaces. Do not activate this mode for token-like substrings inside filenames or prose, such as `docs/plans/mode:implementation-only-plan.md` or `implement mode:implementation-onlyish behavior`.
 
 Default behavior is unchanged when the token is absent.
 

@@ -168,6 +168,8 @@ For large bare-prompt scope (cross-cutting, sensitive surfaces, many files), `ce
 | `<bare prompt>` | Triage by complexity (Trivial / Small-Medium / Large) |
 | `mode:implementation-only <plan path>` | Composition mode for orchestrators: implement only, return structured status, and skip branch creation, commits, simplify, review, PR, CI, and release automation |
 
+`mode:implementation-only` is parsed before normal Phase 0 input triage. The token is stripped first, then the remaining value must be exactly one readable plan path; duplicate tokens, blank remainder, bare prompts, unreadable paths, directories, and knowledge-work plans fail before mutation. The token must be standalone, so token-like substrings inside a filename or prose do not activate the mode. Default plan and bare-prompt behavior is unchanged when the token is absent.
+
 Output: commits and (typically) a PR via `ce-commit-push-pr`. The plan is read-only throughout — `ce-work` never mutates it; whether it shipped is derived from git, not recorded in the doc.
 
 ---
