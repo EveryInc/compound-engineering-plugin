@@ -670,6 +670,27 @@ describe("ce-codex-loop contract", () => {
     expect(fixture.staged_state_preserved).toBe(true)
   })
 
+  test("preflight invalid plan report keeps unavailable path and base fields null", async () => {
+    const fixture = await readFixture("preflight-invalid-plan")
+
+    expect(fixture.terminal_status).toBe("failed")
+    expect(fixture.reason).toBe("unsafe_plan_path")
+    expect(fixture.stage_sequence).toEqual(["preflight", "report"])
+    expect(fixture.raw_plan_argument).toBe("../outside.md")
+    expect(fixture.canonical_plan_path).toBeNull()
+    expect(fixture.plan_path).toBeNull()
+    expect(fixture.stable_review_base).toBeNull()
+    expect(fixture.review_attempt_count).toBe(0)
+    expect(fixture.compound_invocation_count).toBe(0)
+    expect(fixture.stage_results).toEqual([
+      {
+        stage: "preflight",
+        status: "failed",
+        issues: ["unsafe plan path escapes repository"],
+      },
+    ])
+  })
+
   for (const [fixtureName, expectedPath] of [
     ["untracked-create-overlap", "src/clamp.ts"],
     ["untracked-modify-overlap", "src/math.ts"],

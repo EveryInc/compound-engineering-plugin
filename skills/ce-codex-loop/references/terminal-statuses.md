@@ -18,9 +18,9 @@ Every terminal report includes:
 {
   "terminal_status": "success | failed | unverified | already_satisfied | quality_verified_but_compound_failed",
   "raw_plan_argument": "string",
-  "canonical_plan_path": "string",
-  "plan_path": "string",
-  "stable_review_base": "string",
+  "canonical_plan_path": "string | null",
+  "plan_path": "string | null",
+  "stable_review_base": "string | null",
   "planned_scope": {
     "created": [],
     "modified": [],
@@ -76,6 +76,8 @@ Every terminal report includes:
 ```
 
 `plan_path` is the terminal-report alias for `canonical_plan_path`. `raw_plan_argument` is recorded for audit only and must not be used for review correlation comparisons.
+
+`canonical_plan_path`, `plan_path`, and `stable_review_base` are strings after the relevant preflight/snapshot steps succeed. They may be `null` only for preflight failures that occur before the plan can be normalized or before the stable snapshot/base can be captured, such as missing, unreadable, unsafe, or malformed plan input. Do not invent placeholder strings for unavailable preflight fields; use `null` and include the failure reason in `stage_results` / `issues`.
 
 `reviewed_manifest` is the exact refreshed loop-owned manifest supplied to the final `ce-code-review mode:agent` attempt. It contains only files that were included in simplification, review, review-followup, and final code verification.
 

@@ -1,0 +1,60 @@
+{
+  "valid_manifest": {
+    "input": {
+      "created": ["src/new-helper.ts"],
+      "modified": ["src/math.ts"],
+      "deleted": ["src/old-helper.ts"],
+      "temporarily_indexed": ["tests/math.test.ts"]
+    },
+    "normalized_paths": [
+      "src/new-helper.ts",
+      "src/math.ts",
+      "src/old-helper.ts",
+      "tests/math.test.ts"
+    ],
+    "allowed": true
+  },
+  "unsafe_entries": [
+    {
+      "value": "/tmp/outside.ts",
+      "reason": "absolute_path",
+      "allowed": false
+    },
+    {
+      "value": "../outside.ts",
+      "reason": "repo_escape",
+      "allowed": false
+    },
+    {
+      "value": "src/../outside.ts",
+      "reason": "dot_segment",
+      "allowed": false
+    },
+    {
+      "value": "",
+      "reason": "empty_string",
+      "allowed": false
+    },
+    {
+      "value": 42,
+      "reason": "non_string",
+      "allowed": false
+    },
+    {
+      "value": ["src/math.ts"],
+      "reason": "non_string",
+      "allowed": false
+    }
+  ],
+  "duplicate_entries": {
+    "input": ["src/math.ts", "./src/math.ts"],
+    "normalized": ["src/math.ts", "src/math.ts"],
+    "reason": "duplicate_normalized_path",
+    "allowed": false
+  },
+  "failure_boundary": {
+    "fails_before": ["Step 1", "agent_dispatch"],
+    "branch_diff_fallback": false,
+    "stages_untracked_files": false
+  }
+}

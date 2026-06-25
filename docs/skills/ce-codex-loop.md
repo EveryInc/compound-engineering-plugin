@@ -20,6 +20,8 @@ The loop records manifest checkpoints after implementation, after simplification
 
 The supplied plan argument is preserved as `raw_plan_argument`, then normalized once into `canonical_plan_path`: a repo-relative POSIX path that resolves inside the repository, points to an existing readable regular file, and contains no `.` or `..` segments. Relative, `./`-prefixed, absolute-in-repo, and lexical-equivalent paths are accepted; repo escapes, escaping symlinks, directories, placeholders, and missing files fail before mutation.
 
+If input validation fails before the plan can be normalized or before the stable snapshot/base is captured, the terminal report uses `null` for unavailable `canonical_plan_path`, `plan_path`, and `stable_review_base` fields rather than inventing placeholder strings. After those stages succeed, the fields are strings and remain stable for review correlation.
+
 The runtime uses these explicit composition contracts:
 
 - `ce-work mode:implementation-only`

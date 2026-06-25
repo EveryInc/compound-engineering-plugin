@@ -12,6 +12,8 @@ ce-simplify-code mode:structured manifest:<path>
 
 The manifest is the only scope. Missing, unreadable, or empty manifest fails closed.
 
+Before any simplification work, validate every manifest entry. Each path must be a string, non-empty, repo-relative, POSIX-normalizable without `.` or `..` segments, inside the repository, and unique after normalization. Absolute paths, repo escapes, duplicate normalized paths, and non-string entries are unsafe and must fail before Step 1 or agent dispatch. Validation must not stage untracked files.
+
 ## Result
 
 ```json

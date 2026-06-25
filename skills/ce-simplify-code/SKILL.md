@@ -12,7 +12,7 @@ Review the changed code for reuse, quality, and efficiency. Fix any issues found
 
 Recognize `mode:structured` plus `manifest:<path>` as an explicit composition mode. In this mode, read `references/structured-result-schema.md`, treat the manifest as authoritative, and emit the structured result described there.
 
-When `mode:structured` is present, the manifest is authoritative and branch-diff fallback is disabled. Missing, unreadable, or empty manifest fails closed. Do not widen beyond manifest paths.
+When `mode:structured` is present, the manifest is authoritative and branch-diff fallback is disabled. Missing, unreadable, or empty manifest fails closed. Before Step 1 or any agent dispatch, parse every manifest path entry and fail closed on unsafe entries: non-string values, empty strings, absolute paths, `.` or `..` segments, repo escapes after normalization, duplicate normalized paths, and paths that cannot be represented as repo-relative POSIX paths. Do not stage untracked files to validate the manifest. Do not widen beyond the normalized manifest paths.
 
 Default behavior is unchanged when `mode:structured` is absent.
 

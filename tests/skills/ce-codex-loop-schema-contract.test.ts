@@ -58,6 +58,8 @@ describe("ce-codex-loop schema contract", () => {
     expect(schemas).toContain("Review JSON must also report `manifest_path` equal to the supplied manifest path")
     expect(schemas).toContain("Primary JSON, `review.json`, and `metadata.json` must agree")
     expect(schemas).toContain("missing, malformed, or inferred plan context is terminal `failed`")
+    expect(schemas).toContain("may set `canonical_plan_path`, `plan_path`, and `stable_review_base` to `null`")
+    expect(schemas).toContain("Do not invent placeholder path/base strings")
   })
 
   test("terminal statuses are exact and include report fields", async () => {
@@ -91,6 +93,11 @@ describe("ce-codex-loop schema contract", () => {
       expect(statuses).toContain(field)
     }
     expect(statuses).not.toMatch(/\n  "manifest":\s*\{/)
+    expect(statuses).toContain('"canonical_plan_path": "string | null"')
+    expect(statuses).toContain('"plan_path": "string | null"')
+    expect(statuses).toContain('"stable_review_base": "string | null"')
+    expect(statuses).toContain("may be `null` only for preflight failures")
+    expect(statuses).toContain("Do not invent placeholder strings")
     expect(statuses).toContain("checkpoint immediately before the final review attempt must equal `reviewed_manifest`")
     expect(statuses).toContain("must not be represented as reviewed")
   })

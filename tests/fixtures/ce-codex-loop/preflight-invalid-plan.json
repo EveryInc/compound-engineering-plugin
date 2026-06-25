@@ -1,0 +1,51 @@
+{
+  "scenario": "preflight-invalid-plan",
+  "raw_plan_argument": "../outside.md",
+  "canonical_plan_path": null,
+  "plan_path": null,
+  "stable_review_base": null,
+  "terminal_status": "failed",
+  "reason": "unsafe_plan_path",
+  "stage_sequence": ["preflight", "report"],
+  "review_attempt_count": 0,
+  "review_attempts": [],
+  "planned_scope": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "test_paths": []
+  },
+  "reviewed_manifest": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "compound_outputs": {
+    "created": [],
+    "modified": [],
+    "deleted": []
+  },
+  "final_repository_delta": {
+    "created": [],
+    "modified": [],
+    "deleted": [],
+    "temporarily_indexed": []
+  },
+  "stage_results": [
+    {
+      "stage": "preflight",
+      "status": "failed",
+      "issues": ["unsafe plan path escapes repository"]
+    }
+  ],
+  "finding_decisions": [],
+  "compound_invocation_count": 0,
+  "actions": {
+    "commit": false,
+    "push": false,
+    "pr": false,
+    "ci_watch": false,
+    "release": false
+  }
+}
