@@ -51,6 +51,9 @@ describe("ce-codex-loop schema contract", () => {
     expect(schemas).toContain(
       "ce-code-review mode:agent plan:<canonical-plan-path> base:<stable-base> manifest:<manifest-path> run-id:<run-id> artifact-dir:<artifact-dir>",
     )
+    expect(schemas).toContain("resolving `ce-code-review` through the host skill mechanism")
+    expect(schemas).toContain("captured pre-mutation snapshot HEAD")
+    expect(schemas).toContain("must not drift after implementation, simplification, fixes, or repairs")
     expect(schemas).toContain("`plan_path` must equal `canonical_plan_path`")
     expect(schemas).toContain("never compare review output to `raw_plan_argument`")
     expect(schemas).toContain("artifact_path` must equal the exact per-attempt artifact directory")
@@ -99,6 +102,8 @@ describe("ce-codex-loop schema contract", () => {
     expect(statuses).toContain('"stable_review_base": "string | null"')
     expect(statuses).toContain("may be `null` only for preflight failures")
     expect(statuses).toContain("Do not invent placeholder strings")
+    expect(statuses).toContain("non-null `stable_review_base` is the captured pre-mutation HEAD snapshot")
+    expect(statuses).toContain("must not be recomputed from a branch merge-base")
     expect(statuses).toContain("If no clean review attempt exists, `reviewed_manifest` must be `null`")
     expect(statuses).toContain("do not copy `current_manifest` into it")
     expect(statuses).toContain("checkpoint immediately before the final clean review attempt must equal non-null `reviewed_manifest`")

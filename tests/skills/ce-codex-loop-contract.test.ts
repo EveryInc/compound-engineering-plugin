@@ -36,12 +36,15 @@ type Fixture = {
   raw_plan_argument?: string
   canonical_plan_path?: string
   plan_path_normalization?: PlanPathNormalization
+  snapshot_head?: string
+  stable_review_base?: string | null
   terminal_status: string
   stage_sequence: string[]
   review_attempt_count: number
   review_attempts: Array<{ attempt: number; status?: string; verdict?: string; eligible_actionable_findings?: string[] }>
   review_invocations?: Array<{
     attempt: number
+    invocation_mechanism?: string
     plan_path: string
     stable_base: string
     manifest_path: string
@@ -130,8 +133,16 @@ function expectExplicitPlanReviewInvocations(fixture: Fixture, expectedAttempts:
   expect(fixture.review_invocations?.map((invocation) => invocation.attempt)).toEqual(expectedAttempts)
   expect(fixture.review_outputs?.map((output) => output.attempt)).toEqual(expectedAttempts)
 
+  if (expectedAttempts.length > 0) {
+    expect(fixture.snapshot_head).toBeDefined()
+    expect(fixture.stable_review_base).toBe(fixture.snapshot_head)
+  }
+
   for (const invocation of fixture.review_invocations ?? []) {
+    expect(invocation.invocation_mechanism).toBe("host_skill")
     expect(invocation.plan_path).toBe(expectedPlan)
+    expect(invocation.stable_base).toBe(fixture.snapshot_head)
+    expect(invocation.stable_base).toBe(fixture.stable_review_base)
     expect(invocation.command).toContain("ce-code-review mode:agent")
     expect(invocation.command).toContain(`plan:${expectedPlan}`)
     expect(invocation.command).not.toContain(`plan:${fixture.raw_plan_argument}`)
@@ -189,6 +200,13 @@ describe("ce-codex-loop contract", () => {
     )
     expect(content).not.toContain("ce-code-review mode:agent base:<stable-base> manifest:<manifest-path> run-id:<run-id>")
     expect(content).toContain("ce-compound mode:headless")
+    expect(content).toContain("Resolve each downstream skill through the host skill mechanism")
+    expect(content).toContain("platform Skill tool or native skill invocation primitive")
+    expect(content).toContain("Do not execute skill names as shell commands")
+    expect(content).toContain("Invoke the resolved `ce-work` skill through the host skill mechanism")
+    expect(content).toContain("Invoke the resolved `ce-simplify-code` skill through the host skill mechanism")
+    expect(content).toContain("Invoke the resolved `ce-code-review` skill through the host skill mechanism")
+    expect(content).toContain("Invoke the resolved `ce-compound` skill through the host skill mechanism")
     expect(content).toContain("run exactly once")
     expect(content).toContain("only after clean review and green final verification")
     expect(content).toContain("reviewed_manifest")
@@ -286,6 +304,24 @@ describe("ce-codex-loop contract", () => {
     expectExplicitPlanReviewInvocations(fixture, [1, 2])
   })
 
+  test("review base is the captured snapshot HEAD and does not drift", async () => {
+    const success = await readFixture("success")
+    const exhausted = await readFixture("failed-review-exhausted")
+
+    for (const fixture of [success, exhausted]) {
+      expect(fixture.stage_sequence).toContain("snapshot")
+      expect(fixture.snapshot_head).toBe("HEAD0")
+      expect(fixture.stable_review_base).toBe(fixture.snapshot_head)
+      for (const invocation of fixture.review_invocations ?? []) {
+        expect(invocation.stable_base).toBe("HEAD0")
+        expect(invocation.stable_base).toBe(fixture.snapshot_head)
+      }
+      expect(new Set((fixture.review_invocations ?? []).map((invocation) => invocation.stable_base))).toEqual(
+        new Set(["HEAD0"]),
+      )
+    }
+  })
+
   test("subsequent review attempts retain the same explicit plan argument", async () => {
     const fixture = await readFixture("failed-review-exhausted")
 
@@ -332,6 +368,11 @@ describe("ce-codex-loop contract", () => {
       expect(fixture).toHaveProperty("planned_scope")
       expect(fixture).toHaveProperty("current_manifest")
       expect(fixture).toHaveProperty("reviewed_manifest")
+      if (fixture.review_attempt_count > 0) {
+        expect(fixture).toHaveProperty("snapshot_head")
+        expect(fixture).toHaveProperty("stable_review_base")
+        expect(fixture.stable_review_base).toBe(fixture.snapshot_head)
+      }
       if (fixture.review_attempt_count === 0) {
         expect(fixture.reviewed_manifest).toBeNull()
       }

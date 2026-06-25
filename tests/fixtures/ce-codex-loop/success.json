@@ -3,6 +3,8 @@
   "raw_plan_argument": "./docs/plans/../plans/clamp-feature.md",
   "canonical_plan_path": "docs/plans/clamp-feature.md",
   "plan_path": "docs/plans/clamp-feature.md",
+  "snapshot_head": "HEAD0",
+  "stable_review_base": "HEAD0",
   "plan_path_normalization": {
     "accepted": [
       {
@@ -88,6 +90,7 @@
   "review_invocations": [
     {
       "attempt": 1,
+      "invocation_mechanism": "host_skill",
       "plan_path": "docs/plans/clamp-feature.md",
       "stable_base": "HEAD0",
       "manifest_path": "/tmp/ce-loop/manifest-attempt-1.json",
@@ -97,6 +100,7 @@
     },
     {
       "attempt": 2,
+      "invocation_mechanism": "host_skill",
       "plan_path": "docs/plans/clamp-feature.md",
       "stable_base": "HEAD0",
       "manifest_path": "/tmp/ce-loop/manifest-attempt-2.json",

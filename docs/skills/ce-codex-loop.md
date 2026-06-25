@@ -22,12 +22,16 @@ The supplied plan argument is preserved as `raw_plan_argument`, then normalized 
 
 If input validation fails before the plan can be normalized or before the stable snapshot/base is captured, the terminal report uses `null` for unavailable `canonical_plan_path`, `plan_path`, and `stable_review_base` fields rather than inventing placeholder strings. After those stages succeed, the fields are strings and remain stable for review correlation.
 
-The runtime uses these explicit composition contracts:
+For local loop review, `stable_review_base` is the captured pre-mutation HEAD snapshot unless the user explicitly supplies another safe base before mutation. The loop does not recompute review base from a moving branch merge-base after implementation, simplification, or fix stages have changed the tree.
+
+The runtime resolves each downstream skill through the host skill mechanism and invokes the skill via the platform Skill tool or native skill invocation primitive. These are the exact public argument contracts passed to those skills:
 
 - `ce-work mode:implementation-only`
 - `ce-simplify-code mode:structured manifest:<path>`
 - `ce-code-review mode:agent plan:<canonical-plan-path> base:<ref> manifest:<path> run-id:<id> artifact-dir:<path>`
 - `ce-compound mode:headless`
+
+Skill names are not shell commands and are not plain-text handoffs; `ce-codex-loop` must use the installed skill entry for `ce-work`, `ce-simplify-code`, `ce-code-review`, and `ce-compound`.
 
 Every review response is checked for top-level `plan_path` and `plan_source` correlation: the returned `plan_path` must match `canonical_plan_path`, never the raw user string, `plan_source` must be `explicit`, and detailed `requirements_completeness` must be present. The loop also verifies `manifest_path` and `reviewed_manifest` against the manifest supplied to that review attempt, and requires primary JSON, `review.json`, and `metadata.json` to agree before any fix, re-review, final verification, or compound stage can continue.
 

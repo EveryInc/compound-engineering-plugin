@@ -9,12 +9,14 @@ Capture these fields before mutation:
 ```json
 {
   "head_sha": "git rev-parse HEAD",
-  "stable_review_base": "merge-base or explicit base ref",
+  "stable_review_base": "captured pre-mutation HEAD, unless an explicit safe base was supplied before mutation",
   "staged": [],
   "unstaged": [],
   "untracked": []
 }
 ```
+
+For local loop review, `stable_review_base` is the captured pre-mutation `head_sha`. Do not recompute it from a branch merge-base after implementation, simplification, review fixes, or repairs have changed the tree. If the user explicitly supplied another safe base before mutation, record that value and pass it unchanged to every review attempt.
 
 The original staged state must be unchanged by review preparation.
 

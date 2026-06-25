@@ -85,6 +85,8 @@ Every terminal report includes:
 
 `canonical_plan_path`, `plan_path`, and `stable_review_base` are strings after the relevant preflight/snapshot steps succeed. They may be `null` only for preflight failures that occur before the plan can be normalized or before the stable snapshot/base can be captured, such as missing, unreadable, unsafe, or malformed plan input. Do not invent placeholder strings for unavailable preflight fields; use `null` and include the failure reason in `stage_results` / `issues`.
 
+For local loop review, non-null `stable_review_base` is the captured pre-mutation HEAD snapshot unless the user explicitly supplied another safe base before mutation. It is passed unchanged to every review attempt and must not be recomputed from a branch merge-base after implementation, simplification, review fixes, or repairs change the tree.
+
 `current_manifest` is the latest refreshed loop-owned manifest at terminal completion. It may include unreviewed work when the workflow stops before a clean review.
 
 `reviewed_manifest` is the exact refreshed loop-owned manifest supplied to the final clean `ce-code-review mode:agent` attempt. It contains only files that were included in simplification, review, review-followup, and final code verification. If no clean review attempt exists, `reviewed_manifest` must be `null`; do not copy `current_manifest` into it for `failed`, `unverified`, `already_satisfied`, or any other terminal path that did not complete a clean review.

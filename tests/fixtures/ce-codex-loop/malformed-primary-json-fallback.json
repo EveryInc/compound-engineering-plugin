@@ -114,5 +114,7 @@
     ],
     "deleted": [],
     "temporarily_indexed": []
-  }
+  },
+  "snapshot_head": "HEAD0",
+  "stable_review_base": "HEAD0"
 }
