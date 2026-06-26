@@ -17,13 +17,20 @@ Start the dev server, open the feature in a browser, and iterate. You use the fe
 
 ## Phase 1: Start the dev server
 
+The scripts below ship in this skill's `scripts/` directory. The Bash tool's working directory is the user's project, not the skill directory, so a bare `scripts/<name>` path will not resolve — invoke each by the skill's own absolute path. `SKILL_DIR` is the directory you loaded this `ce-polish` SKILL.md from; shell state does not persist between Bash tool calls, so **prepend the assignment to every script call below, in the same command**:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>"
+bash "$SKILL_DIR/scripts/<name>"
+```
+
 ### 1.1 Check for `.claude/launch.json`
 
-Run `bash scripts/read-launch-json.sh`. If it finds a configuration, use it — the user already told us how to start the project.
+Run `bash "$SKILL_DIR/scripts/read-launch-json.sh"`. If it finds a configuration, use it — the user already told us how to start the project.
 
 ### 1.2 Auto-detect (when no launch.json)
 
-Run `bash scripts/detect-project-type.sh` to identify the framework.
+Run `bash "$SKILL_DIR/scripts/detect-project-type.sh"` to identify the framework.
 
 Route by type to the matching recipe reference for start command and port defaults:
 
@@ -39,9 +46,9 @@ Route by type to the matching recipe reference for start command and port defaul
 | `procfile` | `references/dev-server-procfile.md` |
 | `unknown` | Ask the user how to start the project |
 
-For framework types that need a package manager, run `bash scripts/resolve-package-manager.sh` and substitute the result into the start command.
+For framework types that need a package manager, run `bash "$SKILL_DIR/scripts/resolve-package-manager.sh"` and substitute the result into the start command.
 
-Resolve the port with `bash scripts/resolve-port.sh --type <type>`.
+Resolve the port with `bash "$SKILL_DIR/scripts/resolve-port.sh" --type <type>`.
 
 ### 1.3 Start the server
 
@@ -82,7 +89,7 @@ Reference files (loaded on demand):
 - `references/dev-server-sveltekit.md` — SvelteKit dev-server defaults
 - `references/dev-server-procfile.md` — Procfile-based dev-server defaults
 
-Scripts (invoked via `bash scripts/<name>`):
+Scripts (invoked via `bash "$SKILL_DIR/scripts/<name>"` — see Phase 1 for `SKILL_DIR`):
 - `scripts/read-launch-json.sh` — launch.json reader
 - `scripts/detect-project-type.sh` — project-type classifier
 - `scripts/resolve-package-manager.sh` — lockfile-based package-manager resolver

@@ -25,10 +25,11 @@ When the input is ambiguous (e.g., a zip arrived without context), inspect the r
 
 ## Analyzer entrypoint
 
-All non-setup paths share the same analyzer:
+All non-setup paths share the same analyzer, which ships in this skill's `scripts/` directory. The Bash tool's working directory is the user's project, not the skill directory, so a bare `scripts/<name>` path will not resolve. Invoke it by the skill's own absolute path: set `SKILL_DIR` to the directory you loaded this `ce-riffrec-feedback-analysis` SKILL.md from, in the same command (shell state does not persist between Bash calls):
 
 ```bash
-python scripts/analyze_riffrec_zip.py /path/to/input
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>"
+python "$SKILL_DIR/scripts/analyze_riffrec_zip.py" /path/to/input
 ```
 
 Accepted inputs: a Riffrec `.zip`, an `.mp4` / `.mov` / `.webm` video, an `.m4a` / `.mp3` / `.wav` audio file, or a meeting-notes `.md`. Use `--output-dir <dir>` to control where artifacts land. In repos with `docs/brainstorms/`, the default is `docs/brainstorms/riffrec-feedback/`. The quick path overrides the output dir to a temp location so nothing pollutes the repo.
