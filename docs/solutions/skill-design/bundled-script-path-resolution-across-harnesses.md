@@ -37,7 +37,7 @@ The trigger for this learning was a wrong turn. An empirical finding — *the Ba
 
 Pick the reference form by **what the agent does with the file**, in three tiers.
 
-**Tier 1 — Read-time file references (files the agent *reads*).** Bare relative path from the skill root, no anchor. The skill loader resolves these against the skill directory on every major harness.
+**Tier 1 — Read-time file references (the agent *reads* a co-located file into context, e.g. `references/*.md`).** Bare relative path from the skill root, no anchor — the skill loader resolves these against the skill directory on every major harness (the form AGENTS.md Tier 1 codifies). The line vs Tier 2: reading a reference *into context* is Tier 1; the moment the file is used in an *action the agent performs* (copy it, pass it as an argument, execute it) it becomes Tier 2 and takes the cue. Open caveat (#949): if a `Read references/X` is ever observed to resolve against the project CWD and miss on a target, treat that read as Tier 2 and add the "from this skill's directory" cue.
 
 ```
 Read `references/schema.yaml` and validate frontmatter against it.
