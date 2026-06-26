@@ -251,7 +251,7 @@ mkdir -p .context/compound-engineering/ce-optimize/<spec-name>/
 
 **This phase is a HARD GATE. The user must approve baseline and parallel readiness before Phase 2.**
 
-**Bundled scripts.** Phases 1 and 3 call helper scripts that ship in this skill's `scripts/` directory (`measure.sh`, `parallel-probe.sh`, `experiment-worktree.sh`). The Bash tool's working directory is the user's project, not the skill directory, so a bare `scripts/<name>` path will not resolve — invoke each by the skill's own absolute path. `SKILL_DIR` is the directory you loaded this `ce-optimize` SKILL.md from; shell state does not persist between Bash tool calls, so **prepend the assignment to every script call below, in the same command**:
+**Bundled scripts.** Phases 1 and 3 call helper scripts that ship in this skill's `scripts/` directory (`measure.sh`, `parallel-probe.sh`, `experiment-worktree.sh`). The Bash tool's working directory is the user's project, not the skill directory, so a bare `scripts/<name>` path will not resolve — invoke each by the skill's own absolute path. Every runnable block below already sets `SKILL_DIR` inline (shell state does not persist between Bash tool calls, so each block must carry it); just replace the `<absolute path …>` placeholder with the directory you loaded this `ce-optimize` SKILL.md from before running. The shape:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing this SKILL.md>"
@@ -276,6 +276,7 @@ Filter the output against the scope paths. If any in-scope files have uncommitte
 **If user provides a measurement harness** (the `measurement.command` already exists):
 1. Run it once via the measurement script:
    ```bash
+   SKILL_DIR="<absolute path of the directory containing this SKILL.md>"
    bash "$SKILL_DIR/scripts/measure.sh" "<measurement.command>" <timeout_seconds> "<measurement.working_directory or .>"
    ```
 2. Validate the JSON output:
@@ -319,6 +320,7 @@ If primary type is `judge`, also run the judge evaluation on baseline output to 
 
 Run the parallelism probe script:
 ```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>"
 bash "$SKILL_DIR/scripts/parallel-probe.sh" "<project_directory>" "<measurement.command>" "<measurement.working_directory>" <shared_files...>
 ```
 
@@ -328,6 +330,7 @@ Read the JSON output. Present any blockers to the user with suggested mitigation
 
 Count existing worktrees:
 ```bash
+SKILL_DIR="<absolute path of the directory containing this SKILL.md>"
 bash "$SKILL_DIR/scripts/experiment-worktree.sh" count
 ```
 
@@ -444,11 +447,12 @@ If the backlog is non-empty but no runnable hypotheses remain because everything
 
 For each hypothesis in the batch, dispatch according to `execution.mode`. In `serial` mode, run exactly one experiment to completion before selecting the next hypothesis. In `parallel` mode, dispatch the full batch concurrently.
 
-The bundled-script calls below use `$SKILL_DIR` (the loaded `ce-optimize` skill directory; see the Bundled scripts note in Phase 1). Prepend the `SKILL_DIR=` assignment to each call in the same Bash command, since shell state does not persist from Phase 1.
+The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-optimize` skill directory; see the Bundled scripts note in Phase 1) — shell state does not persist from Phase 1, so each block carries its own assignment.
 
 **Worktree backend:**
 1. Create experiment worktree:
    ```bash
+   SKILL_DIR="<absolute path of the directory containing this SKILL.md>"
    WORKTREE_PATH=$(bash "$SKILL_DIR/scripts/experiment-worktree.sh" create "<spec_name>" <exp_index> "optimize/<spec_name>" <shared_files...>)  # creates optimize-exp/<spec_name>/exp-<NNN>
    ```
 2. Apply port parameterization if configured (set env vars for the measurement script)
@@ -483,6 +487,7 @@ For each completed experiment, **immediately**:
 
 1. **Run measurement** in the experiment's worktree:
    ```bash
+   SKILL_DIR="<absolute path of the directory containing this SKILL.md>"
    bash "$SKILL_DIR/scripts/measure.sh" "<measurement.command>" <timeout_seconds> "<worktree_path>/<measurement.working_directory or .>" <env_vars...>
    ```
    - If stability mode is `repeat`, run the measurement harness `repeat_count` times in that working directory and aggregate the results exactly as in Phase 1 before evaluating gates or ranking the experiment.
