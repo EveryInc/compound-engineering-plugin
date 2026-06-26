@@ -12,10 +12,13 @@ gh pr view --json number -q .number
 Then fetch all feedback using the GraphQL script at [scripts/get-pr-comments](../scripts/get-pr-comments):
 
 ```bash
-if [ -n "${CLAUDE_SKILL_DIR}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/get-pr-comments" ]; then
-  SCRIPT_DIR="${CLAUDE_SKILL_DIR}/scripts"
-else
-  echo "ce-resolve-pr-feedback bundled scripts are unavailable in this harness; use the fallback gh commands below." >&2
+# SKILL_DIR = the absolute directory you loaded the ce-resolve-pr-feedback SKILL.md from.
+# The Bash tool's CWD is the user's project, not the skill dir, and shell state does not
+# persist between Bash calls — set SKILL_DIR in each block below that runs a bundled script.
+SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>"
+SCRIPT_DIR="$SKILL_DIR/scripts"
+if [ ! -f "$SCRIPT_DIR/get-pr-comments" ]; then
+  echo "ce-resolve-pr-feedback bundled scripts not found under $SCRIPT_DIR; use the fallback gh commands below." >&2
   exit 1
 fi
 
@@ -170,10 +173,10 @@ For `needs-human` verdicts, post the reply but do NOT resolve the thread. Leave 
 
 0. **Verify the thread ID** before replying. GitHub Enterprise can return inconsistent node IDs for the same thread depending on the query path. Always confirm the ID from `get-pr-comments` resolves to the correct thread using [scripts/get-thread-for-comment](../scripts/get-thread-for-comment) with the comment's numeric URL ID:
 ```bash
-if [ -n "${CLAUDE_SKILL_DIR}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/get-thread-for-comment" ]; then
-  SCRIPT_DIR="${CLAUDE_SKILL_DIR}/scripts"
-else
-  echo "ce-resolve-pr-feedback bundled scripts are unavailable in this harness; use gh api to inspect the review thread." >&2
+SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>"
+SCRIPT_DIR="$SKILL_DIR/scripts"
+if [ ! -f "$SCRIPT_DIR/get-thread-for-comment" ]; then
+  echo "ce-resolve-pr-feedback bundled scripts not found under $SCRIPT_DIR; use gh api to inspect the review thread." >&2
   exit 1
 fi
 
@@ -185,10 +188,10 @@ The returned `id` is the authoritative thread ID to use for reply and resolve. I
 
 1. **Reply** using [scripts/reply-to-pr-thread](../scripts/reply-to-pr-thread):
 ```bash
-if [ -n "${CLAUDE_SKILL_DIR}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/reply-to-pr-thread" ]; then
-  SCRIPT_DIR="${CLAUDE_SKILL_DIR}/scripts"
-else
-  echo "ce-resolve-pr-feedback bundled scripts are unavailable in this harness; post the reply with gh api or gh pr comment as appropriate." >&2
+SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>"
+SCRIPT_DIR="$SKILL_DIR/scripts"
+if [ ! -f "$SCRIPT_DIR/reply-to-pr-thread" ]; then
+  echo "ce-resolve-pr-feedback bundled scripts not found under $SCRIPT_DIR; post the reply with gh api or gh pr comment as appropriate." >&2
   exit 1
 fi
 
@@ -198,10 +201,10 @@ Check that the returned comment URL contains the correct `OWNER/REPO` and PR num
 
 2. **Resolve** using [scripts/resolve-pr-thread](../scripts/resolve-pr-thread):
 ```bash
-if [ -n "${CLAUDE_SKILL_DIR}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/resolve-pr-thread" ]; then
-  SCRIPT_DIR="${CLAUDE_SKILL_DIR}/scripts"
-else
-  echo "ce-resolve-pr-feedback bundled scripts are unavailable in this harness; resolve the thread with gh api if supported." >&2
+SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>"
+SCRIPT_DIR="$SKILL_DIR/scripts"
+if [ ! -f "$SCRIPT_DIR/resolve-pr-thread" ]; then
+  echo "ce-resolve-pr-feedback bundled scripts not found under $SCRIPT_DIR; resolve the thread with gh api if supported." >&2
   exit 1
 fi
 
@@ -223,10 +226,10 @@ Include enough quoted context in the reply so the reader can follow which commen
 Re-fetch feedback to confirm resolution:
 
 ```bash
-if [ -n "${CLAUDE_SKILL_DIR}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/get-pr-comments" ]; then
-  SCRIPT_DIR="${CLAUDE_SKILL_DIR}/scripts"
-else
-  echo "ce-resolve-pr-feedback bundled scripts are unavailable in this harness; use the fallback gh commands from Step 1." >&2
+SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>"
+SCRIPT_DIR="$SKILL_DIR/scripts"
+if [ ! -f "$SCRIPT_DIR/get-pr-comments" ]; then
+  echo "ce-resolve-pr-feedback bundled scripts not found under $SCRIPT_DIR; use the fallback gh commands from Step 1." >&2
   exit 1
 fi
 

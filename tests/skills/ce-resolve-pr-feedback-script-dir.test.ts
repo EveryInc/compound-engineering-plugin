@@ -23,8 +23,12 @@ describe("ce-resolve-pr-feedback script directory handling", () => {
 
     expect(scriptDirBlocks.length).toBeGreaterThan(0)
     for (const block of scriptDirBlocks) {
-      expect(block).toContain('if [ -n "${CLAUDE_SKILL_DIR}" ]')
-      expect(block).toContain('SCRIPT_DIR="${CLAUDE_SKILL_DIR}/scripts"')
+      // Each block must self-resolve the skill dir locally (shell state does not persist
+      // between Bash calls), via the portable model-filled SKILL_DIR anchor — not the
+      // Claude-only ${CLAUDE_SKILL_DIR} substitution.
+      expect(block).toContain('SKILL_DIR="')
+      expect(block).toContain('SCRIPT_DIR="$SKILL_DIR/scripts"')
+      expect(block).not.toContain("CLAUDE_SKILL_DIR")
     }
   })
 })

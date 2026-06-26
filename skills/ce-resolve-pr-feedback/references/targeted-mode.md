@@ -17,10 +17,13 @@ gh api repos/OWNER/REPO/pulls/comments/COMMENT_ID \
 
 **Step 2** -- Map comment to its thread ID. Use [scripts/get-thread-for-comment](../scripts/get-thread-for-comment):
 ```bash
-if [ -n "${CLAUDE_SKILL_DIR}" ] && [ -f "${CLAUDE_SKILL_DIR}/scripts/get-thread-for-comment" ]; then
-  SCRIPT_DIR="${CLAUDE_SKILL_DIR}/scripts"
-else
-  echo "ce-resolve-pr-feedback bundled scripts are unavailable in this harness; use Full Mode's fallback gh commands to inspect the PR comments." >&2
+# SKILL_DIR = the absolute directory you loaded the ce-resolve-pr-feedback SKILL.md from
+# (the Bash tool's CWD is the user's project, not the skill dir; shell state does not
+#  persist between Bash calls, so always set it before calling a bundled script).
+SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>"
+SCRIPT_DIR="$SKILL_DIR/scripts"
+if [ ! -f "$SCRIPT_DIR/get-thread-for-comment" ]; then
+  echo "ce-resolve-pr-feedback bundled scripts not found under $SCRIPT_DIR; use Full Mode's fallback gh commands to inspect the PR comments." >&2
   exit 1
 fi
 
