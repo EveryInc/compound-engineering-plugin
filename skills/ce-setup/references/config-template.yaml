@@ -35,8 +35,10 @@
 # is written in: `md` produces a markdown file, `html` produces a single
 # self-contained HTML file. The two are mutually exclusive -- there is no
 # sibling artifact. See DESIGN.md or your agent instructions to influence
-# HTML styling. CLI arguments override these defaults; pipeline contexts
-# (e.g., LFG, disable-model-invocation) always force `md` regardless.
+# HTML styling. Precedence: a CLI arg (e.g. output:html) wins for that run; a
+# format preference you state in-session, save to memory, or put in your agent
+# instructions overrides these keys (this config is the persisted fallback);
+# pipeline contexts (e.g., LFG, disable-model-invocation) always force `md`.
 
 # plan_output: html              # md | html (default: md)
 # brainstorm_output: html        # md | html (default: md)

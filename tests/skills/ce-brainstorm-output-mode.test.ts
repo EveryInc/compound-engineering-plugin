@@ -62,6 +62,12 @@ describe("ce-brainstorm output:html mode", () => {
       "Phase 0.0 must state the literal-prefix token-parsing convention.",
     ).toBe(true)
     expect(
+      /user-stated preference/i.test(phaseRegion) &&
+        /overrides\*?\*? the config|more current than the rarely-edited config/i.test(phaseRegion) &&
+        /do not open or search instruction files|already (present )?in your context/i.test(phaseRegion),
+      "Phase 0.0 must include a user-stated-preference tier that overrides config and acts on context only (no instruction-file reads).",
+    ).toBe(true)
+    expect(
       /mode:/.test(phaseRegion) && /output:/.test(phaseRegion),
       "Phase 0.0 token-parsing convention must name both `mode:` and `output:` as literal-prefix flags.",
     ).toBe(true)

@@ -78,6 +78,21 @@ describe("ce-plan output:html mode", () => {
       /literal[\s-]prefix|literal prefix/i.test(phaseRegion),
       "Phase 0.0 must state the literal-prefix token-parsing convention so `feat:`/`fix:`/`chore:` in feature descriptions pass through verbatim.",
     ).toBe(true)
+    // A user-stated/remembered format preference must override the config file
+    // (the config is the persisted fallback, not the top signal), and the skill
+    // must NOT be told to open instruction files to find it.
+    expect(
+      /user-stated preference/i.test(phaseRegion),
+      "Phase 0.0 must include a user-stated-preference tier above config.",
+    ).toBe(true)
+    expect(
+      /overrides\*?\*? the config|more current than the rarely-edited config/i.test(phaseRegion),
+      "The user-stated preference must be stated to override the config file.",
+    ).toBe(true)
+    expect(
+      /do not open or search instruction files|already (present )?in your context/i.test(phaseRegion),
+      "The stated-preference tier must act on context only, not instruct reading instruction files.",
+    ).toBe(true)
   })
 
   test("token-parsing convention names both mode: and output: as flag prefixes", () => {
