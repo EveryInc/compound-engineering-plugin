@@ -63,6 +63,16 @@ Two adjacent rules:
 - **Avoid `${CLAUDE_SKILL_DIR}`.** It is a Claude-Code-only SKILL.md *content* substitution (not an env var) and is empty on every other host. A `${CLAUDE_SKILL_DIR}`-guarded call's `then` branch then silently never fires off-Claude — a genuine silent skip. This plugin ships as a *native* Codex plugin (the converter is not in that path), so a Claude-only mechanism is a footgun, not a neutral fallback. The model-filled `SKILL_DIR` anchor works on every host with no downside. (Narrow exception: behavior that is genuinely Claude-only and will never run elsewhere — essentially never, given the cross-host install model.)
 - **A script that needs its *own* directory** (to open a sibling file from inside the process) derives it from `BASH_SOURCE`, not `SKILL_DIR` — `SKILL_DIR` is the orchestrator's shell variable and is not exported to the child process.
 
+### Repo migration status
+
+This is the **target** convention; the repo's own sources are mid-migration to it and currently still encode the older `${CLAUDE_SKILL_DIR}`-guard form, so treat any mismatch you find as not-yet-migrated, not as a competing rule:
+
+- `AGENTS.md` > "Platform-Specific Variables in Skills" still recommends the `${CLAUDE_SKILL_DIR}` existence-guard. Being rewritten to the three tiers above (tracked by #944).
+- `tests/skill-conventions.test.ts` enforces the guard *only when a skill-dir platform var is used* — it does not forbid the model-filled `SKILL_DIR` anchor (which uses no platform var), so anchor-based skills already pass. It will be revisited alongside the `AGENTS.md` rewrite.
+- The convention is already applied in skills via the companion PRs (#1009, #1010).
+
+Until those land, prefer this doc for *new* executed-shell invocations; do not "fix" it back to the `${CLAUDE_SKILL_DIR}` guard to match stale guidance.
+
 ## Why This Matters
 
 There are two payoffs, and the second is the larger one.
@@ -119,5 +129,5 @@ Read `references/schema.yaml` and apply its field definitions.
 - [`script-first-skill-architecture.md`](script-first-skill-architecture.md) — *whether* to offload work to a bundled script (token cost). This doc is the companion *how to invoke it* once you have. Low overlap, complementary.
 - [`pass-paths-not-content-to-subagents.md`](pass-paths-not-content-to-subagents.md) — path-passing for orchestrator->subagent dispatch; a different "paths" problem (token efficiency, not CWD resolution).
 - [`../best-practices/prefer-python-over-bash-for-pipeline-scripts.md`](../best-practices/prefer-python-over-bash-for-pipeline-scripts.md) — which language to write a bundled script in.
-- `AGENTS.md` > "Platform-Specific Variables in Skills" — the authoritative rule source this doc operationalizes. Note: its read-time-reference paragraph should be scoped to genuine loader-resolved reads; prose "read this file" instructions are Tier 2 and need the cue (the bug class in #949).
+- `AGENTS.md` > "Platform-Specific Variables in Skills" — the rule source this doc and `AGENTS.md` are converging on. Current main still documents the older `${CLAUDE_SKILL_DIR}`-guard form; see "Repo migration status" above. Once rewritten it should also scope its read-time-reference paragraph to genuine loader-resolved reads — prose "read this file" instructions are Tier 2 and need the cue (the bug class in #949).
 - Issues: #944 (open — audit/reconcile bundled-script invocation guidance; this learning informs it), #949 (open — live Tier-2 prose-reference miss), #943/#898/#811/#764 (closed — the Tier-3 origin bug class).
