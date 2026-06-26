@@ -75,7 +75,7 @@ describe("mergeCodeBuddyConfig", () => {
     expect(parsed.mcpServers.local.command).toBe("echo")
   })
 
-  test("overwrites existing MCP servers", () => {
+  test("merges MCP servers by key, preserving non-plugin servers", () => {
     const existing = JSON.stringify({
       mcpServers: { old: { command: "old" } },
     }, null, 2) + "\n"
@@ -84,8 +84,20 @@ describe("mergeCodeBuddyConfig", () => {
     }, null, 2) + "\n"
     const result = mergeCodeBuddyConfig(existing, mcpJson)
     const parsed = JSON.parse(result!)
-    expect(parsed.mcpServers.old).toBeUndefined()
+    expect(parsed.mcpServers.old.command).toBe("old")
     expect(parsed.mcpServers.new.command).toBe("new")
+  })
+
+  test("new MCP server overrides existing server with same key", () => {
+    const existing = JSON.stringify({
+      mcpServers: { shared: { command: "old" } },
+    }, null, 2) + "\n"
+    const mcpJson = JSON.stringify({
+      mcpServers: { shared: { command: "new" } },
+    }, null, 2) + "\n"
+    const result = mergeCodeBuddyConfig(existing, mcpJson)
+    const parsed = JSON.parse(result!)
+    expect(parsed.mcpServers.shared.command).toBe("new")
   })
 
   test("returns existing content when new config is invalid JSON", () => {

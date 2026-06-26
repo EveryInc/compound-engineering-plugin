@@ -33,6 +33,13 @@ type KimiPluginManifest = {
   skills?: string
 }
 
+type CodeBuddyPluginManifest = {
+  name: string
+  version: string
+  description?: string
+  skills?: string
+}
+
 type AntigravityManifest = {
   version: string
 }
@@ -67,6 +74,18 @@ type KimiMarketplaceManifest = {
     id: string
     displayName?: string
     source?: string
+  }>
+}
+
+type CodeBuddyMarketplaceManifest = {
+  name: string
+  owner?: { name?: string }
+  description?: string
+  plugins: Array<{
+    name: string
+    version?: string
+    description?: string
+    source?: { source?: string; repo?: string }
   }>
 }
 
@@ -220,8 +239,10 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   const compoundCursorPath = path.join(root, ".cursor-plugin", "plugin.json")
   const compoundAntigravityPath = path.join(root, ".agy", "plugin.json")
   const compoundKimiPath = path.join(root, ".kimi-plugin", "plugin.json")
+  const compoundCodeBuddyPath = path.join(root, ".codebuddy-plugin", "plugin.json")
   const marketplaceClaudePath = path.join(root, ".claude-plugin", "marketplace.json")
   const marketplaceCursorPath = path.join(root, ".cursor-plugin", "marketplace.json")
+  const marketplaceCodeBuddyPath = path.join(root, ".codebuddy-plugin", "marketplace.json")
 
   const compoundPackage = await readJson<RootPackageJson>(compoundPackagePath)
   const compoundClaude = await readJson<ClaudePluginManifest>(compoundClaudePath)
@@ -474,6 +495,72 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       errors.push(`${marketplaceKimiPath} is missing but ${marketplaceClaudePath} exists. Kimi marketplace parity required.`)
       updates.push({ path: marketplaceKimiPath, changed: false })
+    } else {
+      throw err
+    }
+  }
+
+  // CodeBuddy manifests. CodeBuddy supports root-native plugin manifests at
+  // `.codebuddy-plugin/plugin.json`; like Codex/Kimi, its marketplace catalog
+  // has no release-owned metadata.version, so the plugin version is detect-only
+  // here and release-please owns the write via the root component's extra-files.
+  let codebuddy: CodeBuddyPluginManifest
+  let codebuddyManifestMissing = false
+  try {
+    codebuddy = await readJson<CodeBuddyPluginManifest>(compoundCodeBuddyPath)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      codebuddyManifestMissing = true
+      errors.push(`${compoundCodeBuddyPath} is missing but ${compoundClaudePath} exists. CodeBuddy manifest parity required.`)
+      updates.push({ path: compoundCodeBuddyPath, changed: false })
+      codebuddy = { name: "compound-engineering", version: compoundClaude.version }
+    } else {
+      throw err
+    }
+  }
+
+  if (codebuddy.name !== "compound-engineering") {
+    errors.push(`${compoundCodeBuddyPath}: name "${codebuddy.name}" does not match expected "compound-engineering"`)
+  }
+
+  let codebuddyChanged = false
+  if (codebuddy.version !== compoundClaude.version) {
+    codebuddyChanged = true
+  }
+  if (compoundClaude.description !== undefined && codebuddy.description !== compoundClaude.description) {
+    codebuddy.description = compoundClaude.description
+    codebuddyChanged = true
+  }
+  await validateDeclaredSkillsPath(compoundCodeBuddyPath, "compound-engineering", "CodeBuddy", codebuddy.skills, errors)
+  updates.push({ path: compoundCodeBuddyPath, changed: codebuddyChanged })
+  if (write && codebuddyChanged && !codebuddyManifestMissing) await writeJson(compoundCodeBuddyPath, codebuddy)
+
+  try {
+    const marketplaceCodeBuddy = await readJson<CodeBuddyMarketplaceManifest>(marketplaceCodeBuddyPath)
+    const claudeNames = [...marketplaceClaude.plugins.map((p) => p.name)].sort()
+    const codebuddyNames = [...marketplaceCodeBuddy.plugins.map((p) => p.name)].sort()
+    if (claudeNames.join("|") !== codebuddyNames.join("|")) {
+      errors.push(
+        `${marketplaceCodeBuddyPath}: plugin list [${codebuddyNames.join(", ")}] does not match ${marketplaceClaudePath} [${claudeNames.join(", ")}]`,
+      )
+    }
+    for (const plugin of marketplaceCodeBuddy.plugins) {
+      if (typeof plugin.version !== "string" || plugin.version !== compoundClaude.version) {
+        errors.push(
+          `${marketplaceCodeBuddyPath}: plugin "${plugin.name}" version "${plugin.version ?? "<missing>"}" does not match expected "${compoundClaude.version}".`,
+        )
+      }
+      if (typeof plugin.source !== "object" || plugin.source.source !== "github" || !plugin.source.repo) {
+        errors.push(
+          `${marketplaceCodeBuddyPath}: plugin "${plugin.name}" is missing required source.source="github" and source.repo. CodeBuddy marketplace entries must point to a GitHub repo.`,
+        )
+      }
+    }
+    updates.push({ path: marketplaceCodeBuddyPath, changed: false })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${marketplaceCodeBuddyPath} is missing but ${marketplaceClaudePath} exists. CodeBuddy marketplace parity required.`)
+      updates.push({ path: marketplaceCodeBuddyPath, changed: false })
     } else {
       throw err
     }

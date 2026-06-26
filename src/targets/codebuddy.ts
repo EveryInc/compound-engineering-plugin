@@ -401,7 +401,9 @@ export function mergeCodeBuddyConfig(existingContent: string, mcpJson: string | 
     return existingContent
   }
 
-  existing.mcpServers = newMcpConfig.mcpServers
+  const existingServers = (existing.mcpServers as Record<string, unknown> | undefined) ?? {}
+  const newServers = (newMcpConfig.mcpServers as Record<string, unknown> | undefined) ?? {}
+  existing.mcpServers = { ...existingServers, ...newServers }
 
   return JSON.stringify(existing, null, 2) + "\n"
 }

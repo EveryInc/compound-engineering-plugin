@@ -79,6 +79,9 @@ export const targets: Record<string, TargetHandler> = {
     name: "codebuddy",
     implemented: true,
     convert: convertClaudeToCodeBuddy as TargetHandler["convert"],
-    write: writeCodeBuddyBundle as TargetHandler["write"],
+    write: ((outputRoot, bundle) =>
+      writeCodeBuddyBundle(outputRoot, bundle as Parameters<typeof writeCodeBuddyBundle>[1], {
+        outputIsCodeBuddyRoot: true,
+      })) as TargetHandler["write"],
   },
 }
