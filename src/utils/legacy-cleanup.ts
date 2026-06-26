@@ -402,6 +402,9 @@ const LEGACY_PROMPT_DESCRIPTION_ALIASES: Record<string, string[]> = {
     "Transform feature descriptions or requirements into implementation plans grounded in repo patterns and research.",
   ],
   "ce-work-beta.md": [
+    // Last shipped ce-work-beta description (the file was deleted, so this is
+    // the final live frontmatter description preserved for upgrade cleanup).
+    "[BETA] Execute ce-work with external delegate support.",
     "[BETA] Execute work with external delegate support. Same as ce-work but includes experimental Codex delegation mode for token-conserving code implementation.",
     "[BETA] Execute work with external delegate support. Same as ce:work but includes experimental Codex delegation mode for token-conserving code implementation.",
   ],
@@ -469,6 +472,10 @@ const LEGACY_ONLY_SKILL_DESCRIPTIONS: Record<string, string> = {
     "[BETA] Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
   "ce-review-beta":
     "[BETA] Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline. Use when reviewing code changes before creating a PR.",
+  "ce:work-beta":
+    "[BETA] Execute ce-work with external delegate support.",
+  "ce-work-beta":
+    "[BETA] Execute ce-work with external delegate support.",
   "ce-onboarding":
     "Generate or regenerate ONBOARDING.md to help new contributors understand a codebase. Use when the user asks to 'create onboarding docs', 'generate ONBOARDING.md', 'document this project for new developers', 'write onboarding documentation', 'vonboard', 'vonboarding', 'prepare this repo for a new contributor', 'refresh the onboarding doc', or 'update ONBOARDING.md'. Also use when someone needs to onboard a new team member and wants a written artifact, or when a codebase lacks onboarding documentation and the user wants to generate one.",
   "ce-andrew-kane-gem-writer":

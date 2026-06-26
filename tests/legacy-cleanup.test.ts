@@ -225,6 +225,24 @@ describe("cleanupStaleSkillDirs", () => {
     expect(await exists(path.join(root, "workflows:plan"))).toBe(false)
   })
 
+  test("removes a retired ce-work-beta skill dir via its last-shipped description", async () => {
+    // Regression: once ce-work-beta is removed from the plugin, loadLegacyFingerprints
+    // can no longer read its (deleted) SKILL.md, so the fingerprint comes from
+    // LEGACY_ONLY_SKILL_DESCRIPTIONS. Without that entry, skills.get("ce-work-beta")
+    // stays undefined and isLegacyPluginOwned returns false before deleting, leaving
+    // the stale install dir behind on upgrade.
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-retired-skill-"))
+    await createDir(
+      path.join(root, "ce-work-beta"),
+      skillContent("ce-work-beta", "[BETA] Execute ce-work with external delegate support."),
+    )
+
+    const removed = await cleanupStaleSkillDirs(root)
+
+    expect(removed).toBe(1)
+    expect(await exists(path.join(root, "ce-work-beta"))).toBe(false)
+  })
+
   test("returns 0 when directory does not exist", async () => {
     const removed = await cleanupStaleSkillDirs("/tmp/nonexistent-cleanup-dir-12345")
     expect(removed).toBe(0)
@@ -693,6 +711,27 @@ describe("cleanupStalePrompts", () => {
     expect(await exists(path.join(root, "ce-work.md"))).toBe(false)
     expect(await exists(path.join(root, "ce-work-beta.md"))).toBe(false)
     expect(await exists(path.join(root, "ce-brainstorm.md"))).toBe(false)
+  })
+
+  test("removes a retired ce-work-beta prompt wrapper built from the last shipped skill", async () => {
+    // Regression: a ce-work-beta.md wrapper generated from the final live skill
+    // carried the description "[BETA] Execute ce-work with external delegate
+    // support." After the skill is deleted, that exact description must still be
+    // recognized (seeded from LEGACY_PROMPT_DESCRIPTION_ALIASES) or the retired
+    // slash prompt is classified foreign and left behind on upgrade.
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "cleanup-retired-prompt-"))
+    await createFile(
+      path.join(root, "ce-work-beta.md"),
+      promptWrapperContent(
+        "ce-work-beta",
+        "[BETA] Execute ce-work with external delegate support.",
+      ),
+    )
+
+    const removed = await cleanupStalePrompts(root)
+
+    expect(removed).toBe(1)
+    expect(await exists(path.join(root, "ce-work-beta.md"))).toBe(false)
   })
 
   test("preserves wrappers whose description was never shipped by compound-engineering", async () => {
