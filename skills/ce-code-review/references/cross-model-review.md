@@ -1,14 +1,13 @@
 # Cross-Model Adversarial Pass
 
-Runs the adversarial review through a **different model family than the host**, in a separate process, so its findings are independent of the in-process reviewers. Output uses the same `findings-schema.json` as every reviewer and folds into Stage 5 as reviewer `adversarial-<peer>` — so when it and the in-process `adversarial` persona flag the same issue, Stage 5 cross-reviewer agreement promotes it.
+Runs the adversarial review through a **different model family than the host**, in a separate read-only process, so its findings are independent of the in-process reviewers. The peer gets the **same** `references/personas/adversarial-reviewer.md` brief the in-process reviewer uses, returns the same `findings-schema.json` shape, and folds into Stage 5 as reviewer `adversarial-<peer>` — so agreement between it and the in-process `adversarial` persona promotes the finding (Stage 5 cross-reviewer agreement; render as `adversarial, adversarial-<peer>`).
 
-This is additive, not a replacement for the `adversarial-reviewer` persona. It is **non-blocking**: any host-detect miss, auth gap, timeout, or parse failure skips the pass and never fails the review.
+All the invocation detail (composing the prompt from the persona, read-only flags, per-peer timeouts, capturing schema-shaped JSON) lives in the bundled script **`scripts/cross-model-adversarial-review.sh`**. This reference only decides *whether* to run it, *which peer*, and how to fold the result in. The pass is **non-blocking**: the script logs a reason and exits cleanly on any problem, writing no output file — a missing file is simply "no cross-model pass," never a failure.
 
 ## Gates — run only when all hold
 
-1. `adversarial-reviewer` was selected in Stage 3 (reuse that diff gate — never run a costly external CLI on a trivial diff).
-2. Scope is `local-aligned` or standalone — the working tree IS the reviewed head. Skip in `pr-remote` / `branch-remote`: the peer CLI reviews the local tree, which is not the PR/branch head.
-3. A peer is identified and `ready` (Steps 1-2).
+1. `adversarial-reviewer` was selected in Stage 3 (reuse that diff gate — don't run a costly external CLI on a trivial diff).
+2. Scope is `local-aligned` or standalone — the working tree IS the reviewed head. Skip in `pr-remote` / `branch-remote`: the peer reviews the local tree, which is not the PR/branch head.
 
 ## Step 1 — Identify host and peer (runtime self-id, no build-time)
 
@@ -20,132 +19,45 @@ else XHOST=unknown; XPEER=""; fi
 echo "XMODEL_HOST: $XHOST  PEER: ${XPEER:-none}"
 ```
 
-That block is **Tier A — environment markers**, the fast common path. Peer mapping: Cursor and Claude both prefer **codex** (Cursor's own model is configurable, so codex is the reliable cross-model peer); Codex prefers **claude**. Each host has a primary marker plus a fallback because the primary is not set in every release/mode: Cursor = `CURSOR_AGENT`/`CURSOR_CONVERSATION_ID`; Claude Code = `CLAUDECODE=1`; Codex = any of `CODEX_SANDBOX`/`CODEX_SANDBOX_NETWORK_DISABLED` (CLI `-s`), `CODEX_SESSION_ID` (interactive CLI), or `CODEX_THREAD_ID`/`CODEX_CI` (web/API/CI). Do **not** use the *other* CLI's home (e.g. `CODEX_HOME`) — it leaks into a Claude session and would misfire. There is no single canonical marker Codex sets across every surface, and `shell_environment_policy` / cloud / IDE inheritance can strip env vars from subprocesses, so a Tier-A miss is expected — not a bug to fix by chasing marker #7, #8.
+Cursor and Claude prefer **codex** as the peer (a guaranteed different model family); Codex prefers **claude**. There is no single canonical marker Codex sets across surfaces (CLI, web, CI), and `shell_environment_policy`/IDE inheritance can strip env vars, so check the union above. Do **not** use the *other* CLI's home (e.g. `CODEX_HOME`) — it leaks into a Claude session. `unknown` → skip the pass silently. The script also re-validates the peer it is handed, so a wrong/missing peer fails safe.
 
-**Tier B — process-ancestry probe (runs only when Tier A returned `unknown`).** Markers can be stripped, but the launching CLI still sits in the process tree. Walk it before giving up:
+## Step 2 — Announce (only on an interactive host — `claude` or `cursor` — AND default mode)
 
-```bash
-if [ "$XHOST" = "unknown" ]; then
-  _pid=${PPID:-0}; _depth=0
-  while [ "${_pid:-0}" -gt 1 ] 2>/dev/null && [ "$_depth" -lt 20 ]; do
-    _comm=$(ps -o comm= -p "$_pid" 2>/dev/null | sed 's:.*/::')
-    case "$_comm" in
-      cursor-agent)  XHOST=cursor; XPEER=codex;  break ;;
-      codex|codex-*) XHOST=codex;  XPEER=claude; break ;;
-      claude)        XHOST=claude; XPEER=codex;  break ;;
-    esac
-    _pid=$(ps -o ppid= -p "$_pid" 2>/dev/null | tr -dc '0-9')
-    [ -z "$_pid" ] && break
-    _depth=$((_depth + 1))
-  done
-  echo "XMODEL_HOST (after probe): $XHOST  PEER: ${XPEER:-none}"
-fi
-```
-
-Match the process **basename** only (via `ps -o comm=`), never full args — a `~/.claude/...` path inside some unrelated command's args must not flip the host. `ps -o comm=`/`-o ppid=` work on macOS, Linux, and WSL. If both tiers miss, `unknown` → skip the pass silently: a missed host is never a *wrong* peer, so this never mis-routes, it only declines.
-
-(A would-be **Tier 0 — a launcher-injected sentinel** like `CE_HOST=codex` — is more reliable than either, but only when you control how the host process starts. For self-identification from inside an already-running host we do not, so it does not apply here; it is the right tool only if a future install path can stamp the host at launch.)
-
-## Step 2 — Peer preflight (installed + authed)
-
-Peer = codex:
-
-```bash
-if ! command -v codex >/dev/null 2>&1; then XMODE=not_installed
-elif [ -z "${CODEX_API_KEY:-}${OPENAI_API_KEY:-}" ] && [ ! -f "${CODEX_HOME:-$HOME/.codex}/auth.json" ]; then XMODE=not_authed
-else XMODE=ready; fi
-echo "XPEER_MODE: $XMODE"
-```
-
-Peer = claude:
-
-```bash
-# jq is required to parse Claude's JSON envelope (Step 5); treat its absence as not-installed.
-if ! command -v claude >/dev/null 2>&1 || ! command -v jq >/dev/null 2>&1; then XMODE=not_installed
-elif ! claude auth status >/dev/null 2>&1; then XMODE=not_authed
-else XMODE=ready; fi
-echo "XPEER_MODE: $XMODE"
-```
-
-## Step 3 — Announce (only on an interactive host — `claude` or `cursor` — AND default mode)
-
-- `XHOST` is `claude` or `cursor`, default mode, `XMODE=ready`: surface a **prominent standalone line that names the peer** running the pass (the peer CLI, plus its model if cheaply known), framed as an independent second model reviewing in parallel — placed with the Stage 3 team announce, not buried after it. Wording is yours; the requirements are falsifiable: it is prominent, it names the peer, and it reads as coverage rather than plumbing.
-- `XHOST` is `claude` or `cursor`, default mode, `XMODE` not ready: one quiet line that the cross-model pass was skipped and why (e.g. the peer isn't installed/authed). Never phrase it as an error.
+- Interactive host, default mode: surface a **prominent standalone line naming the peer** that will run (the peer CLI, plus its model if cheaply known), framed as an independent second model reviewing in parallel — placed with the Stage 3 team announce, not buried after it. Wording is yours; the falsifiable requirements: prominent, names the peer, reads as coverage not plumbing.
+- Interactive host, peer not available (script will skip — CLI missing/unauthed): one quiet line that the cross-model pass was skipped and why. Never an error.
 - `XHOST=codex`: announce **nothing** — run or skip silently.
-- `mode:agent`: emit no prose in any case.
+- `mode:agent`: emit no prose.
 
-## Step 4 — Build the peer prompt + schema (injection-safe: write to files, never inline diff bytes)
+## Step 3 — Run the bundled script (launch it in parallel with the persona reviewers)
 
-`<run-id>` is the Stage 4 run id; `<base>` is the Stage 1 `BASE`; `<repo-root>` is `git rev-parse --show-toplevel`.
+The script is a CLI shell-out, not a subagent, so it doesn't consume the subagent concurrency budget. **Launch it as a background shell process in the same Stage 4 dispatch wave as the persona reviewers** so its runtime overlaps theirs, then collect before Stage 5.
 
-- **Claude peer only:** read `references/findings-schema.json` (the orchestrator has it as a read-time reference) and write it verbatim to `/tmp/compound-engineering/ce-code-review/<run-id>/xmodel-schema.json` for `--json-schema`. Skip this for a Codex peer — the Codex path sends no response schema (Step 5).
-- Compose `/tmp/compound-engineering/ce-code-review/<run-id>/xmodel-prompt.txt` from the **same** `references/personas/adversarial-reviewer.md` brief the in-process pass uses, then append:
-  > Run: `git diff <base>` to see the changes on this branch and review ONLY those changes. Return ONE JSON object matching the provided schema, with `reviewer` set to `adversarial-<peer>`. No prose outside the JSON.
-
-The peer fetches the diff itself with read-only `git`; never paste diff bytes into the prompt.
-
-## Step 5 — Run the peer (verified flags — empirically re-test before changing any)
-
-Peer = codex (host = claude or cursor):
+Invoke it via the skill-dir anchor — set `SKILL_DIR` to the absolute directory of **this** skill's `SKILL.md` (the one you read to run ce-code-review), because the Bash tool's CWD is the user's project, not the skill dir, on every host:
 
 ```bash
-XDIR=/tmp/compound-engineering/ce-code-review/<run-id>
-codex exec - \
-  -C <repo-root> -s read-only \
-  -o "$XDIR/adversarial-codex.json" \
-  -c 'model_reasoning_effort="high"' \
-  < "$XDIR/xmodel-prompt.txt"
+SKILL_DIR="<absolute path of the directory containing the ce-code-review SKILL.md you read>"
+bash "$SKILL_DIR/scripts/cross-model-adversarial-review.sh" "<peer>" "<base-ref>" "<run-dir>"
 ```
 
-Prompt is fed on stdin via `-` (documented: "if `-` is used, instructions are read from stdin") rather than a `"$(cat …)"` argv — avoids ARG_MAX/quoting edge cases on a large brief, and stdin EOF means no hang (no `< /dev/null` needed).
+- `<peer>` = `XPEER` from Step 1 (`codex` or `claude`).
+- `<base-ref>` = the Stage 1 `BASE` (the diff base the peer reviews via `git diff <base-ref>`).
+- `<run-dir>` = the Stage 4 run dir (`/tmp/compound-engineering/ce-code-review/<run-id>/`). The script writes `adversarial-<peer>.json` there.
 
-**No `--output-schema` on the Codex path.** Codex's response schema runs OpenAI *strict* structured-output (every object needs `additionalProperties:false` and all fields in `required`), which the permissive `findings-schema.json` is not — Codex rejects it and you waste a full call before retrying without it. So don't send it: the prompt already demands JSON-only and `-o` captures the model's final message, with Stage 5's malformed-drop as the backstop. (The Claude path keeps `--json-schema`, which is lenient and works.) `xmodel-schema.json` is therefore only used by the Claude path; don't write it for a Codex peer.
+Set the Bash tool `timeout` to `600000` (10 min) — the script self-bounds well under that (idle/hard caps inside it) and exits cleanly. If the harness can't background a shell command, run it inline before awaiting the reviewers; correctness is unaffected, only wall-clock. The script needs no prompt or schema passed in — it reads the persona brief and `findings-schema.json` itself from the skill dir.
 
-Peer = claude (host = codex):
+## Step 4 — Fold into Stage 5
 
-```bash
-XDIR=/tmp/compound-engineering/ce-code-review/<run-id>
-claude -p --model opus --permission-mode dontAsk \
-  --disallowedTools "Edit Write NotebookEdit" --max-turns 15 --no-session-persistence \
-  --json-schema "$(cat "$XDIR/xmodel-schema.json")" --output-format json \
-  "$(cat "$XDIR/xmodel-prompt.txt")" < /dev/null > "$XDIR/adversarial-claude.raw.json"
-# Prefer the parsed structured object; fall back to the .result string if it is absent/null.
-jq -e '.structured_output' "$XDIR/adversarial-claude.raw.json" > "$XDIR/adversarial-claude.json" 2>/dev/null \
-  || jq -r '.result // empty' "$XDIR/adversarial-claude.raw.json" > "$XDIR/adversarial-claude.json"
-```
+- Read `<run-dir>/adversarial-<peer>.json`. If present, treat it as one reviewer return with `reviewer: adversarial-<peer>`, exactly like a persona artifact: its merge-tier fields enter Stage 5 dedup/promotion.
+- **No file** (script skipped: no peer, CLI missing/unauthed, timeout, or unparseable output) → the pass simply didn't run. Note "cross-model pass: not run" in Coverage on an interactive host in default mode; stay silent under codex / `mode:agent`. Never fail the review.
+- Empty `findings` → note "cross-model pass: no additional issues" in Coverage.
+- A finding sharing a dedup fingerprint with the in-process `adversarial` persona promotes by one anchor step — the cross-model agreement signal, the strongest in the set (different model families, separate processes).
 
-**Launch this as a background shell process in the Stage 4 dispatch wave** (concurrent with the persona reviewers); it writes its result to the run-dir file above, so it runs unattended while the in-process reviews proceed. Then **collect it before Stage 5** — the cross-model return must be on disk before the merge reads it.
+## What the script does (for maintainers — you don't invoke this directly)
 
-Bound it with a 5-min cap (the Bash tool `timeout` set to `300000`, or the platform equivalent); if it hasn't written its result file by then, skip the pass — a missing cross-model artifact is the correct non-blocking outcome and never blocks or fails the review. If the harness can't background a shell command, run it inline before awaiting the reviewers (same cap). `< /dev/null` prevents the stdin-deadlock hang on the Claude path (the Codex path gets EOF from its prompt file).
-
-Read-only is enforced differently per peer, and they are not equally strong: **codex `-s read-only` is a hard sandbox**. **Claude's `dontAsk` is permission-gated, not a kernel sandbox** — it auto-runs only read-only Bash and the user's `permissions.allow` entries and denies the rest without prompting, so a user who has broadly allow-listed Bash (e.g. `Bash(*)`) could still let the peer mutate. The peer only needs read-only `git`, so this matters only with broad pre-existing allow-rules; `--disallowedTools "Edit Write NotebookEdit"` blocks the file-edit tools regardless.
-
-The capture mechanisms differ by necessity: codex `-o` is written by Codex itself (not a sandboxed model command), so it works under `-s read-only`. Claude under `dontAsk` + disallowed `Write` cannot write a file, so capture stdout — `--output-format json` returns an envelope whose `.structured_output` is the parsed, schema-valid object; the `jq` fallback above uses `.result` (the same JSON as a string) when `.structured_output` is absent or null, so a successful run is never silently dropped.
-
-## Step 6 — Fold into Stage 5
-
-- Read `<run-dir>/adversarial-<peer>.json`. Treat it as one reviewer return with `reviewer: adversarial-<peer>`, exactly like a persona artifact: its merge-tier fields enter Stage 5 dedup/promotion; `why_it_matters` / `evidence` stay on disk.
-- Empty `findings` → note "cross-model pass: no additional issues" in Coverage; do not fail.
-- Missing or malformed file (peer errored, timed out, or returned non-JSON) → degrade: skip silently for `mode:agent` / `XHOST=codex`; on an interactive host (`claude`/`cursor`) in default mode print one line `cross-model pass unavailable — continuing.` Stage 5's malformed-drop already protects the merge.
-- A finding sharing a dedup fingerprint with the in-process `adversarial` persona promotes by one anchor step — the cross-model agreement signal. Name both reviewers in the Reviewer column (e.g. `adversarial, adversarial-codex`).
-
-## Error handling (all non-blocking)
-
-- Auth: stderr mentions auth / login / unauthorized / api key → treat as `not_authed` skip.
-- Timeout (codex exit 124 / claude killed): note "cross-model peer timed out (5m)"; continue.
-- Codex sandbox with `CODEX_SANDBOX_NETWORK_DISABLED`: the shelled-out `claude` cannot reach the API → failure skip; this is expected, not an error.
-
-## Verified flags (do not change without an empirical re-test)
-
-| Concern | claude `-p` (peer) | codex `exec` (peer) |
-|---------|--------------------|---------------------|
-| read-only | `--permission-mode dontAsk` + `--disallowedTools "Edit Write NotebookEdit"` (permission-gated, not a hard sandbox) | `-s read-only` (hard sandbox) |
-| schema out | `--json-schema "$(cat schema)"` + `--output-format json` -> `.structured_output`, fall back to `.result` | none — `-o <file>` capture only (strict mode rejects the permissive schema); prompt demands JSON |
-| prompt in | `"$(cat prompt)"` argv + `< /dev/null` | `-` on stdin: `< prompt-file` |
-| effort/model | `--model opus` | `-c 'model_reasoning_effort="high"'` |
-| turn cap | `--max-turns 15` | (wall-clock timeout) |
-| no hang | `< /dev/null` | stdin EOF from prompt file |
-| parse dep | `jq` (preflighted in Step 2) | none (`-o` writes the file) |
-| auth probe | `claude auth status` (exit 0 = authed) | env key or `~/.codex/auth.json` |
-
-`--max-turns` is valid but absent from `claude --help`; confirm flags against the running CLI, not just help text. The whole pass is non-blocking: every gap above degrades to a silent skip, never a failed review.
+`scripts/cross-model-adversarial-review.sh <peer> <base-ref> <run-dir>`:
+- Self-locates the persona + schema via `BASH_SOURCE` (works from any CWD); derives the repo root from `git`.
+- Composes the peer prompt from the canonical persona brief + a JSON-only contract; the peer fetches its own diff with read-only `git`.
+- Codex peer: `codex exec - -s read-only -o <out>` at high reasoning effort, with an **idle-timeout** (codex streams, so a stalled run dies fast while a productive long one continues).
+- Claude peer: `claude -p --permission-mode dontAsk --disallowedTools "Edit Write NotebookEdit" --json-schema … --output-format json`, captured from stdout (it can't write a file under those permissions), parsed via `.structured_output` with a `.result` fallback; a hard cap (its output is single-shot, so idle detection doesn't apply).
+- Read-only differs by peer: codex `-s read-only` is a hard sandbox; claude `dontAsk` is permission-gated (only read-only Bash + allow-rules run). Non-blocking everywhere: any gap → log + exit 0, no output file.
+- Tunables via env: `CROSS_MODEL_IDLE_SECS` (default 180), `CROSS_MODEL_HARD_SECS` (default 540).
