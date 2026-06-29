@@ -1,6 +1,6 @@
 ---
 name: ce-pov
-description: "Give a decisive, project-grounded point of view on an external input. Use to judge whether to adopt/migrate-off/revisit a framework, library, pattern, or CVE for THIS project, or for a mid-session second opinion. Not for a neutral explainer (it always returns a project verdict); use ce-ideate to generate options."
+description: "Give a decisive, project-grounded verdict on an external input — judged against the current project, not in the abstract. Use to decide whether to adopt, switch to, or revisit a technology, library, pattern, platform, or architecture, or for a mid-session second opinion. Always returns a project-specific verdict, so it is not for neutral explainers or generating options."
 argument-hint: "[the external thing to judge, plus any links] — or invoke bare mid-session for a second opinion"
 ---
 
