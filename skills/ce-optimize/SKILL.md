@@ -383,7 +383,14 @@ Read the code within `scope.mutable` to understand:
 - Obvious improvement opportunities
 - Constraints and dependencies between components
 
-Optionally read `references/agents/repo-research-analyst.md` and dispatch a generic subagent seeded with that local prompt for deeper codebase analysis if the scope is large or unfamiliar. Do not dispatch a standalone agent by type/name.
+Optionally read `references/agents/repo-research-analyst.md` and dispatch a generic subagent seeded with that local prompt for deeper codebase analysis if the scope is large or unfamiliar. Do not dispatch a standalone agent by type/name. When you do, resolve the question-agnostic project profile from the shared cache first (set `SKILL_DIR` to this skill's directory; protocol in `references/repo-profile-cache.md`):
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+python3 "$SKILL_DIR/scripts/repo-profile-cache.py" get
+```
+
+On `HIT` load the profile JSON; on `MISS` derive it via `references/agents/repo-profiler.md` and `put` the result; on `NO-CACHE` derive inline. Pass the profile to `repo-research-analyst` and request only the question-specific scopes (e.g. `patterns`) so it skips re-deriving the agnostic stack/architecture/conventions.
 
 ### 2.2 Generate Hypothesis List
 
