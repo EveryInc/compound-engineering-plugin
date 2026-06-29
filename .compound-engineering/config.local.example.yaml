@@ -29,3 +29,11 @@
 # pulse_metric_sources: "retention_d7=posthog,nps=delighted"  # strategy-metric -> source overrides; comma-separated 'metric=source' pairs; unlisted metrics fall back to pulse_analytics_source
 # pulse_pending_metrics: "retention_d7,nps"             # comma-separated strategy metrics awaiting instrumentation; render as 'no data'
 # pulse_excluded_metrics: "north_star"                  # comma-separated strategy metrics intentionally not in pulse
+
+# --- ce-plan ---
+# Skip /ce-plan's pre-plan scoping-confirmation pause: ce-plan writes the scope
+# summary for itself, records inferred scope under Assumptions, announces, and
+# proceeds without waiting. Skips only that confirmation -- genuine blockers and
+# the post-plan menu still appear. Override per run with `confirm:auto` /
+# `confirm:ask`.
+# plan_skip_scoping_confirm: true                        # true | false (default: false)

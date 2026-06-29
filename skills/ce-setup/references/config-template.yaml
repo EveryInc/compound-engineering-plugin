@@ -45,6 +45,17 @@
 # brainstorm_output: html        # md | html (default: md)
 # ideate_output: md              # md | html (default: html -- ideation docs are human-facing, so HTML is the default; set md to opt out)
 
+# --- ce-plan scoping confirmation ---
+# By default /ce-plan pauses before research/plan-write to show a scoping
+# summary and wait for you to confirm scope. Set this to skip that wait: ce-plan
+# composes the summary for itself, records any inferred scope under an
+# Assumptions section, announces that it's proceeding, and keeps going. It skips
+# only that confirmation -- genuine blocking questions and the post-plan menu
+# still appear. Override per run with `confirm:auto` (skip) or `confirm:ask`
+# (force the gate on for one run).
+
+# plan_skip_scoping_confirm: true   # true | false (default: false)
+
 # --- ce-promote ---
 # Written automatically when you decline the Spiral setup offer in /ce-promote.
 # Suppresses that one-time setup nudge in this project. Remove the key to re-enable.

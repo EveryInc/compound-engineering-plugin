@@ -201,6 +201,7 @@ In universal-planning mode, the U-IDs, dependency ordering, scope boundaries, an
 | `<bug description>` | Routes to `ce-debug` suggestion menu |
 | `<task in another repo>` | Cross-repo announcement, plan lands in target |
 | `output:html` | Write the plan as a single self-contained HTML file instead of markdown. Exclusive — the plan is `.md` OR `.html`, never both. Default is markdown. Set `plan_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. |
+| `confirm:auto` | Skip the pre-plan scoping-confirmation pause for this run — ce-plan writes the scope summary for itself, records inferred scope under an `Assumptions` section, announces it's proceeding, and keeps going without waiting. Skips only that confirmation; genuine blockers and the post-plan menu still appear. Use `confirm:ask` to force the gate on for one run. Set `plan_skip_scoping_confirm: true` in `.compound-engineering/config.local.yaml` to make skipping the default. |
 
 ---
 
