@@ -273,6 +273,8 @@ describe("repo-profile-cache helper — review-driven invalidation cases", () =>
       "terraform/main.tf", // Terraform dir prefix
       "k8s/deployment.yaml", // Kubernetes dir prefix
       "Pulumi.yaml", // Pulumi IaC
+      ".nvmrc", // runtime version selector
+      ".tool-versions", // asdf/mise version selector
       "vercel.json", // deploy descriptor
       ".gitlab-ci.yml", // non-GitHub CI
     ]) {

@@ -140,6 +140,14 @@ _ROOT_DOCS = {
     "ARCHITECTURE.md", "README.md", "CONTRIBUTING.md",
 }
 
+# Runtime / tool version selectors that pin a language or tool version OUTSIDE
+# the manifests (the profiler reads these for stack versions). Basename match.
+_VERSION_SELECTORS = {
+    ".nvmrc", ".node-version", ".python-version", ".ruby-version",
+    ".java-version", ".go-version", ".terraform-version",
+    ".tool-versions", "mise.toml", ".mise.toml", ".sdkmanrc",
+}
+
 
 def is_profile_input(path: str) -> bool:
     """True when a changed path is one the cached profile derives from.
@@ -149,7 +157,12 @@ def is_profile_input(path: str) -> bool:
     re-derive; under-matching serves a stale profile (a cardinal-rule break).
     """
     base = os.path.basename(path)
-    if base in _MANIFEST_LOCKFILE or base in _LICENSE or base in _TOPOLOGY:
+    if (
+        base in _MANIFEST_LOCKFILE
+        or base in _LICENSE
+        or base in _TOPOLOGY
+        or base in _VERSION_SELECTORS
+    ):
         return True
     if base.endswith(_PROJECT_FILE_SUFFIXES):
         return True
