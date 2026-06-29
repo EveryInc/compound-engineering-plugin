@@ -113,6 +113,7 @@ The `compound-engineering` plugin currently ships 26 skills and 0 standalone age
 |-------|---------|
 | `/ce-strategy` | Create or maintain `STRATEGY.md` |
 | `/ce-ideate` | Generate and critically evaluate grounded ideas |
+| `/ce-pov` | Form a decisive, project-grounded verdict on an external input |
 | `/ce-brainstorm` | Explore requirements and write a right-sized requirements doc |
 | `/ce-plan` | Create structured implementation plans |
 | `/ce-work` | Execute implementation plans systematically |

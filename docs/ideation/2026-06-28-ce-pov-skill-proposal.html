@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Proposal: the ce-pov skill</title>
+<link rel="preconnect" href="https://fonts.bunny.net">
+<link rel="stylesheet" href="https://fonts.bunny.net/css?family=fraunces:400,500,600|inter:400,500,600,700&display=swap">
+<style>
+  :root{
+    --bg:#faf8f4; --surface:#ffffff; --ink:#1d1b18; --muted:#6b655c;
+    --line:#e6e0d6; --accent:#9a3b1f; --accent-soft:#f6e9e2; --accent-text:#7a2d16;
+    --info-soft:#e8eef2; --info-text:#2c4a5a; --warn-soft:#f6efdc; --warn-text:#7a5a17;
+    --good-soft:#e5efe4; --good-text:#3a5a32;
+    --serif:"Fraunces",Georgia,serif;
+    --sans:"Inter",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  @media (prefers-color-scheme:dark){
+    :root{
+      --bg:#17150f; --surface:#201d16; --ink:#ece7dd; --muted:#a39c8e;
+      --line:#332f25; --accent:#e0865f; --accent-soft:#34241c; --accent-text:#f0a883;
+      --info-soft:#1c2a32; --info-text:#9fc4d6; --warn-soft:#2e2715; --warn-text:#d8b86a;
+      --good-soft:#1d2a1b; --good-text:#a7c89c;
+    }
+  }
+  *{box-sizing:border-box}
+  body{margin:0; background:var(--bg); color:var(--ink); font-family:var(--sans); font-size:16px; line-height:1.6; -webkit-font-smoothing:antialiased}
+  .page{max-width:900px; margin-inline:auto; padding:3.5rem 1.5rem 5rem}
+  .eyebrow{font-size:.72rem; letter-spacing:.14em; text-transform:uppercase; color:var(--accent); font-weight:600; margin:0 0 .5rem}
+  h1{font-family:var(--serif); font-weight:600; font-size:2.5rem; line-height:1.1; margin:0 0 .75rem; letter-spacing:-.01em}
+  h2{font-family:var(--serif); font-weight:600; font-size:1.55rem; margin:2.8rem 0 1rem; padding-bottom:.4rem; border-bottom:2px solid var(--line); scroll-margin-top:1rem}
+  h3{font-family:var(--sans); font-weight:600; font-size:1.12rem; margin:1.4rem 0 .35rem}
+  p{max-width:74ch}
+  a{color:var(--accent-text)}
+  .meta{display:flex; flex-wrap:wrap; gap:.5rem; margin:1.25rem 0 0}
+  .pill{display:inline-block; font-size:.74rem; font-weight:600; padding:.25rem .6rem; border-radius:999px; border:1px solid var(--line); background:var(--surface); color:var(--muted)}
+  .lede{font-size:1.12rem; max-width:74ch}
+  .callout{background:var(--accent-soft); border:1px solid var(--line); border-radius:12px; padding:1.1rem 1.25rem; margin:1.5rem 0}
+  .callout .eyebrow{color:var(--accent-text)}
+  .callout p{margin:.3rem 0 0}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:12px; padding:1.2rem 1.35rem; margin:1rem 0}
+  .nav{background:var(--surface); border:1px solid var(--line); border-radius:10px; padding:.9rem 1.1rem; margin:1.5rem 0 0}
+  .nav ol{margin:.3rem 0 0; padding-left:1.3rem; columns:2; column-gap:2rem}
+  .nav li{margin:.2rem 0; break-inside:avoid}
+  .nav a{text-decoration:none}
+  .nav a:hover{text-decoration:underline}
+  ul.tight li, ol.tight li{margin:.35rem 0; max-width:72ch}
+  table{border-collapse:collapse; width:100%; margin:1rem 0; font-size:.92rem}
+  th,td{text-align:left; padding:.55rem .7rem; border-bottom:1px solid var(--line); vertical-align:top}
+  th{font-size:.74rem; letter-spacing:.06em; text-transform:uppercase; color:var(--muted)}
+  code{font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:.86em; background:var(--accent-soft); padding:.08em .35em; border-radius:5px}
+  .step{display:grid; grid-template-columns:max-content 1fr; gap:0 1rem; margin:.6rem 0}
+  .step .n{font-family:var(--serif); font-weight:600; color:var(--accent); font-size:1.25rem; line-height:1.2}
+  .step .b{margin:0}
+  .step .b b{font-family:var(--sans)}
+  .guard{border-left:3px solid var(--accent); background:var(--surface); border-radius:0 8px 8px 0; padding:.9rem 1.1rem; margin:1rem 0}
+  .guard.theater{border-left-color:var(--info-text)}
+  .guard.ritual{border-left-color:var(--warn-text)}
+  figure{margin:1.4rem 0 .3rem; text-align:center}
+  figure svg{max-width:100%; height:auto}
+  figcaption{font-size:.82rem; color:var(--muted); margin-top:.5rem; font-style:italic}
+  .two{display:grid; grid-template-columns:1fr 1fr; gap:1rem}
+  .bucket{font-size:.92rem}
+  .bucket td:first-child{white-space:nowrap; font-weight:600}
+  @media (max-width:620px){ h1{font-size:2rem} .nav ol{columns:1} .two{grid-template-columns:1fr} }
+  footer.composition-signal{margin-top:4rem; padding-top:1.25rem; border-top:1px solid var(--line); font-size:.8rem; color:var(--muted)}
+</style>
+</head>
+<body>
+<main class="page">
+
+  <p class="eyebrow">Proposal &middot; Compound Engineering Plugin</p>
+  <h1>The <code>ce-pov</code> skill</h1>
+  <p class="lede">A skill that gives you a decisive, repo-grounded <strong>point of view</strong> on an external question &mdash; at the start of a session, or dropped into the middle of one. A bare agent gives you an opinion; <code>ce-pov</code> gives you a verdict it had to earn, and refuses to fake one.</p>
+  <div class="meta">
+    <span class="pill">2026-06-28</span>
+    <span class="pill">topic: ce-pov-skill</span>
+    <span class="pill">status: design proposal (rev 3 &mdash; converged)</span>
+    <span class="pill">reviewed: Claude + Codex + Cursor (4 rounds)</span>
+  </div>
+
+  <div class="callout">
+    <p class="eyebrow">The one rule that is the whole moat</p>
+    <p><strong>It will not hand you a verdict it didn't earn against your actual repo.</strong> A generic <code>deep-research</code> skill already exists; the differentiator is never "research the web." It is the refusal to answer in the abstract. Verified external evidence <em>and</em> concrete repo evidence, or no verdict. Nothing else &mdash; not the conversation, not the user's own assertions &mdash; substitutes for that.</p>
+  </div>
+
+  <nav class="nav" aria-label="Contents">
+    <p class="eyebrow" style="margin:0">Contents</p>
+    <ol>
+      <li><a href="#purpose">What it is</a></li>
+      <li><a href="#fight">What we bring to the fight</a></li>
+      <li><a href="#method">The method (4 steps)</a></li>
+      <li><a href="#verdict">The verdict contract</a></li>
+      <li><a href="#invocation">One method, two contexts</a></li>
+      <li><a href="#provenance">Grounding provenance</a></li>
+      <li><a href="#guardrails">Two guardrails</a></li>
+      <li><a href="#boundaries">Boundaries</a></li>
+      <li><a href="#scope">What we don't build</a></li>
+      <li><a href="#universal">Universal mode (deferred)</a></li>
+      <li><a href="#name">The name</a></li>
+      <li><a href="#review">External review</a></li>
+      <li><a href="#open">Open questions</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="purpose">What it is</h2>
+  <p><strong>One-liner:</strong> <code>ce-pov</code> forms a project-grounded point of view on something from the outside world. You bring an external input; it does real research <em>and</em> reads your own codebase, then returns a decisive, graded verdict <em>for your project</em>.</p>
+  <p>It is one primitive &mdash; "form a grounded POV on an external input" &mdash; with many mouths. The original motivating case (should we adopt framework X?) is one instance:</p>
+  <ul class="tight">
+    <li>"Should we adopt framework X here?" (adoption / build-vs-buy / migrate-off)</li>
+    <li>"What should we use for auth?" (<strong>selection</strong> from a discoverable field &mdash; with a guard; see Boundaries)</li>
+    <li>"Does this CVE / deprecation / breaking change actually affect us?"</li>
+    <li>"Is this pattern from elsewhere right for us? Is our current approach dead?"</li>
+    <li>"We rejected X 18 months ago &mdash; still the right call?"</li>
+    <li>"Weigh in on the direction this brainstorm is heading." (mid-session second opinion)</li>
+  </ul>
+
+  <h2 id="fight">What we bring to the fight</h2>
+  <p>Anyone can prompt their agent "what's your POV on X?" So the value is not capability &mdash; the agent has that. The value is a <strong>sharp, opinionated method</strong>, the same reason <code>ce-work</code> and <code>ce-plan</code> exist when an agent can already code and plan. A bare agent asked "should we use X?" fails in predictable ways; <code>ce-pov</code> is the method that counteracts each:</p>
+  <table>
+    <thead><tr><th>A bare prompt tends to&hellip;</th><th><code>ce-pov</code> forces&hellip;</th></tr></thead>
+    <tbody>
+      <tr><td>Answer in the abstract ("X is great")</td><td>Dual-grounding: cite a real dep / call-site / prior decision, or no verdict</td></tr>
+      <tr><td>Agree with your framing (pushover)</td><td>A skeptic stance: seek disconfirming evidence, name the alternatives, allow "no"</td></tr>
+      <tr><td>Stop at the first source; hallucinate citations</td><td>Active, verified research &mdash; the claim must be supported by the source</td></tr>
+      <tr><td>Evaluate the named thing in isolation</td><td>Name the incumbent and "do nothing" as real options</td></tr>
+      <tr><td>Give a wishy-washy "it depends"</td><td>A graded verdict + "yes, if &lt;repo conditions&gt;" (+ a reversal trigger on weighty calls)</td></tr>
+      <tr><td>Let the answer evaporate in chat</td><td>An optional durable record, so re-runs are cheap</td></tr>
+      <tr><td>Re-litigate what the team already decided</td><td>A precedent check before researching</td></tr>
+      <tr><td>Apply uniform effort to trivial and weighty calls</td><td>Rigor sized to reversibility</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="method">The method (4 steps)</h2>
+  <p>Four steps, deliberately few so the agent runs a judgment loop rather than performing an 8-item checklist. Two things are <strong>cross-cutting properties of every step, not phases of their own</strong>: the <strong>skeptic stance</strong> (seek disconfirming evidence; "no" and "not our problem" are first-class) and <strong>reversibility-tiered effort</strong> (how deep each step goes scales with the door type).</p>
+  <div class="card">
+    <div class="step"><div class="n">1</div><p class="b"><b>Frame.</b> Pin the actual question, the incumbent, the time horizon, and what success looks like. Most "should we use X?" asks smuggle unstated assumptions ("replace auth" vs "greenfield sidecar"); without this the skill optimizes the wrong question elegantly. If the field of candidates can't be bounded or the decision criteria are unclear, stop and route out (see Boundaries) rather than turning into disguised requirements discovery.</p></div>
+    <div class="step"><div class="n">2</div><p class="b"><b>Precedent.</b> Check what we already decided &mdash; prior decision records, closed issues, past rejections. Update a known-good; don't re-litigate. (Precedent-aware, not rigidly first &mdash; a CVE's urgency can lead.)</p></div>
+    <div class="step"><div class="n">3</div><p class="b"><b>Verify (external + project).</b> The dual-grounded core. Active external research with the best tools available (built-in web search/fetch, or Exa / parallel-search / an MCP search server when present &mdash; never required), claims supported by their cited source; <em>and</em> concrete project grounding &mdash; deps, lockfile, license, call-site migration cost, conventions, git history, the named incumbent. Neither leg alone is enough.</p></div>
+    <div class="step"><div class="n">4</div><p class="b"><b>Verdict.</b> Emit the fixed verdict contract (next section): a grade from the defined vocabulary + "yes, if &lt;repo-specific conditions&gt;" + a next-step handoff. For Tier 2/3 (weighty/one-way) calls, add a <strong>reversal trigger</strong> ("adopt if volume &lt; N; re-evaluate if enterprise SSO appears"); skip it on Tier 1 / CVE triage where it is formulaic noise. Durable record optional, recommended only for Tier 2/3 or precedent-changing decisions.</p></div>
+  </div>
+
+  <h2 id="verdict">The verdict contract</h2>
+  <p>Two things make verdicts trustworthy <em>and</em> comparable: a fixed <strong>vocabulary</strong> and a fixed <strong>shape</strong>. Both are mandatory &mdash; the durable record and the Step-2 precedent search only work if past verdicts can be grepped and compared, which prose-only output defeats.</p>
+  <h3>Vocabulary &mdash; the grade is always one of:</h3>
+  <table>
+    <thead><tr><th>Grade</th><th>Meaning</th></tr></thead>
+    <tbody>
+      <tr><td><strong>Adopt</strong></td><td>Proven fit for us &mdash; use it.</td></tr>
+      <tr><td><strong>Trial</strong></td><td>Promising &mdash; use on a low-risk slice first; next step is a scoped spike.</td></tr>
+      <tr><td><strong>Hold</strong></td><td>A complete, valid decision to <em>wait</em> &mdash; promising but unstable, migration cost exceeds current pain, category moving too fast. <strong>Hold is a successful outcome, not a failure to finish.</strong> "Hold &mdash; insufficient grounding" is one subtype (the invalid-verdict escape when the project leg is too thin), not the only meaning of Hold.</td></tr>
+      <tr><td><strong>Reject</strong></td><td>Judged not worth it for us.</td></tr>
+      <tr><td><strong>Not our problem</strong></td><td>For exposure questions (CVE / deprecation) that don't reach us &mdash; avoids forced adopt/reject theater.</td></tr>
+    </tbody>
+  </table>
+  <h3>Schema &mdash; every verdict carries these fields:</h3>
+  <p><code>Grade</code> &middot; <code>Incumbent</code> &middot; <code>Verified facts (repo + external)</code> &middot; <code>Conversation hypotheses (unverified &mdash; warm only)</code> &middot; <code>Conditions ("yes, if &hellip;")</code> &middot; <code>Handoff (next skill)</code> &middot; <code>Reversal trigger (Tier 2/3 only)</code></p>
+  <p>The schema also enforces the provenance discipline structurally: "verified facts" and "conversation hypotheses" are separate fields, so an unverified chat claim can never quietly masquerade as grounding.</p>
+
+  <h2 id="invocation">One method, two contexts</h2>
+  <p><code>ce-pov</code> is one method with an <strong>invocation modifier</strong> &mdash; not two separate workflows. The same four steps run; what changes is where the <em>question</em> comes from and how much ceremony is warranted.</p>
+
+  <figure>
+    <svg viewBox="0 0 760 280" role="img" aria-labelledby="postt">
+      <title id="postt">Cold and warm invocation run the same dual-grounded verdict method; warm draws only the question and claims-to-verify from the conversation</title>
+      <defs><style>.h{font:600 13px Inter,sans-serif}.s{font:11.5px Inter,sans-serif}.t{font:600 12px Inter,sans-serif}</style>
+        <marker id="ap" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="#9a3b1f"/></marker>
+      </defs>
+      <!-- COLD -->
+      <rect x="20" y="24" width="250" height="78" rx="11" fill="#e8eef2" stroke="#c4d2da"/>
+      <text x="36" y="48" class="h" fill="#2c4a5a">COLD (session start)</text>
+      <text x="36" y="70" class="s" fill="#2c4a5a">user states an explicit</text>
+      <text x="36" y="87" class="s" fill="#2c4a5a">external question</text>
+      <!-- WARM -->
+      <rect x="20" y="160" width="250" height="96" rx="11" fill="#f6e9e2" stroke="#d8b59f"/>
+      <text x="36" y="184" class="h" fill="#7a2d16">WARM (mid-session)</text>
+      <text x="36" y="205" class="s" fill="#7a2d16">conversation supplies the</text>
+      <text x="36" y="222" class="s" fill="#7a2d16">QUESTION + claims-to-verify</text>
+      <text x="36" y="239" class="s" fill="#7a2d16">(not grounding); stay short</text>
+      <!-- confirm gate -->
+      <rect x="300" y="172" width="150" height="72" rx="10" fill="#fff" stroke="#d8b59f"/>
+      <text x="375" y="196" class="t" fill="#7a2d16" text-anchor="middle">Question absent</text>
+      <text x="375" y="213" class="s" fill="#7a2d16" text-anchor="middle">or ambiguous?</text>
+      <text x="375" y="231" class="s" fill="#7a2d16" text-anchor="middle">infer &rarr; confirm</text>
+      <!-- engine -->
+      <rect x="480" y="92" width="160" height="96" rx="12" fill="#7a2d16"/>
+      <text x="560" y="124" class="h" fill="#fff" text-anchor="middle">4-step method</text>
+      <text x="560" y="146" class="s" fill="#fbe7dc" text-anchor="middle">dual-grounded,</text>
+      <text x="560" y="162" class="s" fill="#fbe7dc" text-anchor="middle">skeptic, tier-scaled</text>
+      <!-- output -->
+      <rect x="668" y="110" width="72" height="60" rx="10" fill="#e5efe4" stroke="#a9c79f"/>
+      <text x="704" y="136" class="t" fill="#3a5a32" text-anchor="middle">Verdict</text>
+      <text x="704" y="154" class="s" fill="#3a5a32" text-anchor="middle">+ handoff</text>
+      <!-- arrows -->
+      <line x1="270" y1="63" x2="478" y2="120" stroke="#9a3b1f" stroke-width="1.8" marker-end="url(#ap)"/>
+      <line x1="270" y1="208" x2="298" y2="208" stroke="#9a3b1f" stroke-width="1.8" marker-end="url(#ap)"/>
+      <line x1="450" y1="200" x2="500" y2="186" stroke="#9a3b1f" stroke-width="1.8" marker-end="url(#ap)"/>
+      <line x1="640" y1="140" x2="666" y2="140" stroke="#9a3b1f" stroke-width="1.8" marker-end="url(#ap)"/>
+    </svg>
+    <figcaption>Same method, two entry contexts. Crucially, warm invocation takes only the <em>question</em> and <em>claims to verify</em> from the conversation &mdash; the grounding still comes from repo + verified external sources.</figcaption>
+  </figure>
+
+  <div class="two">
+    <div class="card">
+      <h3>Cold &mdash; session start</h3>
+      <p>The user states an external question; the full method runs at the warranted tier. This is where the moat is thickest, because the repo grounding is automatable and hard to fake. Ship this rock-solid first.</p>
+    </div>
+    <div class="card">
+      <h3>Warm &mdash; mid-session interjection</h3>
+      <p>You want a second opinion mid-flow. The conversation supplies the <strong>question and the claims to verify</strong> &mdash; <em>not</em> grounding (see next section). Stay a <strong>guest</strong>: output a verdict block only, no reframing the session, hand control back. Be <strong>more</strong> adversarial than cold mode &mdash; the conversation's momentum pulls toward agreement, and a second opinion that rubber-stamps is worthless. When the question is absent or materially ambiguous, infer it and confirm before answering; when the user names it ("ce-pov: should we use X?"), skip the gate.</p>
+    </div>
+  </div>
+
+  <h2 id="provenance">Grounding provenance &mdash; the warm-mode safeguard</h2>
+  <p>The sharpest risk surfaced in review: <strong>consensus laundering</strong> &mdash; twenty turns of the user and the agent mutually assuming "we must migrate off Postgres" quietly become "grounding," and <code>ce-pov</code> returns a confident verdict that ratifies chat fiction. The fix is to label every input by where it came from, and to let only verified buckets satisfy the verdict rule:</p>
+  <table class="bucket">
+    <thead><tr><th>Bucket</th><th>Counts as grounding?</th></tr></thead>
+    <tbody>
+      <tr><td>Observed repo facts</td><td>Yes</td></tr>
+      <tr><td>Verified external facts</td><td>Yes</td></tr>
+      <tr><td>Conversation claims</td><td>No &mdash; frame &amp; hypotheses only, until corroborated</td></tr>
+      <tr><td>Assumptions needing confirmation</td><td>No &mdash; surfaced for the user to confirm/deny</td></tr>
+    </tbody>
+  </table>
+  <p>Warm invocation adds <strong>no evidentiary weight</strong>: it surfaces hypotheses and framing, nothing more. If the conversation says "we have 40 call-sites on library X," the skill must <code>grep</code> before that counts. <strong>Same invalidation rule, no warm exemption.</strong> A verdict may <em>use</em> conversation claims to frame the decision, but cannot lean on them to satisfy dual-grounding unless corroborated or explicitly marked conditional.</p>
+
+  <h2 id="guardrails">Two guardrails</h2>
+  <p>Both reviewers independently flagged the same self-failure &mdash; form over substance &mdash; from opposite ends. Two guardrails, one for each end:</p>
+  <div class="guard theater">
+    <h3 style="margin-top:0">Anti-theater &mdash; the Invalid-Verdict Rule</h3>
+    <p>If the project-grounding leg is thinner than the external leg &mdash; can't name the incumbent + at least one concrete touchpoint, or a prior decision &mdash; the skill is <strong>forbidden</strong> from saying Adopt/Reject. It must return <strong>"Hold &mdash; insufficient project grounding"</strong> with a numbered list of what to inspect next. No verdict on vibes; the skill earns authority by refusing to pretend. (The provenance rule above is what stops warm mode from quietly evading this.)</p>
+  </div>
+  <div class="guard ritual">
+    <h3 style="margin-top:0">Anti-ritual &mdash; Reversibility-Tiered Effort</h3>
+    <p>Bind effort and output length to the door type so it stays cheap enough to reach for casually. <strong>Tier 1 (reversible):</strong> one screen, 1&ndash;2 external + 1&ndash;2 repo facts, no reversal trigger. <strong>Tier 2 (moderate):</strong> fuller alternatives. <strong>Tier 3 (one-way / security / legal):</strong> deep research, precedent search, durable record. Otherwise it becomes a bureaucratic ritual and users go back to asking the model casually. The confirm-gate is held to the same standard &mdash; only when genuinely needed.</p>
+  </div>
+
+  <h2 id="boundaries">Boundaries</h2>
+  <p>The discriminator: <code>ce-pov</code> always takes an <strong>external input</strong> and judges it <strong>against your project</strong>, producing a <strong>decisive position</strong> &mdash; not options, not requirements, not implementation, not a diagnosis.</p>
+  <table>
+    <thead><tr><th>Neighbor</th><th>Theirs</th><th>The line</th></tr></thead>
+    <tbody>
+      <tr><td>generic <code>deep-research</code></td><td>"Tell me about X"</td><td><code>ce-pov</code> requires project grounding and ends in a graded verdict</td></tr>
+      <tr><td><code>ce-ideate</code></td><td>Invent options from an unbounded space</td><td><strong>Invented vs. discovered:</strong> ideate invents; <code>ce-pov</code> judges/selects from a discoverable field</td></tr>
+      <tr><td><code>ce-brainstorm</code></td><td>Scope a chosen idea into requirements</td><td><code>ce-pov</code> decides <em>whether</em>; brainstorm scopes <em>what</em> once it's a yes. No rollout sketching</td></tr>
+      <tr><td><code>ce-plan</code></td><td>How to build it</td><td>Verdict accepted &rarr; hand off. No task breakdown</td></tr>
+      <tr><td><code>ce-debug</code></td><td>Diagnose observed failing behavior</td><td><code>ce-pov</code> assesses <em>exposure and priority</em> (is this CVE ours, how urgent); debug investigates an actual failure</td></tr>
+      <tr><td><code>ce-strategy</code></td><td>Product thesis / metrics</td><td><code>ce-pov</code> is bounded to a specific external input, not company direction</td></tr>
+    </tbody>
+  </table>
+  <p><strong>The selection escape hatch (sharpened in review).</strong> "What should we use for auth?" is a <code>ce-pov</code> selection only when the candidate field is bounded (roughly &le;5 real options) and the decision criteria are knowable enough to judge. If the field can't be bounded without invention, or the criteria are unclear, <code>ce-pov</code> returns <strong>Hold &rarr; route to <code>ce-ideate</code> to enumerate (or <code>ce-brainstorm</code> to surface criteria), then re-run <code>ce-pov</code></strong>. Without this, large/ambiguous fields (auth, observability, CI) tempt a divergent fan-out and the skill becomes disguised requirements discovery.</p>
+
+  <h2 id="scope">What we don't build (v1)</h2>
+  <p>The risk is boiling the ocean. Cut anything that turns a judgment skill into an implementation or governance system. Unanimous across reviewers:</p>
+  <ul class="tight">
+    <li>No PoC scaffolding; no scheduled re-evaluation engine</li>
+    <li>No weighted-scoring spreadsheet (a one-line "considered: incumbent, X, Y; rejected Y because&hellip;" beats a matrix)</li>
+    <li>No <em>mandatory</em> decision-record commit &mdash; offer it, keep it lightweight; many runs (CVE triage) are fine as a chat verdict</li>
+    <li>No deep git archaeology (cap at ~15-min-equivalent effort); no exhaustive market map</li>
+    <li>No required multi-agent research fan-out</li>
+    <li>No three-mode taxonomy in the skill instructions &mdash; one method, one invocation modifier</li>
+  </ul>
+  <p>The standard is <strong>"enough verified evidence for the decision class,"</strong> not a research report.</p>
+
+  <h2 id="universal">Universal mode (designed-in, deferred to a later version)</h2>
+  <p>"Repo grounding" is a special case of <strong>grounding in the asker's real situation</strong>, so the method is portable beyond code (e.g. "should our company use vendor Y?", "should I adopt this productivity system?") with the grounding leg adaptive: repo when there is one, user-supplied context otherwise. That is real and consistent with how <code>ce-ideate</code> / <code>ce-brainstorm</code> / <code>ce-plan</code> generalize.</p>
+  <p><strong>Decision for v1: ship repo/project-first; treat universal as a caveat, not a headline.</strong> Reviewers were unanimous that universal mode broadens surface area, weakens the moat (the automatable grounding largely vanishes, drifting toward method-only deep-research), and invites fuzzy life/business advice under the same brand. The portable method stays in the design; v1 is explicitly optimized for code/project contexts, with "works outside a repo when enough concrete context exists" as a noted capability to prove out before promoting. <em>(This sequencing is the one item flagged for the owner's confirmation.)</em></p>
+
+  <h2 id="name">The name</h2>
+  <p><code>ce-pov</code> &mdash; it names the deliverable (a point of view) in the user's own words, signals a <em>position</em> (not a report), and carries the full breadth (a POV on any question). It earns its keep most in the warm "weigh in / second opinion" posture, which is unmistakably "give me your POV," never "check if it fits."</p>
+  <p>Rejected alternatives: <code>ce-research</code> (collides with the generic <code>deep-research</code> skill and signals open-ended exploration, the opposite of a verdict); <code>ce-fit</code> / <code>ce-fit-check</code> (too narrow &mdash; "fit" is one <em>criterion</em> the skill weighs, not the act; it shrinks a judgment skill into a compatibility check). If a sharper signal of "grounded judgment" is wanted later without narrowing, <code>ce-stance</code> and <code>ce-verdict</code> are the closest siblings.</p>
+
+  <h2 id="review">External review (Codex + Cursor, four rounds)</h2>
+  <p>Two independent models reviewed across four rounds and converged. At round 4 both returned <strong>"ship it &mdash; no blocker"</strong>; their two final additions (a defined Hold-inclusive verdict vocabulary, and a fixed verdict schema) are folded into <a href="#verdict">The verdict contract</a>. Round-3 changes:</p>
+  <ul class="tight">
+    <li><strong>Fixed the central contradiction:</strong> warm mode no longer treats the conversation as grounding &mdash; only as question + claims-to-verify &mdash; closing the "consensus laundering" hole both flagged. Added the grounding-provenance buckets.</li>
+    <li><strong>Collapsed 7 steps &rarr; 4</strong>; skeptic stance and reversibility tiering are now cross-cutting properties, and the two postures are one method + an invocation modifier (was a three-mode taxonomy reviewers warned agents would overfit).</li>
+    <li><strong>Tier-gated the reversal trigger</strong> (Tier 2/3 only) and the durable record.</li>
+    <li><strong>Narrowed the confirm-gate</strong> to absent/ambiguous questions.</li>
+    <li><strong>Added the selection escape hatch</strong> (unbounded field / unclear criteria &rarr; Hold &rarr; ideate/brainstorm &rarr; re-run).</li>
+    <li><strong>Deferred universal mode</strong> to repo-first per unanimous advice.</li>
+    <li>Earlier rounds established: dual-grounding as the #1 move, the two guardrails, "frame the decision first", incumbent inventory, and "not our problem" as a first-class verdict.</li>
+  </ul>
+
+  <h2 id="open">Open questions / next steps</h2>
+  <ul class="tight">
+    <li>Where does the optional durable record live &mdash; a new <code>docs/decisions/</code> (ADR-style) path, or fold into <code>docs/solutions/</code>? Needs a slug/index convention so the precedent check (Step 2) can find prior verdicts.</li>
+    <li>Should the precedent check and the verified-citation pass be shared persona assets, given the existing research-persona duplication across skills (the <code>web-researcher.md</code> copies have already drifted)? Likely a shared <em>evidence/verdict output contract</em> rather than a shared file, per the plugin's self-contained-skill constraint.</li>
+    <li>Confirm the v1 repo-first / universal-deferred scoping (owner decision).</li>
+    <li>Hand off to <code>ce-brainstorm</code> to turn this proposal into a requirements-only unified plan when ready to build.</li>
+  </ul>
+
+  <footer class="composition-signal">Composed 2026-06-28 by ce-ideate (design proposal, rev 3 &mdash; converged) &middot; ce-pov skill &middot; synthesized from repo grounding, a 5-frame ideation pass, and four rounds of cross-model review (Codex gpt-5.5, Cursor Composer 2.5; both returned "ship it" at round 4). Supersedes the 2026-06-27 ce-research ideation draft.</footer>
+
+</main>
+</body>
+</html>
