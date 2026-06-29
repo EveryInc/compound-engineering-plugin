@@ -138,6 +138,7 @@ _ROOT_DOCS = {
     "AGENTS.md", "CLAUDE.md", "GEMINI.md",
     "CONCEPTS.md", "STRATEGY.md",
     "ARCHITECTURE.md", "README.md", "CONTRIBUTING.md",
+    ".cursorrules",  # legacy root-level Cursor rules (the profiler reads it)
 }
 
 # Runtime / tool version selectors that pin a language or tool version OUTSIDE

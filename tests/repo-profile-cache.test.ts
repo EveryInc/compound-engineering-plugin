@@ -275,6 +275,7 @@ describe("repo-profile-cache helper — review-driven invalidation cases", () =>
       "Pulumi.yaml", // Pulumi IaC
       ".nvmrc", // runtime version selector
       ".tool-versions", // asdf/mise version selector
+      ".cursorrules", // legacy root Cursor rules
       "vercel.json", // deploy descriptor
       ".gitlab-ci.yml", // non-GitHub CI
     ]) {
