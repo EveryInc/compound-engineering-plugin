@@ -60,11 +60,13 @@ mkdir -p "$SCRATCH_DIR"
 echo "$SCRATCH_DIR"
 ```
 
+**Every scout payload carries the same context.** A fresh subagent does not inherit this conversation, so fill the persona files' `{subject}` / `{scratch-dir}` placeholders at dispatch: pass each scout the framed question (subject + intent), the named incumbent and the reversibility tier, and the resolved `<scratch-dir>` path — plus any user-supplied links for the external researcher. A scout seeded with only its generic persona grounds "some external thing" and can produce an empty or unfocused dossier.
+
 **Tier-sensitive dispatch.** For **Tier 1** (reversible), run a single combined grounding pass: seed one subagent with `references/agents/project-grounding-scout.md` covering project context (code, git, deps, tracker, PRs, docs) at a tight read budget, and one with `references/agents/external-evidence-researcher.md`; skip the standalone precedent scout and fold a quick precedent check into the project pass. For **Tier 2/3**, dispatch the full fleet in parallel:
 
 - **project-grounding scout** (extraction tier) — read `references/agents/project-grounding-scout.md` and seed a generic subagent with it.
 - **precedent-&-activity scout** (extraction tier) — read `references/agents/precedent-activity-scout.md` and seed a generic subagent with it. Always run its **local-doc precedent pass** (`docs/solutions/`, ADRs, design docs — file reads, no tools needed); only its tracker/PR portion is capability-gated and degrades gracefully when those interfaces aren't reachable. Do **not** skip the whole scout for missing tracker access — that would drop the only path that surfaces a prior local adopt/reject decision.
-- **external-evidence researcher** (generation tier) — read `references/agents/external-evidence-researcher.md` and seed a generic subagent with it. Pass the framed question and any user-supplied links; capability-gated on web tools.
+- **external-evidence researcher** (generation tier) — read `references/agents/external-evidence-researcher.md` and seed a generic subagent with it; capability-gated on web tools.
 
 **Capability gating is two-level:** skip only a scout (or scout-portion) with **no reachable surface at all** — the project-grounding scout and the precedent scout's local-doc pass are file reads and always run; the tracker/PR reads and the external researcher are tool-gated and degrade. Let a scout that loses a tool mid-run self-report "unavailable." Never block on a missing surface — record it and let it lower the verdict's stated confidence, or trip the external floor (Phase 2) when the external leg is entirely absent.
 
