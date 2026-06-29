@@ -203,6 +203,23 @@ If two skills need the same supporting file, duplicate it into each skill's dire
 
 > **Note (March 2026):** This constraint reflects current Claude Code skill resolution behavior and known path-resolution bugs ([#11011](https://github.com/anthropics/claude-code/issues/11011), [#17741](https://github.com/anthropics/claude-code/issues/17741), [#12541](https://github.com/anthropics/claude-code/issues/12541)). If Anthropic introduces a shared-files mechanism or cross-skill imports in the future, this guidance should be revisited with supporting documentation.
 
+## Shared Repo-Grounding Profile Cache
+
+Repo-grounding skills (`ce-pov`, `ce-plan`, `ce-optimize`, `ce-ideate`, `ce-brainstorm`, `ce-code-review`, and lighter consumers `ce-compound`/`ce-debug`) reuse one cached **question-agnostic project profile** (stack, deps, conventions, structure) instead of each re-deriving it. The profile is git-keyed and stored at `/tmp/compound-engineering/repo-profile/<root-sha>/<head-sha>.json`.
+
+The mechanism is three **byte-duplicated** assets per consuming skill (the plugin has no cross-skill import — see "File References in Skills"):
+
+- `references/repo-profile-cache.md` — the schema + protocol (authoritative; read it before wiring a new consumer).
+- `scripts/repo-profile-cache.py` — deterministic `get`/`put`, invoked via the `SKILL_DIR` anchor (never the legacy `${CLAUDE_SKILL_DIR}` guard).
+- `references/agents/repo-profiler.md` — the persona that derives the profile on a miss.
+
+Rules:
+
+- A consumer resolves the agnostic profile through the cache (`get` → HIT load / MISS derive-and-`put` / NO-CACHE derive-fresh), then runs **only its question-specific grounding fresh**. The cache is an optimization, never a correctness dependency, and must never let a stale profile change an output.
+- **Always re-globbed fresh, never cached:** the `docs/solutions/` enumeration and subdirectory-scoped instruction files. Caching them would risk serving a stale match (e.g. a just-written learning), and re-globbing is ~free.
+- **Adding a consumer:** drop byte-identical copies of the three assets into the skill, add its name to `CONSUMER_SKILLS` in `tests/repo-profile-cache-parity.test.ts`, and wire its grounding phase. The parity test guards *file* drift; the per-consumer `skill-creator` eval (agnostic-from-cache, question-specific-fresh) guards *integration* drift.
+- Any change to the schema or protocol must be edited in **all** copies (the parity test fails otherwise) and bump `PROFILE_SCHEMA_VERSION` in the helper so older cache entries invalidate.
+
 ## Platform-Specific Variables in Skills
 
 This plugin is authored once and converted for multiple agent platforms (Claude Code, Codex, Gemini CLI, etc.). Do not use platform-specific environment variables or string substitutions (e.g., `${CLAUDE_PLUGIN_ROOT}`, `${CLAUDE_SKILL_DIR}`, `${CLAUDE_SESSION_ID}`, `CODEX_SANDBOX`, `CODEX_SESSION_ID`) in skill content without a graceful fallback that works when the variable is unavailable or unresolved.
