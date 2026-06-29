@@ -14,7 +14,16 @@ const SHARED_CACHE_ASSETS = [
   "references/agents/repo-profiler.md",
 ]
 
-const CONSUMER_SKILLS = ["ce-pov", "ce-plan", "ce-optimize"]
+const CONSUMER_SKILLS = [
+  "ce-pov",
+  "ce-plan",
+  "ce-optimize",
+  "ce-ideate",
+  "ce-brainstorm",
+  "ce-code-review",
+  "ce-compound",
+  "ce-debug",
+]
 
 describe("repo-profile-cache shared-asset parity", () => {
   for (const asset of SHARED_CACHE_ASSETS) {
