@@ -115,6 +115,7 @@ Skip `ce-pov` when:
 
 - **Routes into `/ce-plan`** — an accepted `Adopt` with clear scope hands off to planning, seeded with the verdict
 - **Routes into `/ce-brainstorm`** — when "adopt" isn't pinned down, or when a selection field is too open to bound, it Holds and routes to brainstorm/ideate first, then offers to re-run
+- **Routed into from `/ce-brainstorm`** — when a brainstorm request (or a mid-brainstorm turn) is really a *whether-to-adopt* verdict on a specific external candidate, `ce-brainstorm` offers the handoff here, closing the loop
 - **Captures into `/ce-compound`** — on request, a weighty verdict is stored in `docs/solutions/` as a `tooling_decision`/`architecture_pattern` record, so the next run's precedent check can find it
 - **Mid-session second opinion** — drop it into any skill's session to pressure-test a direction without taking over
 

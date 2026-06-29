@@ -17,6 +17,8 @@ This is the middle step in the compound-engineering ideation chain:
 
 It's also the most common standalone entry point — for any feature, decision, or project where the question isn't "how do I do it?" but "what am I really doing, and is it the right shape?"
 
+One thing it deliberately does *not* do is render a verdict. When a request is really a *whether-to-adopt* decision on a specific external candidate — a named technology, library, pattern, platform, or architecture, judged against this project — `ce-brainstorm` recognizes the shape (at intake or when a brainstorm later narrows to it) and offers to hand off to `/ce-pov` for a decisive, project-grounded verdict, rather than scope something the user hasn't decided to commit to. It's an offer, not a silent switch; open-ended design with no single candidate stays here.
+
 ---
 
 ## TL;DR
