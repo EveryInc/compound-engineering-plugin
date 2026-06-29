@@ -236,6 +236,18 @@ def do_put(profile_file: str) -> int:
         sys.stderr.write(f"repo-profile-cache: cannot read profile: {exc}\n")
         return 0  # degrade — never block the caller
 
+    # Shape guard: a profile is a non-empty JSON object. A misbehaving profiler
+    # that returns well-formed-but-garbage JSON (`{}`, `"oops"`, `[]`, `42`)
+    # must not be cached and then served to every skill as the agnostic
+    # profile. Reject it rather than persist it (the caller already has its
+    # own derived profile for this run; the next run re-derives).
+    if not isinstance(profile, dict) or not profile:
+        sys.stderr.write(
+            "repo-profile-cache: profile is not a non-empty object; not caching\n"
+        )
+        print("NO-CACHE")
+        return 0
+
     doc = {
         "profile_schema_version": PROFILE_SCHEMA_VERSION,
         "root_sha": root,

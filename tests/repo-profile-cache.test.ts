@@ -172,6 +172,20 @@ describe("repo-profile-cache helper", () => {
     expect(rootComponent).toMatch(/^[0-9a-f]{40}$/)
   })
 
+  test("put rejects a non-object/empty profile → not cached (shape guard)", () => {
+    for (const garbage of ["{}", '"oops"', "[]", "42", "null"]) {
+      const dir = makeRepo()
+      const f = path.join(dir, "bad.json")
+      writeFileSync(f, garbage)
+      const put = run(dir, "put", f)
+      expect(put.code).toBe(0)
+      expect(put.stdout.trim()).toBe("NO-CACHE") // refused to persist
+      // and nothing was cached, so a subsequent get is a MISS, not a HIT
+      const get = run(dir, "get")
+      expect(get.stdout.startsWith("MISS\n")).toBe(true)
+    }
+  })
+
   test("usage error on missing/garbage subcommand → exit 2", () => {
     const dir = makeRepo()
     expect(run(dir).code).toBe(2)

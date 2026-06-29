@@ -26,7 +26,7 @@ Valid scopes and the phases they control:
 - Multiple scopes combine: `Scope: technology, architecture, patterns` runs three phases.
 - When scoped, produce output sections only for the requested scopes. Omit sections for phases that did not run.
 - Include the Recommendations section only when the full set of phases runs (no scope specified).
-- When `technology` is not in scope but other phases are, still run Phase 0.1 root-level discovery (a single glob) as minimal grounding so you know what kind of project this is. Do not run 0.1b, 0.2, or 0.3. Do not include Technology & Infrastructure in the output.
+- When `technology` is not in scope but other phases are **and no cached project profile was supplied** (see the next rule), still run Phase 0.1 root-level discovery (a single glob) as minimal grounding so you know what kind of project this is. Do not run 0.1b, 0.2, or 0.3. Do not include Technology & Infrastructure in the output.
 - **When a cached project profile is supplied in your context** (the consumer resolved it from the shared repo-profile cache), use it for `technology`/`architecture`/`conventions` grounding instead of re-deriving — do **not** run Phase 0 or the Phase 0.1 baseline discovery. Run only the question-specific scopes you were asked for (`patterns`/`issues`/`templates`).
 - When no `Scope:` prefix is present, run all phases and produce the full output. This is the default behavior.
 
