@@ -72,8 +72,10 @@ _MANIFEST_LOCKFILE = {
     "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
     "pnpm-workspace.yaml", "bun.lock", "bun.lockb", "npm-shrinkwrap.json",
     "deno.json", "deno.jsonc", "deno.lock",
-    # Go
-    "go.mod", "go.sum",
+    # Monorepo / workspace orchestrators
+    "nx.json", "lerna.json", "turbo.json", "rush.json",
+    # Go (incl. workspaces)
+    "go.mod", "go.sum", "go.work", "go.work.sum",
     # Rust
     "Cargo.toml", "Cargo.lock",
     # Ruby
@@ -103,7 +105,9 @@ _MANIFEST_LOCKFILE = {
 
 # Project-file extensions whose presence or version edit changes the stack
 # profile. Suffix-matched at any depth (e.g. Foo.csproj, App.sln).
-_PROJECT_FILE_SUFFIXES = (".csproj", ".fsproj", ".vbproj", ".sln", ".cabal")
+_PROJECT_FILE_SUFFIXES = (
+    ".csproj", ".fsproj", ".vbproj", ".sln", ".cabal", ".tf", ".tfvars",
+)
 
 _LICENSE = {"LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING"}
 
@@ -114,12 +118,17 @@ _TOPOLOGY = {
     "docker-compose.yml", "docker-compose.yaml",
     "vercel.json", "netlify.toml", "fly.toml", "render.yaml",
     "serverless.yml", "serverless.yaml", "app.yaml", "Procfile",
+    # IaC descriptors that define the deployment topology.
+    "Pulumi.yaml", "Pulumi.yml", "Chart.yaml",
     # CI descriptors outside .github/workflows/ (that prefix is handled below).
     ".gitlab-ci.yml", "Jenkinsfile", "azure-pipelines.yml",
 }
 
 # Path prefixes whose contents shape the profile (conventions / CI / deploy).
-_INPUT_PREFIXES = (".cursor/", ".github/workflows/", ".circleci/")
+_INPUT_PREFIXES = (
+    ".cursor/", ".github/workflows/", ".circleci/",
+    "terraform/", "k8s/", "kubernetes/",
+)
 
 # Root-level instruction/doc files cached in the profile. Matched ONLY at the
 # repo root — subdirectory-scoped instruction files (e.g. nested CLAUDE.md /
@@ -237,6 +246,18 @@ def resolve_keys() -> "tuple[str, str] | None":
     return root, head
 
 
+_PROFILE_KEYS = ("stack", "dependencies", "topology", "conventions", "vocabulary")
+
+
+def is_valid_profile(profile: object) -> bool:
+    """A profile must be an object carrying every expected top-level key. This
+    rejects a profiler failure that still returned JSON — a wrapper/error object
+    or a partial result — which would otherwise be cached and served as a HIT,
+    leaving consumers to skip fresh derivation and read missing fields from a
+    broken object."""
+    return isinstance(profile, dict) and all(k in profile for k in _PROFILE_KEYS)
+
+
 def do_get() -> int:
     keys = resolve_keys()
     if keys is None:
@@ -271,8 +292,7 @@ def do_get() -> int:
         not isinstance(doc, dict)
         or doc.get("head_sha") != head
         or doc.get("profile_schema_version") != PROFILE_SCHEMA_VERSION
-        or not isinstance(profile, dict)
-        or not profile
+        or not is_valid_profile(profile)
     ):
         return miss()
 
@@ -301,14 +321,26 @@ def do_put(profile_file: str) -> int:
         print("NO-CACHE")  # nothing persisted; keep the stdout contract
         return 0  # degrade — never block the caller
 
-    # Shape guard: a profile is a non-empty JSON object. A misbehaving profiler
-    # that returns well-formed-but-garbage JSON (`{}`, `"oops"`, `[]`, `42`)
-    # must not be cached and then served to every skill as the agnostic
-    # profile. Reject it rather than persist it (the caller already has its
-    # own derived profile for this run; the next run re-derives).
-    if not isinstance(profile, dict) or not profile:
+    # Shape guard: the profile must be an object carrying the expected top-level
+    # keys. A misbehaving profiler that returns garbage JSON (`{}`, `"oops"`,
+    # `[]`, `42`) or a partial/error object must not be cached and then served
+    # to every skill as the agnostic profile. Reject it (the caller already has
+    # its own derived profile for this run; the next run re-derives).
+    if not is_valid_profile(profile):
         sys.stderr.write(
-            "repo-profile-cache: profile is not a non-empty object; not caching\n"
+            "repo-profile-cache: profile is not a valid profile object; not caching\n"
+        )
+        print("NO-CACHE")
+        return 0
+
+    # Do not cache a profile derived from a DIRTY tree: it reflects uncommitted
+    # edits to profile inputs, yet it would be stored under the clean HEAD key
+    # and served as a HIT after those edits are reverted (same HEAD, clean tree)
+    # — stale. Only persist a profile that matches the committed HEAD.
+    changed = changed_paths()
+    if changed is None or any(is_profile_input(p) for p in changed):
+        sys.stderr.write(
+            "repo-profile-cache: profile inputs are dirty; not caching\n"
         )
         print("NO-CACHE")
         return 0

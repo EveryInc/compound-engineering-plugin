@@ -9,7 +9,7 @@ Produce the profile by inspecting:
 - **Stack & versions** — detected languages and major frameworks *with versions* (from manifests/lockfiles), build/test tooling and commands.
 - **Dependency surface** — manifest + lockfile paths present, the top-level (direct) dependency list, the project license, and dependency licenses where readily available.
 - **Topology** — monorepo? the workspace/service map (name + primary language each), deployment model (monolith / multi-service / serverless), API styles (REST/gRPC/GraphQL/none), data stores and migration/ORM locations, and the module/internal-boundary layout.
-- **Conventions & instruction files** — paths and a short digest of the *root* `AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`ARCHITECTURE.md`/`README.md`/`CONTRIBUTING.md`/`STRATEGY.md`: coding standards, testing conventions, review process, and (from `STRATEGY.md`) the target problem/approach/active tracks.
+- **Conventions & instruction files** — paths and a short digest of the *root* `AGENTS.md`/`CLAUDE.md`/`GEMINI.md`/`ARCHITECTURE.md`/`README.md`/`CONTRIBUTING.md`/`STRATEGY.md`, **and any project-wide Cursor rules** (`.cursor/rules/*.mdc` or a root `.cursorrules`): coding standards, testing conventions, review process, and (from `STRATEGY.md`) the target problem/approach/active tracks. These are project-wide conventions, so they belong in the cached profile (unlike *subdirectory-scoped* instruction files, which stay fresh per the exclusion below).
 - **Vocabulary** — from `CONCEPTS.md` if present, the canonical domain terms/processes/status concepts.
 
 Do NOT include the `docs/solutions/` file enumeration or subdirectory-scoped instruction files — those are re-globbed fresh by consumers, never cached.
