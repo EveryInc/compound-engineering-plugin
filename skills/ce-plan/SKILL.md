@@ -315,11 +315,11 @@ SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read
 python3 "$SKILL_DIR/scripts/repo-profile-cache.py" get
 ```
 
-On `HIT`, load the profile JSON as your agnostic grounding. On `MISS`, dispatch a generic subagent with `references/agents/repo-profiler.md` to derive it, write its JSON to a file, then `python3 "$SKILL_DIR/scripts/repo-profile-cache.py" put <file>`. On `NO-CACHE`, derive it inline and skip the `put`. Pass the resulting profile to `repo-research-analyst` below so it skips the agnostic scopes.
+On `HIT`, load the profile JSON as your agnostic grounding. On `MISS`, dispatch a generic subagent with `references/agents/repo-profiler.md` to derive it, write its JSON to a file, then `python3 "$SKILL_DIR/scripts/repo-profile-cache.py" put <file>`. On `NO-CACHE` — or if the call errors or returns nothing — derive it inline and skip the `put`; never block on the cache. Pass the resulting profile to `repo-research-analyst` below so it skips the agnostic scopes.
 
 Run these agents in parallel:
 
-- `references/agents/repo-research-analyst.md` — scope: **patterns** (the question-specific slice; the agnostic `technology`/`architecture`/`conventions` grounding comes from the cached profile passed in its context). Pass the planning context summary and the cached profile.
+- `references/agents/repo-research-analyst.md` — scope: **patterns** (the question-specific slice; the agnostic `technology`/`architecture`/`conventions` grounding comes from the cached profile passed in its context — the profile's `stack`/`topology`/`conventions` keys cover those analyst scopes). Pass the planning context summary and the cached profile.
 - `references/agents/learnings-researcher.md` — pass the planning context summary.
 
 **Agent-native planning triage** (conditional) — consider broadly, dispatch selectively. Dispatch a generic subagent with `references/agents/agent-native-planning-strategist.md` in parallel with the local research agents when the request, origin document, or repo research indicates any of:

@@ -59,4 +59,4 @@ A cached entry is a `HIT` only when, at the current `HEAD`, its `profile_schema_
 
 ## Degradation
 
-The cache is an optimization, never a correctness dependency. Outside a git repo, with no writable `/tmp`, or on an unreadable/malformed entry, the helper returns `NO-CACHE`/`MISS` (exit 0) and the skill derives fresh. It never blocks and never serves a profile it cannot prove fresh.
+The cache is an optimization, never a correctness dependency. Outside a git repo, with no writable `/tmp`, or on an unreadable/malformed entry, the helper returns `NO-CACHE`/`MISS` (exit 0) and the skill derives fresh. It never blocks and never serves a profile it cannot prove fresh. And if the helper *invocation itself* fails — a non-zero exit, empty output, or an unresolved `SKILL_DIR` so the script isn't found — treat it exactly like `NO-CACHE`: derive the profile fresh this run and proceed. Never stall waiting on the cache.

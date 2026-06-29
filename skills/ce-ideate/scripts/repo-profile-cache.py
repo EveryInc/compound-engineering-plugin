@@ -63,27 +63,63 @@ CACHE_ROOT = "/tmp/compound-engineering/repo-profile"
 # re-derive; under-invalidating serves a stale profile (a cardinal-rule break).
 
 # Dependency manifests + lockfiles. Matched by basename at ANY depth so a
-# monorepo workspace's manifest also invalidates.
+# monorepo workspace's manifest also invalidates. The profiler derives
+# stack/deps for ANY language, so this list must span ecosystems, not just JS —
+# an omitted manifest means a dirty dep bump at unchanged HEAD serves a stale
+# profile (a cardinal-rule break).
 _MANIFEST_LOCKFILE = {
+    # JavaScript / TypeScript / Deno
     "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml",
-    "bun.lock", "bun.lockb", "npm-shrinkwrap.json",
+    "pnpm-workspace.yaml", "bun.lock", "bun.lockb", "npm-shrinkwrap.json",
+    "deno.json", "deno.jsonc", "deno.lock",
+    # Go
     "go.mod", "go.sum",
+    # Rust
     "Cargo.toml", "Cargo.lock",
+    # Ruby
     "Gemfile", "Gemfile.lock", "gems.rb", "gems.locked",
+    # Python
     "pyproject.toml", "poetry.lock", "Pipfile", "Pipfile.lock",
     "requirements.txt", "setup.py", "setup.cfg",
+    "uv.lock", "pdm.lock", "environment.yml", "environment.yaml",
+    # PHP
     "composer.json", "composer.lock",
-    "pom.xml", "build.gradle", "build.gradle.kts",
-    "build.sbt", "mix.exs", "mix.lock", "pubspec.yaml", "pubspec.lock",
+    # JVM (Maven / Gradle incl. version catalogs)
+    "pom.xml", "build.gradle", "build.gradle.kts", "settings.gradle",
+    "settings.gradle.kts", "libs.versions.toml", "build.sbt",
+    # Elixir / Dart
+    "mix.exs", "mix.lock", "pubspec.yaml", "pubspec.lock",
+    # Swift / iOS (a live target for this project)
+    "Package.swift", "Package.resolved", "Podfile", "Podfile.lock",
+    "Cartfile", "Cartfile.resolved",
+    # .NET
+    "packages.config", "Directory.Packages.props", "Directory.Build.props",
+    "paket.dependencies", "paket.lock",
+    # C / C++
+    "CMakeLists.txt", "conanfile.txt", "conanfile.py", "vcpkg.json",
+    # Haskell
+    "stack.yaml", "stack.yaml.lock", "cabal.project",
 }
+
+# Project-file extensions whose presence or version edit changes the stack
+# profile. Suffix-matched at any depth (e.g. Foo.csproj, App.sln).
+_PROJECT_FILE_SUFFIXES = (".csproj", ".fsproj", ".vbproj", ".sln", ".cabal")
 
 _LICENSE = {"LICENSE", "LICENSE.md", "LICENSE.txt", "LICENCE", "COPYING"}
 
-# Topology / deployment sources. Basename match at any depth.
+# Topology / deployment sources. Basename match at any depth — these determine
+# the derived deployment model (monolith / multi-service / serverless).
 _TOPOLOGY = {
-    "Dockerfile", "docker-compose.yml", "docker-compose.yaml",
-    "Containerfile",
+    "Dockerfile", "Containerfile",
+    "docker-compose.yml", "docker-compose.yaml",
+    "vercel.json", "netlify.toml", "fly.toml", "render.yaml",
+    "serverless.yml", "serverless.yaml", "app.yaml", "Procfile",
+    # CI descriptors outside .github/workflows/ (that prefix is handled below).
+    ".gitlab-ci.yml", "Jenkinsfile", "azure-pipelines.yml",
 }
+
+# Path prefixes whose contents shape the profile (conventions / CI / deploy).
+_INPUT_PREFIXES = (".cursor/", ".github/workflows/", ".circleci/")
 
 # Root-level instruction/doc files cached in the profile. Matched ONLY at the
 # repo root — subdirectory-scoped instruction files (e.g. nested CLAUDE.md /
@@ -97,15 +133,20 @@ _ROOT_DOCS = {
 
 
 def is_profile_input(path: str) -> bool:
-    """True when a changed path is one the cached profile derives from."""
+    """True when a changed path is one the cached profile derives from.
+
+    Deliberately a conservative superset: anything plausibly feeding the
+    stack/deps/topology/conventions profile invalidates. Over-matching costs a
+    re-derive; under-matching serves a stale profile (a cardinal-rule break).
+    """
     base = os.path.basename(path)
     if base in _MANIFEST_LOCKFILE or base in _LICENSE or base in _TOPOLOGY:
         return True
+    if base.endswith(_PROJECT_FILE_SUFFIXES):
+        return True
     if "/" not in path and base in _ROOT_DOCS:
         return True
-    if path.startswith(".cursor/"):
-        return True
-    if path.startswith(".github/workflows/"):
+    if path.startswith(_INPUT_PREFIXES):
         return True
     return False
 
@@ -156,20 +197,30 @@ def changed_paths() -> "list[str] | None":
         return None
     if result.returncode != 0:
         return None
+    def clean(token: str) -> str:
+        token = token.strip()
+        # git quotes paths containing special characters.
+        if len(token) >= 2 and token[0] == '"' and token[-1] == '"':
+            token = token[1:-1]
+        return token
+
     paths: list[str] = []
     for line in result.stdout.split("\n"):
         if not line.strip():
             continue
         rest = line[3:]
-        # Rename/copy entries are "old -> new"; the new path is what matters.
+        # Rename/copy entries are "old -> new"; BOTH endpoints changed. A
+        # profile input renamed *away* (e.g. `package.json -> pkg.json`) must
+        # still invalidate, so keep the source path, not just the destination.
         if " -> " in rest:
-            rest = rest.split(" -> ", 1)[1]
-        rest = rest.strip()
-        # git quotes paths containing special characters.
-        if len(rest) >= 2 and rest[0] == '"' and rest[-1] == '"':
-            rest = rest[1:-1]
-        if rest:
-            paths.append(rest)
+            for token in rest.split(" -> ", 1):
+                p = clean(token)
+                if p:
+                    paths.append(p)
+            continue
+        p = clean(rest)
+        if p:
+            paths.append(p)
     return paths
 
 
@@ -203,15 +254,25 @@ def do_get() -> int:
     # same MISS, so no separate existence check is needed.
     try:
         with open(path) as f:
+            # /tmp is world-shared, so reject a cache file not owned by us: a
+            # co-tenant could plant an entry that passes the gates below and
+            # feed attacker-controlled text into the agent as the "profile"
+            # (indirect prompt injection). Skip where geteuid is unavailable
+            # (non-POSIX), where this shared-tmp threat does not apply.
+            geteuid = getattr(os, "geteuid", None)
+            if geteuid is not None and os.fstat(f.fileno()).st_uid != geteuid():
+                return miss()
             doc = json.load(f)
     except (OSError, ValueError):
         return miss()
 
+    profile = doc.get("profile") if isinstance(doc, dict) else None
     if (
         not isinstance(doc, dict)
         or doc.get("head_sha") != head
         or doc.get("profile_schema_version") != PROFILE_SCHEMA_VERSION
-        or "profile" not in doc
+        or not isinstance(profile, dict)
+        or not profile
     ):
         return miss()
 
@@ -221,7 +282,7 @@ def do_get() -> int:
         return miss()
 
     print("HIT")
-    print(json.dumps(doc["profile"]))
+    print(json.dumps(profile))
     return 0
 
 
@@ -237,6 +298,7 @@ def do_put(profile_file: str) -> int:
             profile = json.load(f)
     except (OSError, ValueError) as exc:
         sys.stderr.write(f"repo-profile-cache: cannot read profile: {exc}\n")
+        print("NO-CACHE")  # nothing persisted; keep the stdout contract
         return 0  # degrade — never block the caller
 
     # Shape guard: a profile is a non-empty JSON object. A misbehaving profiler
@@ -277,7 +339,7 @@ def do_put(profile_file: str) -> int:
             except OSError:
                 pass
             raise
-    except OSError as exc:
+    except Exception as exc:  # never block the caller, whatever the failure
         sys.stderr.write(f"repo-profile-cache: cannot write cache: {exc}\n")
         print("NO-CACHE")
         return 0

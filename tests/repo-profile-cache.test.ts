@@ -193,3 +193,82 @@ describe("repo-profile-cache helper", () => {
     expect(run(dir, "put").code).toBe(2) // put with no file
   })
 })
+
+describe("repo-profile-cache helper — review-driven invalidation cases", () => {
+  test("renaming a profile input AWAY → MISS (both rename endpoints count)", () => {
+    const dir = makeRepo()
+    putProfile(dir, { stack: "bun" })
+    git(dir, "mv", "package.json", "pkg.json") // R package.json -> pkg.json
+    const res = run(dir, "get")
+    expect(res.stdout.startsWith("MISS\n")).toBe(true)
+  })
+
+  test("renaming a NON-input file → stays HIT", () => {
+    const dir = makeRepo()
+    mkdirSync(path.join(dir, "src"))
+    writeFileSync(path.join(dir, "src", "lib.js"), "export const x = 1\n")
+    git(dir, "add", "-A")
+    git(dir, "commit", "-q", "-m", "add lib")
+    putProfile(dir, { stack: "bun" })
+    git(dir, "mv", "src/lib.js", "src/lib2.js")
+    expect(run(dir, "get").stdout.startsWith("HIT\n")).toBe(true)
+  })
+
+  test("nested (subdir) instruction file stays HIT; only root invalidates", () => {
+    const dir = makeRepo()
+    putProfile(dir, { stack: "bun" })
+    mkdirSync(path.join(dir, "sub"))
+    writeFileSync(path.join(dir, "sub", "AGENTS.md"), "# nested\n")
+    expect(run(dir, "get").stdout.startsWith("HIT\n")).toBe(true)
+  })
+
+  test("CI/config prefixes invalidate; non-workflow .github file does not", () => {
+    // .cursor/ and .github/workflows/ are profile inputs (MISS)
+    for (const p of [".cursor/rules", ".github/workflows/ci.yml"]) {
+      const dir = makeRepo()
+      putProfile(dir, { stack: "bun" })
+      mkdirSync(path.join(dir, path.dirname(p)), { recursive: true })
+      writeFileSync(path.join(dir, p), "x\n")
+      expect(run(dir, "get").stdout.startsWith("MISS\n")).toBe(true)
+    }
+    // a .github file NOT under workflows/ is not an input (HIT)
+    const dir = makeRepo()
+    putProfile(dir, { stack: "bun" })
+    mkdirSync(path.join(dir, ".github"))
+    writeFileSync(path.join(dir, ".github", "ISSUE_TEMPLATE.md"), "x\n")
+    expect(run(dir, "get").stdout.startsWith("HIT\n")).toBe(true)
+  })
+
+  test("non-JS ecosystem manifests + deploy descriptors invalidate", () => {
+    for (const p of [
+      "App.csproj", // .NET project-file suffix
+      "Package.swift", // Swift/iOS
+      "vercel.json", // deploy descriptor
+      ".gitlab-ci.yml", // non-GitHub CI
+    ]) {
+      const dir = makeRepo()
+      putProfile(dir, { stack: "bun" })
+      writeFileSync(path.join(dir, p), "x\n")
+      expect(run(dir, "get").stdout.startsWith("MISS\n")).toBe(true)
+    }
+  })
+
+  test("revert of a dirtied input restores the HIT (recompute determinism)", () => {
+    const dir = makeRepo()
+    const orig = '{"name":"x","version":"1.0.0"}\n'
+    putProfile(dir, { stack: "bun" })
+    writeFileSync(path.join(dir, "package.json"), '{"name":"x","version":"9"}\n')
+    expect(run(dir, "get").stdout.startsWith("MISS\n")).toBe(true)
+    writeFileSync(path.join(dir, "package.json"), orig) // revert → clean again
+    expect(run(dir, "get").stdout.startsWith("HIT\n")).toBe(true)
+  })
+
+  test("cached doc with a non-object profile → MISS (get-side shape guard)", () => {
+    const dir = makeRepo()
+    const cachePath = putProfile(dir, { stack: "bun" })
+    const doc = JSON.parse(readFileSync(cachePath, "utf8"))
+    doc.profile = null // externally corrupted / poisoned
+    writeFileSync(cachePath, JSON.stringify(doc))
+    expect(run(dir, "get").stdout.startsWith("MISS\n")).toBe(true)
+  })
+})
