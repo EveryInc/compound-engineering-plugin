@@ -98,7 +98,7 @@ _ROOT_DOCS = {
 
 def is_profile_input(path: str) -> bool:
     """True when a changed path is one the cached profile derives from."""
-    base = path.rsplit("/", 1)[-1]
+    base = os.path.basename(path)
     if base in _MANIFEST_LOCKFILE or base in _LICENSE or base in _TOPOLOGY:
         return True
     if "/" not in path and base in _ROOT_DOCS:
@@ -160,7 +160,7 @@ def changed_paths() -> "list[str] | None":
     for line in result.stdout.split("\n"):
         if not line.strip():
             continue
-        rest = line[3:] if len(line) > 3 else ""
+        rest = line[3:]
         # Rename/copy entries are "old -> new"; the new path is what matters.
         if " -> " in rest:
             rest = rest.split(" -> ", 1)[1]
@@ -177,28 +177,35 @@ def cache_path(root: str, head: str) -> str:
     return os.path.join(CACHE_ROOT, root, f"{head}.json")
 
 
-def do_get() -> int:
+def resolve_keys() -> "tuple[str, str] | None":
+    """The (root-sha, head-sha) cache key, or None if not a usable git repo."""
     root = root_sha()
     head = git("rev-parse", "HEAD")
     if not root or not head:
+        return None
+    return root, head
+
+
+def do_get() -> int:
+    keys = resolve_keys()
+    if keys is None:
         print("NO-CACHE")
         return 0
-
+    root, head = keys
     path = cache_path(root, head)
 
-    # No entry yet — caller derives and may persist.
-    if not os.path.isfile(path):
+    def miss() -> int:
         print("MISS")
         print(path)
         return 0
 
+    # A missing file raises FileNotFoundError (an OSError) and degrades to the
+    # same MISS, so no separate existence check is needed.
     try:
         with open(path) as f:
             doc = json.load(f)
     except (OSError, ValueError):
-        print("MISS")
-        print(path)
-        return 0
+        return miss()
 
     if (
         not isinstance(doc, dict)
@@ -206,16 +213,12 @@ def do_get() -> int:
         or doc.get("profile_schema_version") != PROFILE_SCHEMA_VERSION
         or "profile" not in doc
     ):
-        print("MISS")
-        print(path)
-        return 0
+        return miss()
 
     changed = changed_paths()
     # Could not determine cleanliness, or a profile input changed/was added.
     if changed is None or any(is_profile_input(p) for p in changed):
-        print("MISS")
-        print(path)
-        return 0
+        return miss()
 
     print("HIT")
     print(json.dumps(doc["profile"]))
@@ -223,11 +226,11 @@ def do_get() -> int:
 
 
 def do_put(profile_file: str) -> int:
-    root = root_sha()
-    head = git("rev-parse", "HEAD")
-    if not root or not head:
+    keys = resolve_keys()
+    if keys is None:
         print("NO-CACHE")
         return 0
+    root, head = keys
 
     try:
         with open(profile_file) as f:
