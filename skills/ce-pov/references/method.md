@@ -35,9 +35,11 @@ Every verdict carries a fixed vocabulary and a fixed shape so it is comparable a
 - **Reject** — judged not worth it for us.
 - **Not-our-problem** — for an exposure question (CVE / deprecation) that does not reach us — avoids forcing an adopt/reject.
 
+**Render the grade so the reader never has to decode it.** Lead the chat verdict with the call in plain words and attach the label — "Hold — wait, don't switch now," "Trial — pilot it on a low-risk slice first" — not a bare "Grade: Trial." The fixed vocabulary exists for the durable record and precedent search; it tags a plain-language verdict, it does not replace one.
+
 **Schema** — every verdict states these fields:
 
-`Grade` · `Incumbent` · `Verified facts (project + external, kept distinct)` · `Conversation hypotheses (unverified — warm only)` · `Conditions ("yes, if ...")` · `Handoff (recommended next skill)` · `Reversal trigger (Tier 2/3 only — what would flip this verdict)`
+`Grade` (the label **plus** its one-line plain-language meaning — never the bare token, e.g. *Trial — promising; pilot it on a low-risk slice first*) · `Incumbent` · `Verified facts (project + external, kept distinct)` · `Conversation hypotheses (unverified — warm only)` · `Conditions ("yes, if ...")` · `Handoff (recommended next skill)` · `Reversal trigger (Tier 2/3 only — what would flip this verdict)`
 
 Keep the verified-facts field split into its project and external halves, and keep conversation hypotheses in their own field — never let an unverified claim sit among verified facts.
 
