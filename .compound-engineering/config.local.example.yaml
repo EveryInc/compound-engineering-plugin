@@ -30,10 +30,34 @@
 # pulse_pending_metrics: "retention_d7,nps"             # comma-separated strategy metrics awaiting instrumentation; render as 'no data'
 # pulse_excluded_metrics: "north_star"                  # comma-separated strategy metrics intentionally not in pulse
 
-# --- ce-plan ---
-# Skip /ce-plan's pre-plan scoping-confirmation pause: ce-plan writes the scope
-# summary for itself, records inferred scope under Assumptions, announces, and
-# proceeds without waiting. Skips only that confirmation -- genuine blockers and
-# the post-plan menu still appear. Override per run with `confirm:auto` /
-# `confirm:ask`.
-# plan_skip_scoping_confirm: true                        # true | false (default: false)
+# --- Output format ---
+# Per-skill output format default. Selects the exclusive format the artifact
+# is written in: `md` produces a markdown file, `html` produces a single
+# self-contained HTML file. The two are mutually exclusive -- there is no
+# sibling artifact. See DESIGN.md or your agent instructions to influence
+# HTML styling. Precedence: a format request in your prompt for that run wins
+# (e.g. "output:html" or "make it HTML"); a preference you established earlier
+# (in-session, saved to memory, or in your agent instructions) overrides these
+# keys (this config is the persisted fallback); pipeline contexts (e.g., LFG,
+# disable-model-invocation) always force `md`.
+
+# plan_output: html              # md | html (default: md)
+# brainstorm_output: html        # md | html (default: md)
+# ideate_output: md              # md | html (default: html -- ideation docs are human-facing, so HTML is the default; set md to opt out)
+
+# --- ce-plan scoping confirmation ---
+# By default /ce-plan pauses before research/plan-write to show a scoping
+# summary and wait for you to confirm scope. Set this to skip that wait: ce-plan
+# composes the summary for itself, records any inferred scope under an
+# Assumptions section, announces that it's proceeding, and keeps going. It skips
+# only that confirmation -- genuine blocking questions and the post-plan menu
+# still appear. Override per run with `confirm:auto` (skip) or `confirm:ask`
+# (force the gate on for one run).
+
+# plan_skip_scoping_confirm: true   # true | false (default: false)
+
+# --- ce-promote ---
+# Written automatically when you decline the Spiral setup offer in /ce-promote.
+# Suppresses that one-time setup nudge in this project. Remove the key to re-enable.
+
+# ce_promote_spiral_optout: true   # true | (absent) (default: absent -- offer once)
