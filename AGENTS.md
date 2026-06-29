@@ -70,6 +70,7 @@ Do not assume a repo change is "just CLI" or "just plugin" without checking whic
 When changing plugin content:
 
 - Update substantive docs like `README.md` when the plugin behavior, inventory, or usage changes.
+- When adding a user-facing skill, document it: create a `docs/skills/<skill-name>.md` page (purpose, novel mechanics, when to use, chain position — follow the shape of the existing pages) and add a catalog row under the right category in `docs/skills/README.md`, alongside the root `README.md` inventory row and the skill-count bump in `tests/release-metadata.test.ts`. Keep these in sync when a skill's purpose or inventory changes. This is convention, not yet validated by a test, so it is easy to miss — most skills have a page; the few that don't (e.g. `lfg`, `ce-dogfood-beta`) are the exception, not the rule.
 - Do not hand-bump release-owned versions in plugin or marketplace manifests.
 - Do not hand-add release entries to `CHANGELOG.md` or treat it as the canonical source for new releases.
 - Run `bun run release:validate` if agents, commands, skills, MCP servers, or release-owned descriptions/counts may have changed.
