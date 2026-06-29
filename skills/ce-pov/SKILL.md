@@ -10,11 +10,13 @@ Return a decisive, **graded verdict** on something from the outside world — ju
 
 <pov_request> #$ARGUMENTS </pov_request>
 
+*(If `$ARGUMENTS` above appears as a literal token rather than the user's words — it was not substituted on this host — use the user's actual request from the conversation as the input.)*
+
 **Note: The current year is 2026.** Use this when weighting source recency and dating any captured record.
 
 ## The one rule that is the whole moat
 
-**Do not issue a verdict you did not earn against the project's own context.** Generic web research already covers "tell me about X"; the differentiator is never "research the web" — it is the refusal to answer in the abstract. The verdict must clear **two absolute floors** (see `references/method.md`): a **project floor** (a named incumbent plus at least one concrete project touchpoint, or a prior decision) and an **external floor** (at least one verified external source). The floors are absolute and independent — strong external evidence never compensates for a thin project leg, and vice versa. Neither the conversation nor the user's own assertions substitute for grounding.
+**Do not issue a verdict you did not earn against the project's own context.** Generic web research already covers "tell me about X"; the differentiator is never "research the web" — it is the refusal to answer in the abstract. The verdict must clear **two absolute floors** (see `references/method.md`): a **project floor** (a concrete verified project fact — a named incumbent + a touchpoint, or for a net-new adoption the verified absence of one plus where it would fit, or a prior decision) and an **external floor** (at least one verified external source). The floors are absolute and independent — strong external evidence never compensates for a thin project leg, and vice versa. Neither the conversation nor the user's own assertions substitute for grounding.
 
 ## Interaction Method
 
