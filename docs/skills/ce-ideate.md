@@ -194,8 +194,8 @@ Without a basis, plausible-sounding ideas pass through unfiltered. The basis req
 **Does it really work for non-software topics?**
 Yes. The same generate-critique-survive engine runs in domain-native language for naming, narrative, personal decisions, and business strategy. Codebase grounding is replaced by user-context synthesis and external research.
 
-**What if I want to tweak an idea before committing to a brainstorm?**
-Pick "Iterate on one idea" — name the idea and how you want to change it (adjust its scope, ask questions, go deeper). Adjustments update the saved file; pure Q&A doesn't. The file is written automatically, so if you didn't want it kept, just say "discard".
+**What if I want to tweak or talk through the ideas before committing to a brainstorm?**
+Pick "Discuss or refine the ideas first" — stay in ce-ideate to work across the set: adjust or interrogate one idea, compare several, or combine/merge them. Adjustments and merges update the saved file; pure Q&A and comparison don't. The file is written automatically, so if you didn't want it kept, just say "discard".
 
 **What if my prompt is ambiguous?**
 A subject-identification gate asks one scope question when the prompt refers only to a quality (`improvements`, `quick wins`) rather than a specific thing. "Surprise me" is offered as a real option, not a fallback.

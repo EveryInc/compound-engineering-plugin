@@ -174,9 +174,9 @@ describe("ce-ideate output mode (html default)", () => {
     ).toBe(true)
   })
 
-  test("Phase 5 menu offers brainstorm-one and iterate-one, and seeds brainstorm with substance not the whole file", () => {
+  test("Phase 5 menu offers brainstorm-one and discuss-or-refine, and seeds brainstorm with substance not the whole file", () => {
     expect(/Brainstorm one idea/i.test(POST_IDEATION_BODY)).toBe(true)
-    expect(/Iterate on one idea/i.test(POST_IDEATION_BODY)).toBe(true)
+    expect(/Discuss or refine the ideas first/i.test(POST_IDEATION_BODY)).toBe(true)
     expect(
       /not.*pass the whole file|do \*\*not\*\* pass the whole file/i.test(POST_IDEATION_BODY),
       "§5.2 must seed ce-brainstorm with the idea's substance, not the whole file.",

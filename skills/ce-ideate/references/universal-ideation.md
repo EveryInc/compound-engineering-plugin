@@ -101,7 +101,7 @@ Then offer the Phase 5 next-steps menu via the platform's blocking question tool
 
 1. **Open in browser** *(html)* / **Publish to Proof** *(md)* — open the HTML deliverable, or publish the markdown to Proof for a shareable link (per §5.1). On Proof failure the auto-written local file stays intact.
 2. **Brainstorm one idea with `ce-brainstorm`** — go deeper on one chosen idea (asks which). In universal mode this is **not** the first step of an implementation chain — there is no `ce-plan` → `ce-work` after; `ce-brainstorm` develops the idea further (a name into a brand brief, a plot into an outline, a decision into a weighed framework) and ends there. Seed it with the idea's substance + a provenance pointer (per §5.2) — not the whole file.
-3. **Iterate on one idea (adjust / ask, stay here)** — sharpen or interrogate a chosen idea before committing; adjustments rewrite the file, Q&A does not (per §5.3).
+3. **Discuss or refine the ideas first** — stay here to think across the set before committing: adjust or interrogate one idea, compare several, or combine/merge them (per §5.3). Adjustments and merges rewrite the file; Q&A and comparison do not.
 4. **Done — keep the file and stop.**
 
 Discard is a free-text escape ("say 'discard' to delete it"), create-only — never deletes a resumed or pre-existing doc.

@@ -90,12 +90,12 @@ Offer four options (self-contained labels with the distinguishing word front-loa
 1. *(when `OUTPUT_FORMAT=html`)* **Open in browser** — open the saved HTML deliverable (re-open if it was already opened).
    *(when `OUTPUT_FORMAT=md`)* **Publish to Proof** — publish the saved markdown to Proof and get a shareable link; one-way, the local file stays canonical.
 2. **Brainstorm one idea with `ce-brainstorm`** — commit a chosen idea to a requirements-only unified plan under `docs/plans/`; leaves ce-ideate. Asks which idea first.
-3. **Iterate on one idea (adjust / ask, stay here)** — sharpen or interrogate a chosen idea before committing. Asks which idea and how.
+3. **Discuss or refine the ideas first** — stay here to think across the set before committing: adjust or interrogate one idea, compare several, or combine/merge them. Asks what you want to work on.
 4. **Done — keep the file and stop.**
 
 **Adjacent nudge (prose, not a slot):** "Don't want it kept? Say 'discard' and the agent deletes the file." Handled via free text (see §5.5); it is create-only and never deletes a resumed or pre-existing doc.
 
-If the user already named an idea inline (e.g. "brainstorm the table tool", "tighten the highlighter idea"), skip the "which idea?" follow-up for §5.2 / §5.3.
+If the user already named what they want to work on inline (e.g. "brainstorm the table tool", "tighten the highlighter idea", "merge the table and highlighter ideas"), skip the follow-up that asks what to work on for §5.2 / §5.3.
 
 ### 5.1 Open in Browser (html) / Publish to Proof (md)
 
@@ -119,17 +119,18 @@ If the user already named an idea inline (e.g. "brainstorm the table tool", "tig
 
 **Repo mode only:** do **not** skip brainstorming and go straight to `ce-plan` — `ce-plan` wants a brainstorm-grounded Product Contract. In elsewhere modes, ideation is a legitimate terminal state; brainstorming is optional deeper development of one idea, not a required next rung on an implementation ladder that does not exist in these modes.
 
-### 5.3 Iterate on One Idea
+### 5.3 Discuss or Refine the Ideas First
 
-This stays in ce-ideate — no skill handoff. It is the "poke at one idea before committing" step.
+This stays in ce-ideate — no skill handoff. It is the "think across the set before committing" step, and it is a normal, expected outcome of ideation: seeing several strong candidates and wanting to deliberate is more common than instantly committing one. The orchestrator still holds the full grounding and generation context, so it can reason across every survivor — this is where that context pays off. The work here is either **single-idea** (sharpen or interrogate one) or **cross-idea** (compare, combine, or merge several); do not force the user to name a single idea before they can engage.
 
-1. **Identify the idea** (number or name) and **how** the user wants to iterate — adjust it, ask about it, or go deeper. Infer the how from their phrasing when given; otherwise ask.
+1. **Establish what the user wants to work on and how.** Infer from their phrasing when given; otherwise ask one open question ("What do you want to work on?") rather than assuming a single idea. The scope may be one idea, a subset, or the whole set.
 2. **Route by intent:**
+   - **Ask / compare** ("why High confidence?", "how does this compare to FigJam?", "which of these overlap?", "which two are closest?") — answer in conversation, grounded in the ideas' bases and the Phase 1 grounding. Spans one idea or many. **No file rewrite** unless the discussion yields a change the user wants captured.
    - **Adjust** ("smaller scope", "drop the paste-import part", "reframe around X") — revise that idea's framing, scope, or basis as discussed, then **rewrite the saved file** so the deliverable stays current.
-   - **Ask** ("why High confidence?", "how does this compare to FigJam?") — answer in conversation, grounded in the idea's basis and the Phase 1 grounding. **No file rewrite** unless the discussion yields a change the user wants captured.
-   - **Deepen** ("expand the second-order effects") — extend that idea's analysis; capture into the file only if the user wants it kept.
-3. **Rewrite only on change.** The file is rewritten only when an idea's content actually changes — Q&A alone does not churn it.
-4. **Return to the Phase 5 menu.** Typically the user next brainstorms the sharpened idea (§5.2), iterates more, opens it, or finishes.
+   - **Deepen** ("expand the second-order effects") — extend an idea's analysis; capture into the file only if the user wants it kept.
+   - **Combine / merge** ("merge the table and highlighter ideas", "fold 2 into 5") — synthesize the named ideas into one: write a unified title, description, and basis that draws from each source idea (carry the strongest basis forward; union their evidence). On a file rewrite, **replace the merged source entries with the single combined entry** — do not leave the originals alongside the merge — and renumber the ranked list. Re-evaluate the combined idea's axis and confidence rather than copying one source's. Note the merge in the rejection summary if a source idea effectively drops out.
+3. **Rewrite only on change.** The file is rewritten only when idea content actually changes (adjust, deepen-and-keep, or merge) — Q&A and comparison alone do not churn it.
+4. **Return to the Phase 5 menu.** Typically the user next brainstorms a sharpened or merged idea (§5.2), discusses more, opens it, or finishes.
 
 ### 5.4 Done
 
