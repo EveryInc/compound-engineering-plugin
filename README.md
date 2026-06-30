@@ -307,14 +307,24 @@ pi install npm:pi-ask-user
 
 ### Antigravity CLI (`agy`)
 
-Google has replaced the consumer Gemini CLI with [Antigravity CLI](https://antigravity.google) (`agy`), which still runs on Gemini models. Unlike Gemini CLI, `agy` installs plugins from a **local checkout** (not a repository URL), so clone this repository and install the bundled `.agy` plugin directory:
+Google has replaced the consumer Gemini CLI with [Antigravity CLI](https://antigravity.google) (`agy`), which still runs on Gemini models. Install Compound Engineering directly from GitHub — no clone step required:
+
+```bash
+agy plugin install https://github.com/EveryInc/compound-engineering-plugin
+```
+
+Verify with `agy plugin list`. The repository root is the plugin package (`plugin.json` plus `skills/`).
+
+For a local checkout or pinned release:
 
 ```bash
 git clone https://github.com/EveryInc/compound-engineering-plugin
-agy plugin install ./compound-engineering-plugin/.agy
+agy plugin install ./compound-engineering-plugin
 ```
 
-`agy` also loads `GEMINI.md` workspace context from the checkout.
+The bundled `.agy/` directory remains a compatibility entry point (`agy plugin install ./compound-engineering-plugin/.agy`). `agy` also loads `GEMINI.md` workspace context from the checkout.
+
+See [`.agy/INSTALL.md`](.agy/INSTALL.md) for pinning, local development, uninstall, and legacy Gemini import.
 
 ### Existing Installs
 
@@ -423,10 +433,17 @@ pi -e "$PWD"
 **Antigravity CLI (`agy`)**
 
 ```bash
+agy plugin install "$PWD"
+agy plugin validate "$PWD"
+```
+
+Or install the bundled `.agy/` entry point:
+
+```bash
 agy plugin install "$PWD/.agy"
 ```
 
-`agy` installs the bundled `.agy` plugin directory from your checkout and loads `GEMINI.md` workspace context.
+See [`.agy/INSTALL.md`](.agy/INSTALL.md) for remote install and pinning examples.
 
 ## Limitations
 

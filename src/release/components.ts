@@ -19,6 +19,7 @@ const FILE_COMPONENT_MAP: Array<{ component: ReleaseComponent; prefixes: string[
     component: "compound-engineering",
     prefixes: [
       "skills/",
+      "plugin.json",
       ".claude-plugin/plugin.json",
       ".cursor-plugin/plugin.json",
       ".codex-plugin/",
@@ -182,7 +183,7 @@ export function bumpVersion(version: string, bump: BumpLevel | null): string | n
 export async function loadCurrentVersions(cwd = process.cwd()): Promise<VersionSources> {
   const root = await readJson<RootPackageJson>(`${cwd}/package.json`)
   const ce = await readJson<PluginManifest>(`${cwd}/.claude-plugin/plugin.json`)
-  const antigravity = await readJson<PluginManifest>(`${cwd}/.agy/plugin.json`)
+  const antigravity = await readJson<PluginManifest>(`${cwd}/plugin.json`)
   const kimi = await readJson<PluginManifest>(`${cwd}/.kimi-plugin/plugin.json`)
   const marketplace = await readJson<MarketplaceManifest>(`${cwd}/.claude-plugin/marketplace.json`)
   const cursorMarketplace = await readJson<MarketplaceManifest>(`${cwd}/.cursor-plugin/marketplace.json`)
@@ -192,7 +193,7 @@ export async function loadCurrentVersions(cwd = process.cwd()): Promise<VersionS
   }
 
   if (root.version !== antigravity.version) {
-    throw new Error(`package.json version ${root.version} does not match .agy/plugin.json version ${antigravity.version}`)
+    throw new Error(`package.json version ${root.version} does not match plugin.json version ${antigravity.version}`)
   }
 
   if (root.version !== kimi.version) {

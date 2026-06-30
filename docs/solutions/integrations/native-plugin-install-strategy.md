@@ -48,7 +48,7 @@ The install strategy follows from that: prefer each harness's native plugin/pack
 | Kimi Code CLI | Native plugin install from this repository using `.kimi-plugin/plugin.json` | No | Kimi can install directly from the GitHub repo and can browse the committed `.kimi-plugin/marketplace.json` custom catalog. |
 | OpenCode | Git-backed OpenCode plugin entry in `opencode.json` | No | `.opencode/plugins/compound-engineering.js` registers the CE skills directory directly. |
 | Pi | Git-backed Pi package install from this repository | No | Root `package.json` exposes `.pi/extensions/compound-engineering.ts` and the CE skills directory. `pi-ask-user` is a recommended companion for richer prompts. |
-| Antigravity CLI | Native Antigravity plugin from the committed `.agy/` bundle | No | Clone the repo, then `agy plugin install ./compound-engineering-plugin/.agy`. The `.agy/` bundle holds `plugin.json` plus a `skills -> ../skills` symlink. `agy` still reads `GEMINI.md` as workspace context. |
+| Antigravity CLI | Native plugin install from root `plugin.json` + `skills/`, or bundled `.agy/` entry point | No | `agy plugin install https://github.com/EveryInc/compound-engineering-plugin` for one-command remote install. `.agy/plugin.json` symlinks to the root manifest; `.agy/skills` symlinks to `skills/`. |
 
 Kiro is no longer a documented CE install target. Historical converter and cleanup code may remain for regression coverage or old artifact handling, but user-facing install docs should not advertise Kiro.
 
@@ -110,14 +110,24 @@ pi -e /path/to/compound-engineering-plugin
 
 ## Antigravity CLI
 
-Antigravity installs plugins from a **local directory** — there is no install-from-URL. The committed `.agy/` bundle holds `plugin.json` plus a `skills -> ../skills` symlink, letting `agy` resolve all skills through the symlink without duplicating them:
+Antigravity installs plugins from a local directory or a remote Git URL when the source root contains `plugin.json` and `skills/`. CE publishes both at the repository root.
+
+Recommended one-command install:
+
+```bash
+agy plugin install https://github.com/EveryInc/compound-engineering-plugin
+```
+
+Local checkout:
 
 ```bash
 git clone https://github.com/EveryInc/compound-engineering-plugin
-agy plugin install ./compound-engineering-plugin/.agy
+agy plugin install ./compound-engineering-plugin
 ```
 
-`agy` still reads `GEMINI.md` as workspace context (retained despite the Gemini CLI converter target being removed). For local development, point `agy` at the `.agy/` subdirectory of the checkout so it finds `plugin.json`, the `skills` symlink, and `GEMINI.md` together.
+The committed `.agy/` bundle remains for explicit local installs (`agy plugin install ./compound-engineering-plugin/.agy`). Its `plugin.json` symlinks to the root manifest and `skills` symlinks to `../skills`.
+
+`agy` still reads `GEMINI.md` as workspace context. See `.agy/INSTALL.md` for pinning, validation, and uninstall.
 
 ## Kimi Code CLI
 

@@ -46,6 +46,14 @@ describe("release component detection", () => {
     expect(components.get("compound-engineering")).toEqual([])
   })
 
+  test("maps Antigravity root plugin.json to root plugin component", () => {
+    const components = detectComponentsFromFiles(["plugin.json", ".agy/INSTALL.md"])
+
+    expect(components.get("compound-engineering")).toEqual(["plugin.json", ".agy/INSTALL.md"])
+    expect(components.get("marketplace")).toEqual([])
+    expect(components.get("cursor-marketplace")).toEqual([])
+  })
+
   test("maps Kimi plugin manifest to root plugin component but leaves marketplace static", () => {
     const components = detectComponentsFromFiles([
       ".kimi-plugin/plugin.json",
