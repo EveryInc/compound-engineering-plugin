@@ -15,7 +15,7 @@ When invoking any skill referenced below, resolve its name against the available
 - Screenshot image(s): view them and derive what is broken or requested. Use that as the task.
 - Plain text: use it verbatim.
 
-Call the result the **resolved task**, and note whether it came from a recording, video, or screenshots — a **feedback-sourced** run, which changes the PR body in step 10. Use the resolved task (not bare `$ARGUMENTS`) wherever a step below passes `$ARGUMENTS`.
+Call the result the **resolved task**, and note whether it came from a recording, video, or screenshots — a **feedback-sourced** run, which changes the PR body in step 10. Pass the resolved task to step 1; carry the feedback-sourced flag through to step 10.
 
 1. Invoke the `ce-plan` skill with the resolved task.
 
