@@ -11,7 +11,7 @@ When invoking any skill referenced below, resolve its name against the available
 
 **Input resolution (do this before step 1).** `$ARGUMENTS` may be a plain feature description, a path to a Riffrec bundle (`riffrec-*.zip`, or a folder with `session.json` + `events.json` + `recording.webm` + `voice.webm`), a video/audio recording, or one or more screenshots. Resolve it into a concrete task before planning:
 
-- Riffrec bundle, video, or audio: invoke the `ce-riffrec-feedback-analysis` skill on the path to extract structured product feedback — the bugs, UX issues, repro steps, and the user's spoken intent. Use that feedback as the task.
+- Riffrec bundle, video, or audio: invoke the `ce-riffrec-feedback-analysis` skill on the path to extract structured product feedback — the bugs, UX issues, repro steps, and the user's spoken intent. Take only that structured feedback artifact as the resolved task and proceed to step 1. Do NOT continue into `ce-brainstorm` or any interactive requirements-confirmation step the analysis would otherwise hand off to (its extensive path does this): LFG is autonomous, and step 1 (`ce-plan`) owns planning. Use that extracted feedback as the task.
 - Screenshot image(s): view them and derive what is broken or requested. Use that as the task.
 - Plain text: use it verbatim.
 
@@ -106,7 +106,7 @@ Call the result the **resolved task**, and note whether it came from a recording
 
    If this is a feedback-sourced run (see Input resolution), write the PR body from this fixed template so the issue is understandable without watching the original recording:
 
-   - `## What the user reported` — one or two plain-language sentences, then the user's narration as a verbatim Markdown block quote (`>`), and any "before" frames from the analysis.
+   - `## What the user reported` — one or two plain-language sentences. When a recording/video/audio transcript is available, follow with the user's narration as a verbatim Markdown block quote (`>`) and any "before" frames from the analysis. For screenshot-only runs (no narration or transcript), describe what the screenshots show instead, and do NOT invent a quote.
    - `## The problem` — the technical root cause.
    - `## How we reproduced it` — the minimal local state and exact steps.
    - `## The fix` — what changed and why, kept tight.
