@@ -88,7 +88,7 @@ PORT="${PORT:-3000}"
 echo "Preferred dev server port: $PORT"
 ```
 
-Manual mode uses this preferred port as-is — the user controls their own server, so do not scan for alternatives. In pipeline mode, `references/pipeline-orchestration.md` scans upward from `$PORT` to a genuinely free port.
+Manual mode uses this preferred port as-is — the user controls their own server, so do not scan for alternatives. In pipeline mode, `references/pipeline-orchestration.md` takes the preferred port value printed here and scans upward to a genuinely free port.
 
 ### 5. Verify the Dev Server Is Running
 
