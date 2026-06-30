@@ -53,7 +53,7 @@ For a friendly overview of what this skill is for, when to use hard metrics vs L
 
 The files under `.context/compound-engineering/ce-optimize/<spec-name>/` are local scratch state. They are ignored by git, so they survive local resumes on the same machine but are not preserved by commits, branches, or pushes unless the user exports them separately.
 
-This skill runs for hours. Context windows compact, sessions crash, and agents restart. Every piece of state that matters MUST live on disk, not in the agent's memory.
+Every piece of state that matters MUST live on disk, not in the agent's memory.
 
 **If you produce a results table in the conversation without writing those results to disk first, you have a bug.** The conversation is for the user's benefit. The experiment log file is for durability.
 
@@ -123,18 +123,8 @@ Check whether the input is:
 
 **If spec file provided:**
 1. Read the YAML spec file. The orchestrating agent parses YAML natively -- no shell script parsing.
-2. Validate against `references/optimize-spec-schema.yaml`:
-   - All required fields present
-   - `name` is lowercase kebab-case and safe to use in git refs / worktree paths
-   - `metric.primary.type` is `hard` or `judge`
-   - If type is `judge`, `metric.judge` section exists with `rubric` and `scoring`
-   - At least one degenerate gate defined
-   - `measurement.command` is non-empty
-   - `scope.mutable` and `scope.immutable` each have at least one entry
-   - Gate check operators are valid (`>=`, `<=`, `>`, `<`, `==`, `!=`)
-   - `execution.max_concurrent` is at least 1
-   - `execution.max_concurrent` does not exceed 6 when backend is `worktree`
-3. If validation fails, report errors and ask the user to fix them
+2. Validate the spec against **every** rule in the `validation_rules` section of `references/optimize-spec-schema.yaml` (that section is the single source of truth for what a valid spec requires — do not rely on a remembered subset; conditional rules such as the singleton-rubric and exclusive-resources requirements live only there).
+3. If any rule fails, report the specific failures and ask the user to fix them before proceeding
 
 **If description provided:**
 1. Analyze the project to understand what can be measured
@@ -452,7 +442,9 @@ If the backlog is non-empty but no runnable hypotheses remain because everything
 
 ### 3.2 Dispatch Experiments
 
-For each hypothesis in the batch, dispatch according to `execution.mode`. In `serial` mode, run exactly one experiment to completion before selecting the next hypothesis. In `parallel` mode, dispatch the full batch concurrently.
+For each hypothesis in the batch, dispatch according to `execution.mode`. In `serial` mode, run exactly one experiment to completion before selecting the next hypothesis. In `parallel` mode, dispatch the batch concurrently.
+
+**Bounded dispatch.** Do not assume the host will accept all concurrent subagents at once; the active-subagent cap varies by host and profile and is independent of `execution.max_concurrent` (which caps worktrees, a separate budget). Queue the selected experiments, dispatch only as many as the host accepts, and when a capacity or active-agent-limit error appears, treat it as backpressure — retry the queued experiment after a slot frees rather than marking it failed. Mark an experiment failed only when dispatch fails for a non-capacity reason or a successfully dispatched experiment errors/times out.
 
 The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-optimize` skill directory; see the Bundled scripts note in Phase 1) — shell state does not persist from Phase 1, so each block carries its own assignment.
 
@@ -514,7 +506,7 @@ For each completed experiment, **immediately**:
    - Apply stratified sampling per `metric.judge.stratification` config (using `sample_seed`)
    - Group samples into batches of `metric.judge.batch_size`
    - Fill the judge prompt template (`references/judge-prompt-template.md`) for each batch
-   - Dispatch `ceil(sample_size / batch_size)` parallel judge sub-agents
+   - Dispatch the `ceil(sample_size / batch_size)` judge sub-agents using the same bounded dispatch as Phase 3.2 — queue them, dispatch to whatever concurrency the host accepts, and treat a capacity error as backpressure (retry the queued batch after a slot frees) rather than a scoring failure. These judge sub-agents are a separate budget from the experiment worktrees.
    - Each sub-agent returns structured JSON scores
    - Aggregate scores: compute the configured primary judge field from `metric.judge.scoring.primary` (which should match `metric.primary.name`) plus any `scoring.secondary` values
    - If `singleton_sample > 0`: also dispatch singleton evaluation sub-agents
@@ -526,7 +518,7 @@ For each completed experiment, **immediately**:
 
 8. **VERIFY the write (CP-3 verification)** — read the experiment log back from disk and confirm the entry just written is present. If verification fails, retry the write. Do NOT proceed to the next experiment until this entry is confirmed on disk.
 
-**Why immediately + verify?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs. If results only exist in the agent's memory, they are lost. Karpathy's autoresearch writes to `results.tsv` after every single experiment — this skill must do the same with the experiment log. The verification step catches silent write failures that would otherwise lose data.
+**Why immediately + verify?** The agent's context window is NOT a durable store. Context compaction, session crashes, and restarts are expected during long runs — results that exist only in the agent's memory are lost. The verification step catches silent write failures that would otherwise lose data.
 
 ### 3.4 Evaluate Batch
 
