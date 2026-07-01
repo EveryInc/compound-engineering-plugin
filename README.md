@@ -316,6 +316,17 @@ agy plugin install ./compound-engineering-plugin/.agy
 
 `agy` also loads `GEMINI.md` workspace context from the checkout.
 
+### ZeroClaw
+
+[ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) loads CE skills from `SKILL.md` directories copied into the agent workspace. Enable bundled scripts in `~/.zeroclaw/config.toml` (`[skills] allow_scripts = true`), then install from a checkout:
+
+```bash
+git clone https://github.com/EveryInc/compound-engineering-plugin
+./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --global
+```
+
+Re-run the install script after updating the checkout. See [`.zeroclaw/INSTALL.md`](.zeroclaw/INSTALL.md) for per-agent paths, pinning, and uninstall steps.
+
 ### Existing Installs
 
 Compound Engineering moved to a root-native, skills-only layout. An existing marketplace install keeps a **cached** marketplace snapshot that still points at the old `plugins/compound-engineering` path, so updating the plugin on its own reads that stale snapshot and leaves you on the previous version. Refresh the cached marketplace **first**, then update the plugin — order matters.
@@ -427,6 +438,14 @@ agy plugin install "$PWD/.agy"
 ```
 
 `agy` installs the bundled `.agy` plugin directory from your checkout and loads `GEMINI.md` workspace context.
+
+**ZeroClaw**
+
+```bash
+/path/to/compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --global
+```
+
+Set `[skills] allow_scripts = true` in `~/.zeroclaw/config.toml` before installing.
 
 ## Limitations
 

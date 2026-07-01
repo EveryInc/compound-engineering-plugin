@@ -1,7 +1,7 @@
 ---
 title: "Native plugin install strategy for supported harnesses"
 date: 2026-06-19
-last_updated: 2026-06-23
+last_updated: 2026-06-30
 category: integrations
 module: installer
 problem_type: integration_decision
@@ -25,6 +25,7 @@ tags:
   - antigravity
   - opencode
   - pi
+  - zeroclaw
 ---
 
 # Native Plugin Install Strategy
@@ -49,6 +50,7 @@ The install strategy follows from that: prefer each harness's native plugin/pack
 | OpenCode | Git-backed OpenCode plugin entry in `opencode.json` | No | `.opencode/plugins/compound-engineering.js` registers the CE skills directory directly. |
 | Pi | Git-backed Pi package install from this repository | No | Root `package.json` exposes `.pi/extensions/compound-engineering.ts` and the CE skills directory. `pi-ask-user` is a recommended companion for richer prompts. |
 | Antigravity CLI | Native Antigravity plugin from the committed `.agy/` bundle | No | Clone the repo, then `agy plugin install ./compound-engineering-plugin/.agy`. The `.agy/` bundle holds `plugin.json` plus a `skills -> ../skills` symlink. `agy` still reads `GEMINI.md` as workspace context. |
+| ZeroClaw | Native skills install via `.zeroclaw/scripts/install-skills.sh` | No | Copies CE skills into `~/.zeroclaw/workspace/skills/` (symlinks rejected by ZeroClaw audit). Set `[skills] allow_scripts = true` in `~/.zeroclaw/config.toml` for script-bearing CE skills. |
 
 Kiro is no longer a documented CE install target. Historical converter and cleanup code may remain for regression coverage or old artifact handling, but user-facing install docs should not advertise Kiro.
 
@@ -118,6 +120,26 @@ agy plugin install ./compound-engineering-plugin/.agy
 ```
 
 `agy` still reads `GEMINI.md` as workspace context (retained despite the Gemini CLI converter target being removed). For local development, point `agy` at the `.agy/` subdirectory of the checkout so it finds `plugin.json`, the `skills` symlink, and `GEMINI.md` together.
+
+## ZeroClaw
+
+ZeroClaw discovers skills from the agent workspace at `~/.zeroclaw/workspace/skills/` (or per-agent under `~/.zeroclaw/agents/<alias>/workspace/skills/`). CE ships `.zeroclaw/scripts/install-skills.sh`, which copies each directory under this repository's `skills/` into the chosen destination. ZeroClaw's skill audit rejects symlinked skill directories, so CE does not symlink like Cline.
+
+Recommended global install:
+
+```bash
+git clone https://github.com/EveryInc/compound-engineering-plugin
+./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --global
+```
+
+Enable bundled scripts in `~/.zeroclaw/config.toml` before installing — many CE skills ship `scripts/*.sh` and `scripts/*.py`:
+
+```toml
+[skills]
+allow_scripts = true
+```
+
+Re-run the install script after pulling a newer CE release. The script skips manual-only skills marked `disable-model-invocation: true` by default (ZeroClaw ignores that frontmatter field). Pass `--include-manual` to copy those skills when needed.
 
 ## Kimi Code CLI
 
