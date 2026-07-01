@@ -792,7 +792,7 @@ If the user types free-form prompts targeting the findings (e.g., "review", "wal
 - Confidence check ran or was intentionally skipped by the interactive re-deepen no-accepted-findings path
 - `ce-doc-review` ran in headless mode, or the documented HTML format gate / interactive re-deepen no-accepted-findings path skipped it
 - Headless review state or documented skip state was summarized above the menu
-- Phase 5.4 menu was presented for software implementation-plan runs, even if the user only asked to create the plan or run doc review
+- Phase 5.4 menu was presented for software implementation-plan runs, even if the user only asked to create the plan or run doc review, unless pipeline mode returned control to the caller
 - If the user selected an action, the selected routing was executed
 
 **Completion check:** This skill is not complete until the post-generation menu above has been presented, the user has selected an action, and the inline routing for that selection has been executed. Presenting the menu and stopping at the user's selection is not completion — fire the routed action.

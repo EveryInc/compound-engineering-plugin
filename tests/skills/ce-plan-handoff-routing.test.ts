@@ -233,7 +233,7 @@ describe("ce-plan post-generation menu routing", () => {
     for (const expected of [
       "Plan file exists on disk",
       "Headless review state or documented skip state was summarized above the menu",
-      "Phase 5.4 menu was presented for software implementation-plan runs",
+      "Phase 5.4 menu was presented for software implementation-plan runs, even if the user only asked to create the plan or run doc review, unless pipeline mode returned control to the caller",
       "If the user selected an action, the selected routing was executed",
       'Incorrect final response: "Created the plan and ran doc review."',
       'Correct terminal handoff: "Created the plan and ran doc review. Plan ready at `<absolute path to plan>`. What would you like to do next?"',
