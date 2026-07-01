@@ -1,4 +1,5 @@
 import type { CodexBundle } from "../types/codex"
+import type { CodeBuddyBundle } from "../types/codebuddy"
 import type { CopilotBundle } from "../types/copilot"
 import type { DroidBundle } from "../types/droid"
 import type { ClaudePlugin } from "../types/claude"
@@ -389,6 +390,45 @@ export function getLegacyCodexArtifacts(bundle: CodexBundle): LegacyTargetArtifa
   }
   for (const name of extras.commands ?? []) {
     const normalized = normalizeCodexName(name)
+    skills.add(normalized)
+    const promptFile = `${normalized}.md`
+    if (!currentPromptFiles.has(promptFile)) {
+      prompts.add(promptFile)
+    }
+  }
+
+  return {
+    skills: [...skills].sort(),
+    prompts: [...prompts].sort(),
+    agents: [...agents].sort(),
+  }
+}
+
+export function getLegacyCodeBuddyArtifacts(bundle: CodeBuddyBundle): LegacyTargetArtifacts {
+  const skills = new Set<string>()
+  const prompts = new Set<string>()
+  const agents = new Set<string>()
+  const currentPromptFiles = new Set<string>()
+  const currentAgentFiles = new Set<string>((bundle.agents ?? []).map((agent) => `${sanitizePathName(agent.name)}.toml`))
+
+  for (const prompt of bundle.prompts) {
+    currentPromptFiles.add(`${sanitizePathName(prompt.name)}.md`)
+  }
+
+  const extras = getLegacyPluginArtifacts(bundle.pluginName)
+  for (const name of extras.skills ?? []) {
+    addLegacySkillVariants(skills, name, { includeRawColon: true })
+  }
+  for (const name of extras.agents ?? []) {
+    const normalized = sanitizePathName(name)
+    skills.add(normalized)
+    const agentFile = `${normalized}.toml`
+    if (!currentAgentFiles.has(agentFile)) {
+      agents.add(agentFile)
+    }
+  }
+  for (const name of extras.commands ?? []) {
+    const normalized = sanitizePathName(name)
     skills.add(normalized)
     const promptFile = `${normalized}.md`
     if (!currentPromptFiles.has(promptFile)) {

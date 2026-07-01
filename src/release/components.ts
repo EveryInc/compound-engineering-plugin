@@ -26,8 +26,10 @@ const FILE_COMPONENT_MAP: Array<{ component: ReleaseComponent; prefixes: string[
       ".kimi-plugin/plugin.json",
       ".opencode/",
       ".pi/",
+      ".codebuddy-plugin/",
       "AGENTS.md",
       "CLAUDE.md",
+      "CODEBUDDY.md",
       ".agy/",
       "GEMINI.md", // retained: agy still reads the Gemini-format context file
       "README.md",
