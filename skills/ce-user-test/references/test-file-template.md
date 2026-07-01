@@ -12,7 +12,7 @@ app_url: "http://localhost:3000"
 created: "<YYYY-MM-DD>"
 last_run: "<YYYY-MM-DD>"
 seams_read: false  # set to true after first code-reading pass (see orientation.md)
-cli_test_command: ""  # optional, e.g. "node scripts/test-cli.js --query '{query}'"
+cli_test_command: ""  # optional, e.g. "node test-cli.js --query '{query}'"
 cli_queries:  # optional
   # - query: "example query"
   #   expected: "description of correct response (agent evaluates semantically)"
@@ -491,7 +491,7 @@ Try ALL approaches below in order. If one fails (e.g., a script has runtime erro
 |----------|---------|
 | Express/Hono API with JSON fallback | `curl -s -X POST http://localhost:{port}/{endpoint} -H "Content-Type: application/json" -d '{"message": "{query}"}'` |
 | Express API with SSE only | CLI testing may not be viable. Check for a separate REST route, a JSON fallback (omit `Accept: text/event-stream`), or a test script. Don't parse SSE streams from curl — it's fragile and wastes time. |
-| Direct script invocation | `npx tsx scripts/verify-agent.ts "{query}"` |
+| Direct script invocation | `npx tsx verify-agent.ts "{query}"` (or wherever the app keeps its test entry script) |
 | REST API (GET) | `curl -s "http://localhost:{port}/api/search?q={query}"` |
 
 ### Mapping Area Queries to CLI Queries
