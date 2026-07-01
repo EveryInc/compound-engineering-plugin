@@ -56,6 +56,20 @@ if [[ ! -d "$SKILLS_SRC" ]]; then
   exit 1
 fi
 
+canonical_path() {
+  python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"
+}
+
+is_ce_owned_skill_link() {
+  local link_path="$1"
+  [[ -L "$link_path" ]] || return 1
+
+  local resolved skills_root
+  resolved="$(canonical_path "$link_path")"
+  skills_root="$(canonical_path "$SKILLS_SRC")"
+  [[ "$resolved" == "$skills_root/"* ]]
+}
+
 mkdir -p "$DEST"
 linked=0
 skipped=0
@@ -72,9 +86,9 @@ for skill_dir in "$SKILLS_SRC"/*/; do
     is_manual=true
     if [[ "$INCLUDE_MANUAL" != "true" ]]; then
       target="$DEST/$name"
-      if [[ -L "$target" ]]; then
+      if is_ce_owned_skill_link "$target"; then
         rm "$target"
-        echo "removed $name: stale manual-only symlink" >&2
+        echo "removed $name: stale CE manual-only symlink" >&2
         manual_removed=$((manual_removed + 1))
       fi
       echo "skip $name: manual-only (disable-model-invocation)" >&2

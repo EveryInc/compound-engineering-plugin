@@ -21,7 +21,7 @@ From a clone of this repository:
 ./compound-engineering-plugin/.cline/scripts/install-skills.sh --project
 ```
 
-The script creates symlinks so Cline reads the live skill directories from your checkout. Re-run it after `git pull` to refresh links when skill folder names change.
+The script creates symlinks so Cline reads the live skill directories from your checkout. Re-run it after `git pull` to refresh links when skill folder names change. Default installs only remove manual-only symlinks that point at this checkout's `skills/` tree — unrelated `~/.cline/skills/<name>` links are left untouched.
 
 Skills marked `disable-model-invocation: true` (for example `lfg`, `ce-dogfood`, `ce-polish`) are **not** linked by default — Cline auto-activates from description matching and has no manual-only gate, so linking them would let them fire unintentionally. Those slash commands are unavailable until you opt in:
 
