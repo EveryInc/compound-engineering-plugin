@@ -50,7 +50,7 @@ The install strategy follows from that: prefer each harness's native plugin/pack
 | OpenCode | Git-backed OpenCode plugin entry in `opencode.json` | No | `.opencode/plugins/compound-engineering.js` registers the CE skills directory directly. |
 | Pi | Git-backed Pi package install from this repository | No | Root `package.json` exposes `.pi/extensions/compound-engineering.ts` and the CE skills directory. `pi-ask-user` is a recommended companion for richer prompts. |
 | Antigravity CLI | Native plugin install from root `plugin.json` + `skills/`, or bundled `.agy/` entry point | No | `agy plugin install https://github.com/EveryInc/compound-engineering-plugin` for one-command remote install. `.agy/plugin.json` symlinks to the root manifest; `.agy/skills` symlinks to `skills/`. |
-| ZeroClaw | Native skills install via `.zeroclaw/scripts/install-skills.sh` | No | Copies CE skills into `~/.zeroclaw/agents/<alias>/workspace/skills/` (or a shared bundle). Set `[skills] allow_scripts = true` for script-bearing CE skills. Honors `ZEROCLAW_CONFIG_DIR`. |
+| ZeroClaw | Native skills install via `.zeroclaw/scripts/install-skills.sh` | No | Copies CE skills into agent workspace skills dirs (honors `[agents.<alias>.workspace.path]`). Install root follows `ZEROCLAW_CONFIG_DIR` > `ZEROCLAW_DATA_DIR` > `ZEROCLAW_WORKSPACE`. Set `[skills] allow_scripts = true` for script-bearing CE skills. |
 
 Kiro is no longer a documented CE install target. Historical converter and cleanup code may remain for regression coverage or old artifact handling, but user-facing install docs should not advertise Kiro.
 

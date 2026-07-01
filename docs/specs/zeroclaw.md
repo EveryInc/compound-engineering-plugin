@@ -32,7 +32,7 @@ ZeroClaw's skill audit rejects symlinked skill directories and symlinked files i
 
 ### Do not use `zeroclaw skills install` for CE bulk install
 
-The ZeroClaw CLI's `skills install` command writes under `config.data_dir/skills/`. Agent sessions load from `agent_workspace_dir(alias)/skills/` (and optional shared bundles), not from `data_dir`. The CE install script copies directly into agent workspace paths instead. It honors `ZEROCLAW_CONFIG_DIR` when set and refuses unknown agent aliases when `config.toml` is present.
+The ZeroClaw CLI's `skills install` command writes under `config.data_dir/skills/`. Agent sessions load from `agent_workspace_dir(alias)/skills/` (and optional shared bundles), not from `data_dir`. The CE install script copies directly into agent workspace paths instead. Install root follows ZeroClaw runtime precedence (`ZEROCLAW_CONFIG_DIR` > `ZEROCLAW_DATA_DIR` > `ZEROCLAW_WORKSPACE` > `~/.zeroclaw`), honors `[agents.<alias>.workspace.path]` overrides, and refuses unknown agent aliases when `config.toml` is present.
 
 ### Bundled scripts
 

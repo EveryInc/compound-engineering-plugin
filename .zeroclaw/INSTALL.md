@@ -6,7 +6,7 @@
 
 1. Install ZeroClaw ([install guide](https://github.com/zeroclaw-labs/zeroclaw#install)).
 2. Run `zeroclaw quickstart` so you have at least one agent (typically `default`) under `~/.zeroclaw/agents/`.
-3. If you use a non-default profile (`ZEROCLAW_CONFIG_DIR` or `--config-dir`), the installer resolves paths from that directory automatically.
+3. If you use a non-default profile, the installer follows ZeroClaw runtime precedence for the install root: `ZEROCLAW_CONFIG_DIR`, then `ZEROCLAW_DATA_DIR`, then legacy `ZEROCLAW_WORKSPACE`. Per-agent destinations honor `[agents.<alias>.workspace.path]` when set in `config.toml`.
 4. Enable bundled scripts in your ZeroClaw config. Many CE skills ship `scripts/*.sh` and `scripts/*.py`; ZeroClaw's skill audit blocks script files unless you opt in:
 
 ```toml

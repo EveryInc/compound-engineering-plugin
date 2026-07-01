@@ -23,6 +23,33 @@ expand_path() {
   esac
 }
 
+resolve_config_dir_for_data() {
+  local data_dir
+  data_dir="$(expand_path "$1")"
+
+  if [[ -f "$data_dir/config.toml" ]]; then
+    printf '%s\n' "$data_dir"
+    return
+  fi
+
+  local legacy_dir="${data_dir%/}/../.zeroclaw"
+  legacy_dir="$(cd "$(dirname "$data_dir")" && pwd)/.zeroclaw"
+
+  if [[ -f "$legacy_dir/config.toml" ]]; then
+    printf '%s\n' "$legacy_dir"
+    return
+  fi
+
+  local base
+  base="$(basename "$data_dir")"
+  if [[ "$base" == "data" || "$base" == "workspace" ]]; then
+    printf '%s\n' "$legacy_dir"
+    return
+  fi
+
+  printf '%s\n' "$data_dir"
+}
+
 resolve_install_root() {
   if [[ -n "${ZEROCLAW_INSTALL_ROOT:-}" ]]; then
     expand_path "$ZEROCLAW_INSTALL_ROOT"
@@ -30,6 +57,14 @@ resolve_install_root() {
   fi
   if [[ -n "${ZEROCLAW_CONFIG_DIR:-}" ]]; then
     expand_path "$ZEROCLAW_CONFIG_DIR"
+    return
+  fi
+  if [[ -n "${ZEROCLAW_DATA_DIR:-}" ]]; then
+    resolve_config_dir_for_data "$ZEROCLAW_DATA_DIR"
+    return
+  fi
+  if [[ -n "${ZEROCLAW_WORKSPACE:-}" ]]; then
+    resolve_config_dir_for_data "$ZEROCLAW_WORKSPACE"
     return
   fi
   printf '%s\n' "$HOME/.zeroclaw"
@@ -42,14 +77,17 @@ usage() {
 Usage: install-skills.sh [--global | --agent ALIAS | --shared | --dir PATH] [--include-manual]
 
   --global            Install into the default agent workspace (same as --agent default)
-  --agent ALIAS       Install into <install>/agents/<alias>/workspace/skills/
-  --agent all         Install into every configured agent under <install>/agents/
+  --agent ALIAS       Install into the agent's workspace skills directory
+  --agent all         Install into every configured agent workspace
   --shared            Install bundle at <install>/shared/skills/compound_engineering/
   --dir PATH          Install into an explicit skills directory
   --include-manual    Also install manual-only skills (disable-model-invocation: true)
 
 Set ZEROCLAW_INSTALL_ROOT to override the install root explicitly.
-When unset, ZEROCLAW_CONFIG_DIR is used (same precedence as the ZeroClaw runtime).
+When unset, install root follows ZeroClaw runtime precedence:
+  ZEROCLAW_CONFIG_DIR > ZEROCLAW_DATA_DIR > ZEROCLAW_WORKSPACE > ~/.zeroclaw
+
+Per-agent destinations honor [agents.<alias>.workspace.path] when set in config.toml.
 
 ZeroClaw v0.8+ loads agent skills from per-agent workspace paths, not the legacy
 ~/.zeroclaw/workspace/skills tree. This script does not call zeroclaw skills install
@@ -112,20 +150,68 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+read_agent_workspace_path() {
+  local alias="$1"
+  local config="$INSTALL_ROOT/config.toml"
+
+  [[ -f "$config" ]] || return 0
+
+  awk -v alias="$alias" '
+    function trim(s) {
+      sub(/^[ \t]+/, "", s)
+      sub(/[ \t]+$/, "", s)
+      return s
+    }
+    function unquote(s) {
+      s = trim(s)
+      if (s ~ /^".*"$/) {
+        sub(/^"/, "", s)
+        sub(/"$/, "", s)
+      } else if (s ~ /^'\''.*'\''$/) {
+        sub(/^'\''/, "", s)
+        sub(/'\''$/, "", s)
+      }
+      return s
+    }
+    /^\[agents\./ {
+      in_agent = ($0 == "[agents." alias "]" || $0 == "[agents.\"" alias "\"]")
+      in_workspace = ($0 == "[agents." alias ".workspace]" || $0 == "[agents.\"" alias "\".workspace]")
+      next
+    }
+    in_workspace && /^[ \t]*path[ \t]*=/ {
+      sub(/^[ \t]*path[ \t]*=[ \t]*/, "")
+      print unquote($0)
+      exit
+    }
+    in_agent && /^[ \t]*workspace[ \t]*=[ \t]*\{/ {
+      line = $0
+      sub(/^[ \t]*workspace[ \t]*=[ \t]*\{[ \t]*/, "", line)
+      sub(/\}[ \t]*$/, "", line)
+      split(line, parts, /,[ \t]*/)
+      for (i in parts) {
+        if (parts[i] ~ /^path[ \t]*=/) {
+          sub(/^path[ \t]*=[ \t]*/, "", parts[i])
+          print unquote(parts[i])
+          exit
+        }
+      }
+    }
+  ' "$config"
+}
+
 agent_configured() {
   local alias="$1"
-  local agent_root="$INSTALL_ROOT/agents/$alias"
-
-  if [[ ! -d "$agent_root" ]]; then
-    return 1
-  fi
-
   local config="$INSTALL_ROOT/config.toml"
-  if [[ ! -f "$config" ]]; then
+
+  if [[ -f "$config" ]] && grep -qE "^\[agents\.(${alias}|\"${alias}\")\]" "$config"; then
     return 0
   fi
 
-  grep -qE "^\[agents\.(${alias}|\"${alias}\")\]" "$config"
+  if [[ -d "$INSTALL_ROOT/agents/$alias" && ! -f "$config" ]]; then
+    return 0
+  fi
+
+  return 1
 }
 
 require_agent() {
@@ -138,29 +224,72 @@ require_agent() {
   exit 1
 }
 
+agent_skills_dir() {
+  local alias="$1"
+  local custom_path
+
+  custom_path="$(read_agent_workspace_path "$alias")"
+  if [[ -n "$custom_path" ]]; then
+    printf '%s\n' "$(expand_path "$custom_path")/skills"
+    return
+  fi
+
+  printf '%s\n' "$INSTALL_ROOT/agents/$alias/workspace/skills"
+}
+
+list_configured_agent_aliases() {
+  local config="$INSTALL_ROOT/config.toml"
+  [[ -f "$config" ]] || return 1
+
+  awk '
+    /^\[agents\.([a-zA-Z0-9_-]+|\"[^\"]+\")\]$/ {
+      line = $0
+      sub(/^\[agents\./, "", line)
+      sub(/\]$/, "", line)
+      gsub(/^"|"$/, "", line)
+      print line
+    }
+  ' "$config"
+}
+
 resolve_destinations() {
   case "$SCOPE" in
     --global | --agent)
       if [[ "$AGENT_ALIAS" == "all" ]]; then
-        if [[ ! -d "$INSTALL_ROOT/agents" ]]; then
-          echo "error: no agents directory at $INSTALL_ROOT/agents" >&2
-          exit 1
-        fi
-        local agent_dir alias_name
-        for agent_dir in "$INSTALL_ROOT/agents"/*/; do
-          [[ -d "$agent_dir" ]] || continue
-          alias_name="$(basename "$agent_dir")"
-          if agent_configured "$alias_name"; then
-            DESTS+=("$INSTALL_ROOT/agents/$alias_name/workspace/skills")
+        local aliases=()
+        local alias_name
+
+        while IFS= read -r alias_name; do
+          [[ -n "$alias_name" ]] || continue
+          aliases+=("$alias_name")
+        done < <(list_configured_agent_aliases || true)
+
+        if [[ ${#aliases[@]} -eq 0 ]]; then
+          if [[ ! -d "$INSTALL_ROOT/agents" ]]; then
+            echo "error: no agents directory at $INSTALL_ROOT/agents" >&2
+            exit 1
           fi
-        done
-        if [[ ${#DESTS[@]} -eq 0 ]]; then
-          echo "error: no configured agents found under $INSTALL_ROOT/agents" >&2
+          local agent_dir
+          for agent_dir in "$INSTALL_ROOT/agents"/*/; do
+            [[ -d "$agent_dir" ]] || continue
+            alias_name="$(basename "$agent_dir")"
+            if agent_configured "$alias_name"; then
+              aliases+=("$alias_name")
+            fi
+          done
+        fi
+
+        if [[ ${#aliases[@]} -eq 0 ]]; then
+          echo "error: no configured agents found under $INSTALL_ROOT" >&2
           exit 1
         fi
+
+        for alias_name in "${aliases[@]}"; do
+          DESTS+=("$(agent_skills_dir "$alias_name")")
+        done
       else
         require_agent "$AGENT_ALIAS"
-        DESTS+=("$INSTALL_ROOT/agents/$AGENT_ALIAS/workspace/skills")
+        DESTS+=("$(agent_skills_dir "$AGENT_ALIAS")")
       fi
       ;;
     --shared)
