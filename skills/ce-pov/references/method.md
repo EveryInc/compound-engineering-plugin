@@ -12,7 +12,7 @@ Load this before reasoning about the verdict (SKILL.md Phase 2). It defines the 
 ## Two cross-cutting properties (not phases)
 
 - **Skeptic stance.** At every step, seek disconfirming evidence and name the real alternatives — including "keep the incumbent" and "do nothing." "No", "Reject", and "Not-our-problem" are first-class outcomes, not failures to complete. Do not let the framing (or, in warm mode, the conversation's momentum) pull the grade upward.
-- **Reversibility-tiered effort.** The Phase 0 tier sizes the work. Tier 1 (reversible): one screen, 1-2 external + 1-2 project facts, no reversal trigger, single combined grounding pass. Tier 2 (moderate): fuller alternatives. Tier 3 (one-way / security / legal): deep research, precedent search, durable record offered. A shallow Tier 1 verdict is defensible *because* the tier is stated — not lazy.
+- **Reversibility-tiered effort.** The Phase 0 tier sizes the work. Tier 1 (two-way door): one screen, 1-2 external + 1-2 project facts, no reversal trigger, single combined grounding pass. Tier 2 (one-way but bounded): the full scout fleet and a fuller alternatives pass. Tier 3 (one-way and high-stakes — security/legal/privacy, public contract, or irreversible migration): deep research, precedent search, durable record offered. A shallow Tier 1 verdict is defensible *because* the tier is stated — not lazy.
 
 ## The two-floor Invalid-Verdict gate
 

@@ -39,9 +39,8 @@
 # Scanning them produces false positives that are hard to debug.
 #
 # .env parsing contract: surrounding double or single quotes are stripped.
-# Inline comments (# ...) are truncated after trimming whitespace. This is
-# intentionally more aggressive than the test-browser skill's inline cascade,
-# which does neither. See dev-server-detection.md for the divergence notes.
+# Inline comments (# ...) are truncated after trimming whitespace. Both are
+# intentional for real-world .env files. See dev-server-detection.md.
 
 set -u
 

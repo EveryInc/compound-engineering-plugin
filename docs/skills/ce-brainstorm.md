@@ -91,7 +91,7 @@ When a decision is spatial, behavioral, or visual, `ce-brainstorm` can offer a c
 
 ### 6. Synthesis Summary — the last cheap moment to correct
 
-Before writing the doc, `ce-brainstorm` emits a **scoping synthesis** shaped like what two product collaborators would confirm before writing a PRD. It surfaces what's being built, the key trade-offs the dialogue produced, what's been deferred, and any genuine forks the user should weigh in on. Each section renders only when it has something to say — no empty buckets padded for ceremony. When the upstream conversation short-circuited (Phase 0.2 fast path, requirements already clear, no questions asked), the scoping synthesis compresses to a single forward-looking sentence with an end-of-turn interrupt window.
+Before writing the doc, `ce-brainstorm` emits a **scoping synthesis** shaped like what two product collaborators would confirm before writing a PRD. It surfaces what's being built, the key trade-offs the dialogue produced, what's been deferred, and any genuine forks the user should weigh in on. Each section renders only when it has something to say — no empty buckets padded for ceremony. The synthesis compresses to a single forward-looking sentence with an end-of-turn interrupt window **only** for a Lightweight brainstorm that asked no blocking questions. Every other case — Standard or Deep tier, or any tier that asked a blocking question — gets the full scoping synthesis with an explicit confirmation gate, including a richly pre-loaded Phase 0.2 fast path that needed no dialogue: pre-loaded substance earns a real checkpoint rather than a one-sentence preview.
 
 ### 7. Stable identifiers that flow downstream
 

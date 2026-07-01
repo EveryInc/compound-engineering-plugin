@@ -27,7 +27,11 @@ Skills is an experimental feature in the VS Code, Cursor, and JetBrains extensio
 
 When a global skill and project skill share the same name, the global skill takes precedence.
 
-CE ships skills at `./skills/<name>/SKILL.md` in this repository. Compound Engineering does **not** copy skills into a generated tree for Cline; users link the repository's `skills/` directories into one of the discovery paths above.
+CE ships skills at `./skills/<name>/SKILL.md` in this repository. Compound Engineering does **not** copy skills into a generated tree for Cline; users link the repository's invocable skill directories into one of the discovery paths above.
+
+### Manual-only skills
+
+Some CE skills set `disable-model-invocation: true` in frontmatter so Claude and Codex do not auto-invoke them (for example `lfg`, `ce-dogfood`, `ce-polish`, `ce-setup`). Cline has no equivalent flag — it auto-activates skills when descriptions match — so `.cline/scripts/install-skills.sh` **skips** manual-only skills. Invoke them explicitly when needed.
 
 ## CLI plugins (secondary, not required for CE)
 

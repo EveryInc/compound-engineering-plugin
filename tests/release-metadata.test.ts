@@ -78,11 +78,11 @@ async function makeFixtureRoot(): Promise<string> {
       2,
     ),
   )
-  await mkdir(path.join(root, ".agy"), { recursive: true })
   await writeFile(
-    path.join(root, ".agy", "plugin.json"),
-    JSON.stringify({ version: "2.42.0" }, null, 2),
+    path.join(root, "plugin.json"),
+    JSON.stringify({ name: "compound-engineering", version: "2.42.0" }, null, 2),
   )
+  await mkdir(path.join(root, ".agy"), { recursive: true })
   await writeFile(
     path.join(root, ".agents", "plugins", "marketplace.json"),
     JSON.stringify(
@@ -233,15 +233,15 @@ describe("release metadata", () => {
     expect(afterContents.version).toBe("2.41.0")
   })
 
-  test("reports Antigravity bundle version drift without auto-correcting", async () => {
+  test("reports Antigravity plugin.json version drift without auto-correcting", async () => {
     const root = await makeFixtureRoot()
     await writeFile(
-      path.join(root, ".agy", "plugin.json"),
-      JSON.stringify({ version: "2.41.0" }, null, 2),
+      path.join(root, "plugin.json"),
+      JSON.stringify({ name: "compound-engineering", version: "2.41.0" }, null, 2),
     )
 
     const result = await syncReleaseMetadata({ root, write: true })
-    const antigravityPath = path.join(root, ".agy", "plugin.json")
+    const antigravityPath = path.join(root, "plugin.json")
     const antigravityUpdate = result.updates.find((u) => u.path === antigravityPath)
 
     expect(antigravityUpdate).toBeDefined()
@@ -251,13 +251,13 @@ describe("release metadata", () => {
     expect(afterContents.version).toBe("2.41.0")
   })
 
-  test("reports missing Antigravity bundle manifest as a structural error", async () => {
+  test("reports missing Antigravity plugin.json as a structural error", async () => {
     const root = await makeFixtureRoot()
-    await Bun.$`rm ${path.join(root, ".agy", "plugin.json")}`.quiet()
+    await Bun.$`rm ${path.join(root, "plugin.json")}`.quiet()
 
     const result = await syncReleaseMetadata({ root, write: false })
 
-    expect(result.errors.some((err) => err.includes(".agy/plugin.json is missing"))).toBe(true)
+    expect(result.errors.some((err) => err.includes("plugin.json is missing"))).toBe(true)
   })
 
   test("rewrites Codex plugin.json description on write when drifted from Claude", async () => {

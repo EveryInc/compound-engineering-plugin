@@ -46,10 +46,18 @@ fi
 mkdir -p "$DEST"
 linked=0
 skipped=0
+manual_only=0
 
 for skill_dir in "$SKILLS_SRC"/*/; do
   [[ -f "${skill_dir}SKILL.md" ]] || continue
   name="$(basename "$skill_dir")"
+
+  if grep -qE '^disable-model-invocation:[[:space:]]*true[[:space:]]*$' "${skill_dir}SKILL.md"; then
+    echo "skip $name: manual-only (disable-model-invocation)" >&2
+    manual_only=$((manual_only + 1))
+    continue
+  fi
+
   target="$DEST/$name"
 
   if [[ -e "$target" && ! -L "$target" ]]; then
@@ -63,4 +71,4 @@ for skill_dir in "$SKILLS_SRC"/*/; do
   linked=$((linked + 1))
 done
 
-echo "done: $linked linked, $skipped skipped (destination: $DEST)"
+echo "done: $linked linked, $skipped skipped, $manual_only manual-only omitted (destination: $DEST)"

@@ -1,6 +1,6 @@
 ---
 name: ce-brainstorm
-description: 'Explore vague or ambitious ideas into a right-sized requirements-only unified plan. Use when the user wants to brainstorm, think through scope, decide what to build, or needs collaborative product framing before planning. Not for a decisive verdict on whether to adopt or switch to a specific external technology, library, or platform — brainstorming scopes what to build, not whether to commit to an outside option.'
+description: 'Explore vague or ambitious ideas into a right-sized requirements-only unified plan. Use when the user wants to brainstorm, think through scope, decide what to build, or needs collaborative product framing before planning. Not for executing already-specified work — direct implementation, debugging, or code review where no product scope is left to decide. Not for a decisive verdict on whether to adopt or switch to a specific external technology, library, or platform — brainstorming scopes what to build, not whether to commit to an outside option.'
 argument-hint: "[feature idea or problem to explore] [output:html]"
 ---
 
@@ -13,8 +13,6 @@ Brainstorming helps answer **WHAT** to build through collaborative dialogue. It 
 The durable output of this workflow is a **requirements-only unified plan**. In other workflows this might be called a lightweight PRD or feature brief. In compound engineering, keep the workflow name `brainstorm`, but write the first version of the plan artifact under `docs/plans/` with `artifact_readiness: requirements-only` so planning does not need to invent product behavior, scope boundaries, or success criteria.
 
 This skill does not implement code. It explores, clarifies, and documents decisions for later planning or execution.
-
-**IMPORTANT: All file references in generated documents must use repo-relative paths (e.g., `src/models/user.rb`), never absolute paths. Absolute paths break portability across machines, worktrees, and teammates.**
 
 ## Core Principles
 
@@ -32,24 +30,17 @@ These rules apply to every brainstorm, including the universal (non-software) fl
 1. **Ask one question at a time** - One question per turn, even when sub-questions feel related. Stacking several questions in a single message produces diluted answers; pick the single most useful one and ask it.
 2. **Prefer single-select multiple choice** - Use single-select when choosing one direction, one priority, or one next step.
 3. **Use multi-select rarely and intentionally** - Use it only for compatible sets such as goals, constraints, non-goals, or success criteria that can all coexist. If prioritization matters, follow up by asking which selected item is primary.
-4. **Default to the platform's blocking question tool** - Use `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). These tools include a free-text fallback, so well-chosen options scaffold the answer without confining it. This default holds for opening and elicitation questions too, not only narrowing. Fall back to numbered options in chat only when no blocking tool exists in the harness (including `ToolSearch` returning no match for it) or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. **Exception — visual-probe gate:** on an inherently-visual topic (Phase 0.3 tripwire), the *first* shape/behavior/state/layout/flow/diagram decision must be preceded by the separate text-vs-visual offer before it is raised in any form (plain chat or a blocking tool); embedding an ASCII or text mockup inside that question does not satisfy the offer. See the Phase 1.3 gate.
+4. **Default to the platform's blocking question tool** - Use `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). These tools include a free-text fallback, so well-chosen options scaffold the answer without confining it. This default holds for opening and elicitation questions too, not only narrowing. Fall back to numbered options in chat only when no blocking tool exists in the harness (including `ToolSearch` returning no match for it) or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. **Exception — visual-probe gate:** on an inherently-visual topic (Phase 0.3 tripwire), the first shape/behavior/state/layout/flow/diagram decision is governed by `references/visual-probes.md`, which takes precedence over this rule. See the Phase 1.3 gate.
 5. **Use an open-ended question only when the question is genuinely open** - Drop the blocking tool when the answer is inherently narrative, when presented options would steer a diagnostic or introspective answer, or when you cannot write 3-4 genuinely distinct, plausibly-correct options without padding. The test: if you'd be straining to fill the option slots, the question is open — ask it open-ended. Rule 1 still applies: one question per turn.
 6. **Open-ended questions earn their place only when they're specific enough to elicit a substantive answer** - Apply Rule 5 silently: just ask the question, never narrate the form choice. The question must give the user something concrete to anchor on. Good: *"What's the most concrete thing someone's already done about this — paid for it, built a workaround, quit a tool over it?"* — it names what counts as an answer. Too thin: *"What's your take?"* — nothing to bite into, and framings that imply a short answer ("briefly", yes/no) waste the open question the same way.
 
 ## Output Guidance
 
 - **Keep outputs concise** - Prefer short sections, brief bullets, and only enough detail to support the next decision.
-- **Use repo-relative paths** - When referencing files, use paths relative to the repo root (e.g., `src/models/user.rb`), never absolute paths. Absolute paths make documents non-portable across machines and teammates.
 
 ## Model Tiers
 
-Sub-agent dispatch is tiered by task shape, never hardcoded to a model name:
-
-- **Extraction tier** — the grounding scout: retrieval and quoting work. Use the platform's cheapest capable model when the current harness exposes a known override. "Capable" is part of the spec — escalate to the generation tier when the repo is large or the stack obscure.
-- **Generation tier** — the claim verifier: evidence-driven mechanical verification. Use the platform's mid-tier model when the current harness exposes a known override. If model names are unknown, omit the override and inherit rather than guessing.
-- **Ceiling tier** — the dialogue itself. Questions, approaches, synthesis, and the requirements-only unified plan run in the main conversation on the orchestrator's model; nothing is dispatched for them.
-
-**Degradation rule.** When the platform's subagent primitive does not support per-agent model selection, dispatch the scout and verifier on the inherited model and keep their read budgets and output caps — cost control then comes from structure, not tiering. When the platform has no subagent primitive at all, do the topic scan inline at Phase 1.1 — still writing the grounding dossier to the scratch path, because downstream consumers (the Phase 2.6 verifier, the ce-plan handoff) receive that path — and verify claims inline before the Phase 3 write, with the same budgets.
+Sub-agent dispatch is tiered by task shape, never hardcoded to a model name. When dispatching the Phase 1.1 grounding scout, the Phase 2.6 claim verifier, or the opt-in Slack researcher, read `references/model-tiers.md` for the tier definitions (extraction / generation / ceiling) and the degradation rule for platforms without per-agent model selection or with no subagent primitive at all.
 
 ## Feature Description
 
@@ -116,23 +107,11 @@ Before proceeding to Phase 0.2, classify whether this is a software task. The ke
 
 #### 0.1c Route a Verdict Question to ce-pov
 
-A brainstorm scopes **what to build** once a direction is chosen. Deciding **whether to adopt, switch to, or replace** a *specific external candidate* — a named technology, library, pattern, platform, or architecture — judged against this project is a different job: a decisive, project-grounded verdict, which is `ce-pov`'s purpose. When the opening request is that shape, offer the handoff before spending dialogue.
+A brainstorm scopes **what to build** once a direction is chosen. Deciding **whether to adopt, switch to, or replace** a *specific named external candidate* (technology, library, pattern, platform, or architecture) judged against this project is a different job — a decisive, project-grounded verdict, which is `ce-pov`'s purpose.
 
-**The verdict shape — all three hold:**
-- a **named external candidate** — one specific outside thing, *or a bounded set the user has already named* (a 2–3-way bake-off like "X vs Y vs Z"), but not an open field for *you* to enumerate;
-- a **whether-to-commit intent** — adopt / switch to / migrate to / replace with / is-it-time-for / revisit X — not "how should we design or scope Y";
-- judged **against this project** (does it fit, what's the migration cost, is it worth it here), not a neutral explainer.
+**The verdict shape — all three hold:** a **named external candidate** (one outside thing, or a bounded set the user already named like "X vs Y vs Z" — not an open field for *you* to enumerate); a **whether-to-commit intent** (adopt / switch to / migrate / replace / is-it-time-for / revisit — not "how should we design or scope Y"); judged **against this project** (fit, migration cost, worth it here), not a neutral explainer. Open-ended design or scoping where *you'd* invent the options stays here. The whether-to-commit trigger separates the two: "help me **pick** between X, Y, Z" is a verdict; "I'm **mulling** X, Y, Z" stays here.
 
-Open-ended design or scoping where *you'd* have to invent the options ("how should we do multi-tenant isolation?", "what should we build next?") stays here — do not route it. The **whether-to-commit trigger** is what separates a bounded selection from open exploration: "help me **pick** between X, Y, and Z" is a verdict (route it); "I'm **mulling** X, Y, Z — help me think it through," or any candidate framed to *explore* rather than *decide*, stays here.
-
-**When the shape matches, offer — do not silently switch.** It is one simple choice: do they want a `/ce-pov` verdict, or not? Make it an *interactive* offer via the platform's blocking question tool, and map the content onto its fields:
-
-- The **question prompt** carries the justification, so the user chooses on the merits, not on trust: name the candidate(s); say in one line *why* this is a decision rather than a scoping exercise (you'd be committing to a specific outside thing, not shaping something you've already chosen to build); and state what `/ce-pov` gives them — a decisive, project-grounded verdict on the candidate, weighing fit, migration cost, and whether it's worth it here.
-- The **options are asymmetric, not two co-equal pitches**: **yes** → hand off to `/ce-pov` for that verdict; **no** → stay here and the normal brainstorm simply continues. The decline needs no selling of its own — it is the default path resuming, so keep it a plain "no, keep brainstorming."
-
-Name `/ce-pov` by what it does for the user (it gives you a project-grounded verdict on the candidate), never as internal machinery — not "a sibling workflow," not "another skill I have." Where the harness has no blocking tool, fall back to the same content as numbered options in chat (per the Interaction Rules), never a bare prose paragraph. On accept, **invoke the `ce-pov` skill** — the same way the Phase 4 handoff invokes `ce-plan` — passing the candidate(s), the framed question, and any links the user supplied as its input. `ce-pov` inherits this live session (it runs warm), so pass the crisp **frame** — candidate, intent, links — rather than re-summarizing the discussion. It reads the prior dialogue as *hypotheses to verify*, never as grounding, and re-grounds independently; so the session seeds the *question*, not the *verdict*. Do **not** merely tell the user to type `/ce-pov`; an accepted offer is an actual handoff, not a textual suggestion. **On decline, drop the offer and continue the normal workflow (Phase 0.2 onward) unchanged** — do not re-offer on the same framing. One offer at a time, and the justification lives in the prompt — not a bare "route to ce-pov, yes/no?"
-
-**Not only at intake — throughout.** The opening request is often too vague to tell. The same offer applies whenever the dialogue *clarifies* a request into the verdict shape: a brainstorm that narrows to a single "should we adopt X?" decision (Phases 1.3–2), or an opener whose intent only sharpens mid-conversation. As the user's intent comes into focus, `/ce-pov`'s fit may only then become clear — offer the handoff at that point rather than grading the candidate inside the brainstorm. It is the same simple choice, and declining just continues the dialogue. If `/ce-pov` finds the field unbounded, it routes back here, so the loop is closed.
+When the shape matches — at intake, or whenever later dialogue (Phases 1.3–2) clarifies a request into it — read `references/verdict-routing.md` and follow it: offer the `/ce-pov` handoff interactively (never silently switch), invoke `ce-pov` on accept, drop the offer and continue the normal workflow unchanged on decline. The reference owns the offer construction, field mapping, and what to pass to `ce-pov`.
 
 #### 0.2 Assess Whether Brainstorming Is Needed
 
@@ -143,7 +122,7 @@ Name `/ce-pov` by what it does for the user (it gives you a project-grounded ver
 - Constrained, well-defined scope
 
 **If requirements are already clear:**
-Keep the interaction brief. Confirm understanding and present concise next-step options rather than forcing a long brainstorm. Only write a short requirements-only unified plan when a durable handoff to planning or later review would be valuable. Skip Phase 1.1 and 1.2 entirely — go straight to Phase 1.3 or Phase 2.5 in announce-mode (synthesis emitted for visibility, no blocking confirmation), then to Phase 3.
+Keep the interaction brief. Confirm understanding and present concise next-step options rather than forcing a long brainstorm. Only write a short requirements-only unified plan when a durable handoff to planning or later review would be valuable. Skip Phase 1.1 and 1.2 entirely — still classify tier in Phase 0.3, then go straight to Phase 1.3 or Phase 2.5 and follow `references/synthesis-summary.md`'s Path A / Path B gate exactly. Do not assume the synthesis is announce-only: a richly pre-loaded prompt classifies as Standard or Deep, which routes to Path B (full scoping synthesis + confirmation), not Path A — collapsing that gate is the defect `synthesis-summary.md` warns against.
 
 #### 0.3 Assess Scope
 
@@ -161,7 +140,7 @@ If the scope is unclear, ask one targeted question to disambiguate and then proc
 
 Product-tier triggers additional Phase 1.2 questions and additional Product Contract sections. Feature-tier uses the current Deep behavior unchanged.
 
-**Visual probe tripwire.** If the feature is inherently visual or spatial — drawing/canvas tools, annotation behavior, visual editors, UI layout or navigation, interaction states, charts, diagrams, animation, maps, timelines, or spatial flows — read `references/visual-probes.md` now and remember that a visual-probe gate is pending. Strong signals include freehand vs constrained drawing behavior, canvas annotation tools, layout comparisons, and state/flow placement. Loading the reference here is readiness only; do not offer the visual path until the first concrete shape/behavior decision. If the user later chooses visual, run the helper at `scripts/visual-probe-server.js` by resolving it relative to this loaded `ce-brainstorm` skill directory; if the runtime does not expose a concrete skill directory, do not guess from the project CWD — use the text path.
+**Visual probe tripwire.** If the feature is inherently visual or spatial — drawing/canvas tools, annotation behavior, visual editors, UI layout or navigation, interaction states, charts, diagrams, animation, maps, timelines, or spatial flows — read `references/visual-probes.md` now. Strong signals include freehand vs constrained drawing behavior, canvas annotation tools, layout comparisons, and state/flow placement. Loading the reference here is readiness only; it owns when the gate fires (state-based, at the first shape/behavior/state/layout/flow/diagram decision), the text-vs-visual offer, and helper invocation.
 
 ### Phase 1: Understand the Idea
 
@@ -182,7 +161,7 @@ python3 "$SKILL_DIR/scripts/repo-profile-cache.py" get
 
 On `HIT`, load the profile JSON and take the agnostic orientation from it — `conventions.strategy` for the STRATEGY summary, `vocabulary` for the CONCEPTS terms, and `conventions` (coding standards, testing, review process, instruction files) for workflow/product/scope constraints; do not re-read those files. On `MISS`, dispatch a generic subagent with `references/agents/repo-profiler.md` to derive the profile, write its JSON to a file, then persist with `python3 "$SKILL_DIR/scripts/repo-profile-cache.py" put <file>` (re-set `SKILL_DIR` in that call — shell vars don't persist between Bash invocations), and use the same fields. On `NO-CACHE`, derive the orientation inline and skip the `put`. The cache is an optimization, never a correctness dependency: if it is unavailable, or any cached field is absent/null, fall back to reading the source inline — the project's active instructions and conventions already in your context for workflow, product, or scope constraints (no need to open or name specific instruction files); `STRATEGY.md` if it exists — the product's target problem, approach, persona, and active tracks, which shape scope, success criteria, and which approaches are aligned vs out-of-scope; and `CONCEPTS.md` at repo root if it exists — the project's authoritative vocabulary. Use these names in dialogue, approaches, and the Product Contract; map user-offered synonyms back. If any of these add nothing, move on. This pass — including the cache resolution — stays in the main conversation; the dialogue needs this material in context to shape its questions.
 
-*Topic Scan (grounding scout)* — Create a scratch dir at `/tmp/compound-engineering/ce-brainstorm/<run-id>/` (short unique slug), then dispatch one extraction-tier sub-agent via the platform's subagent primitive (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. In harnesses that support background dispatch, proceed to Phase 1.2/1.3 **without waiting**: the scout runs during the user's think-time on the opening questions. Scout prompt:
+*Topic Scan (grounding scout)* — Create a scratch dir at `/tmp/compound-engineering/ce-brainstorm/<run-id>/` (short unique slug), then dispatch one extraction-tier sub-agent via the platform's subagent primitive where available (a Task/Agent-style dispatch on harnesses that expose one); otherwise run the work inline or serially. In harnesses that support background dispatch, proceed to Phase 1.2/1.3 **without waiting**: the scout runs during the user's think-time on the opening questions. Scout prompt:
 
 > Gather grounding for a requirements brainstorm about **{topic}** in this repo. Search first with the native file-search and content-search tools, then read targeted sections — budget ~20 reads, preferring ranges over whole files. Find: whether something similar already exists, the most relevant existing artifacts (brainstorms, plans, specs, feature docs), adjacent examples of similar behavior, and the current state of anything the topic would touch (tables, routes, config, dependencies). Write a **grounding dossier** to `{scratch-dir}/grounding.md`: at most 150 lines of verbatim quotes and short code snippets, each with a `file:line` pointer. Extraction only — quote what the repo says; do not interpret or propose. If the topic has little footprint, write less rather than padding. Return only a gist: 3-5 lines summarizing what the dossier holds, plus its absolute path.
 
@@ -202,50 +181,15 @@ If the scan and scout surface nothing relevant, say so and continue. Two rules g
 
 #### 1.2 Product Pressure Test
 
-Before generating approaches, scan the user's opening for rigor gaps. Match depth to scope.
+Before generating approaches, scan the user's opening for rigor gaps. This is agent-internal analysis, not a user-facing checklist: read the opening, note which gaps actually exist, and raise only those during Phase 1.3 — folded into the normal flow of dialogue, not fired as a pre-flight gauntlet. A fuzzy opening may earn three or four probes; a concrete, well-framed one may earn zero because no scope-appropriate gaps were found.
 
-This is agent-internal analysis, not a user-facing checklist. Read the opening, note which gaps actually exist, and raise only those as questions during Phase 1.3 — folded into the normal flow of dialogue, not fired as a pre-flight gauntlet. A fuzzy opening may earn three or four probes; a concrete, well-framed one may earn zero because no scope-appropriate gaps were found.
-
-**Lightweight:**
-- Is this solving the real user problem?
-- Are we duplicating something that already covers this?
-- Is there a clearly better framing with near-zero extra cost?
-
-**Standard — scan for these gaps:**
-
-- **Evidence gap.** The opening asserts want or need, but doesn't point to anything the would-be user has already done — time spent, money paid, workarounds built — that would make the want observable. When present, ask for the most concrete thing someone has already done about this.
-
-- **Specificity gap.** The opening describes the beneficiary at a level of abstraction where the agent couldn't design without silently inventing who they are and what changes for them. When present, ask the user to name a specific person or narrow segment, and what changes for that person when this ships.
-
-- **Counterfactual gap.** The opening doesn't make visible what users do today when this problem arises, nor what changes if nothing ships. When present, ask what the current workaround is, even if it's messy — and what it costs them.
-
-- **Attachment gap.** The opening treats a particular solution shape as the thing being built, rather than the value that shape is supposed to deliver, and hasn't been examined against smaller forms that might deliver the same value. When present, ask what the smallest version that still delivers real value would look like.
-
-Plus these synthesis questions — not gap lenses, product-judgment the agent weighs in its own reasoning:
-- Is there a nearby framing that creates more user value without more carrying cost? If so, what complexity does it add?
-- Given the current project state, user goal, and constraints, what is the single highest-leverage move right now: the request as framed, a reframing, one adjacent addition, a simplification, or doing nothing?
-
-Favor moves that compound value, reduce future carrying cost, or make the product meaningfully more useful or compelling. Use the result to sharpen the conversation, not to bulldoze the user's intent.
-
-**Deep** — Standard lenses and synthesis questions plus:
-- Is this a local patch, or does it move the broader system toward where it wants to be?
-
-**Deep — product** — Deep plus:
-
-- **Durability gap.** The opening's value proposition rests on a current state of the world that may shift in predictable ways within the horizon the user cares about. When present, ask how the idea fares under the most plausible near-term shifts — and push past rising-tide answers every competitor could make.
-
-- What adjacent product could we accidentally build instead, and why is that the wrong one?
-- What would have to be true in the world for this to fail?
-
-These questions force an explicit product thesis and feed the Scope Boundaries subsections ("Deferred for later" and "Outside this product's identity") and Dependencies / Assumptions in the Product Contract.
+Read `references/product-pressure-test.md` for the per-tier lens catalog (Lightweight / Standard / Deep / Deep-product) and the synthesis questions the agent weighs in its own reasoning. Match depth to the Phase 0.3 scope. Phase 1.3 owns how each found gap fires as a probe.
 
 #### 1.3 Collaborative Dialogue
 
 Follow the Interaction Rules above. Use the platform's blocking question tool when available.
 
-**Visual-probe gate — check this as a precondition, do not rely on remembering it.** If the Phase 0.3 tripwire fired (inherently-visual topic), then before you raise the **first** decision about shape, behavior, state, layout, flow, or a diagram — in any form, plain chat or a blocking tool — that decision must first go through the text-vs-visual offer from `references/visual-probes.md`. The condition is state-based: offer unless this specific decision has already been through the offer (the user already chose text or visual for it). Anchor the check to the decision you are about to raise, not to a "pending gate" held in memory since Phase 0.3.
-
-This gate **takes precedence over the default blocking-question path** (Interaction Rule 4) for that decision: do not raise the shape decision as an `AskUserQuestion`/`request_user_input` menu — or as a plain-chat shape question — until the user has declined visual (or visual feedback has returned to chat). **Putting an ASCII preview or text mockup inside the question's choices does NOT satisfy the offer — that is the exact shortcut this gate exists to stop.** The offer is its own prior question with two options: sketch rough options in a local browser, or describe them in chat. Use the platform's blocking question tool for this text-vs-visual offer when available. Once the user chooses text, continue in chat and do not re-offer for that decision. If they choose visual, build the cheapest display-only probe per `references/visual-probes.md`, then gather bounded feedback with the blocking question tool; the browser artifact stays display-only.
+**Visual-probe gate — precondition, check it before raising the first shape decision.** If the Phase 0.3 tripwire fired, then before raising the first decision about shape, behavior, state, layout, flow, or a diagram — in any form, plain chat or a blocking tool — fire the text-vs-visual offer from `references/visual-probes.md`. The gate is state-based: offer unless this specific decision has already been through it; anchor the check to the decision you are about to raise, not a "pending gate" remembered since Phase 0.3. It **takes precedence over the default blocking-question path** (Interaction Rule 4): do not raise the shape decision as an `AskUserQuestion`/`request_user_input` menu until the user has declined visual. **An ASCII preview or text mockup inside the question's choices does not satisfy the offer** — that is the shortcut this gate exists to stop. Use the platform's blocking question tool for the text-vs-visual offer itself when available; the reference owns the offer wording, the cheapest-probe build, helper invocation, and the display-only feedback contract.
 
 **Guidelines:**
 - Ask what the user is already thinking before offering your own ideas. This surfaces hidden context and prevents fixation on AI-generated framings.
@@ -256,11 +200,10 @@ This gate **takes precedence over the default blocking-question path** (Interact
 - Surface dependencies or prerequisites only when they materially affect scope
 - Resolve product decisions here; leave technical implementation choices for planning
 - Bring ideas, alternatives, and challenges instead of only interviewing
-- **Visual-probe gate.** Governed by the bold gate checkpoint at the top of this phase — the offer fires before the first shape/behavior/state/layout/flow/diagram question, and an ASCII or text mockup inside a blocking question never satisfies it.
 
 **Before exiting Phase 1.3: integration check.** Mentally combine what the user has said so far and surface any non-obvious consequences the dialogue hasn't probed. If user-stated X plus user-stated Y plus your-default-Z produces a downstream effect the user is unlikely to have tracked through one-question-at-a-time dialogue ("if mute lives on the rule AND we don't warn on delete, then rule-delete silently loses pause state"), probe it now while you're still in dialogue. One probe per genuine combination effect, asked open-ended, same discipline as rigor probes. Phase 2.5's call-outs are a safety net for residuals (silent agent inferences, pre-loaded contexts with no dialogue) — NOT a punt list for consequences you could have asked about now.
 
-**Exit condition:** Continue until the idea is clear AND no integration-check questions are pending, OR the user explicitly wants to proceed.
+**Exit condition:** Exit Phase 1.3 when each of these holds, OR the user explicitly wants to proceed: the primary actor/user is identified or marked unknown; the desired outcome is stated; the in-scope and out-of-scope boundaries that matter are known; success criteria or acceptance signals are known or recorded as assumptions; every Phase 1.2 gap found has been probed or recorded as an assumption; and no integration-check question is pending.
 
 ### Phase 2: Explore Approaches
 
@@ -270,7 +213,7 @@ Use at least one non-obvious angle — inversion (what if we did the opposite?),
 
 Present approaches first, then evaluate. Let the user see all options before hearing which one is recommended — leading with a recommendation before the user has seen alternatives anchors the conversation prematurely.
 
-If approach differences are spatial, behavioral, or otherwise visual enough that prose would be slower or lower-fidelity, use `references/visual-probes.md` before presenting the choice. For inherently visual topics caught by the Phase 0.3 visual-probe tripwire, this is a gate before the first approach choice about behavior, shape, state, layout, flow, or diagrams; do not substitute an ASCII preview in a blocking question for the visual offer. The visual path remains opt-in and display-only; text remains a first-class path.
+If approach differences are spatial, behavioral, or otherwise visual enough that prose would be slower or lower-fidelity, use `references/visual-probes.md` before presenting the choice. If the Phase 0.3 tripwire fired and no shape decision has yet been through the gate, the offer fires here, per that reference. The visual path remains opt-in and display-only; text remains a first-class path.
 
 When useful, include one deliberately higher-upside alternative:
 - Identify what adjacent addition or reframing would most increase usefulness, compounding value, or durability without disproportionate carrying cost. Present it as a challenger option alongside the baseline, not as the default. Omit it when the work is already obviously over-scoped or the baseline request is clearly the right move.
@@ -302,12 +245,7 @@ Surface a scoping synthesis to the user before Phase 3 writes the requirements-o
 
 Fires for **all tiers** including Lightweight. Skip Phase 2.5 entirely on the Phase 0.1b non-software (universal-brainstorming) route.
 
-**Path A vs Path B:** the scoping synthesis shape depends on TWO signals — whether any blocking question fired AND what tier Phase 0.3 classified the scope as.
-
-- **Path A — no blocking questions fired AND tier is Lightweight**: announce-mode. Emit "What we're building" prose only (1–3 sentences), then proceed to Phase 3 doc-write in the same turn. No other sections, no confirmation question. Do NOT end the turn waiting for acknowledgment. The user can revise after the doc lands if the shape is wrong — Lightweight Path A docs are short, post-hoc revision is cheap.
-- **Path B — at least one blocking question fired, OR tier is Standard / Deep-feature / Deep-product**: full tier-aware scoping synthesis with confirmation gate. Two scenarios fire Path B: (a) the user invested answer-time during dialogue, or (b) the user pre-loaded substantive scope content (Phase 0.2 fast-path with a richly-specified opening prompt). Either way, the substance earns a real checkpoint. Confirmation is unconditional even when zero call-outs survive the keep test.
-
-**Why the tier guard on Path A**: Phase 0.2's fast path serves both tight one-liners and richly pre-loaded openings that need no dialogue. Pre-loaded substance makes the Phase 0.3 tier Standard or Deep, which routes to Path B — without the guard, 20+ items of pre-stated scope would get a 1-sentence checkpoint.
+**Path A vs Path B** is decided by `references/synthesis-summary.md` from two signals: whether any blocking question fired, and the Phase 0.3 tier. Path A (announce-only, no confirmation) fires **solely** for Lightweight tier with no blocking questions; every other case — including a richly pre-loaded Standard/Deep opener that needed no dialogue — is Path B (full tier-aware scoping synthesis with an unconditional confirmation gate). Follow the reference's gate exactly; do not decide the path or compose the synthesis from memory.
 
 #### 2.6 Claim Verification (inside the Path B confirmation wait)
 
@@ -328,7 +266,7 @@ When a doc is warranted, compose it using:
 
 **Write tight.** A section being material is not license to pad it. Hold every kept section to the prose-economy discipline in `references/brainstorm-sections.md`: lead with the decision or outcome, one idea per sentence, a requirement is intent plus at most one qualifier, defer forks to Outstanding Questions rather than specifying both arms, resolve superseded text in place rather than stacking strata. Before declaring the doc written, run the named test there — could a reader find a contradiction in each section in one pass?
 
-Write to `docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>` — extension follows `OUTPUT_FORMAT`. Include `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`. Title is `<Name> - Plan` (matching the H1; no conventional-commit prefix). Keep the doc light and standalone-readable: a Goal Capsule (objective, product authority, open blockers) and the Product Contract. Do **not** emit a Goal Launch Block or Reader Index. See `references/brainstorm-sections.md`. Confirm with the absolute path so the reference is clickable.
+Write to `docs/plans/YYYY-MM-DD-NNN-<type>-<topic>-plan.<md|html>` — extension follows `OUTPUT_FORMAT`. Include `artifact_contract: ce-unified-plan/v1`, `artifact_readiness: requirements-only`, and `product_contract_source: ce-brainstorm`. Title is `<Name> - Plan` (matching the H1; no conventional-commit prefix). Keep the doc light and standalone-readable: a Goal Capsule (objective, product authority, open blockers) and the Product Contract. Do **not** emit a Goal Launch Block or Reader Index. See `references/brainstorm-sections.md` — which owns the artifact content rules, including repo-relative file paths inside the doc. When confirming in chat, report the written artifact with its absolute path so the reference is clickable.
 
 #### Vocabulary Capture — after the requirements-only unified plan (only if CONCEPTS.md already exists)
 

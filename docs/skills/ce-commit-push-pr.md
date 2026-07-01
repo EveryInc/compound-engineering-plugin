@@ -4,7 +4,7 @@
 
 `ce-commit-push-pr` is the **shipping** skill. Three modes — full workflow, description update on existing PR, description-only generation — handle the common shapes of "I want to ship" without forcing you through unnecessary steps. PR descriptions adapt to the change's complexity (not cookie-cutter templates) and cover the **full PR commit range**, not just the working-tree diff at invocation time.
 
-The skill is opinionated about a few specific things that have burned past contributors: it never `git add -A`, it splits naturally distinct concerns into separate commits when present, and it writes PR bodies via temp files (never via stdin pipes, which can silently produce empty PR bodies while `gh` still exits 0).
+The skill is opinionated about a few specific things that have burned past contributors: it never `git add -A`, it splits naturally distinct concerns into separate commits when present, preserves related work references with correct close-vs-link intent, and writes PR bodies via temp files (never via stdin pipes, which can silently produce empty PR bodies while `gh` still exits 0).
 
 The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-commit-push-pr` is `/ce-work`'s Phase 4 handoff target — it produces the PR with summary, testing notes, evidence (when behavior is observable), and the operational validation section. It's also commonly invoked directly when you've already written the code and want to ship.
 
@@ -28,6 +28,7 @@ Going from "code written" to "PR open" is supposed to be a one-step move, but it
 - **Cookie-cutter PR descriptions** that don't scale with complexity — a one-line bug fix and a 2,000-line refactor get the same Summary / Test Plan / Notes shape
 - **`git add -A`** sweeps in unintended files (`.env`, build artifacts, generated files)
 - **Description covers only the working-tree diff** at invocation time, missing the commits already pushed
+- **Related work gets dropped or closed accidentally** — issue, incident, performance, and logging references need the right tracker syntax, not best-effort memory
 - **Empty PR bodies via stdin pipes** — `--body-file -`, heredoc-to-stdin, or `--body "$(cat ...)"` can silently produce an empty PR body while `gh` still exits 0 and returns a URL
 - **Convention detection done wrong** — falling back to a default convention even when the repo has its own clearly-established style
 - **Branch state surprises** — committing on the default branch, creating commits on a detached HEAD, pushing to a stale base
@@ -43,6 +44,7 @@ Going from "code written" to "PR open" is supposed to be a one-step move, but it
 - **Body-file safety** — every PR description is written to a temp file and passed via `--body-file <path>`, never via stdin
 - **Convention detection** — repo conventions in context > recent commit history > conventional-commits default
 - **Full PR commit-range resolution** — descriptions cover all commits in the PR, not just the working-tree diff
+- **Related-reference preflight** — identifies work-item references and uses closing magic words only when the PR truly resolves the item
 
 ---
 
@@ -75,8 +77,8 @@ When changes touch naturally distinct concerns (e.g., backend models + frontend 
 
 Every weird branch state has an explicit branch in the decision tree:
 
-- Detached HEAD → ask whether to create a feature branch
-- On default branch with unpushed commits → ask whether to create a feature branch
+- Detached HEAD → automatically create a feature branch from current `HEAD`
+- On default branch with work to do → automatically create a feature branch, asking only when unpushed local commits create a real carry-forward decision
 - On default branch, all pushed, no PR → "no feature branch work" and stop
 - Feature branch, no upstream → push and continue
 - Feature branch, all pushed, no open PR → skip commit/push, generate description, open PR
@@ -96,7 +98,11 @@ For commit messages and PR titles: repo conventions in context win first; recent
 
 When the change has observable behavior (UI rendering, CLI output, API behavior with a runnable example, generated artifacts), the skill either incorporates user-supplied evidence (URL, markdown embed, or artifact path) or summarizes the manual validation that was performed. CE no longer owns a separate demo-capture skill; use the current harness's browser/screenshot/recording flow when you want a visual artifact, then provide the result to the PR flow. Categorical no-evidence cases (docs-only, markdown-only, changelog-only, CI/config-only, test-only, or pure internal refactors) skip evidence handling.
 
-### 8. Existing-PR confirmation before rewrite
+### 8. Related-reference preflight
+
+Before composing the body, the skill scans the prompt, caller handoff, branch name, full commit messages, existing PR body, PR template, plan/debug notes, and visible URLs or IDs for related work. It classifies each candidate as closing, non-closing, or uncertain. Common cases are explicit: GitHub Issues use syntax like `Fixes #123` or `Fixes owner/repo#123` only when targeting the default branch and truly resolving the issue; Linear uses closing words like `Fixes ENG-123` and non-closing words like `Related to ENG-123` in the PR description, not a PR comment. Other trackers use documented project/tracker syntax when known; otherwise the skill links neutrally instead of inventing a close action.
+
+### 9. Existing-PR confirmation before rewrite
 
 When the skill runs on a branch with an open PR and you want the description rewritten, it previews — first two sentences of the new Summary plus the total body line count — and asks for confirmation before applying. The first two sentences carry most of the reviewer's attention. If declined, you can pass focus text back for a regenerate without applying anything.
 
@@ -139,7 +145,7 @@ Skip `ce-commit-push-pr` when:
 `ce-commit-push-pr` is the standard shipping handoff for several skills:
 
 - **`/ce-work` Phase 4** — passes plan summary, key decisions, testing notes, evidence context, operational validation, and any accepted Known Residuals
-- **`/ce-debug` Phase 4** (skill-owned branch) — defaults to commit-and-PR without prompting after a successful fix; includes auto-close syntax for the issue tracker (e.g., `Fixes #N` for GitHub, `Closes ABC-123` for Linear)
+- **`/ce-debug` Phase 4** (skill-owned branch) — defaults to commit-and-PR without prompting after a successful fix; includes closing syntax only when the PR resolves the issue, and non-closing related syntax for partial, investigative, or uncertain links
 - **`/ce-compound`** — after a learning doc is written, can commit + push to update an open PR with the new commit
 
 ---

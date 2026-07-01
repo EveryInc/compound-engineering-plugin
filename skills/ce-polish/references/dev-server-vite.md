@@ -24,7 +24,7 @@ Vite's `--strictPort` flag causes the dev server to fail rather than increment t
 
 ## Host binding
 
-Vite binds to `127.0.0.1` by default. For polish running inside a devcontainer or WSL, users may need `--host 0.0.0.0` in `runtimeArgs`. The checklist can note this if relevant to the diff.
+Vite binds to `127.0.0.1` by default. For polish running inside a devcontainer or WSL, users may need `--host 0.0.0.0` in `runtimeArgs`.
 
 ## Stub generation
 

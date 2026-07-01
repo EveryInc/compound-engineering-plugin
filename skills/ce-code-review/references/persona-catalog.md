@@ -1,6 +1,6 @@
 # Persona Catalog
 
-14 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific local prompt assets. The orchestrator uses this catalog to select which reviewers to spawn for each review.
+13 reviewer personas organized into always-on, cross-cutting conditional, and stack-specific conditional layers, plus CE-specific local prompt assets. The orchestrator uses this catalog to select which reviewers to spawn for each review.
 
 ## Always-on (4 structured personas + 2 local prompt assets)
 

@@ -134,12 +134,16 @@ describe("ce-brainstorm visual probes", () => {
 
     expect(body).not.toContain("<absolute-skill-dir>")
     expect(
-      /loaded `ce-brainstorm` skill directory|skill directory.*project CWD/i.test(body),
+      /loaded `ce-brainstorm` skill directory|`ce-brainstorm` `SKILL.md` you loaded|skill directory.*project CWD/i.test(body),
       "visual probes must tell agents to resolve the helper from the loaded skill directory, not from the project CWD.",
     ).toBe(true)
     expect(
-      /<resolved-helper-path>/i.test(body),
-      "visual probes should use a resolved helper path placeholder after explaining how to resolve it.",
+      body.includes('node "$SKILL_DIR/scripts/visual-probe-server.js"'),
+      "visual probes should invoke the helper via the SKILL_DIR anchor (the repo's Tier-3 executed-command convention), not a vague resolved-path placeholder.",
+    ).toBe(true)
+    expect(
+      /SKILL_DIR="/.test(body),
+      "visual probes must set SKILL_DIR to the loaded skill directory before invoking the helper.",
     ).toBe(true)
   })
 })

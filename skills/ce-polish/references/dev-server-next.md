@@ -57,6 +57,5 @@ Substitute the resolved package manager (`npm` / `pnpm` / `yarn` / `bun`) and po
 
 ## Common gotchas
 
-- **App Router vs Pages Router:** dev-server behavior is the same; polish doesn't care. Checklist generation (Unit 5) does — pages in `app/` and `pages/` are different surfaces.
 - **Monorepo roots:** in a pnpm/Turborepo monorepo, `npm run dev` at the root typically fans out to multiple packages. Users should set `cwd` in `.claude/launch.json` to the specific Next app (`cwd: "apps/web"`).
 - **Env loading:** `.env.local` is loaded automatically by Next; polish does not need to export it.

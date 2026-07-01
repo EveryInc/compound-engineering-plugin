@@ -23,6 +23,8 @@ From a clone of this repository:
 
 The script creates symlinks so Cline reads the live skill directories from your checkout. Re-run it after `git pull` to refresh links when skill folder names change.
 
+Skills marked `disable-model-invocation: true` (for example `lfg`, `ce-dogfood`, `ce-polish`) are **not** linked — Cline auto-activates from description matching and has no manual-only gate. Invoke those skills explicitly when you need them.
+
 ## Pin a release
 
 Clone the tag you want, then run the install script against that checkout:

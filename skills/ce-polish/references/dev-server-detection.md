@@ -1,6 +1,6 @@
 # Dev-server port detection
 
-Port resolution runs via `scripts/resolve-port.sh`. This document explains the probe order, framework defaults, and intentional divergences from the `test-browser` skill's inline cascade.
+Port resolution runs via `scripts/resolve-port.sh`. This document explains the probe order, framework defaults, and the script's intentional parsing choices.
 
 This cascade runs **only when** `.claude/launch.json` is absent or has no `port` field for the resolved configuration. When `launch.json` specifies a port, use it verbatim and skip this cascade entirely.
 
@@ -29,12 +29,12 @@ This cascade runs **only when** `.claude/launch.json` is absent or has no `port`
 | Procfile | 3000 |
 | Unknown | 3000 |
 
-## Sync-note block
+## `.env` parsing choices
 
-`resolve-port.sh` and the `test-browser` skill's inline cascade overlap in purpose but diverge in two specific ways (a, b) and share one deliberate omission (c). These choices are intentional -- do not "fix" one to match the other without understanding the rationale.
+`resolve-port.sh` makes two deliberate parsing choices for real-world `.env` files; do not "simplify" them away:
 
-**(a) Quote stripping on `.env` values.** `resolve-port.sh` strips surrounding `"` and `'` from `PORT=` values (so `PORT="3001"` resolves to `3001`). The `test-browser` inline cascade does not strip quotes. The script version is more robust for real-world `.env` files where quoting is common.
+**(a) Quote stripping on `.env` values.** Strips surrounding `"` and `'` from `PORT=` values (so `PORT="3001"` resolves to `3001`), because quoting is common in real `.env` files.
 
-**(b) Comment stripping on `.env` values.** `resolve-port.sh` truncates at `#` after trimming whitespace (so `PORT=3001 # dev only` resolves to `3001`). The `test-browser` inline cascade does not strip comments. Same rationale: real `.env` files frequently contain inline comments.
+**(b) Comment stripping on `.env` values.** Truncates at `#` after trimming whitespace (so `PORT=3001 # dev only` resolves to `3001`), because inline comments are common.
 
-**(c) No instruction-file port grep (shared).** Neither `resolve-port.sh` nor the `test-browser` inline cascade greps `AGENTS.md`/`CLAUDE.md` for port references. Instruction files carry natural language that may mention ports in contexts unrelated to the dev server (documentation, examples, troubleshooting), producing false positives that are hard to debug; the filename is also harness-specific. Framework config files and `.env` are the reliable sources of truth. A skill may still honor a dev-server port the agent reads from its in-context project instructions, but it does not shell-grep named instruction files.
+**(c) No instruction-file port grep.** The script does not grep `AGENTS.md`/`CLAUDE.md` for port references. Instruction files carry natural language that may mention ports in contexts unrelated to the dev server (documentation, examples, troubleshooting), producing false positives that are hard to debug; the filename is also harness-specific. Framework config files and `.env` are the reliable sources of truth. The agent may still honor a dev-server port it reads from its in-context project instructions, but the script does not shell-grep named instruction files.

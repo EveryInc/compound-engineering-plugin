@@ -218,7 +218,7 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   const compoundPackagePath = path.join(root, "package.json")
   const compoundClaudePath = path.join(root, ".claude-plugin", "plugin.json")
   const compoundCursorPath = path.join(root, ".cursor-plugin", "plugin.json")
-  const compoundAntigravityPath = path.join(root, ".agy", "plugin.json")
+  const compoundAntigravityPath = path.join(root, "plugin.json")
   const compoundKimiPath = path.join(root, ".kimi-plugin", "plugin.json")
   const marketplaceClaudePath = path.join(root, ".claude-plugin", "marketplace.json")
   const marketplaceCursorPath = path.join(root, ".cursor-plugin", "marketplace.json")
@@ -272,7 +272,7 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
     })
   } catch (err: unknown) {
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
-      errors.push(`${compoundAntigravityPath} is missing but ${compoundClaudePath} exists. Antigravity bundle parity required.`)
+      errors.push(`${compoundAntigravityPath} is missing but ${compoundClaudePath} exists. Antigravity plugin.json parity required.`)
       updates.push({ path: compoundAntigravityPath, changed: false })
     } else {
       throw err

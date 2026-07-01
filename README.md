@@ -49,7 +49,7 @@ These sit around the loop or get reached for on demand -- not every cycle needs 
 | [`/ce-ideate`](docs/skills/ce-ideate.md) | *Before the loop*, when you don't yet know what to build -- generates and critically ranks grounded ideas, then routes the strongest one into `/ce-brainstorm` |
 | [`/ce-strategy`](docs/skills/ce-strategy.md) | *Upstream anchor* -- creates and maintains `STRATEGY.md`, read as grounding by ideate, brainstorm, and plan so strategy choices flow into every feature |
 | [`/ce-product-pulse`](docs/skills/ce-product-pulse.md) | *Outer loop* -- a time-windowed report on what users actually experienced (usage, performance, errors), saved to `docs/pulse-reports/`; its follow-ups feed back into ideation and brainstorming |
-| [`/ce-debug`](docs/skills/ce-debug.md) | *Instead of brainstorm -> plan -> work* when the input is a bug rather than a feature -- reproduce, trace the causal chain to root cause, then fix |
+| [`/ce-debug`](docs/skills/ce-debug.md) | *Instead of brainstorm -> plan -> work* when the input is a bug rather than a feature -- reproduce, trace root cause, fix, then polish/review before PR handoff when warranted |
 | [`/ce-pov`](docs/skills/ce-pov.md) | *On demand, before you commit* -- a decisive, project-grounded verdict on whether to adopt, switch to, or revisit an external technology, library, pattern, or platform; works cold or mid-session, and proposes the next step (`/ce-plan`, `/ce-brainstorm`, or a spike) from the verdict |
 
 For the full catalog and how each skill chains together, see [docs/skills](docs/skills/README.md). The complete inventory is [below](#full-skill-inventory).
@@ -121,7 +121,7 @@ The `compound-engineering` plugin currently ships 27 skills and 0 standalone age
 | [`/ce-work`](docs/skills/ce-work.md) | Execute implementation plans systematically |
 | [`/ce-code-review`](docs/skills/ce-code-review.md) | Review code with skill-local reviewer personas |
 | [`/ce-doc-review`](docs/skills/ce-doc-review.md) | Review requirements and plan documents |
-| [`/ce-debug`](docs/skills/ce-debug.md) | Reproduce failures, trace root cause, and fix bugs |
+| [`/ce-debug`](docs/skills/ce-debug.md) | Reproduce failures, trace root cause, fix bugs, and prepare non-trivial fixes for PR |
 | [`/ce-compound`](docs/skills/ce-compound.md) | Document solved problems to compound team knowledge |
 | [`/ce-compound-refresh`](docs/skills/ce-compound-refresh.md) | Refresh stale or drifting learnings |
 | [`/ce-optimize`](docs/skills/ce-optimize.md) | Run iterative optimization loops |
@@ -129,7 +129,7 @@ The `compound-engineering` plugin currently ships 27 skills and 0 standalone age
 | [`/ce-riffrec-feedback-analysis`](docs/skills/ce-riffrec-feedback-analysis.md) | Convert Riffrec recordings or notes into structured feedback |
 | [`/ce-resolve-pr-feedback`](docs/skills/ce-resolve-pr-feedback.md) | Resolve PR review feedback |
 | [`/ce-commit`](docs/skills/ce-commit.md) | Create a git commit with a clear message |
-| [`/ce-commit-push-pr`](docs/skills/ce-commit-push-pr.md) | Commit, push, and open a PR |
+| [`/ce-commit-push-pr`](docs/skills/ce-commit-push-pr.md) | Commit, push, and open a PR with related work references preserved |
 | [`/ce-worktree`](docs/skills/ce-worktree.md) | Ensure work happens in an isolated git worktree |
 | [`/ce-promote`](docs/skills/ce-promote.md) | Draft user-facing announcement copy |
 | [`/ce-test-browser`](docs/skills/ce-test-browser.md) | Run browser tests on PR-affected pages |
@@ -324,14 +324,24 @@ pi install npm:pi-ask-user
 
 ### Antigravity CLI (`agy`)
 
-Google has replaced the consumer Gemini CLI with [Antigravity CLI](https://antigravity.google) (`agy`), which still runs on Gemini models. Unlike Gemini CLI, `agy` installs plugins from a **local checkout** (not a repository URL), so clone this repository and install the bundled `.agy` plugin directory:
+Google has replaced the consumer Gemini CLI with [Antigravity CLI](https://antigravity.google) (`agy`), which still runs on Gemini models. Install Compound Engineering directly from GitHub — no clone step required:
+
+```bash
+agy plugin install https://github.com/EveryInc/compound-engineering-plugin
+```
+
+Verify with `agy plugin list`. The repository root is the plugin package (`plugin.json` plus `skills/`).
+
+For a local checkout or pinned release:
 
 ```bash
 git clone https://github.com/EveryInc/compound-engineering-plugin
-agy plugin install ./compound-engineering-plugin/.agy
+agy plugin install ./compound-engineering-plugin
 ```
 
-`agy` also loads `GEMINI.md` workspace context from the checkout.
+The bundled `.agy/` directory remains a compatibility entry point (`agy plugin install ./compound-engineering-plugin/.agy`). `agy` also loads `GEMINI.md` workspace context from the checkout.
+
+See [`.agy/INSTALL.md`](.agy/INSTALL.md) for pinning, local development, uninstall, and legacy Gemini import.
 
 ### Existing Installs
 
@@ -448,10 +458,17 @@ pi -e "$PWD"
 **Antigravity CLI (`agy`)**
 
 ```bash
+agy plugin install "$PWD"
+agy plugin validate "$PWD"
+```
+
+Or install the bundled `.agy/` entry point:
+
+```bash
 agy plugin install "$PWD/.agy"
 ```
 
-`agy` installs the bundled `.agy` plugin directory from your checkout and loads `GEMINI.md` workspace context.
+See [`.agy/INSTALL.md`](.agy/INSTALL.md) for remote install and pinning examples.
 
 ## Limitations
 
