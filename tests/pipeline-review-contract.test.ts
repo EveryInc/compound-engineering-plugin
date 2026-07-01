@@ -157,6 +157,38 @@ describe("ce-plan testing contract", () => {
     // Template comment mentions the annotation convention
     expect(content).toContain("Test expectation: none -- [reason]")
   })
+
+  test("keeps execution direction natural-language instead of enum-based", async () => {
+    const content = await readRepoFile("skills/ce-plan/SKILL.md")
+
+    expect(content).toContain("natural-language signal")
+    expect(content).toContain("Do not encode it as a finite enum")
+    expect(content).toContain("Do not treat this as an enum")
+  })
+})
+
+describe("ce-work testing evidence contract", () => {
+  test("requires evidence strategy before behavior changes and evidence in return-to-caller", async () => {
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
+
+    expect(content).toContain("Choose the evidence strategy for this task before changing behavior")
+    expect(content).toContain("default to test-first or characterization-first")
+    expect(content).toContain("Do not add a duplicate regression test")
+    expect(content).toContain("verification_evidence")
+    expect(content).toContain("existing_tests_inspected")
+    expect(content).toContain("Return `status: complete` only when behavior-bearing work has verification evidence")
+  })
+})
+
+describe("ce-debug regression test selection", () => {
+  test("inspects and updates existing tests instead of always adding new tests", async () => {
+    const content = await readRepoFile("skills/ce-debug/SKILL.md")
+
+    expect(content).toContain("inspect existing tests before adding coverage")
+    expect(content).toContain("update an existing test when it owns the contract")
+    expect(content).toContain("strengthen an over-mocked test")
+    expect(content).toContain("add a new minimal isolated test only when no existing test is the right home")
+  })
 })
 
 describe("ce-plan review contract", () => {

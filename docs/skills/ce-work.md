@@ -47,7 +47,7 @@ Asking an agent "implement this plan" goes wrong in predictable ways:
 - The plan is authoritative for **WHAT**; the agent figures out **HOW** with code in front of it
 - An idempotency check before each task — if verification is already satisfied, skip it
 - Scope-appropriate dispatch (inline / serial subagents / parallel subagents in isolated worktrees)
-- Test discovery + integration coverage + a system-wide test check before any task is marked done
+- Test discovery + evidence selection before behavior changes, plus integration coverage and a system-wide test check before any task is marked done
 - Tiered code review with a residual-work gate — accept, file, fix, or stop, but never silently ship
 - Every PR carries an operational validation plan — what to monitor, what triggers rollback
 
@@ -71,9 +71,9 @@ For independent units that can run in parallel, `ce-work` defaults to per-subage
 
 When the plan defines U-IDs, they propagate as task prefixes, into commit messages, and into the final summary. This works *across plan edits* — a deepening pass that splits a unit doesn't break references because U-IDs are stable. Brainstorm-origin IDs (R/A/F/AE) are similarly preserved when present.
 
-### 5. Test quality gates before "done"
+### 5. Test evidence gates before "done"
 
-A task isn't done when the code compiles. Before marking any feature-bearing task complete, `ce-work` discovers the existing test files for what's being changed, checks that test scenarios cover the categories that apply (happy path, edges, error paths, integration), and traces two levels out for callbacks, middleware, and observers the change might affect. Mocking everything proves logic in isolation; integration coverage is what proves the layers actually work together.
+A task isn't done when the code compiles. Before changing behavior, `ce-work` discovers the existing test files for what's being changed and chooses the right proof: use an existing failing test, update or strengthen the existing test that owns the contract, add a focused failing test, capture characterization coverage, or record a deliberate exception with replacement verification. Before marking a feature-bearing task complete, it checks that test scenarios cover the categories that apply (happy path, edges, error paths, integration), and traces two levels out for callbacks, middleware, and observers the change might affect. Mocking everything proves logic in isolation; integration coverage is what proves the layers actually work together.
 
 ### 6. Tiered code review with explicit residual handling
 
@@ -91,7 +91,7 @@ Not every invocation has a plan. `ce-work` accepts a bare prompt and triages by 
 
 ## Quick Example
 
-A plan with four implementation units arrives. `ce-work` reads it, picks up an `Execution note: test-first` on one unit, and notes a deferred-implementation question to keep in mind. It builds a task list with U-ID prefixes and confirms the current branch name is meaningful.
+A plan with four implementation units arrives. `ce-work` reads it, picks up an `Execution note` asking for a failing request-level proof on one unit, and notes a deferred-implementation question to keep in mind. It builds a task list with U-ID prefixes and confirms the current branch name is meaningful.
 
 The Parallel Safety Check finds no file overlap across the four units and worktree isolation is available — so all four dispatch in parallel, each on its own branch. They complete; the orchestrator merges them in dependency order; tests pass after each merge. The idempotency check catches that one unit's verification was already satisfied by a prior session and marks it complete without reimplementation.
 

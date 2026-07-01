@@ -73,7 +73,7 @@ Confirm the bug exists and understand its behavior. Run the test, trigger the er
   python3 "$SKILL_DIR/scripts/repo-profile-cache.py" get
   ```
 
-  On `HIT`, use the cached profile's `conventions.testing` field as the testing-convention orientation — do not re-read the *root* instruction files for it. (If the bug lives under a subdirectory with its own scoped `AGENTS.md`/`CLAUDE.md` testing rules, still read those fresh — subdirectory-scoped instructions are excluded from the cache.) **But if that field is empty or null** (the profile recorded no explicit testing guidance), still fall back to the inline check below — in particular, look for a clear style across the project's existing tests. On `MISS` or `NO-CACHE` (or any error), fall back to deriving it inline as today: if the project has testing-conventions guidance — a dedicated testing skill, an `AGENTS.md`/`CLAUDE.md` testing section, or a clear style across existing tests — apply it. The cache is purely an orientation convenience here; never block on it, and do not derive or persist a full profile just for this lookup. Either way, write a minimal isolated test that fails on the current bug and passes once the corrected behavior lands; name it descriptively so the failure message itself explains the bug.
+  On `HIT`, use the cached profile's `conventions.testing` field as the testing-convention orientation — do not re-read the *root* instruction files for it. (If the bug lives under a subdirectory with its own scoped `AGENTS.md`/`CLAUDE.md` testing rules, still read those fresh — subdirectory-scoped instructions are excluded from the cache.) **But if that field is empty or null** (the profile recorded no explicit testing guidance), still fall back to the inline check below — in particular, look for a clear style across the project's existing tests. On `MISS` or `NO-CACHE` (or any error), fall back to deriving it inline as today: if the project has testing-conventions guidance — a dedicated testing skill, an `AGENTS.md`/`CLAUDE.md` testing section, or a clear style across existing tests — apply it. The cache is purely an orientation convenience here; never block on it, and do not derive or persist a full profile just for this lookup. Either way, inspect existing tests before adding coverage: use an existing failing test when it already captures the bug, update an existing test when it owns the contract but has the wrong expectation, strengthen an over-mocked test when it should have caught the bug, or add a new minimal isolated test only when no existing test is the right home. The chosen test must fail on the current bug and pass once the corrected behavior lands; name it descriptively so the failure message itself explains the bug.
 
 #### 1.2 Verify environment sanity
 
@@ -164,7 +164,7 @@ Before forming a new hypothesis, review what has already been ruled out and why.
 Once the root cause is confirmed, present:
 - The root cause (causal chain summary with file:line references)
 - The proposed fix and which files would change
-- Which tests to add or modify to prevent recurrence (specific test file, test case description, what the assertion should verify)
+- Which tests to use, add, modify, or strengthen to prevent recurrence (specific test file, test case description, what the assertion should verify)
 - Whether existing tests should have caught this and why they did not
 - Any related ticket or PR surfaced in Phase 1.4 — an open duplicate, an existing fix on another branch or open PR, a regression's original fix, or a prior merged attempt that failed — and how it shapes the recommendation. If an open PR already fixes this, lead with that link instead of a fresh fix; if a prior merged attempt took the same approach you were about to, say so and explain what that rules out.
 
@@ -218,12 +218,13 @@ If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go
 - Record the pre-fix scope before editing: current `HEAD`, whether `git status --short` is clean, and any pre-existing changed files. During Phase 3, keep a list of fix-owned files (the tests and implementation files changed for this bug). Phase 4 uses this to keep simplify/review from touching unrelated branch work.
 
 **Test-first:**
-1. Write a failing test that captures the bug (or use the existing failing test)
-2. Verify it fails for the right reason — the root cause, not unrelated setup
-3. Implement the minimal fix — address the root cause and nothing else. Do not bundle drive-by refactors, formatting, or unrelated cleanup into a bug-fix change; those belong in separate commits.
-4. Verify the test passes
-5. Run the broader test suite for regressions
-6. Self-review the diff before declaring the root-cause fix done: read every changed line and check for style violations, missed edge cases, regressions in adjacent behavior, and missing test coverage for the fix. Do not run the broader polish/review/PR tail here; Phase 4 owns it after the debug summary so the user can see the root-cause result before shipping work begins.
+1. Inspect existing tests for the affected behavior before adding coverage.
+2. Choose the right regression home: use an existing failing test, update an existing test that owns the contract but has the wrong expectation, narrowly strengthen an over-mocked test that should have caught the bug, or add a new focused test when no existing test fits.
+3. Verify the chosen test fails for the right reason — the root cause, not unrelated setup.
+4. Implement the minimal fix — address the root cause and nothing else. Do not bundle drive-by refactors, formatting, or unrelated cleanup into a bug-fix change; those belong in separate commits.
+5. Verify the test passes.
+6. Run the broader test suite for regressions.
+7. Self-review the diff before declaring the root-cause fix done: read every changed line and check for style violations, missed edge cases, regressions in adjacent behavior, and missing test coverage for the fix. Do not run the broader polish/review/PR tail here; Phase 4 owns it after the debug summary so the user can see the root-cause result before shipping work begins.
 
 **On a failed fix:** return to Phase 2 and *explicitly invalidate the current hypothesis* before forming a new one. State out loud what evidence ruled out the prior hypothesis, then form a new one with its own grounding observation and prediction. Do not retry variants of the same theory ("maybe it was the other branch", "let me also catch this case") — that is the rationalization spiral, not iteration.
 
