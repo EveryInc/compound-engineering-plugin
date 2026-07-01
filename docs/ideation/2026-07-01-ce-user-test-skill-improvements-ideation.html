@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ideation: ce-user-test Skill Improvements</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+:root{
+  --bg:#fbfaf8; --ink:#1f2430; --muted:#5b6472; --line:#e3ded5;
+  --accent:#0f6f5c; --accent-soft:#e7f2ee; --accent-text:#0b5647;
+  --warn:#9a5b12; --warn-soft:#f7ecd9; --warn-text:#7c4a0e;
+  --bad:#8e2f2f; --bad-soft:#f6e5e2; --bad-text:#7a2727;
+  --card:#ffffff; --chip:#f0ede7;
+  font-size:16px;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);
+  font-family:Inter,system-ui,-apple-system,"Segoe UI",sans-serif;line-height:1.55}
+main{max-width:920px;margin-inline:auto;padding:2.5rem 1.5rem 4rem}
+p,li,dd{max-width:70ch}
+code{font-family:"JetBrains Mono",ui-monospace,Consolas,monospace;font-size:.86em;
+  background:var(--chip);padding:.08em .35em;border-radius:4px}
+h1{font-size:1.9rem;line-height:1.2;margin:.3rem 0 .4rem}
+h2{font-size:1.35rem;margin:2.6rem 0 .8rem;padding-top:1rem;border-top:1px solid var(--line)}
+h3{font-size:1.08rem;margin:0 0 .4rem}
+.eyebrow{font-size:.72rem;letter-spacing:.12em;text-transform:uppercase;color:var(--accent-text);font-weight:700}
+.meta{color:var(--muted);font-size:.92rem;margin-bottom:.5rem}
+.meta code{background:none;padding:0}
+.stats{display:flex;flex-wrap:wrap;gap:.6rem;margin:1.2rem 0 0}
+.stats div{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding:.55rem .9rem;font-size:.86rem;color:var(--muted)}
+.stats b{display:block;font-size:1.15rem;color:var(--ink)}
+.jump{background:var(--card);border:1px solid var(--line);border-radius:10px;
+  padding: .9rem 1.1rem;margin:0 0 1.4rem}
+.jump ul{margin:.3rem 0 0;padding-left:1.2rem}
+.jump a{color:var(--accent-text);text-decoration:none}
+.jump a:hover{text-decoration:underline}
+article.idea{background:var(--card);border:1px solid var(--line);border-radius:12px;
+  padding:1.3rem 1.4rem;margin:1.1rem 0}
+.idea-head{display:flex;align-items:baseline;gap:.7rem;flex-wrap:wrap}
+.idchip{font-family:"JetBrains Mono",monospace;font-weight:600;font-size:.8rem;
+  background:var(--accent-soft);color:var(--accent-text);border-radius:999px;padding:.15rem .65rem}
+.chips{display:flex;gap:.45rem;flex-wrap:wrap;margin:.5rem 0 .8rem}
+.chip{font-size:.75rem;border-radius:999px;padding:.14rem .6rem;background:var(--chip);color:var(--muted)}
+.chip.axis{background:var(--accent-soft);color:var(--accent-text)}
+.chip.conf-hi{background:var(--accent-soft);color:var(--accent-text)}
+.chip.conf-md{background:var(--warn-soft);color:var(--warn-text)}
+dl{margin:.6rem 0 0}
+dt{font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);font-weight:700;margin-top:.7rem}
+dd{margin:.15rem 0 0}
+table{border-collapse:collapse;width:100%;font-size:.9rem;margin:.8rem 0}
+th,td{border:1px solid var(--line);padding:.45rem .6rem;text-align:left;vertical-align:top}
+th{background:var(--chip);font-size:.78rem;letter-spacing:.05em;text-transform:uppercase}
+td.rsn{color:var(--muted)}
+.axes li{margin:.25rem 0}
+figure{margin:1rem 0 .4rem;padding:.9rem;background:var(--bg);border:1px solid var(--line);border-radius:10px}
+figcaption{font-size:.78rem;color:var(--muted);margin-top:.5rem}
+footer.composition-signal{margin-top:3rem;padding-top:1rem;border-top:1px solid var(--line);
+  font-size:.8rem;color:var(--muted)}
+.ground p{margin:.4rem 0}
+strong{color:inherit}
+</style>
+</head>
+<body>
+<main>
+<span class="eyebrow">Ideation</span>
+<h1>ce-user-test Skill Improvements</h1>
+<p class="meta">
+  <time datetime="2026-07-01">2026-07-01</time> · topic: <code>ce-user-test-skill-improvements</code> ·
+  focus: improve the ce-user-test skill suite · mode: repo-grounded
+</p>
+<div class="stats">
+  <div><b>47</b> raw ideas, 5 frames</div>
+  <div><b>29 + 4</b> after dedupe + synthesis</div>
+  <div><b>7</b> survivors</div>
+  <div><b>3</b> refuted on feasibility</div>
+  <div><b>5</b> axes, all covered</div>
+</div>
+
+<section>
+<h2>Grounding Context</h2>
+<div class="ground">
+<p><strong>Codebase context.</strong> The suite is four skills on branch <code>feat/user-test-skill-v2</code>: <code>ce-user-test</code> (~400-line SKILL.md plus 12 reference files), <code>ce-user-test-iterate</code>, <code>ce-user-test-commit</code>, <code>ce-user-test-eval</code>. The agent drives a visible Chrome window via the claude-in-chrome MCP, scores areas 1-5 (UX plus optional output quality), and persists compounding state in <code>tests/user-flows/</code>: a maturity ladder (Uncharted → Proven → Known-bug), regression probes, queries, journeys, novelty fingerprints, and run history across 8 artifact files at schema v10.</p>
+<p><strong>Evidence highlights.</strong> Five evidence dossiers (671 lines, file:line-cited) surfaced: a v1→v10 migration ladder living as cascading prose conditionals; six rotation caps specified independently in six files; atomic writes documented for one of eight mutated files; verification failures that block promotion but never demote; a scoring rubric claimed "absolute" with no calibration mechanism; disconnects trending 6→10 while sibling skills (<code>ce-test-browser</code>, <code>ce-dogfood</code>) mandate the agent-browser CLI exclusively; and a self-eval whose spec names its own missing Eval 4.</p>
+<p><strong>Past learnings applied.</strong> Agent judgment for quality/maturity state but explicit state machines for externally-verifiable state; anchored discrete rubrics over floats; script-first architecture for mechanical data processing (60-75% token cut); paired old-vs-new blind injection for validating skill prose; monolith-split anti-patterns (prose budgets creep without deterministic gates).</p>
+<p><strong>External research.</strong> GUITester (arXiv 2601.04500) names Goal-Oriented Masking and Execution-Bias Attribution as agent-tester failure modes (+15.5pp F1 from decoupled roles). LLM-judge literature validates the 1-5 scale but flags self-enhancement bias and rubric conflation (Nielsen severity vs SUS-style experience). 2026 QA-market scan: no funded competitor documents cross-run compounding memory — the maturity ladder is genuine differentiation. UXBench: ground UX scores in interaction evidence.</p>
+</div>
+</section>
+
+<section>
+<h2>Topic Axes</h2>
+<ul class="axes">
+<li><strong>browser-execution-resilience</strong> — chrome MCP dependency, disconnects, WSL gap, modal dialogs, CLI-only mode</li>
+<li><strong>compounding-state-schema</strong> — test-file schema v10, migration ladder, probe/query/journey lifecycle, writebacks</li>
+<li><strong>scoring-maturity</strong> — rubric, promotion gates, verification pass, iterate-mode consistency</li>
+<li><strong>reporting-commit</strong> — dispatch report, GitHub issue filing, 11-step commit sequence, delta computation</li>
+<li><strong>self-eval-loop</strong> — binary evals, mutation proposals, grading integrity, version tracking</li>
+</ul>
+</section>
+
+<section>
+<h2>Ranked Ideas</h2>
+<nav class="jump"><strong>Jump to:</strong>
+<ul>
+<li><a href="#i1">1. Deterministic core refactor</a></li>
+<li><a href="#i2">2. Browser substrate strategy</a></li>
+<li><a href="#i3">3. Calibration deck + blind proficiency seeds</a></li>
+<li><a href="#i4">4. Anomaly ledger + Eval 4</a></li>
+<li><a href="#i5">5. Evidence array per scored area</a></li>
+<li><a href="#i6">6. Spaced-repetition probe scheduler</a></li>
+<li><a href="#i7">7. Two-channel rubric: severity + experience</a></li>
+</ul>
+</nav>
+
+<article class="idea" id="i1">
+<div class="idea-head"><span class="idchip">1</span><h3>Deterministic core refactor — scripts own the arithmetic, the agent keeps the judgment</h3></div>
+<div class="chips"><span class="chip axis">compounding-state-schema</span><span class="chip conf-hi">Confidence 85%</span><span class="chip">Complexity Medium</span><span class="chip">5-frame convergence</span></div>
+<dl>
+<dt>Description</dt><dd>One refactor bundling the four mechanical subsystems that today live as LLM-followed prose: (a) a bundled <code>scripts/migrate-test-file</code> (SKILL_DIR-anchored) replaces the nine cascading v1→v10 migration conditionals — a schema bump becomes a table row, not a new paragraph; (b) a central cap/threshold registry replaces six independently-specified rotation caps (10/20/10/10/50/6mo) plus scattered thresholds (7-vs-5 pattern surfacing, -0.5 delta, restart 15); (c) a write-ahead commit journal makes the 11-step, 8-file commit resumable and all-or-nothing instead of atomic-for-one-file-only; (d) the undefined "semantic title search" issue-dedup fallback becomes the 70% word-overlap algorithm the skill already specifies for probes. A synthetic aging harness (simulate 100 commit cycles, assert caps hold and IDs stay unique) becomes the regression gate. Scores, maturity calls, and notes stay agent-owned — only arithmetic and file mutation move to code.</dd>
+<dt>Basis</dt><dd><code>direct:</code> SKILL.md:45-51 (nine migration blocks, each "Do NOT rewrite on read", contradicted by commit mode force-upgrading to v10 at SKILL.md:323); six cap citations across five files; SKILL.md:321-323 atomic write for one of eight artifacts; SKILL.md:350-357 unspecified dedup fallback vs probes.md's 70% overlap precedent. Reinforced by the repo's own script-first learning (60-75% token cut) and the deepen-plan v4.1 consolidation precedent.</dd>
+<dt>Rationale</dt><dd>This is where five independent ideation frames converged. Every future schema version, cap change, and commit step currently adds prose an LLM must re-execute correctly on every run — the failure class (drift, miscounts, partial-commit corruption) compounds with the state it manages. Scripting it is the repo's own documented playbook applied to its clearest unexploited instance.</dd>
+<dt>Downsides</dt><dd>Adds bundled-script infrastructure (cross-platform Python/Node choice, SKILL_DIR anchoring, permission prompts) to a currently pure-prose skill; the verifier cautioned that the maturity-transition portion must stay agent-owned or it contradicts the founding agent-judgment learning.</dd>
+</dl>
+<figure>
+<svg viewBox="0 0 760 210" role="img" aria-label="Before and after: prose rules scattered across files versus a script layer under agent judgment">
+<text x="140" y="22" font-size="13" font-weight="700" fill="#5b6472">TODAY — prose, re-executed every run</text>
+<rect x="20" y="35" width="330" height="150" rx="10" fill="#f6e5e2" stroke="#e3ded5"/>
+<rect x="40" y="50" width="130" height="28" rx="6" fill="#ffffff" stroke="#e3ded5"/><text x="48" y="68" font-size="11" fill="#1f2430">9 migration rules</text>
+<rect x="190" y="50" width="140" height="28" rx="6" fill="#ffffff" stroke="#e3ded5"/><text x="198" y="68" font-size="11" fill="#1f2430">6 caps in 6 files</text>
+<rect x="40" y="90" width="130" height="28" rx="6" fill="#ffffff" stroke="#e3ded5"/><text x="48" y="108" font-size="11" fill="#1f2430">11-step commit</text>
+<rect x="190" y="90" width="140" height="28" rx="6" fill="#ffffff" stroke="#e3ded5"/><text x="198" y="108" font-size="11" fill="#1f2430">undefined dedup</text>
+<text x="40" y="165" font-size="11" fill="#7a2727">drift · miscounts · partial-commit corruption</text>
+<path d="M365 110 L400 110" stroke="#5b6472" stroke-width="2" marker-end="url(#arr)"/>
+<text x="530" y="22" font-size="13" font-weight="700" fill="#0b5647">AFTER — one script layer</text>
+<rect x="410" y="35" width="330" height="65" rx="10" fill="#e7f2ee" stroke="#e3ded5"/>
+<text x="430" y="60" font-size="12" font-weight="600" fill="#0b5647">Agent: scores · maturity calls · notes</text>
+<text x="430" y="80" font-size="11" fill="#0b5647">(judgment only)</text>
+<rect x="410" y="120" width="330" height="65" rx="10" fill="#ffffff" stroke="#0f6f5c"/>
+<text x="430" y="145" font-size="12" font-weight="600" fill="#1f2430">Scripts: migrate · caps · commit WAL · dedup</text>
+<text x="430" y="165" font-size="11" fill="#5b6472">tested once by a 100-cycle aging harness</text>
+<path d="M575 100 L575 120" stroke="#5b6472" stroke-width="2" marker-end="url(#arr)"/>
+<defs><marker id="arr" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#5b6472"/></marker></defs>
+</svg>
+<figcaption>The refactor's shape: mechanical subsystems drop below a judgment line; the agent stops re-deriving arithmetic every run.</figcaption>
+</figure>
+</article>
+
+<article class="idea" id="i2">
+<div class="idea-head"><span class="idchip">2</span><h3>Browser substrate strategy — tool-neutral adapter, agent-browser default, mid-run failover</h3></div>
+<div class="chips"><span class="chip axis">browser-execution-resilience</span><span class="chip conf-hi">Confidence 80%</span><span class="chip">Complexity High</span><span class="chip">4-frame convergence</span></div>
+<dl>
+<dt>Description</dt><dd>Rewrite Phases 2-3 in tool-neutral action verbs (navigate, read-page, evaluate, screenshot) with an adapter table mapping verbs to whichever engine is present: claude-in-chrome when the user wants the visible, shared-login window; agent-browser CLI otherwise. On <code>disconnect_counter ≥ 3</code> or WSL detection, divert remaining areas to the CLI engine instead of aborting, recording which engine scored each area. Add a replay-before-blame attribution step: on any tool failure, run a known-good minimal action first — success means the failure was the app (score it, probe it); failure means the connection (recovery path).</dd>
+<dt>Basis</dt><dd><code>direct:</code> SKILL.md:3 hardcodes claude-in-chrome in the frontmatter; ce-test-browser/SKILL.md:18 and ce-dogfood mandate agent-browser exclusively; disconnects trending 6→10 (SKILL.md:252); <code>mcp__claude-in-chrome__*</code> names violate the plugin's cross-platform rule (Claude-Code-only in a suite shipped to Codex/Cursor/Gemini). <code>external:</code> GUITester's Execution-Bias Attribution — the current recovery path treats every failure as transient, so real app defects get retried and absorbed into the disconnect counter.</dd>
+<dt>Rationale</dt><dd>The skill's most-observed failure mode becomes run-degrading instead of run-killing; the WSL abort disappears; the suite stops being the only sibling on the fragile substrate; and mis-attributed failures stop corrupting both the resilience counters and the scores at once.</dd>
+<dt>Downsides</dt><dd>Largest change surface of the seven; the visible-window/shared-login experience is part of the skill's identity and must remain a first-class mode, not a legacy path; per-engine behavioral differences could add scoring variance across engines.</dd>
+</dl>
+<figure>
+<svg viewBox="0 0 760 170" role="img" aria-label="Adapter flow: tool-neutral verbs route to chrome MCP or agent-browser CLI with failover">
+<rect x="20" y="55" width="170" height="60" rx="10" fill="#e7f2ee" stroke="#e3ded5"/>
+<text x="40" y="80" font-size="12" font-weight="600" fill="#0b5647">Tool-neutral verbs</text>
+<text x="40" y="98" font-size="11" fill="#0b5647">navigate · read · eval</text>
+<path d="M190 72 L280 45" stroke="#5b6472" stroke-width="2" marker-end="url(#arr2)"/>
+<path d="M190 98 L280 125" stroke="#5b6472" stroke-width="2" marker-end="url(#arr2)"/>
+<rect x="285" y="20" width="220" height="52" rx="10" fill="#ffffff" stroke="#e3ded5"/>
+<text x="300" y="42" font-size="12" font-weight="600" fill="#1f2430">claude-in-chrome MCP</text>
+<text x="300" y="60" font-size="11" fill="#5b6472">visible window · shared login</text>
+<rect x="285" y="100" width="220" height="52" rx="10" fill="#ffffff" stroke="#0f6f5c"/>
+<text x="300" y="122" font-size="12" font-weight="600" fill="#1f2430">agent-browser CLI</text>
+<text x="300" y="140" font-size="11" fill="#5b6472">headless · WSL-safe · cross-host</text>
+<path d="M395 72 L395 100" stroke="#9a5b12" stroke-width="2" stroke-dasharray="5 4" marker-end="url(#arr2)"/>
+<text x="405" y="90" font-size="11" fill="#7c4a0e">failover: disconnects ≥ 3, WSL</text>
+<rect x="560" y="55" width="180" height="60" rx="10" fill="#f7ecd9" stroke="#e3ded5"/>
+<text x="576" y="80" font-size="12" font-weight="600" fill="#7c4a0e">Replay-before-blame</text>
+<text x="576" y="98" font-size="11" fill="#7c4a0e">app defect vs connection</text>
+<path d="M505 85 L560 85" stroke="#5b6472" stroke-width="2" marker-end="url(#arr2)"/>
+<defs><marker id="arr2" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 z" fill="#5b6472"/></marker></defs>
+</svg>
+<figcaption>One action contract, two engines, an explicit failover edge, and an attribution check before any failure is scored or retried.</figcaption>
+</figure>
+</article>
+
+<article class="idea" id="i3">
+<div class="idea-head"><span class="idchip">3</span><h3>Calibration deck + blind proficiency seeds — make "scores are absolute" a measured property</h3></div>
+<div class="chips"><span class="chip axis">scoring-maturity</span><span class="chip conf-hi">Confidence 75%</span><span class="chip">Complexity Medium</span><span class="chip">4-frame convergence</span></div>
+<dl>
+<dt>Description</dt><dd>Ship a small frozen deck: 3-10 artifacts (reports and evidence bundles, including deliberately ambiguous cases) with locked reference scores. Each run — or each eval, as an "Eval 0" — re-scores the deck with the current model and skill version, records deviation, and flags the run's scores as uncalibrated when any anchor drifts beyond ±1. Alongside it, 3-6 known-bad seed artifacts (a P1 buried in DETAILS, a missing Proven-regression marker) that the grader must FAIL — proving the evals can still fail at all, since the current graduation rule rewards consecutive passes with no vacuousness check.</dd>
+<dt>Basis</dt><dd><code>direct:</code> SKILL.md:178 "Scores are absolute per this rubric" with zero variance mechanism (flagged CRITICAL GAP in the evidence dossier); ce-user-test-eval/SKILL.md:170-173 treats consecutive passes as pure health signal. <code>external:</code> clinical-lab QC (control samples per run, CAP blind proficiency testing) and mutation testing; the repo's safe-auto-rubric-calibration learning (measure variance on ambiguous cases).</dd>
+<dt>Rationale</dt><dd>Every trend, delta, promotion gate, and adversarial trigger assumes score comparability across sessions and models — today that assumption is unfalsifiable. This turns the suite's weakest epistemic claim into its most defensible one using artifacts the pipeline already produces.</dd>
+<dt>Downsides</dt><dd>Deck curation is real work and the deck itself can go stale as the rubric evolves; adds per-run cost (a few extra scoring calls); reference scores must themselves be argued once.</dd>
+</dl>
+</article>
+
+<article class="idea" id="i4">
+<div class="idea-head"><span class="idchip">4</span><h3>Anomaly ledger + Eval 4 — defeat Goal-Oriented Masking with a mandatory side-channel</h3></div>
+<div class="chips"><span class="chip axis">self-eval-loop</span><span class="chip conf-hi">Confidence 80%</span><span class="chip">Complexity Low</span></div>
+<dl>
+<dt>Description</dt><dd>Require the exploring agent to append to <code>.user-test-anomalies.jsonl</code> at every area transition — one line per anomaly noticed en route (or an explicit <code>none</code>), with area and evidence pointer. Report generation must consume the ledger, making silence distinguishable from vigilance. Then implement the already-scoped Eval 4 (the eval spec itself says "candidate for a future Eval 4" for verification-mismatch surfacing) as a ledger→report coverage check: nothing noticed may vanish between Phase 3 and Phase 4.</dd>
+<dt>Basis</dt><dd><code>external:</code> GUITester's Goal-Oriented Masking (agents prioritize task completion over reporting anomalies noticed en route) and NASA ASRS's separate non-punitive reporting channel. <code>direct:</code> SKILL.md:226 "Sections with no items are omitted" — the dispatch format actively rewards silence with a cleaner-looking report; ce-user-test-eval/SKILL.md:73-75 names the missing eval.</dd>
+<dt>Rationale</dt><dd>Masked anomalies are the findings exploratory testing exists to catch, and the current format structurally rewards masking. One schema field, one report section, and one eval close a published failure mode — the cheapest high-value change in the set.</dd>
+<dt>Downsides</dt><dd>Mandatory per-transition entries add small overhead and can degenerate into rote <code>none</code> entries; Eval 4's cross-artifact matching needs the same semantic-matching care Eval 3 already requires.</dd>
+</dl>
+</article>
+
+<article class="idea" id="i5">
+<div class="idea-head"><span class="idchip">5</span><h3>Evidence array per scored area — every score cites what it saw</h3></div>
+<div class="chips"><span class="chip axis">reporting-commit</span><span class="chip conf-hi">Confidence 78%</span><span class="chip">Complexity Low</span></div>
+<dl>
+<dt>Description</dt><dd>Mandate an <code>evidence</code> array per scored area in <code>.user-test-last-run.json</code> — action references, DOM reads, timings, screenshot paths — and render score→evidence links in the report. An unevidenced "4/5" becomes structurally impossible rather than merely discouraged.</dd>
+<dt>Basis</dt><dd><code>direct:</code> verification-patterns.md:18 already records exact counts ("2 of 8 sampled results had mismatched condition badges") — the precedent exists for verification but not for UX/Quality scores. <code>external:</code> UXBench (arXiv 2606.16262): grounding UX scores in interaction evidence is what makes them comparable across runs.</dd>
+<dt>Rationale</dt><dd>This is the enabling artifact for the rest of the scoring program: the calibration deck (idea 3) freezes evidence bundles, Eval 4 (idea 4) checks coverage against evidence, and any future scorer separation would grade from it. Sequencing it early makes three other directions cheaper.</dd>
+<dt>Downsides</dt><dd>Schema bump (v11) and slightly heavier run artifacts; evidence quality itself is agent-produced and needs a light format contract to stay useful.</dd>
+</dl>
+</article>
+
+<article class="idea" id="i6">
+<div class="idea-head"><span class="idchip">6</span><h3>Spaced-repetition probe scheduler — one mechanism replaces budgets, caps, and ordering rules</h3></div>
+<div class="chips"><span class="chip axis">compounding-state-schema</span><span class="chip conf-md">Confidence 60%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+<dt>Description</dt><dd>Give every probe, query, and journey a <code>next_due_run</code> computed from its pass streak (SM-2 style: interval grows on pass, resets on fail); a run executes whatever is due. The tiered Proven budget table, the rotation caps, and the probe-ordering combinator collapse into one scheduling formula. Nothing ever leaves the deck — mature items just come due less often, closing the "Proven rot" hole structurally (under the current floor, a long-Proven area gets one call forever).</dd>
+<dt>Basis</dt><dd><code>direct:</code> probes.md:64-70 — the confidence field is updated like an ease factor but never affects scheduling; rotation caps are inconsistent at 10/20/50 across files. <code>external:</code> SM-2 (SuperMemo/Anki) — interval growth with lapse reset is the canonical solution to cheap maintenance of a growing set of known facts.</dd>
+<dt>Rationale</dt><dd>A rare simplify-and-strengthen trade: it deletes three scattered subsystems (a flagged drift source) while making re-testing coverage principled instead of budget-starved. Pairs naturally with idea 1's script layer, which would own the interval arithmetic.</dd>
+<dt>Downsides</dt><dd>A real redesign of run-targeting semantics, not a patch; interval parameters need tuning against actual run cadence; medium confidence because the maturity ladder's current behavior is proven in use and this changes its rhythm.</dd>
+</dl>
+</article>
+
+<article class="idea" id="i7">
+<div class="idea-head"><span class="idchip">7</span><h3>Two-channel rubric — defect severity per finding, experience score per area</h3></div>
+<div class="chips"><span class="chip axis">scoring-maturity</span><span class="chip conf-md">Confidence 65%</span><span class="chip">Complexity Medium</span></div>
+<dl>
+<dt>Description</dt><dd>Split the single 1-5 scale that currently spans "Broken — cannot complete the task" to "Delightful": findings get a discrete Nielsen-style severity (cosmetic / minor / major / catastrophic); areas keep an experience score. Promotion gates read severity (any major+ blocks); trends read experience. The undefined judgment calls scattered through the maturity rules — "minor CSS issues do not trigger demotion", "a cosmetic issue does not warrant demotion" — get a concrete home instead of living as ad-hoc exceptions.</dd>
+<dt>Basis</dt><dd><code>direct:</code> SKILL.md:170-176 (one axis from broken to delightful) and SKILL.md:313 (undefined "minor CSS" exception). <code>external:</code> Nielsen's 4-point severity scale vs SUS-style experience scales are distinct rubric traditions; LLM-judge literature flags conflated rubrics as a judge-noise source.</dd>
+<dt>Rationale</dt><dd>Half the fragile maturity rules are workarounds for severity being smuggled inside an experience number. Separating the channels reduces judge noise at the source and makes the promotion gate mean something specific.</dd>
+<dt>Downsides</dt><dd>Schema and report changes ripple through promotion, demotion, bug filing, and both evals; historical score series become only partially comparable across the transition.</dd>
+</dl>
+</article>
+</section>
+
+<section>
+<h2>Rejection Summary</h2>
+<table>
+<thead><tr><th>#</th><th>Idea</th><th>Reason Rejected</th></tr></thead>
+<tbody>
+<tr><td>1</td><td>MCP counter wrapper script</td><td class="rsn">Refuted: no execution hook exists between agent tool-calls and the MCP server — a script cannot intercept MCP calls.</td></tr>
+<tr><td>2</td><td>Modal auto-dismiss via preflight JS injection</td><td class="rsn">Refuted: no pre-page-load injection guarantee; native dialogs freeze the MCP channel before an override could land.</td></tr>
+<tr><td>3</td><td>Nightly fleet mode</td><td class="rsn">Refuted: no scheduling/headless substrate available to a plugin skill; the chrome MCP needs a live, logged-in window.</td></tr>
+<tr><td>4</td><td>Verification probation state machine</td><td class="rsn">Existing probe-escalation path (3 fails → bugs.md) covers the regression; the idea didn't show it insufficient.</td></tr>
+<tr><td>5</td><td>Mutation-loop closure (project → plugin upstream sync)</td><td class="rsn">Bundles three unlike asks; the upstream sync has no concrete mechanism across two different repos and lifecycles.</td></tr>
+<tr><td>6</td><td>Scripted deltas + promotion gates</td><td class="rsn">Delta arithmetic folded into idea 1; scripting maturity transitions contradicts the founding agent-judgment learning.</td></tr>
+<tr><td>7</td><td>Evals 1+2 as pure scripts</td><td class="rsn">The eval already runs context-isolated; marginal gain — optional add-on to idea 1 later.</td></tr>
+<tr><td>8</td><td>Graduation drops browser budget to zero</td><td class="rsn">Contradicts the failing-probes-always-run floor without resolving how probes would still execute.</td></tr>
+<tr><td>9</td><td>Shared escalation state machine</td><td class="rsn">Real duplication, but the territory belongs to idea 1's refactor — fold in when that lands.</td></tr>
+<tr><td>10</td><td>Disconnect telemetry auto-tunes restart threshold</td><td class="rsn">Signal density at typical run cadence can't support auto-tuning an environment-specific parameter.</td></tr>
+<tr><td>11</td><td>Mark-recapture saturation metric</td><td class="rsn">Analogy polarity inverted — high recapture can mean narrow exploration, not a well-tested area.</td></tr>
+<tr><td>12</td><td>Explorer/Scorer role split</td><td class="rsn">GUITester's self-preference motivation doesn't map to this scoring shape, and it doubles browser round-trips.</td></tr>
+<tr><td>13</td><td>Auto-dispatch the eval at commit end</td><td class="rsn">Contradicts an explicit "Do NOT invoke" without establishing whether the manual gate is also a deliberate cost checkpoint.</td></tr>
+<tr><td>14</td><td>Event-sourced state with projections</td><td class="rsn">Disproportionate re-architecture; idea 1's commit journal addresses the actual pain far cheaper.</td></tr>
+<tr><td>15</td><td>Confidence-gated maturity transitions</td><td class="rsn">Sound, but overlaps ideas 3 and 6, which address the same variance concern; cut to hold the set at seven.</td></tr>
+<tr><td>16</td><td>Synthetic aging harness (standalone)</td><td class="rsn">Folded into idea 1 as its regression gate rather than a separate direction.</td></tr>
+</tbody>
+</table>
+<p class="meta">All five axes have at least one survivor — no coverage gaps. Verifier pattern notes: several cut ideas overrode deliberate design constraints without confronting their rationale; three failed on platform substrate; two mischaracterized their external analogy.</p>
+</section>
+
+<footer class="composition-signal">Composed 2026-07-01 by ce-ideate from the prompt "can you take a look at the user test skill and see how we can improve it?" · grounding: 5 evidence dossiers, docs/solutions learnings, external research sweep · run scratch: <code>C:\tmp\compound-engineering\ce-ideate\10ca2395</code></footer>
+</main>
+</body>
+</html>

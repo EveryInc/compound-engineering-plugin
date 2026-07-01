@@ -54,6 +54,9 @@ Guidance generalized from several Learnings into a broader rule. Higher-leverage
 
 ## Skill orchestration
 
+### Judgment payload
+The agent-produced input to a Skill's deterministic script layer: the judgment-bearing values only (scores, maturity decisions, notes, issue text), with all downstream arithmetic and file mutation executed by scripts. Encodes the boundary from the agent-guided-state learning — scripts never decide a score or a maturity transition; agents never perform the mechanical writes.
+
 ### Model tier
 A semantic cost class for a dispatched sub-agent — extraction (cheapest capable, for retrieval and quoting), generation (mid-tier, for evidence-driven work and mechanical verification), or ceiling (the orchestrator's own model, inherited by omitting any model selection) — declared once per Skill and referenced by tier name so model names never hardcode into skill content.
 
