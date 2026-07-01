@@ -101,7 +101,7 @@ The first pass tightens recent branch changes before review. The targeted pass i
 /lfg
 ```
 
-`/lfg` runs the loop hands-off: it plans, works through the plan, simplifies, runs code review and applies the fixes, runs browser tests, commits, pushes, opens a PR, then watches CI and repairs failures until it's green. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt. It's the autopilot version of the standard loop -- neat when you want to step away and come back to an open, green PR.
+`/lfg` runs the loop hands-off. It first resolves whatever you hand it into a concrete task -- a feature description, a Riffrec bundle, a video/audio recording, or screenshots (recordings and screenshots are analyzed into structured feedback first) -- then plans, works through the plan, simplifies, runs code review and applies the fixes, runs browser tests, dogfoods the changed journeys as a real user, commits, pushes, opens a PR, captures any durable learning into `docs/solutions/` (compound-out), then watches CI and repairs failures until it's green. Start it after `/ce-brainstorm` so it plans against real requirements rather than a one-line prompt. It's the autopilot version of the standard loop -- neat when you want to step away and come back to an open, green PR.
 
 ## Getting Started
 

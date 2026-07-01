@@ -91,7 +91,7 @@ Invoked when a specific need arises — not part of any chain.
 
 | Skill | Description |
 |-------|-------------|
-| [`/lfg`](./lfg.md) | Run the full hands-off engineering pipeline from planning through a green PR — plan, work, simplify, review, fix, browser-test, ship, and watch CI |
+| [`/lfg`](./lfg.md) | Run the full hands-off engineering pipeline from a feature description, Riffrec bundle, recording, or screenshots through a green PR — plan, work, simplify, review, fix, browser-test, dogfood, ship, compound-out the learning, and watch CI |
 
 ---
 
