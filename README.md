@@ -133,6 +133,10 @@ The `compound-engineering` plugin currently ships 27 skills and 0 standalone age
 | [`/ce-worktree`](docs/skills/ce-worktree.md) | Ensure work happens in an isolated git worktree |
 | [`/ce-promote`](docs/skills/ce-promote.md) | Draft user-facing announcement copy |
 | [`/ce-test-browser`](docs/skills/ce-test-browser.md) | Run browser tests on PR-affected pages |
+| [`/ce-user-test`](docs/skills/ce-user-test.md) | Exploratory browser user testing with compounding test files |
+| [`/ce-user-test-iterate`](docs/skills/ce-user-test.md) | Run the same user test N times to measure consistency |
+| [`/ce-user-test-commit`](docs/skills/ce-user-test.md) | Commit user-test results from the last run |
+| [`/ce-user-test-eval`](docs/skills/ce-user-test.md) | Grade user-test output against binary evals |
 | [`/ce-test-xcode`](docs/skills/ce-test-xcode.md) | Build and test iOS apps on simulator |
 | [`/ce-setup`](docs/skills/ce-setup.md) | Diagnose optional tool capabilities and project config |
 | [`/ce-simplify-code`](docs/skills/ce-simplify-code.md) | Simplify recent code changes |
