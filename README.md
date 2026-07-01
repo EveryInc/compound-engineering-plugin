@@ -326,6 +326,17 @@ The bundled `.agy/` directory remains a compatibility entry point (`agy plugin i
 
 See [`.agy/INSTALL.md`](.agy/INSTALL.md) for pinning, local development, uninstall, and legacy Gemini import.
 
+### ZeroClaw
+
+[ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) loads CE skills from per-agent workspace paths (`~/.zeroclaw/agents/<alias>/workspace/skills/`). Run `zeroclaw quickstart` first, enable bundled scripts in `~/.zeroclaw/config.toml` (`[skills] allow_scripts = true`), then install from a checkout:
+
+```bash
+git clone https://github.com/EveryInc/compound-engineering-plugin
+./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --global
+```
+
+Re-run the install script after updating the checkout. See [`.zeroclaw/INSTALL.md`](.zeroclaw/INSTALL.md) for per-agent paths, pinning, and uninstall steps.
+
 ### Existing Installs
 
 Compound Engineering moved to a root-native, skills-only layout. An existing marketplace install keeps a **cached** marketplace snapshot that still points at the old `plugins/compound-engineering` path, so updating the plugin on its own reads that stale snapshot and leaves you on the previous version. Refresh the cached marketplace **first**, then update the plugin — order matters.
@@ -444,6 +455,14 @@ agy plugin install "$PWD/.agy"
 ```
 
 See [`.agy/INSTALL.md`](.agy/INSTALL.md) for remote install and pinning examples.
+
+**ZeroClaw**
+
+```bash
+/path/to/compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --global
+```
+
+Set `[skills] allow_scripts = true` in `~/.zeroclaw/config.toml` before installing.
 
 ## Limitations
 
