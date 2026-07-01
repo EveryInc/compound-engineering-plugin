@@ -25,6 +25,7 @@ const FILE_COMPONENT_MAP: Array<{ component: ReleaseComponent; prefixes: string[
       ".codex-plugin/",
       ".kimi-plugin/plugin.json",
       ".opencode/",
+      ".cline/",
       ".pi/",
       "AGENTS.md",
       "CLAUDE.md",
