@@ -1,25 +1,39 @@
 #!/usr/bin/env bash
-# Copy Compound Engineering skills/ into ZeroClaw's workspace skills directory.
+# Copy Compound Engineering skills/ into ZeroClaw agent workspace skills directories.
 # ZeroClaw rejects symlinked skill directories at audit time — copies only.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SKILLS_SRC="$REPO_ROOT/skills"
+INSTALL_ROOT="${ZEROCLAW_INSTALL_ROOT:-$HOME/.zeroclaw}"
+SHARED_BUNDLE="compound-engineering"
 
 usage() {
   cat <<'EOF'
-Usage: install-skills.sh [--global | --dir PATH] [--include-manual] [--use-zeroclaw-cli]
+Usage: install-skills.sh [--global | --agent ALIAS | --shared | --dir PATH] [--include-manual]
 
-  --global            Install into ~/.zeroclaw/workspace/skills/ (default)
-  --dir PATH          Install into an explicit skills directory (per-agent workspace)
+  --global            Install into the default agent workspace (same as --agent default)
+  --agent ALIAS       Install into <install>/agents/<alias>/workspace/skills/
+  --agent all         Install into every agent under <install>/agents/
+  --shared            Install bundle at <install>/shared/skills/compound-engineering/
+  --dir PATH          Install into an explicit skills directory
   --include-manual    Also install manual-only skills (disable-model-invocation: true)
-  --use-zeroclaw-cli  Require zeroclaw for default global install only (not with --dir)
 
-Set ZEROCLAW_SKILLS_DIR to override the global destination.
+Set ZEROCLAW_INSTALL_ROOT to override ~/.zeroclaw (honors ZEROCLAW_CONFIG_DIR parent).
 
-CE skills ship bundled shell/Python scripts. Enable allow_scripts in
-~/.zeroclaw/config.toml before installing:
+ZeroClaw v0.8+ loads agent skills from per-agent workspace paths, not the legacy
+~/.zeroclaw/workspace/skills tree. This script does not call zeroclaw skills install
+(that CLI writes to config.data_dir/skills, which agents do not read).
+
+For --shared, add to ~/.zeroclaw/config.toml:
+
+  [skill_bundles.compound-engineering]
+
+  [agents.default]
+  skill_bundles = ["compound-engineering"]
+
+CE skills ship bundled shell/Python scripts. Enable allow_scripts before use:
 
   [skills]
   allow_scripts = true
@@ -28,14 +42,25 @@ EOF
 }
 
 SCOPE="--global"
+AGENT_ALIAS="default"
 DEST=""
 INCLUDE_MANUAL=false
-USE_ZEROCLAW_CLI=false
+DESTS=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --global)
       SCOPE="--global"
+      shift
+      ;;
+    --agent)
+      [[ $# -ge 2 ]] || usage
+      SCOPE="--agent"
+      AGENT_ALIAS="$2"
+      shift 2
+      ;;
+    --shared)
+      SCOPE="--shared"
       shift
       ;;
     --dir)
@@ -49,7 +74,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --use-zeroclaw-cli)
-      USE_ZEROCLAW_CLI=true
+      echo "warn: --use-zeroclaw-cli is deprecated and ignored (zeroclaw skills install targets data_dir, not agent workspaces)" >&2
       shift
       ;;
     *)
@@ -58,28 +83,39 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-DEFAULT_DEST="${HOME}/.zeroclaw/workspace/skills"
-
-case "$SCOPE" in
-  --global)
-    DEST="${ZEROCLAW_SKILLS_DIR:-$DEFAULT_DEST}"
-    ;;
-  --dir)
-    [[ -n "$DEST" ]] || usage
-    ;;
-  *)
-    usage
-    ;;
-esac
-
-can_use_zeroclaw_cli() {
-  [[ "$SCOPE" == "--global" ]] || return 1
-  [[ -z "${ZEROCLAW_SKILLS_DIR:-}" ]] || return 1
-  local dest_canonical default_canonical
-  mkdir -p "$DEST" "$DEFAULT_DEST"
-  dest_canonical="$(cd "$DEST" && pwd -P)"
-  default_canonical="$(cd "$DEFAULT_DEST" && pwd -P)"
-  [[ "$dest_canonical" == "$default_canonical" ]]
+resolve_destinations() {
+  case "$SCOPE" in
+    --global | --agent)
+      if [[ "$AGENT_ALIAS" == "all" ]]; then
+        if [[ ! -d "$INSTALL_ROOT/agents" ]]; then
+          echo "error: no agents directory at $INSTALL_ROOT/agents" >&2
+          exit 1
+        fi
+        local agent_dir alias_name
+        for agent_dir in "$INSTALL_ROOT/agents"/*/; do
+          [[ -d "$agent_dir" ]] || continue
+          alias_name="$(basename "$agent_dir")"
+          DESTS+=("$INSTALL_ROOT/agents/$alias_name/workspace/skills")
+        done
+        if [[ ${#DESTS[@]} -eq 0 ]]; then
+          echo "error: no agents found under $INSTALL_ROOT/agents" >&2
+          exit 1
+        fi
+      else
+        DESTS+=("$INSTALL_ROOT/agents/$AGENT_ALIAS/workspace/skills")
+      fi
+      ;;
+    --shared)
+      DESTS+=("$INSTALL_ROOT/shared/skills/$SHARED_BUNDLE")
+      ;;
+    --dir)
+      [[ -n "$DEST" ]] || usage
+      DESTS+=("$DEST")
+      ;;
+    *)
+      usage
+      ;;
+  esac
 }
 
 if [[ ! -d "$SKILLS_SRC" ]]; then
@@ -87,23 +123,7 @@ if [[ ! -d "$SKILLS_SRC" ]]; then
   exit 1
 fi
 
-if [[ "$USE_ZEROCLAW_CLI" == "true" ]]; then
-  if ! command -v zeroclaw >/dev/null 2>&1; then
-    echo "error: zeroclaw not found in PATH (--use-zeroclaw-cli)" >&2
-    exit 1
-  fi
-  if ! can_use_zeroclaw_cli; then
-    echo "error: --use-zeroclaw-cli only works for default --global (~/.zeroclaw/workspace/skills)" >&2
-    exit 1
-  fi
-fi
-
-mkdir -p "$DEST"
-installed=0
-skipped=0
-manual_omitted=0
-manual_included=0
-manual_removed=0
+resolve_destinations
 
 copy_skill() {
   local src="$1"
@@ -112,66 +132,62 @@ copy_skill() {
   cp -R "$src" "$dest"
 }
 
-install_one() {
-  local skill_dir="$1"
-  local name="$2"
-  local target="$DEST/$name"
+install_to_dest() {
+  local dest="$1"
+  local installed=0
+  local skipped=0
+  local manual_omitted=0
+  local manual_included=0
+  local manual_removed=0
 
-  if can_use_zeroclaw_cli && command -v zeroclaw >/dev/null 2>&1; then
-    zeroclaw skills remove "$name" >/dev/null 2>&1 || true
-    if zeroclaw skills install "$skill_dir"; then
-      echo "installed $name via zeroclaw -> $target"
-      return 0
-    fi
-    if [[ "$USE_ZEROCLAW_CLI" == "true" ]]; then
-      echo "error: zeroclaw install failed for $name (check [skills] allow_scripts)" >&2
-      exit 1
-    fi
-    echo "warn $name: zeroclaw install failed — falling back to copy (check [skills] allow_scripts)" >&2
-  elif [[ "$USE_ZEROCLAW_CLI" == "true" ]]; then
-    echo "error: zeroclaw not found in PATH" >&2
-    exit 1
-  fi
+  mkdir -p "$dest"
 
-  copy_skill "$skill_dir" "$target"
-  echo "installed $name (copy) -> $target"
-}
+  for skill_dir in "$SKILLS_SRC"/*/; do
+    [[ -f "${skill_dir}SKILL.md" ]] || continue
+    local name
+    name="$(basename "$skill_dir")"
+    local is_manual=false
 
-for skill_dir in "$SKILLS_SRC"/*/; do
-  [[ -f "${skill_dir}SKILL.md" ]] || continue
-  name="$(basename "$skill_dir")"
-  is_manual=false
-
-  if grep -qE '^disable-model-invocation:[[:space:]]*true[[:space:]]*$' "${skill_dir}SKILL.md"; then
-    is_manual=true
-    if [[ "$INCLUDE_MANUAL" != "true" ]]; then
-      target="$DEST/$name"
-      if [[ -e "$target" ]]; then
-        rm -rf "$target"
-        echo "removed $name: manual-only skill" >&2
-        manual_removed=$((manual_removed + 1))
+    if grep -qE '^disable-model-invocation:[[:space:]]*true[[:space:]]*$' "${skill_dir}SKILL.md"; then
+      is_manual=true
+      if [[ "$INCLUDE_MANUAL" != "true" ]]; then
+        local target="$dest/$name"
+        if [[ -e "$target" ]]; then
+          rm -rf "$target"
+          echo "removed $name: manual-only skill" >&2
+          manual_removed=$((manual_removed + 1))
+        fi
+        echo "skip $name: manual-only (disable-model-invocation)" >&2
+        manual_omitted=$((manual_omitted + 1))
+        continue
       fi
-      echo "skip $name: manual-only (disable-model-invocation)" >&2
-      manual_omitted=$((manual_omitted + 1))
+      echo "warn $name: manual-only skill installed — ZeroClaw ignores disable-model-invocation" >&2
+      manual_included=$((manual_included + 1))
+    fi
+
+    local target="$dest/$name"
+    if [[ -e "$target" && ! -d "$target" ]]; then
+      echo "skip $name: $target exists and is not a directory" >&2
+      skipped=$((skipped + 1))
       continue
     fi
-    echo "warn $name: manual-only skill installed — ZeroClaw ignores disable-model-invocation" >&2
-    manual_included=$((manual_included + 1))
-  fi
 
-  target="$DEST/$name"
-  if [[ -e "$target" && ! -d "$target" ]]; then
-    echo "skip $name: $target exists and is not a directory" >&2
-    skipped=$((skipped + 1))
-    continue
-  fi
+    copy_skill "$skill_dir" "$target"
+    echo "installed $name -> $target"
+    installed=$((installed + 1))
+  done
 
-  install_one "$skill_dir" "$name"
-  installed=$((installed + 1))
+  if [[ "$INCLUDE_MANUAL" == "true" ]]; then
+    echo "done: $installed installed, $skipped skipped, $manual_included manual-only included (destination: $dest)"
+  else
+    echo "done: $installed installed, $skipped skipped, $manual_omitted manual-only omitted, $manual_removed manual-only removed (destination: $dest)"
+  fi
+}
+
+for dest in "${DESTS[@]}"; do
+  install_to_dest "$dest"
 done
 
-if [[ "$INCLUDE_MANUAL" == "true" ]]; then
-  echo "done: $installed installed, $skipped skipped, $manual_included manual-only included (destination: $DEST)"
-else
-  echo "done: $installed installed, $skipped skipped, $manual_omitted manual-only omitted, $manual_removed manual-only removed (destination: $DEST)"
+if [[ ${#DESTS[@]} -gt 1 ]]; then
+  echo "completed installs for ${#DESTS[@]} destinations under $INSTALL_ROOT"
 fi

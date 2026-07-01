@@ -318,7 +318,7 @@ agy plugin install ./compound-engineering-plugin/.agy
 
 ### ZeroClaw
 
-[ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) loads CE skills from `SKILL.md` directories copied into the agent workspace. Enable bundled scripts in `~/.zeroclaw/config.toml` (`[skills] allow_scripts = true`), then install from a checkout:
+[ZeroClaw](https://github.com/zeroclaw-labs/zeroclaw) loads CE skills from per-agent workspace paths (`~/.zeroclaw/agents/<alias>/workspace/skills/`). Run `zeroclaw quickstart` first, enable bundled scripts in `~/.zeroclaw/config.toml` (`[skills] allow_scripts = true`), then install from a checkout:
 
 ```bash
 git clone https://github.com/EveryInc/compound-engineering-plugin

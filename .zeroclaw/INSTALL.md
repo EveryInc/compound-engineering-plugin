@@ -5,7 +5,8 @@
 ## Prerequisites
 
 1. Install ZeroClaw ([install guide](https://github.com/zeroclaw-labs/zeroclaw#install)).
-2. Enable bundled scripts in your ZeroClaw config. Many CE skills ship `scripts/*.sh` and `scripts/*.py`; ZeroClaw's skill audit blocks script files unless you opt in:
+2. Run `zeroclaw quickstart` so you have at least one agent (typically `default`) under `~/.zeroclaw/agents/`.
+3. Enable bundled scripts in your ZeroClaw config. Many CE skills ship `scripts/*.sh` and `scripts/*.py`; ZeroClaw's skill audit blocks script files unless you opt in:
 
 ```toml
 # ~/.zeroclaw/config.toml
@@ -13,29 +14,45 @@
 allow_scripts = true
 ```
 
-3. Run `zeroclaw quickstart` (or confirm your agent workspace) so `~/.zeroclaw/workspace/skills/` exists.
-
 ## Install skills
+
+ZeroClaw v0.8+ loads skills from **per-agent workspace** paths (`~/.zeroclaw/agents/<alias>/workspace/skills/`), not the legacy `~/.zeroclaw/workspace/skills/` tree. The installer copies skill directories into the paths agents actually read.
 
 From a clone of this repository:
 
 ```bash
-# Default workspace (~/.zeroclaw/workspace/skills/)
+# Default agent (recommended after quickstart)
 ./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --global
 
-# Per-agent workspace (replace <alias> with your agent name)
-./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --dir ~/.zeroclaw/agents/<alias>/workspace/skills
+# Explicit agent alias
+./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --agent my-agent
+
+# Every configured agent
+./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --agent all
 ```
 
-The script **copies** skill directories into ZeroClaw's skills tree. ZeroClaw rejects symlinked skill directories at audit time, so CE does not symlink like the Cline installer.
+### Shared skill bundle (multi-agent hosts)
 
-For the default global path (`~/.zeroclaw/workspace/skills/`), the script uses `zeroclaw skills install` when the CLI is on `PATH` (security audit + copy into `config.data_dir`). Custom destinations (`--dir` or `ZEROCLAW_SKILLS_DIR`) always use direct copy — the ZeroClaw CLI has no flag to target a different skills directory.
+To install once under `~/.zeroclaw/shared/skills/compound-engineering/` and reference it from agent config:
 
-Pass `--use-zeroclaw-cli` to require the native CLI for default global installs only.
+```bash
+./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --shared
+```
+
+Then add to `~/.zeroclaw/config.toml`:
+
+```toml
+[skill_bundles.compound-engineering]
+
+[agents.default]
+skill_bundles = ["compound-engineering"]
+```
+
+The script **copies** skill directories (ZeroClaw rejects symlinks at audit time). It does **not** call `zeroclaw skills install` — that CLI writes to `config.data_dir/skills`, which agent sessions do not load.
 
 Re-run the script after `git pull` to refresh installed copies when skill content changes.
 
-Skills marked `disable-model-invocation: true` (for example `lfg`, `ce-dogfood`, `ce-polish`) are **not** installed by default. ZeroClaw does not honor that frontmatter field — installing them makes their instructions available like any other skill. Opt in when you need those workflows:
+Skills marked `disable-model-invocation: true` (for example `lfg`, `ce-dogfood`, `ce-polish`) are **not** installed by default. ZeroClaw does not honor that frontmatter field. Opt in when you need those workflows:
 
 ```bash
 ./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --global --include-manual
@@ -65,13 +82,9 @@ Edit skills under `skills/` and re-run the install script to refresh copies. Res
 
 ## Uninstall
 
-Remove CE skill directories from `~/.zeroclaw/workspace/skills/` (or your `--dir` target). Names match folders under `skills/` (for example `ce-brainstorm`, `ce-plan`). For the default global install you can also use:
+Remove CE skill directories from the install target (for example `~/.zeroclaw/agents/default/workspace/skills/ce-brainstorm`). Names match folders under `skills/`.
 
-```bash
-zeroclaw skills remove ce-brainstorm
-```
-
-`zeroclaw skills remove` only affects skills under `config.data_dir`, not custom `--dir` targets.
+For `--shared` installs, remove skills from `~/.zeroclaw/shared/skills/compound-engineering/` and drop the bundle reference from agent config.
 
 ## Project context
 
