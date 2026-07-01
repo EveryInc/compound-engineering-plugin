@@ -100,7 +100,7 @@ Include `Tools` and `Results` columns in the CLI Speed table. Tool call spike fl
 
 After scoring, commit mode may append a short tactical note to the area's Notes column in the Areas table. Format: `[Run N] <finding>`.
 
-**Cap:** 3 entries per area. Drop oldest when exceeded.
+**Cap:** Governed by `tactical_notes_per_area_cap` in `../scripts/caps-registry.json`. Drop oldest when exceeded.
 
 **Write only when there's a genuine tactical insight:**
 - A reliable JS selector pattern: `[Run 4] batch read via [data-filter-chip] + .product-card reliable`
@@ -115,7 +115,7 @@ In `.user-test-last-run.json`, `tactical_note: null` means skip Notes update for
 
 These steps run AFTER existing commit mode steps 1-7.
 
-**8. Sharpen Queries from failures:** For each Query that scored ≤ 3, generate an adversarial probe targeting the specific gap. The probe goes in the area's `**Probes:**` table (not the `**Queries:**` table). One failed query generates one probe. Probe fields: query = adversarial version, verify = specific gap observed, status = untested, generated_from = "run-N query failure: <query text>". Existing probe dedup (70% word overlap) catches duplicates.
+**8. Sharpen Queries from failures:** For each Query that scored ≤ 3, generate an adversarial probe targeting the specific gap. The probe goes in the area's `**Probes:**` table (not the `**Queries:**` table). One failed query generates one probe. Probe fields: query = adversarial version, verify = specific gap observed, status = untested, generated_from = "run-N query failure: <query text>". Existing probe dedup uses the overlap threshold in `../scripts/caps-registry.json`.
 
 Example: "earth tones" scored 3 because results were generic neutrals → Probe: query "terracotta and rust specifically", verify "results include warm red/orange tones, not beige/cream."
 
@@ -248,7 +248,7 @@ Coverage is more important than taxonomy consistency. Use freeform when unsure.
 
 1. **Phase 1 (Load Context):** Read existing `novelty_fingerprints` from `.user-test-last-run.json` into memory
 2. **Phase 3 (Execute):** Use fingerprints to skip already-explored interactions. Generate new fingerprints for novel interactions this run.
-3. **Phase 4 / Commit (Write):** Merge existing + new fingerprints. Apply 20-per-area cap (drop oldest). Write merged set to JSON.
+3. **Phase 4 / Commit (Write):** Merge existing + new fingerprints. Apply `novelty_fingerprints_per_area_cap` from `../scripts/caps-registry.json` (drop oldest). Write merged set to JSON.
 
 Safe because the JSON is written once atomically at the end. No partial-write risk.
 

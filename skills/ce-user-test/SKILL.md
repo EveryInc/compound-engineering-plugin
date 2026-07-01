@@ -24,14 +24,19 @@ each question as a numbered list and wait for a reply. For multiSelect, accept
 comma-separated numbers (e.g. `1, 3`). Never skip or auto-configure.
 
 **Protected artifacts:** `tests/user-flows/` files are pipeline output. Review
-agents and cleanup tools must never flag them for deletion or gitignore.
+agents and cleanup tools must never flag them for deletion or gitignore. The
+ephemeral `.user-test-last-run.json`, `.user-test-last-report.md`,
+`.user-test-commit-journal.json`, `.user-test-commit-payload.json`, and
+`*.user-test-stage.tmp` files are also protected from cleanup even though they
+are gitignored.
 
 ## Phase 0: Preflight
 
 1. **Chrome MCP check — deferred to Phase 2.** Phase 1 CLI discovery may eliminate browser testing.
 2. **Detect WSL:** Run `uname -r 2>/dev/null | grep -qi microsoft`. If WSL: abort with "Chrome integration not supported in WSL."
-3. **Check gh CLI:** Run `gh auth status`. If not authenticated: note "gh not authenticated — issue creation skipped in commit mode."
-4. **Validate app URL:** If test file contains `app_url`, verify reachable. Site permission errors handled reactively during execution.
+3. **Check python3:** Run `python3 --version`. If unavailable, abort with "python3 is required for ce-user-test scripts. Install Python 3, then rerun `/ce-user-test`."
+4. **Check gh CLI:** Run `gh auth status`. If not authenticated: note "gh not authenticated — issue creation skipped in commit mode."
+5. **Validate app URL:** If test file contains `app_url`, verify reachable. Site permission errors handled reactively during execution.
 
 ## Phase 1: Load Context
 
@@ -41,16 +46,12 @@ agents and cleanup tools must never flag them for deletion or gitignore.
    - If argument is a file path (contains `/` or ends in `.md`):
      - Validate path resolves within `tests/user-flows/` (prevent directory traversal)
      - Read and parse the test file
-     - Validate `schema_version` is present (1–10 accepted) <!-- bump range when schema changes -->
-     - **v1/v2 migration:** If `schema_version: 1`, fill missing columns (`Last Quality`, `Last Time`, `Delta`, `Context`) with `—`. If `schema_version: 2`, also fill missing sections (Area Trends, UX Opportunities, Good Patterns) and Run History columns (Best Area, Worst Area). Do NOT rewrite on read.
-     - **v3/v4 migration:** If `schema_version: 3`, treat missing `verify:` blocks and `Probes:` tables as absent. If `schema_version: 4`, also treat missing `**Queries:**` and `**Multi-turn:**` tables as absent. Do NOT rewrite on read.
-     - **v5 migration:** If `schema_version: 5`, treat Probes without `Confidence` column as `confidence: high` (existing probes were generated from observed failures). Treat Probes without `Priority` column as inferred from `Generated From` (verification failure → P1, score-based → P2). Treat Queries without `Status` column as active. Treat missing `seams_read` as `false`. Do NOT rewrite the file on read.
-     - **v6 migration:** If `schema_version: 6`, treat missing `## Cross-Area Probes` section as empty table. Treat missing `mcp_restart_threshold` as 15. Treat probes without `related_bug` as unlinked. Do NOT rewrite on read.
-     - **v7 migration:** If `schema_version: 7`, treat missing `weakness_class` as absent. Treat missing `novelty_fingerprints` as empty. Treat missing `adversarial_browser` as false. In JSON: treat missing `tactical_note` as null, `confirmed_selectors` as `{}`. Do NOT rewrite on read.
-     - **v8 migration:** If `schema_version: 8`, treat missing `## Journeys` section as empty (no journeys defined). Do NOT rewrite on read.
-     - **v9 migration:** If `schema_version: 9`, treat missing `execution_index` on `probes_run` entries as absent. Treat missing `broad_exploration_start_index` on areas as absent. Eval skips Eval 1 (probe execution order) for runs without ordering data. Do NOT rewrite on read.
-     - **Forward compatibility:** Ignore unknown frontmatter fields. Preserve unknown table columns on write.
-     - **Missing `cli_test_command` (any version):** Treat as `cli_test_command: ""`. CLI discovery (step 3) will populate it. Do NOT rewrite the file on read.
+     - Normalize the test file before using it. In the same Bash call, set `SKILL_DIR` to the absolute path of this skill directory:
+       ```bash
+       SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+       python3 "$SKILL_DIR/scripts/migrate-test-file.py" migrate <test-file>
+       ```
+     - Act on stdout: `CURRENT` -> proceed; `MIGRATED <from> -> <to>` -> proceed and note the migration in the final report; `UNKNOWN-VERSION <n>` -> abort with "newer schema — update the skill"; `CORRUPT <reason>` -> offer to regenerate from template.
      - Extract maturity map, run history, and explore-next-run items
    - If argument is a description string:
      - Generate a slug from the description
@@ -64,7 +65,7 @@ agents and cleanup tools must never flag them for deletion or gitignore.
    See [orientation.md](./references/orientation.md). Set `seams_read: true` on first commit after code reading, regardless of outcome.
 3. **CLI discovery (MANDATORY when `cli_test_command` is empty):** Whether the test file is new or existing, if `cli_test_command` is empty, run CLI discovery NOW before any browser interaction — follow every step in CLI Discovery in [test-file-template.md](./references/test-file-template.md). Check for API endpoints, test scripts, curl-able routes. If a testable surface exists, populate `cli_test_command` and `cli_queries` in the test file immediately. Do NOT skip this step. Do NOT ask the user whether to do it — just do it.
 4. **Ensure `.gitignore` coverage:**
-   - Check that `.user-test-last-run.json` and `.user-test-last-report.md` are in the project's `.gitignore`
+   - Check that `.user-test-last-run.json`, `.user-test-last-report.md`, `.user-test-commit-journal.json`, `.user-test-commit-payload.json`, and `*.user-test-stage.tmp` are in the project's `.gitignore`
    - If missing, append them (these files are ephemeral run state, not source)
    - Note: `score-history.json`, `bugs.md`, `skill-evals.json`, and `skill-mutations.md` are NOT gitignored — they are persistent project data
 5. **Handle corruption:**
@@ -193,7 +194,7 @@ Report shows both: `UX: 4/5, Quality: 3/5`. Areas without `scored_output` show U
 
 **Aggregation:** `Quality Avg` in history = UX scores only (backward compatible). Output quality tracked separately as `Output Avg` in the report.
 
-**Promotion gate:** Each area's `pass_threshold` (default 4) and `quality_threshold` (default 3 for scored_output areas) define what counts as a pass. See [test-file-template.md](./references/test-file-template.md) for details.
+**Promotion gate:** Each area's `pass_threshold` and `quality_threshold` define what counts as a pass; defaults come from `scripts/caps-registry.json`. See [test-file-template.md](./references/test-file-template.md) for details.
 
 **Known-bug filing trigger:** UX <= 2 (functional failure) OR Quality <= 1 (completely wrong output). Files to bug registry — see [bugs-registry.md](./references/bugs-registry.md).
 
@@ -298,66 +299,97 @@ Runs automatically after Phase 4 completes a full run. Can also be invoked stand
 
 **When invoked automatically:** Use the run results already in context from Phase 4.
 
-**When invoked standalone via `/ce-user-test-commit`:** Read `tests/user-flows/.user-test-last-run.json`. This is the single source of truth — commit mode never falls back to context window.
+**When invoked standalone via `/ce-user-test-commit`:** Read `tests/user-flows/.user-test-last-run.json`. This is the single source of truth — commit mode never falls back to context window. Before reading it, normalize it with the bundled migrator:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+python3 "$SKILL_DIR/scripts/migrate-test-file.py" migrate-run-json tests/user-flows/.user-test-last-run.json
+```
 
 - **Missing file:** Abort with "No run results found. Run `/ce-user-test` first."
 - **Incomplete run:** If `completed: false`, abort with "Last run was incomplete. Run `/ce-user-test` again for committable results."
 - **Stale (>7 days):** Abort with "Run results too old — re-run `/ce-user-test` first."
 - **Stale (>24 hours):** Warn "Run results are from <timestamp>. Commit anyway? (y/n)."
 
+If a standalone invocation finds an existing commit journal or payload, ask the engine for status before reading run results:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+python3 "$SKILL_DIR/scripts/commit-engine.py" status
+```
+
+Act on the engine sentinel: `NO-JOURNAL` -> continue from `.user-test-last-run.json`; `APPLIED`, `ISSUES-PENDING`, or `STALE-WARN` -> resume; `STALE-ROLLBACK-DEFAULT` -> offer rollback first; `FOREIGN-JOURNAL <scenario>`, `BASE-HASH-MISMATCH`, or `STAGED-INTEGRITY-FAILURE` -> stop and present the engine details.
+
 ### Maturity Updates
 
 Apply maturity transitions using agent judgment and the scoring rubric:
 
-- **Promote to Proven:** After 2+ consecutive passes where UX >= area's `pass_threshold` (default 4) and Quality >= `quality_threshold` for scored_output areas (default 3), with no functional issues. A cosmetic issue in a Proven area does not warrant demotion.
+- **Promote to Proven:** After 2+ consecutive passes where UX >= area's `pass_threshold` and Quality >= `quality_threshold` for scored_output areas, with defaults from `scripts/caps-registry.json` and no functional issues. A cosmetic issue in a Proven area does not warrant demotion.
 - **Demote to Uncharted:** On functional regressions or new features that change behavior. Minor CSS issues do not trigger demotion.
 - **Mark Known-bug:** When a functional issue is found and an issue is filed. Record in bug registry — see [bugs-registry.md](./references/bugs-registry.md). Skip this area in future runs until the fix is deployed.
 - **Persistent ≤3 escalation:** If an area scores ≤ 3 for 3+ consecutive runs AND the same issue is noted each time, offer: "<area> has scored ≤3 for N runs with the same issue — file as Known-bug?" This is a manual escalation, not automatic.
 
 **Partial run safety:** If a run is interrupted before scoring completes, no maturity updates are produced.
 
-### File Updates
+### Decisions First
 
-1. **Update test file maturity map and area details:**
-   - Write to `.tmp` file first, then rename (atomic write)
-   - Upgrade to v10: bump `schema_version: 10` on first commit regardless of query/probe usage. Add missing columns and sections per [test-file-template.md](./references/test-file-template.md)
-   - Update area statuses, scores, timing, quality scores, and consecutive pass counts
-   - Update `## Area Trends` section from `score-history.json` data
-   - Update `## UX Opportunities Log`: add new entries with sequential IDs (UX001...), update existing entries (mark `implemented` if improvement detected), age out entries per lifecycle rules
-   - Update `## Good Patterns`: confirm existing patterns (update `Last Confirmed`), add new patterns, remove patterns unconfirmed for 5+ runs
-   - **Tactical notes:** Append `[Run N] <finding>` to area's Notes column when there's a genuine tactical insight (selector pattern, timing pattern, interaction sequence). Cap 3 entries per area; drop oldest. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) Tactical Notes.
-   - **Verified selectors:** When Phase 3 confirmed DOM selectors via successful `javascript_tool` batch call, append them to the area's `**verify:**` block with `_Selectors confirmed run N._`. Append-only — never replace user-authored content. See [verification-patterns.md](./references/verification-patterns.md) Selector Discovery and Writeback.
-   - **Weakness class:** When 2+ probes in an area share a failure pattern, write `**weakness_class:** <class>` below `pass_threshold`. Remove after 3 consecutive pass runs. One class per area — dominant by probe count. See [probes.md](./references/probes.md) Weakness Classification.
-2. **Update `tests/user-flows/score-history.json`:**
-   - Append current run's per-area scores (UX, quality, time)
-   - Compute trend per area from last 3 entries
-   - Cap at 10 entries per area (drop oldest)
-   - Create file if it doesn't exist
-3. **Update `tests/user-flows/bugs.md`:**
-   - File new bugs with sequential IDs for areas with UX <= 2 or Quality <= 1
-   - Mark bugs as `fixed` when Known-bug area passes fix_check (score >= `pass_threshold`) AND GitHub issue is closed
-   - Mark bugs as `regressed` when previously-fixed area fails again
-   - Create file if it doesn't exist — see [bugs-registry.md](./references/bugs-registry.md)
-4. **Update probe statuses** in each area's `**Probes:**` table and the `## Cross-Area Probes` table: mark passing/failing/flaky based on this run's results. Rotate out passing probes older than 10 runs. If a probe has failed 3+ consecutive runs, auto-escalate to bugs.md (see [probes.md](./references/probes.md) Escalation). If a probe has passed 2+ consecutive runs, offer CLI graduation (same path as bug graduation — see [probes.md](./references/probes.md)).
-5. **Offer graduation** for newly-fixed bugs — see [graduation.md](./references/graduation.md)
-6. **Append to `tests/user-flows/test-history.md`:**
-   - Add row with: date, areas tested, quality avg, delta, pass rate, best area, worst area, demo ready, context, key finding
-   - **Delta computation:** Compare quality avg against the most recent *completed* previous run. First run: `—`. Previous run was partial: skip to last complete run. Different area sets: compute over overlapping areas only; no overlap → `—`. Always display how many areas overlap vs. excluded (e.g., "over 5 overlapping areas, 2 new excluded") so the denominator change is visible.
-   - **Delta warning:** Flag any delta worse than -0.5 in the commit output
-   - **Context field:** Brief phrase explaining *why* the verdict is what it is (e.g., "search results loading 28s"). Persists alongside verdict for future reference.
-   - **Pattern surfacing** (after 10+ runs): positive patterns need 7+ of last 10 runs as best area; negative patterns need 5+ of last 10 runs as worst area
-   - Rotation: keep last 50 entries, remove oldest when exceeding
-7. **File GitHub issues:**
-   - Each issue gets a label `user-test:<area-slug>` (e.g., `user-test:checkout/cart-count`)
-   - **Duplicate detection:** `gh issue list --label "user-test:<area-slug>" --state open`
-     - If match found: skip filing, note "duplicate of #N"
-     - If no match: fall back to semantic title search as secondary check
-   - Sanitize issue body content before `gh issue create`
-   - Skip gracefully if `gh` is not authenticated
-   - Never persist credentials (passwords, tokens, session IDs) in issue bodies or test files
-8. **Query compounding:** Sharpen failed queries into probes, expand from discoveries, mark stable queries. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) for steps 8-12 details, query-to-probe conversion rules, and stable query regression tiers.
-8b. **Novelty fingerprints:** Merge this run's new fingerprints with existing ones from `.user-test-last-run.json`. Apply 20-per-area cap (drop oldest). Write merged set. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) Novelty Fingerprint Persistence.
-8c. **Journey updates:** Update journey Status, Last Run, Run History. Auto-escalate, mark stable, detect definition changes. Journey results do NOT affect per-area maturity. See [journeys.md](./references/journeys.md) Commit Mode.
+Resolve every interactive judgment before writing any file:
+
+1. Collect graduation choices for newly-fixed bugs — see [graduation.md](./references/graduation.md).
+2. Collect CLI-graduation choices for stable passing probes — see [probes.md](./references/probes.md).
+3. Collect persistent <=3 escalation choices for repeated low scores with the same issue.
+4. Record skip reasons for every area that was not fully tested.
+
+Good issue titles name the failing behavior and the user-visible impact. Good bodies include steps, expected behavior, actual behavior, evidence from the run, and any verification/probe context. Never persist credentials, tokens, session IDs, or private user data in issue bodies or test files.
+
+Tactical notes should be short findings that help the next run execute better: selectors that worked, timing patterns, brittle interaction sequences, or a high-value edge case. Do not add generic praise or duplicate the report summary.
+
+### Dedup And Payload
+
+For each issue candidate, fetch the open issue corpus for that area label:
+
+```bash
+gh issue list --label "user-test:<area-slug>" --state open --json number,title > <corpus-json>
+```
+
+If `gh` exits nonzero, write `{"fetch_failed": true}` to the corpus file. Then run duplicate detection from this skill directory:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+python3 "$SKILL_DIR/scripts/issue-dedup.py" "<candidate-title>" <corpus-json>
+```
+
+Build `tests/user-flows/.user-test-commit-payload.json` with the completed judgments: scenario slug, test-file path, run timestamp, per-area scores and skip reasons, maturity decisions plus the consecutive-pass evidence the decision expects, issue candidates plus dedup verdicts, tactical notes, probe outcomes, novelty fingerprints, journeys, and any graduation choices.
+
+### Engine Plan And Apply
+
+Invoke the commit engine from this skill directory:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+python3 "$SKILL_DIR/scripts/commit-engine.py" plan tests/user-flows/.user-test-commit-payload.json
+python3 "$SKILL_DIR/scripts/commit-engine.py" apply
+```
+
+If `plan` returns `VALIDATION-FAILED`, read the JSON error list, re-present only the contradicted decision with the engine's evidence, rebuild the payload, and run `plan` again. Do not hand-edit the generated artifacts around a validation rejection.
+
+After `apply`, file only journal-pending issues through the project's issue tracker. Confirm filed and duplicate issues back to the engine:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+python3 "$SKILL_DIR/scripts/commit-engine.py" confirm-issues <issues-json>
+```
+
+Render FILED THIS SESSION and SIGNALS from the structured result JSON returned by `apply` and `confirm-issues`. The engine owns schema normalization, caps, rotations, delta computation, history updates, bug registry rows, probe status updates, fingerprint merge, first-run artifact creation, journaled writes, and rollback.
+
+### Recovery
+
+If `apply`, `resume`, or `status` returns `BASE-HASH-MISMATCH`, `FOREIGN-JOURNAL`, or `STAGED-INTEGRITY-FAILURE`, stop and present the sentinel plus details. If it returns `STALE-WARN`, ask whether to resume. If it returns `STALE-ROLLBACK-DEFAULT`, offer rollback as the default action. Rollback is allowed from any pre-confirmed state:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+python3 "$SKILL_DIR/scripts/commit-engine.py" rollback
+```
 
 ### Eval Prompt
 

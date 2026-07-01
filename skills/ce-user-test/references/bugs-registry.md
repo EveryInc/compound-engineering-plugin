@@ -22,7 +22,7 @@ open → fixed → regressed
 ```
 
 - **open**: Bug discovered and issue filed. Area marked Known-bug.
-- **fixed**: Known-bug area's `fix_check` passes (score >= area's `pass_threshold`, default 4) AND linked GitHub issue is closed. Both conditions required — a passing score with an open issue means the fix hasn't been formally accepted.
+- **fixed**: Known-bug area's `fix_check` passes (score >= area's `pass_threshold`; default from `../scripts/caps-registry.json`) AND linked GitHub issue is closed. Both conditions required — a passing score with an open issue means the fix hasn't been formally accepted.
 - **regressed**: A previously-fixed area fails again (score < `pass_threshold`). A new GitHub issue is filed with "Regression of #N" referencing the original. The original bug entry is updated to `regressed` with the regression date.
 
 ## Sequential IDs
@@ -53,4 +53,4 @@ After each completed run, commit mode processes the bug registry:
 
 ## Rotation
 
-Archive entries older than 6 months to `tests/user-flows/bugs-archive.md`. Archived entries are no longer checked during runs but preserved for historical reference.
+Archive age is governed by `bug_archive_age_months` in `../scripts/caps-registry.json`. Archived entries move to `tests/user-flows/bugs-archive.md`; they are no longer checked during runs but remain historical reference.

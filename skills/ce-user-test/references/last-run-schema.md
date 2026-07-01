@@ -153,7 +153,7 @@ See [journeys.md](./journeys.md) for lifecycle, budget, and execution rules.
 
 The `execution_index` tracks the order of all probe and exploration actions across the entire run. Each probe execution and each broad exploration action increments the counter. Combined with `broad_exploration_start_index` per area, the eval can verify that probes ran before exploration: for each area, all `probes_run` entries must have `execution_index < broad_exploration_start_index`.
 
-**v9 migration:** Treat missing `execution_index` as absent — eval skips Eval 1 for runs without ordering data. Treat missing `broad_exploration_start_index` as absent.
+Historical run-JSON migration is owned by `../scripts/migrate-test-file.py` via the `migrate-run-json` subcommand.
 
 ## Explore Next Run Fields (v8 additions)
 
@@ -172,8 +172,8 @@ Cross-area synthesis entries include:
 | Key | `novelty_fingerprints` (top-level) |
 | Structure | Object keyed by area slug, each value an array of fingerprint strings |
 | Format | `<area-slug>:<action-type>:<key-parameter>` |
-| Cap | 20 per area (drop oldest when exceeded) |
-| Accumulation | Read existing → merge with new → apply cap → write back |
+| Cap | `novelty_fingerprints_per_area_cap` in `../scripts/caps-registry.json` |
+| Accumulation | Read existing → merge with new → apply registry cap → write back |
 | Resilience | Missing/corrupted → empty (graceful degradation) |
 
 See [queries-and-multiturn.md](./queries-and-multiturn.md) for fingerprint normalization taxonomy.

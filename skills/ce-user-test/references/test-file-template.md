@@ -23,7 +23,7 @@ performance_thresholds:  # optional, seconds
   # acceptable: 8
   # slow: 20
   # broken: 60
-mcp_restart_threshold: 15  # optional, proactive page reload after N MCP calls
+mcp_restart_threshold: <mcp_restart_threshold from ../scripts/caps-registry.json>  # optional, proactive page reload after N MCP calls
 ---
 
 # <Scenario Name>
@@ -42,7 +42,7 @@ mcp_restart_threshold: 15  # optional, proactive page reload after N MCP calls
 
 **What's tested:** <what does "good" look like for this area? Be specific about the domain. What are the ways the output could be subtly wrong?>
 
-**pass_threshold:** 4
+**pass_threshold:** <pass_threshold from ../scripts/caps-registry.json>
 
 **weakness_class:** <!-- optional, written by commit mode when 2+ probes share a failure pattern. See probes.md Weakness Classification. -->
 
@@ -65,7 +65,7 @@ mcp_restart_threshold: 15  # optional, proactive page reload after N MCP calls
 | Query | Verify | Status | Priority | Confidence | Generated From | Run History |
 |-------|--------|--------|----------|------------|---------------|-------------|
 
-Run History format: comma-separated P/F entries, most recent first. Example: `P,P,F,P` (4 runs: latest passed twice, then failed, then passed). Cap at 10 entries, drop oldest. Consecutive count for escalation/graduation is computed from the leading streak.
+Run History format: comma-separated P/F entries, most recent first. Example: `P,P,F,P` (latest passed twice, then failed, then passed). Cap and rotation are governed by `probe_run_history_cap` in `../scripts/caps-registry.json`. Consecutive count for escalation/graduation is computed from the leading streak.
 
 ## Cross-Area Probes
 
@@ -100,21 +100,21 @@ Run History format: comma-separated P/F entries, most recent first. Example: `P,
 
 ## Run History
 
-<!-- Keep last 50 entries. Oldest entries rotate out. -->
+<!-- Rotation is governed by test_history_cap in ../scripts/caps-registry.json. -->
 
 | Date | Areas Tested | Quality Avg | Delta | Pass Rate | Best Area | Worst Area | Demo Ready | Context | Key Finding |
 |------|-------------|-------------|-------|-----------|-----------|------------|------------|---------|-------------|
 
 ## UX Opportunities Log
 
-<!-- Action items: things to improve. Keep last 20 open entries. -->
+<!-- Action items: things to improve. Lifecycle is governed by ux_opportunities_lifecycle in ../scripts/caps-registry.json. -->
 
 | ID | Area | Priority | Status | Suggestion |
 |----|------|----------|--------|-----------|
 
 ## Good Patterns
 
-<!-- Preservation notes: things to protect. Auto-expire after 5 unconfirmed runs. -->
+<!-- Preservation notes: things to protect. Removal is governed by good_patterns_unconfirmed_runs in ../scripts/caps-registry.json. -->
 
 | Area | Pattern | First Seen | Last Confirmed |
 |------|---------|------------|----------------|
@@ -122,77 +122,11 @@ Run History format: comma-separated P/F entries, most recent first. Example: `P,
 
 ## Schema Migration
 
-**v1 → v2 changes:**
-- Areas table: added `Last Quality` and `Last Time` columns
-- Run History table: added `Delta` and `Context` columns
-- Frontmatter: added optional `cli_test_command`, `cli_queries`, `performance_thresholds`
-
-**v2 → v3 changes:**
-- New section: `## Area Trends` (thin summary from score-history.json)
-- New section: `## UX Opportunities Log` (P1/P2 improvement suggestions with status lifecycle)
-- New section: `## Good Patterns` (patterns worth preserving, separate from opportunities)
-- New standalone file: `tests/user-flows/score-history.json` (machine-readable per-area history)
-- Run History table: added `Best Area` and `Worst Area` columns
-- Area Details: added optional `pass_threshold` and `quality_threshold` fields
-- Frontmatter: added optional `graduated_from` field on cli_queries entries
-
-**Reading v1 files:** Fill missing columns with defaults (`—` for scores/times, empty for notes). Do NOT rewrite the file on read.
-
-**Reading v2 files:** Fill missing sections (Area Trends, UX Opportunities Log, Good Patterns) with empty tables. Fill missing Run History columns (Best Area, Worst Area) with `—`. Do NOT rewrite the file on read.
-
-**Reading v3 files:** Treat missing `verify:` blocks and `Probes:` tables as absent (no verification steps, no probes). Do NOT rewrite the file on read.
-
-**Reading v4 files:** Treat missing `**Queries:**` and `**Multi-turn:**` tables as absent (no queries, no multi-turn sequences). Do NOT rewrite the file on read.
-
-**Reading any file missing `cli_test_command`:** Treat as `cli_test_command: ""`
-regardless of schema version. CLI discovery runs in Phase 1 step 3.
-
-**v4 → v5 changes:**
-- Area Details: added optional `**Queries:**` table (`| Query | Ideal Outcome | Check | Notes |`) (v6 adds Status column)
-- Area Details: added optional `**Multi-turn:**` table (`| Turn | Query | Check |`)
-- Area Details: `**What's tested:**` expanded to include domain-specific guidance
-- New reference file: `queries-and-multiturn.md` (per-area execution checklist, scoring boundaries, query compounding)
-- New section in this file: Area Depth (thin vs rich definitions, writing queries, multi-turn, first-run quality)
-
-**v5 → v6 changes:**
-- Probes table: added `Priority`, `Confidence`, `Generated From`, `Run History` columns (replaces `Generated`)
-- Queries table: added `Status` column (between Check and Notes)
-- Frontmatter: added `seams_read` field (boolean, default `false`)
-- New reference file: `orientation.md` (code-reading step for first-run structural hypothesis probes)
-- New probe generation trigger: `structural-hypothesis` (from code reading)
-- New query status lifecycle: active → `[stable]` → `[retired]` (see queries-and-multiturn.md step 12)
-
-**Reading v5 files:** Probes without `Confidence` column → treat as `confidence: high` (existing probes were generated from observed failures). Probes without `Priority` column → infer from `Generated From` (verification failure → P1, score-based → P2). Queries without `Status` column → treat as active. Existing `[stable]` tags in Notes column → migrate to Status column on first v6 commit, remove from Notes. Missing `seams_read` → treat as `false` (triggers Orientation on first v6 run). Do NOT rewrite the file on read.
-
-**v6 → v7 changes:**
-- New section: `## Cross-Area Probes` (scenario-level probe table for interactions spanning two areas)
-- Probe generation: optional `related_bug` field for isolation probes (any probe, per-area or cross-area)
-- Test file frontmatter: optional `mcp_restart_threshold` field (default 15)
-- Connection resilience extracted to `references/connection-resilience.md`
-
-**Reading v6 files:** Treat missing `## Cross-Area Probes` section as empty table. Treat missing `mcp_restart_threshold` as 15. Treat probes without `related_bug` as unlinked. Do NOT rewrite on read.
-
-**v7 → v8 changes:**
-- Area Details: optional `**weakness_class:**` field (below `pass_threshold`), written by commit mode when 2+ probes share a failure pattern
-- Area Details: `**verify:**` blocks auto-updated with confirmed selectors by commit mode (append-only, run-tagged)
-- Areas table: Notes column receives tactical run notes in `[Run N] <finding>` format (max 3 entries, drop oldest)
-- `.user-test-last-run.json` schema extracted to `references/last-run-schema.md`
-- `.user-test-last-run.json`: new per-area fields (`tactical_note`, `confirmed_selectors`, `weakness_class`, `adversarial_browser`, `adversarial_trigger`)
-- `.user-test-last-run.json`: new top-level key `novelty_fingerprints` (accumulates across runs, 20-per-area cap)
-- `.user-test-last-run.json`: cross-area synthesis entries in `explore_next_run` with `weakness_class`, `affected_areas`, `adversarial_instruction`
-
-**Reading v7 files:** Treat missing `weakness_class` as absent. Treat missing `novelty_fingerprints` as empty. Treat missing `adversarial_browser` as false. Do NOT rewrite on read.
-
-**v8 → v9 changes:**
-- New section: `## Journeys` (scenario-level multi-area user flows without resets)
-- `.user-test-last-run.json`: new `journeys_run` array field (per-journey checkpoint data)
-- New reference file: `journeys.md` (lifecycle, budget, execution rules, checkpoint types, generation, interactions)
-
-**Reading v8 files:** Treat missing `## Journeys` section as empty (no journeys defined). Do NOT rewrite on read.
+Current test files use schema v10. Migration from older files and `.user-test-last-run.json` normalization are owned by `../scripts/migrate-test-file.py`; the per-version fills live in that script's data table and tests. Update the script and tests when schema behavior changes.
 
 **CLI gate for query retirement:** Only queries in test files with `cli_test_command` set can reach `[retired]` status. Queries without CLI backstop max out at `[stable]` and continue receiving browser spot-checks via the Proven area MCP budget. If `cli_test_command` is removed from a file with `[retired]` queries, those queries demote to `[stable]` on next commit.
 
-**Writing any file:** Upgrade to v10 on commit. Bump `schema_version: 10` in frontmatter on the first commit under v10 skill logic. The version number reflects which skill version last wrote the file.
+**Writing any file:** Commit mode writes current schema and preserves unknown frontmatter keys, unknown table columns, and unknown sections through the migration and commit scripts.
 
 **Forward compatibility:** Ignore unknown frontmatter fields from future schema versions. Preserve unknown table columns on write.
 
@@ -204,7 +138,7 @@ Each area can define explicit pass thresholds in its area details:
 ### checkout/shipping-form
 **Interactions:** Enter address, select method, see estimate
 **What's tested:** Form validation + shipping logic
-**pass_threshold:** 4
+**pass_threshold:** <pass_threshold from ../scripts/caps-registry.json or area override>
 ```
 
 For `scored_output` areas, add a quality threshold:
@@ -214,11 +148,11 @@ For `scored_output` areas, add a quality threshold:
 **Interactions:** Enter query, review results, refine search
 **What's tested:** Result relevance and ranking quality
 **scored_output:** true
-**pass_threshold:** 4
-**quality_threshold:** 3
+**pass_threshold:** <pass_threshold from ../scripts/caps-registry.json or area override>
+**quality_threshold:** <quality_threshold from ../scripts/caps-registry.json or area override>
 ```
 
-**Defaults:** `pass_threshold: 4`, `quality_threshold: 3` (for scored_output areas). These match the v2 implicit behavior but are now explicit and per-area configurable.
+**Defaults:** `pass_threshold` and `quality_threshold` come from `../scripts/caps-registry.json`. Area details may override them explicitly.
 
 **Promotion gate:** "2+ consecutive passes" means 2+ consecutive runs where UX >= `pass_threshold` (and Quality >= `quality_threshold` for scored_output areas).
 
@@ -263,11 +197,11 @@ Per-area score history is stored in `tests/user-flows/score-history.json`:
 }
 ```
 
-**Storage:** Last 10 entries per area. Oldest drops when 11th is recorded. One file per project. `quality_by_query` follows the same rotation — last 10 entries per query.
+**Storage:** Rotation is governed by `score_history_per_area_cap` in `../scripts/caps-registry.json`. One file per project. `quality_by_query` follows the same rotation per query.
 
 **`quality_by_query`:** Only present for `scored_output: true` areas with multiple Queries. The `outlier: true` flag is set when avg ≤ 3. Query text is the key — when commit mode sharpens a query (step 8), the old query gets a final entry and the new sharpened query starts fresh. Sharpening breaks per-query trend continuity; the area-level quality trend (which averages all queries) provides continuity across sharpening events. Old test files without `quality_by_query` parse fine — the field is purely additive.
 
-**Trend values:** `improving` (last 3 trending up), `stable` (variance < 0.5), `declining` (last 3 trending down), `volatile` (variance >= 1.0), `fixed` (previous <= 2, current >= pass_threshold).
+**Trend values:** `improving`, `declining`, `stable`, `volatile`, and `fixed` are computed by `../scripts/commit-engine.py` from retained score-history entries.
 
 **Gitignore:** Add `score-history.json` to `.gitignore` if the project treats test data as ephemeral. Otherwise keep it committed for team visibility.
 
@@ -279,13 +213,13 @@ Per-area score history is stored in `tests/user-flows/score-history.json`:
 | implemented | Improvement was made (agent detects or user marks) |
 | wont_fix | Explicitly declined (prevents re-suggestion) |
 
-Keep last 20 `open` entries. `implemented` and `wont_fix` age out after 30 days.
+Lifecycle caps and age-out are governed by `ux_opportunities_lifecycle` in `../scripts/caps-registry.json`.
 
 Dedup: anchored on area slug + priority level. Agent decides whether to update or create new — no automated text matching.
 
 ## Good Patterns Lifecycle
 
-`Last Confirmed` updates each run that observes the pattern. Patterns not confirmed for 5+ runs are removed. Dedup on area slug only (one pattern entry per area).
+`Last Confirmed` updates each run that observes the pattern. Removal is governed by `good_patterns_unconfirmed_runs` in `../scripts/caps-registry.json`. Dedup on area slug only (one pattern entry per area).
 
 Only log patterns at score 4-5 that represent a deliberate design choice, not just "page loaded successfully."
 
@@ -333,8 +267,8 @@ Here's what a rich `agent/search-quality` area looks like for a bedding store:
 **Interactions:** Enter query, review results, assess whether the app understood what the user actually meant — not just the keywords
 **What's tested:** Does the app translate lifestyle language into correct domain attributes? Does it surface results the user didn't know to ask for but would love?
 **scored_output:** true
-**pass_threshold:** 4
-**quality_threshold:** 3
+**pass_threshold:** <pass_threshold from ../scripts/caps-registry.json or area override>
+**quality_threshold:** <quality_threshold from ../scripts/caps-registry.json or area override>
 
 **Queries:**
 
@@ -386,8 +320,8 @@ Granularity determines how many areas you have. **Depth** determines how useful 
 **Interactions:** Enter query, review results, assess domain interpretation
 **What's tested:** Does the app translate natural language into correct domain attributes? Does it understand subjective vocabulary, competing constraints, and emotional context?
 **scored_output:** true
-**pass_threshold:** 4
-**quality_threshold:** 3
+**pass_threshold:** <pass_threshold from ../scripts/caps-registry.json or area override>
+**quality_threshold:** <quality_threshold from ../scripts/caps-registry.json or area override>
 
 **Queries:**
 
