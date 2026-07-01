@@ -149,7 +149,7 @@ Enable bundled scripts in `~/.zeroclaw/config.toml` before installing — many C
 allow_scripts = true
 ```
 
-For multi-agent hosts, use `--shared` plus a `[skill_bundles.compound-engineering]` entry (see `.zeroclaw/INSTALL.md`). Re-run the install script after pulling a newer CE release. The script skips manual-only skills by default; pass `--include-manual` when needed.
+For multi-agent hosts, use `--shared` plus a `[skill_bundles.compound_engineering]` entry (see `.zeroclaw/INSTALL.md`). Re-run the install script after pulling a newer CE release. The script skips manual-only skills by default; pass `--include-manual` when needed.
 
 ## Kimi Code CLI
 

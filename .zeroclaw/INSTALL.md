@@ -34,7 +34,7 @@ From a clone of this repository:
 
 ### Shared skill bundle (multi-agent hosts)
 
-To install once under `~/.zeroclaw/shared/skills/compound-engineering/` and reference it from agent config:
+To install once under `~/.zeroclaw/shared/skills/compound_engineering/` and reference it from agent config:
 
 ```bash
 ./compound-engineering-plugin/.zeroclaw/scripts/install-skills.sh --shared
@@ -43,10 +43,10 @@ To install once under `~/.zeroclaw/shared/skills/compound-engineering/` and refe
 Then add to `~/.zeroclaw/config.toml`:
 
 ```toml
-[skill_bundles.compound-engineering]
+[skill_bundles.compound_engineering]
 
 [agents.default]
-skill_bundles = ["compound-engineering"]
+skill_bundles = ["compound_engineering"]
 ```
 
 The script **copies** skill directories (ZeroClaw rejects symlinks at audit time). It does **not** call `zeroclaw skills install` — that CLI writes to `config.data_dir/skills`, which agent sessions do not load. The installer honors `ZEROCLAW_CONFIG_DIR` when set, and refuses unknown agent aliases (run `zeroclaw quickstart` before `--global` or `--agent`).
@@ -85,7 +85,7 @@ Edit skills under `skills/` and re-run the install script to refresh copies. Res
 
 Remove CE skill directories from the install target (for example `~/.zeroclaw/agents/default/workspace/skills/ce-brainstorm`). Names match folders under `skills/`.
 
-For `--shared` installs, remove skills from `~/.zeroclaw/shared/skills/compound-engineering/` and drop the bundle reference from agent config.
+For `--shared` installs, remove skills from `~/.zeroclaw/shared/skills/compound_engineering/` and drop the bundle reference from agent config.
 
 ## Project context
 

@@ -6,7 +6,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SKILLS_SRC="$REPO_ROOT/skills"
-SHARED_BUNDLE="compound-engineering"
+SHARED_BUNDLE="compound_engineering"
 
 expand_path() {
   local path="$1"
@@ -44,7 +44,7 @@ Usage: install-skills.sh [--global | --agent ALIAS | --shared | --dir PATH] [--i
   --global            Install into the default agent workspace (same as --agent default)
   --agent ALIAS       Install into <install>/agents/<alias>/workspace/skills/
   --agent all         Install into every configured agent under <install>/agents/
-  --shared            Install bundle at <install>/shared/skills/compound-engineering/
+  --shared            Install bundle at <install>/shared/skills/compound_engineering/
   --dir PATH          Install into an explicit skills directory
   --include-manual    Also install manual-only skills (disable-model-invocation: true)
 
@@ -57,10 +57,10 @@ ZeroClaw v0.8+ loads agent skills from per-agent workspace paths, not the legacy
 
 For --shared, add to <install>/config.toml:
 
-  [skill_bundles.compound-engineering]
+  [skill_bundles.compound_engineering]
 
   [agents.default]
-  skill_bundles = ["compound-engineering"]
+  skill_bundles = ["compound_engineering"]
 
 CE skills ship bundled shell/Python scripts. Enable allow_scripts before use:
 

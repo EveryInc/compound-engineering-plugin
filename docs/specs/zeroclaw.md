@@ -20,6 +20,8 @@ ZeroClaw skills follow the open [Agent Skills](https://agentskills.io) standard.
 | --- | --- | --- |
 | Per-agent workspace (primary) | `~/.zeroclaw/agents/<alias>/workspace/skills/<name>/` | `zeroclaw agent -a <alias>` |
 | Shared skill bundle | `~/.zeroclaw/shared/skills/<bundle>/<name>/` | Agents with `[agents.<alias>].skill_bundles` referencing the bundle |
+
+CE uses bundle alias `compound_engineering` (underscore, not hyphen — ZeroClaw aliases must match `[a-z0-9][a-z0-9_]{0,62}`).
 | Legacy (pre-v0.8 migration) | `~/.zeroclaw/workspace/skills/` | Not used by current agent loader |
 
 CE ships skills at `./skills/<name>/SKILL.md` in this repository. Compound Engineering does **not** copy skills into a generated tree for ZeroClaw at release time; users install from a checkout with `.zeroclaw/scripts/install-skills.sh`.
