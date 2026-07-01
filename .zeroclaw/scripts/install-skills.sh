@@ -14,7 +14,7 @@ Usage: install-skills.sh [--global | --dir PATH] [--include-manual] [--use-zeroc
   --global            Install into ~/.zeroclaw/workspace/skills/ (default)
   --dir PATH          Install into an explicit skills directory (per-agent workspace)
   --include-manual    Also install manual-only skills (disable-model-invocation: true)
-  --use-zeroclaw-cli  Require the zeroclaw binary (runs audit + copy via native CLI)
+  --use-zeroclaw-cli  Require zeroclaw for default global install only (not with --dir)
 
 Set ZEROCLAW_SKILLS_DIR to override the global destination.
 
@@ -58,9 +58,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+DEFAULT_DEST="${HOME}/.zeroclaw/workspace/skills"
+
 case "$SCOPE" in
   --global)
-    DEST="${ZEROCLAW_SKILLS_DIR:-$HOME/.zeroclaw/workspace/skills}"
+    DEST="${ZEROCLAW_SKILLS_DIR:-$DEFAULT_DEST}"
     ;;
   --dir)
     [[ -n "$DEST" ]] || usage
@@ -70,14 +72,30 @@ case "$SCOPE" in
     ;;
 esac
 
+can_use_zeroclaw_cli() {
+  [[ "$SCOPE" == "--global" ]] || return 1
+  [[ -z "${ZEROCLAW_SKILLS_DIR:-}" ]] || return 1
+  local dest_canonical default_canonical
+  mkdir -p "$DEST" "$DEFAULT_DEST"
+  dest_canonical="$(cd "$DEST" && pwd -P)"
+  default_canonical="$(cd "$DEFAULT_DEST" && pwd -P)"
+  [[ "$dest_canonical" == "$default_canonical" ]]
+}
+
 if [[ ! -d "$SKILLS_SRC" ]]; then
   echo "error: skills directory not found at $SKILLS_SRC" >&2
   exit 1
 fi
 
-if [[ "$USE_ZEROCLAW_CLI" == "true" ]] && ! command -v zeroclaw >/dev/null 2>&1; then
-  echo "error: zeroclaw not found in PATH (--use-zeroclaw-cli)" >&2
-  exit 1
+if [[ "$USE_ZEROCLAW_CLI" == "true" ]]; then
+  if ! command -v zeroclaw >/dev/null 2>&1; then
+    echo "error: zeroclaw not found in PATH (--use-zeroclaw-cli)" >&2
+    exit 1
+  fi
+  if ! can_use_zeroclaw_cli; then
+    echo "error: --use-zeroclaw-cli only works for default --global (~/.zeroclaw/workspace/skills)" >&2
+    exit 1
+  fi
 fi
 
 mkdir -p "$DEST"
@@ -99,7 +117,7 @@ install_one() {
   local name="$2"
   local target="$DEST/$name"
 
-  if command -v zeroclaw >/dev/null 2>&1; then
+  if can_use_zeroclaw_cli && command -v zeroclaw >/dev/null 2>&1; then
     zeroclaw skills remove "$name" >/dev/null 2>&1 || true
     if zeroclaw skills install "$skill_dir"; then
       echo "installed $name via zeroclaw -> $target"

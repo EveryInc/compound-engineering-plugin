@@ -47,7 +47,7 @@ zeroclaw skills remove <name>
 zeroclaw skills audit <name>
 ```
 
-The CE install script wraps per-skill `zeroclaw skills install` when the binary is available, with a plain `cp -R` fallback.
+The CE install script wraps per-skill `zeroclaw skills install` only for the default global destination (`~/.zeroclaw/workspace/skills/`). The ZeroClaw CLI always installs relative to `config.data_dir` and cannot target `--dir` overrides — custom paths use direct `cp -R`.
 
 ## Instruction files
 

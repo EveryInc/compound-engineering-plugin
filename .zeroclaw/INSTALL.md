@@ -29,7 +29,9 @@ From a clone of this repository:
 
 The script **copies** skill directories into ZeroClaw's skills tree. ZeroClaw rejects symlinked skill directories at audit time, so CE does not symlink like the Cline installer.
 
-When `zeroclaw` is on `PATH`, the script uses `zeroclaw skills install` per skill (security audit + copy). Pass `--use-zeroclaw-cli` to require the native CLI and fail if it is missing.
+For the default global path (`~/.zeroclaw/workspace/skills/`), the script uses `zeroclaw skills install` when the CLI is on `PATH` (security audit + copy into `config.data_dir`). Custom destinations (`--dir` or `ZEROCLAW_SKILLS_DIR`) always use direct copy — the ZeroClaw CLI has no flag to target a different skills directory.
+
+Pass `--use-zeroclaw-cli` to require the native CLI for default global installs only.
 
 Re-run the script after `git pull` to refresh installed copies when skill content changes.
 
@@ -63,11 +65,13 @@ Edit skills under `skills/` and re-run the install script to refresh copies. Res
 
 ## Uninstall
 
-Remove CE skill directories from `~/.zeroclaw/workspace/skills/` (or your `--dir` target). Names match folders under `skills/` (for example `ce-brainstorm`, `ce-plan`). You can also use:
+Remove CE skill directories from `~/.zeroclaw/workspace/skills/` (or your `--dir` target). Names match folders under `skills/` (for example `ce-brainstorm`, `ce-plan`). For the default global install you can also use:
 
 ```bash
 zeroclaw skills remove ce-brainstorm
 ```
+
+`zeroclaw skills remove` only affects skills under `config.data_dir`, not custom `--dir` targets.
 
 ## Project context
 
