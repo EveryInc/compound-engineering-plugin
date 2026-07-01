@@ -6,7 +6,8 @@
 
 1. Install ZeroClaw ([install guide](https://github.com/zeroclaw-labs/zeroclaw#install)).
 2. Run `zeroclaw quickstart` so you have at least one agent (typically `default`) under `~/.zeroclaw/agents/`.
-3. Enable bundled scripts in your ZeroClaw config. Many CE skills ship `scripts/*.sh` and `scripts/*.py`; ZeroClaw's skill audit blocks script files unless you opt in:
+3. If you use a non-default profile (`ZEROCLAW_CONFIG_DIR` or `--config-dir`), the installer resolves paths from that directory automatically.
+4. Enable bundled scripts in your ZeroClaw config. Many CE skills ship `scripts/*.sh` and `scripts/*.py`; ZeroClaw's skill audit blocks script files unless you opt in:
 
 ```toml
 # ~/.zeroclaw/config.toml
@@ -48,7 +49,7 @@ Then add to `~/.zeroclaw/config.toml`:
 skill_bundles = ["compound-engineering"]
 ```
 
-The script **copies** skill directories (ZeroClaw rejects symlinks at audit time). It does **not** call `zeroclaw skills install` — that CLI writes to `config.data_dir/skills`, which agent sessions do not load.
+The script **copies** skill directories (ZeroClaw rejects symlinks at audit time). It does **not** call `zeroclaw skills install` — that CLI writes to `config.data_dir/skills`, which agent sessions do not load. The installer honors `ZEROCLAW_CONFIG_DIR` when set, and refuses unknown agent aliases (run `zeroclaw quickstart` before `--global` or `--agent`).
 
 Re-run the script after `git pull` to refresh installed copies when skill content changes.
 

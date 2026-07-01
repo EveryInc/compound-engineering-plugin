@@ -86,7 +86,7 @@ Pipeline mode exists for LFG and other automated runners where multiple agents m
 The preferred port comes from a priority list:
 
 1. Explicit argument (`--port 5000`)
-2. Project instructions (`AGENTS.md`, `CLAUDE.md`)
+2. In-context project instructions (the dev-server port already in the agent's active instructions — not by grepping instruction files, where prose mentions are false-positive-prone)
 3. `package.json` (dev/start scripts)
 4. Environment files (`.env`, `.env.local`, `.env.development`)
 5. Default `3000`

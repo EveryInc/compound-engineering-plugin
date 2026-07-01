@@ -73,7 +73,7 @@ git checkout -b <branch-name>
 git branch --show-current
 ```
 
-The second `git branch --show-current` is not redundant. It converts "the skill thinks it created branch X" into "Git says the current branch is X."
+In `ce-commit-push-pr`, create that branch automatically: the user invoked a commit/push/PR workflow, and later push/PR steps require a branch-backed ref. The second `git branch --show-current` is not redundant. It converts "the skill thinks it created branch X" into "Git says the current branch is X."
 
 Apply the same pattern before default-branch safety checks:
 
@@ -121,9 +121,9 @@ This keeps PR detection tied to the current branch context instead of a bare bra
 
 If the current branch is `main`, `master`, or the resolved default branch, and the workflow is about to push or create a PR:
 
-- ask whether to create a feature branch first
-- if the user agrees, create the branch and re-read the branch name
-- if the user declines in `ce-commit-push-pr`, stop rather than trying to open a PR from the default branch
+- create a feature branch first and re-read the branch name
+- ask only when unpushed local commits create a real carry-forward decision, such as preserving them on the feature branch vs starting from the fresh remote base
+- if the safe branch transition cannot be completed in `ce-commit-push-pr`, stop rather than trying to open a PR from the default branch
 
 This prevents "push default branch, then attempt impossible PR flow" behavior.
 

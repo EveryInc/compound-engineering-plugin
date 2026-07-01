@@ -215,6 +215,7 @@ If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go
 
 - Check for uncommitted changes (`git status`). If the user has unstaged work in files that need modification, confirm before editing — do not overwrite in-progress changes.
 - If the current branch is the default branch, ask whether to create a feature branch first using the platform's blocking question tool (see Phase 2 for the per-platform names). To detect the default branch, compare against `main`, `master`, or the value of `git rev-parse --abbrev-ref origin/HEAD` with its `origin/` prefix stripped (the raw output is `origin/<name>`, so an unstripped comparison will never match the local branch name). Default to creating one; derive a name from the bug and run `git checkout -b <name>`. On any other branch, proceed.
+- Record the pre-fix scope before editing: current `HEAD`, whether `git status --short` is clean, and any pre-existing changed files. During Phase 3, keep a list of fix-owned files (the tests and implementation files changed for this bug). Phase 4 uses this to keep simplify/review from touching unrelated branch work.
 
 **Test-first:**
 1. Write a failing test that captures the bug (or use the existing failing test)
@@ -222,7 +223,7 @@ If the user chose "Diagnosis only" at the end of Phase 2, skip this phase and go
 3. Implement the minimal fix — address the root cause and nothing else. Do not bundle drive-by refactors, formatting, or unrelated cleanup into a bug-fix change; those belong in separate commits.
 4. Verify the test passes
 5. Run the broader test suite for regressions
-6. Self-review the diff before declaring the fix done: read every changed line and check for style violations, missed edge cases, regressions in adjacent behavior, and missing test coverage for the fix. For non-trivial fixes (multiple files, risky surface area), also run the harness's lightweight review tool (e.g., `/review` in Claude Code; the equivalent in other harnesses) — not the full `ce-code-review` multi-agent flow, which is PR-tier and over-sized for a single bug fix.
+6. Self-review the diff before declaring the root-cause fix done: read every changed line and check for style violations, missed edge cases, regressions in adjacent behavior, and missing test coverage for the fix. Do not run the broader polish/review/PR tail here; Phase 4 owns it after the debug summary so the user can see the root-cause result before shipping work begins.
 
 **On a failed fix:** return to Phase 2 and *explicitly invalidate the current hypothesis* before forming a new one. State out loud what evidence ruled out the prior hypothesis, then form a new one with its own grounding observation and prediction. Do not retry variants of the same theory ("maybe it was the other branch", "let me also catch this case") — that is the rationalization spiral, not iteration.
 
@@ -253,6 +254,33 @@ Analyze how this was introduced and what allowed it to survive. Note any systemi
 
 **If Phase 3 ran**, the next move depends on whether the skill created the branch in Phase 3.
 
+#### Post-fix polish/review tail (before commit or PR)
+
+Run this tail after Phase 3 ran and before the branch-based commit/PR handoff. The goal is to leave the fix PR-ready, not merely locally green.
+
+**Contextual overrides first.** Look at the user's original prompt, loaded memories, and the project's active instructions already in your context for preferences that conflict with automatic post-fix polish or review — for example, "minimal hotfix only", "do not run review", "always ask before cleanup", or "ship the smallest possible diff." A signal must be explicit or clearly applicable. Honor it and state what was skipped.
+
+**Skip the tail only with a reason.** Skip dedicated simplify/review when the fix is purely mechanical or trivial: typo/import-only, formatting/lint-only, dependency/version-only, generated artifacts, docs-only, or roughly under 10 changed lines with no sensitive surface. Still keep the Phase 3 tests and self-review. If skipping, carry the skip reason into the handoff summary.
+
+**Simplify before review when useful.** Invoke `/ce-simplify-code` before code review when the current fix diff is non-mechanical and large enough to benefit (default: >=30 changed lines), touches multiple implementation files, introduces a new helper/abstraction, or affects shared/risky surfaces such as auth/authz, public contracts, persistence, concurrency, background jobs, or external services. Use the branch diff only when the branch is skill-owned or clearly contains only this fix. On a pre-existing branch, scope simplification to fix-owned files only when those files were clean before Phase 3. If a fix-owned file already had pre-existing user edits, skip `/ce-simplify-code` for that file and record `Simplify: skipped for overlapping pre-existing edits`; file-level simplification could rewrite unrelated hunks the user did not authorize. Do not let simplification widen into unrelated user work.
+
+**Review the final fix scope.** After simplification (or after the skip decision), review every non-mechanical fix unless review tooling is unavailable. Run default `/ce-code-review` only when its diff scope is known to be this fix: the branch was created by this skill, or the pre-fix tree was clean and you can pass `base:<pre-fix-HEAD>`. Do not run default `/ce-code-review` on a pre-existing dirty branch or a branch with unrelated committed work; standalone review uses the branch/worktree diff and may apply fixes outside the bug scope. In that case, run the harness's lightweight review tool only if it accepts an explicit file scope; otherwise perform an explicit manual review of the fix-owned files and record `Code review: targeted manual due to unrelated branch work`. If `/ce-code-review` is unavailable on an otherwise fix-only scope, fall back to the harness's lightweight review tool when available; otherwise do one explicit manual diff scan and state that dedicated review was unavailable.
+
+**Handle residual findings before shipping.** Inspect the review's Actionable Findings. Do not auto-open a PR with unresolved P0/P1 findings, or with findings whose fix needs a product/design decision. Ask the user whether to fix now, accept/defer durably, or stop. For lower-severity residuals the user accepts, preserve them before any outward handoff: if a PR will be opened, pass them as "Known Residuals" context to `/ce-commit-push-pr`; if the user chooses commit-only or stop, create `docs/residual-review-findings/<branch-or-head-sha>.md` with the accepted findings and source review context, stage it with the fix when committing, and mention the file path in the final summary. Accepted residuals must not live only in the session.
+
+**Re-verify after tail edits.** If simplification or review changed code, rerun the bug's regression test and any targeted checks the tail identified. Never proceed to commit or PR with a red tree.
+
+**Post-fix quality summary.** After the tail, append this block below the Debug Summary before the commit/PR decision:
+
+```
+## Post-Fix Quality
+**Scope**: [fix-only branch / base:<pre-fix-HEAD> / fix-owned files only / targeted manual due to unrelated branch work]
+**Simplify**: [ran/skipped + reason]
+**Review**: [ran/skipped/manual + outcome]
+**Residuals**: [none / accepted Known Residuals for PR / accepted residuals written to docs/residual-review-findings/<branch-or-head-sha>.md / blocked pending user decision]
+**Re-verification**: [checks rerun after tail edits]
+```
+
 #### Skill-owned branch (created in Phase 3): default to commit-and-PR without prompting
 
 1. **Check for contextual overrides first.** Look at the user's original prompt, loaded memories, and the project's active instructions already in your context for preferences that conflict with auto commit-and-PR — for example, "always review before pushing", "open PRs as drafts", or "don't open PRs from skills". A signal must be an explicit instruction or a clearly applicable rule, not a vague tonal cue. If any apply, honor them — switch to the pre-existing-branch menu below, or skip the PR step entirely, whichever matches the user's stated preference.
@@ -265,7 +293,7 @@ Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `re
 
 Options:
 
-1. **Commit and open a PR (`/ce-commit-push-pr`)** — default for most cases
+1. **Open a PR with the reviewed fix (`/ce-commit-push-pr`)** — default for most cases
 2. **Commit the fix (`/ce-commit`)** — local commit only
 3. **Stop here** — user takes it from there
 

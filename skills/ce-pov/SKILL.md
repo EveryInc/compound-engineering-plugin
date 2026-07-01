@@ -1,6 +1,6 @@
 ---
 name: ce-pov
-description: "Give a decisive, project-grounded verdict on an external input — judged against the current project, not in the abstract. Use to decide whether to adopt, switch to, or revisit a technology, library, pattern, platform, or architecture, or for a mid-session second opinion. Always returns a project-specific verdict, so it is not for neutral explainers or generating options."
+description: "Give a decisive, project-grounded verdict on an external input — judged against the current project, not in the abstract. Use to decide whether to adopt, switch to, or revisit a technology, library, pattern, platform, or architecture; to compare a candidate against what the project already uses; to judge whether an external change (a CVE, a deprecation, an ecosystem shift) actually affects this project; or for a mid-session second opinion. Always returns a project-specific verdict, so it is not for neutral explainers or generating options."
 argument-hint: "[the external thing to judge, plus any links] — or invoke bare mid-session for a second opinion"
 ---
 
@@ -46,7 +46,12 @@ Dispatch is tiered by task shape, never hardcoded to a model name:
 
 3. **Apply the selection escape hatch.** If the input is a *selection* over a field ("what should we use for auth?"), it belongs here only when the realistic field is bounded (roughly five or fewer real candidates) and the criteria are knowable. If the field can't be bounded without inventing options, or the criteria are unclear, **stop**: return a Hold and route to `ce-ideate` (to enumerate) or `ce-brainstorm` (to surface criteria), then offer to re-run. Read `references/boundaries.md` only when the input's fit for `ce-pov` is genuinely in doubt or the field can't be bounded; skip it for a clearly in-scope verdict.
 
-4. **Classify the reversibility tier.** Infer it from project signals: a dependency, lint rule, or config reads as a **two-way door (Tier 1)**; a data store, auth provider, public API/contract, migration, or a security/legal surface reads as a **one-way door (Tier 2/3)**. State the tier in the verdict and let the user override. The tier sizes the rest of the run (Phase 1 scout count, Phase 2 depth, Phase 3 reversal trigger) — do not run a Tier-3 workup on a trivially reversible `npm i`.
+4. **Classify the reversibility tier — three levels.** Infer it from project signals:
+   - **Tier 1 — two-way door:** a dependency, lint rule, or config; trivially reversible.
+   - **Tier 2 — one-way but bounded:** a data store, an internal API/contract, or a migration whose blast radius stays inside this codebase.
+   - **Tier 3 — one-way and high-stakes:** a security, legal, or privacy surface; a public API/contract; or an irreversible data migration.
+
+   State the tier in the verdict and let the user override. The tier sizes the rest of the run (Phase 1 scout count, Phase 2 depth, Phase 3 reversal trigger): Tier 1 stays a one-screen verdict off a single combined grounding pass; Tier 2 adds the full scout fleet and an alternatives pass; Tier 3 adds deep external research, a precedent search, and a durable-record offer. Do not run a Tier-3 workup on a trivially reversible `npm i`, or hand a security-surface decision the moderate Tier-2 treatment.
 
 ### Phase 1: Ground (dispatch scouts, never inline)
 
@@ -75,7 +80,7 @@ echo "$SCRATCH_DIR"
 
 - **project-grounding scout** (extraction tier) — read `references/agents/project-grounding-scout.md` and seed a generic subagent with it. With the agnostic profile already loaded from the cache, this scout runs only the **candidate-specific** slice: the named incumbent for *this* candidate, its call-sites/footprint, incumbent-pain, and the license/compat check against the profile's dependency-license set. Do not re-derive stack, conventions, or structure — those are in the profile. But note the profile may *name* an incumbent dependency, and a named dep is only a **lead** — it does not satisfy the project floor (see `references/method.md`), which still requires a freshly verified call-site the cache never holds. Do not let a cache-named incumbent short-circuit the fresh touchpoint check.
 - **precedent-&-activity scout** (extraction tier) — read `references/agents/precedent-activity-scout.md` and seed a generic subagent with it. Always run its **local-doc precedent pass** (`docs/solutions/`, ADRs, design docs — file reads, no tools needed); only its tracker/PR portion is capability-gated and degrades gracefully when those interfaces aren't reachable. Do **not** skip the whole scout for missing tracker access — that would drop the only path that surfaces a prior local adopt/reject decision.
-- **external-evidence researcher** (generation tier) — read `references/agents/external-evidence-researcher.md` and seed a generic subagent with it; capability-gated on web tools.
+- **external-evidence researcher** (generation tier) — read `references/agents/external-evidence-researcher.md` and seed a generic subagent with it; capability-gated on web tools. **Scale the remit to the tier so Tier 3's deeper-workup promise is real, not nominal:** at **Tier 3**, seed it with a deeper brief — a wider source net, a larger read budget, and *mandatory* two-source corroboration on every load-bearing claim (at Tier 3 a single-source claim cannot anchor the verdict); **Tier 2** uses the persona's standard budget and its prefer-two-sources default.
 
 **Capability gating is two-level:** skip only a scout (or scout-portion) with **no reachable surface at all** — the project-grounding scout and the precedent scout's local-doc pass are file reads and always run; the tracker/PR reads and the external researcher are tool-gated and degrade. Let a scout that loses a tool mid-run self-report "unavailable." Never block on a missing surface — record it and let it lower the verdict's stated confidence, or trip the external floor (Phase 2) when the external leg is entirely absent.
 

@@ -6,8 +6,36 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 SKILLS_SRC="$REPO_ROOT/skills"
-INSTALL_ROOT="${ZEROCLAW_INSTALL_ROOT:-$HOME/.zeroclaw}"
 SHARED_BUNDLE="compound-engineering"
+
+expand_path() {
+  local path="$1"
+  case "$path" in
+    "~")
+      printf '%s\n' "$HOME"
+      ;;
+    "~/"*)
+      printf '%s\n' "$HOME/${path:2}"
+      ;;
+    *)
+      printf '%s\n' "$path"
+      ;;
+  esac
+}
+
+resolve_install_root() {
+  if [[ -n "${ZEROCLAW_INSTALL_ROOT:-}" ]]; then
+    expand_path "$ZEROCLAW_INSTALL_ROOT"
+    return
+  fi
+  if [[ -n "${ZEROCLAW_CONFIG_DIR:-}" ]]; then
+    expand_path "$ZEROCLAW_CONFIG_DIR"
+    return
+  fi
+  printf '%s\n' "$HOME/.zeroclaw"
+}
+
+INSTALL_ROOT="$(resolve_install_root)"
 
 usage() {
   cat <<'EOF'
@@ -15,18 +43,19 @@ Usage: install-skills.sh [--global | --agent ALIAS | --shared | --dir PATH] [--i
 
   --global            Install into the default agent workspace (same as --agent default)
   --agent ALIAS       Install into <install>/agents/<alias>/workspace/skills/
-  --agent all         Install into every agent under <install>/agents/
+  --agent all         Install into every configured agent under <install>/agents/
   --shared            Install bundle at <install>/shared/skills/compound-engineering/
   --dir PATH          Install into an explicit skills directory
   --include-manual    Also install manual-only skills (disable-model-invocation: true)
 
-Set ZEROCLAW_INSTALL_ROOT to override ~/.zeroclaw (honors ZEROCLAW_CONFIG_DIR parent).
+Set ZEROCLAW_INSTALL_ROOT to override the install root explicitly.
+When unset, ZEROCLAW_CONFIG_DIR is used (same precedence as the ZeroClaw runtime).
 
 ZeroClaw v0.8+ loads agent skills from per-agent workspace paths, not the legacy
 ~/.zeroclaw/workspace/skills tree. This script does not call zeroclaw skills install
 (that CLI writes to config.data_dir/skills, which agents do not read).
 
-For --shared, add to ~/.zeroclaw/config.toml:
+For --shared, add to <install>/config.toml:
 
   [skill_bundles.compound-engineering]
 
@@ -83,6 +112,32 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+agent_configured() {
+  local alias="$1"
+  local agent_root="$INSTALL_ROOT/agents/$alias"
+
+  if [[ ! -d "$agent_root" ]]; then
+    return 1
+  fi
+
+  local config="$INSTALL_ROOT/config.toml"
+  if [[ ! -f "$config" ]]; then
+    return 0
+  fi
+
+  grep -qE "^\[agents\.(${alias}|\"${alias}\")\]" "$config"
+}
+
+require_agent() {
+  local alias="$1"
+  if agent_configured "$alias"; then
+    return 0
+  fi
+
+  echo "error: agent '$alias' not configured under $INSTALL_ROOT — run zeroclaw quickstart or pass --agent with a valid alias" >&2
+  exit 1
+}
+
 resolve_destinations() {
   case "$SCOPE" in
     --global | --agent)
@@ -95,13 +150,16 @@ resolve_destinations() {
         for agent_dir in "$INSTALL_ROOT/agents"/*/; do
           [[ -d "$agent_dir" ]] || continue
           alias_name="$(basename "$agent_dir")"
-          DESTS+=("$INSTALL_ROOT/agents/$alias_name/workspace/skills")
+          if agent_configured "$alias_name"; then
+            DESTS+=("$INSTALL_ROOT/agents/$alias_name/workspace/skills")
+          fi
         done
         if [[ ${#DESTS[@]} -eq 0 ]]; then
-          echo "error: no agents found under $INSTALL_ROOT/agents" >&2
+          echo "error: no configured agents found under $INSTALL_ROOT/agents" >&2
           exit 1
         fi
       else
+        require_agent "$AGENT_ALIAS"
         DESTS+=("$INSTALL_ROOT/agents/$AGENT_ALIAS/workspace/skills")
       fi
       ;;

@@ -36,6 +36,7 @@ For current-branch mode, resolve `<base>` in priority order: caller-supplied (`b
 git fetch --no-tags <base-remote> <base>
 git fetch --no-tags <base-remote> <head>   # PR mode only: <head> is headRefOid and may not be local
 git log  --oneline "<base-remote>/<base>..<head>"
+git log  --format=fuller "<base-remote>/<base>..<head>"   # full commit messages for related-reference discovery
 git diff           "<base-remote>/<base>...<head>"
 ```
 
@@ -81,9 +82,41 @@ For small + non-trivial bugfixes, the 3-5 sentence target still needs a user-vis
 
 ---
 
+## Step B1: Resolve related work references
+
+Before writing the body, make an explicit related-reference pass. Gather candidate work-item references from the user prompt, caller handoff, branch name, full commit messages, existing PR body, PR template, plan/debug notes, and visible URLs or IDs already in context. Preserve existing related references when rewriting a PR unless the user asks to remove them.
+
+Classify each candidate as:
+
+- **closing reference** — the PR fully resolves the item and the tracker's closing syntax is known.
+- **non-closing reference** — the PR is related, partial, investigative, follow-up, validation-only, or the tracker semantics are unknown.
+- **uncertain** — the change clearly came from a tracked bug, incident, performance investigation, alert, or log trace, but the exact ID/link or close-vs-link intent is missing. Ask the user for the reference or intent; in non-interactive flows, use a non-closing reference or omit rather than pretending to close it.
+
+Do not invent a closing keyword. Magic words are workflow actions, not decoration. If the candidate is ambiguous, put a neutral related reference in the related-reference sentence/block or omit it; do not scatter the ID through the summary.
+
+Do not put a non-closing reference next to close/fix/resolve/address/report wording in prose. For partial or related work, write the behavioral scope in one sentence and put the tracker ID separately. Use the table's non-closing reference labels exactly; do not substitute synonyms like `Refs`, `References`, or `Toward` unless the project's documented tracker convention requires one of those labels. For a non-closing reference, the tracker ID appears only in that related-reference sentence or block, never in the summary/opening/body prose. This avoids both accidental automation and reviewer confusion.
+
+- Bad: "closing one corruption path from #123"
+- Bad: "partial fix for #123"
+- Bad: "This addresses the retry-related corruption path reported in #123."
+- Good: "This covers the duplicate-row retry path; concurrent cancellation remains follow-up work."
+- Good: "Related: #123"
+
+Common syntax examples:
+
+| Tracker | Closing reference | Non-closing reference | Notes |
+|---|---|---|---|
+| GitHub Issues | `Fixes #123`; cross-repo: `Fixes owner/repo#123` | `Related: #123`; cross-repo: `Related: owner/repo#123` | Closing keywords are `close(s/d)`, `fix(es/ed)`, and `resolve(s/d)`. Use closing syntax only when the PR targets the default branch and truly resolves the issue; otherwise use a non-closing reference. Repeat the keyword for multiple closing issues. |
+| Linear | `Fixes ENG-123` | `Related to ENG-123` | Linear supports closing and non-closing magic words. Put magic words in the PR description, not a PR comment. Multiple issues can follow one magic word when they share the same intent, e.g. `Fixes ENG-123, DES-5 and ENG-256`. |
+| Other trackers | Use the project's documented closing keyword only when known. | Prefer a full URL or tracker ID under `Related`. | Some trackers parse commit messages, PR descriptions, or both. Follow project docs or tracker integration docs when present; otherwise never guess a closing action. |
+
+Closing references can live in the opening paragraph when the body is tiny. Non-closing references always get their own sentence or `## Related` block before validation/evidence. For one item that truly closes, a single line like `Fixes ENG-123.` can be enough; for mixed items, separate closing and non-closing bullets.
+
+---
+
 ## Step C: Assemble the body
 
-In order: opening → body sections that earn their keep → test plan if non-obvious → evidence block if one exists → Compound Engineering badge after a `---` rule.
+In order: opening → body sections that earn their keep → related references when they need their own block → test plan if non-obvious → evidence block if one exists → Compound Engineering badge after a `---` rule.
 
 The opening goes under `## Summary` if the body uses any `##` headings; bare paragraph otherwise. No orphaned opening paragraphs above the first heading.
 

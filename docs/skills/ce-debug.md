@@ -4,7 +4,7 @@
 
 `ce-debug` is the **investigation-first** debugging skill. It refuses to propose a fix until it can explain the full causal chain from trigger to symptom with no gaps. For uncertain links in that chain, it requires a **prediction** — something in a different code path or scenario that must also be true if the link is right. **When a prediction is wrong but a fix appears to work, the skill flags it: you found a symptom, not the cause.**
 
-It right-sizes. Trivial bugs (typos, missing imports, obvious one-line fixes) take an explicit fast-path in Phase 0 — fix it, leave a one-line note, stop. Anything else flows through the full framework, with complex bugs spending more time in each phase naturally. The fix is optional — diagnosis-only is a first-class outcome.
+It right-sizes. Trivial bugs (typos, missing imports, obvious one-line fixes) take an explicit fast-path in Phase 0 — fix it, leave a one-line note, stop. Anything else flows through the full framework, with complex bugs spending more time in each phase naturally. The fix is optional — diagnosis-only is a first-class outcome. When you do choose a fix, non-trivial diffs can continue through simplify and code review before the PR handoff so the result is ready to review, not just locally patched.
 
 The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-debug` is the bug-shaped sibling to `/ce-work` — when the input is broken behavior rather than a feature to build, this skill takes over. It can also escalate to `/ce-brainstorm` when investigation reveals the bug isn't really a bug; it's a design problem.
 
@@ -14,9 +14,9 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Investigates a bug end-to-end (reproduce, trace, root-cause), forms hypotheses with predictions, optionally implements a test-first fix, and hands off to commit + PR |
+| What does it do? | Investigates a bug end-to-end (reproduce, trace, root-cause), forms hypotheses with predictions, optionally implements a test-first fix, then polishes/reviews non-trivial fixes before commit + PR |
 | When to use it | Failed tests, error messages, regressions, GitHub/Linear/Jira issue references, "I've been stuck on this for hours" |
-| What it produces | A debug summary with root cause, recommended tests, and (if you opt in) a PR with the fix |
+| What it produces | A debug summary with root cause, recommended tests, applied fix, post-fix quality notes, and (if you opt in) a PR |
 | What's next | Auto commit + PR by default; or "diagnosis only" if you'd rather take it from there |
 
 ---
@@ -41,6 +41,7 @@ Common debugging anti-patterns:
 - **One change at a time** — anti-shotgun discipline
 - **Smart escalation when stuck** — diagnose *why* hypotheses are exhausted, don't just try harder
 - **Test-first fix** — write the failing test, verify it fails for the right reason, then implement; never both at once
+- **Post-fix quality tail** — for non-trivial fixes, simplify the relevant diff, run the self-sizing code review, apply safe findings, and preserve residuals before shipping
 
 ---
 
@@ -75,11 +76,15 @@ When the input references an issue (`#123`, GitHub URL, Linear URL, Jira key), t
 
 If you opt to fix (rather than "diagnosis only"), the skill writes a failing test that captures the bug, verifies it fails for the right reason (the root cause, not unrelated setup), implements the minimal fix, and verifies the test passes. The test-and-fix-in-the-same-step shortcut is explicitly disallowed.
 
-### 7. Conditional defense-in-depth
+### 7. Post-fix polish and review
+
+After the root-cause fix is green, `ce-debug` conditionally runs the same quality tail used by the broader shipping workflow: simplify first when the diff is non-mechanical and large enough to benefit, then review the final fix. Tiny mechanical fixes skip this with a reason. On pre-existing dirty branches, simplify and review are scoped to the bug-fix files so they do not wander into unrelated user work; files with overlapping pre-existing edits skip file-level simplification. The skill records the tail in a Post-Fix Quality block before commit or PR handoff, and accepted residual findings are written to a durable sink even when the user chooses commit-only or stop.
+
+### 8. Conditional defense-in-depth
 
 When the root-cause pattern appears in 3+ other files, or the bug would have been catastrophic in production, the skill considers four defense layers (entry validation, invariant check, environment guard, diagnostic breadcrumb) and applies what fits. For one-off errors with no realistic recurrence, defense-in-depth is skipped.
 
-### 8. Brainstorm escalation when bug reveals a design problem
+### 9. Brainstorm escalation when bug reveals a design problem
 
 Concrete signals trigger a `/ce-brainstorm` recommendation rather than a fix: the root cause is a wrong responsibility or interface; the requirements are wrong or incomplete; every fix is a workaround. Size alone doesn't make something a design problem — clear-fix-but-large bugs are still bugs.
 
@@ -95,7 +100,7 @@ It forms two hypotheses, ranked by likelihood. The first is testable directly; t
 
 The prediction holds. The skill presents the root cause with file:line references, the proposed fix, and the specific tests that should be added (with assertion guidance). It asks: fix it now, diagnosis only, or rethink the design?
 
-You pick "fix it now." It creates a feature branch, writes the failing test, verifies it fails for the right reason, implements the minimal fix, runs tests, and hands off to `/ce-commit-push-pr`.
+You pick "fix it now." It creates a feature branch, writes the failing test, verifies it fails for the right reason, implements the minimal fix, and runs tests. If the fix is non-trivial, it runs simplify before code review, applies clear review findings when the review scope is fix-only, reruns targeted checks, records Post-Fix Quality, and then hands off to `/ce-commit-push-pr`.
 
 ---
 
@@ -120,10 +125,11 @@ Skip `ce-debug` when:
 
 ## Use as Part of the Workflow
 
-`ce-debug` interlocks with the rest of the chain in three ways:
+`ce-debug` interlocks with the rest of the chain in four ways:
 
 - **Called from `/ce-plan`** — when a planning prompt is bug-shaped (error message, "fix the bug where X", regression), `ce-plan` surfaces `ce-debug` as a route-out option before doing structural planning
 - **Escalates to `/ce-brainstorm`** — when investigation reveals a design problem rather than a logic error, the skill recommends rethinking before implementing
+- **Runs post-fix quality checks** — non-trivial fixes go through `/ce-simplify-code` and `/ce-code-review` before shipping; tiny mechanical fixes skip with a reason
 - **Hands off to `/ce-commit-push-pr`** — after a successful fix on a skill-created branch, the skill defaults to commit-and-PR without further prompting (with an explicit override path if your repo's `AGENTS.md` says otherwise)
 
 After a PR opens, the skill optionally offers `/ce-compound` to capture learning — but only when the bug is generalizable (3+ recurrence, wrong assumption about a shared dependency). Localized mechanical fixes are skipped silently to avoid cluttering `docs/solutions/` with one-off entries.
@@ -180,5 +186,7 @@ Not really — the skill assumes code, tests, and a tracker. The investigation d
 - [`ce-plan`](./ce-plan.md) — routes bug-shaped prompts here when you start at planning
 - [`ce-brainstorm`](./ce-brainstorm.md) — escalation target when the bug reveals a design problem
 - [`ce-work`](./ce-work.md) — sibling skill for feature work; use this when input isn't bug-shaped
+- [`ce-simplify-code`](./ce-simplify-code.md) — post-fix cleanup pass for non-trivial bug-fix diffs
+- [`ce-code-review`](./ce-code-review.md) — self-sizing post-fix review before PR handoff
 - [`ce-commit-push-pr`](./ce-commit-push-pr.md) — handles the final commit + PR after a fix
 - [`ce-compound`](./ce-compound.md) — capture reusable learning when the bug is generalizable

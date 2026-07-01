@@ -140,6 +140,14 @@ For Standard/Deep with zero call-outs, the confirmation template still fires; th
 
 There is a third skip condition: the **opt-in `SKIP_SCOPING_CONFIRM` setting** (Phase 0.0 — `confirm:auto` token or the `plan_skip_scoping_confirm` config key). When it resolves to skip, the gate auto-proceeds for *any* tier or call-out count — the user has pre-authorized it. The announcement is still mandatory (it names that confirmation is off and that inferred scope landed in `## Assumptions`), and the skip is scoped to this confirmation only: genuine blocking questions and the Phase 5.4 menu still fire. This differs from headless mode only in that announcement — headless has no synchronous user to announce to.
 
+When the opt-in skip applies, emit this announcement — **not** the auto-proceed template above. The opt-in skip fires for *any* tier and call-out count, so claiming "No open decisions to weigh in on" would be false whenever call-outs survived; the announcement instead names that confirmation is off and that inferred scope is recorded under `## Assumptions`:
+
+```
+Planning: [1-3 line scope claim]
+
+Scoping confirmation is off, so I'm proceeding to [research / plan-write] without waiting. Inferred scope is recorded under Assumptions in the plan — interrupt if I have it wrong.
+```
+
 ---
 
 ## Synthesis structural discipline (shared)
@@ -245,8 +253,10 @@ Each guard is an explicit conditional in SKILL.md, not implicit. R2 solo does NO
 
 **Confirmation template (fires for Standard/Deep regardless of call-out count, or for any tier with one or more call-outs surviving):**
 
+The opener defaults to "Based on your request" — add "and our brief discussion" only when the Phase 0.4 bootstrap actually involved back-and-forth clarifying questions. Solo invocations often proceed with no dialogue, and claiming a discussion the user didn't have reads as off.
+
 ```
-Based on your request and our brief discussion, here's the scope I'm proposing to plan against:
+Based on your request, here's the scope I'm proposing to plan against:
 
 [scope claim — what the plan will target, what it will not; affirm-or-redirect level; NOT an enumeration of Implementation Units]
 

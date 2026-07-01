@@ -8,60 +8,31 @@ argument-hint: "[PR number, branch name, 'current', or --port PORT]"
 
 Run end-to-end browser tests on pages affected by a PR or branch changes using the `agent-browser` CLI.
 
-## Use `agent-browser` Only For Browser Automation
+## Modes
 
-This workflow uses the `agent-browser` CLI exclusively. Do not use any alternative browser automation system, browser MCP integration, or built-in browser-control tool. If the platform offers multiple ways to control a browser, always choose `agent-browser`.
+- **Manual (default):** the user controls the dev server. Follow the steps below as written, including the headed/headless question.
+- **Pipeline (`mode:pipeline`):** invoked by LFG or another automated runner. The run is unattended — never block on a question. Read `references/pipeline-orchestration.md` from this skill's directory and follow it; it overrides the free-port scan (step 4), dev-server startup (step 5), and the headed/headless question (step 6). It still uses the preferred port that step 4 computes.
 
-Use `agent-browser` for: opening pages, clicking elements, filling forms, taking screenshots, and scraping rendered content.
+## Use `agent-browser` Only
 
-Platform-specific hints:
-- In Claude Code, do not use Chrome MCP tools (`mcp__claude-in-chrome__*`).
-- In Codex, do not substitute unrelated browsing tools.
+Use the `agent-browser` CLI for every browser action in this skill — opening pages, clicking, filling forms, snapshots, screenshots — and use it exclusively. Do not use any other browser-automation tool, including a browser MCP integration, a built-in browser-control tool, Playwright, or Puppeteer. If the host offers several ways to drive a browser, always choose `agent-browser`.
 
-## Prerequisites
-
-- Local development server running (e.g., `bin/dev`, `rails server`, `npm run dev`)
-- `agent-browser` CLI installed (see Setup below)
-- Git repository with changes to test
-
-## Setup
-
-Check whether `agent-browser` is installed:
-
-```bash
-command -v agent-browser >/dev/null 2>&1 && echo "Installed" || echo "NOT INSTALLED"
-```
-
-If not installed, inform the user: "`agent-browser` is not installed. Run `/ce-setup` for the current install command, then install agent-browser and retry." Then stop — this skill cannot function without agent-browser.
+- Claude Code: do not use Chrome MCP tools (`mcp__claude-in-chrome__*`).
+- Codex: do not substitute unrelated browsing tools.
 
 ## Workflow
 
-### 1. Verify Installation
-
-Before starting, verify `agent-browser` is available:
+### 1. Verify `agent-browser` Is Installed
 
 ```bash
 command -v agent-browser >/dev/null 2>&1 && echo "Ready" || echo "NOT INSTALLED"
 ```
 
-If not installed, inform the user: "`agent-browser` is not installed. Run `/ce-setup` for the current install command, then install agent-browser and retry." Then stop.
+If not installed, tell the user: "`agent-browser` is not installed. Run `/ce-setup` for the current install command, then install agent-browser and retry." Then stop — this skill cannot function without it.
 
-### 2. Ask Browser Mode
+This also requires a git repository with changes to test.
 
-**Pipeline mode (`mode:pipeline`):** Skip this step entirely. Default to headless — no question, no blocking. Proceed directly to step 3.
-
-**Manual mode:** Ask the user whether to run headed or headless using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question:
-
-```
-Do you want to watch the browser tests run?
-
-1. Headed (watch) - Opens visible browser window so you can see tests run
-2. Headless (faster) - Runs in background, faster but invisible
-```
-
-Store the choice and use the `--headed` flag when the user selects option 1.
-
-### 3. Determine Test Scope
+### 2. Determine Test Scope
 
 **If PR number provided:**
 ```bash
@@ -78,9 +49,9 @@ git diff --name-only main...HEAD
 git diff --name-only main...[branch]
 ```
 
-### 4. Map Files to Routes
+### 3. Map Changed Files to Routes
 
-Map changed files to testable routes:
+Map each changed file to the route(s) that render it, then build the list of URLs to test. The table below is a starting point of common patterns, not an exhaustive rule set — apply judgment for the project's actual layout:
 
 | File Pattern | Route(s) |
 |-------------|----------|
@@ -94,28 +65,18 @@ Map changed files to testable routes:
 | `src/app/*` (Next.js) | Corresponding routes |
 | `src/components/*` | Pages using those components |
 
-Build a list of URLs to test based on the mapping.
-
-### 5. Detect and Claim a Free Port
-
-**Pipeline mode only (`mode:pipeline`):** When invoked from LFG or another automated pipeline, always find a port that is actually free — never assume 3000 is available, as multiple agents may be running in parallel on the same machine.
-
-**Manual mode (no `mode:pipeline`):** Use the preferred port as-is. Do not scan for alternatives — the user controls their own server.
+### 4. Determine the Dev Server Port
 
 Determine the preferred port using this priority:
 
-1. **Explicit argument** — if the user passed `--port 5000`, use that directly (skip free-port scan)
+1. **Explicit argument** — if the user passed `--port 5000`, use that directly.
 2. **In-context project instructions** — if your active project instructions already in context explicitly state the dev-server port, use it. Don't grep instruction files for a port: prose mentions (docs, examples, troubleshooting) are unreliable and false-positive-prone — config files and `.env` are the trustworthy sources.
-3. **package.json** — check dev/start scripts for `--port` flags
-4. **Environment files** — check `.env`, `.env.local`, `.env.development` for `PORT=`
-5. **Default** — fall back to `3000`
-
-**In pipeline mode**, verify the preferred port is free and scan upward if not. **In manual mode**, use the preferred port directly.
+3. **package.json** — check dev/start scripts for `--port` flags.
+4. **Environment files** — check `.env`, `.env.local`, `.env.development` for `PORT=`.
+5. **Default** — fall back to `3000`.
 
 ```bash
-# Step 1: Determine preferred port.
-# If your in-context project instructions state the dev-server port, set PORT
-# here first (e.g. EXPLICIT_PORT). Do not grep instruction files for a port.
+# If your in-context project instructions state the dev-server port, set EXPLICIT_PORT first.
 PORT="${EXPLICIT_PORT:-}"
 if [ -z "$PORT" ]; then
   PORT=$(grep -Eo '\-\-port[= ]+[0-9]{4,5}' package.json 2>/dev/null | grep -Eo '[0-9]{4,5}' | head -1)
@@ -124,63 +85,46 @@ if [ -z "$PORT" ]; then
   PORT=$(grep -h '^PORT=' .env .env.local .env.development 2>/dev/null | tail -1 | cut -d= -f2)
 fi
 PORT="${PORT:-3000}"
-
-# Step 2 (pipeline mode only): scan for a free port
-if [ "${PIPELINE_MODE}" = "1" ]; then
-  find_free_port() {
-    local p=$1
-    while lsof -i ":$p" -sTCP:LISTEN -t >/dev/null 2>&1; do
-      p=$((p + 1))
-    done
-    echo $p
-  }
-  PORT=$(find_free_port "$PORT")
-fi
-echo "Using dev server port: $PORT"
+echo "Preferred dev server port: $PORT"
 ```
 
-Set `PIPELINE_MODE=1` in your shell when the argument `mode:pipeline` is present.
+Manual mode uses this preferred port as-is — the user controls their own server, so do not scan for alternatives. In pipeline mode, `references/pipeline-orchestration.md` takes the preferred port value printed here and scans upward to a genuinely free port.
 
-### 6. Start Dev Server if Not Running, Then Verify
+### 5. Verify the Dev Server Is Running
 
-**Pipeline mode only:** If no server is already listening on `$PORT`, start one automatically in the background. In manual mode, inform the user and stop.
+Confirm the server is up before asking the headed/headless question — a manual run with no server stops here, so asking first would waste the question.
 
 ```bash
 if lsof -i ":${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1; then
-  echo "Server already running on port ${PORT}"
+  echo "Server running on port ${PORT}"
 else
-  if [ "${PIPELINE_MODE}" = "1" ]; then
-    # Auto-start in pipeline — pick the right command for this project
-    echo "Starting dev server on port ${PORT}..."
-    if [ -f "bin/dev" ]; then
-      PORT=${PORT} bin/dev > /tmp/dev-server-${PORT}.log 2>&1 &
-    elif [ -f "bin/rails" ]; then
-      bin/rails server -p ${PORT} > /tmp/dev-server-${PORT}.log 2>&1 &
-    elif [ -f "package.json" ]; then
-      PORT=${PORT} npm run dev > /tmp/dev-server-${PORT}.log 2>&1 &
-    fi
-    # Wait up to 30 seconds for server to become ready
-    for i in $(seq 1 30); do
-      lsof -i ":${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1 && break
-      sleep 1
-    done
-    if ! lsof -i ":${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1; then
-      echo "Server did not start in 30s. Last output:"
-      tail -20 /tmp/dev-server-${PORT}.log 2>/dev/null
-      exit 1
-    fi
-  else
-    # Manual mode — ask the user to start the server
-    echo "Server not running on port ${PORT}"
-    echo ""
-    echo "Please start your development server:"
-    echo "  Rails: bin/dev  or  rails server -p ${PORT}"
-    echo "  Node/Next.js: npm run dev"
-    echo "  Custom port: run this skill again with --port <your-port>"
-    exit 0
-  fi
+  echo "Server not running on port ${PORT}"
+  echo "Start your dev server, then re-run:"
+  echo "  Rails: bin/dev  or  rails server -p ${PORT}"
+  echo "  Node/Next.js: npm run dev"
+  echo "  Custom port: run this skill again with --port <your-port>"
+  exit 0
 fi
+```
 
+In pipeline mode, do not stop here — `references/pipeline-orchestration.md` auto-starts the server in the background instead.
+
+### 6. Choose Headed or Headless
+
+Manual mode only — in pipeline mode, skip this step (see Modes; it defaults to headless).
+
+Ask the user whether to run headed or headless using the platform's blocking question tool: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question:
+
+```
+Do you want to watch the browser tests run?
+
+1. Headed (watch) - Opens visible browser window so you can see tests run
+2. Headless (faster) - Runs in background, faster but invisible
+```
+
+Store the choice and use the `--headed` flag when the user selects option 1. Then confirm the server serves the root before iterating (add `--headed` if the user chose headed):
+
+```bash
 agent-browser open http://localhost:${PORT}
 agent-browser snapshot -i
 ```
@@ -222,7 +166,7 @@ agent-browser screenshot --full page-name-full.png
 
 ### 8. Human Verification (When Required)
 
-Pause for human input when testing touches flows that require external interaction:
+Pause for human input when testing touches flows that require external interaction. **Pipeline mode:** do not pause — log each such flow as Skip with the reason and continue.
 
 | Flow Type | What to Ask |
 |-----------|-------------|
@@ -248,7 +192,7 @@ Did it work correctly?
 
 ### 9. Handle Failures
 
-When a test fails:
+When a test fails (**pipeline mode:** do not ask how to proceed — capture the error screenshot and repro steps, log the failure, and continue):
 
 1. **Document the failure:**
    - Screenshot the error state: `agent-browser screenshot error.png`

@@ -131,6 +131,23 @@ A line earns its place when it does one of these:
 
 An adjective is fine **only** when immediately operationalized by a concrete rule (e.g., "keep outputs concise — only enough detail to support the next decision"). The adjective alone is framing; the operationalization is the instruction. Do not append motivational rationale ("the quality of everything depends on this") to a directive that already stands on its own, and do not restate an instruction the same file already gives unless it is deliberate spaced repetition placed where drift occurs.
 
+### Inline the Trigger, Not the Content
+
+SKILL.md loads at session start; references load on demand. That asymmetry sets what belongs where, and the resolution is *what* you inline, not *how much*.
+
+A **load-bearing instruction** — one that MUST fire reliably: the action, the bare routing that invokes the next step, the instruction to load the reference itself — belongs inline at the top of its phase, because an agent that never opened the reference would otherwise stop or guess (`docs/solutions/skill-design/post-menu-routing-belongs-inline.md`).
+
+But do **not** inline a *summary of what the reference contains*. It backfires twice:
+
+- **Drift.** The two copies diverge silently and the agent follows whichever one loaded. When a load-bearing block genuinely must appear in two always-loaded places, guard the copies with a parity test rather than trusting them to stay in sync.
+- **Suppressed load.** A paraphrase suppresses the very load it sits beside — an agent that already has a workable inline version judges it "has enough" and never opens the file, so the reference's templates, shaping rules, and examples never reach it. For a reference that should always load, keep the inline alternative strictly load-instruction-only.
+
+Test: if the inline text is complete enough to act on without the reference, the agent will — so inline only what is incomplete by design ("act, then read X"). The inline part should create demand for the reference, not substitute for it.
+
+### Extract Conditional and Late-Sequence Blocks
+
+Skill content carried from trigger time rides in every subsequent message — every tool call, agent dispatch, and response — so the cost compounds across a session, and more for skills that orchestrate many calls. Extract a block to `references/` when it is **conditional** (executes only under specific conditions) or **late-sequence** (needed only after many prior calls) *and* is a meaningful share of the skill (~20%+). Replace it with a 1-3 line stub stating the condition and a backtick path (e.g., "Read `references/deepening-workflow.md`"). Never use `@` for an extracted block — `@` inlines at load time and defeats the extraction. The always-on trigger from "Inline the Trigger, Not the Content" stays inline; only the conditional substance moves.
+
 ## Coding Conventions
 
 - Prefer explicit mappings over implicit magic when converting between platforms.

@@ -19,20 +19,35 @@ All facts below were verified by building a fixture plugin and running `agy plug
 
 ## Install model (user-facing)
 
-`agy` installs a plugin from a **local directory**, not a repository URL:
+`agy` installs a plugin from a **local directory** or a **remote Git repository URL** when the source contains a root `plugin.json`:
+
+```bash
+agy plugin install https://github.com/EveryInc/compound-engineering-plugin
+```
+
+Local checkout (repository root or bundled `.agy/` entry point):
 
 ```bash
 git clone https://github.com/EveryInc/compound-engineering-plugin
 agy plugin install ./compound-engineering-plugin
+agy plugin install ./compound-engineering-plugin/.agy   # equivalent via symlinked manifest
 ```
 
 - `agy plugin install <target>` requires `<target>` to be a directory containing a `plugin.json` at
-  its root (`agy plugin validate .` fails with "missing plugin.json" otherwise).
-- There is no install-from-URL. `agy plugin install <plugin>@<marketplace>` exists for marketplaces.
+  its root (`agy plugin validate .` fails with "missing plugin.json" otherwise), or a remote Git URL
+  whose root contains `plugin.json`.
+- `agy plugin install <plugin>@<marketplace>` exists for marketplaces; Antigravity does not yet
+  ship a curated marketplace catalog equivalent to Kimi's `.kimi-plugin/marketplace.json`.
 - `agy plugin import [gemini|claude]` imports an existing Gemini-CLI / Claude install; on this machine
   `agy plugin list` showed `compound-engineering` already imported with `source: gemini-cli`.
 - Other subcommands: `list`, `uninstall <name>`, `enable <name>`, `disable <name>`, `validate [path]`,
   `link <mp> <target>`.
+
+Compound Engineering publishes root `plugin.json` plus `skills/` so remote Git install works without
+a clone step. The committed `.agy/` bundle holds a symlinked manifest (`plugin.json -> ../plugin.json`)
+and `skills -> ../skills` for explicit local `.agy` installs.
+
+See `.agy/INSTALL.md` for pinning, validation, and uninstall.
 
 Installed/imported plugins are tracked in an internal registry surfaced by `agy plugin list --json`
 (not a readable `plugins/` directory tree). Each entry records `name`, `source`
@@ -124,4 +139,6 @@ Builtin skills ship under `~/.gemini/antigravity-cli/builtin/skills/`.
 - Whether `agy plugin install` supports a monorepo subdirectory or only a root `plugin.json`.
 - Whether a generated root `plugin.json` (vs `.claude-plugin/plugin.json`) is the right emission
   target, and how it coexists with the existing Claude/Codex manifests at the repo root.
-- Marketplace (`<plugin>@<marketplace>`, `agy plugin link`) distribution, if we want it later.
+  **Resolved for CE:** root `plugin.json` is the Antigravity manifest; `.agy/plugin.json` symlinks to it.
+- Marketplace (`<plugin>@<marketplace>`, `agy plugin link`) distribution — deferred until Antigravity
+  documents a stable catalog schema (unlike Kimi's `.kimi-plugin/marketplace.json`).

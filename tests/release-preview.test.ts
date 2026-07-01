@@ -44,7 +44,7 @@ describe("release preview", () => {
     expect(preview.components).toHaveLength(0)
   })
 
-  test("rejects Gemini extension version drift from the root plugin version", async () => {
+  test("rejects Antigravity plugin.json version drift from the root plugin version", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "release-preview-"))
     await mkdir(path.join(root, ".claude-plugin"), { recursive: true })
     await mkdir(path.join(root, ".cursor-plugin"), { recursive: true })
@@ -53,8 +53,7 @@ describe("release preview", () => {
     await writeFile(path.join(root, ".claude-plugin", "plugin.json"), JSON.stringify({ version: "3.13.1" }))
     await mkdir(path.join(root, ".kimi-plugin"), { recursive: true })
     await writeFile(path.join(root, ".kimi-plugin", "plugin.json"), JSON.stringify({ version: "3.13.1" }))
-    await mkdir(path.join(root, ".agy"), { recursive: true })
-    await writeFile(path.join(root, ".agy", "plugin.json"), JSON.stringify({ version: "3.13.0" }))
+    await writeFile(path.join(root, "plugin.json"), JSON.stringify({ version: "3.13.0" }))
     await writeFile(
       path.join(root, ".claude-plugin", "marketplace.json"),
       JSON.stringify({ metadata: { version: "3.13.1" } }),
@@ -64,7 +63,7 @@ describe("release preview", () => {
       JSON.stringify({ metadata: { version: "3.13.1" } }),
     )
 
-    await expect(loadCurrentVersions(root)).rejects.toThrow(".agy/plugin.json version 3.13.0")
+    await expect(loadCurrentVersions(root)).rejects.toThrow("plugin.json version 3.13.0")
     await Bun.$`rm -rf ${root}`.quiet()
   })
 
@@ -73,12 +72,11 @@ describe("release preview", () => {
     await mkdir(path.join(root, ".claude-plugin"), { recursive: true })
     await mkdir(path.join(root, ".cursor-plugin"), { recursive: true })
     await mkdir(path.join(root, ".kimi-plugin"), { recursive: true })
-    await mkdir(path.join(root, ".agy"), { recursive: true })
 
     await writeFile(path.join(root, "package.json"), JSON.stringify({ version: "3.13.1" }))
     await writeFile(path.join(root, ".claude-plugin", "plugin.json"), JSON.stringify({ version: "3.13.1" }))
     await writeFile(path.join(root, ".kimi-plugin", "plugin.json"), JSON.stringify({ version: "3.13.0" }))
-    await writeFile(path.join(root, ".agy", "plugin.json"), JSON.stringify({ version: "3.13.1" }))
+    await writeFile(path.join(root, "plugin.json"), JSON.stringify({ version: "3.13.1" }))
     await writeFile(
       path.join(root, ".claude-plugin", "marketplace.json"),
       JSON.stringify({ metadata: { version: "3.13.1" } }),

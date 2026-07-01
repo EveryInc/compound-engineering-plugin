@@ -76,7 +76,7 @@
         },
         {
           "type": "json",
-          "path": ".agy/plugin.json",
+          "path": "plugin.json",
           "jsonpath": "$.version"
         }
       ]

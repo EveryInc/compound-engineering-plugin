@@ -14,6 +14,14 @@ Use this reference only when the next question has a specific visual decision:
 
 Do not use a visual probe for product goals, scope boundaries, success criteria, evidence probes, tradeoff prose, or technical decisions that are easier to discuss in chat.
 
+## The gate (when the offer must fire)
+
+When the Phase 0.3 tripwire flagged an inherently-visual topic, the offer must fire before the **first** decision about shape, behavior, state, layout, flow, or a diagram is raised in *any* form — plain chat or a blocking question.
+
+**Timing is state-based, not memory-based.** Anchor the check to the decision you are about to raise, not to a "pending gate" remembered since Phase 0.3: offer unless this specific decision has already been through the offer (the user already chose text or visual for it). This gate takes precedence over the default blocking-question path — do not raise the shape decision as an `AskUserQuestion`/`request_user_input` menu, or as a plain-chat shape question, until the user has declined visual (or visual feedback has returned to chat).
+
+**An ASCII preview or text mockup embedded inside the question's choices does NOT satisfy the offer** — that shortcut is exactly what this gate exists to stop. The offer is its own prior question with two options (sketch vs describe); only after the user chooses does the shape decision proceed.
+
 ## Offer
 
 Ask once at the decision point. Do not enable a session-wide mode.
@@ -58,14 +66,24 @@ Label the artifact as directional. State what the user should judge and what the
 
 ## Display Helper
 
-Use the bundled display-only helper when the current platform can run a bundled skill script:
+Use the bundled display-only helper when the current platform can run a bundled skill script. Invoke it via the `SKILL_DIR` anchor: set `SKILL_DIR` to the absolute path of the directory containing the `ce-brainstorm` `SKILL.md` you loaded (the Bash tool's cwd is the user's project, not the skill dir), and re-set it in the same command on each call since shell vars don't persist between Bash invocations. Do not resolve the helper from the user's project CWD.
 
-- Helper: `scripts/visual-probe-server.js`
-- Resolve the helper path relative to the loaded `ce-brainstorm` skill directory before running it. Do not resolve it from the user's project CWD.
-- Start: `node <resolved-helper-path> start --root /tmp/compound-engineering/ce-brainstorm-visual/<run-id>`
-- Start foreground: `node <resolved-helper-path> start --root /tmp/compound-engineering/ce-brainstorm-visual/<run-id> --foreground`
-- Status: `node <resolved-helper-path> status --root /tmp/compound-engineering/ce-brainstorm-visual/<run-id>`
-- Stop: `node <resolved-helper-path> stop --root /tmp/compound-engineering/ce-brainstorm-visual/<run-id>`
+Start (detached):
+
+```bash
+SKILL_DIR="<absolute path of the ce-brainstorm skill directory>"
+node "$SKILL_DIR/scripts/visual-probe-server.js" start --root /tmp/compound-engineering/ce-brainstorm-visual/<run-id>
+```
+
+Append `--foreground` to that `start` command for foreground mode. Status and stop take the same anchor — and because `SKILL_DIR` does not persist between Bash invocations, each must re-set it in its own call rather than reuse the `start` block's value:
+
+```bash
+SKILL_DIR="<absolute path of the ce-brainstorm skill directory>"
+node "$SKILL_DIR/scripts/visual-probe-server.js" status --root /tmp/compound-engineering/ce-brainstorm-visual/<run-id>
+# stop: the same command with `stop` in place of `status` (re-set SKILL_DIR again)
+```
+
+If `SKILL_DIR` cannot be resolved to a concrete skill directory, do not guess from the project CWD — use the text path.
 
 The helper creates `screens/` and `state/`, serves the newest `.html` file in `screens/`, writes `state/display-info.json`, and exposes `/version` so the browser can poll for screen changes. The browser reloads only when the newest screen changes; it must not continually reload on a timer. `/version` polling does not count as activity, so an abandoned browser tab cannot keep the server alive forever. Detached servers monitor the owning harness process when it can be resolved, and all servers exit after an idle timeout. The helper has no click tracking or browser-to-agent event path.
 
@@ -125,4 +143,4 @@ Use OS temp by default because visual probes are disposable scratch:
     display-info.json
 ```
 
-Use `.context/compound-engineering/ce-brainstorm-visual/<run-id>/` only when the user explicitly wants to inspect, preserve, or curate the sketches after the session. The final requirements doc in `docs/brainstorms/` is the durable artifact.
+Use `.context/compound-engineering/ce-brainstorm-visual/<run-id>/` only when the user explicitly wants to inspect, preserve, or curate the sketches after the session. The probe is disposable scratch; the durable artifact is the Phase 3 requirements-only unified plan under `docs/plans/`.
