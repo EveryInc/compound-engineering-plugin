@@ -148,7 +148,7 @@ For local development from a checkout:
 /path/to/compound-engineering-plugin/.cline/scripts/install-skills.sh --global
 ```
 
-Enable **Settings -> Features -> Enable Skills** in the Cline extension, then start a new task. The install script skips manual-only skills marked `disable-model-invocation: true` in frontmatter (for example `lfg`, `ce-dogfood`, `ce-polish`) because Cline auto-activates skills from description matching alone. Invoke those explicitly by name when needed. CE does not ship a separate Cline CLI `AgentPlugin` entry point; skills are the install surface.
+Enable **Settings -> Features -> Enable Skills** in the Cline extension, then start a new task. The install script skips manual-only skills marked `disable-model-invocation: true` in frontmatter (for example `lfg`, `ce-dogfood`, `ce-polish`) because Cline auto-activates skills from description matching alone. Pass `--include-manual` to link those skills for slash-command use, accepting that Cline may still auto-activate them. CE does not ship a separate Cline CLI `AgentPlugin` entry point; skills are the install surface.
 
 ## Kimi Code CLI
 

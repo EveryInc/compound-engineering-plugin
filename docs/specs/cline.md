@@ -31,7 +31,7 @@ CE ships skills at `./skills/<name>/SKILL.md` in this repository. Compound Engin
 
 ### Manual-only skills
 
-Some CE skills set `disable-model-invocation: true` in frontmatter so Claude and Codex do not auto-invoke them (for example `lfg`, `ce-dogfood`, `ce-polish`, `ce-setup`). Cline has no equivalent flag — it auto-activates skills when descriptions match — so `.cline/scripts/install-skills.sh` **skips** manual-only skills. Invoke them explicitly when needed.
+Some CE skills set `disable-model-invocation: true` in frontmatter so Claude and Codex do not auto-invoke them (for example `lfg`, `ce-dogfood`, `ce-polish`, `ce-setup`). Cline has no equivalent flag — it auto-activates skills when descriptions match — so `.cline/scripts/install-skills.sh` **skips** manual-only skills by default. Re-run with `--include-manual` to link them for slash-command use; Cline may still auto-activate those skills when descriptions match.
 
 ## CLI plugins (secondary, not required for CE)
 
@@ -57,6 +57,12 @@ Project-scoped skills from a checkout:
 
 ```bash
 /path/to/compound-engineering-plugin/.cline/scripts/install-skills.sh --project
+```
+
+Manual-only skills (for example `lfg`, `ce-polish`) require the opt-in flag:
+
+```bash
+/path/to/compound-engineering-plugin/.cline/scripts/install-skills.sh --global --include-manual
 ```
 
 After installing or updating skills, start a new Cline task so the skill list refreshes.

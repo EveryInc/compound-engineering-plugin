@@ -8,10 +8,12 @@ SKILLS_SRC="$REPO_ROOT/skills"
 
 usage() {
   cat <<'EOF'
-Usage: install-skills.sh [--global | --project]
+Usage: install-skills.sh [--global | --project] [--include-manual]
 
-  --global   Link skills into ~/.cline/skills/ (default)
-  --project  Link skills into ./.cline/skills/ under the current directory
+  --global          Link skills into ~/.cline/skills/ (default)
+  --project         Link skills into ./.cline/skills/ under the current directory
+  --include-manual  Also link manual-only skills (disable-model-invocation: true).
+                    Cline has no manual-only gate — linked manual skills may auto-activate.
 
 Set CLINE_SKILLS_DIR to override the global destination.
 EOF
@@ -19,12 +21,23 @@ EOF
 }
 
 SCOPE="--global"
-if [[ $# -gt 1 ]]; then
-  usage
-fi
-if [[ $# -eq 1 ]]; then
-  SCOPE="$1"
-fi
+INCLUDE_MANUAL=false
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --global | --project)
+      SCOPE="$1"
+      shift
+      ;;
+    --include-manual)
+      INCLUDE_MANUAL=true
+      shift
+      ;;
+    *)
+      usage
+      ;;
+  esac
+done
 
 case "$SCOPE" in
   --global)
@@ -46,16 +59,30 @@ fi
 mkdir -p "$DEST"
 linked=0
 skipped=0
-manual_only=0
+manual_omitted=0
+manual_included=0
+manual_removed=0
 
 for skill_dir in "$SKILLS_SRC"/*/; do
   [[ -f "${skill_dir}SKILL.md" ]] || continue
   name="$(basename "$skill_dir")"
+  is_manual=false
 
   if grep -qE '^disable-model-invocation:[[:space:]]*true[[:space:]]*$' "${skill_dir}SKILL.md"; then
-    echo "skip $name: manual-only (disable-model-invocation)" >&2
-    manual_only=$((manual_only + 1))
-    continue
+    is_manual=true
+    if [[ "$INCLUDE_MANUAL" != "true" ]]; then
+      target="$DEST/$name"
+      if [[ -L "$target" ]]; then
+        rm "$target"
+        echo "removed $name: stale manual-only symlink" >&2
+        manual_removed=$((manual_removed + 1))
+      fi
+      echo "skip $name: manual-only (disable-model-invocation)" >&2
+      manual_omitted=$((manual_omitted + 1))
+      continue
+    fi
+    echo "warn $name: manual-only skill linked — Cline may auto-activate when descriptions match" >&2
+    manual_included=$((manual_included + 1))
   fi
 
   target="$DEST/$name"
@@ -67,8 +94,16 @@ for skill_dir in "$SKILLS_SRC"/*/; do
   fi
 
   ln -sfn "$skill_dir" "$target"
-  echo "linked $name -> $skill_dir"
+  if [[ "$is_manual" == "true" ]]; then
+    echo "linked $name (manual-only) -> $skill_dir"
+  else
+    echo "linked $name -> $skill_dir"
+  fi
   linked=$((linked + 1))
 done
 
-echo "done: $linked linked, $skipped skipped, $manual_only manual-only omitted (destination: $DEST)"
+if [[ "$INCLUDE_MANUAL" == "true" ]]; then
+  echo "done: $linked linked, $skipped skipped, $manual_included manual-only included (destination: $DEST)"
+else
+  echo "done: $linked linked, $skipped skipped, $manual_omitted manual-only omitted, $manual_removed stale manual-only removed (destination: $DEST)"
+fi
