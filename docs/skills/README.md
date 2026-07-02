@@ -50,6 +50,7 @@ Skills that anchor, feed, or maintain the loop without being steps inside it.
 |-------|-------------|
 | [`/ce-strategy`](./ce-strategy.md) | Create or maintain `STRATEGY.md` — the upstream anchor read by `ce-ideate`, `ce-brainstorm`, and `ce-plan` as grounding |
 | [`/ce-product-pulse`](./ce-product-pulse.md) | Outer feedback loop — single-page time-windowed report on usage, performance, errors, followups; saved to `docs/pulse-reports/` as a timeline |
+| [`/ce-sweep`](./ce-sweep.md) | Recurring feedback sweep — ingest Slack/GitHub items (email experimental) since per-source cursors, acknowledge at source, analyze recordings, verify fixes merged, and reconcile an `/lfg`-ready rolling plan |
 | [`/ce-compound-refresh`](./ce-compound-refresh.md) | Maintain `docs/solutions/` over time — five outcomes (Keep / Update / Consolidate / Replace / Delete), Interactive + Autofix modes |
 
 ---
