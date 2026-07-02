@@ -584,6 +584,27 @@ describe("ce-user-test commit-engine.py validation", () => {
     expectValidationCode(errors, "evidence_minimum")
   })
 
+  test("malformed evidence entries do not satisfy the required evidence minimum", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      areas: [
+        {
+          ...basePayload().areas[0],
+          ux_score: 3,
+          evidence: [{}],
+        },
+      ],
+      issue_candidates: [],
+    })
+
+    const errors = validationErrors(project, payload)
+    const error = errors.find((item: any) => item.code === "evidence_minimum")
+
+    expect(error).toBeDefined()
+    expect(error.required).toBe(1)
+    expect(error.actual).toBe(0)
+  })
+
   test("dismissed anomaly requires a non-empty reason", () => {
     const project = makeProject()
     const anomaly = {
@@ -615,6 +636,29 @@ describe("ce-user-test commit-engine.py validation", () => {
             { type: "action", ref: 57, note: "late action claimed evidence" },
             { type: "dom", ref: "cart subtotal", note: "subtotal visible" },
           ],
+        },
+      ],
+      issue_candidates: [],
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "evidence_ref_out_of_range")
+  })
+
+  test("earlier-iteration anomaly action refs above final_execution_index are rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      final_execution_index: 10,
+      anomalies: [
+        {
+          area: "checkout/cart",
+          kind: "anomaly",
+          what: "earlier iteration action claimed a later index",
+          evidence: [{ type: "action", ref: 11, note: "out-of-range earlier action" }],
+          index_range: [0, 1],
+          disposition: "noted-in-area",
+          iteration: 1,
         },
       ],
       issue_candidates: [],
@@ -688,6 +732,7 @@ describe("ce-user-test commit-engine.py validation", () => {
     const apply = runCommit(project.dir, "apply")
     expect(apply.code).toBe(0)
     expect(startsWithLine(apply.stdout, "APPLIED")).toBe(true)
+    expect(readJson(lastRunPath(project)).migration_defaults_applied).toBeUndefined()
   })
 
   test("foreign ledger warns for marker-stamped runs and fails for marker-less runs", () => {
@@ -809,6 +854,26 @@ describe("ce-user-test commit-engine.py validation", () => {
     expectValidationCode(errors, "final_index_understated")
   })
 
+  test("final_execution_index below a nested execution_index is rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      final_execution_index: 5,
+      cross_area_probes_run: [
+        {
+          execution_index: 9,
+          area: "checkout/cart",
+          query: "gift card plus invalid zip",
+          result_detail: "late cross-area probe",
+        },
+      ],
+      issue_candidates: [],
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "final_index_understated")
+  })
+
   test("score drop from previous run requires two evidence entries", () => {
     const project = makeProject()
     writeJson(path.join(project.flows, "score-history.json"), {
@@ -834,6 +899,19 @@ describe("ce-user-test commit-engine.py validation", () => {
     const errors = validationErrors(project, payload)
 
     expectValidationCode(errors, "evidence_minimum")
+  })
+
+  test("malformed score-history areas shape does not crash score validation", () => {
+    const project = makeProject()
+    writeJson(path.join(project.flows, "score-history.json"), {
+      areas: [],
+    })
+    const payload = basePayload({ issue_candidates: [] })
+
+    const result = runCommit(project.dir, "plan", payloadPath(project, payload))
+
+    expect(result.code).toBe(0)
+    expect(result.stdout.trim()).toBe("PLANNED")
   })
 })
 

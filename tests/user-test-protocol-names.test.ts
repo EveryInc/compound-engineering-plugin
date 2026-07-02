@@ -34,6 +34,46 @@ function extractPythonSetConstant(source: string, constantName: string): Set<str
   return new Set([...match[1].matchAll(/"([^"]+)"/g)].map((item) => item[1]))
 }
 
+function extractPythonDictLiteralBody(source: string, constantName: string): string | null {
+  const start = source.indexOf(`${constantName} =`)
+  if (start === -1) {
+    return null
+  }
+  const open = source.indexOf("{", start)
+  if (open === -1) {
+    throw new Error(`Missing Python dict literal for ${constantName}`)
+  }
+  let depth = 0
+  let quote: string | null = null
+  let escaped = false
+  for (let index = open; index < source.length; index += 1) {
+    const char = source[index]
+    if (quote !== null) {
+      if (escaped) {
+        escaped = false
+      } else if (char === "\\") {
+        escaped = true
+      } else if (char === quote) {
+        quote = null
+      }
+      continue
+    }
+    if (char === '"' || char === "'") {
+      quote = char
+      continue
+    }
+    if (char === "{") {
+      depth += 1
+    } else if (char === "}") {
+      depth -= 1
+      if (depth === 0) {
+        return source.slice(open + 1, index).replace(/\r\n/g, "\n")
+      }
+    }
+  }
+  throw new Error(`Unterminated Python dict literal for ${constantName}`)
+}
+
 function pythonFunction(source: string, functionName: string): string {
   const start = source.indexOf(`def ${functionName}(`)
   if (start === -1) {
@@ -188,6 +228,7 @@ function assertNameSetsEqual(
 
 describe("ce-user-test v11 protocol name anti-drift", () => {
   const commitEngine = readRel("skills/ce-user-test/scripts/commit-engine.py")
+  const migrateTestFile = readRel("skills/ce-user-test/scripts/migrate-test-file.py")
   const eval4 = readRel("skills/ce-user-test-eval/scripts/eval4-ledger-coverage.py")
   const anomalyLedger = anomalyLedgerNameSets(
     readRel("skills/ce-user-test/references/anomaly-ledger.md"),
@@ -269,6 +310,19 @@ describe("ce-user-test v11 protocol name anti-drift", () => {
     assertNameSetsEqual("warning sentinels", warningSentinelSources, 1)
     assertNameSetsEqual("disposition values", dispositionSources, 4)
     assertNameSetsEqual("evidence types", evidenceTypeSources, 4)
+  })
+
+  test("run-json default dict literals stay byte-identical across scripts", () => {
+    const engineAreaDefaults = extractPythonDictLiteralBody(commitEngine, "RUN_JSON_AREA_DEFAULTS")
+    const migrateAreaDefaults = extractPythonDictLiteralBody(migrateTestFile, "RUN_JSON_AREA_DEFAULTS")
+    expect(engineAreaDefaults).not.toBeNull()
+    expect(engineAreaDefaults).toBe(migrateAreaDefaults)
+
+    const engineArrayDefaults = extractPythonDictLiteralBody(commitEngine, "RUN_JSON_ARRAY_DEFAULTS")
+    const migrateArrayDefaults = extractPythonDictLiteralBody(migrateTestFile, "RUN_JSON_ARRAY_DEFAULTS")
+    if (engineArrayDefaults !== null && migrateArrayDefaults !== null) {
+      expect(engineArrayDefaults).toBe(migrateArrayDefaults)
+    }
   })
 
   test("set equality helper detects a single-source drift", () => {

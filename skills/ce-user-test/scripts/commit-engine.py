@@ -1297,6 +1297,7 @@ def merge_last_run(payload: dict[str, Any]) -> str:
     if not isinstance(existing, dict):
         existing = {}
     doc = deepcopy(existing)
+    doc.pop("migration_defaults_applied", None)
     doc["run_timestamp"] = payload["run_timestamp"]
     doc["schema_version"] = CURRENT_SCHEMA_VERSION
     doc["completed"] = existing.get("completed") if isinstance(existing.get("completed"), bool) else True
@@ -1630,6 +1631,19 @@ def evidence_entries_from(value: Any) -> list[dict[str, Any]]:
     return [entry for entry in value if isinstance(entry, dict)]
 
 
+def countable_evidence_entries_from(value: Any) -> list[dict[str, Any]]:
+    return [entry for entry in evidence_entries_from(value) if well_formed_evidence_entry(entry)]
+
+
+def well_formed_evidence_entry(entry: Any) -> bool:
+    return (
+        isinstance(entry, dict)
+        and entry.get("type") in EVIDENCE_TYPES
+        and isinstance(entry.get("note"), str)
+        and bool(entry["note"].strip())
+    )
+
+
 def concrete_evidence_ref(entry: dict[str, Any]) -> bool:
     evidence_type = entry.get("type")
     ref = entry.get("ref")
@@ -1644,7 +1658,7 @@ def concrete_evidence_ref(entry: dict[str, Any]) -> bool:
     return False
 
 
-def iter_payload_evidence(payload: dict[str, Any], include_earlier_iterations: bool = False):
+def iter_payload_evidence(payload: dict[str, Any]):
     for area in payload.get("areas", []):
         if not isinstance(area, dict):
             continue
@@ -1653,21 +1667,8 @@ def iter_payload_evidence(payload: dict[str, Any], include_earlier_iterations: b
     anomalies = payload.get("anomalies", [])
     if not isinstance(anomalies, list):
         return
-    iterations = [
-        item.get("iteration")
-        for item in anomalies
-        if isinstance(item, dict) and is_int(item.get("iteration"))
-    ]
-    final_iteration = max(iterations) if iterations else None
     for anomaly in anomalies:
         if not isinstance(anomaly, dict):
-            continue
-        if (
-            not include_earlier_iterations
-            and final_iteration is not None
-            and is_int(anomaly.get("iteration"))
-            and anomaly.get("iteration") < final_iteration
-        ):
             continue
         for entry in evidence_entries_from(anomaly.get("evidence")):
             yield "anomaly", anomaly.get("area"), entry
@@ -1677,8 +1678,11 @@ def previous_scores() -> dict[str, dict[str, Any]]:
     doc = load_optional_json(SCORE_HISTORY_REL)
     if not isinstance(doc, dict):
         return {}
+    areas = doc.get("areas")
+    if not isinstance(areas, dict):
+        return {}
     result: dict[str, dict[str, Any]] = {}
-    for slug, entry in doc.get("areas", {}).items():
+    for slug, entry in areas.items():
         scores = entry.get("scores", []) if isinstance(entry, dict) else []
         if not scores or not isinstance(scores[-1], dict):
             continue
@@ -1711,7 +1715,7 @@ def validate_evidence(payload: dict[str, Any]) -> list[dict[str, Any]]:
             continue
         if area.get("skip_reason"):
             continue
-        evidence = evidence_entries_from(area.get("evidence"))
+        evidence = countable_evidence_entries_from(area.get("evidence"))
         concrete = any(concrete_evidence_ref(entry) for entry in evidence)
         scored_dimensions = []
         for field in ("ux_score", "quality_score"):
@@ -1748,11 +1752,22 @@ def validate_evidence(payload: dict[str, Any]) -> list[dict[str, Any]]:
     return errors
 
 
-def max_payload_index(payload: dict[str, Any], ledger: dict[str, Any]) -> int | None:
+def collect_execution_indices(value: Any) -> list[int]:
     values: list[int] = []
-    for probe in payload.get("probes_run", []):
-        if isinstance(probe, dict) and is_int(probe.get("execution_index")):
-            values.append(probe["execution_index"])
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if key == "execution_index" and is_int(nested):
+                values.append(nested)
+            else:
+                values.extend(collect_execution_indices(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            values.extend(collect_execution_indices(nested))
+    return values
+
+
+def max_payload_index(payload: dict[str, Any], ledger: dict[str, Any]) -> int | None:
+    values = collect_execution_indices(payload)
     for area in payload.get("areas", []):
         if not isinstance(area, dict):
             continue

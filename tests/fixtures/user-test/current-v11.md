@@ -15,7 +15,7 @@ mcp_restart_threshold: 15
 
 | Area | Status | Last Score | Last Quality | Last Time | Consecutive Passes | Notes |
 |------|--------|------------|--------------|-----------|--------------------|-------|
-| checkout/cart | Proven | 4 | â€” | 12 | 2 | stable cart flow |
+| checkout/cart | Proven | 4 | — | 12 | 2 | stable cart flow |
 
 ## Area Details
 
@@ -68,7 +68,7 @@ mcp_restart_threshold: 15
 
 | Date | Areas Tested | Quality Avg | Delta | Pass Rate | Best Area | Worst Area | Demo Ready | Context | Key Finding |
 |------|--------------|-------------|-------|-----------|-----------|------------|------------|---------|-------------|
-| 2026-06-30 | checkout/cart | 4.0 | â€” | 100% | checkout/cart | checkout/cart | yes | cart verified | no issues |
+| 2026-06-30 | checkout/cart | 4.0 | — | 100% | checkout/cart | checkout/cart | yes | cart verified | no issues |
 
 ## UX Opportunities Log
 

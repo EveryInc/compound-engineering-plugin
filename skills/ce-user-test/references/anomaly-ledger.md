@@ -142,6 +142,12 @@ Each reconciled anomaly entry copies the ledger line fields and adds:
 | `issue_ref` | Optional for `filed`; may reference a pre-existing issue |
 | `reason` | Required and non-empty for `dismissed` |
 
+Compute `anomaly_ledger_digest` from the exact on-disk ledger bytes after the final append, immediately before writing the run JSON:
+
+```bash
+python3 -c "import hashlib,sys; b=open('tests/user-flows/.user-test-anomalies.jsonl','rb').read(); print(len(b.splitlines()), hashlib.sha256(b).hexdigest())"
+```
+
 Phase 4 records `anomaly_ledger_digest` in the run JSON with `{ "lines": <int>, "sha256": "<hex digest>" }`.
 
 Phase 4 records `final_execution_index` as the run's last consumed execution-index value.
