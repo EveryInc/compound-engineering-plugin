@@ -4,10 +4,10 @@
 Usage:
     python3 commit-engine.py plan <payload-json-file>
     python3 commit-engine.py apply
-    python3 commit-engine.py resume
-    python3 commit-engine.py rollback
-    python3 commit-engine.py confirm-issues <issues-json-file>
-    python3 commit-engine.py status
+    python3 commit-engine.py resume [--acknowledge-stale]
+    python3 commit-engine.py rollback [--acknowledge-stale]
+    python3 commit-engine.py confirm-issues <issues-json-file> [--acknowledge-stale]
+    python3 commit-engine.py status [expected-scenario-slug]
 
 The engine operates on the current working directory as the target project.
 Its journal is:
@@ -27,6 +27,7 @@ Stdout sentinels:
     STALE-WARN
     STALE-ROLLBACK-DEFAULT
     CONCURRENT <pid>
+    JOURNAL-EXISTS
 
 Exit codes:
     0 success or actionable non-error no-op
@@ -75,8 +76,10 @@ def stderr(message: str) -> None:
 
 def usage() -> int:
     stderr(
-        "usage: commit-engine.py plan <payload-json-file> | apply | resume | "
-        "rollback | confirm-issues <issues-json-file> | status"
+        "usage: commit-engine.py plan <payload-json-file> | apply | "
+        "resume [--acknowledge-stale] | rollback [--acknowledge-stale] | "
+        "confirm-issues <issues-json-file> [--acknowledge-stale] | "
+        "status [expected-scenario-slug]"
     )
     return 2
 
@@ -234,23 +237,39 @@ def process_alive(pid: Any) -> bool:
         return False
 
 
+def heartbeat_fresh(journal: dict[str, Any]) -> bool:
+    try:
+        heartbeat = parse_iso(journal["heartbeat_at"])
+    except Exception:
+        return False
+    window = int(cap_value("journal_heartbeat_window"))
+    return (now() - heartbeat).total_seconds() <= window
+
+
 def check_concurrent(journal: dict[str, Any]) -> None:
     pid = journal.get("active_pid")
-    if journal.get("active") and process_alive(pid):
+    if journal.get("active") and (process_alive(pid) or heartbeat_fresh(journal)):
         raise Refusal(f"CONCURRENT {pid}")
 
 
-def check_staleness(journal: dict[str, Any]) -> None:
+def staleness_sentinel(journal: dict[str, Any], acknowledge_stale: bool = False) -> str | None:
     try:
         started = parse_iso(journal["start_timestamp"])
     except Exception:
-        return
+        return None
     age = now() - started
     staleness = cap_value("journal_staleness")
-    if age.days >= int(staleness["rollback_default_after_days"]):
-        raise Refusal("STALE-ROLLBACK-DEFAULT")
-    if age.total_seconds() > int(staleness["warn_after_hours"]) * 3600:
-        raise Refusal("STALE-WARN")
+    if not acknowledge_stale and age.days >= int(staleness["rollback_default_after_days"]):
+        return "STALE-ROLLBACK-DEFAULT"
+    if not acknowledge_stale and age.total_seconds() > int(staleness["warn_after_hours"]) * 3600:
+        return "STALE-WARN"
+    return None
+
+
+def check_staleness(journal: dict[str, Any], acknowledge_stale: bool = False) -> None:
+    sentinel = staleness_sentinel(journal, acknowledge_stale)
+    if sentinel:
+        raise Refusal(sentinel)
 
 
 def print_json_sentinel(sentinel: str, doc: Any) -> int:
@@ -314,16 +333,86 @@ def join_markdown(lines: list[str], final_newline: bool = True) -> str:
     return text
 
 
-def score_passes(area: dict[str, Any]) -> bool:
+def parse_threshold_value(raw: str) -> float | None:
+    value = raw.split("#", 1)[0].strip().strip("'\"")
+    match = re.match(r"^-?\d+(?:\.\d+)?", value)
+    if not match:
+        return None
+    return float(match.group(0))
+
+
+def parse_frontmatter_thresholds(text: str) -> dict[str, float]:
+    lines, _ = markdown_lines(text)
+    if not lines or lines[0].strip() != "---":
+        return {}
+    thresholds: dict[str, float] = {}
+    for line in lines[1:]:
+        if line.strip() == "---":
+            break
+        match = re.match(r"^(pass_threshold|quality_threshold)\s*:\s*(.+)$", line.strip())
+        if not match:
+            continue
+        parsed = parse_threshold_value(match.group(2))
+        if parsed is not None:
+            thresholds[match.group(1)] = parsed
+    return thresholds
+
+
+def parse_area_thresholds(text: str) -> dict[str, dict[str, float]]:
+    lines, _ = markdown_lines(text)
+    thresholds: dict[str, dict[str, float]] = {}
+    for index, line in enumerate(lines):
+        if not line.startswith("### "):
+            continue
+        slug = line[4:].strip()
+        end = len(lines)
+        for next_index in range(index + 1, len(lines)):
+            if lines[next_index].startswith("### ") or lines[next_index].startswith("## "):
+                end = next_index
+                break
+        area_thresholds: dict[str, float] = {}
+        for detail in lines[index + 1 : end]:
+            match = re.match(r"^\*\*(pass_threshold|quality_threshold):\*\*\s*(.+)$", detail.strip())
+            if not match:
+                continue
+            parsed = parse_threshold_value(match.group(2))
+            if parsed is not None:
+                area_thresholds[match.group(1)] = parsed
+        if area_thresholds:
+            thresholds[slug] = area_thresholds
+    return thresholds
+
+
+def threshold_map(payload: dict[str, Any], test_file_text: str | None) -> dict[str, dict[str, float]]:
+    file_thresholds = parse_frontmatter_thresholds(test_file_text or "")
+    area_thresholds = parse_area_thresholds(test_file_text or "")
+    mapped: dict[str, dict[str, float]] = {}
+    for area in payload.get("areas", []):
+        slug = area.get("slug")
+        if not isinstance(slug, str):
+            continue
+        mapped[slug] = {
+            "pass_threshold": float(cap_value("pass_threshold")),
+            "quality_threshold": float(cap_value("quality_threshold")),
+        }
+        mapped[slug].update(file_thresholds)
+        mapped[slug].update(area_thresholds.get(slug, {}))
+    return mapped
+
+
+def score_passes(area: dict[str, Any], thresholds: dict[str, dict[str, float]] | None = None) -> bool:
     if area.get("skip_reason"):
         return False
     ux = area.get("ux_score")
     if not isinstance(ux, (int, float)):
         return False
-    if ux < cap_value("pass_threshold"):
+    area_thresholds = (thresholds or {}).get(area.get("slug"), {})
+    pass_threshold = area_thresholds.get("pass_threshold", float(cap_value("pass_threshold")))
+    quality_threshold = area_thresholds.get("quality_threshold", float(cap_value("quality_threshold")))
+    if ux < pass_threshold:
         return False
     quality = area.get("quality_score")
-    if quality is not None and quality < cap_value("quality_threshold"):
+    if quality is not None and quality < quality_threshold:
         return False
     return True
 
@@ -462,9 +551,9 @@ def update_good_patterns_section(lines: list[str], payload: dict[str, Any]) -> N
 
 def update_weakness_classes(lines: list[str], payload: dict[str, Any]) -> None:
     for area in payload.get("areas", []):
-        weakness = area.get("weakness_class")
-        if not weakness:
+        if "weakness_class" not in area or area.get("weakness_class") is None:
             continue
+        weakness = str(area.get("weakness_class", ""))
         heading = None
         for index, line in enumerate(lines):
             if line.strip() == f"### {area['slug']}":
@@ -477,6 +566,12 @@ def update_weakness_classes(lines: list[str], payload: dict[str, Any]) -> None:
             if lines[index].startswith("### ") or lines[index].startswith("## "):
                 end = index
                 break
+        if weakness == "":
+            for index in range(heading + 1, end):
+                if lines[index].startswith("**weakness_class:**"):
+                    del lines[index]
+                    break
+            continue
         for index in range(heading + 1, end):
             if lines[index].startswith("**weakness_class:**"):
                 lines[index] = f"**weakness_class:** {weakness}"
@@ -689,7 +784,9 @@ def previous_area_scores(score_history_before: dict[str, Any]) -> dict[str, floa
 
 
 def update_test_history(
-    payload: dict[str, Any], score_history_before: dict[str, Any]
+    payload: dict[str, Any],
+    score_history_before: dict[str, Any],
+    thresholds: dict[str, dict[str, float]],
 ) -> tuple[str, dict[str, Any]]:
     path = resolve("tests/user-flows/test-history.md")
     text = read_text(path)
@@ -721,7 +818,7 @@ def update_test_history(
     else:
         delta_value = None
         delta = EM_DASH
-    passes = sum(1 for area in payload.get("areas", []) if score_passes(area))
+    passes = sum(1 for area in payload.get("areas", []) if score_passes(area, thresholds))
     scored = len(current_scores)
     pass_rate = f"{round((passes / scored) * 100)}%" if scored else EM_DASH
     best = max(current_scores, key=current_scores.get) if current_scores else EM_DASH
@@ -821,9 +918,11 @@ def merge_last_run(payload: dict[str, Any]) -> str:
 
 def build_mutations(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
     rotations: dict[str, Any] = {}
+    test_file_text_before = read_text(resolve(payload["test_file"]))
+    thresholds = threshold_map(payload, test_file_text_before)
     score_history_text, score_before, score_rotations, score_after = update_score_history(payload)
     test_file_text, probe_rotations = update_test_file(payload, score_after)
-    test_history_text, history_rotations = update_test_history(payload, score_before)
+    test_history_text, history_rotations = update_test_history(payload, score_before, thresholds)
     bugs_text, issue_candidates = update_bugs(payload)
     last_run_text = merge_last_run(payload)
     for source in (probe_rotations, score_rotations, history_rotations):
@@ -988,6 +1087,35 @@ def validate_staged_files(journal: dict[str, Any]) -> None:
         raise Refusal("STAGED-INTEGRITY-FAILURE", {"files": failures})
 
 
+def status_staged_failures(journal: dict[str, Any]) -> list[dict[str, Any]]:
+    failures = []
+    for item in journal.get("files", []):
+        if item.get("applied"):
+            continue
+        staged_hash = file_hash(resolve(item["staged_path"]))
+        if staged_hash == item.get("staged_sha256"):
+            continue
+        target_hash = file_hash(resolve(item["path"]))
+        if target_hash == item.get("staged_sha256"):
+            continue
+        failures.append({"path": item["path"], "staged_path": item["staged_path"]})
+    return failures
+
+
+def status_base_mismatches(journal: dict[str, Any]) -> list[dict[str, Any]]:
+    mismatches = []
+    for item in journal.get("files", []):
+        if item.get("applied"):
+            continue
+        target_hash = file_hash(resolve(item["path"]))
+        if target_hash == item.get("staged_sha256"):
+            continue
+        preimage = item["preimage"]
+        if preimage.get("sha256") != target_hash:
+            mismatches.append({"path": item["path"], "expected": preimage.get("sha256"), "actual": target_hash})
+    return mismatches
+
+
 def result_for(journal: dict[str, Any]) -> dict[str, Any]:
     pending = [item for item in journal.get("issue_candidates", []) if item.get("status", "pending") == "pending"]
     duplicates = [
@@ -1008,8 +1136,8 @@ def cap_summary(rotations: dict[str, Any]) -> list[str]:
 
 
 def apply_remaining(journal: dict[str, Any]) -> int:
-    validate_base_hashes(journal)
     validate_staged_files(journal)
+    validate_base_hashes(journal)
     journal["state"] = "applying"
     journal["active"] = True
     journal["active_pid"] = os.getpid()
@@ -1069,13 +1197,13 @@ def print_pending_or_noop(journal: dict[str, Any]) -> int:
     return print_json_sentinel("NO-OP", result)
 
 
-def command_resume() -> int:
+def command_resume(acknowledge_stale: bool = False) -> int:
     journal = load_journal()
     if journal is None:
         print("NO-JOURNAL")
         return 0
     check_concurrent(journal)
-    check_staleness(journal)
+    check_staleness(journal, acknowledge_stale)
     state = journal.get("state")
     if state in ("staged", "planned", "applying"):
         return apply_remaining(journal)
@@ -1117,7 +1245,7 @@ def restore_preimage(item: dict[str, Any]) -> None:
         pass
 
 
-def command_rollback() -> int:
+def command_rollback(acknowledge_stale: bool = False) -> int:
     journal = load_journal()
     if journal is None:
         print("NO-JOURNAL")
@@ -1159,11 +1287,13 @@ def update_bugs_with_issues(journal: dict[str, Any], issue_map: dict[str, dict[s
     write_atomic(path, join_markdown(lines, final))
 
 
-def command_confirm_issues(issues_file: str) -> int:
+def command_confirm_issues(issues_file: str, acknowledge_stale: bool = False) -> int:
     journal = load_journal()
     if journal is None:
         print("NO-JOURNAL")
         return 0
+    check_concurrent(journal)
+    check_staleness(journal, acknowledge_stale)
     issues_doc = load_json_file(issues_file)
     issues = issues_doc.get("issues") if isinstance(issues_doc, dict) else None
     if not isinstance(issues, list):
@@ -1192,13 +1322,52 @@ def command_confirm_issues(issues_file: str) -> int:
     return print_json_sentinel("CONFIRMED", result)
 
 
-def command_status() -> int:
+def status_sentinel(journal: dict[str, Any], expected_scenario: str | None = None) -> tuple[str, int]:
+    if expected_scenario and journal.get("scenario_slug") != expected_scenario:
+        return f"FOREIGN-JOURNAL {journal.get('scenario_slug')}", 1
+    if journal.get("active") and (process_alive(journal.get("active_pid")) or heartbeat_fresh(journal)):
+        return f"CONCURRENT {journal.get('active_pid')}", 1
+    stale = staleness_sentinel(journal)
+    if stale:
+        return stale, 1
+    staged_failures = status_staged_failures(journal)
+    if staged_failures:
+        return "STAGED-INTEGRITY-FAILURE", 1
+    base_mismatches = status_base_mismatches(journal)
+    if base_mismatches:
+        return "BASE-HASH-MISMATCH", 1
+    state = journal.get("state")
+    if state == "applied":
+        if pending_issues(journal):
+            return "ISSUES-PENDING", 0
+        return "APPLIED", 0
+    if state in ("staged", "planned", "applying"):
+        return "JOURNAL-EXISTS", 0
+    if state in ("confirmed", "complete"):
+        return "NO-JOURNAL", 0
+    return f"UNKNOWN-STATE {state}", 1
+
+
+def command_status(expected_scenario: str | None = None) -> int:
     journal = load_journal()
     if journal is None:
         print("NO-JOURNAL")
         return 0
+    sentinel, code = status_sentinel(journal, expected_scenario)
+    print(sentinel)
     print(json.dumps(journal, ensure_ascii=False))
-    return 0
+    return code
+
+
+def parse_acknowledge_stale(args: list[str]) -> tuple[list[str], bool]:
+    filtered = []
+    acknowledged = False
+    for arg in args:
+        if arg == "--acknowledge-stale":
+            acknowledged = True
+        else:
+            filtered.append(arg)
+    return filtered, acknowledged
 
 
 def main(argv: list[str]) -> int:
@@ -1210,14 +1379,20 @@ def main(argv: list[str]) -> int:
             return command_plan(argv[2])
         if command == "apply" and len(argv) == 2:
             return command_apply()
-        if command == "resume" and len(argv) == 2:
-            return command_resume()
-        if command == "rollback" and len(argv) == 2:
-            return command_rollback()
-        if command == "confirm-issues" and len(argv) == 3:
-            return command_confirm_issues(argv[2])
-        if command == "status" and len(argv) == 2:
-            return command_status()
+        if command == "resume":
+            rest, acknowledged = parse_acknowledge_stale(argv[2:])
+            if not rest:
+                return command_resume(acknowledged)
+        if command == "rollback":
+            rest, acknowledged = parse_acknowledge_stale(argv[2:])
+            if not rest:
+                return command_rollback(acknowledged)
+        if command == "confirm-issues":
+            rest, acknowledged = parse_acknowledge_stale(argv[2:])
+            if len(rest) == 1:
+                return command_confirm_issues(rest[0], acknowledged)
+        if command == "status" and len(argv) in (2, 3):
+            return command_status(argv[2] if len(argv) == 3 else None)
         return usage()
     except UsageFailure as exc:
         stderr(str(exc))

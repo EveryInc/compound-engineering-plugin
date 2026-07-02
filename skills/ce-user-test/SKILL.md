@@ -315,10 +315,10 @@ If a standalone invocation finds an existing commit journal or payload, ask the 
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
-python3 "$SKILL_DIR/scripts/commit-engine.py" status
+python3 "$SKILL_DIR/scripts/commit-engine.py" status <scenario-slug>
 ```
 
-Act on the engine sentinel: `NO-JOURNAL` -> continue from `.user-test-last-run.json`; `APPLIED`, `ISSUES-PENDING`, or `STALE-WARN` -> resume; `STALE-ROLLBACK-DEFAULT` -> offer rollback first; `FOREIGN-JOURNAL <scenario>`, `BASE-HASH-MISMATCH`, or `STAGED-INTEGRITY-FAILURE` -> stop and present the engine details.
+If the expected scenario slug is not known yet, omit it. Act on the first stdout line: `NO-JOURNAL` -> continue from `.user-test-last-run.json`; `JOURNAL-EXISTS` -> resume or rollback the existing journal before planning; `APPLIED` or `ISSUES-PENDING` -> continue the issue-confirmation path; `STALE-WARN` -> ask whether to resume, then pass `--acknowledge-stale` to `resume` or `confirm-issues` if the user agrees; `STALE-ROLLBACK-DEFAULT` -> offer rollback as the default, or pass `--acknowledge-stale` to `resume` only if the user explicitly chooses to override the default; `FOREIGN-JOURNAL <scenario>`, `BASE-HASH-MISMATCH`, or `STAGED-INTEGRITY-FAILURE` -> stop and present the engine details.
 
 ### Maturity Updates
 
@@ -328,6 +328,7 @@ Apply maturity transitions using agent judgment and the scoring rubric:
 - **Demote to Uncharted:** On functional regressions or new features that change behavior. Minor CSS issues do not trigger demotion.
 - **Mark Known-bug:** When a functional issue is found and an issue is filed. Record in bug registry — see [bugs-registry.md](./references/bugs-registry.md). Skip this area in future runs until the fix is deployed.
 - **Persistent ≤3 escalation:** If an area scores ≤ 3 for 3+ consecutive runs AND the same issue is noted each time, offer: "<area> has scored ≤3 for N runs with the same issue — file as Known-bug?" This is a manual escalation, not automatic.
+- **Weakness resolved:** If an area's existing `weakness_class` has all related probes passing for 3+ consecutive runs, set `weakness_class` to `""` in the judgment payload to delete the line. Omit the field or use `null` to leave it unchanged.
 
 **Partial run safety:** If a run is interrupted before scoring completes, no maturity updates are produced.
 
@@ -373,6 +374,8 @@ python3 "$SKILL_DIR/scripts/commit-engine.py" apply
 
 If `plan` returns `VALIDATION-FAILED`, read the JSON error list, re-present only the contradicted decision with the engine's evidence, rebuild the payload, and run `plan` again. Do not hand-edit the generated artifacts around a validation rejection.
 
+If `plan` returns `JOURNAL-EXISTS`, run `status <scenario-slug>` and route by the status sentinel before retrying the plan. If it returns `FOREIGN-JOURNAL <scenario>`, stop and report the foreign journal.
+
 After `apply`, file only journal-pending issues through the project's issue tracker. Confirm filed and duplicate issues back to the engine:
 
 ```bash
@@ -384,7 +387,7 @@ Render FILED THIS SESSION and SIGNALS from the structured result JSON returned b
 
 ### Recovery
 
-If `apply`, `resume`, or `status` returns `BASE-HASH-MISMATCH`, `FOREIGN-JOURNAL`, or `STAGED-INTEGRITY-FAILURE`, stop and present the sentinel plus details. If it returns `STALE-WARN`, ask whether to resume. If it returns `STALE-ROLLBACK-DEFAULT`, offer rollback as the default action. Rollback is allowed from any pre-confirmed state:
+If `apply`, `resume`, or `status` returns `BASE-HASH-MISMATCH`, `FOREIGN-JOURNAL`, or `STAGED-INTEGRITY-FAILURE`, stop and present the sentinel plus details. If it returns `STALE-WARN`, ask whether to resume and rerun the chosen `resume` or `confirm-issues` command with `--acknowledge-stale`. If it returns `STALE-ROLLBACK-DEFAULT`, offer rollback as the default action; only resume with `--acknowledge-stale` after an explicit override. Rollback is allowed from any pre-confirmed state:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"

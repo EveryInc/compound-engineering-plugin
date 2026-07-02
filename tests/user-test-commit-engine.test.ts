@@ -6,6 +6,7 @@ import {
   mkdirSync,
   mkdtempSync,
   readFileSync,
+  renameSync,
   unlinkSync,
   writeFileSync,
 } from "node:fs"
@@ -93,6 +94,16 @@ function resultJson(stdout: string): any {
 
 function startsWithLine(stdout: string, sentinel: string): boolean {
   return stdout.startsWith(`${sentinel}\n`) || stdout.startsWith(`${sentinel}\r\n`)
+}
+
+function stdoutLines(stdout: string): string[] {
+  return stdout.trim().split(/\r?\n/)
+}
+
+function isoHoursAgo(hours: number): string {
+  return new Date(Date.now() - hours * 60 * 60 * 1000)
+    .toISOString()
+    .replace(/\.\d{3}Z$/, "Z")
 }
 
 function journalPath(project: { flows: string }): string {
@@ -381,6 +392,47 @@ describe("ce-user-test commit-engine.py validation", () => {
 })
 
 describe("ce-user-test commit-engine.py journaled apply", () => {
+  test("status emits ISSUES-PENDING before journal JSON for applied pending issues", () => {
+    const project = makeProject()
+    fullApply(project)
+
+    const status = runCommit(project.dir, "status")
+
+    expect(status.code).toBe(0)
+    const lines = stdoutLines(status.stdout)
+    expect(lines[0]).toBe("ISSUES-PENDING")
+    expect(JSON.parse(lines.slice(1).join("\n")).state).toBe("applied")
+  })
+
+  test("status emits STALE-WARN for a 26h-old journal without mutating it", () => {
+    const project = makeProject()
+    expect(runCommit(project.dir, "plan", payloadPath(project, basePayload())).code).toBe(0)
+    const journal = readJson(journalPath(project))
+    journal.start_timestamp = isoHoursAgo(26)
+    journal.heartbeat_at = isoHoursAgo(26)
+    writeJson(journalPath(project), journal)
+
+    const status = runCommit(project.dir, "status")
+
+    expect(status.code).toBe(1)
+    const lines = stdoutLines(status.stdout)
+    expect(lines[0]).toBe("STALE-WARN")
+    expect(JSON.parse(lines.slice(1).join("\n")).scenario_slug).toBe("checkout-quality")
+    expect(readJson(journalPath(project)).heartbeat_at).toBe(journal.heartbeat_at)
+  })
+
+  test("status emits FOREIGN-JOURNAL when the expected scenario differs", () => {
+    const project = makeProject()
+    expect(runCommit(project.dir, "plan", payloadPath(project, basePayload())).code).toBe(0)
+
+    const status = runCommit(project.dir, "status", "settings-flow")
+
+    expect(status.code).toBe(1)
+    const lines = stdoutLines(status.stdout)
+    expect(lines[0]).toBe("FOREIGN-JOURNAL checkout-quality")
+    expect(JSON.parse(lines.slice(1).join("\n")).scenario_slug).toBe("checkout-quality")
+  })
+
   test("staged resume produces the same end state as uninterrupted apply", () => {
     const direct = makeProject()
     fullApply(direct)
@@ -395,6 +447,29 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
     expect(startsWithLine(resume.stdout, "APPLIED")).toBe(true)
     confirmAll(resumed)
 
+    expect(snapshot(resumed)).toEqual(directSnapshot)
+  })
+
+  test("resume reconciles a target replaced before the journal marked it applied", () => {
+    const direct = makeProject()
+    fullApply(direct, basePayload({ issue_candidates: [] }))
+    confirmAll(direct, [])
+    const directSnapshot = snapshot(direct)
+
+    const resumed = makeProject()
+    expect(runCommit(resumed.dir, "plan", payloadPath(resumed, basePayload({ issue_candidates: [] }))).code).toBe(0)
+    const journal = readJson(journalPath(resumed))
+    const firstFile = journal.files[0]
+    renameSync(
+      path.join(resumed.dir, firstFile.staged_path),
+      path.join(resumed.dir, firstFile.path),
+    )
+
+    const resume = runCommit(resumed.dir, "resume")
+
+    expect(resume.code).toBe(0)
+    expect(startsWithLine(resume.stdout, "APPLIED")).toBe(true)
+    confirmAll(resumed, [])
     expect(snapshot(resumed)).toEqual(directSnapshot)
   })
 
@@ -464,6 +539,23 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
     expect(resume.stdout.trim()).toBe("STALE-ROLLBACK-DEFAULT")
   })
 
+  test("resume on a 26h-old journal warns until acknowledged", () => {
+    const project = makeProject()
+    expect(runCommit(project.dir, "plan", payloadPath(project, basePayload({ issue_candidates: [] }))).code).toBe(0)
+    const journal = readJson(journalPath(project))
+    journal.start_timestamp = isoHoursAgo(26)
+    journal.heartbeat_at = isoHoursAgo(26)
+    writeJson(journalPath(project), journal)
+
+    const refused = runCommit(project.dir, "resume")
+    expect(refused.code).toBe(1)
+    expect(refused.stdout.trim()).toBe("STALE-WARN")
+
+    const acknowledged = runCommit(project.dir, "resume", "--acknowledge-stale")
+    expect(acknowledged.code).toBe(0)
+    expect(startsWithLine(acknowledged.stdout, "APPLIED")).toBe(true)
+  })
+
   test("CRASH_AFTER_FILE rollback restores every pre-image and deletes absent artifacts", () => {
     const project = makeProject()
     const before = snapshot(project)
@@ -495,6 +587,93 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
     expect(existsSync(path.join(project.flows, "score-history.json"))).toBe(false)
     expect(existsSync(path.join(project.flows, "bugs.md"))).toBe(false)
     expect(existsSync(path.join(project.flows, "test-history.md"))).toBe(false)
+  })
+
+  test("weakness_class payload state can leave, delete, or update an existing line", () => {
+    const withExistingWeakness = (project: ReturnType<typeof makeProject>) => {
+      writeFileSync(
+        project.testFile,
+        readFileSync(project.testFile, "utf8").replace(
+          "**weakness_class:**",
+          "**weakness_class:** stale-react-state",
+        ),
+      )
+    }
+
+    const absent = makeProject()
+    withExistingWeakness(absent)
+    fullApply(absent, basePayload({ issue_candidates: [] }))
+    confirmAll(absent, [])
+    expect(readFileSync(absent.testFile, "utf8")).toContain(
+      "**weakness_class:** stale-react-state",
+    )
+
+    const deleted = makeProject()
+    withExistingWeakness(deleted)
+    fullApply(
+      deleted,
+      basePayload({
+        areas: [{ ...basePayload().areas[0], weakness_class: "" }],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(deleted, [])
+    expect(readFileSync(deleted.testFile, "utf8")).not.toContain(
+      "**weakness_class:**",
+    )
+
+    const updated = makeProject()
+    withExistingWeakness(updated)
+    fullApply(
+      updated,
+      basePayload({
+        areas: [{ ...basePayload().areas[0], weakness_class: "async-render-race" }],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(updated, [])
+    expect(readFileSync(updated.testFile, "utf8")).toContain(
+      "**weakness_class:** async-render-race",
+    )
+  })
+
+  test("per-area pass_threshold overrides pass-rate computation", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "**pass_threshold:** 4",
+        "**pass_threshold:** 5",
+      ),
+    )
+    const cart = {
+      ...basePayload().areas[0],
+      ux_score: 4,
+      previous_status: "Proven",
+      next_status: "Proven",
+      consecutive_passes_before: 2,
+      consecutive_passes_after: 2,
+    }
+    const profile = {
+      ...cart,
+      slug: "checkout/profile",
+      assessment: "Profile checkout handoff is smooth",
+    }
+
+    fullApply(
+      project,
+      basePayload({
+        areas: [cart, profile],
+        maturity_transitions: [],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(project, [])
+
+    const history = readFileSync(path.join(project.flows, "test-history.md"), "utf8")
+    expect(history).toContain(
+      "| 2026-07-01 | checkout/cart, checkout/profile | 4.0 | — | 50% |",
+    )
   })
 
   test("caps are enforced from the registry for probe, score, and test history", () => {

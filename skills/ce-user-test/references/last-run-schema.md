@@ -140,7 +140,7 @@ See [journeys.md](./journeys.md) for lifecycle, budget, and execution rules.
 |-------|------|---------|-----------|
 | `tactical_note` | string or null | null | Commit Mode — genuine tactical insight only |
 | `confirmed_selectors` | object or {} | {} | Commit Mode — selectors confirmed by successful batch call |
-| `weakness_class` | string or null | null | Commit Mode — when 2+ probes share a failure pattern |
+| `weakness_class` | string, empty string, or null | null | Commit Mode — non-empty upserts the class; `""` deletes a resolved class; null/absent leaves unchanged |
 | `adversarial_browser` | boolean | false | Phase 2.5 — CLI score 3 trigger |
 | `adversarial_trigger` | string or null | null | Phase 2.5 — the query that triggered adversarial mode |
 | `broad_exploration_start_index` | integer or null | null | Phase 3 — execution index when broad exploration began (v10) |
