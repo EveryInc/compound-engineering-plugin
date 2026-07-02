@@ -44,6 +44,12 @@ import sys
 import tempfile
 from datetime import datetime, timezone
 
+try:
+    import fcntl  # POSIX advisory locks (macOS, Linux — this repo's Unix targets)
+    _HAS_FCNTL = True
+except ImportError:  # non-POSIX; degrade to unlocked (single-writer by convention)
+    _HAS_FCNTL = False
+
 SCHEMA_VERSION = 1
 
 # The closed lifecycle status enum is documented in references/state-schema.md.
@@ -476,14 +482,22 @@ def cmd_cursor_advance(args):
         return emit("REFUSED")
     entry = data.setdefault("sources", {}).setdefault(args.source, {})
     current = entry.get("cursor")
-    # Monotonic guard: string comparison. Cursors are chosen to sort in arrival
-    # order (e.g. zero-padded Slack ts strings, ISO timestamps). A new cursor
-    # sorting strictly before the current one is refused; equal is allowed
-    # (idempotent re-advance).
-    if current is not None and str(args.to) < str(current):
+    # Monotonic guard. A new cursor sorting strictly before the current one is
+    # refused; equal is allowed (idempotent re-advance).
+    if current is not None and _cursor_lt(str(args.to), str(current)):
         return emit("REFUSED")
     entry["cursor"] = args.to
     return _commit_owned(args, data)
+
+
+def _cursor_lt(a, b):
+    """True when cursor `a` precedes `b`. Pure-digit cursors compare
+    numerically so an unpadded id like '9' correctly precedes '10'; everything
+    else (Slack fixed-width ts, ISO timestamps) already sorts correctly as a
+    string, so fall back to lexical order."""
+    if a.isdigit() and b.isdigit():
+        return int(a) < int(b)
+    return a < b
 
 
 def cmd_lease_acquire(args):
@@ -559,11 +573,25 @@ def cmd_import_legacy(args):
     if st == "absent":
         data = new_state()
 
+    # Optional map from legacy channel id -> configured source id, so imported
+    # cursors land under the id the live connector reads via `cursor-get
+    # --source <config-id>`. Without it, a legacy "C42" cursor would be orphaned
+    # from a source configured as "slack-alpha" and the first sweep re-ingests
+    # everything. Absent or unparseable -> identity (legacy id used verbatim).
+    source_map = {}
+    if getattr(args, "source_map", None):
+        try:
+            parsed = json.loads(args.source_map)
+            if isinstance(parsed, dict):
+                source_map = {str(k): str(v) for k, v in parsed.items()}
+        except (ValueError, TypeError):
+            source_map = {}
+
     legacy = _read_legacy(args.file)
     cursors_imported = 0
     items_imported = 0
     if isinstance(legacy, dict):
-        cursors_imported = _import_channels(legacy, data)
+        cursors_imported = _import_channels(legacy, data, source_map)
         items_imported = _import_legacy_items(legacy, data)
 
     # Persist only when something changed: a fresh state file was seeded, or
@@ -593,10 +621,11 @@ def _read_legacy(path):
         return None
 
 
-def _import_channels(legacy, data):
+def _import_channels(legacy, data, source_map=None):
     channels = legacy.get("channels")
     if not isinstance(channels, dict):
         return 0
+    source_map = source_map or {}
     sources = data.setdefault("sources", {})
     count = 0
     for chan_id, chan in channels.items():
@@ -605,13 +634,14 @@ def _import_channels(legacy, data):
         cursor = chan.get("last_processed_ts") or chan.get("cursor")
         if cursor is None:
             continue
-        entry = sources.setdefault(str(chan_id), {})
+        source_id = source_map.get(str(chan_id), str(chan_id))
+        entry = sources.setdefault(source_id, {})
         # Never regress an already-advanced cursor: a re-import against live
         # state must not rewind a source to the legacy value and re-ingest
         # (and re-acknowledge) everything since. Seed only when absent, or when
         # the legacy value is not older than the current one.
         current = entry.get("cursor")
-        if current is not None and str(cursor) < str(current):
+        if current is not None and _cursor_lt(str(cursor), str(current)):
             continue
         entry["cursor"] = cursor
         count += 1
@@ -696,6 +726,11 @@ def build_parser():
 
     il = with_state(sub.add_parser("import-legacy"))
     il.add_argument("--file", required=True)
+    il.add_argument(
+        "--source-map",
+        help='JSON object mapping legacy channel id -> configured source id, '
+        'e.g. \'{"C42":"slack-alpha"}\'. Absent -> legacy ids used verbatim.',
+    )
 
     return p
 
@@ -712,11 +747,42 @@ _HANDLERS = {
     "import-legacy": cmd_import_legacy,
 }
 
+# Subcommands that read-modify-write the state file. The lease is a high-level
+# "who owns the sweep" guard, but some writes are deliberately lease-agnostic
+# (run-record for an aborted-locked run, validate, import-legacy). Two
+# concurrent invocations (an overlapping cron and manual sweep) could otherwise
+# interleave load -> mutate -> write and lose an update — e.g. an aborted run's
+# stale-snapshot write clobbering the holder's just-committed upsert. An OS
+# advisory lock held across each mutating RMW makes them mutually exclusive
+# regardless of lease ownership.
+_MUTATING = {
+    "validate", "upsert-item", "cursor-advance", "lease-acquire",
+    "lease-release", "run-record", "import-legacy",
+}
+
+
+def _run_locked(handler, args):
+    lock_path = str(args.state) + ".lock"
+    try:
+        lock_fd = open(lock_path, "w")
+    except OSError:
+        return handler(args)  # cannot create a lock file; degrade to unlocked
+    try:
+        fcntl.flock(lock_fd, fcntl.LOCK_EX)
+        return handler(args)
+    finally:
+        try:
+            fcntl.flock(lock_fd, fcntl.LOCK_UN)
+        finally:
+            lock_fd.close()
+
 
 def main(argv):
     args = build_parser().parse_args(argv[1:])
     handler = _HANDLERS[args.cmd]
     try:
+        if _HAS_FCNTL and args.cmd in _MUTATING:
+            return _run_locked(handler, args)
         return handler(args)
     except Exception as exc:  # never leak a traceback to the caller
         sys.stderr.write(f"sweep-state: internal error: {exc}\n")

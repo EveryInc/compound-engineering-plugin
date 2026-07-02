@@ -164,8 +164,14 @@ Records the outcome of a sweep run under `last_run`.
 
 `run-record` is intentionally **lease-agnostic**: a run that aborted precisely
 because the lease was `LOCKED` (`outcome: aborted-locked`) must still be able to
-record that fact. In local-commit mode there is a single writer per checkout, so
-this bookkeeping write does not race a real writer.
+record that fact — but that write happens while the lease holder is mid-sweep.
+To keep it from clobbering the holder's concurrent upserts, every mutating
+subcommand holds an **OS advisory lock** (`flock` on `<state>.lock`) across its
+whole load-modify-write, so two concurrent invocations serialize their writes
+regardless of lease ownership. The lease decides *who owns the sweep*; the file
+lock decides *who is writing the file right now*. The `.lock` file is ephemeral
+and never committed (the skill's commit step adds only the state file and the
+plan, never `-A`).
 
 ## Engine status words
 

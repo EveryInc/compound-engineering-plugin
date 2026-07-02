@@ -79,7 +79,7 @@ Run the phases in order.
 #### 2a. Acquire lease + validate
 
 `lease-acquire --state <state> --writer <writer> --ttl-minutes <sweep_lease_ttl_minutes>`:
-- `LOCKED` — another live writer holds it. Record the outcome and stop: `run-record --state <state> --writer <writer> --outcome aborted-locked --counts '{}' --timestamp <ISO now>`, report that a concurrent sweep is running, and exit.
+- `LOCKED` — another live writer holds it. Record the outcome and stop: `run-record --state <state> --writer <writer> --outcome aborted-locked --counts '{}' --timestamp <ISO now>`, report that a concurrent sweep is running, and exit. (This record is safe against the mid-sweep holder: the engine serializes every state write with an OS advisory lock, so it cannot clobber the holder's concurrent upserts — see `references/state-schema.md`.)
 - `STALE-RECLAIMED` — an expired lease was taken over; proceed, and note the takeover in the final summary.
 - `OK` — proceed.
 

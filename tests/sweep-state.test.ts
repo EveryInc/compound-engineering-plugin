@@ -183,6 +183,34 @@ describe("sweep-state engine — cursors", () => {
     expect(payload(run(dir, "cursor-get", "--state", s, "--source", "src1").stdout).cursor).toBe("200")
   })
 
+  test("cursor-advance compares pure-digit cursors numerically, not lexically", () => {
+    const dir = tmp()
+    const s = statePath(dir)
+    acquire(dir, s)
+    upsert(dir, s, "i1", "src1", {})
+    // '9' -> '10' must advance: lexical compare would wrongly REFUSE it.
+    cursorAdvance(dir, s, "src1", "9", "i1")
+    expect(status(cursorAdvance(dir, s, "src1", "10", "i1").stdout)).toBe("OK")
+    expect(payload(run(dir, "cursor-get", "--state", s, "--source", "src1").stdout).cursor).toBe("10")
+  })
+
+  test("two sequential runs against the same state never double-advance a cursor", () => {
+    const dir = tmp()
+    const s = statePath(dir)
+    // Run 1: acquire, ingest, advance, release.
+    acquire(dir, s, "w1")
+    upsert(dir, s, "i1", "src1", { status: "acknowledged" }, "w1")
+    cursorAdvance(dir, s, "src1", "200", "i1", "w1")
+    run(dir, "lease-release", "--state", s, "--writer", "w1")
+    // Run 2: fresh writer, re-reads state, advances forward only.
+    acquire(dir, s, "w2", "2026-07-02T13:00:00+00:00")
+    upsert(dir, s, "i2", "src1", { status: "acknowledged" }, "w2", "2026-07-02T13:00:00+00:00")
+    cursorAdvance(dir, s, "src1", "300", "i2", "w2", "2026-07-02T13:00:00+00:00")
+    // A stale re-advance from run 2 to run 1's value is refused, not doubled.
+    expect(status(cursorAdvance(dir, s, "src1", "200", "i2", "w2", "2026-07-02T13:00:00+00:00").stdout)).toBe("REFUSED")
+    expect(payload(run(dir, "cursor-get", "--state", s, "--source", "src1").stdout).cursor).toBe("300")
+  })
+
   test("cursor-advance to the SAME cursor is idempotently allowed", () => {
     const dir = tmp()
     const s = statePath(dir)
@@ -428,6 +456,22 @@ describe("sweep-state engine — import-legacy", () => {
     expect(r.code).toBe(0)
     expect(status(r.stdout)).toBe("OK")
     expect(payload(r.stdout)).toEqual({ cursors_imported: 0, items_imported: 0 })
+  })
+
+  test("import-legacy --source-map lands cursors under the configured source id", () => {
+    const dir = tmp()
+    const s = statePath(dir)
+    const legacy = path.join(dir, "legacy.json")
+    writeFileSync(
+      legacy,
+      JSON.stringify({ channels: { C0AQ: { last_processed_ts: "1700000000.000100" } } }),
+    )
+    run(dir, "import-legacy", "--state", s, "--file", legacy, "--source-map", '{"C0AQ":"slack-alpha"}')
+    const state = read(dir, s)
+    // The connector reads cursor-get --source slack-alpha; the cursor must be there,
+    // not orphaned under the bare legacy channel id.
+    expect(state.sources["slack-alpha"].cursor).toBe("1700000000.000100")
+    expect(state.sources.C0AQ).toBeUndefined()
   })
 
   test("import-legacy never regresses an already-advanced cursor", () => {
