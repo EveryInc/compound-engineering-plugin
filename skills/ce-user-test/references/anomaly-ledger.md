@@ -9,7 +9,7 @@ The ledger is a per-run JSONL artifact for incidental observations found during 
 | Path | `tests/user-flows/.user-test-anomalies.jsonl` |
 | Git state | Gitignored ephemeral artifact |
 | Tier | Same tier as `tests/user-flows/.user-test-last-run.json` |
-| Lifetime | Reset per run; durable outcomes graduate through report sections, `bugs.md`, or `explore_next_run` |
+| Lifetime | Reset per run; in iterate mode, reset once before iteration 1 and keep appending through the session. Durable outcomes graduate through report sections, `bugs.md`, or `explore_next_run` |
 
 Delete the ledger file immediately before the first Phase 3 action. Do not delete it during Phase 1 or Phase 2; an early abort must not destroy a prior run's uncommitted ledger.
 
@@ -128,9 +128,13 @@ If disconnect recovery makes a span uncertain, record the disconnect in run resu
 
 The execution-index counter continues monotonically across iterate-mode iterations; do not reset it per iteration.
 
+In iterate mode, keep one session ledger across all iterations; do not reset it after iteration 1.
+
 ## Phase 4 Reconciliation
 
 Before writing `.user-test-last-run.json`, reconcile the live ledger.
+
+In iterate mode, each iteration reconciles only the ledger lines appended during that iteration.
 
 Every anomaly ledger line gets one entry in the run JSON's top-level `anomalies[]`. `none` lines do not become anomaly entries.
 
@@ -172,6 +176,22 @@ Validation error codes:
 | `ledger_foreign` |
 | `marker_with_live_ledger` |
 | `final_index_understated` |
+
+Agent remediation:
+
+| Code | Agent remediation |
+|------|-------------------|
+| `anomaly_undispositioned` | Add a disposition for the cited ledger line in `anomalies[]`. |
+| `dismissal_reason_empty` | Complete the cited `dismissed` disposition with a non-empty reason in `anomalies[]`. |
+| `evidence_minimum` | Gather more evidence by re-opening the area or disconnect-null the dimension; never restore the higher score. |
+| `evidence_ref_out_of_range` | Correct `final_execution_index` or the offending evidence `ref`; the error payload names both values. |
+| `final_index_understated` | Correct `final_execution_index` or the offending indexed payload value; the error payload names both values. |
+| `ledger_tiling` | Fix the cited ledger line's `index_range` so coverage is disjoint and gap-free from `0` through `final_execution_index`. |
+| `ledger_digest_mismatch` | Recompute the digest from the on-disk ledger with the recipe above and rebuild the payload. |
+| `ledger_missing` | The ledger for this run is absent; re-run Phase 3's ledger protocol before committing and do not hand-forge a ledger. |
+| `ledger_foreign` | The ledger belongs to another run; re-run Phase 3's ledger protocol before committing and do not hand-forge a ledger. |
+| `marker_with_live_ledger` | The run is v11-live; remove the stale migration marker by completing Phase 4 reconciliation properly and rebuild the payload. |
+| `MIGRATION-DEFAULTS-WARN` | Non-blocking; continue after `PLANNED`. |
 
 Warning sentinel:
 

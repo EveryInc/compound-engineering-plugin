@@ -133,6 +133,26 @@ function between(source: string, startText: string, endText: string): string {
   return source.slice(start, end)
 }
 
+function tableAfter(source: string, marker: string): string {
+  const markerIndex = source.indexOf(marker)
+  if (markerIndex === -1) {
+    throw new Error(`Missing markdown table marker ${marker}`)
+  }
+  const lines = source.slice(markerIndex + marker.length).split(/\r?\n/)
+  const tableStart = lines.findIndex((line) => line.trim().startsWith("|"))
+  if (tableStart === -1) {
+    throw new Error(`Missing markdown table after ${marker}`)
+  }
+  const tableLines: string[] = []
+  for (const line of lines.slice(tableStart)) {
+    if (!line.trim().startsWith("|")) {
+      break
+    }
+    tableLines.push(line)
+  }
+  return tableLines.join("\n")
+}
+
 function tableRow(source: string, needle: string): string {
   const row = source.split(/\r?\n/).find((line) => line.includes(needle))
   if (!row) {
@@ -148,19 +168,11 @@ function anomalyLedgerNameSets(source: string): {
   evidenceTypes: Set<string>
 } {
   const validationSection = markdownSection(source, "## Validation Names")
-  const errorCodeBlock = between(
-    validationSection,
-    "Validation error codes:",
-    "Warning sentinel:",
-  )
-  const warningBlock = validationSection.slice(
-    validationSection.indexOf("Warning sentinel:"),
-  )
   const reconciliationSection = markdownSection(source, "## Phase 4 Reconciliation")
   const evidenceSection = markdownSection(source, "## Evidence Entries")
   return {
-    validationErrorCodes: quotedNames(errorCodeBlock),
-    warningSentinels: quotedNames(warningBlock),
+    validationErrorCodes: quotedNames(tableAfter(validationSection, "Validation error codes:")),
+    warningSentinels: quotedNames(tableAfter(validationSection, "Warning sentinel:")),
     dispositions: new Set(
       [...quotedNames(tableRow(reconciliationSection, "`disposition`"))].filter(
         (value) => value !== "disposition",

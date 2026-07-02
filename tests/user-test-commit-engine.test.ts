@@ -646,7 +646,7 @@ describe("ce-user-test commit-engine.py validation", () => {
     expectValidationCode(errors, "evidence_ref_out_of_range")
   })
 
-  test("earlier-iteration anomaly action refs above final_execution_index are rejected", () => {
+  test("anomaly action refs above final_execution_index are rejected", () => {
     const project = makeProject()
     const payload = basePayload({
       final_execution_index: 10,
@@ -654,11 +654,10 @@ describe("ce-user-test commit-engine.py validation", () => {
         {
           area: "checkout/cart",
           kind: "anomaly",
-          what: "earlier iteration action claimed a later index",
-          evidence: [{ type: "action", ref: 11, note: "out-of-range earlier action" }],
+          what: "anomaly action claimed a later index",
+          evidence: [{ type: "action", ref: 11, note: "out-of-range anomaly action" }],
           index_range: [0, 1],
           disposition: "noted-in-area",
-          iteration: 1,
         },
       ],
       issue_candidates: [],
@@ -667,6 +666,62 @@ describe("ce-user-test commit-engine.py validation", () => {
     const errors = validationErrors(project, payload)
 
     expectValidationCode(errors, "evidence_ref_out_of_range")
+  })
+
+  test("multi-iteration aggregate commit uses one session ledger and persists anomalies", () => {
+    const project = makeProject()
+    const anomaly = {
+      area: "checkout/cart",
+      kind: "anomaly",
+      what: "iteration 2 toast lingered after save",
+      evidence: [{ type: "action", ref: 6, note: "iteration 2 save action produced the toast" }],
+      index_range: [4, 7],
+    }
+    const payload = basePayload({
+      final_execution_index: 12,
+      anomalies: [{ ...anomaly, disposition: "noted-in-area" }],
+      probes_run: [
+        {
+          area: "checkout/cart",
+          query: "iteration 1 invalid zip",
+          verify: "Inline error shown",
+          status: "passing",
+          result_detail: "iteration 1 completed",
+          execution_index: 2,
+        },
+        {
+          area: "checkout/cart",
+          query: "iteration 2 save cart",
+          verify: "Toast clears",
+          status: "failing",
+          result_detail: "toast lingered",
+          execution_index: 6,
+        },
+        {
+          area: "checkout/cart",
+          query: "iteration 3 invalid zip",
+          verify: "Inline error shown",
+          status: "passing",
+          result_detail: "iteration 3 completed",
+          execution_index: 11,
+        },
+      ],
+      issue_candidates: [],
+      __ledger: {
+        entries: [
+          { area: "checkout/cart", kind: "none", index_range: [0, 3] },
+          anomaly,
+          { area: "checkout/cart", kind: "none", index_range: [8, 12] },
+        ],
+      },
+    })
+
+    fullApply(project, payload)
+    const lastRun = readJson(lastRunPath(project))
+
+    expect(lastRun.anomalies).toEqual([{ ...anomaly, disposition: "noted-in-area" }])
+    expect(lastRun.anomaly_ledger_digest).toEqual(payload.anomaly_ledger_digest)
+    expect(lastRun.final_execution_index).toBe(12)
   })
 
   test("ledger tiling normalizes shared boundaries and honors disconnect tolerance", () => {
@@ -716,6 +771,24 @@ describe("ce-user-test commit-engine.py validation", () => {
     const errors = validationErrors(rejected, payload)
     expectValidationCode(errors, "ledger_tiling")
   })
+
+  test("ledger whose first span starts after zero is rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      final_execution_index: 5,
+      issue_candidates: [],
+      __ledger: {
+        entries: [{ area: "checkout/cart", kind: "none", index_range: [2, 5] }],
+      },
+    })
+
+    const errors = validationErrors(project, payload)
+    const error = errors.find((item: any) => item.code === "ledger_tiling")
+
+    expect(error).toBeDefined()
+    expect(error.reason).toBe("coverage_must_start_at_zero")
+  })
+
 
   test("migration-defaulted run without a matching ledger warns then plans and applies", () => {
     const project = makeProject()
