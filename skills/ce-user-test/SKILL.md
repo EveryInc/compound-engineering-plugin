@@ -25,10 +25,10 @@ comma-separated numbers (e.g. `1, 3`). Never skip or auto-configure.
 
 **Protected artifacts:** `tests/user-flows/` files are pipeline output. Review
 agents and cleanup tools must never flag them for deletion or gitignore. The
-ephemeral `.user-test-last-run.json`, `.user-test-last-report.md`,
-`.user-test-commit-journal.json`, `.user-test-commit-payload.json`, and
-`*.user-test-stage.tmp` files are also protected from cleanup even though they
-are gitignored.
+ephemeral `.user-test-last-run.json`, `.user-test-anomalies.jsonl`,
+`.user-test-last-report.md`, `.user-test-commit-journal.json`,
+`.user-test-commit-payload.json`, and `*.user-test-stage.tmp` files are also
+protected from cleanup even though they are gitignored.
 
 ## Phase 0: Preflight
 
@@ -65,7 +65,7 @@ are gitignored.
    See [orientation.md](./references/orientation.md). Set `seams_read: true` on first commit after code reading, regardless of outcome.
 3. **CLI discovery (MANDATORY when `cli_test_command` is empty):** Whether the test file is new or existing, if `cli_test_command` is empty, run CLI discovery NOW before any browser interaction — follow every step in CLI Discovery in [test-file-template.md](./references/test-file-template.md). Check for API endpoints, test scripts, curl-able routes. If a testable surface exists, populate `cli_test_command` and `cli_queries` in the test file immediately. Do NOT skip this step. Do NOT ask the user whether to do it — just do it.
 4. **Ensure `.gitignore` coverage:**
-   - Check that `.user-test-last-run.json`, `.user-test-last-report.md`, `.user-test-commit-journal.json`, `.user-test-commit-payload.json`, and `*.user-test-stage.tmp` are in the project's `.gitignore`
+   - Check that `.user-test-last-run.json`, `.user-test-anomalies.jsonl`, `.user-test-last-report.md`, `.user-test-commit-journal.json`, `.user-test-commit-payload.json`, and `*.user-test-stage.tmp` are in the project's `.gitignore`
    - If missing, append them (these files are ephemeral run state, not source)
    - Note: `score-history.json`, `bugs.md`, `skill-evals.json`, and `skill-mutations.md` are NOT gitignored — they are persistent project data
 5. **Handle corruption:**
@@ -100,6 +100,8 @@ If the test file defines `cli_test_command` in frontmatter, run CLI queries befo
 
 ## Phase 3: Execute
 
+Immediately before the first Phase 3 action, read [anomaly-ledger.md](./references/anomaly-ledger.md) and reset/open the ledger for this run.
+
 Test areas based on maturity status. The agent exercises judgment on area selection — these are guidelines, not rigid rules. Record a `skip_reason` for each area not fully tested (see [test-file-template.md](./references/test-file-template.md) for enum values).
 
 **Run focus vs. area budget:** A run focus (e.g., "consumer stress test", "search bar exploration") controls WHAT you test within each area — which queries, which edge cases, which user personas. It does NOT override maturity-based time allocation (see override priority table in [run-targeting.md](./references/run-targeting.md)). Proven areas get a tiered MCP budget based on consecutive pass count (see [run-targeting.md](./references/run-targeting.md) for budget table). The run focus shapes WHAT those calls test (search bar instead of basic navigation), not the count.
@@ -112,9 +114,10 @@ Test areas based on maturity status. The agent exercises judgment on area select
 2. **Execute Queries and Multi-turn** — if defined. See [queries-and-multiturn.md](./references/queries-and-multiturn.md).
 3. **Novelty budget — MANDATORY.** Before generating novel interactions, check `novelty_fingerprints` from `.user-test-last-run.json` — skip interactions matching existing fingerprints. At least 1 novel interaction per `scored_output` area must generate a probe. Iterate mode ignores fingerprints. See [queries-and-multiturn.md](./references/queries-and-multiturn.md) for fingerprint matching, MCP budget, and mandatory probe rule.
 4. **Verification pass** — per area type. See [verification-patterns.md](./references/verification-patterns.md).
-5. **Score** — UX (1-5) + Quality if `scored_output: true`.
+5. **Score** — UX (1-5) + Quality if `scored_output: true`; collect typed evidence per score dimension and verify evidence minimums against final scores before the Phase 4 run-JSON write.
 6. **Time** — wall-clock seconds, first to last MCP call. Async waits count. Disconnect = `—`.
 7. **Notes** — what surprised you? Feeds Explore Next Run + new Queries in commit.
+8. **Ledger append** — At the area transition, read [anomaly-ledger.md](./references/anomaly-ledger.md) and append the required batch before starting the next area.
 
 Probes, verification, and UX scores are three separate signals — none subsumes the others.
 
@@ -228,7 +231,7 @@ The report is a dispatch, not a broadcast. It tells you what to do next, in prio
 
 ```
 SESSION SUMMARY: <scenario>  [<date> · <mode>]
-UX 3.0 | Quality 4.5 (CLI) | 5 areas | 2 need action
+UX 3.0 | Quality 4.5 (CLI) | 5 areas | 2 need action | 2 anomalies dispositioned (1 noted)
 
 NEEDS ACTION (2)                    ← open items requiring follow-up
   ⚠ P1  y2k accessories degrading Q3→Q2 → investigate CLI (Explore Next Run)
@@ -257,7 +260,7 @@ Demo: PARTIAL (P1 bug #21 open; promo-code untested)
 ```
 
 **Section rules:**
-- **Header:** `UX X.X | Quality X.X (CLI) | N areas | M need action` — 2-second scan
+- **Header:** `UX X.X | Quality X.X (CLI) | N areas | M need action | A anomalies dispositioned (B noted)` — 2-second scan
 - **JOURNEYS:** After cross-area probes, before NEEDS ACTION. Failing/flaky journeys show checkpoint detail. Passing show summary. See [journeys.md](./references/journeys.md).
 - **NEEDS ACTION:** `⚠` prefix. Only open items: degrading areas, failing probes on **Proven** areas (unexpected regression), verification mismatches on Proven. Probe failures on Uncharted/Known-bug stay in DETAILS (expected)
 - **FILED THIS SESSION:** `✓` prefix. Bugs/issues filed. Omit if nothing filed
@@ -266,7 +269,7 @@ Demo: PARTIAL (P1 bug #21 open; promo-code untested)
 - **EXPLORE NEXT RUN:** `<priority> <area> <mode> <why>` — must appear in printed report
 - **SIGNALS:** `+` positive, `-` negative, `~` neutral. Disconnects always here with delta. Omit if 0. Use `-` if increased 50%+
 - **Demo:** YES / PARTIAL (reason) / NO (reason). P1 NEEDS ACTION forces at most PARTIAL
-- **DETAILS:** Prints only when actionable (new probes, verification failures, new UX opps). Omit if all empty. Contains: Probe Results, Verification Failures, UX Opportunities tables. Code Changes section when git targeting active
+- **DETAILS:** Prints only when actionable (new probes, verification failures, new UX opps, dismissed anomalies). Omit if all empty. Contains: Probe Results, Verification Failures, UX Opportunities tables. Dismissed anomalies appear here only; do not add a separate anomaly section. Code Changes section when git targeting active
 
 ### Share Report (Optional)
 
@@ -287,9 +290,13 @@ After persisting the report, **automatically proceed to Commit Mode** (below) �
 
 **Partial run safety:** If the run is interrupted before scoring completes, do NOT produce committable output. Partial runs must not corrupt maturity state.
 
+### Anomaly Reconciliation
+
+Before Run Results Persistence, read [anomaly-ledger.md](./references/anomaly-ledger.md). Disposition every ledger anomaly as `filed`, `noted-in-area`, `explore-next-run`, or `dismissed` with reason; record `final_execution_index` and `anomaly_ledger_digest` in the run results.
+
 ### Run Results Persistence
 
-After Phase 4 completes (all areas scored), write `tests/user-flows/.user-test-last-run.json`. See [last-run-schema.md](./references/last-run-schema.md) for full schema (v10), per-area fields, journey fields, execution index fields, and behavioral notes. File is overwritten each run except `novelty_fingerprints` which accumulates across runs (read-merge-write).
+After Phase 4 completes (all areas scored), write `tests/user-flows/.user-test-last-run.json`. See [last-run-schema.md](./references/last-run-schema.md) for full schema (v11), per-area fields, journey fields, execution index fields, and behavioral notes. File is overwritten each run except `novelty_fingerprints` which accumulates across runs (read-merge-write).
 
 ## Commit Mode
 
@@ -371,6 +378,7 @@ Build `tests/user-flows/.user-test-commit-payload.json` with the completed judgm
 - Probe evidence: per-area `probes_run` and generated probes, plus scenario-level `cross_area_probes_run`.
 - Journey evidence: `journeys_run` entries with journey id/status/failed step/detail.
 - Query evidence: `query_results` with per-query score and consecutive evidence; sharpened failed-query probes and discovery-driven new queries are judgment inputs, not engine inference.
+- Score evidence and reconciliation: per-area `evidence`, top-level `anomalies`, `final_execution_index`, `schema_version`, and `anomaly_ledger_digest` from Phase 4 run results.
 - Bug lifecycle: `bug_lifecycle_updates` from agent-side issue-state and fix-check/regression evidence.
 - Issues: `issue_candidates` with dedup verdicts, including regression candidates that should be filed after apply.
 - Signals: disconnects, UX opportunities, good patterns, and any graduation choices.
@@ -386,6 +394,8 @@ python3 "$SKILL_DIR/scripts/commit-engine.py" apply
 ```
 
 If `plan` returns `VALIDATION-FAILED`, read the JSON error list, re-present only the contradicted decision with the engine's evidence, rebuild the payload, and run `plan` again. Do not hand-edit the generated artifacts around a validation rejection.
+
+`MIGRATION-DEFAULTS-WARN` is expected non-blocking `plan` output; continue only after `PLANNED`.
 
 If `plan` returns `JOURNAL-EXISTS`, run `status <scenario-slug>` and route by the status sentinel before retrying the plan. If it returns `FOREIGN-JOURNAL <scenario>`, stop and report the foreign journal.
 

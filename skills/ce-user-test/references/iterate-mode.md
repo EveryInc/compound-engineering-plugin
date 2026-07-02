@@ -23,10 +23,13 @@ Each iteration follows this sequence:
 
 1. **CLI queries (Phase 2.5):** If `cli_test_command` is present, run ALL `cli_queries` first. Score each. Apply precheck gates.
 2. **Browser reset:** Navigate to app entry URL (full page reload) for clean state.
-3. **Browser areas (Phase 3):** Test browser areas, skipping any gated by CLI precheck failures.
-4. **Score (Phase 4):** Score all areas for this run.
+3. **Ledger reset:** Immediately before the first Phase 3 action for this iteration, reset/open the ledger.
+4. **Browser areas (Phase 3):** Test browser areas, skipping any gated by CLI precheck failures.
+5. **Score and reconcile (Phase 4):** Score all areas for this run and reconcile the iteration ledger into that iteration's run JSON before any later ledger reset.
 
-**CLI-only mode:** If all areas have `prechecks` tags and CLI covers everything, skip steps 2-3 entirely — no browser needed for that run.
+The `execution_index` counter is run-global: initialize it once before iteration 1 and do not reset it between iterations.
+
+**CLI-only mode:** If all areas have `prechecks` tags and CLI covers everything, skip steps 2-4 entirely — no browser needed for that run.
 
 **CLI command with side effects:** If the CLI command writes to a database or calls external APIs, each iteration may produce different results due to accumulated state. Document this in the test file's area details when relevant.
 
@@ -73,7 +76,7 @@ acceptable; wild swings between 5s and 45s indicate flakiness worth investigatin
 and the previous non-iterate run. Per-iteration deltas within a session are NOT
 computed (they are noise, not signal).
 
-After the final run completes, **automatically proceed to Commit Mode** — same as a normal `/ce-user-test` run. This persists `git_sha`, maturity updates, probes, and history. Commit uses the aggregate scores (not individual run scores). The user can pass `--no-commit` to skip and run `/ce-user-test-commit` manually later.
+After the final run completes, **automatically proceed to Commit Mode** — same as a normal `/ce-user-test` run. This persists `git_sha`, maturity updates, probes, and history. Commit uses the aggregate scores (not individual run scores). The aggregate commit payload unions dispositioned anomalies across iterations and carries the final iteration's `anomaly_ledger_digest` plus the run-global `final_execution_index`. The user can pass `--no-commit` to skip and run `/ce-user-test-commit` manually later.
 
 ### Example Output
 

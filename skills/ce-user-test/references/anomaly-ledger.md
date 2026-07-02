@@ -13,6 +13,8 @@ The ledger is a per-run JSONL artifact for incidental observations found during 
 
 Delete the ledger file immediately before the first Phase 3 action. Do not delete it during Phase 1 or Phase 2; an early abort must not destroy a prior run's uncommitted ledger.
 
+After reset, write the header line before the first entry line.
+
 ## Header Line
 
 The first line is a JSON object:
@@ -75,7 +77,7 @@ For a transition that consumed no execution indices, use the empty-range marker:
 }
 ```
 
-`at_index` is required when `index_range` is null. It records the counter value at the transition, and tiling treats it as a zero-width marker at that boundary.
+`at_index` is required when `index_range` is null. It records the counter value at the transition.
 
 ## Evidence Entries
 
@@ -94,6 +96,20 @@ Ledger anomaly evidence and `areas[].evidence` in [last-run-schema.md](./last-ru
 
 Every evidence entry includes a `note` that states what the entry supports.
 
+## Score Evidence Collection
+
+For every final non-null UX or Quality score, write score evidence into that area's `evidence` array.
+
+Use evidence notes to name the supported score dimension (`UX` or `Quality`) and the observed behavior.
+
+Every non-null score dimension needs at least one evidence entry.
+
+A dimension scored `2` or below, or dropped one or more points from the prior run's same dimension, needs at least two evidence entries with at least one concrete `ref`. The prior score lives in `score-history.json`.
+
+When the final score needs more support than the collected evidence supplies, gather more evidence by re-opening the area or set the dimension to null because a disconnect prevents supported scoring.
+
+Never replace a lowered score with a higher evidence-supported score.
+
 ## Append Timing
 
 Append a batch of lines at every area transition: one line per anomaly noticed en route, or exactly one explicit `none` line.
@@ -106,17 +122,17 @@ Append the final batch at the end of the last area's verification pass. This fin
 
 `index_range` values are inclusive `[start, end]` execution-index spans.
 
-A completed run's ledger coverage is disjoint and gap-free from `0` through `final_execution_index`.
+Write ranges that are disjoint and gap-free from `0` through `final_execution_index` from the agent's view of the run.
 
-The engine normalizes a width-1 gap or overlap at a boundary shared by adjacent lines.
-
-Interior gaps up to the run's recorded disconnect count are tolerated.
+If disconnect recovery makes a span uncertain, record the disconnect in run results instead of inventing a range.
 
 The execution-index counter continues monotonically across iterate-mode iterations; do not reset it per iteration.
 
 ## Phase 4 Reconciliation
 
-Every anomaly ledger line gets one entry in the run JSON's top-level `anomalies[]`.
+Before writing `.user-test-last-run.json`, reconcile the live ledger.
+
+Every anomaly ledger line gets one entry in the run JSON's top-level `anomalies[]`. `none` lines do not become anomaly entries.
 
 Each reconciled anomaly entry copies the ledger line fields and adds:
 
@@ -128,7 +144,9 @@ Each reconciled anomaly entry copies the ledger line fields and adds:
 
 Phase 4 records `anomaly_ledger_digest` in the run JSON with `{ "lines": <int>, "sha256": "<hex digest>" }`.
 
-When a score is lowered past its evidence support, do not replace it with the higher evidence-supported score. Re-open the area to gather evidence, or disconnect-null the dimension.
+Phase 4 records `final_execution_index` as the run's last consumed execution-index value.
+
+If reconciliation or score-evidence review exposes missing support, re-open the relevant area before Run Results Persistence or set the affected score dimension to null because of disconnect.
 
 ## Validation Names
 
@@ -154,11 +172,3 @@ Warning sentinel:
 | Sentinel |
 |----------|
 | `MIGRATION-DEFAULTS-WARN` |
-
-## Evidence Minimums
-
-Every non-null score dimension needs at least one evidence entry.
-
-Either score dimension at `2` or below needs at least two evidence entries, with at least one concrete `ref`.
-
-A score drop of one or more points from the prior run's same dimension needs at least two evidence entries, with at least one concrete `ref`. The prior score lives in `score-history.json`.
