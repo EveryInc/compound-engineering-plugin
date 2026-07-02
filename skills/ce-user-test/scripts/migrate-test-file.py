@@ -6,8 +6,8 @@ Usage:
     python3 migrate-test-file.py migrate-run-json <last-run-json-file>
 
 `migrate <test-file>` prints exactly one of:
-    CURRENT                 schema_version is already 10; no bytes written
-    MIGRATED <from> -> 10   file was normalized and atomically rewritten
+    CURRENT                 schema_version is already 11; no bytes written
+    MIGRATED <from> -> 11   file was normalized and atomically rewritten
     UNKNOWN-VERSION <n>     schema_version is outside the accepted range
     CORRUPT <reason>        required structure is absent or unreadable
 
@@ -34,7 +34,7 @@ from typing import Any, Callable
 
 
 SCRIPT_NAME = "migrate-test-file"
-CURRENT_SCHEMA_VERSION = 10
+CURRENT_SCHEMA_VERSION = 11
 EM_DASH = "—"
 
 
@@ -484,7 +484,16 @@ MIGRATION_TABLE = [
     },
     {"from_version": 8, "fills": ["Journeys section"]},
     {"from_version": 9, "fills": ["last-run probe execution ordering stays absent"]},
-    {"from_version": 10, "fills": []},
+    {
+        "from_version": 10,
+        "fills": [
+            "last-run areas[].evidence",
+            "last-run anomalies[]",
+            "last-run final_execution_index",
+            "last-run schema_version + migration_defaults_applied marker",
+        ],
+    },
+    {"from_version": 11, "fills": []},
 ]
 
 
@@ -602,6 +611,8 @@ def apply_markdown_migration(lines: list[str], from_version: int, fm_end: int) -
     _ = MIGRATION_TABLE
 
     set_schema_version(lines, fm_end)
+    if from_version == 10:
+        return
     fm_end = append_frontmatter_default(lines, fm_end, "cli_test_command", '""')
     if from_version <= 5:
         fm_end = append_frontmatter_default(lines, fm_end, "seams_read", "false")
@@ -640,6 +651,7 @@ def do_migrate(path: str) -> int:
 
 
 RUN_JSON_ARRAY_DEFAULTS = {
+    "anomalies": [],
     "ux_opportunities": [],
     "good_patterns": [],
     "verification_results": [],
@@ -657,7 +669,19 @@ RUN_JSON_AREA_DEFAULTS = {
     "weakness_class": None,
     "adversarial_browser": False,
     "adversarial_trigger": None,
+    "evidence": [],
 }
+
+RUN_JSON_SCALAR_DEFAULTS = {
+    "final_execution_index": None,
+}
+
+RUN_JSON_V11_DEFAULT_FIELDS = [
+    "areas[].evidence",
+    "anomalies[]",
+    "final_execution_index",
+    "schema_version",
+]
 
 
 def validate_last_run(doc: Any) -> dict[str, Any]:
@@ -680,10 +704,25 @@ def validate_last_run(doc: Any) -> dict[str, Any]:
 
 def normalize_last_run(doc: dict[str, Any]) -> bool:
     changed = False
+    incoming_schema_version = doc.get("schema_version")
+    stamp_migration_marker = not (
+        type(incoming_schema_version) is int
+        and incoming_schema_version >= CURRENT_SCHEMA_VERSION
+    )
+    migration_default_fields: list[str] = []
+
     for key, value in RUN_JSON_ARRAY_DEFAULTS.items():
         if key not in doc:
             doc[key] = list(value)
             changed = True
+            if stamp_migration_marker and key == "anomalies":
+                migration_default_fields.append("anomalies[]")
+    for key, value in RUN_JSON_SCALAR_DEFAULTS.items():
+        if key not in doc:
+            doc[key] = value
+            changed = True
+            if stamp_migration_marker and key == "final_execution_index":
+                migration_default_fields.append("final_execution_index")
     if "novelty_fingerprints" not in doc:
         doc["novelty_fingerprints"] = {}
         changed = True
@@ -698,9 +737,26 @@ def normalize_last_run(doc: dict[str, Any]) -> bool:
             if key not in area:
                 if isinstance(value, dict):
                     area[key] = dict(value)
+                elif isinstance(value, list):
+                    area[key] = list(value)
                 else:
                     area[key] = value
                 changed = True
+                if stamp_migration_marker and key == "evidence":
+                    if "areas[].evidence" not in migration_default_fields:
+                        migration_default_fields.append("areas[].evidence")
+    if stamp_migration_marker:
+        if doc.get("schema_version") != CURRENT_SCHEMA_VERSION:
+            doc["schema_version"] = CURRENT_SCHEMA_VERSION
+            changed = True
+        migration_default_fields = [
+            field
+            for field in RUN_JSON_V11_DEFAULT_FIELDS
+            if field == "schema_version" or field in migration_default_fields
+        ]
+        if doc.get("migration_defaults_applied") != migration_default_fields:
+            doc["migration_defaults_applied"] = migration_default_fields
+            changed = True
     return changed
 
 

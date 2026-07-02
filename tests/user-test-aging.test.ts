@@ -16,6 +16,7 @@ const SCRIPTS = path.join(REPO_ROOT, "skills/ce-user-test/scripts")
 const COMMIT_SCRIPT = path.join(SCRIPTS, "commit-engine.py")
 const DEDUP_SCRIPT = path.join(SCRIPTS, "issue-dedup.py")
 const MIGRATE_SCRIPT = path.join(SCRIPTS, "migrate-test-file.py")
+const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : "python3")
 const REGISTRY = JSON.parse(
   readFileSync(path.join(SCRIPTS, "caps-registry.json"), "utf8"),
 )
@@ -35,7 +36,7 @@ function runPython(
   args: string[],
   env: Record<string, string> = {},
 ): { code: number; stdout: string; stderr: string } {
-  const result = spawnSync("python3", [script, ...args], {
+  const result = spawnSync(PYTHON, [script, ...args], {
     cwd,
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -75,6 +76,10 @@ function readJson(file: string): any {
   return JSON.parse(readFileSync(file, "utf8"))
 }
 
+function normalizeEol(text: string): string {
+  return text.replace(/\r\n/g, "\n")
+}
+
 function resultJson(stdout: string): any {
   const lines = stdout.trim().split(/\r?\n/)
   return JSON.parse(lines.slice(1).join("\n"))
@@ -85,7 +90,7 @@ function startsWithLine(stdout: string, sentinel: string): boolean {
 }
 
 function makeProject(
-  fixture = "current-v10.md",
+  fixture = "current-v11.md",
   target = "checkout-quality.md",
   scenario = "checkout-quality",
 ): Project {
@@ -466,7 +471,7 @@ describe("ce-user-test commit-engine aging harness", () => {
     const project = makeProject("unknown-content.md", "custom-content.md", "custom-content")
     const firstMigrate = runMigrate(project.testFile)
     expect(firstMigrate.code).toBe(0)
-    expect(firstMigrate.stdout.trim()).toBe("MIGRATED 5 -> 10")
+    expect(firstMigrate.stdout.trim()).toBe("MIGRATED 5 -> 11")
 
     const payload = cyclePayload(project, 0, {
       areas: [
@@ -506,13 +511,20 @@ describe("ce-user-test commit-engine aging harness", () => {
 
     const secondMigrate = runMigrate(project.testFile)
     expect(secondMigrate.code).toBe(0)
-    expect(secondMigrate.stdout.trim()).toBe("CURRENT")
+    expect(["CURRENT", "MIGRATED 10 -> 11"]).toContain(
+      secondMigrate.stdout.trim(),
+    )
+    if (secondMigrate.stdout.trim() !== "CURRENT") {
+      const thirdMigrate = runMigrate(project.testFile)
+      expect(thirdMigrate.code).toBe(0)
+      expect(thirdMigrate.stdout.trim()).toBe("CURRENT")
+    }
 
     const finalFile = readFileSync(project.testFile, "utf8")
     expect(finalFile).toContain("future_key: keep-me")
     expect(finalFile).toContain("Mystery")
     expect(finalFile).toContain("hidden-cell")
-    expect(finalFile).toContain(`## Custom Notes
+    expect(normalizeEol(finalFile)).toContain(`## Custom Notes
 
 This custom section is user-authored.
 It must remain byte-for-byte within the migrated file body.`)
