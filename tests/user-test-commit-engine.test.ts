@@ -18,6 +18,10 @@ const COMMIT_SCRIPT = path.join(
   REPO_ROOT,
   "skills/ce-user-test/scripts/commit-engine.py",
 )
+const MIGRATE_SCRIPT = path.join(
+  REPO_ROOT,
+  "skills/ce-user-test/scripts/migrate-test-file.py",
+)
 const DEDUP_SCRIPT = path.join(
   REPO_ROOT,
   "skills/ce-user-test/scripts/issue-dedup.py",
@@ -68,6 +72,13 @@ function runDedup(
   ...args: string[]
 ): { code: number; stdout: string; stderr: string } {
   return runScript(DEDUP_SCRIPT, cwd, args)
+}
+
+function runMigrate(
+  cwd: string,
+  ...args: string[]
+): { code: number; stdout: string; stderr: string } {
+  return runScript(MIGRATE_SCRIPT, cwd, args)
 }
 
 function makeProject(): { dir: string; flows: string; testFile: string } {
@@ -238,6 +249,16 @@ function countTableRows(markdown: string): number {
   return markdown
     .split(/\r?\n/)
     .filter((line) => line.startsWith("|") && !/^\|\s*-/.test(line)).length - 1
+}
+
+function section(markdown: string, heading: string): string {
+  const start = markdown.indexOf(heading)
+  if (start === -1) {
+    return ""
+  }
+  const rest = markdown.slice(start + heading.length)
+  const next = rest.search(/\n#{2,3} /)
+  return next === -1 ? markdown.slice(start) : markdown.slice(start, start + heading.length + next)
 }
 
 describe("ce-user-test issue-dedup.py", () => {
@@ -589,6 +610,384 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
     expect(existsSync(path.join(project.flows, "test-history.md"))).toBe(false)
   })
 
+  test("commit preserves a schema-valid last-run JSON accepted by migrate-run-json", () => {
+    const project = makeProject()
+    writeJson(path.join(project.flows, ".user-test-last-run.json"), {
+      run_timestamp: "2026-06-30T12:00:00Z",
+      completed: true,
+      scenario_slug: "checkout-quality",
+      areas: [
+        {
+          slug: "checkout/cart",
+          tactical_note: null,
+          confirmed_selectors: {},
+          weakness_class: null,
+          adversarial_browser: false,
+          adversarial_trigger: null,
+        },
+      ],
+      probes_run: [],
+      cross_area_probes_run: [],
+      journeys_run: [],
+      explore_next_run: [],
+      novelty_log: [],
+      stable_queries_rotated: [],
+      novelty_fingerprints: {
+        "checkout/cart": ["checkout/cart:edge-query:old"],
+      },
+      disconnects: { count: 0, contexts: [] },
+      custom_preserved: "keep",
+    })
+
+    fullApply(project, basePayload({ issue_candidates: [] }))
+    confirmAll(project, [])
+
+    const migrated = runMigrate(
+      project.dir,
+      "migrate-run-json",
+      path.join(project.flows, ".user-test-last-run.json"),
+    )
+    expect(migrated.code).toBe(0)
+    expect(migrated.stdout.trim()).toBe("CURRENT")
+    const lastRun = readJson(path.join(project.flows, ".user-test-last-run.json"))
+    expect(lastRun.completed).toBe(true)
+    expect(lastRun.custom_preserved).toBe("keep")
+    expect(lastRun.novelty_fingerprints["checkout/cart"]).toContain(
+      "checkout/cart:edge-query:old",
+    )
+    expect(lastRun.novelty_fingerprints["checkout/cart"]).toContain(
+      "checkout/cart:edge-query:invalid-zip",
+    )
+  })
+
+  test("probe updates are scoped to each probe's area section", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "## Cross-Area Probes",
+        `### checkout/profile
+
+**Interactions:** Edit profile details.
+
+**What's tested:** Profile changes remain visible.
+
+**pass_threshold:** 4
+
+**verify:**
+- Profile name remains visible.
+
+**Probes:**
+
+| Query | Verify | Status | Priority | Confidence | Generated From | Run History |
+|-------|--------|--------|----------|------------|----------------|-------------|
+
+## Cross-Area Probes`,
+      ),
+    )
+
+    fullApply(
+      project,
+      basePayload({
+        probes_run: [
+          {
+            area: "checkout/profile",
+            query: "edit display name",
+            verify: "Saved name remains visible",
+            status: "passing",
+            result_detail: "Profile name persisted",
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(project, [])
+
+    const updated = readFileSync(project.testFile, "utf8")
+    expect(section(updated, "### checkout/cart")).not.toContain("edit display name")
+    expect(section(updated, "### checkout/profile")).toContain(
+      "| edit display name | Saved name remains visible | passing |",
+    )
+  })
+
+  test("cross-area probe reaches third failure and escalates to a pending bug", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "|--------------|--------|------------------|--------|--------|----------|------------|----------------|-------------|",
+        `|--------------|--------|------------------|--------|--------|----------|------------|----------------|-------------|
+| checkout/cart | change quantity | checkout/profile | profile shows stale cart count | failing | P1 | high | run-1 stale state | F,F |`,
+      ),
+    )
+
+    const result = fullApply(
+      project,
+      basePayload({
+        cross_area_probes_run: [
+          {
+            trigger_area: "checkout/cart",
+            action: "change quantity",
+            observation_area: "checkout/profile",
+            verify: "profile shows stale cart count",
+            status: "failing",
+            result_detail: "Profile badge kept stale count",
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+
+    expect(result.pending_issues).toHaveLength(1)
+    expect(result.pending_issues[0].area).toBe("checkout/cart")
+    const updated = readFileSync(project.testFile, "utf8")
+    expect(updated).toContain(
+      "| checkout/cart | change quantity | checkout/profile | profile shows stale cart count | failing | P1 | high | run-1 stale state | F,F,F |",
+    )
+    expect(readFileSync(path.join(project.flows, "bugs.md"), "utf8")).toContain(
+      "profile shows stale cart count",
+    )
+  })
+
+  test("journey status and run history are updated from journey results", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "## Area Trends",
+        `### J001: Checkout to profile
+
+**Steps:**
+
+| Step | Area | Action | Checkpoint |
+|------|------|--------|------------|
+| 1 | checkout/cart | Add item | Badge increments |
+| 2 | checkout/profile | Open profile | Cart badge remains visible |
+
+**Status:** passing
+**Last Run:** 2026-06-30
+**Run History:** P P P P
+**Generated From:** manual
+
+## Area Trends`,
+      ),
+    )
+
+    fullApply(
+      project,
+      basePayload({
+        journeys_run: [
+          {
+            id: "J001",
+            status: "passing",
+            checkpoints: [
+              { step: 1, area: "checkout/cart", passed: true, detail: "ok" },
+              { step: 2, area: "checkout/profile", passed: true, detail: "ok" },
+            ],
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(project, [])
+
+    const updated = readFileSync(project.testFile, "utf8")
+    expect(section(updated, "### J001: Checkout to profile")).toContain(
+      "**Status:** stable",
+    )
+    expect(section(updated, "### J001: Checkout to profile")).toContain(
+      "**Last Run:** 2026-07-01",
+    )
+    expect(section(updated, "### J001: Checkout to profile")).toContain(
+      "**Run History:** P P P P P",
+    )
+  })
+
+  test("delta compares current and previous averages over overlapping areas only", () => {
+    const project = makeProject()
+    writeJson(path.join(project.flows, "score-history.json"), {
+      areas: {
+        "checkout/cart": {
+          scores: [{ date: "2026-06-30", ux: 4, quality: null, time: 8 }],
+          trend: "stable",
+        },
+      },
+    })
+    const cart = { ...basePayload().areas[0], ux_score: 5 }
+    const profile = {
+      ...cart,
+      slug: "checkout/profile",
+      ux_score: 1,
+      next_status: "Known-bug",
+      assessment: "Profile is broken",
+    }
+
+    const result = fullApply(
+      project,
+      basePayload({
+        areas: [cart, profile],
+        maturity_transitions: [],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(project, [])
+
+    expect(result.rotations.delta_warnings).toEqual([])
+    expect(readFileSync(path.join(project.flows, "test-history.md"), "utf8")).toContain(
+      "| 2026-07-01 | checkout/cart, checkout/profile | 3.0 | +1.0 |",
+    )
+  })
+
+  test("query results mechanically rotate query status to stable", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "|-------|---------------|-------|--------|-------|",
+        `|-------|---------------|-------|--------|-------|
+| find jackets | Relevant jackets | Results are jackets | active | |`,
+      ),
+    )
+
+    fullApply(
+      project,
+      basePayload({
+        query_results: [
+          {
+            area: "checkout/cart",
+            query: "find jackets",
+            score: 5,
+            consecutive_successes: 3,
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(project, [])
+
+    expect(readFileSync(project.testFile, "utf8")).toContain(
+      "| find jackets | Relevant jackets | Results are jackets | [stable] |  |",
+    )
+  })
+
+  test("confirmed selectors append to verify block without replacing existing content", () => {
+    const project = makeProject()
+
+    fullApply(
+      project,
+      basePayload({
+        run_number: 7,
+        areas: [
+          {
+            ...basePayload().areas[0],
+            confirmed_selectors: {
+              activeFilters: "[data-filter-chip]",
+              resultCount: ".product-card",
+            },
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(project, [])
+
+    const verifyBlock = section(readFileSync(project.testFile, "utf8"), "### checkout/cart")
+    expect(verifyBlock).toContain("- Cart badge and subtotal match the quantity.")
+    expect(verifyBlock).toContain("activeFilters (`[data-filter-chip]`)")
+    expect(verifyBlock).toContain("resultCount (`.product-card`)")
+    expect(verifyBlock).toContain("_Selectors confirmed run 7._")
+  })
+
+  test("apply refuses a live concurrent journal before mutating files", () => {
+    const project = makeProject()
+    const before = snapshot(project)
+    expect(runCommit(project.dir, "plan", payloadPath(project, basePayload())).code).toBe(0)
+    const journal = readJson(journalPath(project))
+    journal.active = true
+    journal.active_pid = process.pid
+    journal.heartbeat_at = new Date().toISOString().replace(/\.\d{3}Z$/, "Z")
+    writeJson(journalPath(project), journal)
+
+    const apply = runCommit(project.dir, "apply")
+
+    expect(apply.code).toBe(1)
+    expect(apply.stdout.trim()).toBe(`CONCURRENT ${process.pid}`)
+    expect(snapshot(project)).toEqual(before)
+  })
+
+  test("bug lifecycle marks open bug fixed from payload evidence", () => {
+    const project = makeProject()
+    writeFileSync(
+      path.join(project.flows, "bugs.md"),
+      `# User Test Bugs
+
+| ID | Area | Status | Issue | Title | Fixed | Regressed |
+|----|------|--------|-------|-------|-------|-----------|
+| B001 | checkout/cart | open | #47 | Invalid zip accepted | — | — |
+`,
+    )
+
+    fullApply(
+      project,
+      basePayload({
+        bug_lifecycle_updates: [
+          {
+            bug_id: "B001",
+            status: "fixed",
+            fix_check_passed: true,
+            issue_closed: true,
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(project, [])
+
+    const bugs = readFileSync(path.join(project.flows, "bugs.md"), "utf8")
+    expect(bugs).toContain(
+      "| B001 | checkout/cart | fixed | #47 | Invalid zip accepted | 2026-07-01 | — |",
+    )
+  })
+
+  test("bug lifecycle marks fixed bug regressed and creates a regression candidate", () => {
+    const project = makeProject()
+    writeFileSync(
+      path.join(project.flows, "bugs.md"),
+      `# User Test Bugs
+
+| ID | Area | Status | Issue | Title | Fixed | Regressed |
+|----|------|--------|-------|-------|-------|-----------|
+| B002 | checkout/cart | fixed | #48 | Cart count stale | 2026-06-20 | — |
+`,
+    )
+
+    const result = fullApply(
+      project,
+      basePayload({
+        bug_lifecycle_updates: [
+          {
+            bug_id: "B002",
+            status: "regressed",
+            area: "checkout/cart",
+            title: "Regression of #48: Cart count stale",
+            body: "Cart count is stale again.",
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+
+    expect(result.pending_issues).toHaveLength(1)
+    expect(result.pending_issues[0].title).toBe("Regression of #48: Cart count stale")
+    const bugs = readFileSync(path.join(project.flows, "bugs.md"), "utf8")
+    expect(bugs).toContain(
+      "| B002 | checkout/cart | regressed | #48 | Cart count stale | 2026-06-20 | 2026-07-01 |",
+    )
+    expect(bugs).toContain(
+      "| B003 | checkout/cart | pending | pending | Regression of #48: Cart count stale | — | 2026-07-01 |",
+    )
+  })
+
   test("weakness_class payload state can leave, delete, or update an existing line", () => {
     const withExistingWeakness = (project: ReturnType<typeof makeProject>) => {
       writeFileSync(
@@ -764,5 +1163,54 @@ describe("ce-user-test commit-engine.py issue confirmation recovery", () => {
     expect(result.files_written).toContain("tests/user-flows/bugs.md")
     expect(readFileSync(path.join(project.flows, "bugs.md"), "utf8")).toContain("#222")
     expect(existsSync(journalPath(project))).toBe(false)
+  })
+
+  test("confirm-issues refuses staged journals without patching or discarding them", () => {
+    const project = makeProject()
+    expect(runCommit(project.dir, "plan", payloadPath(project, basePayload())).code).toBe(0)
+    const before = snapshot(project)
+
+    const result = runCommit(
+      project.dir,
+      "confirm-issues",
+      path.join(project.dir, "missing-issues.json"),
+    )
+
+    expect(result.code).toBe(1)
+    expect(result.stdout.trim()).toBe("JOURNAL-NOT-APPLIED")
+    expect(existsSync(journalPath(project))).toBe(true)
+    expect(snapshot(project)).toEqual(before)
+  })
+
+  test("confirm-issues maps bug_id-only updates without sharing a null id key", () => {
+    const project = makeProject()
+    fullApply(
+      project,
+      basePayload({
+        issue_candidates: [
+          {
+            bug_id: "B101",
+            area: "checkout/cart",
+            title: "First bug-id-only issue",
+            body: "first",
+          },
+          {
+            bug_id: "B102",
+            area: "checkout/cart",
+            title: "Second bug-id-only issue",
+            body: "second",
+          },
+        ],
+      }),
+    )
+
+    confirmAll(project, [
+      { bug_id: "B101", number: 301 },
+      { bug_id: "B102", number: 302 },
+    ])
+
+    const bugs = readFileSync(path.join(project.flows, "bugs.md"), "utf8")
+    expect(bugs).toContain("| B101 | checkout/cart | filed | #301 | First bug-id-only issue |")
+    expect(bugs).toContain("| B102 | checkout/cart | filed | #302 | Second bug-id-only issue |")
   })
 })

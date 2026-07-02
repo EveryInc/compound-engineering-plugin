@@ -136,7 +136,7 @@ In iterate mode, show per-query scores across runs:
 
 Per-query scores are stored in `.user-test-last-run.json` under each area's `quality_scores_by_query` field (array of {query, scores[], avg}).
 
-**Interaction with existing probe generation:** Per-query outlier flagging (✗ marker) is cosmetic — it does not trigger additional probe generation beyond what already exists (queries scoring <= 3 already generate probes via commit mode step 8). The flag helps the reader spot the problem; the probe system handles the automated response.
+**Interaction with existing probe generation:** Per-query outlier flagging (✗ marker) is cosmetic — it does not trigger additional probe generation beyond what already exists (queries scoring <= 3 are sharpened into probes before the commit payload is built). The flag helps the reader spot the problem; the probe system handles the durable response.
 
 ### Evaluation Provenance
 
@@ -201,7 +201,7 @@ probe failing 3 times has been observed across at least 2 separate sessions
 at 3 removes the manual confirmation step — the 3-run failure history IS
 the confirmation.
 
-A probe failing for 3+ consecutive runs auto-escalates during commit mode:
+A probe failing for 3+ consecutive runs auto-escalates during commit mode. The agent supplies run results in `probes_run`; the engine applies the mechanical status/history update and creates pending bug candidates:
 
 1. **Dedup check:** If probe already has `escalated_to: "B00N"` field, skip (already filed)
 2. Create a bug entry in `bugs.md` with next sequential ID
@@ -209,7 +209,7 @@ A probe failing for 3+ consecutive runs auto-escalates during commit mode:
 4. Set bug `Found` date from the probe's `Generated From` field
 5. Link probe to bug: add `escalated_to: "B00N"` to probe entry
 6. Probe stays active (keeps running). Bug entry tracks the fix.
-7. If `gh` is not authenticated: file to `bugs.md` with `Issue: ---`. Log warning: "Bug filed locally but GitHub issue not created — run `gh auth login` to sync." On next commit with `gh` authenticated, detect `Issue: ---` entries and offer to file.
+7. If the issue tracker is unavailable, the agent leaves the issue candidate pending and records the filing failure in the session report; `confirm-issues` is retried after the tracker path works.
 
 **Interaction with area-level escalation:** If a probe in the area has been auto-escalated (has `escalated_to` field), suppress the area-level "persistent <= 3 scores" manual escalation offer for that area. The probe-level escalation is more specific and already covers the intent.
 
@@ -369,6 +369,8 @@ Key: `trigger_area + observation_area + verify text`. Same registry-owned overla
 ### Bug Filing
 
 When a cross-area probe escalates (3+ consecutive failures), the bug entry in bugs.md lists the trigger area as primary and the observation area in the summary: "Also affects: <observation_area>". This matches the existing multi-area bug format in bugs-registry.md.
+
+The engine consumes `cross_area_probes_run` from the commit payload to update cross-area probe `Status`, `Run History`, and escalation candidates. The agent decides which new cross-area probes to generate; the engine only persists results for probes that ran.
 
 ### Spot-Check Budget
 

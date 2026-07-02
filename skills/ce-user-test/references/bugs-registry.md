@@ -41,11 +41,13 @@ Each affected area's Known-bug detail references the same bug ID.
 
 ## Commit Mode Updates
 
-After each completed run, commit mode processes the bug registry:
+Before building the commit payload, the agent checks issue state and fix/regression evidence. The engine applies only the mechanical table changes from `bug_lifecycle_updates` and `issue_candidates`.
 
-1. **Check for fixes:** For each `open` bug, check if the area was tested and passed fix_check (score >= `pass_threshold`). Also check `gh issue view <issue-number> --json state -q '.state'` — both must be true (score passes AND issue closed) to mark `fixed`.
-2. **File new bugs:** For each area with UX <= 2 or Quality <= 1, check if a bug already exists for that area. If not, create a new entry with next sequential ID and file a GitHub issue.
-3. **Detect regressions:** For each `fixed` bug, check if the area was tested and failed (score < `pass_threshold`). If so, file a new issue with "Regression of #N", update the bug entry to `regressed` with the date.
+- **Fixes:** For each `open` bug, the agent checks whether the area was tested and passed fix_check (score >= area threshold) and whether the linked issue is closed through the project's issue tracker. If both are true, write a `bug_lifecycle_updates` entry with `status: "fixed"`, `fix_check_passed: true`, and `issue_closed: true`.
+- **New bugs:** For each area with UX <= 2 or Quality <= 1, the agent checks whether a matching bug already exists. If not, include an `issue_candidates` entry; the engine creates the next sequential bug row and the agent files the issue after apply.
+- **Regressions:** For each `fixed` bug, the agent checks whether the area was tested and failed. If so, write a `bug_lifecycle_updates` entry with `status: "regressed"` and include the regression title/body evidence; the engine updates the original bug row and creates a pending regression candidate.
+
+The engine owns row IDs, dates, status cells, and issue-number writeback. It does not call `gh` or decide whether a fix is accepted.
 
 ## File Creation
 

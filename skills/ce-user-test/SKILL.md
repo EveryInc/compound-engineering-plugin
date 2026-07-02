@@ -318,7 +318,7 @@ SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read
 python3 "$SKILL_DIR/scripts/commit-engine.py" status <scenario-slug>
 ```
 
-If the expected scenario slug is not known yet, omit it. Act on the first stdout line: `NO-JOURNAL` -> continue from `.user-test-last-run.json`; `JOURNAL-EXISTS` -> resume or rollback the existing journal before planning; `APPLIED` or `ISSUES-PENDING` -> continue the issue-confirmation path; `STALE-WARN` -> ask whether to resume, then pass `--acknowledge-stale` to `resume` or `confirm-issues` if the user agrees; `STALE-ROLLBACK-DEFAULT` -> offer rollback as the default, or pass `--acknowledge-stale` to `resume` only if the user explicitly chooses to override the default; `FOREIGN-JOURNAL <scenario>`, `BASE-HASH-MISMATCH`, or `STAGED-INTEGRITY-FAILURE` -> stop and present the engine details.
+If the expected scenario slug is not known yet, omit it. Act on the first stdout line: `NO-JOURNAL` -> continue from `.user-test-last-run.json`; `JOURNAL-EXISTS` -> resume or rollback the existing journal before planning; `APPLIED` or `ISSUES-PENDING` -> continue the issue-confirmation path; `STALE-WARN` -> ask whether to resume, then pass `--acknowledge-stale` to `apply`, `resume`, or `confirm-issues` if the user agrees; `STALE-ROLLBACK-DEFAULT` -> offer rollback as the default, or pass `--acknowledge-stale` to `resume` only if the user explicitly chooses to override the default; `FOREIGN-JOURNAL <scenario>`, `BASE-HASH-MISMATCH`, or `STAGED-INTEGRITY-FAILURE` -> stop and present the engine details.
 
 ### Maturity Updates
 
@@ -340,6 +340,10 @@ Resolve every interactive judgment before writing any file:
 2. Collect CLI-graduation choices for stable passing probes — see [probes.md](./references/probes.md).
 3. Collect persistent <=3 escalation choices for repeated low scores with the same issue.
 4. Record skip reasons for every area that was not fully tested.
+5. For bug lifecycle, check issue state and fix-check/regression evidence outside the engine, then write `bug_lifecycle_updates` in the payload. The engine mutates `bugs.md` and creates any regression issue candidates.
+6. For query compounding, decide which failed queries become probes and which discoveries become new queries before building the payload. The engine only applies mechanical query `Status` transitions from `query_results`.
+7. Record only selectors confirmed by a successful batch verification call in each area's `confirmed_selectors`; the engine appends them to the `verify:` block.
+8. Record cross-area probe and journey executions in `cross_area_probes_run` and `journeys_run`; the engine updates their persistent status, run history, and escalation candidates.
 
 Good issue titles name the failing behavior and the user-visible impact. Good bodies include steps, expected behavior, actual behavior, evidence from the run, and any verification/probe context. Never persist credentials, tokens, session IDs, or private user data in issue bodies or test files.
 
@@ -360,7 +364,16 @@ SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read
 python3 "$SKILL_DIR/scripts/issue-dedup.py" "<candidate-title>" <corpus-json>
 ```
 
-Build `tests/user-flows/.user-test-commit-payload.json` with the completed judgments: scenario slug, test-file path, run timestamp, per-area scores and skip reasons, maturity decisions plus the consecutive-pass evidence the decision expects, issue candidates plus dedup verdicts, tactical notes, probe outcomes, novelty fingerprints, journeys, and any graduation choices.
+Build `tests/user-flows/.user-test-commit-payload.json` with the completed judgments and run evidence:
+
+- Scenario metadata: `scenario_slug`, `test_file`, `run_timestamp`, run number when known.
+- Area results: score fields, `skip_reason` for skipped areas, maturity decisions plus the consecutive-pass evidence the decision expects, `tactical_note`, `weakness_class` (`null`/absent leaves unchanged, `""` deletes, non-empty upserts), `confirmed_selectors`, and `novelty_fingerprints`.
+- Probe evidence: per-area `probes_run` and generated probes, plus scenario-level `cross_area_probes_run`.
+- Journey evidence: `journeys_run` entries with journey id/status/failed step/detail.
+- Query evidence: `query_results` with per-query score and consecutive evidence; sharpened failed-query probes and discovery-driven new queries are judgment inputs, not engine inference.
+- Bug lifecycle: `bug_lifecycle_updates` from agent-side issue-state and fix-check/regression evidence.
+- Issues: `issue_candidates` with dedup verdicts, including regression candidates that should be filed after apply.
+- Signals: disconnects, UX opportunities, good patterns, and any graduation choices.
 
 ### Engine Plan And Apply
 
@@ -383,11 +396,13 @@ SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read
 python3 "$SKILL_DIR/scripts/commit-engine.py" confirm-issues <issues-json>
 ```
 
+If `confirm-issues` returns `JOURNAL-NOT-APPLIED`, run `status` and resume/apply first. Do not retry confirmation until the engine reports `APPLIED` or `ISSUES-PENDING`.
+
 Render FILED THIS SESSION and SIGNALS from the structured result JSON returned by `apply` and `confirm-issues`. The engine owns schema normalization, caps, rotations, delta computation, history updates, bug registry rows, probe status updates, fingerprint merge, first-run artifact creation, journaled writes, and rollback.
 
 ### Recovery
 
-If `apply`, `resume`, or `status` returns `BASE-HASH-MISMATCH`, `FOREIGN-JOURNAL`, or `STAGED-INTEGRITY-FAILURE`, stop and present the sentinel plus details. If it returns `STALE-WARN`, ask whether to resume and rerun the chosen `resume` or `confirm-issues` command with `--acknowledge-stale`. If it returns `STALE-ROLLBACK-DEFAULT`, offer rollback as the default action; only resume with `--acknowledge-stale` after an explicit override. Rollback is allowed from any pre-confirmed state:
+If `apply`, `resume`, or `status` returns `BASE-HASH-MISMATCH`, `FOREIGN-JOURNAL`, or `STAGED-INTEGRITY-FAILURE`, stop and present the sentinel plus details. If it returns `STALE-WARN`, ask whether to resume and rerun the chosen `apply`, `resume`, or `confirm-issues` command with `--acknowledge-stale`. If it returns `STALE-ROLLBACK-DEFAULT`, offer rollback as the default action; only resume with `--acknowledge-stale` after an explicit override. Rollback is allowed from any pre-confirmed state:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"

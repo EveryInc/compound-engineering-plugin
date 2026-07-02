@@ -96,7 +96,7 @@ Include `Tools` and `Results` columns in the CLI Speed table. Tool call spike fl
 
 ## During Commit
 
-### Tactical Notes (Commit Mode Step 1)
+### Tactical Notes
 
 After scoring, commit mode may append a short tactical note to the area's Notes column in the Areas table. Format: `[Run N] <finding>`.
 
@@ -111,21 +111,21 @@ After scoring, commit mode may append a short tactical note to the area's Notes 
 
 In `.user-test-last-run.json`, `tactical_note: null` means skip Notes update for this area.
 
-### Query Compounding (Steps 8-10)
+### Query Judgment Before Payload
 
-These steps run AFTER existing commit mode steps 1-7.
+Before building the commit payload, the agent decides which query findings should become durable coverage.
 
-**8. Sharpen Queries from failures:** For each Query that scored ≤ 3, generate an adversarial probe targeting the specific gap. The probe goes in the area's `**Probes:**` table (not the `**Queries:**` table). One failed query generates one probe. Probe fields: query = adversarial version, verify = specific gap observed, status = untested, generated_from = "run-N query failure: <query text>". Existing probe dedup uses the overlap threshold in `../scripts/caps-registry.json`.
+**Sharpen Queries from failures:** For each Query that scored ≤ 3, generate an adversarial probe targeting the specific gap. The probe goes in the area's `**Probes:**` table (not the `**Queries:**` table). One failed query generates one probe. Probe fields: query = adversarial version, verify = specific gap observed, status = untested, generated_from = "run-N query failure: <query text>". Existing probe dedup uses the overlap threshold in `../scripts/caps-registry.json`.
 
 Example: "earth tones" scored 3 because results were generic neutrals → Probe: query "terracotta and rust specifically", verify "results include warm red/orange tones, not beige/cream."
 
-**9. Expand Queries from discovery:** If exploration (checklist step 3) revealed an interesting interaction the existing Queries don't cover, add it as a new Query in the `**Queries:**` table with Ideal Outcome and Check columns filled from what was observed. New queries are exploratory — they'll be scored next run and may themselves generate probes if they fail.
+**Expand Queries from discovery:** If exploration (checklist step 3) revealed an interesting interaction the existing Queries don't cover, add it as a new Query in the `**Queries:**` table with Ideal Outcome and Check columns filled from what was observed. New queries are exploratory — they'll be scored next run and may themselves generate probes if they fail.
 
-**10. Mark stable Queries:** If a Query has scored 5/5 for 3+ consecutive runs (commit-level, not per-iterate-run), update Status to `[stable]`. Stable queries shift to CLI-only execution — no browser testing. This frees browser time for novelty exploration. See Step 12 below for full rotation rules.
+**Persist CLI consistency patterns:** Persist a CLI observation to the area's Notes column on first sighting. Mark it `[confirmed]` if the pattern holds on the next run (same quality score range on the same query type). Remove if contradicted. Detection: compare this run's per-query CLI scores against the pattern claim — e.g., "strong on single-intent" is confirmed if single-intent CLI queries scored >= 4 again. Only persist patterns that are specific and actionable (not "sometimes works").
 
-**11. Persist CLI consistency patterns:** Persist a CLI observation to the area's Notes column on first sighting. Mark it `[confirmed]` if the pattern holds on the next run (same quality score range on the same query type). Remove if contradicted. Detection: compare this run's per-query CLI scores against the pattern claim — e.g., "strong on single-intent" is confirmed if single-intent CLI queries scored >= 4 again. Only persist patterns that are specific and actionable (not "sometimes works").
+### Query Status Mechanics
 
-### Step 12: Rotate Query Status
+The commit engine consumes payload `query_results` and updates Query table `Status` cells mechanically. The agent supplies scores and consecutive-count evidence; the engine does not decide what to sharpen or expand.
 
 Transition rules (applied per-query, commit mode only):
 
@@ -150,7 +150,7 @@ Transition rules (applied per-query, commit mode only):
 
 **Data source:** The `scores` array in `quality_by_query` (see `score-history.json`) stores one entry per commit, not per iterate run. For iterate sessions, record the aggregate query score as a single entry. Consecutive count = length of the leading streak of 5s in the array (most recent first).
 
-Commit mode marks status automatically based on run history — no manual project-file edits needed.
+The engine marks status automatically based on payload evidence — no manual project-file edits needed.
 
 ## Novelty Budget
 

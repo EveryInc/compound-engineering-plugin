@@ -3,7 +3,7 @@
 
 Usage:
     python3 commit-engine.py plan <payload-json-file>
-    python3 commit-engine.py apply
+    python3 commit-engine.py apply [--acknowledge-stale]
     python3 commit-engine.py resume [--acknowledge-stale]
     python3 commit-engine.py rollback [--acknowledge-stale]
     python3 commit-engine.py confirm-issues <issues-json-file> [--acknowledge-stale]
@@ -76,7 +76,7 @@ def stderr(message: str) -> None:
 
 def usage() -> int:
     stderr(
-        "usage: commit-engine.py plan <payload-json-file> | apply | "
+        "usage: commit-engine.py plan <payload-json-file> | apply [--acknowledge-stale] | "
         "resume [--acknowledge-stale] | rollback [--acknowledge-stale] | "
         "confirm-issues <issues-json-file> [--acknowledge-stale] | "
         "status [expected-scenario-slug]"
@@ -314,9 +314,53 @@ def find_table(lines: list[str], required: set[str]) -> int | None:
     return None
 
 
+def section_range(lines: list[str], heading: str) -> tuple[int, int] | None:
+    start = None
+    for index, line in enumerate(lines):
+        if line.strip() == heading:
+            start = index
+            break
+    if start is None:
+        return None
+    level = len(heading) - len(heading.lstrip("#"))
+    end = len(lines)
+    for index in range(start + 1, len(lines)):
+        if not lines[index].startswith("#"):
+            continue
+        next_level = len(lines[index]) - len(lines[index].lstrip("#"))
+        if next_level <= level:
+            end = index
+            break
+    return start, end
+
+
+def find_table_in_range(lines: list[str], start: int, end: int, required: set[str]) -> int | None:
+    for index in range(start, end):
+        if not lines[index].lstrip().startswith("|"):
+            continue
+        headers = set(cells(lines[index]))
+        if required.issubset(headers):
+            return index
+    return None
+
+
 def set_cell(row: list[str], headers: list[str], name: str, value: Any) -> None:
     if name in headers:
         row[headers.index(name)] = str(value)
+
+
+def set_first_available_cell(row: list[str], headers: list[str], names: list[str], value: Any) -> None:
+    for name in names:
+        if name in headers:
+            row[headers.index(name)] = str(value)
+            return
+
+
+def get_first_available_cell(row: list[str], headers: list[str], names: list[str]) -> str:
+    for name in names:
+        if name in headers and headers.index(name) < len(row):
+            return row[headers.index(name)]
+    return ""
 
 
 def markdown_lines(text: str) -> tuple[list[str], bool]:
@@ -584,7 +628,275 @@ def update_weakness_classes(lines: list[str], payload: dict[str, Any]) -> None:
                 lines.insert(insert_at + 1, f"**weakness_class:** {weakness}")
 
 
-def update_test_file(payload: dict[str, Any], score_history_after: dict[str, Any]) -> tuple[str, dict[str, Any]]:
+def append_confirmed_selectors(lines: list[str], payload: dict[str, Any]) -> None:
+    run_number = payload.get("run_number", 1)
+    for area in payload.get("areas", []):
+        selectors = area.get("confirmed_selectors")
+        if not isinstance(selectors, dict) or not selectors:
+            continue
+        area_range = section_range(lines, f"### {area['slug']}")
+        if area_range is None:
+            continue
+        start, end = area_range
+        verify_index = None
+        for index in range(start + 1, end):
+            if lines[index].startswith("**verify:**"):
+                verify_index = index
+                break
+        if verify_index is None:
+            insert_at = start + 1
+            lines[insert_at:insert_at] = ["", "**verify:**"]
+            verify_index = insert_at + 1
+            end += 2
+        insert_at = verify_index + 1
+        while insert_at < end and not lines[insert_at].startswith("**"):
+            insert_at += 1
+        rendered = ["- Confirmed selectors:"]
+        for name, selector in selectors.items():
+            rendered.append(f"  {name} (`{selector}`)")
+        rendered.append(f"  _Selectors confirmed run {run_number}._")
+        lines[insert_at:insert_at] = rendered + [""]
+
+
+def file_cli_command_present(text: str | None) -> bool:
+    if not text:
+        return False
+    lines, _ = markdown_lines(text)
+    if not lines or lines[0].strip() != "---":
+        return False
+    for line in lines[1:]:
+        if line.strip() == "---":
+            return False
+        match = re.match(r"^cli_test_command\s*:\s*(.*)$", line.strip())
+        if not match:
+            continue
+        value = match.group(1).strip().strip("'\"")
+        return bool(value)
+    return False
+
+
+def update_query_statuses(lines: list[str], payload: dict[str, Any], test_file_text: str | None) -> None:
+    file_cli_present = file_cli_command_present(test_file_text)
+    for result in payload.get("query_results", []):
+        area_slug = result.get("area")
+        query = result.get("query")
+        if not isinstance(area_slug, str) or not isinstance(query, str):
+            continue
+        area_range = section_range(lines, f"### {area_slug}")
+        if area_range is None:
+            continue
+        table = find_table_in_range(lines, area_range[0], area_range[1], {"Query", "Status"})
+        if table is None:
+            continue
+        headers = cells(lines[table])
+        end = table_end(lines, table)
+        for index in range(table + 2, end):
+            row = cells(lines[index])
+            if len(row) < len(headers):
+                row.extend([""] * (len(headers) - len(row)))
+            if row[headers.index("Query")] != query:
+                continue
+            status = row[headers.index("Status")] or "active"
+            score = result.get("score")
+            consecutive = int(result.get("consecutive_successes", 0) or 0)
+            soft_regressions = int(result.get("consecutive_soft_regressions", 0) or 0)
+            cli_present = bool(result.get("cli_test_command_present", file_cli_present))
+            next_status = status
+            if status == "[retired]" and not cli_present:
+                next_status = "[stable]"
+            elif status == "[stable]" and isinstance(score, (int, float)) and score <= 3:
+                next_status = "active"
+            elif status == "[stable]" and soft_regressions >= 2:
+                next_status = "active"
+            elif isinstance(score, (int, float)) and score == 5 and consecutive >= 10 and cli_present:
+                next_status = "[retired]"
+            elif isinstance(score, (int, float)) and score == 5 and consecutive >= 3:
+                next_status = "[stable]"
+            set_cell(row, headers, "Status", next_status)
+            lines[index] = render_row(row)
+            break
+
+
+def update_area_probe_tables(lines: list[str], payload: dict[str, Any]) -> tuple[int, list[dict[str, Any]]]:
+    probe_rotations = 0
+    issue_candidates: list[dict[str, Any]] = []
+    probe_updates = [(probe, True) for probe in payload.get("probes_run", [])]
+    probe_updates.extend((probe, False) for probe in payload.get("probes_generated", []))
+    for probe, was_run in probe_updates:
+        area_slug = probe.get("area")
+        if not isinstance(area_slug, str):
+            continue
+        area_range = section_range(lines, f"### {area_slug}")
+        if area_range is None:
+            continue
+        table = find_table_in_range(lines, area_range[0], area_range[1], {"Query", "Verify", "Status", "Run History"})
+        if table is None:
+            continue
+        headers = cells(lines[table])
+        end = table_end(lines, table)
+        target_index = None
+        for index in range(table + 2, end):
+            row = cells(lines[index])
+            if len(row) < len(headers):
+                row.extend([""] * (len(headers) - len(row)))
+            if (
+                row[headers.index("Query")] == probe.get("query")
+                and row[headers.index("Verify")] == probe.get("verify")
+            ):
+                target_index = index
+                break
+        if target_index is None:
+            row = ["" for _ in headers]
+            set_cell(row, headers, "Query", probe.get("query", ""))
+            set_cell(row, headers, "Verify", probe.get("verify", ""))
+            set_cell(row, headers, "Priority", probe.get("priority", "P1"))
+            set_cell(row, headers, "Confidence", probe.get("confidence", "high"))
+            set_cell(row, headers, "Generated From", probe.get("generated_from", "run result"))
+            lines.insert(end, render_row(row))
+            target_index = end
+        row = cells(lines[target_index])
+        if len(row) < len(headers):
+            row.extend([""] * (len(headers) - len(row)))
+        set_cell(row, headers, "Status", probe.get("status", "untested"))
+        if "Run History" in headers and was_run:
+            history = [token.strip() for token in row[headers.index("Run History")].split(",") if token.strip()]
+            history.insert(0, "P" if probe.get("status") == "passing" else "F")
+            cap = int(cap_value("probe_run_history_cap"))
+            if len(history) > cap:
+                probe_rotations += len(history) - cap
+            row[headers.index("Run History")] = ",".join(history[:cap])
+        lines[target_index] = render_row(row)
+    return probe_rotations, issue_candidates
+
+
+def update_cross_area_probes(lines: list[str], payload: dict[str, Any]) -> tuple[int, list[dict[str, Any]]]:
+    rotations = 0
+    issue_candidates: list[dict[str, Any]] = []
+    table = table_after_heading(lines, "Cross-Area Probes")
+    if table is None:
+        return rotations, issue_candidates
+    headers = cells(lines[table])
+    end = table_end(lines, table)
+    for probe in payload.get("cross_area_probes_run", []):
+        target_index = None
+        for index in range(table + 2, end):
+            row = cells(lines[index])
+            if len(row) < len(headers):
+                row.extend([""] * (len(headers) - len(row)))
+            if (
+                row[headers.index("Trigger Area")] == probe.get("trigger_area")
+                and row[headers.index("Action")] == probe.get("action")
+                and row[headers.index("Observation Area")] == probe.get("observation_area")
+                and row[headers.index("Verify")] == probe.get("verify")
+            ):
+                target_index = index
+                break
+        if target_index is None:
+            row = ["" for _ in headers]
+            set_cell(row, headers, "Trigger Area", probe.get("trigger_area", ""))
+            set_cell(row, headers, "Action", probe.get("action", ""))
+            set_cell(row, headers, "Observation Area", probe.get("observation_area", ""))
+            set_cell(row, headers, "Verify", probe.get("verify", ""))
+            set_cell(row, headers, "Priority", probe.get("priority", "P1"))
+            set_cell(row, headers, "Confidence", probe.get("confidence", "high"))
+            set_cell(row, headers, "Generated From", probe.get("generated_from", "run result"))
+            lines.insert(end, render_row(row))
+            target_index = end
+            end += 1
+        row = cells(lines[target_index])
+        if len(row) < len(headers):
+            row.extend([""] * (len(headers) - len(row)))
+        set_cell(row, headers, "Status", probe.get("status", "untested"))
+        history = []
+        if "Run History" in headers:
+            history = [token.strip() for token in row[headers.index("Run History")].split(",") if token.strip()]
+            history.append("P" if probe.get("status") == "passing" else "F")
+            cap = int(cap_value("cross_area_probe_run_history_cap"))
+            if len(history) > cap:
+                rotations += len(history) - cap
+            row[headers.index("Run History")] = ",".join(history[-cap:])
+        lines[target_index] = render_row(row)
+        if probe.get("status") == "failing" and history[-3:] == ["F", "F", "F"]:
+            issue_candidates.append(
+                {
+                    "id": f"cross-area-{len(issue_candidates) + 1}",
+                    "area": probe.get("trigger_area", ""),
+                    "title": f"Cross-area probe failed: {probe.get('verify', '')}",
+                    "body": probe.get("result_detail", probe.get("verify", "")),
+                }
+            )
+    return rotations, issue_candidates
+
+
+def journey_token(result: dict[str, Any]) -> str:
+    status = result.get("status")
+    if status == "passing":
+        return "P"
+    failed_step = result.get("failed_step")
+    if not isinstance(failed_step, int):
+        for checkpoint in result.get("checkpoints", []):
+            if isinstance(checkpoint, dict) and checkpoint.get("passed") is False:
+                failed_step = checkpoint.get("step")
+                break
+    return f"F:{failed_step}" if isinstance(failed_step, int) else "F"
+
+
+def update_journeys(lines: list[str], payload: dict[str, Any]) -> list[dict[str, Any]]:
+    issue_candidates: list[dict[str, Any]] = []
+    run_date = payload["run_timestamp"][:10]
+    for result in payload.get("journeys_run", []):
+        journey_id = result.get("id")
+        if not isinstance(journey_id, str):
+            continue
+        heading = None
+        for index, line in enumerate(lines):
+            if line.startswith(f"### {journey_id}:"):
+                heading = index
+                break
+        if heading is None:
+            continue
+        end = len(lines)
+        for index in range(heading + 1, len(lines)):
+            if lines[index].startswith("### ") or lines[index].startswith("## "):
+                end = index
+                break
+        fields: dict[str, int] = {}
+        for index in range(heading + 1, end):
+            match = re.match(r"^\*\*(Status|Last Run|Run History):\*\*\s*(.*)$", lines[index])
+            if match:
+                fields[match.group(1)] = index
+        token = journey_token(result)
+        previous_history = ""
+        if "Run History" in fields:
+            previous_history = lines[fields["Run History"]].split("**", 2)[-1].strip()
+            previous_history = previous_history if previous_history != "---" else ""
+        history = [item for item in previous_history.split() if item]
+        history.append(token)
+        status = result.get("status", "untested")
+        if token == "P":
+            status = "stable" if len(history) >= 5 and history[-5:] == ["P"] * 5 else "passing"
+        elif token.startswith("F:"):
+            status = f"failing-at-{token.split(':', 1)[1]}"
+        if "Status" in fields:
+            lines[fields["Status"]] = f"**Status:** {status}"
+        if "Last Run" in fields:
+            lines[fields["Last Run"]] = f"**Last Run:** {run_date}"
+        if "Run History" in fields:
+            lines[fields["Run History"]] = f"**Run History:** {' '.join(history)}"
+        if token.startswith("F:") and history[-3:] == [token, token, token]:
+            failed_step = token.split(":", 1)[1]
+            issue_candidates.append(
+                {
+                    "id": f"journey-{journey_id}",
+                    "area": result.get("failed_area", ""),
+                    "title": f"Journey {journey_id} failed at step {failed_step}",
+                    "body": result.get("result_detail", ""),
+                }
+            )
+    return issue_candidates
+
+
+def update_test_file(payload: dict[str, Any], score_history_after: dict[str, Any], test_file_text_before: str | None) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
     path = resolve(payload["test_file"])
     text = read_text(path)
     if text is None:
@@ -643,60 +955,23 @@ def update_test_file(payload: dict[str, Any], score_history_after: dict[str, Any
             lines.insert(end, render_row(row))
             end += 1
 
-    probe_rotations = 0
-    probe_table = find_table(lines, {"Query", "Verify", "Status", "Run History"})
-    if probe_table is not None:
-        headers = cells(lines[probe_table])
-        end = table_end(lines, probe_table)
-        probe_updates = []
-        for probe in payload.get("probes_run", []):
-            probe_updates.append((probe, True))
-        for probe in payload.get("probes_generated", []):
-            probe_updates.append((probe, False))
-        for probe, was_run in probe_updates:
-            target_index = None
-            for index in range(probe_table + 2, end):
-                row = cells(lines[index])
-                if len(row) < len(headers):
-                    row.extend([""] * (len(headers) - len(row)))
-                if (
-                    row[headers.index("Query")] == probe.get("query")
-                    and row[headers.index("Verify")] == probe.get("verify")
-                ):
-                    target_index = index
-                    break
-            if target_index is None:
-                row = ["" for _ in headers]
-                set_cell(row, headers, "Query", probe.get("query", ""))
-                set_cell(row, headers, "Verify", probe.get("verify", ""))
-                set_cell(row, headers, "Priority", probe.get("priority", "P1"))
-                set_cell(row, headers, "Confidence", probe.get("confidence", "high"))
-                set_cell(row, headers, "Generated From", probe.get("generated_from", "run result"))
-                lines.insert(end, render_row(row))
-                target_index = end
-                end += 1
-            row = cells(lines[target_index])
-            if len(row) < len(headers):
-                row.extend([""] * (len(headers) - len(row)))
-            set_cell(row, headers, "Status", probe.get("status", "untested"))
-            if "Run History" in headers and was_run:
-                history = [
-                    token.strip()
-                    for token in row[headers.index("Run History")].split(",")
-                    if token.strip()
-                ]
-                history.insert(0, "P" if probe.get("status") == "passing" else "F")
-                cap = int(cap_value("probe_run_history_cap"))
-                if len(history) > cap:
-                    probe_rotations += len(history) - cap
-                row[headers.index("Run History")] = ",".join(history[:cap])
-            lines[target_index] = render_row(row)
+    probe_rotations, probe_candidates = update_area_probe_tables(lines, payload)
+    cross_area_rotations, cross_area_candidates = update_cross_area_probes(lines, payload)
+    if cross_area_rotations:
+        probe_rotations += cross_area_rotations
 
+    update_query_statuses(lines, payload, test_file_text_before)
+    append_confirmed_selectors(lines, payload)
     update_area_trends_section(lines, score_history_after)
     update_ux_opportunities_section(lines, payload)
     update_good_patterns_section(lines, payload)
     update_weakness_classes(lines, payload)
-    return join_markdown(lines, final), {"probe_run_history": probe_rotations}
+    journey_candidates = update_journeys(lines, payload)
+    return join_markdown(lines, final), {"probe_run_history": probe_rotations}, [
+        *probe_candidates,
+        *cross_area_candidates,
+        *journey_candidates,
+    ]
 
 
 def load_score_history(path: str) -> dict[str, Any]:
@@ -812,8 +1087,9 @@ def update_test_history(
     previous_scores = previous_area_scores(score_history_before)
     overlap = [slug for slug in current_scores if slug in previous_scores]
     if overlap:
+        current_overlap_avg = sum(current_scores[slug] for slug in overlap) / len(overlap)
         prev_avg = sum(previous_scores[slug] for slug in overlap) / len(overlap)
-        delta_value = avg - prev_avg
+        delta_value = current_overlap_avg - prev_avg
         delta = f"{delta_value:+.1f}"
     else:
         delta_value = None
@@ -865,7 +1141,7 @@ def next_bug_id(existing_rows: list[list[str]], headers: list[str]) -> int:
     return (max(found) + 1) if found else 1
 
 
-def update_bugs(payload: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
+def update_bugs(payload: dict[str, Any], derived_candidates: list[dict[str, Any]] | None = None) -> tuple[str, list[dict[str, Any]]]:
     path = resolve("tests/user-flows/bugs.md")
     text = read_text(path)
     if text is None:
@@ -879,10 +1155,52 @@ def update_bugs(payload: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
     headers = cells(lines[table])
     end = table_end(lines, table)
     existing = [cells(line) for line in lines[table + 2 : end]]
+    for row in existing:
+        if len(row) < len(headers):
+            row.extend([""] * (len(headers) - len(row)))
     next_id = next_bug_id(existing, headers)
     journal_candidates: list[dict[str, Any]] = []
-    new_rows: list[str] = []
-    for candidate in payload.get("issue_candidates", []):
+    run_date = payload["run_timestamp"][:10]
+    rows_by_id = {
+        row[headers.index("ID")]: row
+        for row in existing
+        if "ID" in headers and headers.index("ID") < len(row)
+    }
+    regression_candidates: list[dict[str, Any]] = []
+    for update in payload.get("bug_lifecycle_updates", []):
+        bug_id = update.get("bug_id")
+        if not isinstance(bug_id, str):
+            continue
+        row = rows_by_id.get(bug_id)
+        if row is None:
+            continue
+        desired = update.get("status")
+        if desired == "fixed" and update.get("fix_check_passed") and update.get("issue_closed"):
+            set_cell(row, headers, "Status", "fixed")
+            set_cell(row, headers, "Fixed", update.get("fixed_date", run_date))
+        elif desired == "regressed":
+            set_cell(row, headers, "Status", "regressed")
+            set_cell(row, headers, "Regressed", update.get("regressed_date", run_date))
+            original_issue = get_first_available_cell(row, headers, ["Issue"])
+            title = update.get("title") or f"Regression of {original_issue}: {get_first_available_cell(row, headers, ['Title', 'Summary'])}"
+            regression_candidates.append(
+                {
+                    "id": update.get("id") or f"regression-{bug_id}",
+                    "area": update.get("area") or get_first_available_cell(row, headers, ["Area"]),
+                    "title": title,
+                    "body": update.get("body", title),
+                    "regression_of": bug_id,
+                    "regressed_date": update.get("regressed_date", run_date),
+                }
+            )
+
+    new_rows: list[list[str]] = []
+    all_candidates = [
+        *payload.get("issue_candidates", []),
+        *(derived_candidates or []),
+        *regression_candidates,
+    ]
+    for candidate in all_candidates:
         bug_id = candidate.get("bug_id") or f"B{next_id:03d}"
         next_id += 1
         row = ["" for _ in headers]
@@ -890,21 +1208,93 @@ def update_bugs(payload: dict[str, Any]) -> tuple[str, list[dict[str, Any]]]:
         set_cell(row, headers, "Area", candidate.get("area", ""))
         set_cell(row, headers, "Status", "pending")
         set_cell(row, headers, "Issue", "pending")
-        set_cell(row, headers, "Title", candidate.get("title", ""))
-        new_rows.append(render_row(row))
+        set_first_available_cell(row, headers, ["Title", "Summary"], candidate.get("title", ""))
+        set_cell(row, headers, "Fixed", candidate.get("fixed_date", EM_DASH))
+        set_cell(row, headers, "Regressed", candidate.get("regressed_date", EM_DASH))
+        new_rows.append(row)
         saved = dict(candidate)
         saved["bug_id"] = bug_id
         saved["status"] = candidate.get("status", "pending")
         journal_candidates.append(saved)
-    lines[table:end] = [render_row(headers), render_separator(headers), *lines[table + 2 : end], *new_rows]
+    lines[table:end] = [
+        render_row(headers),
+        render_separator(headers),
+        *[render_row(row) for row in existing],
+        *[render_row(row) for row in new_rows],
+    ]
     return join_markdown(lines), journal_candidates
+
+
+RUN_JSON_ARRAY_KEYS = [
+    "ux_opportunities",
+    "good_patterns",
+    "verification_results",
+    "probes_run",
+    "probes_generated",
+    "cross_area_probes_run",
+    "journeys_run",
+    "explore_next_run",
+    "novelty_log",
+    "stable_queries_rotated",
+]
+
+
+RUN_JSON_AREA_DEFAULTS = {
+    "tactical_note": None,
+    "confirmed_selectors": {},
+    "weakness_class": None,
+    "adversarial_browser": False,
+    "adversarial_trigger": None,
+}
+
+
+def merge_areas_for_last_run(existing: dict[str, Any], payload: dict[str, Any]) -> list[dict[str, Any]]:
+    existing_by_slug = {
+        area.get("slug"): deepcopy(area)
+        for area in existing.get("areas", [])
+        if isinstance(area, dict) and isinstance(area.get("slug"), str)
+    }
+    merged: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for payload_area in payload.get("areas", []):
+        if not isinstance(payload_area, dict) or not isinstance(payload_area.get("slug"), str):
+            continue
+        slug = payload_area["slug"]
+        area = existing_by_slug.get(slug, {"slug": slug})
+        area.update(payload_area)
+        for key, value in RUN_JSON_AREA_DEFAULTS.items():
+            if key not in area:
+                area[key] = dict(value) if isinstance(value, dict) else value
+        merged.append(area)
+        seen.add(slug)
+    for slug, area in existing_by_slug.items():
+        if slug not in seen:
+            for key, value in RUN_JSON_AREA_DEFAULTS.items():
+                if key not in area:
+                    area[key] = dict(value) if isinstance(value, dict) else value
+            merged.append(area)
+    return merged
 
 
 def merge_last_run(payload: dict[str, Any]) -> str:
     path = resolve("tests/user-flows/.user-test-last-run.json")
     existing = load_json_file(path) if os.path.exists(path) else {}
-    doc = deepcopy(payload)
+    if not isinstance(existing, dict):
+        existing = {}
+    doc = deepcopy(existing)
+    doc["run_timestamp"] = payload["run_timestamp"]
+    doc["completed"] = existing.get("completed") if isinstance(existing.get("completed"), bool) else True
+    doc["scenario_slug"] = payload["scenario_slug"]
+    doc["areas"] = merge_areas_for_last_run(existing, payload)
+    for key in RUN_JSON_ARRAY_KEYS:
+        doc[key] = deepcopy(payload.get(key, existing.get(key, [])))
+        if not isinstance(doc[key], list):
+            doc[key] = []
+    if "disconnects" not in doc or not isinstance(doc.get("disconnects"), dict):
+        doc["disconnects"] = {"count": 0, "contexts": []}
     merged = deepcopy(existing.get("novelty_fingerprints", {})) if isinstance(existing, dict) else {}
+    if not isinstance(merged, dict):
+        merged = {}
     cap = int(cap_value("novelty_fingerprints_per_area_cap"))
     for area, values in payload.get("novelty_fingerprints", {}).items():
         current = list(merged.get(area, []))
@@ -921,9 +1311,11 @@ def build_mutations(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], dict
     test_file_text_before = read_text(resolve(payload["test_file"]))
     thresholds = threshold_map(payload, test_file_text_before)
     score_history_text, score_before, score_rotations, score_after = update_score_history(payload)
-    test_file_text, probe_rotations = update_test_file(payload, score_after)
+    test_file_text, probe_rotations, derived_issue_candidates = update_test_file(
+        payload, score_after, test_file_text_before
+    )
     test_history_text, history_rotations = update_test_history(payload, score_before, thresholds)
-    bugs_text, issue_candidates = update_bugs(payload)
+    bugs_text, issue_candidates = update_bugs(payload, derived_issue_candidates)
     last_run_text = merge_last_run(payload)
     for source in (probe_rotations, score_rotations, history_rotations):
         rotations.update(source)
@@ -1170,11 +1562,13 @@ def apply_remaining(journal: dict[str, Any]) -> int:
     return print_json_sentinel("APPLIED", journal["result"])
 
 
-def command_apply() -> int:
+def command_apply(acknowledge_stale: bool = False) -> int:
     journal = load_journal()
     if journal is None:
         print("NO-JOURNAL")
         return 0
+    check_concurrent(journal)
+    check_staleness(journal, acknowledge_stale)
     if journal.get("state") == "applied":
         return print_pending_or_noop(journal)
     return apply_remaining(journal)
@@ -1294,12 +1688,15 @@ def command_confirm_issues(issues_file: str, acknowledge_stale: bool = False) ->
         return 0
     check_concurrent(journal)
     check_staleness(journal, acknowledge_stale)
+    if journal.get("state") != "applied":
+        print("JOURNAL-NOT-APPLIED")
+        return 1
     issues_doc = load_json_file(issues_file)
     issues = issues_doc.get("issues") if isinstance(issues_doc, dict) else None
     if not isinstance(issues, list):
         raise UsageFailure("issues json must contain an issues array")
-    by_id = {item.get("id"): item for item in issues if isinstance(item, dict)}
-    by_bug = {item.get("bug_id"): item for item in issues if isinstance(item, dict)}
+    by_id = {item["id"]: item for item in issues if isinstance(item, dict) and "id" in item}
+    by_bug = {item["bug_id"]: item for item in issues if isinstance(item, dict) and "bug_id" in item}
     for candidate in journal.get("issue_candidates", []):
         update = by_id.get(candidate.get("id")) or by_bug.get(candidate.get("bug_id"))
         if update is None:
@@ -1377,8 +1774,10 @@ def main(argv: list[str]) -> int:
         command = argv[1]
         if command == "plan" and len(argv) == 3:
             return command_plan(argv[2])
-        if command == "apply" and len(argv) == 2:
-            return command_apply()
+        if command == "apply":
+            rest, acknowledged = parse_acknowledge_stale(argv[2:])
+            if not rest:
+                return command_apply(acknowledged)
         if command == "resume":
             rest, acknowledged = parse_acknowledge_stale(argv[2:])
             if not rest:
