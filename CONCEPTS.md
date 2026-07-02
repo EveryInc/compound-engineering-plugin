@@ -68,6 +68,12 @@ A bulk evidence artifact — verbatim quotes with source pointers, gathered by a
 ### Load stub
 The inline remnant left in a Skill when load-bearing content moves to a reference file: a load instruction that names what the reference contains and the failure mode of skipping it, while keeping no detail an agent could improvise from — making the load structurally necessary rather than advisory.
 
+### Anomaly ledger
+A mandatory per-run side-channel (`.user-test-anomalies.jsonl`) the exploring agent appends to at every area transition — one line per anomaly noticed en route, or an explicit `none` — with each line vouching for an execution-index range so the ranges tile the run. Report generation reconciles every entry into a disposition, making silence distinguishable from vigilance and masked findings structurally impossible.
+
+### Evidence array
+The per-scored-area list in the run JSON that grounds a score in observations: typed entries (action, dom, timing, count) each carrying a ref and a note. Distinct from an Evidence dossier — the array grounds one score inside a run artifact; a dossier is a bulk scratch-storage artifact gathered by a scout agent.
+
 ## Review and workflow vocabulary
 
 ### Reviewer persona
