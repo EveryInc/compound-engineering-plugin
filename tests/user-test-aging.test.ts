@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import {
   copyFileSync,
@@ -108,7 +109,64 @@ function makeProject(
   }
 }
 
+function ledgerPath(project: Project): string {
+  return path.join(project.flows, ".user-test-anomalies.jsonl")
+}
+
+function ledgerDigest(text: string): { lines: number; sha256: string } {
+  const trimmed = text.replace(/\r?\n$/, "")
+  return {
+    lines: trimmed === "" ? 0 : trimmed.split(/\r?\n/).length,
+    sha256: createHash("sha256").update(text, "utf8").digest("hex"),
+  }
+}
+
+function writeLedger(project: Project, payload: any): { lines: number; sha256: string } {
+  const finalIndex = payload.final_execution_index ?? 1
+  const text = [
+    JSON.stringify({
+      ledger_version: 1,
+      run_timestamp: payload.run_timestamp,
+      scenario_slug: payload.scenario_slug,
+    }),
+    JSON.stringify({ area: "pre-area", kind: "none", index_range: [0, finalIndex] }),
+  ].join("\n") + "\n"
+  writeFileSync(ledgerPath(project), text)
+  return ledgerDigest(text)
+}
+
+function defaultEvidence(finalIndex: number): any[] {
+  return [
+    {
+      type: "action",
+      ref: Math.min(1, finalIndex),
+      note: "aging interaction supported the score",
+    },
+    {
+      type: "dom",
+      ref: "checkout/cart",
+      note: "cart state was visible",
+    },
+  ]
+}
+
+function prepareV11Payload(project: Project, payload: any): void {
+  payload.schema_version = 11
+  payload.final_execution_index ??= 1
+  payload.disconnects ??= { count: 0, contexts: [] }
+  payload.anomalies ??= []
+  if (Array.isArray(payload.areas)) {
+    for (const area of payload.areas) {
+      if (!area.skip_reason && area.evidence === undefined) {
+        area.evidence = defaultEvidence(payload.final_execution_index)
+      }
+    }
+  }
+  payload.anomaly_ledger_digest = writeLedger(project, payload)
+}
+
 function payloadPath(project: Project, payload: any): string {
+  prepareV11Payload(project, payload)
   const file = path.join(project.dir, "payload.json")
   writeJson(file, payload)
   return file
@@ -511,14 +569,7 @@ describe("ce-user-test commit-engine aging harness", () => {
 
     const secondMigrate = runMigrate(project.testFile)
     expect(secondMigrate.code).toBe(0)
-    expect(["CURRENT", "MIGRATED 10 -> 11"]).toContain(
-      secondMigrate.stdout.trim(),
-    )
-    if (secondMigrate.stdout.trim() !== "CURRENT") {
-      const thirdMigrate = runMigrate(project.testFile)
-      expect(thirdMigrate.code).toBe(0)
-      expect(thirdMigrate.stdout.trim()).toBe("CURRENT")
-    }
+    expect(secondMigrate.stdout.trim()).toBe("CURRENT")
 
     const finalFile = readFileSync(project.testFile, "utf8")
     expect(finalFile).toContain("future_key: keep-me")
