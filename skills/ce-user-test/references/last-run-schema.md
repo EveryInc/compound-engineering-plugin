@@ -14,6 +14,7 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
 ```json
 {
   "run_timestamp": "2026-02-28T14:30:00Z",
+  "schema_version": 11,
   "completed": true,
   "scenario_slug": "checkout",
   "git_sha": "abc1234",
@@ -35,7 +36,10 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
       "weakness_class": "stale-react-state",
       "adversarial_browser": false,
       "adversarial_trigger": null,
-      "broad_exploration_start_index": 3
+      "broad_exploration_start_index": 3,
+      "evidence": [
+        { "type": "action", "ref": 1, "note": "cart quantity update supported the UX score" }
+      ]
     }
   ],
   "qualitative": {
@@ -57,6 +61,7 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
       "adversarial_instruction": "Probe ALL navigation sequences that cross area boundaries..."
     }
   ],
+  "anomalies": [],
   "ux_opportunities": [
     { "id": "UX001", "area": "shipping-form", "priority": "P1", "suggestion": "Should show inline validation before submit" }
   ],
@@ -116,9 +121,35 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
   "disconnects": {
     "count": 0,
     "contexts": []
+  },
+  "final_execution_index": 3,
+  "anomaly_ledger_digest": {
+    "lines": 3,
+    "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
   }
 }
 ```
+
+## Evidence and Ledger Fields (v11 additions)
+
+| Field | Type | Default | Written by |
+|-------|------|---------|-----------|
+| `areas[].evidence` | array of evidence entries | [] | Phase 4 scoring; `migrate-run-json` for pre-v11 defaults |
+| `areas[].evidence[].type` | string | required when entry exists | Phase 4 scoring; one of `action`, `dom`, `timing`, `count` |
+| `areas[].evidence[].ref` | integer, string, number, or count string | required when entry exists | Phase 4 scoring; execution index for `action`, selector/value for `dom`, seconds for `timing`, count number or `N of M` string for `count` |
+| `areas[].evidence[].note` | string | required when entry exists | Phase 4 scoring; states what the entry supports |
+| `anomalies[]` | array of reconciled ledger anomaly entries | [] | Phase 4 reconciliation; `migrate-run-json` for pre-v11 defaults |
+| `anomalies[].disposition` | string | required when entry exists | Phase 4 reconciliation; one of `filed`, `noted-in-area`, `explore-next-run`, `dismissed` |
+| `anomalies[].issue_ref` | string | absent | Phase 4 reconciliation; optional for `filed` entries, including pre-existing issues |
+| `anomalies[].reason` | string | required for `dismissed` | Phase 4 reconciliation; non-empty dismissal reason |
+| `final_execution_index` | integer or null | null | Phase 4 reconciliation; must equal the run's last consumed execution index |
+| `schema_version` | integer | absent before v11 | Phase 4 writes `11`; `migrate-run-json` writes `11` after defaulting a pre-v11 run |
+| `migration_defaults_applied` | array of field-name strings | absent | `migrate-run-json` only, when incoming `schema_version` is absent or below 11 |
+| `anomaly_ledger_digest` | object | absent | Phase 4 reconciliation |
+| `anomaly_ledger_digest.lines` | integer | absent | Phase 4 reconciliation; number of ledger lines digested |
+| `anomaly_ledger_digest.sha256` | string | absent | Phase 4 reconciliation; SHA-256 digest of the ledger contents |
+
+`anomalies[]` entries copy the anomaly ledger line fields from [anomaly-ledger.md](./anomaly-ledger.md) and add the reconciliation fields above.
 
 ## Journey Fields (v9 additions)
 

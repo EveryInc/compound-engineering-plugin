@@ -1,4 +1,5 @@
 import { describe, expect, test } from "bun:test"
+import { createHash } from "node:crypto"
 import { spawnSync } from "node:child_process"
 import {
   copyFileSync,
@@ -33,6 +34,7 @@ const REGISTRY = JSON.parse(
     "utf8",
   ),
 )
+const PYTHON = process.env.PYTHON ?? (process.platform === "win32" ? "python" : "python3")
 
 function runScript(
   script: string,
@@ -40,7 +42,7 @@ function runScript(
   args: string[],
   env: Record<string, string> = {},
 ): { code: number; stdout: string; stderr: string } {
-  const result = spawnSync("python3", [script, ...args], {
+  const result = spawnSync(PYTHON, [script, ...args], {
     cwd,
     encoding: "utf8",
     env: { ...process.env, ...env },
@@ -86,7 +88,7 @@ function makeProject(): { dir: string; flows: string; testFile: string } {
   const flows = path.join(dir, "tests/user-flows")
   mkdirSync(flows, { recursive: true })
   const testFile = path.join(flows, "checkout-quality.md")
-  copyFileSync(path.join(FIXTURES, "current-v10.md"), testFile)
+  copyFileSync(path.join(FIXTURES, "current-v11.md"), testFile)
   return { dir, flows, testFile }
 }
 
@@ -121,10 +123,98 @@ function journalPath(project: { flows: string }): string {
   return path.join(project.flows, ".user-test-commit-journal.json")
 }
 
-function payloadPath(project: { dir: string }, payload: any): string {
+function payloadPath(project: { dir: string; flows: string }, payload: any): string {
+  prepareV11Payload(project, payload)
   const file = path.join(project.dir, "payload.json")
   writeJson(file, payload)
   return file
+}
+
+function ledgerPath(project: { flows: string }): string {
+  return path.join(project.flows, ".user-test-anomalies.jsonl")
+}
+
+function ledgerDigest(text: string): { lines: number; sha256: string } {
+  const trimmed = text.replace(/\r?\n$/, "")
+  return {
+    lines: trimmed === "" ? 0 : trimmed.split(/\r?\n/).length,
+    sha256: createHash("sha256").update(text, "utf8").digest("hex"),
+  }
+}
+
+function ledgerText(payload: any, entries: any[], header: Record<string, unknown> = {}): string {
+  const lines = [
+    {
+      ledger_version: 1,
+      run_timestamp: payload.run_timestamp,
+      scenario_slug: payload.scenario_slug,
+      ...header,
+    },
+    ...entries,
+  ].map((line) => JSON.stringify(line))
+  return `${lines.join("\n")}\n`
+}
+
+function writeLedger(
+  project: { flows: string },
+  payload: any,
+  entries: any[],
+  header: Record<string, unknown> = {},
+): { lines: number; sha256: string } {
+  const text = ledgerText(payload, entries, header)
+  writeFileSync(ledgerPath(project), text)
+  return ledgerDigest(text)
+}
+
+function defaultLedgerEntries(payload: any): any[] {
+  const finalIndex = payload.final_execution_index ?? 1
+  return [{ area: "pre-area", kind: "none", index_range: [0, finalIndex] }]
+}
+
+function defaultEvidence(payload: any): any[] {
+  const finalIndex = payload.final_execution_index ?? 1
+  return [
+    {
+      type: "action",
+      ref: Math.min(1, finalIndex),
+      note: "cart interaction supported the score",
+    },
+    {
+      type: "dom",
+      ref: "cart subtotal",
+      note: "subtotal matched quantity",
+    },
+  ]
+}
+
+function prepareV11Payload(project: { flows: string }, payload: any): void {
+  const ledgerSpec = payload.__ledger
+  delete payload.__ledger
+  payload.schema_version = 11
+  payload.final_execution_index ??= 1
+  payload.disconnects ??= { count: 0, contexts: [] }
+  payload.anomalies ??= []
+  if (Array.isArray(payload.areas)) {
+    for (const area of payload.areas) {
+      if (!area.skip_reason && area.evidence === undefined) {
+        area.evidence = defaultEvidence(payload)
+      }
+    }
+  }
+  if (ledgerSpec === null) {
+    if (existsSync(ledgerPath(project))) {
+      unlinkSync(ledgerPath(project))
+    }
+    delete payload.anomaly_ledger_digest
+    return
+  }
+  const spec = ledgerSpec ?? {}
+  payload.anomaly_ledger_digest = writeLedger(
+    project,
+    payload,
+    spec.entries ?? defaultLedgerEntries(payload),
+    spec.header ?? {},
+  )
 }
 
 function basePayload(overrides: Record<string, unknown> = {}): any {
@@ -243,6 +333,47 @@ function snapshot(project: ReturnType<typeof makeProject>): Record<string, strin
       return [file, existsSync(absolute) ? readFileSync(absolute, "utf8") : null]
     }),
   )
+}
+
+function lastRunPath(project: ReturnType<typeof makeProject>): string {
+  return path.join(project.flows, ".user-test-last-run.json")
+}
+
+function writeMarkerLastRun(
+  project: ReturnType<typeof makeProject>,
+  overrides: Record<string, unknown> = {},
+): void {
+  writeJson(lastRunPath(project), {
+    run_timestamp: "2026-06-30T12:00:00Z",
+    completed: true,
+    scenario_slug: "checkout-quality",
+    schema_version: 11,
+    migration_defaults_applied: [
+      "areas[].evidence",
+      "anomalies[]",
+      "final_execution_index",
+      "schema_version",
+    ],
+    areas: [],
+    ...overrides,
+  })
+}
+
+function validationErrors(
+  project: ReturnType<typeof makeProject>,
+  payload: any,
+): any[] {
+  const before = snapshot(project)
+  const result = runCommit(project.dir, "plan", payloadPath(project, payload))
+  expect(result.code).toBe(1)
+  expect(startsWithLine(result.stdout, "VALIDATION-FAILED")).toBe(true)
+  expect(snapshot(project)).toEqual(before)
+  expect(existsSync(journalPath(project))).toBe(false)
+  return resultJson(result.stdout)
+}
+
+function expectValidationCode(errors: any[], code: string): void {
+  expect(errors.some((error: any) => error.code === code)).toBe(true)
 }
 
 function countTableRows(markdown: string): number {
@@ -404,6 +535,451 @@ describe("ce-user-test commit-engine.py validation", () => {
       probes_run: [],
       issue_candidates: [],
     })
+
+    const result = runCommit(project.dir, "plan", payloadPath(project, payload))
+
+    expect(result.code).toBe(0)
+    expect(result.stdout.trim()).toBe("PLANNED")
+  })
+
+  test("ledger anomaly without a disposition is rejected before journaling", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      issue_candidates: [],
+      __ledger: {
+        entries: [
+          {
+            area: "checkout/cart",
+            kind: "anomaly",
+            what: "toast lingered after save",
+            evidence: [],
+            index_range: [0, 1],
+          },
+        ],
+      },
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "anomaly_undispositioned")
+  })
+
+  test("action-driving score with one prose-only evidence entry is rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      areas: [
+        {
+          ...basePayload().areas[0],
+          ux_score: 2,
+          next_status: "Known-bug",
+          evidence: [{ type: "dom", ref: "", note: "score lowered from observation" }],
+        },
+      ],
+      maturity_transitions: [],
+      issue_candidates: [],
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "evidence_minimum")
+  })
+
+  test("malformed evidence entries do not satisfy the required evidence minimum", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      areas: [
+        {
+          ...basePayload().areas[0],
+          ux_score: 3,
+          evidence: [{}],
+        },
+      ],
+      issue_candidates: [],
+    })
+
+    const errors = validationErrors(project, payload)
+    const error = errors.find((item: any) => item.code === "evidence_minimum")
+
+    expect(error).toBeDefined()
+    expect(error.required).toBe(1)
+    expect(error.actual).toBe(0)
+  })
+
+  test("dismissed anomaly requires a non-empty reason", () => {
+    const project = makeProject()
+    const anomaly = {
+      area: "checkout/cart",
+      kind: "anomaly",
+      what: "toast lingered after save",
+      evidence: [],
+      index_range: [0, 1],
+    }
+    const payload = basePayload({
+      anomalies: [{ ...anomaly, disposition: "dismissed", reason: "   " }],
+      issue_candidates: [],
+      __ledger: { entries: [anomaly] },
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "dismissal_reason_empty")
+  })
+
+  test("action evidence ref beyond final_execution_index is rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      final_execution_index: 40,
+      areas: [
+        {
+          ...basePayload().areas[0],
+          evidence: [
+            { type: "action", ref: 57, note: "late action claimed evidence" },
+            { type: "dom", ref: "cart subtotal", note: "subtotal visible" },
+          ],
+        },
+      ],
+      issue_candidates: [],
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "evidence_ref_out_of_range")
+  })
+
+  test("anomaly action refs above final_execution_index are rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      final_execution_index: 10,
+      anomalies: [
+        {
+          area: "checkout/cart",
+          kind: "anomaly",
+          what: "anomaly action claimed a later index",
+          evidence: [{ type: "action", ref: 11, note: "out-of-range anomaly action" }],
+          index_range: [0, 1],
+          disposition: "noted-in-area",
+        },
+      ],
+      issue_candidates: [],
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "evidence_ref_out_of_range")
+  })
+
+  test("multi-iteration aggregate commit uses one session ledger and persists anomalies", () => {
+    const project = makeProject()
+    const anomaly = {
+      area: "checkout/cart",
+      kind: "anomaly",
+      what: "iteration 2 toast lingered after save",
+      evidence: [{ type: "action", ref: 6, note: "iteration 2 save action produced the toast" }],
+      index_range: [4, 7],
+    }
+    const payload = basePayload({
+      final_execution_index: 12,
+      anomalies: [{ ...anomaly, disposition: "noted-in-area" }],
+      probes_run: [
+        {
+          area: "checkout/cart",
+          query: "iteration 1 invalid zip",
+          verify: "Inline error shown",
+          status: "passing",
+          result_detail: "iteration 1 completed",
+          execution_index: 2,
+        },
+        {
+          area: "checkout/cart",
+          query: "iteration 2 save cart",
+          verify: "Toast clears",
+          status: "failing",
+          result_detail: "toast lingered",
+          execution_index: 6,
+        },
+        {
+          area: "checkout/cart",
+          query: "iteration 3 invalid zip",
+          verify: "Inline error shown",
+          status: "passing",
+          result_detail: "iteration 3 completed",
+          execution_index: 11,
+        },
+      ],
+      issue_candidates: [],
+      __ledger: {
+        entries: [
+          { area: "checkout/cart", kind: "none", index_range: [0, 3] },
+          anomaly,
+          { area: "checkout/cart", kind: "none", index_range: [8, 12] },
+        ],
+      },
+    })
+
+    fullApply(project, payload)
+    const lastRun = readJson(lastRunPath(project))
+
+    expect(lastRun.anomalies).toEqual([{ ...anomaly, disposition: "noted-in-area" }])
+    expect(lastRun.anomaly_ledger_digest).toEqual(payload.anomaly_ledger_digest)
+    expect(lastRun.final_execution_index).toBe(12)
+  })
+
+  test("ledger tiling normalizes shared boundaries and honors disconnect tolerance", () => {
+    const shared = makeProject()
+    let payload = basePayload({
+      final_execution_index: 30,
+      issue_candidates: [],
+      __ledger: {
+        entries: [
+          { area: "pre-area", kind: "none", index_range: [0, 12] },
+          { area: "checkout/cart", kind: "none", index_range: [12, 30] },
+        ],
+      },
+    })
+    let result = runCommit(shared.dir, "plan", payloadPath(shared, payload))
+    expect(result.code).toBe(0)
+    expect(result.stdout.trim()).toBe("PLANNED")
+
+    const tolerated = makeProject()
+    payload = basePayload({
+      final_execution_index: 30,
+      disconnects: { count: 2, contexts: [] },
+      issue_candidates: [],
+      __ledger: {
+        entries: [
+          { area: "pre-area", kind: "none", index_range: [0, 10] },
+          { area: "checkout/cart", kind: "none", index_range: [13, 30] },
+        ],
+      },
+    })
+    result = runCommit(tolerated.dir, "plan", payloadPath(tolerated, payload))
+    expect(result.code).toBe(0)
+    expect(result.stdout.trim()).toBe("PLANNED")
+
+    const rejected = makeProject()
+    payload = basePayload({
+      final_execution_index: 30,
+      disconnects: { count: 2, contexts: [] },
+      issue_candidates: [],
+      __ledger: {
+        entries: [
+          { area: "pre-area", kind: "none", index_range: [0, 10] },
+          { area: "checkout/cart", kind: "none", index_range: [14, 30] },
+        ],
+      },
+    })
+    const errors = validationErrors(rejected, payload)
+    expectValidationCode(errors, "ledger_tiling")
+  })
+
+  test("ledger whose first span starts after zero is rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      final_execution_index: 5,
+      issue_candidates: [],
+      __ledger: {
+        entries: [{ area: "checkout/cart", kind: "none", index_range: [2, 5] }],
+      },
+    })
+
+    const errors = validationErrors(project, payload)
+    const error = errors.find((item: any) => item.code === "ledger_tiling")
+
+    expect(error).toBeDefined()
+    expect(error.reason).toBe("coverage_must_start_at_zero")
+  })
+
+
+  test("migration-defaulted run without a matching ledger warns then plans and applies", () => {
+    const project = makeProject()
+    writeMarkerLastRun(project)
+    const payload = basePayload({ issue_candidates: [], __ledger: null })
+
+    const plan = runCommit(project.dir, "plan", payloadPath(project, payload))
+
+    expect(plan.code).toBe(0)
+    const lines = stdoutLines(plan.stdout)
+    expect(lines[0]).toBe("MIGRATION-DEFAULTS-WARN")
+    expect(JSON.parse(lines[1])[0].code).toBe("migration_defaults_applied")
+    expect(lines[2]).toBe("PLANNED")
+    const apply = runCommit(project.dir, "apply")
+    expect(apply.code).toBe(0)
+    expect(startsWithLine(apply.stdout, "APPLIED")).toBe(true)
+    expect(readJson(lastRunPath(project)).migration_defaults_applied).toBeUndefined()
+  })
+
+  test("foreign ledger warns for marker-stamped runs and fails for marker-less runs", () => {
+    const markerStamped = makeProject()
+    writeMarkerLastRun(markerStamped)
+    let payload = basePayload({
+      issue_candidates: [],
+      __ledger: { header: { scenario_slug: "settings-flow" } },
+    })
+    let result = runCommit(markerStamped.dir, "plan", payloadPath(markerStamped, payload))
+    expect(result.code).toBe(0)
+    expect(stdoutLines(result.stdout)[0]).toBe("MIGRATION-DEFAULTS-WARN")
+
+    const markerless = makeProject()
+    payload = basePayload({
+      issue_candidates: [],
+      __ledger: { header: { scenario_slug: "settings-flow" } },
+    })
+    const errors = validationErrors(markerless, payload)
+    expectValidationCode(errors, "ledger_foreign")
+  })
+
+  test("none-only ledger and empty-range marker tile cleanly with empty anomalies", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      final_execution_index: 1,
+      anomalies: [],
+      issue_candidates: [],
+      __ledger: {
+        entries: [
+          { area: "pre-area", kind: "none", index_range: [0, 0] },
+          { area: "checkout/cart", kind: "none", index_range: null, at_index: 1 },
+          { area: "checkout/cart", kind: "none", index_range: [1, 1] },
+        ],
+      },
+    })
+
+    fullApply(project, payload)
+    confirmAll(project, [])
+
+    expect(readJson(lastRunPath(project)).anomalies).toEqual([])
+  })
+
+  test("ledger digest mismatch is rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({ issue_candidates: [] })
+    const file = payloadPath(project, payload)
+    writeFileSync(
+      ledgerPath(project),
+      `${readFileSync(ledgerPath(project), "utf8")}${JSON.stringify({
+        area: "checkout/cart",
+        kind: "none",
+        index_range: [1, 1],
+      })}\n`,
+    )
+
+    const result = runCommit(project.dir, "plan", file)
+
+    expect(result.code).toBe(1)
+    expectValidationCode(resultJson(result.stdout), "ledger_digest_mismatch")
+  })
+
+  test("marker-less run without a ledger is rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({ issue_candidates: [], __ledger: null })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "ledger_missing")
+  })
+
+  test("anomalies are sourced from the payload only, never inherited", () => {
+    const project = makeProject()
+    writeJson(lastRunPath(project), {
+      run_timestamp: "2026-06-30T12:00:00Z",
+      completed: true,
+      scenario_slug: "checkout-quality",
+      schema_version: 11,
+      areas: [],
+      anomalies: [
+        {
+          area: "checkout/cart",
+          kind: "anomaly",
+          what: "old anomaly",
+          evidence: [],
+          index_range: [0, 0],
+          disposition: "noted-in-area",
+        },
+      ],
+    })
+
+    fullApply(project, basePayload({ issue_candidates: [] }))
+    confirmAll(project, [])
+
+    expect(readJson(lastRunPath(project)).anomalies).toEqual([])
+  })
+
+  test("marker-stamped run with a matching live ledger is rejected", () => {
+    const project = makeProject()
+    writeMarkerLastRun(project)
+
+    const errors = validationErrors(project, basePayload({ issue_candidates: [] }))
+
+    expectValidationCode(errors, "marker_with_live_ledger")
+  })
+
+  test("final_execution_index below a ledger range end is rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      final_execution_index: 40,
+      issue_candidates: [],
+      __ledger: {
+        entries: [{ area: "pre-area", kind: "none", index_range: [0, 45] }],
+      },
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "final_index_understated")
+  })
+
+  test("final_execution_index below a nested execution_index is rejected", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      final_execution_index: 5,
+      cross_area_probes_run: [
+        {
+          execution_index: 9,
+          area: "checkout/cart",
+          query: "gift card plus invalid zip",
+          result_detail: "late cross-area probe",
+        },
+      ],
+      issue_candidates: [],
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "final_index_understated")
+  })
+
+  test("score drop from previous run requires two evidence entries", () => {
+    const project = makeProject()
+    writeJson(path.join(project.flows, "score-history.json"), {
+      areas: {
+        "checkout/cart": {
+          scores: [{ date: "2026-06-30", ux: 4, quality: null, time: 8 }],
+          trend: "stable",
+        },
+      },
+    })
+    const payload = basePayload({
+      areas: [
+        {
+          ...basePayload().areas[0],
+          ux_score: 3,
+          evidence: [{ type: "action", ref: 1, note: "regression observed" }],
+        },
+      ],
+      maturity_transitions: [],
+      issue_candidates: [],
+    })
+
+    const errors = validationErrors(project, payload)
+
+    expectValidationCode(errors, "evidence_minimum")
+  })
+
+  test("malformed score-history areas shape does not crash score validation", () => {
+    const project = makeProject()
+    writeJson(path.join(project.flows, "score-history.json"), {
+      areas: [],
+    })
+    const payload = basePayload({ issue_candidates: [] })
 
     const result = runCommit(project.dir, "plan", payloadPath(project, payload))
 

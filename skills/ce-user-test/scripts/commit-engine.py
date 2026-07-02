@@ -21,6 +21,7 @@ Stdout sentinels:
     ROLLED-BACK
     NO-JOURNAL
     VALIDATION-FAILED\n<error-list-json>
+    MIGRATION-DEFAULTS-WARN\n<warning-list-json>
     BASE-HASH-MISMATCH\n<details-json>
     FOREIGN-JOURNAL <scenario>
     STAGED-INTEGRITY-FAILURE\n<details-json>
@@ -55,7 +56,10 @@ from typing import Any
 
 SCRIPT_NAME = "commit-engine"
 JOURNAL_REL = "tests/user-flows/.user-test-commit-journal.json"
-CURRENT_SCHEMA_VERSION = 10
+LEDGER_REL = "tests/user-flows/.user-test-anomalies.jsonl"
+LAST_RUN_REL = "tests/user-flows/.user-test-last-run.json"
+SCORE_HISTORY_REL = "tests/user-flows/score-history.json"
+CURRENT_SCHEMA_VERSION = 11
 EM_DASH = "—"
 
 
@@ -1245,6 +1249,7 @@ RUN_JSON_AREA_DEFAULTS = {
     "weakness_class": None,
     "adversarial_browser": False,
     "adversarial_trigger": None,
+    "evidence": [],
 }
 
 
@@ -1264,28 +1269,45 @@ def merge_areas_for_last_run(existing: dict[str, Any], payload: dict[str, Any]) 
         area.update(payload_area)
         for key, value in RUN_JSON_AREA_DEFAULTS.items():
             if key not in area:
-                area[key] = dict(value) if isinstance(value, dict) else value
+                if isinstance(value, dict):
+                    area[key] = dict(value)
+                elif isinstance(value, list):
+                    area[key] = list(value)
+                else:
+                    area[key] = value
         merged.append(area)
         seen.add(slug)
     for slug, area in existing_by_slug.items():
         if slug not in seen:
             for key, value in RUN_JSON_AREA_DEFAULTS.items():
                 if key not in area:
-                    area[key] = dict(value) if isinstance(value, dict) else value
+                    if isinstance(value, dict):
+                        area[key] = dict(value)
+                    elif isinstance(value, list):
+                        area[key] = list(value)
+                    else:
+                        area[key] = value
             merged.append(area)
     return merged
 
 
 def merge_last_run(payload: dict[str, Any]) -> str:
-    path = resolve("tests/user-flows/.user-test-last-run.json")
+    path = resolve(LAST_RUN_REL)
     existing = load_json_file(path) if os.path.exists(path) else {}
     if not isinstance(existing, dict):
         existing = {}
     doc = deepcopy(existing)
+    doc.pop("migration_defaults_applied", None)
     doc["run_timestamp"] = payload["run_timestamp"]
+    doc["schema_version"] = CURRENT_SCHEMA_VERSION
     doc["completed"] = existing.get("completed") if isinstance(existing.get("completed"), bool) else True
     doc["scenario_slug"] = payload["scenario_slug"]
     doc["areas"] = merge_areas_for_last_run(existing, payload)
+    doc["anomalies"] = deepcopy(payload.get("anomalies", []))
+    if not isinstance(doc["anomalies"], list):
+        doc["anomalies"] = []
+    doc["final_execution_index"] = payload.get("final_execution_index")
+    doc["anomaly_ledger_digest"] = deepcopy(payload.get("anomaly_ledger_digest"))
     for key in RUN_JSON_ARRAY_KEYS:
         doc[key] = deepcopy(payload.get(key, existing.get(key, [])))
         if not isinstance(doc[key], list):
@@ -1329,10 +1351,467 @@ def build_mutations(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], dict
     return files, rotations, issue_candidates
 
 
-def validate_payload(payload: Any) -> list[dict[str, Any]]:
+DISPOSITIONS = {"filed", "noted-in-area", "explore-next-run", "dismissed"}
+EVIDENCE_TYPES = {"action", "dom", "timing", "count"}
+
+
+def is_int(value: Any) -> bool:
+    return type(value) is int
+
+
+def is_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def load_optional_json(rel_path: str) -> Any:
+    raw = read_text(resolve(rel_path))
+    if raw is None:
+        return None
+    try:
+        return json.loads(raw)
+    except ValueError:
+        return None
+
+
+def migration_defaults_marker_present() -> bool:
+    doc = load_optional_json(LAST_RUN_REL)
+    return isinstance(doc, dict) and "migration_defaults_applied" in doc
+
+
+def load_ledger() -> dict[str, Any]:
+    raw = read_bytes(resolve(LEDGER_REL))
+    if raw is None:
+        return {
+            "exists": False,
+            "raw": b"",
+            "line_count": 0,
+            "sha256": None,
+            "header": None,
+            "entries": [],
+        }
+    line_count = len(raw.splitlines())
+    digest = sha256(raw).hexdigest()
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return {
+            "exists": True,
+            "raw": raw,
+            "line_count": line_count,
+            "sha256": digest,
+            "header": None,
+            "entries": [],
+        }
+    lines = text.splitlines()
+    header = None
+    entries: list[dict[str, Any]] = []
+    for index, line in enumerate(lines):
+        try:
+            parsed = json.loads(line)
+        except ValueError:
+            if index == len(lines) - 1:
+                break
+            entries.append({"__invalid__": True, "__line__": index + 1})
+            continue
+        if index == 0:
+            header = parsed if isinstance(parsed, dict) else None
+        elif isinstance(parsed, dict):
+            entries.append(parsed)
+        else:
+            entries.append({"__invalid__": True, "__line__": index + 1})
+    return {
+        "exists": True,
+        "raw": raw,
+        "line_count": line_count,
+        "sha256": digest,
+        "header": header,
+        "entries": entries,
+    }
+
+
+def ledger_header_matches(ledger: dict[str, Any], payload: dict[str, Any]) -> bool:
+    header = ledger.get("header")
+    return (
+        ledger.get("exists") is True
+        and isinstance(header, dict)
+        and header.get("run_timestamp") == payload.get("run_timestamp")
+        and header.get("scenario_slug") == payload.get("scenario_slug")
+    )
+
+
+def migration_defaults_warning(payload: dict[str, Any], ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    header = ledger.get("header") if isinstance(ledger.get("header"), dict) else {}
+    return [
+        {
+            "code": "migration_defaults_applied",
+            "field": "migration_defaults_applied",
+            "path": LAST_RUN_REL,
+            "ledger": {
+                "path": LEDGER_REL,
+                "present": ledger.get("exists") is True,
+                "run_timestamp": header.get("run_timestamp"),
+                "scenario_slug": header.get("scenario_slug"),
+                "expected_run_timestamp": payload.get("run_timestamp"),
+                "expected_scenario_slug": payload.get("scenario_slug"),
+            },
+        }
+    ]
+
+
+def canonical_anomaly_fields(entry: dict[str, Any]) -> str:
+    subset = {
+        "area": entry.get("area"),
+        "kind": entry.get("kind"),
+        "what": entry.get("what"),
+        "evidence": entry.get("evidence", []),
+        "index_range": entry.get("index_range"),
+        "at_index": entry.get("at_index"),
+    }
+    return json.dumps(subset, sort_keys=True, separators=(",", ":"))
+
+
+def validate_anomaly_reconciliation(payload: dict[str, Any], ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    payload_anomalies = payload.get("anomalies", [])
+    if not isinstance(payload_anomalies, list):
+        payload_anomalies = []
+    by_key: dict[str, list[dict[str, Any]]] = {}
+    for anomaly in payload_anomalies:
+        if isinstance(anomaly, dict):
+            by_key.setdefault(canonical_anomaly_fields(anomaly), []).append(anomaly)
+    for line_number, entry in enumerate(ledger.get("entries", []), start=2):
+        if not isinstance(entry, dict) or entry.get("__invalid__"):
+            continue
+        if entry.get("kind") != "anomaly":
+            continue
+        matches = by_key.get(canonical_anomaly_fields(entry), [])
+        match = next(
+            (item for item in matches if item.get("disposition") in DISPOSITIONS),
+            None,
+        )
+        if match is None:
+            errors.append(
+                {
+                    "code": "anomaly_undispositioned",
+                    "line": line_number,
+                    "area": entry.get("area"),
+                    "what": entry.get("what"),
+                }
+            )
+            continue
+        if match.get("disposition") == "dismissed" and not str(match.get("reason", "")).strip():
+            errors.append(
+                {
+                    "code": "dismissal_reason_empty",
+                    "line": line_number,
+                    "area": entry.get("area"),
+                    "what": entry.get("what"),
+                }
+            )
+    return errors
+
+
+def validate_ledger_digest(payload: dict[str, Any], ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    digest = payload.get("anomaly_ledger_digest")
+    if not isinstance(digest, dict):
+        return [
+            {
+                "code": "ledger_digest_mismatch",
+                "field": "anomaly_ledger_digest",
+                "expected": None,
+                "actual": {"lines": ledger.get("line_count"), "sha256": ledger.get("sha256")},
+            }
+        ]
+    expected = {"lines": digest.get("lines"), "sha256": digest.get("sha256")}
+    actual = {"lines": ledger.get("line_count"), "sha256": ledger.get("sha256")}
+    if expected != actual:
+        return [{"code": "ledger_digest_mismatch", "expected": expected, "actual": actual}]
+    return []
+
+
+def ledger_ranges_and_markers(ledger: dict[str, Any]) -> tuple[list[tuple[int, int]], list[int], list[dict[str, Any]]]:
+    spans: list[tuple[int, int]] = []
+    markers: list[int] = []
+    errors: list[dict[str, Any]] = []
+    for line_number, entry in enumerate(ledger.get("entries", []), start=2):
+        if not isinstance(entry, dict) or entry.get("__invalid__"):
+            errors.append({"code": "ledger_tiling", "line": line_number, "reason": "invalid_json"})
+            continue
+        index_range = entry.get("index_range")
+        if index_range is None:
+            at_index = entry.get("at_index")
+            if not is_int(at_index):
+                errors.append({"code": "ledger_tiling", "line": line_number, "reason": "invalid_at_index"})
+                continue
+            markers.append(at_index)
+            continue
+        if (
+            not isinstance(index_range, list)
+            or len(index_range) != 2
+            or not is_int(index_range[0])
+            or not is_int(index_range[1])
+            or index_range[0] > index_range[1]
+        ):
+            errors.append({"code": "ledger_tiling", "line": line_number, "reason": "invalid_index_range"})
+            continue
+        spans.append((index_range[0], index_range[1]))
+    return spans, markers, errors
+
+
+def disconnect_tolerance(payload: dict[str, Any]) -> int:
+    disconnects = payload.get("disconnects")
+    if not isinstance(disconnects, dict):
+        return 0
+    count = disconnects.get("count")
+    return count if is_int(count) and count > 0 else 0
+
+
+def validate_ledger_tiling(payload: dict[str, Any], ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    final_index = payload.get("final_execution_index")
+    if not is_int(final_index) or final_index < 0:
+        return [{"code": "ledger_tiling", "field": "final_execution_index", "value": final_index}]
+    spans, markers, errors = ledger_ranges_and_markers(ledger)
+    if errors:
+        return errors
+    for marker in markers:
+        if marker < 0:
+            return [{"code": "ledger_tiling", "reason": "marker_before_zero", "at_index": marker}]
+    if not spans:
+        return [{"code": "ledger_tiling", "reason": "no_ranges"}]
+    spans.sort()
+    first_start, first_end = spans[0]
+    if first_start != 0:
+        return [{"code": "ledger_tiling", "reason": "coverage_must_start_at_zero", "start": first_start}]
+    coverage_end = first_end
+    interior_gap_width = 0
+    for start, end in spans[1:]:
+        if start <= coverage_end:
+            overlap = coverage_end - start + 1
+            if overlap > 1:
+                return [
+                    {
+                        "code": "ledger_tiling",
+                        "reason": "overlap",
+                        "previous_end": coverage_end,
+                        "start": start,
+                    }
+                ]
+        elif start == coverage_end + 1:
+            pass
+        else:
+            gap = start - coverage_end - 1
+            if gap > 1:
+                interior_gap_width += gap
+        coverage_end = max(coverage_end, end)
+    if coverage_end < final_index:
+        return [
+            {
+                "code": "ledger_tiling",
+                "reason": "coverage_ends_before_final_index",
+                "coverage_end": coverage_end,
+                "final_execution_index": final_index,
+            }
+        ]
+    tolerance = disconnect_tolerance(payload)
+    if interior_gap_width > tolerance:
+        return [
+            {
+                "code": "ledger_tiling",
+                "reason": "gap_exceeds_disconnect_tolerance",
+                "gap_width": interior_gap_width,
+                "disconnect_count": tolerance,
+            }
+        ]
+    return []
+
+
+def evidence_entries_from(value: Any) -> list[dict[str, Any]]:
+    if not isinstance(value, list):
+        return []
+    return [entry for entry in value if isinstance(entry, dict)]
+
+
+def countable_evidence_entries_from(value: Any) -> list[dict[str, Any]]:
+    return [entry for entry in evidence_entries_from(value) if well_formed_evidence_entry(entry)]
+
+
+def well_formed_evidence_entry(entry: Any) -> bool:
+    return (
+        isinstance(entry, dict)
+        and entry.get("type") in EVIDENCE_TYPES
+        and isinstance(entry.get("note"), str)
+        and bool(entry["note"].strip())
+    )
+
+
+def concrete_evidence_ref(entry: dict[str, Any]) -> bool:
+    evidence_type = entry.get("type")
+    ref = entry.get("ref")
+    if evidence_type == "action":
+        return is_int(ref)
+    if evidence_type == "dom":
+        return isinstance(ref, str) and bool(ref.strip())
+    if evidence_type == "timing":
+        return is_number(ref)
+    if evidence_type == "count":
+        return is_number(ref) or (isinstance(ref, str) and bool(ref.strip()))
+    return False
+
+
+def iter_payload_evidence(payload: dict[str, Any]):
+    for area in payload.get("areas", []):
+        if not isinstance(area, dict):
+            continue
+        for entry in evidence_entries_from(area.get("evidence")):
+            yield "area", area.get("slug"), entry
+    anomalies = payload.get("anomalies", [])
+    if not isinstance(anomalies, list):
+        return
+    for anomaly in anomalies:
+        if not isinstance(anomaly, dict):
+            continue
+        for entry in evidence_entries_from(anomaly.get("evidence")):
+            yield "anomaly", anomaly.get("area"), entry
+
+
+def previous_scores() -> dict[str, dict[str, Any]]:
+    doc = load_optional_json(SCORE_HISTORY_REL)
+    if not isinstance(doc, dict):
+        return {}
+    areas = doc.get("areas")
+    if not isinstance(areas, dict):
+        return {}
+    result: dict[str, dict[str, Any]] = {}
+    for slug, entry in areas.items():
+        scores = entry.get("scores", []) if isinstance(entry, dict) else []
+        if not scores or not isinstance(scores[-1], dict):
+            continue
+        result[slug] = {
+            "ux_score": scores[-1].get("ux"),
+            "quality_score": scores[-1].get("quality"),
+        }
+    return result
+
+
+def validate_evidence(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    final_index = payload.get("final_execution_index")
+    prior = previous_scores()
+    for source, area_slug, entry in iter_payload_evidence(payload):
+        if entry.get("type") == "action":
+            ref = entry.get("ref")
+            if is_int(ref) and is_int(final_index) and ref > final_index:
+                errors.append(
+                    {
+                        "code": "evidence_ref_out_of_range",
+                        "source": source,
+                        "area": area_slug,
+                        "ref": ref,
+                        "final_execution_index": final_index,
+                    }
+                )
+    for area in payload.get("areas", []):
+        if not isinstance(area, dict) or not isinstance(area.get("slug"), str):
+            continue
+        if area.get("skip_reason"):
+            continue
+        evidence = countable_evidence_entries_from(area.get("evidence"))
+        concrete = any(concrete_evidence_ref(entry) for entry in evidence)
+        scored_dimensions = []
+        for field in ("ux_score", "quality_score"):
+            score = area.get(field)
+            if is_number(score):
+                scored_dimensions.append((field, score))
+        if scored_dimensions and len(evidence) < 1:
+            errors.append(
+                {
+                    "code": "evidence_minimum",
+                    "area": area["slug"],
+                    "required": 1,
+                    "actual": len(evidence),
+                }
+            )
+            continue
+        for field, score in scored_dimensions:
+            previous = prior.get(area["slug"], {}).get(field)
+            dropped = is_number(previous) and float(previous) - float(score) >= 1
+            if score <= 2 or dropped:
+                if len(evidence) < 2 or not concrete:
+                    errors.append(
+                        {
+                            "code": "evidence_minimum",
+                            "area": area["slug"],
+                            "field": field,
+                            "required": 2,
+                            "actual": len(evidence),
+                            "requires_concrete_ref": True,
+                            "score": score,
+                            "previous_score": previous,
+                        }
+                    )
+    return errors
+
+
+def collect_execution_indices(value: Any) -> list[int]:
+    values: list[int] = []
+    if isinstance(value, dict):
+        for key, nested in value.items():
+            if key == "execution_index" and is_int(nested):
+                values.append(nested)
+            else:
+                values.extend(collect_execution_indices(nested))
+    elif isinstance(value, list):
+        for nested in value:
+            values.extend(collect_execution_indices(nested))
+    return values
+
+
+def max_payload_index(payload: dict[str, Any], ledger: dict[str, Any]) -> int | None:
+    values = collect_execution_indices(payload)
+    for area in payload.get("areas", []):
+        if not isinstance(area, dict):
+            continue
+        if is_int(area.get("broad_exploration_start_index")):
+            values.append(area["broad_exploration_start_index"])
+    for _, _, entry in iter_payload_evidence(payload):
+        if entry.get("type") == "action" and is_int(entry.get("ref")):
+            values.append(entry["ref"])
+    spans, markers, _ = ledger_ranges_and_markers(ledger)
+    values.extend(end for _, end in spans)
+    values.extend(markers)
+    return max(values) if values else None
+
+
+def validate_final_execution_index(payload: dict[str, Any], ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    final_index = payload.get("final_execution_index")
+    if not is_int(final_index):
+        return [{"code": "final_index_understated", "final_execution_index": final_index, "max_index": None}]
+    max_index = max_payload_index(payload, ledger)
+    if max_index is not None and final_index < max_index:
+        return [
+            {
+                "code": "final_index_understated",
+                "final_execution_index": final_index,
+                "max_index": max_index,
+            }
+        ]
+    return []
+
+
+def validate_full_ledger_gates(payload: dict[str, Any], ledger: dict[str, Any]) -> list[dict[str, Any]]:
+    errors: list[dict[str, Any]] = []
+    errors.extend(validate_anomaly_reconciliation(payload, ledger))
+    errors.extend(validate_ledger_digest(payload, ledger))
+    errors.extend(validate_final_execution_index(payload, ledger))
+    errors.extend(validate_ledger_tiling(payload, ledger))
+    errors.extend(validate_evidence(payload))
+    return errors
+
+
+def validate_payload(payload: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     errors: list[dict[str, Any]] = []
     if not isinstance(payload, dict):
-        return [{"code": "payload_not_object"}]
+        return [{"code": "payload_not_object"}], []
     for key in ("scenario_slug", "test_file", "run_timestamp"):
         if not isinstance(payload.get(key), str) or not payload.get(key):
             errors.append({"code": f"missing_{key}", "field": key})
@@ -1378,7 +1857,41 @@ def validate_payload(payload: Any) -> list[dict[str, Any]]:
                     },
                 }
             )
-    return errors
+    if errors:
+        return errors, []
+
+    marker_present = migration_defaults_marker_present()
+    ledger = load_ledger()
+    header_matches = ledger_header_matches(ledger, payload)
+    if marker_present:
+        if header_matches:
+            errors.append(
+                {
+                    "code": "marker_with_live_ledger",
+                    "path": LAST_RUN_REL,
+                    "ledger": LEDGER_REL,
+                }
+            )
+            return errors, []
+        return errors, migration_defaults_warning(payload, ledger)
+    if not ledger.get("exists"):
+        errors.append({"code": "ledger_missing", "path": LEDGER_REL})
+        return errors, []
+    if not header_matches:
+        header = ledger.get("header") if isinstance(ledger.get("header"), dict) else {}
+        errors.append(
+            {
+                "code": "ledger_foreign",
+                "path": LEDGER_REL,
+                "run_timestamp": header.get("run_timestamp"),
+                "scenario_slug": header.get("scenario_slug"),
+                "expected_run_timestamp": payload.get("run_timestamp"),
+                "expected_scenario_slug": payload.get("scenario_slug"),
+            }
+        )
+        return errors, []
+    errors.extend(validate_full_ledger_gates(payload, ledger))
+    return errors, []
 
 
 def stage_files(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1408,7 +1921,7 @@ def stage_files(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def command_plan(payload_file: str) -> int:
     payload = load_json_file(payload_file)
-    errors = validate_payload(payload)
+    errors, warnings = validate_payload(payload)
     if errors:
         return print_json_sentinel("VALIDATION-FAILED", errors) or 1
 
@@ -1440,6 +1953,9 @@ def command_plan(payload_file: str) -> int:
         "heartbeat_at": iso(),
     }
     save_journal(journal)
+    if warnings:
+        print("MIGRATION-DEFAULTS-WARN")
+        print(json.dumps(warnings, ensure_ascii=False))
     print("PLANNED")
     return 0
 
