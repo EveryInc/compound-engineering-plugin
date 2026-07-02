@@ -1,12 +1,12 @@
 ---
 name: ce-user-test-eval
-description: Grade ce-user-test skill output against binary evals and propose mutations. Use after a user-test run completes to check probe ordering, regression surfacing, and P1 presentation.
+description: Grade ce-user-test skill output against binary evals and propose mutations. Use after a user-test run completes to check probe ordering, regression surfacing, P1 presentation, and ledger coverage.
 disable-model-invocation: true
 ---
 
 # User Test Eval
 
-Grade the ce-user-test skill's output against 3 binary evals. Read from file
+Grade the ce-user-test skill's output against 4 binary evals. Read from file
 artifacts only. Propose targeted mutations when evals fail.
 
 **Artifact-only grading rule:** Grade from file artifacts only. Do not reference
@@ -28,7 +28,7 @@ not what the agent knows.
 
 ## Phase 2: Run Evals
 
-Run all 3 evals in order. Record pass/fail + detail for each.
+Run all 4 evals in order. Record pass/fail/skip/NA + detail for each.
 
 ### Eval 1: Probe Execution Order (protocol layer)
 
@@ -70,13 +70,38 @@ Run all 3 evals in order. Record pass/fail + detail for each.
 2. For each P1 item, search `.user-test-last-report.md` NEEDS ACTION section for the area slug with `P1` marker
 3. **PASS** if all P1 items are in NEEDS ACTION. **FAIL** with count of missing items and their area slugs.
 
-**Scope note:** Verification mismatches on Proven areas also belong in NEEDS ACTION per
-dispatch format rules, but they flow through `verification_results`, not `explore_next_run`.
-Not checked here — candidate for a future Eval 4.
-
 **Edge cases:**
 - No P1 items: PASS with detail "no P1 items this run"
 - Cross-area P1 items (area = `[cross-area]`): match against the `why` text or `affected_areas` slugs in NEEDS ACTION
+
+### Eval 4: Ledger-to-Report Coverage (artifact layer + semantic layer)
+
+**Question:** Did the anomaly ledger reconcile into run results and report-visible outcomes without masking incidental findings?
+
+**Method:**
+1. Run the bundled mechanical checker from this skill directory:
+   ```bash
+   SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
+   python3 "$SKILL_DIR/scripts/eval4-ledger-coverage.py" \
+     --run-json tests/user-flows/.user-test-last-run.json \
+     --ledger tests/user-flows/.user-test-anomalies.jsonl \
+     --bugs tests/user-flows/bugs.md \
+     --report tests/user-flows/.user-test-last-report.md
+   ```
+2. Parse the checker JSON. It returns `verdict: "PASS" | "FAIL" | "NA"`, `errors`, and `ambiguous_matches`.
+3. If `verdict` is `FAIL`, Eval 4 fails with the checker errors.
+4. If `verdict` is `NA`, record Eval 4 as NA and do not propose a mutation.
+5. If `verdict` is `PASS`, grade only `ambiguous_matches`: confirm reworded report mentions match their anomaly semantically, and spot-check `none` spans against the listed `verification_results`.
+
+**Mechanical checker scope:**
+- Reads artifacts only: run JSON, ledger JSONL, `bugs.md`, and the persisted report.
+- Checks ledger presence and header match, migration-defaults NA/FAIL routing, index-range tiling, anomaly disposition coverage, filed issue refs in `bugs.md`, and explore-next-run mappings.
+- Does not check score evidence minimums.
+
+**Edge cases:**
+- Ledger absent or header-foreign: NA
+- Marker-stamped run with a header-matching live ledger: FAIL
+- None-only ledger with clean tiling: PASS, with any `none` span review represented only through `ambiguous_matches`
 
 ## Phase 3: Propose Mutations
 
@@ -95,7 +120,7 @@ If any eval failed, propose one mutation per failing eval.
 
 **Status:** PROPOSED
 **Triggered by:** Eval <N> failure (<eval name>)
-**Eval scores:** probe_order: <PASS/FAIL> | regression_distinction: <PASS/FAIL> | p1_surfacing: <PASS/FAIL>
+**Eval scores:** probe_order: <PASS/FAIL/SKIP> | regression_distinction: <PASS/FAIL> | p1_surfacing: <PASS/FAIL> | ledger_coverage: <PASS/FAIL/NA>
 **Skill version:** <version from plugin.json or run context>
 **Scenario:** <scenario_slug>
 
@@ -139,7 +164,8 @@ Append entry:
   "evals": {
     "probe_execution_order": { "pass": <bool>, "areas_violated": [...], "detail": "..." },
     "proven_regression_distinction": { "pass": <bool>, "regressed_areas": [...], "missing_from_needs_action": [...], "detail": "..." },
-    "p1_surfacing": { "pass": <bool>, "p1_count": <int>, "surfaced_count": <int>, "detail": "..." }
+    "p1_surfacing": { "pass": <bool>, "p1_count": <int>, "surfaced_count": <int>, "detail": "..." },
+    "ledger_to_report_coverage": { "pass": <bool|null>, "verdict": "PASS|FAIL|NA", "errors": [...], "ambiguous_matches": [...], "llm_checks": [...], "detail": "..." }
   },
   "overall_pass": <bool>,
   "mutation_proposed": <bool>
@@ -170,14 +196,14 @@ After writing artifacts, check for consecutive passing runs:
 1. Read the last N entries from `skill-evals.json` where `overall_pass: true`
 2. Count consecutive passes from most recent backwards
 3. Check for gap reset: if any two consecutive entries have `run_timestamp` more than 14 days apart, reset count to entries after the gap
-4. If 5+ consecutive passes within the gap window: display "All evals passing consistently (runs from <first date> to <last date>). Consider adding a 4th eval or shifting to query-level optimization."
+4. If 5+ consecutive passes within the gap window: display "All evals passing consistently (runs from <first date> to <last date>). Consider adding a 5th eval or shifting to query-level optimization."
 
 ## Phase 5: Display Summary
 
 Display a one-line summary:
 
 ```
-EVAL: <N>/3 pass | probe_order: <PASS/FAIL/SKIP> | regression: <PASS/FAIL> | p1_surfacing: <PASS/FAIL>
+EVAL: <N>/4 pass | probe_order: <PASS/FAIL/SKIP> | regression: <PASS/FAIL> | p1_surfacing: <PASS/FAIL> | ledger_coverage: <PASS/FAIL/NA>
 ```
 
 If mutations were proposed, display each mutation's Problem Observed and Proposed Change inline.
