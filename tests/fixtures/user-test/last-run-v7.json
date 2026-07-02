@@ -1,0 +1,46 @@
+{
+  "run_timestamp": "2026-06-20T12:00:00Z",
+  "completed": true,
+  "scenario_slug": "checkout-quality",
+  "git_sha": "abc1234",
+  "areas": [
+    {
+      "slug": "checkout/cart",
+      "ux_score": 3,
+      "quality_score": 3,
+      "time_seconds": 14,
+      "skip_reason": null,
+      "assessment": "Invalid zip accepted",
+      "issues": []
+    }
+  ],
+  "qualitative": {
+    "best_moment": { "area": "checkout/cart", "text": "Cart updated immediately" },
+    "worst_moment": { "area": "checkout/cart", "text": "Invalid zip accepted" },
+    "demo_readiness": "partial",
+    "verdict": "Cart works but validation is weak",
+    "context": "shipping validation"
+  },
+  "explore_next_run": [
+    { "priority": "P1", "area": "checkout/cart", "mode": "Browser", "why": "Verify invalid zip handling" }
+  ],
+  "ux_opportunities": [],
+  "good_patterns": [],
+  "verification_results": [],
+  "probes_run": [
+    {
+      "area": "checkout/cart",
+      "query": "ship to 00000",
+      "verify": "Inline error shown",
+      "status": "failing",
+      "result_detail": "No inline error"
+    }
+  ],
+  "probes_generated": [],
+  "cross_area_probes_run": [],
+  "stable_queries_rotated": [],
+  "disconnects": {
+    "count": 0,
+    "contexts": []
+  }
+}

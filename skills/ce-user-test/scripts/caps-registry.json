@@ -1,0 +1,109 @@
+{
+  "_meta": {
+    "description": "Named caps and thresholds for ce-user-test deterministic scripts and prose.",
+    "precedence": "area > file frontmatter > registry",
+    "schema": "Each entry has a value, unit, and one-line meaning. JSON has no comments, so this _meta object is the header."
+  },
+  "entries": {
+    "probe_run_history_cap": {
+      "value": 10,
+      "unit": "entries per probe",
+      "meaning": "Keep the most recent per-area probe run results and drop older results."
+    },
+    "cross_area_probe_run_history_cap": {
+      "value": 10,
+      "unit": "entries per cross-area probe",
+      "meaning": "Keep the most recent cross-area probe run results and drop older results."
+    },
+    "probe_synthesis_per_run_cap": {
+      "value": 2,
+      "unit": "cross-area synthesis entries per run",
+      "meaning": "Limit synthesized cross-area Explore Next Run entries from shared weakness classes."
+    },
+    "tactical_notes_per_area_cap": {
+      "value": 3,
+      "unit": "notes per area",
+      "meaning": "Keep the most recent tactical notes in an area's Notes column."
+    },
+    "novelty_fingerprints_per_area_cap": {
+      "value": 20,
+      "unit": "fingerprints per area",
+      "meaning": "Keep the most recent novelty fingerprints for each area."
+    },
+    "score_history_per_area_cap": {
+      "value": 10,
+      "unit": "score entries per area",
+      "meaning": "Keep the most recent score-history entries for each area and query."
+    },
+    "test_history_cap": {
+      "value": 50,
+      "unit": "test-history entries",
+      "meaning": "Keep the most recent rows in tests/user-flows/test-history.md."
+    },
+    "ux_opportunities_lifecycle": {
+      "value": {
+        "open_cap": 20,
+        "closed_age_out_days": 30
+      },
+      "unit": "open entries and days",
+      "meaning": "Keep recent open UX opportunities and age out implemented or wont_fix entries."
+    },
+    "good_patterns_unconfirmed_runs": {
+      "value": 5,
+      "unit": "runs",
+      "meaning": "Remove a good pattern after this many runs without reconfirmation."
+    },
+    "bug_archive_age_months": {
+      "value": 6,
+      "unit": "months",
+      "meaning": "Archive fixed or stale bug records after this age."
+    },
+    "pass_threshold": {
+      "value": 4,
+      "unit": "UX score",
+      "meaning": "Default minimum UX score for an area to count as passing."
+    },
+    "quality_threshold": {
+      "value": 3,
+      "unit": "quality score",
+      "meaning": "Default minimum quality score for scored_output areas to count as passing."
+    },
+    "mcp_restart_threshold": {
+      "value": 15,
+      "unit": "MCP calls",
+      "meaning": "Default proactive browser page-reload threshold."
+    },
+    "delta_warning_threshold": {
+      "value": -0.5,
+      "unit": "quality average delta",
+      "meaning": "Warn when the current completed run falls below the previous comparable run by more than this delta."
+    },
+    "pattern_surfacing": {
+      "value": {
+        "window_runs": 10,
+        "positive_best_area_count": 7,
+        "negative_worst_area_count": 5
+      },
+      "unit": "runs",
+      "meaning": "Surface recurring best-area and worst-area patterns after enough appearances in the recent run window."
+    },
+    "issue_dedup_overlap_threshold": {
+      "value": 0.7,
+      "unit": "shorter-title token overlap ratio",
+      "meaning": "Treat a GitHub issue candidate as duplicate when title token overlap meets or exceeds this ratio."
+    },
+    "journal_staleness": {
+      "value": {
+        "warn_after_hours": 24,
+        "rollback_default_after_days": 7
+      },
+      "unit": "elapsed time",
+      "meaning": "Warn before resuming old journals and default very old journals to rollback."
+    },
+    "journal_heartbeat_window": {
+      "value": 25,
+      "unit": "seconds",
+      "meaning": "Treat a recent journal heartbeat as evidence that another commit-engine process may still be active."
+    }
+  }
+}

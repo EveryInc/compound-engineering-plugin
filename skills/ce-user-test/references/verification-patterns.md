@@ -132,7 +132,7 @@ When to add a verify block: any area with a filter, search result set, count, so
 
 ## Selector Discovery and Writeback
 
-Commit mode persists confirmed selectors into each area's `**verify:**` block. This is the highest-leverage writeback: run 1 discovers selectors through sequential trial (3-5 MCP calls), run 2 reads the verify block and batches them into one `javascript_tool` call.
+Commit mode persists selectors from each area's payload `confirmed_selectors` into that area's `**verify:**` block. This is the highest-leverage writeback: run 1 discovers selectors through sequential trial (3-5 MCP calls), run 2 reads the verify block and batches them into one `javascript_tool` call.
 
 ### Rules
 
@@ -167,3 +167,5 @@ Confirmed selectors are stored per area in the `confirmed_selectors` object:
 ```
 
 `confirmed_selectors: {}` means no selectors were confirmed this run — skip verify block update for this area.
+
+The agent decides which selectors are confirmed and writes them to the payload. The engine appends them with the run-number note and never replaces user-authored verify content.

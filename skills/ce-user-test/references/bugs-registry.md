@@ -22,7 +22,7 @@ open → fixed → regressed
 ```
 
 - **open**: Bug discovered and issue filed. Area marked Known-bug.
-- **fixed**: Known-bug area's `fix_check` passes (score >= area's `pass_threshold`, default 4) AND linked GitHub issue is closed. Both conditions required — a passing score with an open issue means the fix hasn't been formally accepted.
+- **fixed**: Known-bug area's `fix_check` passes (score >= area's `pass_threshold`; default from `../scripts/caps-registry.json`) AND linked GitHub issue is closed. Both conditions required — a passing score with an open issue means the fix hasn't been formally accepted.
 - **regressed**: A previously-fixed area fails again (score < `pass_threshold`). A new GitHub issue is filed with "Regression of #N" referencing the original. The original bug entry is updated to `regressed` with the regression date.
 
 ## Sequential IDs
@@ -41,11 +41,13 @@ Each affected area's Known-bug detail references the same bug ID.
 
 ## Commit Mode Updates
 
-After each completed run, commit mode processes the bug registry:
+Before building the commit payload, the agent checks issue state and fix/regression evidence. The engine applies only the mechanical table changes from `bug_lifecycle_updates` and `issue_candidates`.
 
-1. **Check for fixes:** For each `open` bug, check if the area was tested and passed fix_check (score >= `pass_threshold`). Also check `gh issue view <issue-number> --json state -q '.state'` — both must be true (score passes AND issue closed) to mark `fixed`.
-2. **File new bugs:** For each area with UX <= 2 or Quality <= 1, check if a bug already exists for that area. If not, create a new entry with next sequential ID and file a GitHub issue.
-3. **Detect regressions:** For each `fixed` bug, check if the area was tested and failed (score < `pass_threshold`). If so, file a new issue with "Regression of #N", update the bug entry to `regressed` with the date.
+- **Fixes:** For each `open` bug, the agent checks whether the area was tested and passed fix_check (score >= area threshold) and whether the linked issue is closed through the project's issue tracker. If both are true, write a `bug_lifecycle_updates` entry with `status: "fixed"`, `fix_check_passed: true`, and `issue_closed: true`.
+- **New bugs:** For each area with UX <= 2 or Quality <= 1, the agent checks whether a matching bug already exists. If not, include an `issue_candidates` entry; the engine creates the next sequential bug row and the agent files the issue after apply.
+- **Regressions:** For each `fixed` bug, the agent checks whether the area was tested and failed. If so, write a `bug_lifecycle_updates` entry with `status: "regressed"` and include the regression title/body evidence; the engine updates the original bug row and creates a pending regression candidate.
+
+The engine owns row IDs, dates, status cells, and issue-number writeback. It does not call `gh` or decide whether a fix is accepted.
 
 ## File Creation
 
@@ -53,4 +55,4 @@ After each completed run, commit mode processes the bug registry:
 
 ## Rotation
 
-Archive entries older than 6 months to `tests/user-flows/bugs-archive.md`. Archived entries are no longer checked during runs but preserved for historical reference.
+Archive age is governed by `bug_archive_age_months` in `../scripts/caps-registry.json`. Archived entries move to `tests/user-flows/bugs-archive.md`; they are no longer checked during runs but remain historical reference.

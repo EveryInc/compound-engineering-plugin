@@ -168,7 +168,7 @@ Checkpoint detail shown for failing/flaky journeys only. Passing journeys show s
 
 ## Commit Mode
 
-Journey commit runs after per-area commit steps:
+The commit engine consumes `journeys_run` from the payload and applies journey state mechanically:
 
 1. Update **Status**, **Last Run**, **Run History** in test file
 2. Auto-escalate at 3+ consecutive same-step failures → bugs.md. Suppress if failing step's area has active Known-bug.

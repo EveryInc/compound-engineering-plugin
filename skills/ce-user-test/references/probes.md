@@ -33,7 +33,7 @@ After each run (Phase 4), generate probes for areas with:
 - A **Multi-turn context failure** (see [queries-and-multiturn.md](./queries-and-multiturn.md) for detection patterns)
 - A **CLI timing variance >50%** between runs OR any CLI query timeout. Performance probes verify timing, not results: `verify: "Completes in <Xs (no timeout)"`. Priority P1 for timeouts, P2 for variance. Generated as `"run-N timing flakiness: <query>"`.
 - A **CLI tool call spike** (2x+ the query's historical average, minimum 3 data points before flagging). Tool call probes verify agent efficiency: `verify: "Completes with ≤N tool calls"`. Priority P2. Generated as `"run-N tool call spike: <query> (N vs avg M)"`. Tool call probes are **informational** — failing tool call probes do not block promotion to Proven and do not affect UX or Quality scores.
-- A **quality spread ≥ 2** across runs for the same query in iterate mode (e.g., Q5 in R1, Q2 in R2 — same query, wildly different outcomes). "Spread" = max score minus min score across runs in the session. These generate reliability probes: `verify: "Returns consistent results (same category/count ±30%) across 2 consecutive runs."` Priority P1 — flakiness is worse than consistently low quality because it's unpredictable. Applies to Quality score dimension per-query. If the query already has an active probe, skip (existing 70% word-overlap dedup applies).
+- A **quality spread ≥ 2** across runs for the same query in iterate mode (e.g., Q5 in R1, Q2 in R2 — same query, wildly different outcomes). "Spread" = max score minus min score across runs in the session. These generate reliability probes: `verify: "Returns consistent results (same category/count ±30%) across 2 consecutive runs."` Priority P1 — flakiness is worse than consistently low quality because it's unpredictable. Applies to Quality score dimension per-query. If the query already has an active probe, skip using the overlap threshold in `../scripts/caps-registry.json`.
 - A **structural hypothesis from code reading** — generated in Phase 1 from source file analysis before the first test pass (not after Phase 4). These are hypotheses, not observed failures. Default confidence: medium. Format: `generated_from: "structural-hypothesis: <filename> <line or function>"`. See [orientation.md](./orientation.md).
 
 Each generated probe has:
@@ -69,7 +69,7 @@ Each generated probe has:
 - Probe graduates: records `high` in graduated entry (frozen on graduation)
 - Probe escalated: retains `high` (3+ consecutive failures = confirmed)
 
-**v5 migration:** Probes without confidence field → treat as `confidence: high` (existing probes were generated from observed failures). Do NOT rewrite on read.
+Historical probe-column migration is owned by `../scripts/migrate-test-file.py`.
 
 ### Multi-Cause Isolation
 
@@ -136,7 +136,7 @@ In iterate mode, show per-query scores across runs:
 
 Per-query scores are stored in `.user-test-last-run.json` under each area's `quality_scores_by_query` field (array of {query, scores[], avg}).
 
-**Interaction with existing probe generation:** Per-query outlier flagging (✗ marker) is cosmetic — it does not trigger additional probe generation beyond what already exists (queries scoring <= 3 already generate probes via commit mode step 8). The flag helps the reader spot the problem; the probe system handles the automated response.
+**Interaction with existing probe generation:** Per-query outlier flagging (✗ marker) is cosmetic — it does not trigger additional probe generation beyond what already exists (queries scoring <= 3 are sharpened into probes before the commit payload is built). The flag helps the reader spot the problem; the probe system handles the durable response.
 
 ### Evaluation Provenance
 
@@ -201,7 +201,7 @@ probe failing 3 times has been observed across at least 2 separate sessions
 at 3 removes the manual confirmation step — the 3-run failure history IS
 the confirmation.
 
-A probe failing for 3+ consecutive runs auto-escalates during commit mode:
+A probe failing for 3+ consecutive runs auto-escalates during commit mode. The agent supplies run results in `probes_run`; the engine applies the mechanical status/history update and creates pending bug candidates:
 
 1. **Dedup check:** If probe already has `escalated_to: "B00N"` field, skip (already filed)
 2. Create a bug entry in `bugs.md` with next sequential ID
@@ -209,7 +209,7 @@ A probe failing for 3+ consecutive runs auto-escalates during commit mode:
 4. Set bug `Found` date from the probe's `Generated From` field
 5. Link probe to bug: add `escalated_to: "B00N"` to probe entry
 6. Probe stays active (keeps running). Bug entry tracks the fix.
-7. If `gh` is not authenticated: file to `bugs.md` with `Issue: ---`. Log warning: "Bug filed locally but GitHub issue not created — run `gh auth login` to sync." On next commit with `gh` authenticated, detect `Issue: ---` entries and offer to file.
+7. If the issue tracker is unavailable, the agent leaves the issue candidate pending and records the filing failure in the session report; `confirm-issues` is retried after the tracker path works.
 
 **Interaction with area-level escalation:** If a probe in the area has been auto-escalated (has `escalated_to` field), suppress the area-level "persistent <= 3 scores" manual escalation offer for that area. The probe-level escalation is more specific and already covers the intent.
 
@@ -243,14 +243,14 @@ When git diff is unavailable (no .git, first run, force push): skip verification
 
 ## Dedup
 
-Dedup key: **area slug + verify text**. Two probes with the same area and >70% word overlap in their `verify:` clause are the same probe — update the existing entry, don't create a duplicate.
+Dedup key: **area slug + verify text**. Two probes with the same area and verify-clause overlap meeting `issue_dedup_overlap_threshold` in `../scripts/caps-registry.json` are the same probe — update the existing entry, don't create a duplicate.
 
 Probes with the same query but different `verify:` clauses are distinct probes — both are kept.
 
 ## Cap and Rotation
 
 - **Failing/flaky probes:** Keep indefinitely
-- **Passing probes:** Rotate out after 10 runs (they've proven stability)
+- **Passing probes:** Rotate out after `probe_run_history_cap` in `../scripts/caps-registry.json` (they've proven stability)
 - **Graduated probes:** Stay in the table as read-only historical record
 - No cap per area — accumulation is natural. If an area has many failing probes, that's signal worth preserving.
 
@@ -364,11 +364,13 @@ Cross-Area Probes:
 
 ### Dedup
 
-Key: `trigger_area + observation_area + verify text`. Same 70% word-overlap rule as per-area probes, applied to the area pair. A probe from A→B and a probe from B→A are different probes (different causal direction).
+Key: `trigger_area + observation_area + verify text`. Same registry-owned overlap threshold as per-area probes, applied to the area pair. A probe from A→B and a probe from B→A are different probes (different causal direction).
 
 ### Bug Filing
 
 When a cross-area probe escalates (3+ consecutive failures), the bug entry in bugs.md lists the trigger area as primary and the observation area in the summary: "Also affects: <observation_area>". This matches the existing multi-area bug format in bugs-registry.md.
+
+The engine consumes `cross_area_probes_run` from the commit payload to update cross-area probe `Status`, `Run History`, and escalation candidates. The agent decides which new cross-area probes to generate; the engine only persists results for probes that ran.
 
 ### Spot-Check Budget
 
@@ -380,7 +382,7 @@ Progressive narrowing classifications (SKIP/PROBES-ONLY/FULL) apply to per-area 
 
 ### Cap
 
-Maximum 10 active cross-area probes per test file. Cross-area probes are more expensive than per-area (two navigation steps, no reset). If the table exceeds 10 active entries, the oldest passing probes rotate out first (same as per-area rotation).
+The active cross-area probe cap is governed by `cross_area_probe_run_history_cap` in `../scripts/caps-registry.json`. Cross-area probes are more expensive than per-area (two navigation steps, no reset). If the table exceeds the cap, the oldest passing probes rotate out first (same as per-area rotation).
 
 ### Proactive Restart Interaction
 
@@ -452,9 +454,9 @@ Synthesis reads `weakness_class` fields from the test file as written by the pre
 
 ### Cap and Tiebreaker
 
-**Cap:** Maximum 2 cross-area synthesis entries per run.
+**Cap:** Governed by `probe_synthesis_per_run_cap` in `../scripts/caps-registry.json`.
 
-**Tiebreaker when >2 classes qualify:** Rank by (1) number of affected areas — more areas = higher priority; then (2) number of failing probes in the class. Deterministic, favors widespread patterns.
+**Tiebreaker when more classes qualify than the registry cap:** Rank by (1) number of affected areas — more areas = higher priority; then (2) number of failing probes in the class. Deterministic, favors widespread patterns.
 
 ### Adversarial Instruction Templates
 
