@@ -478,17 +478,6 @@ function applyPermissions(
     }
   }
 
-  if (mode !== "broad") {
-    for (const [tool, toolPatterns] of Object.entries(patterns)) {
-      if (!toolPatterns || toolPatterns.size === 0) continue
-      const patternPermission: Record<string, "allow" | "deny"> = { "*": "deny" }
-      for (const pattern of toolPatterns) {
-        patternPermission[pattern] = "allow"
-      }
-      ;(permission)[tool] = patternPermission
-    }
-  }
-
   if (enabled.has("write") || enabled.has("edit")) {
     if (typeof permission.edit === "string") permission.edit = "allow"
     if (typeof permission.write === "string") permission.write = "allow"
@@ -506,10 +495,6 @@ function applyPermissions(
   }
 
   config.permission = permission
-}
-
-function normalizeTool(raw: string): string | null {
-  return parseToolSpec(raw).tool
 }
 
 function parseToolSpec(raw: string): { tool: string | null; pattern?: string } {
