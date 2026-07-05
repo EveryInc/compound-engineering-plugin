@@ -26,6 +26,7 @@ async function makeFixtureRoot(): Promise<string> {
   await mkdir(path.join(root, ".cursor-plugin"), { recursive: true })
   await mkdir(path.join(root, ".codex-plugin"), { recursive: true })
   await mkdir(path.join(root, ".kimi-plugin"), { recursive: true })
+  await mkdir(path.join(root, ".devin-plugin"), { recursive: true })
   await mkdir(path.join(root, ".agents", "plugins"), { recursive: true })
 
   await writeFile(
@@ -73,6 +74,18 @@ async function makeFixtureRoot(): Promise<string> {
         version: "2.42.0",
         description: "old",
         skills: "./skills/",
+      },
+      null,
+      2,
+    ),
+  )
+  await writeFile(
+    path.join(root, ".devin-plugin", "plugin.json"),
+    JSON.stringify(
+      {
+        name: "compound-engineering",
+        version: "2.42.0",
+        description: "old",
       },
       null,
       2,
@@ -215,6 +228,27 @@ describe("release metadata", () => {
     expect(afterContents.version).toBe("2.41.0")
   })
 
+  test("reports Devin plugin.json version drift without auto-correcting", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".devin-plugin", "plugin.json"),
+      JSON.stringify(
+        { name: "compound-engineering", version: "2.41.0" },
+        null,
+        2,
+      ),
+    )
+    const result = await syncReleaseMetadata({ root, write: true })
+    const devinPath = path.join(root, ".devin-plugin", "plugin.json")
+    const devinUpdate = result.updates.find((u) => u.path === devinPath)
+
+    expect(devinUpdate).toBeDefined()
+    expect(devinUpdate!.changed).toBe(true)
+
+    const afterContents = JSON.parse(await Bun.file(devinPath).text())
+    expect(afterContents.version).toBe("2.41.0")
+  })
+
   test("reports package.json version drift without auto-correcting", async () => {
     const root = await makeFixtureRoot()
     await writeFile(
@@ -312,6 +346,73 @@ describe("release metadata", () => {
     const result = await syncReleaseMetadata({ root, write: false })
 
     expect(result.errors.some((err) => err.includes(".kimi-plugin/plugin.json is missing"))).toBe(true)
+  })
+
+  test("reports missing Devin manifest as a structural error", async () => {
+    const root = await makeFixtureRoot()
+    await Bun.$`rm ${path.join(root, ".devin-plugin", "plugin.json")}`.quiet()
+
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(result.errors.some((err) => err.includes(".devin-plugin/plugin.json is missing"))).toBe(true)
+
+    // The missing manifest short-circuits (Codex semantics): exactly one
+    // unchanged update entry, never a drift entry for a nonexistent file.
+    const devinPath = path.join(root, ".devin-plugin", "plugin.json")
+    expect(result.updates.filter((u) => u.path === devinPath)).toEqual([
+      { path: devinPath, changed: false },
+    ])
+  })
+
+  test("reports Devin plugin.json name mismatch as structural error", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".devin-plugin", "plugin.json"),
+      JSON.stringify({ name: "wrong-name", version: "2.42.0" }, null, 2),
+    )
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(
+      result.errors.some(
+        (err) =>
+          err.includes(".devin-plugin/plugin.json") &&
+          err.includes('name "wrong-name" does not match expected "compound-engineering"'),
+      ),
+    ).toBe(true)
+  })
+
+  test("rewrites Devin plugin.json description on write when drifted from Claude", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".claude-plugin", "plugin.json"),
+      JSON.stringify(
+        {
+          version: "2.42.0",
+          description: "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+        },
+        null,
+        2,
+      ),
+    )
+    await writeFile(
+      path.join(root, ".devin-plugin", "plugin.json"),
+      JSON.stringify(
+        {
+          name: "compound-engineering",
+          version: "2.42.0",
+          description: "stale devin description",
+        },
+        null,
+        2,
+      ),
+    )
+    const devinPath = path.join(root, ".devin-plugin", "plugin.json")
+    await syncReleaseMetadata({ root, write: true })
+
+    const afterContents = JSON.parse(await Bun.file(devinPath).text())
+    expect(afterContents.description).toBe(
+      "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+    )
   })
 
   test("reports Codex plugin.json name mismatch as structural error", async () => {
@@ -586,7 +687,8 @@ describe("release metadata", () => {
       (err) =>
         err.includes(".codex-plugin") ||
         err.includes(".agents/plugins") ||
-        err.includes(".kimi-plugin"),
+        err.includes(".kimi-plugin") ||
+        err.includes(".devin-plugin"),
     )
     expect(nativePluginErrors).toEqual([])
   })

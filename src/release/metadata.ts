@@ -33,6 +33,14 @@ type KimiPluginManifest = {
   skills?: string
 }
 
+// Devin CLI manifests have no `skills` path field — Devin loads root `skills/`
+// by convention. See docs/specs/devin.md.
+type DevinPluginManifest = {
+  name: string
+  version: string
+  description?: string
+}
+
 type AntigravityManifest = {
   version: string
 }
@@ -220,6 +228,7 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   const compoundCursorPath = path.join(root, ".cursor-plugin", "plugin.json")
   const compoundAntigravityPath = path.join(root, "plugin.json")
   const compoundKimiPath = path.join(root, ".kimi-plugin", "plugin.json")
+  const compoundDevinPath = path.join(root, ".devin-plugin", "plugin.json")
   const marketplaceClaudePath = path.join(root, ".claude-plugin", "marketplace.json")
   const marketplaceCursorPath = path.join(root, ".cursor-plugin", "marketplace.json")
 
@@ -477,6 +486,42 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
     } else {
       throw err
     }
+  }
+
+  // Devin manifest. Devin CLI installs the repo natively from
+  // `.devin-plugin/plugin.json` plus the root `skills/` directory. The manifest
+  // schema has no `skills` path field and Devin has no marketplace catalog, so
+  // unlike Kimi there is no declared-skills-path or marketplace parity check.
+  // Version sync is detect-only — release-please owns the write via extra-files.
+  // A missing manifest short-circuits after the parity error (same as Codex),
+  // so it reports exactly one unchanged update entry.
+  let devin: DevinPluginManifest | undefined
+  try {
+    devin = await readJson<DevinPluginManifest>(compoundDevinPath)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${compoundDevinPath} is missing but ${compoundClaudePath} exists. Devin manifest parity required.`)
+      updates.push({ path: compoundDevinPath, changed: false })
+    } else {
+      throw err
+    }
+  }
+
+  if (devin) {
+    if (devin.name !== "compound-engineering") {
+      errors.push(`${compoundDevinPath}: name "${devin.name}" does not match expected "compound-engineering"`)
+    }
+
+    let devinChanged = false
+    if (devin.version !== compoundClaude.version) {
+      devinChanged = true
+    }
+    if (compoundClaude.description !== undefined && devin.description !== compoundClaude.description) {
+      devin.description = compoundClaude.description
+      devinChanged = true
+    }
+    updates.push({ path: compoundDevinPath, changed: devinChanged })
+    if (write && devinChanged) await writeJson(compoundDevinPath, devin)
   }
 
   return { updates, errors }
