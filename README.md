@@ -231,6 +231,25 @@ You can also browse it through Kimi's custom marketplace flow:
 
 After installing or updating, run `/reload` or start a new Kimi session so the plugin skills are loaded.
 
+### Devin CLI
+
+Devin CLI can install Compound Engineering directly from GitHub because the repo ships a native `.devin-plugin/plugin.json` manifest:
+
+```bash
+devin plugins install EveryInc/compound-engineering-plugin
+```
+
+Verify the install and inspect the skills:
+
+```bash
+devin plugins list
+devin plugins info compound-engineering
+```
+
+Update to the latest version with `devin plugins update compound-engineering`. Plugins load at session start, so start a new Devin session after installing or updating for the skills to appear (as `/compound-engineering:<skill>` slash commands).
+
+A few skills declare Claude-style `allowed-tools` names that Devin does not map (for example `Bash`); those skills still work, but some of their actions ask for permission instead of running auto-approved. See [`docs/specs/devin.md`](docs/specs/devin.md) for details.
+
 ### GitHub Copilot
 
 For **VS Code Copilot Agent Plugins**:
@@ -416,6 +435,14 @@ To test the local marketplace catalog instead, pass the catalog path:
 ```text
 /plugins marketplace /path/to/compound-engineering-plugin/.kimi-plugin/marketplace.json
 ```
+
+**Devin CLI**
+
+```bash
+devin plugins install /path/to/compound-engineering-plugin
+```
+
+Local installs are linked to the checkout rather than copied, so skill edits apply on the next Devin session without reinstalling.
 
 **OpenCode**
 
