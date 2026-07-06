@@ -396,6 +396,8 @@ python3 "$SKILL_DIR/scripts/commit-engine.py" apply
 
 If `plan` returns `VALIDATION-FAILED`, read the JSON error list, re-present only the contradicted decision with the engine's evidence, rebuild the payload, and run `plan` again. Do not hand-edit the generated artifacts around a validation rejection.
 
+If the post-`PLANNED` warning JSON contains `maturity_expected_but_absent`, rebuild the payload with `next_status`, `consecutive_passes_after`, and `maturity_transitions` before proceeding.
+
 `MIGRATION-DEFAULTS-WARN` is expected non-blocking `plan` output; continue only after `PLANNED`.
 
 If `plan` returns `JOURNAL-EXISTS`, run `status <scenario-slug>` and route by the status sentinel before retrying the plan. If it returns `FOREIGN-JOURNAL <scenario>`, stop and report the foreign journal.

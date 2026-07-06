@@ -2161,6 +2161,109 @@ def expected_probe_absence_warnings(payload: dict[str, Any]) -> list[dict[str, A
     ]
 
 
+def parse_nonnegative_int(value: Any) -> int:
+    match = re.match(r"^\s*(\d+)", str(value))
+    return int(match.group(1)) if match else 0
+
+
+def test_file_maturity_by_area(text: str | None) -> dict[str, dict[str, Any]]:
+    if text is None:
+        return {}
+    lines, _ = markdown_lines(text)
+    table = find_table(lines, {"Area", "Status", "Consecutive Passes"})
+    if table is None:
+        return {}
+    headers = cells(lines[table])
+    result: dict[str, dict[str, Any]] = {}
+    for index in range(table + 2, table_end(lines, table)):
+        row = cells(lines[index])
+        if len(row) < len(headers):
+            row.extend([""] * (len(headers) - len(row)))
+        slug = get_first_available_cell(row, headers, ["Area"]).strip()
+        if not slug:
+            continue
+        result[slug] = {
+            "status": get_first_available_cell(row, headers, ["Status"]).strip(),
+            "consecutive_passes": parse_nonnegative_int(
+                get_first_available_cell(row, headers, ["Consecutive Passes"])
+            ),
+        }
+    return result
+
+
+def payload_has_maturity_signal(payload: dict[str, Any]) -> bool:
+    if payload.get("maturity_transitions"):
+        return True
+    areas = payload.get("areas")
+    if not isinstance(areas, list):
+        return False
+    return any(isinstance(area, dict) and "next_status" in area for area in areas)
+
+
+def known_bug_score_triggered(area: dict[str, Any]) -> bool:
+    ux = area.get("ux_score")
+    quality = area.get("quality_score")
+    return (isinstance(ux, (int, float)) and ux <= 2) or (
+        isinstance(quality, (int, float)) and quality <= 1
+    )
+
+
+def expected_maturity_absence_warnings(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    if payload_has_maturity_signal(payload):
+        return []
+    test_file = payload.get("test_file")
+    if not isinstance(test_file, str):
+        return []
+    text = read_text(resolve(test_file))
+    if text is None:
+        return []
+    thresholds = threshold_map(payload, text)
+    maturity_by_area = test_file_maturity_by_area(text)
+    affected: list[dict[str, Any]] = []
+    areas = payload.get("areas")
+    if not isinstance(areas, list):
+        return []
+    for area in areas:
+        if not isinstance(area, dict) or area.get("skip_reason") or not isinstance(area.get("slug"), str):
+            continue
+        slug = area["slug"]
+        file_state = maturity_by_area.get(slug, {"status": "", "consecutive_passes": 0})
+        current_status = str(file_state.get("status", "")).strip()
+        normalized_status = current_status.lower()
+        consecutive_before = int(file_state.get("consecutive_passes") or 0)
+        if score_passes(area, thresholds):
+            consecutive_after = consecutive_before + 1
+            if consecutive_after >= 2 and normalized_status != "proven":
+                affected.append(
+                    {
+                        "area": slug,
+                        "condition": "promotion_streak",
+                        "current_status": current_status,
+                        "consecutive_passes_before": consecutive_before,
+                        "consecutive_passes_after": consecutive_after,
+                    }
+                )
+        if known_bug_score_triggered(area) and normalized_status != "known-bug":
+            affected.append(
+                {
+                    "area": slug,
+                    "condition": "known_bug",
+                    "current_status": current_status,
+                    "ux_score": area.get("ux_score"),
+                    "quality_score": area.get("quality_score"),
+                }
+            )
+    if not affected:
+        return []
+    return [
+        {
+            "code": "maturity_expected_but_absent",
+            "path": test_file,
+            "areas": affected,
+        }
+    ]
+
+
 def validate_payload(payload: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     errors: list[dict[str, Any]] = []
     if not isinstance(payload, dict):
@@ -2277,7 +2380,10 @@ def command_plan(payload_file: str) -> int:
     errors, warnings = validate_payload(payload)
     if errors:
         return print_json_sentinel("VALIDATION-FAILED", errors) or 1
-    plan_warnings = expected_probe_absence_warnings(payload)
+    plan_warnings = [
+        *expected_probe_absence_warnings(payload),
+        *expected_maturity_absence_warnings(payload),
+    ]
 
     existing = load_journal()
     if existing is not None and existing.get("state") != "complete":

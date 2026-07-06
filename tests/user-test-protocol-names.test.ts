@@ -145,6 +145,16 @@ function engineWarningSentinels(source: string): Set<string> {
   )
 }
 
+function enginePlanWarningCodes(source: string): Set<string> {
+  const snippets = [
+    pythonFunction(source, "expected_probe_absence_warnings"),
+    pythonFunction(source, "expected_maturity_absence_warnings"),
+  ].join("\n")
+  return new Set(
+    [...snippets.matchAll(/"code"\s*:\s*"([^"]+)"/g)].map((match) => match[1]),
+  )
+}
+
 function markdownSection(source: string, heading: string): string {
   const start = source.indexOf(heading)
   if (start === -1) {
@@ -353,6 +363,13 @@ describe("ce-user-test v11 protocol name anti-drift", () => {
     assertNameSetsEqual("warning sentinels", warningSentinelSources, 1)
     assertNameSetsEqual("disposition values", dispositionSources, 4)
     assertNameSetsEqual("evidence types", evidenceTypeSources, 4)
+  })
+
+  test("commit plan warning codes stay pinned", () => {
+    expect(sorted(enginePlanWarningCodes(commitEngine))).toEqual([
+      "maturity_expected_but_absent",
+      "probes_expected_but_absent",
+    ])
   })
 
   test("run-json default dict literals stay byte-identical across scripts", () => {

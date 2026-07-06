@@ -113,6 +113,15 @@ function stdoutLines(stdout: string): string[] {
   return stdout.trim().split(/\r?\n/)
 }
 
+function planWarnings(stdout: string): any[] {
+  const lines = stdoutLines(stdout)
+  const plannedIndex = lines.indexOf("PLANNED")
+  if (plannedIndex === -1 || plannedIndex === lines.length - 1) {
+    return []
+  }
+  return JSON.parse(lines.slice(plannedIndex + 1).join("\n")).warnings ?? []
+}
+
 function isoHoursAgo(hours: number): string {
   return new Date(Date.now() - hours * 60 * 60 * 1000)
     .toISOString()
@@ -295,6 +304,20 @@ function basePayload(overrides: Record<string, unknown> = {}): any {
     ],
   }
   return { ...payload, ...overrides }
+}
+
+function withoutMaturityFields(payload: any): any {
+  const stripped = { ...payload }
+  delete stripped.maturity_transitions
+  stripped.areas = (stripped.areas ?? []).map((area: any) => {
+    const next = { ...area }
+    delete next.previous_status
+    delete next.next_status
+    delete next.consecutive_passes_before
+    delete next.consecutive_passes_after
+    return next
+  })
+  return stripped
 }
 
 function fullApply(project: ReturnType<typeof makeProject>, payload = basePayload()): any {
@@ -1451,6 +1474,108 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
     const lines = stdoutLines(result.stdout)
     expect(lines[0]).toBe("PLANNED")
     expect(JSON.parse(lines[1]).warnings[0].code).toBe("probes_expected_but_absent")
+  })
+
+  test("missing maturity fields warn when a passing run reaches promotion streak", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8")
+        .replace("| checkout/cart | Proven | 4 |", "| checkout/cart | Uncharted | 4 |")
+        .replace("| 12 | 2 | stable cart flow |", "| 12 | 1 | stable cart flow |"),
+    )
+    const payload = withoutMaturityFields(basePayload({ issue_candidates: [] }))
+
+    const result = runCommit(project.dir, "plan", payloadPath(project, payload))
+
+    expect(result.code).toBe(0)
+    const warnings = planWarnings(result.stdout)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0].code).toBe("maturity_expected_but_absent")
+    expect(warnings[0].areas).toContainEqual({
+      area: "checkout/cart",
+      condition: "promotion_streak",
+      current_status: "Uncharted",
+      consecutive_passes_before: 1,
+      consecutive_passes_after: 2,
+    })
+  })
+
+  test("missing maturity fields warn when scores imply Known-bug", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "| checkout/cart | Proven | 4 |",
+        "| checkout/cart | Uncharted | 4 |",
+      ),
+    )
+    const payload = withoutMaturityFields(
+      basePayload({
+        areas: [{ ...basePayload().areas[0], ux_score: 2 }],
+        issue_candidates: [],
+      }),
+    )
+
+    const result = runCommit(project.dir, "plan", payloadPath(project, payload))
+
+    expect(result.code).toBe(0)
+    const warnings = planWarnings(result.stdout)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0].code).toBe("maturity_expected_but_absent")
+    expect(warnings[0].areas).toContainEqual({
+      area: "checkout/cart",
+      condition: "known_bug",
+      current_status: "Uncharted",
+      ux_score: 2,
+      quality_score: null,
+    })
+  })
+
+  test("maturity transitions suppress missing-maturity warning", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8")
+        .replace("| checkout/cart | Proven | 4 |", "| checkout/cart | Uncharted | 4 |")
+        .replace("| 12 | 2 | stable cart flow |", "| 12 | 1 | stable cart flow |"),
+    )
+    const payload = withoutMaturityFields(basePayload({ issue_candidates: [] }))
+    payload.maturity_transitions = [
+      {
+        area: "checkout/cart",
+        from: "Uncharted",
+        to: "Proven",
+        consecutive_passes: 2,
+        was_run: true,
+      },
+    ]
+
+    const result = runCommit(project.dir, "plan", payloadPath(project, payload))
+
+    expect(result.code).toBe(0)
+    expect(result.stdout.trim()).toBe("PLANNED")
+  })
+
+  test("missing maturity fields do not warn when no transition is implied", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8")
+        .replace("| checkout/cart | Proven | 4 |", "| checkout/cart | Uncharted | 4 |")
+        .replace("| 12 | 2 | stable cart flow |", "| 12 | 0 | stable cart flow |"),
+    )
+    const payload = withoutMaturityFields(
+      basePayload({
+        areas: [{ ...basePayload().areas[0], ux_score: 3 }],
+        issue_candidates: [],
+      }),
+    )
+
+    const result = runCommit(project.dir, "plan", payloadPath(project, payload))
+
+    expect(result.code).toBe(0)
+    expect(result.stdout.trim()).toBe("PLANNED")
   })
 
   test("cross-area probe reaches third failure and escalates to a pending bug", () => {
