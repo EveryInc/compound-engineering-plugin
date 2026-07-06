@@ -986,6 +986,43 @@ describe("ce-user-test commit-engine.py validation", () => {
     expect(result.code).toBe(0)
     expect(result.stdout.trim()).toBe("PLANNED")
   })
+
+  test("legacy bare-list score-history areas normalize and render trends", () => {
+    const project = makeProject()
+    writeJson(path.join(project.flows, "score-history.json"), {
+      areas: {
+        "checkout/cart": [
+          { date: "2026-06-30", ux: 3, quality: null, time: 8 },
+        ],
+      },
+    })
+
+    fullApply(project, basePayload({ issue_candidates: [] }))
+    confirmAll(project, [])
+
+    const scoreHistory = readJson(path.join(project.flows, "score-history.json"))
+    expect(scoreHistory.areas["checkout/cart"].scores).toHaveLength(2)
+    expect(scoreHistory.areas["checkout/cart"].trend).toBe("stable")
+    expect(readFileSync(project.testFile, "utf8")).toContain(
+      "| checkout/cart | stable | 4 | +1.0 |",
+    )
+  })
+
+  test("corrupt score-history fails with the file path in diagnostics", () => {
+    const project = makeProject()
+    writeFileSync(path.join(project.flows, "score-history.json"), "{not-json\n")
+
+    const result = runCommit(
+      project.dir,
+      "plan",
+      payloadPath(project, basePayload({ issue_candidates: [] })),
+    )
+
+    expect(result.code).toBe(2)
+    expect(result.stderr).toContain("tests/user-flows/score-history.json")
+    expect(result.stderr).toContain("invalid json")
+    expect(existsSync(journalPath(project))).toBe(false)
+  })
 })
 
 describe("ce-user-test commit-engine.py journaled apply", () => {
@@ -1028,6 +1065,31 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
     const lines = stdoutLines(status.stdout)
     expect(lines[0]).toBe("FOREIGN-JOURNAL checkout-quality")
     expect(JSON.parse(lines.slice(1).join("\n")).scenario_slug).toBe("checkout-quality")
+  })
+
+  test("result JSON remains parseable with unicode payload text under narrow stdout encoding", () => {
+    const project = makeProject()
+    const env = { PYTHONIOENCODING: "cp1252", PYTHONUTF8: "0" }
+    const payload = basePayload({
+      issue_candidates: [
+        {
+          id: "I1",
+          area: "checkout/cart",
+          title: "Cart \u2192 profile handoff loses state",
+          body: "The cart \u2192 profile handoff should preserve state.",
+        },
+      ],
+    })
+
+    const plan = runCommitEnv(project.dir, env, "plan", payloadPath(project, payload))
+    expect(plan.code).toBe(0)
+
+    const apply = runCommitEnv(project.dir, env, "apply")
+
+    expect(apply.code).toBe(0)
+    expect(startsWithLine(apply.stdout, "APPLIED")).toBe(true)
+    expect(resultJson(apply.stdout).pending_issues[0].title).toContain("\u2192")
+    expect(apply.stderr).not.toContain("UnicodeEncodeError")
   })
 
   test("staged resume produces the same end state as uninterrupted apply", () => {
@@ -1284,6 +1346,111 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
     expect(section(updated, "### checkout/profile")).toContain(
       "| edit display name | Saved name remains visible | passing |",
     )
+  })
+
+  test("nested-only per-area probe payload updates the owning area table", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      areas: [
+        {
+          ...basePayload().areas[0],
+          probes_run: [
+            {
+              query: "nested invalid zip",
+              verify: "Inline error shown",
+              status: "failing",
+              result_detail: "Validation did not appear",
+            },
+          ],
+        },
+      ],
+      probes_run: [],
+      probes_generated: [],
+      issue_candidates: [],
+    })
+
+    fullApply(project, payload)
+    confirmAll(project, [])
+
+    const updated = readFileSync(project.testFile, "utf8")
+    expect(section(updated, "### checkout/cart")).toContain(
+      "| nested invalid zip | Inline error shown | failing |",
+    )
+  })
+
+  test("mixed top-level and nested probes dedup by area and query", () => {
+    const project = makeProject()
+    const payload = basePayload({
+      areas: [
+        {
+          ...basePayload().areas[0],
+          probes_run: [
+            {
+              query: "dedup invalid zip",
+              verify: "Nested duplicate should not win",
+              status: "failing",
+            },
+            {
+              query: "nested profile handoff",
+              verify: "Cart state remains visible",
+              status: "passing",
+            },
+          ],
+        },
+      ],
+      probes_run: [
+        {
+          area: "checkout/cart",
+          query: "dedup invalid zip",
+          verify: "Top-level probe remains canonical",
+          status: "passing",
+        },
+      ],
+      probes_generated: [],
+      issue_candidates: [],
+    })
+
+    fullApply(project, payload)
+    confirmAll(project, [])
+
+    const cartSection = section(readFileSync(project.testFile, "utf8"), "### checkout/cart")
+    expect(cartSection.match(/dedup invalid zip/g) ?? []).toHaveLength(1)
+    expect(cartSection).toContain(
+      "| dedup invalid zip | Top-level probe remains canonical | passing |",
+    )
+    expect(cartSection).toContain(
+      "| nested profile handoff | Cart state remains visible | passing |",
+    )
+  })
+
+  test("empty probe payload warns when tested areas have failing probes", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "|-------|--------|--------|----------|------------|----------------|-------------|",
+        `|-------|--------|--------|----------|------------|----------------|-------------|
+| ship to 00000 | Inline error shown | failing | P1 | high | verification failure | F |`,
+      ),
+    )
+
+    const result = runCommit(
+      project.dir,
+      "plan",
+      payloadPath(
+        project,
+        basePayload({
+          probes_run: [],
+          probes_generated: [],
+          issue_candidates: [],
+        }),
+      ),
+    )
+
+    expect(result.code).toBe(0)
+    const lines = stdoutLines(result.stdout)
+    expect(lines[0]).toBe("PLANNED")
+    expect(JSON.parse(lines[1]).warnings[0].code).toBe("probes_expected_but_absent")
   })
 
   test("cross-area probe reaches third failure and escalates to a pending bug", () => {
@@ -1741,6 +1908,35 @@ describe("ce-user-test commit-engine.py issue confirmation recovery", () => {
     expect(existsSync(journalPath(project))).toBe(false)
   })
 
+  test("confirm-issues backfills filed anomaly issue_ref in last-run JSON", () => {
+    const project = makeProject()
+    const anomaly = {
+      area: "checkout/cart",
+      kind: "anomaly",
+      what: "toast lingered after save",
+      evidence: [{ type: "timing", ref: 8.2, note: "toast lingered" }],
+      index_range: [0, 1],
+    }
+    fullApply(
+      project,
+      basePayload({
+        anomalies: [
+          {
+            ...anomaly,
+            disposition: "filed",
+            issue_ref: null,
+            issue_candidate_id: "I1",
+          },
+        ],
+        __ledger: { entries: [anomaly] },
+      }),
+    )
+
+    confirmAll(project, [{ id: "I1", number: 222 }])
+
+    expect(readJson(lastRunPath(project)).anomalies[0].issue_ref).toBe("#222")
+  })
+
   test("confirm-issues refuses staged journals without patching or discarding them", () => {
     const project = makeProject()
     expect(runCommit(project.dir, "plan", payloadPath(project, basePayload())).code).toBe(0)
@@ -1756,6 +1952,26 @@ describe("ce-user-test commit-engine.py issue confirmation recovery", () => {
     expect(result.stdout.trim()).toBe("JOURNAL-NOT-APPLIED")
     expect(existsSync(journalPath(project))).toBe(true)
     expect(snapshot(project)).toEqual(before)
+  })
+
+  test("confirm-issues warns machine-readably when input matches no pending candidate", () => {
+    const project = makeProject()
+    fullApply(project)
+    const file = path.join(project.dir, "issues-wrong-shape.json")
+    writeJson(file, { issues: [{ status: "filed", issue_ref: "#177" }] })
+
+    const result = runCommit(project.dir, "confirm-issues", file)
+
+    expect(result.code).toBe(0)
+    const lines = stdoutLines(result.stdout)
+    expect(lines[0]).toBe("CONFIRM-NO-MATCH")
+    const warning = JSON.parse(lines[1])
+    expect(warning.matched).toBe(0)
+    expect(warning.expected).toBe(1)
+    expect(warning.expected_shape).toContain("issues")
+    expect(lines[2]).toBe("ISSUES-PENDING")
+    expect(JSON.parse(lines.slice(3).join("\n")).pending_issues).toHaveLength(1)
+    expect(existsSync(journalPath(project))).toBe(true)
   })
 
   test("confirm-issues maps bug_id-only updates without sharing a null id key", () => {

@@ -38,6 +38,19 @@ CURRENT_SCHEMA_VERSION = 11
 EM_DASH = "—"
 
 
+def configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+configure_stdio()
+
+
 class ValidationFailure(Exception):
     def __init__(self, sentinel: str, reason: str):
         super().__init__(reason)

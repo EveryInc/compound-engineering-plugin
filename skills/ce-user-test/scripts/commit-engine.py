@@ -63,6 +63,19 @@ CURRENT_SCHEMA_VERSION = 11
 EM_DASH = "—"
 
 
+def configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+configure_stdio()
+
+
 class UsageFailure(Exception):
     pass
 
@@ -107,6 +120,13 @@ def project_root() -> str:
 
 def to_rel(path: str) -> str:
     return os.path.relpath(path, project_root()).replace(os.sep, "/")
+
+
+def path_context(path: str) -> str:
+    try:
+        return to_rel(path)
+    except Exception:
+        return str(path).replace(os.sep, "/")
 
 
 def resolve(rel_path: str) -> str:
@@ -181,11 +201,11 @@ def load_json_file(path: str) -> Any:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
     except FileNotFoundError as exc:
-        raise UsageFailure(f"file not found: {path}") from exc
+        raise UsageFailure(f"file not found: {path_context(path)}") from exc
     except OSError as exc:
-        raise UsageFailure(f"cannot read json file: {exc}") from exc
+        raise UsageFailure(f"cannot read json file {path_context(path)}: {exc}") from exc
     except ValueError as exc:
-        raise UsageFailure(f"invalid json: {exc}") from exc
+        raise UsageFailure(f"invalid json in {path_context(path)}: {exc}") from exc
 
 
 def load_registry() -> dict[str, Any]:
@@ -212,7 +232,7 @@ def load_journal() -> dict[str, Any] | None:
         with open(path, encoding="utf-8") as f:
             return json.load(f)
     except (OSError, ValueError) as exc:
-        raise UsageFailure(f"cannot read journal: {exc}") from exc
+        raise UsageFailure(f"cannot read journal {path_context(path)}: {exc}") from exc
 
 
 def save_journal(journal: dict[str, Any]) -> None:
@@ -520,6 +540,8 @@ def update_area_trends_section(lines: list[str], score_history: dict[str, Any]) 
     headers = ["Area", "Trend", "Last Score", "Delta"]
     rows = []
     for slug, entry in sorted(score_history.get("areas", {}).items()):
+        if isinstance(entry, list):
+            entry = {"scores": entry, "trend": "stable"}
         scores = entry.get("scores", []) if isinstance(entry, dict) else []
         last = scores[-1].get("ux", EM_DASH) if scores else EM_DASH
         if len(scores) >= 2:
@@ -984,11 +1006,27 @@ def load_score_history(path: str) -> dict[str, Any]:
         return {"areas": {}}
     try:
         doc = json.loads(text)
-    except ValueError:
-        return {"areas": {}}
+    except ValueError as exc:
+        raise UsageFailure(f"invalid json in {path_context(path)}: {exc}") from exc
     if not isinstance(doc, dict) or not isinstance(doc.get("areas"), dict):
         return {"areas": {}}
-    return doc
+    normalized = deepcopy(doc)
+    normalized_areas: dict[str, dict[str, Any]] = {}
+    for slug, entry in doc.get("areas", {}).items():
+        if isinstance(entry, list):
+            normalized_areas[str(slug)] = {"scores": entry, "trend": "stable"}
+            continue
+        if isinstance(entry, dict):
+            normalized_entry = dict(entry)
+            if not isinstance(normalized_entry.get("scores"), list):
+                normalized_entry["scores"] = []
+            if not isinstance(normalized_entry.get("trend"), str):
+                normalized_entry["trend"] = "stable"
+            normalized_areas[str(slug)] = normalized_entry
+            continue
+        normalized_areas[str(slug)] = {"scores": [], "trend": "stable"}
+    normalized["areas"] = normalized_areas
+    return normalized
 
 
 def trend(scores: list[dict[str, Any]]) -> str:
@@ -1364,13 +1402,14 @@ def is_number(value: Any) -> bool:
 
 
 def load_optional_json(rel_path: str) -> Any:
-    raw = read_text(resolve(rel_path))
+    path = resolve(rel_path)
+    raw = read_text(path)
     if raw is None:
         return None
     try:
         return json.loads(raw)
-    except ValueError:
-        return None
+    except ValueError as exc:
+        raise UsageFailure(f"invalid json in {rel_path}: {exc}") from exc
 
 
 def migration_defaults_marker_present() -> bool:
@@ -1675,7 +1714,7 @@ def iter_payload_evidence(payload: dict[str, Any]):
 
 
 def previous_scores() -> dict[str, dict[str, Any]]:
-    doc = load_optional_json(SCORE_HISTORY_REL)
+    doc = load_score_history(resolve(SCORE_HISTORY_REL))
     if not isinstance(doc, dict):
         return {}
     areas = doc.get("areas")
@@ -1808,6 +1847,123 @@ def validate_full_ledger_gates(payload: dict[str, Any], ledger: dict[str, Any]) 
     return errors
 
 
+PROBE_STREAM_KEYS = ("probes_run", "probes_generated")
+
+
+def add_probe_once(stream: list[dict[str, Any]], seen: set[tuple[str, str]], probe: dict[str, Any]) -> None:
+    area = probe.get("area")
+    query = probe.get("query")
+    if isinstance(area, str) and isinstance(query, str):
+        key = (area, query)
+        if key in seen:
+            return
+        seen.add(key)
+    stream.append(probe)
+
+
+def normalize_probe_payload(payload: Any) -> Any:
+    if not isinstance(payload, dict):
+        return payload
+    areas = payload.get("areas")
+    if not isinstance(areas, list):
+        return payload
+    for stream_key in PROBE_STREAM_KEYS:
+        stream: list[dict[str, Any]] = []
+        seen: set[tuple[str, str]] = set()
+        top_level = payload.get(stream_key)
+        if isinstance(top_level, list):
+            for probe in top_level:
+                if isinstance(probe, dict):
+                    add_probe_once(stream, seen, deepcopy(probe))
+        for area in areas:
+            if not isinstance(area, dict) or not isinstance(area.get("slug"), str):
+                continue
+            nested = area.pop(stream_key, None)
+            if not isinstance(nested, list):
+                continue
+            for probe in nested:
+                if not isinstance(probe, dict):
+                    continue
+                stamped = deepcopy(probe)
+                stamped["area"] = area["slug"]
+                add_probe_once(stream, seen, stamped)
+        payload[stream_key] = stream
+    return payload
+
+
+def top_level_probe_count(payload: dict[str, Any]) -> int:
+    count = 0
+    for stream_key in PROBE_STREAM_KEYS:
+        stream = payload.get(stream_key)
+        if isinstance(stream, list):
+            count += sum(1 for item in stream if isinstance(item, dict))
+    return count
+
+
+def tested_area_slugs(payload: dict[str, Any]) -> set[str]:
+    slugs: set[str] = set()
+    areas = payload.get("areas")
+    if not isinstance(areas, list):
+        return slugs
+    for area in areas:
+        if (
+            isinstance(area, dict)
+            and isinstance(area.get("slug"), str)
+            and not area.get("skip_reason")
+        ):
+            slugs.add(area["slug"])
+    return slugs
+
+
+def expected_probe_absence_warnings(payload: dict[str, Any]) -> list[dict[str, Any]]:
+    if top_level_probe_count(payload) > 0:
+        return []
+    slugs = tested_area_slugs(payload)
+    if not slugs:
+        return []
+    test_file = payload.get("test_file")
+    if not isinstance(test_file, str):
+        return []
+    text = read_text(resolve(test_file))
+    if text is None:
+        return []
+    lines, _ = markdown_lines(text)
+    areas_with_expected: list[dict[str, Any]] = []
+    for slug in sorted(slugs):
+        area_range = section_range(lines, f"### {slug}")
+        if area_range is None:
+            continue
+        table = find_table_in_range(lines, area_range[0], area_range[1], {"Query", "Verify", "Status"})
+        if table is None:
+            continue
+        headers = cells(lines[table])
+        expected: list[dict[str, str]] = []
+        for index in range(table + 2, table_end(lines, table)):
+            row = cells(lines[index])
+            if len(row) < len(headers):
+                row.extend([""] * (len(headers) - len(row)))
+            status = row[headers.index("Status")].strip().lower()
+            if status not in {"untested", "failing"}:
+                continue
+            expected.append(
+                {
+                    "query": row[headers.index("Query")],
+                    "status": status,
+                }
+            )
+        if expected:
+            areas_with_expected.append({"area": slug, "probes": expected})
+    if not areas_with_expected:
+        return []
+    return [
+        {
+            "code": "probes_expected_but_absent",
+            "path": test_file,
+            "areas": areas_with_expected,
+        }
+    ]
+
+
 def validate_payload(payload: Any) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     errors: list[dict[str, Any]] = []
     if not isinstance(payload, dict):
@@ -1920,10 +2076,11 @@ def stage_files(files: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def command_plan(payload_file: str) -> int:
-    payload = load_json_file(payload_file)
+    payload = normalize_probe_payload(load_json_file(payload_file))
     errors, warnings = validate_payload(payload)
     if errors:
         return print_json_sentinel("VALIDATION-FAILED", errors) or 1
+    plan_warnings = expected_probe_absence_warnings(payload)
 
     existing = load_journal()
     if existing is not None and existing.get("state") != "complete":
@@ -1957,6 +2114,8 @@ def command_plan(payload_file: str) -> int:
         print("MIGRATION-DEFAULTS-WARN")
         print(json.dumps(warnings, ensure_ascii=False))
     print("PLANNED")
+    if plan_warnings:
+        print(json.dumps({"warnings": plan_warnings}, ensure_ascii=False))
     return 0
 
 
@@ -2197,6 +2356,138 @@ def update_bugs_with_issues(journal: dict[str, Any], issue_map: dict[str, dict[s
     write_atomic(path, join_markdown(lines, final))
 
 
+def issue_maps_and_shape_warnings(
+    issues: list[Any],
+) -> tuple[dict[Any, dict[str, Any]], dict[Any, dict[str, Any]], list[dict[str, Any]]]:
+    by_id: dict[Any, dict[str, Any]] = {}
+    by_bug: dict[Any, dict[str, Any]] = {}
+    malformed: list[dict[str, Any]] = []
+    for index, item in enumerate(issues):
+        if not isinstance(item, dict):
+            malformed.append({"index": index, "reason": "entry_not_object"})
+            continue
+        id_value = item.get("id")
+        bug_value = item.get("bug_id")
+        has_identity = id_value is not None or bug_value is not None
+        has_resolution = isinstance(item.get("number"), int) or isinstance(item.get("duplicate_of"), int)
+        if not has_identity or not has_resolution:
+            malformed.append(
+                {
+                    "index": index,
+                    "reason": "missing_id_bug_id_or_integer_number",
+                    "fields": sorted(item.keys()),
+                }
+            )
+        if id_value is not None:
+            by_id[id_value] = item
+        if bug_value is not None:
+            by_bug[bug_value] = item
+    return by_id, by_bug, malformed
+
+
+def confirmed_issue_number(candidate: dict[str, Any]) -> int | None:
+    status = candidate.get("status")
+    if not isinstance(status, str):
+        return None
+    match = re.match(r"^filed #(\d+)$", status)
+    return int(match.group(1)) if match else None
+
+
+def normalized_text(value: Any) -> str:
+    return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9#]+", " ", str(value).lower())).strip()
+
+
+def text_tokens(value: Any) -> set[str]:
+    return {token for token in normalized_text(value).split() if len(token) >= 3}
+
+
+def direct_anomaly_candidate_match(anomaly: dict[str, Any], candidate: dict[str, Any]) -> bool:
+    candidate_id = candidate.get("id")
+    candidate_bug = candidate.get("bug_id")
+    for field in ("issue_candidate_id", "candidate_id", "issue_id"):
+        if anomaly.get(field) is not None and anomaly.get(field) == candidate_id:
+            return True
+    return anomaly.get("bug_id") is not None and anomaly.get("bug_id") == candidate_bug
+
+
+def text_anomaly_candidate_match(anomaly: dict[str, Any], candidate: dict[str, Any]) -> bool:
+    if anomaly.get("area") and candidate.get("area") and anomaly.get("area") != candidate.get("area"):
+        return False
+    what = anomaly.get("what", "")
+    candidate_text = " ".join(str(candidate.get(key, "")) for key in ("title", "body"))
+    normalized_what = normalized_text(what)
+    normalized_candidate = normalized_text(candidate_text)
+    if normalized_what and normalized_what in normalized_candidate:
+        return True
+    return len(text_tokens(what) & text_tokens(candidate_text)) >= 3
+
+
+def candidate_for_anomaly(
+    anomaly: dict[str, Any], confirmed_candidates: list[dict[str, Any]]
+) -> dict[str, Any] | None:
+    direct = [candidate for candidate in confirmed_candidates if direct_anomaly_candidate_match(anomaly, candidate)]
+    if len(direct) == 1:
+        return direct[0]
+    text_matches = [
+        candidate for candidate in confirmed_candidates if text_anomaly_candidate_match(anomaly, candidate)
+    ]
+    return text_matches[0] if len(text_matches) == 1 else None
+
+
+def backfill_last_run_anomaly_issue_refs(journal: dict[str, Any]) -> bool:
+    path = resolve(LAST_RUN_REL)
+    if not os.path.exists(path):
+        return False
+    doc = load_json_file(path)
+    if not isinstance(doc, dict) or not isinstance(doc.get("anomalies"), list):
+        return False
+    confirmed = [
+        candidate
+        for candidate in journal.get("issue_candidates", [])
+        if isinstance(candidate, dict) and confirmed_issue_number(candidate) is not None
+    ]
+    if not confirmed:
+        return False
+    changed = False
+    for anomaly in doc.get("anomalies", []):
+        if (
+            not isinstance(anomaly, dict)
+            or anomaly.get("disposition") != "filed"
+            or str(anomaly.get("issue_ref") or "").strip()
+        ):
+            continue
+        candidate = candidate_for_anomaly(anomaly, confirmed)
+        if candidate is None:
+            continue
+        number = confirmed_issue_number(candidate)
+        if number is None:
+            continue
+        anomaly["issue_ref"] = f"#{number}"
+        changed = True
+    if changed:
+        write_json_atomic(path, doc)
+    return changed
+
+
+def confirm_no_match_warning(
+    pending_before: list[dict[str, Any]],
+    matched: int,
+    malformed: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not pending_before and not malformed:
+        return None
+    if matched > 0 and not malformed:
+        return None
+    if matched > 0 or pending_before or malformed:
+        return {
+            "matched": matched,
+            "expected": len(pending_before),
+            "malformed_entries": malformed,
+            "expected_shape": '{"issues":[{"id":"<pending id>","number":123}]} or {"issues":[{"bug_id":"<pending bug_id>","number":123}]}',
+        }
+    return None
+
+
 def command_confirm_issues(issues_file: str, acknowledge_stale: bool = False) -> int:
     journal = load_journal()
     if journal is None:
@@ -2211,20 +2502,30 @@ def command_confirm_issues(issues_file: str, acknowledge_stale: bool = False) ->
     issues = issues_doc.get("issues") if isinstance(issues_doc, dict) else None
     if not isinstance(issues, list):
         raise UsageFailure("issues json must contain an issues array")
-    by_id = {item["id"]: item for item in issues if isinstance(item, dict) and "id" in item}
-    by_bug = {item["bug_id"]: item for item in issues if isinstance(item, dict) and "bug_id" in item}
+    pending_before = pending_issues(journal)
+    by_id, by_bug, malformed_entries = issue_maps_and_shape_warnings(issues)
+    matched = 0
     for candidate in journal.get("issue_candidates", []):
+        if not isinstance(candidate, dict):
+            continue
         update = by_id.get(candidate.get("id")) or by_bug.get(candidate.get("bug_id"))
         if update is None:
             continue
         if isinstance(update.get("number"), int):
             candidate["status"] = f"filed #{update['number']}"
+            matched += 1
         elif isinstance(update.get("duplicate_of"), int):
             candidate["status"] = f"duplicate-of #{update['duplicate_of']}"
+            matched += 1
+    no_match_warning = confirm_no_match_warning(pending_before, matched, malformed_entries)
     update_bugs_with_issues(journal, by_id)
+    backfill_last_run_anomaly_issue_refs(journal)
     journal["state"] = "applied"
     save_journal(journal)
     if pending_issues(journal):
+        if no_match_warning is not None:
+            print("CONFIRM-NO-MATCH")
+            print(json.dumps(no_match_warning, ensure_ascii=False))
         return print_json_sentinel("ISSUES-PENDING", {"pending_issues": pending_issues(journal)})
     result = result_for(journal)
     result["files_written"] = sorted(set(result["files_written"] + ["tests/user-flows/bugs.md"]))
@@ -2232,6 +2533,9 @@ def command_confirm_issues(issues_file: str, acknowledge_stale: bool = False) ->
     journal["result"] = result
     save_journal(journal)
     remove_journal()
+    if no_match_warning is not None:
+        print("CONFIRM-NO-MATCH")
+        print(json.dumps(no_match_warning, ensure_ascii=False))
     return print_json_sentinel("CONFIRMED", result)
 
 
@@ -2320,7 +2624,12 @@ def main(argv: list[str]) -> int:
             print(json.dumps(exc.details, ensure_ascii=False))
         return 1
     except Exception as exc:
-        stderr(str(exc))
+        tb = exc.__traceback__
+        origin = "<unknown>"
+        while tb is not None:
+            origin = f"{path_context(tb.tb_frame.f_code.co_filename)}:{tb.tb_lineno}"
+            tb = tb.tb_next
+        stderr(f"unexpected {type(exc).__name__} at {origin}: {exc}")
         return 2
 
 

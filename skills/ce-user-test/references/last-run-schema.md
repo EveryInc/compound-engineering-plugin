@@ -140,7 +140,7 @@ Written to `tests/user-flows/.user-test-last-run.json` after Phase 4 completes.
 | `areas[].evidence[].note` | string | required when entry exists | Phase 4 scoring; states what the entry supports |
 | `anomalies[]` | array of reconciled ledger anomaly entries | [] | Phase 4 reconciliation; `migrate-run-json` for pre-v11 defaults |
 | `anomalies[].disposition` | string | required when entry exists | Phase 4 reconciliation; one of `filed`, `noted-in-area`, `explore-next-run`, `dismissed` |
-| `anomalies[].issue_ref` | string | absent | Phase 4 reconciliation; optional for `filed` entries, including pre-existing issues |
+| `anomalies[].issue_ref` | string | absent | Phase 4 may set it for pre-existing issues; `confirm-issues` backfills filed issue numbers for newly confirmed candidates |
 | `anomalies[].reason` | string | required for `dismissed` | Phase 4 reconciliation; non-empty dismissal reason |
 | `final_execution_index` | integer or null | null | Phase 4 reconciliation; must equal the run's last consumed execution index |
 | `schema_version` | integer | absent before v11 | Phase 4 writes `11`; `migrate-run-json` writes `11` after defaulting a pre-v11 run |

@@ -32,6 +32,19 @@ from typing import Any
 SCRIPT_NAME = "issue-dedup"
 
 
+def configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+configure_stdio()
+
+
 def stderr(message: str) -> None:
     sys.stderr.write(f"{SCRIPT_NAME}: {message}\n")
 

@@ -219,6 +219,27 @@ describe("ce-user-test-eval Eval 4 ledger coverage", () => {
     expect(output.errors.some((error: any) => error.check === "filed_issue_ref_resolves")).toBe(true)
   })
 
+  test("filed disposition with resolved issue_ref passes mechanical checks", () => {
+    const project = makeProject()
+    const anomaly = {
+      area: "checkout/cart",
+      kind: "anomaly",
+      what: "toast lingered after save",
+      evidence: [{ type: "timing", ref: 8.2, note: "toast lingered" }],
+      index_range: [0, 2],
+    }
+    const run = baseRun({
+      anomalies: [{ ...anomaly, disposition: "filed", issue_ref: "#101" }],
+    })
+    writeLedger(project, run, [anomaly])
+    writeArtifacts(project, run)
+
+    const output = runEval4(project)
+
+    expect(output.verdict).toBe("PASS")
+    expect(output.pass).toBe(true)
+  })
+
   test("reworded explore-next-run mention passes with ambiguous match", () => {
     const project = makeProject()
     const anomaly = {

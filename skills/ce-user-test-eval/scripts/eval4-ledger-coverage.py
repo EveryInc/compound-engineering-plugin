@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import sys
 from hashlib import sha256
 from pathlib import Path
 from typing import Any
@@ -26,6 +27,19 @@ VALIDATION_ERROR_CODES = {
 WARNING_SENTINELS = {"MIGRATION-DEFAULTS-WARN"}
 DISPOSITIONS = {"filed", "noted-in-area", "explore-next-run", "dismissed"}
 EVIDENCE_TYPES = {"action", "dom", "timing", "count"}
+
+
+def configure_stdio() -> None:
+    for stream in (sys.stdout, sys.stderr):
+        if not hasattr(stream, "reconfigure"):
+            continue
+        try:
+            stream.reconfigure(encoding="utf-8", errors="replace")
+        except Exception:
+            pass
+
+
+configure_stdio()
 
 
 def is_int(value: Any) -> bool:

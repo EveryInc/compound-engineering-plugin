@@ -262,7 +262,7 @@ Demo: PARTIAL (P1 bug #21 open; promo-code untested)
 **Section rules:**
 - **Header:** `UX X.X | Quality X.X (CLI) | N areas | M need action | A anomalies dispositioned (B noted)` — 2-second scan
 - **JOURNEYS:** After cross-area probes, before NEEDS ACTION. Failing/flaky journeys show checkpoint detail. Passing show summary. See [journeys.md](./references/journeys.md).
-- **NEEDS ACTION:** `⚠` prefix. Only open items: degrading areas, failing probes on **Proven** areas (unexpected regression), verification mismatches on Proven. Probe failures on Uncharted/Known-bug stay in DETAILS (expected)
+- **NEEDS ACTION:** `⚠` prefix. Only open items: degrading areas, failing probes on **Proven** areas (unexpected regression), verification mismatches on Proven. A P1 EXPLORE NEXT RUN item always also gets a `⚠ P1` NEEDS ACTION entry with any skip/blocked reason appended; a skip does not demote it out of action. Probe failures on Uncharted/Known-bug stay in DETAILS (expected)
 - **FILED THIS SESSION:** `✓` prefix. Bugs/issues filed. Omit if nothing filed
 - **IMPROVED:** `<area> <old>→<new> <reason>`
 - **STABLE:** Single comma-separated line
@@ -375,7 +375,7 @@ Build `tests/user-flows/.user-test-commit-payload.json` with the completed judgm
 
 - Scenario metadata: `scenario_slug`, `test_file`, `run_timestamp`, run number when known.
 - Area results: score fields, `skip_reason` for skipped areas, maturity decisions plus the consecutive-pass evidence the decision expects, `tactical_note`, `weakness_class` (`null`/absent leaves unchanged, `""` deletes, non-empty upserts), `confirmed_selectors`, and `novelty_fingerprints`.
-- Probe evidence: per-area `probes_run` and generated probes, plus scenario-level `cross_area_probes_run`.
+- Probe evidence: top-level `probes_run` and `probes_generated` arrays, each entry carrying its `area`, plus scenario-level `cross_area_probes_run`.
 - Journey evidence: `journeys_run` entries with journey id/status/failed step/detail.
 - Query evidence: `query_results` with per-query score and consecutive evidence; sharpened failed-query probes and discovery-driven new queries are judgment inputs, not engine inference.
 - Score evidence and reconciliation: per-area `evidence`, top-level `anomalies`, `final_execution_index`, `schema_version`, and `anomaly_ledger_digest` from Phase 4 run results.
