@@ -23,6 +23,7 @@ const CONSUMER_SKILLS = [
   "ce-code-review",
   "ce-compound",
   "ce-debug",
+  "ce-explain",
 ]
 
 describe("repo-profile-cache shared-asset parity", () => {
