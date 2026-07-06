@@ -53,7 +53,7 @@ Run all 4 evals in order. Record pass/fail/skip/NA + detail for each.
 1. From the test file, identify areas with `Status: Proven`
 2. From `.user-test-last-run.json`, check each Proven area's `ux_score` against its `pass_threshold`
 3. For each regressed area (score < pass_threshold), search `.user-test-last-report.md` for the NEEDS ACTION section
-4. Check for a line matching the pattern: `⚠.*<area-slug>.*→ Proven regression`
+4. Check for a line matching the pattern: `⚠ P<n> <area-slug> probe failing → Proven regression`
 5. **PASS** if every regressed Proven area has a matching line item. **FAIL** if any is missing or appears without the `→ Proven regression` marker.
 
 **Edge cases:**
@@ -121,7 +121,7 @@ If any eval failed, propose one mutation per failing eval.
 **Status:** PROPOSED
 **Triggered by:** Eval <N> failure (<eval name>)
 **Eval scores:** probe_order: <PASS/FAIL/SKIP> | regression_distinction: <PASS/FAIL> | p1_surfacing: <PASS/FAIL> | ledger_coverage: <PASS/FAIL/NA>
-**Skill version:** <version from plugin.json or run context>
+**Skill version:** <plugin version or unknown>
 **Scenario:** <scenario_slug>
 
 ### Problem observed
@@ -151,7 +151,7 @@ Location: `tests/user-flows/skill-evals.json`
 
 If file doesn't exist, create with `{ "eval_version": 1, "entries": [] }`.
 
-**Skill version:** Read the current `version` from the plugin's `.claude-plugin/plugin.json` at eval time. Do not hardcode.
+**Skill version:** Record the plugin version if it is discoverable from the installed plugin's manifest in context; otherwise record `unknown`.
 
 Append entry:
 
@@ -160,7 +160,7 @@ Append entry:
   "run_timestamp": "<from .user-test-last-run.json>",
   "scenario_slug": "<from .user-test-last-run.json>",
   "git_sha": "<from .user-test-last-run.json>",
-  "skill_version": "<current version from .claude-plugin/plugin.json>",
+  "skill_version": "<plugin version or unknown>",
   "evals": {
     "probe_execution_order": { "pass": <bool>, "areas_violated": [...], "detail": "..." },
     "proven_regression_distinction": { "pass": <bool>, "regressed_areas": [...], "missing_from_needs_action": [...], "detail": "..." },

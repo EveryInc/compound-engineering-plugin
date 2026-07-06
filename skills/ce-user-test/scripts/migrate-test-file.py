@@ -672,6 +672,7 @@ RUN_JSON_ARRAY_DEFAULTS = {
     "probes_generated": [],
     "cross_area_probes_run": [],
     "journeys_run": [],
+    "explore_next_run": [],
     "novelty_log": [],
     "stable_queries_rotated": [],
 }

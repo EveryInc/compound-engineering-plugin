@@ -1483,13 +1483,119 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
 
     expect(result.pending_issues).toHaveLength(1)
     expect(result.pending_issues[0].area).toBe("checkout/cart")
+    expect(result.pending_issues[0].bug_id).toBe("B001")
     const updated = readFileSync(project.testFile, "utf8")
     expect(updated).toContain(
-      "| checkout/cart | change quantity | checkout/profile | profile shows stale cart count | failing | P1 | high | run-1 stale state | F,F,F |",
+      "| checkout/cart | change quantity | checkout/profile | profile shows stale cart count | failing | P1 | high | run-1 stale state | F,F,F | B001 |",
     )
     expect(readFileSync(path.join(project.flows, "bugs.md"), "utf8")).toContain(
       "profile shows stale cart count",
     )
+  })
+
+  test("cross-area probe escalation writes escalated_to and does not duplicate on fourth failure", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "|--------------|--------|------------------|--------|--------|----------|------------|----------------|-------------|",
+        `|--------------|--------|------------------|--------|--------|----------|------------|----------------|-------------|
+| checkout/cart | change quantity | checkout/profile | profile shows stale cart count | failing | P1 | high | run-1 stale state | F,F |`,
+      ),
+    )
+
+    let result = fullApply(
+      project,
+      basePayload({
+        cross_area_probes_run: [
+          {
+            trigger_area: "checkout/cart",
+            action: "change quantity",
+            observation_area: "checkout/profile",
+            verify: "profile shows stale cart count",
+            status: "failing",
+            result_detail: "Profile badge kept stale count",
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+    expect(result.pending_issues).toHaveLength(1)
+    expect(result.pending_issues[0].bug_id).toBe("B001")
+    confirmAll(project, [{ id: "cross-area-1", number: 201 }])
+
+    result = fullApply(
+      project,
+      basePayload({
+        run_timestamp: "2026-07-02T12:00:00Z",
+        cross_area_probes_run: [
+          {
+            trigger_area: "checkout/cart",
+            action: "change quantity",
+            observation_area: "checkout/profile",
+            verify: "profile shows stale cart count",
+            status: "failing",
+            result_detail: "Profile badge kept stale count again",
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+
+    expect(result.pending_issues).toEqual([])
+    const updated = readFileSync(project.testFile, "utf8")
+    expect(updated).toContain(
+      "| checkout/cart | change quantity | checkout/profile | profile shows stale cart count | failing | P1 | high | run-1 stale state | F,F,F,F | B001 |",
+    )
+    const bugs = readFileSync(path.join(project.flows, "bugs.md"), "utf8")
+    expect(bugs.match(/profile shows stale cart count/g) ?? []).toHaveLength(1)
+  })
+
+  test("cross-area escalation is suppressed by an active known bug in the target area", () => {
+    const project = makeProject()
+    writeFileSync(
+      path.join(project.flows, "bugs.md"),
+      `# User Test Bugs
+
+| ID | Area | Status | Issue | Title |
+|----|------|--------|-------|-------|
+| B009 | checkout/cart | filed | #9 | Cart already has an active issue |
+`,
+    )
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "|--------------|--------|------------------|--------|--------|----------|------------|----------------|-------------|",
+        `|--------------|--------|------------------|--------|--------|----------|------------|----------------|-------------|
+| checkout/cart | change quantity | checkout/profile | profile shows stale cart count | failing | P1 | high | run-1 stale state | F,F |`,
+      ),
+    )
+
+    const result = fullApply(
+      project,
+      basePayload({
+        cross_area_probes_run: [
+          {
+            trigger_area: "checkout/cart",
+            action: "change quantity",
+            observation_area: "checkout/profile",
+            verify: "profile shows stale cart count",
+            status: "failing",
+            result_detail: "Profile badge kept stale count",
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+
+    expect(result.pending_issues).toEqual([])
+    const updated = readFileSync(project.testFile, "utf8")
+    expect(updated).toContain(
+      "| checkout/cart | change quantity | checkout/profile | profile shows stale cart count | failing | P1 | high | run-1 stale state | F,F,F |  |",
+    )
+    const bugs = readFileSync(path.join(project.flows, "bugs.md"), "utf8")
+    expect(bugs).toContain("Cart already has an active issue")
+    expect(bugs).not.toContain("profile shows stale cart count")
   })
 
   test("journey status and run history are updated from journey results", () => {
@@ -1544,6 +1650,80 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
     expect(section(updated, "### J001: Checkout to profile")).toContain(
       "**Run History:** P P P P P",
     )
+  })
+
+  test("journey escalation writes escalated_to and does not duplicate on fourth same-step failure", () => {
+    const project = makeProject()
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "## Area Trends",
+        `### J001: Checkout to profile
+
+**Steps:**
+
+| Step | Area | Action | Checkpoint |
+|------|------|--------|------------|
+| 1 | checkout/cart | Add item | Badge increments |
+| 2 | checkout/profile | Open profile | Profile loads |
+
+**Status:** failing-at-2
+**Last Run:** 2026-06-30
+**Run History:** F:2 F:2
+**Generated From:** manual
+
+## Area Trends`,
+      ),
+    )
+
+    let result = fullApply(
+      project,
+      basePayload({
+        journeys_run: [
+          {
+            id: "J001",
+            status: "failing-at-2",
+            failed_area: "checkout/profile",
+            checkpoints: [
+              { step: 1, area: "checkout/cart", passed: true, detail: "ok" },
+              { step: 2, area: "checkout/profile", passed: false, detail: "profile missing" },
+            ],
+            result_detail: "Profile route did not load",
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+    expect(result.pending_issues).toHaveLength(1)
+    expect(result.pending_issues[0].bug_id).toBe("B001")
+    confirmAll(project, [{ id: "journey-J001", number: 301 }])
+
+    result = fullApply(
+      project,
+      basePayload({
+        run_timestamp: "2026-07-02T12:00:00Z",
+        journeys_run: [
+          {
+            id: "J001",
+            status: "failing-at-2",
+            failed_area: "checkout/profile",
+            checkpoints: [
+              { step: 1, area: "checkout/cart", passed: true, detail: "ok" },
+              { step: 2, area: "checkout/profile", passed: false, detail: "profile missing" },
+            ],
+            result_detail: "Profile route still did not load",
+          },
+        ],
+        issue_candidates: [],
+      }),
+    )
+
+    expect(result.pending_issues).toEqual([])
+    const journey = section(readFileSync(project.testFile, "utf8"), "### J001: Checkout to profile")
+    expect(journey).toContain("**Run History:** F:2 F:2 F:2 F:2")
+    expect(journey).toContain("**escalated_to:** B001")
+    const bugs = readFileSync(path.join(project.flows, "bugs.md"), "utf8")
+    expect(bugs.match(/Journey J001 failed at step 2/g) ?? []).toHaveLength(1)
   })
 
   test("delta compares current and previous averages over overlapping areas only", () => {
@@ -1816,6 +1996,81 @@ describe("ce-user-test commit-engine.py journaled apply", () => {
     expect(history).toContain(
       "| 2026-07-01 | checkout/cart, checkout/profile | 4.0 | — | 50% |",
     )
+  })
+
+  test("unconfirmed good patterns age out after the registry run cap", () => {
+    const project = makeProject()
+    const cap = REGISTRY.entries.good_patterns_unconfirmed_runs.value
+    const historyRows = Array.from({ length: cap }, (_, index) =>
+      `| 2026-06-${String(26 + index).padStart(2, "0")} | checkout/cart | 4.0 | dash | 100% | checkout/cart | checkout/cart | yes | run ${index} | old run |`,
+    )
+    writeFileSync(
+      path.join(project.flows, "test-history.md"),
+      `# User Test History
+
+| Date | Areas Tested | Quality Avg | Delta | Pass Rate | Best Area | Worst Area | Demo Ready | Context | Key Finding |
+|------|--------------|-------------|-------|-----------|-----------|------------|------------|---------|-------------|
+${historyRows.join("\n")}
+`,
+    )
+    writeFileSync(
+      project.testFile,
+      readFileSync(project.testFile, "utf8").replace(
+        "|------|---------|------------|----------------|",
+        `|------|---------|------------|----------------|
+| checkout/cart | Cart totals update immediately | 2026-06-01 | 2026-06-25 |`,
+      ),
+    )
+
+    fullApply(project, basePayload({ good_patterns: [], issue_candidates: [] }))
+    confirmAll(project, [])
+
+    expect(readFileSync(project.testFile, "utf8")).not.toContain(
+      "Cart totals update immediately",
+    )
+  })
+
+  test("test history surfaces recurring best and worst area patterns from registry thresholds", () => {
+    const project = makeProject()
+    const historyRows = [
+      ...Array.from({ length: 6 }, (_, index) =>
+        `| 2026-06-${String(10 + index).padStart(2, "0")} | checkout/cart, checkout/profile | 3.0 | dash | 50% | checkout/cart | checkout/profile | partial | run ${index} | previous |`,
+      ),
+      ...Array.from({ length: 3 }, (_, index) =>
+        `| 2026-06-${String(20 + index).padStart(2, "0")} | checkout/cart, checkout/profile | 4.0 | dash | 100% | checkout/profile | checkout/cart | yes | alt ${index} | previous |`,
+      ),
+    ]
+    writeFileSync(
+      path.join(project.flows, "test-history.md"),
+      `# User Test History
+
+| Date | Areas Tested | Quality Avg | Delta | Pass Rate | Best Area | Worst Area | Demo Ready | Context | Key Finding |
+|------|--------------|-------------|-------|-----------|-----------|------------|------------|---------|-------------|
+${historyRows.join("\n")}
+`,
+    )
+    const cart = { ...basePayload().areas[0], ux_score: 5 }
+    const profile = {
+      ...cart,
+      slug: "checkout/profile",
+      ux_score: 1,
+      next_status: "Known-bug",
+      assessment: "Profile route is broken",
+    }
+
+    fullApply(
+      project,
+      basePayload({
+        areas: [cart, profile],
+        maturity_transitions: [],
+        issue_candidates: [],
+      }),
+    )
+    confirmAll(project, [])
+
+    const history = readFileSync(path.join(project.flows, "test-history.md"), "utf8")
+    expect(history).toContain("Pattern: checkout/cart best area in 7/10 recent runs")
+    expect(history).toContain("Pattern: checkout/profile worst area in 7/10 recent runs")
   })
 
   test("caps are enforced from the registry for probe, score, and test history", () => {

@@ -51,7 +51,7 @@ import tempfile
 from copy import deepcopy
 from datetime import datetime, timezone
 from hashlib import sha256
-from typing import Any
+from typing import Any, Callable
 
 
 SCRIPT_NAME = "commit-engine"
@@ -387,6 +387,23 @@ def get_first_available_cell(row: list[str], headers: list[str], names: list[str
     return ""
 
 
+def ensure_table_column(lines: list[str], table: int, headers: list[str], name: str) -> tuple[list[str], int]:
+    if name in headers:
+        return headers, table_end(lines, table)
+    headers = list(headers)
+    headers.append(name)
+    lines[table] = render_row(headers)
+    if table + 1 < len(lines) and lines[table + 1].lstrip().startswith("|"):
+        lines[table + 1] = render_separator(headers)
+    end = table_end(lines, table)
+    for index in range(table + 2, end):
+        row = cells(lines[index])
+        if len(row) < len(headers):
+            row.extend([""] * (len(headers) - len(row)))
+        lines[index] = render_row(row)
+    return headers, end
+
+
 def markdown_lines(text: str) -> tuple[list[str], bool]:
     final = text.endswith("\n")
     if final:
@@ -599,14 +616,42 @@ def update_ux_opportunities_section(lines: list[str], payload: dict[str, Any]) -
     lines[table:end] = [render_row(existing_headers), render_separator(existing_headers), *[render_row(row) for row in rows]]
 
 
+def history_run_count_after(last_confirmed: str, current_run_date: str) -> int:
+    last_confirmed = (last_confirmed or "").strip()
+    if not re.match(r"^\d{4}-\d{2}-\d{2}$", last_confirmed):
+        return 0
+    dates: set[str] = set()
+    text = read_text(resolve("tests/user-flows/test-history.md"))
+    if text is not None:
+        history_lines, _ = markdown_lines(text)
+        table = find_table(history_lines, {"Date", "Areas Tested", "Quality Avg"})
+        if table is not None:
+            headers = cells(history_lines[table])
+            end = table_end(history_lines, table)
+            if "Date" in headers:
+                date_index = headers.index("Date")
+                for line in history_lines[table + 2 : end]:
+                    row = cells(line)
+                    if date_index >= len(row):
+                        continue
+                    date = row[date_index].strip()
+                    if re.match(r"^\d{4}-\d{2}-\d{2}$", date) and date > last_confirmed:
+                        dates.add(date)
+    if current_run_date > last_confirmed:
+        dates.add(current_run_date)
+    return len(dates)
+
+
 def update_good_patterns_section(lines: list[str], payload: dict[str, Any]) -> None:
     headers = ["Area", "Pattern", "First Seen", "Last Confirmed"]
     table = ensure_section_table(lines, "Good Patterns", headers)
     existing_headers, rows = existing_table_rows(lines, table)
     by_area = {row[existing_headers.index("Area")]: row for row in rows if "Area" in existing_headers}
     run_date = payload["run_timestamp"][:10]
+    confirmed_areas: set[str] = set()
     for pattern in payload.get("good_patterns", []):
         area = pattern.get("area", "")
+        confirmed_areas.add(area)
         row = by_area.get(area)
         if row is None:
             row = ["" for _ in existing_headers]
@@ -615,6 +660,18 @@ def update_good_patterns_section(lines: list[str], payload: dict[str, Any]) -> N
             rows.append(row)
         set_cell(row, existing_headers, "Pattern", pattern.get("pattern", ""))
         set_cell(row, existing_headers, "Last Confirmed", run_date)
+    cap = int(cap_value("good_patterns_unconfirmed_runs"))
+    kept_rows: list[list[str]] = []
+    for row in rows:
+        area = get_first_available_cell(row, existing_headers, ["Area"])
+        if area in confirmed_areas:
+            kept_rows.append(row)
+            continue
+        last_confirmed = get_first_available_cell(row, existing_headers, ["Last Confirmed"])
+        if history_run_count_after(last_confirmed, run_date) >= cap:
+            continue
+        kept_rows.append(row)
+    rows = kept_rows
     end = table_end(lines, table)
     lines[table:end] = [render_row(existing_headers), render_separator(existing_headers), *[render_row(row) for row in rows]]
 
@@ -795,13 +852,20 @@ def update_area_probe_tables(lines: list[str], payload: dict[str, Any]) -> tuple
     return probe_rotations, issue_candidates
 
 
-def update_cross_area_probes(lines: list[str], payload: dict[str, Any]) -> tuple[int, list[dict[str, Any]]]:
+def update_cross_area_probes(
+    lines: list[str],
+    payload: dict[str, Any],
+    allocate_bug_id: Callable[[], str] | None = None,
+    active_bug_areas: set[str] | None = None,
+) -> tuple[int, list[dict[str, Any]]]:
     rotations = 0
     issue_candidates: list[dict[str, Any]] = []
+    active_bug_areas = active_bug_areas or set()
     table = table_after_heading(lines, "Cross-Area Probes")
     if table is None:
         return rotations, issue_candidates
     headers = cells(lines[table])
+    headers, end = ensure_table_column(lines, table, headers, "Escalated To")
     end = table_end(lines, table)
     for probe in payload.get("cross_area_probes_run", []):
         target_index = None
@@ -843,14 +907,21 @@ def update_cross_area_probes(lines: list[str], payload: dict[str, Any]) -> tuple
             row[headers.index("Run History")] = ",".join(history[-cap:])
         lines[target_index] = render_row(row)
         if probe.get("status") == "failing" and history[-3:] == ["F", "F", "F"]:
-            issue_candidates.append(
-                {
-                    "id": f"cross-area-{len(issue_candidates) + 1}",
-                    "area": probe.get("trigger_area", ""),
-                    "title": f"Cross-area probe failed: {probe.get('verify', '')}",
-                    "body": probe.get("result_detail", probe.get("verify", "")),
-                }
-            )
+            area = probe.get("trigger_area", "")
+            escalated_to = get_first_available_cell(row, headers, ["Escalated To"])
+            if not escalated_to and area not in active_bug_areas:
+                bug_id = allocate_bug_id() if allocate_bug_id else ""
+                set_cell(row, headers, "Escalated To", bug_id)
+                lines[target_index] = render_row(row)
+                issue_candidates.append(
+                    {
+                        "id": f"cross-area-{len(issue_candidates) + 1}",
+                        "bug_id": bug_id,
+                        "area": area,
+                        "title": f"Cross-area probe failed: {probe.get('verify', '')}",
+                        "body": probe.get("result_detail", probe.get("verify", "")),
+                    }
+                )
     return rotations, issue_candidates
 
 
@@ -867,8 +938,14 @@ def journey_token(result: dict[str, Any]) -> str:
     return f"F:{failed_step}" if isinstance(failed_step, int) else "F"
 
 
-def update_journeys(lines: list[str], payload: dict[str, Any]) -> list[dict[str, Any]]:
+def update_journeys(
+    lines: list[str],
+    payload: dict[str, Any],
+    allocate_bug_id: Callable[[], str] | None = None,
+    active_bug_areas: set[str] | None = None,
+) -> list[dict[str, Any]]:
     issue_candidates: list[dict[str, Any]] = []
+    active_bug_areas = active_bug_areas or set()
     run_date = payload["run_timestamp"][:10]
     for result in payload.get("journeys_run", []):
         journey_id = result.get("id")
@@ -887,10 +964,12 @@ def update_journeys(lines: list[str], payload: dict[str, Any]) -> list[dict[str,
                 end = index
                 break
         fields: dict[str, int] = {}
+        field_values: dict[str, str] = {}
         for index in range(heading + 1, end):
-            match = re.match(r"^\*\*(Status|Last Run|Run History):\*\*\s*(.*)$", lines[index])
+            match = re.match(r"^\*\*(Status|Last Run|Run History|escalated_to|Escalated To):\*\*\s*(.*)$", lines[index])
             if match:
                 fields[match.group(1)] = index
+                field_values[match.group(1)] = match.group(2).strip()
         token = journey_token(result)
         previous_history = ""
         if "Run History" in fields:
@@ -911,18 +990,36 @@ def update_journeys(lines: list[str], payload: dict[str, Any]) -> list[dict[str,
             lines[fields["Run History"]] = f"**Run History:** {' '.join(history)}"
         if token.startswith("F:") and history[-3:] == [token, token, token]:
             failed_step = token.split(":", 1)[1]
-            issue_candidates.append(
-                {
-                    "id": f"journey-{journey_id}",
-                    "area": result.get("failed_area", ""),
-                    "title": f"Journey {journey_id} failed at step {failed_step}",
-                    "body": result.get("result_detail", ""),
-                }
-            )
+            area = result.get("failed_area", "")
+            escalated_to = field_values.get("escalated_to") or field_values.get("Escalated To") or ""
+            if not escalated_to and area not in active_bug_areas:
+                bug_id = allocate_bug_id() if allocate_bug_id else ""
+                if "escalated_to" in fields:
+                    lines[fields["escalated_to"]] = f"**escalated_to:** {bug_id}"
+                elif "Escalated To" in fields:
+                    lines[fields["Escalated To"]] = f"**Escalated To:** {bug_id}"
+                else:
+                    insert_at = fields.get("Run History", end - 1) + 1
+                    lines.insert(insert_at, f"**escalated_to:** {bug_id}")
+                issue_candidates.append(
+                    {
+                        "id": f"journey-{journey_id}",
+                        "bug_id": bug_id,
+                        "area": area,
+                        "title": f"Journey {journey_id} failed at step {failed_step}",
+                        "body": result.get("result_detail", ""),
+                    }
+                )
     return issue_candidates
 
 
-def update_test_file(payload: dict[str, Any], score_history_after: dict[str, Any], test_file_text_before: str | None) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
+def update_test_file(
+    payload: dict[str, Any],
+    score_history_after: dict[str, Any],
+    test_file_text_before: str | None,
+    allocate_bug_id: Callable[[], str] | None = None,
+    active_bug_areas: set[str] | None = None,
+) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
     path = resolve(payload["test_file"])
     text = read_text(path)
     if text is None:
@@ -982,7 +1079,9 @@ def update_test_file(payload: dict[str, Any], score_history_after: dict[str, Any
             end += 1
 
     probe_rotations, probe_candidates = update_area_probe_tables(lines, payload)
-    cross_area_rotations, cross_area_candidates = update_cross_area_probes(lines, payload)
+    cross_area_rotations, cross_area_candidates = update_cross_area_probes(
+        lines, payload, allocate_bug_id, active_bug_areas
+    )
     if cross_area_rotations:
         probe_rotations += cross_area_rotations
 
@@ -992,7 +1091,7 @@ def update_test_file(payload: dict[str, Any], score_history_after: dict[str, Any
     update_ux_opportunities_section(lines, payload)
     update_good_patterns_section(lines, payload)
     update_weakness_classes(lines, payload)
-    journey_candidates = update_journeys(lines, payload)
+    journey_candidates = update_journeys(lines, payload, allocate_bug_id, active_bug_areas)
     return join_markdown(lines, final), {"probe_run_history": probe_rotations}, [
         *probe_candidates,
         *cross_area_candidates,
@@ -1100,6 +1199,37 @@ def previous_area_scores(score_history_before: dict[str, Any]) -> dict[str, floa
     return scores
 
 
+def recurring_pattern_notes(headers: list[str], row_lines: list[str]) -> list[str]:
+    config = cap_value("pattern_surfacing")
+    window = int(config["window_runs"])
+    if len(row_lines) < window:
+        return []
+    recent = row_lines[-window:]
+    notes: list[str] = []
+    for column, threshold_key, label in (
+        ("Best Area", "positive_best_area_count", "best area"),
+        ("Worst Area", "negative_worst_area_count", "worst area"),
+    ):
+        if column not in headers:
+            continue
+        index = headers.index(column)
+        counts: dict[str, int] = {}
+        for line in recent:
+            row = cells(line)
+            if index >= len(row):
+                continue
+            area = row[index].strip()
+            if not area or area == EM_DASH:
+                continue
+            counts[area] = counts.get(area, 0) + 1
+        if not counts:
+            continue
+        area, count = sorted(counts.items(), key=lambda item: (-item[1], item[0]))[0]
+        if count >= int(config[threshold_key]):
+            notes.append(f"Pattern: {area} {label} in {count}/{window} recent runs")
+    return notes
+
+
 def update_test_history(
     payload: dict[str, Any],
     score_history_before: dict[str, Any],
@@ -1157,6 +1287,12 @@ def update_test_history(
     }
     for key, value in values.items():
         set_cell(row, headers, key, value)
+    notes = recurring_pattern_notes(headers, [*existing_rows, render_row(row)])
+    if notes and "Key Finding" in headers:
+        index = headers.index("Key Finding")
+        existing_finding = row[index]
+        suffix = "; ".join(notes)
+        row[index] = suffix if not existing_finding or existing_finding == EM_DASH else f"{existing_finding}; {suffix}"
     existing_rows.append(render_row(row))
     cap = int(cap_value("test_history_cap"))
     rotations = max(0, len(existing_rows) - cap)
@@ -1172,6 +1308,33 @@ def update_test_history(
 BUG_HEADERS = ["ID", "Area", "Status", "Issue", "Title"]
 
 
+def bug_rows_from_text(text: str | None) -> tuple[list[str], list[list[str]]]:
+    if text is None:
+        return BUG_HEADERS, []
+    lines, _ = markdown_lines(text)
+    table = find_table(lines, {"ID", "Area", "Status", "Issue", "Title"})
+    if table is None:
+        return BUG_HEADERS, []
+    headers = cells(lines[table])
+    end = table_end(lines, table)
+    rows = [cells(line) for line in lines[table + 2 : end]]
+    for row in rows:
+        if len(row) < len(headers):
+            row.extend([""] * (len(headers) - len(row)))
+    return headers, rows
+
+
+def active_bug_areas_from_text(text: str | None) -> set[str]:
+    headers, rows = bug_rows_from_text(text)
+    areas: set[str] = set()
+    for row in rows:
+        status = get_first_available_cell(row, headers, ["Status"]).strip().lower()
+        area = get_first_available_cell(row, headers, ["Area"]).strip()
+        if area and status and status != "fixed":
+            areas.add(area)
+    return areas
+
+
 def next_bug_id(existing_rows: list[list[str]], headers: list[str]) -> int:
     if "ID" not in headers:
         return 1
@@ -1181,6 +1344,29 @@ def next_bug_id(existing_rows: list[list[str]], headers: list[str]) -> int:
         if match:
             found.append(int(match.group(1)))
     return (max(found) + 1) if found else 1
+
+
+def make_bug_id_allocator(bugs_text: str | None, payload: dict[str, Any]) -> Callable[[], str]:
+    headers, existing = bug_rows_from_text(bugs_text)
+    next_id = next_bug_id(existing, headers)
+    for candidate in payload.get("issue_candidates", []):
+        if not isinstance(candidate, dict):
+            continue
+        bug_id = candidate.get("bug_id")
+        if isinstance(bug_id, str):
+            match = re.match(r"^B(\d+)$", bug_id)
+            if match:
+                next_id = max(next_id, int(match.group(1)) + 1)
+                continue
+        next_id += 1
+
+    def allocate() -> str:
+        nonlocal next_id
+        bug_id = f"B{next_id:03d}"
+        next_id += 1
+        return bug_id
+
+    return allocate
 
 
 def update_bugs(payload: dict[str, Any], derived_candidates: list[dict[str, Any]] | None = None) -> tuple[str, list[dict[str, Any]]]:
@@ -1243,8 +1429,15 @@ def update_bugs(payload: dict[str, Any], derived_candidates: list[dict[str, Any]
         *regression_candidates,
     ]
     for candidate in all_candidates:
-        bug_id = candidate.get("bug_id") or f"B{next_id:03d}"
-        next_id += 1
+        candidate_bug_id = candidate.get("bug_id")
+        if isinstance(candidate_bug_id, str) and candidate_bug_id:
+            bug_id = candidate_bug_id
+            match = re.match(r"^B(\d+)$", bug_id)
+            if match:
+                next_id = max(next_id, int(match.group(1)) + 1)
+        else:
+            bug_id = f"B{next_id:03d}"
+            next_id += 1
         row = ["" for _ in headers]
         set_cell(row, headers, "ID", bug_id)
         set_cell(row, headers, "Area", candidate.get("area", ""))
@@ -1268,6 +1461,7 @@ def update_bugs(payload: dict[str, Any], derived_candidates: list[dict[str, Any]
 
 
 RUN_JSON_ARRAY_KEYS = [
+    "anomalies",
     "ux_opportunities",
     "good_patterns",
     "verification_results",
@@ -1369,10 +1563,13 @@ def merge_last_run(payload: dict[str, Any]) -> str:
 def build_mutations(payload: dict[str, Any]) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
     rotations: dict[str, Any] = {}
     test_file_text_before = read_text(resolve(payload["test_file"]))
+    bugs_text_before = read_text(resolve("tests/user-flows/bugs.md"))
+    allocate_bug_id = make_bug_id_allocator(bugs_text_before, payload)
+    active_bug_areas = active_bug_areas_from_text(bugs_text_before)
     thresholds = threshold_map(payload, test_file_text_before)
     score_history_text, score_before, score_rotations, score_after = update_score_history(payload)
     test_file_text, probe_rotations, derived_issue_candidates = update_test_file(
-        payload, score_after, test_file_text_before
+        payload, score_after, test_file_text_before, allocate_bug_id, active_bug_areas
     )
     test_history_text, history_rotations = update_test_history(payload, score_before, thresholds)
     bugs_text, issue_candidates = update_bugs(payload, derived_issue_candidates)

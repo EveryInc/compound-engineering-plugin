@@ -74,6 +74,23 @@ function extractPythonDictLiteralBody(source: string, constantName: string): str
   throw new Error(`Unterminated Python dict literal for ${constantName}`)
 }
 
+function extractPythonDictKeys(source: string, constantName: string): Set<string> {
+  const body = extractPythonDictLiteralBody(source, constantName)
+  if (body === null) {
+    throw new Error(`Missing Python dict literal for ${constantName}`)
+  }
+  return new Set([...body.matchAll(/^\s*"([^"]+)"\s*:/gm)].map((item) => item[1]))
+}
+
+function extractPythonListStringItems(source: string, constantName: string): Set<string> {
+  const pattern = new RegExp(`${constantName}\\s*=\\s*\\[([\\s\\S]*?)\\]`, "m")
+  const match = source.match(pattern)
+  if (!match) {
+    throw new Error(`Missing Python list constant ${constantName}`)
+  }
+  return new Set([...match[1].matchAll(/"([^"]+)"/g)].map((item) => item[1]))
+}
+
 function pythonFunction(source: string, functionName: string): string {
   const start = source.indexOf(`def ${functionName}(`)
   if (start === -1) {
@@ -82,6 +99,20 @@ function pythonFunction(source: string, functionName: string): string {
   const rest = source.slice(start)
   const next = rest.slice(1).search(/\ndef [a-zA-Z_][a-zA-Z0-9_]*\(/)
   return next === -1 ? rest : rest.slice(0, next + 1)
+}
+
+function engineMaturityPayloadFields(source: string): Set<string> {
+  const snippets = [
+    pythonFunction(source, "update_test_file"),
+    pythonFunction(source, "validate_payload"),
+  ].join("\n")
+  return new Set(
+    [...snippets.matchAll(/(?:area|payload)\.get\("([^"]+)"(?:, [^)]+)?\)/g)]
+      .map((match) => match[1])
+      .filter((field) =>
+        ["next_status", "consecutive_passes_after", "maturity_transitions"].includes(field),
+      ),
+  )
 }
 
 function engineValidationErrorCodes(source: string): Set<string> {
@@ -330,11 +361,57 @@ describe("ce-user-test v11 protocol name anti-drift", () => {
     expect(engineAreaDefaults).not.toBeNull()
     expect(engineAreaDefaults).toBe(migrateAreaDefaults)
 
-    const engineArrayDefaults = extractPythonDictLiteralBody(commitEngine, "RUN_JSON_ARRAY_DEFAULTS")
-    const migrateArrayDefaults = extractPythonDictLiteralBody(migrateTestFile, "RUN_JSON_ARRAY_DEFAULTS")
-    if (engineArrayDefaults !== null && migrateArrayDefaults !== null) {
-      expect(engineArrayDefaults).toBe(migrateArrayDefaults)
+    const engineArrayKeys = extractPythonListStringItems(commitEngine, "RUN_JSON_ARRAY_KEYS")
+    const migrateArrayDefaults = extractPythonDictKeys(migrateTestFile, "RUN_JSON_ARRAY_DEFAULTS")
+    expect(sorted(engineArrayKeys)).toEqual(sorted(migrateArrayDefaults))
+  })
+
+  test("commit payload prose names engine-owned maturity fields", () => {
+    const skill = readRel("skills/ce-user-test/SKILL.md")
+    const payloadSection = between(
+      skill,
+      "Build `tests/user-flows/.user-test-commit-payload.json`",
+      "### Engine Plan And Apply",
+    )
+    const proseFields = quotedNames(payloadSection)
+    const engineFields = engineMaturityPayloadFields(commitEngine)
+
+    expect(sorted(engineFields)).toEqual([
+      "consecutive_passes_after",
+      "maturity_transitions",
+      "next_status",
+    ])
+    for (const field of engineFields) {
+      expect(proseFields.has(field), `missing ${field} from ce-user-test payload prose`).toBe(true)
     }
+  })
+
+  test("producer and eval skills agree on Proven regression report marker", () => {
+    const producer = readRel("skills/ce-user-test/SKILL.md")
+    const evalSkill = readRel("skills/ce-user-test-eval/SKILL.md")
+
+    expect(producer).toContain("⚠ P<n> <area-slug> probe failing → Proven regression")
+    expect(evalSkill).toContain("⚠ P<n> <area-slug> probe failing → Proven regression")
+  })
+
+  test("commit prose names engine routing and issue handoff contracts", () => {
+    const skill = readRel("skills/ce-user-test/SKILL.md")
+
+    expect(skill).toContain('gh issue create ... --label "user-test:<area-slug>"')
+    expect(skill).toContain("label is the dedup corpus key")
+    expect(skill).toContain("CONCURRENT <pid>")
+    expect(skill).toContain("UNKNOWN-STATE <state>")
+    expect(skill).toContain('{"issues": [{"id" or "bug_id": ..., "number": <int>} | {"...", "duplicate_of": <int>}]}')
+    expect(skill).toContain("NO-OP")
+    expect(skill).toContain("CONFIRM-NO-MATCH")
+  })
+
+  test("eval skill version instructions stay self-contained", () => {
+    const evalSkill = readRel("skills/ce-user-test-eval/SKILL.md")
+
+    expect(evalSkill).not.toContain(".claude-plugin/plugin.json")
+    expect(evalSkill).not.toContain("plugin.json")
+    expect(evalSkill).toContain("plugin version if it is discoverable from the installed plugin's manifest in context")
   })
 
   test("set equality helper detects a single-source drift", () => {

@@ -2,7 +2,6 @@
 name: ce-user-test
 description: Run browser-based user testing via claude-in-chrome MCP with quality scoring and compounding test files. Use when testing app quality, scoring interactions, tracking test maturity, or filing issues from test sessions.
 argument-hint: "[scenario-file-or-description]"
-disable-model-invocation: true
 ---
 
 # User Test
@@ -235,7 +234,7 @@ UX 3.0 | Quality 4.5 (CLI) | 5 areas | 2 need action | 2 anomalies dispositioned
 
 NEEDS ACTION (2)                    ← open items requiring follow-up
   ⚠ P1  y2k accessories degrading Q3→Q2 → investigate CLI (Explore Next Run)
-  ⚠ P2  Proven area agent/filter-via-chat probe failing → regression
+  ⚠ P2  agent/filter-via-chat probe failing → Proven regression
 
 FILED THIS SESSION (1)              ← closed loop, confirmation only
   ✓ Bug #21: shipping-form validation accepts invalid zip codes
@@ -262,7 +261,7 @@ Demo: PARTIAL (P1 bug #21 open; promo-code untested)
 **Section rules:**
 - **Header:** `UX X.X | Quality X.X (CLI) | N areas | M need action | A anomalies dispositioned (B noted)` — 2-second scan
 - **JOURNEYS:** After cross-area probes, before NEEDS ACTION. Failing/flaky journeys show checkpoint detail. Passing show summary. See [journeys.md](./references/journeys.md).
-- **NEEDS ACTION:** `⚠` prefix. Only open items: degrading areas, failing probes on **Proven** areas (unexpected regression), verification mismatches on Proven. A P1 EXPLORE NEXT RUN item always also gets a `⚠ P1` NEEDS ACTION entry with any skip/blocked reason appended; a skip does not demote it out of action. Probe failures on Uncharted/Known-bug stay in DETAILS (expected)
+- **NEEDS ACTION:** `⚠` prefix. Only open items: degrading areas, failing probes on **Proven** areas using `⚠ P<n> <area-slug> probe failing → Proven regression`, verification mismatches on Proven. A P1 EXPLORE NEXT RUN item always also gets a `⚠ P1` NEEDS ACTION entry with any skip/blocked reason appended; a skip does not demote it out of action. Probe failures on Uncharted/Known-bug stay in DETAILS (expected)
 - **FILED THIS SESSION:** `✓` prefix. Bugs/issues filed. Omit if nothing filed
 - **IMPROVED:** `<area> <old>→<new> <reason>`
 - **STABLE:** Single comma-separated line
@@ -325,7 +324,7 @@ SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read
 python3 "$SKILL_DIR/scripts/commit-engine.py" status <scenario-slug>
 ```
 
-If the expected scenario slug is not known yet, omit it. Act on the first stdout line: `NO-JOURNAL` -> continue from `.user-test-last-run.json`; `JOURNAL-EXISTS` -> resume or rollback the existing journal before planning; `APPLIED` or `ISSUES-PENDING` -> continue the issue-confirmation path; `STALE-WARN` -> ask whether to resume, then pass `--acknowledge-stale` to `apply`, `resume`, or `confirm-issues` if the user agrees; `STALE-ROLLBACK-DEFAULT` -> offer rollback as the default, or pass `--acknowledge-stale` to `resume` only if the user explicitly chooses to override the default; `FOREIGN-JOURNAL <scenario>`, `BASE-HASH-MISMATCH`, or `STAGED-INTEGRITY-FAILURE` -> stop and present the engine details.
+If the expected scenario slug is not known yet, omit it. Act on the first stdout line: `NO-JOURNAL` -> continue from `.user-test-last-run.json`; `JOURNAL-EXISTS` -> resume or rollback the existing journal before planning; `APPLIED` or `ISSUES-PENDING` -> continue the issue-confirmation path; `CONCURRENT <pid>` -> another commit is mid-flight, wait or investigate the PID, do not resume/rollback; `UNKNOWN-STATE <state>` -> stop and surface the journal for inspection; `STALE-WARN` -> ask whether to resume, then pass `--acknowledge-stale` to `apply`, `resume`, or `confirm-issues` if the user agrees; `STALE-ROLLBACK-DEFAULT` -> offer rollback as the default, or pass `--acknowledge-stale` to `resume` only if the user explicitly chooses to override the default; `FOREIGN-JOURNAL <scenario>`, `BASE-HASH-MISMATCH`, or `STAGED-INTEGRITY-FAILURE` -> stop and present the engine details.
 
 ### Maturity Updates
 
@@ -364,6 +363,8 @@ For each issue candidate, fetch the open issue corpus for that area label:
 gh issue list --label "user-test:<area-slug>" --state open --json number,title > <corpus-json>
 ```
 
+The `user-test:<area-slug>` label is the dedup corpus key; when filing, use `gh issue create ... --label "user-test:<area-slug>"`, creating the label first if it does not exist (`gh label create "user-test:<area-slug>" --color ededed || true`-style guidance is sufficient).
+
 If `gh` exits nonzero, write `{"fetch_failed": true}` to the corpus file. Then run duplicate detection from this skill directory:
 
 ```bash
@@ -374,14 +375,14 @@ python3 "$SKILL_DIR/scripts/issue-dedup.py" "<candidate-title>" <corpus-json>
 Build `tests/user-flows/.user-test-commit-payload.json` with the completed judgments and run evidence:
 
 - Scenario metadata: `scenario_slug`, `test_file`, `run_timestamp`, run number when known.
-- Area results: score fields, `skip_reason` for skipped areas, maturity decisions plus the consecutive-pass evidence the decision expects, `tactical_note`, `weakness_class` (`null`/absent leaves unchanged, `""` deletes, non-empty upserts), `confirmed_selectors`, and `novelty_fingerprints`.
+- Area results: score fields, `skip_reason` for skipped areas, maturity decisions in `next_status` plus `consecutive_passes_after`, `tactical_note`, `weakness_class` (`null`/absent leaves unchanged, `""` deletes, non-empty upserts), `confirmed_selectors`, and `novelty_fingerprints`.
 - Probe evidence: top-level `probes_run` and `probes_generated` arrays, each entry carrying its `area`, plus scenario-level `cross_area_probes_run`.
 - Journey evidence: `journeys_run` entries with journey id/status/failed step/detail.
 - Query evidence: `query_results` with per-query score and consecutive evidence; sharpened failed-query probes and discovery-driven new queries are judgment inputs, not engine inference.
 - Score evidence and reconciliation: per-area `evidence`, top-level `anomalies`, `final_execution_index`, `schema_version`, and `anomaly_ledger_digest` from Phase 4 run results.
 - Bug lifecycle: `bug_lifecycle_updates` from agent-side issue-state and fix-check/regression evidence.
 - Issues: `issue_candidates` with dedup verdicts, including regression candidates that should be filed after apply.
-- Signals: disconnects, UX opportunities, good patterns, and any graduation choices.
+- Signals: disconnects, UX opportunities, good patterns, top-level `maturity_transitions`, and any graduation choices.
 
 ### Engine Plan And Apply
 
@@ -399,14 +400,14 @@ If `plan` returns `VALIDATION-FAILED`, read the JSON error list, re-present only
 
 If `plan` returns `JOURNAL-EXISTS`, run `status <scenario-slug>` and route by the status sentinel before retrying the plan. If it returns `FOREIGN-JOURNAL <scenario>`, stop and report the foreign journal.
 
-After `apply`, file only journal-pending issues through the project's issue tracker. Confirm filed and duplicate issues back to the engine:
+After `apply`, file only journal-pending issues through the project's issue tracker. Confirm filed and duplicate issues back to the engine with `{"issues": [{"id" or "bug_id": ..., "number": <int>} | {"...", "duplicate_of": <int>}]}`:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>"
 python3 "$SKILL_DIR/scripts/commit-engine.py" confirm-issues <issues-json>
 ```
 
-If `confirm-issues` returns `JOURNAL-NOT-APPLIED`, run `status` and resume/apply first. Do not retry confirmation until the engine reports `APPLIED` or `ISSUES-PENDING`.
+If `confirm-issues` returns `JOURNAL-NOT-APPLIED`, run `status` and resume/apply first. Route `NO-OP` and `CONFIRM-NO-MATCH` by their sentinel names. Do not retry confirmation until the engine reports `APPLIED` or `ISSUES-PENDING`.
 
 Render FILED THIS SESSION and SIGNALS from the structured result JSON returned by `apply` and `confirm-issues`. The engine owns schema normalization, caps, rotations, delta computation, history updates, bug registry rows, probe status updates, fingerprint merge, first-run artifact creation, journaled writes, and rollback.
 
