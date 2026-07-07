@@ -31,10 +31,10 @@ Two sections:
 
 ## Dispatch: record the claim, seed the doc
 
-At dispatch, for each worker:
+At dispatch:
 
-1. **Write its claim** to the Claims table before the worker begins — so peers in the same parallel layer and workers in later layers see intended ownership up front.
-2. **Seed the current notes document** (both sections) into the worker's bounded unit packet, alongside the plan-unit content it already receives. The worker reads the ledger to avoid re-deriving what earlier workers learned, and reads claims to know what neighboring units own.
+1. **Write claims first.** Record each worker's claim (unit, owner, expected files/area) in the Claims table before that worker is dispatched. For a **parallel layer**, write the claims for *every* worker in the layer before dispatching any of them — so same-layer peers already see each other's intended ownership when they are seeded. For a serial unit, write its claim just before its dispatch.
+2. **Seed the current notes document** (both sections) into each worker's bounded unit packet, alongside the plan-unit content it already receives. The worker reads the ledger to avoid re-deriving what earlier workers learned, and reads claims to know what neighboring units own.
 
 Workers do not edit the notes document — they report learnings through the evidence return they already send back (Phase 1 Step 4). The orchestrator is the sole writer.
 

@@ -22,7 +22,9 @@ This command takes a work document (plan or specification) or a bare prompt desc
 
 **First, parse a leading mode token.** If `<input_document>` begins with `mode:return-to-caller` (or the legacy aliases `mode:caller-owned-tail` / `caller:lfg`), strip that token before anything else: the remainder of the string is the plan path, and this run executes in **Return-to-Caller Mode** (see § Return-to-Caller Mode) — implement and locally verify only, then return the structured envelope instead of running the standalone shipping tail. Classify the stripped plan path with the rules below. A mode token with no following path is an error: report it rather than treating `mode:return-to-caller` as a bare prompt.
 
-If `<input_document>` begins with `mode:subagent`, strip that token the same way: the remainder is the plan path, and this run executes in **Subagent Mode** (see § Subagent Mode) — every implementation unit runs in a subagent, the main loop only orchestrates and owns all user interaction, and subagents coordinate through a shared notes document. Classify the stripped plan path with the rules below. A `mode:subagent` with no following path is an error, same as above. Subagent Mode governs *how* execution is dispatched and is independent of Return-to-Caller Mode; when a caller supplies both tokens, honor both (return-to-caller tail ownership plus subagent dispatch).
+If `<input_document>` begins with `mode:subagent`, this run executes in **Subagent Mode** (see § Subagent Mode) — every implementation unit runs in a subagent, the main loop only orchestrates and owns all user interaction, and subagents coordinate through a shared notes document. A `mode:subagent` with no following path is an error, same as above.
+
+**Both tokens may appear together, in either order.** Subagent Mode governs *how* execution is dispatched and is independent of Return-to-Caller Mode's tail ownership, so `mode:return-to-caller mode:subagent <plan-path>` is valid and both apply. Strip leading mode tokens **one at a time until the string no longer begins with a mode token**; the final remainder is the plan path, and every token you stripped is in effect. Then classify that plan path with the rules below.
 
 Determine how to proceed based on what was provided in `<input_document>` (after any mode token is stripped).
 
@@ -50,7 +52,7 @@ Determine how to proceed based on what was provided in `<input_document>` (after
 
    | Complexity | Signals | Action |
    |-----------|---------|--------|
-   | **Trivial** | 1-2 files, no behavioral change (typo, config, rename) | Proceed to Phase 1 step 2 (environment setup), then implement directly — no task list, no execution loop. Apply Test Discovery if the change touches behavior-bearing code |
+   | **Trivial** | 1-2 files, no behavioral change (typo, config, rename) | Proceed to Phase 1 step 2 (environment setup), then implement directly — no task list, no execution loop. Apply Test Discovery if the change touches behavior-bearing code. **Under `mode:subagent`, do not implement inline — dispatch even this trivial work to a subagent (see § Subagent Mode).** |
    | **Small / Medium** | Clear scope, under ~10 files | Build a task list from discovery. Proceed to Phase 1 step 2 |
    | **Large** | Cross-cutting, architectural decisions, 10+ files, touches auth/payments/migrations | Inform the user this would benefit from `/ce-brainstorm` or `/ce-plan` to surface edge cases and scope boundaries. Honor their choice. If proceeding, build a task list and continue to Phase 1 step 2 |
 
@@ -180,7 +182,7 @@ Determine how to proceed based on what was provided in `<input_document>` (after
 
    **Permission mode:** Omit the `mode` parameter when dispatching subagents so the user's configured permission settings apply. Do not pass `mode: "auto"` — it overrides user-level settings like `bypassPermissions`.
 
-   **Subagent Mode coordination** (only when running under `mode:subagent` — see § Subagent Mode): before dispatching each worker, record its claim in the shared notes document and seed the current notes document into its packet; after integrating each unit (serial or parallel), distill the worker's returned evidence into the notes ledger and prune the integrated unit's claim. The protocol, notes-document schema, persistence path, and end-of-run `ce-compound` handoff are in `references/subagent-mode.md`. Outside Subagent Mode, skip this — dispatch and integration are unchanged.
+   **Subagent Mode coordination** (only when running under `mode:subagent` — see § Subagent Mode): this dispatch step and the integration steps below are the seams where the shared notes document is maintained. Run the dispatch-time and integration-time coordination steps from `references/subagent-mode.md` at these points — that reference owns the protocol, notes-document schema, persistence path, and end-of-run `ce-compound` handoff. Outside Subagent Mode, skip this — dispatch and integration are unchanged.
 
    **After each serial unit:** review the diff against the unit's scope and `Files:`, run the relevant tests, fix before dispatching the next (never on a broken tree), record the unit's verification evidence from the worker's return (for the Phase 2 `verification_evidence` roll-up), update the task list (never edit the plan body — progress lives in commits), and commit. Then dispatch the next unit.
 
@@ -402,7 +404,7 @@ The contract:
 
 - **All implementation is dispatched.** Route even Trivial-triage work through a subagent; the main loop never edits files directly. The existing orchestrator-owns-commits contract (Phase 1 Step 4) is unchanged — workers implement, the orchestrator stages, commits, and runs the authoritative tests.
 - **The main loop owns every user interaction.** Subagents never talk to the user. A worker that hits a genuine ambiguity or blocking question **returns it upward** instead of guessing; the orchestrator resolves it from context or relays it to the user, then re-dispatches. Front-load clarification before dispatch wherever possible, since a mid-run question pauses the pipeline.
-- **Coordination is claims + forward flow, not live peer visibility.** Concurrent workers in a parallel layer cannot observe each other mid-flight. Each worker's intended scope is recorded as a *claim* at dispatch; learnings and decisions become visible to peers only after a layer completes and the orchestrator folds them into the notes ledger before the next layer.
+- **Coordination is claims + forward flow, not live peer visibility.** All claims for a parallel layer are recorded up front — before any worker in that layer is dispatched — so same-layer peers see each other's intended file ownership. What they cannot see is each other's *in-flight progress*: learnings and decisions become visible only after a layer completes and the orchestrator folds them into the forward ledger before the next layer.
 - **Sequencing reuses the existing analysis.** Subagent Mode does not add an orchestration engine — it uses Phase 1 Step 4's Parallel Safety Check and dependency-layer batching to decide what runs serial vs parallel.
 - **No subagent mechanism ⇒ degrade with a warning.** If the Phase 1 Step 4 capability probe finds no worker mechanism, Subagent Mode cannot honor its enforcement guarantee. Say so plainly and fall back to the standard inline engine rather than erroring — normal `ce-work` is a correct, if non-strict, execution.
 
