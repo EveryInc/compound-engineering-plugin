@@ -39,15 +39,15 @@ Read `references/opening-setup.md` and run it now.
 
 ### Phase 2: Load product principles
 
-Load the product principles that will gate PRD completeness: the shipped baseline, plus any org-specific principles. Read in order — the repo copy, then the user-global store, then interview the PM only when neither has them — and offer to persist newly captured principles for reuse across repos.
+Load the product principles that will gate PRD completeness in Phase 5 — a shipped baseline plus any org-specific principles, resolved in priority order and persisted for cross-repo reuse when newly captured.
 
-Read `references/product-principles.md` and run the load-and-capture step now. (The completeness gate itself fires in Phase 5.)
+Read `references/product-principles.md` and run the load-and-capture step now.
 
 ### Phase 3: Scope the idea
 
 Scope the idea with a compact, PM-facing dialogue — one question at a time, problem and users first, then constraints and exclusions. This mirrors `ce-brainstorm`'s discipline; it does not invoke `ce-brainstorm`.
 
-Read `references/scoping-dialogue.md` and run it now.
+Create the decision log first (scoping decisions are its first entries), then run the dialogue. Read `references/decision-log.md` for its location and schema, and `references/scoping-dialogue.md` for the dialogue, and run them now.
 
 ### Phase 4: Co-evolve the prototype and the PRD
 
@@ -62,13 +62,7 @@ Run the loop, maintaining the decision log every round, until the PM confirms th
 
 First apply the completeness gate: the PRD is not final until every applicable product principle (baseline + org) is addressed. Surface the gaps and resolve them (looping back to Phase 4 or the PM as needed) before finalizing.
 
-Then emit the dual PRD and hand off:
-
-- The **canonical** PRD is a `ce-unified-plan` requirements artifact (the same contract `ce-brainstorm` emits) — engineering runs `/ce-plan` on it directly.
-- A **readable** PRD view is rendered from that canonical artifact (never authored separately, so the two cannot drift).
-- The prototype is attached as validating evidence.
-
-Read `references/prd-output.md` for the gate details, the artifact contract, the render, and the handoff, and run it now.
+Then emit the dual PRD — a canonical `ce-unified-plan` artifact plus a readable view rendered from it, with the prototype attached as evidence — and hand off to engineering. Read `references/prd-output.md` for the gate details, the artifact contract, the render, and the handoff, and run it now.
 
 ## Durable outputs
 

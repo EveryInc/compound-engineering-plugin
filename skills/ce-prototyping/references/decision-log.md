@@ -4,7 +4,7 @@ The decision log is the connective tissue between the prototype and the PRD. It 
 
 ## Where it lives
 
-`.compound-engineering/ce-prototyping/<run-id>/decision-log.md` in the working directory, so the PM can inspect it and it persists across the session. `<run-id>` is a per-run identifier. Create it at the start of Phase 4.
+`.context/compound-engineering/ce-prototyping/<run-id>/decision-log.md` in the working directory (the AGENTS.md `.context/` scratch namespace for per-run, user-inspectable working state), so the PM can inspect it and it persists across the session. `<run-id>` is a per-run identifier. **Create it when scoping begins (Phase 3)** — scoping decisions are its first entries — not at Phase 4.
 
 ## Schema
 
