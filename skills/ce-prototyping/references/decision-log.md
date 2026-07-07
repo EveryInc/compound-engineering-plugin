@@ -4,7 +4,7 @@ The decision log is the connective tissue between the prototype and the PRD. It 
 
 ## Where it lives
 
-`.context/compound-engineering/ce-prototyping/<run-id>/decision-log.md` in the working directory (the AGENTS.md `.context/` scratch namespace for per-run, user-inspectable working state), so the PM can inspect it and it persists across the session. `<run-id>` is a per-run identifier. **Create it when scoping begins (Phase 3)** — scoping decisions are its first entries — not at Phase 4.
+`.context/compound-engineering/ce-prototyping/<run-id>/decision-log.md` under the **repository root** (resolve via `git rev-parse --show-toplevel`, falling back to the working directory when there is no git repo) — the AGENTS.md `.context/` scratch namespace for per-run, user-inspectable working state, so the PM can inspect it and it persists across the session. Anchoring at the root keeps a run consistent even when invoked from a subdirectory. `<run-id>` is a per-run identifier. **Create it when scoping begins (Phase 3)** — scoping decisions are its first entries — not at Phase 4.
 
 ## Schema
 
