@@ -87,6 +87,10 @@ Every PR description includes a `Post-Deploy Monitoring & Validation` section: l
 
 Not every invocation has a plan. `ce-work` accepts a bare prompt and triages by complexity: trivial work (a couple of files, no behavioral change) goes straight to implementation; small/medium work builds a task list; large or sensitive work surfaces a recommendation to use `/ce-brainstorm` or `/ce-plan` first. The triage is what makes `ce-work` reasonable for direct invocation on small work, without forcing the full chain for everything.
 
+### 9. Subagent mode — strict dispatch with a shared notes doc
+
+`mode:subagent <plan path>` runs a strict variant where **every** implementation unit — even trivial work — runs in a subagent, and the main loop only orchestrates, integrates, commits, and owns all user interaction. Subagents coordinate through a shared notes document: each records a *claim* (its intended file ownership) at dispatch, and the orchestrator distills each worker's returned evidence into a *forward ledger* of setup facts, diagnosed gotchas, and decisions that seeds the next worker — so later units stop re-deriving conventions and re-fixing the same bugs. At run end the notes doc persists for inspection and `ce-work` offers to graduate the durable learnings into `docs/solutions/` via `ce-compound`.
+
 ---
 
 ## Quick Example
@@ -166,6 +170,7 @@ For large bare-prompt scope (cross-cutting, sensitive surfaces, many files), `ce
 | _(empty)_ | Auto-uses the latest plan in `docs/plans/` |
 | `<plan path>` | Origin-sourced execution |
 | `<bare prompt>` | Triage by complexity (Trivial / Small-Medium / Large) |
+| `mode:subagent <plan path>` | Strict subagent execution: all units run in subagents; a shared notes doc carries claims + learnings between them |
 
 Output: commits and (typically) a PR via `ce-commit-push-pr`. The plan is read-only throughout — `ce-work` never mutates it; whether it shipped is derived from git, not recorded in the doc.
 
@@ -181,6 +186,9 @@ Bare-prompt mode triages by complexity. Trivial goes straight to implementation;
 
 **What's the difference between worktree-isolated and shared-directory parallel mode?**
 Worktree isolation gives each subagent its own branch in its own directory — overlapping writes surface as merge conflicts the orchestrator handles explicitly. Shared-directory mode bars subagents from staging, committing, or running the test suite (the orchestrator does those after the batch). Both are safe; worktree isolation is the cleaner experience.
+
+**What is subagent mode?**
+`mode:subagent <plan path>` enforces that every implementation unit runs in a subagent — even trivial work — while the main loop only orchestrates and owns all user interaction, keeping orchestration context clean on long runs. Subagents coordinate through a shared notes document (a claims table plus a forward ledger of setup facts, gotchas, and decisions) so later workers reuse what earlier ones learned instead of re-deriving it. It reuses the normal Parallel Safety Check for sequencing, and at run end offers a `ce-compound` handoff to persist durable learnings. If the harness has no subagent mechanism, it degrades to normal `ce-work` with a warning.
 
 **Why does it check whether work is already done before each task?**
 Resuming after context compaction, picking up someone else's branch, or returning to a partly-shipped plan are all common. Idempotency ensures `ce-work` doesn't silently reimplement what's already there.
