@@ -43,10 +43,10 @@ If `mode:headless` is not present, the skill runs in its default interactive mod
 
 **If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Re-invoke with: Skill(\"ce-doc-review\", \"mode:headless <path>\")" without dispatching agents.
 
-**Missing-document gate — verify before any dispatch.** Persona reviewers read documents from the filesystem, and several run without Bash, so they cannot read git refs — a path that exists only on a branch that is not checked out wastes the entire persona team discovering they cannot proceed (issue #925). Before Phase 2, confirm every resolved document path exists on disk in the working tree. If any is missing, do not dispatch any personas:
+**Missing-document gate — verify before any dispatch.** Persona reviewers read documents from the filesystem, and several run without Bash, so they cannot read git refs — a path that exists only on a branch that is not checked out wastes the entire persona team discovering they cannot proceed (issue #925). Before Phase 2, confirm every resolved document path is readable on disk (the Read above succeeded). Location does not matter: an absolute path outside the checkout (e.g. `/tmp/plan.md`) or a doc in another checkout reviews fine. If any path is not readable, do not dispatch any personas:
 
-- **Interactive mode:** stop and name the missing path(s): "Document(s) not found in the working tree: <paths>. If they exist on another branch, check it out (or use a worktree) and re-invoke; otherwise correct the path(s)."
-- **Headless mode:** output "Review failed: document(s) not found in the working tree: <paths>. Check out the branch containing them (or pass on-disk paths) and re-invoke." and return without dispatching agents.
+- **Interactive mode:** stop and name the missing path(s): "Document(s) not found on disk: <paths>. If they only exist on another branch, check it out (or use a worktree) and re-invoke; otherwise correct the path(s)."
+- **Headless mode:** output "Review failed: document(s) not found on disk: <paths>. Check out the branch containing them (or pass paths to files on disk) and re-invoke." and return without dispatching agents.
 
 ### Classify Document Type
 
