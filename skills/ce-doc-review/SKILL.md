@@ -37,11 +37,16 @@ If `mode:headless` is not present, the skill runs in its default interactive mod
 
 ## Phase 1: Get and Analyze Document
 
-**If a document path is provided:** Read it, then proceed.
+**If a document path is provided:** Read it, then proceed. If the Read fails or the file is not on disk, apply the missing-document gate below instead of continuing.
 
 **If no document is specified (interactive mode):** Ask which document to review, or find the most recent in `docs/brainstorms/` or `docs/plans/` using a file-search/glob tool (e.g., Glob in Claude Code).
 
 **If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Re-invoke with: Skill(\"ce-doc-review\", \"mode:headless <path>\")" without dispatching agents.
+
+**Missing-document gate — verify before any dispatch.** Persona reviewers read documents from the filesystem, and several run without Bash, so they cannot read git refs — a path that exists only on a branch that is not checked out wastes the entire persona team discovering they cannot proceed (issue #925). Before Phase 2, confirm every resolved document path exists on disk in the working tree. If any is missing, do not dispatch any personas:
+
+- **Interactive mode:** stop and name the missing path(s): "Document(s) not found in the working tree: <paths>. If they exist on another branch, check it out (or use a worktree) and re-invoke; otherwise correct the path(s)."
+- **Headless mode:** output "Review failed: document(s) not found in the working tree: <paths>. Check out the branch containing them (or pass on-disk paths) and re-invoke." and return without dispatching agents.
 
 ### Classify Document Type
 
