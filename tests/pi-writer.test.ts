@@ -278,6 +278,58 @@ Run these research agents:
     expect(await exists(path.join(outputRoot, "extensions", "compound-engineering-compat.ts"))).toBe(false)
   })
 
+  test("preserves user-managed symlinks at managed skill and agent paths on reinstall", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-symlink-preserve-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+    const bundle: PiBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [
+        {
+          name: "skill-one",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      generatedSkills: [{ name: "generated-one", content: "---\nname: generated-one\n---\n\nUpstream generated" }],
+      agents: [{ name: "agent-one", content: "---\nname: agent-one\n---\n\nUpstream agent" }],
+      extensions: [],
+    }
+    await writePiBundle(outputRoot, bundle)
+
+    // The user replaces the managed skill dirs and agent file with symlinks
+    // pointing at a local fork — the override pattern from issue #1048.
+    const forkRoot = path.join(tempRoot, "fork")
+    const forkSkillDir = path.join(forkRoot, "skill-one")
+    await fs.mkdir(forkSkillDir, { recursive: true })
+    await fs.writeFile(path.join(forkSkillDir, "SKILL.md"), "user fork skill\n")
+    const forkGeneratedDir = path.join(forkRoot, "generated-one")
+    await fs.mkdir(forkGeneratedDir, { recursive: true })
+    await fs.writeFile(path.join(forkGeneratedDir, "SKILL.md"), "user fork generated\n")
+    const forkAgentFile = path.join(forkRoot, "agent-one.md")
+    await fs.writeFile(forkAgentFile, "user fork agent\n")
+
+    const skillLink = path.join(outputRoot, "skills", "skill-one")
+    await fs.rm(skillLink, { recursive: true, force: true })
+    await fs.symlink(forkSkillDir, skillLink, "dir")
+    const generatedLink = path.join(outputRoot, "skills", "generated-one")
+    await fs.rm(generatedLink, { recursive: true, force: true })
+    await fs.symlink(forkGeneratedDir, generatedLink, "dir")
+    const agentLink = path.join(outputRoot, "agents", "agent-one.md")
+    await fs.rm(agentLink, { force: true })
+    await fs.symlink(forkAgentFile, agentLink, "file")
+
+    await writePiBundle(outputRoot, bundle)
+
+    // Symlinks survive the reinstall...
+    expect((await fs.lstat(skillLink)).isSymbolicLink()).toBe(true)
+    expect((await fs.lstat(generatedLink)).isSymbolicLink()).toBe(true)
+    expect((await fs.lstat(agentLink)).isSymbolicLink()).toBe(true)
+    // ...and the install did not write through them into the fork.
+    expect(await fs.readFile(path.join(forkSkillDir, "SKILL.md"), "utf8")).toBe("user fork skill\n")
+    expect(await fs.readFile(path.join(forkGeneratedDir, "SKILL.md"), "utf8")).toBe("user fork generated\n")
+    expect(await fs.readFile(forkAgentFile, "utf8")).toBe("user fork agent\n")
+  })
+
   test("namespaces managed install manifests per plugin so installs do not collide", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-multi-plugin-"))
     const outputRoot = path.join(tempRoot, ".pi")

@@ -88,6 +88,10 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   for (const skill of bundle.skillDirs) {
     const skillName = sanitizePathName(skill.name)
     const targetDir = path.join(paths.skillsDir, skillName)
+    if (await isUserManagedSymlink(targetDir)) {
+      console.log(`Preserving user-managed symlink at ${targetDir}; skipping install of skill "${skillName}"`)
+      continue
+    }
     await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
     await copySkillDir(skill.sourceDir, targetDir, transformContentForPi)
   }
@@ -95,6 +99,10 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   for (const skill of bundle.generatedSkills) {
     const skillName = sanitizePathName(skill.name)
     const targetDir = path.join(paths.skillsDir, skillName)
+    if (await isUserManagedSymlink(targetDir)) {
+      console.log(`Preserving user-managed symlink at ${targetDir}; skipping install of skill "${skillName}"`)
+      continue
+    }
     await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
     await writeText(path.join(targetDir, "SKILL.md"), skill.content + "\n")
   }
@@ -102,6 +110,10 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   for (const agent of bundle.agents) {
     const agentFileName = `${sanitizePathName(agent.name)}.md`
     const targetPath = path.join(paths.agentsDir, agentFileName)
+    if (await isUserManagedSymlink(targetPath)) {
+      console.log(`Preserving user-managed symlink at ${targetPath}; skipping install of agent "${agent.name}"`)
+      continue
+    }
     await cleanupCurrentManagedAgentFile(targetPath, manifest, agentFileName)
     await writeText(targetPath, agent.content + "\n")
   }
@@ -391,6 +403,19 @@ async function cleanupRemovedAgents(
     if (current.has(agentFile)) continue
     if (!isSafeManagedPath(agentsDir, agentFile)) continue
     await fs.rm(path.join(agentsDir, agentFile), { force: true })
+  }
+}
+
+// A user-created symlink at a managed path is an explicit override (a fork,
+// worktree, or local patch — see issue #1048). Removing the link would
+// deactivate the override, and writing "through" a preserved link would
+// clobber the override's target, so installs skip these paths entirely.
+// Reverting to upstream content requires the user to remove the symlink first.
+async function isUserManagedSymlink(targetPath: string): Promise<boolean> {
+  try {
+    return (await fs.lstat(targetPath)).isSymbolicLink()
+  } catch {
+    return false
   }
 }
 
