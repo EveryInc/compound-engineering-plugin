@@ -62,7 +62,7 @@ Phase 1.75 evaluates the document set as a whole: overlap detection across five 
 
 ### 4. Replace via subagent — context isolation
 
-When a learning's core guidance is now misleading, the orchestrator dispatches a subagent to write the replacement (one at a time, sequentially — replacements may need to read significant code, and parallelism risks context exhaustion). The subagent receives the old learning, the investigation evidence, the target path, and the contract files (schema, category mapping, template) — and writes a clean successor without polluting the orchestrator's context.
+When a learning's core guidance is now misleading, the orchestrator dispatches a subagent to write the replacement (one at a time, sequentially — replacements may need to read significant code, and parallelism risks context exhaustion). The subagent receives the old learning, the investigation evidence, the target path, and the contract files (schema, category mapping, template) — and writes a clean successor without polluting the orchestrator's context. The successor (and any consolidated canonical doc) then goes through the mechanical claims check (`scripts/validate-doc-claims.py`): cited paths, commit SHAs, relative links, and drafting scaffold are verified against the tree, with flags adjudicated rather than auto-failed.
 
 ### 5. Stale-marking when evidence is insufficient
 

@@ -491,7 +491,7 @@ For each candidate, execute the flow that matches its classification from Phase 
 - **Keep** — no file edit by default; summarize why the learning remains trustworthy.
 - **Update** — in-place edits when the solution is still substantively correct (path renames, link refreshes, module renames).
 - **Consolidate** — merge overlapping docs into a canonical doc, delete subsumed docs, update cross-references. The orchestrator handles consolidation directly.
-- **Replace** — write a successor learning via subagent (passing the documentation contract files), validate frontmatter, then delete the old. When evidence is insufficient, mark stale instead.
+- **Replace** — write a successor learning via subagent (passing the documentation contract files), validate frontmatter and cited claims, then delete the old. When evidence is insufficient, mark stale instead.
 - **Delete** — final inbound-link check, then remove. Reclassify if late-discovered substantive citations surface.
 
 Only one flow runs per candidate; the reference contains the per-action criteria, examples, and step-by-step instructions.
