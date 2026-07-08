@@ -14,9 +14,11 @@ validate-frontmatter.py (parser-safety) — this script checks the body's
 citations against the repository:
 
     1. Cited repo-relative paths (backticked, containing at least one '/')
-       exist in the working tree; misses are classified against the
-       upstream default branch to distinguish a stale checkout from a
-       fabricated path.
+       exist in the working tree; misses tracked at HEAD or the upstream
+       default branch still count as real paths and are classified
+       (deleted/uncommitted vs stale checkout). Tokens missing everywhere
+       are flagged only when path-shaped; slash-delimited identifiers
+       (branch names, git refs, provider/model IDs) are skipped.
     2. Cited commit SHAs (7-40 hex chars with at least one digit and one
        a-f letter) resolve to commits, classified by reachability from
        HEAD and the upstream default branch.
@@ -91,11 +93,24 @@ def is_path_candidate(token: str) -> bool:
         return False
     if "://" in token or token.startswith(("http", "#", "/", "~")):
         return False
+    if token.startswith(("origin/", "upstream/", "refs/")):
+        return False  # git refs, not repo paths
     if PLACEHOLDER_CHARS & set(token):
         return False
     if any(sub in token for sub in PLACEHOLDER_SUBSTRINGS):
         return False
     return True
+
+
+def is_path_shaped(token: str, base: str) -> bool:
+    """Distinguish a path citation from a slash-delimited identifier
+    (branch name, provider/model ID) among tokens found nowhere in git."""
+    segments = token.split("/")
+    if re.search(r"\.[A-Za-z0-9]{1,8}$", segments[-1]):
+        return True
+    if token.endswith("/"):
+        return True
+    return os.path.isdir(os.path.join(base, segments[0]))
 
 
 def normalize_path(token: str) -> str:
@@ -173,20 +188,39 @@ def main(argv: list[str]) -> int:
         code, _ = git(["cat-file", "-e", f"{upstream}:{path}"], repo_root)
         return code == 0
 
+    def head_has_path(path: str) -> bool:
+        if not in_git:
+            return False
+        code, _ = git(["cat-file", "-e", f"HEAD:{path}"], repo_root)
+        return code == 0
+
     # --- 1. Cited repo paths ----------------------------------------------
     checked_paths = 0
     seen_paths: set[str] = set()
+    base = repo_root if in_git else os.getcwd()
     for raw in BACKTICK_RE.findall(body):
         token = normalize_path(raw)
         if not is_path_candidate(token) or token in seen_paths:
             continue
         seen_paths.add(token)
-        checked_paths += 1
-        base = repo_root if in_git else os.getcwd()
         if os.path.exists(os.path.join(base, token)):
+            checked_paths += 1
             continue
+        tracked_head = head_has_path(token)
+        tracked_upstream = upstream_has_path(token)
+        if not (tracked_head or tracked_upstream) and not is_path_shaped(
+            token, base
+        ):
+            continue  # branch name / provider ID, not a path citation
+        checked_paths += 1
         loc = loc_suffix(raw)
-        if upstream_has_path(token):
+        if tracked_head:
+            flags.append(
+                f"FLAG path `{token}`{loc} — tracked at HEAD but missing from "
+                "the working tree: deleted or uncommitted removal? Annotate as "
+                "historical (e.g. removed by this fix) or restore it."
+            )
+        elif tracked_upstream:
             flags.append(
                 f"FLAG path `{token}`{loc} — not in working tree but exists at "
                 f"{upstream}: stale checkout? Annotate or verify against upstream."

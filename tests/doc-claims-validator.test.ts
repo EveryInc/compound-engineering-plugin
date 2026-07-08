@@ -145,6 +145,26 @@ describe("validate-doc-claims script", () => {
         expect(result.stdout).toContain("exists at origin/main")
       })
 
+      test("skips slash-delimited identifiers that are not path-shaped", () => {
+        const docPath = writeRepoDoc(
+          "Branched as `feat/foo` off `origin/main`, drafted by " +
+            "`anthropic/claude-sonnet-4-6`.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(0)
+        expect(result.stdout).not.toContain("FLAG")
+      })
+
+      test("flags a missing extension-less token under a real repo directory", () => {
+        const docPath = writeRepoDoc(
+          "The helper is `src/nonexistent-helper` in the tree.\n",
+        )
+        const result = runValidator(skillDir, docPath)
+        expect(result.code).toBe(1)
+        expect(result.stdout).toContain("FLAG path `src/nonexistent-helper`")
+        expect(result.stdout).toContain("not found")
+      })
+
       test("ignores placeholder and URL-like tokens", () => {
         const docPath = writeRepoDoc(
           "Use `path/to/your-file.ts`, `docs/<category>/file.md`, and " +
