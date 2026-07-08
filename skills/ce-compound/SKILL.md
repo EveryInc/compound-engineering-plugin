@@ -42,13 +42,13 @@ Headless mode is intended for automations and skill-to-skill invocation where no
 
 ## Pre-resolved context
 
-**Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD 2>/dev/null || true`
+**Git branch (pre-resolved):** !`git rev-parse --abbrev-ref HEAD`
 
-If the line above resolved to a plain branch name (like `feat/my-branch`), use it in Phase 1 session-history filtering so the orchestrator does not waste a turn deriving it. If it still contains a backtick command string or is empty, derive the branch at runtime.
+If the line above resolved to a plain branch name (like `feat/my-branch`), use it in Phase 1 session-history filtering so the orchestrator does not waste a turn deriving it. If it still contains a backtick command string, shows an error, or is empty, derive the branch at runtime.
 
-**Repo root (pre-resolved):** !`git rev-parse --show-toplevel 2>/dev/null || pwd`
+**Repo root (pre-resolved):** !`git rev-parse --show-toplevel`
 
-If the line above resolved to an absolute path, use it as the session-history repo filter in Phase 1. If it still contains a backtick command string or is empty, derive the repo root at runtime with `git rev-parse --show-toplevel 2>/dev/null || pwd`.
+If the line above resolved to an absolute path, use it as the session-history repo filter in Phase 1. If it still contains a backtick command string, shows an error, or is empty, derive the repo root at runtime with the shell tool (`git rev-parse --show-toplevel`, falling back to the working directory outside a git repo).
 
 ## Support Files
 

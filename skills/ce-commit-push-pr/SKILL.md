@@ -33,13 +33,13 @@ argument-hint: "[PR ref] [mode:pipeline] [archive:on|off]"
 !`git log --oneline -10`
 
 **Remote default branch:**
-!`git rev-parse --abbrev-ref origin/HEAD 2>/dev/null || echo 'DEFAULT_BRANCH_UNRESOLVED'`
+!`git rev-parse --abbrev-ref origin/HEAD`
 
 **Existing PR check:**
-!`gh pr view --json url,title,body,state 2>/dev/null || echo 'NO_OPEN_PR'`
+!`gh pr view --json url,title,body,state`
 
 **Repo root (pre-resolved):**
-!`git rev-parse --show-toplevel 2>/dev/null || true`
+!`git rev-parse --show-toplevel`
 
 ### Context fallback
 
@@ -51,7 +51,7 @@ printf '=== STATUS ===\n'; git status; printf '\n=== DIFF ===\n'; git diff HEAD;
 
 ## Step 1: Resolve branch and PR state
 
-The remote default branch returns something like `origin/main`; strip the `origin/` prefix. If it returned `DEFAULT_BRANCH_UNRESOLVED` or bare `HEAD`, try `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`. If both fail, fall back to `main`.
+The remote default branch returns something like `origin/main`; strip the `origin/` prefix. If it returned `DEFAULT_BRANCH_UNRESOLVED`, an error, or bare `HEAD`, try `gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name'`. If both fail, fall back to `main`. An error from the existing-PR check means no open PR was found (or `gh` is unavailable) — treat it as `NO_OPEN_PR`.
 
 Branch routing:
 

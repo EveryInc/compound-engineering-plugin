@@ -40,9 +40,9 @@ Parse a `mode:headless` token from anywhere in the arguments, strip it, and trea
 ### Phase 0: Route by Config State
 
 **Resolve the repo root.** Pre-resolved at skill load:
-!`git rev-parse --show-toplevel 2>/dev/null || true`
+!`git rev-parse --show-toplevel`
 
-If the line above is an absolute path, use it as `<repo-root>`. If it is empty or still shows a backtick command string (a harness that did not pre-resolve), run `git rev-parse --show-toplevel` with the shell tool. Read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool.
+If the line above is an absolute path, use it as `<repo-root>`. If it is empty, shows an error, or still shows a backtick command string (a harness that did not pre-resolve), run `git rev-parse --show-toplevel` with the shell tool. Read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool.
 
 **Route:**
 - Config file missing, or it has no `feedback_sources` key -> first run -> Phase 1.

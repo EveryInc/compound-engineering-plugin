@@ -4,10 +4,12 @@ import { describe, expect, test } from "bun:test"
 
 /**
  * Skill `!` backtick pre-resolution commands run through Claude Code's shell
- * permission checker at skill-load time. The checker rejects several patterns
- * outright, failing the skill before its body ever runs. AGENTS.md guidance
- * for the `!` pre-resolution exception allows `&&`, `||`, `2>/dev/null`, and
- * fallback sentinels — but several specific shapes are not on that allowlist.
+ * permission checker at skill-load time, and then through the USER'S shell —
+ * which is PowerShell on some Windows installs, not bash. The permission
+ * checker rejects several patterns outright (failing the skill before its
+ * body ever runs), and bash-only syntax fails outright under PowerShell, so
+ * pre-resolution commands must stay in the portable subset: a single bare
+ * command with no redirects, no `||`/`&&` chaining, no `$(...)`, no pipes.
  *
  * Past incidents:
  *   - PR #699 introduced a `case "$common" in /*) ... ;; *) ... ;; esac` block
@@ -28,8 +30,18 @@ import { describe, expect, test } from "bun:test"
  *   - ce-compound and ce-sessions used `git rev-parse --abbrev-ref HEAD 2>/dev/null`
  *     with no fallback. Outside a git repo, `git rev-parse` exits 128;
  *     `2>/dev/null` suppresses stderr but the non-zero exit propagates and
- *     Claude Code reports "Shell command failed for pattern" (issue #730). Fix:
- *     pair `2>/dev/null` with `|| true` or `|| echo '__SENTINEL__'`.
+ *     Claude Code (at the time) reported "Shell command failed for pattern"
+ *     (issue #730). The fix then was to pair `2>/dev/null` with `|| true` or
+ *     `|| echo '__SENTINEL__'`.
+ *   - Those `2>/dev/null || true` guards themselves broke Windows users whose
+ *     harness executes `!` pre-resolution through PowerShell (issue #1066):
+ *     PowerShell resolves `/dev/null` as a literal file path (`D:\dev\null`)
+ *     and has no `true` command, so the guarded line fails at skill load even
+ *     inside a git repo. Current Claude Code substitutes error text for a
+ *     failing pre-resolution instead of aborting the skill, so the portable
+ *     shape is a BARE single command plus adjacent "if this line is empty or
+ *     shows an error, derive at runtime" prose. This supersedes the #730
+ *     guard pattern above.
  */
 
 const PLUGIN_SKILLS_GLOB = ["skills"]
@@ -173,21 +185,20 @@ function hasSemicolonSeparator(cmd: string): boolean {
 }
 
 /**
- * Returns true when the command's *trailing* top-level statement suppresses
- * stderr with `2>/dev/null` but has no `||` fallback. The trailing statement
- * determines the command's overall exit code (after `;` or `&&` chains). When
- * that exit code is non-zero, Claude Code reports "Shell command failed for
- * pattern" and aborts skill load before its body runs (issue #730). Established
- * defensive pattern: pair `2>/dev/null` with `|| true` or `|| echo '__SENTINEL__'`.
- *
- * `2>/dev/null` inside an earlier `;`-chained statement is fine if the trailing
- * statement (e.g., a final `echo`) succeeds — that case is not flagged.
+ * Returns true when the command uses bash-only shell syntax that PowerShell
+ * cannot execute: any redirect (`>`, `<`, including `2>/dev/null`) or an
+ * `||` / `&&` chain outside quotes. `!` pre-resolution runs through the
+ * user's shell, which is PowerShell on some Windows installs — PowerShell 5.1
+ * cannot parse `||`/`&&` at all, PowerShell 7 resolves `/dev/null` to a
+ * literal file path (`D:\dev\null`), and neither has a `true` command, so any
+ * of these shapes fails skill load for those users even inside a git repo
+ * (issue #1066). Pre-resolution commands must be a single bare command; the
+ * adjacent prose owns the fallback ("if this line is empty or shows an
+ * error, derive at runtime").
  */
-function hasUnguardedErrorSuppression(cmd: string): boolean {
-  let depth = 0
+function hasBashOnlyShellSyntax(cmd: string): boolean {
   let inSingleQuote = false
   let inDoubleQuote = false
-  let lastSeparatorEnd = 0
 
   for (let i = 0; i < cmd.length; i++) {
     const c = cmd[i]
@@ -197,18 +208,12 @@ function hasUnguardedErrorSuppression(cmd: string): boolean {
     if (!inSingleQuote && c === '"') { inDoubleQuote = !inDoubleQuote; continue }
     if (inSingleQuote || inDoubleQuote) continue
 
-    if (c === '$' && next === '(') { depth++; i++; continue }
-    if (c === '(') { depth++; continue }
-    if (c === ')') { depth--; continue }
-
-    if (depth === 0) {
-      if (c === ';') { lastSeparatorEnd = i + 1; continue }
-      if (c === '&' && next === '&') { lastSeparatorEnd = i + 2; i++; continue }
-      if (c === '|' && next === '|') { lastSeparatorEnd = i + 2; i++; continue }
-    }
+    if (c === '>' || c === '<') return true
+    if (c === '&' && next === '&') return true
+    if (c === '|' && next === '|') return true
   }
 
-  return cmd.slice(lastSeparatorEnd).includes("2>/dev/null")
+  return false
 }
 
 /**
@@ -339,45 +344,38 @@ describe("hasSemicolonSeparator", () => {
   })
 })
 
-describe("hasUnguardedErrorSuppression", () => {
-  test("flags single-statement `2>/dev/null` with no fallback", () => {
-    expect(hasUnguardedErrorSuppression("git rev-parse --abbrev-ref HEAD 2>/dev/null")).toBe(true)
+describe("hasBashOnlyShellSyntax", () => {
+  test("flags `2>/dev/null` stderr redirects", () => {
+    expect(hasBashOnlyShellSyntax("git rev-parse --abbrev-ref HEAD 2>/dev/null")).toBe(true)
   })
 
-  test("flags `command -v <name> 2>/dev/null` with no fallback", () => {
-    expect(hasUnguardedErrorSuppression("command -v codex 2>/dev/null")).toBe(true)
+  test("flags the former `2>/dev/null || true` guard pattern (issue #1066)", () => {
+    expect(hasBashOnlyShellSyntax("git rev-parse --abbrev-ref HEAD 2>/dev/null || true")).toBe(true)
   })
 
-  test("does not flag `2>/dev/null || true`", () => {
-    expect(hasUnguardedErrorSuppression("git rev-parse --abbrev-ref HEAD 2>/dev/null || true")).toBe(false)
+  test("flags bare `||` fallback chains", () => {
+    expect(hasBashOnlyShellSyntax("git rev-parse --show-toplevel || pwd")).toBe(true)
   })
 
-  test("does not flag `2>/dev/null || echo '__SENTINEL__'`", () => {
-    expect(hasUnguardedErrorSuppression("git rev-parse --abbrev-ref origin/HEAD 2>/dev/null || echo '__DEFAULT_BRANCH_UNRESOLVED__'")).toBe(false)
+  test("flags `&&` chains", () => {
+    expect(hasBashOnlyShellSyntax("cd /tmp && git status")).toBe(true)
   })
 
-  test("does not flag commands without `2>/dev/null`", () => {
-    expect(hasUnguardedErrorSuppression("git status")).toBe(false)
+  test("flags output redirects", () => {
+    expect(hasBashOnlyShellSyntax("git status > /tmp/status.txt")).toBe(true)
   })
 
-  test("does not flag `2>/dev/null` inside a guarded subshell", () => {
-    expect(hasUnguardedErrorSuppression("(top=$(git rev-parse --show-toplevel 2>/dev/null); cat \"$top/file\") || echo '__NO_CONFIG__'")).toBe(false)
+  test("does not flag a bare single command", () => {
+    expect(hasBashOnlyShellSyntax("git rev-parse --abbrev-ref HEAD")).toBe(false)
   })
 
-  test("does not flag `2>/dev/null` in non-trailing statement followed by always-succeeding tail", () => {
-    expect(hasUnguardedErrorSuppression('common=$(git rev-parse --git-common-dir 2>/dev/null); repo="${common%/.git}"; echo "${repo##*/}"')).toBe(false)
+  test("does not flag a bare command with flags and arguments", () => {
+    expect(hasBashOnlyShellSyntax("gh pr view --json url,title,body,state")).toBe(false)
   })
 
-  test("flags `2>/dev/null` on the trailing statement of a `;` chain", () => {
-    expect(hasUnguardedErrorSuppression("setup; cmd 2>/dev/null")).toBe(true)
-  })
-
-  test("flags `2>/dev/null` on the trailing statement of an `&&` chain", () => {
-    expect(hasUnguardedErrorSuppression("setup && cmd 2>/dev/null")).toBe(true)
-  })
-
-  test("flags `2>/dev/null` on the trailing statement of an `||` chain (a `||` belonging to an earlier statement does not protect a later unguarded one)", () => {
-    expect(hasUnguardedErrorSuppression("probe || git rev-parse --abbrev-ref HEAD 2>/dev/null")).toBe(true)
+  test("does not flag operator characters inside quoted strings", () => {
+    expect(hasBashOnlyShellSyntax("echo 'a || b > c'")).toBe(false)
+    expect(hasBashOnlyShellSyntax('echo "a && b < c"')).toBe(false)
   })
 })
 
@@ -507,16 +505,16 @@ describe("skill `!` pre-resolution commands avoid Claude Code denylist", () => {
       ).toEqual([])
     })
 
-    test(`${rel} pre-resolution commands that suppress stderr with \`2>/dev/null\` also include a \`||\` fallback (issue #730)`, () => {
+    test(`${rel} pre-resolution commands contain no bash-only syntax — redirects or \`||\`/\`&&\` chains (issue #1066)`, () => {
       const offenders = preResolutionCommands.filter(({ command }) =>
-        hasUnguardedErrorSuppression(command),
+        hasBashOnlyShellSyntax(command),
       )
       const formatted = offenders
         .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
         .join("\n")
       expect(
         offenders,
-        `\`2>/dev/null\` only suppresses stderr — the non-zero exit code still propagates. Outside the success path (e.g., \`git rev-parse\` outside a git repo), Claude Code reports "Shell command failed for pattern" and aborts skill load. Pair \`2>/dev/null\` with \`|| true\` (when an empty result is fine) or \`|| echo '__SENTINEL__'\` (when the agent should distinguish "did not resolve" from "resolved to empty").\nOffending commands:\n${formatted}`,
+        `\`!\` pre-resolution runs through the user's shell, which is PowerShell on some Windows installs. PowerShell 5.1 cannot parse \`||\`/\`&&\`, and PowerShell resolves \`/dev/null\` to a literal file path, so redirects or chaining fail skill load for those users even inside a git repo (issue #1066). Keep each pre-resolution command a single bare command, and state the fallback in the adjacent prose ("if this line is empty or shows an error, derive the value at runtime").\nOffending commands:\n${formatted}`,
       ).toEqual([])
     })
 
