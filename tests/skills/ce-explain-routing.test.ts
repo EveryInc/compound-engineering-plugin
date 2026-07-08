@@ -98,3 +98,49 @@ describe("ce-explain destination and handoff routing", () => {
     ).toBe(true)
   })
 })
+
+// Cross-file parity guard (issue #1057): SKILL.md Phase 3 and
+// references/check-in.md deliberately BOTH carry the predict-then-reveal
+// protocol — the inline copy is load-bearing (AGENTS.md: "Inline the Trigger,
+// Not the Content"; the routing test above guards its presence), and the
+// reference holds the on-demand detail. Two independently-editable copies of
+// a safety-critical protocol can drift silently, so each load-bearing
+// invariant must survive in both files. These are structural matches, not
+// verbatim prose locks — the two copies already word the protocol slightly
+// differently, and future wording improvements are fine as long as every
+// invariant stays present in both.
+describe("ce-explain predict-then-reveal parity between SKILL.md and references/check-in.md", () => {
+  const CHECK_IN_PATH = path.join(process.cwd(), "skills/ce-explain/references/check-in.md")
+  const CHECK_IN_BODY = readFileSync(CHECK_IN_PATH, "utf8")
+
+  const invariants: { name: string; pattern: RegExp }[] = [
+    {
+      name: "the prediction question (what the change does, and why it was made)",
+      pattern: /what do(?:es)?\s+(?:you think\s+)?this change do(?:es)?\b[\s\S]{0,40}?why (?:was it|it was) made/i,
+    },
+    {
+      name: "the turn-end rule (end the turn after the prediction prompt)",
+      pattern: /end the turn/i,
+    },
+    {
+      name: "the never-same-message rule (no explanation in the prediction-prompt message)",
+      pattern: /same message as the prediction prompt/i,
+    },
+  ]
+
+  const copies: { label: string; body: string }[] = [
+    { label: "SKILL.md", body: SKILL_BODY },
+    { label: "references/check-in.md", body: CHECK_IN_BODY },
+  ]
+
+  for (const { name, pattern } of invariants) {
+    for (const { label, body } of copies) {
+      test(`${label} carries ${name}`, () => {
+        expect(
+          pattern.test(body),
+          `ce-explain ${label} no longer carries ${name}. The predict-then-reveal protocol is duplicated across SKILL.md and references/check-in.md by design; if the wording changed, keep the invariant present in BOTH copies (matching ${pattern}) so the copies cannot drift apart silently.`,
+        ).toBe(true)
+      })
+    }
+  }
+})
