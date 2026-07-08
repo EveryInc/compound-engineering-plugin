@@ -851,6 +851,42 @@ describe("extract-skeleton", () => {
     expect(stdout).toContain("auth.ts")
   })
 
+  test("detects Claude sessions whose metadata preamble exceeds ten records", async () => {
+    // Issue #923: current Claude Code session files front-load more than ten
+    // non-message metadata records (last-prompt, custom-title, attachments,
+    // ...) before the first user/assistant record. Detection must keep
+    // scanning until a decisive record appears — a scan capped at the first
+    // ten lines misroutes these sessions to the codex handler and returns an
+    // empty skeleton with parse_errors: 0.
+    const preamble = [
+      "last-prompt",
+      "custom-title",
+      "agent-name",
+      "mode",
+      "permission-mode",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+      "attachment",
+    ]
+      .map((t) => JSON.stringify({ type: t, value: "x" }))
+      .join("\n")
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "claude-session.jsonl")
+    ).text()
+    const { stdout, exitCode } = await runScript(
+      "extract-skeleton.py",
+      [],
+      preamble + "\n" + fixture
+    )
+    expect(exitCode).toBe(0)
+    expect(stdout).toContain("[user] fix the auth bug")
+    expect(stdout).toContain("[assistant] I'll investigate the auth module.")
+  })
+
   test("strips local-command-stdout from Claude output", async () => {
     const fixture = await Bun.file(
       path.join(FIXTURES_DIR, "claude-session.jsonl")

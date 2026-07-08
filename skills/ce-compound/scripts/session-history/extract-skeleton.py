@@ -523,7 +523,12 @@ for line in sys.stdin:
     buffer.append(line)
     stats["lines"] += 1
 
-    if not detected and len(buffer) <= 10:
+    # Scan until a decisive record appears (short-circuits once detected).
+    # Claude Code sessions front-load 10+ non-message metadata records
+    # (last-prompt, custom-title, attachments, ...), so capping detection to
+    # the first N lines silently misroutes them to the codex handler and
+    # produces an empty skeleton with parse_errors: 0 (issue #923).
+    if not detected:
         try:
             obj = json.loads(line)
             if obj.get("type") == "session" and "cwd" in obj:
