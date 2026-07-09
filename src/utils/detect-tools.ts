@@ -2,7 +2,7 @@ import os from "os"
 import path from "path"
 import { pathExists } from "./files"
 import { resolveOpenCodeGlobalRoot } from "./opencode-config"
-import { resolveCodexHome } from "./resolve-home"
+import { resolveCodeBuddyHome, resolveCodexHome } from "./resolve-home"
 
 export type DetectedTool = {
   name: string
@@ -68,6 +68,15 @@ const detectableTools: DetectableTool[] = [
       path.join(cwd, ".agy"),
       path.join(home, ".gemini", "antigravity-cli"),
     ],
+  },
+  {
+    name: "codebuddy",
+    detectPaths: (home, _cwd, options) => {
+      if (!options.useCodexHomeEnv) return [path.join(home, ".codebuddy")]
+      const codebuddyHome = resolveCodeBuddyHome(undefined)
+      const defaultCodeBuddyHome = path.join(home, ".codebuddy")
+      return codebuddyHome === defaultCodeBuddyHome ? [defaultCodeBuddyHome] : [codebuddyHome, defaultCodeBuddyHome]
+    },
   },
   {
     name: "qwen",

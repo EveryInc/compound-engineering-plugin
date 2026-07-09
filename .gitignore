@@ -8,5 +8,6 @@ todos/
 .claude/worktrees/
 __pycache__/
 *.pyc
-
+.idea/
+.serena/
 .compound-engineering/*.local.yaml

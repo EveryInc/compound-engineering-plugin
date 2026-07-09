@@ -276,6 +276,24 @@ qwen extensions install EveryInc/compound-engineering-plugin:compound-engineerin
 
 Qwen Code installs Claude Code-compatible plugins directly from GitHub and converts the plugin format during install, so no Bun install step is needed.
 
+### CodeBuddy
+
+Compound Engineering is available as a CodeBuddy plugin. Register the marketplace, then install the plugin.
+
+1. **Register the marketplace with CodeBuddy:**
+
+   ```bash
+   codebuddy plugin marketplace add EveryInc/compound-engineering-plugin
+   ```
+
+2. **Install the plugin:**
+
+   ```bash
+   codebuddy plugin install compound-engineering@compound-engineering-plugin
+   ```
+
+The native CodeBuddy plugin install is self-contained for Compound Engineering. Specialist reviewer and research behavior lives inside the skills as local prompt assets; no separate custom-agent install step is required.
+
 ### OpenCode
 
 Add Compound Engineering to the `plugin` array in your global or project `opencode.json`:
@@ -432,6 +450,15 @@ Restart OpenCode after changing `opencode.json`.
 ```bash
 pi -e "$PWD"
 ```
+
+**CodeBuddy**
+
+```bash
+codebuddy plugin marketplace add "$PWD"
+codebuddy plugin install compound-engineering@compound-engineering-plugin
+```
+
+Use a separate `CODEBUDDY_HOME` when you want to keep local testing isolated from your normal CodeBuddy profile.
 
 **Antigravity CLI (`agy`)**
 

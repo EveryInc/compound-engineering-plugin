@@ -46,7 +46,8 @@
         ".agents/plugins/marketplace.json",
         ".kimi-plugin/marketplace.json",
         ".claude-plugin/marketplace.json",
-        ".cursor-plugin/marketplace.json"
+        ".cursor-plugin/marketplace.json",
+        ".codebuddy-plugin/marketplace.json"
       ],
       "extra-files": [
         {
@@ -77,6 +78,11 @@
         {
           "type": "json",
           "path": "plugin.json",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "json",
+          "path": ".codebuddy-plugin/plugin.json",
           "jsonpath": "$.version"
         }
       ]

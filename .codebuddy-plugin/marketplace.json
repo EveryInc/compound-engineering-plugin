@@ -1,0 +1,33 @@
+{
+  "name": "compound-engineering-plugin",
+  "owner": {
+    "name": "studyzy (Devin Zeng)"
+  },
+  "description": "Compound Engineering plugin marketplace for CodeBuddy",
+  "plugins": [
+    {
+      "name": "compound-engineering",
+      "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+      "version": "3.14.3",
+      "author": {
+        "name": "studyzy (Devin Zeng)"
+      },
+      "homepage": "https://github.com/studyzy",
+      "repository": "https://github.com/EveryInc/compound-engineering-plugin",
+      "license": "MIT",
+      "keywords": [
+        "brainstorming",
+        "code-review",
+        "compound-engineering",
+        "debugging",
+        "ideation",
+        "workflows",
+        "workflow-automation"
+      ],
+      "source": {
+        "source": "github",
+        "repo": "EveryInc/compound-engineering-plugin"
+      }
+    }
+  ]
+}

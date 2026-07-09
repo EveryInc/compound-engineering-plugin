@@ -5,7 +5,7 @@ import { loadClaudePlugin } from "../parsers/claude"
 import { targets, validateScope } from "../targets"
 import type { ClaudeToOpenCodeOptions, PermissionMode } from "../converters/claude-to-opencode"
 import { ensureCodexAgentsFile } from "../utils/codex-agents"
-import { expandHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
+import { expandHome, resolveCodeBuddyHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
 import { resolveOpenCodeWriteScope, resolveTargetOutputRoot } from "../utils/resolve-output"
 import { detectInstalledTools } from "../utils/detect-tools"
 
@@ -25,7 +25,7 @@ export default defineCommand({
     to: {
       type: "string",
       default: "opencode",
-      description: "Target format (opencode | codex | pi | antigravity | all)",
+      description: "Target format (opencode | codex | codebuddy | pi | antigravity | all)",
     },
     output: {
       type: "string",
@@ -36,6 +36,11 @@ export default defineCommand({
       type: "string",
       alias: "codex-home",
       description: "Write Codex output to this Codex root (default: $CODEX_HOME or ~/.codex)",
+    },
+    codebuddyHome: {
+      type: "string",
+      alias: "codebuddy-home",
+      description: "Write CodeBuddy output to this CodeBuddy root (default: ~/.codebuddy)",
     },
     piHome: {
       type: "string",
@@ -84,6 +89,7 @@ export default defineCommand({
     const outputRoot = resolveOutputRoot(args.output)
     const hasExplicitOutput = Boolean(args.output && String(args.output).trim())
     const codexHome = resolveCodexHome(args.codexHome)
+    const codebuddyHome = resolveCodeBuddyHome(args.codebuddyHome)
     const piHome = resolveTargetHome(args.piHome, path.join(os.homedir(), ".pi", "agent"))
 
     const options: ClaudeToOpenCodeOptions = {
@@ -126,6 +132,7 @@ export default defineCommand({
           targetName: tool.name,
           outputRoot,
           codexHome,
+          codebuddyHome,
           piHome,
           pluginName: plugin.manifest.name,
           hasExplicitOutput,
@@ -157,6 +164,7 @@ export default defineCommand({
       targetName,
       outputRoot,
       codexHome,
+      codebuddyHome,
       piHome,
       pluginName: plugin.manifest.name,
       hasExplicitOutput,
@@ -193,6 +201,7 @@ export default defineCommand({
         targetName: extra,
         outputRoot,
         codexHome,
+        codebuddyHome,
         piHome,
         pluginName: plugin.manifest.name,
         hasExplicitOutput,

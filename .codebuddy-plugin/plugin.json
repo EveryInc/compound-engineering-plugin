@@ -1,0 +1,22 @@
+{
+  "name": "compound-engineering",
+  "version": "3.14.3",
+  "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+  "author": {
+    "name": "studyzy (Devin Zeng)",
+    "email": "studyzy@gmail.com"
+  },
+  "homepage": "https://github.com/studyzy",
+  "repository": "https://github.com/EveryInc/compound-engineering-plugin",
+  "license": "MIT",
+  "keywords": [
+    "brainstorming",
+    "code-review",
+    "compound-engineering",
+    "debugging",
+    "ideation",
+    "workflows",
+    "workflow-automation"
+  ],
+  "skills": "./skills/"
+}
