@@ -555,6 +555,10 @@ async function moveLegacyArtifactToBackup(
   kind: LegacyArtifactKind,
   artifactPath: string,
 ): Promise<void> {
+  // Ownership fingerprinting reads THROUGH a symlink, so a user fork of a
+  // legacy-named artifact still matches — never move the symlink node into
+  // legacy-backup, or the user's override is silently deactivated.
+  if (await isPreservedSymlink(artifactPath)) return
   if (!(await pathExists(artifactPath))) return
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
   const backupDir = path.join(managedDir, "legacy-backup", timestamp, kind)

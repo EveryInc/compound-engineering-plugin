@@ -745,6 +745,48 @@ describe("writePiBundle preserves user-managed skill paths", () => {
   )
 
   test.skipIf(!canDirSymlink)(
+    "a legacy-named skill symlinked to a user fork is not swept into legacy-backup",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-legacy-skill-symlink-"))
+      const outputRoot = path.join(tempRoot, ".pi")
+
+      // Worst case: the fork keeps the CE fingerprint (name + description), so
+      // the readFile-based ownership check follows the symlink and matches.
+      const forkDir = path.join(tempRoot, "user-fork", "reproduce-bug")
+      await fs.mkdir(forkDir, { recursive: true })
+      const forkContent = skillContent("reproduce-bug", REPRODUCE_BUG_DESCRIPTION)
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), forkContent)
+
+      await fs.mkdir(path.join(outputRoot, "skills"), { recursive: true })
+      await fs.symlink(forkDir, path.join(outputRoot, "skills", "reproduce-bug"), "junction")
+
+      const bundle: PiBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [],
+        generatedSkills: [],
+        agents: [],
+        extensions: [],
+      }
+
+      await writePiBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills", "reproduce-bug"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe(forkContent)
+
+      const legacyBackupRoot = path.join(outputRoot, "compound-engineering", "legacy-backup")
+      if (await exists(legacyBackupRoot)) {
+        for (const timestamp of await fs.readdir(legacyBackupRoot)) {
+          const skillsBackup = path.join(legacyBackupRoot, timestamp, "skills")
+          if (!(await exists(skillsBackup))) continue
+          expect(await fs.readdir(skillsBackup)).not.toContain("reproduce-bug")
+        }
+      }
+    },
+  )
+
+  test.skipIf(!canDirSymlink)(
     "preserves a dangling skill symlink whose target no longer exists",
     async () => {
       const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-skill-symlink-dangling-"))
