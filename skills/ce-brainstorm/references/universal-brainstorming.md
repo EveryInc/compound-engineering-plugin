@@ -35,6 +35,8 @@ Drop the blocking tool only when (a) the answer is inherently narrative ("walk m
 
 **Ask what they're already thinking.** Before offering ideas, find out what the user has considered, tried, or rejected. This prevents fixation on AI-generated ideas and surfaces hidden constraints.
 
+**When the user doesn't know the domain** — if they flag missing working knowledge of the territory ("I need to grade this video but don't know what color grading is"), or two consecutive answers show they *cannot evaluate* a question's substance rather than merely haven't decided, read `references/blindspot-pass.md` and offer the pass before questioning them further on that territory. It applies on this route unchanged (see its "Universal route" section).
+
 **When the user represents a group** (couple, family, team) — surface whose preferences are in play and where they diverge. The brainstorm shifts from "help you decide" to "help you find alignment." Ask about each person's priorities, not just the speaker's.
 
 **Understand before generating.** Spend time on the problem before jumping to solutions. "What would success look like?" and "What have you already ruled out?" reveal more than "Here are 10 ideas."

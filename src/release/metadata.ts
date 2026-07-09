@@ -78,6 +78,27 @@ type KimiMarketplaceManifest = {
   }>
 }
 
+type GrokPluginManifest = {
+  name: string
+  version: string
+  description?: string
+  skills?: string
+}
+
+type GrokMarketplaceManifest = {
+  name?: string
+  owner?: { name?: string }
+  plugins: Array<{
+    name: string
+    source?: {
+      source?: string
+      type?: string
+      url?: string
+      path?: string
+    }
+  }>
+}
+
 type SyncOptions = {
   root?: string
   componentVersions?: Partial<Record<ReleaseComponent, string>>
@@ -483,6 +504,81 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
     if ((err as NodeJS.ErrnoException).code === "ENOENT") {
       errors.push(`${marketplaceKimiPath} is missing but ${marketplaceClaudePath} exists. Kimi marketplace parity required.`)
       updates.push({ path: marketplaceKimiPath, changed: false })
+    } else {
+      throw err
+    }
+  }
+
+  // Grok manifests. Grok Build supports a native plugin manifest at
+  // `.grok-plugin/plugin.json` (shadowed by root plugin.json at runtime in this
+  // multi-platform repo, but the required native surface for xai-org submission).
+  // Like Codex/Kimi, its marketplace catalog has no release-owned metadata
+  // version, so the plugin version is detect-only here and release-please owns
+  // the write via the root component's extra-files.
+  const compoundGrokPath = path.join(root, ".grok-plugin", "plugin.json")
+  const marketplaceGrokPath = path.join(root, ".grok-plugin", "marketplace.json")
+
+  let grok: GrokPluginManifest
+  let grokManifestMissing = false
+  try {
+    grok = await readJson<GrokPluginManifest>(compoundGrokPath)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      grokManifestMissing = true
+      errors.push(`${compoundGrokPath} is missing but ${compoundClaudePath} exists. Grok manifest parity required.`)
+      updates.push({ path: compoundGrokPath, changed: false })
+      grok = { name: "compound-engineering", version: compoundClaude.version }
+    } else {
+      throw err
+    }
+  }
+
+  if (grok.name !== "compound-engineering") {
+    errors.push(`${compoundGrokPath}: name "${grok.name}" does not match expected "compound-engineering"`)
+  }
+
+  let grokChanged = false
+  if (grok.version !== compoundClaude.version) {
+    grokChanged = true
+  }
+  if (compoundClaude.description !== undefined && grok.description !== compoundClaude.description) {
+    grok.description = compoundClaude.description
+    grokChanged = true
+  }
+  await validateDeclaredSkillsPath(compoundGrokPath, "compound-engineering", "Grok", grok.skills, errors)
+  updates.push({ path: compoundGrokPath, changed: grokChanged })
+  if (write && grokChanged && !grokManifestMissing) await writeJson(compoundGrokPath, grok)
+
+  // Grok marketplace: plugin-list parity with Claude, and a valid non-self-
+  // referential source per plugin. Grok (like Codex/Kimi) does not enumerate
+  // marketplace entries that point back at the marketplace root, so a bare Git
+  // URL source is required; the catalog has no release-owned version field.
+  try {
+    const marketplaceGrok = await readJson<GrokMarketplaceManifest>(marketplaceGrokPath)
+    const claudeNames = [...marketplaceClaude.plugins.map((p) => p.name)].sort()
+    const grokNames = [...marketplaceGrok.plugins.map((p) => p.name)].sort()
+    if (claudeNames.join("|") !== grokNames.join("|")) {
+      errors.push(
+        `${marketplaceGrokPath}: plugin list [${grokNames.join(", ")}] does not match ${marketplaceClaudePath} [${claudeNames.join(", ")}]`,
+      )
+    }
+    for (const plugin of marketplaceGrok.plugins) {
+      const src = plugin.source
+      if (!src || (typeof src.url !== "string" && typeof src.path !== "string")) {
+        errors.push(
+          `${marketplaceGrokPath}: plugin "${plugin.name}" is missing a valid "source". Grok marketplace entries need a URL source ({ "source": "url", "url": ... }) or a local path source.`,
+        )
+      } else if (src.path === "./" || src.path === ".") {
+        errors.push(
+          `${marketplaceGrokPath}: plugin "${plugin.name}" uses a self-referential local source "${src.path}". Grok does not enumerate marketplace entries that point back at the marketplace root; use a Git URL source.`,
+        )
+      }
+    }
+    updates.push({ path: marketplaceGrokPath, changed: false })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${marketplaceGrokPath} is missing but ${marketplaceClaudePath} exists. Grok marketplace parity required.`)
+      updates.push({ path: marketplaceGrokPath, changed: false })
     } else {
       throw err
     }

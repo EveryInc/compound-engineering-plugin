@@ -10,6 +10,8 @@ Before reviewing, estimate the size and risk of the diff you received.
 
 **Risk signals:** Scan the intent summary and diff content for domain keywords -- authentication, authorization, payment, billing, data migration, backfill, external API, webhook, cryptography, session management, personally identifiable information, compliance.
 
+**Silent-pass verification mechanism (overrides the size-based depth below):** if the diff *is* a verification mechanism whose failure mode is going green while the real thing is red -- CI/CD gating logic, merge-blocking checks, build/deploy steps, coverage/lint gates, or test infrastructure/mocks that could mask production -- treat it as a strong risk signal. Never pick Quick for it regardless of changed-line count, and run the fidelity lens (technique 5) even when it is the only reason you were selected. This is the case the roster's silent-pass trigger spawns you for; a small CI/config diff still gets the full green-while-red attack.
+
 Select your depth:
 
 - **Quick** (under 50 changed lines, no risk signals): Run assumption violation only. Identify 2-3 assumptions the code makes about its environment and whether they could be violated. Produce at most 3 findings.
@@ -57,6 +59,10 @@ Find legitimate-seeming usage patterns that cause bad outcomes. These are not se
 - **Concurrent mutation** -- two users edit the same resource simultaneously, two processes claim the same job, two requests update the same counter.
 - **Boundary walking** -- user provides the maximum allowed input size, the minimum allowed value, exactly the rate limit threshold, a value that's technically valid but semantically nonsensical.
 
+### 5. Silent-pass verification-mechanism fidelity
+
+When the change *is* a guard that stands in for the real thing -- a CI/CD gate, merge-blocking check, build/deploy step, coverage/lint gate, or test harness/mock -- its risk is not blast radius, it is fidelity: it can go green while production is red. Construct the scenario where the guard passes but the thing it protects fails. Verify it reproduces the same context, inputs, and steps as the real thing -- build context, working directory, prepared dirs, environment, and the exact command sequence -- not merely that it runs. A guard that exercises a different context than production, mocks away the code path that actually breaks, or asserts on a proxy rather than the real output is the green-while-red failure. This lens is yours whenever a verification mechanism is in the diff, independent of changed-line count.
+
 ## Confidence calibration
 
 Use the anchored confidence rubric in the subagent template. Persona-specific guidance:
@@ -76,7 +82,7 @@ Use the anchored confidence rubric in the subagent template. Persona-specific gu
 - **Individual missing error handling** on a single I/O boundary -- reliability-reviewer owns these
 - **Performance anti-patterns** (N+1 queries, missing indexes, unbounded allocations) -- performance-reviewer owns these
 - **Code style, naming, structure, dead code** -- maintainability-reviewer owns these
-- **Test coverage gaps** or weak assertions -- testing-reviewer owns these
+- **Test coverage gaps** or weak assertions -- testing-reviewer owns these. *Exception:* when the test infrastructure, harness, or mock is itself the change under review and could mask a production failure (green-while-red), that fidelity concern is yours (technique 5) -- not per-feature assertion coverage, which stays testing-reviewer's.
 - **API contract breakage** (changed response shapes, removed fields) -- api-contract-reviewer owns these
 - **Migration safety** (missing rollback, data integrity, schema drift) -- data-migration-reviewer owns these
 

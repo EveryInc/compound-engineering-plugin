@@ -1,4 +1,4 @@
-import { copyFile, mkdir, mkdtemp, rm, writeFile } from "fs/promises"
+import { copyFile, mkdir, mkdtemp, readFile, rm, writeFile } from "fs/promises"
 import os from "os"
 import path from "path"
 import { describe, expect, test } from "bun:test"
@@ -6,6 +6,7 @@ import { describe, expect, test } from "bun:test"
 const repoRoot = path.join(import.meta.dir, "..", "..")
 const checkHealthScript = path.join(repoRoot, "skills", "ce-setup", "scripts", "check-health")
 const configTemplate = path.join(repoRoot, "skills", "ce-setup", "references", "config-template.yaml")
+const configExample = path.join(repoRoot, ".compound-engineering", "config.local.example.yaml")
 
 type RunResult = {
   exitCode: number
@@ -39,6 +40,25 @@ async function initGitRepo(root: string): Promise<void> {
 }
 
 describe("ce-setup check-health", () => {
+  test("keeps the committed example identical to the bundled template", async () => {
+    const [template, example] = await Promise.all([
+      readFile(configTemplate, "utf8"),
+      readFile(configExample, "utf8"),
+    ])
+
+    expect(example).toBe(template)
+  })
+
+  test("does not advertise retired Codex work-delegation settings", async () => {
+    const [template, skill] = await Promise.all([
+      readFile(configTemplate, "utf8"),
+      readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8"),
+    ])
+
+    expect(template).not.toContain("work_delegate_")
+    expect(skill).not.toMatch(/Codex delegation defaults/i)
+  })
+
   test("reports missing optional tools without treating them as setup failures", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 

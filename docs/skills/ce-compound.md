@@ -74,19 +74,25 @@ Every run checks whether the project's instruction file (`AGENTS.md` or `CLAUDE.
 
 The proposed addition matches the existing file's tone and density — a single-line entry in an existing directory listing when one fits, a small headed section only when nothing else does.
 
-### 5. Selective refresh trigger
+### 5. Grounding validation — claims are verified against the tree before they compound
+
+A solution doc is only as valuable as its claims are true, and drafting from conversation evidence invites three failure shapes: code-behavior claims written from a session-level summary instead of the source, "fixed in X" claims about merges the current checkout can't see, and drafting scaffold ("Learning 3") leaking into the written doc.
+
+Phase 2.45 closes this in two layers. A deterministic script (`scripts/validate-doc-claims.py`) checks cited repo paths, commit SHAs (classified by reachability from HEAD vs the upstream default branch, so a stale checkout is distinguished from a fabricated citation), relative links, and dangling scaffold — its flags are adjudicated, not auto-failed, because a doc may legitimately cite a path deleted by the very fix it documents. Then a read-only validator subagent (Full and headless modes) verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, local git fallback), and internal completeness of countable assertions. The same discipline applies at draft time: the Solution Extractor must read the defining line before asserting behavior, and cite PR numbers over rebase-fragile SHAs.
+
+### 6. Selective refresh trigger
 
 After capturing the new learning, `ce-compound` checks whether it should invoke `/ce-compound-refresh` on a narrow scope hint. It does NOT default to running refresh — only when the new learning suggests a specific older doc may now be stale (contradicted, superseded, or in a domain that just got refactored).
 
-### 6. Specialized post-review
+### 7. Specialized post-review
 
 Based on the problem type, optional skill-local prompt assets review the documentation: `performance-oracle` for performance issues, `security-sentinel` for security, and `data-integrity-guardian` for database-oriented issues. Code-heavy docs may also get a read-only simplification review of the drafted examples and explanatory claims; this does not invoke `ce-simplify-code` and does not mutate product code.
 
-### 7. Session history integration (opt-in)
+### 8. Session history integration (opt-in)
 
 Full mode optionally dispatches a skill-local session-history prompt to search prior sessions across harnesses for related context — what was tried before, what didn't work, key decisions. Findings are folded into "What Didn't Work" (bug track) or "Context" (knowledge track). Off by default because of token cost; the user explicitly opts in.
 
-### 8. Auto-invoke triggers
+### 9. Auto-invoke triggers
 
 Phrases like "that worked", "it's fixed", "working now", "problem solved" auto-invoke the skill so capture happens at the moment context is freshest. The user can override with `/ce-compound [context]` to capture immediately.
 
@@ -100,7 +106,7 @@ You've just spent 45 minutes debugging an N+1 query in the brief-generation flow
 
 Three subagents dispatch in parallel: Context Analyzer reads conversation history, classifies as `performance_issue` (bug track), proposes the filename and category. Solution Extractor structures the fix with before/after code. Related Docs Finder greps `docs/solutions/` for related issues, reports moderate overlap with an older doc on a different N+1 case.
 
-The orchestrator assembles the doc, validates frontmatter via the YAML safety script, and writes `docs/solutions/performance-issues/n-plus-one-brief-generation.md`. The discoverability check finds `AGENTS.md` doesn't mention `docs/solutions/`, proposes a one-line addition to the existing directory listing, and applies it after you confirm.
+The orchestrator assembles the doc, validates frontmatter via the YAML safety script, and writes `docs/solutions/performance-issues/n-plus-one-brief-generation.md`. Grounding validation then runs: the mechanical script confirms every cited path and SHA resolves, and the validator subagent quotes the defining source line behind the doc's claim about the ORM's default batching behavior. The discoverability check finds `AGENTS.md` doesn't mention `docs/solutions/`, proposes a one-line addition to the existing directory listing, and applies it after you confirm.
 
 Phase 3 dispatches the local `performance-oracle` prompt and, because the doc includes code examples, performs a read-only simplification check on the drafted examples and approach. Phase 2.5 surfaces a refresh recommendation: the older N+1 doc may benefit from consolidation review. The skill suggests `/ce-compound-refresh n-plus-one` as a narrow scope hint and ends.
 
@@ -161,7 +167,7 @@ docs/solutions/[category]/[filename].md
 
 Categories are auto-detected. Bug-track examples: `build-errors/`, `test-failures/`, `runtime-errors/`, `performance-issues/`, `database-issues/`, `security-issues/`, `ui-bugs/`, `integration-issues/`, `logic-errors/`. Knowledge-track examples: `architecture-patterns/`, `design-patterns/`, `tooling-decisions/`, `conventions/`, `workflow-issues/`, `developer-experience/`, `documentation-gaps/`, `best-practices/`.
 
-The doc carries YAML frontmatter (`module`, `tags`, `problem_type`, etc.) for searchability. Validation runs through `scripts/validate-frontmatter.py` to catch silent corruption (malformed `---` delimiters, unquoted `:` in scalar values).
+The doc carries YAML frontmatter (`module`, `tags`, `problem_type`, etc.) for searchability. Validation runs through `scripts/validate-frontmatter.py` to catch silent corruption (malformed `---` delimiters, unquoted `:` in scalar values), and `scripts/validate-doc-claims.py` checks the body's cited paths, SHAs, links, and drafting scaffold against the tree.
 
 The skill may also produce a small edit to `AGENTS.md`/`CLAUDE.md` if the discoverability check finds the knowledge store isn't surfaced.
 

@@ -67,9 +67,9 @@ When invoking any skill referenced below, resolve its name against the available
 
 7. Invoke the `ce-test-browser` skill with `mode:pipeline`.
 
-8. Invoke the `ce-commit-push-pr` skill.
+8. Invoke the `ce-commit-push-pr` skill with `mode:pipeline`.
 
-   This commits any remaining changes, pushes the branch, and opens a pull request. If step 6 already opened a PR (check with `gh pr view --json number,url,state 2>/dev/null`), skip PR creation but still commit and push any uncommitted changes. **Per the shipping precondition, when no remote is configured, do NOT invoke `ce-commit-push-pr` — its commit step pushes unconditionally (`git push -u origin HEAD`), so a literal invocation would still hit the impossible push. Instead commit any remaining changes locally yourself (`git add -A && git commit`) and skip the push and PR creation entirely.**
+   This commits any remaining changes, pushes the branch, and opens a pull request — non-interactively, per the mode token. If it prints a `New concepts:` trailer after the PR URL, record the concept name(s) for step 10. If step 6 already opened a PR (check with `gh pr view --json number,url,state 2>/dev/null`), skip PR creation but still commit and push any uncommitted changes. **Per the shipping precondition, when no remote is configured, do NOT invoke `ce-commit-push-pr` — its commit step pushes unconditionally (`git push -u origin HEAD`), so a literal invocation would still hit the impossible push. Instead commit any remaining changes locally yourself (`git add -A && git commit`) and skip the push and PR creation entirely.**
 
 9. **CI watch and autofix loop** (only when an open PR exists for the current branch)
 
@@ -123,5 +123,7 @@ When invoking any skill referenced below, resolve its name against the available
    - Do NOT continue looping. The autopilot contract is "make residuals durable, then exit." Proceed to step 10.
 
 10. Output `<promise>DONE</promise>` when complete
+
+    If step 8 recorded a `New concepts:` trailer, first echo one line per concept: `New concept introduced: <name> — run /ce-explain <name> to go deeper.` Then output the DONE promise.
 
 Start with step 1 now. Remember: plan FIRST, then work. Never skip the plan.

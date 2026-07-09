@@ -244,6 +244,48 @@ describe("convertClaudeToOpenCode", () => {
     expect(parsed.data.model).toBe("anthropic/claude-haiku-4-5")
   })
 
+  test("suppresses inferred temperature for primary agents on sampling-param-rejecting models", () => {
+    const plugin: ClaudePlugin = {
+      root: "/tmp/plugin",
+      manifest: { name: "fixture", version: "1.0.0" },
+      agents: [
+        {
+          name: "security-guardian",
+          description: "Reviews code for security issues",
+          body: "Test agent.",
+          sourcePath: "/tmp/plugin/agents/security-guardian.md",
+          model: "sonnet",
+        },
+        {
+          name: "haiku-guardian",
+          description: "Reviews code cheaply",
+          body: "Test agent.",
+          sourcePath: "/tmp/plugin/agents/haiku-guardian.md",
+          model: "haiku",
+        },
+      ],
+      commands: [],
+      skills: [],
+    }
+
+    const bundle = convertClaudeToOpenCode(plugin, {
+      agentMode: "primary",
+      inferTemperature: true,
+      permissions: "none",
+    })
+
+    // Sonnet 5 rejects non-default temperature with HTTP 400, so the converter
+    // must write the model but omit the inferred temperature.
+    const sonnetAgent = parseFrontmatter(bundle.agents.find((a) => a.name === "security-guardian")!.content)
+    expect(sonnetAgent.data.model).toBe("anthropic/claude-sonnet-5")
+    expect(sonnetAgent.data.temperature).toBeUndefined()
+
+    // Haiku still accepts sampling params, so temperature is inferred as usual.
+    const haikuAgent = parseFrontmatter(bundle.agents.find((a) => a.name === "haiku-guardian")!.content)
+    expect(haikuAgent.data.model).toBe("anthropic/claude-haiku-4-5")
+    expect(haikuAgent.data.temperature).toBe(0.1)
+  })
+
   test("omits model for subagents to allow provider inheritance (#477)", () => {
     const plugin: ClaudePlugin = {
       root: "/tmp/plugin",

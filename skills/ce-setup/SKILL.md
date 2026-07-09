@@ -94,7 +94,7 @@ If `.compound-engineering/config.local.yaml` does not exist, ask:
 
 ```text
 Set up a local config file for this project?
-This saves optional Compound Engineering preferences such as output formats, product pulse settings, and Codex delegation defaults.
+This saves optional Compound Engineering preferences such as output formats and product pulse settings.
 Everything starts commented out -- you only enable what you need.
 
 1. Yes, create it

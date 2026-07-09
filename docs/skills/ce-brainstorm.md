@@ -50,6 +50,7 @@ A typical "let's brainstorm" with an AI also has shape problems: it asks five qu
 - **One question per turn**, even when sub-questions feel related
 - **Right-sized ceremony** — Lightweight / Standard / Deep / Deep-product tiers
 - **Named gap lenses** force rigor on premises before generating approaches
+- **An opt-in blindspot pass** maps the decision surface of territory the user doesn't know before the interview proceeds on it
 - **A background grounding scout** gathers verbatim repo evidence on a cheap model while you answer the opening questions
 - **2-3 concrete approaches** with tradeoffs, then a stated recommendation
 - **Opt-in visual probes** for decisions that are faster to judge as rough sketches than prose
@@ -105,7 +106,11 @@ Building a software feature? Standard flow. Naming a product? Choosing a vacatio
 
 Requirements describe **what** behavior is expected from the user's perspective. They do not describe libraries, schemas, endpoints, file layouts, or code structure — unless the brainstorm is itself about a technical or architectural decision. This keeps planning's job clean: invent the **how**, not the **what**.
 
-### 10. Grounding and verification ride inside your think-time
+### 10. Blindspot pass for unfamiliar territory
+
+The interview machinery assumes you can evaluate what it asks — and that assumption fails exactly when you're scoping work in territory you don't know. When you flag unfamiliarity ("I know nothing about the auth modules", "I don't know what color grading is"), or consecutive answers show you *can't weigh the options* rather than merely haven't decided, `ce-brainstorm` offers a **blindspot pass** before questioning you further on that territory: a grounded map of 3-7 decisions and hazards you didn't know to ask about, each with why it matters for your topic, the realistic options, and a recommended default. You pick which to walk through; the rest take defaults recorded as explicit assumptions. It converts unknown unknowns into known unknowns, so the interview extracts choices instead of guesses. Works on both the software and non-software routes.
+
+### 11. Grounding and verification ride inside your think-time
 
 On Standard and Deep brainstorms, a cheap extraction-tier scout is dispatched in the background while you answer the first question. It writes a grounding dossier — verbatim quotes with `file:line` pointers — to scratch storage and hands back a short gist, so the dialogue stays lean while the evidence stays available on demand. Before the requirements-only unified plan is written, a fresh-context verifier (a mid-tier model that never saw the dialogue) checks the Product Contract's repo claims — absence claims, file references — against the codebase, running while you review the synthesis confirmation. Refuted claims are corrected before the plan lands; unverifiable ones become explicit assumptions. The dossier path is handed to `ce-plan` so planning starts from verified quotes instead of re-scanning. On platforms without per-agent model selection, both run on the inherited model with the same read budgets; with no subagent support at all, the skill falls back to inline scanning and verification.
 
@@ -132,6 +137,7 @@ Reach for `ce-brainstorm` when:
 - The scope is unclear ("add notifications" — what kind? for whom? when?)
 - You want a structured artifact you can hand to another contributor or to planning
 - A vague problem statement needs to become a real product decision
+- You have to scope work in territory you don't know — the blindspot pass maps the decision surface before questions begin
 - You're working on something non-software (named products, roadmap choices, decisions)
 
 Skip `ce-brainstorm` when:

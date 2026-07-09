@@ -311,11 +311,12 @@ describe("ce-plan review contract", () => {
   test("handoff options expose deeper-review opt-in alongside ce-work", async () => {
     const content = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
 
-    // Both executors are offered; goal mode is recommended when the host exposes
-    // the capability, ce-work otherwise (the marker is dynamic, not hardcoded).
-    expect(content).toContain("**Start `/ce-work`** - Best for shorter work")
+    // Both executors are offered; ce-work is always the recommended default (it is the
+    // correctly-layered entry point that reaches goal/workflow engines itself), while goal
+    // mode is the opt-in preference for driving the work through the harness's goal loop.
+    expect(content).toContain("**Start `/ce-work`** - Build and ship the plan in this session")
     expect(content).toContain("**Run it as a `/goal`**")
-    expect(content).toMatch(/Goal mode is the recommended default when its host supports it/i)
+    expect(content).toMatch(/`ce-work` \(option 1\) always carries \*\(recommended\)\*/i)
     expect(content).toContain("Codex `create_goal` in the available tool list")
 
     // Deeper review is a first-class menu fixture so users can engage with surfaced findings
@@ -524,6 +525,17 @@ describe("ce-doc-review contract", () => {
     expect(content).toContain("`references/bulk-preview.md`")
   })
 
+  test("keeps security document review on the parent capability tier", async () => {
+    const content = await readRepoFile("skills/ce-doc-review/SKILL.md")
+    const modelTierSection = content.slice(content.indexOf("Model tiering lives here"))
+    const securityTierLine = modelTierSection
+      .split("\n")
+      .find((line) => line.includes("security-lens-reviewer"))
+
+    expect(securityTierLine).toContain("inherit the parent model")
+    expect(securityTierLine).not.toContain("mid-tier")
+  })
+
   test("walkthrough and bulk-preview reference files exist with required mechanics", async () => {
     const walkthrough = await readRepoFile(
       "skills/ce-doc-review/references/walkthrough.md"
@@ -692,6 +704,31 @@ describe("ce-compound Phase 1 artifact contract", () => {
     expect(content).not.toContain(
       "Subagents return text data; orchestrator writes one final file",
     )
+  })
+})
+
+describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
+  // lfg echoes the `New concepts:` trailer ce-commit-push-pr prints after the PR URL.
+  // The two SKILL.md files are edited independently, so these assertions cross-check
+  // that both ends name the same trailer format and that the callsite hardcodes the
+  // non-interactive mode (a drift on either end fails here, not in production runs).
+  test("lfg hardcodes mode:pipeline at the callsite and echoes the trailer", async () => {
+    const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    // Both ends name the same trailer format
+    expect(skill).toContain("New concepts:")
+    expect(lfg).toContain("New concepts:")
+
+    // The callsite passes the mode explicitly rather than relying on defaults
+    expect(lfg).toContain("Invoke the `ce-commit-push-pr` skill with `mode:pipeline`.")
+
+    // The pre-DONE report line names the concept and the /ce-explain pointer
+    expect(lfg).toContain("New concept introduced:")
+    expect(lfg).toContain("run /ce-explain")
+
+    // The callee documents the mode the caller passes
+    expect(skill).toContain("mode:pipeline")
   })
 })
 

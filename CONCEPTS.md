@@ -58,6 +58,9 @@ A dense, visual teaching artifact written for the developer personally — expla
 ### Check-in
 The active-recall step that can follow an explainer in the same session: the developer predicts or answers first and the explanation confirms or corrects — predict-then-reveal for changes, checked exercises for concepts. Skippable when the material does not warrant retention work.
 
+### Concept-teaching section
+A conditional section of a generated PR description, added by agent judgment when the change introduces a concept new to the codebase, that teaches the concept — what it is, why it was chosen here, and an example from the PR — so a reader can understand and re-explain the change without reading the diff. The passive, in-description counterpart of an Explainer.
+
 ## Skill orchestration
 
 ### Model tier

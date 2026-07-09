@@ -2,15 +2,6 @@
 # Copy to .compound-engineering/config.local.yaml in your project root.
 # All settings are optional. Invalid values fall through to defaults.
 
-# --- Work delegation (Codex) ---
-
-# work_delegate: codex           # codex | false (default: false)
-# work_delegate_consent: true    # true | false (default: false)
-# work_delegate_sandbox: yolo    # yolo | full-auto (default: yolo)
-# work_delegate_decision: auto   # auto | ask (default: auto)
-# work_delegate_model: gpt-5.4   # any valid codex model (omit to use ~/.codex/config.toml default)
-# work_delegate_effort: high     # minimal | low | medium | high | xhigh (omit to use ~/.codex/config.toml default)
-
 # --- Product pulse ---
 # Settings written by /ce-product-pulse first-run interview. Re-run the skill with
 # argument `setup` or `reconfigure` to edit interactively.
@@ -44,6 +35,18 @@
 # plan_output: html              # md | html (default: md)
 # brainstorm_output: html        # md | html (default: md)
 # ideate_output: md              # md | html (default: html -- ideation docs are human-facing, so HTML is the default; set md to opt out)
+
+# --- PR concept teaching (ce-commit-push-pr) ---
+# When a PR introduces a concept new to the codebase, the generated PR
+# description gains a "New concepts" section teaching it. The section toggle is
+# the single gate: off disables judgment, the section, the /ce-explain offer,
+# and archival. Archival additionally writes the explainer to docs/explainers/
+# and links it from the PR (full-workflow runs only; override per run with
+# archive:on|off). Note: this file is gitignored and per-checkout -- fresh
+# worktrees don't inherit it.
+
+# pr_teaching_section: false     # true | false (default: true)
+# pr_teaching_archive: true      # true | false (default: false; full-workflow runs only)
 
 # --- ce-plan scoping confirmation ---
 # By default /ce-plan pauses before research/plan-write to show a scoping

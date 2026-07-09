@@ -114,9 +114,53 @@ Closing references can live in the opening paragraph when the body is tiny. Non-
 
 ---
 
+## Step B2: Judge new concepts
+
+Decide whether the change introduces a concept — a pattern, technique, library, or domain idea — that a reader of this repo would plausibly not know. Skip this step entirely when the skill's concept teaching gate is off (SKILL.md Step 4).
+
+**Gather candidates from the diff first.** Read the Pre-A diff for concept-shaped novelty: a dependency put to first real use, a technique the diff visibly introduces (debouncing, optimistic locking, infinite scroll, a state machine), or a domain idea the code now encodes. Most PRs surface no candidate — stop here and compose no section; absence is the common case, and this path costs zero extra tool calls.
+
+**Check each candidate against the base ref, never the working tree.** The working tree contains this PR's own code, so grepping it finds the concept you just added and wrongly concludes it is already established. Check the base instead (Pre-A already resolved it):
+
+```bash
+git grep -il -e "<term>" "<base-remote>/<base>" | head -5
+```
+
+Run one call per candidate — candidates cap at two, so the cost is trivial — and read establishment from the output: empty output means the concept is absent from the base.
+
+A candidate is teachable only when it is both new to this codebase in this PR and transferable beyond it. Never teach: routine use of an already-established repo pattern, ordinary refactors, renames, dependency bumps, or project-internal plumbing with no transferable idea. When in doubt, omit — a missing section costs little; a patronizing one trains readers to skip the feature.
+
+In the `gh`-fallback path (fork PR, no local base refs), judge from diff context alone and lean conservative: compose the section only when the concept is unmistakably new.
+
+- Bad: teaching "dependency injection" because a PR added one constructor argument in a codebase full of DI.
+- Good: teaching infinite scroll on the PR that replaces pagination with it for the first time.
+
+**Compose the section** under the heading `## New concepts` (Step C places it) for at most 2 concepts — when more qualify, teach the most load-bearing and name the rest in one sentence. Per concept, ~10-25 lines covering:
+
+1. **What it is** — the concept in plain words, no jargon dependency.
+2. **Why here** — why it was chosen over the obvious alternative this PR could have used.
+3. **One example from this PR** — how the shipped behavior exercises the concept.
+4. **When not to use it** — one sentence on the boundary.
+
+Format by material:
+
+| Material | Show |
+|----------|------|
+| Architecture, relationships, boundaries | Fenced `mermaid` block (`flowchart TB`) |
+| Code behavior, a diff's mechanics | Fenced code block with a one-line *why* comment above |
+| A comparison or trade-off | Pipe-delimited table, prose verdict underneath |
+
+Lead with the point, then the mechanism, then the caveat. Dense is good; long is not. Never hand-draw box-drawing/ASCII diagrams — mermaid or prose. The section is additive to Step A's sizing: a small PR that introduces a heavy concept still gets the section, and the section never counts against the base description's size rows.
+
+**Rewrite preservation:** when rewriting an existing PR body, preserve an existing `## New concepts` section and any explainer-doc link verbatim (same rule as `## Demo`) unless the user's focus asks to refresh the concepts. Description-only and description-update runs never write repo files.
+
+**Archival hook:** when the skill's Step 5 confirms the apply and `pr_teaching_archive` is on (full workflow only), the teaching content is also written to `docs/explainers/` and linked from the section — the commit-and-push transition and doc frontmatter live in SKILL.md Step 5.
+
+---
+
 ## Step C: Assemble the body
 
-In order: opening → body sections that earn their keep → related references when they need their own block → test plan if non-obvious → evidence block if one exists → Compound Engineering badge after a `---` rule.
+In order: opening → body sections that earn their keep → related references when they need their own block → test plan if non-obvious → New concepts section when Step B2 produced one → evidence block if one exists → Compound Engineering badge after a `---` rule.
 
 The opening goes under `## Summary` if the body uses any `##` headings; bare paragraph otherwise. No orphaned opening paragraphs above the first heading.
 

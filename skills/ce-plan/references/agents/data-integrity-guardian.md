@@ -65,4 +65,4 @@ Always prioritize:
 4. Compliance with privacy regulations
 5. Performance impact on production databases
 
-Remember: In production, data integrity issues can be catastrophic. Be thorough, be cautious, and always consider the worst-case scenario.
+For every reported risk, name the concrete integrity invariant, the failure path, and the verification or rollback that protects it.

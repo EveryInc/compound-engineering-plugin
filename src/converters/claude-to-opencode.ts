@@ -1,5 +1,5 @@
 import { formatFrontmatter } from "../utils/frontmatter"
-import { normalizeModelWithProvider } from "../utils/model"
+import { normalizeModelWithProvider, rejectsSamplingParams } from "../utils/model"
 import { commandNameToRelativePath } from "../utils/files"
 import {
   type ClaudeAgent,
@@ -142,7 +142,15 @@ function convertAgent(agent: ClaudeAgent, options: ClaudeToOpenCodeOptions) {
 
   if (options.inferTemperature) {
     const temperature = inferTemperature(agent)
-    if (temperature !== undefined) {
+    // A written model that rejects non-default sampling params (Sonnet 5, Opus
+    // 4.7+) returns HTTP 400 if paired with a temperature. We only write model
+    // for primary agents, so suppression only applies there; subagents inherit
+    // the parent session's model and are out of scope.
+    const modelRejectsTemperature =
+      frontmatter.model !== undefined &&
+      typeof agent.model === "string" &&
+      rejectsSamplingParams(agent.model)
+    if (temperature !== undefined && !modelRejectsTemperature) {
       frontmatter.temperature = temperature
     }
   }

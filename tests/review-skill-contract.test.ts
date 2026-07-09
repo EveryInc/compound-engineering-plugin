@@ -231,7 +231,7 @@ describe("ce-code-review contract", () => {
     const spawning = spawningMatch![1]
 
     expect(spawning).toMatch(/Model override at dispatch time/)
-    expect(spawning).toContain("platform's mid-tier model")
+    expect(spawning).toContain("platform's balanced mid-tier model")
     expect(spawning).toContain("omit the override")
     expect(spawning).toContain("Agent")
     expect(spawning).toContain("spawn_agent")

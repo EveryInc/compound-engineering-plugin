@@ -1,0 +1,25 @@
+{
+  "name": "compound-engineering",
+  "description": "Compound Engineering plugin for Grok Build",
+  "owner": {
+    "name": "Kieran Klaassen and Trevin Chow"
+  },
+  "plugins": [
+    {
+      "name": "compound-engineering",
+      "description": "Brainstorm, plan, debug, review, and compound learnings with AI agents",
+      "category": "development",
+      "source": {
+        "source": "url",
+        "url": "https://github.com/EveryInc/compound-engineering-plugin.git"
+      },
+      "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
+      "keywords": [
+        "compound-engineering",
+        "compound engineering",
+        "ce-plan",
+        "ce-work"
+      ]
+    }
+  ]
+}

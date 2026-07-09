@@ -26,6 +26,7 @@ async function makeFixtureRoot(): Promise<string> {
   await mkdir(path.join(root, ".cursor-plugin"), { recursive: true })
   await mkdir(path.join(root, ".codex-plugin"), { recursive: true })
   await mkdir(path.join(root, ".kimi-plugin"), { recursive: true })
+  await mkdir(path.join(root, ".grok-plugin"), { recursive: true })
   await mkdir(path.join(root, ".devin-plugin"), { recursive: true })
   await mkdir(path.join(root, ".agents", "plugins"), { recursive: true })
 
@@ -94,6 +95,39 @@ async function makeFixtureRoot(): Promise<string> {
   await writeFile(
     path.join(root, "plugin.json"),
     JSON.stringify({ name: "compound-engineering", version: "2.42.0" }, null, 2),
+  )
+  await writeFile(
+    path.join(root, ".grok-plugin", "plugin.json"),
+    JSON.stringify(
+      {
+        name: "compound-engineering",
+        version: "2.42.0",
+        description: "old",
+        skills: "./skills/",
+      },
+      null,
+      2,
+    ),
+  )
+  await writeFile(
+    path.join(root, ".grok-plugin", "marketplace.json"),
+    JSON.stringify(
+      {
+        name: "compound-engineering",
+        owner: { name: "Kieran Klaassen and Trevin Chow" },
+        plugins: [
+          {
+            name: "compound-engineering",
+            source: {
+              source: "url",
+              url: "https://github.com/EveryInc/compound-engineering-plugin.git",
+            },
+          },
+        ],
+      },
+      null,
+      2,
+    ),
   )
   await mkdir(path.join(root, ".agy"), { recursive: true })
   await writeFile(
@@ -247,6 +281,61 @@ describe("release metadata", () => {
 
     const afterContents = JSON.parse(await Bun.file(devinPath).text())
     expect(afterContents.version).toBe("2.41.0")
+  })
+
+  test("reports Grok plugin.json version drift without auto-correcting", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".grok-plugin", "plugin.json"),
+      JSON.stringify(
+        { name: "compound-engineering", version: "2.41.0", skills: "./skills/" },
+        null,
+        2,
+      ),
+    )
+    const result = await syncReleaseMetadata({ root, write: true })
+    const grokPath = path.join(root, ".grok-plugin", "plugin.json")
+    const grokUpdate = result.updates.find((u) => u.path === grokPath)
+
+    expect(grokUpdate).toBeDefined()
+    expect(grokUpdate!.changed).toBe(true)
+
+    const afterContents = JSON.parse(await Bun.file(grokPath).text())
+    expect(afterContents.version).toBe("2.41.0")
+  })
+
+  test("reports missing Grok manifest as a structural error", async () => {
+    const root = await makeFixtureRoot()
+    await Bun.$`rm ${path.join(root, ".grok-plugin", "plugin.json")}`.quiet()
+
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(result.errors.some((err) => err.includes(".grok-plugin/plugin.json is missing"))).toBe(true)
+  })
+
+  test("reports self-referential Grok marketplace source as a structural error", async () => {
+    const root = await makeFixtureRoot()
+    await writeFile(
+      path.join(root, ".grok-plugin", "marketplace.json"),
+      JSON.stringify(
+        {
+          name: "compound-engineering",
+          owner: { name: "Kieran Klaassen and Trevin Chow" },
+          plugins: [
+            { name: "compound-engineering", source: { type: "local", path: "." } },
+          ],
+        },
+        null,
+        2,
+      ),
+    )
+    const result = await syncReleaseMetadata({ root, write: false })
+
+    expect(
+      result.errors.some(
+        (err) => err.includes(".grok-plugin/marketplace.json") && err.includes("self-referential"),
+      ),
+    ).toBe(true)
   })
 
   test("reports package.json version drift without auto-correcting", async () => {
