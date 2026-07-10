@@ -27,6 +27,7 @@ const FILE_COMPONENT_MAP: Array<{ component: ReleaseComponent; prefixes: string[
       ".grok-plugin/",
       ".devin-plugin/plugin.json",
       ".opencode/",
+      ".zeroclaw/",
       ".pi/",
       "AGENTS.md",
       "CLAUDE.md",
