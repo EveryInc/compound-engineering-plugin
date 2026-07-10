@@ -1,7 +1,21 @@
-import { describe, expect, test } from "bun:test"
+import { afterEach, describe, expect, test } from "bun:test"
 import { promises as fs } from "fs"
 import os from "os"
 import path from "path"
+
+const tempDirs: string[] = []
+
+async function makeTempDir(prefix: string): Promise<string> {
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), prefix))
+  tempDirs.push(dir)
+  return dir
+}
+
+afterEach(async () => {
+  await Promise.all(
+    tempDirs.splice(0).map((dir) => fs.rm(dir, { recursive: true, force: true })),
+  )
+})
 
 const installScript = path.join(
   import.meta.dir,
@@ -50,8 +64,8 @@ async function pathExists(filePath: string): Promise<boolean> {
 
 describe("cline install-skills.sh", () => {
   test("does not remove unrelated manual-only skill symlinks", async () => {
-    const dest = await fs.mkdtemp(path.join(os.tmpdir(), "cline-skills-dest-"))
-    const userSkill = await fs.mkdtemp(path.join(os.tmpdir(), "cline-user-lfg-"))
+    const dest = await makeTempDir("cline-skills-dest-")
+    const userSkill = await makeTempDir("cline-user-lfg-")
     await fs.writeFile(path.join(userSkill, "SKILL.md"), "# user lfg\n")
 
     await fs.symlink(userSkill, path.join(dest, manualSkill))
@@ -66,7 +80,7 @@ describe("cline install-skills.sh", () => {
   })
 
   test("removes stale CE-owned manual-only symlinks on default install", async () => {
-    const dest = await fs.mkdtemp(path.join(os.tmpdir(), "cline-skills-ce-"))
+    const dest = await makeTempDir("cline-skills-ce-")
     const repoRoot = path.join(import.meta.dir, "..")
     const ceManualSkill = path.join(repoRoot, "skills", manualSkill)
 

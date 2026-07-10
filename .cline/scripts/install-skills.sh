@@ -39,17 +39,11 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-case "$SCOPE" in
-  --global)
-    DEST="${CLINE_SKILLS_DIR:-$HOME/.cline/skills}"
-    ;;
-  --project)
-    DEST="$(pwd)/.cline/skills"
-    ;;
-  *)
-    usage
-    ;;
-esac
+if [[ "$SCOPE" == "--project" ]]; then
+  DEST="$(pwd)/.cline/skills"
+else
+  DEST="${CLINE_SKILLS_DIR:-$HOME/.cline/skills}"
+fi
 
 if [[ ! -d "$SKILLS_SRC" ]]; then
   echo "error: skills directory not found at $SKILLS_SRC" >&2
@@ -60,14 +54,15 @@ canonical_path() {
   python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$1"
 }
 
+SKILLS_ROOT_CANON="$(canonical_path "$SKILLS_SRC")"
+
 is_ce_owned_skill_link() {
   local link_path="$1"
   [[ -L "$link_path" ]] || return 1
 
-  local resolved skills_root
+  local resolved
   resolved="$(canonical_path "$link_path")"
-  skills_root="$(canonical_path "$SKILLS_SRC")"
-  [[ "$resolved" == "$skills_root/"* ]]
+  [[ "$resolved" == "$SKILLS_ROOT_CANON/"* ]]
 }
 
 mkdir -p "$DEST"
@@ -80,12 +75,12 @@ manual_removed=0
 for skill_dir in "$SKILLS_SRC"/*/; do
   [[ -f "${skill_dir}SKILL.md" ]] || continue
   name="$(basename "$skill_dir")"
+  target="$DEST/$name"
   is_manual=false
 
   if grep -qE '^disable-model-invocation:[[:space:]]*true[[:space:]]*$' "${skill_dir}SKILL.md"; then
     is_manual=true
     if [[ "$INCLUDE_MANUAL" != "true" ]]; then
-      target="$DEST/$name"
       if is_ce_owned_skill_link "$target"; then
         rm "$target"
         echo "removed $name: stale CE manual-only symlink" >&2
@@ -98,8 +93,6 @@ for skill_dir in "$SKILLS_SRC"/*/; do
     echo "warn $name: manual-only skill linked — Cline may auto-activate when descriptions match" >&2
     manual_included=$((manual_included + 1))
   fi
-
-  target="$DEST/$name"
 
   if [[ -e "$target" && ! -L "$target" ]]; then
     echo "skip $name: $target exists and is not a symlink" >&2
