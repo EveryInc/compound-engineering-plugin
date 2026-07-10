@@ -1,5 +1,4 @@
 import fs from "fs/promises"
-import type { Stats } from "fs"
 import path from "path"
 import {
   backupFile,
@@ -16,7 +15,7 @@ import { transformContentForPi } from "../converters/claude-to-pi"
 import type { PiBundle } from "../types/pi"
 import { getLegacyPiArtifacts } from "../data/plugin-legacy-artifacts"
 import { cleanupStaleAgents, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
-import { resolveLegacyManagedDir, resolveManagedSegment } from "./managed-artifacts"
+import { isPreservedSymlink, lstatOrNull, resolveLegacyManagedDir, resolveManagedSegment } from "./managed-artifacts"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
 const PI_AGENTS_BLOCK_END = "<!-- END COMPOUND PI TOOL MAP -->"
@@ -420,22 +419,6 @@ async function cleanupRemovedAgents(
     if (await isPreservedSymlink(targetPath)) continue
     await fs.rm(targetPath, { force: true })
   }
-}
-
-async function lstatOrNull(targetPath: string): Promise<Stats | null> {
-  try {
-    return await fs.lstat(targetPath)
-  } catch (err) {
-    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null
-    throw err
-  }
-}
-
-async function isPreservedSymlink(targetPath: string): Promise<boolean> {
-  const stat = await lstatOrNull(targetPath)
-  if (!stat?.isSymbolicLink()) return false
-  console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
-  return true
 }
 
 // Returns true when the existing path was preserved (skip cleanup AND the

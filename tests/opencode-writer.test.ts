@@ -341,18 +341,24 @@ describe("writeOpenCodeBundle", () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-cmd-backup-"))
     const outputRoot = path.join(tempRoot, ".opencode")
     const commandsDir = path.join(outputRoot, "commands")
-    await fs.mkdir(commandsDir, { recursive: true })
-
-    const cmdPath = path.join(commandsDir, "my-cmd.md")
-    await fs.writeFile(cmdPath, "old content\n")
 
     const bundle: OpenCodeBundle = {
+      pluginName: "compound-engineering",
       config: { $schema: "https://opencode.ai/config.json" },
       agents: [],
       plugins: [],
       commandFiles: [{ name: "my-cmd", content: "---\ndescription: New\n---\n\nNew content." }],
       skillDirs: [],
     }
+
+    // First install establishes ownership of my-cmd.md in the install
+    // manifest -- an unowned pre-existing file would be preserved, not
+    // backed up and overwritten.
+    await writeOpenCodeBundle(outputRoot, bundle)
+
+    const cmdPath = path.join(commandsDir, "my-cmd.md")
+    // Simulate drift between two installs: same managed file, stale content.
+    await fs.writeFile(cmdPath, "old content\n")
 
     await writeOpenCodeBundle(outputRoot, bundle)
 
@@ -628,6 +634,337 @@ describe("writeOpenCodeBundle", () => {
     )
     expect(preserved.pluginName).toBe("some-other-plugin")
   })
+})
+
+// Probed at module load (not beforeAll) because test.skipIf evaluates its
+// condition at registration time. Directory and file symlinks are probed
+// separately: on Windows without Developer Mode, junctions succeed while
+// file symlinks throw EPERM.
+async function probeSymlinkSupport(): Promise<{ canDirSymlink: boolean; canFileSymlink: boolean }> {
+  const probeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-symlink-probe-"))
+  const probeTarget = path.join(probeRoot, "target")
+  await fs.mkdir(probeTarget, { recursive: true })
+  let canDirSymlink = true
+  try {
+    await fs.symlink(probeTarget, path.join(probeRoot, "link"), "junction")
+  } catch {
+    canDirSymlink = false
+  }
+  const probeFile = path.join(probeRoot, "target.md")
+  await fs.writeFile(probeFile, "probe")
+  let canFileSymlink = true
+  try {
+    await fs.symlink(probeFile, path.join(probeRoot, "link.md"))
+  } catch {
+    canFileSymlink = false
+  }
+  return { canDirSymlink, canFileSymlink }
+}
+
+const { canDirSymlink, canFileSymlink } = await probeSymlinkSupport()
+
+describe("writeOpenCodeBundle preserves user-managed skill and command paths", () => {
+  async function readInstallManifest(outputRoot: string): Promise<{ groups: Record<string, string[]> }> {
+    const raw = await fs.readFile(
+      path.join(outputRoot, "compound-engineering", "install-manifest.json"),
+      "utf8",
+    )
+    return JSON.parse(raw) as { groups: Record<string, string[]> }
+  }
+
+  test.skipIf(!canDirSymlink)(
+    "preserves a symlinked skill directory and leaves its target content untouched",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-preserve-skill-symlink-"))
+      const outputRoot = path.join(tempRoot, ".opencode")
+      const forkDir = path.join(tempRoot, "user-fork", "skill-one")
+      await fs.mkdir(forkDir, { recursive: true })
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), "# user fork content\n")
+
+      await fs.mkdir(path.join(outputRoot, "skills"), { recursive: true })
+      await fs.symlink(forkDir, path.join(outputRoot, "skills", "skill-one"), "junction")
+
+      const bundle: OpenCodeBundle = {
+        pluginName: "compound-engineering",
+        config: { $schema: "https://opencode.ai/config.json" },
+        agents: [],
+        plugins: [],
+        commandFiles: [],
+        skillDirs: [
+          {
+            name: "skill-one",
+            sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+          },
+        ],
+      }
+
+      await writeOpenCodeBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills", "skill-one"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe("# user fork content\n")
+
+      const manifest = await readInstallManifest(outputRoot)
+      expect(manifest.groups.skills).not.toContain("skill-one")
+    },
+  )
+
+  test("preserves an unmanaged real skill directory (not previously owned by this tool)", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-preserve-skill-unmanaged-"))
+    const outputRoot = path.join(tempRoot, ".opencode")
+
+    await fs.mkdir(path.join(outputRoot, "skills", "skill-one"), { recursive: true })
+    await fs.writeFile(
+      path.join(outputRoot, "skills", "skill-one", "SKILL.md"),
+      "# hand-authored, never installed by this tool\n",
+    )
+
+    const bundle: OpenCodeBundle = {
+      pluginName: "compound-engineering",
+      config: { $schema: "https://opencode.ai/config.json" },
+      agents: [],
+      plugins: [],
+      commandFiles: [],
+      skillDirs: [
+        {
+          name: "skill-one",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+    }
+
+    await writeOpenCodeBundle(outputRoot, bundle)
+
+    expect(await fs.readFile(path.join(outputRoot, "skills", "skill-one", "SKILL.md"), "utf8")).toBe(
+      "# hand-authored, never installed by this tool\n",
+    )
+
+    const manifest = await readInstallManifest(outputRoot)
+    expect(manifest.groups.skills).not.toContain("skill-one")
+  })
+
+  test("still replaces a real skill directory previously installed by this tool", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-replace-managed-skill-"))
+    const outputRoot = path.join(tempRoot, ".opencode")
+
+    const bundle: OpenCodeBundle = {
+      pluginName: "compound-engineering",
+      config: { $schema: "https://opencode.ai/config.json" },
+      agents: [],
+      plugins: [],
+      commandFiles: [],
+      skillDirs: [
+        {
+          name: "skill-one",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+    }
+
+    await writeOpenCodeBundle(outputRoot, bundle)
+    // Simulate drift between two installs: same managed dir, different upstream content.
+    await fs.writeFile(path.join(outputRoot, "skills", "skill-one", "SKILL.md"), "stale managed content")
+
+    await writeOpenCodeBundle(outputRoot, bundle)
+
+    const content = await fs.readFile(path.join(outputRoot, "skills", "skill-one", "SKILL.md"), "utf8")
+    expect(content).not.toBe("stale managed content")
+    expect(content).toContain("Skill body")
+
+    const manifest = await readInstallManifest(outputRoot)
+    expect(manifest.groups.skills).toContain("skill-one")
+  })
+
+  test.skipIf(!canDirSymlink)(
+    "a preserved skill symlink survives a later install run where the skill is dropped from the bundle",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-preserve-skill-symlink-second-run-"))
+      const outputRoot = path.join(tempRoot, ".opencode")
+
+      const bundleWithSkill: OpenCodeBundle = {
+        pluginName: "compound-engineering",
+        config: { $schema: "https://opencode.ai/config.json" },
+        agents: [],
+        plugins: [],
+        commandFiles: [],
+        skillDirs: [
+          {
+            name: "skill-one",
+            sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+          },
+        ],
+      }
+
+      // First run: normal managed install, tracked in the manifest.
+      await writeOpenCodeBundle(outputRoot, bundleWithSkill)
+      const manifestAfterFirstRun = await readInstallManifest(outputRoot)
+      expect(manifestAfterFirstRun.groups.skills).toContain("skill-one")
+
+      // User swaps the managed directory for a symlink into a personal fork,
+      // while the on-disk manifest from the first run still claims ownership.
+      const forkDir = path.join(tempRoot, "user-fork", "skill-one")
+      await fs.mkdir(forkDir, { recursive: true })
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), "# user fork content\n")
+      await fs.rm(path.join(outputRoot, "skills", "skill-one"), { recursive: true, force: true })
+      await fs.symlink(forkDir, path.join(outputRoot, "skills", "skill-one"), "junction")
+
+      // Second run: the plugin drops the skill from the bundle entirely, which
+      // exercises cleanupRemovedManagedDirectories against the stale manifest
+      // entry.
+      const bundleWithoutSkill: OpenCodeBundle = {
+        pluginName: "compound-engineering",
+        config: { $schema: "https://opencode.ai/config.json" },
+        agents: [],
+        plugins: [],
+        commandFiles: [],
+        skillDirs: [],
+      }
+      await writeOpenCodeBundle(outputRoot, bundleWithoutSkill)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills", "skill-one"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe("# user fork content\n")
+
+      const manifestAfterSecondRun = await readInstallManifest(outputRoot)
+      expect(manifestAfterSecondRun.groups.skills).not.toContain("skill-one")
+    },
+  )
+
+  test.skipIf(!canFileSymlink)(
+    "preserves a symlinked agent file and leaves its target content untouched",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-preserve-agent-symlink-"))
+      const outputRoot = path.join(tempRoot, ".opencode")
+      const forkAgentPath = path.join(tempRoot, "user-fork-agent.md")
+      await fs.writeFile(forkAgentPath, "# user fork agent content\n")
+
+      await fs.mkdir(path.join(outputRoot, "agents"), { recursive: true })
+      await fs.symlink(forkAgentPath, path.join(outputRoot, "agents", "agent-one.md"))
+
+      const bundle: OpenCodeBundle = {
+        pluginName: "compound-engineering",
+        config: { $schema: "https://opencode.ai/config.json" },
+        agents: [{ name: "agent-one", content: "Agent content" }],
+        plugins: [],
+        commandFiles: [],
+        skillDirs: [],
+      }
+
+      await writeOpenCodeBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "agents", "agent-one.md"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(forkAgentPath, "utf8")).toBe("# user fork agent content\n")
+
+      const manifest = await readInstallManifest(outputRoot)
+      expect(manifest.groups.agents).not.toContain("agent-one.md")
+    },
+  )
+
+  test.skipIf(!canFileSymlink)(
+    "preserves a symlinked plugin file and leaves its target content untouched",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-preserve-plugin-symlink-"))
+      const outputRoot = path.join(tempRoot, ".opencode")
+      const forkPluginPath = path.join(tempRoot, "user-fork-plugin.ts")
+      await fs.writeFile(forkPluginPath, "// user fork plugin content\n")
+
+      await fs.mkdir(path.join(outputRoot, "plugins"), { recursive: true })
+      await fs.symlink(forkPluginPath, path.join(outputRoot, "plugins", "hook.ts"))
+
+      const bundle: OpenCodeBundle = {
+        pluginName: "compound-engineering",
+        config: { $schema: "https://opencode.ai/config.json" },
+        agents: [],
+        plugins: [{ name: "hook.ts", content: "export {}" }],
+        commandFiles: [],
+        skillDirs: [],
+      }
+
+      await writeOpenCodeBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "plugins", "hook.ts"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(forkPluginPath, "utf8")).toBe("// user fork plugin content\n")
+
+      const manifest = await readInstallManifest(outputRoot)
+      expect(manifest.groups.plugins).not.toContain("hook.ts")
+    },
+  )
+
+  test.skipIf(!canFileSymlink)(
+    "preserves a symlinked command file and leaves its target content untouched",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-preserve-command-symlink-"))
+      const outputRoot = path.join(tempRoot, ".opencode")
+      const forkCommandPath = path.join(tempRoot, "user-fork-command.md")
+      await fs.writeFile(forkCommandPath, "# user fork command content\n")
+
+      await fs.mkdir(path.join(outputRoot, "commands"), { recursive: true })
+      await fs.symlink(forkCommandPath, path.join(outputRoot, "commands", "my-cmd.md"))
+
+      const bundle: OpenCodeBundle = {
+        pluginName: "compound-engineering",
+        config: { $schema: "https://opencode.ai/config.json" },
+        agents: [],
+        plugins: [],
+        commandFiles: [{ name: "my-cmd", content: "New content." }],
+        skillDirs: [],
+      }
+
+      await writeOpenCodeBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "commands", "my-cmd.md"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(forkCommandPath, "utf8")).toBe("# user fork command content\n")
+      // No stray backup should have been created either -- the guard must
+      // fire before the pre-write backupFile call, not just before the write.
+      const files = await fs.readdir(path.join(outputRoot, "commands"))
+      expect(files.some((file) => file.startsWith("my-cmd.md.bak."))).toBe(false)
+
+      const manifest = await readInstallManifest(outputRoot)
+      expect(manifest.groups.commands).not.toContain("my-cmd.md")
+    },
+  )
+
+  test.skipIf(!canDirSymlink)(
+    "a legacy-named skill symlinked to a user fork is not swept into legacy-backup",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-preserve-legacy-skill-symlink-"))
+      const outputRoot = path.join(tempRoot, ".opencode")
+
+      // Worst case: the fork keeps the CE fingerprint (name + description), so
+      // the readFile-based ownership check follows the symlink and matches.
+      const forkDir = path.join(tempRoot, "user-fork", "reproduce-bug")
+      await fs.mkdir(forkDir, { recursive: true })
+      const forkContent = skillContent("reproduce-bug", REPRODUCE_BUG_DESCRIPTION)
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), forkContent)
+
+      await fs.mkdir(path.join(outputRoot, "skills"), { recursive: true })
+      await fs.symlink(forkDir, path.join(outputRoot, "skills", "reproduce-bug"), "junction")
+
+      const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
+      const bundle = convertClaudeToOpenCode(plugin, {
+        agentMode: "subagent",
+        inferTemperature: true,
+        permissions: "none",
+      })
+      await writeOpenCodeBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills", "reproduce-bug"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe(forkContent)
+
+      const legacyBackupRoot = path.join(outputRoot, "compound-engineering", "legacy-backup")
+      if (await exists(legacyBackupRoot)) {
+        for (const timestamp of await fs.readdir(legacyBackupRoot)) {
+          const skillsBackup = path.join(legacyBackupRoot, timestamp, "skills")
+          if (!(await exists(skillsBackup))) continue
+          expect(await fs.readdir(skillsBackup)).not.toContain("reproduce-bug")
+        }
+      }
+    },
+  )
 })
 
 describe("mergeJsonConfigAtKey", () => {
