@@ -202,6 +202,7 @@ The before version leaves enough inline (phase name, "dispatch the agents") to i
 - `docs/solutions/skill-design/git-workflow-skills-need-explicit-state-machines.md` — canonical example of PROTOCOL content that must keep full prescription (step 1).
 - `docs/solutions/skill-design/script-first-skill-architecture.md` — complementary token-optimization pattern (bundled scripts instead of model-context work).
 - `docs/solutions/skill-design/safe-auto-rubric-calibration.md` — earlier eval-methodology precedent (fixture-based grading, variance awareness) consistent with step 7.
+- `docs/solutions/skill-design/paired-old-vs-new-injection-skill-evals.md` — sharpens step 7's fresh-subagent grading into a controlled old-vs-new blind A/B that separates demonstrated improvement from no-regression.
 - `docs/solutions/best-practices/ce-pipeline-end-to-end-learnings.md` — evidence that `model:` params propagate to all conversion targets (step 4).
 - Plugin `AGENTS.md` → Skill Design Principles — the prescription-calibration framework this methodology refines; and the conditional/late-sequence extraction rule step 5 operationalizes.
 - GitHub issues #714 and #374 — historical reference-load failures in the same family step 6 addresses.

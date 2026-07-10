@@ -2,15 +2,6 @@
 # Copy to .compound-engineering/config.local.yaml in your project root.
 # All settings are optional. Invalid values fall through to defaults.
 
-# --- Work delegation (Codex) ---
-
-# work_delegate: codex           # codex | false (default: false)
-# work_delegate_consent: true    # true | false (default: false)
-# work_delegate_sandbox: yolo    # yolo | full-auto (default: yolo)
-# work_delegate_decision: auto   # auto | ask (default: auto)
-# work_delegate_model: gpt-5.4   # any valid codex model (omit to use ~/.codex/config.toml default)
-# work_delegate_effort: high     # minimal | low | medium | high | xhigh (omit to use ~/.codex/config.toml default)
-
 # --- Product pulse ---
 # Settings written by /ce-product-pulse first-run interview. Re-run the skill with
 # argument `setup` or `reconfigure` to edit interactively.
@@ -45,6 +36,30 @@
 # brainstorm_output: html        # md | html (default: md)
 # ideate_output: md              # md | html (default: html -- ideation docs are human-facing, so HTML is the default; set md to opt out)
 
+# --- Fable elevation (Claude Code only) ---
+# Claude Code ONLY; silently ignored on every other harness (Codex, Cursor, ...).
+# When on, /ce-plan and /ce-brainstorm dispatch their reasoning-heavy step (plan
+# authoring; approach generation) to the Fable model via a subagent, so you get
+# higher-reasoning output even when your session model is cheaper -- no session
+# switch. Per-skill so you can enable one without the other. You can also just
+# say "use fable" in a prompt for a one-off. Invalid/commented/missing -> off.
+
+# plan_use_fable: true           # true | false (default: false)
+# brainstorm_use_fable: true     # true | false (default: false)
+# fable_nudge: false             # true | false (default: true -- one-time tip when elevation is available but off)
+
+# --- PR concept teaching (ce-commit-push-pr) ---
+# When a PR introduces a concept new to the codebase, the generated PR
+# description gains a "New concepts" section teaching it. The section toggle is
+# the single gate: off disables judgment, the section, the /ce-explain offer,
+# and archival. Archival additionally writes the explainer to docs/explainers/
+# and links it from the PR (full-workflow runs only; override per run with
+# archive:on|off). Note: this file is gitignored and per-checkout -- fresh
+# worktrees don't inherit it.
+
+# pr_teaching_section: false     # true | false (default: true)
+# pr_teaching_archive: true      # true | false (default: false; full-workflow runs only)
+
 # --- ce-plan scoping confirmation ---
 # By default /ce-plan pauses before research/plan-write to show a scoping
 # summary and wait for you to confirm scope. Set this to skip that wait: ce-plan
@@ -61,3 +76,19 @@
 # Suppresses that one-time setup nudge in this project. Remove the key to re-enable.
 
 # ce_promote_spiral_optout: true   # true | (absent) (default: absent -- offer once)
+
+# --- Sweep (ce-sweep) ---
+
+# Feedback sources swept by /ce-sweep. Generic key: other skills may read this list.
+# Each entry: type (slack | github-issues | email), id (short name), target (channel ID /
+# owner/repo / mailbox), ack_action, closeout_action, sensitive (true withholds content
+# from committed state/plan text), approved (standing approval for source-side writes).
+# feedback_sources:
+#   - { type: slack, id: slack-alpha, target: C0XXXXXXX, ack_action: eyes, closeout_action: white_check_mark, sensitive: false, approved: true }
+#   - { type: github-issues, id: gh-issues, target: owner/repo, ack_action: "feedback:ack", closeout_action: "feedback:resolved", sensitive: false, approved: true }
+
+# Sweep-owned settings.
+# sweep_state_path: docs/feedback-sweep/state.yml   # committed (multi-agent) or /tmp path (solo)
+# sweep_ack_cap: 25                                 # max acks per source per run before the circuit breaker
+# sweep_lease_ttl_minutes: 60                       # single-writer lease staleness threshold
+# sweep_shared_branch: false                        # true: push-gated lease for shared-docs-branch topology

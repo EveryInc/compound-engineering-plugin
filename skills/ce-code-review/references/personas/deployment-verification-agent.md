@@ -154,4 +154,4 @@ Invoke this agent when:
 - Data Migration Expert flags critical findings
 - Any change that could silently corrupt/lose data
 
-Be thorough. Be specific. Produce executable checklists, not vague recommendations.
+Every checklist item must name the command or observable signal that proves the step succeeded.

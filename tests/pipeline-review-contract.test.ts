@@ -157,6 +157,120 @@ describe("ce-plan testing contract", () => {
     // Template comment mentions the annotation convention
     expect(content).toContain("Test expectation: none -- [reason]")
   })
+
+  test("keeps execution direction natural-language instead of enum-based", async () => {
+    const content = await readRepoFile("skills/ce-plan/SKILL.md")
+
+    expect(content).toContain("natural-language signal")
+    expect(content).toContain("Do not encode it as a finite enum")
+    expect(content).toContain("Do not treat this as an enum")
+  })
+})
+
+describe("ce-work testing evidence contract", () => {
+  test("requires evidence strategy before behavior changes and evidence in return-to-caller", async () => {
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
+
+    expect(content).toContain("Choose the evidence strategy for this task before changing behavior")
+    expect(content).toContain("default to test-first or characterization-first")
+    expect(content).toContain("Do not add a duplicate regression test")
+    expect(content).toContain("verification_evidence")
+    expect(content).toContain("existing_tests_inspected")
+    expect(content).toContain("Return `status: complete` only when behavior-bearing work has verification evidence")
+  })
+})
+
+describe("verification_evidence seam parity (ce-work <-> lfg)", () => {
+  // The lfg step-2 gate consumes ce-work's `verification_evidence` return field.
+  // The two SKILL.md files are edited independently, so the existing prose-presence
+  // tests each guard only one side and would both stay green if a field name or a
+  // named evidence fact drifted on just one end. These tests scope assertions to the
+  // *owning* section and cross-check that both ends name the same facts, so a rename
+  // or drop that isn't mirrored across the seam fails.
+
+  // Each fact the return contract carries, with the surface form each end uses:
+  // ce-work documents backtick field tokens; lfg's gate names them in prose.
+  const EVIDENCE_FACTS: Array<{ fact: string; ceWork: string; lfg: string }> = [
+    { fact: "field name", ceWork: "verification_evidence", lfg: "verification_evidence" },
+    { fact: "behavior-change signal", ceWork: "behavior_changed", lfg: "behavior_change: true" },
+    { fact: "existing tests inspected", ceWork: "existing_tests_inspected", lfg: "existing tests inspected" },
+    { fact: "tests added/changed", ceWork: "tests_added_or_changed", lfg: "tests added/changed" },
+    { fact: "red/characterization evidence", ceWork: "red failure or characterization", lfg: "red failure or characterization" },
+    { fact: "verification run", ceWork: "verification commands/results", lfg: "verification run" },
+    { fact: "deliberate exception", ceWork: "exception reason", lfg: "deliberate test exception" },
+  ]
+
+  function sliceSection(content: string, startAnchor: string, endAnchor: string): string {
+    const start = content.indexOf(startAnchor)
+    expect(start, `start anchor not found: ${startAnchor}`).toBeGreaterThanOrEqual(0)
+    const end = content.indexOf(endAnchor, start + startAnchor.length)
+    expect(end, `end anchor not found: ${endAnchor}`).toBeGreaterThan(start)
+    return content.slice(start, end)
+  }
+
+  test("ce-work return contract owns the verification_evidence field and gates completion on it", async () => {
+    const content = await readRepoFile("skills/ce-work/SKILL.md")
+    // Scope to the Return-to-Caller "Return:" contract, not the whole file — the
+    // field must be documented in the return the caller actually reads.
+    const returnBlock = sliceSection(content, "## Return-to-Caller Mode", "Engine selection (")
+
+    for (const { fact, ceWork } of EVIDENCE_FACTS) {
+      expect(returnBlock, `ce-work return contract must document ${fact} ("${ceWork}")`).toContain(ceWork)
+    }
+
+    // Completion is gated on evidence-or-exception, and the idempotency backfill path exists.
+    expect(returnBlock).toContain(
+      "Return `status: complete` only when behavior-bearing work has verification evidence"
+    )
+    expect(returnBlock).toContain("complete the evidence, and return without reimplementing")
+  })
+
+  test("lfg step-2 gate names every evidence fact ce-work documents", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    // Scope to the step-2 gate block, between invoking ce-work and step 3.
+    const gate = sliceSection(
+      lfg,
+      "2. Invoke the `ce-work` skill with `mode:return-to-caller",
+      "3. Invoke the `ce-simplify-code`"
+    )
+
+    for (const { fact, lfg: phrase } of EVIDENCE_FACTS) {
+      expect(gate, `lfg gate must require ${fact} ("${phrase}")`).toContain(phrase)
+    }
+
+    // The gate only demands evidence when behavior changed, and defers test-strategy to ce-work.
+    expect(gate).toContain("When `behavior_change: true`, also require `verification_evidence`")
+    expect(gate).toContain("Do NOT decide the test strategy inside LFG")
+  })
+
+  test("lfg retries ce-work exactly once for evidence, then blocks rather than ships", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+    const gate = sliceSection(
+      lfg,
+      "2. Invoke the `ce-work` skill with `mode:return-to-caller",
+      "3. Invoke the `ce-simplify-code`"
+    )
+
+    // One-shot retry on the same plan path (idempotency backfill), no user prompt.
+    expect(gate).toContain(
+      "invoke `ce-work` one more time with the same `mode:return-to-caller <plan-path-from-step-1>` argument"
+    )
+    expect(gate).toContain("Do not prompt the user and do not alter the plan path argument")
+    // Second still-missing return stops blocked instead of continuing to ship.
+    expect(gate).toContain("stop as blocked and report the missing fields")
+    expect(gate).toContain("instead of continuing to simplify/review/ship")
+  })
+})
+
+describe("ce-debug regression test selection", () => {
+  test("inspects and updates existing tests instead of always adding new tests", async () => {
+    const content = await readRepoFile("skills/ce-debug/SKILL.md")
+
+    expect(content).toContain("inspect existing tests before adding coverage")
+    expect(content).toContain("update an existing test when it owns the contract")
+    expect(content).toContain("strengthen an over-mocked test")
+    expect(content).toContain("add a new minimal isolated test only when no existing test is the right home")
+  })
 })
 
 describe("ce-plan review contract", () => {
@@ -197,11 +311,12 @@ describe("ce-plan review contract", () => {
   test("handoff options expose deeper-review opt-in alongside ce-work", async () => {
     const content = await readRepoFile("skills/ce-plan/references/plan-handoff.md")
 
-    // Both executors are offered; goal mode is recommended when the host exposes
-    // the capability, ce-work otherwise (the marker is dynamic, not hardcoded).
-    expect(content).toContain("**Start `/ce-work`** - Best for shorter work")
+    // Both executors are offered; ce-work is always the recommended default (it is the
+    // correctly-layered entry point that reaches goal/workflow engines itself), while goal
+    // mode is the opt-in preference for driving the work through the harness's goal loop.
+    expect(content).toContain("**Start `/ce-work`** - Build and ship the plan in this session")
     expect(content).toContain("**Run it as a `/goal`**")
-    expect(content).toMatch(/Goal mode is the recommended default when its host supports it/i)
+    expect(content).toMatch(/`ce-work` \(option 1\) always carries \*\(recommended\)\*/i)
     expect(content).toContain("Codex `create_goal` in the available tool list")
 
     // Deeper review is a first-class menu fixture so users can engage with surfaced findings
@@ -410,6 +525,17 @@ describe("ce-doc-review contract", () => {
     expect(content).toContain("`references/bulk-preview.md`")
   })
 
+  test("keeps security document review on the parent capability tier", async () => {
+    const content = await readRepoFile("skills/ce-doc-review/SKILL.md")
+    const modelTierSection = content.slice(content.indexOf("Model tiering lives here"))
+    const securityTierLine = modelTierSection
+      .split("\n")
+      .find((line) => line.includes("security-lens-reviewer"))
+
+    expect(securityTierLine).toContain("inherit the parent model")
+    expect(securityTierLine).not.toContain("mid-tier")
+  })
+
   test("walkthrough and bulk-preview reference files exist with required mechanics", async () => {
     const walkthrough = await readRepoFile(
       "skills/ce-doc-review/references/walkthrough.md"
@@ -578,6 +704,31 @@ describe("ce-compound Phase 1 artifact contract", () => {
     expect(content).not.toContain(
       "Subagents return text data; orchestrator writes one final file",
     )
+  })
+})
+
+describe("concept-teaching seam parity (ce-commit-push-pr <-> lfg)", () => {
+  // lfg echoes the `New concepts:` trailer ce-commit-push-pr prints after the PR URL.
+  // The two SKILL.md files are edited independently, so these assertions cross-check
+  // that both ends name the same trailer format and that the callsite hardcodes the
+  // non-interactive mode (a drift on either end fails here, not in production runs).
+  test("lfg hardcodes mode:pipeline at the callsite and echoes the trailer", async () => {
+    const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    // Both ends name the same trailer format
+    expect(skill).toContain("New concepts:")
+    expect(lfg).toContain("New concepts:")
+
+    // The callsite passes the mode explicitly rather than relying on defaults
+    expect(lfg).toContain("Invoke the `ce-commit-push-pr` skill with `mode:pipeline`.")
+
+    // The pre-DONE report line names the concept and the /ce-explain pointer
+    expect(lfg).toContain("New concept introduced:")
+    expect(lfg).toContain("run /ce-explain")
+
+    // The callee documents the mode the caller passes
+    expect(skill).toContain("mode:pipeline")
   })
 })
 

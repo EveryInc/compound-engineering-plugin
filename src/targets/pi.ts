@@ -15,7 +15,7 @@ import { transformContentForPi } from "../converters/claude-to-pi"
 import type { PiBundle } from "../types/pi"
 import { getLegacyPiArtifacts } from "../data/plugin-legacy-artifacts"
 import { cleanupStaleAgents, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
-import { resolveLegacyManagedDir, resolveManagedSegment } from "./managed-artifacts"
+import { isPreservedSymlink, lstatOrNull, resolveLegacyManagedDir, resolveManagedSegment } from "./managed-artifacts"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
 const PI_AGENTS_BLOCK_END = "<!-- END COMPOUND PI TOOL MAP -->"
@@ -85,24 +85,40 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
     await writeText(path.join(paths.promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
   }
 
+  const preservedSkillNames = new Set<string>()
+
   for (const skill of bundle.skillDirs) {
     const skillName = sanitizePathName(skill.name)
     const targetDir = path.join(paths.skillsDir, skillName)
-    await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
+    const preserved = await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
+    if (preserved) {
+      preservedSkillNames.add(skillName)
+      continue
+    }
     await copySkillDir(skill.sourceDir, targetDir, transformContentForPi)
   }
 
   for (const skill of bundle.generatedSkills) {
     const skillName = sanitizePathName(skill.name)
     const targetDir = path.join(paths.skillsDir, skillName)
-    await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
+    const preserved = await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
+    if (preserved) {
+      preservedSkillNames.add(skillName)
+      continue
+    }
     await writeText(path.join(targetDir, "SKILL.md"), skill.content + "\n")
   }
+
+  const preservedAgentNames = new Set<string>()
 
   for (const agent of bundle.agents) {
     const agentFileName = `${sanitizePathName(agent.name)}.md`
     const targetPath = path.join(paths.agentsDir, agentFileName)
-    await cleanupCurrentManagedAgentFile(targetPath, manifest, agentFileName)
+    const preserved = await cleanupCurrentManagedAgentFile(targetPath, manifest, agentFileName)
+    if (preserved) {
+      preservedAgentNames.add(agentFileName)
+      continue
+    }
     await writeText(targetPath, agent.content + "\n")
   }
 
@@ -121,13 +137,16 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   await ensurePiAgentsBlock(paths.agentsPath)
 
   if (pluginName) {
+    // Preserved skills/agents (user symlinks or unmanaged dirs/files this
+    // install skipped) must not be recorded as owned -- the plugin never
+    // claims a path it didn't write.
     await writeInstallManifest(paths.managedDir, {
       version: 1,
       pluginName,
-      skills: currentSkills,
+      skills: currentSkills.filter((name) => !preservedSkillNames.has(name)),
       prompts: currentPrompts,
       extensions: currentExtensions,
-      agents: currentAgents,
+      agents: currentAgents.filter((name) => !preservedAgentNames.has(name)),
     })
     await archiveLegacyInstallManifestIfOwned(paths.managedDir, pluginName)
     await cleanupKnownLegacyPiArtifacts(paths, bundle)
@@ -348,7 +367,13 @@ async function cleanupRemovedSkills(
     // but re-check before any out-of-tree fs.rm can be issued from a future
     // caller that bypasses the read layer.
     if (!isSafeManagedPath(skillsDir, skillName)) continue
-    await fs.rm(path.join(skillsDir, skillName), { recursive: true, force: true })
+    const targetDir = path.join(skillsDir, skillName)
+    // The manifest can lag reality: a prior install owned this name, but the
+    // user has since replaced it with a symlink (e.g. into a personal fork).
+    // Never delete through a symlink node even when the stale manifest still
+    // claims ownership.
+    if (await isPreservedSymlink(targetDir)) continue
+    await fs.rm(targetDir, { recursive: true, force: true })
   }
 }
 
@@ -390,26 +415,51 @@ async function cleanupRemovedAgents(
   for (const agentFile of manifest.agents) {
     if (current.has(agentFile)) continue
     if (!isSafeManagedPath(agentsDir, agentFile)) continue
-    await fs.rm(path.join(agentsDir, agentFile), { force: true })
+    const targetPath = path.join(agentsDir, agentFile)
+    if (await isPreservedSymlink(targetPath)) continue
+    await fs.rm(targetPath, { force: true })
   }
 }
 
+// Returns true when the existing path was preserved (skip cleanup AND the
+// subsequent copy/write -- writing through a preserved symlink would clobber
+// the user's fork, which is worse than not cleaning up at all).
 async function cleanupCurrentManagedSkillDir(
   targetDir: string,
   manifest: PiInstallManifest | null,
   skillName: string,
-): Promise<void> {
-  if (!manifest?.skills.includes(skillName)) return
+): Promise<boolean> {
+  const stat = await lstatOrNull(targetDir)
+  if (!stat) return false
+  if (stat.isSymbolicLink()) {
+    console.warn(`Skipping ${targetDir}: existing user-managed symlink (not overwritten)`)
+    return true
+  }
+  if (!manifest?.skills.includes(skillName)) {
+    console.warn(`Skipping ${targetDir}: existing unmanaged directory (not overwritten)`)
+    return true
+  }
   await fs.rm(targetDir, { recursive: true, force: true })
+  return false
 }
 
 async function cleanupCurrentManagedAgentFile(
   targetPath: string,
   manifest: PiInstallManifest | null,
   agentFileName: string,
-): Promise<void> {
-  if (!manifest?.agents.includes(agentFileName)) return
+): Promise<boolean> {
+  const stat = await lstatOrNull(targetPath)
+  if (!stat) return false
+  if (stat.isSymbolicLink()) {
+    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+    return true
+  }
+  if (!manifest?.agents.includes(agentFileName)) {
+    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
+    return true
+  }
   await fs.rm(targetPath, { force: true })
+  return false
 }
 
 // Explicit legacy Pi extension names this plugin has historically shipped and
@@ -488,6 +538,10 @@ async function moveLegacyArtifactToBackup(
   kind: LegacyArtifactKind,
   artifactPath: string,
 ): Promise<void> {
+  // Ownership fingerprinting reads THROUGH a symlink, so a user fork of a
+  // legacy-named artifact still matches — never move the symlink node into
+  // legacy-backup, or the user's override is silently deactivated.
+  if (await isPreservedSymlink(artifactPath)) return
   if (!(await pathExists(artifactPath))) return
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
   const backupDir = path.join(managedDir, "legacy-backup", timestamp, kind)

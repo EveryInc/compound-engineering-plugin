@@ -32,6 +32,7 @@ Without an explicit pipeline, autonomous runs tend to skip planning, treat revie
 
 - `/ce-plan` must produce an implementation-ready code plan before work starts
 - `/ce-work` runs in return-to-caller mode so the pipeline regains control after implementation
+- Behavior-changing implementation must return verification evidence from `/ce-work`; if evidence is missing, `lfg` retries `/ce-work` once for evidence completion and then stops blocked rather than shipping blind
 - `/ce-simplify-code` runs before review unless the change is docs-only or trivial
 - `/ce-code-review` reports findings, then `lfg` applies eligible fixes and commits them
 - Residual review findings are made durable in the PR body or a fallback tracked file

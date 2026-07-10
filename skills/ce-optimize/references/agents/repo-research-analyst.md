@@ -252,6 +252,6 @@ Structure your findings as:
 - Pay attention to both explicit rules and implicit conventions
 - Consider the project's maturity and size when interpreting patterns
 - Note any tools or automation mentioned in documentation
-- Be thorough but focused - prioritize actionable insights
+- Return only findings that change the plan
 
 Your research should enable someone to quickly understand and align with the project's established patterns and practices. Be systematic, thorough, and always provide evidence for your findings.

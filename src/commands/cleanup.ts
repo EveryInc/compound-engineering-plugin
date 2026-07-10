@@ -366,7 +366,12 @@ async function moveIfSymlinkManaged(
   if (!isSafeManagedPath(artifactRoot, relativePath)) return 0
   const artifactPath = path.join(artifactRoot, ...relativePath.split("/"))
   if (!(await isManagedCodexAgentsSymlink(artifactPath, managedRoots))) return 0
-  await moveLegacyArtifactToBackup(managedDir, kind, artifactRoot, relativePath, label)
+  // `isManagedCodexAgentsSymlink` already verified this symlink's resolved
+  // target lives inside a CE-managed Codex root -- that is stronger proof of
+  // CE ownership than the generic "is a symlink" preservation guard, and the
+  // whole point of this sweep is to relocate the symlink node itself. Skip
+  // the guard so it doesn't block moving a confirmed CE-owned symlink.
+  await moveLegacyArtifactToBackup(managedDir, kind, artifactRoot, relativePath, label, { skipSymlinkGuard: true })
   return 1
 }
 

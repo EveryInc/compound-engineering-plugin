@@ -33,6 +33,14 @@ type KimiPluginManifest = {
   skills?: string
 }
 
+// Devin CLI manifests have no `skills` path field — Devin loads root `skills/`
+// by convention. See docs/specs/devin.md.
+type DevinPluginManifest = {
+  name: string
+  version: string
+  description?: string
+}
+
 type AntigravityManifest = {
   version: string
 }
@@ -67,6 +75,27 @@ type KimiMarketplaceManifest = {
     id: string
     displayName?: string
     source?: string
+  }>
+}
+
+type GrokPluginManifest = {
+  name: string
+  version: string
+  description?: string
+  skills?: string
+}
+
+type GrokMarketplaceManifest = {
+  name?: string
+  owner?: { name?: string }
+  plugins: Array<{
+    name: string
+    source?: {
+      source?: string
+      type?: string
+      url?: string
+      path?: string
+    }
   }>
 }
 
@@ -220,6 +249,7 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
   const compoundCursorPath = path.join(root, ".cursor-plugin", "plugin.json")
   const compoundAntigravityPath = path.join(root, "plugin.json")
   const compoundKimiPath = path.join(root, ".kimi-plugin", "plugin.json")
+  const compoundDevinPath = path.join(root, ".devin-plugin", "plugin.json")
   const marketplaceClaudePath = path.join(root, ".claude-plugin", "marketplace.json")
   const marketplaceCursorPath = path.join(root, ".cursor-plugin", "marketplace.json")
 
@@ -477,6 +507,117 @@ export async function syncReleaseMetadata(options: SyncOptions = {}): Promise<Me
     } else {
       throw err
     }
+  }
+
+  // Grok manifests. Grok Build supports a native plugin manifest at
+  // `.grok-plugin/plugin.json` (shadowed by root plugin.json at runtime in this
+  // multi-platform repo, but the required native surface for xai-org submission).
+  // Like Codex/Kimi, its marketplace catalog has no release-owned metadata
+  // version, so the plugin version is detect-only here and release-please owns
+  // the write via the root component's extra-files.
+  const compoundGrokPath = path.join(root, ".grok-plugin", "plugin.json")
+  const marketplaceGrokPath = path.join(root, ".grok-plugin", "marketplace.json")
+
+  let grok: GrokPluginManifest
+  let grokManifestMissing = false
+  try {
+    grok = await readJson<GrokPluginManifest>(compoundGrokPath)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      grokManifestMissing = true
+      errors.push(`${compoundGrokPath} is missing but ${compoundClaudePath} exists. Grok manifest parity required.`)
+      updates.push({ path: compoundGrokPath, changed: false })
+      grok = { name: "compound-engineering", version: compoundClaude.version }
+    } else {
+      throw err
+    }
+  }
+
+  if (grok.name !== "compound-engineering") {
+    errors.push(`${compoundGrokPath}: name "${grok.name}" does not match expected "compound-engineering"`)
+  }
+
+  let grokChanged = false
+  if (grok.version !== compoundClaude.version) {
+    grokChanged = true
+  }
+  if (compoundClaude.description !== undefined && grok.description !== compoundClaude.description) {
+    grok.description = compoundClaude.description
+    grokChanged = true
+  }
+  await validateDeclaredSkillsPath(compoundGrokPath, "compound-engineering", "Grok", grok.skills, errors)
+  updates.push({ path: compoundGrokPath, changed: grokChanged })
+  if (write && grokChanged && !grokManifestMissing) await writeJson(compoundGrokPath, grok)
+
+  // Grok marketplace: plugin-list parity with Claude, and a valid non-self-
+  // referential source per plugin. Grok (like Codex/Kimi) does not enumerate
+  // marketplace entries that point back at the marketplace root, so a bare Git
+  // URL source is required; the catalog has no release-owned version field.
+  try {
+    const marketplaceGrok = await readJson<GrokMarketplaceManifest>(marketplaceGrokPath)
+    const claudeNames = [...marketplaceClaude.plugins.map((p) => p.name)].sort()
+    const grokNames = [...marketplaceGrok.plugins.map((p) => p.name)].sort()
+    if (claudeNames.join("|") !== grokNames.join("|")) {
+      errors.push(
+        `${marketplaceGrokPath}: plugin list [${grokNames.join(", ")}] does not match ${marketplaceClaudePath} [${claudeNames.join(", ")}]`,
+      )
+    }
+    for (const plugin of marketplaceGrok.plugins) {
+      const src = plugin.source
+      if (!src || (typeof src.url !== "string" && typeof src.path !== "string")) {
+        errors.push(
+          `${marketplaceGrokPath}: plugin "${plugin.name}" is missing a valid "source". Grok marketplace entries need a URL source ({ "source": "url", "url": ... }) or a local path source.`,
+        )
+      } else if (src.path === "./" || src.path === ".") {
+        errors.push(
+          `${marketplaceGrokPath}: plugin "${plugin.name}" uses a self-referential local source "${src.path}". Grok does not enumerate marketplace entries that point back at the marketplace root; use a Git URL source.`,
+        )
+      }
+    }
+    updates.push({ path: marketplaceGrokPath, changed: false })
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${marketplaceGrokPath} is missing but ${marketplaceClaudePath} exists. Grok marketplace parity required.`)
+      updates.push({ path: marketplaceGrokPath, changed: false })
+    } else {
+      throw err
+    }
+  }
+
+  // Devin manifest. Devin CLI installs the repo natively from
+  // `.devin-plugin/plugin.json` plus the root `skills/` directory. The manifest
+  // schema has no `skills` path field and Devin has no marketplace catalog, so
+  // unlike Kimi there is no declared-skills-path or marketplace parity check.
+  // Version sync is detect-only — release-please owns the write via extra-files.
+  // A missing manifest short-circuits after the parity error (same as Codex),
+  // so it reports exactly one unchanged update entry.
+  let devin: DevinPluginManifest | undefined
+  try {
+    devin = await readJson<DevinPluginManifest>(compoundDevinPath)
+  } catch (err: unknown) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") {
+      errors.push(`${compoundDevinPath} is missing but ${compoundClaudePath} exists. Devin manifest parity required.`)
+      updates.push({ path: compoundDevinPath, changed: false })
+    } else {
+      throw err
+    }
+  }
+
+  if (devin) {
+    if (devin.name !== "compound-engineering") {
+      errors.push(`${compoundDevinPath}: name "${devin.name}" does not match expected "compound-engineering"`)
+    }
+
+    let devinChanged = false
+    if (devin.version !== compoundClaude.version) {
+      devinChanged = true
+    }
+    if (compoundClaude.description !== undefined && devin.description !== compoundClaude.description) {
+      devin.description = compoundClaude.description
+      devinChanged = true
+    }
+    updates.push({ path: compoundDevinPath, changed: devinChanged })
+    if (write && devinChanged) await writeJson(compoundDevinPath, devin)
   }
 
   return { updates, errors }

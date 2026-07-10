@@ -45,6 +45,7 @@ Going from "code written" to "PR open" is supposed to be a one-step move, but it
 - **Convention detection** — repo conventions in context > recent commit history > conventional-commits default
 - **Full PR commit-range resolution** — descriptions cover all commits in the PR, not just the working-tree diff
 - **Related-reference preflight** — identifies work-item references and uses closing magic words only when the PR truly resolves the item
+- **Concept teaching** — when a PR introduces a concept new to the codebase (a pattern, technique, library, or domain idea), the description gains a `## New concepts` section teaching it, so readers can understand and re-explain the change without opening the diff
 
 ---
 
@@ -106,6 +107,10 @@ Before composing the body, the skill scans the prompt, caller handoff, branch na
 
 When the skill runs on a branch with an open PR and you want the description rewritten, it previews — first two sentences of the new Summary plus the total body line count — and asks for confirmation before applying. The first two sentences carry most of the reviewer's attention. If declined, you can pass focus text back for a regenerate without applying anything.
 
+### 10. Concept-teaching section — the PR teaches what it introduces
+
+Agent-driven development removed the learning that writing code by hand used to provide. When the composition pass judges that the change introduces a concept new to the codebase — checked against the base ref, never the working tree, so the PR's own code doesn't mask novelty — the description gains a dedicated `## New concepts` section: what the concept is, why it was chosen here over the obvious alternative, and one example from this PR's behavior. Absence is the common case by design: established repo patterns, refactors, renames, and dependency bumps never fire it. After the PR ships, a one-line offer points to `/ce-explain` for interactive learning, and an opt-in config key (`pr_teaching_archive`) archives the explainer to `docs/explainers/` and links it from the PR. Turn the whole feature off per repo with `pr_teaching_section: false` in `.compound-engineering/config.local.yaml`.
+
 ---
 
 ## Quick Example
@@ -144,6 +149,7 @@ Skip `ce-commit-push-pr` when:
 
 `ce-commit-push-pr` is the standard shipping handoff for several skills:
 
+- **`/lfg` step 8** — invokes with `mode:pipeline` (non-interactive: no blocking asks, existing-PR rewrite defaults to no); when a `New concepts:` trailer is printed, lfg echoes the concept and the `/ce-explain` pointer in its completion output
 - **`/ce-work` Phase 4** — passes plan summary, key decisions, testing notes, evidence context, operational validation, and any accepted Known Residuals
 - **`/ce-debug` Phase 4** (skill-owned branch) — defaults to commit-and-PR without prompting after a successful fix; includes closing syntax only when the PR resolves the issue, and non-closing related syntax for partial, investigative, or uncertain links
 - **`/ce-compound`** — after a learning doc is written, can commit + push to update an open PR with the new commit
@@ -172,6 +178,8 @@ When the skill's mode detection picks the wrong path, you can prompt explicitly 
 | `"update the PR description"` / `"refresh the PR description"` | Description update on the existing PR |
 | `<PR URL or number>` | Operates on that PR (description-only or update, depending on intent) |
 | `"...<focus text>"` | Steers description composition (e.g., "include the benchmarking results") |
+| `mode:pipeline` | Non-interactive modifier for orchestrated callers; suppresses every blocking ask (existing-PR rewrite defaults to no) |
+| `archive:on\|off` | Per-run override of the `pr_teaching_archive` config key (explainer-doc archival to `docs/explainers/`) |
 
 ---
 
@@ -194,6 +202,9 @@ The skill respects your git config and pre-commit hooks. It never passes `--no-v
 
 **Can I get a draft PR?**
 Use the description-only mode to generate the body, then apply yourself with `gh pr create --draft --title "..." --body-file "..."`. The skill doesn't currently expose a draft flag in the full workflow.
+
+**Why doesn't my PR have a `## New concepts` section?**
+By design, most PRs shouldn't. The section fires only when the change introduces a concept that is both new to this codebase (checked against the base ref) and transferable beyond it — routine use of established repo patterns, refactors, renames, and dependency bumps never qualify. A missing section costs little; a patronizing one trains readers to skip the feature. If you never want the section, set `pr_teaching_section: false` in `.compound-engineering/config.local.yaml`.
 
 ---
 

@@ -50,6 +50,7 @@ Skills that anchor, feed, or maintain the loop without being steps inside it.
 |-------|-------------|
 | [`/ce-strategy`](./ce-strategy.md) | Create or maintain `STRATEGY.md` — the upstream anchor read by `ce-ideate`, `ce-brainstorm`, and `ce-plan` as grounding |
 | [`/ce-product-pulse`](./ce-product-pulse.md) | Outer feedback loop — single-page time-windowed report on usage, performance, errors, followups; saved to `docs/pulse-reports/` as a timeline |
+| [`/ce-sweep`](./ce-sweep.md) | Recurring feedback sweep — ingest Slack/GitHub items (email experimental) since per-source cursors, acknowledge at source, analyze recordings, verify fixes merged, and reconcile an `/lfg`-ready rolling plan |
 | [`/ce-compound-refresh`](./ce-compound-refresh.md) | Maintain `docs/solutions/` over time — five outcomes (Keep / Update / Consolidate / Replace / Delete), Interactive + Autofix modes |
 
 ---
@@ -61,6 +62,7 @@ Invoked when a specific need arises — not part of any chain.
 | Skill | Description |
 |-------|-------------|
 | [`/ce-pov`](./ce-pov.md) | Form a decisive, project-grounded verdict on an external input (framework, library, CVE, pattern) — dual-grounding floors, cold or warm (mid-session) invocation, graded Adopt/Trial/Hold/Reject/Not-our-problem with a reasoned handoff |
+| [`/ce-explain`](./ce-explain.md) | Turn a concept, a diff, an idea, or a window of your own recent work into a dense, visual explainer written for you personally — optional check-in (predict-then-reveal for diffs, corrected exercises), capability-detected destination ask |
 | [`/ce-debug`](./ce-debug.md) | Find root causes systematically — causal chain gate, predictions, post-fix polish/review, PR handoff |
 | [`/ce-code-review`](./ce-code-review.md) | Structured code review with skill-local reviewer personas, confidence-gated findings, four modes |
 | [`/ce-doc-review`](./ce-doc-review.md) | Review requirements or plan documents using skill-local reviewer personas — coherence, feasibility, product-lens, design-lens, security-lens, scope-guardian, adversarial |
@@ -82,7 +84,7 @@ Invoked when a specific need arises — not part of any chain.
 | Skill | Description |
 |-------|-------------|
 | [`/ce-commit`](./ce-commit.md) | Create a single, well-crafted git commit — convention-aware, sensitive-file-safe, file-level logical splitting |
-| [`/ce-commit-push-pr`](./ce-commit-push-pr.md) | Go from working changes to an open PR with adaptive descriptions, related-reference handling, and three modes (full workflow / description update / description-only generation) |
+| [`/ce-commit-push-pr`](./ce-commit-push-pr.md) | Go from working changes to an open PR with adaptive descriptions, related-reference handling, three modes (full workflow / description update / description-only generation), and a concept-teaching section for anything the change newly introduces |
 | [`/ce-worktree`](./ce-worktree.md) | Ensure work happens in an isolated git worktree — detect existing isolation, prefer the harness's native worktree tool, fall back to plain git |
 
 ---

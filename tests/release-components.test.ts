@@ -64,6 +64,14 @@ describe("release component detection", () => {
     expect(components.get("marketplace")).toEqual([])
     expect(components.get("cursor-marketplace")).toEqual([])
   })
+
+  test("maps Devin plugin manifest to root plugin component", () => {
+    const components = detectComponentsFromFiles([".devin-plugin/plugin.json"])
+
+    expect(components.get("compound-engineering")).toEqual([".devin-plugin/plugin.json"])
+    expect(components.get("marketplace")).toEqual([])
+    expect(components.get("cursor-marketplace")).toEqual([])
+  })
 })
 
 describe("release intent parsing", () => {

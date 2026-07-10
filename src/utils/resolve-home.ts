@@ -3,7 +3,11 @@ import path from "path"
 
 export function expandHome(value: string): string {
   if (value === "~") return os.homedir()
-  if (value.startsWith(`~${path.sep}`)) {
+  // Accept the portable "~/" shorthand on every OS in addition to the native
+  // separator. On Windows `path.sep` is "\\", so a bare `~${path.sep}` check
+  // left "~/x" (the spelling users and config files commonly write) unexpanded
+  // and the CLI then treated a literal "~" as a real directory.
+  if (value.startsWith("~/") || value.startsWith(`~${path.sep}`)) {
     return path.join(os.homedir(), value.slice(2))
   }
   return value

@@ -909,13 +909,11 @@ Workflow handoff:
 
   test("removes orphan sidecar dir when retained agent declares no sidecars", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-test-"))
-    const agentsRoot = path.join(tempRoot, ".codex", "agents")
-    const orphanDir = path.join(agentsRoot, "ce-foo", "stale-content")
-    await fs.mkdir(orphanDir, { recursive: true })
-    await fs.writeFile(path.join(orphanDir, "leftover.txt"), "stale", "utf8")
-    await fs.writeFile(path.join(agentsRoot, "ce-foo.toml"), "old-toml", "utf8")
+    const sidecarSource = await fs.mkdtemp(path.join(os.tmpdir(), "codex-sidecar-src-"))
+    await fs.writeFile(path.join(sidecarSource, "script.sh"), "#!/bin/sh\necho hi\n", "utf8")
 
-    const bundle: CodexBundle = {
+    const agentWithSidecar: CodexBundle = {
+      pluginName: "compound-engineering",
       prompts: [],
       skillDirs: [],
       generatedSkills: [],
@@ -924,12 +922,32 @@ Workflow handoff:
           name: "ce-foo",
           description: "Foo agent",
           instructions: "Do foo.",
+          sidecarDirs: [{ sourceDir: sidecarSource, targetName: "scripts" }],
         },
       ],
       mcpServers: {},
     }
 
-    await writeCodexBundle(tempRoot, bundle)
+    // First install establishes ownership of ce-foo.toml in the install
+    // manifest and writes the sidecar dir -- an unowned pre-existing agent
+    // file/dir would be preserved, not cleaned up.
+    await writeCodexBundle(tempRoot, agentWithSidecar)
+
+    const agentsRoot = path.join(tempRoot, ".codex", "agents", "compound-engineering")
+    expect(await exists(path.join(agentsRoot, "ce-foo", "scripts", "script.sh"))).toBe(true)
+
+    const agentWithoutSidecar: CodexBundle = {
+      ...agentWithSidecar,
+      agents: [
+        {
+          name: "ce-foo",
+          description: "Foo agent",
+          instructions: "Do foo.",
+        },
+      ],
+    }
+
+    await writeCodexBundle(tempRoot, agentWithoutSidecar)
 
     expect(await entryExists(path.join(agentsRoot, "ce-foo"))).toBe(false)
     expect(await exists(path.join(agentsRoot, "ce-foo.toml"))).toBe(true)
@@ -1292,4 +1310,357 @@ describe("mergeCodexHooks", () => {
     // Legacy _source entry removed, manual preserved, new added
     expect(hooks.SessionStart).toHaveLength(2)
   })
+})
+
+// Probed at module load (not beforeAll) because test.skipIf evaluates its
+// condition at registration time. Directory and file symlinks are probed
+// separately: on Windows without Developer Mode, junctions succeed while
+// file symlinks throw EPERM.
+async function probeSymlinkSupport(): Promise<{ canDirSymlink: boolean; canFileSymlink: boolean }> {
+  const probeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-symlink-probe-"))
+  const probeTarget = path.join(probeRoot, "target")
+  await fs.mkdir(probeTarget, { recursive: true })
+  let canDirSymlink = true
+  try {
+    await fs.symlink(probeTarget, path.join(probeRoot, "link"), "junction")
+  } catch {
+    canDirSymlink = false
+  }
+  const probeFile = path.join(probeRoot, "target.toml")
+  await fs.writeFile(probeFile, "probe")
+  let canFileSymlink = true
+  try {
+    await fs.symlink(probeFile, path.join(probeRoot, "link.toml"))
+  } catch {
+    canFileSymlink = false
+  }
+  return { canDirSymlink, canFileSymlink }
+}
+
+const { canDirSymlink, canFileSymlink } = await probeSymlinkSupport()
+
+describe("writeCodexBundle preserves user-managed skill and agent paths", () => {
+  async function readInstallManifest(codexRoot: string): Promise<{ skills: string[]; agents: string[] }> {
+    const raw = await fs.readFile(
+      path.join(codexRoot, "compound-engineering", "install-manifest.json"),
+      "utf8",
+    )
+    return JSON.parse(raw) as { skills: string[]; agents: string[] }
+  }
+
+  test.skipIf(!canDirSymlink)(
+    "preserves a symlinked skill directory and leaves its target content untouched",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-preserve-skill-symlink-"))
+      const codexRoot = path.join(tempRoot, ".codex")
+      const forkDir = path.join(tempRoot, "user-fork", "skill-one")
+      await fs.mkdir(forkDir, { recursive: true })
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), "# user fork content\n")
+
+      const skillsRoot = path.join(codexRoot, "skills", "compound-engineering")
+      await fs.mkdir(skillsRoot, { recursive: true })
+      await fs.symlink(forkDir, path.join(skillsRoot, "skill-one"), "junction")
+
+      const bundle: CodexBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [
+          {
+            name: "skill-one",
+            sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+          },
+        ],
+        generatedSkills: [],
+      }
+
+      await writeCodexBundle(codexRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(skillsRoot, "skill-one"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe("# user fork content\n")
+
+      const manifest = await readInstallManifest(codexRoot)
+      expect(manifest.skills).not.toContain("skill-one")
+    },
+  )
+
+  test("preserves an unmanaged real skill directory (not previously owned by this tool)", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-preserve-skill-unmanaged-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+    const skillsRoot = path.join(codexRoot, "skills", "compound-engineering")
+
+    await fs.mkdir(path.join(skillsRoot, "skill-one"), { recursive: true })
+    await fs.writeFile(
+      path.join(skillsRoot, "skill-one", "SKILL.md"),
+      "# hand-authored, never installed by this tool\n",
+    )
+
+    const bundle: CodexBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [
+        {
+          name: "skill-one",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      generatedSkills: [],
+    }
+
+    await writeCodexBundle(codexRoot, bundle)
+
+    expect(await fs.readFile(path.join(skillsRoot, "skill-one", "SKILL.md"), "utf8")).toBe(
+      "# hand-authored, never installed by this tool\n",
+    )
+
+    const manifest = await readInstallManifest(codexRoot)
+    expect(manifest.skills).not.toContain("skill-one")
+  })
+
+  test("still replaces a real skill directory previously installed by this tool", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-replace-managed-skill-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+
+    const bundle: CodexBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [
+        {
+          name: "skill-one",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      generatedSkills: [],
+    }
+
+    await writeCodexBundle(codexRoot, bundle)
+    const skillPath = path.join(codexRoot, "skills", "compound-engineering", "skill-one", "SKILL.md")
+    // Simulate drift between two installs: same managed dir, different upstream content.
+    await fs.writeFile(skillPath, "stale managed content")
+
+    await writeCodexBundle(codexRoot, bundle)
+
+    const content = await fs.readFile(skillPath, "utf8")
+    expect(content).not.toBe("stale managed content")
+    expect(content).toContain("Skill body")
+
+    const manifest = await readInstallManifest(codexRoot)
+    expect(manifest.skills).toContain("skill-one")
+  })
+
+  test.skipIf(!canFileSymlink)(
+    "preserves a symlinked agent file and leaves its target content untouched",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-preserve-agent-symlink-"))
+      const codexRoot = path.join(tempRoot, ".codex")
+      const forkAgentPath = path.join(tempRoot, "user-fork-agent.toml")
+      await fs.writeFile(forkAgentPath, "# user fork agent content\n")
+
+      const agentsRoot = path.join(codexRoot, "agents", "compound-engineering")
+      await fs.mkdir(agentsRoot, { recursive: true })
+      await fs.symlink(forkAgentPath, path.join(agentsRoot, "ce-foo.toml"))
+
+      const bundle: CodexBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [],
+        generatedSkills: [],
+        agents: [{ name: "ce-foo", description: "Foo agent", instructions: "Do foo." }],
+      }
+
+      await writeCodexBundle(codexRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(agentsRoot, "ce-foo.toml"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(forkAgentPath, "utf8")).toBe("# user fork agent content\n")
+
+      const manifest = await readInstallManifest(codexRoot)
+      expect(manifest.agents).not.toContain("ce-foo.toml")
+    },
+  )
+
+  test.skipIf(!canDirSymlink)(
+    "a preserved skill symlink survives a later install run where the skill is dropped from the bundle",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-preserve-skill-symlink-second-run-"))
+      const codexRoot = path.join(tempRoot, ".codex")
+
+      const bundleWithSkill: CodexBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [
+          {
+            name: "skill-one",
+            sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+          },
+        ],
+        generatedSkills: [],
+      }
+
+      // First run: normal managed install, tracked in the manifest.
+      await writeCodexBundle(codexRoot, bundleWithSkill)
+      const manifestAfterFirstRun = await readInstallManifest(codexRoot)
+      expect(manifestAfterFirstRun.skills).toContain("skill-one")
+
+      // User swaps the managed directory for a symlink into a personal fork,
+      // while the on-disk manifest from the first run still claims ownership.
+      const skillsRoot = path.join(codexRoot, "skills", "compound-engineering")
+      const forkDir = path.join(tempRoot, "user-fork", "skill-one")
+      await fs.mkdir(forkDir, { recursive: true })
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), "# user fork content\n")
+      await fs.rm(path.join(skillsRoot, "skill-one"), { recursive: true, force: true })
+      await fs.symlink(forkDir, path.join(skillsRoot, "skill-one"), "junction")
+
+      // Second run: the plugin drops the skill from the bundle entirely, which
+      // exercises cleanupRemovedSkills against the stale manifest entry.
+      const bundleWithoutSkill: CodexBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [],
+        generatedSkills: [],
+      }
+      await writeCodexBundle(codexRoot, bundleWithoutSkill)
+
+      const linkStat = await fs.lstat(path.join(skillsRoot, "skill-one"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe("# user fork content\n")
+
+      const manifestAfterSecondRun = await readInstallManifest(codexRoot)
+      expect(manifestAfterSecondRun.skills).not.toContain("skill-one")
+    },
+  )
+
+  test.skipIf(!canDirSymlink)(
+    "a legacy-named skill symlinked to a user fork is not swept into legacy-backup",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-preserve-legacy-skill-symlink-"))
+      const codexRoot = path.join(tempRoot, ".codex")
+
+      // Worst case: the fork keeps the CE fingerprint (name + description), so
+      // the readFile-based ownership check follows the symlink and matches.
+      const forkDir = path.join(tempRoot, "user-fork", "reproduce-bug")
+      await fs.mkdir(forkDir, { recursive: true })
+      const forkContent = skillContent("reproduce-bug", historicalSkillDescription("reproduce-bug"))
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), forkContent)
+
+      await fs.mkdir(path.join(codexRoot, "skills"), { recursive: true })
+      await fs.symlink(forkDir, path.join(codexRoot, "skills", "reproduce-bug"), "junction")
+
+      const plugin = await loadClaudePlugin(path.join(import.meta.dir, ".."))
+      const bundle = convertClaudeToCodex(plugin, {
+        agentMode: "subagent",
+        inferTemperature: true,
+        permissions: "none",
+      })
+      await writeCodexBundle(codexRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(codexRoot, "skills", "reproduce-bug"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe(forkContent)
+
+      const legacyBackupRoot = path.join(codexRoot, "compound-engineering", "legacy-backup")
+      if (await exists(legacyBackupRoot)) {
+        for (const timestamp of await fs.readdir(legacyBackupRoot)) {
+          const skillsBackup = path.join(legacyBackupRoot, timestamp, "skills")
+          if (!(await exists(skillsBackup))) continue
+          expect(await fs.readdir(skillsBackup)).not.toContain("reproduce-bug")
+        }
+      }
+    },
+  )
+
+  test.skipIf(!canDirSymlink)(
+    "preserves a dangling skill symlink whose target no longer exists",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-preserve-skill-symlink-dangling-"))
+      const codexRoot = path.join(tempRoot, ".codex")
+
+      // Create the symlink against a real target, then remove the target so
+      // the link dangles. lstat must still see the link node (stat/access
+      // would follow it and report ENOENT, treating the path as absent).
+      const forkDir = path.join(tempRoot, "user-fork", "skill-one")
+      await fs.mkdir(forkDir, { recursive: true })
+      const skillsRoot = path.join(codexRoot, "skills", "compound-engineering")
+      await fs.mkdir(skillsRoot, { recursive: true })
+      await fs.symlink(forkDir, path.join(skillsRoot, "skill-one"), "junction")
+      await fs.rm(forkDir, { recursive: true, force: true })
+
+      const bundle: CodexBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [
+          {
+            name: "skill-one",
+            sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+          },
+        ],
+        generatedSkills: [],
+      }
+
+      await writeCodexBundle(codexRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(skillsRoot, "skill-one"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+
+      const manifest = await readInstallManifest(codexRoot)
+      expect(manifest.skills).not.toContain("skill-one")
+    },
+  )
+
+  test.skipIf(!canDirSymlink)(
+    "preserves a symlinked agent sidecar dir when the agent drops its sidecars",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-preserve-agent-sidecar-symlink-"))
+      const codexRoot = path.join(tempRoot, ".codex")
+      const sidecarSource = await fs.mkdtemp(path.join(os.tmpdir(), "codex-sidecar-src-"))
+      await fs.writeFile(path.join(sidecarSource, "script.sh"), "#!/bin/sh\necho hi\n", "utf8")
+
+      const agentWithSidecar: CodexBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [],
+        generatedSkills: [],
+        agents: [
+          {
+            name: "ce-foo",
+            description: "Foo agent",
+            instructions: "Do foo.",
+            sidecarDirs: [{ sourceDir: sidecarSource, targetName: "scripts" }],
+          },
+        ],
+      }
+
+      // First run: managed install with a sidecar dir next to the TOML.
+      await writeCodexBundle(codexRoot, agentWithSidecar)
+
+      // User replaces the sidecar dir with a symlink into a personal fork,
+      // keeping the managed TOML in place.
+      const agentsRoot = path.join(codexRoot, "agents", "compound-engineering")
+      const forkDir = path.join(tempRoot, "user-fork", "ce-foo")
+      await fs.mkdir(forkDir, { recursive: true })
+      await fs.writeFile(path.join(forkDir, "notes.md"), "# user fork sidecar content\n")
+      await fs.rm(path.join(agentsRoot, "ce-foo"), { recursive: true, force: true })
+      await fs.symlink(forkDir, path.join(agentsRoot, "ce-foo"), "junction")
+
+      // Second run: the agent drops its sidecars, which exercises the
+      // orphan-sidecar rm in the agent write loop against the symlink.
+      const agentWithoutSidecar: CodexBundle = {
+        ...agentWithSidecar,
+        agents: [
+          {
+            name: "ce-foo",
+            description: "Foo agent",
+            instructions: "Do foo.",
+          },
+        ],
+      }
+      await writeCodexBundle(codexRoot, agentWithoutSidecar)
+
+      const linkStat = await fs.lstat(path.join(agentsRoot, "ce-foo"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "notes.md"), "utf8")).toBe("# user fork sidecar content\n")
+      // The managed TOML itself is still owned and rewritten as normal.
+      expect(await exists(path.join(agentsRoot, "ce-foo.toml"))).toBe(true)
+    },
+  )
 })

@@ -51,6 +51,7 @@ These sit around the loop or get reached for on demand -- not every cycle needs 
 | [`/ce-product-pulse`](docs/skills/ce-product-pulse.md) | *Outer loop* -- a time-windowed report on what users actually experienced (usage, performance, errors), saved to `docs/pulse-reports/`; its follow-ups feed back into ideation and brainstorming |
 | [`/ce-debug`](docs/skills/ce-debug.md) | *Instead of brainstorm -> plan -> work* when the input is a bug rather than a feature -- reproduce, trace root cause, fix, then polish/review before PR handoff when warranted |
 | [`/ce-pov`](docs/skills/ce-pov.md) | *On demand, before you commit* -- a decisive, project-grounded verdict on whether to adopt, switch to, or revisit an external technology, library, pattern, or platform; works cold or mid-session, and proposes the next step (`/ce-plan`, `/ce-brainstorm`, or a spike) from the verdict |
+| [`/ce-explain`](docs/skills/ce-explain.md) | *On demand, to keep learning* -- turns a concept, a diff, an idea, or "what did I do this week?" into a dense, visual explainer written for you personally, with an optional check-in (predict-then-reveal for diffs, corrected exercises) that makes it stick |
 
 For the full catalog and how each skill chains together, see [docs/skills](docs/skills/README.md). The complete inventory is [below](#full-skill-inventory).
 
@@ -107,7 +108,7 @@ The first pass tightens recent branch changes before review. The targeted pass i
 
 After installing, run `/ce-setup` in any project. It checks repo-local config, reports optional tool capabilities, and helps keep machine-local CE settings safely gitignored.
 
-The `compound-engineering` plugin currently ships 27 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
+The `compound-engineering` plugin currently ships 29 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
 
 ### Full Skill Inventory
 
@@ -116,6 +117,7 @@ The `compound-engineering` plugin currently ships 27 skills and 0 standalone age
 | [`/ce-strategy`](docs/skills/ce-strategy.md) | Create or maintain `STRATEGY.md` |
 | [`/ce-ideate`](docs/skills/ce-ideate.md) | Generate and critically evaluate grounded ideas |
 | [`/ce-pov`](docs/skills/ce-pov.md) | Form a decisive, project-grounded verdict on an external input |
+| [`/ce-explain`](docs/skills/ce-explain.md) | Explain a concept, diff, idea, or window of your own work as a personal learning artifact |
 | [`/ce-brainstorm`](docs/skills/ce-brainstorm.md) | Explore requirements and write a right-sized requirements doc |
 | [`/ce-plan`](docs/skills/ce-plan.md) | Create structured implementation plans |
 | [`/ce-work`](docs/skills/ce-work.md) | Execute implementation plans systematically |
@@ -127,9 +129,10 @@ The `compound-engineering` plugin currently ships 27 skills and 0 standalone age
 | [`/ce-optimize`](docs/skills/ce-optimize.md) | Run iterative optimization loops |
 | [`/ce-product-pulse`](docs/skills/ce-product-pulse.md) | Generate time-windowed product pulse reports |
 | [`/ce-riffrec-feedback-analysis`](docs/skills/ce-riffrec-feedback-analysis.md) | Convert Riffrec recordings or notes into structured feedback |
+| [`/ce-sweep`](docs/skills/ce-sweep.md) | Sweep feedback sources, track item lifecycles, and emit an `/lfg`-ready plan |
 | [`/ce-resolve-pr-feedback`](docs/skills/ce-resolve-pr-feedback.md) | Resolve PR review feedback |
 | [`/ce-commit`](docs/skills/ce-commit.md) | Create a git commit with a clear message |
-| [`/ce-commit-push-pr`](docs/skills/ce-commit-push-pr.md) | Commit, push, and open a PR with related work references preserved |
+| [`/ce-commit-push-pr`](docs/skills/ce-commit-push-pr.md) | Commit, push, and open a PR that teaches any concept the change newly introduces |
 | [`/ce-worktree`](docs/skills/ce-worktree.md) | Ensure work happens in an isolated git worktree |
 | [`/ce-promote`](docs/skills/ce-promote.md) | Draft user-facing announcement copy |
 | [`/ce-test-browser`](docs/skills/ce-test-browser.md) | Run browser tests on PR-affected pages |
@@ -244,6 +247,44 @@ Per-project install from a checkout:
 ```
 
 Start a new Cline task after installing or updating skills. See [`.cline/INSTALL.md`](.cline/INSTALL.md) for pinning, local development, and uninstall steps.
+
+### Grok Build CLI (`grok`)
+
+xAI's [Grok Build CLI](https://x.ai/cli) (`grok`) installs Compound Engineering directly from this repository — the repo root is a valid Grok plugin (`grok` reads the existing Claude-compatible manifests, and the repo also ships a native `.grok-plugin/plugin.json`):
+
+```bash
+grok plugin install EveryInc/compound-engineering-plugin
+```
+
+This tracks the repository; run `grok plugin update` to pull the latest. To browse it as a marketplace source instead, the repo ships a native `.grok-plugin/marketplace.json`:
+
+```bash
+grok plugin marketplace add EveryInc/compound-engineering-plugin
+grok plugin install compound-engineering
+```
+
+Both paths track the repository directly (no commit pin), so no Bun install step is needed. Add `--trust` to skip the install confirmation. `grok` stores config under `~/.grok`; start a new session after installing so the skills load.
+
+Compound Engineering is also being submitted to the official [xAI plugin marketplace](https://github.com/xai-org/plugin-marketplace); see [`docs/grok-marketplace-submission.md`](docs/grok-marketplace-submission.md) for the maintainer runbook.
+
+### Devin CLI
+
+Devin CLI can install Compound Engineering directly from GitHub because the repo ships a native `.devin-plugin/plugin.json` manifest:
+
+```bash
+devin plugins install EveryInc/compound-engineering-plugin
+```
+
+Verify the install and inspect the skills:
+
+```bash
+devin plugins list
+devin plugins info compound-engineering
+```
+
+Update to the latest version with `devin plugins update compound-engineering`. Plugins load at session start, so start a new Devin session after installing or updating for the skills to appear (as `/compound-engineering:<skill>` slash commands).
+
+A few skills declare Claude-style `allowed-tools` names that Devin does not map (for example `Bash`); those skills still work, but some of their actions ask for permission instead of running auto-approved. See [`docs/specs/devin.md`](docs/specs/devin.md) for details.
 
 ### GitHub Copilot
 
@@ -438,6 +479,14 @@ To test the local marketplace catalog instead, pass the catalog path:
 ```
 
 Enable **Settings -> Features -> Enable Skills** in the Cline extension, then start a new task.
+
+**Devin CLI**
+
+```bash
+devin plugins install /path/to/compound-engineering-plugin
+```
+
+Local installs are linked to the checkout rather than copied, so skill edits apply on the next Devin session without reinstalling.
 
 **OpenCode**
 

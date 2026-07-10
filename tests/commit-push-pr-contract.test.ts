@@ -47,3 +47,60 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/PR description.+not.+comment/i)
   })
 })
+
+describe("PR concept teaching contract", () => {
+  test("SKILL.md wires the teaching gate, pipeline mode, and trailer", async () => {
+    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    // Non-interactive modifier for orchestrated callers
+    expect(content).toContain("mode:pipeline")
+    expect(content).toContain("suppress every blocking ask")
+
+    // Config gate: both keys, active-key-only resolution, single-gate semantics
+    expect(content).toContain("pr_teaching_section")
+    expect(content).toContain("pr_teaching_archive")
+    expect(content).toContain("active (non-commented)")
+    expect(content).toContain("Step B2")
+
+    // Machine-readable trailer + interactive offer
+    expect(content).toContain("New concepts:")
+    expect(content).toContain("Run /ce-explain")
+  })
+
+  test("SKILL.md archival transition guards ordering, gitignore, and modes", async () => {
+    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    expect(content).toContain("docs/explainers/")
+    expect(content).toContain("input_shape: concept")
+    expect(content).toContain("docs(explainer): teach")
+    // Declined rewrite must not leave a stray committed-but-unlinked doc
+    expect(content).toContain("declined rewrite skips archival")
+    // Never force-add an ignored path
+    expect(content).toContain("never `git add -f`")
+  })
+
+  test("reference composes the section via Step B2 with base-ref novelty checks", async () => {
+    const content = await readRepoFile(
+      "skills/ce-commit-push-pr/references/pr-description-writing.md",
+    )
+
+    expect(content).toContain("## Step B2: Judge new concepts")
+    // Self-detection trap: novelty is judged against the base ref
+    expect(content).toContain("never the working tree")
+    expect(content).toMatch(/git grep[^\n]*<base-remote>\/<base>/)
+    // Negative constraint keeps absence the common case
+    expect(content).toContain("absence is the common case")
+    // Section heading and its slot in Step C's assembly order
+    expect(content).toContain("## New concepts")
+    expect(content).toContain("New concepts section when Step B2 produced one")
+    // Rewrite preservation mirrors the Demo/Screenshots rule
+    expect(content).toMatch(/preserve an existing `## New concepts` section/i)
+  })
+
+  test("config template documents both teaching keys", async () => {
+    const template = await readRepoFile("skills/ce-setup/references/config-template.yaml")
+
+    expect(template).toContain("pr_teaching_section")
+    expect(template).toContain("pr_teaching_archive")
+  })
+})

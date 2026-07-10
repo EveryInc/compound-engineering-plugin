@@ -63,4 +63,5 @@ The grounding-phase eval pattern is cheap and high-signal precisely because the 
 - `docs/solutions/skill-design/bundled-script-path-resolution-across-harnesses.md` — the `SKILL_DIR` anchor used to invoke the shared script
 - `docs/solutions/skill-design/script-first-skill-architecture.md` — deterministic-script / model-presents split
 - `docs/solutions/best-practices/cache-invalidation-input-set-completeness.md` — the cardinal rule for the cache this pattern shipped
+- `docs/solutions/skill-design/paired-old-vs-new-injection-skill-evals.md` — generalizes the field-rename parity gap noted here into a rule: prove the anti-drift test fails on one-sided drift before trusting it.
 - AGENTS.md "Shared Repo-Grounding Profile Cache" and "File References in Skills"

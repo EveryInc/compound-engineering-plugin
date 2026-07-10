@@ -418,3 +418,410 @@ Run these research agents:
     expect(await exists(path.join(outputRoot, "compound-engineering", "legacy-backup"))).toBe(true)
   })
 })
+
+// Probed at module load (not beforeAll) because test.skipIf evaluates its
+// condition at registration time. Directory and file symlinks are probed
+// separately: on Windows without Developer Mode, junctions succeed while
+// file symlinks throw EPERM.
+async function probeSymlinkSupport(): Promise<{ canDirSymlink: boolean; canFileSymlink: boolean }> {
+  const probeRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-symlink-probe-"))
+  const probeTarget = path.join(probeRoot, "target")
+  await fs.mkdir(probeTarget, { recursive: true })
+  let canDirSymlink = true
+  try {
+    await fs.symlink(probeTarget, path.join(probeRoot, "link"), "junction")
+  } catch {
+    canDirSymlink = false
+  }
+  const probeFile = path.join(probeRoot, "target.md")
+  await fs.writeFile(probeFile, "probe")
+  let canFileSymlink = true
+  try {
+    await fs.symlink(probeFile, path.join(probeRoot, "link.md"))
+  } catch {
+    canFileSymlink = false
+  }
+  return { canDirSymlink, canFileSymlink }
+}
+
+const { canDirSymlink, canFileSymlink } = await probeSymlinkSupport()
+
+describe("writePiBundle preserves user-managed skill paths", () => {
+  async function readInstallManifest(outputRoot: string): Promise<{ skills: string[]; agents: string[] }> {
+    const raw = await fs.readFile(
+      path.join(outputRoot, "compound-engineering", "install-manifest.json"),
+      "utf8",
+    )
+    return JSON.parse(raw) as { skills: string[]; agents: string[] }
+  }
+
+  test.skipIf(!canDirSymlink)(
+    "preserves a symlinked skill directory and leaves its target content untouched",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-skill-symlink-"))
+      const outputRoot = path.join(tempRoot, ".pi")
+      const forkDir = path.join(tempRoot, "user-fork", "skill-one")
+      await fs.mkdir(forkDir, { recursive: true })
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), "# user fork content\n")
+
+      await fs.mkdir(path.join(outputRoot, "skills"), { recursive: true })
+      await fs.symlink(forkDir, path.join(outputRoot, "skills", "skill-one"), "junction")
+
+      const bundle: PiBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [
+          {
+            name: "skill-one",
+            sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+          },
+        ],
+        generatedSkills: [],
+        agents: [],
+        extensions: [],
+      }
+
+      await writePiBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills", "skill-one"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe("# user fork content\n")
+
+      const manifest = await readInstallManifest(outputRoot)
+      expect(manifest.skills).not.toContain("skill-one")
+    },
+  )
+
+  test("preserves an unmanaged real skill directory (not previously owned by this tool)", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-skill-unmanaged-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+
+    await fs.mkdir(path.join(outputRoot, "skills", "skill-one"), { recursive: true })
+    await fs.writeFile(
+      path.join(outputRoot, "skills", "skill-one", "SKILL.md"),
+      "# hand-authored, never installed by this tool\n",
+    )
+
+    const bundle: PiBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [
+        {
+          name: "skill-one",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      generatedSkills: [],
+      agents: [],
+      extensions: [],
+    }
+
+    await writePiBundle(outputRoot, bundle)
+
+    expect(await fs.readFile(path.join(outputRoot, "skills", "skill-one", "SKILL.md"), "utf8")).toBe(
+      "# hand-authored, never installed by this tool\n",
+    )
+
+    const manifest = await readInstallManifest(outputRoot)
+    expect(manifest.skills).not.toContain("skill-one")
+  })
+
+  test("still replaces a real skill directory previously installed by this tool", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-replace-managed-skill-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+
+    const bundle: PiBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [
+        {
+          name: "skill-one",
+          sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+        },
+      ],
+      generatedSkills: [],
+      agents: [],
+      extensions: [],
+    }
+
+    await writePiBundle(outputRoot, bundle)
+    // Simulate drift between two installs: same managed dir, different upstream content.
+    await fs.writeFile(path.join(outputRoot, "skills", "skill-one", "SKILL.md"), "stale managed content")
+
+    await writePiBundle(outputRoot, bundle)
+
+    const content = await fs.readFile(path.join(outputRoot, "skills", "skill-one", "SKILL.md"), "utf8")
+    expect(content).not.toBe("stale managed content")
+    expect(content).toContain("Skill body")
+
+    const manifest = await readInstallManifest(outputRoot)
+    expect(manifest.skills).toContain("skill-one")
+  })
+
+  test.skipIf(!canDirSymlink)(
+    "a preserved skill symlink survives a later install run where the skill is dropped from the bundle",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-skill-symlink-second-run-"))
+      const outputRoot = path.join(tempRoot, ".pi")
+
+      const bundleWithSkill: PiBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [
+          {
+            name: "skill-one",
+            sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+          },
+        ],
+        generatedSkills: [],
+        agents: [],
+        extensions: [],
+      }
+
+      // First run: normal managed install, tracked in the manifest.
+      await writePiBundle(outputRoot, bundleWithSkill)
+      const manifestAfterFirstRun = await readInstallManifest(outputRoot)
+      expect(manifestAfterFirstRun.skills).toContain("skill-one")
+
+      // User swaps the managed directory for a symlink into a personal fork,
+      // while the on-disk manifest from the first run still claims ownership.
+      const forkDir = path.join(tempRoot, "user-fork", "skill-one")
+      await fs.mkdir(forkDir, { recursive: true })
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), "# user fork content\n")
+      await fs.rm(path.join(outputRoot, "skills", "skill-one"), { recursive: true, force: true })
+      await fs.symlink(forkDir, path.join(outputRoot, "skills", "skill-one"), "junction")
+
+      // Second run: the plugin drops the skill from the bundle entirely, which
+      // exercises cleanupRemovedSkills against the stale manifest entry.
+      const bundleWithoutSkill: PiBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [],
+        generatedSkills: [],
+        agents: [],
+        extensions: [],
+      }
+      await writePiBundle(outputRoot, bundleWithoutSkill)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills", "skill-one"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe("# user fork content\n")
+
+      const manifestAfterSecondRun = await readInstallManifest(outputRoot)
+      expect(manifestAfterSecondRun.skills).not.toContain("skill-one")
+    },
+  )
+
+  test.skipIf(!canFileSymlink)("preserves a symlinked agent file and leaves its target content untouched", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-agent-symlink-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+    const forkAgentPath = path.join(tempRoot, "user-fork-agent.md")
+    await fs.writeFile(forkAgentPath, "# user fork agent content\n")
+
+    await fs.mkdir(path.join(outputRoot, "agents"), { recursive: true })
+    await fs.symlink(forkAgentPath, path.join(outputRoot, "agents", "repo-research-analyst.md"))
+
+    const bundle: PiBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [{ name: "repo-research-analyst", content: "---\nname: repo-research-analyst\n---\n\nBody" }],
+      extensions: [],
+    }
+
+    await writePiBundle(outputRoot, bundle)
+
+    const linkStat = await fs.lstat(path.join(outputRoot, "agents", "repo-research-analyst.md"))
+    expect(linkStat.isSymbolicLink()).toBe(true)
+    expect(await fs.readFile(forkAgentPath, "utf8")).toBe("# user fork agent content\n")
+
+    const manifest = await readInstallManifest(outputRoot)
+    expect(manifest.agents).not.toContain("repo-research-analyst.md")
+  })
+
+  test("preserves an unmanaged real agent file (not previously owned by this tool)", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-agent-unmanaged-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+
+    await fs.mkdir(path.join(outputRoot, "agents"), { recursive: true })
+    await fs.writeFile(
+      path.join(outputRoot, "agents", "repo-research-analyst.md"),
+      "# hand-authored, never installed by this tool\n",
+    )
+
+    const bundle: PiBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [{ name: "repo-research-analyst", content: "---\nname: repo-research-analyst\n---\n\nBody" }],
+      extensions: [],
+    }
+
+    await writePiBundle(outputRoot, bundle)
+
+    expect(await fs.readFile(path.join(outputRoot, "agents", "repo-research-analyst.md"), "utf8")).toBe(
+      "# hand-authored, never installed by this tool\n",
+    )
+
+    const manifest = await readInstallManifest(outputRoot)
+    expect(manifest.agents).not.toContain("repo-research-analyst.md")
+  })
+
+  test("still replaces a real agent file previously installed by this tool", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-replace-managed-agent-"))
+    const outputRoot = path.join(tempRoot, ".pi")
+
+    const bundle: PiBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      skillDirs: [],
+      generatedSkills: [],
+      agents: [{ name: "repo-research-analyst", content: "---\nname: repo-research-analyst\n---\n\nBody" }],
+      extensions: [],
+    }
+
+    await writePiBundle(outputRoot, bundle)
+    // Simulate drift between two installs: same managed file, different upstream content.
+    await fs.writeFile(path.join(outputRoot, "agents", "repo-research-analyst.md"), "stale managed content")
+
+    await writePiBundle(outputRoot, bundle)
+
+    const content = await fs.readFile(path.join(outputRoot, "agents", "repo-research-analyst.md"), "utf8")
+    expect(content).not.toBe("stale managed content")
+    expect(content).toContain("Body")
+
+    const manifest = await readInstallManifest(outputRoot)
+    expect(manifest.agents).toContain("repo-research-analyst.md")
+  })
+
+  test.skipIf(!canFileSymlink)(
+    "a preserved agent symlink survives a later install run where the agent is dropped from the bundle",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-agent-symlink-second-run-"))
+      const outputRoot = path.join(tempRoot, ".pi")
+
+      const bundleWithAgent: PiBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [],
+        generatedSkills: [],
+        agents: [{ name: "repo-research-analyst", content: "---\nname: repo-research-analyst\n---\n\nBody" }],
+        extensions: [],
+      }
+
+      // First run: normal managed install, tracked in the manifest.
+      await writePiBundle(outputRoot, bundleWithAgent)
+      const manifestAfterFirstRun = await readInstallManifest(outputRoot)
+      expect(manifestAfterFirstRun.agents).toContain("repo-research-analyst.md")
+
+      // User swaps the managed file for a symlink into a personal fork, while
+      // the on-disk manifest from the first run still claims ownership.
+      const forkAgentPath = path.join(tempRoot, "user-fork-agent.md")
+      await fs.writeFile(forkAgentPath, "# user fork agent content\n")
+      await fs.rm(path.join(outputRoot, "agents", "repo-research-analyst.md"), { force: true })
+      await fs.symlink(forkAgentPath, path.join(outputRoot, "agents", "repo-research-analyst.md"))
+
+      // Second run: the plugin drops the agent from the bundle entirely, which
+      // exercises cleanupRemovedAgents against the stale manifest entry.
+      const bundleWithoutAgent: PiBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [],
+        generatedSkills: [],
+        agents: [],
+        extensions: [],
+      }
+      await writePiBundle(outputRoot, bundleWithoutAgent)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "agents", "repo-research-analyst.md"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(forkAgentPath, "utf8")).toBe("# user fork agent content\n")
+
+      const manifestAfterSecondRun = await readInstallManifest(outputRoot)
+      expect(manifestAfterSecondRun.agents).not.toContain("repo-research-analyst.md")
+    },
+  )
+
+  test.skipIf(!canDirSymlink)(
+    "a legacy-named skill symlinked to a user fork is not swept into legacy-backup",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-legacy-skill-symlink-"))
+      const outputRoot = path.join(tempRoot, ".pi")
+
+      // Worst case: the fork keeps the CE fingerprint (name + description), so
+      // the readFile-based ownership check follows the symlink and matches.
+      const forkDir = path.join(tempRoot, "user-fork", "reproduce-bug")
+      await fs.mkdir(forkDir, { recursive: true })
+      const forkContent = skillContent("reproduce-bug", REPRODUCE_BUG_DESCRIPTION)
+      await fs.writeFile(path.join(forkDir, "SKILL.md"), forkContent)
+
+      await fs.mkdir(path.join(outputRoot, "skills"), { recursive: true })
+      await fs.symlink(forkDir, path.join(outputRoot, "skills", "reproduce-bug"), "junction")
+
+      const bundle: PiBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [],
+        generatedSkills: [],
+        agents: [],
+        extensions: [],
+      }
+
+      await writePiBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills", "reproduce-bug"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await fs.readFile(path.join(forkDir, "SKILL.md"), "utf8")).toBe(forkContent)
+
+      const legacyBackupRoot = path.join(outputRoot, "compound-engineering", "legacy-backup")
+      if (await exists(legacyBackupRoot)) {
+        for (const timestamp of await fs.readdir(legacyBackupRoot)) {
+          const skillsBackup = path.join(legacyBackupRoot, timestamp, "skills")
+          if (!(await exists(skillsBackup))) continue
+          expect(await fs.readdir(skillsBackup)).not.toContain("reproduce-bug")
+        }
+      }
+    },
+  )
+
+  test.skipIf(!canDirSymlink)(
+    "preserves a dangling skill symlink whose target no longer exists",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-preserve-skill-symlink-dangling-"))
+      const outputRoot = path.join(tempRoot, ".pi")
+
+      // Create the symlink against a real target, then remove the target so
+      // the link dangles. lstat must still see the link node (stat/access
+      // would follow it and report ENOENT, treating the path as absent).
+      const forkDir = path.join(tempRoot, "user-fork", "skill-one")
+      await fs.mkdir(forkDir, { recursive: true })
+      await fs.mkdir(path.join(outputRoot, "skills"), { recursive: true })
+      await fs.symlink(forkDir, path.join(outputRoot, "skills", "skill-one"), "junction")
+      await fs.rm(forkDir, { recursive: true, force: true })
+
+      const bundle: PiBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [
+          {
+            name: "skill-one",
+            sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one"),
+          },
+        ],
+        generatedSkills: [],
+        agents: [],
+        extensions: [],
+      }
+
+      await writePiBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills", "skill-one"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+
+      const manifest = await readInstallManifest(outputRoot)
+      expect(manifest.skills).not.toContain("skill-one")
+    },
+  )
+})

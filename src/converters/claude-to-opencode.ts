@@ -1,5 +1,5 @@
 import { formatFrontmatter } from "../utils/frontmatter"
-import { normalizeModelWithProvider } from "../utils/model"
+import { normalizeModelWithProvider, rejectsSamplingParams } from "../utils/model"
 import { commandNameToRelativePath } from "../utils/files"
 import {
   type ClaudeAgent,
@@ -142,7 +142,15 @@ function convertAgent(agent: ClaudeAgent, options: ClaudeToOpenCodeOptions) {
 
   if (options.inferTemperature) {
     const temperature = inferTemperature(agent)
-    if (temperature !== undefined) {
+    // A written model that rejects non-default sampling params (Sonnet 5, Opus
+    // 4.7+) returns HTTP 400 if paired with a temperature. We only write model
+    // for primary agents, so suppression only applies there; subagents inherit
+    // the parent session's model and are out of scope.
+    const modelRejectsTemperature =
+      frontmatter.model !== undefined &&
+      typeof agent.model === "string" &&
+      rejectsSamplingParams(agent.model)
+    if (temperature !== undefined && !modelRejectsTemperature) {
       frontmatter.temperature = temperature
     }
   }
@@ -470,17 +478,6 @@ function applyPermissions(
     }
   }
 
-  if (mode !== "broad") {
-    for (const [tool, toolPatterns] of Object.entries(patterns)) {
-      if (!toolPatterns || toolPatterns.size === 0) continue
-      const patternPermission: Record<string, "allow" | "deny"> = { "*": "deny" }
-      for (const pattern of toolPatterns) {
-        patternPermission[pattern] = "allow"
-      }
-      ;(permission)[tool] = patternPermission
-    }
-  }
-
   if (enabled.has("write") || enabled.has("edit")) {
     if (typeof permission.edit === "string") permission.edit = "allow"
     if (typeof permission.write === "string") permission.write = "allow"
@@ -498,10 +495,6 @@ function applyPermissions(
   }
 
   config.permission = permission
-}
-
-function normalizeTool(raw: string): string | null {
-  return parseToolSpec(raw).tool
 }
 
 function parseToolSpec(raw: string): { tool: string | null; pattern?: string } {

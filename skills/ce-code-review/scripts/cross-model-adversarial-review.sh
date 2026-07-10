@@ -119,7 +119,9 @@ run_codex() {
   # = true), so the streamed reasoning keeps PEERLOG growing and gives the idle watchdog a
   # liveness signal -- otherwise a long, quiet reasoning phase on a big diff could be
   # misread as a stall and reaped.
-  codex exec - -C "$REPO_ROOT" -s read-only -o "$OUT" \
+  # `command codex` bypasses any interactive shell function/alias a user has wrapped
+  # around codex, so we hit the real binary.
+  command codex exec - -C "$REPO_ROOT" -s read-only -o "$OUT" \
     -c 'model_reasoning_effort="high"' -c 'hide_agent_reasoning=false' < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
   local pid=$!
   [ "$prev" = 0 ] && set +m   # group is already assigned; restoring silences job-control noise

@@ -40,7 +40,7 @@ Common debugging anti-patterns:
 - **Assumption audit** — list "this must be true" beliefs your understanding depends on, mark each verified or assumed
 - **One change at a time** — anti-shotgun discipline
 - **Smart escalation when stuck** — diagnose *why* hypotheses are exhausted, don't just try harder
-- **Test-first fix** — write the failing test, verify it fails for the right reason, then implement; never both at once
+- **Test-first fix** — inspect existing tests first, use/update/strengthen the right test home or add a focused regression test, verify it fails for the right reason, then implement; never both at once
 - **Post-fix quality tail** — for non-trivial fixes, simplify the relevant diff, run the self-sizing code review, apply safe findings, and preserve residuals before shipping
 
 ---
@@ -74,7 +74,7 @@ When the input references an issue (`#123`, GitHub URL, Linear URL, Jira key), t
 
 ### 6. Test-first fix discipline
 
-If you opt to fix (rather than "diagnosis only"), the skill writes a failing test that captures the bug, verifies it fails for the right reason (the root cause, not unrelated setup), implements the minimal fix, and verifies the test passes. The test-and-fix-in-the-same-step shortcut is explicitly disallowed.
+If you opt to fix (rather than "diagnosis only"), the skill first inspects existing tests for the affected behavior. It uses an existing failing test when one already captures the bug, updates or strengthens the existing test that owns the contract when appropriate, or adds a focused regression test only when no existing test fits. It verifies the failure, applies the smallest root-cause fix, reruns the focused test plus broader regression checks, then self-reviews the diff before moving to its post-fix quality tail.
 
 ### 7. Post-fix polish and review
 
@@ -98,9 +98,9 @@ It traces the code path from the error back upstream, asking "where did this val
 
 It forms two hypotheses, ranked by likelihood. The first is testable directly; the second has an uncertain link, so it generates a prediction: if this link is right, a different code path that calls the same function under different conditions should also fail. It tests the prediction.
 
-The prediction holds. The skill presents the root cause with file:line references, the proposed fix, and the specific tests that should be added (with assertion guidance). It asks: fix it now, diagnosis only, or rethink the design?
+The prediction holds. The skill presents the root cause with file:line references, the proposed fix, and the specific tests that should be used, updated, strengthened, or added (with assertion guidance). It asks: fix it now, diagnosis only, or rethink the design?
 
-You pick "fix it now." It creates a feature branch, writes the failing test, verifies it fails for the right reason, implements the minimal fix, and runs tests. If the fix is non-trivial, it runs simplify before code review, applies clear review findings when the review scope is fix-only, reruns targeted checks, records Post-Fix Quality, and then hands off to `/ce-commit-push-pr`.
+You pick "fix it now." It creates a feature branch, inspects the existing tests, updates the right test or adds a focused one, verifies it fails for the right reason, implements the minimal fix, and runs tests. If the fix is non-trivial, it runs simplify before code review, applies clear review findings when the review scope is fix-only, reruns targeted checks, records Post-Fix Quality, and then hands off to `/ce-commit-push-pr`.
 
 ---
 
