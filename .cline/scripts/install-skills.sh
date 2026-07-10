@@ -100,6 +100,12 @@ for skill_dir in "$SKILLS_SRC"/*/; do
     continue
   fi
 
+  if [[ -L "$target" ]] && ! is_ce_owned_skill_link "$target"; then
+    echo "skip $name: $target is an existing user-managed symlink (not overwritten)" >&2
+    skipped=$((skipped + 1))
+    continue
+  fi
+
   ln -sfn "$skill_dir" "$target"
   if [[ "$is_manual" == "true" ]]; then
     echo "linked $name (manual-only) -> $skill_dir"

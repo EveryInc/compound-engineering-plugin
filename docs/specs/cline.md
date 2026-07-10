@@ -69,7 +69,7 @@ After installing or updating skills, start a new Cline task so the skill list re
 
 ## Update and removal
 
-Re-run the install script after pulling a newer CE release. The script replaces symlinks in the target skills directory.
+Re-run the install script after pulling a newer CE release. It creates or replaces only CE-owned symlinks (those resolving under this checkout's `skills/` tree) and leaves an existing `<name>` symlink pointing at a user skill, fork, or other checkout untouched, mirroring the user-managed-symlink preservation the OpenCode/Codex/Pi writers apply.
 
 To remove CE skills, delete the symlinks (or directories) named after CE skill ids (`ce-brainstorm`, `ce-plan`, etc.) from `~/.cline/skills/` or `.cline/skills/`.
 

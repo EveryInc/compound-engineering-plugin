@@ -26,6 +26,7 @@ const installScript = path.join(
 )
 
 const manualSkill = "lfg"
+const invocableSkill = "ce-plan"
 
 type RunResult = {
   exitCode: number
@@ -77,6 +78,25 @@ describe("cline install-skills.sh", () => {
     expect(result.exitCode).toBe(0)
     expect(await pathExists(path.join(dest, manualSkill))).toBe(true)
     expect(result.stderr).not.toContain("removed lfg")
+  })
+
+  test("does not overwrite an existing user-managed symlink for an invocable skill", async () => {
+    const dest = await makeTempDir("cline-skills-user-invocable-")
+    const userSkill = await makeTempDir("cline-user-ce-plan-")
+    await fs.writeFile(path.join(userSkill, "SKILL.md"), "# user ce-plan\n")
+
+    const link = path.join(dest, invocableSkill)
+    await fs.symlink(userSkill, link)
+
+    const result = await runInstall({
+      CLINE_SKILLS_DIR: dest,
+    })
+
+    expect(result.exitCode).toBe(0)
+    expect(await fs.realpath(link)).toBe(await fs.realpath(userSkill))
+    expect(result.stderr).toContain(
+      `skip ${invocableSkill}: ${link} is an existing user-managed symlink (not overwritten)`,
+    )
   })
 
   test("removes stale CE-owned manual-only symlinks on default install", async () => {
