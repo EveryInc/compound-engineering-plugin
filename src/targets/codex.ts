@@ -6,6 +6,7 @@ import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
 import { getLegacyCodexArtifacts } from "../data/plugin-legacy-artifacts"
 import { classifyCodexLegacyPromptOwnership, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
+import { isPreservedSymlink, lstatOrNull } from "./managed-artifacts"
 
 const MANAGED_START_MARKER = "# BEGIN Compound Engineering plugin MCP -- do not edit this block"
 const MANAGED_END_MARKER = "# END Compound Engineering plugin MCP"
@@ -71,10 +72,17 @@ export async function writeCodexBundle(
   ]))
   await cleanupRemovedSkills(skillsRoot, manifest, currentSkills)
 
+  const preservedSkillNames = new Set<string>()
+
   if (bundle.skillDirs.length > 0) {
     for (const skill of bundle.skillDirs) {
-      const targetDir = path.join(skillsRoot, sanitizePathName(skill.name))
-      await cleanupCurrentManagedSkillDir(targetDir, manifest, sanitizePathName(skill.name))
+      const skillName = sanitizePathName(skill.name)
+      const targetDir = path.join(skillsRoot, skillName)
+      const preserved = await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
+      if (preserved) {
+        preservedSkillNames.add(skillName)
+        continue
+      }
       await copySkillDir(
         skill.sourceDir,
         targetDir,
@@ -87,8 +95,13 @@ export async function writeCodexBundle(
 
   if (bundle.generatedSkills.length > 0) {
     for (const skill of bundle.generatedSkills) {
-      const skillDir = path.join(skillsRoot, sanitizePathName(skill.name))
-      await cleanupCurrentManagedSkillDir(skillDir, manifest, sanitizePathName(skill.name))
+      const skillName = sanitizePathName(skill.name)
+      const skillDir = path.join(skillsRoot, skillName)
+      const preserved = await cleanupCurrentManagedSkillDir(skillDir, manifest, skillName)
+      if (preserved) {
+        preservedSkillNames.add(skillName)
+        continue
+      }
       await writeText(path.join(skillDir, "SKILL.md"), skill.content + "\n")
       for (const sidecar of skill.sidecarDirs ?? []) {
         await copyDir(sidecar.sourceDir, path.join(skillDir, sidecar.targetName))
@@ -96,20 +109,33 @@ export async function writeCodexBundle(
     }
   }
 
+  const preservedAgentNames = new Set<string>()
+
   await cleanupRemovedAgents(agentsRoot, manifest, currentAgents)
   if (agents.length > 0) {
     for (const agent of agents) {
       const agentBaseName = sanitizePathName(agent.name)
       const agentFile = `${agentBaseName}.toml`
+      const targetPath = path.join(agentsRoot, agentFile)
+      const preserved = await cleanupCurrentManagedAgentFile(targetPath, manifest, agentFile)
+      if (preserved) {
+        preservedAgentNames.add(agentFile)
+        continue
+      }
       // If the agent declares no sidecars, remove any same-basename sibling
       // directory left behind by a prior install that did. The manifest-driven
       // cleanupRemovedAgents sweep above only removes the sibling dir when the
       // TOML itself is being removed; a same-name agent that loses its sidecar
-      // would otherwise leave an orphan directory.
+      // would otherwise leave an orphan directory. The user may have replaced
+      // the sidecar dir with a symlink into a personal fork while keeping the
+      // managed TOML -- never delete through that symlink node.
       if ((agent.sidecarDirs ?? []).length === 0 && isSafeManagedPath(agentsRoot, agentBaseName)) {
-        await fs.rm(path.join(agentsRoot, agentBaseName), { recursive: true, force: true })
+        const sidecarDir = path.join(agentsRoot, agentBaseName)
+        if (!(await isPreservedSymlink(sidecarDir))) {
+          await fs.rm(sidecarDir, { recursive: true, force: true })
+        }
       }
-      await writeText(path.join(agentsRoot, agentFile), renderCodexAgentToml(agent) + "\n")
+      await writeText(targetPath, renderCodexAgentToml(agent) + "\n")
       for (const sidecar of agent.sidecarDirs ?? []) {
         await copyDir(sidecar.sourceDir, path.join(agentsRoot, agentBaseName, sidecar.targetName))
       }
@@ -118,12 +144,15 @@ export async function writeCodexBundle(
 
   if (pluginName) {
     await ensureDir(skillsRoot)
+    // Preserved skills/agents (user symlinks or unmanaged dirs/files this
+    // install skipped) must not be recorded as owned -- the plugin never
+    // claims a path it didn't write.
     await writeInstallManifest(codexRoot, {
       version: 1,
       pluginName,
-      skills: currentSkills,
+      skills: currentSkills.filter((name) => !preservedSkillNames.has(name)),
       prompts: currentPrompts,
-      agents: currentAgents,
+      agents: currentAgents.filter((name) => !preservedAgentNames.has(name)),
     })
     await cleanupKnownLegacyCodexArtifacts(codexRoot, bundle)
     await cleanupLegacyAgentSkillDirs(codexRoot, pluginName, currentSkills, bundle)
@@ -256,7 +285,13 @@ async function cleanupRemovedSkills(
     // but re-check before any out-of-tree fs.rm can be issued from a future
     // caller that bypasses the read layer.
     if (!isSafeManagedPath(skillsRoot, skillName)) continue
-    await fs.rm(path.join(skillsRoot, skillName), { recursive: true, force: true })
+    const targetDir = path.join(skillsRoot, skillName)
+    // The manifest can lag reality: a prior install owned this name, but the
+    // user has since replaced it with a symlink (e.g. into a personal fork).
+    // Never delete through a symlink node even when the stale manifest still
+    // claims ownership.
+    if (await isPreservedSymlink(targetDir)) continue
+    await fs.rm(targetDir, { recursive: true, force: true })
   }
 }
 
@@ -284,18 +319,59 @@ async function cleanupRemovedAgents(
   for (const agentFile of manifest.agents) {
     if (current.has(agentFile)) continue
     if (!isSafeManagedPath(agentsRoot, agentFile)) continue
-    await fs.rm(path.join(agentsRoot, agentFile), { force: true })
-    await fs.rm(path.join(agentsRoot, path.basename(agentFile, ".toml")), { recursive: true, force: true })
+    const targetPath = path.join(agentsRoot, agentFile)
+    if (!(await isPreservedSymlink(targetPath))) {
+      await fs.rm(targetPath, { force: true })
+    }
+    const sidecarDir = path.join(agentsRoot, path.basename(agentFile, ".toml"))
+    if (!(await isPreservedSymlink(sidecarDir))) {
+      await fs.rm(sidecarDir, { recursive: true, force: true })
+    }
   }
 }
 
+// Returns true when the existing path was preserved (skip cleanup AND the
+// subsequent copy/write -- writing through a preserved symlink would clobber
+// the user's fork, which is worse than not overwriting at all).
 async function cleanupCurrentManagedSkillDir(
   targetDir: string,
   manifest: CodexInstallManifest | null,
   skillName: string,
-): Promise<void> {
-  if (!manifest?.skills.includes(skillName)) return
+): Promise<boolean> {
+  const stat = await lstatOrNull(targetDir)
+  if (!stat) return false
+  if (stat.isSymbolicLink()) {
+    console.warn(`Skipping ${targetDir}: existing user-managed symlink (not overwritten)`)
+    return true
+  }
+  if (!manifest?.skills.includes(skillName)) {
+    console.warn(`Skipping ${targetDir}: existing unmanaged directory (not overwritten)`)
+    return true
+  }
   await fs.rm(targetDir, { recursive: true, force: true })
+  return false
+}
+
+// Returns true when the existing path was preserved (skip cleanup AND the
+// subsequent write -- writing through a preserved symlink would clobber the
+// user's fork, which is worse than not overwriting at all).
+async function cleanupCurrentManagedAgentFile(
+  targetPath: string,
+  manifest: CodexInstallManifest | null,
+  agentFileName: string,
+): Promise<boolean> {
+  const stat = await lstatOrNull(targetPath)
+  if (!stat) return false
+  if (stat.isSymbolicLink()) {
+    console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+    return true
+  }
+  if (!manifest?.agents.includes(agentFileName)) {
+    console.warn(`Skipping ${targetPath}: existing unmanaged file (not overwritten)`)
+    return true
+  }
+  await fs.rm(targetPath, { force: true })
+  return false
 }
 
 async function cleanupKnownLegacyCodexArtifacts(codexRoot: string, bundle: CodexBundle): Promise<void> {
@@ -416,7 +492,9 @@ async function cleanupLegacyAgentsSkillSymlinks(
 }
 
 async function cleanupPreviousManagedCodexSkillStore(codexRoot: string, pluginName: string): Promise<void> {
-  await fs.rm(path.join(codexRoot, pluginName, "skills"), { recursive: true, force: true })
+  const skillStoreDir = path.join(codexRoot, pluginName, "skills")
+  if (await isPreservedSymlink(skillStoreDir)) return
+  await fs.rm(skillStoreDir, { recursive: true, force: true })
 }
 
 async function removeAgentsSkillSymlinkIfManaged(symlinkPath: string, managedRoots: string[]): Promise<void> {
@@ -510,6 +588,10 @@ async function moveLegacyArtifactToBackup(
   kind: "skills" | "prompts" | "agents",
   artifactPath: string,
 ): Promise<void> {
+  // Ownership fingerprinting reads THROUGH a symlink, so a user fork of a
+  // legacy-named artifact still matches — never move the symlink node into
+  // legacy-backup, or the user's override is silently deactivated.
+  if (await isPreservedSymlink(artifactPath)) return
   if (!(await pathExists(artifactPath))) return
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
   const backupDir = path.join(codexRoot, pluginName, "legacy-backup", timestamp, kind)

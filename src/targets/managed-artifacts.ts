@@ -1,4 +1,5 @@
 import fs from "fs/promises"
+import type { Stats } from "fs"
 import path from "path"
 import { ensureDir, isSafeManagedPath, pathExists, readText, sanitizePathName, writeJson } from "../utils/files"
 
@@ -161,7 +162,13 @@ export async function cleanupRemovedManagedDirectories(
     // entries, but re-check here so any future caller that bypasses the
     // read layer cannot trigger out-of-tree deletes.
     if (!isSafeManagedPath(rootDir, relativePath)) continue
-    await fs.rm(resolveArtifactPath(rootDir, relativePath), { recursive: true, force: true })
+    const targetPath = resolveArtifactPath(rootDir, relativePath)
+    // The manifest can lag reality: a prior install owned this name, but the
+    // user has since replaced it with a symlink (e.g. into a personal fork).
+    // Never delete through a symlink node even when the stale manifest still
+    // claims ownership.
+    if (await isPreservedSymlink(targetPath)) continue
+    await fs.rm(targetPath, { recursive: true, force: true })
   }
 }
 
@@ -176,18 +183,33 @@ export async function cleanupRemovedManagedFiles(
   for (const relativePath of manifest.groups[group] ?? []) {
     if (current.has(relativePath)) continue
     if (!isSafeManagedPath(rootDir, relativePath)) continue
-    await fs.rm(resolveArtifactPath(rootDir, relativePath), { force: true })
+    const targetPath = resolveArtifactPath(rootDir, relativePath)
+    if (await isPreservedSymlink(targetPath)) continue
+    await fs.rm(targetPath, { force: true })
   }
 }
 
+// Returns true when the existing path was preserved (skip cleanup AND the
+// subsequent copy/write -- writing through a preserved symlink would clobber
+// the user's fork, which is worse than not overwriting at all).
 export async function cleanupCurrentManagedDirectory(
   targetDir: string,
   manifest: ManagedInstallManifest | null,
   group: string,
   entryName: string,
-): Promise<void> {
-  if (!manifest?.groups[group]?.includes(entryName)) return
+): Promise<boolean> {
+  const stat = await lstatOrNull(targetDir)
+  if (!stat) return false
+  if (stat.isSymbolicLink()) {
+    console.warn(`Skipping ${targetDir}: existing user-managed symlink (not overwritten)`)
+    return true
+  }
+  if (!manifest?.groups[group]?.includes(entryName)) {
+    console.warn(`Skipping ${targetDir}: existing unmanaged directory (not overwritten)`)
+    return true
+  }
   await fs.rm(targetDir, { recursive: true, force: true })
+  return false
 }
 
 export async function moveLegacyArtifactToBackup(
@@ -196,8 +218,18 @@ export async function moveLegacyArtifactToBackup(
   artifactRoot: string,
   relativePath: string,
   label: string,
+  options: { skipSymlinkGuard?: boolean } = {},
 ): Promise<void> {
   const artifactPath = resolveArtifactPath(artifactRoot, relativePath)
+  // Ownership fingerprinting reads THROUGH a symlink, so a user fork of a
+  // legacy-named artifact still matches — never move the symlink node into
+  // legacy-backup, or the user's override is silently deactivated.
+  // `skipSymlinkGuard` is for callers (e.g. the shared `~/.agents/skills/`
+  // sweep in `src/commands/cleanup.ts`) that have already independently
+  // verified via a stronger signal (the symlink's resolved target lives
+  // inside a CE-managed root) that this specific symlink node IS the
+  // CE-owned artifact to relocate, not a user override to preserve.
+  if (!options.skipSymlinkGuard && (await isPreservedSymlink(artifactPath))) return
   if (!(await pathExists(artifactPath))) return
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
@@ -209,4 +241,20 @@ export async function moveLegacyArtifactToBackup(
 
 function resolveArtifactPath(rootDir: string, relativePath: string): string {
   return path.join(rootDir, ...relativePath.split("/"))
+}
+
+export async function lstatOrNull(targetPath: string): Promise<Stats | null> {
+  try {
+    return await fs.lstat(targetPath)
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === "ENOENT") return null
+    throw err
+  }
+}
+
+export async function isPreservedSymlink(targetPath: string): Promise<boolean> {
+  const stat = await lstatOrNull(targetPath)
+  if (!stat?.isSymbolicLink()) return false
+  console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+  return true
 }
