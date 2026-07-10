@@ -1,7 +1,7 @@
 ---
 title: "Native plugin install strategy for supported harnesses"
 date: 2026-06-19
-last_updated: 2026-06-23
+last_updated: 2026-06-30
 category: integrations
 module: installer
 problem_type: integration_decision
@@ -25,6 +25,7 @@ tags:
   - antigravity
   - opencode
   - pi
+  - cline
 ---
 
 # Native Plugin Install Strategy
@@ -49,6 +50,7 @@ The install strategy follows from that: prefer each harness's native plugin/pack
 | OpenCode | Git-backed OpenCode plugin entry in `opencode.json` | No | `.opencode/plugins/compound-engineering.js` registers the CE skills directory directly. |
 | Pi | Git-backed Pi package install from this repository | No | Root `package.json` exposes `.pi/extensions/compound-engineering.ts` and the CE skills directory. `pi-ask-user` is a recommended companion for richer prompts. |
 | Antigravity CLI | Native plugin install from root `plugin.json` + `skills/`, or bundled `.agy/` entry point | No | `agy plugin install https://github.com/EveryInc/compound-engineering-plugin` for one-command remote install. `.agy/plugin.json` symlinks to the root manifest; `.agy/skills` symlinks to `skills/`. |
+| Cline | Native skills install via `.cline/scripts/install-skills.sh` | No | Symlinks invocable CE skills into `~/.cline/skills/` or `.cline/skills/`, skipping manual-only skills (`disable-model-invocation: true`). Enable Skills in the Cline extension settings. |
 
 Kiro is no longer a documented CE install target. Historical converter and cleanup code may remain for regression coverage or old artifact handling, but user-facing install docs should not advertise Kiro.
 
@@ -128,6 +130,25 @@ agy plugin install ./compound-engineering-plugin
 The committed `.agy/` bundle remains for explicit local installs (`agy plugin install ./compound-engineering-plugin/.agy`). Its `plugin.json` symlinks to the root manifest and `skills` symlinks to `../skills`.
 
 `agy` still reads `GEMINI.md` as workspace context. See `.agy/INSTALL.md` for pinning, validation, and uninstall.
+
+## Cline
+
+Cline discovers skills from `~/.cline/skills/` (global) or `.cline/skills/` (project). CE ships `.cline/scripts/install-skills.sh`, which symlinks each directory under this repository's `skills/` into the chosen destination.
+
+Recommended global install:
+
+```bash
+git clone https://github.com/EveryInc/compound-engineering-plugin
+./compound-engineering-plugin/.cline/scripts/install-skills.sh --global
+```
+
+For local development from a checkout:
+
+```bash
+/path/to/compound-engineering-plugin/.cline/scripts/install-skills.sh --global
+```
+
+Enable **Settings -> Features -> Enable Skills** in the Cline extension, then start a new task. The install script skips manual-only skills marked `disable-model-invocation: true` in frontmatter (for example `lfg`, `ce-dogfood`, `ce-polish`) because Cline auto-activates skills from description matching alone. Pass `--include-manual` to link those skills for slash-command use, accepting that Cline may still auto-activate them. CE does not ship a separate Cline CLI `AgentPlugin` entry point; skills are the install surface.
 
 ## Kimi Code CLI
 
