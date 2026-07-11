@@ -24,6 +24,7 @@ This is the fourth and final step in the compound-engineering ideation chain:
 | What does it do? | Reads an implementation-ready plan (or scopes a bare prompt), executes against the guardrails, runs tests continuously, ships a reviewed PR |
 | When to use it | Implementing a `ce-plan` plan with `artifact_readiness: implementation-ready`; small/medium bare-prompt work; resuming partly-shipped work |
 | What it produces | Commits + a PR (or just commits, no-PR path) |
+| Caller-owned mode | `mode:return-to-caller <plan path>` implements and locally verifies, then returns a structured envelope without simplify, review, PR, or CI work |
 | What's next | Review the PR; run `/ce-compound` to capture learnings |
 | Distinguishing | Plan-aware idempotency, subagent dispatch with worktree isolation, tiered review with residual gate, operational validation in PR |
 
@@ -157,6 +158,16 @@ Many people reach for `ce-work` directly with a bare prompt — `ce-plan` is ove
 
 For large bare-prompt scope (cross-cutting, sensitive surfaces, many files), `ce-work` recommends `/ce-brainstorm` or `/ce-plan` first — but proceeds with your choice.
 
+## Use Beneath an Outer Orchestrator
+
+When another workflow owns simplification, code review, PR creation, and CI watching, invoke:
+
+```text
+/ce-work mode:return-to-caller <plan path>
+```
+
+This mode keeps `ce-work` focused on implementation and local verification. It returns a structured envelope with changed files, completed units, verification evidence, and blockers, sets `standalone_shipping_skipped: true`, and does not run the standalone shipping tail. The caller remains responsible for every downstream gate.
+
 ---
 
 ## Reference
@@ -166,6 +177,7 @@ For large bare-prompt scope (cross-cutting, sensitive surfaces, many files), `ce
 | _(empty)_ | Auto-uses the latest plan in `docs/plans/` |
 | `<plan path>` | Origin-sourced execution |
 | `<bare prompt>` | Triage by complexity (Trivial / Small-Medium / Large) |
+| `mode:return-to-caller <plan path>` | Implement and locally verify, then return structured evidence without simplify, review, PR creation, or CI watching |
 
 Output: commits and (typically) a PR via `ce-commit-push-pr`. The plan is read-only throughout — `ce-work` never mutates it; whether it shipped is derived from git, not recorded in the doc.
 

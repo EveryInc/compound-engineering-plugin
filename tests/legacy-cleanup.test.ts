@@ -227,6 +227,8 @@ describe("cleanupStaleSkillDirs", () => {
       "Explore requirements and approaches through collaborative dialogue, then write a right-sized requirements document. Use when the user says \"let's brainstorm\", \"what should we build\", or \"help me think through X\", presents a vague or ambitious feature request, or seems unsure about scope or direction -- even without explicitly asking to brainstorm."
     const oldPlanDescription =
       "Create structured plans for multi-step tasks -- software features, research workflows, events, study plans, or any goal that benefits from breakdown. Also deepens existing plans with interactive sub-agent review. Use when the user says 'plan this', 'create a plan', 'how should we build', 'break this down', or when a brainstorm doc is ready for planning. Use 'deepen the plan' or 'deepening pass' for the deepening flow. For exploratory requests, prefer ce-brainstorm first."
+    const previousWorkDescription =
+      "Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs."
 
     await createDir(
       path.join(root, "ce:brainstorm"),
@@ -244,14 +246,23 @@ describe("cleanupStaleSkillDirs", () => {
       path.join(root, "workflows:plan"),
       skillContent("workflows:plan", oldPlanDescription),
     )
+    for (const name of ["ce:work", "workflows-work", "workflows:work"]) {
+      await createDir(
+        path.join(root, name),
+        skillContent(name, previousWorkDescription),
+      )
+    }
 
     const removed = await cleanupStaleSkillDirs(root)
 
-    expect(removed).toBe(4)
+    expect(removed).toBe(7)
     expect(await exists(path.join(root, "ce:brainstorm"))).toBe(false)
     expect(await exists(path.join(root, "workflows-brainstorm"))).toBe(false)
     expect(await exists(path.join(root, "workflows-plan"))).toBe(false)
     expect(await exists(path.join(root, "workflows:plan"))).toBe(false)
+    for (const name of ["ce:work", "workflows-work", "workflows:work"]) {
+      expect(await exists(path.join(root, name))).toBe(false)
+    }
   })
 
   test("removes a retired ce-work-beta skill dir via its last-shipped description", async () => {
@@ -705,12 +716,13 @@ describe("cleanupStalePrompts", () => {
         "Create structured plans for any multi-step task -- software features, research workflows, events, study plans, or any goal that benefits from structured breakdown. Also deepen existing plans with interactive review of sub-agent findings.",
       ),
     )
-    // v2.55-era ce-work description with a completely different opening.
+    // Immediately previous ce-work description, before caller-owned mode was
+    // surfaced in discovery metadata.
     await createFile(
       path.join(root, "ce-work.md"),
       promptWrapperContent(
         "ce-work",
-        "Transform feature descriptions or requirements into implementation plans grounded in repo patterns and research.",
+        "Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs.",
       ),
     )
     // Pre-rename ce-work-beta description still referencing the ce:work

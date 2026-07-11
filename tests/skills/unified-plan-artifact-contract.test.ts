@@ -21,6 +21,7 @@ const universalBrainstorming = readRepoFile(
   "skills/ce-brainstorm/references/universal-brainstorming.md",
 )
 const ceWork = readRepoFile("skills/ce-work/SKILL.md")
+const ceWorkDocs = readRepoFile("docs/skills/ce-work.md")
 const ceWorkEngines = readRepoFile(
   "skills/ce-work/references/execution-engines.md",
 )
@@ -240,6 +241,14 @@ describe("unified plan artifact contract", () => {
     expect(ceWork).toMatch(/legacy aliases `mode:caller-owned-tail`/i)
     expect(ceWork).toMatch(/strip that token/i)
     expect(ceWork).toContain("after any mode token is stripped")
+  })
+
+  test("ce-work surfaces its caller-owned mode in discovery metadata and public docs", () => {
+    expect(ceWork).toMatch(/description:.*outer orchestrators use mode:return-to-caller/i)
+    expect(ceWork).toMatch(/argument-hint:.*mode:return-to-caller <plan path>/i)
+    expect(ceWorkDocs).toContain("## Use Beneath an Outer Orchestrator")
+    expect(ceWorkDocs).toContain("standalone_shipping_skipped: true")
+    expect(ceWorkDocs).toMatch(/does not run the standalone shipping tail/i)
   })
 
   test("ce-code-review discovery/extraction covers HTML and Product Contract requirements", () => {

@@ -340,15 +340,19 @@ const LEGACY_SKILL_DESCRIPTION_ALIASES: Record<string, string[]> = {
     "Resolve PR review feedback by evaluating validity and fixing issues in parallel. Use when addressing PR review comments, resolving review threads, or fixing code review feedback.",
   ],
   "ce-work": [
+    "Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs.",
     "Execute work efficiently while maintaining quality and finishing features",
   ],
   "ce:work": [
+    "Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs.",
     "Execute work efficiently while maintaining quality and finishing features",
   ],
   "workflows-work": [
+    "Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs.",
     "Execute work efficiently while maintaining quality and finishing features",
   ],
   "workflows:work": [
+    "Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs.",
     "Execute work efficiently while maintaining quality and finishing features",
   ],
   "ce-work-beta": [
@@ -403,6 +407,7 @@ const LEGACY_PROMPT_DESCRIPTION_ALIASES: Record<string, string[]> = {
     "Transform feature descriptions or requirements into implementation plans grounded in repo patterns and research.",
   ],
   "ce-work.md": [
+    "Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs.",
     "Execute work efficiently while maintaining quality and finishing features",
     "Transform feature descriptions or requirements into implementation plans grounded in repo patterns and research.",
   ],

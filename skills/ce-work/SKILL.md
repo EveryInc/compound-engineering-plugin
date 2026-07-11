@@ -1,7 +1,7 @@
 ---
 name: ce-work
-description: Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs.
-argument-hint: "[Plan doc path or description of work. Blank to auto use latest plan doc]"
+description: Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs. Standalone use owns the shipping tail; outer orchestrators use mode:return-to-caller for implementation and local verification only.
+argument-hint: "[Plan doc path or description; blank uses latest] | [mode:return-to-caller <plan path>]"
 ---
 
 # Work Execution Command
