@@ -227,6 +227,37 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(d.open_needs_human).toBe(0)
   })
 
+  test("a dispatched thread reactivates when a later reviewer comment moves its identity, but not on our own reply (acted_identity baseline)", () => {
+    // The false-green fix: a dispatched-but-unresolved thread with fresh reviewer activity must
+    // return to actionable, or it stays hidden from counts.threads and lets merge-ready fire.
+    const sd = path.join(dir, "react")
+    const thr = (cid: string) => ({
+      pr_state: "OPEN", mergeable: "MERGEABLE", merge_state_status: "CLEAN", review_decision: null,
+      head_sha: "s1", url: "http://x/1", checks: [],
+      threads: [{ thread_id: "T1", last_comment_id: cid, last_comment_at: cid }],
+    })
+    snapshot(sd, fetchFile(dir, "r1.json", thr("C1"))) // open -> actionable
+    mark(sd, ["--thread", "T1", "--disposition", "dispatched"])
+    // first post-action observation adopts the current identity (our reply) as baseline -> silenced
+    expect(snapshot(sd, fetchFile(dir, "r2.json", thr("C1"))).counts.threads).toBe(0)
+    // same identity on a later tick -> still silenced (our own reply does not re-trigger)
+    expect(snapshot(sd, fetchFile(dir, "r3.json", thr("C1"))).counts.threads).toBe(0)
+    // a genuine reviewer reply moves the identity to C2 -> reactivated
+    expect(snapshot(sd, fetchFile(dir, "r4.json", thr("C2"))).counts.threads).toBe(1)
+  })
+
+  test("a needs-human thread is NOT reactivated by an identity change (stays parked via open_needs_human)", () => {
+    const sd = path.join(dir, "nhpark")
+    const thr = (cid: string) => ({
+      ...FAILING, checks: [], threads: [{ thread_id: "T1", last_comment_id: cid, last_comment_at: cid }],
+    })
+    snapshot(sd, fetchFile(dir, "nh1.json", thr("C1")))
+    mark(sd, ["--thread", "T1", "--disposition", "needs-human"])
+    const d = snapshot(sd, fetchFile(dir, "nh2.json", thr("C2"))) // identity moved
+    expect(d.counts.threads).toBe(0) // not reactivated
+    expect(d.open_needs_human).toBe(1) // still parked, still blocks merge-ready
+  })
+
   test("a fork-PR workflow awaiting maintainer approval blocks 'all_checks_ok' and flags blocked_external", () => {
     const gated = {
       ...FAILING,

@@ -17,11 +17,13 @@ Subcommands:
            observed state atomically, emit the actionable set as JSON.
   mark     --state-dir DIR (--thread ID --disposition needs-human|dispatched
            | --comment ID --disposition needs-human|dispatched | --check KEY)
-           Record that the agent acted on an item, so it is not re-emitted
-           until new activity (a changed comment) or a new head SHA. A
-           non-thread feedback item (top-level comment / review body) never
-           drops out of the fetch on its own, so `--comment` is the only way
-           to silence a handled one.
+           Record that the agent acted on an item. A `dispatched` thread is
+           re-emitted when a later reviewer comment moves its last-comment
+           identity past the one we acted on (our own reply does not
+           re-trigger); a `needs-human` thread stays parked until an explicit
+           `--disposition open`. A non-thread feedback item never drops out of
+           the fetch on its own, so `--comment` is the only way to silence a
+           handled one. A new head SHA clears dispatched CI checks.
 
 --fetch-file injects a pre-captured combined snapshot instead of calling gh,
 so the diff logic is testable without a live PR.
@@ -410,21 +412,44 @@ def _update_trajectory(state, head, head_changed, new_checks, new_threads, new_f
     }
 
 
-def _apply_dispositions(items, id_key, prior):
+def _apply_dispositions(items, id_key, prior, identity_fn=None):
     """Claim->act->confirm dedup for a review stream: an item stays actionable until `mark`
     records a non-open disposition (persisted in prior[id]['disposition']). Returns
-    (persisted_by_id, actionable_list, open_needs_human_count)."""
+    (persisted_by_id, actionable_list, open_needs_human_count).
+
+    When identity_fn is given (threads only), a `dispatched` item is *reactivated* — set back to
+    open and re-actionized — once its last-comment identity moves past the one we acted on. That
+    acted-on identity is captured lazily on the first tick we observe the item as dispatched, which
+    is *after* the resolver's own reply has already landed in the fetch — so our reply becomes the
+    baseline and does not re-trigger, while a genuine later reviewer comment does. `needs-human` is
+    never auto-reactivated here (it stays parked via open_needs_human); an explicit `mark
+    --disposition open` is the only way to un-park it. Non-thread feedback has no identity_fn: a new
+    top-level comment is a new id, not fresh activity on an existing one, so there is nothing to
+    reactivate. This is what stops a dispatched-but-unresolved thread with fresh reviewer activity
+    from being silenced out of counts.threads and letting the merge-ready gate call the PR ready."""
     persisted, actionable, needs_human = {}, [], 0
     for it in items:
         iid = it.get(id_key)
         if not iid:
             continue
-        disposition = prior.get(iid, {}).get("disposition", DISPOSITION_OPEN)
+        pri = prior.get(iid, {})
+        disposition = pri.get("disposition", DISPOSITION_OPEN)
+        acted_identity = pri.get("acted_identity")
+        if disposition == DISPOSITION_DISPATCHED and identity_fn is not None:
+            current_identity = identity_fn(it)
+            if acted_identity is None:
+                acted_identity = current_identity   # first post-action observation: adopt as baseline
+            elif current_identity != acted_identity:
+                disposition = DISPOSITION_OPEN       # fresh reviewer activity -> reactivate
+                acted_identity = None
         if disposition == DISPOSITION_OPEN:
             actionable.append(it)
         elif disposition == DISPOSITION_NEEDS_HUMAN:
             needs_human += 1
-        persisted[iid] = {**it, "disposition": disposition}
+        rec = {**it, "disposition": disposition}
+        if acted_identity is not None:
+            rec["acted_identity"] = acted_identity
+        persisted[iid] = rec
     return persisted, actionable, needs_human
 
 
@@ -474,16 +499,21 @@ def diff(state, cur, now=None):
                                       "conclusion": c["conclusion"], "details_url": c["details_url"]})
 
     # Both review streams share claim->act->confirm dedup (see _apply_dispositions), differing
-    # only in how an item leaves the fetch:
-    #   - Threads: a resolved thread drops out of the unresolved fetch; acted threads stay
-    #     silenced until then — we do NOT reactivate on new comment activity, because the acting
-    #     party's own decision_context reply moves the thread's last-comment identity and would
-    #     re-actionize (and re-post to) it every tick.
+    # in how an item leaves the fetch and whether new activity re-opens it:
+    #   - Threads: a resolved thread drops out of the unresolved fetch. A `dispatched` thread that
+    #     is still unresolved is reactivated once its last-comment identity moves past the one we
+    #     acted on (acted_identity) — so a reviewer re-engaging is not silently dropped, yet the
+    #     acting loop's own reply (captured as the baseline on first observation) does not
+    #     re-trigger. A `needs-human` thread stays parked regardless (open_needs_human keeps
+    #     merge-ready from firing); it re-opens only on an explicit `mark --disposition open`.
     #   - Feedback (top-level comments + review bodies): no remote "resolve" exists, so an item
-    #     never drops out on its own — `mark --comment <id>` is the only thing that silences it.
+    #     never drops out on its own — `mark --comment <id>` is the only thing that silences it,
+    #     and a new comment is a new id, not fresh activity on an existing one to reactivate.
     # Either stream's open needs-human items feed open_needs_human so the merge-ready gate
     # refuses to call the PR ready while a human decision is still pending.
-    new_threads, actionable_threads, human_threads = _apply_dispositions(cur["threads"], "thread_id", prior_threads)
+    new_threads, actionable_threads, human_threads = _apply_dispositions(
+        cur["threads"], "thread_id", prior_threads,
+        identity_fn=lambda t: [t.get("last_comment_id"), t.get("last_comment_at")])
     new_feedback, actionable_feedback, human_feedback = _apply_dispositions(cur.get("feedback") or [], "id", prior_feedback)
     open_needs_human = human_threads + human_feedback
 
