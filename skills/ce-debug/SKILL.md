@@ -8,7 +8,7 @@ argument-hint: "[issue reference, error message, test path, or description of br
 
 Find root causes, then fix them. This skill investigates bugs systematically — tracing the full causal chain before proposing a fix — and optionally implements the fix with test-first discipline.
 
-<bug_description> #$ARGUMENTS </bug_description>
+The **bug description** is whatever the user provided when invoking this skill — read it from their request in the current conversation: a description of the failure, a `mode:` token, or an issue reference (`#123`, `org/repo#123`, or an issue URL). The rest of this skill refers to it as `<bug_description>`; if the user provided nothing, treat `<bug_description>` as blank.
 
 ## Mode
 

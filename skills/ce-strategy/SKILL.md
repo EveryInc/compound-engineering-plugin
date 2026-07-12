@@ -20,7 +20,7 @@ Ask one question at a time. Prefer free-form responses for the substantive secti
 
 ## Focus Hint
 
-<focus_hint> #$ARGUMENTS </focus_hint>
+The **focus hint** is any optional argument the user gave when invoking this skill — read it from their request in the current conversation (empty if they gave none).
 
 Interpret any argument as an optional focus: a section name to revisit (`metrics`, `approach`, `tracks`) or a scope hint. With no argument, proceed open-ended and let the file state decide the path.
 
