@@ -1625,12 +1625,175 @@ describe("discover-sessions", () => {
 
   test("--platform codex restricts to codex dirs only", async () => {
     const { stdout } = await runDiscover(
-      ["compound-engineering-plugin", "7", "--platform", "codex"]
+      ["compound-engineering-plugin", "7", "--platform", "codex"],
+      { CODEX_HOME: "", CE_CODEX_SESSION_ROOTS: "" }
     )
     const files = stdout.trim().split("\n").filter((l) => l.trim())
     for (const file of files) {
-      expect(file).toMatch(/\.codex\/sessions|\.agents\/sessions/)
+      expect(file).toMatch(
+        /\.codex\/sessions|\.agents\/sessions|codex-runtime-home\/home\/sessions/
+      )
     }
+  })
+
+  test("--platform codex honors CODEX_HOME sessions root", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"))
+    // Managed runtime homes routinely contain spaces (e.g. under
+    // "Application Support"), so the override dir gets one too.
+    const codexHome = path.join(tempHome, "managed runtime", "home")
+    const sessionPath = path.join(
+      codexHome,
+      "sessions/2026/04/07/rollout-2026-04-07T09-00-00-test.jsonl"
+    )
+    await writeFixture(sessionPath, "codex-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "codex"],
+      { HOME: tempHome, CODEX_HOME: codexHome, CE_CODEX_SESSION_ROOTS: "" }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("--platform codex discovers Orca-managed runtime sessions without env", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"))
+    const sessionPath = path.join(
+      tempHome,
+      "Library/Application Support/Orca/codex-runtime-home/home/sessions/2026/04/07/rollout-2026-04-07T09-00-00-test.jsonl"
+    )
+    await writeFixture(sessionPath, "codex-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "codex"],
+      { HOME: tempHome, CODEX_HOME: "", CE_CODEX_SESSION_ROOTS: "" }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("CE_CODEX_SESSION_ROOTS adds colon-separated additional roots", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"))
+    const rootA = path.join(tempHome, "extra root a")
+    const rootB = path.join(tempHome, "extra-root-b")
+    const sessionA = path.join(rootA, "rollout-a.jsonl")
+    const sessionB = path.join(rootB, "nested/rollout-b.jsonl")
+    await writeFixture(sessionA, "codex-session.jsonl")
+    await writeFixture(sessionB, "codex-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "codex"],
+      {
+        HOME: tempHome,
+        CODEX_HOME: "",
+        CE_CODEX_SESSION_ROOTS: `${rootA}:${rootB}`,
+      }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim()).sort()
+    expect(files).toEqual([sessionA, sessionB].sort())
+  })
+
+  test("--platform codex deduplicates roots pointing at the same directory", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"))
+    const sessionPath = path.join(
+      tempHome,
+      ".codex/sessions/2026/04/07/rollout-2026-04-07T09-00-00-test.jsonl"
+    )
+    await writeFixture(sessionPath, "codex-session.jsonl")
+    // CODEX_HOME reaches ~/.codex through a symlink, and the explicit extra
+    // root names the same sessions dir directly: one physical session file,
+    // three configured routes to it.
+    const codexAlias = path.join(tempHome, "codex-alias")
+    fs.symlinkSync(path.join(tempHome, ".codex"), codexAlias)
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "codex"],
+      {
+        HOME: tempHome,
+        CODEX_HOME: codexAlias,
+        CE_CODEX_SESSION_ROOTS: path.join(tempHome, ".codex/sessions"),
+      }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files.length).toBe(1)
+  })
+
+  test("--platform codex ignores missing roots without error", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"))
+    const sessionPath = path.join(
+      tempHome,
+      ".codex/sessions/2026/04/07/rollout-2026-04-07T09-00-00-test.jsonl"
+    )
+    await writeFixture(sessionPath, "codex-session.jsonl")
+
+    const { stdout, stderr, exitCode } = await runDiscover(
+      ["my-repo", "7", "--platform", "codex"],
+      {
+        HOME: tempHome,
+        CODEX_HOME: path.join(tempHome, "does-not-exist"),
+        CE_CODEX_SESSION_ROOTS: path.join(tempHome, "also missing"),
+      }
+    )
+
+    expect(exitCode).toBe(0)
+    expect(stderr).toBe("")
+    const files = stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files).toEqual([sessionPath])
+  })
+
+  test("mixed codex roots keep repo filtering in metadata extraction", async () => {
+    const tempHome = fs.mkdtempSync(path.join(os.tmpdir(), "codex-home-"))
+    const standardSession = path.join(
+      tempHome,
+      ".codex/sessions/2026/04/07/rollout-standard.jsonl"
+    )
+    const managedSession = path.join(
+      tempHome,
+      "Library/Application Support/Orca/codex-runtime-home/home/sessions/2026/04/07/rollout-managed.jsonl"
+    )
+    await writeFixture(standardSession, "codex-session.jsonl")
+    // The managed-root session belongs to a different repo; the --cwd-filter
+    // stage must drop it so a wider root never leaks unrelated sessions.
+    const fixture = await Bun.file(
+      path.join(FIXTURES_DIR, "codex-session.jsonl")
+    ).text()
+    await fs.promises.mkdir(path.dirname(managedSession), { recursive: true })
+    await fs.promises.writeFile(
+      managedSession,
+      fixture.replaceAll("/Users/test/Code/my-repo", "/Users/test/Code/other-repo")
+    )
+
+    const discovered = await runDiscover(
+      ["my-repo", "7", "--platform", "codex"],
+      { HOME: tempHome, CODEX_HOME: "", CE_CODEX_SESSION_ROOTS: "" }
+    )
+    expect(discovered.exitCode).toBe(0)
+    const files = discovered.stdout.trim().split("\n").filter((l) => l.trim())
+    expect(files.sort()).toEqual([standardSession, managedSession].sort())
+
+    const { stdout, exitCode } = await runScript("extract-metadata.py", [
+      "--cwd-filter",
+      "/Users/test/Code/my-repo",
+      ...files,
+    ])
+    expect(exitCode).toBe(0)
+    const lines = parseJsonLines(stdout)
+    const sessions = lines.filter((l) => !l._meta)
+    expect(sessions.length).toBe(1)
+    expect(sessions[0].file).toBe(standardSession)
+    const meta = lines.find((l) => l._meta)
+    expect(meta.filtered_by_cwd).toBe(1)
   })
 
   test("fails on unknown platform", async () => {
@@ -1701,7 +1864,9 @@ describe("discover-sessions", () => {
 
     const { stdout, stderr, exitCode } = await runDiscover(
       ["my-repo", "7", "--cwd", "/Users/test/Code/my-repo"],
-      { HOME: tempHome }
+      // Platform "all" includes codex; neutralize inherited codex roots so a
+      // caller's own managed CODEX_HOME never leaks into this fixture home.
+      { HOME: tempHome, CODEX_HOME: "", CE_CODEX_SESSION_ROOTS: "" }
     )
 
     expect(exitCode).toBe(0)

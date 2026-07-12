@@ -310,6 +310,14 @@ they reload skill content. Removing and re-adding the marketplace is reserved
 for a source migration, such as switching from the upstream EveryInc repository
 to this fork.
 
+Plugin synchronization does not extend to session data: worker transcripts
+created under the managed home stay in its `sessions/` directory and are never
+mirrored into `~/.codex`. The `ce-compound` session-history probe accounts for
+this on its own — it scans the active `CODEX_HOME`, the conventional homes,
+and Orca's managed sessions directory, and collapses duplicate routes to the
+same physical directory — so Orca-launched worker sessions are discoverable
+without any setup. Transcripts are read in place and stay local.
+
 This behavior follows Orca's managed-home implementation in
 [`codex-home-paths.ts`](https://github.com/stablyai/orca/blob/main/src/main/codex/codex-home-paths.ts),
 [`codex-config-mirror.ts`](https://github.com/stablyai/orca/blob/main/src/main/codex/codex-config-mirror.ts),

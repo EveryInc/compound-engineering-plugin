@@ -40,6 +40,26 @@ the refreshed skill files. Orca's source contract is documented in
 and
 [`runtime-home-service.ts`](https://github.com/stablyai/orca/blob/main/src/main/codex-accounts/runtime-home-service.ts).
 
+Session storage is intentionally outside that synchronization: worker
+transcripts live under the managed home's `sessions/` directory and are never
+linked or mirrored back to `~/.codex`. The `ce-compound` session-history
+discovery resolves Codex roots in order — explicit
+`CE_CODEX_SESSION_ROOTS` (colon-separated), the inherited `CODEX_HOME`
+(Orca terminals export it, so a probe running inside Orca sees the managed
+home automatically), the conventional `~/.codex/sessions` and
+`~/.agents/sessions`, and finally the documented managed location
+`~/Library/Application Support/Orca/codex-runtime-home/home/sessions` for
+probes running outside Orca. Orca exposes no CLI capability for adapter
+session roots today, which is why the last entry is a documented local
+fallback rather than a queried surface; roots are deduplicated by physical
+directory identity before extraction. Claude and Cursor need no equivalent:
+Orca launches both against their standard homes (no `CLAUDE_CONFIG_DIR` or
+Cursor transcript override), so their conventional discovery roots already
+cover Orca-launched sessions. Session content never leaves the machine
+through this flow — transcripts are read in place, the repo/CWD filter drops
+unrelated sessions before synthesis, and fixtures in this repository stay
+synthetic.
+
 ### Install the runtime boundary
 
 The fork does not vendor orch-console. Install the stable executable from an
