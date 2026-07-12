@@ -1,0 +1,76 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:ce-orca:read-result:v1",
+  "title": "CE-Orca read-only fan-out result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "workflowId",
+    "status",
+    "ownership",
+    "nodes",
+    "failures"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ce-orca.read-result/v1"
+    },
+    "workflowId": {
+      "type": "string",
+      "enum": [
+        "ce-plan",
+        "ce-code-review",
+        "ce-simplify-code",
+        "ce-debug",
+        "ce-compound"
+      ]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "degraded", "failed"]
+    },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["selection", "dispatch", "synthesis"],
+      "properties": {
+        "selection": { "const": "ce-controller" },
+        "dispatch": { "const": "orca" },
+        "synthesis": { "const": "ce-controller" }
+      }
+    },
+    "nodes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "stage", "role", "required", "status", "artifactRef"],
+        "properties": {
+          "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]{0,79}$" },
+          "stage": { "type": "string" },
+          "role": { "type": "string" },
+          "required": { "type": "boolean" },
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "artifactRef": { "type": "string", "pattern": "^nodes/[a-z0-9][a-z0-9._-]{0,79}\\.json$" }
+        }
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "stage", "role", "required", "code"],
+        "properties": {
+          "id": { "type": "string" },
+          "stage": { "type": "string" },
+          "role": { "type": "string" },
+          "required": { "type": "boolean" },
+          "code": { "const": "worker_failed" }
+        }
+      }
+    }
+  }
+}

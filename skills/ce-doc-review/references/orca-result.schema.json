@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "urn:ce-orca:doc-review-result:v1",
+  "title": "CE-Orca document review result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "workflowId",
+    "status",
+    "reviewers",
+    "failures"
+  ],
+  "properties": {
+    "schema": {
+      "const": "ce-orca.doc-review-result/v1"
+    },
+    "workflowId": {
+      "const": "ce-doc-review"
+    },
+    "status": {
+      "type": "string",
+      "enum": [
+        "completed",
+        "degraded",
+        "failed"
+      ]
+    },
+    "reviewers": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage",
+          "role",
+          "required",
+          "status",
+          "artifactRef"
+        ],
+        "properties": {
+          "stage": {
+            "const": "persona-review"
+          },
+          "role": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "completed",
+              "failed"
+            ]
+          },
+          "artifactRef": {
+            "type": "string",
+            "pattern": "^reviewers/[a-z0-9-]+\\.json$"
+          }
+        }
+      }
+    },
+    "failures": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "stage",
+          "role",
+          "required",
+          "code"
+        ],
+        "properties": {
+          "stage": {
+            "const": "persona-review"
+          },
+          "role": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "code": {
+            "const": "reviewer_failed"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "fs"
 import path from "path"
+import { getVersionInfo } from "../integrations/orca/version.mjs"
 import { validateReleasePleaseConfig } from "../src/release/config"
 
 describe("release-please config validation", () => {
@@ -83,6 +84,23 @@ describe("release-please config validation", () => {
     expect(errors).toEqual([])
   })
 
+  test("orders Orca fork revisions after their stable upstream baseline", () => {
+    expect(validateReleasePleaseConfig(
+      { packages: { ".": { "release-as": "3.19.0-orca.1" } } },
+      { ".": "3.19.0" },
+    )).toEqual([])
+
+    expect(validateReleasePleaseConfig(
+      { packages: { ".": { "release-as": "3.19.0-orca.2" } } },
+      { ".": "3.19.0-orca.1" },
+    )).toEqual([])
+
+    expect(validateReleasePleaseConfig(
+      { packages: { ".": { "release-as": "3.19.0-orca.1" } } },
+      { ".": "3.19.0-orca.1" },
+    )[0]).toContain("stale")
+  })
+
   // No released baseline (e.g. the base manifest could not be read) means
   // staleness is unprovable, so the pin is allowed rather than risk blocking a
   // legitimate release.
@@ -118,5 +136,22 @@ describe("release-please config validation", () => {
       section: "Refactoring",
       hidden: false,
     })
+  })
+
+  test("current root package pins the exact fork identity until that release ships", async () => {
+    const configPath = path.join(import.meta.dir, "..", ".github", "release-please-config.json")
+    const manifestPath = path.join(import.meta.dir, "..", ".github", ".release-please-manifest.json")
+    const config = JSON.parse(readFileSync(configPath, "utf8")) as {
+      packages: Record<string, { "release-as"?: string }>
+    }
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8")) as Record<string, string>
+    const expected = (await getVersionInfo()).version
+    const releaseAs = config.packages["."]?.["release-as"]
+
+    if (manifest["."] === expected) {
+      expect([undefined, expected]).toContain(releaseAs)
+    } else {
+      expect(releaseAs).toBe(expected)
+    }
   })
 })

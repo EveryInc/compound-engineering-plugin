@@ -207,6 +207,10 @@ If 2-3 hypotheses are exhausted without confirmation, diagnose why:
 | Works locally, fails in CI/prod | Environment problem | Focus on env differences, config, dependencies, timing |
 | Fix works but prediction was wrong | Symptom fix, not root cause | The real cause is still active — keep investigating |
 
+<!-- ce-orca-hook:start ce-debug.hypothesis-investigation -->
+If the parallel-investigation gate below selects independent probes, read `references/orca-routing.md` and `references/orca-investigation.md`. When `hypothesis-investigation` resolves to Orca, send only those selected probes through Orca and do not also launch them natively. This controller still ranks hypotheses, decides the diagnosis, fixes, and verifies. A routing override never creates a probe or makes dependent hypotheses parallel.
+<!-- ce-orca-hook:end ce-debug.hypothesis-investigation -->
+
 **Parallel investigation option:** When hypotheses are evidence-bottlenecked across clearly independent subsystems, dispatch read-only sub-agents in parallel, each with an explicit hypothesis and structured evidence-return format. No code edits by sub-agents, and skip this when hypotheses depend on each other's outcomes. If the platform does not support parallel sub-agent dispatch, run the same hypothesis probes sequentially in ranked-likelihood order instead — the parallelism is a latency optimization, not a correctness requirement.
 
 Present the diagnosis to the user before proceeding.

@@ -1,0 +1,176 @@
+{
+  "schema": "ce-orca.upstream-baseline/v1",
+  "repository": "https://github.com/EveryInc/compound-engineering-plugin.git",
+  "version": "3.19.0",
+  "commit": "1f6a70d0970d9ad258885ff70ac5212b7ffa5d44",
+  "skillInventory": [
+    "ce-babysit-pr",
+    "ce-brainstorm",
+    "ce-code-review",
+    "ce-commit",
+    "ce-commit-push-pr",
+    "ce-compound",
+    "ce-compound-refresh",
+    "ce-debug",
+    "ce-doc-review",
+    "ce-dogfood",
+    "ce-explain",
+    "ce-ideate",
+    "ce-optimize",
+    "ce-plan",
+    "ce-polish",
+    "ce-pov",
+    "ce-product-pulse",
+    "ce-promote",
+    "ce-proof",
+    "ce-resolve-pr-feedback",
+    "ce-riffrec-feedback-analysis",
+    "ce-setup",
+    "ce-simplify-code",
+    "ce-strategy",
+    "ce-sweep",
+    "ce-test-browser",
+    "ce-test-xcode",
+    "ce-work",
+    "ce-worktree",
+    "lfg"
+  ],
+  "promptAssetSources": {
+    "ce-code-review": "skills/ce-code-review/references/personas",
+    "ce-compound": "skills/ce-compound/references/agents",
+    "ce-debug": "skills/ce-debug/references/agents",
+    "ce-doc-review": "skills/ce-doc-review/references/personas",
+    "ce-plan": "skills/ce-plan/references/agents",
+    "ce-simplify-code": "skills/ce-simplify-code/references/personas",
+    "ce-work": "skills/ce-work/references/agents",
+    "lfg": "skills/lfg/references/personas"
+  },
+  "promptAssets": {
+    "ce-code-review": [
+      "adversarial-reviewer.md",
+      "agent-native-reviewer.md",
+      "api-contract-reviewer.md",
+      "correctness-reviewer.md",
+      "data-migration-reviewer.md",
+      "deployment-verification-agent.md",
+      "julik-frontend-races-reviewer.md",
+      "learnings-researcher.md",
+      "maintainability-reviewer.md",
+      "performance-reviewer.md",
+      "previous-comments-reviewer.md",
+      "project-standards-reviewer.md",
+      "reliability-reviewer.md",
+      "security-reviewer.md",
+      "swift-ios-reviewer.md",
+      "testing-reviewer.md"
+    ],
+    "ce-compound": [
+      "best-practices-researcher.md",
+      "data-integrity-guardian.md",
+      "framework-docs-researcher.md",
+      "pattern-recognition-specialist.md",
+      "performance-oracle.md",
+      "repo-profiler.md",
+      "security-sentinel.md",
+      "session-historian.md"
+    ],
+    "ce-debug": [
+      "repo-profiler.md"
+    ],
+    "ce-doc-review": [
+      "adversarial-document-reviewer.md",
+      "coherence-reviewer.md",
+      "design-lens-reviewer.md",
+      "feasibility-reviewer.md",
+      "product-lens-reviewer.md",
+      "scope-guardian-reviewer.md",
+      "security-lens-reviewer.md"
+    ],
+    "ce-plan": [
+      "agent-native-planning-strategist.md",
+      "architecture-strategist.md",
+      "best-practices-researcher.md",
+      "data-integrity-guardian.md",
+      "data-migration-reviewer.md",
+      "deployment-verification-agent.md",
+      "framework-docs-researcher.md",
+      "git-history-analyzer.md",
+      "learnings-researcher.md",
+      "pattern-recognition-specialist.md",
+      "performance-oracle.md",
+      "repo-profiler.md",
+      "repo-research-analyst.md",
+      "security-sentinel.md",
+      "slack-researcher.md",
+      "spec-flow-analyzer.md",
+      "web-researcher.md"
+    ],
+    "ce-simplify-code": [
+      "code-quality-reviewer.md",
+      "code-reuse-reviewer.md",
+      "efficiency-reviewer.md"
+    ],
+    "ce-work": [
+      "figma-design-sync.md"
+    ],
+    "lfg": [
+    ]
+  },
+  "hookAnchors": [
+    {
+      "id": "ce-plan.research-dispatch",
+      "file": "skills/ce-plan/SKILL.md",
+      "contains": "All specialist research and deepening prompts used in this phase are skill-local prompt assets"
+    },
+    {
+      "id": "ce-plan.organizational-research",
+      "file": "skills/ce-plan/SKILL.md",
+      "contains": "**Slack context** (opt-in) — never auto-dispatch. Route by condition:"
+    },
+    {
+      "id": "ce-work.unit-dispatch",
+      "file": "skills/ce-work/SKILL.md",
+      "contains": "**Dispatch** uses your harness's subagent/worker mechanism."
+    },
+    {
+      "id": "ce-work.execution-engine-selection",
+      "file": "skills/ce-work/references/execution-engines.md",
+      "contains": "Engine selection applies only to code execution. Knowledge-work and legacy plans keep the inline/subagent flow in `SKILL.md`."
+    },
+    {
+      "id": "ce-simplify-code.reviewer-dispatch",
+      "file": "skills/ce-simplify-code/SKILL.md",
+      "contains": "Dispatch three generic subagents"
+    },
+    {
+      "id": "ce-code-review.persona-dispatch",
+      "file": "skills/ce-code-review/SKILL.md",
+      "contains": "### Stage 4: Spawn sub-agents"
+    },
+    {
+      "id": "ce-debug.investigation-dispatch",
+      "file": "skills/ce-debug/SKILL.md",
+      "contains": "**Parallel investigation option:**"
+    },
+    {
+      "id": "ce-doc-review.persona-dispatch",
+      "file": "skills/ce-doc-review/SKILL.md",
+      "contains": "## Phase 2: Announce and Dispatch Personas"
+    },
+    {
+      "id": "ce-compound.research-dispatch",
+      "file": "skills/ce-compound/SKILL.md",
+      "contains": "Launch research subagents."
+    },
+    {
+      "id": "ce-compound.specialized-review",
+      "file": "skills/ce-compound/SKILL.md",
+      "contains": "Skip Phase 3 entirely in headless mode"
+    },
+    {
+      "id": "lfg.work-controller",
+      "file": "skills/lfg/SKILL.md",
+      "contains": "Invoke the `ce-work` skill with `mode:return-to-caller"
+    }
+  ]
+}

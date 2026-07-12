@@ -157,6 +157,12 @@ Add activated conditional personas:
 
 ### Dispatch
 
+<!-- ce-orca-hook:start ce-doc-review.persona-dispatch -->
+Read `references/orca-routing.md` and resolve the current run before dispatch. If the resolved execution request assigns `persona-review` to Orca, read
+`references/orca-dispatch.md` now and use that dispatch path for the selected
+reviewers. Otherwise, execute the native dispatch paragraph below unchanged.
+<!-- ce-orca-hook:end ce-doc-review.persona-dispatch -->
+
 Dispatch generic subagents using **bounded parallelism** with the platform's subagent primitive (e.g., `Agent` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the work inline or serially. Omit the `mode` parameter so the user's configured permission settings apply. Respect the current harness's active-subagent limit: queue selected reviewers, dispatch only as many as the harness accepts, and fill freed slots as reviewers complete. Treat active-agent/thread/concurrency-limit spawn errors as backpressure, not reviewer failure: leave the reviewer queued and retry after a slot frees. Record a reviewer as failed only after a successful dispatch times out/fails, or when dispatch fails for a non-capacity reason.
 
 For each selected reviewer, read the matching skill-local prompt asset at `references/personas/<reviewer-name>.md` and pass its full content as `{persona_file}`. Do not dispatch standalone agents by type/name and do not rely on platform-level custom-agent registration.

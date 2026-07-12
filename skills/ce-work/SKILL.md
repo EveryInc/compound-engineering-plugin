@@ -141,6 +141,10 @@ Determine how to proceed based on what was provided in `<input_document>` (after
 
 4. **Choose Execution Engine, then Strategy**
 
+   <!-- ce-orca-hook:start ce-work-engine -->
+   Before choosing an implementation engine, read `references/orca-routing.md`. If it selects Orca, read `references/orca-execution.md`, use that engine for implementation batches, and rejoin this workflow at the existing per-batch verification/integration point. Do not also launch native implementation workers for an Orca-owned batch. If routing selects native, continue with the upstream engine path below unchanged.
+   <!-- ce-orca-hook:end ce-work-engine -->
+
    For an implementation-ready unified code plan, first pick the **engine** that runs implementation: inline/subagent (default and only callable engine on Claude Code), goal-mode, or dynamic-workflow. Goal-mode and dynamic-workflow are usable only when the host exposes a callable primitive for them — Codex exposes `create_goal` (a skill can start a goal directly), while Claude Code exposes no goal tools, so on Claude Code they are prompt-emission only (never invoked from inside this skill). Prefer dynamic-workflow over goal-mode for large fan-out plans (many independent U-IDs, codebase-wide sweeps, migrations, adversarial cross-checking). Read `references/execution-engines.md` for the host-capability probe, the plan-shape selection table, the copyable goal-mode/`ultracode:` prompts, and the resume-tail rules. An engine choice never changes tail ownership — after implementation, resume standalone quality gates in normal use, or return the return-to-caller envelope when invoked by `lfg`. Legacy and bare-prompt work skip this and use the inline/subagent engine directly.
 
    For the inline/subagent engine, **prefer subagents for any structured multi-unit plan** — each worker gets a fresh context window for one unit. **Parallelize independent units whenever it is safe**; fall back to serial only when parallel isn't safe or the harness can't isolate concurrent writes. Let the plan's `Dependencies` and `Files` drive batching: run an independent dependency layer together, then the next.

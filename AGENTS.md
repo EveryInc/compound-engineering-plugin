@@ -86,6 +86,20 @@ cat .claude-plugin/marketplace.json | jq .
 cat .claude-plugin/plugin.json | jq .
 ```
 
+## Orca Fork Overlay
+
+Keep Orca-specific implementation under `integrations/orca/`. Upstream owns the skill tree, prompt assets, roles, and workflow semantics; changes under `skills/` require an explicit, bounded integration hook and a matching parity-test update.
+
+The `upstream` remote must point to `https://github.com/EveryInc/compound-engineering-plugin.git`. When incorporating a release, merge `upstream/main`, update `integrations/orca/upstream.json`, reconcile role and hook drift explicitly, then run:
+
+```bash
+bun run orca:upstream-check
+bun test tests/orca-upstream-parity.test.ts tests/orca-packaging.test.ts
+bun run release:validate
+```
+
+Do not add fork-only personas to make an upstream role mismatch pass. The fork release identity is `<upstream-version>-orca.<integration-revision>` and is reported by `bun run orca:version`. For a fork release, increment `integration.revision` in `integrations/orca/protocol.json` and set the root component's `release-as` in `.github/release-please-config.json` to that exact reported version. Release automation owns the platform manifest writes. Once the pinned release has shipped, remove the now-stale `release-as` before unrelated work; `release:validate` enforces that lifecycle.
+
 ## Runtime vs Authoring Context
 
 `AGENTS.md`, `CLAUDE.md`, and `GEMINI.md` are authoring context for this source repository. Skills are installed into end-user environments, where they run against the user's local instruction files, not this repo's. Behavioral rules that must affect a skill at runtime belong in that skill's `SKILL.md` or files under its own `references/` directory.

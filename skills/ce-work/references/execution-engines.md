@@ -4,6 +4,10 @@
 
 Engine selection applies only to code execution. Knowledge-work and legacy plans keep the inline/subagent flow in `SKILL.md`.
 
+<!-- ce-orca-hook:start ce-work-execution-engine -->
+The Orca fork adds one conditional path before this upstream selection. When `references/orca-routing.md` resolves Orca, follow `references/orca-execution.md`; otherwise use the engines below without changing their behavior.
+<!-- ce-orca-hook:end ce-work-execution-engine -->
+
 ## Step 1: Probe host capability
 
 An engine is usable only when the host exposes a callable primitive for it. Do not assume one exists from its name.

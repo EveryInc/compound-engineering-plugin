@@ -1,0 +1,8 @@
+{
+  "version": "orca.workflow-registry/v1",
+  "workflows": {
+    "ce-simplify-code": {
+      "entry": "orca-workflow.mjs"
+    }
+  }
+}

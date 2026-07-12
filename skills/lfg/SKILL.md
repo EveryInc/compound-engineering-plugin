@@ -9,6 +9,10 @@ CRITICAL: You MUST execute every step below IN ORDER. Do NOT skip any required s
 
 When invoking any skill referenced below, resolve its name against the available-skills list the host platform provides and use that exact entry. Some platforms list skills under a plugin namespace (e.g., `compound-engineering:ce-plan`); others list the bare name. Invoking a short-form guess that isn't in the list will fail — always match a listed entry verbatim before calling the Skill/Task tool.
 
+<!-- ce-orca-hook:start lfg-controller -->
+Read `references/orca-routing.md` and then `references/orca-lfg.md` before step 1. Orca may own child fan-outs, but this invocation remains the only lifecycle, fix, git, PR, and CI owner. Native routing continues through the ordered steps below unchanged.
+<!-- ce-orca-hook:end lfg-controller -->
+
 1. Invoke the `ce-plan` skill with `$ARGUMENTS`.
 
    GATE: STOP. If ce-plan reported the task is non-software and cannot be processed in pipeline mode, stop the pipeline and inform the user that LFG requires software tasks. Otherwise, verify that the `ce-plan` workflow produced a plan file in `docs/plans/`. If no plan file was created, invoke `ce-plan` again with `$ARGUMENTS`. Do NOT proceed to step 2 until a written plan exists. **Record the plan file path** — it will be passed to ce-work in step 2 and ce-code-review in step 4.

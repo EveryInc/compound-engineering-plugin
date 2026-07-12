@@ -1,0 +1,53 @@
+{
+  "confirmation": false,
+  "defaults": {
+    "backend": "codex",
+    "budget": 150,
+    "concurrency": 1,
+    "effort": "medium",
+    "isolation": "shared",
+    "model": "gpt-5.4",
+    "reasoning": "high"
+  },
+  "modelTiers": {
+    "cheap": {
+      "backend": "codex",
+      "model": "gpt-5.4-mini",
+      "reasoning": "low"
+    },
+    "mid": {
+      "backend": "codex",
+      "model": "gpt-5.4-mini",
+      "reasoning": "medium"
+    },
+    "parent": {
+      "backend": "codex",
+      "model": "gpt-5.4",
+      "reasoning": "high"
+    }
+  },
+  "runtime": "auto",
+  "schema": "ce-orca.defaults/v1",
+  "workflows": {
+    "lfg": {
+      "stages": {
+        "implementation": {
+          "concurrency": 1,
+          "isolation": "worktree-strict"
+        },
+        "planning": {
+          "concurrency": 1
+        },
+        "review": {
+          "concurrency": 1
+        },
+        "shipping-tail": {
+          "concurrency": 1
+        },
+        "simplification": {
+          "concurrency": 1
+        }
+      }
+    }
+  }
+}

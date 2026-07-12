@@ -18,6 +18,10 @@ If none of the above produces a non-empty scope, stop and ask the user what to s
 
 ## Step 2: Launch 3 review agents in parallel
 
+<!-- ce-orca-hook:start ce-simplify-code.reviewer-analysis -->
+Read `references/orca-routing.md` and `references/orca-review-dispatch.md`. When `reviewer-analysis` resolves to Orca, send exactly the three installed reviewer nodes through that path and do not launch them natively. This controller still merges suggestions, edits, verifies, and summarizes. For native routing, continue below unchanged.
+<!-- ce-orca-hook:end ce-simplify-code.reviewer-analysis -->
+
 Dispatch three generic subagents — code-reuse, code-quality, and efficiency reviewers — via the platform's subagent primitive (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex) where available; otherwise run the reviews inline or serially. For each reviewer, read its prompt asset from this skill's directory and pass the **full file content** as the subagent's prompt, together with the resolved scope (the full diff or file set) so it has complete context:
 
 - `references/personas/code-reuse-reviewer.md` — existing utilities, duplicated functionality, reimplemented stdlib/runtime primitives.

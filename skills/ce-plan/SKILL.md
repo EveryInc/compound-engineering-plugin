@@ -281,6 +281,10 @@ Fires **only in solo invocation** — when Phase 0.2 found no upstream Product C
 
 All specialist research and deepening prompts used in this phase are skill-local prompt assets under `references/agents/`. When dispatching one, read the matching file and seed a generic subagent with that prompt content plus the task-specific context below. Do not dispatch standalone agents by type/name.
 
+<!-- ce-orca-hook:start ce-plan.read-analysis -->
+Before dispatching a Phase 1 research subagent, read `references/orca-routing.md` and `references/orca-read-analysis.md`. Only `project-profile`, `local-research`, and `flow-analysis` can resolve to Orca; organizational/Slack research, external research, and Phase 5.3 deepening stay native because they require controller tools, network/MCP access, or mixed capabilities. For an Orca-owned stage, replace only its already-selected subagent calls with the packet path and do not also launch those nodes natively. The controller still owns every conditional selection, research decision, consolidation, synthesis, and write.
+<!-- ce-orca-hook:end ce-plan.read-analysis -->
+
 Model tiering lives in this caller, not in prompt assets. Local prompt files have no frontmatter. Use the platform's mid-tier model for external/organizational research prompts such as `slack-researcher` and `web-researcher` when the current harness exposes a known override; otherwise omit the override and inherit. Use inherited model for high-judgment architecture, migration, and planning-deepening prompts unless the harness has an established cheaper capable tier.
 
 #### 1.1 Local Research (Always Runs)

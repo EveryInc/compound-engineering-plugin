@@ -1,0 +1,43 @@
+{
+  "identities": {
+    "ceVersion": "3.19.0",
+    "integrationVersion": "3.19.0-orca.1",
+    "protocolVersion": "orca.local-protocol/v1",
+    "registryVersion": "ce-orca.registry/v1@3.19.0-orca.1",
+    "requestVersion": "orca.execution-config/v1"
+  },
+  "schema": "ce-orca.role-registry/v1",
+  "version": "ce-orca.registry/v1@3.19.0-orca.1",
+  "workflows": {
+    "ce-debug": {
+      "controller": "ce-controller",
+      "excludedPromptAssets": {
+        "repo-profiler": "ce-debug reads the shared cache opportunistically and does not dispatch its bundled repo-profiler asset."
+      },
+      "mode": "mixed",
+      "skill": "ce-debug",
+      "stages": {
+        "hypothesis-investigation": {
+          "activation": "always",
+          "anchor": "Parallel investigation option",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "hypothesis-probe": {
+              "activation": "repeatable",
+              "anchor": "each with an explicit hypothesis and structured evidence-return format",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        }
+      }
+    }
+  }
+}

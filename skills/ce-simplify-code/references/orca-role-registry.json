@@ -1,0 +1,57 @@
+{
+  "identities": {
+    "ceVersion": "3.19.0",
+    "integrationVersion": "3.19.0-orca.1",
+    "protocolVersion": "orca.local-protocol/v1",
+    "registryVersion": "ce-orca.registry/v1@3.19.0-orca.1",
+    "requestVersion": "orca.execution-config/v1"
+  },
+  "schema": "ce-orca.role-registry/v1",
+  "version": "ce-orca.registry/v1@3.19.0-orca.1",
+  "workflows": {
+    "ce-simplify-code": {
+      "controller": "ce-controller",
+      "mode": "mixed",
+      "skill": "ce-simplify-code",
+      "stages": {
+        "reviewer-analysis": {
+          "activation": "always",
+          "anchor": "Dispatch three generic subagents",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "code-quality-reviewer": {
+              "activation": "always",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/code-quality-reviewer.md"
+            },
+            "code-reuse-reviewer": {
+              "activation": "always",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/code-reuse-reviewer.md"
+            },
+            "efficiency-reviewer": {
+              "activation": "always",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/efficiency-reviewer.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        }
+      }
+    }
+  }
+}

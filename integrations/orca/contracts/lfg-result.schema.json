@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ce-orca:lfg-result:v1",
+  "title": "CE Orca LFG shipping gate",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "workflow_id", "status", "completed_stages", "stage_trace", "ownership", "shipping_allowed", "tail_mode"],
+  "properties": {
+    "schema": { "const": "ce-orca.lfg-result/v1" },
+    "workflow_id": { "const": "lfg" },
+    "status": { "enum": ["ready-to-ship", "failed"] },
+    "completed_stages": { "type": "array", "items": { "type": "string" } },
+    "stage_trace": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "runtime", "owner", "artifact_ref"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["complete", "failed", "blocked", "skipped"] },
+          "runtime": { "enum": ["native", "orca"] },
+          "owner": { "const": "lfg-controller" },
+          "artifact_ref": { "type": "string" }
+        }
+      }
+    },
+    "ownership": { "type": "object" },
+    "shipping_allowed": { "type": "boolean" },
+    "tail_mode": { "enum": ["remote", "local-only"] },
+    "failure_reason": { "type": "string" }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "version": "orca.workflow-registry/v1",
+  "workflows": {
+    "lfg": {
+      "entry": "orca-workflow.mjs"
+    }
+  }
+}

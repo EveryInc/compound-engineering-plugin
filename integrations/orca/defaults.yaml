@@ -1,0 +1,60 @@
+schema: ce-orca.defaults/v1
+runtime: auto
+confirmation: false
+defaults:
+  backend: codex
+  model: gpt-5.4
+  reasoning: high
+  effort: medium
+  budget: 150
+  concurrency: 1
+  isolation: shared
+modelTiers:
+  parent: { backend: codex, model: gpt-5.4, reasoning: high }
+  mid: { backend: codex, model: gpt-5.4-mini, reasoning: medium }
+  cheap: { backend: codex, model: gpt-5.4-mini, reasoning: low }
+workflows:
+  ce-code-review:
+    stages:
+      scope-triage: { concurrency: 1 }
+      project-profile: { concurrency: 1, isolation: worktree-strict }
+      persona-review: { concurrency: 4, isolation: worktree-strict }
+      adversarial-peer: { concurrency: 1 }
+      finding-validation: { concurrency: 4, isolation: worktree-strict }
+  ce-compound:
+    stages:
+      project-profile: { concurrency: 1, isolation: worktree-strict }
+      research: { concurrency: 3, isolation: worktree-strict }
+      session-history: { concurrency: 1, isolation: worktree-strict }
+      grounding-validation: { concurrency: 4, isolation: worktree-strict }
+      specialized-review: { concurrency: 3 }
+  ce-debug:
+    stages:
+      hypothesis-investigation: { concurrency: 3, isolation: worktree-strict }
+  ce-doc-review:
+    stages:
+      persona-review: { concurrency: 4, isolation: worktree-strict }
+  ce-plan:
+    stages:
+      project-profile: { concurrency: 1, isolation: worktree-strict }
+      local-research: { concurrency: 3, isolation: worktree-strict }
+      organizational-research: { concurrency: 1 }
+      external-research: { concurrency: 3 }
+      flow-analysis: { concurrency: 1, isolation: worktree-strict }
+      deepening: { concurrency: 4 }
+      authoring: { concurrency: 1 }
+  ce-simplify-code:
+    stages:
+      reviewer-analysis: { concurrency: 3, isolation: worktree-strict }
+  ce-work:
+    stages:
+      implementation: { concurrency: 3, isolation: worktree-strict }
+      design-validation: { concurrency: 1 }
+      review-fixes: { concurrency: 3, isolation: worktree-strict }
+  lfg:
+    stages:
+      planning: { concurrency: 1 }
+      implementation: { concurrency: 1, isolation: worktree-strict }
+      simplification: { concurrency: 1 }
+      review: { concurrency: 1 }
+      shipping-tail: { concurrency: 1 }

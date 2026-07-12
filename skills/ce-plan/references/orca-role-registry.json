@@ -1,0 +1,314 @@
+{
+  "identities": {
+    "ceVersion": "3.19.0",
+    "integrationVersion": "3.19.0-orca.1",
+    "protocolVersion": "orca.local-protocol/v1",
+    "registryVersion": "ce-orca.registry/v1@3.19.0-orca.1",
+    "requestVersion": "orca.execution-config/v1"
+  },
+  "schema": "ce-orca.role-registry/v1",
+  "version": "ce-orca.registry/v1@3.19.0-orca.1",
+  "workflows": {
+    "ce-plan": {
+      "controller": "ce-controller",
+      "excludedPromptAssets": {
+        "data-migration-reviewer": "The upstream asset is dormant in ce-plan and is not dispatched by the installed workflow."
+      },
+      "mode": "mixed",
+      "skill": "ce-plan",
+      "stages": {
+        "authoring": {
+          "activation": "always",
+          "anchor": "### Phase 5: Final Review, Write File, and Handoff",
+          "defaultOwner": "native",
+          "mutation": "artifact-write",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "controller",
+          "roles": {
+            "plan-author": {
+              "activation": "always",
+              "anchor": "Research, decide, and write the plan",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "controller",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "deepening": {
+          "activation": "always",
+          "anchor": "Confidence Check and Deepening",
+          "defaultOwner": "native",
+          "mutation": "read-only",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "structured",
+          "roles": {
+            "agent-native-planning-strategist": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/agent-native-planning-strategist.md"
+            },
+            "architecture-strategist": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/architecture-strategist.md"
+            },
+            "best-practices-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/best-practices-researcher.md"
+            },
+            "data-integrity-guardian": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/data-integrity-guardian.md"
+            },
+            "deployment-verification-agent": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/deployment-verification-agent.md"
+            },
+            "framework-docs-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/framework-docs-researcher.md"
+            },
+            "git-history-analyzer": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/git-history-analyzer.md"
+            },
+            "learnings-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/learnings-researcher.md"
+            },
+            "pattern-recognition-specialist": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/pattern-recognition-specialist.md"
+            },
+            "performance-oracle": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/performance-oracle.md"
+            },
+            "repo-research-analyst": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/repo-research-analyst.md"
+            },
+            "security-sentinel": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/security-sentinel.md"
+            },
+            "spec-flow-analyzer": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/spec-flow-analyzer.md"
+            },
+            "web-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/web-researcher.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "external-research": {
+          "activation": "always",
+          "anchor": "External Research",
+          "defaultOwner": "native",
+          "mutation": "read-only",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "structured",
+          "roles": {
+            "best-practices-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/best-practices-researcher.md"
+            },
+            "framework-docs-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/framework-docs-researcher.md"
+            },
+            "web-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/web-researcher.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "flow-analysis": {
+          "activation": "always",
+          "anchor": "spec-flow-analyzer",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "spec-flow-analyzer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/spec-flow-analyzer.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "local-research": {
+          "activation": "always",
+          "anchor": "All specialist research and deepening prompts used in this phase are skill-local prompt assets",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "agent-native-planning-strategist": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/agent-native-planning-strategist.md"
+            },
+            "learnings-researcher": {
+              "activation": "always",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/learnings-researcher.md"
+            },
+            "repo-research-analyst": {
+              "activation": "always",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/repo-research-analyst.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "organizational-research": {
+          "activation": "always",
+          "anchor": "**Slack context** (opt-in) — never auto-dispatch. Route by condition:",
+          "defaultOwner": "native",
+          "mutation": "read-only",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "structured",
+          "roles": {
+            "slack-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/slack-researcher.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "project-profile": {
+          "activation": "always",
+          "anchor": "Resolve the project profile from the shared cache first.",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "repo-profiler": {
+              "activation": "conditional",
+              "modelTier": "cheap",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/repo-profiler.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        }
+      }
+    }
+  }
+}
