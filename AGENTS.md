@@ -96,11 +96,17 @@ This repository authors each skill once and distributes it across multiple agent
 
 That field guide is the canonical reasoning layer for outcome-first authoring, model and harness portability, protocol versus judgment, proportional authority, tool adapters, evidence-backed review, and targeted behavioral evaluation. It is not a template: apply only the sections relevant to the skill. The repository-specific rules elsewhere in this file supplement the guide and take precedence where they are more specific.
 
+### Skill Prose Admission Rules
+
+- Keep a line only when it states a falsifiable constraint, counters a known default tendency or observed shortcut, or supplies domain knowledge that materially changes a decision.
+- Delete generic exhortations such as "be thorough," "think carefully," or "produce high-quality work." Operationalize adjectives with an observable rule.
+- Do not append motivational rationale to a directive that already stands on its own.
+- Repeat an instruction only at a demonstrated drift point where placement changes whether it fires. Protect genuinely required always-loaded duplicates with a parity test.
+
 ### Skill Loading Supplements
 
 - Keep every load-bearing action, route, and reference-load instruction inline at the point where it must fire (`docs/solutions/skill-design/post-menu-routing-belongs-inline.md`).
 - Do not inline a summary complete enough to suppress loading the authoritative reference.
-- When load-bearing content must appear in two always-loaded places, add a parity test.
 - Extract a block to `references/` when it is conditional or late-sequence and a meaningful share of the skill (~20%+). Replace it with a 1-3 line condition and backtick path.
 - Never use `@` for an extracted block; it inlines at load time and defeats extraction.
 
