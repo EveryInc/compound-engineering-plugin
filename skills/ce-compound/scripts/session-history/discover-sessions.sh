@@ -50,15 +50,47 @@ discover_claude() {
 }
 
 # --- Codex ---
+# Codex session roots, one per line, highest priority first. Codex is the one
+# supported harness whose home is commonly relocated at launch (managed
+# runtimes set CODEX_HOME), so conventional home directories alone miss those
+# sessions. Callers that already resolved runtime roots pass them through
+# CE_CODEX_SESSION_ROOTS (colon-separated) instead of teaching this script
+# about their runtime.
+codex_session_roots() {
+    if [ -n "${CE_CODEX_SESSION_ROOTS:-}" ]; then
+        printf '%s\n' "$CE_CODEX_SESSION_ROOTS" | tr ':' '\n'
+    fi
+    if [ -n "${CODEX_HOME:-}" ]; then
+        printf '%s\n' "${CODEX_HOME%/}/sessions"
+    fi
+    printf '%s\n' "$HOME/.codex/sessions" "$HOME/.agents/sessions"
+    # Orca-managed runtime home. Orca exposes no CLI surface for adapter
+    # session roots, so its documented macOS location is probed directly;
+    # the directory simply does not exist on other setups.
+    printf '%s\n' "$HOME/Library/Application Support/Orca/codex-runtime-home/home/sessions"
+}
+
 discover_codex() {
-    for base in "$HOME/.codex/sessions" "$HOME/.agents/sessions"; do
+    # Several configured roots can name the same physical directory (symlink,
+    # CODEX_HOME pointing at ~/.codex, explicit extra root). Deduplicate on
+    # device:inode so one session file yields one candidate. Plain string
+    # accumulation keeps this bash-3.2 compatible (no associative arrays).
+    local seen_keys=""
+    local base key
+    while IFS= read -r base; do
+        [ -n "$base" ] || continue
         [ -d "$base" ] || continue
+        key=$(stat -f '%d:%i' "$base" 2>/dev/null || stat -c '%d:%i' "$base" 2>/dev/null) || continue
+        case " $seen_keys " in *" $key "*) continue ;; esac
+        seen_keys="$seen_keys $key"
 
         # Use mtime-based discovery (consistent with Claude/Cursor) so that
         # sessions started before the scan window but still active within it
         # are not missed.
         find "$base" -name "*.jsonl" -mtime "-${DAYS}" 2>/dev/null
-    done
+    done <<EOF
+$(codex_session_roots)
+EOF
 }
 
 # --- Cursor ---
