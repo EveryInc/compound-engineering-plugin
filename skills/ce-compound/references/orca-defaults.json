@@ -2,7 +2,7 @@
   "confirmation": false,
   "defaults": {
     "backend": "codex",
-    "budget": 150,
+    "budget": 900,
     "concurrency": 1,
     "effort": "medium",
     "isolation": "shared",
@@ -12,16 +12,19 @@
   "modelTiers": {
     "cheap": {
       "backend": "codex",
-      "model": "gpt-5.4-mini",
-      "reasoning": "low"
+      "budget": 600,
+      "model": "gpt-5.6-sol",
+      "reasoning": "medium"
     },
     "mid": {
       "backend": "codex",
-      "model": "gpt-5.4-mini",
+      "budget": 900,
+      "model": "gpt-5.6-sol",
       "reasoning": "medium"
     },
     "parent": {
       "backend": "codex",
+      "budget": 900,
       "model": "gpt-5.6-sol",
       "reasoning": "medium"
     }

@@ -184,6 +184,11 @@ private profile <- current prompt. Prompt overrides are never persisted. Saving
 a profile requires an explicit `save-profile` action; confirmation is shown
 only when the effective request has `confirmation: true`.
 
+Without an override, every built-in CE role uses Codex `gpt-5.6-sol` with
+medium reasoning. `parent` and `mid` roles have a 900-second supervision window;
+`cheap` roles use 600 seconds. This `budget` controls elapsed supervision time,
+not tokens or API spend.
+
 | Requested runtime | `orca-orch` absent | Healthy and compatible | Installed but unhealthy/incompatible |
 | --- | --- | --- | --- |
 | `auto` (default) | Announced native CE | Orca for integrated stages | Preflight failure |
