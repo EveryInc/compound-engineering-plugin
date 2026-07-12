@@ -539,6 +539,40 @@ describe("CE-Orca canonical configuration resolution", () => {
     await expect(fs.stat(`${filePath}.lock`)).rejects.toMatchObject({ code: "ENOENT" })
   })
 
+  test("retries abandoned-lock generation handoffs under high contention", async () => {
+    const { registry } = await data("ce-doc-review")
+    const directory = await fs.mkdtemp(path.join(os.tmpdir(), "ce-orca-contended-profile-lock-"))
+    scratch.push(directory)
+    const filePath = path.join(directory, "profiles.json")
+    const deadPid = 99_999_995
+    const token = `${deadPid}-${"f".repeat(24)}`
+    const lockPath = `${filePath}.lock`
+    const fixture = await profileLockOwnerFixture(lockPath, token, deadPid)
+    await fs.writeFile(lockPath, canonicalJson(fixture.owner), { mode: 0o600 })
+    const names = Array.from({ length: 128 }, (_, index) => `contended-${index}`)
+
+    const outcomes = await Promise.allSettled(names.map((profileName) => persistProfileAtomic({
+      filePath,
+      profileName,
+      request: {
+        schema: "ce-orca.execution-request/v1",
+        workflowId: "ce-doc-review",
+        defaults: { effort: "medium" },
+      },
+      explicit: true,
+      registry,
+      workflowId: "ce-doc-review",
+    })))
+    const failures = outcomes.flatMap((outcome, index) => outcome.status === "rejected"
+      ? [{ index, reason: String(outcome.reason) }]
+      : [])
+
+    expect(failures).toEqual([])
+    const store = JSON.parse(await fs.readFile(filePath, "utf8"))
+    expect(Object.keys(store.profiles).sort()).toEqual([...names].sort())
+    await expect(fs.stat(lockPath)).rejects.toMatchObject({ code: "ENOENT" })
+  })
+
   test("advances recovery generations after an elected recovery owner crashes", async () => {
     const { registry } = await data("ce-doc-review")
     const directory = await fs.mkdtemp(path.join(os.tmpdir(), "ce-orca-abandoned-recovery-lock-"))

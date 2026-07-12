@@ -876,6 +876,19 @@ async function profileLockOwnerIsAlive(owner, lockPath) {
   return fifoHasWriter(fifoPath)
 }
 
+async function currentProfileLockLiveness(owner, lockPath) {
+  try {
+    return await profileLockOwnerIsAlive(owner, lockPath) ? "alive" : "dead"
+  } catch (error) {
+    if (error?.code !== "profile_lock_liveness_unavailable" || error?.details?.cause !== "ENOENT") {
+      throw error
+    }
+    const current = await readProfileLockOwner(lockPath, lockPath)
+    if (!current || current.token !== owner.token) return "changed"
+    throw error
+  }
+}
+
 async function removeStaleProfileLockLiveness(owner, lockPath) {
   const fifoPath = validateProfileLockOwner(owner, lockPath)
   await fs.rm(fifoPath, { force: true })
@@ -940,7 +953,8 @@ async function electProfileLockRecovery(recoveryBase, claimPath, lockPath, deadl
 
 async function replaceAbandonedProfileLock(lockPath, claimPath, owner) {
   const current = await readProfileLockOwner(lockPath, lockPath)
-  if (!current || current.token !== owner.token || await profileLockOwnerIsAlive(current, lockPath)) return false
+  if (!current || current.token !== owner.token) return false
+  if (await currentProfileLockLiveness(current, lockPath) !== "dead") return false
   await fs.rename(claimPath, lockPath)
   await fs.link(lockPath, claimPath)
   await removeStaleProfileLockLiveness(owner, lockPath)
@@ -949,7 +963,8 @@ async function replaceAbandonedProfileLock(lockPath, claimPath, owner) {
 
 async function recoverAbandonedProfileLock(lockPath, claimPath, deadline) {
   const owner = await readProfileLockOwner(lockPath, lockPath)
-  if (!owner || await profileLockOwnerIsAlive(owner, lockPath)) return false
+  if (!owner) return false
+  if (await currentProfileLockLiveness(owner, lockPath) !== "dead") return false
   const claimant = await readProfileLockOwner(claimPath, lockPath)
   if (!claimant) return false
   const recoveryBase = `${lockPath}.${owner.token}.recovery`
