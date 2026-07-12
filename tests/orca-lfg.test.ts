@@ -2,13 +2,19 @@ import { afterEach, describe, expect, test } from 'bun:test'
 import { mkdir, mkdtemp, readFile, rm, stat, symlink, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
+import { loadResultContract, validateResultContract } from '../integrations/orca/result-contract.mjs'
+import * as codeReviewWorkflow from '../integrations/orca/workflows/code-review.mjs'
 import {
   deriveLfgChildExecutionPatches,
   executeLfgGate,
   validateLfgPacket,
   writeLfgChildExecutionPatches,
 } from '../integrations/orca/workflows/lfg.mjs'
+import * as planWorkflow from '../integrations/orca/workflows/plan.mjs'
+import * as simplifyWorkflow from '../integrations/orca/workflows/simplify-review.mjs'
+import * as workWorkflow from '../integrations/orca/workflows/work.mjs'
 
+const REPO_ROOT = path.resolve(import.meta.dir, '..')
 const temporary: string[] = []
 afterEach(async () => {
   await Promise.all(temporary.splice(0).map((directory) => rm(directory, { recursive: true, force: true })))
@@ -126,6 +132,297 @@ const resolvedLfg = () => ({
     },
   },
 })
+
+type LfgFixtureStageId = 'plan' | 'work' | 'simplify' | 'review' | 'fixes' | 'browser-test'
+type LfgFixtureRuntime = 'native' | 'orca'
+type LfgFixtureStageStatus = 'complete' | 'failed' | 'blocked' | 'skipped'
+
+type LfgFixtureInvocation = {
+  stage: LfgFixtureStageId
+  runtime: LfgFixtureRuntime
+  args: string
+  executionPatchRef: string | null
+}
+
+type LfgFixtureTailCall = {
+  owner: 'lfg-controller'
+  mode: 'remote' | 'local-only'
+}
+
+type LfgFixtureOptions = {
+  root: string
+  resolved: ReturnType<typeof resolvedLfg>
+  route: 'mixed' | 'native'
+  hasRemote: boolean
+  browserRequired: boolean
+  failStage?: LfgFixtureStageId
+  tail: (call: LfgFixtureTailCall) => Promise<void> | void
+}
+
+const LFG_FIXTURE_ORDER: LfgFixtureStageId[] = [
+  'plan',
+  'work',
+  'simplify',
+  'review',
+  'fixes',
+  'browser-test',
+]
+
+const LFG_CHILD_BY_STAGE = {
+  plan: 'planning',
+  work: 'implementation',
+  simplify: 'simplification',
+  review: 'review',
+} as const
+
+const LFG_ARGS = {
+  plan: 'fixture feature prompt',
+  work: 'mode:return-to-caller docs/plans/fixture.md',
+  simplify: 'branch diff',
+  review: 'mode:agent plan:docs/plans/fixture.md',
+  fixes: 'apply eligible review findings',
+  'browser-test': 'mode:pipeline',
+} as const
+
+const createReadEngineStub = (fail = false) => ({
+  phase() {},
+  async agent(_prompt: string, options: { label: string }) {
+    return fail ? null : `deterministic ${options.label} result`
+  },
+  async parallel(thunks: Array<() => Promise<unknown>>) {
+    return Promise.all(thunks.map((thunk) => thunk()))
+  },
+})
+
+async function validateFixtureResult(workflowId: string, value: unknown) {
+  const contract = await loadResultContract({
+    workflowRegistryPath: path.join(REPO_ROOT, 'skills', workflowId, 'scripts', 'orca-workflow-registry.json'),
+    workflowId,
+  })
+  return validateResultContract(contract, value)
+}
+
+async function runOrcaFixtureStage(stageId: LfgFixtureStageId, runDir: string, fail: boolean) {
+  if (stageId === 'plan') {
+    return planWorkflow.executeReadWorkflow({
+      engine: createReadEngineStub(fail),
+      packet: {
+        schema: planWorkflow.PACKET_SCHEMA,
+        workflowId: planWorkflow.WORKFLOW_ID,
+        nodes: [{
+          id: 'repo-research',
+          stage: 'local-research',
+          role: 'repo-research-analyst',
+          prompt: 'Inspect the deterministic fixture repository.',
+          required: true,
+          wave: 0,
+        }],
+      },
+      runDir,
+    })
+  }
+  if (stageId === 'work') {
+    return workWorkflow.executeWorkBatch({
+      schema: workWorkflow.PACKET_SCHEMA,
+      workflowId: 'ce-work',
+      nodes: [{
+        id: 'U1',
+        stage: 'implementation',
+        role: 'implementation-unit-worker',
+        prompt: 'Implement the deterministic fixture unit.',
+        predictedFiles: ['src/u1.ts'],
+      }],
+    }, {
+      phase() {},
+      async agentWithChanges() {
+        if (fail) throw new Error('fixture writer stopped')
+        return {
+          value: {
+            status: 'complete',
+            unit_id: 'U1',
+            changed_files: ['untrusted-self-report.ts'],
+            verification_evidence: { command: 'bun test fixture', result: 'pass' },
+            behavior_change: true,
+            blockers: [],
+          },
+          change: { id: 'change-U1' },
+        }
+      },
+      async integrateChange() {
+        return { schema: 'orca.change-integration/v1', files: ['src/u1.ts'] }
+      },
+    }, runDir)
+  }
+  if (stageId === 'simplify') {
+    return simplifyWorkflow.executeReadWorkflow({
+      engine: createReadEngineStub(fail),
+      packet: {
+        schema: simplifyWorkflow.PACKET_SCHEMA,
+        workflowId: simplifyWorkflow.WORKFLOW_ID,
+        nodes: [
+          { id: 'reuse', stage: 'reviewer-analysis', role: 'code-reuse-reviewer', prompt: 'Review reuse.', required: true, wave: 0 },
+          { id: 'quality', stage: 'reviewer-analysis', role: 'code-quality-reviewer', prompt: 'Review quality.', required: true, wave: 0 },
+          { id: 'efficiency', stage: 'reviewer-analysis', role: 'efficiency-reviewer', prompt: 'Review efficiency.', required: true, wave: 0 },
+        ],
+      },
+      runDir,
+    })
+  }
+  if (stageId === 'review') {
+    return codeReviewWorkflow.executeReadWorkflow({
+      engine: createReadEngineStub(fail),
+      packet: {
+        schema: codeReviewWorkflow.PACKET_SCHEMA,
+        workflowId: codeReviewWorkflow.WORKFLOW_ID,
+        nodes: [{
+          id: 'correctness',
+          stage: 'persona-review',
+          role: 'correctness-reviewer',
+          prompt: 'Return machine-readable review evidence.',
+          required: true,
+          wave: 0,
+        }],
+      },
+      runDir,
+    })
+  }
+  throw new Error(`${stageId} has no Orca child adapter`)
+}
+
+function stageStatus(value: unknown): LfgFixtureStageStatus {
+  if (!value || typeof value !== 'object' || !Object.hasOwn(value, 'status')) return 'failed'
+  const status = Reflect.get(value, 'status')
+  return status === 'complete' || status === 'completed' ? 'complete' : 'failed'
+}
+
+async function writeNativeFixtureStage(root: string, stageId: LfgFixtureStageId, status: LfgFixtureStageStatus) {
+  const artifactRef = path.posix.join('artifacts', stageId, 'native-result.json')
+  const value = {
+    schema: 'ce-orca.fixture-native-stage/v1',
+    stage: stageId,
+    status,
+    owner: 'lfg-controller',
+  }
+  await mkdir(path.dirname(path.join(root, artifactRef)), { recursive: true })
+  await writeFile(path.join(root, artifactRef), `${JSON.stringify(value, null, 2)}\n`, { mode: 0o600 })
+  return { artifactRef, value }
+}
+
+async function runLfgControllerContractFixture(options: LfgFixtureOptions) {
+  const resolvedPath = path.join(options.root, 'resolved-execution.json')
+  await writeFile(resolvedPath, `${JSON.stringify(options.resolved, null, 2)}\n`, { mode: 0o600 })
+
+  const childManifest = options.route === 'mixed'
+    ? await writeLfgChildExecutionPatches({
+      resolved: options.resolved,
+      outDir: path.join(options.root, 'child-overrides'),
+    })
+    : null
+  const childByStage = childManifest
+    ? {
+      plan: childManifest.children.planning,
+      work: childManifest.children.implementation,
+      simplify: childManifest.children.simplification,
+      review: childManifest.children.review,
+    }
+    : null
+
+  const invocations: LfgFixtureInvocation[] = []
+  const stages: Array<Record<string, unknown>> = []
+  const trace: string[] = []
+  let terminal = false
+  let orcaInvocations = 0
+
+  for (const stageId of LFG_FIXTURE_ORDER.slice(0, options.browserRequired ? undefined : -1)) {
+    const runtime: LfgFixtureRuntime = options.route === 'mixed' && Object.hasOwn(LFG_CHILD_BY_STAGE, stageId)
+      ? 'orca'
+      : 'native'
+    const child = childByStage && Object.hasOwn(childByStage, stageId)
+      ? Reflect.get(childByStage, stageId)
+      : null
+    const executionPatchRef = child && typeof child === 'object' && typeof Reflect.get(child, 'patchPath') === 'string'
+      ? Reflect.get(child, 'patchPath')
+      : null
+    if (terminal) {
+      trace.push(`skip:${stageId}`)
+    } else {
+      invocations.push({ stage: stageId, runtime, args: LFG_ARGS[stageId], executionPatchRef })
+      trace.push(`stage:${stageId}`)
+    }
+
+    let status: LfgFixtureStageStatus
+    let artifactRef: string
+    if (terminal) {
+      status = 'skipped'
+      ;({ artifactRef } = await writeNativeFixtureStage(options.root, stageId, status))
+    } else if (runtime === 'orca') {
+      orcaInvocations += 1
+      const stageRunDir = path.join(options.root, 'artifacts', stageId)
+      await mkdir(stageRunDir, { recursive: true })
+      let value: unknown
+      try {
+        value = await runOrcaFixtureStage(stageId, stageRunDir, options.failStage === stageId)
+      } catch {
+        value = JSON.parse(await readFile(path.join(stageRunDir, 'ce-result.json'), 'utf8'))
+      }
+      const workflowId = child && typeof child === 'object' ? Reflect.get(child, 'workflowId') : null
+      if (typeof workflowId !== 'string') throw new Error(`${stageId} is missing its child workflow identity`)
+      await validateFixtureResult(workflowId, value)
+      status = stageStatus(value)
+      terminal = status === 'failed' || status === 'blocked'
+      artifactRef = path.posix.join('artifacts', stageId, 'ce-result.json')
+    } else {
+      status = options.failStage === stageId ? 'failed' : 'complete'
+      terminal = status === 'failed'
+      ;({ artifactRef } = await writeNativeFixtureStage(options.root, stageId, status))
+    }
+
+    stages.push({
+      id: stageId,
+      status,
+      runtime,
+      owner: 'lfg-controller',
+      artifactRef,
+      ...(stageId === 'work' ? { returnToCaller: true, standaloneShippingSkipped: true } : {}),
+      ...(stageId === 'review' ? { mode: 'agent' } : {}),
+    })
+  }
+
+  const ledger = {
+    schema: 'ce-orca.lfg-packet/v1',
+    workflowId: 'lfg',
+    hasRemote: options.hasRemote,
+    browserRequired: options.browserRequired,
+    stages,
+  }
+  let result: unknown
+  let gateError: string | null = null
+  try {
+    result = await executeLfgGate(ledger, { phase() {} }, options.root)
+  } catch (error) {
+    gateError = error instanceof Error ? error.message : String(error)
+    result = JSON.parse(await readFile(path.join(options.root, 'ce-result.json'), 'utf8'))
+  }
+  await validateFixtureResult('lfg', result)
+
+  const shippingAllowed = result && typeof result === 'object' && Reflect.get(result, 'shipping_allowed') === true
+  const tailMode = result && typeof result === 'object' ? Reflect.get(result, 'tail_mode') : null
+  if (shippingAllowed && (tailMode === 'remote' || tailMode === 'local-only')) {
+    trace.push(`tail:${tailMode}`)
+    await options.tail({ owner: 'lfg-controller', mode: tailMode })
+  }
+
+  return {
+    childManifest,
+    gateError,
+    invocations,
+    ledger,
+    orcaInvocations,
+    resolvedPath,
+    result,
+    trace,
+  }
+}
 
 describe('LFG Orca ownership gate', () => {
   test('derives private run-scoped overrides for all four children without carrying product prose', () => {
@@ -301,65 +598,159 @@ describe('LFG Orca ownership gate', () => {
     ])
   })
 
-  test('runs a resolved mixed-runtime fixture end to end with traceable child targets and one shipping owner', async () => {
+  test('composes real mixed-runtime child results into one controller-owned shipping gate', async () => {
     const root = await directory()
     const resolved = resolvedLfg()
-    const resolvedPath = path.join(root, 'resolved-execution.json')
-    await writeFile(resolvedPath, `${JSON.stringify(resolved, null, 2)}\n`, { mode: 0o600 })
-    const childManifest = await writeLfgChildExecutionPatches({
+    const tailCalls: LfgFixtureTailCall[] = []
+    const execution = await runLfgControllerContractFixture({
+      root,
       resolved,
-      outDir: path.join(root, 'child-overrides'),
+      route: 'mixed',
+      hasRemote: true,
+      browserRequired: true,
+      tail: (call) => { tailCalls.push(call) },
     })
-    const fixturePacket = packet()
-    fixturePacket.stages[2].runtime = 'native'
-    fixturePacket.stages[4].runtime = 'native'
-    const artifactDir = path.join(root, 'artifacts')
-    await mkdir(artifactDir)
-    await Promise.all(
-      fixturePacket.stages.map((fixtureStage) =>
-        writeFile(
-          path.join(root, fixtureStage.artifactRef),
-          `${JSON.stringify({
-            schema: 'ce-orca.fixture-stage-result/v1',
-            stage: fixtureStage.id,
-            runtime: fixtureStage.runtime,
-            owner: fixtureStage.owner,
-          })}\n`,
-          { mode: 0o600 },
-        ),
-      ),
-    )
-    const phases: string[] = []
-    const result = await executeLfgGate(fixturePacket, { phase: (value: string) => phases.push(value) }, root)
 
-    expect(JSON.parse(await readFile(resolvedPath, 'utf8')).executionConfig.stages).toEqual(
-      resolved.executionConfig.stages,
-    )
-    expect(phases).toEqual(
-      fixturePacket.stages.map((fixtureStage) => `LFG gate: ${fixtureStage.id} (${fixtureStage.runtime})`),
-    )
-    expect(result.stage_trace.map(({ id, runtime, owner, artifact_ref }) => ({ id, runtime, owner, artifact_ref }))).toEqual(
-      fixturePacket.stages.map(({ id, runtime, owner, artifactRef }) => ({
-        id,
-        runtime,
-        owner,
-        artifact_ref: artifactRef,
-      })),
-    )
-    expect(new Set(result.stage_trace.map(({ owner }) => owner))).toEqual(new Set(['lfg-controller']))
-    expect(result.shipping_allowed).toBe(true)
-    expect(result.ownership).toMatchObject({
-      commit: 'lfg-controller',
-      push: 'lfg-controller',
-      pull_request: 'lfg-controller',
-      ci_repair: 'lfg-controller',
+    expect(execution.gateError).toBeNull()
+    expect(execution.trace).toEqual([
+      'stage:plan',
+      'stage:work',
+      'stage:simplify',
+      'stage:review',
+      'stage:fixes',
+      'stage:browser-test',
+      'tail:remote',
+    ])
+    expect(execution.invocations.map(({ stage, runtime }) => ({ stage, runtime }))).toEqual([
+      { stage: 'plan', runtime: 'orca' },
+      { stage: 'work', runtime: 'orca' },
+      { stage: 'simplify', runtime: 'orca' },
+      { stage: 'review', runtime: 'orca' },
+      { stage: 'fixes', runtime: 'native' },
+      { stage: 'browser-test', runtime: 'native' },
+    ])
+    expect(execution.invocations.find(({ stage }) => stage === 'work')).toMatchObject({
+      args: 'mode:return-to-caller docs/plans/fixture.md',
     })
-    for (const child of Object.values(childManifest.children)) {
+    expect(execution.invocations.find(({ stage }) => stage === 'review')).toMatchObject({
+      args: 'mode:agent plan:docs/plans/fixture.md',
+    })
+    expect(execution.invocations.slice(0, 4).every(({ executionPatchRef }) => executionPatchRef !== null)).toBe(true)
+    expect(execution.invocations.slice(4).every(({ executionPatchRef }) => executionPatchRef === null)).toBe(true)
+    expect(execution.orcaInvocations).toBe(4)
+    expect(tailCalls).toEqual([{ owner: 'lfg-controller', mode: 'remote' }])
+    expect(execution.result).toMatchObject({
+      schema: 'ce-orca.lfg-result/v1',
+      status: 'ready-to-ship',
+      shipping_allowed: true,
+      tail_mode: 'remote',
+      ownership: {
+        commit: 'lfg-controller',
+        push: 'lfg-controller',
+        pull_request: 'lfg-controller',
+        ci_repair: 'lfg-controller',
+      },
+    })
+    expect(JSON.parse(await readFile(execution.resolvedPath, 'utf8'))).toEqual(resolved)
+    expect(JSON.parse(await readFile(path.join(root, 'artifacts', 'work', 'ce-result.json'), 'utf8'))).toMatchObject({
+      schema: 'ce-orca.work-result/v1',
+      status: 'complete',
+      ownership: { shipping: 'caller' },
+    })
+    expect(JSON.parse(await readFile(path.join(root, 'artifacts', 'review', 'ce-result.json'), 'utf8'))).toMatchObject({
+      schema: 'ce-orca.read-result/v1',
+      workflowId: 'ce-code-review',
+      status: 'completed',
+    })
+    for (const child of Object.values(execution.childManifest?.children ?? {})) {
       const childPatch = JSON.parse(await readFile(child.patchPath, 'utf8'))
       expect(childPatch.runtime).toBe('orca')
       expect(JSON.stringify(childPatch)).not.toMatch(/commit|push|pull.request|shipping|credential|originalPrompt/i)
     }
-    expect(JSON.parse(await readFile(path.join(root, 'ce-result.json'), 'utf8'))).toEqual(result)
+    expect(JSON.parse(await readFile(path.join(root, 'ce-result.json'), 'utf8'))).toEqual(execution.result)
+  })
+
+  test('turns a required child failure into a terminal ledger without entering the tail', async () => {
+    const failureRoot = await directory()
+    const failureTail: LfgFixtureTailCall[] = []
+    const failure = await runLfgControllerContractFixture({
+      root: failureRoot,
+      resolved: resolvedLfg(),
+      route: 'mixed',
+      hasRemote: true,
+      browserRequired: true,
+      failStage: 'review',
+      tail: (call) => { failureTail.push(call) },
+    })
+
+    expect(failure.gateError).toMatch(/review ended failed.*shipping tail is forbidden/i)
+    expect(failure.ledger.stages.map((value) => value.status)).toEqual([
+      'complete',
+      'complete',
+      'complete',
+      'failed',
+      'skipped',
+      'skipped',
+    ])
+    expect(JSON.parse(await readFile(path.join(failureRoot, 'artifacts', 'review', 'ce-result.json'), 'utf8'))).toMatchObject({
+      schema: 'ce-orca.read-result/v1',
+      workflowId: 'ce-code-review',
+      status: 'failed',
+    })
+    expect(failure.result).toMatchObject({ status: 'failed', shipping_allowed: false })
+    expect(failure.trace).toEqual([
+      'stage:plan',
+      'stage:work',
+      'stage:simplify',
+      'stage:review',
+      'skip:fixes',
+      'skip:browser-test',
+    ])
+    expect(failureTail).toEqual([])
+  })
+
+  test('models the absent-Orca controller contract with no Orca calls or remote tail actions', async () => {
+    const root = await directory()
+    const resolved = resolvedLfg()
+    resolved.runtime = { requested: 'auto', selected: 'native', state: 'absent', fallback: true }
+    const tailCalls: LfgFixtureTailCall[] = []
+    const tailActions: string[] = []
+    const execution = await runLfgControllerContractFixture({
+      root,
+      resolved,
+      route: 'native',
+      hasRemote: false,
+      browserRequired: false,
+      tail: (call) => {
+        tailCalls.push(call)
+        tailActions.push('commit')
+        if (call.mode === 'remote') tailActions.push('push', 'pull-request', 'ci-repair')
+      },
+    })
+
+    expect(execution.gateError).toBeNull()
+    expect(execution.childManifest).toBeNull()
+    expect(execution.orcaInvocations).toBe(0)
+    expect(execution.invocations).toHaveLength(5)
+    expect(execution.invocations.every(({ runtime, executionPatchRef }) => (
+      runtime === 'native' && executionPatchRef === null
+    ))).toBe(true)
+    expect(execution.trace).toEqual([
+      'stage:plan',
+      'stage:work',
+      'stage:simplify',
+      'stage:review',
+      'stage:fixes',
+      'tail:local-only',
+    ])
+    expect(execution.result).toMatchObject({
+      status: 'ready-to-ship',
+      shipping_allowed: true,
+      tail_mode: 'local-only',
+    })
+    expect(tailCalls).toEqual([{ owner: 'lfg-controller', mode: 'local-only' }])
+    expect(tailActions).toEqual(['commit'])
+    await expect(stat(path.join(root, 'child-overrides'))).rejects.toMatchObject({ code: 'ENOENT' })
   })
 
   test('forbids shipping when any required plan, work, or review gate was skipped', async () => {
@@ -439,11 +830,24 @@ describe('LFG Orca ownership gate', () => {
     expect(result.shipping_allowed).toBe(true)
   })
 
-  test('keeps the native pipeline text and one bounded hook', async () => {
+  test('keeps the native pipeline and shipping tail in upstream order with one bounded hook', async () => {
     const skill = await readFile(path.join(import.meta.dir, '..', 'skills', 'lfg', 'SKILL.md'), 'utf8')
     expect(skill).toContain('<!-- ce-orca-hook:start lfg-controller -->')
-    expect(skill).toContain('Invoke the `ce-work` skill with `mode:return-to-caller')
-    expect(skill).toContain('Invoke the `ce-code-review` skill with `mode:agent')
+    const orderedAnchors = [
+      '1. Invoke the `ce-plan` skill',
+      '2. Invoke the `ce-work` skill with `mode:return-to-caller',
+      '3. Invoke the `ce-simplify-code` skill',
+      '4. Invoke the `ce-code-review` skill with `mode:agent',
+      '5. **Apply and persist review fixes**',
+      '6. **Autonomous residual handoff**',
+      '7. Invoke the `ce-test-browser` skill with `mode:pipeline`',
+      '8. Invoke the `ce-commit-push-pr` skill with `mode:pipeline`',
+      '9. **Drive CI to green via `ce-babysit-pr`**',
+      '10. Output `<promise>DONE</promise>`',
+    ]
+    const positions = orderedAnchors.map((anchor) => skill.indexOf(anchor))
+    expect(positions.every((position) => position >= 0)).toBe(true)
+    expect(positions).toEqual([...positions].sort((left, right) => left - right))
   })
 
   test('documents out-of-band child overrides while preserving the original prompt', async () => {
