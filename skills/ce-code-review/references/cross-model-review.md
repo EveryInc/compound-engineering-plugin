@@ -12,10 +12,10 @@ All the invocation detail (composing the prompt from the persona, read-only flag
 ## Step 1 — Identify host and peer (runtime self-id, no build-time)
 
 ```bash
-if [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST=cursor; XPEER=codex
-elif [ "${CLAUDECODE:-}" = "1" ]; then XHOST=claude; XPEER=codex
-elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST=codex; XPEER=claude
-else XHOST=unknown; XPEER=""; fi
+if [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST=cursor; XPEER=codex;
+elif [ "${CLAUDECODE:-}" = "1" ]; then XHOST=claude; XPEER=codex;
+elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST=codex; XPEER=claude;
+else XHOST=unknown; XPEER=""; fi;
 echo "XMODEL_HOST: $XHOST  PEER: ${XPEER:-none}"
 ```
 

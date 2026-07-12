@@ -9,10 +9,10 @@ Elevation dispatches the reasoning-heavy authoring/interpretation step to a high
 Before reading any Fable config key, parsing Fable intent, or emitting any Fable string, self-identify the host with the same env-var union `ce-code-review` uses:
 
 ```bash
-if [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then HOST=cursor
-elif [ "${CLAUDECODE:-}" = "1" ]; then HOST=claude
-elif [ -n "${CODEX_SANDBOX:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then HOST=codex
-else HOST=unknown; fi
+if [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then HOST=cursor;
+elif [ "${CLAUDECODE:-}" = "1" ]; then HOST=claude;
+elif [ -n "${CODEX_SANDBOX:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then HOST=codex;
+else HOST=unknown; fi;
 echo "HOST: $HOST"
 ```
 

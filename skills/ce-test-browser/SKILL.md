@@ -96,14 +96,14 @@ Confirm the server is up before asking the headed/headless question — a manual
 
 ```bash
 if lsof -i ":${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1; then
-  echo "Server running on port ${PORT}"
+  echo "Server running on port ${PORT}";
 else
-  echo "Server not running on port ${PORT}"
-  echo "Start your dev server, then re-run:"
-  echo "  Rails: bin/dev  or  rails server -p ${PORT}"
-  echo "  Node/Next.js: npm run dev"
-  echo "  Custom port: run this skill again with --port <your-port>"
-  exit 0
+  echo "Server not running on port ${PORT}";
+  echo "Start your dev server, then re-run:";
+  echo "  Rails: bin/dev  or  rails server -p ${PORT}";
+  echo "  Node/Next.js: npm run dev";
+  echo "  Custom port: run this skill again with --port <your-port>";
+  exit 0;
 fi
 ```
 
