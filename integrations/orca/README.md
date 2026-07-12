@@ -12,6 +12,34 @@ path.
 
 ## Runtime and configuration
 
+### Codex home ownership under Orca
+
+Orca intentionally launches Codex with a managed runtime `CODEX_HOME`, but host
+plugin resources have one maintenance owner: the system Codex home
+(`~/.codex`). Orca links `plugins`, `skills`, `prompts`, and the other supported
+resource directories from that system home into the managed runtime home. It
+mirrors ordinary `config.toml` settings before launch and preserves only the
+runtime-owned hook-trust and project-trust sections. A separate runtime
+`.tmp/marketplaces/` checkout is a disposable catalog snapshot, not a duplicate
+installed plugin.
+
+Consequently, normal CE-Orca updates require one refresh, not one operation per
+home:
+
+```bash
+CODEX_HOME="$HOME/.codex" codex plugin marketplace upgrade compound-engineering-plugin
+CODEX_HOME="$HOME/.codex" codex plugin add compound-engineering@compound-engineering-plugin
+```
+
+The Codex app's **Refresh** action is the equivalent UI path. Do not remove the
+plugin for an ordinary update; remove and re-register the marketplace only when
+changing its source repository. Existing sessions still need a restart to load
+the refreshed skill files. Orca's source contract is documented in
+[`codex-home-paths.ts`](https://github.com/stablyai/orca/blob/main/src/main/codex/codex-home-paths.ts),
+[`codex-config-mirror.ts`](https://github.com/stablyai/orca/blob/main/src/main/codex/codex-config-mirror.ts),
+and
+[`runtime-home-service.ts`](https://github.com/stablyai/orca/blob/main/src/main/codex-accounts/runtime-home-service.ts).
+
 ### Install the runtime boundary
 
 The fork does not vendor orch-console. Install the stable executable from an

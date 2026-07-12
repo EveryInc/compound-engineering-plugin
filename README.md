@@ -279,6 +279,38 @@ CODEX_HOME="$HOME/.codex/profiles/work" codex plugin add compound-engineering@co
 
 The marketplace step only makes the plugin available; the plugin install is what activates the native CE skills for that profile.
 
+#### Codex inside Orca
+
+Orca launches Codex with a managed `CODEX_HOME` under its application data
+directory, but this is not a second plugin installation to maintain. On the
+host, Orca links the managed home's `plugins`, `skills`, `prompts`, and other
+Codex resources to the system home (`~/.codex`). It also mirrors
+`~/.codex/config.toml` into the managed home before launch while preserving
+Orca-owned hook and project-trust sections. The managed `.tmp/marketplaces/`
+directory remains a separate disposable marketplace snapshot; it is not a
+second plugin cache.
+
+Install and maintain the plugin once. In the Codex app, use **Refresh** on the
+workspace plugin. From a regular shell, refresh the system home explicitly:
+
+```bash
+CODEX_HOME="$HOME/.codex" codex plugin marketplace upgrade compound-engineering-plugin
+CODEX_HOME="$HOME/.codex" codex plugin add compound-engineering@compound-engineering-plugin
+```
+
+`plugin add` refreshes the installed copy from the upgraded marketplace
+snapshot even when the plugin is already installed; ordinary updates do not
+require `plugin remove`. Restart existing Codex sessions after refreshing so
+they reload skill content. Removing and re-adding the marketplace is reserved
+for a source migration, such as switching from the upstream EveryInc repository
+to this fork.
+
+This behavior follows Orca's managed-home implementation in
+[`codex-home-paths.ts`](https://github.com/stablyai/orca/blob/main/src/main/codex/codex-home-paths.ts),
+[`codex-config-mirror.ts`](https://github.com/stablyai/orca/blob/main/src/main/codex/codex-config-mirror.ts),
+and
+[`runtime-home-service.ts`](https://github.com/stablyai/orca/blob/main/src/main/codex-accounts/runtime-home-service.ts).
+
 ### Kimi Code CLI
 
 Kimi Code CLI can install Compound Engineering directly from this repository because the repo ships a native `.kimi-plugin/plugin.json` manifest:
