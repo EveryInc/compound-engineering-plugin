@@ -46,6 +46,35 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toContain("Related to ENG-123")
     expect(content).toMatch(/PR description.+not.+comment/i)
   })
+
+  test("babysit handoff is default-on with off-switches and drivable fork PRs", async () => {
+    const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    // Default-on: auto-invoke, announce, never block on a yes/no.
+    expect(content).toMatch(/auto-invoke `ce-babysit-pr`/i)
+    expect(content).toMatch(/never block on a yes\/no/i)
+    // Off is the explicit choice: per-run token + standing config opt-out.
+    expect(content).toContain("babysit:off")
+    expect(content).toContain("auto_babysit: false")
+    // Hard-off cases (orchestrated, no PR, non-GitHub, non-pushable head).
+    expect(content).toMatch(/do not fire/i)
+    expect(content).toMatch(/mode:pipeline/)
+    expect(content).toMatch(/head branch you cannot push to/i)
+    // Fork PRs are drivable, gated on head-pushability (not fork-ness); base read / head push.
+    expect(content).toMatch(/fork PRs are drivable/i)
+    expect(content).toMatch(/reads state on the \*\*base\*\* repo/i)
+    expect(content).toMatch(/pushes fixes to the \*\*head\*\* repo/i)
+  })
+
+  test("config template and example document the auto_babysit opt-out", async () => {
+    for (const p of [
+      "skills/ce-setup/references/config-template.yaml",
+      ".compound-engineering/config.local.example.yaml",
+    ]) {
+      const template = await readRepoFile(p)
+      expect(template).toContain("auto_babysit")
+    }
+  })
 })
 
 describe("PR concept teaching contract", () => {

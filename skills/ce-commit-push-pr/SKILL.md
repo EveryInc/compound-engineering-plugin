@@ -1,7 +1,7 @@
 ---
 name: ce-commit-push-pr
 description: Commit, push, and open a PR. Use when asked to ship/open a PR, or for PR-description-only flows like writing, rewriting, or describing a PR body.
-argument-hint: "[PR ref] [mode:pipeline] [archive:on|off]"
+argument-hint: "[PR ref] [mode:pipeline] [archive:on|off] [babysit:off|continuous|checkpoint]"
 ---
 
 # Git Commit, Push, and PR
@@ -18,7 +18,7 @@ argument-hint: "[PR ref] [mode:pipeline] [archive:on|off]"
 
 ## Context
 
-**On platforms other than Claude Code**, run the Context fallback below. **In Claude Code**, the labeled sections contain pre-populated data — use them directly.
+Run the **Context fallback** below to gather the remote default branch, the existing-PR check, and the repo root — on **every** platform, including Claude Code. In **Claude Code**, the four labeled sections below are additionally pre-populated; use them directly instead of re-running those four.
 
 **Git status:**
 !`git status`
@@ -31,15 +31,6 @@ argument-hint: "[PR ref] [mode:pipeline] [archive:on|off]"
 
 **Recent commits:**
 !`git log --oneline -10`
-
-**Remote default branch:**
-!`git rev-parse --abbrev-ref origin/HEAD`
-
-**Existing PR check:**
-!`gh pr view --json url,title,body,state`
-
-**Repo root (pre-resolved):**
-!`git rev-parse --show-toplevel`
 
 ### Context fallback
 
@@ -128,11 +119,15 @@ Then continue with the rest of the reference (Steps A through E, including the S
 1. `git check-ignore -q docs/explainers/YYYY-MM-DD-<concept-slug>.md` (from the repo root) — the check works on not-yet-created paths. If the path is ignored, print a one-line warning and skip archival entirely, writing nothing (never `git add -f`).
 2. Write the file (create the directory if needed) with YAML frontmatter `title`, `date`, `input_shape: concept`, `subject`, and the teaching content. If the file already exists from a prior run, overwrite it.
 3. `git add` those file(s) only (never `-A`), commit with `docs(explainer): teach <concept>[, <concept>]`, and push. If the commit reports nothing to commit, the doc is already committed from a prior run — keep the link and continue.
-4. Splice a head-branch blob URL per doc into the `## New concepts` section before applying.
+4. Splice a head-branch blob URL per doc into the `## New concepts` section before applying. Build the URL for the repo's actual host — e.g. `gh browse -n -b <head-branch> -- <path>` (prints the link on whatever host `gh` targets, GitHub Enterprise included) — do not hardcode `github.com`, or the link 404s on GHE.
 
 If the doc write, commit, or push fails, warn and continue to PR creation without the link — never strand the flow between commit and PR.
 
 **Concept trailer** — when a body applied by this run contains a `## New concepts` section, print one line after the PR URL in every mode: `New concepts: <name>[, <name>]`. In interactive full-workflow runs follow it with one line per taught concept: `Run /ce-explain <name> to go deeper.` No trailer when this run applied no body — including a rewrite that was declined or pipeline-defaulted to no — or no PR exists.
+
+**Babysit handoff — default on.** In interactive full workflow, after reporting a newly-created PR URL (or after new commits land on an existing open PR), **auto-invoke `ce-babysit-pr` on that PR by default**: announce it in one non-blocking line (e.g. "Babysitting toward merge-ready — watching CI + incoming review; pass `babysit:off` to skip"), then invoke — never block on a yes/no. *Off is the explicit choice:* **`babysit:off`** skips it this run (**`babysit:continuous`** / **`babysit:checkpoint`** forces that watch mode); **`auto_babysit: false`** in `<repo-root>/.compound-engineering/config.local.yaml` is a standing opt-out, read with the same gate semantics as `pr_teaching_section` (only an active, non-commented value of exactly `false` disables; a missing file/key or any other value means the default **on**; a `babysit:off` token overrides the config for this run).
+
+**Do not fire (auto-detected, no flag needed):** `mode:pipeline` (the orchestrated caller owns follow-on steps), description-only / description-update modes, no PR created or updated this run, non-GitHub (babysit's own guard stops it), or **a head branch you cannot push to**. **Fork PRs are drivable — not a hard-off.** A fork-to-upstream PR (the common open-source case) is babysittable whenever you can push to its head branch, which holds for a PR whose branch this skill just pushed (you own the fork): babysit reads state on the **base** repo (from the PR URL) and pushes fixes to the **head** repo (your fork). Hard-off only when the head is genuinely not pushable (e.g. someone else's PR). **Soft-degrade:** a checkpoint-only harness runs one tick and prints the resume command instead of a live loop.
 
 ---
 

@@ -1664,3 +1664,62 @@ describe("writeCodexBundle preserves user-managed skill and agent paths", () => 
     },
   )
 })
+
+describe("writeCodexBundle guards against ancestor-symlink traversal", () => {
+  async function readInstallManifest(codexRoot: string): Promise<{ skills: string[]; agents: string[] }> {
+    const raw = await fs.readFile(path.join(codexRoot, "compound-engineering", "install-manifest.json"), "utf8")
+    return JSON.parse(raw) as { skills: string[]; agents: string[] }
+  }
+
+  const skillBundle = (): CodexBundle => ({
+    pluginName: "compound-engineering",
+    prompts: [],
+    skillDirs: [{ name: "skill-one", sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one") }],
+    generatedSkills: [],
+  })
+
+  test.skipIf(!canDirSymlink)(
+    "does not write through a store dir that is itself a symlink into a user fork",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-ancestor-store-symlink-"))
+      const codexRoot = path.join(tempRoot, ".codex")
+      // The user replaced the entire plugin skills store with a symlink into a fork.
+      const forkStore = path.join(tempRoot, "user-fork-store")
+      await fs.mkdir(forkStore, { recursive: true })
+      await fs.writeFile(path.join(forkStore, "MARKER.md"), "# user store\n")
+      await fs.mkdir(path.join(codexRoot, "skills"), { recursive: true })
+      await fs.symlink(forkStore, path.join(codexRoot, "skills", "compound-engineering"), "junction")
+
+      await writeCodexBundle(codexRoot, skillBundle())
+
+      const linkStat = await fs.lstat(path.join(codexRoot, "skills", "compound-engineering"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      // Nothing was written through the link into the fork.
+      expect(await exists(path.join(forkStore, "skill-one"))).toBe(false)
+      expect(await fs.readFile(path.join(forkStore, "MARKER.md"), "utf8")).toBe("# user store\n")
+      expect((await readInstallManifest(codexRoot)).skills).not.toContain("skill-one")
+    },
+  )
+
+  test.skipIf(!canDirSymlink)(
+    "does not write through a symlinked ancestor above the store dir (multi-level)",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-ancestor-parent-symlink-"))
+      const codexRoot = path.join(tempRoot, ".codex")
+      await fs.mkdir(codexRoot, { recursive: true })
+      // The user symlinked the whole `skills` dir (the store's parent) into a fork.
+      const forkSkills = path.join(tempRoot, "user-fork-skills")
+      await fs.mkdir(forkSkills, { recursive: true })
+      await fs.writeFile(path.join(forkSkills, "MARKER.md"), "# user skills root\n")
+      await fs.symlink(forkSkills, path.join(codexRoot, "skills"), "junction")
+
+      await writeCodexBundle(codexRoot, skillBundle())
+
+      const linkStat = await fs.lstat(path.join(codexRoot, "skills"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await exists(path.join(forkSkills, "compound-engineering"))).toBe(false)
+      expect(await fs.readFile(path.join(forkSkills, "MARKER.md"), "utf8")).toBe("# user skills root\n")
+      expect((await readInstallManifest(codexRoot)).skills).not.toContain("skill-one")
+    },
+  )
+})

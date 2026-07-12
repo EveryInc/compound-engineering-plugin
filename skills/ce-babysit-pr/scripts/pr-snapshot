@@ -1,0 +1,904 @@
+#!/usr/bin/env python3
+"""Deterministic snapshot + state helper for ce-babysit-pr.
+
+The agent (SKILL.md) owns judgment and mutations; this script owns the parts
+prose cannot do reliably: a combined fetch of both event streams, atomic state
+read/write under a file lock, and dedup keyed on remote truth.
+
+The dedup model is claim -> act -> confirm. `snapshot` never marks an item
+handled just because it observed it; an item stays actionable until either the
+agent confirms it acted (`mark`) OR remote truth removes it (a resolved thread
+drops out of the unresolved fetch). So if a resolve/debug pass crashes or fails
+before the agent marks it, the item is still actionable on the next tick.
+
+Subcommands:
+  snapshot --pr N [--repo O/R] --state-dir DIR [--fetch-file F]
+           Fetch (or load F), diff against on-disk state, persist the
+           observed state atomically, emit the actionable set as JSON.
+  mark     --state-dir DIR (--thread ID --disposition needs-human|dispatched
+           | --comment ID --disposition needs-human|dispatched | --check KEY)
+           Record that the agent acted on an item. A `dispatched` thread is
+           re-emitted when a later reviewer comment moves its last-comment
+           identity past the one we acted on (our own reply does not
+           re-trigger); a `needs-human` thread stays parked until an explicit
+           `--disposition open`. A non-thread feedback item never drops out of
+           the fetch on its own, so `--comment` is the only way to silence a
+           handled one. A new head SHA clears dispatched CI checks.
+
+--fetch-file injects a pre-captured combined snapshot instead of calling gh,
+so the diff logic is testable without a live PR.
+"""
+import argparse
+import hashlib
+import json
+import os
+import subprocess
+import tempfile
+import time
+from contextlib import contextmanager
+from datetime import datetime, timezone
+
+# Conclusions that mean "this check needs attention" (failing states).
+FAILING = {"FAILURE", "TIMED_OUT", "CANCELLED", "ACTION_REQUIRED", "STARTUP_FAILURE", "STALE"}
+
+DISPOSITION_OPEN = "open"
+DISPOSITION_NEEDS_HUMAN = "needs-human"
+DISPOSITION_DISPATCHED = "dispatched"
+
+# A present in-progress review signal (👀) blocks a merge-ready read — but never terminally: after
+# this much quiet a stale/never-cleared signal is ignored so the PR can still be called ready.
+REVIEW_INPROGRESS_MAX_WAIT = 900
+
+# Pure CI/status bots whose top-level comments are never review feedback (coverage deltas,
+# deploy previews). Code-review bots (Codex, CodeRabbit, Greptile, etc.) are deliberately NOT
+# here — their comments ARE feedback and must reach ce-resolve-pr-feedback. Matched case-folded
+# against both the bare login and its "[bot]" suffix form.
+CI_BOT_LOGINS = {
+    "github-actions", "codecov", "codecov-commenter", "netlify", "vercel",
+}
+
+# Trajectory check-history states (persisted, compared by ==).
+CHECK_UNKNOWN = "unknown"
+CHECK_CLEAR = "clear"
+CHECK_FAILING = "failing"
+# Trajectory single-stream activity labels.
+STREAM_CI = "ci"
+STREAM_REVIEW = "review"
+# Keep a check's recurrence memory across a transient absence (a one-tick gap from a
+# workflow-registration lag or a paths-filtered run), but bound growth: evict entries
+# unseen for this many ticks.
+CHECK_HISTORY_TTL = 30
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _iso(dt):
+    return dt.isoformat()
+
+
+def _run(cmd):
+    return subprocess.run(cmd, capture_output=True, text=True)
+
+
+def _run_checked(cmd, label):
+    r = _run(cmd)
+    if r.returncode != 0:
+        raise SystemExit(f"{label} failed: {r.stderr.strip()}")
+    return r
+
+
+def _split_repo(repo):
+    """Parse "[HOST/]OWNER/NAME" into (owner, name), or (None, None). A host-qualified ref (gh's
+    documented `[HOST/]OWNER/REPO` selector) drops the host — the last two segments are what the
+    GraphQL lookup needs; treating the host as the owner would query a nonexistent repo on GHE."""
+    if not repo:
+        return None, None
+    parts = repo.strip("/").split("/")
+    if len(parts) >= 2:
+        return parts[-2], parts[-1]
+    return None, None
+
+
+def _resolve_repo_ref(repo, url):
+    """Resolve (owner, name, host) from --repo + the PR url, else one `gh repo view` call.
+    The host is parsed from the url and threaded into every `gh api` call so a GitHub Enterprise
+    PR queries the right host — without it, `gh api` defaults to github.com and a GHE babysitter
+    fetches the PR via `gh pr view` but then reads review threads / workflow runs from github.com.
+    Parsing the url (already fetched by `fetch`) also avoids a redundant `gh repo view` per tick."""
+    owner, name = _split_repo(repo)
+    host = None
+    if url:
+        # https://<host>/OWNER/NAME/pull/N
+        parts = url.rstrip("/").split("/")
+        if len(parts) >= 5 and parts[0].startswith("http"):
+            host = parts[2]
+            if not owner:
+                owner, name = parts[-4], parts[-3]
+    if not owner:
+        r = _run(["gh", "repo", "view", "--json", "owner,name"])
+        if r.returncode == 0:
+            info = json.loads(r.stdout)
+            owner, name = info.get("owner", {}).get("login"), info.get("name")
+    if not owner or not name:
+        raise SystemExit("could not resolve owner/repo; pass --repo OWNER/REPO")
+    return owner, name, host
+
+
+def _host_args(host):
+    """`gh api --hostname` selector so GHE calls hit the PR's host, not the default github.com."""
+    return ["--hostname", host] if host else []
+
+
+def _thread_identity(t):
+    """The remote-truth identity of a thread's latest state."""
+    return (t.get("last_comment_id"), t.get("last_comment_at"))
+
+
+def fetch(pr, repo):
+    """Fetch both event streams via gh into one combined snapshot dict."""
+    repo_args = ["--repo", repo] if repo else []
+    view = _run_checked(["gh", "pr", "view", str(pr), *repo_args, "--json",
+                         "state,mergeable,mergeStateStatus,reviewDecision,headRefOid,url,number,"
+                         "statusCheckRollup,author,comments,reviews,reactionGroups"],
+                        "gh pr view")
+    v = json.loads(view.stdout)
+
+    checks = []
+    for c in v.get("statusCheckRollup") or []:
+        # CheckRun entries carry name/status/conclusion/workflowName/detailsUrl.
+        # StatusContext (legacy commit statuses) carry context/state/targetUrl.
+        if c.get("__typename") == "StatusContext":
+            name = c.get("context") or "status"
+            state = (c.get("state") or "").upper()
+            checks.append({
+                "key": name, "name": name,
+                "status": "COMPLETED" if state in ("SUCCESS", "FAILURE", "ERROR") else "IN_PROGRESS",
+                "conclusion": {"ERROR": "FAILURE"}.get(state, state) or None,
+                "details_url": c.get("targetUrl"),
+            })
+        else:
+            wf = c.get("workflowName")
+            name = c.get("name") or "check"
+            checks.append({
+                "key": f"{wf}/{name}" if wf else name, "name": name,
+                "status": (c.get("status") or "").upper() or "IN_PROGRESS",
+                "conclusion": (c.get("conclusion") or None) and c["conclusion"].upper(),
+                "details_url": c.get("detailsUrl"),
+            })
+
+    # In-progress review signal: an 👀 (EYES) reaction on the PR body is how several review bots
+    # (Codex among them) announce a review is *underway* — a present in-progress signal means the PR
+    # is NOT settled, regardless of quiet time. A present signal is meaningful; absence tells us
+    # nothing (many reviewers give no signal), so this only ever *delays* a merge-ready read.
+    review_in_progress = any(
+        g.get("content") == "EYES" and (g.get("users") or {}).get("totalCount", 0) > 0
+        for g in v.get("reactionGroups") or [])
+
+    owner, name, host = _resolve_repo_ref(repo, v.get("url"))
+    head = v.get("headRefOid")
+    return {
+        "pr_state": v.get("state"),
+        "mergeable": v.get("mergeable"),
+        "merge_state_status": v.get("mergeStateStatus"),
+        "review_decision": v.get("reviewDecision") or None,
+        "head_sha": head,
+        "url": v.get("url"),
+        "checks": checks,
+        "review_in_progress": review_in_progress,
+        "threads": fetch_threads(pr, owner, name, host),
+        # Non-thread feedback: top-level PR comments + review submission bodies. ce-resolve-pr-feedback
+        # handles these too, so a Changes-Requested review body or an actionable top-level comment with
+        # NO inline thread must not be invisible to the loop. Content-actionability is the resolver's
+        # judgment; here we just surface non-empty, non-author, non-CI-bot items so the loop invokes it.
+        "feedback": _extract_feedback(v),
+        "awaiting_approval": fetch_awaiting_approval(owner, name, head, host),
+    }
+
+
+def _is_ci_bot(login):
+    """A pure CI/status bot login, tolerant of the "[bot]" suffix gh reports."""
+    return login.lower().removesuffix("[bot]") in CI_BOT_LOGINS
+
+
+def _body_hash(body):
+    """Edit identity for a top-level comment / review body: `gh pr view --json` exposes no
+    updatedAt, so hash the body. When a dispatched wrapper is later edited to add an actionable
+    request, this changes and the item reactivates (unlike a thread, our reply is a separate
+    top-level comment and never edits the original, so there is no self-reply retrigger)."""
+    return hashlib.sha1((body or "").encode("utf-8")).hexdigest()[:16]
+
+
+def _extract_feedback(v):
+    """Top-level PR comments + non-empty review bodies, excluding the PR author and CI/status
+    bots. `gh pr view --json comments,reviews` returns flat arrays (not GraphQL {nodes})."""
+    author = (v.get("author") or {}).get("login")
+    out = []
+    for c in v.get("comments") or []:
+        a = (c.get("author") or {}).get("login")
+        if a and a != author and not _is_ci_bot(a) and (c.get("body") or "").strip():
+            out.append({"id": c.get("id"), "kind": "comment", "author": a, "edit_id": _body_hash(c.get("body"))})
+    for r in v.get("reviews") or []:
+        a = (r.get("author") or {}).get("login")
+        if a and a != author and not _is_ci_bot(a) and (r.get("body") or "").strip():
+            out.append({"id": r.get("id"), "kind": "review", "author": a, "state": r.get("state"),
+                        "edit_id": _body_hash(r.get("body"))})
+    return out
+
+
+def fetch_awaiting_approval(owner, name, head, host=None):
+    """Count Actions workflow runs on this head that are awaiting maintainer approval —
+    the fork-PR security gate. Such a run has created NO check-run yet, so it is invisible
+    to statusCheckRollup; without this, a fork PR blocked on approval reads as 'all checks ok'.
+    Best-effort: any API/permission failure returns 0 rather than failing the tick."""
+    if not head:
+        return 0
+    r = _run(["gh", "api", *_host_args(host),
+              f"repos/{owner}/{name}/actions/runs?head_sha={head}&per_page=50",
+              "--jq", '[.workflow_runs[] | select(.status==\"action_required\" or .status==\"waiting\" '
+                      'or .conclusion==\"action_required\")] | length'])
+    if r.returncode != 0:
+        return 0
+    try:
+        return int((r.stdout or "").strip() or 0)
+    except ValueError:
+        return 0
+
+
+def fetch_threads(pr, owner, name, host=None):
+    """Unresolved review threads with their last-comment identity."""
+    query = """
+query($owner:String!,$repo:String!,$pr:Int!,$cursor:String){
+  repository(owner:$owner,name:$repo){ pullRequest(number:$pr){
+    reviewThreads(first:100,after:$cursor){
+      nodes{ id isResolved path line
+        comments(last:100){ nodes{ id createdAt lastEditedAt } } }
+      pageInfo{ hasNextPage endCursor } } } } }"""
+    out = []
+    cursor = None
+    while True:
+        args = ["gh", "api", "graphql", *_host_args(host), "-f", f"owner={owner}", "-f", f"repo={name}",
+                "-F", f"pr={pr}", "-f", f"query={query}"]
+        if cursor:
+            args += ["-f", f"cursor={cursor}"]
+        r = _run_checked(args, "gh api graphql")
+        data = json.loads(r.stdout)["data"]["repository"]["pullRequest"]["reviewThreads"]
+        for n in data["nodes"]:
+            if n.get("isResolved"):
+                continue
+            cs = n.get("comments", {}).get("nodes") or []
+            last = cs[-1] if cs else {}
+            # `last_comment_at` is the reactivation signal — the MAX edit/create time across every
+            # comment in the thread, not just the last one, so a reviewer editing an *earlier* comment
+            # (their original request) after the agent's reply still moves the identity and re-opens it.
+            # Bounded to the last 100 comments (see the query): review threads are ~never that long; an
+            # edit to a comment outside that window would be missed (acceptable vs paginating per thread).
+            edit_at = max((c.get("lastEditedAt") or c.get("createdAt") or "" for c in cs), default="")
+            out.append({
+                "thread_id": n["id"],
+                "last_comment_id": last.get("id"),
+                "last_comment_at": edit_at or last.get("lastEditedAt") or last.get("createdAt"),
+                "path": n.get("path"),
+                "line": n.get("line"),
+            })
+        if not data["pageInfo"]["hasNextPage"]:
+            break
+        cursor = data["pageInfo"]["endCursor"]
+    return out
+
+
+def _empty_state(pr, repo, url, now):
+    owner, name = _split_repo(repo)
+    return {
+        "pr": {"owner": owner, "repo": name, "number": pr, "url": url},
+        "head_sha": None, "tick": 0, "started_at": _iso(now),
+        "checks": {}, "threads": {}, "ci_dispatched": {},
+        "review_decision": None, "mergeable": None, "merge_state_status": None,
+        "last_change_at": None, "last_action": None, "stop_reason": None,
+        "trajectory": _empty_trajectory(),
+    }
+
+
+def _empty_trajectory():
+    """Deterministic cross-tick facts babysit hands the leaves (facts, not judgment):
+    babysit ships the trajectory, the leaf decides whether it means non-convergence."""
+    return {
+        "check_history": {},           # check key -> {state, last_head, recur, seen_tick}
+        "seen_threads": {},            # unresolved thread id -> first-seen tick
+        "unresolved_series": [],       # unresolved-thread count per tick (last 6)
+        "stream_series": [],           # single-stream activity per tick (last 8)
+        "problem_keys": [],            # last tick's failing checks + non-parked threads (progress detection)
+        "min_open_problems": None,     # lowest total open-problem count seen
+        "heads_since_progress": 0,     # head changes since progress (a new low OR something cleared)
+        "last_head": None,             # head as of the last AGENT tick — hsp counts moves between ticks,
+                                       # NOT poll-observed head moves (state["head_sha"] advances on polls)
+    }
+
+
+def _load_trajectory(state):
+    """Load the trajectory, tolerating a partial or non-dict value from an older on-disk
+    state.json (persisted in /tmp across script versions) — backfill missing keys so a new
+    field never KeyErrors an old state, and a null/garbage value never crashes."""
+    tj = state.get("trajectory")
+    if not isinstance(tj, dict):
+        tj = {}
+    for key, value in _empty_trajectory().items():
+        tj.setdefault(key, value)
+    state["trajectory"] = tj
+    return tj
+
+
+def _push_bounded(lst, item, cap):
+    """Append to a sliding window that keeps only the last `cap` items."""
+    lst.append(item)
+    del lst[:-cap]
+
+
+def _stream_alternations(series):
+    """Count flips between ci-active and review-active ticks — the cross-stream churn signal."""
+    flips = 0
+    prev = None
+    for s in series:
+        if prev is not None and s != prev:
+            flips += 1
+        prev = s
+    return flips
+
+
+def _trend(series):
+    if len(series) < 3:
+        return "flat"
+    if series[-1] > series[0]:
+        return "rising"
+    if series[-1] < series[0]:
+        return "falling"
+    return "flat"
+
+
+def _record_check_history(state, head, new_checks):
+    """Record CI fail->clear->fail recurrence transitions. Runs on EVERY snapshot — agent ticks AND
+    watch polls — so a CLEAR (or FAIL) observed only between agent ticks is not lost, which would
+    otherwise make the ping-pong recurrence trigger under-fire under the self-sustaining watch.
+    Idempotent per transition: once a check is FAILING, re-observing FAIL does not re-increment."""
+    tj = _load_trajectory(state)
+    tick = state.get("tick", 0)
+    hist = tj["check_history"]
+    for key, c in new_checks.items():
+        h = hist.setdefault(key, {"state": CHECK_UNKNOWN, "last_head": None, "recur": 0, "seen_tick": tick})
+        h["seen_tick"] = tick
+        if c["conclusion"] in FAILING:
+            if h["state"] == CHECK_CLEAR and h["last_head"] != head:  # fail after a clear on a new head
+                h["recur"] += 1
+            h["state"] = CHECK_FAILING
+            h["last_head"] = head
+        elif c["status"] == "COMPLETED":  # observed non-failing terminal — a genuine clear
+            h["state"] = CHECK_CLEAR
+            h["last_head"] = head
+        # IN_PROGRESS/QUEUED: leave prior state untouched (not yet a clear)
+    # Evict entries unseen for TTL agent-ticks (polls don't advance the tick) — bounds growth without
+    # erasing a check that was briefly absent (a one-tick gap must not lose real recurrence history).
+    tj["check_history"] = {k: v for k, v in hist.items() if tick - v.get("seen_tick", tick) <= CHECK_HISTORY_TTL}
+
+
+def _update_trajectory(state, head, new_checks, new_threads, new_feedback, actionable):
+    """Maintain and emit the deterministic trajectory. Coarse by design: check-name-level
+    recurrence, backlog trend, cross-stream alternation, no-progress heads. Fine, invariant-
+    level judgment (log signatures, nit root-clustering) is the leaf's job, not this script's.
+    `actionable` is the `{ci, threads, comments}` set diff() also returns. Non-thread feedback
+    (top-level comments + review bodies) counts as review-stream activity and as an open problem
+    for the stall signal, but the thread-named backlog fields stay scoped to inline threads."""
+    tj = _load_trajectory(state)
+
+    # --- CI recurrence (fail->clear->fail on a *different* head): recorded on EVERY observation
+    # (agent ticks AND watch polls, via _record_check_history in diff) so a clear seen only between
+    # agent ticks is not lost. Here we just READ the accumulated history for the trigger. recur_max
+    # reflects only checks present this tick, so a stale key can't keep it elevated. ---
+    hist = tj["check_history"]
+    recur_max = max((hist[k]["recur"] for k in new_checks if k in hist), default=0)
+    recurring = [{"key": k, "recur": hist[k]["recur"]} for k in new_checks if k in hist and hist[k]["recur"] > 0]
+
+    # --- Review-thread backlog: trend of unresolved-thread count + genuinely new threads this
+    # tick. Scoped to inline threads (non-thread feedback is captured in the total-problem stall
+    # signal below), so these thread-named fields stay accurate. ---
+    seen = tj.get("seen_threads", {})
+    new_arrivals = [tid for tid in new_threads if tid not in seen]
+    tj["seen_threads"] = {tid: seen.get(tid, state.get("tick", 0)) for tid in new_threads}
+    _push_bounded(tj["unresolved_series"], len(new_threads), 6)
+
+    # --- Cross-stream churn: alternation between ci-only and review-only active ticks.
+    # Review is active when either threads OR non-thread feedback is actionable. ---
+    review_active = bool(actionable["threads"] or actionable.get("comments"))
+    if actionable["ci"] and not review_active:
+        active = STREAM_CI
+    elif review_active and not actionable["ci"]:
+        active = STREAM_REVIEW
+    else:
+        active = None  # both or neither — not a single-stream tick, don't record
+    if active:
+        _push_bounded(tj["stream_series"], active, 8)
+
+    # --- No-progress heads: measured from TOTAL open problems (failing checks + non-parked
+    # unresolved threads + non-parked non-thread feedback), NOT the post-claim `actionable` set —
+    # marking items dispatched shrinks
+    # actionable and would fake progress. Reset the counter when the head moves and either the
+    # total set a new low OR a previously-failing item cleared: progressive migration (A cleared
+    # while B appears) is progress, not a stall, so it must not accrue heads_since_progress. ---
+    # Only genuinely-OPEN items are unresolved work: a `dispatched` item is handled (a top-level
+    # comment never drops out of the fetch, so counting it would keep heads_since_progress climbing
+    # forever and falsely trip non-convergence on unrelated later work), and `needs-human` is parked.
+    problem_keys = {f"c:{k}" for k, c in new_checks.items() if c["conclusion"] in FAILING}
+    problem_keys |= {f"t:{tid}" for tid, t in new_threads.items() if t.get("disposition") == DISPOSITION_OPEN}
+    problem_keys |= {f"m:{fid}" for fid, f in new_feedback.items() if f.get("disposition") == DISPOSITION_OPEN}
+    cleared_something = bool(set(tj.get("problem_keys", [])) - problem_keys)
+    open_problems = len(problem_keys)
+    minp = tj.get("min_open_problems")
+    new_low = minp is None or open_problems < minp
+    if new_low:
+        tj["min_open_problems"] = open_problems
+    # heads_since_progress counts head moves BETWEEN AGENT TICKS (tj["last_head"]), not poll-observed
+    # moves — a watch poll advances state["head_sha"], so a plain head_changed would read False at the
+    # agent's tick and starve this stall signal under the default self-sustaining watch.
+    traj_head_moved = tj.get("last_head") is not None and head != tj.get("last_head")
+    if new_low or cleared_something:
+        tj["heads_since_progress"] = 0
+    elif traj_head_moved:
+        tj["heads_since_progress"] = tj.get("heads_since_progress", 0) + 1
+    tj["problem_keys"] = sorted(problem_keys)
+    tj["last_head"] = head
+
+    return {
+        "recurring_checks": recurring,
+        "check_recur_max": recur_max,
+        "unresolved_threads": len(new_threads),
+        "unresolved_series": list(tj["unresolved_series"]),
+        "unresolved_trend": _trend(tj["unresolved_series"]),
+        "new_threads_this_tick": len(new_arrivals),
+        "stream_alternations": _stream_alternations(tj["stream_series"]),
+        "heads_since_progress": tj["heads_since_progress"],
+    }
+
+
+def _apply_dispositions(items, id_key, prior, identity_fn=None):
+    """Claim->act->confirm dedup for a review stream: an item stays actionable until `mark`
+    records a non-open disposition (persisted in prior[id]['disposition']). Returns
+    (persisted_by_id, actionable_list, open_needs_human_count).
+
+    When identity_fn is given, a `dispatched` **or** `needs-human` item is *reactivated* — set back
+    to open and re-actionized — once its last-comment / edit identity moves past the one we acted on.
+    That acted-on identity is captured lazily on the first tick we observe the item parked, which is
+    *after* our own reply (a fix acknowledgment, or a needs-human `decision_context` reply) has
+    already landed in the fetch — so our reply becomes the baseline and does not re-trigger, while a
+    genuine later comment does. For `needs-human` this is exactly how a **human answering the parked
+    question** (a reviewer reply, or an edit of the top-level comment) re-opens it and wakes the loop,
+    instead of it sitting parked forever; an explicit `mark --disposition open` still forces it too.
+    This is also what stops a dispatched-but-unresolved thread with fresh reviewer activity from being
+    silenced out of counts.threads and letting the merge-ready gate call the PR ready. An item with no
+    identity_fn never auto-reactivates (a brand-new top-level comment is just a new id)."""
+    persisted, actionable, needs_human = {}, [], 0
+    for it in items:
+        iid = it.get(id_key)
+        if not iid:
+            continue
+        pri = prior.get(iid, {})
+        disposition = pri.get("disposition", DISPOSITION_OPEN)
+        acted_identity = pri.get("acted_identity")
+        if disposition in (DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN) and identity_fn is not None:
+            current_identity = identity_fn(it)
+            if acted_identity is None:
+                acted_identity = current_identity   # first post-action observation: adopt as baseline
+            elif current_identity != acted_identity:
+                disposition = DISPOSITION_OPEN       # a later human/reviewer reply past our baseline -> reactivate
+                acted_identity = None
+        if disposition == DISPOSITION_OPEN:
+            actionable.append(it)
+        elif disposition == DISPOSITION_NEEDS_HUMAN:
+            needs_human += 1
+        rec = {**it, "disposition": disposition}
+        if acted_identity is not None:
+            rec["acted_identity"] = acted_identity
+        persisted[iid] = rec
+    return persisted, actionable, needs_human
+
+
+def diff(state, cur, now=None, advance_trajectory=True):
+    """Pure: given prior state + current snapshot, compute the actionable set
+    and the persisted observed state. `now` is injectable for tests."""
+    now = now or _now()
+    # A transient null/empty head (a gh hiccup) falls back to the last known head,
+    # so a momentary null does not look like a new head and wipe ci_dispatched.
+    head = cur["head_sha"] or state.get("head_sha")
+    head_changed = state.get("head_sha") is not None and head != state["head_sha"]
+
+    prior_threads = state.get("threads", {})
+    prior_feedback = state.get("feedback", {})
+    prior_change_sig = _change_sig(state)
+
+    if head_changed:
+        # SHA-scoped state is meaningless on a new head.
+        state["ci_dispatched"] = {}
+
+    # --- CI: a failing check on the current head is actionable until the agent
+    # marks it dispatched (recorded in ci_dispatched[head]) or the head moves.
+    # `checks_terminal` = every check has finished (none IN_PROGRESS/QUEUED).
+    # Duplicate check keys (same workflow/name) are disambiguated with a #n suffix
+    # so one never shadows another and silently drops a failing check. ---
+    dispatched = set(state.get("ci_dispatched", {}).get(head, []))
+    new_checks = {}
+    actionable_ci = []
+    has_failing = False
+    checks_terminal = True
+    seen_keys = {}
+    for c in cur["checks"]:
+        key = c["key"]
+        if key in seen_keys:
+            seen_keys[key] += 1
+            key = f"{key}#{seen_keys[key]}"
+        else:
+            seen_keys[key] = 0
+        new_checks[key] = {"name": c["name"], "status": c["status"],
+                           "conclusion": c["conclusion"], "head_sha": head}
+        if c["status"] != "COMPLETED":
+            checks_terminal = False
+        if c["conclusion"] in FAILING:
+            has_failing = True
+            if key not in dispatched:
+                actionable_ci.append({"key": key, "name": c["name"],
+                                      "conclusion": c["conclusion"], "details_url": c["details_url"]})
+
+    # Both review streams share claim->act->confirm dedup (see _apply_dispositions), differing
+    # in how an item leaves the fetch and whether new activity re-opens it:
+    #   - Threads: a resolved thread drops out of the unresolved fetch. A `dispatched` thread that
+    #     is still unresolved is reactivated once its last-comment identity moves past the one we
+    #     acted on (acted_identity) — so a reviewer re-engaging is not silently dropped, yet the
+    #     acting loop's own reply (captured as the baseline on first observation) does not
+    #     re-trigger. A `needs-human` thread stays parked (open_needs_human keeps merge-ready from
+    #     firing) until a *human* answers it — a later reply/edit past that same baseline reopens and
+    #     wakes it — or an explicit `mark --disposition open` forces it.
+    #   - Feedback (top-level comments + review bodies): no remote "resolve" exists, so an item
+    #     never drops out on its own — `mark --comment <id>` is the only thing that silences it. A
+    #     dispatched item reactivates only when its own body is *edited* (edit_id changes) to add a
+    #     new request; a brand-new comment is just a new id. Our reply is a separate top-level
+    #     comment, never an edit of the original, so it never retriggers.
+    # Either stream's open needs-human items feed open_needs_human so the merge-ready gate
+    # refuses to call the PR ready while a human decision is still pending.
+    new_threads, actionable_threads, human_threads = _apply_dispositions(
+        cur["threads"], "thread_id", prior_threads,
+        identity_fn=lambda t: [t.get("last_comment_id"), t.get("last_comment_at")])
+    new_feedback, actionable_feedback, human_feedback = _apply_dispositions(
+        cur.get("feedback") or [], "id", prior_feedback, identity_fn=lambda c: [c.get("edit_id")])
+    open_needs_human = human_threads + human_feedback
+    # Identities of the currently-parked needs-human items, so the watch can tell an already-
+    # surfaced residual (do not re-wake) from a newly-arrived one (wake) — a parked human decision
+    # must not busy-wake the loop or terminate it.
+    needs_human_ids = sorted(
+        [k for k, r in new_threads.items() if r.get("disposition") == DISPOSITION_NEEDS_HUMAN]
+        + [k for k, r in new_feedback.items() if r.get("disposition") == DISPOSITION_NEEDS_HUMAN])
+
+    state["head_sha"] = head or state.get("head_sha")
+    state["checks"] = new_checks
+    state["threads"] = new_threads
+    state["feedback"] = new_feedback
+    state["review_decision"] = cur["review_decision"]
+    state["mergeable"] = cur["mergeable"]
+    state["merge_state_status"] = cur["merge_state_status"]
+    state["review_in_progress"] = cur.get("review_in_progress", False)
+    state["awaiting_approval"] = cur.get("awaiting_approval", 0)
+
+    actionable = {"ci": actionable_ci, "threads": actionable_threads, "comments": actionable_feedback}
+    if advance_trajectory:
+        state["tick"] = state.get("tick", 0) + 1
+    # Record CI recurrence transitions on EVERY observation (polls too) so a fail->clear->fail seen
+    # only between agent ticks is not lost. head_sha for the check-level last_head is the observed
+    # head; the trajectory-level last_head (for heads_since_progress) is agent-tick-only, inside
+    # _update_trajectory.
+    _record_check_history(state, head, new_checks)
+    if advance_trajectory:
+        trajectory = _update_trajectory(state, head, new_checks, new_threads, new_feedback, actionable)
+    else:
+        # A watch poll detects change and advances the settle clock, but must NOT roll the rest of the
+        # trajectory (tick counter, seen_threads, unresolved_series, heads_since_progress). Advancing
+        # it would consume new_threads_this_tick — the waking poll marks the just-arrived thread
+        # "seen", so the agent's real tick reads 0 new arrivals and the review-bot-treadmill
+        # non-convergence trigger never fires. Only the agent's tick (advance_trajectory=True) rolls it.
+        trajectory = {}
+
+    # --- Settle window: any observable movement resets the quiet clock. ---
+    changed_this_tick = head_changed or _change_sig(state) != prior_change_sig or state.get("last_change_at") is None
+    if changed_this_tick:
+        state["last_change_at"] = _iso(now)
+    quiet_seconds = _elapsed(state.get("last_change_at"), now)
+
+    # Workflow runs awaiting maintainer approval (fork-PR gate) create no check-run, so they are
+    # invisible to the rollup above — surface them, and never call CI "ok" while the real CI is
+    # gated. blocked_external = the loop cannot progress (no failing check to fix, but CI can't run)
+    # and no one in this loop can unblock it — it is up to a maintainer of the base repo.
+    awaiting_approval = state["awaiting_approval"]
+    # "OK" requires every check terminal, none failing, AND none gated on approval. A still-
+    # IN_PROGRESS or awaiting-approval check is neither ok nor failing — do not exit green.
+    all_checks_ok = checks_terminal and not has_failing and bool(cur["checks"]) and awaiting_approval == 0
+    blocked_external = (awaiting_approval > 0 and not has_failing and checks_terminal
+                        and not actionable_threads and not actionable_feedback)
+
+    return {
+        "pr_state": cur["pr_state"],
+        "mergeable": cur["mergeable"],
+        "merge_state_status": cur["merge_state_status"],
+        "review_decision": cur["review_decision"],
+        "head_sha": head,
+        "head_changed": head_changed,
+        "url": cur["url"],
+        "has_failing_checks": has_failing,
+        "checks_terminal": checks_terminal,
+        "checks_present": bool(cur["checks"]),
+        "all_checks_ok": all_checks_ok,
+        "review_in_progress": cur.get("review_in_progress", False),
+        "checks_awaiting_approval": awaiting_approval,
+        "blocked_external": blocked_external,
+        "open_needs_human": open_needs_human,
+        "needs_human_ids": needs_human_ids,
+        "actionable": {"threads": actionable_threads, "ci": actionable_ci, "comments": actionable_feedback},
+        "counts": {"threads": len(actionable_threads), "ci": len(actionable_ci),
+                   "comments": len(actionable_feedback), "needs_human": open_needs_human},
+        "changed_this_tick": changed_this_tick,
+        "quiet_seconds": quiet_seconds,
+        "session_seconds": _elapsed(state.get("started_at"), now),
+        "tick": state["tick"],
+        "trajectory": trajectory,
+    }, state
+
+
+def _change_sig(state):
+    """Everything whose movement should reset the settle clock."""
+    checks = {k: (v.get("status"), v.get("conclusion")) for k, v in state.get("checks", {}).items()}
+    threads = {tid: _thread_identity(v) for tid, v in state.get("threads", {}).items()}
+    feedback = {fid: v.get("disposition") for fid, v in state.get("feedback", {}).items()}
+    return (checks, threads, feedback, state.get("review_decision"), state.get("mergeable"),
+            state.get("merge_state_status"), state.get("review_in_progress"),
+            # awaiting-approval clearing is movement: a fork gate lifting must reset the settle clock
+            # so merge-ready waits for the now-imminent check-runs instead of firing on an empty rollup.
+            bool(state.get("awaiting_approval")))
+
+
+def _elapsed(iso_str, now):
+    try:
+        return int((now - datetime.fromisoformat(iso_str)).total_seconds())
+    except (ValueError, TypeError):
+        return 0
+
+
+@contextmanager
+def locked_state(state_dir, pr, repo, now):
+    import fcntl
+    os.makedirs(state_dir, exist_ok=True)
+    lock_path = os.path.join(state_dir, "lock")
+    state_path = os.path.join(state_dir, "state.json")
+    with open(lock_path, "w") as lf:
+        fcntl.flock(lf, fcntl.LOCK_EX)
+        if os.path.exists(state_path):
+            with open(state_path) as f:
+                state = json.load(f)
+        else:
+            state = _empty_state(pr, repo, None, now)
+        box = {"state": state}
+        yield box
+        tmp = tempfile.NamedTemporaryFile("w", dir=state_dir, delete=False)
+        json.dump(box["state"], tmp, indent=2)
+        tmp.flush()
+        os.fsync(tmp.fileno())
+        tmp.close()
+        os.replace(tmp.name, state_path)
+        fcntl.flock(lf, fcntl.LOCK_UN)
+
+
+def _run_snapshot(args, now, advance_trajectory=True):
+    """One fetch -> diff -> persist. Returns the actionable/state dict."""
+    if args.fetch_file:
+        with open(args.fetch_file) as f:
+            cur = json.load(f)
+    else:
+        cur = fetch(args.pr, args.repo)
+    with locked_state(args.state_dir, args.pr, args.repo, now) as box:
+        if box["state"].get("pr", {}).get("url") is None and cur.get("url"):
+            box["state"]["pr"]["url"] = cur["url"]
+        if getattr(args, "reset_session", False):
+            # A new babysit session (fresh invocation / watch arm) starts the budget clock now. Without
+            # this, `started_at` persists from state creation, so resuming against day-old state would
+            # read session_seconds as huge and hand back as "budget exhausted" before doing any work.
+            box["state"]["started_at"] = _iso(now)
+        actionable, box["state"] = diff(box["state"], cur, now, advance_trajectory=advance_trajectory)
+    return actionable
+
+
+def cmd_snapshot(args):
+    print(json.dumps(_run_snapshot(args, _now()), indent=2))
+
+
+def _wake_reason(a, settle_seconds):
+    """Why the in-session agent should wake and run a tick, or None to keep watching.
+    Ordered by precedence — a terminal/blocked/needs-human state outranks a merge-ready read."""
+    if a.get("pr_state") in ("MERGED", "CLOSED"):
+        return "terminal"
+    if a.get("blocked_external"):
+        return "blocked-external"
+    c = a.get("counts") or {}
+    if c.get("threads", 0) or c.get("comments", 0) or c.get("ci", 0):
+        return "actionable"
+    if a.get("open_needs_human", 0):
+        return "needs-human"         # parked items block ready; surface them
+    if a.get("has_failing_checks") and a.get("checks_terminal"):
+        # a dispatched check left terminally red (counts.ci is 0 — nothing new to dispatch) is a
+        # blocker to hand back, not a reason to idle to max-runtime.
+        return "blocked-failing"
+    # merge-ready candidate: green + settled AND no review in flight. An 👀-style in-progress signal
+    # means a review is underway, so the PR is NOT ready no matter how long it has been quiet — time
+    # is one component of "settled", not the gate. Honor the signal only up to a generous bound so a
+    # stale reaction that never clears cannot block ready forever (absence never blocks; presence
+    # only delays). Only wake once quiet has actually elapsed, so a stable green PR is not roused
+    # every poll while it cools off.
+    review_blocking = a.get("review_in_progress") and a.get("quiet_seconds", 0) < REVIEW_INPROGRESS_MAX_WAIT
+    # Interactive merge-ready does NOT require `all_checks_ok`'s "at least one observed check": a repo
+    # with no configured checks has a CLEAN/MERGEABLE PR that should be callable ready. (That guard
+    # stays in pipeline success, where a not-yet-created rollup must not read as a pass.)
+    if (a.get("mergeable") == "MERGEABLE" and a.get("merge_state_status") == "CLEAN"
+            and a.get("checks_terminal") and not a.get("has_failing_checks")
+            and a.get("checks_awaiting_approval", 0) == 0
+            and not review_blocking
+            and a.get("quiet_seconds", 0) >= settle_seconds):
+        return "merge-ready"
+    return None
+
+
+def _emit_wake(reason, **fields):
+    print(json.dumps({"event": "BABYSIT_WAKE", "reason": reason, **fields}), flush=True)
+
+
+def _blocker_sig(a):
+    """Identity of blockers the agent surfaces once but cannot self-clear — parked needs-human
+    items, a dispatched terminally-red check, and a fork workflow awaiting maintainer approval. The
+    watch captures this at arm time and does not re-wake on a blocker already in that baseline, so a
+    parked residual keeps the watch alive (or the blocked-external bounded watch keeps polling for
+    the gate to clear) instead of busy-waking or terminating on the same condition."""
+    sig = set(a.get("needs_human_ids") or [])
+    if a.get("has_failing_checks") and a.get("checks_terminal") and not (a.get("counts") or {}).get("ci"):
+        sig.add("__terminal_red__")
+    if a.get("blocked_external"):
+        sig.add("__blocked_external__")
+    # A new head is "context materially changed": a human may have pushed a commit that answers or
+    # supersedes a parked residual, so the head is part of the baseline — when it moves, the residual
+    # is no longer "already-surfaced against this state" and the watch wakes to give the agent a tick
+    # to reopen/reprocess it, instead of parking forever while it still blocks merge-ready.
+    if sig:
+        sig.add(("head", a.get("head_sha")))
+    return frozenset(sig)
+
+
+def cmd_watch(args):
+    """Deterministic background change-detector (no agent tokens between changes): poll on an
+    interval, print one wake sentinel line and exit when there is something for the agent to do
+    (an actionable change or a stop condition), or exit on the stop-signal file / max-runtime.
+    A residual already present at arm time (a parked needs-human, or a dispatched terminal-red the
+    agent already handed back) does NOT re-wake the loop — it keeps watching the other streams;
+    only a *new* blocker (signature grown past the baseline) wakes."""
+    deadline = (time.monotonic() + args.max_runtime) if args.max_runtime else None
+    armed = None  # baseline blocker signature captured on the first poll (already-surfaced residuals)
+    args.reset_session = True   # arming a watch is a fresh session -> start the budget clock now
+    while True:
+        if args.stop_file and os.path.exists(args.stop_file):
+            _emit_wake("stop-signal")
+            return
+        actionable = _run_snapshot(args, _now(), advance_trajectory=False)  # a poll must not roll the trajectory
+        args.reset_session = False   # ...but later polls are ticks of that same session, not new ones
+        if armed is None:
+            armed = _blocker_sig(actionable)
+        reason = _wake_reason(actionable, args.settle_seconds)
+        if reason in ("needs-human", "blocked-failing", "blocked-external") and _blocker_sig(actionable) <= armed:
+            reason = None   # already-surfaced residual — keep watching, do not re-wake or terminate
+        if reason:
+            _emit_wake(reason, url=actionable.get("url"),
+                       pr_state=actionable.get("pr_state"), counts=actionable.get("counts"))
+            return
+        if deadline is not None and time.monotonic() >= deadline:
+            _emit_wake("max-runtime", url=actionable.get("url"))
+            return
+        time.sleep(args.interval)
+
+
+def _mark_thread_baseline(item_id, args, state):
+    """Best-effort current last-comment identity of a thread, captured at mark time so our just-posted
+    reply becomes the acted baseline directly. Without this the baseline is adopted lazily on the next
+    snapshot, so a reviewer reply that races in between the reply and that snapshot would be adopted as
+    the baseline and silently swallowed instead of reactivating the thread. A fetch hiccup falls back
+    to the lazy baseline (acted_identity stays unset)."""
+    try:
+        if getattr(args, "fetch_file", None):
+            threads = json.load(open(args.fetch_file)).get("threads", [])
+        else:
+            owner, name, host = _resolve_repo_ref(args.repo, (state.get("pr") or {}).get("url"))
+            threads = fetch_threads(args.pr, owner, name, host)
+        for t in threads:
+            if t.get("thread_id") == item_id:
+                return [t.get("last_comment_id"), t.get("last_comment_at")]
+    except (SystemExit, Exception):  # SystemExit (from _run_checked) is not an Exception subclass
+        pass
+    return None
+
+
+def cmd_mark(args):
+    now = _now()
+    with locked_state(args.state_dir, args.pr, args.repo, now) as box:
+        state = box["state"]
+        if args.check:
+            head = state.get("head_sha")
+            if not head:
+                raise SystemExit("mark --check requires a prior snapshot (state has no head_sha)")
+            state.setdefault("ci_dispatched", {}).setdefault(head, [])
+            if args.check not in state["ci_dispatched"][head]:
+                state["ci_dispatched"][head].append(args.check)
+            state["last_action"] = f"dispatched check {args.check}"
+        elif args.thread or args.comment:
+            item_id = args.thread or args.comment
+            collection, id_field, label = (
+                ("threads", "thread_id", "thread") if args.thread else ("feedback", "id", "comment"))
+            entry = state.setdefault(collection, {}).setdefault(item_id, {id_field: item_id})
+            entry["disposition"] = args.disposition
+            if args.disposition == DISPOSITION_OPEN:
+                entry.pop("acted_identity", None)   # reopened -> next dispatch/park re-baselines
+            elif args.disposition in (DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN):
+                if args.thread:
+                    # our reply moved the thread's last comment, so re-read it now as the baseline.
+                    ident = _mark_thread_baseline(item_id, args, state)
+                    if ident is not None:
+                        entry["acted_identity"] = ident
+                elif args.comment and args.acted_edit_id:
+                    # our reply is a separate top-level comment and never edits THIS one, so the
+                    # snapshot-time edit_id the agent passes is already the correct baseline (no fetch).
+                    entry["acted_identity"] = [args.acted_edit_id]
+            state["last_action"] = f"{args.disposition} {label} {item_id}"
+    print(json.dumps({"marked": args.check or args.thread or args.comment}))
+
+
+def main():
+    p = argparse.ArgumentParser(prog="pr-snapshot")
+    sub = p.add_subparsers(dest="cmd", required=True)
+
+    s = sub.add_parser("snapshot")
+    s.add_argument("--pr", type=int, required=True)
+    s.add_argument("--repo", default=None)
+    s.add_argument("--state-dir", required=True)
+    s.add_argument("--fetch-file", default=None)
+    s.add_argument("--reset-session", action="store_true")  # start the budget clock (a fresh invocation)
+    s.set_defaults(func=cmd_snapshot)
+
+    m = sub.add_parser("mark")
+    m.add_argument("--pr", type=int, default=0)
+    m.add_argument("--repo", default=None)
+    m.add_argument("--state-dir", required=True)
+    m.add_argument("--thread", default=None)
+    # `open` re-actionizes a parked thread — the explicit re-open the SKILL prose relies on when a
+    # parked stream's context materially changes (a human pushed, the check universe moved).
+    m.add_argument("--disposition", choices=[DISPOSITION_NEEDS_HUMAN, DISPOSITION_DISPATCHED, DISPOSITION_OPEN], default=DISPOSITION_DISPATCHED)
+    m.add_argument("--check", default=None)
+    m.add_argument("--comment", default=None)
+    m.add_argument("--fetch-file", default=None)  # reuse the tick's fetch for the at-mark baseline
+    m.add_argument("--acted-edit-id", default=None)  # snapshot-time edit_id baseline for a --comment
+    m.set_defaults(func=cmd_mark)
+
+    w = sub.add_parser("watch")
+    w.add_argument("--pr", type=int, required=True)
+    w.add_argument("--repo", default=None)
+    w.add_argument("--state-dir", required=True)
+    w.add_argument("--interval", type=float, default=150.0, help="poll cadence seconds")
+    w.add_argument("--max-runtime", type=float, default=14400.0, help="hard stop seconds (0 = unbounded)")
+    w.add_argument("--settle-seconds", type=float, default=300.0, help="quiet window before a merge-ready wake")
+    w.add_argument("--stop-file", default=None, help="path whose existence stops the watch")
+    w.add_argument("--fetch-file", default=None)
+    w.add_argument("--reset-session", action="store_true")  # cmd_watch also forces this on arm
+    w.set_defaults(func=cmd_watch)
+
+    args = p.parse_args()
+    args.func(args)
+
+
+if __name__ == "__main__":
+    main()

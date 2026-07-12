@@ -1,10 +1,13 @@
 # Pipeline-Mode Server Orchestration
 
-Read and follow this file only when invoked with `mode:pipeline` (LFG or another automated runner). It overrides three things in the main workflow: the headed/headless question, free-port selection, and dev-server startup. In pipeline mode you run unattended — never block on a question.
+Read and follow this file only when invoked with `mode:pipeline` (LFG or another automated runner). It overrides visibility prompts, free-port selection, and dev-server startup. It does not change browser-driver selection. In pipeline mode you run unattended — never block on a question.
 
-## 1. No headed/headless question
+## 1. No visibility question
 
-Default to headless. Do not ask. Skip the "Choose Headed or Headless" step entirely and never pass `--headed`.
+Unattended execution does not mean hidden execution. Do not ask a visibility question:
+
+- When a host-native integrated browser is selected, keep its normal integrated surface visible and non-blocking so the user can watch progress without interrupting the run. Do not repeatedly steal focus.
+- When the fallback `agent-browser` driver is selected, run it headless without passing `--headed`.
 
 ## 2. Claim a free port and start the server
 
@@ -46,4 +49,4 @@ if ! lsof -i ":${PORT}" -sTCP:LISTEN -t >/dev/null 2>&1; then
 fi
 ```
 
-The scan may land on a different port than the preferred one, and `$PORT` does not survive into later Bash calls. Note the number this block echoes ("Using dev server port: N") and substitute that literal port into every subsequent `agent-browser` command — do not rely on `${PORT}` carrying over into the main workflow's snippets. Then return to the "Test Each Affected Page" step (open `http://localhost:<N>`, snapshot, then test each route).
+The scan may land on a different port than the preferred one, and `$PORT` does not survive into later shell calls. Note the number this block echoes ("Using dev server port: N") and use that literal port in every subsequent selected-driver navigation — do not rely on `${PORT}` carrying over. Then return to the "Test Each Affected Page" step, navigate to `http://localhost:<N>`, inspect the rendered state, and test each route.

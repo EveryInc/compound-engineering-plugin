@@ -825,3 +825,40 @@ describe("writePiBundle preserves user-managed skill paths", () => {
     },
   )
 })
+
+describe("writePiBundle guards against ancestor-symlink traversal", () => {
+  async function readInstallManifest(outputRoot: string): Promise<{ skills: string[] }> {
+    const raw = await fs.readFile(path.join(outputRoot, "compound-engineering", "install-manifest.json"), "utf8")
+    return JSON.parse(raw) as { skills: string[] }
+  }
+
+  test.skipIf(!canDirSymlink)(
+    "does not write through a store dir that is itself a symlink into a user fork",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "pi-ancestor-store-symlink-"))
+      const outputRoot = path.join(tempRoot, ".pi")
+      const forkStore = path.join(tempRoot, "user-fork-store")
+      await fs.mkdir(forkStore, { recursive: true })
+      await fs.writeFile(path.join(forkStore, "MARKER.md"), "# user store\n")
+      await fs.mkdir(outputRoot, { recursive: true })
+      await fs.symlink(forkStore, path.join(outputRoot, "skills"), "junction")
+
+      const bundle: PiBundle = {
+        pluginName: "compound-engineering",
+        prompts: [],
+        skillDirs: [{ name: "skill-one", sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one") }],
+        generatedSkills: [],
+        agents: [],
+        extensions: [],
+      }
+
+      await writePiBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await exists(path.join(forkStore, "skill-one"))).toBe(false)
+      expect(await fs.readFile(path.join(forkStore, "MARKER.md"), "utf8")).toBe("# user store\n")
+      expect((await readInstallManifest(outputRoot)).skills).not.toContain("skill-one")
+    },
+  )
+})

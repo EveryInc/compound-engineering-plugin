@@ -1,8 +1,8 @@
 # `ce-test-browser`
 
-> Run end-to-end browser tests on pages affected by current PR or branch — uses `agent-browser` exclusively.
+> Run end-to-end browser tests on pages affected by the current PR or branch using the best approved browser driver available.
 
-`ce-test-browser` is the **end-to-end browser testing** skill. It maps changed files to testable routes, starts (or verifies) the dev server, navigates to each affected page via `agent-browser`, captures snapshots and screenshots, exercises critical interactions, pauses for human verification on flows that require external interaction (OAuth, email, payments, SMS), and produces a structured test summary. Headed mode lets you watch tests run; headless is faster and runs in the background.
+`ce-test-browser` is the **end-to-end browser testing** skill. It maps changed files to testable routes, starts (or verifies) the dev server, drives each affected page through a host-native integrated browser when available, and falls back to `agent-browser` elsewhere. It captures rendered state and screenshots, exercises critical interactions, pauses for human verification on external flows, and produces a structured test summary.
 
 ---
 
@@ -10,7 +10,7 @@
 
 | Question | Answer |
 |----------|--------|
-| What does it do? | Maps changed files to routes, navigates each via agent-browser, captures snapshots and screenshots, asks for human verification on external-flow steps |
+| What does it do? | Maps changed files to routes, selects an approved browser driver, captures rendered state and screenshots, and asks for human verification on external-flow steps |
 | When to use it | After UI changes, before opening a PR, when verifying page behavior on a branch or PR |
 | What it produces | Per-page status table, console errors, human verifications confirmed, screenshots, overall result (PASS / FAIL / PARTIAL) |
 | Modes | Manual (default; user controls server), Pipeline (`mode:pipeline` — auto-starts server, scans for free port) |
@@ -21,7 +21,7 @@
 
 End-to-end browser testing is fragmented across tools and easy to skip:
 
-- **Wrong browser tool** — Playwright, Puppeteer, MCP Chrome, IDE built-ins; each works differently
+- **Wrong browser fallback** — a missing preferred driver can tempt agents to install standalone Playwright, Puppeteer, or ad hoc automation instead of using a supported host capability
 - **Manual test mapping** — figuring out "which routes did this PR affect" is its own task
 - **Server orchestration** — tests fail because the dev server wasn't running, or the wrong port, or stale state
 - **Console errors silently slip through** — the page renders fine but JS errors pile up unnoticed
@@ -32,7 +32,7 @@ End-to-end browser testing is fragmented across tools and easy to skip:
 
 `ce-test-browser` runs end-to-end tests as a structured flow:
 
-- **`agent-browser` exclusively** — one tool, predictable behavior; never falls back to Chrome MCP or IDE-specific browser tools
+- **Approved driver hierarchy** — prefer a host-native integrated browser, then fall back to `agent-browser`; never introduce a third standalone automation stack
 - **File-to-route mapping** translates changed files into the URLs that need testing
 - **Server orchestration** — manual mode requires the user-started server; pipeline mode auto-starts and scans for a free port
 - **Per-page test loop** — navigate, snapshot, verify elements, exercise critical interactions, capture screenshots
@@ -44,16 +44,16 @@ End-to-end browser testing is fragmented across tools and easy to skip:
 
 ## What Makes It Novel
 
-### 1. `agent-browser` exclusively
+### 1. Host-native first, portable fallback
 
-The skill enforces a single browser-automation substrate: **the `agent-browser` CLI**. Not Chrome MCP, not IDE built-ins, not alternative browser-control tools. Specific reasons:
+The skill distinguishes browser surfaces embedded in or directly owned by the active harness from separately configured substitute tooling:
 
-- Predictable behavior — one tool's quirks, not three
-- Same commands work in headed and headless modes
-- Same snapshot/click/screenshot pattern across all tests
-- Platform-specific hints (e.g., "in Claude Code, do not use `mcp__claude-in-chrome__*`") are explicit
+- A capable host-native integrated browser is preferred because it keeps testing inside the harness and can provide a visible, non-blocking surface the user may watch.
+- Harnesses without that capability fall back to the portable `agent-browser` CLI.
+- Once selected, one driver owns navigation, element state, screenshots, console inspection, and authentication for the entire run.
+- Standalone Playwright, Puppeteer, separately configured browser extensions or MCPs, and ad hoc browser automation remain prohibited substitutes.
 
-When `agent-browser` isn't installed, the skill stops and points to `/ce-setup` for the current install command — it doesn't try to fall back.
+A Playwright API exposed by a host-native browser remains part of that integrated capability; it is not standalone Playwright. When no qualifying native browser exists and `agent-browser` is not installed, the skill stops and points to `/ce-setup`.
 
 ### 2. File-to-route mapping table
 
@@ -74,10 +74,10 @@ This is a starting point, not exhaustive — the skill applies judgment for proj
 
 ### 3. Two modes — Manual (default) and Pipeline
 
-| Mode | Server | Port | Browser default |
+| Mode | Server | Port | Browser behavior |
 |------|--------|------|-----------------|
-| **Manual** _(default)_ | User-started | Use preferred port as-is; user controls | Asks: headed or headless |
-| **Pipeline** _(`mode:pipeline`)_ | Auto-started in background | Scans for free port; never assumes 3000 is free | Defaults to headless |
+| **Manual** _(default)_ | User-started | Use preferred port as-is; user controls | Native browser stays integrated and observable; `agent-browser` asks headed or headless |
+| **Pipeline** _(`mode:pipeline`)_ | Auto-started in background | Scans for free port; never assumes 3000 is free | No prompts; native browser remains visible and non-blocking, while `agent-browser` runs headless |
 
 Pipeline mode exists for LFG and other automated runners where multiple agents may be on the same machine and 3000 might be claimed.
 
@@ -93,9 +93,9 @@ The preferred port comes from a priority list:
 
 In pipeline mode, the skill verifies that port is actually free and scans upward if not. In manual mode, it uses the preferred port as-is — the user controls their own server.
 
-### 5. Headed vs headless choice
+### 5. Visibility is separate from orchestration
 
-In manual mode, the skill asks whether to run **headed** (visible browser, watch tests run) or **headless** (faster, runs in background). Headed mode is useful when you're iterating on a tricky interaction and need to see what's happening. Headless is faster for routine sweeps.
+Unattended does not mean hidden. A host-native integrated browser keeps its normal visible and non-blocking experience in both manual and pipeline runs, so the user can watch without interrupting progress. Only the `agent-browser` fallback needs a headed/headless choice in manual mode; pipeline mode runs that fallback headless without asking.
 
 ### 6. Human verification for external flows
 
@@ -135,11 +135,11 @@ Suitable for pasting into a PR description as test evidence.
 
 You finish a notification settings page and a layout change. You invoke `/ce-test-browser`.
 
-The skill verifies `agent-browser` is installed. Asks whether to run headed or headless — you pick headed (you want to watch). Determines test scope from `git diff --name-only main...HEAD`: `app/views/layouts/application.html.erb`, `app/views/settings/notifications.html.erb`, `app/javascript/controllers/notification_toggle_controller.js`.
+The skill detects a capable host-native integrated browser and selects it for the run. It determines test scope from `git diff --name-only main...HEAD`: `app/views/layouts/application.html.erb`, `app/views/settings/notifications.html.erb`, `app/javascript/controllers/notification_toggle_controller.js`.
 
 Maps to routes: `/` (layout change affects every page; test homepage), `/settings/notifications` (the new page), and other pages that render the toggle controller. Detects port 3000 from `bin/dev` config; verifies the user's dev server is running on that port.
 
-Tests each route: opens with `agent-browser open`, calls `agent-browser snapshot -i` for the interactive element list, verifies primary content rendered. Takes screenshots. Exercises the toggle on `/settings/notifications` (`agent-browser click @e3`).
+It tests each route in the integrated browser: navigates, inspects the rendered and interactive state, verifies primary content, checks console errors, takes screenshots, and exercises the notification toggle. The browser remains visible and non-blocking, so you can switch to it and watch without pausing the run.
 
 The settings flow includes an OAuth sign-in step in this app — when the test reaches a protected route, the skill pauses for human verification: "Please sign in with Google and confirm the redirect back works." You do it on the visible browser; answer yes.
 
@@ -159,7 +159,7 @@ Reach for `ce-test-browser` when:
 Skip `ce-test-browser` when:
 
 - The change is backend-only (no observable browser-visible behavior)
-- `agent-browser` isn't installed → run `/ce-setup` first
+- Neither a capable host-native browser nor `agent-browser` is available
 - You want unit / integration tests, not E2E → use the project's test runner
 - The dev server can't be brought up locally (cloud-only setup) → use a different testing approach
 
@@ -199,24 +199,24 @@ When the dev server isn't running in manual mode, the skill informs the user wit
 | `<branch name>` | Tests that branch's affected routes |
 | `current` | Tests current branch (explicit) |
 | `--port <number>` | Override port detection |
-| `mode:pipeline` | Auto-start server, scan for free port, default headless |
+| `mode:pipeline` | Auto-start server, scan for free port, suppress browser questions |
 
-Required: `agent-browser` CLI installed (run `/ce-setup` if missing). Local dev server running (manual mode) or available start command (pipeline mode).
+Required: a qualifying host-native integrated browser or the `agent-browser` CLI. The local dev server must be running in manual mode or have an available start command in pipeline mode.
 
-Key `agent-browser` commands the skill uses: `open <url>`, `snapshot -i` (interactive elements with refs `@e1`, `@e2`), `click @ref`, `fill @ref "text"`, `screenshot out.png`, `screenshot --full`, `--headed` flag for visible browser.
+The selected driver must support local navigation, rendered and interactive state inspection, click/fill/press actions, screenshots, and console-error inspection. Driver-specific mechanics come from the host-native browser's own instructions or the skill's `agent-browser` fallback reference.
 
 ---
 
 ## FAQ
 
-**Why `agent-browser` exclusively?**
-Predictable behavior across platforms and modes. Falling back to Chrome MCP or IDE built-ins means three tools' quirks instead of one. The skill is explicit about it: do not use `mcp__claude-in-chrome__*` in Claude Code; do not substitute unrelated browsing tools in Codex.
+**Why not require `agent-browser` everywhere?**
+A host-native integrated browser is materially different from an arbitrary substitute automation stack: it is embedded in or directly owned by the harness, follows that harness's browser instructions, and can provide a better observable experience. A separately configured browser extension or integration does not qualify. `agent-browser` remains the consistent fallback for CLI environments and harnesses without an integrated browser.
 
-**Headed or headless?**
-Headed when you're iterating on a tricky interaction and need to see what's happening. Headless when you want speed for a routine sweep. Manual mode asks; pipeline mode defaults to headless.
+**What alternatives remain prohibited?**
+The skill does not install or switch to standalone Playwright, Puppeteer, separately configured browser extensions or MCPs, or ad hoc browser automation. An API named Playwright inside the selected host-native browser is still part of that browser, not a standalone substitution.
 
 **What does pipeline mode do differently?**
-Pipeline mode is for automated runners (LFG, multi-agent on the same machine) where 3000 might be claimed. It scans for a free port starting from the preferred one, auto-starts the dev server in the background, defaults to headless, and skips the headed/headless question.
+Pipeline mode is for automated runners such as LFG where the preferred port might be claimed. It scans for a free port, auto-starts the dev server, suppresses blocking questions, and skips human-only flows. It does not change driver selection or force a host-native browser to be hidden.
 
 **What if my project layout doesn't match the file-to-route table?**
 The mapping table is a starting point. The skill applies judgment for project-specific layouts. You can also test specific routes directly by adjusting the test scope detection — e.g., reviewing a known-affected route by passing the branch name.

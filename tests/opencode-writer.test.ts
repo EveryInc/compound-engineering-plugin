@@ -1001,3 +1001,40 @@ describe("mergeJsonConfigAtKey", () => {
     expect(merged.mcp["user-server"].command[1]).toBe("plugin-override")
   })
 })
+
+describe("writeOpenCodeBundle guards against ancestor-symlink traversal", () => {
+  async function readInstallManifest(outputRoot: string): Promise<{ groups: Record<string, string[]> }> {
+    const raw = await fs.readFile(path.join(outputRoot, "compound-engineering", "install-manifest.json"), "utf8")
+    return JSON.parse(raw) as { groups: Record<string, string[]> }
+  }
+
+  test.skipIf(!canDirSymlink)(
+    "does not write through a store dir that is itself a symlink into a user fork",
+    async () => {
+      const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "opencode-ancestor-store-symlink-"))
+      const outputRoot = path.join(tempRoot, ".opencode")
+      const forkStore = path.join(tempRoot, "user-fork-store")
+      await fs.mkdir(forkStore, { recursive: true })
+      await fs.writeFile(path.join(forkStore, "MARKER.md"), "# user store\n")
+      await fs.mkdir(outputRoot, { recursive: true })
+      await fs.symlink(forkStore, path.join(outputRoot, "skills"), "junction")
+
+      const bundle: OpenCodeBundle = {
+        pluginName: "compound-engineering",
+        config: { $schema: "https://opencode.ai/config.json" },
+        agents: [],
+        plugins: [],
+        commandFiles: [],
+        skillDirs: [{ name: "skill-one", sourceDir: path.join(import.meta.dir, "fixtures", "sample-plugin", "skills", "skill-one") }],
+      }
+
+      await writeOpenCodeBundle(outputRoot, bundle)
+
+      const linkStat = await fs.lstat(path.join(outputRoot, "skills"))
+      expect(linkStat.isSymbolicLink()).toBe(true)
+      expect(await exists(path.join(forkStore, "skill-one"))).toBe(false)
+      expect(await fs.readFile(path.join(forkStore, "MARKER.md"), "utf8")).toBe("# user store\n")
+      expect((await readInstallManifest(outputRoot)).groups.skills).not.toContain("skill-one")
+    },
+  )
+})

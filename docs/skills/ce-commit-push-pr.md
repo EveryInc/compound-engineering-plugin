@@ -17,7 +17,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 | What does it do? | Commits, pushes, and opens a PR — or just rewrites the description of an existing PR — or just generates a description without touching git |
 | When to use it | Anytime you want commits + PR; rewriting an existing PR description; drafting a description for a branch |
 | What it produces | An open PR (URL returned) — or an updated PR description — or a printed description for you to apply yourself |
-| What's next | Review the PR; merge when ready |
+| What's next | It auto-hands off to [`/ce-babysit-pr`](./ce-babysit-pr.md) to watch CI + incoming review and drive toward merge-ready (default on; `babysit:off` or `auto_babysit: false` to opt out) — you merge when it reports ready |
 
 ---
 

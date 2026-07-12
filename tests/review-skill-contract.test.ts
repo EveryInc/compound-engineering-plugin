@@ -652,7 +652,7 @@ describe("ce-code-review contract", () => {
     }
   })
 
-  test("lfg autonomously handles residuals via non-interactive tracker-defer and PR description", async () => {
+  test("lfg autonomously handles residuals via non-interactive tracker-defer and a committed record file (never the PR body)", async () => {
     const lfg = await readRepoFile("skills/lfg/SKILL.md")
     await expect(readRepoFile("skills/lfg/references/tracker-defer.md")).resolves.toContain(
       "Non-interactive mode",
@@ -673,25 +673,27 @@ describe("ce-code-review contract", () => {
     expect(lfg).toContain("references/tracker-defer.md")
     expect(lfg).not.toContain("skills/ce-code-review/references/tracker-defer.md")
 
-    // Structured return buckets drive PR description content.
+    // Structured return buckets drive the residual record file.
     expect(lfg).toMatch(/filed/)
     expect(lfg).toMatch(/failed/)
     expect(lfg).toMatch(/no_sink/)
 
-    // PR description update path is non-interactive and does not route through
-    // confirmation-driven PR update skills. The positive assertion on
-    // `gh pr edit` below is the actual check; a broad `not.toContain` would
-    // falsely trip on step 7's legitimate use of ce-commit-push-pr for the
-    // post-work commit/PR-open step.
-    expect(lfg).toContain("do not load any confirmation-driven PR update skill")
-    expect(lfg).toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
+    // Residuals are recorded via tracker tickets + a committed record file,
+    // NEVER the PR body (which would duplicate GitHub's own tracking and go
+    // stale as items resolve). The old `gh pr edit`-into-body path is retired.
+    expect(lfg).toContain("never the PR body")
+    expect(lfg).not.toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
     expect(lfg).toContain("## Residual Review Findings")
     expect(lfg).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
-    expect(lfg).toContain("prefer `origin` when present")
-    expect(lfg).toContain("choose the first configured remote")
+    expect(lfg).toContain("first configured remote")
     expect(lfg).toContain("git push --set-upstream <remote> HEAD")
     expect(lfg).not.toContain("git push --set-upstream origin HEAD")
-    expect(lfg).toContain("Do not output DONE until the residual findings are durable")
+    expect(lfg).toContain("Do not output DONE until the residuals are durable")
+
+    // Step 9 delegates CI to ce-babysit-pr pipeline mode; the hand-rolled
+    // CI-watch loop is retired.
+    expect(lfg).toContain("ce-babysit-pr mode:pipeline")
+    expect(lfg).not.toContain("gh pr checks --watch")
 
     // Shipping precondition: a remote-less repo (e.g. a sandbox/throwaway checkout)
     // finishes locally instead of deadlocking on an impossible push.

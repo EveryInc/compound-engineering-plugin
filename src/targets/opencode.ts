@@ -12,6 +12,7 @@ import {
   lstatOrNull,
   type ManagedInstallManifest,
   moveLegacyArtifactToBackup,
+  storeRootEscapesManagedRoot,
   readManagedInstallManifestWithLegacyFallback,
   resolveManagedSegment,
   sanitizeManagedPluginName,
@@ -102,11 +103,21 @@ export async function writeOpenCodeBundle(
   const currentPlugins = bundle.plugins.map((plugin) => plugin.name)
   const currentSkills = bundle.skillDirs.map((skill) => sanitizePathName(skill.name))
 
+  // Ancestor-symlink containment: the per-entry guards below inspect only the
+  // leaf node, so a symlinked store dir (or a symlinked ancestor of it) pointed
+  // at a user fork would otherwise have every cleanup/write act through the link
+  // into the fork. A store that escapes the OpenCode root is skipped wholesale
+  // and recorded as owning nothing.
+  const agentsEscaped = await storeRootEscapesManagedRoot(openCodePaths.root, openCodePaths.agentsDir)
+  const commandsEscaped = await storeRootEscapesManagedRoot(openCodePaths.root, openCodePaths.commandDir)
+  const pluginsEscaped = await storeRootEscapesManagedRoot(openCodePaths.root, openCodePaths.pluginsDir)
+  const skillsEscaped = await storeRootEscapesManagedRoot(openCodePaths.root, openCodePaths.skillsDir)
+
   await ensureDir(openCodePaths.root)
-  await cleanupRemovedManagedFiles(openCodePaths.agentsDir, manifest, "agents", currentAgents)
-  await cleanupRemovedManagedFiles(openCodePaths.commandDir, manifest, "commands", currentCommands)
-  await cleanupRemovedManagedFiles(openCodePaths.pluginsDir, manifest, "plugins", currentPlugins)
-  await cleanupRemovedManagedDirectories(openCodePaths.skillsDir, manifest, "skills", currentSkills)
+  if (!agentsEscaped) await cleanupRemovedManagedFiles(openCodePaths.agentsDir, manifest, "agents", currentAgents)
+  if (!commandsEscaped) await cleanupRemovedManagedFiles(openCodePaths.commandDir, manifest, "commands", currentCommands)
+  if (!pluginsEscaped) await cleanupRemovedManagedFiles(openCodePaths.pluginsDir, manifest, "plugins", currentPlugins)
+  if (!skillsEscaped) await cleanupRemovedManagedDirectories(openCodePaths.skillsDir, manifest, "skills", currentSkills)
 
   const hadExistingConfig = await pathExists(openCodePaths.configPath)
   const backupPath = await backupFile(openCodePaths.configPath)
@@ -129,6 +140,10 @@ export async function writeOpenCodeBundle(
     }
     seenAgents.add(safeName)
     const agentFileName = `${safeName}.md`
+    if (agentsEscaped) {
+      preservedAgentNames.add(agentFileName)
+      continue
+    }
     const targetPath = path.join(openCodePaths.agentsDir, agentFileName)
     const preserved = await cleanupCurrentManagedFile(targetPath, manifest, "agents", agentFileName)
     if (preserved) {
@@ -141,6 +156,10 @@ export async function writeOpenCodeBundle(
   const preservedCommandNames = new Set<string>()
   for (const commandFile of bundle.commandFiles) {
     const commandName = `${commandNameToRelativePath(commandFile.name)}.md`
+    if (commandsEscaped) {
+      preservedCommandNames.add(commandName)
+      continue
+    }
     const dest = path.join(openCodePaths.commandDir, ...commandName.split("/"))
     const preserved = await cleanupCurrentManagedFile(dest, manifest, "commands", commandName)
     if (preserved) {
@@ -157,6 +176,10 @@ export async function writeOpenCodeBundle(
   const preservedPluginNames = new Set<string>()
   if (bundle.plugins.length > 0) {
     for (const plugin of bundle.plugins) {
+      if (pluginsEscaped) {
+        preservedPluginNames.add(plugin.name)
+        continue
+      }
       const targetPath = path.join(openCodePaths.pluginsDir, plugin.name)
       const preserved = await cleanupCurrentManagedFile(targetPath, manifest, "plugins", plugin.name)
       if (preserved) {
@@ -171,6 +194,10 @@ export async function writeOpenCodeBundle(
   if (bundle.skillDirs.length > 0) {
     for (const skill of bundle.skillDirs) {
       const skillName = sanitizePathName(skill.name)
+      if (skillsEscaped) {
+        preservedSkillNames.add(skillName)
+        continue
+      }
       const targetDir = path.join(openCodePaths.skillsDir, skillName)
       const preserved = await cleanupCurrentManagedDirectory(targetDir, manifest, "skills", skillName)
       if (preserved) {

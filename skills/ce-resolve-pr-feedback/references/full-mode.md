@@ -1,6 +1,6 @@
 # Full Mode
 
-Read this reference when Mode Detection (in SKILL.md) routes to **Full Mode** — no argument given, or a PR number was provided. Full mode processes all unresolved threads on the PR.
+Read this reference when Mode Detection (in SKILL.md) routes to **Full Mode** — no argument given, a PR number was provided, or a whole-PR URL (`.../pull/N` with no comment fragment) was provided. Full mode processes all unresolved threads on the PR. When the argument is a PR URL, parse the host, `OWNER/REPO`, and number from it — the host feeds the `GH_HOST` prefix below, and `OWNER/REPO` targets the correct repo for a fork→upstream PR.
 
 The shape: **fetch once, judge centrally, fan out only the fixes.** The orchestrator (you) holds every thread from a single fetch, so the legitimacy judgment happens in your context — where you can dedup reads, spot a systematically-wrong reviewer across threads, and weigh the author's design intent. Subagents are dispatched only to *implement* fixes you've already approved. Do not fan out the judgment: spinning a subagent per thread to decide validity re-pays per-agent overhead, re-reads the same files, and throws away the cross-thread view — and you'd pay it even for threads that turn out to be skips.
 
@@ -13,10 +13,20 @@ gh pr view --json number -q .number
 
 Then fetch all feedback using the GraphQL script at [scripts/get-pr-comments](../scripts/get-pr-comments). Set `SKILL_DIR` to the absolute directory you loaded the ce-resolve-pr-feedback SKILL.md from — the Bash tool's CWD is the user's project, not the skill dir, and shell state does not persist between Bash calls, so set it inline in each block below that runs a bundled script. If the bundled script is missing on disk the call fails plainly; fall back to the `gh` commands shown after this block.
 
+**GitHub Enterprise host.** The bundled `gh api graphql` scripts hit `gh`'s default host unless told otherwise, so on a GHE PR they would wrongly target `github.com`. Derive the host: if the caller passed a full PR **URL**, take its host; otherwise read it from `gh repo view --json url -q .url`. Then — because shell state does **not** persist between separate Bash calls — pass the host as a `GH_HOST=<host>` **env prefix inline on every bundled-script call** (`gh api` honors `GH_HOST` as the request host). A single `export` in one block does **not** carry to the reply/resolve/verify blocks that run as later Bash calls, which is why each call below shows the prefix. On `github.com`, drop the `GH_HOST=<host> ` prefix entirely.
+
+```bash
+PR_HOST=$(printf '%s' "<pr-url-if-one-was-passed>" | sed -n 's#^https\?://\([^/]*\)/.*#\1#p');
+[ -z "$PR_HOST" ] && PR_HOST=$(gh repo view --json url -q .url 2>/dev/null | sed -n 's#^https\?://\([^/]*\)/.*#\1#p');
+echo "$PR_HOST"   # github.com -> no prefix; any other host -> prefix GH_HOST=<host> on each script call below
+```
+
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
-bash "$SKILL_DIR/scripts/get-pr-comments" PR_NUMBER
+GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-pr-comments" PR_NUMBER OWNER/REPO   # omit GH_HOST=<derived-host> on github.com
 ```
+
+**Pass the base `OWNER/REPO`** (parsed from the PR URL, when one was given) as the second arg. `get-pr-comments` otherwise falls back to `gh repo view` in the *current checkout* — so for a fork→upstream PR handed in as a URL, omitting it would fetch review feedback from the fork (or fail) instead of the upstream base repo. Every `get-pr-comments` call below (fetch and verify) takes the same `OWNER/REPO`.
 
 Returns a JSON object with three keys:
 
@@ -154,30 +164,30 @@ For `needs-human` verdicts, post the natural-sounding reply but do NOT resolve t
 0. **Verify the thread ID** before replying. GitHub Enterprise can return inconsistent node IDs for the same thread depending on the query path. Always confirm the ID from `get-pr-comments` resolves to the correct thread using [scripts/get-thread-for-comment](../scripts/get-thread-for-comment) with the comment's numeric URL ID. Extract the numeric comment ID from the comment URL (e.g. `discussion_r2589700` → `2589700`) for the `gh api` call; if the bundled script is missing, use `gh api` to inspect the review thread instead:
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
-GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/comments/COMMENT_ID --jq .node_id
-bash "$SKILL_DIR/scripts/get-thread-for-comment" PR_NUMBER COMMENT_NODE_ID OWNER/REPO
+GH_HOST=<derived-host> GH_REPO=OWNER/REPO gh api repos/{owner}/{repo}/pulls/comments/COMMENT_ID --jq .node_id
+GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-thread-for-comment" PR_NUMBER COMMENT_NODE_ID OWNER/REPO
 ```
 The returned `id` is the authoritative thread ID to use for reply and resolve. If it differs from what `get-pr-comments` returned, use the one from this script.
 
 1. **Reply** using [scripts/reply-to-pr-thread](../scripts/reply-to-pr-thread) (if the bundled script is missing, post the reply with `gh api` or `gh pr comment` as appropriate):
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
-echo "REPLY_TEXT" | bash "$SKILL_DIR/scripts/reply-to-pr-thread" THREAD_ID
+echo "REPLY_TEXT" | GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/reply-to-pr-thread" THREAD_ID
 ```
 Check that the returned comment URL contains the correct `OWNER/REPO` and PR number before proceeding.
 
 2. **Resolve** using [scripts/resolve-pr-thread](../scripts/resolve-pr-thread) (if the bundled script is missing, resolve the thread with `gh api` if supported):
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
-bash "$SKILL_DIR/scripts/resolve-pr-thread" THREAD_ID
+GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/resolve-pr-thread" THREAD_ID
 ```
 
 ### PR comments and review bodies
 
-These cannot be resolved via GitHub's API. Reply with a top-level PR comment referencing the original:
+These cannot be resolved via GitHub's API. Reply with a top-level PR comment referencing the original (pass `-R OWNER/REPO` — the parsed base repo — so a fork→upstream reply posts on the watched upstream PR, not the fork namespace):
 
 ```bash
-gh pr comment PR_NUMBER --body "REPLY_TEXT"
+GH_HOST=<derived-host> gh pr comment PR_NUMBER -R OWNER/REPO --body "REPLY_TEXT"
 ```
 
 Include enough quoted context in the reply so the reader can follow which comment is being addressed without scrolling.
@@ -188,7 +198,7 @@ Re-fetch feedback to confirm resolution:
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-resolve-pr-feedback SKILL.md>";
-bash "$SKILL_DIR/scripts/get-pr-comments" PR_NUMBER
+GH_HOST=<derived-host> bash "$SKILL_DIR/scripts/get-pr-comments" PR_NUMBER OWNER/REPO
 ```
 
 The `review_threads` array should be empty (except `needs-human` items).
