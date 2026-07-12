@@ -27,7 +27,12 @@ function snapshot(stateDir: string, fetch: string): any {
 }
 
 function mark(stateDir: string, args: string[]): void {
-  const r = spawnSync("python3", [SCRIPT, "mark", "--state-dir", stateDir, ...args], { encoding: "utf8" })
+  // Default the at-mark baseline fetch to empty threads (-> lazy first-observation baseline, no gh
+  // call); a test exercising at-mark capture passes its own --fetch-file, which we don't override.
+  const extra = args.includes("--fetch-file")
+    ? []
+    : ["--fetch-file", fetchFile(path.dirname(stateDir), "mark-empty.json", { threads: [] })]
+  const r = spawnSync("python3", [SCRIPT, "mark", "--state-dir", stateDir, ...args, ...extra], { encoding: "utf8" })
   expect(r.status, r.stderr).toBe(0)
 }
 
@@ -272,6 +277,20 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     // awaiting approval + all other checks terminal -> blocked_external
     const terminal = { ...FAILING, threads: [], checks: [GREEN], awaiting_approval: 1 }
     expect(snapshot(path.join(dir, "be2"), fetchFile(dir, "be2.json", terminal)).blocked_external).toBe(true)
+  })
+
+  test("mark --thread captures the acted baseline at mark time (closes the reviewer-reply race)", () => {
+    const sd = path.join(dir, "atmark")
+    const thr = (cid: string) => ({
+      ...FAILING, checks: [], threads: [{ thread_id: "T1", last_comment_id: cid, last_comment_at: cid }],
+    })
+    snapshot(sd, fetchFile(dir, "am1.json", thr("C1")))
+    // our decision_context reply is C2; marking WITH the current fetch captures C2 as the baseline now
+    mark(sd, ["--thread", "T1", "--disposition", "needs-human", "--fetch-file", fetchFile(dir, "am2.json", thr("C2"))])
+    // a reviewer reply that raced in (C3) before the next snapshot -> reactivated, not swallowed as baseline
+    const d = snapshot(sd, fetchFile(dir, "am3.json", thr("C3")))
+    expect(d.counts.threads).toBe(1) // C3 != the C2 baseline captured at mark -> reopened
+    expect(d.open_needs_human).toBe(0)
   })
 
   test("a dispatched top-level comment reactivates when its body is edited (edit_id changes), not on our reply", () => {

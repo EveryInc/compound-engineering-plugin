@@ -704,12 +704,15 @@ def _emit_wake(reason, **fields):
 
 def _blocker_sig(a):
     """Identity of blockers the agent surfaces once but cannot self-clear — parked needs-human
-    items and a dispatched terminally-red check. The watch captures this at arm time and does not
-    re-wake on a blocker already in that baseline, so a parked human decision keeps the watch alive
-    for the other streams instead of busy-waking or terminating it."""
+    items, a dispatched terminally-red check, and a fork workflow awaiting maintainer approval. The
+    watch captures this at arm time and does not re-wake on a blocker already in that baseline, so a
+    parked residual keeps the watch alive (or the blocked-external bounded watch keeps polling for
+    the gate to clear) instead of busy-waking or terminating on the same condition."""
     sig = set(a.get("needs_human_ids") or [])
     if a.get("has_failing_checks") and a.get("checks_terminal") and not (a.get("counts") or {}).get("ci"):
         sig.add("__terminal_red__")
+    if a.get("blocked_external"):
+        sig.add("__blocked_external__")
     return frozenset(sig)
 
 
@@ -730,7 +733,7 @@ def cmd_watch(args):
         if armed is None:
             armed = _blocker_sig(actionable)
         reason = _wake_reason(actionable, args.settle_seconds)
-        if reason in ("needs-human", "blocked-failing") and _blocker_sig(actionable) <= armed:
+        if reason in ("needs-human", "blocked-failing", "blocked-external") and _blocker_sig(actionable) <= armed:
             reason = None   # already-surfaced residual — keep watching, do not re-wake or terminate
         if reason:
             _emit_wake(reason, url=actionable.get("url"),
@@ -740,6 +743,26 @@ def cmd_watch(args):
             _emit_wake("max-runtime", url=actionable.get("url"))
             return
         time.sleep(args.interval)
+
+
+def _mark_thread_baseline(item_id, args, state):
+    """Best-effort current last-comment identity of a thread, captured at mark time so our just-posted
+    reply becomes the acted baseline directly. Without this the baseline is adopted lazily on the next
+    snapshot, so a reviewer reply that races in between the reply and that snapshot would be adopted as
+    the baseline and silently swallowed instead of reactivating the thread. A fetch hiccup falls back
+    to the lazy baseline (acted_identity stays unset)."""
+    try:
+        if getattr(args, "fetch_file", None):
+            threads = json.load(open(args.fetch_file)).get("threads", [])
+        else:
+            owner, name, host = _resolve_repo_ref(args.repo, (state.get("pr") or {}).get("url"))
+            threads = fetch_threads(args.pr, owner, name, host)
+        for t in threads:
+            if t.get("thread_id") == item_id:
+                return [t.get("last_comment_id"), t.get("last_comment_at")]
+    except (SystemExit, Exception):  # SystemExit (from _run_checked) is not an Exception subclass
+        pass
+    return None
 
 
 def cmd_mark(args):
@@ -760,6 +783,12 @@ def cmd_mark(args):
                 ("threads", "thread_id", "thread") if args.thread else ("feedback", "id", "comment"))
             entry = state.setdefault(collection, {}).setdefault(item_id, {id_field: item_id})
             entry["disposition"] = args.disposition
+            if args.disposition == DISPOSITION_OPEN:
+                entry.pop("acted_identity", None)   # reopened -> next dispatch/park re-baselines
+            elif args.thread and args.disposition in (DISPOSITION_DISPATCHED, DISPOSITION_NEEDS_HUMAN):
+                ident = _mark_thread_baseline(item_id, args, state)
+                if ident is not None:
+                    entry["acted_identity"] = ident
             state["last_action"] = f"{args.disposition} {label} {item_id}"
     print(json.dumps({"marked": args.check or args.thread or args.comment}))
 
@@ -785,6 +814,7 @@ def main():
     m.add_argument("--disposition", choices=[DISPOSITION_NEEDS_HUMAN, DISPOSITION_DISPATCHED, DISPOSITION_OPEN], default=DISPOSITION_DISPATCHED)
     m.add_argument("--check", default=None)
     m.add_argument("--comment", default=None)
+    m.add_argument("--fetch-file", default=None)  # reuse the tick's fetch for the at-mark baseline
     m.set_defaults(func=cmd_mark)
 
     w = sub.add_parser("watch")
