@@ -46,6 +46,8 @@ files_changed: [list of files modified, empty if blocked]
 reason: [one-line explanation of what was done, or the contradiction for blocked]
 ```
 
+For a **class item** that covers several threads/comments, return the full covered set instead of the singular fields: `feedback_ids` (every covered thread/comment ID) and `feedback_types` (parallel list), so the parent replies-to and resolves *every* covered thread, not just one. A single-thread item keeps the singular `feedback_id`/`feedback_type`. Write `reply_text` so it reads correctly when posted verbatim to *each* covered thread — one shared reply for the class, not tailored to a single site.
+
 ## Bail-out (rare)
 
 You were dispatched because the finding was already judged valid -- default to implementing it. Return `blocked` ONLY if implementing it surfaces a concrete contradiction the orchestrator could not see from its judgment read: the change breaks a caller or a test you can see, or the referenced code is not what the finding described. Return the evidence in `reason` -- not unease, and not a re-argument that the fix wasn't worthwhile. The parent re-evaluates blocked items.
