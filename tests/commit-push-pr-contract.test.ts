@@ -12,8 +12,10 @@ describe("ce-commit-push-pr contract", () => {
 
     // Existing-PR detection uses `gh pr list` (exits 0, returns `[]` when none)
     // rather than `gh pr view` (exits 1 with no PR, which aborted `!` load).
-    expect(content).toContain("gh pr list --head <branch> --state open --json number,url,title,body,state")
-    expect(content).toContain("note the URL and body from its first entry")
+    expect(content).toContain("gh pr list --head <branch> --state open --json number,url,title,body,state,headRefName,headRepositoryOwner")
+    // Multi-fork same-branch matches are disambiguated by head owner, not index 0 (PR #1109 review).
+    expect(content).toContain("do **not** blindly take index 0")
+    expect(content).toContain("Note the URL and body from that entry")
     expect(content).toContain("If Step 1 found an existing PR, pass its URL to Step 4")
     expect(content).toContain("existing body")
     expect(content).toMatch(/preserve.+Related.+Fixes/is)
