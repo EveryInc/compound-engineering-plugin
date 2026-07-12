@@ -74,6 +74,28 @@ describe("CE-Orca upstream parity", () => {
     expect(await checkUpstreamParity(REPO_ROOT, baseline)).toEqual([])
   })
 
+  test("rejects malformed, missing, and stale upstream provenance commits", async () => {
+    const baseline = await loadUpstreamBaseline(REPO_ROOT)
+
+    expect(await checkUpstreamParity(REPO_ROOT, { ...baseline, commit: "not-a-commit" })).toContainEqual({
+      code: "upstream_commit_invalid",
+      commit: "not-a-commit",
+    })
+    expect(await checkUpstreamParity(REPO_ROOT, { ...baseline, commit: "f".repeat(40) })).toContainEqual({
+      code: "upstream_commit_missing",
+      commit: "f".repeat(40),
+    })
+    expect(await checkUpstreamParity(REPO_ROOT, {
+      ...baseline,
+      commit: "cb892f50a6bdfc9befdd15394fe1e88b45aaf767",
+    })).toContainEqual({
+      code: "upstream_commit_not_current",
+      commit: "cb892f50a6bdfc9befdd15394fe1e88b45aaf767",
+      expected: "8d81a5998a167e6cc8fe8a4c982591e1423acc04",
+      ref: "refs/remotes/upstream/main",
+    })
+  })
+
   test("ignores unrelated upstream additions when protected anchors are unchanged", async () => {
     const { baseline, root } = await makeUpstreamFixture()
     await fs.mkdir(path.join(root, "docs"), { recursive: true })

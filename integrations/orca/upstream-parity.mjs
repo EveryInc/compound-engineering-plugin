@@ -1,12 +1,16 @@
 #!/usr/bin/env node
 
+import { execFile } from "node:child_process"
 import { promises as fs } from "node:fs"
 import path from "node:path"
 import { fileURLToPath } from "node:url"
+import { promisify } from "node:util"
 import { formatForkVersion } from "./version.mjs"
 
 const INTEGRATION_DIR = path.dirname(fileURLToPath(import.meta.url))
 const DEFAULT_REPO_ROOT = path.resolve(INTEGRATION_DIR, "../..")
+const execFileAsync = promisify(execFile)
+const COMMIT_RE = /^[a-f0-9]{40}$/
 
 async function readJson(file) {
   return JSON.parse(await fs.readFile(file, "utf8"))
@@ -37,6 +41,52 @@ async function listMarkdownFiles(directory) {
   }
 }
 
+async function git(repoRoot, args) {
+  try {
+    const { stdout } = await execFileAsync("git", ["-C", repoRoot, ...args], {
+      encoding: "utf8",
+      timeout: 5_000,
+    })
+    return { ok: true, stdout: stdout.trim() }
+  } catch (error) {
+    return { ok: false, exitCode: typeof error?.code === "number" ? error.code : null }
+  }
+}
+
+async function resolvedTrackingCommit(repoRoot) {
+  for (const ref of ["refs/remotes/upstream/main", "refs/remotes/origin/main"]) {
+    const result = await git(repoRoot, ["rev-parse", "--verify", `${ref}^{commit}`])
+    if (result.ok) return { ref, commit: result.stdout }
+  }
+  return null
+}
+
+export async function checkUpstreamCommit(repoRoot, baseline) {
+  if (!COMMIT_RE.test(String(baseline.commit || ""))) {
+    return [{ code: "upstream_commit_invalid", commit: baseline.commit ?? null }]
+  }
+
+  const worktree = await git(repoRoot, ["rev-parse", "--is-inside-work-tree"])
+  if (!worktree.ok || worktree.stdout !== "true") return []
+
+  const exists = await git(repoRoot, ["cat-file", "-e", `${baseline.commit}^{commit}`])
+  if (!exists.ok) return [{ code: "upstream_commit_missing", commit: baseline.commit }]
+
+  const ancestor = await git(repoRoot, ["merge-base", "--is-ancestor", baseline.commit, "HEAD"])
+  if (!ancestor.ok) return [{ code: "upstream_commit_not_ancestor", commit: baseline.commit }]
+
+  const tracking = await resolvedTrackingCommit(repoRoot)
+  if (tracking && tracking.commit !== baseline.commit) {
+    return [{
+      code: "upstream_commit_not_current",
+      commit: baseline.commit,
+      expected: tracking.commit,
+      ref: tracking.ref,
+    }]
+  }
+  return []
+}
+
 export async function loadUpstreamBaseline(repoRoot = DEFAULT_REPO_ROOT) {
   const protocol = await readJson(path.join(repoRoot, "integrations", "orca", "protocol.json"))
   const baseline = await readJson(path.join(repoRoot, protocol.upstreamBaseline))
@@ -48,7 +98,7 @@ export async function loadUpstreamBaseline(repoRoot = DEFAULT_REPO_ROOT) {
 
 export async function checkUpstreamParity(repoRoot = DEFAULT_REPO_ROOT, suppliedBaseline) {
   const baseline = suppliedBaseline ?? await loadUpstreamBaseline(repoRoot)
-  const issues = []
+  const issues = await checkUpstreamCommit(repoRoot, baseline)
 
   const expectedSkills = [...baseline.skillInventory].sort()
   const actualSkills = await listDirectories(path.join(repoRoot, "skills"))

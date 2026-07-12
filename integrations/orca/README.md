@@ -264,6 +264,11 @@ If the remote already exists, verify it with `git remote get-url upstream` inste
 4. Run `bun run orca:upstream-check` and the two `orca-*` test files.
 5. Run `bun test` and `bun run release:validate` before landing the sync.
 
+When Git metadata is available, `orca:upstream-check` also requires the recorded
+commit to exist, be an ancestor of the checkout, and match the available
+`upstream/main` (or fork `origin/main`) tracking ref. Packaged installs without a
+`.git` directory retain the inventory, anchor, and version checks.
+
 Changes unrelated to protected skill inventory, CE-defined roles, or dispatch anchors do not require overlay reconstruction. Keep intentional skill hooks bounded and reviewable; integration implementation must not spread through upstream prompt assets.
 
 ## Native packages

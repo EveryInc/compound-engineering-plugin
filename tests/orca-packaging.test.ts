@@ -183,7 +183,7 @@ describe("CE-Orca packaging", () => {
       upstream: {
         repository: "https://github.com/EveryInc/compound-engineering-plugin.git",
         version: "3.19.0",
-        commit: "cb892f50a6bdfc9befdd15394fe1e88b45aaf767",
+        commit: "8d81a5998a167e6cc8fe8a4c982591e1423acc04",
       },
       integrationRevision: 1,
       orca: {
