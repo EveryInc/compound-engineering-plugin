@@ -153,4 +153,26 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toContain("ce-commit-push-pr")
     expect(babysit, "description refresh must be in the owned mutation envelope").toMatch(/refresh(es|ing) (the |a )PR description/)
   })
+
+  test("bounded-class sweep contract: babysit routes it, ce-resolve classifies/enumerates/bounds it", async () => {
+    // A correct finding recurring across sibling sites must be swept as one class, not dripped
+    // one-per-head. The split is protocol: babysit only recognizes + routes ("request a
+    // bounded-class assessment"); ce-resolve owns whether the sites are equivalent, the enumerated
+    // locations, and the fixer's mutation boundary. Dropping either side silently reverts to
+    // one-site-per-round (babysit routes a request nothing fulfills, or the resolver never sweeps).
+    const [babysit, watchLoop, fullMode, rubric, fixer] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile("skills/ce-babysit-pr/references/watch-loop.md"),
+      readRepoFile(CERESOLVE_FULL_MODE),
+      readRepoFile("skills/ce-resolve-pr-feedback/references/evaluation-rubric.md"),
+      readRepoFile("skills/ce-resolve-pr-feedback/references/agents/pr-comment-resolver.md"),
+    ])
+    // Babysit side: recognizes + routes, does not decide/execute the sweep.
+    expect(babysit, "babysit Step 2 must request the assessment inline").toMatch(/bounded-class assessment/i)
+    expect(watchLoop).toMatch(/bounded-class assessment/i)
+    // Resolver side: owns classification, enumeration, and the fixer's enumerated mutation boundary.
+    expect(rubric).toContain("A validated finding can span sites this PR itself introduced")
+    expect(fullMode).toMatch(/Class fix:/)
+    expect(fixer, "class-fix mutation boundary must reach the fixer prompt").toMatch(/enumerated set is the mutation boundary/i)
+  })
 })

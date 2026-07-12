@@ -28,6 +28,7 @@ You hold every thread at once -- use that:
 
 - **Cluster by root assumption.** If one source (often a bot) makes the same kind of claim across several threads and you find it doesn't hold in one place, scrutinize the siblings: a systematically-wrong premise produces a cluster of plausible-but-wrong findings. This is the single biggest advantage of judging centrally instead of per-isolated-agent.
 - **Converging requests are a strong fix signal.** The same change asked for by multiple independent reviewers rarely warrants a divert.
+- **A validated finding can span sites this PR itself introduced (fix the class, not one instance).** The mirror of the wrong-reviewer cluster: a reviewer usually flags one occurrence, not all. When you accept a finding, check whether this change also introduced or touched *other* sites governed by the **same invariant** that admit the **same fix with no site-specific judgment**. When those sites are concretely identifiable and their treatment is unambiguous, fold them into **one** class fix (see full-mode Step 3) so the un-flagged twins don't resurface later. Bound it strictly: only behavior **this PR changed**, not every pre-existing occurrence in a touched file; exclude any site whose invariant or correct treatment differs (docs vs. code vs. fixtures, compatibility or intentionally-preserved paths). If equivalence or treatment is itself a judgment call, keep them separate items — a false "class complete" is worse than one more round.
 
 ## Diverts (apply per item)
 

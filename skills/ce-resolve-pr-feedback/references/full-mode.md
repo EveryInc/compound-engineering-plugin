@@ -70,7 +70,7 @@ Working over the full set lets you do what a per-thread subagent can't:
 
 Produce a verdict per item and sort into three lists:
 
-- **fix-list** — `fixed` / `fixed-differently`. These get dispatched to fixers in step 4. For each, note the file/location (and for outdated threads, the resolved location or anchor) and a one-line "what to change."
+- **fix-list** — `fixed` / `fixed-differently`. These get dispatched to fixers in step 4. For each, note the file/location (and for outdated threads, the resolved location or anchor) and a one-line "what to change." **Class fix:** when the cross-item pass (rubric: "A validated finding can span sites this PR itself introduced") found equivalent same-invariant sites this PR touched, record them as **one** fix-list item that enumerates every concrete location (`file:line`) and lists every feedback ID it covers — one class item → one fixer (step 4), so the sites are edited coherently and every covered thread/comment is replied-to and resolved from that single result. Enumerate only sites whose treatment is unambiguous; a site needing its own judgment stays a separate item.
 - **reply-list** — `replied` / `not-addressing` / `declined`. No code change. Compose the reply text now per the rubric (you have the evidence) and carry it to step 7.
 - **human-list** — `needs-human`. Compose `decision_context` now; carry to steps 7 and 9.
 
@@ -111,7 +111,7 @@ For `pr_comment` / `review_body` fix-list items (no file/line), the fixer identi
 
 **Batching**: If the fix-list has 1-4 items, dispatch all in parallel. For 5+, batch in groups of 4.
 
-**Conflict avoidance**: No two fixers that touch the same file run in parallel. You already know the target files from step 3 — serialize fixers that share a file (dispatch one, wait, then the next); non-overlapping items run in parallel. When one fixer handles multiple threads on the same file, it addresses them sequentially.
+**Conflict avoidance**: No two fixers that touch the same file run in parallel. You already know the target files from step 3 — serialize fixers that share a file (dispatch one, wait, then the next); non-overlapping items run in parallel. For a **class item**, feed the fixer its full enumerated location set and every covered feedback ID (not a single thread), and account for **all** of its sites in this check — a class fix touching files another fixer also touches must be serialized against every one of them. When one fixer handles multiple threads on the same file, it addresses them sequentially.
 
 **Sequential fallback**: Platforms that do not support parallel dispatch run fixers sequentially.
 
