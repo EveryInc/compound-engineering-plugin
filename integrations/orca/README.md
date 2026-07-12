@@ -92,13 +92,14 @@ a stale orch-console `settings.json` fallback cannot move the run to a different
 checkout between resolution and launch. An explicit `--worktree` on the helper
 still overrides the recorded selector.
 
-Built-in role targets preserve the model-tier intent declared by upstream CE:
-`parent` uses `gpt-5.6-sol` with medium reasoning, `mid` uses `gpt-5.4-mini`
-with medium reasoning, and `cheap` uses the same smaller model with low reasoning. A
-higher-precedence project, profile, stage, or role target still wins. Changing
-a backend or model without naming a reasoning level keeps the effective
-higher-precedence target family instead of accidentally inheriting a
-provider-incompatible tier level.
+Built-in role targets preserve the relative tier intent declared by upstream CE
+without silently downgrading the model: `parent`, `mid`, and `cheap` all use
+`gpt-5.6-sol` with medium reasoning. Their supervision windows are 900 seconds
+for `parent` and `mid`, and 600 seconds for `cheap`; `budget` is a wall-clock
+supervision timeout, not a token budget. A higher-precedence project, profile,
+stage, or role target still wins. Changing a backend or model without naming a
+reasoning level keeps the effective higher-precedence target family instead of
+accidentally inheriting a provider-incompatible tier level.
 
 Cursor does not expose a separate reasoning control. A target that selects the
 `cursor` backend without a `reasoning` field is therefore canonicalized to the

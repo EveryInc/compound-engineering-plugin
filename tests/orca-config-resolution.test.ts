@@ -161,18 +161,21 @@ describe("CE-Orca canonical configuration resolution", () => {
     const documentRoles = documentReview.executionConfig.stages["persona-review"].roles
     expect(documentRoles["coherence-reviewer"]).toMatchObject({
       backend: "codex",
-      model: "gpt-5.4-mini",
-      reasoning: "low",
+      model: "gpt-5.6-sol",
+      reasoning: "medium",
+      budget: 600,
     })
     expect(documentRoles["design-lens-reviewer"]).toMatchObject({
       backend: "codex",
-      model: "gpt-5.4-mini",
+      model: "gpt-5.6-sol",
       reasoning: "medium",
+      budget: 900,
     })
     expect(documentRoles["feasibility-reviewer"]).toMatchObject({
       backend: "codex",
       model: "gpt-5.6-sol",
       reasoning: "medium",
+      budget: 900,
     })
 
     const simplificationData = await data("ce-simplify-code")
@@ -182,7 +185,7 @@ describe("CE-Orca canonical configuration resolution", () => {
       probe: healthyProbe,
     })
     for (const target of Object.values<any>(simplification.executionConfig.stages["reviewer-analysis"].roles)) {
-      expect(target).toMatchObject({ backend: "codex", model: "gpt-5.4-mini", reasoning: "medium" })
+      expect(target).toMatchObject({ backend: "codex", model: "gpt-5.6-sol", reasoning: "medium", budget: 900 })
     }
 
     const overridden = resolveExecutionRequest({
@@ -214,7 +217,7 @@ describe("CE-Orca canonical configuration resolution", () => {
     expect(roleOverride.executionConfig.stages["persona-review"].roles["coherence-reviewer"])
       .toMatchObject({ backend: "claude", model: "opus", reasoning: "medium" })
     expect(roleOverride.executionConfig.stages["persona-review"].roles["design-lens-reviewer"])
-      .toMatchObject({ backend: "codex", model: "gpt-5.4-mini", reasoning: "medium" })
+      .toMatchObject({ backend: "codex", model: "gpt-5.6-sol", reasoning: "medium", budget: 900 })
   })
 
   test("fails closed for target overrides that a native owner cannot enforce", async () => {

@@ -6,13 +6,13 @@ defaults:
   model: gpt-5.6-sol
   reasoning: medium
   effort: medium
-  budget: 150
+  budget: 900
   concurrency: 1
   isolation: shared
 modelTiers:
-  parent: { backend: codex, model: gpt-5.6-sol, reasoning: medium }
-  mid: { backend: codex, model: gpt-5.4-mini, reasoning: medium }
-  cheap: { backend: codex, model: gpt-5.4-mini, reasoning: low }
+  parent: { backend: codex, model: gpt-5.6-sol, reasoning: medium, budget: 900 }
+  mid: { backend: codex, model: gpt-5.6-sol, reasoning: medium, budget: 900 }
+  cheap: { backend: codex, model: gpt-5.6-sol, reasoning: medium, budget: 600 }
 workflows:
   ce-code-review:
     stages:
