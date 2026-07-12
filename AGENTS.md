@@ -99,7 +99,7 @@ That field guide is the canonical reasoning layer for outcome-first authoring, m
 ### Skill Prose Admission Rules
 
 - Keep a line only when it states a falsifiable constraint, counters a known default tendency or observed shortcut, or supplies domain knowledge that materially changes a decision.
-- Delete generic exhortations such as "be thorough," "think carefully," or "produce high-quality work." Operationalize adjectives with an observable rule.
+- Do not keep vague effort or quality language such as "be thorough" or "produce high-quality work" as a standalone instruction. Replace it with an observable rule, or retain a targeted effort cue only when it counters a documented runtime tendency and has been evaluated there.
 - Do not append motivational rationale to a directive that already stands on its own.
 - Repeat an instruction only at a demonstrated drift point where placement changes whether it fires. Protect genuinely required always-loaded duplicates with a parity test.
 

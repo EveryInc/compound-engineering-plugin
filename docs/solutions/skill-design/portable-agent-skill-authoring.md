@@ -50,7 +50,19 @@ If a capable model's output becomes worse after adding prose, remove judgment gu
 
 ### Every instruction must earn its cost
 
-Always-loaded prose compounds across the workflow. Keep an instruction when it adds falsifiable protocol, counters a demonstrated model or harness tendency, or supplies domain knowledge that can materially change a decision. Generic exhortation and motivational rationale do not earn that cost.
+Always-loaded prose compounds across the workflow. Keep an instruction when it adds falsifiable protocol, counters a demonstrated model or harness tendency, or supplies domain knowledge that can materially change a decision. Vague effort or quality language does not earn that cost by itself.
+
+Prefer an observable rule over a qualitative exhortation:
+
+| Instead of | State what the instruction must change |
+|---|---|
+| "Be thorough." | "Check every changed execution path and report any path you could not verify." |
+| "Produce high-quality work." | "The handoff must name the decision, supporting evidence, unresolved risk, and next owner." |
+| "Be concise." | "Lead with the outcome; omit details that would not change the reader's next decision." |
+
+This reflects current vendor guidance, not a preference for terseness. [OpenAI's prompting guide](https://learn.chatgpt.com/docs/prompting) says a short prompt is often enough, recommends starting with the result, and adds process only when process matters. [Fable 5 guidance](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-fable-5) says brief instructions can replace behavior-by-behavior enumeration and warns that skills tuned for earlier models may be too prescriptive.
+
+This is not a ban on effort cues. A targeted phrase may be useful when it counters a documented runtime behavior. For example, the [Opus 4.8 guide](https://platform.claude.com/docs/en/build-with-claude/prompt-engineering/prompting-claude-opus-4-8) recommends an explicit careful-reasoning cue for multi-step work forced to low effort. Treat such wording as a model-behavior adapter: name the condition it addresses and verify the effect rather than promoting it to a universal quality slogan.
 
 This is an admission principle, not a mandate to delete unfamiliar detail. A line that feels redundant may be targeted insurance for a more literal model or a different harness. Test that possibility before removing it.
 
