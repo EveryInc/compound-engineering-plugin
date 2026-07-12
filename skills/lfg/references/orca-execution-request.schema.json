@@ -1,0 +1,121 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ce-orca:execution-request:v1",
+  "title": "Compound Engineering Orca execution request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "workflowId"],
+  "properties": {
+    "schema": {
+      "const": "ce-orca.execution-request/v1"
+    },
+    "workflowId": {
+      "$ref": "#/$defs/id"
+    },
+    "runtime": {
+      "enum": ["auto", "orca", "native"]
+    },
+    "confirmation": {
+      "type": "boolean"
+    },
+    "defaults": {
+      "$ref": "#/$defs/target"
+    },
+    "stages": {
+      "type": "object",
+      "propertyNames": {
+        "$ref": "#/$defs/id"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/stage"
+      }
+    }
+  },
+  "$defs": {
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9-]{0,63}$"
+    },
+    "token": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/+\\[\\],=-]*$"
+    },
+    "level": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 32,
+      "pattern": "^[a-z][a-z0-9-]*$"
+    },
+    "target": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "enum": ["claude", "codex", "cursor"]
+        },
+        "model": {
+          "$ref": "#/$defs/token"
+        },
+        "reasoning": {
+          "$ref": "#/$defs/level"
+        },
+        "effort": {
+          "$ref": "#/$defs/level"
+        },
+        "budget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "isolation": {
+          "enum": ["shared", "worktree", "worktree-strict"]
+        }
+      }
+    },
+    "stage": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "backend": {
+          "enum": ["claude", "codex", "cursor"]
+        },
+        "model": {
+          "$ref": "#/$defs/token"
+        },
+        "reasoning": {
+          "$ref": "#/$defs/level"
+        },
+        "effort": {
+          "$ref": "#/$defs/level"
+        },
+        "budget": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "concurrency": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 32
+        },
+        "isolation": {
+          "enum": ["shared", "worktree", "worktree-strict"]
+        },
+        "roles": {
+          "type": "object",
+          "propertyNames": {
+            "$ref": "#/$defs/id"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/target"
+          }
+        }
+      }
+    }
+  }
+}

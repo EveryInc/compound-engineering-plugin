@@ -1,0 +1,81 @@
+{
+  "identities": {
+    "ceVersion": "3.19.0",
+    "integrationVersion": "3.19.0-orca.1",
+    "protocolVersion": "orca.local-protocol/v1",
+    "registryVersion": "ce-orca.registry/v1@3.19.0-orca.1",
+    "requestVersion": "orca.execution-config/v1"
+  },
+  "schema": "ce-orca.role-registry/v1",
+  "version": "ce-orca.registry/v1@3.19.0-orca.1",
+  "workflows": {
+    "ce-work": {
+      "controller": "ce-controller",
+      "mode": "mixed",
+      "skill": "ce-work",
+      "stages": {
+        "design-validation": {
+          "activation": "always",
+          "anchor": "figma-design-sync",
+          "defaultOwner": "native",
+          "mutation": "read-only",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "structured",
+          "roles": {
+            "figma-design-sync": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/figma-design-sync.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "implementation": {
+          "activation": "always",
+          "anchor": "your harness's subagent/worker mechanism.",
+          "defaultOwner": "orca",
+          "mutation": "worktree-write",
+          "resultMode": "artifact",
+          "roles": {
+            "implementation-unit-worker": {
+              "activation": "repeatable",
+              "anchor": "bounded unit packet",
+              "modelTier": "parent",
+              "mutation": "worktree-write",
+              "required": true,
+              "resultMode": "artifact",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "review-fixes": {
+          "activation": "always",
+          "anchor": "dispatch fix subagents",
+          "defaultOwner": "native",
+          "mutation": "worktree-write",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "artifact",
+          "roles": {
+            "review-fix-worker": {
+              "activation": "repeatable",
+              "anchor": "dispatch fix subagents",
+              "modelTier": "parent",
+              "mutation": "worktree-write",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        }
+      }
+    }
+  }
+}

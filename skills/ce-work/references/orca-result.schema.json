@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:ce-orca:work-result:v1",
+  "title": "CE Orca work batch result",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema", "workflow_id", "status", "units", "ownership"],
+  "properties": {
+    "schema": { "const": "ce-orca.work-result/v1" },
+    "workflow_id": { "const": "ce-work" },
+    "status": { "enum": ["complete", "failed"] },
+    "units": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["id", "status", "changed_files", "verification_evidence", "behavior_change", "blockers"],
+        "properties": {
+          "id": { "type": "string" },
+          "status": { "enum": ["complete", "blocked", "failed"] },
+          "changed_files": { "type": "array", "items": { "type": "string" } },
+          "verification_evidence": { "type": "object" },
+          "behavior_change": { "type": "boolean" },
+          "blockers": { "type": "array", "items": { "type": "string" } },
+          "integration": { "type": "object" }
+        }
+      }
+    },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["implementation", "integration", "verification", "shipping"],
+      "properties": {
+        "implementation": { "const": "orca" },
+        "integration": { "const": "ce-controller" },
+        "verification": { "const": "ce-controller" },
+        "shipping": { "const": "caller" }
+      }
+    },
+    "failure_reason": { "type": "string" }
+  }
+}

@@ -1,0 +1,61 @@
+{
+  "confirmation": false,
+  "defaults": {
+    "backend": "codex",
+    "budget": 150,
+    "concurrency": 1,
+    "effort": "medium",
+    "isolation": "shared",
+    "model": "gpt-5.4",
+    "reasoning": "high"
+  },
+  "modelTiers": {
+    "cheap": {
+      "backend": "codex",
+      "model": "gpt-5.4-mini",
+      "reasoning": "low"
+    },
+    "mid": {
+      "backend": "codex",
+      "model": "gpt-5.4-mini",
+      "reasoning": "medium"
+    },
+    "parent": {
+      "backend": "codex",
+      "model": "gpt-5.4",
+      "reasoning": "high"
+    }
+  },
+  "runtime": "auto",
+  "schema": "ce-orca.defaults/v1",
+  "workflows": {
+    "ce-plan": {
+      "stages": {
+        "authoring": {
+          "concurrency": 1
+        },
+        "deepening": {
+          "concurrency": 4
+        },
+        "external-research": {
+          "concurrency": 3
+        },
+        "flow-analysis": {
+          "concurrency": 1,
+          "isolation": "worktree-strict"
+        },
+        "local-research": {
+          "concurrency": 3,
+          "isolation": "worktree-strict"
+        },
+        "organizational-research": {
+          "concurrency": 1
+        },
+        "project-profile": {
+          "concurrency": 1,
+          "isolation": "worktree-strict"
+        }
+      }
+    }
+  }
+}

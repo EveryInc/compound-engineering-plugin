@@ -4,6 +4,8 @@
 
 AI skills that make each unit of engineering work easier than the last.
 
+> **CE-Orca fork:** this repository preserves EveryInc's native Compound Engineering workflows and adds an optional Orca execution overlay for Claude and Codex. The upstream project remains authoritative for skills and personas; fork-owned compatibility, provenance, and synchronization details live in [`integrations/orca/`](integrations/orca/README.md). Orca is not required for native execution.
+
 ## Philosophy
 
 **Each unit of engineering work should make subsequent units easier -- not harder.**
@@ -146,12 +148,73 @@ The `compound-engineering` plugin currently ships 29 skills and 0 standalone age
 
 ---
 
+## CE-Orca runtime
+
+The plugin and the orchestration runtime remain separate. Compound Engineering
+owns the workflow semantics; the external `orca-orch` command launches and
+waits for Orca runs, while orch-console can continue operating independently as
+their local monitor. From an orch-console checkout, install the stable command
+once and verify the versioned endpoint:
+
+```bash
+pnpm install
+pnpm orch:install-cli
+orca-orch capabilities --protocol orca.local-protocol/v1
+```
+
+If the executable is not on `PATH`, set `CE_ORCA_COMMAND` to its executable
+path. The value is passed directly to the process launcher, so it must not
+contain shell arguments.
+
+Each invocation accepts natural-language execution preferences. The controller
+turns only explicit preferences into a schema-constrained, run-scoped patch;
+ordinary product prose remains unchanged. For example:
+
+```text
+/lfg Use Claude Opus with high reasoning for planning, then 3 Codex gpt-5.6-sol workers at xhigh reasoning for implementation. Continue without confirmation.
+
+/ce-doc-review Use Claude Opus with high reasoning for the security-lens reviewer; keep every other reviewer on the defaults.
+```
+
+You can also use the explicit JSON grammar in
+[`integrations/orca/execution-request.schema.json`](integrations/orca/execution-request.schema.json).
+Resolution precedence is built-ins <- `.ce-orca.json` project defaults <- named
+private profile <- current prompt. Prompt overrides are never persisted. Saving
+a profile requires an explicit `save-profile` action; confirmation is shown
+only when the effective request has `confirmation: true`.
+
+| Requested runtime | `orca-orch` absent | Healthy and compatible | Installed but unhealthy/incompatible |
+| --- | --- | --- | --- |
+| `auto` (default) | Announced native CE | Orca for integrated stages | Preflight failure |
+| `native` | Native CE | Native CE | Native CE |
+| `orca` | Preflight failure | Orca for integrated stages | Preflight failure |
+
+There is no mid-run fallback: once an Orca-owned stage starts, failures remain
+visible and are not silently repeated by native agents. `/lfg` keeps one CE
+controller for planning through shipping and propagates its stage targets to
+the four child workflows as private, run-scoped data while preserving the
+original user prompt. The resolved display labels target enforcement as
+`orca`, `child-workflow`, or `native-unconfigurable`; explicit target overrides
+for a native-unconfigurable stage fail before dispatch. Strict writing stages
+also require an attested mutation
+policy and exact file scope: Codex and Claude can write when their local CLI
+passes preflight. Cursor remains catalogued for native CE routing, but is not
+currently eligible for Orca-owned read or writer stages: Cursor Ask mode can
+inherit MCP servers and plugins without per-invocation disable controls, so it
+cannot attest `orca.read-policy/v1` or the writer policy.
+
+See the [Orca integration guide](integrations/orca/README.md) for project and
+profile examples, the immutable `resolve` -> `run --resolved` contract, exact
+ownership boundaries, and upstream synchronization.
+
+---
+
 ## Install
 
 ### Claude Code
 
 ```text
-/plugin marketplace add EveryInc/compound-engineering-plugin
+/plugin marketplace add ethras/compound-engineering-orca
 /plugin install compound-engineering
 ```
 
@@ -177,7 +240,7 @@ Compound Engineering is not listed in Codex's built-in plugin marketplace yet. A
 
    | Field | Value |
    | --- | --- |
-   | Source | `EveryInc/compound-engineering-plugin` |
+   | Source | `ethras/compound-engineering-orca` |
    | Git ref | `main` |
    | Sparse paths | leave blank |
 
@@ -193,7 +256,7 @@ Register the marketplace, then install the plugin.
 1. **Register the marketplace with Codex:**
 
    ```bash
-   codex plugin marketplace add EveryInc/compound-engineering-plugin
+   codex plugin marketplace add ethras/compound-engineering-orca
    ```
 
 2. **Install the plugin:**
@@ -209,7 +272,7 @@ The native Codex plugin install is self-contained for Compound Engineering. Spec
 For a non-default Codex profile, run every Codex-related step against the same `CODEX_HOME`. This example installs CE into a `work` profile:
 
 ```bash
-CODEX_HOME="$HOME/.codex/profiles/work" codex plugin marketplace add EveryInc/compound-engineering-plugin
+CODEX_HOME="$HOME/.codex/profiles/work" codex plugin marketplace add ethras/compound-engineering-orca
 CODEX_HOME="$HOME/.codex/profiles/work" codex plugin add compound-engineering@compound-engineering-plugin
 ```
 
@@ -386,35 +449,48 @@ See [`.agy/INSTALL.md`](.agy/INSTALL.md) for pinning, local development, uninsta
 
 ### Existing Installs
 
-Compound Engineering moved to a root-native, skills-only layout. An existing marketplace install keeps a **cached** marketplace snapshot that still points at the old `plugins/compound-engineering` path, so updating the plugin on its own reads that stale snapshot and leaves you on the previous version. Refresh the cached marketplace **first**, then update the plugin — order matters.
+Migrate an existing upstream `EveryInc/compound-engineering-plugin` install by
+removing its installed plugin and cached marketplace, then registering
+`ethras/compound-engineering-orca`. Both repositories use the marketplace name
+`compound-engineering-plugin`, so an in-place marketplace refresh does not
+change the source repository.
 
 **Claude Code**
 
 ```text
-/plugin marketplace update compound-engineering-plugin
-/plugin update compound-engineering
+/plugin uninstall compound-engineering@compound-engineering-plugin
+/plugin marketplace remove compound-engineering-plugin
+/plugin marketplace add ethras/compound-engineering-orca
+/plugin install compound-engineering@compound-engineering-plugin
 ```
 
 **Codex CLI**
 
 ```bash
-codex plugin marketplace upgrade compound-engineering-plugin
+codex plugin remove compound-engineering@compound-engineering-plugin
+codex plugin marketplace remove compound-engineering-plugin
+codex plugin marketplace add ethras/compound-engineering-orca
 codex plugin add compound-engineering@compound-engineering-plugin
 ```
 
-There is no `codex plugin update`; re-running `add` reinstalls from the refreshed snapshot. For a non-default profile, run both commands against the same `CODEX_HOME`.
+If an uninstall/remove command reports that its target is already absent,
+continue with the remaining migration steps. For a non-default Codex profile,
+run all four Codex commands against the same `CODEX_HOME`.
 
 **Codex App**
 
-Refresh the marketplace from the **Plugins** panel (remove and re-add the `EveryInc/compound-engineering-plugin` marketplace if there is no refresh control), then reinstall **compound-engineering** and restart Codex.
+In **Plugins**, uninstall **compound-engineering**, remove the
+`EveryInc/compound-engineering-plugin` marketplace, then add a custom
+marketplace with source `ethras/compound-engineering-orca`, Git ref `main`, and
+no sparse paths. Reinstall **compound-engineering** and restart Codex.
 
 If you configured a host with a direct path or sparse path under `plugins/compound-engineering`, edit or reinstall that source so it points at the repository root with no sparse path.
 
 If a previous Bun-installed copy is still shadowing native plugin skills, run the current cleanup command from a checkout of this repository:
 
 ```bash
-git clone https://github.com/EveryInc/compound-engineering-plugin.git /tmp/compound-engineering-plugin-cleanup
-cd /tmp/compound-engineering-plugin-cleanup
+git clone https://github.com/ethras/compound-engineering-orca.git /tmp/compound-engineering-orca-cleanup
+cd /tmp/compound-engineering-orca-cleanup
 bun install
 bun run cleanup --target all
 ```

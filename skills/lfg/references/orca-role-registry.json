@@ -1,0 +1,70 @@
+{
+  "identities": {
+    "ceVersion": "3.19.0",
+    "integrationVersion": "3.19.0-orca.1",
+    "protocolVersion": "orca.local-protocol/v1",
+    "registryVersion": "ce-orca.registry/v1@3.19.0-orca.1",
+    "requestVersion": "orca.execution-config/v1"
+  },
+  "schema": "ce-orca.role-registry/v1",
+  "version": "ce-orca.registry/v1@3.19.0-orca.1",
+  "workflows": {
+    "lfg": {
+      "controller": "lfg-controller",
+      "mode": "mixed",
+      "skill": "lfg",
+      "stages": {
+        "implementation": {
+          "activation": "always",
+          "anchor": "Invoke the `ce-work` skill",
+          "defaultOwner": "native",
+          "mutation": "worktree-write",
+          "nativeTargetHandling": "child-workflow",
+          "resultMode": "controller",
+          "roles": {},
+          "sourcePath": "SKILL.md"
+        },
+        "planning": {
+          "activation": "always",
+          "anchor": "Invoke the `ce-plan` skill",
+          "defaultOwner": "native",
+          "mutation": "read-only",
+          "nativeTargetHandling": "child-workflow",
+          "resultMode": "controller",
+          "roles": {},
+          "sourcePath": "SKILL.md"
+        },
+        "review": {
+          "activation": "always",
+          "anchor": "Invoke the `ce-code-review` skill",
+          "defaultOwner": "native",
+          "mutation": "read-only",
+          "nativeTargetHandling": "child-workflow",
+          "resultMode": "controller",
+          "roles": {},
+          "sourcePath": "SKILL.md"
+        },
+        "shipping-tail": {
+          "activation": "always",
+          "anchor": "Shipping precondition",
+          "defaultOwner": "native",
+          "mutation": "shipping-tail",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "controller",
+          "roles": {},
+          "sourcePath": "SKILL.md"
+        },
+        "simplification": {
+          "activation": "always",
+          "anchor": "Invoke the `ce-simplify-code` skill",
+          "defaultOwner": "native",
+          "mutation": "worktree-write",
+          "nativeTargetHandling": "child-workflow",
+          "resultMode": "controller",
+          "roles": {},
+          "sourcePath": "SKILL.md"
+        }
+      }
+    }
+  }
+}

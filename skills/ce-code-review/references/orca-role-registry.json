@@ -1,0 +1,255 @@
+{
+  "identities": {
+    "ceVersion": "3.19.0",
+    "integrationVersion": "3.19.0-orca.1",
+    "protocolVersion": "orca.local-protocol/v1",
+    "registryVersion": "ce-orca.registry/v1@3.19.0-orca.1",
+    "requestVersion": "orca.execution-config/v1"
+  },
+  "schema": "ce-orca.role-registry/v1",
+  "version": "ce-orca.registry/v1@3.19.0-orca.1",
+  "workflows": {
+    "ce-code-review": {
+      "controller": "ce-controller",
+      "mode": "mixed",
+      "skill": "ce-code-review",
+      "stages": {
+        "adversarial-peer": {
+          "activation": "always",
+          "anchor": "Cross-model adversarial pass",
+          "defaultOwner": "native",
+          "mutation": "read-only",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "structured",
+          "roles": {
+            "adversarial-peer": {
+              "activation": "conditional",
+              "anchor": "cross-model adversarial pass",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "finding-validation": {
+          "activation": "always",
+          "anchor": "### Stage 5b: Validation pass",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "finding-validator": {
+              "activation": "repeatable",
+              "anchor": "One sub-agent per finding",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "persona-review": {
+          "activation": "always",
+          "anchor": "### Stage 4: Spawn sub-agents",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "adversarial-reviewer": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/adversarial-reviewer.md"
+            },
+            "agent-native-reviewer": {
+              "activation": "always",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/agent-native-reviewer.md"
+            },
+            "api-contract-reviewer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/api-contract-reviewer.md"
+            },
+            "correctness-reviewer": {
+              "activation": "always",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/correctness-reviewer.md"
+            },
+            "data-migration-reviewer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/data-migration-reviewer.md"
+            },
+            "deployment-verification-agent": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/deployment-verification-agent.md"
+            },
+            "julik-frontend-races-reviewer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/julik-frontend-races-reviewer.md"
+            },
+            "learnings-researcher": {
+              "activation": "always",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/learnings-researcher.md"
+            },
+            "maintainability-reviewer": {
+              "activation": "always",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/maintainability-reviewer.md"
+            },
+            "performance-reviewer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/performance-reviewer.md"
+            },
+            "previous-comments-reviewer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/previous-comments-reviewer.md"
+            },
+            "project-standards-reviewer": {
+              "activation": "always",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/project-standards-reviewer.md"
+            },
+            "reliability-reviewer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/reliability-reviewer.md"
+            },
+            "security-reviewer": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/security-reviewer.md"
+            },
+            "swift-ios-reviewer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/swift-ios-reviewer.md"
+            },
+            "testing-reviewer": {
+              "activation": "always",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/testing-reviewer.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "project-profile": {
+          "activation": "always",
+          "anchor": "Resolve the question-agnostic project profile",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "repo-profiler": {
+              "activation": "conditional",
+              "modelTier": "cheap",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/repo-profiler.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "scope-triage": {
+          "activation": "always",
+          "anchor": "Trivial-PR judgment",
+          "defaultOwner": "native",
+          "mutation": "read-only",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "structured",
+          "roles": {
+            "trivial-pr-judge": {
+              "activation": "conditional",
+              "anchor": "Trivial-PR judgment",
+              "modelTier": "cheap",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        }
+      }
+    }
+  }
+}

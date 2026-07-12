@@ -1,0 +1,193 @@
+{
+  "identities": {
+    "ceVersion": "3.19.0",
+    "integrationVersion": "3.19.0-orca.1",
+    "protocolVersion": "orca.local-protocol/v1",
+    "registryVersion": "ce-orca.registry/v1@3.19.0-orca.1",
+    "requestVersion": "orca.execution-config/v1"
+  },
+  "schema": "ce-orca.role-registry/v1",
+  "version": "ce-orca.registry/v1@3.19.0-orca.1",
+  "workflows": {
+    "ce-compound": {
+      "controller": "ce-controller",
+      "mode": "mixed",
+      "skill": "ce-compound",
+      "stages": {
+        "grounding-validation": {
+          "activation": "always",
+          "anchor": "### Phase 2.45: Grounding Validation",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "grounding-validator": {
+              "activation": "conditional",
+              "anchor": "Semantic grounding validator",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "project-profile": {
+          "activation": "always",
+          "anchor": "Resolve the agnostic project orientation from the shared cache",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "repo-profiler": {
+              "activation": "conditional",
+              "modelTier": "cheap",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/repo-profiler.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "research": {
+          "activation": "always",
+          "anchor": "Launch research subagents.",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "context-analyzer": {
+              "activation": "always",
+              "anchor": "Context Analyzer",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "artifact",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            },
+            "related-docs-finder": {
+              "activation": "always",
+              "anchor": "Related Docs Finder",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "artifact",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            },
+            "solution-extractor": {
+              "activation": "always",
+              "anchor": "Solution Extractor",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "artifact",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "session-history": {
+          "activation": "always",
+          "anchor": "Session History",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "session-historian": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "artifact",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/session-historian.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        },
+        "specialized-review": {
+          "activation": "always",
+          "anchor": "Skip Phase 3 entirely in headless mode",
+          "defaultOwner": "native",
+          "mutation": "read-only",
+          "nativeTargetHandling": "unconfigurable",
+          "resultMode": "structured",
+          "roles": {
+            "best-practices-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/best-practices-researcher.md"
+            },
+            "code-simplification-reviewer": {
+              "activation": "conditional",
+              "anchor": "read-only documentation review",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "workflow-role",
+              "sourcePath": "SKILL.md"
+            },
+            "data-integrity-guardian": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/data-integrity-guardian.md"
+            },
+            "framework-docs-researcher": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/framework-docs-researcher.md"
+            },
+            "pattern-recognition-specialist": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/pattern-recognition-specialist.md"
+            },
+            "performance-oracle": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/performance-oracle.md"
+            },
+            "security-sentinel": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/agents/security-sentinel.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        }
+      }
+    }
+  }
+}

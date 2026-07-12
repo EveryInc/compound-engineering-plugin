@@ -8,7 +8,7 @@
       "name": "compound-engineering",
       "source": {
         "source": "url",
-        "url": "https://github.com/EveryInc/compound-engineering-plugin.git"
+        "url": "https://github.com/ethras/compound-engineering-orca.git"
       },
       "policy": {
         "installation": "AVAILABLE",

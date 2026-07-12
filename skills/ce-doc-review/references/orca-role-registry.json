@@ -1,0 +1,93 @@
+{
+  "identities": {
+    "ceVersion": "3.19.0",
+    "integrationVersion": "3.19.0-orca.1",
+    "protocolVersion": "orca.local-protocol/v1",
+    "registryVersion": "ce-orca.registry/v1@3.19.0-orca.1",
+    "requestVersion": "orca.execution-config/v1"
+  },
+  "schema": "ce-orca.role-registry/v1",
+  "version": "ce-orca.registry/v1@3.19.0-orca.1",
+  "workflows": {
+    "ce-doc-review": {
+      "controller": "ce-controller",
+      "mode": "mixed",
+      "skill": "ce-doc-review",
+      "stages": {
+        "persona-review": {
+          "activation": "always",
+          "anchor": "## Phase 2: Announce and Dispatch Personas",
+          "defaultOwner": "orca",
+          "mutation": "read-only",
+          "resultMode": "structured",
+          "roles": {
+            "adversarial-document-reviewer": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/adversarial-document-reviewer.md"
+            },
+            "coherence-reviewer": {
+              "activation": "always",
+              "modelTier": "cheap",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/coherence-reviewer.md"
+            },
+            "design-lens-reviewer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/design-lens-reviewer.md"
+            },
+            "feasibility-reviewer": {
+              "activation": "always",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": true,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/feasibility-reviewer.md"
+            },
+            "product-lens-reviewer": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/product-lens-reviewer.md"
+            },
+            "scope-guardian-reviewer": {
+              "activation": "conditional",
+              "modelTier": "mid",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/scope-guardian-reviewer.md"
+            },
+            "security-lens-reviewer": {
+              "activation": "conditional",
+              "modelTier": "parent",
+              "mutation": "read-only",
+              "required": false,
+              "resultMode": "structured",
+              "sourceKind": "prompt-asset",
+              "sourcePath": "references/personas/security-lens-reviewer.md"
+            }
+          },
+          "sourcePath": "SKILL.md"
+        }
+      }
+    }
+  }
+}

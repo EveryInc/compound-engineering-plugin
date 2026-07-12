@@ -121,6 +121,10 @@ If no relevant entries are found, proceed to Phase 1 without passing memory cont
 
 Launch research subagents. Each writes its full output to a per-run scratch artifact and returns only the artifact path to the orchestrator.
 
+<!-- ce-orca-hook:start ce-compound.research-dispatch -->
+Before any Phase 1 subagent dispatch, read `references/orca-routing.md` and `references/orca-read-analysis.md`. For a selected stage resolved to Orca, replace only its already-selected subagent calls with that packet path and do not launch them natively. This controller keeps cache/session gates, assembly, scratch persistence, and every product write. Lightweight mode remains subagent-free. For native routing, continue below unchanged.
+<!-- ce-orca-hook:end ce-compound.research-dispatch -->
+
 **Run ID and run dir (before dispatching any subagent):** generate a unique run identifier and create the run directory. This scopes every Phase 1 artifact file to the same directory so the orchestrator can Read them back in Phase 2.
 
 ```bash
@@ -373,6 +377,10 @@ The doc (and any `CONCEPTS.md` entries from Phase 2.4) is about to become perman
    Exit 0 means nothing flagged. Exit 1 means flags to **adjudicate, not auto-fix** — each flagged path, SHA, link, or scaffold pattern is fixed, annotated as historical, or confirmed intentional per the reference's adjudication table. A doc may legitimately cite a path deleted by the very fix it documents; a flag is a question, not a failure. If the script cannot be resolved on this platform, apply the reference's manual checklist and say so in the output — never silently skip.
 
 2. **Semantic grounding validator (Full and headless; lightweight skips it).** Dispatch one read-only generic subagent built from the prompt template in the reference, covering the written doc plus any `CONCEPTS.md` entries added or edited this run. It verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, git reachability fallback), and internal completeness of countable assertions. Apply its verdicts per the reference (fix contradicted claims from the quoted evidence; soften or drop unverifiable ones; mark offline merge-state checks as degraded), then re-run the mechanical check if the body changed.
+
+<!-- ce-orca-hook:start ce-compound.grounding-validation -->
+When the semantic validator is selected and `grounding-validation` resolves to Orca, use `references/orca-read-analysis.md` for that one node instead of dispatching it natively. This controller owns verdict adjudication, edits, and the mechanical re-check.
+<!-- ce-orca-hook:end ce-compound.grounding-validation -->
 
 ### Phase 2.5: Selective Refresh Check
 

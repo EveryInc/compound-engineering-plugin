@@ -17,22 +17,30 @@ type ReleasePleaseConfig = {
 // look stale. See validateReleasePleaseConfig and scripts/release/validate.ts.
 type ReleasePleaseManifest = Record<string, string>
 
-// Compares two plain "x.y.z" versions. Returns a negative number when `a` is
-// lower than `b`, 0 when equal, positive when higher. Any pre-release suffix is
-// ignored -- release-owned versions in this repo are plain semver.
+// Compares release lineage versions. Returns a negative number when `a` is
+// lower than `b`, 0 when equal, positive when higher. The CE-Orca fork treats
+// `<upstream>-orca.N` as revision N after the stable upstream baseline (revision
+// zero), rather than as SemVer prerelease precedence. Other suffixes retain the
+// historical behavior and are ignored.
 function compareReleaseVersions(a: string, b: string): number {
-  const parse = (version: string) =>
-    version
+  const parse = (version: string) => {
+    const fork = /^(\d+)\.(\d+)\.(\d+)-orca\.(\d+)$/.exec(version)
+    const core = version
       .split("-")[0]
       .split(".")
       .map((part) => Number.parseInt(part, 10) || 0)
+    return {
+      core,
+      forkRevision: fork ? Number.parseInt(fork[4], 10) : 0,
+    }
+  }
   const left = parse(a)
   const right = parse(b)
-  for (let index = 0; index < Math.max(left.length, right.length); index += 1) {
-    const diff = (left[index] ?? 0) - (right[index] ?? 0)
+  for (let index = 0; index < Math.max(left.core.length, right.core.length); index += 1) {
+    const diff = (left.core[index] ?? 0) - (right.core[index] ?? 0)
     if (diff !== 0) return diff
   }
-  return 0
+  return left.forkRevision - right.forkRevision
 }
 
 export function validateReleasePleaseConfig(

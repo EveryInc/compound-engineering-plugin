@@ -367,6 +367,10 @@ python3 "$SKILL_DIR/scripts/repo-profile-cache.py" get
 
 **Only resolve the cache when the working tree is the reviewed tree** — `local-aligned`, standalone, or `base:` scope (Stage 1). In `pr-remote` or `branch-remote` scope, **skip Stage 2c entirely**: the helper keys and derives from the local `HEAD`, which is *not* the reviewed ref, so its profile would describe the wrong tree (e.g. `main`'s stack while reviewing a PR that changes manifests); reviewers work from the fetched refs/diff as those modes already require.
 
+<!-- ce-orca-hook:start ce-code-review.project-profile -->
+On a cache `MISS` where `project-profile` resolves to Orca, read `references/orca-routing.md` and `references/orca-review-dispatch.md`, then send only the already-selected `repo-profiler` node through Orca. Do not also dispatch it natively. Cache gating, `put`, and every fallback remain controller-owned. For native routing, use the paragraph below unchanged.
+<!-- ce-orca-hook:end ce-code-review.project-profile -->
+
 On `HIT`, load the profile JSON as the agnostic project orientation. On `MISS`, dispatch a generic subagent with `references/agents/repo-profiler.md` to derive the profile, write its JSON to a file, then persist with `python3 "$SKILL_DIR/scripts/repo-profile-cache.py" put <file>` (re-set `SKILL_DIR` in that call — shell vars don't persist between Bash invocations). On `NO-CACHE` (no git repo or no writable cache), skip the cache entirely — do not derive a profile and do not run `put`; reviewers fall back to deriving stack/conventions from the diff exactly as before. The cache is an optimization, never a correctness dependency; if anything about it fails, degrade to the no-profile path.
 
 When a profile is in hand, include a short stack/conventions orientation slice from it in the Stage 4 review context bundle passed to every reviewer **except** `project-standards` and `learnings-researcher`. This is orientation only — it never replaces a fresh read. The `project-standards-reviewer` still reads the actual root and subdirectory `AGENTS.md`/`CLAUDE.md` standards files fresh via the Stage 3b path list (the auditing exception — it audits compliance against real file contents, never against a cached digest), and `docs/solutions/` learnings stay fresh because `learnings-researcher` re-globs and reads them per run.
@@ -483,6 +487,10 @@ Pass `{run_id}` to every persona sub-agent so they can write their full analysis
 **Large shared context — pass paths, not contents.** The diff and file list go to every reviewer and validator. When inlining them into each subagent prompt would be wasteful (many files / a big diff), write them once into the run dir (e.g. `full.diff`, `files.txt`) and pass those **paths** in the diff / changed-files slots instead of inline content — the subagent and validator templates instruct the child to Read a staged path. Inline a small diff directly.
 
 #### Spawning
+
+<!-- ce-orca-hook:start ce-code-review.persona-dispatch -->
+Before dispatching the selected Stage 4 roster, read `references/orca-routing.md` and `references/orca-review-dispatch.md`. Send only already-selected subagent nodes from stages resolved to Orca, and do not also launch them natively. Keep the inline fast pass, roster selection, cross-model peer process, merge, fixes, synthesis, and writes in this controller. For native routing, continue below unchanged.
+<!-- ce-orca-hook:end ce-code-review.persona-dispatch -->
 
 Omit the `mode` parameter when dispatching sub-agents so the user's configured permission settings apply. Do not pass `mode: "auto"`.
 
@@ -602,6 +610,10 @@ When a finding qualifies:
 ### Stage 5b: Validation pass (optional quality gate)
 
 Independent verification gate. Spawn one validator sub-agent per surviving finding using `references/validator-template.md`. Findings the validator rejects are dropped; confirmed findings flow through unchanged.
+
+<!-- ce-orca-hook:start ce-code-review.finding-validation -->
+After this controller applies the existing eligibility, direct-verification, and 15-finding budget rules, use `references/orca-review-dispatch.md` for only the selected validator nodes when `finding-validation` resolves to Orca. Do not launch native validators for those nodes. The controller still accepts or drops findings and performs all later actions.
+<!-- ce-orca-hook:end ce-code-review.finding-validation -->
 
 **When this stage runs:** After Stage 5 whenever at least one finding survives — skip only when zero survive. When more than 15 survive, do **not** skip the stage; validate per the budget cap in step 2. The default method is the per-finding validator wave (steps below); a surviving **P2/P3 finding at anchor 100** may instead be validated by direct first-party verification (see below). Same rule for default and `mode:agent`.
 

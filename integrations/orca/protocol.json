@@ -1,0 +1,89 @@
+{
+  "schema": "ce-orca.protocol-compatibility/v1",
+  "integration": {
+    "name": "compound-engineering-orca",
+    "revision": 1,
+    "versionFormat": "{upstream.version}-orca.{integration.revision}",
+    "workflowCoverage": {
+      "ce-code-review": {
+        "mode": "mixed",
+        "controller": "ce-controller"
+      },
+      "ce-compound": {
+        "mode": "mixed",
+        "controller": "ce-controller"
+      },
+      "ce-debug": {
+        "mode": "mixed",
+        "controller": "ce-controller"
+      },
+      "ce-doc-review": {
+        "mode": "mixed",
+        "controller": "ce-controller"
+      },
+      "ce-plan": {
+        "mode": "mixed",
+        "controller": "ce-controller"
+      },
+      "ce-simplify-code": {
+        "mode": "mixed",
+        "controller": "ce-controller"
+      },
+      "ce-work": {
+        "mode": "mixed",
+        "controller": "ce-controller"
+      },
+      "lfg": {
+        "mode": "mixed",
+        "controller": "lfg-controller"
+      }
+    }
+  },
+  "upstreamBaseline": "integrations/orca/upstream.json",
+  "orca": {
+    "protocol": "orca.local-protocol/v1",
+    "envelopes": {
+      "probe": "orca.probe/v1",
+      "capabilities": "orca.capabilities/v1"
+    },
+    "requestVersions": [
+      "orca.execution-config/v1"
+    ],
+    "requiredCapabilities": {
+      "lifecycleWait": true,
+      "confidentialPacketDelivery": "in-memory-consume-v1",
+      "confidentialPacketSourceConsumption": "explicit-one-shot-v1",
+      "artifactRead": true
+    }
+  },
+  "distribution": {
+    "packageRoot": ".",
+    "requiredAssets": [
+      "integrations/orca/README.md",
+      "integrations/orca/contracts/doc-review-result.schema.json",
+      "integrations/orca/contracts/lfg-result.schema.json",
+      "integrations/orca/contracts/read-result.schema.json",
+      "integrations/orca/contracts/work-result.schema.json",
+      "integrations/orca/defaults.yaml",
+      "integrations/orca/execution-request.schema.json",
+      "integrations/orca/generate-skill-bundles.mjs",
+      "integrations/orca/protocol.json",
+      "integrations/orca/references/execution-routing.md",
+      "integrations/orca/resolve-config.mjs",
+      "integrations/orca/role-registry.mjs",
+      "integrations/orca/runtime-bundle.mjs",
+      "integrations/orca/runtime-probe.mjs",
+      "integrations/orca/upstream.json",
+      "integrations/orca/upstream-parity.mjs",
+      "integrations/orca/version.mjs",
+      "integrations/orca/workflows/code-review.mjs",
+      "integrations/orca/workflows/compound.mjs",
+      "integrations/orca/workflows/debug.mjs",
+      "integrations/orca/workflows/doc-review.mjs",
+      "integrations/orca/workflows/lfg.mjs",
+      "integrations/orca/workflows/plan.mjs",
+      "integrations/orca/workflows/simplify-review.mjs",
+      "integrations/orca/workflows/work.mjs"
+    ]
+  }
+}
