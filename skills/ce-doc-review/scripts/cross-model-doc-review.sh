@@ -87,7 +87,7 @@ M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is t
 adapter_argv() {
   case "$1" in
     codex)
-      printf '%s\n' codex exec - -C "$RUN_DIR" --skip-git-repo-check -s read-only \
+      printf '%s\0' codex exec - -C "$RUN_DIR" --skip-git-repo-check -s read-only \
         -o "$OUT" -m "$M_CODEX" -c 'model_reasoning_effort="high"' -c 'hide_agent_reasoning=false'
       ;;
     claude)
@@ -95,23 +95,23 @@ adapter_argv() {
       # like Glob/Grep); --bare skips project auto-discovery (CLAUDE.md, hooks, MCP,
       # plugins, auto-memory); the run cd's into the empty scratch dir (claude has no
       # cwd flag) so even an unlisted tool has no repo in reach. R17 tool-less isolation.
-      printf '%s\n' claude -p --model "$M_CLAUDE" --effort high --permission-mode dontAsk \
+      printf '%s\0' claude -p --model "$M_CLAUDE" --effort high --permission-mode dontAsk \
         --bare --tools "" \
         --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cli)
-      printf '%s\n' grok --prompt-file "$PROMPT_FILE" --model "$M_GROK" --effort high \
+      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$M_GROK" --effort high \
         --cwd "$RUN_DIR" --permission-mode dontAsk \
         --deny Read --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
         --disable-web-search --no-subagents --max-turns 15 \
         --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cursor)
-      printf '%s\n' cursor-agent -p --model "$M_GROK_CURSOR" --mode ask --trust \
+      printf '%s\0' cursor-agent -p --model "$M_GROK_CURSOR" --mode ask --trust \
         --sandbox enabled --workspace "$RUN_DIR" --output-format json
       ;;
     composer)
-      printf '%s\n' cursor-agent -p --model "$M_COMPOSER" --mode ask --trust \
+      printf '%s\0' cursor-agent -p --model "$M_COMPOSER" --mode ask --trust \
         --sandbox enabled --workspace "$RUN_DIR" --output-format json
       ;;
     *) return 1 ;;
@@ -123,8 +123,10 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   RUN_DIR="<run-dir>"; OUT="<run-dir>/<lens>-<provider>.json"
   PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
   route="${2:-}"
-  argv="$(adapter_argv "$route" 2>/dev/null)" || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|composer)" >&2; exit 2; }
-  printf '%s ' $argv; echo
+  # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
+  # validate the route first, then render for humans with NUL -> space.
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|composer)" >&2; exit 2; }
+  adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
 
@@ -290,7 +292,9 @@ reap() {
 build_cmd() {
   CMD=()
   local line
-  while IFS= read -r line; do CMD+=("$line"); done < <(adapter_argv "$1")
+  # NUL-delimited so a token containing newlines (the pretty-printed --json-schema
+  # value) stays ONE argv element instead of splitting across lines.
+  while IFS= read -r -d '' tok; do CMD+=("$tok"); done < <(adapter_argv "$1")
 }
 
 run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG, writes -o OUT

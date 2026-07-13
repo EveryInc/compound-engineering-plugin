@@ -368,3 +368,28 @@ describe("cross-model-doc-review run-loop failover (R15, R16)", () => {
     expect(r.files).not.toContain("adversarial-claude.json")
   })
 })
+
+describe("cross-model-doc-review argv integrity (multiline --json-schema)", () => {
+  test("passes the pretty-printed schema as ONE --json-schema argument, not split per line", () => {
+    // The schema-carrying routes (claude, grok-cli) put the multi-line
+    // findings-schema.json into argv. A newline-delimited argv serialization would
+    // split it so --json-schema receives only "{"; NUL-delimited keeps it one token.
+    // A stub that ignores argv (the other tests) can't catch this — record argv.
+    const capRoot = mkTempRoot("xmodel-cap-")
+    const capFile = path.join(capRoot, "schema-arg.txt")
+    const recordStub =
+      `#!/bin/sh\ncat >/dev/null\nprev=\nfor a in "$@"; do if [ "$prev" = "--json-schema" ]; then printf '%s' "$a" > "$SCHEMA_CAPTURE"; fi; prev="$a"; done\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
+    const { env } = sandbox(["claude"], recordStub)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    run(["codex", "claude", "adversarial", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      SCHEMA_CAPTURE: capFile,
+    })
+    const captured = readFileSync(capFile, "utf8")
+    // A split would leave --json-schema holding just "{"; the presence of both the
+    // first ("$schema") and a late field (deferred_questions) proves one whole token.
+    expect(captured).toContain('"$schema"')
+    expect(captured).toContain("deferred_questions")
+  })
+})
