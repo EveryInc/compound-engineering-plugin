@@ -57,7 +57,7 @@ Each call is a CLI shell-out, not a subagent, so it doesn't consume the subagent
 Invoke via the skill-dir anchor — set `SKILL_DIR` to the absolute directory of **this** skill's `SKILL.md` (the Bash tool's CWD is the user's project, not the skill dir, on every host):
 
 ```bash
-SKILL_DIR="<absolute path of the directory containing the ce-doc-review SKILL.md you read>"
+SKILL_DIR="<absolute path of the directory containing the ce-doc-review SKILL.md you read>";
 bash "$SKILL_DIR/scripts/cross-model-doc-review.sh" "<host-provider>" "<candidates>" "<reviewer-name>" "<document-path>" "<document-type>" "<origin>" "<run-dir>"
 ```
 
