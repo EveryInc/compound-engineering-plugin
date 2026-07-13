@@ -91,8 +91,12 @@ adapter_argv() {
         -o "$OUT" -m "$M_CODEX" -c 'model_reasoning_effort="high"' -c 'hide_agent_reasoning=false'
       ;;
     claude)
+      # --tools "" disables ALL built-in tools (allowlist deny-all, no denylist gap
+      # like Glob/Grep); --bare skips project auto-discovery (CLAUDE.md, hooks, MCP,
+      # plugins, auto-memory); the run cd's into the empty scratch dir (claude has no
+      # cwd flag) so even an unlisted tool has no repo in reach. R17 tool-less isolation.
       printf '%s\n' claude -p --model "$M_CLAUDE" --effort high --permission-mode dontAsk \
-        --disallowedTools Edit Write NotebookEdit Bash Task Read WebFetch WebSearch 'mcp__*' \
+        --bare --tools "" \
         --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cli)
@@ -311,12 +315,15 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
 }
 
 run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
+  # Run from the empty scratch RUN_DIR (absolute stdin/PEERLOG paths are unaffected)
+  # so a tool-capable peer -- notably claude, which has no cwd flag -- has no repo
+  # files in reach. grok/cursor also carry their own --cwd/--workspace flag.
   local stdin_file="${1:-}"; [ -n "$stdin_file" ] || stdin_file=/dev/null
   if [ -n "$TO_BIN" ]; then
-    "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" < "$stdin_file" > "$PEERLOG" 2>/dev/null \
+    ( cd "$RUN_DIR" && exec "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>/dev/null \
       || log "peer exited non-zero or timed out"
   else
-    perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" < "$stdin_file" > "$PEERLOG" 2>/dev/null \
+    ( cd "$RUN_DIR" && exec perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>/dev/null \
       || log "peer exited non-zero or timed out"
   fi
 }

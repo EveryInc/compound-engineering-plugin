@@ -169,12 +169,11 @@ describe("cross-model-doc-review route safety (R17)", () => {
     expect(cmd).toContain("gpt-5.6-sol")
   })
 
-  test("claude: dontAsk + Read/web/mcp denied + effort high", () => {
+  test("claude: all tools disabled + bare (no project context) + dontAsk + effort high", () => {
     const cmd = emitAdapter("claude")
     expect(cmd).toContain("--permission-mode dontAsk")
-    for (const tool of ["Read", "Edit", "Write", "Bash", "Task", "WebFetch", "WebSearch", "mcp__*"]) {
-      expect(cmd).toContain(tool)
-    }
+    expect(cmd).toContain("--tools") // allowlist deny-all ("" disables every built-in)
+    expect(cmd).toContain("--bare") // skip CLAUDE.md/MCP/hooks/plugins auto-discovery
     expect(cmd).toContain("--effort high")
     expect(cmd).toContain("--model opus")
   })
@@ -214,9 +213,9 @@ describe("cross-model-doc-review route safety (R17)", () => {
       const cmd = emitAdapter(route)
       for (const bad of NEVER_FLAGS) expect(cmd.split(/\s+/)).not.toContain(bad)
     }
-    // deny-Read / read-only is present on the tool-denying routes regardless.
+    // read-only / tool-less posture is present on every route regardless.
     expect(emitAdapter("codex")).toContain("-s read-only")
-    expect(emitAdapter("claude")).toContain("Read")
+    expect(emitAdapter("claude")).toContain("--tools") // all built-ins disabled
     expect(emitAdapter("grok-cli")).toContain("--deny Read")
   })
 })
