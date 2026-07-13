@@ -103,6 +103,19 @@ That field guide is the canonical reasoning layer for outcome-first authoring, m
 - Do not append motivational rationale to a directive that already stands on its own.
 - Repeat an instruction only at a demonstrated drift point where placement changes whether it fires. Protect genuinely required always-loaded duplicates with a parity test.
 
+### Applying Feedback to Skills
+
+Applying review, peer, or eval feedback to a skill is a material revision governed by the authoring guide. An item is not addressed because a sentence landed; it is addressed when a demonstrated gap is closed at its owning layer by the smallest mechanism. Before editing:
+
+1. **Evidence** — classify each item as Change, Verify, or Consider using the guide's evidence rules. Do not edit the skill for Verify or Consider items.
+2. **Owning layer** — for each Change, identify its owning layer: activation contract, outcome spine or skill boundary, runtime protocol, loading or placement, deterministic enforcement, or shared authoring rule.
+3. **Mechanism** — fix the gap at its owning layer. Add prose only when it is the smallest mechanism that closes the gap, and then only the smallest falsifiable unit per the Skill Prose Admission Rules.
+4. **Reconcile** — reread the affected block; remove or rewrite text the change makes conflicting, duplicated, or obsolete. Resolve conflicting feedback items rather than stacking both.
+
+When evidence shows the same cause across skills, fix the shared guide, rule, or mechanism unless the skills' contracts materially differ.
+
+For a multi-item round, record one line per item in the existing PR body or work note: `item -> Change|Verify|Consider | owning layer | mechanism - why`. A single-item fix still follows the steps above; the written line is optional. Reviewer wording is a hypothesis about mechanism, not authority over it — the reviewer's one-line prose fix is sometimes exactly right.
+
 ### Skill Loading Supplements
 
 - Keep every load-bearing action, route, and reference-load instruction inline at the point where it must fire (`docs/solutions/skill-design/post-menu-routing-belongs-inline.md`).
