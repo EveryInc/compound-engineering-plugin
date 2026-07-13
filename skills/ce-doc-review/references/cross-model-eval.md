@@ -64,7 +64,11 @@ as specified.
    one anchor step and renders the Reviewer column as
    `<reviewer-name>, <reviewer-name>-<provider> (+1 anchor)`. Assert the peer
    finding is **never** rendered/applied as `safe_auto` and that agreement adds at
-   most one anchor step even with a second opt-in peer.
+   most one anchor step even with a second opt-in peer. Also assert the promotion
+   path is capped: a **peer-only** `manual` finding at confidence 100 with a
+   mechanically-implied `suggested_fix` is **not** promoted to `safe_auto` by 3.6
+   (nor silently applied by 3.7) — it caps at `gated_auto` unless an in-process
+   reviewer independently raised the same finding (merged twin in 3.3).
 
 8. **Announce by mode (R12).** Interactive host, default mode → a prominent
    independent-provider line naming the resolved peer appears with the team
