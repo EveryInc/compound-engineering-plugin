@@ -87,41 +87,43 @@ M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is t
 # --- adapter argv (single source of truth for route flags) -----------------
 # Emits the CLI + flags one token per line. Read-only, no-prompt, least-privilege
 # (tool-less on claude/grok; read-only residual on codex/cursor-agent), and
-# high-reasoning per R17. RUN_DIR / RAW_OUT / PROMPT_FILE / SCHEMA_REF are resolved
-# by the caller (placeholders in --emit-adapter mode). Peer routes write to RAW_OUT
-# only; the final fold-in file (OUT) is published after normalize so an orphaned
+# high-reasoning per R17. PEER_WORKDIR / RAW_OUT / PROMPT_FILE / SCHEMA_REF are
+# resolved by the caller (placeholders in --emit-adapter mode); PEER_WORKDIR is the
+# per-peer empty cwd/workspace, kept separate from the shared fold-in dir RUN_DIR.
+# Peer routes write to RAW_OUT only; the final fold-in file (OUT) is published after normalize so an orphaned
 # peer process cannot leave an un-normalized return. NEVER emit: codex without
 # `-s read-only`; grok `--always-approve` / `--permission-mode bypassPermissions`;
 # cursor-agent `-f` / `--force` / `--yolo`.
 adapter_argv() {
   case "$1" in
     codex)
-      printf '%s\0' codex exec - -C "$RUN_DIR" --skip-git-repo-check -s read-only \
+      printf '%s\0' codex exec - -C "$PEER_WORKDIR" --skip-git-repo-check -s read-only \
         -o "$RAW_OUT" -m "$M_CODEX" -c 'model_reasoning_effort="high"' -c 'hide_agent_reasoning=false'
       ;;
     claude)
       # --tools "" disables ALL built-in tools (allowlist deny-all, no denylist gap
       # like Glob/Grep); --bare skips project auto-discovery (CLAUDE.md, hooks, MCP,
-      # plugins, auto-memory); the run cd's into the empty scratch dir (claude has no
-      # cwd flag) so even an unlisted tool has no repo in reach. R17 tool-less isolation.
+      # plugins, auto-memory); the run cd's into the empty per-peer workspace (claude
+      # has no cwd flag) so even an unlisted tool has no repo -- or sibling peer's
+      # fold-in artifact -- in reach. R17 tool-less isolation.
       printf '%s\0' claude -p --model "$M_CLAUDE" --effort high --permission-mode dontAsk \
         --bare --tools "" \
         --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cli)
       printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$M_GROK" --effort high \
-        --cwd "$RUN_DIR" --permission-mode dontAsk \
+        --cwd "$PEER_WORKDIR" --permission-mode dontAsk \
         --deny Read --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
         --disable-web-search --no-subagents --max-turns 15 \
         --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cursor)
       printf '%s\0' cursor-agent -p --model "$M_GROK_CURSOR" --mode ask --trust \
-        --sandbox enabled --workspace "$RUN_DIR" --output-format json
+        --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
     composer)
       printf '%s\0' cursor-agent -p --model "$M_COMPOSER" --mode ask --trust \
-        --sandbox enabled --workspace "$RUN_DIR" --output-format json
+        --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
     *) return 1 ;;
   esac
@@ -129,7 +131,8 @@ adapter_argv() {
 
 # --- --emit-adapter <route>: print the argv, no model call, no side effects --
 if [ "${1:-}" = "--emit-adapter" ]; then
-  RUN_DIR="<run-dir>"; RAW_OUT="<run-dir>/<lens>-<provider>.raw.json"
+  RUN_DIR="<run-dir>"; PEER_WORKDIR="<peer-workdir>"
+  RAW_OUT="<peer-workdir>/<lens>-<provider>.raw.json"
   OUT="<run-dir>/<lens>-<provider>.json"
   PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
   route="${2:-}"
@@ -367,15 +370,16 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
 }
 
 run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
-  # Run from the empty scratch RUN_DIR (absolute stdin/PEERLOG paths are unaffected)
-  # so a tool-capable peer -- notably claude, which has no cwd flag -- has no repo
-  # files in reach. grok/cursor also carry their own --cwd/--workspace flag.
+  # Run from the empty per-peer workspace (absolute stdin/PEERLOG paths are
+  # unaffected) so a tool-capable peer -- notably claude, which has no cwd flag --
+  # has no repo files, and no sibling lens's fold-in artifact, in reach. grok/cursor
+  # also carry their own --cwd/--workspace flag pointed at the same PEER_WORKDIR.
   local stdin_file="${1:-}"; [ -n "$stdin_file" ] || stdin_file=/dev/null
   if [ -n "$TO_BIN" ]; then
-    ( cd "$RUN_DIR" && exec "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>/dev/null \
+    ( cd "$PEER_WORKDIR" && exec "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>/dev/null \
       || log "peer exited non-zero or timed out"
   else
-    ( cd "$RUN_DIR" && exec perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>/dev/null \
+    ( cd "$PEER_WORKDIR" && exec perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>/dev/null \
       || log "peer exited non-zero or timed out"
   fi
 }
@@ -445,7 +449,15 @@ attempt_route() {   # <provider> <route>
 run_provider() {   # <provider>
   local provider="$1" primary fallback=""
   OUT="$RUN_DIR/$REVIEWER_NAME-$provider.json"
-  RAW_OUT="$RUN_DIR/$REVIEWER_NAME-$provider.raw.json"
+  # Per-peer empty workspace, kept SEPARATE from the shared fold-in dir (RUN_DIR).
+  # The peer's cwd/workspace and its RAW_OUT live here, so a read-capable peer
+  # (codex/cursor-agent) can neither list a shared cwd nor read another lens's
+  # published <lens>-<provider>.json -- it has no path handle to RUN_DIR at all.
+  # OUT is published to RUN_DIR only after the peer process exits (normalize below),
+  # never written into RUN_DIR by the peer itself. Falls back to RUN_DIR only if
+  # mktemp fails (preserves prior behavior over failing the pass).
+  PEER_WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/xmodel-doc-peer-XXXXXX")" || PEER_WORKDIR="$RUN_DIR"
+  RAW_OUT="$PEER_WORKDIR/$REVIEWER_NAME-$provider.raw.json"
   case "$provider" in
     codex)    primary="codex" ;;
     claude)   primary="claude" ;;
@@ -478,8 +490,9 @@ run_provider() {   # <provider>
   # only in synthesis prose) means a peer cannot self-authorize a Phase 4 auto-apply
   # regardless of what it returns. gated_auto preserves the peer's proposed fix but
   # routes it through user confirmation.
-  # Publish ONLY the normalized OUT. RAW_OUT is never a fold-in artifact — if this
-  # script dies before normalize (orphaned launch), synthesis finds no .json.
+  # Publish ONLY the normalized OUT into RUN_DIR. RAW_OUT lives in the per-peer
+  # workspace and is never a fold-in artifact — if this script dies before normalize
+  # (orphaned launch), synthesis finds no .json in RUN_DIR.
   rm -f "$OUT"
   if [ -s "$RAW_OUT" ]; then
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-norm-XXXXXX")"
@@ -504,6 +517,8 @@ run_provider() {   # <provider>
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
     rm -f "$OUT" "$RAW_OUT"
   fi
+  # Tear down the per-peer workspace (never RUN_DIR, which holds the published OUT).
+  [ -n "$PEER_WORKDIR" ] && [ "$PEER_WORKDIR" != "$RUN_DIR" ] && rm -rf "$PEER_WORKDIR"
 }
 
 # --- run candidates in order until MAX_PEERS produce usable output ----------

@@ -200,6 +200,21 @@ describe("cross-model-doc-review route safety (R17)", () => {
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
 
+  test("peer cwd/workspace is a per-peer dir separate from the shared fold-in run-dir (R17)", () => {
+    // The peer runs in an empty per-peer workspace, NOT in RUN_DIR where fold-in
+    // artifacts are published -- so a read-capable peer (codex/cursor-agent) can't
+    // list or read a sibling lens's <lens>-<provider>.json from its own cwd.
+    expect(emitAdapter("codex")).toContain("-C <peer-workdir>")
+    expect(emitAdapter("grok-cli")).toContain("--cwd <peer-workdir>")
+    for (const route of ["grok-cursor", "composer"]) {
+      expect(emitAdapter(route)).toContain("--workspace <peer-workdir>")
+    }
+    // No route points its cwd/workspace or output at the shared run-dir.
+    for (const route of ROUTES) {
+      expect(emitAdapter(route)).not.toContain("<run-dir>")
+    }
+  })
+
   test("malicious document text cannot change the adapter's privilege posture", () => {
     // The adapters are composed from the route + model constants, never from
     // document content, so an injection in the doc cannot flip a deny-Read
