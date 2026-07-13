@@ -154,6 +154,50 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit, "description refresh must be in the owned mutation envelope").toMatch(/refresh(es|ing) (the |a )PR description/)
   })
 
+  test("settle policy: the normal watch arm omits --settle-seconds; the script owns the 300s default", async () => {
+    // Regression guard (PR #1126 watch): stating "use ~600s whenever review bots are present" in the
+    // looks-ready gate made agents pre-widen the initial arm, so a finished review sat unrecognized
+    // until the longer window elapsed. The initial arm must always ride the script default.
+    const [babysit, script] = await Promise.all([readRepoFile(BABYSIT), readRepoFile(PR_SNAPSHOT)])
+    const watchCommands = [...babysit.matchAll(/^.*pr-snapshot" watch.*$/gm)].map((m) => m[0])
+    expect(watchCommands.length, "the watch invocation must still be shown").toBeGreaterThanOrEqual(1)
+    for (const cmd of watchCommands) {
+      expect(cmd, "the normal watch invocation must not set --settle-seconds").not.toContain("--settle-seconds")
+    }
+    expect(script, "the script must own the 300s settle default").toMatch(/--settle-seconds"[^)]*default=300/s)
+    // No prose may reintroduce the bots-present pre-widening rule the wake protocol replaced.
+    expect(babysit).not.toMatch(/whenever the repo uses review bots/i)
+  })
+
+  test("settle policy: ~600s exists only as the re-arm after a rejected merge-ready wake", async () => {
+    const babysit = await readRepoFile(BABYSIT)
+    // Every 600s mention must live inside the wake protocol's rejection branch.
+    const paragraphs = babysit.split("\n\n").filter((p) => p.includes("600"))
+    expect(paragraphs.length, "the generous settle must be documented exactly once").toBe(1)
+    expect(paragraphs[0]).toMatch(/reject the wake/i)
+    expect(paragraphs[0], "600s must be framed as the post-rejection re-arm").toMatch(/re-arm/i)
+    // A done signal on the current head must end the wait, not start another settle period.
+    expect(babysit).toContain("never extends the wait")
+    expect(babysit).toContain("no further settle period")
+  })
+
+  test("watcher silence is defined as no-information, with a fresh snapshot for mid-watch status asks", async () => {
+    // Regression guard: an agent narrated detector silence as "review still active"; silence only
+    // means no wake condition has fired.
+    const babysit = await readRepoFile(BABYSIT)
+    expect(babysit).toContain("Watcher silence carries no PR-state information")
+    expect(babysit, "a mid-watch status ask must be answered from a fresh snapshot").toMatch(
+      /asks for status before a wake.*fresh `snapshot`/s,
+    )
+  })
+
+  test("authority boundary: babysit never merges; readiness is reported as the user's call", async () => {
+    const babysit = await readRepoFile(BABYSIT)
+    expect(babysit).toMatch(/\*\*never\*\* merges the PR/i)
+    expect(babysit).toContain("looks ready — your call")
+    expect(babysit).toMatch(/never .safe to merge./)
+  })
+
   test("bounded-class sweep contract: babysit routes it, ce-resolve classifies/enumerates/bounds it", async () => {
     // A correct finding recurring across sibling sites must be swept as one class, not dripped
     // one-per-head. The split is protocol: babysit only recognizes + routes ("request a

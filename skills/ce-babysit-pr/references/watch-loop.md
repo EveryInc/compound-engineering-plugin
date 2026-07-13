@@ -26,7 +26,7 @@ The needed capability is generic — *run a background process and be woken when
 ## Cadence (the watch interval)
 
 - `pr-snapshot watch --interval` is the poll cadence: ~2-3 min while active; widen to ~5-10 min when quiet — the detector is cheap, but each poll is a `gh` call, so respect rate limits.
-- `--settle-seconds` (default 300) is the quiet window before a `merge-ready` wake, so the agent is roused to declare-ready only once the PR has actually cooled off, not every poll.
+- `--settle-seconds` (default 300) is the quiet window before a `merge-ready` wake, so the agent is roused to declare-ready only once the PR has actually cooled off, not every poll. Leave it unset on the normal arm — the script's default is the initial policy; the only invocation that sets it is the post-rejection re-arm in SKILL.md Step 3's merge-ready wake protocol.
 - A push/mutation moves the head — re-arm `watch` (active cadence) so it reads the new state.
 - Honor GitHub rate-limit reset headers; back off on `403`/`429`.
 - After any mutation, re-snapshot at the *start of the next tick*, not mid-tick.
