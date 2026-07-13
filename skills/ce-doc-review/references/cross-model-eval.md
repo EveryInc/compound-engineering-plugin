@@ -37,27 +37,39 @@ as specified.
    `feasibility`/`coherence`/`scope-guardian` but no trio lens, assert no
    cross-model call is launched for any of those lenses.
 
-4. **Peer selection (R7).** With the host env markers of Claude, Cursor, and
-   Codex respectively, assert the reference's Step 1 resolves peer = codex (Claude
-   host), codex (Cursor host), claude (Codex host); an unknown host skips silently.
+4. **Attest host provider, resolve one different-provider peer (R7, R15, R16).**
+   Assert the orchestrator attests the host provider from its own harness and
+   **excludes** it, then passes the script a `host_provider` plus a candidate
+   order: Claude host → `host_provider=claude`, default candidates resolve peer
+   `codex`; Codex host → `host_provider=codex`, peer `claude`; Cursor on an
+   **un-attestable** model → the pass **skips (zero peers)**, never a guessed
+   same-provider peer. A preference stated in conversation (or `cross_model_peer:`
+   in config, or the active project instructions) is front-loaded into the
+   candidate order and overrides the default. Assert a second peer is launched
+   only when `CROSS_MODEL_MAX_PEERS=2`.
 
 5. **Context slots threaded (R13).** Assert the orchestrator passes `document_type`
    (the Phase 1 classification) and `origin` (the same `{origin_path}` slot the
    in-process personas receive) to each cross-model call.
 
-6. **Per-lens model tiering (R4, R5).** Assert `security-lens` resolves to the
-   flagship model and `adversarial`/`product-lens` to the mid model at high
-   reasoning, per the reference's Step 2 table.
+6. **One model per provider at high reasoning (R4; R5 superseded).** Assert every
+   activated trio lens runs on the resolved provider's single model at high
+   reasoning (not a per-lens flagship/mid split) — the skill/reference hands the
+   script `host_provider` + candidates and lets its single in-script mapping pick
+   the model, rather than restating per-lens model IDs in the prose.
 
-7. **Fold-in + agreement promotion (R8, R9).** Given a stubbed
-   `<reviewer-name>-<peer>.json` return whose finding shares a fingerprint with an
-   in-process twin finding, assert synthesis 3.4 promotes the merged finding by
+7. **Fold-in + agreement promotion (R8, R9, R18).** Given a stubbed
+   `<reviewer-name>-<provider>.json` return whose finding shares a fingerprint with
+   an in-process twin finding, assert synthesis 3.4 promotes the merged finding by
    one anchor step and renders the Reviewer column as
-   `<reviewer-name>, <reviewer-name>-<peer> (+1 anchor)`.
+   `<reviewer-name>, <reviewer-name>-<provider> (+1 anchor)`. Assert the peer
+   finding is **never** rendered/applied as `safe_auto` and that agreement adds at
+   most one anchor step even with a second opt-in peer.
 
 8. **Announce by mode (R12).** Interactive host, default mode → a prominent
-   independent-model line naming the peer appears with the team announce.
-   Headless mode → no user-facing prose about the pass. Codex host → silent.
+   independent-provider line naming the resolved peer appears with the team
+   announce. Headless mode → no user-facing prose about the pass (the script
+   still emits the stderr egress audit log).
 
 9. **Non-blocking (R11).** With the peer CLI absent/unauthed (script writes no
    output file), assert the review completes with all in-process findings and
