@@ -418,10 +418,11 @@ attempt_route() {   # <provider> <route>
     grok-cli)    run_timeout_cmd ""            ; parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
     claude)      run_timeout_cmd "$PROMPT_FILE"; parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
     grok-cursor|composer)
-      # cursor-agent takes the prompt as a positional argument (agent [prompt...]),
-      # not via stdin, so append the composed prompt as the final argv element.
-      CMD+=("$(cat "$PROMPT_FILE")")
-      run_timeout_cmd ""; parse_structured "$PEERLOG" "$RAW_OUT" ;;
+      # cursor-agent reads the prompt from stdin (verified). Use stdin, NOT a
+      # positional argv token: the composed prompt (persona + schema + template +
+      # full document, up to CROSS_MODEL_MAX_DOC_CHARS) can exceed ARG_MAX and fail
+      # the exec with E2BIG on low-limit hosts, whereas stdin has no size limit.
+      run_timeout_cmd "$PROMPT_FILE"; parse_structured "$PEERLOG" "$RAW_OUT" ;;
   esac
 }
 

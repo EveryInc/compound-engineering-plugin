@@ -423,13 +423,14 @@ describe("cross-model-doc-review argv integrity (multiline --json-schema)", () =
     expect(captured).toContain("deferred_questions")
   })
 
-  test("cursor-agent routes get the prompt as a positional arg, not stdin", () => {
-    // cursor-agent (grok fallback / composer) takes the prompt positionally; if the
-    // script only piped it on stdin the peer would start with an empty task.
+  test("cursor-agent routes receive the prompt via stdin (avoids ARG_MAX/E2BIG)", () => {
+    // cursor-agent reads stdin; the script must pipe the prompt (not append it as an
+    // argv token) so a large prompt near CROSS_MODEL_MAX_DOC_CHARS can't hit E2BIG.
     const capRoot = mkTempRoot("xmodel-cap-")
-    const capFile = path.join(capRoot, "cursor-argv.txt")
+    const capFile = path.join(capRoot, "cursor-stdin.txt")
+    // Stub captures STDIN (not argv) — the prompt must arrive on stdin.
     const recordStub =
-      `#!/bin/sh\nfor a in "$@"; do printf '%s\\n' "$a"; done > "$PROMPT_CAPTURE"\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
+      `#!/bin/sh\ncat > "$PROMPT_CAPTURE"\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[]}}'\n`
     const { env } = sandbox(["cursor-agent"], recordStub)
     const doc = makeDoc("# Plan\nUNIQUE_DOC_MARKER_9x7\n")
     const runDir = makeRunDir()
