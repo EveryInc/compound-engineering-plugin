@@ -852,12 +852,16 @@ def cmd_reap(args) -> int:
                 time.sleep(0.05)
 
     # Supervisor gone: perform the tree kill and classification ourselves,
-    # with a short grace so reap still returns quickly.
-    killed = False
-    if isinstance(worker_pid, int) and _pid_alive(worker_pid):
-        kill_tree(worker_pid, min(conf["grace"], 1.0))
-        killed = True
-    if killed:
+    # with a short grace so reap still returns quickly. Sweep whenever we have a
+    # worker pid, NOT only when its leader is still alive: a child can survive in
+    # the worker's process group after the leader exits, and kill_tree targets
+    # the pgid precisely so that orphan is swept instead of leaked. Guarding this
+    # on _pid_alive would re-defeat kill_tree's dead-leader-safe path. kill_tree
+    # returns whether the leader was alive, which is the reap classification.
+    worker_leader_alive = False
+    if isinstance(worker_pid, int):
+        worker_leader_alive = kill_tree(worker_pid, min(conf["grace"], 1.0))
+    if worker_leader_alive:
         word, reason = "timeout", (
             "reaped by request; supervisor was gone, worker tree killed by reap"
         )

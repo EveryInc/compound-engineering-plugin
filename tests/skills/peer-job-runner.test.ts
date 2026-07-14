@@ -408,6 +408,58 @@ describe("peer-job-runner lifecycle", () => {
     expect(runner(root, env, ["reap", id]).code).toBe(0) // idempotent
   }, 15000)
 
+  test("reap sweeps a live child in the worker pgid after the leader has exited", () => {
+    // Regression: cmd_reap must call the dead-leader-safe kill_tree whenever it
+    // has a worker pid, NOT only when the leader is still alive. A child can
+    // survive in the worker's process group after the leader exits; guarding
+    // the sweep on _pid_alive(worker) re-defeats kill_tree and leaks that child.
+    const root = makeRoot()
+    const env = { ...FAST, CE_PEER_GRACE_SECS: "1" }
+    const coord = mkTempRoot("peer-reap-child-")
+    const childPidFile = path.join(coord, "childpid")
+    const gate = path.join(coord, "gate")
+    writeFileSync(gate, "") // gate present => leader keeps running
+    // Non-interactive /bin/sh has no job control, so the backgrounded child
+    // stays in the leader's process group (pgid == worker_pid). The leader
+    // blocks on the gate, then exits, leaving the child in that pgid.
+    const stub = writeStub(
+      `sleep 300 &\n` +
+        `echo $! > "${childPidFile}"\n` +
+        `while [ -e "${gate}" ]; do sleep 0.1; done\n` +
+        `exit 0\n`,
+    )
+    const { id, dir } = startJob(root, env, [stub])
+    const pids = trackJob(dir)
+    expect(pids).not.toBeNull()
+
+    const readChild = (): number => {
+      const dl = Date.now() + 5000
+      while (!existsSync(childPidFile) && Date.now() < dl) Bun.sleepSync(50)
+      return Number(readFileSync(childPidFile, "utf8").trim())
+    }
+    const childPid = readChild()
+    trackedPids.push(childPid)
+    expect(childPid).toBeGreaterThan(0)
+
+    // Kill the supervisor so it cannot classify, THEN release the gate so the
+    // worker LEADER exits while its child keeps running in the leader's pgid.
+    spawnSync("kill", ["-9", String(pids!.supervisor_pid)])
+    rmSync(gate, { force: true })
+    const ldl = Date.now() + 5000
+    while (pidAlive(pids!.worker_pid) && Date.now() < ldl) Bun.sleepSync(50)
+    expect(pidAlive(pids!.worker_pid)).toBe(false) // leader exited
+    expect(pidAlive(childPid)).toBe(true) // orphan survives in the pgid
+
+    // reap must sweep the pgid despite the dead leader, then classify.
+    expect(runner(root, env, ["reap", id]).code).toBe(0)
+    const sdl = Date.now() + 5000
+    while (pidAlive(childPid) && Date.now() < sdl) Bun.sleepSync(50)
+    expect(pidAlive(childPid)).toBe(false) // child swept, not leaked
+    expect(runner(root, env, ["status", id]).stdout.trim()).toBe(
+      "died-without-result",
+    )
+  }, 20000)
+
   test("result --path: verified read emits the exact file bytes; missing file exits 3", () => {
     const root = makeRoot()
     const artifact = path.join(mkTempRoot("peer-path-"), "artifact.txt")
