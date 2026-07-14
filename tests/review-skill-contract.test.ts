@@ -870,6 +870,41 @@ describe("ce-code-review contract", () => {
   })
 })
 
+describe("cross-model peer skip legibility", () => {
+  // The worker logs a bounded `peer skip evidence:` tail of the peer's raw
+  // output at the no-usable-output skip point; the reference tells the agent to
+  // read that token from out.log to classify a quota/limit exhaustion. Producer
+  // and consumer live in separate files, so pin the shared contract token so
+  // they cannot drift silently and leave the classification prose toothless.
+  const pairs = [
+    {
+      worker: "skills/ce-code-review/scripts/cross-model-adversarial-review.sh",
+      reference: "skills/ce-code-review/references/cross-model-review.md",
+    },
+    {
+      worker: "skills/ce-doc-review/scripts/cross-model-doc-review.sh",
+      reference: "skills/ce-doc-review/references/cross-model-review.md",
+    },
+  ]
+
+  for (const { worker, reference } of pairs) {
+    test(`${worker} surfaces peer skip evidence that ${reference} classifies`, async () => {
+      const workerSrc = await readRepoFile(worker)
+      const referenceSrc = await readRepoFile(reference)
+
+      // Producer: the skip path emits the shared token from PEERLOG.
+      expect(workerSrc).toContain("peer skip evidence:")
+      expect(workerSrc).toContain('"$PEERLOG"')
+
+      // Consumer: the reference points the agent at the same token and asks it
+      // to classify a quota/usage-limit exhaustion (harness-agnostic reasoning).
+      expect(referenceSrc).toContain("peer skip evidence:")
+      expect(referenceSrc).toMatch(/quota|usage-limit/i)
+      expect(referenceSrc).toMatch(/more than once in this session/i)
+    })
+  }
+})
+
 describe("testing-reviewer contract", () => {
   test("includes behavioral-changes-with-no-test-additions check", async () => {
     const content = await readRepoFile(personaPromptPath("testing-reviewer"))

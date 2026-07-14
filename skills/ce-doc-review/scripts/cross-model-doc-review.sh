@@ -637,6 +637,15 @@ run_provider() {   # <provider>
     log "wrote $n finding(s) to $OUT (reviewer $REVIEWER_NAME-$provider)"
   else
     log "provider $provider produced no usable schema-shaped output; skipping fold-in"
+    # Surface a bounded tail of the peer's raw output so the orchestrator can
+    # reason about WHY it was skipped (quota/usage-limit exhaustion vs an ordinary
+    # empty review) and, in a repeated-pass session, deprioritize an exhausted
+    # route. Harness-agnostic: the agent classifies from the text; this only makes
+    # the evidence visible in out.log. Bash builtins only (the route sandbox has no
+    # tail/tr), and PEERLOG is a small error body on a failed route.
+    if [ -s "$PEERLOG" ]; then
+      _pt="$(< "$PEERLOG")"; _pt="${_pt//$'\n'/ }"; log "  peer skip evidence: ${_pt: -300}"
+    fi
     rm -f "$OUT" "$RAW_OUT"
   fi
   # Tear down the per-peer workspace (never RUN_DIR, which holds the published OUT).
