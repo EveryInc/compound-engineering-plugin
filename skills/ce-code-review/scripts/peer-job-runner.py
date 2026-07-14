@@ -385,8 +385,10 @@ def _signal_group_or_tree(pid: int, sig: int) -> None:
 def kill_tree(root_pid: int, grace: float) -> bool:
     """TERM the pid's process group (workers are started as group leaders),
     falling back to a deepest-first tree walk; grace, then KILL survivors."""
-    if not _pid_alive(root_pid):
-        return False
+    # Do NOT early-return just because the leader pid is dead: killpg targets
+    # the pgid, which persists while any group member lives even after the
+    # leader exits, so a dead leader can still front a live group we must sweep.
+    leader_alive = _pid_alive(root_pid)
     # Snapshot the descendant set BEFORE any KILL: once the group leader is
     # reaped its children reparent to init and drop out of the tree, so a set
     # enumerated after the kill would miss them and leak orphans.
@@ -394,14 +396,14 @@ def kill_tree(root_pid: int, grace: float) -> bool:
     _signal_group_or_tree(root_pid, signal.SIGTERM)
     deadline = time.monotonic() + grace
     while time.monotonic() < deadline:
-        if not _pid_alive(root_pid):
+        if leader_alive and not _pid_alive(root_pid):
             break
         time.sleep(0.1)
     _killpg_quiet(root_pid, signal.SIGKILL)
     for pid in survivors:
         _kill_quiet(pid, signal.SIGKILL)
     _kill_quiet(root_pid, signal.SIGKILL)
-    return True
+    return leader_alive
 
 
 # --- the supervisor (runs inside the detached session) -------------------------

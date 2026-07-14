@@ -36,7 +36,12 @@ function mkTempRoot(prefix: string): string {
 const trackedPids: number[] = []
 
 function pidAlive(pid: number): boolean {
-  return spawnSync("kill", ["-0", String(pid)]).status === 0
+  if (spawnSync("kill", ["-0", String(pid)]).status !== 0) return false
+  // `kill -0` succeeds for a <defunct> zombie (reparented to PID 1, not yet
+  // reaped); a zombie is not a live orphan, so treat a ps state of Z as dead.
+  const ps = spawnSync("ps", ["-o", "state=", "-p", String(pid)])
+  if (ps.status !== 0) return true
+  return !ps.stdout.toString().trim().startsWith("Z")
 }
 
 afterAll(() => {
