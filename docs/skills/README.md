@@ -63,6 +63,7 @@ Invoked when a specific need arises — not part of any chain.
 |-------|-------------|
 | [`/ce-pov`](./ce-pov.md) | Form a decisive, project-grounded verdict on an external input (framework, library, CVE, pattern) — dual-grounding floors, cold or warm (mid-session) invocation, graded Adopt/Trial/Hold/Reject/Not-our-problem with a reasoned handoff |
 | [`/ce-explain`](./ce-explain.md) | Turn a concept, a diff, an idea, or a window of your own recent work into a dense, visual explainer written for you personally — optional check-in (predict-then-reveal for diffs, corrected exercises), capability-detected destination ask |
+| [`/ce-prototyping`](./ce-prototyping.md) | For product managers — turn an idea into a working prototype (fidelity from UI-only demo to production-seed) and a validated PRD; prototype↔PRD co-evolution with a decision log, product-principles completeness gate, dual output (canonical `ce-unified-plan` artifact + rendered readable PRD) |
 | [`/ce-debug`](./ce-debug.md) | Find root causes systematically — causal chain gate, predictions, post-fix polish/review, PR handoff |
 | [`/ce-code-review`](./ce-code-review.md) | Structured code review with skill-local reviewer personas, confidence-gated findings, four modes |
 | [`/ce-doc-review`](./ce-doc-review.md) | Review requirements or plan documents using skill-local reviewer personas — coherence, feasibility, product-lens, design-lens, security-lens, scope-guardian, adversarial |

@@ -52,6 +52,7 @@ These sit around the loop or get reached for on demand -- not every cycle needs 
 | [`/ce-debug`](docs/skills/ce-debug.md) | *Instead of brainstorm -> plan -> work* when the input is a bug rather than a feature -- reproduce, trace root cause, fix, then polish/review before PR handoff when warranted |
 | [`/ce-pov`](docs/skills/ce-pov.md) | *On demand, before you commit* -- a decisive, project-grounded verdict on whether to adopt, switch to, or revisit an external technology, library, pattern, or platform; works cold or mid-session, and proposes the next step (`/ce-plan`, `/ce-brainstorm`, or a spike) from the verdict |
 | [`/ce-explain`](docs/skills/ce-explain.md) | *On demand, to keep learning* -- turns a concept, a diff, an idea, or "what did I do this week?" into a dense, visual explainer written for you personally, with an optional check-in (predict-then-reveal for diffs, corrected exercises) that makes it stick |
+| [`/ce-prototyping`](docs/skills/ce-prototyping.md) | *For product managers* -- turns an idea into a working prototype at a chosen fidelity (UI-only demo to production-seed) plus a validated, highly complete PRD; co-evolves prototype and requirements with a decision log, gates on product principles, and hands off a `ce-unified-plan` artifact engineering runs `/ce-plan` on |
 
 For the full catalog and how each skill chains together, see [docs/skills](docs/skills/README.md). The complete inventory is [below](#full-skill-inventory).
 
@@ -118,6 +119,7 @@ The `compound-engineering` plugin currently ships 30 skills and 0 standalone age
 | [`/ce-ideate`](docs/skills/ce-ideate.md) | Generate and critically evaluate grounded ideas |
 | [`/ce-pov`](docs/skills/ce-pov.md) | Form a decisive, project-grounded verdict on an external input |
 | [`/ce-explain`](docs/skills/ce-explain.md) | Explain a concept, diff, idea, or window of your own work as a personal learning artifact |
+| [`/ce-prototyping`](docs/skills/ce-prototyping.md) | Turn a PM's idea into a working prototype and a validated, handoff-ready PRD |
 | [`/ce-brainstorm`](docs/skills/ce-brainstorm.md) | Explore requirements and write a right-sized requirements doc |
 | [`/ce-plan`](docs/skills/ce-plan.md) | Create structured implementation plans |
 | [`/ce-work`](docs/skills/ce-work.md) | Execute implementation plans systematically |
