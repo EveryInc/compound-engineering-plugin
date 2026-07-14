@@ -909,6 +909,13 @@ describe("cross-model peer skip legibility", () => {
       expect(workerSrc).toContain("peer skip evidence:")
       expect(workerSrc).toContain('"$PEERLOG"')
 
+      // Peer stderr must be captured to its own file (NOT /dev/null) and surfaced
+      // too: an auth/quota/rate-limit message on stderr (claude/cursor) would
+      // otherwise be invisible to the classification. PEERLOG stays clean stdout
+      // for the findings brace-match and receipt jq-parse, so stderr is separate.
+      expect(workerSrc).toContain('2>"$PEERERR"')
+      expect(workerSrc).toContain("peer skip evidence (stderr):")
+
       // Consumer: the reference points the agent at the same token and asks it
       // to classify a quota/usage-limit exhaustion (harness-agnostic reasoning).
       expect(referenceSrc).toContain("peer skip evidence:")

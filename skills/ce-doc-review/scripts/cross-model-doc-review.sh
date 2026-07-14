@@ -364,7 +364,12 @@ fi
 # asks only for the short name.
 PROMPT_FILE="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-prompt-XXXXXX")"
 PEERLOG="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-log-XXXXXX")"
-trap 'rm -f "$PROMPT_FILE" "$PEERLOG"' EXIT
+# Peer stderr goes to its own file, NOT merged into PEERLOG: PEERLOG must stay
+# clean stdout for the findings brace-match and the receipt jq-parse. An
+# auth/quota/rate-limit message often lands on stderr, so capture it separately
+# and surface it in the skip evidence (grok's 402 is on stdout, others on stderr).
+PEERERR="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-err-XXXXXX")"
+trap 'rm -f "$PROMPT_FILE" "$PEERLOG" "$PEERERR"' EXIT
 # Basename only in the peer prompt: content is already embedded (KTD3). An absolute
 # path would give cursor-agent residual-Read a repo coordinate to walk from.
 DOC_BASENAME="$(basename "$DOC_PATH")"
@@ -490,9 +495,9 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
   if [ -n "$TO_BIN" ]; then
-    ( cd "$PEER_WORKDIR" && exec "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>/dev/null &
+    ( cd "$PEER_WORKDIR" && exec "$TO_BIN" -k 10 "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   else
-    ( cd "$PEER_WORKDIR" && exec perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>/dev/null &
+    ( cd "$PEER_WORKDIR" && exec perl -e 'alarm shift; exec @ARGV' "$HARD_SECS" "${CMD[@]}" ) < "$stdin_file" > "$PEERLOG" 2>"$PEERERR" &
   fi
   local pid=$!
   ACTIVE_PEER_PID="$pid"
@@ -537,7 +542,7 @@ parse_structured() {   # <logfile> <outfile>
 # Run one route for a provider; leaves a schema-shaped (pre-normalization) $RAW_OUT on success.
 attempt_route() {   # <provider> <route>
   local provider="$1" route="$2" note
-  : > "$PEERLOG"; rm -f "$RAW_OUT" "$OUT"
+  : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
   build_cmd "$route"
   case "$route" in
     codex)       note="$M_CODEX (effort high)" ;;
@@ -653,10 +658,14 @@ run_provider() {   # <provider>
     # reason about WHY it was skipped (quota/usage-limit exhaustion vs an ordinary
     # empty review) and, in a repeated-pass session, deprioritize an exhausted
     # route. Harness-agnostic: the agent classifies from the text; this only makes
-    # the evidence visible in out.log. Bash builtins only (the route sandbox has no
-    # tail/tr), and PEERLOG is a small error body on a failed route.
+    # the evidence visible in out.log. Surface BOTH streams -- the error can be on
+    # stdout (grok's 402) or stderr (claude/cursor auth/quota). Bash builtins only
+    # (the route sandbox has no tail/tr); both are small on a failed route.
     if [ -s "$PEERLOG" ]; then
       _pt="$(< "$PEERLOG")"; _pt="${_pt//$'\n'/ }"; log "  peer skip evidence: ${_pt: -300}"
+    fi
+    if [ -s "$PEERERR" ]; then
+      _pe="$(< "$PEERERR")"; _pe="${_pe//$'\n'/ }"; log "  peer skip evidence (stderr): ${_pe: -300}"
     fi
     rm -f "$OUT" "$RAW_OUT"
   fi
