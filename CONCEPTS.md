@@ -93,6 +93,12 @@ The classification of a review finding by how safely its proposed fix can be app
 ### Headless mode
 An explicit opt-in mode that runs a Skill unattended, with no user prompts — it produces a written report as its deliverable and conservatively defers genuinely ambiguous decisions rather than guessing.
 
+### Session-settled decision
+A decision examined and chosen by the user in the invoking conversation — a surfaced tradeoff or alternative followed by the user's choice — carried through the Pipeline as a provenance-labeled constraint (annotation stem `session-settled:`, classes `user-directed` and `user-approved`) that downstream skills augment but never re-ask, and contradict only on evidence. An unexamined assertion is a directive, not a settled decision, and receives exactly one in-pipeline challenge; agents never label their own unexamined proposals.
+
+### Settlement test
+The classification judgment a writer skill (ce-plan, ce-brainstorm) applies to conversation-carried decisions: settled if the decision survived examination in the conversation record, a directive if merely asserted, unlabeled if only ever agent-inferred. The test's outcome rules are protocol; the classification itself is agent judgment.
+
 ### Feedback source
 A configured origin of customer or user feedback — a Slack channel, a GitHub Issues repo, an email inbox — declared once in the shared local config under a generic key so any Skill can read the list. Each source entry has its own identity and ingestion cursor; the Skill that ingests from it owns the per-item state, not the source declaration.
 
