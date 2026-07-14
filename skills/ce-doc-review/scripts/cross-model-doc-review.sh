@@ -279,7 +279,12 @@ case "$MAX_PEERS" in ''|*[!0-9]*) MAX_PEERS=1 ;; esac
 [ "$MAX_PEERS" -gt 2 ] && MAX_PEERS=2
 
 in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
-out_missing_or_invalid() { [ ! -s "$RAW_OUT" ] || ! jq -e . "$RAW_OUT" >/dev/null 2>&1; }
+# Require a reviewer-shaped return (top-level `findings` array), not merely valid
+# JSON: a grok error/envelope object (e.g. a 402 usage-exhausted body) is valid
+# JSON but has no findings, and accepting it would suppress the grok-cursor
+# fallback and then be dropped at normalize, yielding no fold-in. Matches the
+# adversarial twin's check.
+out_missing_or_invalid() { [ ! -s "$RAW_OUT" ] || ! jq -e '(.findings|type)=="array"' "$RAW_OUT" >/dev/null 2>&1; }
 
 # The cursor-agent route egresses content through Cursor even when the *model* is
 # grok (grok-via-cursor-agent). CROSS_MODEL_PEERS is an egress boundary (R19), not

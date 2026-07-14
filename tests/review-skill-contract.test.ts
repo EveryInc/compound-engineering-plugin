@@ -887,6 +887,19 @@ describe("cross-model peer skip legibility", () => {
     },
   ]
 
+  // A route "succeeded" (and so suppresses the cross-provider fallback) only
+  // when it returned a reviewer-shaped object with a top-level `findings` array
+  // — not merely any valid JSON. Accepting an error/envelope object (e.g. a grok
+  // 402 usage-exhausted body) would suppress the fallback and then be dropped at
+  // normalize, yielding no fold-in. The two workers must agree on this gate.
+  for (const worker of pairs.map((p) => p.worker)) {
+    test(`${worker} gates fallback on a findings-shaped return, not any valid JSON`, async () => {
+      const src = await readRepoFile(worker)
+      expect(src).toMatch(/out_missing_or_invalid\(\)/)
+      expect(src).toContain('(.findings|type)=="array"')
+    })
+  }
+
   for (const { worker, reference } of pairs) {
     test(`${worker} surfaces peer skip evidence that ${reference} classifies`, async () => {
       const workerSrc = await readRepoFile(worker)
