@@ -127,6 +127,8 @@ _TOPOLOGY = {
     "Pulumi.yaml", "Pulumi.yml", "Chart.yaml",
     # CI descriptors outside .github/workflows/ (that prefix is handled below).
     ".gitlab-ci.yml", "Jenkinsfile", "azure-pipelines.yml",
+    # Submodule map — topology/dependency surface when gitlinks are present.
+    ".gitmodules",
 }
 
 # Path prefixes whose contents shape the profile (conventions / CI / deploy).
@@ -212,6 +214,9 @@ def inputs_digest() -> "str | None":
       existing non-input files.
     - `(path, blob-sha)` for every **profile-input** blob — so manifest/docs/CI
       content changes still invalidate.
+    - `(path, commit-sha)` for every **gitlink** (`160000 commit` submodule
+      entry) — so adding a submodule or advancing its pointer invalidates;
+      blob-only filtering would drop these before their path is recorded.
 
     None if git could not list the tree.
     """
@@ -237,14 +242,16 @@ def inputs_digest() -> "str | None":
         parts = meta.split()
         if len(parts) < 3:
             continue
-        obj_type, blob = parts[1], parts[2]
-        if obj_type != b"blob":
-            continue
+        obj_type, obj = parts[1], parts[2]
         path = path_b.decode("utf-8", errors="surrogateescape")
-        # Shape: every path, content-agnostic.
-        pairs.append(f"path\0{path}")
-        if is_profile_input(path):
-            pairs.append(f"blob\0{path}\0{blob.decode('ascii')}")
+        if obj_type == b"blob":
+            # Shape: every path, content-agnostic.
+            pairs.append(f"path\0{path}")
+            if is_profile_input(path):
+                pairs.append(f"blob\0{path}\0{obj.decode('ascii')}")
+        elif obj_type == b"commit":
+            # Submodule gitlink — path + pinned commit.
+            pairs.append(f"gitlink\0{path}\0{obj.decode('ascii')}")
 
     pairs.sort()
     h = hashlib.sha256()

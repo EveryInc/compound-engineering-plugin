@@ -137,6 +137,33 @@ describe("repo-profile-cache helper", () => {
     expect(run(dir, "get").stdout.startsWith("MISS\n")).toBe(true)
   })
 
+  test("advancing a submodule gitlink → MISS", () => {
+    const dir = makeRepo()
+    const shaA = git(dir, "rev-parse", "HEAD").trim()
+    writeFileSync(
+      path.join(dir, ".gitmodules"),
+      '[submodule "vendor/x"]\n\tpath = vendor/x\n\turl = https://example.com/x.git\n',
+    )
+    git(dir, "add", ".gitmodules")
+    const link = spawnSync(
+      "git",
+      ["update-index", "--add", "--cacheinfo", `160000,${shaA},vendor/x`],
+      { cwd: dir, encoding: "utf8" },
+    )
+    expect(link.status).toBe(0)
+    git(dir, "commit", "-q", "-m", "add submodule gitlink")
+    putProfile(dir)
+    const shaB = git(dir, "rev-parse", "HEAD").trim()
+    const adv = spawnSync(
+      "git",
+      ["update-index", "--cacheinfo", `160000,${shaB},vendor/x`],
+      { cwd: dir, encoding: "utf8" },
+    )
+    expect(adv.status).toBe(0)
+    git(dir, "commit", "-q", "-m", "advance submodule")
+    expect(run(dir, "get").stdout.startsWith("MISS\n")).toBe(true)
+  })
+
   test("input-changing commit at new HEAD → MISS (new inputs digest)", () => {
     const dir = makeRepo()
     putProfile(dir)
