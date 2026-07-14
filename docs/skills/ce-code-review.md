@@ -59,6 +59,14 @@ A small config change triggers 6 reviewers (the 4 always-on + 2 CE always-on). A
 
 Persona selection is agent judgment, not keyword matching. Instruction-prose files (Markdown skills, JSON schemas) are product code but skip runtime-focused reviewers (adversarial, races) — they wouldn't apply. The exception is a **silent-pass verification mechanism** (a CI/CD gate, build/deploy step, coverage/lint gate, or test harness/mock that could mask production): even as a small config diff it gets the adversarial + cross-model lens, because its risk is fidelity — going green while the real thing is red — not blast radius.
 
+### 1b. Cross-model adversarial pass
+
+When adversarial is selected and the working tree is the reviewed head (`local-aligned` / standalone), the same adversarial brief also runs through **one different model provider than the host** in a separate read-only process. Agreement between the in-process `adversarial` persona and the peer (`adversarial-<provider>`) is the strongest promotion signal in synthesis.
+
+**Which provider runs the peer** is auto-chosen and overridable — the same independence system as `ce-doc-review`, scoped to the adversarial lens only (no security/correctness twins, no whole-diff peer). The skill attests the host provider solely to exclude it; un-attestable hosts skip rather than risk a same-provider peer. Preference order: conversation → `cross_model_peer:` in `.compound-engineering/config.local.yaml` → project instructions in context → first available of `codex → claude → grok → composer`. A second provider is opt-in only (`CROSS_MODEL_MAX_PEERS=2`). The peer reviews the current work tree against the diff base (in-tree read-only); reviewed code may egress to the selected provider. The pass is non-blocking — missing CLI / timeout / unparseable output never fails the review.
+
+This shares the provider/route kernel with `ce-doc-review` (parity-tested in CI) but keeps code-review's product scope: adversarial-only, diff/work-tree delivery, not doc-review's judgment trio or whole-doc sweep.
+
 ### 2. Severity (P0-P3) and autofix class are orthogonal
 
 Severity answers **urgency** (P0=critical breakage, P3=user discretion). The autofix class is **signal** about follow-up shape (not apply permission):
@@ -199,6 +207,9 @@ Interactive is the human-facing mode: a markdown report, and the review applies 
 
 **What's the Residual Work Gate?**
 A caller-owned step (not part of the review skill): in `mode:agent`, the caller (typically `/ce-work`) applies what it can, then presents the findings it didn't apply and asks the user: apply now, file tickets, accept with durable sink, or stop. "Accept" requires a real durable record (Known Residuals in PR description, or `docs/residual-review-findings/<sha>.md`) — findings can't disappear into chat.
+
+**What's the difference between this and `ce-doc-review`'s cross-model pass?**
+Same independence *system* (host attestation, multi-provider selection, read-only peer CLI, fold-in as `<lens>-<provider>`, agreement promotion). Different *lens policy*: code-review runs **adversarial only**; doc-review runs a judgment trio plus a whole-doc sweep because document judgment is spread across more lenses. Code-review peers review the work tree/diff in-place; doc-review embeds the document into a more isolated scratch.
 
 **Why does it never switch the checkout?**
 The skill never runs `git checkout`/`switch` — passing a PR/branch selects review *scope*, not permission to mutate the tree (it diffs remote/local refs without checking out). Interactive mode may *apply* fixes to the current checkout (a reversible edit), but it never switches branches. To review the current checkout against a different ref, pass `base:<ref>`.

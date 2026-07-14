@@ -1,63 +1,90 @@
 # Cross-Model Adversarial Pass
 
-Runs the adversarial review through a **different model family than the host**, in a separate read-only process, so its findings are independent of the in-process reviewers. The peer gets the **same** `references/personas/adversarial-reviewer.md` brief the in-process reviewer uses, returns the same `findings-schema.json` shape, and folds into Stage 5 as reviewer `adversarial-<peer>` — so agreement between it and the in-process `adversarial` persona promotes the finding (Stage 5 cross-reviewer agreement; render as `adversarial, adversarial-<peer>`).
+Runs the **adversarial** review through **one different model provider than the host** (auto-chosen from what's available, overridable), in a separate read-only process, so its findings are independent of the in-process reviewers. The peer gets the **same** `references/personas/adversarial-reviewer.md` brief the in-process reviewer uses, returns the same `findings-schema.json` shape, and folds into Stage 5 as reviewer `adversarial-<provider>` — so agreement between it and the in-process `adversarial` persona promotes the finding (Stage 5 cross-reviewer agreement; render as `adversarial, adversarial-<provider>`).
 
-All the invocation detail (composing the prompt from the persona, read-only flags, per-peer timeouts, capturing schema-shaped JSON) lives in the bundled script **`scripts/cross-model-adversarial-review.sh`**. This reference only decides *whether* to run it, *which peer*, and how to fold the result in. The pass is **non-blocking**: the script logs a reason and exits cleanly on any problem, writing no output file — a missing file is simply "no cross-model pass," never a failure.
+This pass is **adversarial-only**. No other persona gets a cross-model twin, and there is no whole-diff generalist peer. Cost stays gated on the existing Stage 3 adversarial selection.
+
+All invocation detail (provider→route resolution, availability + classified-failure fallback, composing the prompt from the persona, read-only in-tree flags, per-provider model, per-route timeouts, capturing schema-shaped JSON, normalizing the reviewer name) lives in the bundled script **`scripts/cross-model-adversarial-review.sh`**. This reference decides *whether* to run it, *how the host provider is attested*, *how candidates are ordered*, and how to fold the result in. The pass is **non-blocking**: the script logs a reason and exits cleanly on any problem, writing no output file — a missing file is simply "no cross-model pass," never a failure.
 
 ## Gates — run only when all hold
 
 1. `adversarial-reviewer` was selected in Stage 3 (reuse that diff gate — don't run a costly external CLI on a trivial diff).
 2. Scope is `local-aligned` or standalone — the working tree IS the reviewed head. Skip in `pr-remote` / `branch-remote`: the peer reviews the local tree, which is not the PR/branch head.
 
-## Step 1 — Identify host and peer (runtime self-id, no build-time)
+## Step 1 — Attest the host provider, then resolve one different-provider peer
+
+**Independence is by provider, not CLI brand.** The four providers and their routes: OpenAI reached by the `codex` CLI (key `codex`); Anthropic by the `claude` CLI (key `claude`); xAI by the `grok` CLI, else `cursor-agent --model grok-4.5-high` (key `grok`); Cursor by `cursor-agent --model composer-2.5-fast` (key `composer`). `cursor-agent` is used ONLY to reach grok (fallback) and composer — never for OpenAI/Anthropic (redundant with the common-harness CLIs, and a same-provider egress).
+
+**Attest the host provider — its only purpose is to exclude it so the pass never self-reviews.** You (the skill) know your own harness; map it to the host provider *key*:
 
 ```bash
-if [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST=cursor; XPEER=codex;
-elif [ "${CLAUDECODE:-}" = "1" ]; then XHOST=claude; XPEER=codex;
-elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST=codex; XPEER=claude;
-else XHOST=unknown; XPEER=""; fi;
-echo "XMODEL_HOST: $XHOST  PEER: ${XPEER:-none}"
+if [ "${CLAUDECODE:-}" = "1" ]; then XHOST=claude;
+elif [ -n "${CODEX_SANDBOX:-}${CODEX_SANDBOX_NETWORK_DISABLED:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then XHOST=codex;
+elif [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then XHOST=cursor;
+else XHOST=unknown; fi
 ```
 
-Cursor and Claude prefer **codex** as the peer (a guaranteed different model family); Codex prefers **claude**. There is no single canonical marker Codex sets across surfaces (CLI, web, CI), and `shell_environment_policy`/IDE inheritance can strip env vars, so check the union above. Do **not** use the *other* CLI's home (e.g. `CODEX_HOME`) — it leaks into a Claude session. `unknown` → skip the pass silently. The script also re-validates the peer it is handed, so a wrong/missing peer fails safe.
+(For `XHOST=cursor`, resolve it to the *active serving provider* key per the bullets below before passing it as `host_provider`.)
 
-## Step 2 — Announce (only on an interactive host — `claude` or `cursor` — AND default mode)
+- **Claude Code → `claude`; Codex → `codex`.** There is no single canonical marker Codex sets across surfaces (CLI, web, CI), and `shell_environment_policy`/IDE inheritance can strip env vars, so check the union above. Do **not** use the *other* CLI's home (e.g. `CODEX_HOME`) — it leaks into a Claude session.
+- **Cursor → its *active serving provider*.** Cursor runs a user-chosen model, so the host provider is whichever family that model belongs to (its running model on GPT → `codex`; on Claude → `claude`; on Grok → `grok`; on Composer → `composer`). Attest it from what you can observe about the active model.
+- **Un-attestable host (Cursor on an undetectable model, or `unknown`) → skip the pass entirely (zero peers).** Passing an un-attestable host risks selecting a *same-provider* peer, which would silently defeat cross-model independence — so skip rather than guess. Pass `unknown` (or empty) as the host and the script also fails safe to a clean skip.
 
-- Interactive host, default mode: surface a **prominent standalone line naming the peer** that will run (the peer CLI, plus its model if cheaply known), framed as an independent second model reviewing in parallel — placed with the Stage 3 team announce, not buried after it. Wording is yours; the falsifiable requirements: prominent, names the peer, reads as coverage not plumbing.
-- Interactive host, peer not available (script will skip — CLI missing/unauthed): one quiet line that the cross-model pass was skipped and why. Never an error.
-- `XHOST=codex`: announce **nothing** — run or skip silently.
-- `mode:agent`: emit no prose.
+**Resolve the peer preference (first match wins), then let the script pick by availability:**
 
-## Step 3 — Run the bundled script (launch it in parallel with the persona reviewers)
+1. A preference the user **states in conversation** (e.g. "use grok for the cross-model pass").
+2. `cross_model_peer:` in `.compound-engineering/config.local.yaml` (the only file the script/skill reads for this).
+3. A preference already in your **project instructions** (the active instructions in your context) — consumed from context, **never** read from a named file.
+4. **Default:** first available provider ≠ host, order `codex → claude → grok → composer`.
 
-The script is a CLI shell-out, not a subagent, so it doesn't consume the subagent concurrency budget. **Launch it as a background shell process in the same Stage 4 dispatch wave as the persona reviewers** so its runtime overlaps theirs, then collect before Stage 5.
+Compose the **candidate list** as a comma-separated provider key order with any resolved preference **front-loaded** (e.g. a conversation preference of grok → `grok,codex,claude,composer`; no preference → the default `codex,claude,grok,composer`). Pass the attested `host_provider` and this candidate list to the script — **the script owns availability probing, the grok-CLI→cursor-agent fallback, and the host exclusion**; you own only the context resolution it cannot see (conversation, config, project instructions). A second peer is opt-in only via `CROSS_MODEL_MAX_PEERS=2` (default 1).
 
-Invoke it via the skill-dir anchor — set `SKILL_DIR` to the absolute directory of **this** skill's `SKILL.md` (the one you read to run ce-code-review), because the Bash tool's CWD is the user's project, not the skill dir, on every host:
+## Step 2 — Provider model + high reasoning (owned by the script)
+
+The peer runs on **one model per provider at high reasoning** (composer's `-fast` tier is its ceiling — an accepted exception). The concrete model IDs and per-route reasoning flags live in a **single mapping in the script** (`scripts/cross-model-adversarial-review.sh`, the `M_CODEX`/`M_CLAUDE`/`M_GROK`/`M_GROK_CURSOR`/`M_COMPOSER` constants and the `adapter_argv` builder). This reference deliberately does **not** restate the IDs — one source of truth prevents the reference and script from drifting. The IDs are the current instance of the tier principle (a single maintenance point), not the contract.
+
+The script always uses the adversarial persona brief; fold-in forces `reviewer` to `adversarial-<provider>`.
+
+## Step 3 — Announce
+
+- **Interactive host, default mode:** surface a **prominent standalone line** that frames it as an **independent cross-model adversarial review** (say "cross-model" / "independent model" — not the internal "peer" jargon), names the concrete **model and reasoning level** from the in-script mapping (e.g. GPT-5.6-sol at high reasoning, Opus at high, Grok 4.5 at high, Composer 2.5-fast), and — because two different models can arrive over the *same* `cursor-agent` CLI — names **the route as well as the model** for cursor-agent routes so Grok-4.5-via-cursor-agent, Composer-via-cursor-agent, and Grok-4.5-via-the-grok-CLI are unambiguous, **and states that reviewed code/diff content is sent to that provider** (third-party egress; for cursor-agent routes the egress is to Cursor *plus* the serving provider). Placed with the Stage 3 team announce, not buried after it. Wording is yours; the falsifiable requirements: prominent, reads as a **cross-model reviewer**, names the concrete model, names the route when it is cursor-agent, names the egress.
+  - **Fallback egress must not be silent.** The front-loaded provider can be *installed but fail at runtime* (unauthenticated, rate-limited, timeout), and the pass then falls through to the next candidate — and a grok primary can switch from the grok CLI to `cursor-agent`, adding Cursor egress. So the announced primary is **not guaranteed** to be the actual egress target. Two requirements: (1) announce the egress **scope**, not just the primary — state that the review goes to whichever candidate actually runs, and that a fallback in the order (or the cursor-agent route for grok) may receive it if the primary is unreachable; (2) **reconcile after collection** — read the actual provider from the `adversarial-<provider>.json` filename **and the `cross_model_route` field inside it**, which distinguishes a direct `grok-cli` egress (xAI only) from a `grok-cursor` egress that *also* sent content to Cursor. If the actual provider or route differs from the announced primary, state the provider(s)/infra that *actually* received the review in the Coverage line.
+- **Interactive host, no peer resolved** (host un-attestable, or no different provider installed/authed): one quiet line that the cross-model pass was skipped and why. Never an error.
+- **`mode:agent`:** emit no user-facing prose. The script still emits a one-line stderr audit log per send that review content was sent cross-model to the named provider, so the third-party data egress is auditable.
+
+## Step 4 — Run the bundled script (in parallel with the persona reviewers)
+
+The script is a CLI shell-out, not a subagent, so it doesn't consume the subagent concurrency budget. **Launch it as a background shell process in the same Stage 4 dispatch wave as the persona reviewers** so its runtime overlaps theirs, then **await exit before Stage 5** — do not orphan the launch by exiting the launcher shell early. The script itself ignores SIGHUP and only publishes a fold-in `.json` after normalize.
+
+Invoke via the skill-dir anchor — set `SKILL_DIR` to the absolute directory of **this** skill's `SKILL.md` (the Bash tool's CWD is the user's project, not the skill dir, on every host):
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-code-review SKILL.md you read>";
-bash "$SKILL_DIR/scripts/cross-model-adversarial-review.sh" "<peer>" "<base-ref>" "<run-dir>"
+bash "$SKILL_DIR/scripts/cross-model-adversarial-review.sh" "<host-provider>" "<candidates>" "<base-ref>" "<run-dir>"
 ```
 
-- `<peer>` = `XPEER` from Step 1 (`codex` or `claude`).
+- `<host-provider>` = attested key from Step 1 (`codex`/`claude`/`grok`/`composer`, or `unknown` to force a clean skip).
+- `<candidates>` = the comma-separated preference-front-loaded provider order from Step 1 (e.g. `codex,claude,grok,composer`). The script excludes the host, applies the `CROSS_MODEL_PEERS` allowlist, walks this order by availability, and picks up to `CROSS_MODEL_MAX_PEERS` (default 1).
 - `<base-ref>` = the Stage 1 `BASE` (the diff base the peer reviews via `git diff <base-ref>`).
-- `<run-dir>` = the Stage 4 run dir (`/tmp/compound-engineering/ce-code-review/<run-id>/`). The script writes `adversarial-<peer>.json` there.
+- `<run-dir>` = the Stage 4 run dir (`/tmp/compound-engineering/ce-code-review/<run-id>/`). The script writes `adversarial-<provider>.json` there **only after** forcing `reviewer` to `adversarial-<provider>` and downgrading peer `safe_auto` → `gated_auto`.
 
-Set the Bash tool `timeout` to `660000` (11 min) — the script self-bounds (codex idle-timeout, default-180s stall with reasoning forced on for liveness; hard backstop `CROSS_MODEL_HARD_SECS`, default 600s) and exits cleanly. If the harness can't background a shell command, run it inline before awaiting the reviewers; correctness is unaffected, only wall-clock. The script needs no prompt or schema passed in — it reads the persona brief and `findings-schema.json` itself from the skill dir.
+Set the Bash tool `timeout` / `block_until_ms` high enough to cover the hard cap (default 600s) **and await completion** — the script self-bounds (codex idle-timeout default 180s with reasoning forced on for liveness; hard backstop `CROSS_MODEL_HARD_SECS` default 600s) and exits cleanly. If the harness can't background a shell command, run the call inline before awaiting the reviewers; correctness is unaffected, only wall-clock. The script needs no prompt or schema passed in — it reads the persona brief and `findings-schema.json` from the skill dir and reviews the current work tree against `<base-ref>`.
 
-## Step 4 — Fold into Stage 5
+## Step 5 — Fold into Stage 5
 
-- Read `<run-dir>/adversarial-<peer>.json`. If present, treat it as one reviewer return with `reviewer: adversarial-<peer>`, exactly like a persona artifact: its merge-tier fields enter Stage 5 dedup/promotion.
-- **No file** (script skipped: no peer, CLI missing/unauthed, timeout, or unparseable output) → the pass simply didn't run. Note "cross-model pass: not run" in Coverage on an interactive host in default mode; stay silent under codex / `mode:agent`. Never fail the review.
+- Read `<run-dir>/adversarial-<provider>.json`. If present, treat it as one reviewer return with `reviewer: adversarial-<provider>`, exactly like a persona artifact: its merge-tier fields enter Stage 5 dedup/promotion. If the JSON's `reviewer` field is missing the `-<provider>` suffix (legacy/orphan raw output), **force** it from the filename stem before fold-in — never fold in a bare `adversarial`. Peer returns are a corroboration signal only — never auto-applied (`safe_auto`) and the cross-model bonus caps at one anchor step even if a second opt-in peer also agrees.
+- **No file** (script skipped: host un-attestable, no different provider reachable, CLI missing/unauthed, timeout, unparseable output, or gates not met) → the pass simply didn't run. Note "cross-model pass: not run" in Coverage on an interactive host in default mode; stay silent in `mode:agent`. Never fail the review. Ignore any `*.raw.json` leftovers — they are not fold-in artifacts.
 - Empty `findings` → note "cross-model pass: no additional issues" in Coverage.
-- A finding sharing a dedup fingerprint with the in-process `adversarial` persona promotes by one anchor step — the cross-model agreement signal, the strongest in the set (different model families, separate processes).
+- A finding sharing a dedup fingerprint with the in-process `adversarial` persona promotes by one anchor step — the cross-model agreement signal, the strongest in the set (different model providers, separate processes).
 
-## What the script does (for maintainers — you don't invoke this directly)
+## Trust boundary (maintainers)
 
-`scripts/cross-model-adversarial-review.sh <peer> <base-ref> <run-dir>`:
-- Self-locates the persona + schema via `BASH_SOURCE` (works from any CWD); derives the repo root from `git`.
-- Composes the peer prompt from the canonical persona brief + a JSON-only contract. Codex fetches its own diff with read-only `git` inside its sandbox; Claude (which has no sandbox) is hard-denied `Bash`, so it gets the diff embedded and needs no shell. After capture, the script forces `reviewer = adversarial-<peer>` (the persona's example name `adversarial` would otherwise collide with the in-process reviewer and erase the cross-model agreement signal).
-- Codex peer: `codex exec - -s read-only -o <out>` at high reasoning effort. No `--output-schema` (Codex strict mode rejects the permissive draft-07 schema); the full schema embedded in the prompt is its only contract, which produces complete schema-shaped findings (verified). The `-o` write is done by the codex CLI *outside* the model's sandbox, so it succeeds under `-s read-only` (verified); if it ever fails to materialize, the script recovers the same JSON from codex's captured stdout (belt-and-suspenders, no data lost).
-- Claude peer: `claude -p --permission-mode dontAsk --disallowedTools Edit Write NotebookEdit --json-schema … --output-format json` (disallowed tools passed as separate variadic args, not one quoted string), captured from stdout (it can't write a file under those permissions), parsed via `.structured_output` with a `.result` fallback.
-- Read-only differs by peer: codex `-s read-only` is a hard sandbox; claude `dontAsk` denies `Edit`/`Write`/`NotebookEdit`/`Bash` plus `mcp__*` (a user's pre-approved MCP write/deploy tools would otherwise run under `dontAsk`) and `Task` (a subagent would bypass the deny list) — so it can't mutate via shell, MCP, or a spawned subagent even under broad user allow-rules (deny overrides allow) — and reviews the embedded diff with read-only file access. Non-blocking everywhere: any gap → log + exit 0, no output file.
-- Timeouts kill the whole **process group**, so no orphaned model call outlives the script. **Codex** streams its reasoning, so it runs in its own process group (`set -m`) under a watchdog that reaps the group — `kill -TERM` then `kill -KILL` after a grace, checking *group* liveness so a child that defers SIGTERM can't escape — when output stalls for `CROSS_MODEL_IDLE_SECS` (default 180s; reasoning is forced on via `-c hide_agent_reasoning=false` so the stream stays a reliable liveness signal even under a user config that hides it) or exceeds the hard backstop `CROSS_MODEL_HARD_SECS` (default 600s). Reaping the group directly (rather than signalling a `gtimeout` wrapper, whose `-k` only escalates on its *own* expiry) is what guarantees the peer dies. **Claude**'s `--output-format json` is single-shot, so it just gets a `gtimeout`/`timeout` hard cap.
+The peer reviews the **current work tree** (read-only) against `git diff <base-ref>`. Reviewed code/diff content is sent to an external model provider (OpenAI, Anthropic, xAI, or Cursor, depending on the resolved peer). `CROSS_MODEL_PEERS` restricts which providers may receive content.
+
+**Isolation differs from ce-doc-review by design.** Doc-review embeds a self-contained document into a tool-less empty scratch. Code-review needs surrounding code context, so peers run **in-tree read-only**:
+
+- **codex:** `-s read-only` with cwd at the repo root (may fetch `git diff` itself).
+- **claude:** deny mutators / Bash / Task / `mcp__*`; **Read allowed** for context; diff is embedded because Bash is denied.
+- **grok / cursor-agent:** ask/dontAsk + no write/force/yolo; Read allowed; workspace/cwd at the repo root.
+
+Impact is bounded to disclosure, not repo mutation. The script's stderr audit log records each send so the egress is auditable even in `mode:agent`.
