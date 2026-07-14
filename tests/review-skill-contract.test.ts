@@ -916,6 +916,25 @@ describe("cross-model peer skip legibility", () => {
       expect(referenceSrc).toMatch(/more than once in this session/i)
     })
   }
+
+  // The provider runs under `set -m` in its OWN process group so the worker can
+  // group-reap it without killing itself. On a clean worker exit the runner's
+  // final sweep only kills the worker's pgid, and a survivor the provider left
+  // in its own group reparents off the worker's tree — so BOTH run paths must
+  // reap "$pid" (the provider group) after wait, or that survivor leaks.
+  for (const worker of pairs.map((p) => p.worker)) {
+    test(`${worker} reaps the provider process group after waiting on it`, async () => {
+      const src = await readRepoFile(worker)
+      // run_codex_cmd: `wait "$pid" ... || true`, then the group sweep.
+      expect(src).toMatch(
+        /wait "\$pid" 2>\/dev\/null \|\| true\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/,
+      )
+      // run_timeout_cmd: `wait "$pid" ... || log ...`, then the group sweep.
+      expect(src).toMatch(
+        /wait "\$pid" 2>\/dev\/null \|\| log[^\n]*\n\s*reap "\$pid"/,
+      )
+    })
+  }
 })
 
 describe("testing-reviewer contract", () => {

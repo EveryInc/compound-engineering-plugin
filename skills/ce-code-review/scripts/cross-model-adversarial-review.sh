@@ -403,6 +403,12 @@ run_codex_cmd() {
     fi
   done
   wait "$pid" 2>/dev/null || true
+  # Sweep any survivor the provider left in its OWN process group. `set -m` puts
+  # the provider in a separate pgid, and on a clean worker exit the runner's
+  # final sweep only kills the worker's pgid while a group-orphan reparents off
+  # the worker's process tree -- so it must be reaped here, where the pgid is
+  # known. reap() returns immediately when the group is already empty.
+  reap "$pid" 2>/dev/null || true
   stop_heartbeat
   ACTIVE_PEER_PID=""
 }
@@ -421,6 +427,7 @@ run_timeout_cmd() {
   [ "$prev" = 0 ] && set +m
   start_heartbeat
   wait "$pid" 2>/dev/null || log "peer exited non-zero or timed out"
+  reap "$pid" 2>/dev/null || true   # sweep survivors in the provider's own group (see run_codex_cmd)
   stop_heartbeat
   ACTIVE_PEER_PID=""
 }
