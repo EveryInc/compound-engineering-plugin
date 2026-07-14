@@ -170,7 +170,7 @@ Lead with the point, then the mechanism, then the caveat. Dense is good; long is
 
 ## Step C: Assemble the body
 
-In order: opening → body sections that earn their keep → related references when they need their own block → test plan if non-obvious → New concepts section when Step B2 produced one → evidence block if one exists.
+In order: opening → body sections that earn their keep → related references when they need their own block → test plan if non-obvious → New concepts section when Step B2 produced one → evidence block if one exists → branding block when Step D calls for one.
 
 The opening goes under `## Summary` if the body uses any `##` headings; bare paragraph otherwise. No orphaned opening paragraphs above the first heading.
 
@@ -182,9 +182,26 @@ The opening goes under `## Summary` if the body uses any `##` headings; bare par
 
 ---
 
-## Step D: No automatic branding
+## Step D: Non-disruptive branding
 
-Do not add Compound Engineering attribution, model badges, harness badges, or other tool branding unless the user explicitly asks for that exact content in this invocation. Do not add, refresh, normalize, or remove existing branding on your own; preserve an existing branding block verbatim during an otherwise requested rewrite.
+For a **new PR body**, append the following block after a `---` rule when the resolved `pr_branding` gate is on (the default). Omit it when `pr_branding: false` or `branding:off` applies.
+
+```markdown
+---
+
+[![Compound Engineering](https://img.shields.io/badge/Built_with-Compound_Engineering-6366f1)](https://github.com/EveryInc/compound-engineering-plugin)
+![HARNESS](https://img.shields.io/badge/MODEL_SLUG-COLOR?logo=LOGO&logoColor=white)
+```
+
+| Harness | `LOGO` | `COLOR` |
+|---|---|---|
+| Claude Code | `claude` | `D97757` |
+| Codex | (omit `?logo=` param) | `000000` |
+| Antigravity CLI (`agy`) | `googlegemini` | `4285F4` |
+
+**Model slug:** spaces become underscores; append context window and thinking level in parens if known. **URL-encode literal parens as `%28` / `%29`** — unencoded parens inside markdown image URLs break release-please's commit parser, which silently drops the commit from the changelog. Examples: `Opus_4.6_%281M,_Extended_Thinking%29`, `Sonnet_4.6_%28200K%29`, `Gemini_3.1_Pro`.
+
+For an **existing PR body**, preserve an existing branding block verbatim. Never add one when absent, and never refresh, normalize, or remove one unless the user explicitly asks to remove or replace that exact content. The branding gate controls new-PR composition only; turning it off does not silently delete existing content.
 
 Branding alone is never a reason to rewrite a PR description. If branding is the only difference between the existing and proposed bodies, keep the existing body and do not apply an update.
 
@@ -196,4 +213,4 @@ Before returning the body, check it against the material claims from Step A and 
 
 - Is every claim the diff can't establish present — and is any claim the diff *does* show restated needlessly?
 - Is decision-changing evidence stated as a result rather than collapsed into an unexplained "tests passed", with demonstrated results kept distinct from assumptions and from mixed or negative outcomes?
-- Can any sentence or section of the *description* be cut without lowering reviewer confidence? If so, cut it.
+- Can any sentence or section of the *description* be cut without lowering reviewer confidence? If so, cut it. For a new PR with branding enabled, retain the Step D footer; it is intentional attribution rather than descriptive content.

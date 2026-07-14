@@ -60,6 +60,12 @@
 # pr_teaching_section: false     # true | false (default: true)
 # pr_teaching_archive: true      # true | false (default: false; full-workflow runs only)
 
+# --- PR branding (ce-commit-push-pr) ---
+# New PRs include Compound Engineering and harness/model attribution by default.
+# Set false to omit that footer from newly created PRs (per-run override:
+# branding:on|off). Existing PR rewrites never add or refresh the footer.
+# pr_branding: false             # true | false (default: true; new PRs only)
+
 # --- ce-commit-push-pr babysit handoff ---
 # After a full-workflow PR is opened, ce-commit-push-pr auto-invokes ce-babysit-pr
 # to watch CI + incoming review and drive the PR toward merge-ready. Set false to

@@ -51,19 +51,22 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/PR description.+not.+comment/i)
   })
 
-  test("never adds or updates PR branding unless the user explicitly requests it", async () => {
+  test("keeps default new-PR attribution without branding-only rewrites", async () => {
     const reference = await readRepoFile(
       "skills/ce-commit-push-pr/references/pr-description-writing.md",
     )
     const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
 
-    expect(reference).not.toContain("Built_with-Compound_Engineering")
-    expect(reference).not.toContain("MODEL_SLUG")
-    expect(reference).toMatch(/do not add Compound Engineering attribution.+unless the user explicitly asks/is)
+    expect(reference).toContain("Built_with-Compound_Engineering")
+    expect(reference).toContain("MODEL_SLUG")
+    expect(reference).toMatch(/new PR body.+pr_branding.+on \(the default\)/is)
+    expect(reference).toMatch(/existing PR body.+never add one when absent/is)
     expect(reference).toMatch(/branding alone is never a reason to rewrite a PR description/i)
     expect(skill).toMatch(/if they are identical.+only difference is Compound Engineering attribution/is)
     expect(skill).toMatch(/a no-op or branding-only delta is never a meaningful update/i)
     expect(skill).toContain("do not call `gh pr edit`")
+    expect(skill).toMatch(/pr_branding.+on by default/is)
+    expect(skill).toMatch(/branding:on\|off/)
   })
 
   test("babysit handoff is default-on with off-switches and drivable fork PRs", async () => {
@@ -85,13 +88,15 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/pushes fixes to the \*\*head\*\* repo/i)
   })
 
-  test("config template and example document the auto_babysit opt-out", async () => {
+  test("config template and example document PR branding and babysit opt-outs", async () => {
     for (const p of [
       "skills/ce-setup/references/config-template.yaml",
       ".compound-engineering/config.local.example.yaml",
     ]) {
       const template = await readRepoFile(p)
       expect(template).toContain("auto_babysit")
+      expect(template).toContain("pr_branding")
+      expect(template).toContain("branding:on|off")
     }
   })
 })
