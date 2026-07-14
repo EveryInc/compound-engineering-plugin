@@ -14,6 +14,16 @@ const HANDOFF_PATH = path.join(
 )
 const HANDOFF_BODY = readFileSync(HANDOFF_PATH, "utf8")
 
+const APPROACH_ALTITUDE_BODY = readFileSync(
+  path.join(process.cwd(), "skills/ce-plan/references/approach-altitude.md"),
+  "utf8",
+)
+
+const DOC_REVIEW_BODY = readFileSync(
+  path.join(process.cwd(), "skills/ce-doc-review/SKILL.md"),
+  "utf8",
+)
+
 const ISSUE_CREATION_START = HANDOFF_BODY.indexOf("## Issue Creation")
 const ISSUE_CREATION_SECTION =
   ISSUE_CREATION_START > -1 ? HANDOFF_BODY.slice(ISSUE_CREATION_START) : ""
@@ -83,14 +93,13 @@ describe("ce-plan post-generation menu routing", () => {
     }
   })
 
-  test("Start /ce-work routing names skill-invocation primitive and plan path", () => {
+  test("Start /ce-work routing names the host skill mechanism and plan path", () => {
     const phaseStart = SKILL_BODY.indexOf("##### 5.3.8")
     const phaseRegion = SKILL_BODY.slice(phaseStart)
 
-    // The Start /ce-work routing line must be platform-explicit. We require
-    // that the routing BULLET (not the menu list entry) names both
-    // (a) the skill-invocation primitive (Skill tool / skill-invocation /
-    // skill primitive) and (b) the plan path being passed as the argument.
+    // The Start /ce-work routing BULLET (not the menu list entry) must name
+    // both (a) the host's skill-invocation mechanism and (b) the plan path
+    // being passed as the argument.
     // This is what makes the difference between "tell the user to type
     // /ce-work" and "fire the Skill tool now."
     //
@@ -108,7 +117,7 @@ describe("ce-plan post-generation menu routing", () => {
 
     expect(
       /skill[\s-]?invocation|Skill tool|skill primitive/i.test(block),
-      "ce-plan SKILL.md 'Start /ce-work' routing must name the skill-invocation primitive (e.g., 'Skill tool in Claude Code', 'platform's skill-invocation primitive') so the agent fires the invocation rather than announcing a handoff in prose. See issue #714.",
+      "ce-plan SKILL.md 'Start /ce-work' routing must name the host's skill-invocation mechanism so the agent fires the invocation rather than announcing a handoff in prose. See issue #714.",
     ).toBe(true)
 
     expect(
@@ -117,10 +126,9 @@ describe("ce-plan post-generation menu routing", () => {
     ).toBe(true)
   })
 
-  test("plan-handoff.md routing for Start /ce-work matches the inline platform-explicit phrasing", () => {
-    // Both surfaces must converge: the reference file's routing line should
-    // also use platform-explicit invocation language so that an agent which
-    // does load the reference sees compatible (not contradictory) guidance.
+  test("plan-handoff.md routing for Start /ce-work matches the inline host-generic phrasing", () => {
+    // Both surfaces must converge so that an agent which loads the reference
+    // sees compatible, host-generic guidance.
     const ceWorkLine = HANDOFF_BODY.match(
       /\*\*Start `\/ce-work`\*\*[^\n]*->[^\n]+/,
     )
@@ -131,8 +139,142 @@ describe("ce-plan post-generation menu routing", () => {
 
     expect(
       /skill[\s-]?invocation|Skill tool|skill primitive/i.test(ceWorkLine![0]),
-      `references/plan-handoff.md 'Start /ce-work' routing must use platform-explicit invocation language matching SKILL.md (e.g., 'invoke the ce-work skill via the platform's skill-invocation primitive'). The bare 'Call /ce-work with the plan path' phrasing was the regression. Found: ${JSON.stringify(ceWorkLine![0])}`,
+      `references/plan-handoff.md 'Start /ce-work' routing must use host-generic invocation language matching SKILL.md. The bare 'Call /ce-work with the plan path' phrasing was the regression. Found: ${JSON.stringify(ceWorkLine![0])}`,
     ).toBe(true)
+  })
+
+  test("mandatory document review uses the host skill mechanism without a Task stand-in", () => {
+    const reviewStart = HANDOFF_BODY.indexOf("## 5.3.8 Document Review")
+    const reviewEnd = HANDOFF_BODY.indexOf("## 5.3.9 Final Checks and Cleanup")
+    const reviewSection = HANDOFF_BODY.slice(reviewStart, reviewEnd)
+
+    expect(
+      /host(?:'s)? normal skill-invocation mechanism/i.test(reviewSection),
+      "ce-plan 5.3.8 must invoke ce-doc-review through the host's normal skill mechanism instead of naming one harness's tool.",
+    ).toBe(true)
+    expect(
+      /do not substitute[^.]{0,120}(?:Task|Agent|subagent)/i.test(reviewSection),
+      "ce-plan 5.3.8 must forbid generic Task/Agent/subagent wrappers as skill-invocation substitutes.",
+    ).toBe(true)
+    expect(
+      reviewSection.includes("skipped_reason: skill_unreachable"),
+      "ce-plan 5.3.8 must record a truthful pre-entry state when ce-doc-review cannot be invoked.",
+    ).toBe(true)
+    expect(
+      /(?:error|timeout)[^.]{0,120}only after[^.]{0,120}(?:begins|began|starts|started)/i.test(reviewSection),
+      "ce-plan 5.3.8 must reserve downstream error/timeout claims for a review workflow that actually started.",
+    ).toBe(true)
+  })
+
+  test("cross-skill routes use one generic invocation contract across skill-capable hosts", () => {
+    for (const [label, body] of [
+      ["SKILL.md", SKILL_BODY],
+      ["plan-handoff.md", HANDOFF_BODY],
+    ] as const) {
+      expect(
+        /host(?:'s)? normal skill-invocation mechanism/i.test(body),
+        `${label} must define cross-skill invocation by host capability, not a hardcoded tool name.`,
+      ).toBe(true)
+      expect(
+        /do not substitute[^.]{0,120}(?:Task|Agent|subagent)/i.test(body),
+        `${label} must distinguish skill invocation from generic delegation.`,
+      ).toBe(true)
+      expect(
+        body.includes("`Skill` in Claude Code and Codex"),
+        `${label} must not claim that Claude Code and Codex share a literal Skill tool.`,
+      ).toBe(false)
+    }
+
+    for (const route of ["Start `/ce-work`", "Decide on the review's open items", "Publish to Proof"]) {
+      const escaped = route.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      const bullet = SKILL_BODY.match(new RegExp(`^- \\*\\*${escaped}[^\\n]+`, "m"))?.[0]
+      expect(bullet, `ce-plan SKILL.md is missing the inline ${route} routing bullet.`).toBeDefined()
+      expect(
+        /normal skill-invocation mechanism|cross-skill invocation rule/i.test(bullet!),
+        `ce-plan SKILL.md ${route} routing must apply the generic cross-skill invocation contract inline.`,
+      ).toBe(true)
+    }
+  })
+
+  test("related handoff surfaces do not teach Claude-shaped skill calls", () => {
+    expect(
+      DOC_REVIEW_BODY.includes('Skill("ce-doc-review"'),
+      "ce-doc-review must describe its arguments without teaching callers a Claude-only Skill(...) call shape.",
+    ).toBe(false)
+    expect(
+      /host(?:'s)? normal skill-invocation mechanism/i.test(APPROACH_ALTITUDE_BODY),
+      "approach-altitude's ce-work handoff must use the same host-generic skill invocation contract.",
+    ).toBe(true)
+    expect(
+      /skill_unreachable/.test(SKILL_BODY),
+      "ce-plan's final completion contract must admit the documented skill_unreachable state.",
+    ).toBe(true)
+  })
+
+  test("caller and callee responsibilities stay explicit in failure paths", () => {
+    expect(
+      /\*\*Headless argument contract:\*\*/.test(DOC_REVIEW_BODY),
+      "ce-doc-review must present mode:headless as its input contract, not as an instruction to invoke itself.",
+    ).toBe(true)
+    expect(
+      DOC_REVIEW_BODY.includes(
+        "Review failed: headless mode requires a document path. Expected arguments: mode:headless <path>",
+      ),
+      "ce-doc-review's missing-path error must report the expected arguments without telling the skill to re-invoke itself.",
+    ).toBe(true)
+    expect(
+      DOC_REVIEW_BODY.includes("Re-invoke the ce-doc-review skill"),
+      "ce-doc-review must not describe its own argument-validation failure as self-invocation.",
+    ).toBe(false)
+    expect(
+      /re-invoke/i.test(DOC_REVIEW_BODY),
+      "ce-doc-review validation errors must state the required correction and stop, not ambiguously tell the running workflow to re-invoke.",
+    ).toBe(false)
+    expect(
+      /calling workflow|host(?:'s)? normal skill-invocation mechanism|`ce-doc-review` may/i.test(
+        DOC_REVIEW_BODY,
+      ),
+      "ce-doc-review must own only its argument and execution contracts; caller-side routing belongs in ce-plan.",
+    ).toBe(false)
+    expect(
+      DOC_REVIEW_BODY.match(/\bce-doc-review\b/g)?.length,
+      "inside ce-doc-review, use direct runtime instructions instead of referring to the running skill in the third person.",
+    ).toBe(1)
+
+    const pipelineStart = HANDOFF_BODY.indexOf("**Pipeline mode:**")
+    const pipelineEnd = HANDOFF_BODY.indexOf("## 5.3.9 Final Checks and Cleanup")
+    const reviewPipeline = HANDOFF_BODY.slice(pipelineStart, pipelineEnd)
+    expect(
+      /ce-plan recorded the `skill_unreachable` envelope/i.test(reviewPipeline),
+      "ce-plan must own the synthetic pre-entry envelope instead of attributing it to an invocation that never began.",
+    ).toBe(true)
+    expect(
+      reviewPipeline.includes("invocation instead produced `skill_unreachable`"),
+      "a failed-to-start invocation cannot produce a downstream result.",
+    ).toBe(false)
+
+    const menuPipeline = HANDOFF_BODY.match(
+      /## 5\.4 Post-Generation Options[\s\S]*?\*\*Pipeline mode:\*\*[^\n]+/,
+    )?.[0]
+    expect(menuPipeline).toBeDefined()
+    expect(
+      /ce-doc-review (?:completed|ran)|`skill_unreachable`/.test(menuPipeline!),
+      "the pipeline handoff must allow either a completed review or the explicit pre-entry state.",
+    ).toBe(true)
+    expect(
+      menuPipeline!.includes("ce-doc-review has already run"),
+      "the pipeline handoff must not claim the review ran after a skill_unreachable pre-entry state.",
+    ).toBe(false)
+    expect(
+      /`ce-plan` has recorded the documented `skill_unreachable` envelope/.test(SKILL_BODY),
+      "ce-plan's completion guard must attribute its synthetic pre-entry envelope to ce-plan, not to ce-doc-review.",
+    ).toBe(true)
+    expect(
+      /ce-doc-review` has run in headless mode or returned the documented `skill_unreachable` envelope/.test(
+        SKILL_BODY,
+      ),
+      "a review workflow that never started cannot return ce-plan's synthetic envelope.",
+    ).toBe(false)
   })
 
   test("Codex goal handoff is capability-based and menu-cap aware", () => {

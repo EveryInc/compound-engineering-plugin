@@ -9,10 +9,10 @@ Elevation dispatches the reasoning-heavy authoring/interpretation step to a high
 Before reading any Fable config key, parsing Fable intent, or emitting any Fable string, self-identify the host with the same env-var union `ce-code-review` uses:
 
 ```bash
-if [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then HOST=cursor
-elif [ "${CLAUDECODE:-}" = "1" ]; then HOST=claude
-elif [ -n "${CODEX_SANDBOX:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then HOST=codex
-else HOST=unknown; fi
+if [ -n "${CURSOR_AGENT:-}${CURSOR_CONVERSATION_ID:-}" ]; then HOST=cursor;
+elif [ "${CLAUDECODE:-}" = "1" ]; then HOST=claude;
+elif [ -n "${CODEX_SANDBOX:-}${CODEX_SESSION_ID:-}${CODEX_THREAD_ID:-}${CODEX_CI:-}" ]; then HOST=codex;
+else HOST=unknown; fi;
 echo "HOST: $HOST"
 ```
 
@@ -25,7 +25,7 @@ Proceed with elevation ONLY when `HOST=claude`. On `cursor`, `codex`, or `unknow
 Resolve a per-skill boolean by precedence:
 
 1. **In-prompt intent** — reason over THIS run's prompt. Affirmative intent ("use fable", "get fable help", "have fable plan this") → elevate. Negative intent ("don't use fable", "no fable") → do not elevate. Intent is *reasoned, not keyword-matched*: a passing mention of "fable" as subject matter (e.g. "design a fable-generator feature") is NOT activation.
-2. **Config** — otherwise the per-skill key: `plan_use_fable` for ce-plan, `brainstorm_use_fable` for ce-brainstorm. Read it from the config file the **same way this skill's Phase 0.0 already resolves `plan_output` / `brainstorm_output`**: use the pre-resolved repo root if the skill has it, else run `git rev-parse --show-toplevel`, then read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool. This skill already read that file once at Phase 0.0 — reuse that result if you still have it rather than re-reading. Ignore commented (`#`-prefixed) lines. `true` → elevate; missing / commented / invalid / `false` / no file → off.
+2. **Config** — otherwise the per-skill key: `plan_use_fable` for ce-plan, `brainstorm_use_fable` for ce-brainstorm. Read it from the config file the **same way this skill's Phase 0.0 already resolves `plan_output` / `brainstorm_output`**: reuse the repo root the skill already resolved if you have it, else run `git rev-parse --show-toplevel`, then read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool. This skill already read that file once at Phase 0.0 — reuse that result if you still have it rather than re-reading. Ignore commented (`#`-prefixed) lines. `true` → elevate; missing / commented / invalid / `false` / no file → off.
 3. **Pipeline runs** — in pipeline / `disable-model-invocation` runs there is no prompt, so resolution is config-only; if the key is on, elevate. Still subordinate to the host gate — a config copied to a non-Claude harness never fires it.
 
 If the session model is already Fable, elevation is moot: skip dispatch and the nudge.

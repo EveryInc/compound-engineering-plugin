@@ -59,7 +59,7 @@ Project-scoped skills from a checkout:
 /path/to/compound-engineering-plugin/.cline/scripts/install-skills.sh --project
 ```
 
-Manual-only skills (for example `lfg`, `ce-polish`) require the opt-in flag:
+Manual-only skills (for example `ce-polish`, `ce-setup`) require the opt-in flag:
 
 ```bash
 /path/to/compound-engineering-plugin/.cline/scripts/install-skills.sh --global --include-manual

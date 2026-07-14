@@ -7,7 +7,7 @@ import { loadClaudePlugin } from "../parsers/claude"
 import { targets, validateScope } from "../targets"
 import { pathExists } from "../utils/files"
 import type { ClaudeToOpenCodeOptions, PermissionMode } from "../converters/claude-to-opencode"
-import { ensureCodexAgentsFile } from "../utils/codex-agents"
+import { stripCodexAgentsToolMap } from "../utils/codex-agents"
 import { expandHome, resolveCodexHome, resolveTargetHome } from "../utils/resolve-home"
 import { resolveOpenCodeWriteScope, resolveTargetOutputRoot } from "../utils/resolve-output"
 import { detectInstalledTools } from "../utils/detect-tools"
@@ -148,7 +148,7 @@ export default defineCommand({
         }
 
         if (activeTargets.some((t) => t.name === "codex")) {
-          await ensureCodexAgentsFile(codexHome)
+          await stripCodexAgentsToolMap(codexHome)
         }
         return
       }
@@ -216,7 +216,7 @@ export default defineCommand({
       }
 
       if (allTargets.includes("codex")) {
-        await ensureCodexAgentsFile(codexHome)
+        await stripCodexAgentsToolMap(codexHome)
       }
     } finally {
       if (resolvedPlugin.cleanup) {

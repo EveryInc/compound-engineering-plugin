@@ -28,6 +28,12 @@ function read(name: string): string {
 }
 
 describe("ce-resolve-pr-feedback scripts paginate GraphQL connections (issue #798)", () => {
+  test("get-pr-comments leaves external identity classification to agent judgment", () => {
+    const body = read("get-pr-comments")
+    expect(body).not.toContain("$ci_bot_logins")
+    expect(body).not.toContain('["codecov"]')
+  })
+
   test("get-pr-comments uses --paginate for every top-level connection", () => {
     const body = read("get-pr-comments")
     const paginateCount = (body.match(/gh api graphql --paginate\b/g) ?? []).length

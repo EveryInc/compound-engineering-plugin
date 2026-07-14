@@ -15,11 +15,11 @@ Review requirements or plan documents through multi-persona analysis. Dispatches
 
 ## Phase 0: Detect Mode
 
-Check the skill arguments for `mode:headless`. Arguments may contain a document path, `mode:headless`, or both. Tokens starting with `mode:` are flags, not file paths — strip them from the arguments and use the remaining token (if any) as the document path for Phase 1.
+Check the invocation arguments for `mode:headless`. Arguments may contain a document path, `mode:headless`, or both. Tokens starting with `mode:` are flags, not file paths — strip them from the arguments and use the remaining token (if any) as the document path for Phase 1.
 
 If `mode:headless` is present, set **headless mode** for the rest of the workflow.
 
-**Headless mode** changes the interaction model, not the classification boundaries. ce-doc-review still applies the same judgment about which tier each finding belongs in. The only difference is how non-safe_auto findings are delivered:
+**Headless mode** changes the interaction model, not the classification boundaries. Apply the same judgment about which tier each finding belongs in. Only the delivery of non-`safe_auto` findings changes:
 
 - `safe_auto` fixes are applied silently (same as interactive)
 - `gated_auto`, `manual`, and FYI findings are returned as structured text for the caller to handle — no blocking-question prompts, no interactive routing
@@ -27,13 +27,9 @@ If `mode:headless` is present, set **headless mode** for the rest of the workflo
 
 The caller receives findings with their original classifications intact and decides what to do with them.
 
-Callers invoke headless mode by including `mode:headless` in the skill arguments, e.g.:
+**Headless argument contract:** Require `mode:headless <document-path>`, for example `mode:headless docs/plans/my-plan.md`.
 
-```
-Skill("ce-doc-review", "mode:headless docs/plans/my-plan.md")
-```
-
-If `mode:headless` is not present, the skill runs in its default interactive mode with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
+If `mode:headless` is not present, run in default interactive mode with the routing question, walk-through, and bulk-preview behaviors documented in `references/walkthrough.md` and `references/bulk-preview.md`.
 
 ## Phase 1: Get and Analyze Document
 
@@ -41,12 +37,12 @@ If `mode:headless` is not present, the skill runs in its default interactive mod
 
 **If no document is specified (interactive mode):** Ask which document to review, or find the most recent in `docs/brainstorms/` or `docs/plans/` using a file-search/glob tool (e.g., Glob in Claude Code).
 
-**If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Re-invoke with: Skill(\"ce-doc-review\", \"mode:headless <path>\")" without dispatching agents.
+**If no document is specified (headless mode):** Output "Review failed: headless mode requires a document path. Expected arguments: mode:headless <path>" and stop without dispatching reviewers.
 
 **Missing-document gate — verify before any dispatch.** Persona reviewers read documents from the filesystem, and several run without Bash, so they cannot read git refs — a path that exists only on a branch that is not checked out wastes the entire persona team discovering they cannot proceed (issue #925). Before Phase 2, confirm every resolved document path is readable on disk (the Read above succeeded). Location does not matter: an absolute path outside the checkout (e.g. `/tmp/plan.md`) or a doc in another checkout reviews fine. If any path is not readable, do not dispatch any personas:
 
-- **Interactive mode:** stop and name the missing path(s): "Document(s) not found on disk: <paths>. If they only exist on another branch, check it out (or use a worktree) and re-invoke; otherwise correct the path(s)."
-- **Headless mode:** output "Review failed: document(s) not found on disk: <paths>. Check out the branch containing them (or pass paths to files on disk) and re-invoke." and return without dispatching agents.
+- **Interactive mode:** stop and name the missing path(s): "Document(s) not found on disk: <paths>. Check out the branch containing them, use a worktree, or provide corrected readable paths before retrying the review."
+- **Headless mode:** output "Review failed: document(s) not found on disk: <paths>. Expected input: paths to readable files on disk; check out the branch containing them or provide corrected paths." and return without dispatching reviewers.
 
 ### Classify Document Type
 
@@ -221,15 +217,19 @@ Each entry carries an `Evidence:` line because synthesis R29 (rejected-finding s
 
 Accumulate across all rounds in the current session. Skip, Defer, and Acknowledge actions all count as "rejected" for suppression purposes — each signals the user decided the finding wasn't worth actioning this round (Acknowledge is the no-fix-guard variant: the user saw a finding with no `suggested_fix`, chose not to defer or skip explicitly, and recorded acknowledgement instead; for round-to-round suppression that is semantically equivalent to Skip). Applied findings stay on the applied list so round-N+1 personas can verify fixes landed (see R30 in `references/synthesis-and-presentation.md`).
 
-Cross-session persistence is out of scope. A new invocation of ce-doc-review on the same document starts with a fresh round 1 and no carried primer, even if prior sessions deferred findings into the document's Open Questions section.
+Cross-session persistence is out of scope. A later review of the same document starts with a fresh round 1 and no carried primer, even if prior sessions deferred findings into the document's Open Questions section.
 
 **Error handling:** If a subagent fails or times out, proceed with findings from subagents that completed. Note the failed reviewer in the Coverage section. Do not block the entire review on a single reviewer failure.
 
 **Dispatch limit:** Even at maximum (7 agents), use bounded parallel dispatch. If the harness cap is lower than the selected team size, queue the remainder and launch them as active reviewers complete.
 
+### Cross-Model Judgment Pass
+
+If any of the **conditional judgment trio** — `adversarial-document-reviewer`, `product-lens-reviewer`, `security-lens-reviewer` — was activated for this document, also run each activated one through **one different model provider than the host** in a separate read-only, least-privilege process. Load `references/cross-model-review.md` and follow it. You must do two things only you can — the script cannot see your conversation or system prompt: (1) **attest the host provider** from your own harness (Claude Code → `claude`; Codex → `codex`; Cursor → its active serving provider; un-attestable → skip the pass entirely, never guess) so it can be excluded and the pass never self-reviews; (2) **resolve the peer preference** (conversation > `.compound-engineering/config.local.yaml` `cross_model_peer:` > a preference already in your active project instructions > default order `codex→claude→grok→composer`) and front-load it into a comma-separated candidate list. **Resolve one peer for the whole document review first**, then **front-load that provider ahead of the full candidate order** (e.g. `codex,claude,grok,composer` when you resolve to codex) so concurrent lens calls share one peer while the trailing order preserves the cross-provider fallback if the resolved provider is installed-but-unauthed. Pass the attested `host_provider` and that candidate list to the script — it owns availability probing, the grok-CLI→cursor-agent fallback, host exclusion, and the one-model-per-provider-at-high-reasoning mapping. Run one bundled-script call per activated trio lens (each a background CLI shell-out that does not consume the subagent concurrency budget) in the **same dispatch wave** as the in-process persona reviewers so runtime overlaps, then **await every script exit before synthesis** (do not orphan background launches); each writes a `findings-schema.json`-shaped `<reviewer-name>-<provider>.json` return only after normalize. **Slice trio peers to match their twin:** for unified artifacts, pass each trio lens the *same reviewer-specific slice its in-process twin got* (the `{document_content}` slice you already computed — e.g. product-lens/adversarial get the Product Contract), not the full document, so the peer is a true corroborating twin rather than an off-lens reviewer — write that slice to a temp file and pass it as `<document-path>` (the script embeds whatever path it is given). **Also run one whole-document sweep:** in the same wave, launch one additional call with reviewer-name `whole-doc`, the **full** document (never sliced), and the same resolved provider — a broad different-model read of the entire doc that catches blind spots across every section, folding in as `whole-doc-<provider>` (KTD6 / R20). It runs **once per document** (not per lens), obeys the same gate, isolation, and never-`safe_auto` rules, and — having no in-process twin — corroborates by dedup fingerprint against *any* in-process finding. A second provider is opt-in only (`CROSS_MODEL_MAX_PEERS=2`). The pass is **non-blocking**: skip silently when the host is un-attestable, no different provider is reachable, the lens didn't activate, or it errors/times out. Announce per that reference's rules — on interactive hosts in default mode, a prominent line that frames it as an **independent cross-model review**, names the concrete **model + reasoning** (and, for a cursor-agent route, the route so Grok-via-cursor-agent vs Composer vs Grok-via-grok-CLI is unambiguous), names the document-content egress **scope** (the front-loaded provider can fail at runtime and fall through, so name that the doc goes to whichever candidate actually runs and reconcile the actual provider from the fold-in filename afterward); silent in headless mode (the script still emits a stderr audit log of the cross-model document egress). Feasibility and the convergent lenses (coherence, scope-guardian) do **not** run cross-model.
+
 ## Phases 3-5: Synthesis, Presentation, and Next Action
 
-After all dispatched agents return, read `references/synthesis-and-presentation.md` for the synthesis pipeline (validate, anchor-based gate, dedup, cross-persona agreement promotion, resolve contradictions, auto-promotion, route by three tiers with FYI subsection), `safe_auto` fix application, headless-envelope output, and the handoff to the routing question.
+After all dispatched agents return — **including any cross-model `<reviewer-name>-<provider>.json` returns**, which enter synthesis as independent reviewer returns exactly like a persona artifact — read `references/synthesis-and-presentation.md` for the synthesis pipeline (validate, anchor-based gate, dedup, cross-persona agreement promotion — where a cross-model return agreeing with its in-process twin is the strongest signal, resolve contradictions, auto-promotion, route by three tiers with FYI subsection), `safe_auto` fix application, headless-envelope output, and the handoff to the routing question.
 
 For the four-option routing question and per-finding walk-through (interactive mode), read `references/walkthrough.md`. For the bulk-action preview used by best-judgment routing, Append-to-Open-Questions, and walk-through `Auto-resolve with best judgment on the rest`, read `references/bulk-preview.md`. Do not load these files before agent dispatch completes.
 

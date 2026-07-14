@@ -78,6 +78,8 @@ Committed: `fix(review): cover empty-format branch + tighten export perms` (work
 |---|------|-------|----------|
 | 1 | `orders_controller.rb:12` | Broad rescue masking failed permission check | correctness |
 
+Detail lines for Pre-existing and history-dependent P0/P1 findings may include the same short provenance string the artifact `evidence` carries (e.g. `provenance: a1b2c3d Alice 2024-08-12 - harden rescue`) when that history was load-bearing — do not dump full-file blame into the report.
+
 ### Learnings & Past Solutions
 
 - [Known Pattern] `docs/solutions/export-pagination.md` -- previous export pagination fix applies to this endpoint

@@ -10,7 +10,7 @@ Maintain the quality of `docs/solutions/` over time. This workflow reviews exist
 
 ## Mode Detection
 
-Check if `$ARGUMENTS` contains `mode:headless`. If present, strip it from arguments (use the remainder as a scope hint) and run in **headless mode**.
+Check whether the arguments you were invoked with contain `mode:headless`. If present, strip it from the arguments (use the remainder as a scope hint) and run in **headless mode**.
 
 | Mode | When | Behavior |
 |------|------|----------|
@@ -105,7 +105,7 @@ Exclude:
 
 Find all `.md` files under `docs/solutions/`, excluding `README.md` files and anything under `_archived/`. If an `_archived/` directory exists, note it in the report as a legacy artifact that should be cleaned up (files either restored or deleted).
 
-If `$ARGUMENTS` is provided, use it to narrow scope before proceeding. Try these matching strategies in order, stopping at the first that produces results:
+If a scope argument was provided, use it to narrow scope before proceeding. Try these matching strategies in order, stopping at the first that produces results:
 
 1. **Directory match** — check if the argument matches a subdirectory name under `docs/solutions/` (e.g., `performance-issues`, `database-issues`)
 2. **Frontmatter match** — search `module`, `component`, or `tags` fields in learning frontmatter for the argument

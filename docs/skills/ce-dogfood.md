@@ -73,7 +73,7 @@ A green browser matrix with a red test suite is not "ready." Before the verdict,
 
 ## `ce-dogfood` vs `ce-test-browser`
 
-Both take a PR / branch and drive `agent-browser` over diff-affected pages. Pick by what you want at the end:
+Both take a PR / branch and drive a browser over diff-affected pages. `ce-test-browser` prefers a capable host-native browser and falls back to `agent-browser`; `ce-dogfood` currently requires `agent-browser`. Pick by what you want at the end:
 
 | | `ce-test-browser` | `ce-dogfood` |
 |---|---|---|

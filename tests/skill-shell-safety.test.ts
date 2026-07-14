@@ -3,45 +3,40 @@ import path from "path"
 import { describe, expect, test } from "bun:test"
 
 /**
- * Skill `!` backtick pre-resolution commands run through Claude Code's shell
- * permission checker at skill-load time, and then through the USER'S shell —
- * which is PowerShell on some Windows installs, not bash. The permission
- * checker rejects several patterns outright (failing the skill before its
- * body ever runs), and bash-only syntax fails outright under PowerShell, so
- * pre-resolution commands must stay in the portable subset: a single bare
- * command with no redirects, no `||`/`&&` chaining, no `$(...)`, no pipes.
+ * `!`cmd`` pre-resolution in a SKILL.md runs `cmd` at skill-LOAD time and inlines
+ * its stdout. This plugin BANS the construct outright in skill content. Two
+ * unfixable properties drove the ban:
  *
- * Past incidents:
- *   - PR #699 introduced a `case "$common" in /*) ... ;; *) ... ;; esac` block
- *     into ce-compound and ce-sessions to derive a worktree-stable repo name.
- *     The cleaner replacement is
- *     `basename "$(dirname "$(git rev-parse --path-format=absolute --git-common-dir 2>/dev/null)")"`.
- *   - PR #701 replaced the `case` blocks with `[A] && B || C` chains, which
- *     trip a different rejection: "ambiguous syntax with command separators".
- *     Issue #710. Fix: wrap the `&&` chain in a subshell, or split into
- *     scripts so the safety check sees only `bash <path>`.
- *   - The `basename "$(dirname "$common")"` shape (a double-quoted string
- *     containing `$()` containing another double-quoted string) trips
- *     "Unhandled node type: string". Issue #709. Fix: replace nested `$()`
- *     with parameter expansion, pipe to sed, or extract to a script.
- *   - ce-compound and ce-sessions used `git rev-parse ... | sed -E '...'` which
- *     trips the permission checker as "multiple operations". Fix: replace the
- *     pipe with bash parameter expansion (e.g. strip suffix, strip prefix).
- *   - ce-compound and ce-sessions used `git rev-parse --abbrev-ref HEAD 2>/dev/null`
- *     with no fallback. Outside a git repo, `git rev-parse` exits 128;
- *     `2>/dev/null` suppresses stderr but the non-zero exit propagates and
- *     Claude Code (at the time) reported "Shell command failed for pattern"
- *     (issue #730). The fix then was to pair `2>/dev/null` with `|| true` or
- *     `|| echo '__SENTINEL__'`.
- *   - Those `2>/dev/null || true` guards themselves broke Windows users whose
- *     harness executes `!` pre-resolution through PowerShell (issue #1066):
- *     PowerShell resolves `/dev/null` as a literal file path (`D:\dev\null`)
- *     and has no `true` command, so the guarded line fails at skill load even
- *     inside a git repo. Current Claude Code substitutes error text for a
- *     failing pre-resolution instead of aborting the skill, so the portable
- *     shape is a BARE single command plus adjacent "if this line is empty or
- *     shows an error, derive at runtime" prose. This supersedes the #730
- *     guard pattern above.
+ *   1. Claude-Code-ONLY. On Codex, Cursor, Gemini, and Grok the `!`cmd`` line is
+ *      inert literal text — the pre-resolution never runs, so a skill that
+ *      depends on the inlined value is already broken off-Claude.
+ *   2. On Claude Code, a `!`cmd`` that exits NON-ZERO ABORTS skill load with a
+ *      user-facing error. Every real use in this plugin was git context
+ *      (`git rev-parse --show-toplevel`, `git rev-parse --abbrev-ref origin/HEAD`,
+ *      `gh pr view …`) whose non-zero exit is a NORMAL state — no PR yet, no
+ *      `origin/HEAD`, detached HEAD, not a repo, missing/unauthenticated `gh`.
+ *      So the ordinary case aborted the skill.
+ *
+ * The guards that forced exit status 0 (`2>/dev/null || echo SENTINEL`) are
+ * POSIX-only and fail to PARSE under Windows PowerShell 5.1 — no `||`/`&&`, and
+ * `/dev/null` resolves to a literal file path (`D:\dev\null`) — which broke
+ * skill load there instead (issue #1066). There is no single command string
+ * that BOTH exits 0 on the expected-failure states AND parses under both POSIX
+ * sh and PowerShell, so the construct cannot be made safe inside the `!` line.
+ *
+ * The replacement: gather context at RUNTIME as single argv-style commands
+ * (`git …`, `gh …`, one per tool call, no shell operators) whose exit status
+ * the agent interprets as control flow. A single external-program invocation
+ * parses identically under POSIX sh and PowerShell, and a non-zero exit becomes
+ * data the agent reads rather than a load-time abort. See `ce-commit` and
+ * `ce-commit-push-pr` for the pattern.
+ *
+ * Saga that led here: the permission-checker rejections (#699 `case`/`esac`,
+ * #701/#710 `[A] && B || C`, #709 nested `$()` strings, #758/#934 `;`
+ * separators, pipes, parameter expansion) forced ever-narrower guard shapes,
+ * then #1066 showed those guards break skill LOAD under PowerShell. Rather than
+ * chase a portable guard that does not exist, the construct is banned and
+ * context moved to runtime.
  */
 
 const PLUGIN_SKILLS_GLOB = ["skills"]
@@ -86,178 +81,19 @@ function findPreResolutionCommands(body: string): { lineNumber: number; command:
 }
 
 /**
- * Returns true when both `&&` and `||` appear at the same lexical depth (not
- * inside `( ... )` subshells or `$( ... )` command substitutions, and not
- * inside quoted strings). This is the `[A] && B || C` shell antipattern that
- * Claude Code's safety check rejects as "ambiguous syntax".
+ * Every `!` pre-resolution occurrence across all skill files, formatted as
+ * `<rel>:<line>  !`<cmd>``. An empty array is the healthy state (the ban holds).
+ * Shared by the ban test and the load-failure matrix so the two views of "what
+ * `!` lines exist in the repo" cannot silently drift apart.
  */
-function hasTopLevelMixedAndOr(cmd: string): boolean {
-  let depth = 0
-  let inSingleQuote = false
-  let inDoubleQuote = false
-  let andAtDepth0 = false
-  let orAtDepth0 = false
-
-  for (let i = 0; i < cmd.length; i++) {
-    const c = cmd[i]
-    const next = cmd[i + 1]
-
-    if (!inDoubleQuote && c === "'") { inSingleQuote = !inSingleQuote; continue }
-    if (!inSingleQuote && c === '"') { inDoubleQuote = !inDoubleQuote; continue }
-    if (inSingleQuote || inDoubleQuote) continue
-
-    if (c === '$' && next === '(') { depth++; i++; continue }
-    if (c === '(') { depth++; continue }
-    if (c === ')') { depth--; continue }
-
-    if (depth === 0) {
-      if (c === '&' && next === '&') { andAtDepth0 = true; i++; continue }
-      if (c === '|' && next === '|') { orAtDepth0 = true; i++; continue }
-    }
-  }
-
-  return andAtDepth0 && orAtDepth0
-}
-
-/**
- * Returns the contents of every top-level `$(...)` in the command, with
- * matched parens preserved correctly even when nested. Used to detect the
- * "Unhandled node type: string" pattern (a `$(...)` whose contents contain
- * a double-quoted string).
- */
-function findCommandSubstitutionContents(cmd: string): string[] {
-  const results: string[] = []
-  let i = 0
-  let inSingleQuote = false
-  while (i < cmd.length) {
-    const c = cmd[i]
-    if (c === "'" && !inSingleQuote) { inSingleQuote = true; i++; continue }
-    if (c === "'" && inSingleQuote) { inSingleQuote = false; i++; continue }
-    if (inSingleQuote) { i++; continue }
-    if (c === '$' && cmd[i + 1] === '(') {
-      let depth = 1
-      let j = i + 2
-      const start = j
-      while (j < cmd.length && depth > 0) {
-        if (cmd[j] === '$' && cmd[j + 1] === '(') { depth++; j += 2; continue }
-        if (cmd[j] === '(') { depth++; j++; continue }
-        if (cmd[j] === ')') { depth--; j++; continue }
-        j++
-      }
-      results.push(cmd.slice(start, Math.max(start, j - 1)))
-      i = j
-      continue
-    }
-    i++
-  }
-  return results
-}
-
-/**
- * Returns true when any `$(...)` in the command contains a double-quoted
- * string — the shape that trips Claude Code's "Unhandled node type: string"
- * rejection (e.g., `basename "$(dirname "$common")"`).
- */
-function hasNestedQuotedStringInCommandSubst(cmd: string): boolean {
-  return findCommandSubstitutionContents(cmd).some(s => s.includes('"'))
-}
-
-/**
- * Returns true when the command contains a `;` command separator outside of
- * quotes. Claude Code's skill-load safety checker cannot parse `;` as a syntax
- * node and aborts with "Unhandled node type: ;" before the skill body runs —
- * even when the `;` sits inside a subshell, e.g. `(top=$(...); cat "$top/f")`
- * (issue #758; reintroduced and rejected in PR #934). Use `&&`/`||` chaining,
- * or extract the logic to a script invoked from the skill body. A `;` inside a
- * quoted string is a literal, not a separator, and is not flagged.
- */
-function hasSemicolonSeparator(cmd: string): boolean {
-  let inSingleQuote = false
-  let inDoubleQuote = false
-  for (let i = 0; i < cmd.length; i++) {
-    const c = cmd[i]
-    if (!inDoubleQuote && c === "'") { inSingleQuote = !inSingleQuote; continue }
-    if (!inSingleQuote && c === '"') { inDoubleQuote = !inDoubleQuote; continue }
-    if (inSingleQuote || inDoubleQuote) continue
-    if (c === ';') return true
-  }
-  return false
-}
-
-/**
- * Returns true when the command uses bash-only shell syntax that PowerShell
- * cannot execute: any redirect (`>`, `<`, including `2>/dev/null`) or an
- * `||` / `&&` chain outside quotes. `!` pre-resolution runs through the
- * user's shell, which is PowerShell on some Windows installs — PowerShell 5.1
- * cannot parse `||`/`&&` at all, PowerShell 7 resolves `/dev/null` to a
- * literal file path (`D:\dev\null`), and neither has a `true` command, so any
- * of these shapes fails skill load for those users even inside a git repo
- * (issue #1066). Pre-resolution commands must be a single bare command; the
- * adjacent prose owns the fallback ("if this line is empty or shows an
- * error, derive at runtime").
- */
-function hasBashOnlyShellSyntax(cmd: string): boolean {
-  let inSingleQuote = false
-  let inDoubleQuote = false
-
-  for (let i = 0; i < cmd.length; i++) {
-    const c = cmd[i]
-    const next = cmd[i + 1]
-
-    if (!inDoubleQuote && c === "'") { inSingleQuote = !inSingleQuote; continue }
-    if (!inSingleQuote && c === '"') { inDoubleQuote = !inDoubleQuote; continue }
-    if (inSingleQuote || inDoubleQuote) continue
-
-    if (c === '>' || c === '<') return true
-    if (c === '&' && next === '&') return true
-    if (c === '|' && next === '|') return true
-  }
-
-  return false
-}
-
-/**
- * Returns true when the command contains bash parameter expansion using
- * pattern operators: `${var%pattern}`, `${var##pattern}`, `${var#pattern}`,
- * `${var%%pattern}`, `${var/pat/repl}`, `${var:-default}`, etc.
- * Claude Code's permission checker rejects these as "Contains expansion".
- *
- * Note: simple `${var}` (no operator after the variable name) is fine.
- * The issue is operators like `%`, `#`, `/`, `:-`, `:=` that follow the name.
- */
-function hasParameterExpansion(cmd: string): boolean {
-  // Match ${varname followed by any operator character that isn't just }
-  // Operators: %, #, /, :, ^ — any of these after the identifier
-  return /\$\{[A-Za-z_][A-Za-z0-9_]*[%#/:^][^}]*\}/.test(cmd)
-}
-
-/**
- * Returns true when the command contains a top-level pipe (`|` that is not
- * `||`). Claude Code's permission checker treats piped commands as separate
- * operations and may require approval for each, causing skill-load failure
- * when the user's permission mode is restrictive.
- */
-function hasTopLevelPipe(cmd: string): boolean {
-  let depth = 0
-  let inSingleQuote = false
-  let inDoubleQuote = false
-
-  for (let i = 0; i < cmd.length; i++) {
-    const c = cmd[i]
-    const next = cmd[i + 1]
-
-    if (!inDoubleQuote && c === "'") { inSingleQuote = !inSingleQuote; continue }
-    if (!inSingleQuote && c === '"') { inDoubleQuote = !inDoubleQuote; continue }
-    if (inSingleQuote || inDoubleQuote) continue
-
-    if (c === '$' && next === '(') { depth++; i++; continue }
-    if (c === '(') { depth++; continue }
-    if (c === ')') { depth--; continue }
-
-    if (depth === 0 && c === '|' && next !== '|' && cmd[i - 1] !== '|') return true
-  }
-
-  return false
+function collectPreResolutionOffenders(): string[] {
+  return listSkillFiles().flatMap((filePath) => {
+    const rel = path.relative(process.cwd(), filePath)
+    return findPreResolutionCommands(readFileSync(filePath, "utf8")).map(({ lineNumber, command }) => {
+      const oneLine = command.replace(/\s*\n\s*/g, " ")
+      return `${rel}:${lineNumber}  !\`${oneLine}\``
+    })
+  })
 }
 
 describe("findPreResolutionCommands", () => {
@@ -276,258 +112,190 @@ describe("findPreResolutionCommands", () => {
       { lineNumber: 4, command: "split\nover\nlines" },
     ])
   })
-})
 
-describe("hasTopLevelMixedAndOr", () => {
-  test("flags the `[A] && B || C` antipattern", () => {
-    expect(hasTopLevelMixedAndOr('[ -n "$x" ] && echo yes || echo no')).toBe(true)
-  })
-
-  test("does not flag `&&`-only chains", () => {
-    expect(hasTopLevelMixedAndOr('a=$(cmd) && [ -n "$a" ] && echo "$a"')).toBe(false)
-  })
-
-  test("does not flag `||`-only chains", () => {
-    expect(hasTopLevelMixedAndOr("cmd 2>/dev/null || echo fallback")).toBe(false)
-  })
-
-  test("does not flag `&&` inside subshells with `||` only at top level", () => {
-    expect(hasTopLevelMixedAndOr('(a && b) || (c && d) || echo fallback')).toBe(false)
-  })
-
-  test("does not flag operators inside quoted strings", () => {
-    expect(hasTopLevelMixedAndOr('echo "a && b || c"')).toBe(false)
+  test("ignores a `!` inside an inline-code span (documentation, not a directive)", () => {
+    // e.g. AGENTS.md prose: "Do not use `!` pre-resolution" — the `!` is
+    // preceded by a backtick, so the lookbehind excludes it.
+    expect(findPreResolutionCommands("Never use `!` pre-resolution `here`")).toEqual([])
   })
 })
 
-describe("hasNestedQuotedStringInCommandSubst", () => {
-  test("flags `basename \"$(dirname \"$common\")\"`", () => {
-    expect(hasNestedQuotedStringInCommandSubst('basename "$(dirname "$common")"')).toBe(true)
-  })
-
-  test("flags deeply nested `$(dirname \"$(dirname \"$x\")\")`", () => {
-    expect(hasNestedQuotedStringInCommandSubst('basename "$(dirname "$(dirname "$x")")"')).toBe(true)
-  })
-
-  test("does not flag `$(...)` whose contents only contain single-quoted strings", () => {
-    expect(hasNestedQuotedStringInCommandSubst("a=$(gh api endpoint --jq '.field')")).toBe(false)
-  })
-
-  test("does not flag `$(...)` with no quoted strings inside", () => {
-    expect(hasNestedQuotedStringInCommandSubst('a=$(git rev-parse HEAD 2>/dev/null)')).toBe(false)
-  })
-
-  test("does not flag double-quoted strings outside any `$(...)`", () => {
-    expect(hasNestedQuotedStringInCommandSubst('echo "${VAR}/path"')).toBe(false)
+describe("skills contain no `!` pre-resolution", () => {
+  test("no skill file uses `!`cmd`` load-time pre-resolution anywhere", () => {
+    const offenders = collectPreResolutionOffenders()
+    expect(
+      offenders,
+      "`!`cmd`` load-time pre-resolution is banned in skills. It runs only on " +
+        "Claude Code (inert literal text on Codex/Cursor/Gemini/Grok), and on " +
+        "Claude Code a non-zero exit aborts skill load — which is the ordinary " +
+        "state for the git/gh context commands these were used for (no PR, no " +
+        "origin/HEAD, detached HEAD, not a repo). The POSIX guards that force " +
+        "exit 0 then break skill load under Windows PowerShell (issue #1066). " +
+        "Gather the value at runtime with a single argv-style shell command " +
+        "whose exit status the agent interprets instead (see ce-commit / " +
+        "ce-commit-push-pr).\nOffending pre-resolution commands:\n" +
+        offenders.join("\n"),
+    ).toEqual([])
   })
 })
 
-describe("hasSemicolonSeparator", () => {
-  test("flags a `;` inside a subshell (the PR #934 / issue #758 regression)", () => {
-    expect(hasSemicolonSeparator('(top=$(git rev-parse --show-toplevel 2>/dev/null); cat "$top/f") || echo \'__NO_CONFIG__\'')).toBe(true)
-  })
+/**
+ * The load-failure catalog: each command that historically sat in a `!`
+ * pre-resolution line, and the state in which pre-resolving it would abort skill
+ * load on Claude Code. Each row's test asserts that its specific command is
+ * absent from every skill's `!` pre-resolution — so a reintroduced `!` fails
+ * loudly, named with the command and the state that would break it. This is
+ * strictly narrower than the total ban above (a subset of the same empty set),
+ * but it documents the concrete command→failure mapping instead of repeating one
+ * global assertion per row.
+ *
+ * Two things this deliberately gets right:
+ *  - **Detached HEAD is NOT in the catalog.** It does not abort load for any of
+ *    these commands: `git branch --show-current` exits 0 with empty output, and
+ *    `git rev-parse --abbrev-ref HEAD` exits 0 returning `HEAD`. It is a
+ *    wrong-VALUE case handled at runtime, not a load failure.
+ *  - **POSIX vs PowerShell is not a per-row axis.** "Is this command absent" is
+ *    the same absence under either shell, so splitting each state into two
+ *    identical assertions would be padding. The cross-shell reasoning is shared:
+ *    on POSIX a bare fallible command aborts on its non-zero exit; the
+ *    `2>/dev/null || echo SENTINEL` guard that would dodge that abort then fails
+ *    to PARSE under PowerShell 5.1 (no `||`; `/dev/null` is a literal path,
+ *    issue #1066) — so the guard cannot rescue it. The only safe move is to not
+ *    pre-resolve at all, which the catalog enforces per command family. The
+ *    total-ban test above is the airtight backstop for any command not listed
+ *    here.
+ */
+const LOAD_ABORTING_COMMANDS: { command: string; abortsIn: string }[] = [
+  { command: "git rev-parse --show-toplevel", abortsIn: "not a git repo (exit 128)" },
+  { command: "git status", abortsIn: "not a git repo (exit 128)" },
+  { command: "git diff HEAD", abortsIn: "unborn repo, no commits yet (exit 128, bad revision 'HEAD')" },
+  { command: "git log", abortsIn: "unborn repo, no commits yet (exit 128)" },
+  { command: "git rev-parse --abbrev-ref origin/HEAD", abortsIn: "no remote / no origin/HEAD set (exit 128)" },
+  { command: "gh pr view", abortsIn: "no PR (exit 1), gh missing (127), or unauthenticated (exit 1)" },
+  { command: "gh pr list", abortsIn: "gh missing (127) or unauthenticated (exit 1) — even though it returns [] on success" },
+]
 
-  test("flags a top-level `;` separator", () => {
-    expect(hasSemicolonSeparator("git rev-parse --show-toplevel 2>/dev/null; echo done")).toBe(true)
-  })
+describe("no skill pre-resolves a command that would abort skill load", () => {
+  const allPreResolutionCommands = collectPreResolutionOffenders()
 
-  test("does not flag a command with no semicolon", () => {
-    expect(hasSemicolonSeparator("git rev-parse --show-toplevel 2>/dev/null || true")).toBe(false)
-  })
-
-  test("does not flag a `;` inside a single-quoted string", () => {
-    expect(hasSemicolonSeparator("echo 'a; b'")).toBe(false)
-  })
-
-  test("does not flag a `;` inside a double-quoted string", () => {
-    expect(hasSemicolonSeparator('echo "a; b"')).toBe(false)
-  })
-})
-
-describe("hasBashOnlyShellSyntax", () => {
-  test("flags `2>/dev/null` stderr redirects", () => {
-    expect(hasBashOnlyShellSyntax("git rev-parse --abbrev-ref HEAD 2>/dev/null")).toBe(true)
-  })
-
-  test("flags the former `2>/dev/null || true` guard pattern (issue #1066)", () => {
-    expect(hasBashOnlyShellSyntax("git rev-parse --abbrev-ref HEAD 2>/dev/null || true")).toBe(true)
-  })
-
-  test("flags bare `||` fallback chains", () => {
-    expect(hasBashOnlyShellSyntax("git rev-parse --show-toplevel || pwd")).toBe(true)
-  })
-
-  test("flags `&&` chains", () => {
-    expect(hasBashOnlyShellSyntax("cd /tmp && git status")).toBe(true)
-  })
-
-  test("flags output redirects", () => {
-    expect(hasBashOnlyShellSyntax("git status > /tmp/status.txt")).toBe(true)
-  })
-
-  test("does not flag a bare single command", () => {
-    expect(hasBashOnlyShellSyntax("git rev-parse --abbrev-ref HEAD")).toBe(false)
-  })
-
-  test("does not flag a bare command with flags and arguments", () => {
-    expect(hasBashOnlyShellSyntax("gh pr view --json url,title,body,state")).toBe(false)
-  })
-
-  test("does not flag operator characters inside quoted strings", () => {
-    expect(hasBashOnlyShellSyntax("echo 'a || b > c'")).toBe(false)
-    expect(hasBashOnlyShellSyntax('echo "a && b < c"')).toBe(false)
-  })
-})
-
-describe("hasParameterExpansion", () => {
-  test("flags ${var%pattern} (strip-suffix operator)", () => {
-    expect(hasParameterExpansion('repo="${common%/.git}"')).toBe(true)
-  })
-
-  test("flags ${var##pattern} (strip-prefix operator)", () => {
-    expect(hasParameterExpansion('echo "${repo##*/}"')).toBe(true)
-  })
-
-  test("flags ${var:-default} (default-value operator)", () => {
-    expect(hasParameterExpansion('echo "${var:-fallback}"')).toBe(true)
-  })
-
-  test("flags ${var/pat/repl} (substitution operator)", () => {
-    expect(hasParameterExpansion('echo "${var/foo/bar}"')).toBe(true)
-  })
-
-  test("does not flag simple ${var} expansion", () => {
-    expect(hasParameterExpansion('echo "${CLAUDE_SKILL_DIR}/scripts/foo.sh"')).toBe(false)
-  })
-
-  test("does not flag commands with no ${...}", () => {
-    expect(hasParameterExpansion("git rev-parse --abbrev-ref HEAD 2>/dev/null || true")).toBe(false)
-  })
-
-  test("does not flag $() command substitution", () => {
-    expect(hasParameterExpansion("top=$(git rev-parse --show-toplevel 2>/dev/null)")).toBe(false)
-  })
-})
-
-describe("hasTopLevelPipe", () => {
-  test("flags a simple pipe", () => {
-    expect(hasTopLevelPipe("git rev-parse --git-common-dir 2>/dev/null | sed -E 's|x||'")).toBe(true)
-  })
-
-  test("does not flag `||`", () => {
-    expect(hasTopLevelPipe("cmd 2>/dev/null || echo fallback")).toBe(false)
-  })
-
-  test("does not flag a pipe inside `$(...)`", () => {
-    expect(hasTopLevelPipe("x=$(echo foo | tr a b); echo $x")).toBe(false)
-  })
-
-  test("does not flag a pipe inside `(...)`", () => {
-    expect(hasTopLevelPipe("(echo foo | tr a b) || echo fallback")).toBe(false)
-  })
-
-  test("does not flag commands with no pipe", () => {
-    expect(hasTopLevelPipe("git rev-parse --abbrev-ref HEAD 2>/dev/null")).toBe(false)
-  })
-})
-
-describe("skill `!` pre-resolution commands avoid Claude Code denylist", () => {
-  const files = listSkillFiles()
-
-  for (const filePath of files) {
-    const rel = path.relative(process.cwd(), filePath)
-    const body = readFileSync(filePath, "utf8")
-    const preResolutionCommands = findPreResolutionCommands(body)
-    if (preResolutionCommands.length === 0) continue
-
-    test(`${rel} pre-resolution commands contain no \`case\`/\`esac\` (blocked by Claude Code permission check)`, () => {
-      const offenders = preResolutionCommands.filter(({ command }) =>
-        /\bcase\b/.test(command) && /\besac\b/.test(command),
-      )
-      const formatted = offenders
-        .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
-        .join("\n")
+  for (const { command, abortsIn } of LOAD_ABORTING_COMMANDS) {
+    test(`\`!\`${command} …\`\` is absent (would abort load when ${abortsIn})`, () => {
+      const offenders = allPreResolutionCommands.filter((o) => o.includes(command))
       expect(
         offenders,
-        `Claude Code rejects \`case ... esac\` in \`!\` pre-resolution commands. Use \`if\`/\`then\`/\`else\` or \`&&\`/\`||\` chaining, or \`git rev-parse --path-format=absolute --git-common-dir\` for worktree-stable repo names.\nOffending commands:\n${formatted}`,
+        `A skill reintroduced \`!\`${command} …\`\` load-time pre-resolution. It aborts skill load ` +
+          `on Claude Code in this state: ${abortsIn}. The POSIX guard that would force exit 0 ` +
+          `(\`2>/dev/null || echo …\`) then fails to parse under PowerShell 5.1 (issue #1066), so the ` +
+          `guard cannot rescue it. Gather the value at runtime as a single argv-style command whose ` +
+          `exit status the agent interprets.\nOffending pre-resolution commands:\n${offenders.join("\n")}`,
       ).toEqual([])
     })
+  }
+})
 
-    test(`${rel} pre-resolution commands contain no \`;\` command separator (issue #758)`, () => {
-      const offenders = preResolutionCommands.filter(({ command }) =>
-        hasSemicolonSeparator(command),
-      )
-      const formatted = offenders
-        .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
-        .join("\n")
-      expect(
-        offenders,
-        `Claude Code's skill-load checker cannot parse \`;\` and aborts with "Unhandled node type: ;" — even inside a subshell. Use \`&&\`/\`||\` chaining, or extract the logic to a script invoked from the skill body.\nOffending commands:\n${formatted}`,
-      ).toEqual([])
+/**
+ * Finding-6 guard (from a Grok cross-model review). The total ban above stops
+ * `!` load-time pre-resolution from returning, but nothing stopped a skill from
+ * reintroducing a POSIX-only *runtime* Context gather — a fenced
+ * `2>/dev/null || echo …` block, or a compound table command — which re-breaks
+ * under PowerShell 5.1 mid-skill (the same #1066 failure, just after load
+ * instead of during it). These two skills replaced exactly that block with an
+ * argv-per-line table, so lock their Context section to single-program commands
+ * and no fenced shell block, guarding the runtime regression class too.
+ */
+const ARGV_ONLY_CONTEXT_SKILLS = ["ce-commit", "ce-commit-push-pr"]
+
+function extractContextSection(body: string): string {
+  const lines = body.split(/\r?\n/)
+  const start = lines.findIndex((l) => /^##\s+Context\s*$/.test(l))
+  if (start === -1) return ""
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^##\s+/.test(lines[i])) { end = i; break }
+  }
+  return lines.slice(start, end).join("\n")
+}
+
+// Inline-code spans in a Context section that instruct a shell run: `git …` /
+// `gh …`. Prose spans for operators (`;`, `&&`, `2>/dev/null`, …) don't start
+// with git/gh, so the warning text isn't mistaken for a command.
+function extractCommandSpans(section: string): string[] {
+  const spans: string[] = []
+  const regex = /`((?:git|gh) [^`]*)`/g
+  let m: RegExpExecArray | null
+  while ((m = regex.exec(section)) !== null) spans.push(m[1])
+  return spans
+}
+
+// A single argv-style invocation has none of these. `<placeholder>` tokens are
+// stripped first so their angle brackets aren't misread as redirects.
+function hasCompoundShellSyntax(cmd: string): boolean {
+  const c = cmd.replace(/<[^>]*>/g, "X")
+  return (
+    /;/.test(c) ||
+    /&&/.test(c) ||
+    /\|\|/.test(c) ||
+    /(^|[^|])\|([^|]|$)/.test(c) || // a lone pipe, not `||`
+    /\$\(/.test(c) ||
+    /`/.test(c) ||
+    /\d?>/.test(c) || // redirects: >, 1>, 2>
+    /(^|\s)<(\s|$)/.test(c) // input redirect
+  )
+}
+
+describe("hasCompoundShellSyntax", () => {
+  test("flags shell operators and redirects", () => {
+    for (const cmd of [
+      "git rev-parse --show-toplevel 2>/dev/null",
+      "git rev-parse --show-toplevel || pwd",
+      "cd /tmp && git status",
+      "git status; git log",
+      "git log | head",
+      "echo $(git rev-parse HEAD)",
+      "git status > out.txt",
+    ]) {
+      expect(hasCompoundShellSyntax(cmd), `expected compound: ${cmd}`).toBe(true)
+    }
+  })
+
+  test("does not flag single argv commands, including <placeholder> and comma-list flags", () => {
+    for (const cmd of [
+      "git rev-parse --show-toplevel",
+      "git branch --show-current",
+      "git rev-parse --abbrev-ref origin/HEAD",
+      "gh pr list --head <branch> --state open --json number,url,title,body,state",
+      "gh auth status",
+    ]) {
+      expect(hasCompoundShellSyntax(cmd), `expected single argv: ${cmd}`).toBe(false)
+    }
+  })
+})
+
+describe("argv-only runtime Context gather (no POSIX-only compound shell)", () => {
+  for (const skill of ARGV_ONLY_CONTEXT_SKILLS) {
+    const body = readFileSync(path.join(process.cwd(), "skills", skill, "SKILL.md"), "utf8")
+    const section = extractContextSection(body)
+
+    test(`${skill} has a "## Context" section`, () => {
+      expect(section, `expected a "## Context" section in skills/${skill}/SKILL.md`).not.toEqual("")
     })
 
-    test(`${rel} pre-resolution commands do not mix \`&&\` and \`||\` at top level (issue #710)`, () => {
-      const offenders = preResolutionCommands.filter(({ command }) =>
-        hasTopLevelMixedAndOr(command),
-      )
-      const formatted = offenders
-        .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
-        .join("\n")
+    test(`${skill} Context section has no fenced shell block (POSIX fallback regression)`, () => {
       expect(
-        offenders,
-        `Claude Code rejects the \`[A] && B || C\` antipattern as "ambiguous syntax with command separators". Wrap the \`&&\` chain in a subshell so only \`||\` remains at top level — \`(A && B) || C\` — or extract to a script.\nOffending commands:\n${formatted}`,
-      ).toEqual([])
+        section.includes("```"),
+        `The Context section must gather via argv-style commands in a table, not a fenced shell ` +
+          `block. A \`\`\`bash block with \`2>/dev/null\`/\`||\`/\`;\` re-breaks under PowerShell 5.1 ` +
+          `(issue #1066) at runtime instead of load time.`,
+      ).toBe(false)
     })
 
-    test(`${rel} pre-resolution commands do not nest double-quoted strings inside \`$(...)\` (issue #709)`, () => {
-      const offenders = preResolutionCommands.filter(({ command }) =>
-        hasNestedQuotedStringInCommandSubst(command),
-      )
-      const formatted = offenders
-        .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
-        .join("\n")
+    test(`${skill} Context commands are single-program (no ;, &&, ||, |, $(, redirects)`, () => {
+      const offenders = extractCommandSpans(section).filter(hasCompoundShellSyntax)
       expect(
         offenders,
-        `Claude Code rejects \`$(...)\` containing a double-quoted string as "Unhandled node type: string" (e.g., \`basename "$(dirname "$common")"\`). Extract the logic to a script under \`scripts/\` and invoke it from the skill body — do NOT replace with \`\${var%/suffix}\` parameter expansion, which is also rejected as "Contains expansion".\nOffending commands:\n${formatted}`,
-      ).toEqual([])
-    })
-
-    test(`${rel} pre-resolution commands do not use bash parameter expansion operators (rejected as "Contains expansion")`, () => {
-      const offenders = preResolutionCommands.filter(({ command }) =>
-        hasParameterExpansion(command),
-      )
-      const formatted = offenders
-        .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
-        .join("\n")
-      expect(
-        offenders,
-        `Claude Code rejects bash parameter expansion operators (\`\${var%pat}\`, \`\${var##pat}\`, \`\${var:-default}\`, etc.) as "Contains expansion". Extract the logic to a script under \`scripts/\` and invoke it from the skill body (not from \`!\` pre-resolution — scripts called from \`!\` trip the permission gate at load time). Or remove the pre-resolution and let the agent derive the value at runtime via a Bash tool call.\nOffending commands:\n${formatted}`,
-      ).toEqual([])
-    })
-
-    test(`${rel} pre-resolution commands contain no bash-only syntax — redirects or \`||\`/\`&&\` chains (issue #1066)`, () => {
-      const offenders = preResolutionCommands.filter(({ command }) =>
-        hasBashOnlyShellSyntax(command),
-      )
-      const formatted = offenders
-        .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
-        .join("\n")
-      expect(
-        offenders,
-        `\`!\` pre-resolution runs through the user's shell, which is PowerShell on some Windows installs. PowerShell 5.1 cannot parse \`||\`/\`&&\`, and PowerShell resolves \`/dev/null\` to a literal file path, so redirects or chaining fail skill load for those users even inside a git repo (issue #1066). Keep each pre-resolution command a single bare command, and state the fallback in the adjacent prose ("if this line is empty or shows an error, derive the value at runtime").\nOffending commands:\n${formatted}`,
-      ).toEqual([])
-    })
-
-    test(`${rel} pre-resolution commands do not use top-level pipes (triggers permission check for multiple operations)`, () => {
-      const offenders = preResolutionCommands.filter(({ command }) =>
-        hasTopLevelPipe(command),
-      )
-      const formatted = offenders
-        .map(({ lineNumber, command }) => `  line ${lineNumber}: ${command}`)
-        .join("\n")
-      expect(
-        offenders,
-        `Claude Code's permission checker flags piped commands as "multiple operations requiring approval", which fails skill load. Do NOT replace with parameter expansion (\`\${var%/.git}\`, \`\${var##*/}\`) — those are also rejected as "Contains expansion". Extract the logic to a script under \`scripts/\` and invoke it from the skill body.\nOffending commands:\n${formatted}`,
+        `Each Context command must be a single argv-style invocation so it parses under both POSIX ` +
+          `sh and PowerShell. Compound operators reintroduce the #1066 break at runtime.\n` +
+          `Offending commands:\n${offenders.map((c) => `  ${c}`).join("\n")}`,
       ).toEqual([])
     })
   }

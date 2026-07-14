@@ -194,6 +194,28 @@ describe("ce-code-review contract", () => {
     expect(template).toMatch(/personas never produce/i)
   })
 
+  test("subagent template and schema require load-bearing line provenance in evidence", async () => {
+    const template = await readRepoFile(
+      "skills/ce-code-review/references/subagent-template.md",
+    )
+    const schemaRaw = await readRepoFile(
+      "skills/ce-code-review/references/findings-schema.json",
+    )
+    const schema = JSON.parse(schemaRaw)
+    const evidenceDescription = schema.properties.findings.items.properties.evidence.description as string
+
+    expect(template).toMatch(/Load-bearing line provenance/i)
+    expect(template).toMatch(/provenance: <shortsha>/i)
+    expect(template).toMatch(/omit provenance when the finding is fully justified from the diff/i)
+    expect(template).toMatch(/must not replace the quote-the-line/i)
+    expect(template).toMatch(/Do not dump full-file blame/i)
+    expect(template).toMatch(/pr-remote.*branch-remote.*reviewed head ref/is)
+
+    expect(evidenceDescription).toMatch(/additional concise provenance line/i)
+    expect(evidenceDescription).toMatch(/never dump full-file blame/i)
+    expect(evidenceDescription).toMatch(/omit when the finding is justified from the diff alone/i)
+  })
+
   test("subagent template points to action-class rubric without safe_auto", async () => {
     const template = await readRepoFile(
       "skills/ce-code-review/references/subagent-template.md",
@@ -301,6 +323,10 @@ describe("ce-code-review contract", () => {
     expect(validatorTemplate).toContain('"validated": true | false')
     expect(validatorTemplate).toMatch(/introduced by THIS diff/i)
     expect(validatorTemplate).toMatch(/handled elsewhere/i)
+    // Load-bearing provenance: prefer short-hash in reason; soft miss when omitted
+    expect(validatorTemplate).toMatch(/short-hash provenance/i)
+    expect(validatorTemplate).toMatch(/soft quality miss/i)
+    expect(validatorTemplate).toMatch(/provenance:/i)
   })
 
   test("Stage 5c applies safe fixes in default mode, report-only in mode:agent, no deny-list", async () => {
@@ -652,7 +678,7 @@ describe("ce-code-review contract", () => {
     }
   })
 
-  test("lfg autonomously handles residuals via non-interactive tracker-defer and PR description", async () => {
+  test("lfg autonomously handles residuals via non-interactive tracker-defer and a committed record file (never the PR body)", async () => {
     const lfg = await readRepoFile("skills/lfg/SKILL.md")
     await expect(readRepoFile("skills/lfg/references/tracker-defer.md")).resolves.toContain(
       "Non-interactive mode",
@@ -673,25 +699,27 @@ describe("ce-code-review contract", () => {
     expect(lfg).toContain("references/tracker-defer.md")
     expect(lfg).not.toContain("skills/ce-code-review/references/tracker-defer.md")
 
-    // Structured return buckets drive PR description content.
+    // Structured return buckets drive the residual record file.
     expect(lfg).toMatch(/filed/)
     expect(lfg).toMatch(/failed/)
     expect(lfg).toMatch(/no_sink/)
 
-    // PR description update path is non-interactive and does not route through
-    // confirmation-driven PR update skills. The positive assertion on
-    // `gh pr edit` below is the actual check; a broad `not.toContain` would
-    // falsely trip on step 7's legitimate use of ce-commit-push-pr for the
-    // post-work commit/PR-open step.
-    expect(lfg).toContain("do not load any confirmation-driven PR update skill")
-    expect(lfg).toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
+    // Residuals are recorded via tracker tickets + a committed record file,
+    // NEVER the PR body (which would duplicate GitHub's own tracking and go
+    // stale as items resolve). The old `gh pr edit`-into-body path is retired.
+    expect(lfg).toContain("never the PR body")
+    expect(lfg).not.toContain("gh pr edit PR_NUMBER --body-file BODY_FILE")
     expect(lfg).toContain("## Residual Review Findings")
     expect(lfg).toContain("docs/residual-review-findings/<branch-or-head-sha>.md")
-    expect(lfg).toContain("prefer `origin` when present")
-    expect(lfg).toContain("choose the first configured remote")
+    expect(lfg).toContain("first configured remote")
     expect(lfg).toContain("git push --set-upstream <remote> HEAD")
     expect(lfg).not.toContain("git push --set-upstream origin HEAD")
-    expect(lfg).toContain("Do not output DONE until the residual findings are durable")
+    expect(lfg).toContain("Do not output DONE until the residuals are durable")
+
+    // Step 9 delegates CI to ce-babysit-pr pipeline mode; the hand-rolled
+    // CI-watch loop is retired.
+    expect(lfg).toContain("ce-babysit-pr mode:pipeline")
+    expect(lfg).not.toContain("gh pr checks --watch")
 
     // Shipping precondition: a remote-less repo (e.g. a sandbox/throwaway checkout)
     // finishes locally instead of deadlocking on an impossible push.

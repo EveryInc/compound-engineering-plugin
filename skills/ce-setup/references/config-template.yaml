@@ -60,6 +60,12 @@
 # pr_teaching_section: false     # true | false (default: true)
 # pr_teaching_archive: true      # true | false (default: false; full-workflow runs only)
 
+# --- ce-commit-push-pr babysit handoff ---
+# After a full-workflow PR is opened, ce-commit-push-pr auto-invokes ce-babysit-pr
+# to watch CI + incoming review and drive the PR toward merge-ready. Set false to
+# opt out standing (per-run override: the babysit:off token).
+# auto_babysit: false            # true | false (default: true)
+
 # --- ce-plan scoping confirmation ---
 # By default /ce-plan pauses before research/plan-write to show a scoping
 # summary and wait for you to confirm scope. Set this to skip that wait: ce-plan

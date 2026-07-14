@@ -23,13 +23,13 @@ From a clone of this repository:
 
 The script creates symlinks so Cline reads the live skill directories from your checkout. Re-run it after `git pull` to refresh links when skill folder names change. It only ever creates or replaces CE-owned symlinks (links whose target resolves under this checkout's `skills/` tree); an existing `~/.cline/skills/<name>` pointing at your own skill, a fork, or another checkout is left untouched. Default installs also remove only manual-only symlinks that are CE-owned.
 
-Skills marked `disable-model-invocation: true` (for example `lfg`, `ce-dogfood`, `ce-polish`) are **not** linked by default — Cline auto-activates from description matching and has no manual-only gate, so linking them would let them fire unintentionally. Those slash commands are unavailable until you opt in:
+Skills marked `disable-model-invocation: true` (for example `ce-dogfood`, `ce-polish`, `ce-setup`) are **not** linked by default — Cline auto-activates from description matching and has no manual-only gate, so linking them would let them fire unintentionally. Those slash commands are unavailable until you opt in:
 
 ```bash
 ./compound-engineering-plugin/.cline/scripts/install-skills.sh --global --include-manual
 ```
 
-`--include-manual` links manual-only skills so `/lfg` and similar commands work, with a warning that Cline may still auto-activate them when descriptions match. Omit the flag if you do not need those workflows on Cline.
+`--include-manual` links manual-only skills so `/ce-polish` and similar commands work, with a warning that Cline may still auto-activate them when descriptions match. Omit the flag if you do not need those workflows on Cline.
 
 ## Pin a release
 

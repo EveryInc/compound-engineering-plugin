@@ -215,6 +215,6 @@ The skill captures build errors and reports them with specific details. It doesn
 ## See Also
 
 - [`ce-code-review`](./ce-code-review.md) — can spawn this skill for iOS-touching PRs as a verification step
-- [`ce-test-browser`](./ce-test-browser.md) — sibling skill for web-app testing via agent-browser
+- [`ce-test-browser`](./ce-test-browser.md) — sibling skill for web-app testing via a host-native browser or `agent-browser` fallback
 - [`ce-commit-push-pr`](./ce-commit-push-pr.md) — can include user-supplied evidence or summarize validation in PR descriptions
 - [`ce-work`](./ce-work.md) — orchestrator that may invoke this skill during Phase 3 verification

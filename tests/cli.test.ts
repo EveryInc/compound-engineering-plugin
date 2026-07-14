@@ -1141,7 +1141,8 @@ describe("CLI", () => {
     expect(stdout).toContain(codexRoot)
     expect(await exists(path.join(codexRoot, "skills", "compound-engineering", "ce-plan", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".agents", "skills", "ce-plan"))).toBe(false)
-    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
+    // Native Codex no longer needs a managed Claude-compat tool map in AGENTS.md.
+    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(false)
   })
 
   test("install --to codex default omits skills and agents for native plugin install", async () => {
@@ -1185,9 +1186,60 @@ describe("CLI", () => {
     // Compound Engineering no longer ships standalone agents, so the default
     // Codex converter followup has no CE payload to emit.
     expect(await exists(path.join(codexRoot, "agents", "compound-engineering"))).toBe(false)
-    // AGENTS.md is emitted because --to codex always ensures a root AGENTS.md
-    // exists for Codex's discovery chain.
-    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
+    // Convert/install no longer creates AGENTS.md; it only strips a legacy tool map if present.
+    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(false)
+  })
+
+  test("install --to codex strips a legacy Compound Codex tool map from AGENTS.md", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-strip-map-"))
+    const workspaceRoot = await fs.mkdtemp(path.join(os.tmpdir(), "cli-codex-strip-map-ws-"))
+    const projectRoot = path.join(import.meta.dir, "..")
+    const fixtureRoot = path.join(import.meta.dir, "fixtures", "sample-plugin")
+    const codexRoot = path.join(tempRoot, ".codex")
+    await fs.mkdir(codexRoot, { recursive: true })
+    await fs.writeFile(
+      path.join(codexRoot, "AGENTS.md"),
+      [
+        "# Keep me",
+        "",
+        "<!-- BEGIN COMPOUND CODEX TOOL MAP -->",
+        "legacy map",
+        "<!-- END COMPOUND CODEX TOOL MAP -->",
+        "",
+      ].join("\n"),
+    )
+
+    const proc = Bun.spawn([
+      "bun",
+      "run",
+      path.join(projectRoot, "src", "index.ts"),
+      "install",
+      fixtureRoot,
+      "--to",
+      "codex",
+    ], {
+      cwd: workspaceRoot,
+      stdout: "pipe",
+      stderr: "pipe",
+      env: {
+        ...process.env,
+        HOME: tempRoot,
+        CODEX_HOME: codexRoot,
+      },
+    })
+
+    const exitCode = await proc.exited
+    const stdout = await new Response(proc.stdout).text()
+    const stderr = await new Response(proc.stderr).text()
+
+    if (exitCode !== 0) {
+      throw new Error(`CLI failed (exit ${exitCode}).\nstdout: ${stdout}\nstderr: ${stderr}`)
+    }
+
+    const agentsMd = await fs.readFile(path.join(codexRoot, "AGENTS.md"), "utf8")
+    expect(agentsMd).toContain("# Keep me")
+    expect(agentsMd).not.toContain("<!-- BEGIN COMPOUND CODEX TOOL MAP -->")
+    expect(agentsMd).not.toContain("legacy map")
   })
 
   test("install --to codex respects CODEX_HOME when --codex-home is omitted", async () => {
@@ -1457,7 +1509,7 @@ describe("CLI", () => {
     expect(await exists(path.join(codexRoot, "prompts", "workflows-review.md"))).toBe(true)
     expect(await exists(path.join(codexRoot, "skills", "compound-engineering", "workflows-review", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".agents", "skills", "workflows-review"))).toBe(false)
-    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(false)
   })
 
   test("install supports --also with codex output", async () => {
@@ -1501,7 +1553,7 @@ describe("CLI", () => {
     expect(await exists(path.join(codexRoot, "skills", "compound-engineering", "skill-one", "SKILL.md"))).toBe(true)
     expect(await exists(path.join(tempRoot, ".agents", "skills", "workflows-review"))).toBe(false)
     expect(await exists(path.join(tempRoot, ".agents", "skills", "skill-one"))).toBe(false)
-    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(false)
   })
 
   test("install --to codex --also opencode without --output writes opencode to global root, not nested", async () => {
@@ -1555,8 +1607,8 @@ describe("CLI", () => {
     expect(await exists(path.join(opencodeGlobalRoot, "opencode.json"))).toBe(true)
     expect(await exists(path.join(opencodeGlobalRoot, "agents", "repo-research-analyst.md"))).toBe(true)
     expect(await exists(path.join(opencodeGlobalRoot, "opencode", "opencode.json"))).toBe(false)
-    // Codex still landed at the explicit --codex-home.
-    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
+    // Codex still landed at the explicit --codex-home without creating AGENTS.md.
+    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(false)
   })
 
   test("install --to opencode --also codex without --output keeps opencode at global root", async () => {
@@ -1603,7 +1655,7 @@ describe("CLI", () => {
     const opencodeGlobalRoot = path.join(tempRoot, ".config", "opencode")
     expect(await exists(path.join(opencodeGlobalRoot, "opencode.json"))).toBe(true)
     expect(await exists(path.join(opencodeGlobalRoot, "agents", "repo-research-analyst.md"))).toBe(true)
-    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(true)
+    expect(await exists(path.join(codexRoot, "AGENTS.md"))).toBe(false)
   })
 
   test("install --to opencode without --output respects OPENCODE_CONFIG_DIR", async () => {

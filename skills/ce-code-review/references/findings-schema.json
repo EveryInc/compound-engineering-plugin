@@ -76,7 +76,7 @@
           },
           "evidence": {
             "type": "array",
-            "description": "Code-grounded evidence: snippets, line references, or pattern descriptions. At least 1 item. For any finding at confidence anchor 75 or 100, the first item MUST be the verbatim motivating line(s) with file:line -- the exact code text that makes the finding true (the quote-the-line gate). A finding whose triggering line cannot be quoted must step down to anchor 50.",
+            "description": "Code-grounded evidence: snippets, line references, or pattern descriptions. At least 1 item. For any finding at confidence anchor 75 or 100, the first item MUST be the verbatim motivating line(s) with file:line -- the exact code text that makes the finding true (the quote-the-line gate). A finding whose triggering line cannot be quoted must step down to anchor 50. When the finding's claim depends on line history (pre_existing, intentional design, introduced-by-this-diff, or P0/P1 confidence that depends on authorship/age), include one additional concise provenance line from targeted git blame/log (short hash, author, date/subject) -- never replace the quote-the-line item, never dump full-file blame, omit when the finding is justified from the diff alone.",
             "items": { "type": "string" },
             "minItems": 1
           },

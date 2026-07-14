@@ -6,7 +6,7 @@ import type { ClaudeMcpServer } from "../types/claude"
 import { transformContentForCodex } from "../utils/codex-content"
 import { getLegacyCodexArtifacts } from "../data/plugin-legacy-artifacts"
 import { classifyCodexLegacyPromptOwnership, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
-import { isPreservedSymlink, lstatOrNull } from "./managed-artifacts"
+import { isContainedPath, isPathWithinRoot, isPreservedSymlink, lstatOrNull, storeRootEscapesManagedRoot } from "./managed-artifacts"
 
 const MANAGED_START_MARKER = "# BEGIN Compound Engineering plugin MCP -- do not edit this block"
 const MANAGED_END_MARKER = "# END Compound Engineering plugin MCP"
@@ -46,14 +46,22 @@ export async function writeCodexBundle(
   const currentAgents = agents.map((agent) => `${sanitizePathName(agent.name)}.toml`)
   assertNoCodexAgentFilenameCollisions(agents)
 
-  if (bundle.prompts.length > 0) {
-    const promptsDir = path.join(codexRoot, "prompts")
-    await cleanupRemovedPrompts(promptsDir, manifest, currentPrompts)
-    for (const prompt of bundle.prompts) {
-      await writeText(path.join(promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
+  // Ancestor-symlink containment: the per-entry guards below inspect only the
+  // leaf node, so a symlinked store dir (or a symlinked ancestor of it) pointed
+  // at a user fork would otherwise have every cleanup/write act through the link
+  // into the fork. When a store escapes the codex root we skip it entirely and
+  // record nothing as owned.
+  const promptsDir = path.join(codexRoot, "prompts")
+  const promptsEscaped = await storeRootEscapesManagedRoot(codexRoot, promptsDir)
+  if (!promptsEscaped) {
+    if (bundle.prompts.length > 0) {
+      await cleanupRemovedPrompts(promptsDir, manifest, currentPrompts)
+      for (const prompt of bundle.prompts) {
+        await writeText(path.join(promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
+      }
+    } else if (pluginName) {
+      await cleanupRemovedPrompts(promptsDir, manifest, [])
     }
-  } else if (pluginName) {
-    await cleanupRemovedPrompts(path.join(codexRoot, "prompts"), manifest, [])
   }
 
   const skillsRoot = pluginName
@@ -70,13 +78,18 @@ export async function writeCodexBundle(
     ...bundle.generatedSkills.map((skill) => sanitizePathName(skill.name)),
     ...(bundle.externallyManagedSkillNames ?? []).map((name) => sanitizePathName(name)),
   ]))
-  await cleanupRemovedSkills(skillsRoot, manifest, currentSkills)
+  const skillsEscaped = await storeRootEscapesManagedRoot(codexRoot, skillsRoot)
+  if (!skillsEscaped) await cleanupRemovedSkills(skillsRoot, manifest, currentSkills)
 
   const preservedSkillNames = new Set<string>()
 
   if (bundle.skillDirs.length > 0) {
     for (const skill of bundle.skillDirs) {
       const skillName = sanitizePathName(skill.name)
+      if (skillsEscaped) {
+        preservedSkillNames.add(skillName)
+        continue
+      }
       const targetDir = path.join(skillsRoot, skillName)
       const preserved = await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
       if (preserved) {
@@ -96,6 +109,10 @@ export async function writeCodexBundle(
   if (bundle.generatedSkills.length > 0) {
     for (const skill of bundle.generatedSkills) {
       const skillName = sanitizePathName(skill.name)
+      if (skillsEscaped) {
+        preservedSkillNames.add(skillName)
+        continue
+      }
       const skillDir = path.join(skillsRoot, skillName)
       const preserved = await cleanupCurrentManagedSkillDir(skillDir, manifest, skillName)
       if (preserved) {
@@ -109,13 +126,18 @@ export async function writeCodexBundle(
     }
   }
 
+  const agentsEscaped = await storeRootEscapesManagedRoot(codexRoot, agentsRoot)
   const preservedAgentNames = new Set<string>()
 
-  await cleanupRemovedAgents(agentsRoot, manifest, currentAgents)
+  if (!agentsEscaped) await cleanupRemovedAgents(agentsRoot, manifest, currentAgents)
   if (agents.length > 0) {
     for (const agent of agents) {
       const agentBaseName = sanitizePathName(agent.name)
       const agentFile = `${agentBaseName}.toml`
+      if (agentsEscaped) {
+        preservedAgentNames.add(agentFile)
+        continue
+      }
       const targetPath = path.join(agentsRoot, agentFile)
       const preserved = await cleanupCurrentManagedAgentFile(targetPath, manifest, agentFile)
       if (preserved) {
@@ -143,20 +165,26 @@ export async function writeCodexBundle(
   }
 
   if (pluginName) {
-    await ensureDir(skillsRoot)
+    if (!skillsEscaped) await ensureDir(skillsRoot)
     // Preserved skills/agents (user symlinks or unmanaged dirs/files this
-    // install skipped) must not be recorded as owned -- the plugin never
+    // install skipped) and any store that escaped the codex root via a
+    // symlinked ancestor must not be recorded as owned -- the plugin never
     // claims a path it didn't write.
     await writeInstallManifest(codexRoot, {
       version: 1,
       pluginName,
       skills: currentSkills.filter((name) => !preservedSkillNames.has(name)),
-      prompts: currentPrompts,
+      prompts: promptsEscaped ? [] : currentPrompts,
       agents: currentAgents.filter((name) => !preservedAgentNames.has(name)),
     })
     await cleanupKnownLegacyCodexArtifacts(codexRoot, bundle)
-    await cleanupLegacyAgentSkillDirs(codexRoot, pluginName, currentSkills, bundle)
-    await cleanupLegacyAgentsSkillSymlinks(codexRoot, pluginName, currentSkills, manifest)
+    // Skip the skills-area sweeps when that store escaped so we don't traverse
+    // the symlink at all; their destructive ops are independently containment-
+    // guarded too (see moveLegacyArtifactToBackup / isManagedCodexAgentsSymlink).
+    if (!skillsEscaped) {
+      await cleanupLegacyAgentSkillDirs(codexRoot, pluginName, currentSkills, bundle)
+      await cleanupLegacyAgentsSkillSymlinks(codexRoot, pluginName, currentSkills, manifest)
+    }
     await cleanupPreviousManagedCodexSkillStore(codexRoot, pluginName)
   }
 
@@ -494,6 +522,9 @@ async function cleanupLegacyAgentsSkillSymlinks(
 async function cleanupPreviousManagedCodexSkillStore(codexRoot: string, pluginName: string): Promise<void> {
   const skillStoreDir = path.join(codexRoot, pluginName, "skills")
   if (await isPreservedSymlink(skillStoreDir)) return
+  // Ancestor containment: never recursively delete through a managed dir that
+  // has been repointed at a user fork via a symlinked ancestor.
+  if (!(await isPathWithinRoot(codexRoot, skillStoreDir))) return
   await fs.rm(skillStoreDir, { recursive: true, force: true })
 }
 
@@ -578,8 +609,7 @@ async function canonicalizePath(filePath: string): Promise<string> {
 }
 
 function isPathInside(candidatePath: string, rootPath: string): boolean {
-  const relative = path.relative(path.resolve(rootPath), path.resolve(candidatePath))
-  return relative === "" || (!relative.startsWith("..") && !path.isAbsolute(relative))
+  return isContainedPath(path.resolve(rootPath), path.resolve(candidatePath))
 }
 
 async function moveLegacyArtifactToBackup(
@@ -592,6 +622,9 @@ async function moveLegacyArtifactToBackup(
   // legacy-named artifact still matches — never move the symlink node into
   // legacy-backup, or the user's override is silently deactivated.
   if (await isPreservedSymlink(artifactPath)) return
+  // Ancestor containment: skip when a symlinked ancestor (e.g. the whole store
+  // dir) resolves the artifact outside the codex root, into a user fork.
+  if (!(await isPathWithinRoot(codexRoot, artifactPath))) return
   if (!(await pathExists(artifactPath))) return
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
   const backupDir = path.join(codexRoot, pluginName, "legacy-backup", timestamp, kind)

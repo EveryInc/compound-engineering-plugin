@@ -15,7 +15,7 @@ import { transformContentForPi } from "../converters/claude-to-pi"
 import type { PiBundle } from "../types/pi"
 import { getLegacyPiArtifacts } from "../data/plugin-legacy-artifacts"
 import { cleanupStaleAgents, isLegacyAgentArtifactOwned, isLegacySkillArtifactOwned } from "../utils/legacy-cleanup"
-import { isPreservedSymlink, lstatOrNull, resolveLegacyManagedDir, resolveManagedSegment } from "./managed-artifacts"
+import { isPathWithinRoot, isPreservedSymlink, lstatOrNull, resolveLegacyManagedDir, resolveManagedSegment, storeRootEscapesManagedRoot } from "./managed-artifacts"
 
 const PI_AGENTS_BLOCK_START = "<!-- BEGIN COMPOUND PI TOOL MAP -->"
 const PI_AGENTS_BLOCK_END = "<!-- END COMPOUND PI TOOL MAP -->"
@@ -70,25 +70,42 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
   const currentAgents = bundle.agents.map((agent) => `${sanitizePathName(agent.name)}.md`)
   const currentExtensions = bundle.extensions.map((extension) => extension.name)
 
-  await ensureDir(paths.skillsDir)
-  await ensureDir(paths.promptsDir)
-  await ensureDir(paths.extensionsDir)
-  await ensureDir(paths.agentsDir)
+  // Ancestor-symlink containment: the per-entry guards below inspect only the
+  // leaf node, so a symlinked store dir (or a symlinked ancestor of it) pointed
+  // at a user fork would otherwise have every cleanup/write act through the link
+  // into the fork. The Pi stores are siblings under one parent, so that parent
+  // is the containment root; a store escaping it is skipped and owns nothing.
+  const piRoot = path.dirname(paths.skillsDir)
+  const skillsEscaped = await storeRootEscapesManagedRoot(piRoot, paths.skillsDir)
+  const promptsEscaped = await storeRootEscapesManagedRoot(piRoot, paths.promptsDir)
+  const extensionsEscaped = await storeRootEscapesManagedRoot(piRoot, paths.extensionsDir)
+  const agentsEscaped = await storeRootEscapesManagedRoot(piRoot, paths.agentsDir)
 
-  await cleanupStaleAgents(paths.skillsDir, null)
-  await cleanupRemovedPrompts(paths.promptsDir, manifest, currentPrompts)
-  await cleanupRemovedSkills(paths.skillsDir, manifest, currentSkills)
-  await cleanupRemovedAgents(paths.agentsDir, manifest, currentAgents)
-  await cleanupRemovedExtensions(paths.extensionsDir, manifest, currentExtensions)
+  if (!skillsEscaped) await ensureDir(paths.skillsDir)
+  if (!promptsEscaped) await ensureDir(paths.promptsDir)
+  if (!extensionsEscaped) await ensureDir(paths.extensionsDir)
+  if (!agentsEscaped) await ensureDir(paths.agentsDir)
 
-  for (const prompt of bundle.prompts) {
-    await writeText(path.join(paths.promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
+  if (!skillsEscaped) await cleanupStaleAgents(paths.skillsDir, null)
+  if (!promptsEscaped) await cleanupRemovedPrompts(paths.promptsDir, manifest, currentPrompts)
+  if (!skillsEscaped) await cleanupRemovedSkills(paths.skillsDir, manifest, currentSkills)
+  if (!agentsEscaped) await cleanupRemovedAgents(paths.agentsDir, manifest, currentAgents)
+  if (!extensionsEscaped) await cleanupRemovedExtensions(paths.extensionsDir, manifest, currentExtensions)
+
+  if (!promptsEscaped) {
+    for (const prompt of bundle.prompts) {
+      await writeText(path.join(paths.promptsDir, `${sanitizePathName(prompt.name)}.md`), prompt.content + "\n")
+    }
   }
 
   const preservedSkillNames = new Set<string>()
 
   for (const skill of bundle.skillDirs) {
     const skillName = sanitizePathName(skill.name)
+    if (skillsEscaped) {
+      preservedSkillNames.add(skillName)
+      continue
+    }
     const targetDir = path.join(paths.skillsDir, skillName)
     const preserved = await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
     if (preserved) {
@@ -100,6 +117,10 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
 
   for (const skill of bundle.generatedSkills) {
     const skillName = sanitizePathName(skill.name)
+    if (skillsEscaped) {
+      preservedSkillNames.add(skillName)
+      continue
+    }
     const targetDir = path.join(paths.skillsDir, skillName)
     const preserved = await cleanupCurrentManagedSkillDir(targetDir, manifest, skillName)
     if (preserved) {
@@ -113,6 +134,10 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
 
   for (const agent of bundle.agents) {
     const agentFileName = `${sanitizePathName(agent.name)}.md`
+    if (agentsEscaped) {
+      preservedAgentNames.add(agentFileName)
+      continue
+    }
     const targetPath = path.join(paths.agentsDir, agentFileName)
     const preserved = await cleanupCurrentManagedAgentFile(targetPath, manifest, agentFileName)
     if (preserved) {
@@ -122,8 +147,10 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
     await writeText(targetPath, agent.content + "\n")
   }
 
-  for (const extension of bundle.extensions) {
-    await writeText(path.join(paths.extensionsDir, extension.name), extension.content + "\n")
+  if (!extensionsEscaped) {
+    for (const extension of bundle.extensions) {
+      await writeText(path.join(paths.extensionsDir, extension.name), extension.content + "\n")
+    }
   }
 
   if (bundle.mcporterConfig) {
@@ -144,8 +171,8 @@ export async function writePiBundle(outputRoot: string, bundle: PiBundle): Promi
       version: 1,
       pluginName,
       skills: currentSkills.filter((name) => !preservedSkillNames.has(name)),
-      prompts: currentPrompts,
-      extensions: currentExtensions,
+      prompts: promptsEscaped ? [] : currentPrompts,
+      extensions: extensionsEscaped ? [] : currentExtensions,
       agents: currentAgents.filter((name) => !preservedAgentNames.has(name)),
     })
     await archiveLegacyInstallManifestIfOwned(paths.managedDir, pluginName)
@@ -542,6 +569,10 @@ async function moveLegacyArtifactToBackup(
   // legacy-named artifact still matches — never move the symlink node into
   // legacy-backup, or the user's override is silently deactivated.
   if (await isPreservedSymlink(artifactPath)) return
+  // Ancestor containment: skip when a symlinked ancestor (e.g. the whole store
+  // dir) resolves the artifact outside the Pi root, into a user fork. The store
+  // dirs are siblings of managedDir, so managedDir's parent is that root.
+  if (!(await isPathWithinRoot(path.dirname(managedDir), artifactPath))) return
   if (!(await pathExists(artifactPath))) return
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
   const backupDir = path.join(managedDir, "legacy-backup", timestamp, kind)

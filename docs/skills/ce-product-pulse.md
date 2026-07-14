@@ -210,7 +210,7 @@ The first-run interview seeds product name and key metrics from `STRATEGY.md` wh
 Yes — first-run setup offers to set up a recurring pulse via the harness's available scheduling primitive (the in-plugin `schedule` skill where present, or platform-native options like cron/GitHub Actions). Scheduling never happens automatically; it requires explicit confirmation.
 
 **What about non-Claude-Code platforms?**
-The skill works on any platform with read-only data-source tools. The pre-resolution of config is harness-specific (Claude Code reads it via `!` backtick), but the rest is platform-agnostic. The interview never schedules inline — it hands off to whatever scheduling primitive the harness exposes.
+The skill works on any platform with read-only data-source tools. Config is resolved at runtime — the skill runs `git rev-parse --show-toplevel` with the shell tool and reads the config file — so nothing is harness-specific here. The interview never schedules inline — it hands off to whatever scheduling primitive the harness exposes.
 
 ---
 

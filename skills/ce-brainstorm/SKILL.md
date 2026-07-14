@@ -44,9 +44,9 @@ Sub-agent dispatch is tiered by task shape, never hardcoded to a model name. Whe
 
 ## Feature Description
 
-<feature_description> #$ARGUMENTS </feature_description>
+The **feature description** is the input this skill was invoked with — what to explore, present in the current prompt or conversation, whether the user provided it directly or a calling skill passed it.
 
-**If the feature description above is empty, ask the user:** "What would you like to explore? Please describe the feature, problem, or improvement you're thinking about."
+**If no feature description was provided, ask the user:** "What would you like to explore? Please describe the feature, problem, or improvement you're thinking about."
 
 Do not proceed until you have a feature description from the user.
 
@@ -58,10 +58,7 @@ Do not proceed until you have a feature description from the user.
 
 Determine `OUTPUT_FORMAT` before any other phase fires. Output mode is **exclusive** — the requirements-only unified plan is written as either markdown (`.md`) OR HTML (`.html`), never both. Precedence: in-prompt request > user-stated preference > config > default (`md`), with a hard pipeline-mode override.
 
-**Read config.** The repo root is pre-resolved at skill load:
-!`git rev-parse --show-toplevel`
-
-If the line above is an absolute path, use it as `<repo-root>`. If it is empty, shows an error, or still shows a backtick command string (a harness that did not run the pre-resolution), resolve `<repo-root>` at runtime by running `git rev-parse --show-toplevel` with the shell tool. Then read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool. If the root cannot be resolved (not a git repo) or the file does not exist, fall through to the defaults below.
+**Read config.** Resolve `<repo-root>` at runtime by running `git rev-parse --show-toplevel` with the shell tool. Then read `<repo-root>/.compound-engineering/config.local.yaml` with the native file-read tool. If the root cannot be resolved (not a git repo) or the file does not exist, fall through to the defaults below.
 
 Resolution steps:
 

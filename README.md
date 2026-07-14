@@ -108,7 +108,7 @@ The first pass tightens recent branch changes before review. The targeted pass i
 
 After installing, run `/ce-setup` in any project. It checks repo-local config, reports optional tool capabilities, and helps keep machine-local CE settings safely gitignored.
 
-The `compound-engineering` plugin currently ships 29 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
+The `compound-engineering` plugin currently ships 30 skills and 0 standalone agents. Specialist review, research, and workflow behavior lives inside the owning skills as skill-local prompt assets.
 
 ### Full Skill Inventory
 
@@ -133,6 +133,7 @@ The `compound-engineering` plugin currently ships 29 skills and 0 standalone age
 | [`/ce-resolve-pr-feedback`](docs/skills/ce-resolve-pr-feedback.md) | Resolve PR review feedback |
 | [`/ce-commit`](docs/skills/ce-commit.md) | Create a git commit with a clear message |
 | [`/ce-commit-push-pr`](docs/skills/ce-commit-push-pr.md) | Commit, push, and open a PR that teaches any concept the change newly introduces |
+| [`/ce-babysit-pr`](docs/skills/ce-babysit-pr.md) | Watch an open PR and keep it moving toward merge, reacting to review comments and CI as they arrive |
 | [`/ce-worktree`](docs/skills/ce-worktree.md) | Ensure work happens in an isolated git worktree |
 | [`/ce-promote`](docs/skills/ce-promote.md) | Draft user-facing announcement copy |
 | [`/ce-test-browser`](docs/skills/ce-test-browser.md) | Run browser tests on PR-affected pages |
@@ -214,6 +215,28 @@ CODEX_HOME="$HOME/.codex/profiles/work" codex plugin add compound-engineering@co
 ```
 
 The marketplace step only makes the plugin available; the plugin install is what activates the native CE skills for that profile.
+
+#### Remove the legacy Codex tool map (pre-native installs)
+
+If you previously installed Compound Engineering with the Bun `convert` / `install --to codex` CLI (before native Codex plugin support), that path may have inserted a managed block into your **global** Codex instructions file:
+
+`<!-- BEGIN COMPOUND CODEX TOOL MAP -->` … `<!-- END COMPOUND CODEX TOOL MAP -->`
+
+in `$CODEX_HOME/AGENTS.md` (default `~/.codex/AGENTS.md`). That Claude-compat tool map is obsolete — CE skills name Codex tools inline — and one of its lines incorrectly told Codex to collapse subagent dispatch onto the main thread. Native plugin install does **not** add this block.
+
+Paste this into Codex (or any agent with access to your home directory) to remove it:
+
+```text
+Remove the obsolete Compound Engineering Codex tool-map block from my Codex home AGENTS.md.
+
+1. Check `$CODEX_HOME/AGENTS.md` if CODEX_HOME is set, otherwise `~/.codex/AGENTS.md`. If I use Codex profiles, also check `~/.codex/profiles/*/AGENTS.md`.
+2. Look for the exact sentinels `<!-- BEGIN COMPOUND CODEX TOOL MAP -->` and `<!-- END COMPOUND CODEX TOOL MAP -->`.
+3. If both are present, delete only the span from the BEGIN line through the END line (inclusive), leaving any other user content untouched. Do not edit project/repo AGENTS.md unless those exact sentinels are present there.
+4. If the file is empty after the removal, delete the file.
+5. Show a short before/after summary of what you changed (or say the block was already absent). Do not add a replacement tool map.
+```
+
+Re-running the Bun convert/install CLI for Codex also strips the block if it is still present; it no longer inserts it.
 
 ### Kimi Code CLI
 

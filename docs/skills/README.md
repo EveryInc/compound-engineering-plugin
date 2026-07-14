@@ -85,6 +85,7 @@ Invoked when a specific need arises — not part of any chain.
 |-------|-------------|
 | [`/ce-commit`](./ce-commit.md) | Create a single, well-crafted git commit — convention-aware, sensitive-file-safe, file-level logical splitting |
 | [`/ce-commit-push-pr`](./ce-commit-push-pr.md) | Go from working changes to an open PR with adaptive descriptions, related-reference handling, three modes (full workflow / description update / description-only generation), and a concept-teaching section for anything the change newly introduces |
+| [`/ce-babysit-pr`](./ce-babysit-pr.md) | Watch an open PR and keep it moving toward merge — react to incoming review comments (via `/ce-resolve-pr-feedback`) and CI failures (via `/ce-debug`) as each arrives, comments-first, with a crash-safe resumable tick, continuous or checkpoint mode per harness, and a settle window that avoids premature "ready to merge" |
 | [`/ce-worktree`](./ce-worktree.md) | Ensure work happens in an isolated git worktree — detect existing isolation, prefer the harness's native worktree tool, fall back to plain git |
 
 ---
@@ -109,7 +110,7 @@ Invoked when a specific need arises — not part of any chain.
 
 | Skill | Description |
 |-------|-------------|
-| [`/ce-proof`](./ce-proof.md) | Publish, view, comment on, and edit markdown via [Proof](https://www.proofeditor.ai), Every's collaborative editor — Web API and Local Bridge surfaces |
+| [`/ce-proof`](./ce-proof.md) | Publish, view, comment on, and edit markdown via [Proof](https://www.proofeditor.ai), Every's collaborative editor — hosted v3 web API with owner credential lifecycle |
 
 ---
 
@@ -120,7 +121,7 @@ Invoked when a specific need arises — not part of any chain.
 | [`/ce-promote`](./ce-promote.md) | Draft user-facing announcement copy for a shipped feature (X, changelog, LinkedIn, email) — voice-matched via the optional Spiral CLI, a lite layer of editorial & social expertise without it, drafts only |
 | [`/ce-resolve-pr-feedback`](./ce-resolve-pr-feedback.md) | Evaluate, fix, and reply to PR review feedback in parallel — including nitpicks |
 | [`/ce-dogfood`](./ce-dogfood.md) | Hands-off diff-scoped browser QA of the active branch — maps flows, autonomously fixes small breakages with regression tests and commits, writes a durable report (manual invocation only) |
-| [`/ce-test-browser`](./ce-test-browser.md) | End-to-end browser tests on PR / branch-affected pages using `agent-browser` exclusively |
+| [`/ce-test-browser`](./ce-test-browser.md) | End-to-end browser tests using a host-native browser with `agent-browser` fallback |
 | [`/ce-test-xcode`](./ce-test-xcode.md) | Build and test iOS apps on simulator using XcodeBuildMCP — screenshots, logs, human verification |
 | [`/ce-setup`](./ce-setup.md) | Diagnose optional tool capabilities and bootstrap safe project-local config |
 

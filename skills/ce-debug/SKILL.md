@@ -8,7 +8,13 @@ argument-hint: "[issue reference, error message, test path, or description of br
 
 Find root causes, then fix them. This skill investigates bugs systematically — tracing the full causal chain before proposing a fix — and optionally implements the fix with test-first discipline.
 
-<bug_description> #$ARGUMENTS </bug_description>
+The **bug description** is the input this skill was invoked with — the failure to diagnose, present in the current prompt or conversation, whether the user provided it directly or a calling skill passed it (e.g. `ce-babysit-pr` / `lfg` in `mode:pipeline`, which pass the failing jobs and log tails as the argument). It may be a description of the failure, a `mode:` token, or an issue reference (`#123`, `org/repo#123`, or an issue URL). The rest of this skill refers to it as `<bug_description>`; if nothing was provided, treat `<bug_description>` as blank.
+
+## Mode
+
+Default is **interactive** — investigate, then use the Phase 2 fix-choice gate and the Phase 4 handoff prompt as written below.
+
+**`mode:pipeline`** (set by an orchestrator such as `ce-babysit-pr` or `lfg`): run fully non-interactively. Strip the `mode:pipeline` token from `<bug_description>` before parsing. **Read `references/pipeline-mode.md` and follow it** — it overrides every "ask the user" point in this skill with a conservative default, replaces the Phase 2 fix-gate with "fix convergent bugs, defer divergent ones," and replaces the Phase 4 prompt with a structured return. Never call the blocking-question tool in pipeline mode.
 
 ## Core Principles
 
@@ -36,7 +42,7 @@ Beyond the trivial-bug fast-path in Phase 0, no further phase skipping — compl
 Parse the input and reach a clear problem statement.
 
 **If the input references an issue tracker**, fetch it:
-- GitHub (`#123`, `org/repo#123`, github.com URL): Parse the issue reference from `<bug_description>` and fetch with `gh issue view <number> --json title,body,comments,labels`. For URLs, pass the URL directly to `gh`.
+- GitHub (`#123`, `org/repo#123`, a github.com or GitHub Enterprise issue URL): Parse the issue reference from `<bug_description>` and fetch with `gh issue view <number> --json title,body,comments,labels`. For URLs, pass the URL directly to `gh` (it targets whatever host it is configured for, GHE included).
 - Other trackers (Linear URL/ID, Jira URL/key, any tracker URL): Attempt to fetch using available MCP tools or by fetching the URL content. If the fetch fails — auth, missing tool, non-public page — ask the user to paste the relevant issue content. Ensure the fetch includes the full comment thread, not just the opening description.
 
 Read the full conversation — the original description AND every comment, with particular attention to the latest ones. Comments frequently contain updated reproduction steps, narrowed scope, prior failed attempts, additional stack traces, or a pivot to a different suspected root cause; treating the opening post as the whole picture often sends the investigation in the wrong direction. Extract reported symptoms, expected behavior, reproduction steps, and environment details from the combined thread. Then proceed to Phase 1.
@@ -170,6 +176,8 @@ Once the root cause is confirmed, present:
 
 Then offer next steps.
 
+**`mode:pipeline`:** do not ask. The caller invoked this skill to fix, so proceed to Phase 3 and apply a **convergent** fix; a **divergent** fix (one that would reverse a deliberate contract/behavior/product decision — including a "failing" test that asserts intended behavior) is deferred, not applied, per `references/pipeline-mode.md`. Never route to `/ce-brainstorm` in pipeline mode — a design problem becomes a `needs-human` residual.
+
 Use the platform's blocking question tool (`AskUserQuestion` in Claude Code, `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension)). In Claude Code, call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded — a pending schema load is not a reason to fall back. Fall back to numbered options in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes). Never silently skip the question.
 
 Options to offer:
@@ -238,6 +246,8 @@ Analyze how this was introduced and what allowed it to survive. Note any systemi
 ---
 
 ### Phase 4: Handoff
+
+**`mode:pipeline` — skip this entire interactive handoff.** Do not run the polish/review tail, do not ask about residuals, do not show the branch menu, do not offer learning capture. Instead: commit and push the convergent fix (per `references/pipeline-mode.md`), then emit that reference's **structured return** as the skill's final output. Divergent / needs-human items are deferred there (open thread or the caller's run-report comment — never a PR-body section), not prompted. The rest of this section is the interactive path only.
 
 **Structured summary** — always write this first:
 

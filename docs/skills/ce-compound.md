@@ -14,7 +14,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 |----------|--------|
 | What does it do? | Documents a solved problem to `docs/solutions/[category]/[filename].md` with structured frontmatter, bug-track or knowledge-track sections, and cross-references |
 | When to use it | After solving a non-trivial problem; when the user says "that worked", "it's fixed", "problem solved" |
-| What it produces | One doc in `docs/solutions/`, plus an optional small edit to `AGENTS.md`/`CLAUDE.md` for discoverability |
+| What it produces | One doc in `docs/solutions/`, plus optional `CONCEPTS.md` vocabulary capture; interactive Full may also edit `AGENTS.md`/`CLAUDE.md` for discoverability after consent |
 | What's next | Optional `/ce-compound-refresh` if the new learning suggests an older doc may be stale |
 
 ---
@@ -36,7 +36,7 @@ Most teams solve the same problem twice — sometimes with the same person — b
 - Two modes — **Full** (parallel subagents for cross-referencing and duplicate detection) and **Lightweight** (single-pass, faster, fewer tokens)
 - Bug track and knowledge track produce different section structures matched to the doc type
 - An overlap check decides whether to update an existing doc rather than create a duplicate
-- A discoverability check ensures the project's `AGENTS.md`/`CLAUDE.md` surfaces `docs/solutions/` so future agents find it
+- A discoverability check ensures the project's `AGENTS.md`/`CLAUDE.md` surfaces `docs/solutions/` so future agents find it (interactive Full asks consent before editing; headless and lightweight report or tip only)
 - Specialized post-review optionally enhances the doc: performance, security, data-integrity, and read-only simplification checks review the drafted learning without mutating product code
 
 ---
@@ -70,7 +70,7 @@ The Related Docs Finder scores overlap with existing `docs/solutions/` content a
 
 ### 4. Discoverability check — knowledge only compounds if agents can find it
 
-Every run checks whether the project's instruction file (`AGENTS.md` or `CLAUDE.md`) would lead a future agent to discover `docs/solutions/`. If not, it proposes the smallest addition that surfaces the knowledge store, asks for consent, and applies it. The check runs every time because the knowledge store only compounds value when it's findable.
+Every run checks whether the project's instruction file (`AGENTS.md` or `CLAUDE.md`) would lead a future agent to discover `docs/solutions/`. If not, interactive Full proposes the smallest addition that surfaces the knowledge store, asks for consent, and applies it. Headless reports `Instruction-file edit: gap noted, not applied` without editing — skill-to-skill handoffs must not amend the repo's operating contract past an upstream approval gate. Lightweight tips only. The check runs every time because the knowledge store only compounds value when it's findable.
 
 The proposed addition matches the existing file's tone and density — a single-line entry in an existing directory listing when one fits, a small headed section only when nothing else does.
 
@@ -90,7 +90,7 @@ Based on the problem type, optional skill-local prompt assets review the documen
 
 ### 8. Session history integration (automatic probe, not a question)
 
-Searching prior sessions pays off when an *unrelated* earlier session holds related problem-solving — something neither the agent nor the user can know a priori, which is why it was a poor fit for a yes/no prompt. Full mode instead resolves it with a cheap two-stage probe: a discovery+metadata pass always runs (in parallel with the research subagents, so it's near-free on wall-clock), and it escalates to the expensive extraction+synthesis only when a candidate session clears a relevance bar — a current-branch match or ≥2 topic-keyword hits. On a hit, findings fold into "What Didn't Work" (bug track) or "Context" (knowledge track); on a miss, the run records "no relevant prior sessions" and moves on. The gate is what keeps an always-on probe cheap. Lightweight and headless modes skip it entirely.
+Searching prior sessions pays off when an *unrelated* earlier session holds related problem-solving — something neither the agent nor the user can know a priori, which is why it was a poor fit for a yes/no prompt. Full mode instead resolves it with a cheap two-stage probe: a discovery+metadata pass always runs (in parallel with the research subagents, so it's near-free on wall-clock), and it escalates to the expensive extraction+synthesis only when a candidate session clears a relevance bar — a current-branch match or ≥2 topic-keyword hits. On a hit, findings fold into "What Didn't Work" (bug track) or "Context" (knowledge track); on a miss, the run records "no relevant prior sessions" and moves on. The gate is what keeps an always-on probe cheap — cheap enough that headless runs it too, since it prompts for nothing and so preserves headless's non-interactive contract. Only lightweight mode skips it entirely.
 
 ### 9. Auto-invoke triggers
 
@@ -159,6 +159,31 @@ The auto-invoke triggers happen mid-conversation; you don't need to remember the
 
 ---
 
+## Make Capture Automatic
+
+The auto-invoke trigger phrases ("that worked", "it's fixed") only fire when you happen to say one of them. If you keep forgetting to capture, add a standing instruction to your agent's instruction file so the agent proposes capture on its own once a fix is verified — before it hands the session back to you.
+
+Put it in the repo's `AGENTS.md`/`CLAUDE.md`, or in your global instruction file (`~/.claude/CLAUDE.md`, `~/.codex/AGENTS.md`) to make it apply in every repo. Pick the variant that matches how much of a checkpoint you want:
+
+**Offer first** — the agent asks before capturing, so you get a beat to say "not this one":
+
+> After a solved, verified problem produces a non-trivial, reusable learning, offer once — before the final handoff — to invoke the `ce-compound` skill. Only in repositories that accept `docs/solutions/` as a tracked knowledge store.
+
+**Run it automatically** — no prompt, because not being interrupted is the whole point of automating it:
+
+> After a solved, verified problem produces a non-trivial, reusable learning, automatically invoke the `ce-compound` skill, passing `mode:headless` as the skill argument. Only in repositories that accept `docs/solutions/` as a tracked knowledge store.
+
+Auto-run writes to `docs/solutions/` (and may touch `CONCEPTS.md`) without asking — but that's the point, and it's no scarier than the other edits you're already making on the branch and reviewing before you commit. Headless never edits `AGENTS.md`/`CLAUDE.md`; if discoverability is missing it reports `gap noted, not applied` so a later interactive run can apply it with consent. Passing `mode:headless` as an argument is the explicit, unambiguous form: the skill also honors a clear "run headless / without prompts" request, but the token removes all doubt — without a headless signal the run stays interactive and can stop for the one-time discoverability-consent prompt.
+
+Every other phrase in those lines is deliberate too:
+
+- **"invoke the `ce-compound` skill"**, not "run `/ce-compound`" — instruction files are read by whatever agent you're using (Codex, Gemini, Cursor, Claude Code), and the slash-command form isn't reliably agent-callable across all of them. Reference the capability, not the keystroke.
+- **"before the final handoff"**, not "at the end of the session" — an agent can't reliably tell when a session has *ended*, but it does know when it's about to hand a verified result back to you.
+- **"non-trivial, reusable learning"** — the bar is a generalizable insight worth re-reading, not merely an expensive one-off incident.
+- **"repositories that accept `docs/solutions/`"** — the real question is whether the repo welcomes generated learning docs, which is usually broader than "do I own it." Forks and open-source projects you contribute to often don't; some repos you don't own still do.
+
+---
+
 ## Output Artifact
 
 ```text
@@ -169,7 +194,7 @@ Categories are auto-detected. Bug-track examples: `build-errors/`, `test-failure
 
 The doc carries YAML frontmatter (`module`, `tags`, `problem_type`, etc.) for searchability. Validation runs through `scripts/validate-frontmatter.py` to catch silent corruption (malformed `---` delimiters, unquoted `:` in scalar values), and `scripts/validate-doc-claims.py` checks the body's cited paths, SHAs, links, and drafting scaffold against the tree.
 
-The skill may also produce a small edit to `AGENTS.md`/`CLAUDE.md` if the discoverability check finds the knowledge store isn't surfaced.
+In interactive Full mode, the skill may also produce a small edit to `AGENTS.md`/`CLAUDE.md` if the discoverability check finds the knowledge store isn't surfaced and you consent. Headless and lightweight never apply that edit.
 
 ---
 
@@ -199,7 +224,7 @@ Two docs describing the same problem inevitably drift apart. The newer context i
 Knowledge track generalizes (conventions, decisions, workflow practices), but the skill assumes a code repo, `docs/solutions/` directory, and YAML-frontmatter conventions. It's primarily a software-team tool.
 
 **What if I don't want the discoverability edit to AGENTS.md?**
-The skill asks for consent before applying the edit. You can decline; the doc still gets written. The discoverability prompt won't fire if your AGENTS.md already mentions `docs/solutions/`.
+In interactive Full mode, the skill asks for consent before applying the edit — decline and the doc still gets written. Headless and lightweight never edit the instruction file; they report or tip the gap instead. The discoverability prompt won't fire if your AGENTS.md already mentions `docs/solutions/`.
 
 ---
 

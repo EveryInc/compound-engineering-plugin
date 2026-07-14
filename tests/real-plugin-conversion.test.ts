@@ -313,10 +313,12 @@ for (const pluginName of PLUGIN_NAMES) {
       // the skills dir is the platform-filtered skills plus the commands.
       const expectedSkills = [...new Set([...skillsForPlatform(inventory, "codex"), ...inventory.commands])].sort()
 
-      const agentsMd = readFileSync(path.join(root, "AGENTS.md"), "utf8")
-      expect(agentsMd).toContain("<!-- BEGIN COMPOUND CODEX TOOL MAP -->")
-      expect(agentsMd).toContain("<!-- END COMPOUND CODEX TOOL MAP -->")
-
+      const agentsMdPath = path.join(root, "AGENTS.md")
+      if (existsSync(agentsMdPath)) {
+        const agentsMd = readFileSync(agentsMdPath, "utf8")
+        expect(agentsMd).not.toContain("<!-- BEGIN COMPOUND CODEX TOOL MAP -->")
+        expect(agentsMd).not.toContain("<!-- END COMPOUND CODEX TOOL MAP -->")
+      }
       const tomlNames = listFileBasenames(path.join(root, "agents", pluginName), ".toml")
       expect(tomlNames).toEqual(inventory.agents)
       for (const name of tomlNames) {

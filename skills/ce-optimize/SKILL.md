@@ -14,9 +14,9 @@ Use the platform's blocking question tool: `AskUserQuestion` in Claude Code (cal
 
 ## Input
 
-<optimization_input> #$ARGUMENTS </optimization_input>
+The **optimization input** is the input this skill was invoked with — present in the current prompt or conversation, whether the user provided it directly or a calling skill passed it: a goal to optimize, or a path to an optimization spec YAML file.
 
-If the input above is empty, ask: "What would you like to optimize? Describe the goal, or provide a path to an optimization spec YAML file."
+If no optimization input was provided, ask: "What would you like to optimize? Describe the goal, or provide a path to an optimization spec YAML file."
 
 ## Optimization Spec Schema
 

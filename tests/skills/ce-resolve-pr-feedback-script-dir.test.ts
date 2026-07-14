@@ -1,24 +1,17 @@
 import { describe, expect, test } from "bun:test"
 import { readFileSync } from "fs"
 import path from "path"
+import { extractBashBlocks } from "./fenced-blocks"
 
 const REFERENCES_DIR = path.join(import.meta.dir, "..", "..", "skills", "ce-resolve-pr-feedback", "references")
 const MODE_FILES = ["full-mode.md", "targeted-mode.md"] as const
 
-function fencedBashBlocks(markdown: string): string[] {
-  const blocks: string[] = []
-  const pattern = /```bash\n([\s\S]*?)\n```/g
-  let match: RegExpExecArray | null
-  while ((match = pattern.exec(markdown)) !== null) {
-    blocks.push(match[1] ?? "")
-  }
-  return blocks
-}
-
 describe("ce-resolve-pr-feedback script directory handling", () => {
   for (const file of MODE_FILES) {
     const markdown = readFileSync(path.join(REFERENCES_DIR, file), "utf8")
-    const scriptBlocks = fencedBashBlocks(markdown).filter((block) => block.includes("$SKILL_DIR/scripts/"))
+    const scriptBlocks = extractBashBlocks(markdown)
+      .map((b) => b.body)
+      .filter((block) => block.includes("$SKILL_DIR/scripts/"))
 
     test(`${file}: each bundled-script block resolves the skill dir via a flatten-safe SKILL_DIR anchor`, () => {
       expect(scriptBlocks.length).toBeGreaterThan(0)

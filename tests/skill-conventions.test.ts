@@ -150,7 +150,6 @@ const EXPECTED_USER_INVOKED_SKILLS = new Set([
   "ce-setup",
   "ce-sweep",
   "ce-test-xcode",
-  "lfg",
 ])
 
 const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
@@ -173,6 +172,7 @@ const REQUIRED_MODEL_INVOKED_CALLEES = new Set([
   "ce-test-browser",
   "ce-work",
   "ce-worktree",
+  "lfg",
 ])
 
 // ---------------------------------------------------------------------------
@@ -753,7 +753,7 @@ describe("platform-variable fallback (AGENTS.md 'Platform-Specific Variables in 
       }
       expect(
         offenders,
-        `Platform variables (\${CLAUDE_*}, \${CODEX_*}) must not be assumed to resolve — see ${AGENTS_MD_REF} "Platform-Specific Variables in Skills". An ordinary var may use a shell default (\${VAR:-...}); a skill-directory var (CLAUDE_SKILL_DIR / CLAUDE_PLUGIN_ROOT) used to locate a bundled file must NOT — its default silently misses the script off-Claude (#943) — so guard it with an existence test inside a code block ([ -f "\${VAR}/path" ]). If the fallback genuinely lives in prose (the AGENTS.md pre-resolution pattern, or a core-script skill pinned via allowed-tools), write that prose first, then acknowledge the use in PLATFORM_VAR_ACKNOWLEDGED in tests/skill-conventions.test.ts with a reason naming the fallback.\nOffending occurrences:\n${offenders.join("\n")}`,
+        `Platform variables (\${CLAUDE_*}, \${CODEX_*}) must not be assumed to resolve — see ${AGENTS_MD_REF} "Platform-Specific Variables in Skills". An ordinary var may use a shell default (\${VAR:-...}); a skill-directory var (CLAUDE_SKILL_DIR / CLAUDE_PLUGIN_ROOT) used to locate a bundled file must NOT — its default silently misses the script off-Claude (#943) — so guard it with an existence test inside a code block ([ -f "\${VAR}/path" ]). If the fallback genuinely lives in prose (a platform var resolved at runtime with a documented fallback, or a core-script skill pinned via allowed-tools), write that prose first, then acknowledge the use in PLATFORM_VAR_ACKNOWLEDGED in tests/skill-conventions.test.ts with a reason naming the fallback. Note: \`!\` load-time pre-resolution is banned outright (tests/skill-shell-safety.test.ts) and is never a valid fallback here.\nOffending occurrences:\n${offenders.join("\n")}`,
       ).toEqual([])
     })
   }
@@ -1124,19 +1124,20 @@ describe("findPlatformVarOccurrences / isGracefulPlatformVarUse", () => {
 
 describe("findPlatformVarViolations", () => {
   test("reports every non-graceful occurrence (acknowledgment happens via the registry, not the scanner)", () => {
-    // Verbatim from AGENTS.md "Platform-Specific Variables in Skills" — the
-    // documented pre-resolution pattern. Its fallback lives in prose, which
-    // the scanner deliberately does not judge: the occurrence is reported,
-    // and the real ce-setup use of this pattern is acknowledged in
-    // PLATFORM_VAR_ACKNOWLEDGED instead.
-    const agentsMdCanonicalExample = [
+    // A `!` pre-resolution line embedding a platform var is exactly the shape
+    // this scanner must flag: the `${CLAUDE_PLUGIN_ROOT}` occurrence is
+    // reported regardless of the surrounding `!` (which is itself banned by
+    // tests/skill-shell-safety.test.ts). The prose fallback below is not judged
+    // by the scanner — a genuine runtime use would be acknowledged in
+    // PLATFORM_VAR_ACKNOWLEDGED with a reason.
+    const preResolutionWithPlatformVar = [
       '**Plugin version (pre-resolved):** !`jq -r .version "${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json"`',
       "",
       "If the line above resolved to a semantic version (e.g., `2.42.0`), use it.",
       "Otherwise (empty, a literal command string, or an error), use the versionless fallback.",
       "Do not attempt to resolve the version at runtime.",
     ].join("\n")
-    expect(findPlatformVarViolations(agentsMdCanonicalExample)).toEqual([
+    expect(findPlatformVarViolations(preResolutionWithPlatformVar)).toEqual([
       { lineNumber: 1, variable: "CLAUDE_PLUGIN_ROOT", graceful: false },
     ])
   })

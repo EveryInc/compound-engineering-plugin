@@ -2,6 +2,7 @@
 title: "Git workflow skills need explicit state machines for branch, push, and PR state"
 category: skill-design
 date: 2026-03-27
+last_refreshed: 2026-07-12
 module: skills/ce-commit and ce-commit-push-pr
 problem_type: architecture_pattern
 component: tooling
@@ -41,9 +42,8 @@ The `ce-commit` and `ce-commit-push-pr` skills had accumulated branch-state and 
 
 - Using a single early `git branch --show-current` result and referring back to it later. Once the workflow creates a branch, the earlier value is stale.
 - Using `git diff HEAD` as the definition of "has changes." It does not account for untracked files.
-- Treating every non-zero exit from `gh pr view` as a fatal failure. "No PR for this branch" is often a normal branch state.
-- Letting the shell tool surface that expected `gh pr view` non-zero exit as a visible failed step. Even when the logic recovers correctly, the UX looks broken and pushes future edits toward less-correct commands.
-- Switching from `gh pr view` to `gh pr list --head "<branch>"` to avoid the no-PR error path. This improved ergonomics but weakened correctness because `gh pr list` cannot disambiguate `<owner>:<branch>`.
+- Treating every non-zero exit from a PR-detection command as a fatal failure. "No PR for this branch" is often a normal branch state.
+- Flip-flopping between `gh pr view` and `gh pr list` without writing down the tradeoff. `gh pr view` is current-branch-aware but exits 1 on the normal no-PR state; `gh pr list --head <branch>` has clean exit-0-`[]` = "no PR" semantics but filters by branch name only. The fix is not to pick one silently — it is to document the tradeoff and the branch-name-collision caveat (see §4) so the choice stops regressing.
 - Adding a "clean working tree" fast path before re-checking whether the current branch was still the default branch. That let the workflow skip the feature-branch safety gate and head straight toward invalid push/PR transitions.
 
 ## Solution
@@ -99,23 +99,23 @@ git log <upstream>..HEAD --oneline
 
 This avoids conflating "no upstream configured yet" with "nothing to push."
 
-### 4. Prefer current-branch `gh pr view` semantics over bare branch-name search
+### 4. Detect an existing PR with `gh pr list`, and read its exit status as state
 
-For "does this branch already have a PR?" use:
+For "does this branch already have a PR?" use a command that separates "no PR" from "lookup failed":
 
 ```bash
-gh pr view --json url,title,state
+gh pr list --head <branch> --state open --json number,url,title,body,state,headRefName,headRepositoryOwner
 ```
 
-Interpret it as a state check:
+Interpret the result as a state check:
 
-- PR data returned -> PR exists for the current branch
-- Non-zero exit with output indicating no PR for the current branch -> expected "no PR yet" state
-- Any other failure -> real error
+- Exit 0 with `[]` -> no open PR for this branch (proceed to creation)
+- Exit 0 with entries -> a PR exists; pick the entry whose `headRepositoryOwner`/`headRefName` match the current head, not index 0. If several entries share the branch name from different owners and none is confirmably yours, treat it as ambiguous and stop rather than act on someone else's PR
+- Non-zero exit -> `gh` is missing, unauthenticated, or offline: PR state is **unknown**, never "no PR". Resolve auth/connectivity before creating, so a lookup failure cannot cause a duplicate PR.
 
-When the shell/tooling layer renders non-zero exits as scary visible failures, wrap the command so the skill captures both the output and exit code and then interprets them explicitly. The user should see "no PR for this branch" as a normal state transition, not as a broken Bash step.
+Pass the branch **name only** — `gh pr list --head` does not accept `<owner>:<branch>` syntax (it silently returns `[]` for it, which reads as "no PR" and opens a duplicate). On a fork checkout the PR lives on the base repo, so target the base via `gh`'s default-repo resolution or `-R <base-owner>/<repo>`. Skip this check entirely on detached HEAD (empty branch): `gh pr list` with an empty `--head` drops the filter and lists unrelated PRs.
 
-This keeps PR detection tied to the current branch context instead of a bare branch name that may be reused across forks.
+**Known tradeoff (branch-name collision).** `gh pr list --head <branch>` filters by head-branch *name*, so in a busy multi-fork repo two open PRs from different owners can share a branch name, and this command cannot disambiguate them the way `gh pr view` (current-branch-aware) can. It is chosen anyway for its clean exit semantics: `gh pr view` exits 1 on the normal no-PR state, conflating "no PR" with a real failure — harder to interpret, and fatal if the check ever runs at skill *load* time (see [no-load-time-pre-resolution-for-fallible-context.md](no-load-time-pre-resolution-for-fallible-context.md)). Bound the collision by re-verifying immediately before `gh pr create` and inspecting the returned entry rather than assuming the first match is yours.
 
 ### 5. Keep the default-branch safety gate ahead of push/PR transitions
 
@@ -136,7 +136,7 @@ The fix is not more prose. The fix is explicit re-checks at each transition boun
 - branch state after branch creation
 - cleanliness from `git status`, not a partial diff
 - upstream existence before unpushed-commit checks
-- PR existence tied to the current branch, not only its name
+- PR existence via `gh pr list --head <branch>`, reading exit-0-`[]` = none vs non-zero = unknown (with the branch-name-collision caveat in §4)
 - default-branch safety before any push/PR transition
 
 This turns a brittle narrative into a deterministic control flow with a small number of clear state transitions.
@@ -173,7 +173,7 @@ gh pr list --head "<branch>" --json url,title,state --jq '.[0] // empty'
 
 because `gh pr view` was surfacing a non-zero exit when no PR existed. That improved the no-PR path, but it introduced a correctness problem: `gh pr list --head` matches on branch name only, and GitHub CLI does not support `<owner>:<branch>` syntax for that flag. In a multi-fork repo, another person's PR can reuse the same branch name.
 
-Learning: for "PR for the current branch," `gh pr view` is safer even if the no-PR state must be interpreted explicitly.
+Learning: this is a genuine tradeoff, not a settled winner. The skills ultimately kept `gh pr list --head <branch> --state open` for its clean exit semantics (exit-0-`[]` = no PR vs non-zero = unknown) — which also matters because `gh pr view`'s exit-1-on-no-PR is fatal if the check ever runs at skill *load* time — and bound the branch-name collision by targeting the base repo and re-verifying before `gh pr create` (see §4). Whatever you pick, write the tradeoff down so it stops regressing.
 
 ### 4. "No PR" is not an error in the workflow, even if the CLI exits non-zero
 
@@ -237,7 +237,7 @@ Learning: these skills should be designed and reviewed like tiny state machines,
 - Use `git status` for "is there local work?" and reserve `git diff` for describing content, not determining whether work exists.
 - Model expected non-zero CLI exits explicitly when they represent state, such as `gh pr view` on a branch with no PR.
 - When a tool visually highlights non-zero exits as failures, capture the exit code yourself for expected state probes so correct logic does not still look broken to the user.
-- Avoid branch-name-only PR detection for multi-fork repos. If the command cannot disambiguate branch ownership, prefer a current-branch-aware command even if the failure path is slightly messier.
+- Know the PR-detection tradeoff and document your choice. `gh pr list --head <branch>` has clean exit semantics (exit-0-`[]` = no PR, non-zero = unknown) but filters by branch name only; `gh pr view` is current-branch-aware but exits 1 on the normal no-PR state (and is fatal at skill load time). The current skills use `gh pr list` — base-repo-targeted, branch name only — and bound the multi-fork branch-name collision by re-verifying before `gh pr create`.
 - Keep default-branch safety checks in every path that can lead to push or PR creation, including "clean working tree but unpushed commits" shortcuts.
 - When editing skill logic, manually walk these cases before considering the change complete:
   - detached HEAD with uncommitted changes
@@ -251,5 +251,6 @@ Learning: these skills should be designed and reviewed like tiny state machines,
 
 ## Related Issues
 
+- [no-load-time-pre-resolution-for-fallible-context.md](no-load-time-pre-resolution-for-fallible-context.md) — why the PR check moved to `gh pr list` and out of load-time pre-resolution; the source of the current §4 decision.
 - [script-first-skill-architecture.md](script-first-skill-architecture.md)
 - [pass-paths-not-content-to-subagents.md](pass-paths-not-content-to-subagents.md)

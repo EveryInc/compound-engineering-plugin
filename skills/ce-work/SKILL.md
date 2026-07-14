@@ -14,7 +14,7 @@ This command takes a work document (plan or specification) or a bare prompt desc
 
 ## Input Document
 
-<input_document> #$ARGUMENTS </input_document>
+The **input document** for this run is the input this skill was invoked with — present in the current prompt or conversation, whether the user provided it directly or a calling skill passed it (e.g. `lfg` in `mode:pipeline`, which passes a plan path). It may be a plan or spec path, a `mode:` token followed by a path, or a bare work prompt. The rest of this skill refers to it as `<input_document>`; if nothing was provided, treat `<input_document>` as blank.
 
 ## Execution Workflow
 

@@ -25,7 +25,7 @@ const installScript = path.join(
   "install-skills.sh",
 )
 
-const manualSkill = "lfg"
+const manualSkill = "ce-setup"
 const invocableSkill = "ce-plan"
 
 type RunResult = {
@@ -66,8 +66,8 @@ async function pathExists(filePath: string): Promise<boolean> {
 describe("cline install-skills.sh", () => {
   test("does not remove unrelated manual-only skill symlinks", async () => {
     const dest = await makeTempDir("cline-skills-dest-")
-    const userSkill = await makeTempDir("cline-user-lfg-")
-    await fs.writeFile(path.join(userSkill, "SKILL.md"), "# user lfg\n")
+    const userSkill = await makeTempDir(`cline-user-${manualSkill}-`)
+    await fs.writeFile(path.join(userSkill, "SKILL.md"), `# user ${manualSkill}\n`)
 
     await fs.symlink(userSkill, path.join(dest, manualSkill))
 
@@ -77,7 +77,7 @@ describe("cline install-skills.sh", () => {
 
     expect(result.exitCode).toBe(0)
     expect(await pathExists(path.join(dest, manualSkill))).toBe(true)
-    expect(result.stderr).not.toContain("removed lfg")
+    expect(result.stderr).not.toContain(`removed ${manualSkill}`)
   })
 
   test("does not overwrite an existing user-managed symlink for an invocable skill", async () => {
@@ -112,6 +112,6 @@ describe("cline install-skills.sh", () => {
 
     expect(result.exitCode).toBe(0)
     expect(await pathExists(path.join(dest, manualSkill))).toBe(false)
-    expect(result.stderr).toContain("removed lfg: stale CE manual-only symlink")
+    expect(result.stderr).toContain(`removed ${manualSkill}: stale CE manual-only symlink`)
   })
 })

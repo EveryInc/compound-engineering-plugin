@@ -230,6 +230,13 @@ export async function moveLegacyArtifactToBackup(
   // inside a CE-managed root) that this specific symlink node IS the
   // CE-owned artifact to relocate, not a user override to preserve.
   if (!options.skipSymlinkGuard && (await isPreservedSymlink(artifactPath))) return
+  // Ancestor-symlink containment: `isPreservedSymlink` only catches a symlinked
+  // leaf; block the rename when the artifact resolves outside the target root
+  // via a symlinked ancestor (e.g. the whole store dir repointed at a fork).
+  // Every caller passes a store dir that is a direct child of the target root,
+  // so its parent is that root. `skipSymlinkGuard` callers are exempt for the
+  // same reason as above.
+  if (!options.skipSymlinkGuard && !(await isPathWithinRoot(path.dirname(artifactRoot), artifactPath))) return
   if (!(await pathExists(artifactPath))) return
 
   const timestamp = new Date().toISOString().replace(/[:.]/g, "-")
@@ -256,5 +263,63 @@ export async function isPreservedSymlink(targetPath: string): Promise<boolean> {
   const stat = await lstatOrNull(targetPath)
   if (!stat?.isSymbolicLink()) return false
   console.warn(`Skipping ${targetPath}: existing user-managed symlink (not overwritten)`)
+  return true
+}
+
+/**
+ * Realpath of the nearest existing ancestor of `targetPath` (the path itself
+ * when it exists). A not-yet-created descendant cannot introduce a new symlink
+ * hop, so resolving the nearest existing ancestor is enough to decide whether
+ * `targetPath` escapes a root -- and it lets the containment check run before a
+ * fresh store directory has been created.
+ */
+async function realpathNearestExisting(targetPath: string): Promise<string> {
+  let current = path.resolve(targetPath)
+  for (;;) {
+    try {
+      return await fs.realpath(current)
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err
+      const parent = path.dirname(current)
+      if (parent === current) return current
+      current = parent
+    }
+  }
+}
+
+/**
+ * True when `targetPath`, after resolving symlinks on every existing ancestor,
+ * still lives inside `rootDir`. The leaf-node guards (`isPreservedSymlink`)
+ * only inspect the final path component, so a symlinked *ancestor* -- e.g. a
+ * whole store directory (`~/.codex/skills/<plugin>`) repointed at a personal
+ * fork -- slips past them, and the subsequent fs.rm / copy then operates
+ * THROUGH the link into the fork. Both sides are realpath'd so a config root
+ * that was legitimately relocated as a whole (its entire tree moved behind one
+ * symlink) still reads as contained.
+ */
+/**
+ * Pure containment predicate over two already-resolved absolute paths: true
+ * when `targetResolved` is `rootResolved` itself or a descendant of it.
+ */
+export function isContainedPath(rootResolved: string, targetResolved: string): boolean {
+  const rel = path.relative(rootResolved, targetResolved)
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel))
+}
+
+export async function isPathWithinRoot(rootDir: string, targetPath: string): Promise<boolean> {
+  return isContainedPath(await realpathNearestExisting(rootDir), await realpathNearestExisting(targetPath))
+}
+
+/**
+ * Guards a managed store directory against ancestor-symlink traversal. Returns
+ * true (and warns once) when `storeDir` escapes `rootDir` via a symlinked
+ * ancestor, meaning the caller must skip EVERY operation on that store --
+ * cleanup sweeps and writes alike -- since all of them would otherwise act
+ * through the link into whatever the user pointed it at. `rootDir` is the
+ * writer's target root (e.g. `~/.codex`), not the store dir itself.
+ */
+export async function storeRootEscapesManagedRoot(rootDir: string, storeDir: string): Promise<boolean> {
+  if (await isPathWithinRoot(rootDir, storeDir)) return false
+  console.warn(`Skipping ${storeDir}: resolves outside the managed root via a symlinked ancestor (not modified)`)
   return true
 }

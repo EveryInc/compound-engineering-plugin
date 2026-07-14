@@ -51,7 +51,7 @@ This workflow drives the browser exclusively through the `agent-browser` CLI. Do
 
 ### Phase 0: Scope and Get on the Right Branch
 
-Parse `$ARGUMENTS`: a PR number, a branch name, or blank (use current branch). Strip `--port PORT` if present.
+Parse the arguments you were invoked with: a PR number, a branch name, or blank (use current branch). Strip `--port PORT` if present.
 
 1. **Identify the target — keep PR identity; do not switch the working tree yet.**
    - **PR number:** the target *is the PR* — carry the number through every later step (trunk check, isolation, checkout). Read its head only for display (`gh pr view <number> --json headRefName,isCrossRepository`), but do **not** reduce it to a bare branch name: a fork PR's head can even be named `main`/`master`. Do not check out yet.

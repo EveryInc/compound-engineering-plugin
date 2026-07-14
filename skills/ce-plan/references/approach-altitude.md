@@ -42,7 +42,7 @@ Hold at the approach. Use the platform's blocking question tool (`AskUserQuestio
 
 1. Write the marker `execution: knowledge-work` into the plan frontmatter.
 2. **Persist** the marked plan to `docs/plans/` (the marker needs a file to live in so it can travel — R7's file-optional governs the user keeping a chat-only copy, but non-code *execution* forces a persist).
-3. Fire the `ce-work` skill, passing the plan path, via the platform's skill-invocation primitive (`Skill` in Claude Code). Do not merely tell the user to run it — fire it so execution happens in this session.
+3. Invoke the `ce-work` skill with the plan path using the host's normal skill-invocation mechanism. Do not substitute a generic Task, Agent, or subagent. If `ce-work` cannot be invoked, say execution did not start and print a copyable handoff prompt instructing the next agent to invoke `ce-work` with the plan path.
 
 `ce-plan` itself does not execute the deliverable in any path — it produces the approach-plan and hands off. The portable plan is also runnable by any other agent without `ce-work`.
 
