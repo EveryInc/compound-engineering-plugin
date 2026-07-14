@@ -335,6 +335,74 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(out.findings[0].confidence).toBe(100)
     expect(readdirSync(runDir).filter((f) => f.endsWith(".raw.json"))).toEqual([])
   })
+
+  test("records model_requested and the dated model_actual when the claude receipt matches (R7)", () => {
+    // Real claude CLI envelope shape: modelUsage at the envelope top level, keyed
+    // by the full dated id that actually served the run. Requested alias "opus"
+    // expects a served id starting claude-opus-.
+    const receiptStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-opus-4-8-20260115":{"inputTokens":10}}}'\n`
+    const { env } = sandbox(["claude"], receiptStub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.code).toBe(0)
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
+    )
+    expect(out.cross_model_route).toBe("claude")
+    expect(out.model_requested).toBe("opus")
+    expect(out.model_actual).toBe("claude-opus-4-8-20260115")
+    expect(r.stderr).not.toContain("model mismatch")
+  })
+
+  test("keeps the served id and warns prominently on a receipt mismatch (R7)", () => {
+    // Backend served a haiku id while opus was requested: the artifact must carry
+    // the ACTUAL id (never the requested value) and stderr must warn.
+    const mismatchStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]},"modelUsage":{"claude-haiku-4-5-20251001":{"inputTokens":10}}}'\n`
+    const { env } = sandbox(["claude"], mismatchStub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
+    )
+    expect(out.model_requested).toBe("opus")
+    expect(out.model_actual).toBe("claude-haiku-4-5-20251001")
+    expect(r.stderr).toContain("WARNING: model mismatch - requested opus, backend served claude-haiku-4-5-20251001")
+  })
+
+  test("records model_actual unverified with a parse warning when the claude envelope carries no receipt (R8)", () => {
+    // claudeStub emits no modelUsage: never fall back to the requested value —
+    // record the literal "unverified", warn on stderr, and still fold in.
+    const { env } = sandbox(["claude"], claudeStub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-claude.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-claude.json"), "utf8"),
+    )
+    expect(out.model_requested).toBe("opus")
+    expect(out.model_actual).toBe("unverified")
+    expect(r.stderr).toContain("model receipt absent/unparseable on claude route; recording unverified")
+  })
+
+  test("codex route records model_actual unverified — no served-model receipt on that route (R8)", () => {
+    // The codex stub writes findings to stdout (the -o file recovery path); the
+    // route exposes no authoritative identity report, so model_actual is the
+    // literal "unverified" and cross_model_route still records the route.
+    const codexStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"title":"t"}]}'\n`
+    const { env } = sandbox(["codex"], codexStub)
+    const runDir = makeRunDir()
+    const r = run(["claude", "codex", "HEAD", runDir], runDir, env)
+    expect(r.files).toContain("adversarial-codex.json")
+    const out = JSON.parse(
+      readFileSync(path.join(runDir, "adversarial-codex.json"), "utf8"),
+    )
+    expect(out.cross_model_route).toBe("codex")
+    expect(out.model_requested).toBe("gpt-5.6-sol")
+    expect(out.model_actual).toBe("unverified")
+  }, 20_000) // the codex liveness poll sleeps in 5s slices even for a fast stub
 })
 
 describe("cross-model-adversarial-review run-loop failover", () => {

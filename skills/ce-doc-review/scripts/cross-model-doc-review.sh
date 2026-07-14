@@ -88,6 +88,50 @@ M_GROK="grok-4.5"              # grok CLI             (--effort high)
 M_GROK_CURSOR="grok-4.5-high"  # cursor-agent grok fallback (reasoning baked into id)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
+# --- model-identity receipt (R7/R8) -----------------------------------------
+# "Which model ran" is a claim that needs a serving-side receipt. Only the
+# claude CLI reports one today: its JSON envelope carries a modelUsage object
+# keyed by the full dated id that actually served the run. Match requested vs
+# actual by expected full-family prefix (alias -> dated id counts as a match;
+# never substring). Every other route records the literal "unverified" — never
+# a fallback to the requested value. Keep this block byte-identical across
+# ce-code-review and ce-doc-review (kernel parity).
+expected_model_prefix() {   # <requested-alias> -> expected served-id prefix
+  case "$1" in
+    opus)   printf 'claude-opus-' ;;
+    sonnet) printf 'claude-sonnet-' ;;
+    haiku)  printf 'claude-haiku-' ;;
+  esac
+}
+
+route_model() {   # <route> -> the M_* constant that route requests
+  case "$1" in
+    codex)       printf '%s' "$M_CODEX" ;;
+    claude)      printf '%s' "$M_CLAUDE" ;;
+    grok-cli)    printf '%s' "$M_GROK" ;;
+    grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
+    composer)    printf '%s' "$M_COMPOSER" ;;
+  esac
+}
+
+MODEL_ACTUAL="unverified"
+extract_model_receipt() {   # <route>; reads the envelope in $PEERLOG, sets MODEL_ACTUAL
+  MODEL_ACTUAL="unverified"
+  [ "$1" = "claude" ] || return 0
+  local requested actual prefix
+  requested="$(route_model claude)"
+  actual="$(jq -r '.modelUsage // empty | keys[0] // empty' "$PEERLOG" 2>/dev/null)"
+  if [ -z "$actual" ]; then
+    log "model receipt absent/unparseable on claude route; recording unverified"
+    return 0
+  fi
+  MODEL_ACTUAL="$actual"
+  prefix="$(expected_model_prefix "$requested")"
+  if [ -z "$prefix" ] || [ "${actual#"$prefix"}" = "$actual" ]; then
+    log "WARNING: model mismatch - requested $requested, backend served $actual; reconcile must surface this"
+  fi
+}
+
 # --- adapter argv (single source of truth for route flags) -----------------
 # Emits the CLI + flags one token per line. Read-only, no-prompt, least-privilege
 # (tool-less on claude/grok; read-only residual on codex/cursor-agent), and
@@ -465,6 +509,9 @@ attempt_route() {   # <provider> <route>
       # the exec with E2BIG on low-limit hosts, whereas stdin has no size limit.
       run_timeout_cmd "$PROMPT_FILE"; parse_structured "$PEERLOG" "$RAW_OUT" ;;
   esac
+  # Extract the served-model receipt from the envelope while $PEERLOG still
+  # holds it — normalization below only sees the schema-extracted RAW_OUT.
+  extract_model_receipt "$route"
 }
 
 # Run a provider (with the grok CLI -> cursor-agent classified-failure fallback).
@@ -526,9 +573,12 @@ run_provider() {   # <provider>
   if [ -s "$RAW_OUT" ]; then
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-norm-XXXXXX")"
     if jq --arg r "$REVIEWER_NAME-$provider" --arg route "$ACTUAL_ROUTE" \
+         --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
          'if (.findings|type)=="array"
           then { reviewer: $r,
                  cross_model_route: $route,
+                 model_requested: $mreq,
+                 model_actual: $mact,
                  findings: [ .findings[] | if (.autofix_class? == "safe_auto") then .autofix_class = "gated_auto" else . end ],
                  residual_risks: (.residual_risks // []),
                  deferred_questions: (.deferred_questions // []) }
