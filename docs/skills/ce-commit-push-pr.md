@@ -46,6 +46,7 @@ Going from "code written" to "PR open" is supposed to be a one-step move, but it
 - **Full PR commit-range resolution** — descriptions cover all commits in the PR, not just the working-tree diff
 - **Related-reference preflight** — identifies work-item references and uses closing magic words only when the PR truly resolves the item
 - **Concept teaching** — when a PR introduces a concept new to the codebase (a pattern, technique, library, or domain idea), the description gains a `## New concepts` section teaching it, so readers can understand and re-explain the change without opening the diff
+- **Truthful, non-disruptive branding** — new PRs get one generic Compound Engineering badge by default; existing PR rewrites preserve their current branding, and no single model or harness is credited for multi-agent work
 
 ---
 
@@ -180,6 +181,7 @@ When the skill's mode detection picks the wrong path, you can prompt explicitly 
 | `"...<focus text>"` | Steers description composition (e.g., "include the benchmarking results") |
 | `mode:pipeline` | Non-interactive modifier for orchestrated callers; suppresses every blocking ask (existing-PR rewrite defaults to no) |
 | `archive:on\|off` | Per-run override of the `pr_teaching_archive` config key (explainer-doc archival to `docs/explainers/`) |
+| `branding:on\|off` | Per-run override of `pr_branding` for newly created PRs; existing PR rewrites preserve their current branding |
 
 ---
 

@@ -52,6 +52,9 @@ describe("ce-work review contract", () => {
 
     expect(shipping).toContain("`ce-commit-push-pr` skill")
     expect(shipping).toContain("`ce-commit` skill")
+    expect(shipping).toContain("configured PR attribution")
+    expect(shipping).not.toContain("attribution badges")
+    expect(shipping).not.toContain("Compound Engineered badge with accurate model and harness")
 
     // Should not contain inline PR templates or attribution placeholders
     expect(content).not.toContain("gh pr create")

@@ -60,6 +60,12 @@
 # pr_teaching_section: false     # true | false (default: true)
 # pr_teaching_archive: true      # true | false (default: false; full-workflow runs only)
 
+# --- PR branding (ce-commit-push-pr) ---
+# New PRs include a generic Compound Engineering badge by default. Set false to
+# omit it (per-run override: branding:on|off). Existing PR rewrites preserve
+# their current branding and never add or refresh it on their own.
+# pr_branding: false             # true | false (default: true; new PRs only)
+
 # --- ce-commit-push-pr babysit handoff ---
 # After a full-workflow PR is opened, ce-commit-push-pr auto-invokes ce-babysit-pr
 # to watch CI + incoming review and drive the PR toward merge-ready. Set false to

@@ -96,7 +96,7 @@ A plan with four implementation units arrives. `ce-work` reads it, picks up an `
 
 The Parallel Safety Check finds no file overlap across the four units and worktree isolation is available — so all four dispatch in parallel, each on its own branch. They complete; the orchestrator merges them in dependency order; tests pass after each merge. The idempotency check catches that one unit's verification was already satisfied by a prior session and marks it complete without reimplementation.
 
-The diff isn't on a sensitive surface and isn't large/diffuse, so harness-native review handles it; the two suggested findings are addressed inline. Final validation passes; the operational validation plan is drafted; and `ce-commit-push-pr` opens the PR with summary, testing notes, the operational section, and a Compound Engineered badge. The plan itself is left untouched — it's a decision artifact, and whether it shipped is derived from git, not recorded in the doc.
+The diff isn't on a sensitive surface and isn't large/diffuse, so harness-native review handles it; the two suggested findings are addressed inline. Final validation passes; the operational validation plan is drafted; and `ce-commit-push-pr` opens the PR with summary, testing notes, the operational section, and the configured generic Compound Engineering branding. The plan itself is left untouched — it's a decision artifact, and whether it shipped is derived from git, not recorded in the doc.
 
 ---
 

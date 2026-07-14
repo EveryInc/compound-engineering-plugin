@@ -51,6 +51,25 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/PR description.+not.+comment/i)
   })
 
+  test("uses generic Compound Engineering branding without model attribution", async () => {
+    const reference = await readRepoFile(
+      "skills/ce-commit-push-pr/references/pr-description-writing.md",
+    )
+    const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    expect(reference).toContain("Built_with-Compound_Engineering")
+    expect(reference).not.toContain("MODEL_SLUG")
+    expect(reference).not.toMatch(/\| Harness \|/)
+    expect(reference).not.toMatch(/model slug/i)
+    expect(reference).toMatch(/new PR body.+pr_branding.+on \(the default\)/is)
+    expect(reference).toMatch(/existing PR body.+preserve.+verbatim/is)
+    expect(reference).toMatch(/never add one when absent/is)
+    expect(reference).toMatch(/explicitly asks.+remove or replace/is)
+    expect(skill).toMatch(/branding-only delta.+explicitly request/is)
+    expect(skill).toMatch(/pr_branding.+on by default/is)
+    expect(skill).toMatch(/branding:on\|off/)
+  })
+
   test("babysit handoff is default-on with off-switches and drivable fork PRs", async () => {
     const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
 
@@ -70,13 +89,15 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/pushes fixes to the \*\*head\*\* repo/i)
   })
 
-  test("config template and example document the auto_babysit opt-out", async () => {
+  test("config template and example document branding and babysit opt-outs", async () => {
     for (const p of [
       "skills/ce-setup/references/config-template.yaml",
       ".compound-engineering/config.local.example.yaml",
     ]) {
       const template = await readRepoFile(p)
       expect(template).toContain("auto_babysit")
+      expect(template).toContain("pr_branding")
+      expect(template).toContain("branding:on|off")
     }
   })
 })
