@@ -244,7 +244,7 @@ describe("unified plan artifact contract", () => {
   })
 
   test("ce-work surfaces its caller-owned mode in discovery metadata and public docs", () => {
-    expect(ceWork).toMatch(/description:.*outer orchestrators pass mode:return-to-caller/i)
+    expect(ceWork).toMatch(/description:.*outer orchestrators pass `mode:return-to-caller <plan path>`/i)
     expect(ceWork).toMatch(/argument-hint:.*mode:return-to-caller <plan path> for outer orchestrators/i)
     expect(ceWorkDocs).toContain("## Use Beneath an Outer Orchestrator")
     expect(ceWorkDocs).toContain("standalone_shipping_skipped: true")

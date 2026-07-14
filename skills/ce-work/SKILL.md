@@ -1,6 +1,6 @@
 ---
 name: ce-work
-description: Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs. Standalone use owns the shipping tail; outer orchestrators pass mode:return-to-caller <plan path> for implementation and local verification only.
+description: Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs. Standalone use owns the shipping tail; outer orchestrators pass `mode:return-to-caller <plan path>` for implementation and local verification only.
 argument-hint: "[Plan path or work description; blank uses latest] | [mode:return-to-caller <plan path> for outer orchestrators]"
 ---
 
