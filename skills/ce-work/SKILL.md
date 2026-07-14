@@ -1,7 +1,7 @@
 ---
 name: ce-work
-description: Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs. Standalone use owns the shipping tail; outer orchestrators use mode:return-to-caller for implementation and local verification only.
-argument-hint: "[Plan doc path or description; blank uses latest] | [mode:return-to-caller <plan path>]"
+description: Execute a plan or concrete work prompt end-to-end. Use when implementing from docs/plans, a spec path, or a clear build request; use ce-debug for open-ended bugs. Standalone use owns the shipping tail; outer orchestrators pass mode:return-to-caller <plan path> for implementation and local verification only.
+argument-hint: "[Plan path or work description; blank uses latest] | [mode:return-to-caller <plan path> for outer orchestrators]"
 ---
 
 # Work Execution Command
@@ -363,10 +363,11 @@ When all Phase 2 tasks are complete and execution transitions to quality check, 
 ## Return-to-Caller Mode
 
 `mode:return-to-caller <plan-path>` (legacy alias: `mode:caller-owned-tail`) is
-reserved for orchestrators such as `lfg` that own simplification, code review,
-PR creation, and CI watching after implementation. In this mode `ce-work`
-performs implementation and local verification only, then returns a structured
-summary instead of running the standalone shipping tail.
+reserved for orchestrators such as `lfg` that own the post-implementation
+shipping gates (final simplify, code review, PR creation, and CI watching).
+In this mode `ce-work` performs implementation and local verification only —
+including mid-implementation Phase 2 "Simplify as You Go" — then returns a
+structured summary instead of running the standalone shipping tail.
 
 Return:
 
