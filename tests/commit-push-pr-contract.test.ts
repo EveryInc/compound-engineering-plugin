@@ -51,6 +51,21 @@ describe("ce-commit-push-pr contract", () => {
     expect(content).toMatch(/PR description.+not.+comment/i)
   })
 
+  test("never adds or updates PR branding unless the user explicitly requests it", async () => {
+    const reference = await readRepoFile(
+      "skills/ce-commit-push-pr/references/pr-description-writing.md",
+    )
+    const skill = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
+
+    expect(reference).not.toContain("Built_with-Compound_Engineering")
+    expect(reference).not.toContain("MODEL_SLUG")
+    expect(reference).toMatch(/do not add Compound Engineering attribution.+unless the user explicitly asks/is)
+    expect(reference).toMatch(/branding alone is never a reason to rewrite a PR description/i)
+    expect(skill).toMatch(/if they are identical.+only difference is Compound Engineering attribution/is)
+    expect(skill).toMatch(/a no-op or branding-only delta is never a meaningful update/i)
+    expect(skill).toContain("do not call `gh pr edit`")
+  })
+
   test("babysit handoff is default-on with off-switches and drivable fork PRs", async () => {
     const content = await readRepoFile("skills/ce-commit-push-pr/SKILL.md")
 

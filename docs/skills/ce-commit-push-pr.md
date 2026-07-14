@@ -46,6 +46,7 @@ Going from "code written" to "PR open" is supposed to be a one-step move, but it
 - **Full PR commit-range resolution** — descriptions cover all commits in the PR, not just the working-tree diff
 - **Related-reference preflight** — identifies work-item references and uses closing magic words only when the PR truly resolves the item
 - **Concept teaching** — when a PR introduces a concept new to the codebase (a pattern, technique, library, or domain idea), the description gains a `## New concepts` section teaching it, so readers can understand and re-explain the change without opening the diff
+- **No automatic branding** — PR bodies contain no Compound Engineering, model, or harness attribution unless the user explicitly asks for it; branding alone never triggers a rewrite
 
 ---
 

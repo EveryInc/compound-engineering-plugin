@@ -170,11 +170,11 @@ Lead with the point, then the mechanism, then the caveat. Dense is good; long is
 
 ## Step C: Assemble the body
 
-In order: opening → body sections that earn their keep → related references when they need their own block → test plan if non-obvious → New concepts section when Step B2 produced one → evidence block if one exists → Compound Engineering badge after a `---` rule.
+In order: opening → body sections that earn their keep → related references when they need their own block → test plan if non-obvious → New concepts section when Step B2 produced one → evidence block if one exists.
 
 The opening goes under `## Summary` if the body uses any `##` headings; bare paragraph otherwise. No orphaned opening paragraphs above the first heading.
 
-**Evidence handling:** preserve any existing `## Demo` or `## Screenshots` block verbatim unless the user's focus asks to refresh it. If the caller passed a freshly captured URL or path, splice as `## Demo`. Otherwise omit. Place before the badge. Never label test output as "Demo" or "Screenshots."
+**Evidence handling:** preserve any existing `## Demo` or `## Screenshots` block verbatim unless the user's focus asks to refresh it. If the caller passed a freshly captured URL or path, splice as `## Demo`. Otherwise omit. Never label test output as "Demo" or "Screenshots."
 
 **Visual aids:** reach for a diagram or table when it conveys the change faster than prose — relationships, flows, state transitions, sequences, trade-offs, before/after data, or any structure prose would have to enumerate. Mermaid and markdown tables cover most shapes; don't be limited to a particular type if a different one fits the change better. Place inline at the point of relevance. Skip for simple, prose-clear, or rename/dep-bump changes. Prose is authoritative when it conflicts with a visual.
 
@@ -182,24 +182,11 @@ The opening goes under `## Summary` if the body uses any `##` headings; bare par
 
 ---
 
-## Step D: Badge
+## Step D: No automatic branding
 
-```markdown
----
+Do not add Compound Engineering attribution, model badges, harness badges, or other tool branding unless the user explicitly asks for that exact content in this invocation. Do not add, refresh, normalize, or remove existing branding on your own; preserve an existing branding block verbatim during an otherwise requested rewrite.
 
-[![Compound Engineering](https://img.shields.io/badge/Built_with-Compound_Engineering-6366f1)](https://github.com/EveryInc/compound-engineering-plugin)
-![HARNESS](https://img.shields.io/badge/MODEL_SLUG-COLOR?logo=LOGO&logoColor=white)
-```
-
-| Harness | `LOGO` | `COLOR` |
-|---|---|---|
-| Claude Code | `claude` | `D97757` |
-| Codex | (omit `?logo=` param) | `000000` |
-| Antigravity CLI (`agy`) | `googlegemini` | `4285F4` |
-
-**Model slug:** spaces become underscores; append context window and thinking level in parens if known. **URL-encode literal parens as `%28` / `%29`** — unencoded parens inside markdown image URLs break release-please's commit parser, which silently drops the commit from the changelog. Examples: `Opus_4.6_%281M,_Extended_Thinking%29`, `Sonnet_4.6_%28200K%29`, `Gemini_3.1_Pro`.
-
-Skip the badge if regenerating a body that already contains it.
+Branding alone is never a reason to rewrite a PR description. If branding is the only difference between the existing and proposed bodies, keep the existing body and do not apply an update.
 
 ---
 
@@ -209,4 +196,4 @@ Before returning the body, check it against the material claims from Step A and 
 
 - Is every claim the diff can't establish present — and is any claim the diff *does* show restated needlessly?
 - Is decision-changing evidence stated as a result rather than collapsed into an unexplained "tests passed", with demonstrated results kept distinct from assumptions and from mixed or negative outcomes?
-- Can any sentence or section of the *description* be cut without lowering reviewer confidence? If so, cut it — but never the required Step D badge/footer, which is mandated boilerplate, not descriptive content subject to this trim.
+- Can any sentence or section of the *description* be cut without lowering reviewer confidence? If so, cut it.
