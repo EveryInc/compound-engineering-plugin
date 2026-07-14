@@ -27,10 +27,11 @@ Cache path:
   root-sha = lexicographically-first `git rev-list --max-parents=0 HEAD`
              (deterministic even for multi-root histories) — the repo identity,
              shared across worktrees and clones.
-  inputs-digest = sha256 over sorted (path, blob-sha) pairs for every
-             profile-input file at HEAD (`git ls-tree -r -z HEAD`, filtered by
-             `is_profile_input`). Commits that do not touch profile inputs
-             share the same entry.
+  inputs-digest = sha256 over (1) every committed blob path (shape — catches
+             topology/module-layout changes such as a new directory or file)
+             and (2) (path, blob-sha) for every profile-input file at HEAD.
+             Content edits to non-input files keep the same entry; adding or
+             removing any path, or changing a profile-input's content, does not.
 
 Validity (HIT) requires ALL of:
   - the cache file exists and parses as JSON,
@@ -200,10 +201,19 @@ def root_sha() -> "str | None":
 
 
 def inputs_digest() -> "str | None":
-    """Sha256 of sorted (path, blob-sha) for every profile-input blob at HEAD.
+    """Sha256 covering committed tree shape + profile-input contents at HEAD.
 
-    Committed state only (`git ls-tree`); working-tree dirtiness is a separate
-    HIT gate via `changed_paths`. None if git could not list the tree.
+    Two layers (committed state only via `git ls-tree`; working-tree dirtiness
+    is a separate HIT gate via `changed_paths`):
+
+    - Every blob **path** (no content) — so adding/removing/renaming a file
+      (e.g. a new `src/db/migrations/` module) changes the digest and busts a
+      cached topology/module_layout, without invalidating on content edits to
+      existing non-input files.
+    - `(path, blob-sha)` for every **profile-input** blob — so manifest/docs/CI
+      content changes still invalidate.
+
+    None if git could not list the tree.
     """
     try:
         result = subprocess.run(
@@ -231,8 +241,10 @@ def inputs_digest() -> "str | None":
         if obj_type != b"blob":
             continue
         path = path_b.decode("utf-8", errors="surrogateescape")
+        # Shape: every path, content-agnostic.
+        pairs.append(f"path\0{path}")
         if is_profile_input(path):
-            pairs.append(f"{path}\0{blob.decode('ascii')}")
+            pairs.append(f"blob\0{path}\0{blob.decode('ascii')}")
 
     pairs.sort()
     h = hashlib.sha256()

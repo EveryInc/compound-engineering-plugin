@@ -29,9 +29,9 @@ Never read from the cache — recompute every run:
 ```
 
 - `<root-sha>` = lexicographically-first `git rev-list --max-parents=0 HEAD` — the repo identity (stable, shared across worktrees and clones).
-- `<inputs-digest>` = sha256 over the sorted `(path, blob-sha)` pairs for every **profile-input** file at `HEAD` (`git ls-tree -r HEAD`, filtered by the helper's `is_profile_input`). Commits that only touch non-input paths (e.g. `src/`) share the same entry.
+- `<inputs-digest>` = sha256 over (1) every committed blob **path** at `HEAD` (tree shape — so a new module/directory invalidates topology) and (2) `(path, blob-sha)` for every **profile-input** file (filtered by the helper's `is_profile_input`). Content edits to existing non-input files keep the same entry; adding/removing any path, or changing a profile-input's content, does not.
 
-Two checkouts whose committed profile inputs match share the same entry, even across different `HEAD` SHAs. Lookup hashes those inputs; on a hit, only this one file is read.
+Two checkouts whose committed path set and profile-input contents match share the same entry, even across different `HEAD` SHAs. Lookup hashes those; on a hit, only this one file is read.
 
 ## Protocol — how a skill uses it
 

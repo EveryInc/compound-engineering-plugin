@@ -65,7 +65,12 @@ const VALID_PROFILE = {
 
 /** Write a profile JSON file and `put` it; return the cache path. */
 function putProfile(dir: string, profile: object = VALID_PROFILE): string {
-  const profileFile = path.join(dir, "profile.json")
+  // Keep the profile file outside the repo so later `git add -A` commits in
+  // the same fixture cannot pick it up and change the path-shaped digest.
+  const profileFile = path.join(
+    mkdtempSync(path.join(tmpdir(), "repo-profile-put-")),
+    "profile.json",
+  )
   writeFileSync(profileFile, JSON.stringify(profile))
   const res = run(dir, "put", profileFile)
   expect(res.code).toBe(0)
@@ -107,16 +112,29 @@ describe("repo-profile-cache helper", () => {
     expect(digestComponent).not.toBe(`${head}.json`)
   })
 
-  test("non-input commit at new HEAD → HIT (content-addressed reuse)", () => {
+  test("content edit to existing non-input file at new HEAD → HIT", () => {
     const dir = makeRepo()
-    putProfile(dir)
     mkdirSync(path.join(dir, "src"))
     writeFileSync(path.join(dir, "src", "app.js"), "console.log(1)\n")
     git(dir, "add", "-A")
-    git(dir, "commit", "-q", "-m", "non-input change")
+    git(dir, "commit", "-q", "-m", "add src")
+    putProfile(dir)
+    writeFileSync(path.join(dir, "src", "app.js"), "console.log(2)\n")
+    git(dir, "add", "-A")
+    git(dir, "commit", "-q", "-m", "edit src content only")
     const res = run(dir, "get")
     expect(res.stdout.startsWith("HIT\n")).toBe(true)
     expect(getHitProfile(res.stdout)).toEqual(VALID_PROFILE)
+  })
+
+  test("new non-input path at new HEAD → MISS (tree-shape in digest)", () => {
+    const dir = makeRepo()
+    putProfile(dir)
+    mkdirSync(path.join(dir, "src", "db", "migrations"), { recursive: true })
+    writeFileSync(path.join(dir, "src", "db", "migrations", "001.sql"), "SELECT 1;\n")
+    git(dir, "add", "-A")
+    git(dir, "commit", "-q", "-m", "add migrations layout")
+    expect(run(dir, "get").stdout.startsWith("MISS\n")).toBe(true)
   })
 
   test("input-changing commit at new HEAD → MISS (new inputs digest)", () => {
