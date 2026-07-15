@@ -1060,6 +1060,9 @@ def cmd_watch(args):
             _emit_wake("stop-signal")
             return
         actionable = _run_snapshot(args, _now(), advance_trajectory=False)  # a poll must not roll the trajectory
+        # `watch --reset-session` is a compatibility route for a direct fresh arm. It resets only
+        # the first poll; leaving the flag set would renew started_at forever and defeat max-runtime.
+        args.reset_session = False
         if armed is None:
             armed = _blocker_sig(actionable)
         reason = _wake_reason(actionable, args.settle_seconds)

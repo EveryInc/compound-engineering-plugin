@@ -41,7 +41,7 @@ function watch(stateDir: string, fetch: string, extra: string[] = []): any {
     "python3",
     [SCRIPT, "watch", "--pr", "1", "--repo", "o/r", "--state-dir", stateDir, "--fetch-file", fetch,
       "--interval", "0.1", "--max-runtime", "1", ...extra],
-    { encoding: "utf8" },
+    { encoding: "utf8", timeout: 5000 },
   )
   expect(r.status, r.stderr).toBe(0)
   return JSON.parse(r.stdout.trim().split("\n").pop()!) // the wake sentinel is the final line
@@ -664,6 +664,21 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
 
     expect(wake.reason).toBe("max-runtime")
   }, 15000)
+
+  test("watch --reset-session resets once, not on every poll", () => {
+    const waiting = {
+      ...FAILING,
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    }
+    const wake = watch(
+      path.join(dir, "watch-reset-once"),
+      fetchFile(dir, "watch-reset-once.json", waiting),
+      ["--reset-session"],
+    )
+
+    expect(wake.reason).toBe("max-runtime")
+  }, 10000)
 
   test("clearing a fork approval gate is movement (resets the settle clock so merge-ready waits for check-runs)", () => {
     const sd = path.join(dir, "appr")
