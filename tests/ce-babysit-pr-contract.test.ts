@@ -249,13 +249,14 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     ])
 
     for (const text of [babysit, watchLoop]) {
-      expect(text).toContain("gh stack rebase --upstack --no-trunk")
+      expect(text).toContain("gh stack rebase <first-dependent-branch> --upstack --no-trunk")
       expect(text).toContain("gh stack push")
       expect(text).toContain("--force-with-lease --atomic")
       expect(text).toMatch(/gh stack rebase --abort[\s\S]{0,300}(residual|needs-human)/i)
       expect(text).toMatch(/manual dependency[\s\S]{0,500}(never|do not)[\s\S]{0,120}(rebase|rewrite|restack)/i)
+      expect(text).toMatch(/target[^.]{0,160}(local|head)[^.]{0,160}(pushed SHA|unchanged)/i)
     }
-    expect(babysit).toMatch(/after (an|any) authorized target-head push[\s\S]{0,1200}gh stack rebase --upstack --no-trunk/i)
+    expect(babysit).toMatch(/after (an|any) authorized target-head push[\s\S]{0,1600}gh stack rebase <first-dependent-branch> --upstack --no-trunk/i)
     expect(babysit).toMatch(/manager-owned[\s\S]{0,200}(implicit|babysit)[\s\S]{0,200}author/i)
   })
 
