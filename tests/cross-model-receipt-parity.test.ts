@@ -12,6 +12,7 @@ const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 const SCRIPTS = [
   "ce-code-review/scripts/cross-model-adversarial-review.sh",
   "ce-doc-review/scripts/cross-model-doc-review.sh",
+  "ce-pov/scripts/cross-model-pov.sh",
 ]
 
 const BEGIN_MARKER = "# --- model-identity receipt (R7/R8)"
@@ -29,14 +30,16 @@ function receiptKernel(content: string, file: string): string {
   return lines.slice(begin, end).join("\n")
 }
 
-describe("cross-model receipt-kernel parity (code-review vs doc-review)", () => {
-  test("the model-identity receipt block is byte-identical in both scripts", async () => {
+describe("cross-model receipt-kernel parity", () => {
+  test("the model-identity receipt block is byte-identical in all scripts", async () => {
     const kernels = await Promise.all(
       SCRIPTS.map(async (rel) => {
         const p = path.join(PLUGIN_ROOT, rel)
         return receiptKernel(await readFile(p, "utf8"), rel)
       }),
     )
-    expect(kernels[1]).toBe(kernels[0])
+    for (let i = 1; i < kernels.length; i++) {
+      expect(kernels[i]).toBe(kernels[0])
+    }
   })
 })

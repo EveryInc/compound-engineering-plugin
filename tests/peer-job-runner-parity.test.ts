@@ -9,7 +9,7 @@ const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 // References in Skills"). All copies must stay identical.
 const RUNNER_ASSETS = ["scripts/peer-job-runner.py"]
 
-const CONSUMER_SKILLS = ["ce-doc-review", "ce-code-review"]
+const CONSUMER_SKILLS = ["ce-doc-review", "ce-code-review", "ce-pov"]
 
 describe("peer-job-runner shared-asset parity", () => {
   for (const asset of RUNNER_ASSETS) {
