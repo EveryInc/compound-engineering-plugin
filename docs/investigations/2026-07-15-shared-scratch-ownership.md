@@ -112,8 +112,19 @@ Implemented on `fix/owner-safe-scratch-roots-upstream` in
   hostile legacy `<temp>/actions-json-mcp` path cannot block spilling.
 - The actions.json suite passes 93 unit tests and 44 characterization tests;
   its working-tree diff passes `git diff --check`.
+- The branch bridge was built and staged at
+  `~/.local/share/actions-json-mcp/0.1.224-owner-safe-spills`. The Codex
+  launcher verifier returned `ok: true` after both the binary and
+  `--actions` paths were repointed to that stage.
+- An isolated live MCP process from the staged binary, launched with a
+  100-byte inline limit, spilled `bridge.payloads.configure` to
+  `/tmp/actions-json-mcp-234525-7c280887-8d11-446a-959f-1c9189df52f2/payloads/...`.
+  The spill file was non-empty and owned by `agent-tomas`, proving the actual
+  staged process uses its process-scoped default rather than the legacy shared
+  directory.
 
 Remaining before closure: merge/release the upstream Compound and actions.json
-changes, install and live-verify the released actions.json bridge (the current
-bridge still spills under the legacy shared path), then run the CE Compound
-closure gate and record the durable ownership lesson.
+changes, restart Codex so its configured staged actions.json bridge replaces
+the still-running legacy process, verify payload spilling through the installed
+MCP session, then run the CE Compound closure gate and record the durable
+ownership lesson.
