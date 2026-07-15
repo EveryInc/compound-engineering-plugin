@@ -506,7 +506,7 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     }
     const f = fetchFile(dir, "fb.json", withFeedback)
     const d = snapshot(state, f)
-    expect(d.counts.comments).toBe(2) // both surfaced as actionable review items with no inline thread
+    expect(d.counts.comments).toBe(2) // both surfaced as feedback candidates with no inline thread
     expect(d.actionable.comments.map((c: any) => c.id).sort()).toEqual(["IC_1", "PRR_1"])
 
     mark(state, ["--comment", "IC_1", "--disposition", "dispatched"])
@@ -554,6 +554,17 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     // same clean state with a zero settle window -> merge-ready wake
     expect(watch(path.join(dir, "w4"), cf, ["--settle-seconds", "0"]).reason).toBe("merge-ready")
   }, 15000) // spawns 4 watch subprocesses incl. a max-runtime timeout -> explicit timeout over Bun's 5s default
+
+  test("watch: labels a comments-only wake as a feedback candidate while CI is running", () => {
+    const RUNNING = { key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }
+    const candidate = {
+      ...FAILING,
+      threads: [],
+      checks: [RUNNING],
+      feedback: [{ id: "IC_status", kind: "comment", author: "review-bot", edit_id: "status-v1" }],
+    }
+    expect(watch(path.join(dir, "wfc"), fetchFile(dir, "wfc.json", candidate)).reason).toBe("feedback-candidate")
+  }, 15000)
 
   test("watch: an in-progress review signal blocks the merge-ready wake regardless of quiet time", () => {
     // "Looks ready" is signal-gated: a green/CLEAN PR with a review still in flight (review_in_progress)

@@ -710,8 +710,12 @@ def _wake_reason(a, settle_seconds):
     if a.get("blocked_external"):
         return "blocked-external"
     c = a.get("counts") or {}
-    if c.get("threads", 0) or c.get("comments", 0) or c.get("ci", 0):
+    if c.get("threads", 0) or c.get("ci", 0):
         return "actionable"
+    if c.get("comments", 0):
+        # Non-thread bodies are feedback candidates, not a deterministic conclusion that work is
+        # required. The resolver may legitimately silent-drop status noise or review wrappers.
+        return "feedback-candidate"
     if a.get("open_needs_human", 0):
         return "needs-human"         # parked items block ready; surface them
     if a.get("has_failing_checks") and a.get("checks_terminal"):
@@ -764,7 +768,7 @@ def _blocker_sig(a):
 def cmd_watch(args):
     """Deterministic background change-detector (no agent tokens between changes): poll on an
     interval, print one wake sentinel line and exit when there is something for the agent to do
-    (an actionable change or a stop condition), or exit on the stop-signal file / max-runtime.
+    (work to inspect or a stop condition), or exit on the stop-signal file / max-runtime.
     A residual already present at arm time (a parked needs-human, or a dispatched terminal-red the
     agent already handed back) does NOT re-wake the loop — it keeps watching the other streams;
     only a *new* blocker (signature grown past the baseline) wakes."""

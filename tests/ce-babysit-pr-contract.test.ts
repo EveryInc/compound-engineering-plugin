@@ -111,7 +111,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     // producer side: the watch subcommand emits the sentinel and can wake on each precedence reason
     expect(script).toContain("def cmd_watch")
     expect(script).toContain("BABYSIT_WAKE")
-    for (const reason of ["terminal", "blocked-external", "actionable", "needs-human", "merge-ready"]) {
+    for (const reason of ["terminal", "blocked-external", "actionable", "feedback-candidate", "needs-human", "merge-ready"]) {
       expect(script, `watch must be able to wake on '${reason}'`).toContain(reason)
     }
   })
