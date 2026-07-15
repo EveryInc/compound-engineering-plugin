@@ -412,7 +412,7 @@ describe("ce-pov fixed route and egress allowlist", () => {
     expect(inside.stderr).toContain("run-dir must be outside the repository")
   })
 
-  test.each(["SIGTERM", "SIGINT"] as const)("%s cleans private peer scratch", async (signal) => {
+  test.each(["SIGTERM", "SIGINT"] as const)("%s cleans private peer scratch and heartbeat", async (signal) => {
     const scratchParent = temp("pov-signal-scratch-")
     const started = path.join(temp("pov-signal-started-"), "marker")
     const { env } = sandbox(["cursor-agent"], `#!/bin/sh\n: > '${started}'\ncat >/dev/null\nsleep 30\n`)
@@ -427,9 +427,17 @@ describe("ce-pov fixed route and egress allowlist", () => {
     }
     expect(existsSync(started)).toBe(true)
     expect(readdirSync(scratchParent).length).toBe(1)
+    const workerPid = child.pid
+    expect(workerPid).toBeDefined()
+    const childPids = spawnSync("pgrep", ["-P", String(workerPid)], { encoding: "utf8" })
+      .stdout.split(/\s+/).filter(Boolean).map(Number)
+    expect(childPids.length).toBeGreaterThanOrEqual(2)
     child.kill(signal)
     await new Promise<void>((resolve) => child.once("exit", () => resolve()))
     expect(readdirSync(scratchParent)).toEqual([])
+    for (const pid of childPids) {
+      expect(() => process.kill(pid, 0)).toThrow()
+    }
   })
 
   test("peer brief restricts external queries to public subject terms", () => {

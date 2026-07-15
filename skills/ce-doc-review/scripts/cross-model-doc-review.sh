@@ -477,6 +477,11 @@ reap() {
 
 # TERM/INT: reap the live peer group, then exit cleanly (HUP remains ignored).
 on_term() {
+  if [ -n "${_HEARTBEAT_PID:-}" ]; then
+    kill "$_HEARTBEAT_PID" 2>/dev/null || true
+    wait "$_HEARTBEAT_PID" 2>/dev/null || true
+    _HEARTBEAT_PID=""
+  fi
   if [ -n "${ACTIVE_PEER_PID:-}" ]; then
     log "received TERM/INT; reaping peer process group $ACTIVE_PEER_PID"
     reap "$ACTIVE_PEER_PID" 2>/dev/null || true
@@ -505,16 +510,23 @@ build_cmd() {
 # cross-model-adversarial-review.sh and cross-model-doc-review.sh (kernel parity).
 _HEARTBEAT_PID=""
 start_heartbeat() {
-  local every="${CROSS_MODEL_HEARTBEAT_SECS:-60}"
+  local every="${CROSS_MODEL_HEARTBEAT_SECS:-60}" parent_pid="$$"
   # Floor to 1s: a non-numeric or 0 value would make `sleep` return instantly and
   # spin the loop, flooding out.log into the runner's byte cap.
   case "$every" in ''|*[!0-9]*) every=60 ;; esac; [ "$every" -lt 1 ] && every=1
   ( local t0 n; t0="$(date +%s)"
-    while :; do sleep "$every"; n="$(date +%s)"; log "peer alive ($(( n - t0 ))s elapsed)"; done ) &
+    while kill -0 "$parent_pid" 2>/dev/null; do
+      sleep "$every"
+      kill -0 "$parent_pid" 2>/dev/null || break
+      n="$(date +%s)"; log "peer alive ($(( n - t0 ))s elapsed)"
+    done ) &
   _HEARTBEAT_PID=$!
 }
 stop_heartbeat() {
-  [ -n "$_HEARTBEAT_PID" ] && kill "$_HEARTBEAT_PID" 2>/dev/null
+  if [ -n "$_HEARTBEAT_PID" ]; then
+    kill "$_HEARTBEAT_PID" 2>/dev/null || true
+    wait "$_HEARTBEAT_PID" 2>/dev/null || true
+  fi
   _HEARTBEAT_PID=""
 }
 
