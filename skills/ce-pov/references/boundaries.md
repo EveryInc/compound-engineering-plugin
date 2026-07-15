@@ -15,7 +15,7 @@ Load this when the input's fit for `ce-pov` is in doubt, or to route a Hold (SKI
 | A judgment among approaches the user already supplied | `ce-pov` | Options supplied → judge them against the project; options still need to be invented → `ce-ideate` |
 | Options invented from an open field | `ce-ideate` | Invented vs. discovered: ideate invents; `ce-pov` judges/selects from a discoverable field |
 | To scope an idea already chosen | `ce-brainstorm` | `ce-pov` decides *whether*; brainstorm scopes *what* once it's a yes |
-| To know how to build something decided | `ce-plan` | Verdict accepted → hand off; `ce-pov` does no task breakdown |
+| To know how to build something decided | `ce-plan` | Verdict accepted → offer the handoff, or perform it only when the original request authorized that named action and the Phase 4 authority gate passes; `ce-pov` does no task breakdown |
 | To fix observed broken behavior | `ce-debug` | `ce-pov` assesses *exposure and priority* of a CVE; debug investigates an *actual failure* |
 | Product thesis / company direction | `ce-strategy` | `ce-pov` is bounded to a specific external input |
 

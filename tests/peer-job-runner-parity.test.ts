@@ -1,4 +1,4 @@
-import { readFile, access } from "fs/promises"
+import { readFile } from "fs/promises"
 import path from "path"
 import { describe, expect, test } from "bun:test"
 
@@ -17,7 +17,6 @@ describe("peer-job-runner shared-asset parity", () => {
       const contents = await Promise.all(
         CONSUMER_SKILLS.map(async (skill) => {
           const p = path.join(PLUGIN_ROOT, skill, asset)
-          await access(p) // fails the test if a consumer is missing the copy
           return readFile(p, "utf8")
         }),
       )

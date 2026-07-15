@@ -57,7 +57,7 @@ A document POV is a holistic take, not a findings review. Lead with a plain-lang
 
 `Strengths` · `Risks` · `Verified facts (project + load-bearing external claims, kept distinct)` · `Conversation hypotheses (unverified — warm only)` · `Recommendation` · `Handoff (optional separate continuation)`
 
-Name the few strengths and risks that actually determine the bottom line; do not turn the response into an issue inventory. Recommend what should happen next when the evidence supplies a real basis. Applying edits is never part of the POV itself; route a requested continuation to the skill or same-agent workflow that owns the edit.
+Name the few strengths and risks that actually determine the bottom line; do not turn the response into an issue inventory. Recommend what should happen next when the evidence supplies a real basis. Applying edits is never part of the POV itself. An analysis-only request offers the logical continuation and waits; an originally authorized continuation may route to the owning workflow only after the non-stalemated, in-scope, non-destructive authority gate in SKILL.md Phase 4 passes.
 
 ## Approach-set position contract
 
@@ -65,7 +65,7 @@ An approach-set POV judges only the options the user or conversation supplied; g
 
 `Why` · `Tradeoffs by supplied approach` · `Verified facts (project + load-bearing external claims, kept distinct)` · `Conversation hypotheses (unverified — warm only)` · `Conditions` · `Handoff (optional separate continuation)`
 
-Choose an approach and recommend it when verified project facts and the material tradeoffs provide a real basis. When the options are genuinely viable either way, say **"Either is viable"** and lay out the pros and cons instead of forcing a pick. Never manufacture certainty with a scorecard or mechanically select the option with the most checked boxes. Proceeding with an approach is never part of the POV itself; offer it only as a separate continuation.
+Choose an approach and recommend it when verified project facts and the material tradeoffs provide a real basis. When the options are genuinely viable either way, say **"Either is viable"** and lay out the pros and cons instead of forcing a pick. Never manufacture certainty with a scorecard or mechanically select the option with the most checked boxes. Proceeding with an approach is never part of the POV itself; an analysis-only request offers it and waits, while an originally authorized continuation still must pass the Phase 4 authority gate.
 
 ## Output economy
 

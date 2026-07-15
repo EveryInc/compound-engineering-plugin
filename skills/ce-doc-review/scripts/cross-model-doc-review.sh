@@ -11,7 +11,7 @@
 # return that folds in and fingerprints against its in-process twin.
 #
 # Independence is by PROVIDER, not CLI brand. A provider is reached by a ROUTE:
-# its dedicated CLI, or (for grok fallback / composer) cursor-agent. All
+# its dedicated CLI, or (for fixed grok-cursor / composer routes) cursor-agent. All
 # activated lenses run on ONE model per provider at HIGH reasoning (composer's
 # -fast tier is its ceiling, an accepted exception).
 #
@@ -22,9 +22,9 @@
 #   <host-provider> the peer-key of the host's OWN serving provider, attested by
 #                   the calling skill (it knows its harness): openai->codex,
 #                   anthropic->claude, xai->grok, cursor/composer->composer.
-#                   Excluded from selection so the pass never self-reviews. Empty
-#                   or "unknown" -> the pass SKIPS (zero peers) rather than risk a
-#                   same-provider peer.
+#                   Excluded from selection when attested. `unknown` is allowed,
+#                   but any returned review remains non-independent and cannot
+#                   promote agreement.
 #   <candidates>    comma-separated ordered provider keys to consider, e.g.
 #                   "codex,claude,grok,composer". The skill front-loads any
 #                   resolved preference (conversation > config.local.yaml >
@@ -85,7 +85,7 @@ skip() { log "$*"; exit 0; }   # non-blocking: announce reason, exit clean, no o
 M_CODEX="gpt-5.6-sol"          # codex CLI            (-c model_reasoning_effort="high")
 M_CLAUDE="opus"                # claude CLI, Opus 4.8 (--effort high)
 M_GROK="grok-4.5"              # grok CLI             (--effort high)
-M_GROK_CURSOR="grok-4.5-high"  # cursor-agent grok fallback (reasoning baked into id)
+M_GROK_CURSOR="cursor-grok-4.5-high"  # fixed cursor-agent Grok route (current id)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
 # --- model-identity receipt (R7/R8) -----------------------------------------
@@ -105,12 +105,44 @@ expected_model_prefix() {   # <requested-alias> -> expected served-id prefix
 }
 
 route_model() {   # <route> -> the M_* constant that route requests
+  local target
+  target="$(route_target "$1")"
+  if [ -n "${CROSS_MODEL_MODEL_OVERRIDE:-}" ] &&
+     [ "${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" = "$target" ] &&
+     [ "$target" != "cursor" ]; then
+    printf '%s' "$CROSS_MODEL_MODEL_OVERRIDE"
+    return 0
+  fi
   case "$1" in
     codex)       printf '%s' "$M_CODEX" ;;
     claude)      printf '%s' "$M_CLAUDE" ;;
     grok-cli)    printf '%s' "$M_GROK" ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
+    cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
+  esac
+}
+
+route_target() {
+  case "$1" in
+    codex|claude|cursor|composer) printf '%s' "$1" ;;
+    grok-cli|grok-cursor) printf 'grok' ;;
+  esac
+}
+
+route_harness() {
+  case "$1" in
+    codex) printf 'codex' ;;
+    claude) printf 'claude' ;;
+    grok-cli) printf 'grok' ;;
+    grok-cursor|cursor|composer) printf 'cursor-agent' ;;
+  esac
+}
+
+target_serving_family() {
+  case "$1" in
+    codex|claude|grok|composer) printf '%s' "$1" ;;
+    cursor) printf 'unknown' ;;
   esac
 }
 
@@ -160,7 +192,7 @@ adapter_argv() {
   case "$1" in
     codex)
       printf '%s\0' codex exec - -C "$PEER_WORKDIR" --skip-git-repo-check -s read-only \
-        -o "$RAW_OUT" -m "$M_CODEX" -c 'model_reasoning_effort="high"' -c 'hide_agent_reasoning=false'
+        -o "$RAW_OUT" -m "$(route_model codex)" -c 'model_reasoning_effort="high"' -c 'hide_agent_reasoning=false'
       ;;
     claude)
       # --tools "" disables ALL built-in tools (allowlist deny-all, no denylist gap
@@ -168,25 +200,45 @@ adapter_argv() {
       # plugins, auto-memory); the run cd's into the empty per-peer workspace (claude
       # has no cwd flag) so even an unlisted tool has no repo -- or sibling peer's
       # fold-in artifact -- in reach. R17 tool-less isolation.
-      printf '%s\0' claude -p --model "$M_CLAUDE" --effort high --permission-mode dontAsk \
+      printf '%s\0' claude -p --model "$(route_model claude)" --effort high --permission-mode dontAsk \
         --bare --tools "" \
         --max-turns 15 --no-session-persistence --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cli)
-      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$M_GROK" --effort high \
+      printf '%s\0' grok --prompt-file "$PROMPT_FILE" --model "$(route_model grok-cli)" --effort high \
         --cwd "$PEER_WORKDIR" --permission-mode dontAsk \
         --deny Read --deny Edit --deny Write --deny Bash --deny Task --deny 'mcp__*' \
         --disable-web-search --no-subagents --max-turns 15 \
         --json-schema "$SCHEMA_REF" --output-format json
       ;;
     grok-cursor)
-      printf '%s\0' cursor-agent -p --model "$M_GROK_CURSOR" --mode ask --trust \
+      printf '%s\0' cursor-agent -p --model "$(route_model grok-cursor)" --mode ask --trust \
+        --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
+      ;;
+    cursor)
+      printf '%s\0' cursor-agent -p --mode ask --trust \
         --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
     composer)
-      printf '%s\0' cursor-agent -p --model "$M_COMPOSER" --mode ask --trust \
+      printf '%s\0' cursor-agent -p --model "$(route_model composer)" --mode ask --trust \
         --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
+    *) return 1 ;;
+  esac
+}
+
+# Accept a host-discovered replacement only for its declared target and model
+# family. An override for another target is ignored rather than leaking across
+# routes; an unbound or cross-family override is invalid for its own route.
+validate_model_override() {
+  local route="$1" override="${CROSS_MODEL_MODEL_OVERRIDE:-}" override_target="${CROSS_MODEL_MODEL_OVERRIDE_TARGET:-}" target
+  [ -n "$override" ] || { [ -z "$override_target" ]; return; }
+  [ -n "$override_target" ] || return 1
+  target="$(route_target "$route")" || return 1
+  [ "$override_target" = "$target" ] || return 0
+  [ "$target" != "cursor" ] || return 1
+  case "$route:$override" in
+    codex:gpt-*|codex:o[0-9]*|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*) ;;
     *) return 1 ;;
   esac
 }
@@ -198,14 +250,16 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   OUT="<run-dir>/<lens>-<provider>.json"
   PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
   route="${2:-}"
+  validate_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
   # adapter_argv emits NUL-delimited argv (can't be captured in a shell var), so
   # validate the route first, then render for humans with NUL -> space.
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|composer)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
 
 HOST_PROVIDER="${1:-}"
+HOST_HARNESS="${CROSS_MODEL_HOST_HARNESS:-unknown}"
 CANDIDATES="${2:-}"
 REVIEWER_NAME="${3:-}"
 DOC_PATH="${4:-}"
@@ -227,12 +281,17 @@ mkdir -p "$RUN_DIR" 2>/dev/null
 [ -d "$RUN_DIR" ] || skip "run-dir '$RUN_DIR' could not be created; skipping"
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 
-# Attest-or-skip (R16): an un-attestable host provider means the pass skips
-# rather than risk selecting a same-provider peer.
+# Validate the host identity tuple. An unknown serving family is allowed, but
+# normalization marks every result non-independent.
 case "$HOST_PROVIDER" in
-  codex|claude|grok|composer) ;;
-  *) skip "host provider '${HOST_PROVIDER:-<empty>}' un-attestable (want codex|claude|grok|composer); skipping cross-model pass (zero peers)" ;;
+  codex|claude|grok|composer|unknown) ;;
+  *) skip "host serving family '${HOST_PROVIDER:-<empty>}' invalid (want codex|claude|grok|composer|unknown); skipping cross-model pass" ;;
 esac
+case "$HOST_HARNESS" in
+  codex|claude|grok|cursor|unknown) ;;
+  *) skip "host harness '$HOST_HARNESS' invalid (want codex|claude|grok|cursor|unknown); skipping cross-model pass" ;;
+esac
+[ "$HOST_PROVIDER" != "unknown" ] || skip "host serving family unattested; automatic cross-model review skipped"
 
 # --- derive persona-brief filename from the allowlisted reviewer-name -------
 # Never a caller argument -> no path-traversal / arbitrary-file-read surface.
@@ -281,8 +340,7 @@ case "$MAX_PEERS" in ''|*[!0-9]*) MAX_PEERS=1 ;; esac
 in_csv() { case ",$2," in *",$1,"*) return 0 ;; *) return 1 ;; esac; }
 # Require a reviewer-shaped return (top-level `findings` array), not merely valid
 # JSON: a grok error/envelope object (e.g. a 402 usage-exhausted body) is valid
-# JSON but has no findings, and accepting it would suppress the grok-cursor
-# fallback and then be dropped at normalize, yielding no fold-in. Matches the
+# JSON but has no findings and would be dropped at normalize. Matches the
 # adversarial twin's check.
 out_missing_or_invalid() { [ ! -s "$RAW_OUT" ] || ! jq -e '(.findings|type)=="array"' "$RAW_OUT" >/dev/null 2>&1; }
 
@@ -292,7 +350,7 @@ out_missing_or_invalid() { [ ! -s "$RAW_OUT" ] || ! jq -e '(.findings|type)=="ar
 # under an allowlist that does not sanction Cursor. Cursor egress is sanctioned when
 # no allowlist is set, or when 'composer' (the Cursor-native provider) is allowlisted
 # -- either way the user has accepted that content may reach Cursor.
-cursor_egress_ok() { [ -z "$ALLOW" ] || in_csv composer "$ALLOW"; }
+cursor_egress_ok() { [ -z "$ALLOW" ] || in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
 
 # Soft size gate: peer prompt embeds the full document. Over-budget docs skip
 # cleanly (R11) rather than collapsing silently inside the provider context window.
@@ -308,17 +366,16 @@ provider_available() {
     codex)    command -v codex >/dev/null 2>&1 ;;
     claude)   command -v claude >/dev/null 2>&1 ;;
     grok)     command -v grok >/dev/null 2>&1 || { cursor_egress_ok && command -v cursor-agent >/dev/null 2>&1; } ;;
+    cursor)   command -v cursor-agent >/dev/null 2>&1 ;;
     composer) command -v cursor-agent >/dev/null 2>&1 ;;
     *) return 1 ;;
   esac
 }
 
-# Collect the FULL ordered list of reachable candidates (installed, allowlisted,
-# non-host, deduped) -- NOT truncated to MAX_PEERS here. `command -v` proves a
-# route is installed but not that it is authenticated / un-throttled, which only
-# the actual run reveals; so the run loop below bounds by *successful* peers and
-# falls through to the next candidate when an earlier one fails at auth/rate-limit,
-# instead of the pass silently no-op'ing on an installed-but-unusable first choice.
+# Collect the ordered list of reachable candidates (installed, allowlisted,
+# non-host, deduped), then freeze the first MAX_PEERS before egress. `command -v`
+# proves only local route availability; a fixed route that later fails returns to
+# the host instead of changing recipients here.
 # `for p in $CANDIDATES` splits the CSV once at loop start under IFS=',', so IFS
 # stays comma for the whole loop; nothing in the body does IFS-sensitive splitting.
 SELECTED=""   # space-separated ordered reachable candidates (bash 3.2-safe)
@@ -326,8 +383,8 @@ OLDIFS="$IFS"; IFS=','
 for p in $CANDIDATES; do
   p="$(printf '%s' "$p" | tr -d '[:space:]')"
   [ -n "$p" ] || continue
-  case "$p" in codex|claude|grok|composer) ;; *) log "ignoring unknown provider '$p' in candidates"; continue ;; esac
-  [ "$p" = "$HOST_PROVIDER" ] && continue
+  case "$p" in codex|claude|grok|cursor|composer) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
+  [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
   case " $SELECTED " in *" $p "*) continue ;; esac   # dedup
   if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
   if ! provider_available "$p"; then log "provider '$p' has no installed route; skipping"; continue; fi
@@ -348,9 +405,8 @@ first_n() {
 }
 
 # Diagnostic: resolve selection only, no model call, no side effects (used by the
-# selection tests, which stub the route CLIs on PATH). Prints the happy-path peer
-# set (the first MAX_PEERS reachable candidates); the live run additionally falls
-# through to later candidates when an earlier one fails at auth/rate-limit.
+# selection tests, which stub the route CLIs on PATH). Prints the fixed peer set
+# (the first MAX_PEERS reachable candidates).
 if [ -n "${CROSS_MODEL_DRY_RUN:-}" ]; then
   printf 'RESOLVED_PEERS: %s\n' "$(first_n "$MAX_PEERS" $SELECTED)"
   exit 0
@@ -369,7 +425,15 @@ PEERLOG="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-log-XXXXXX")"
 # auth/quota/rate-limit message often lands on stderr, so capture it separately
 # and surface it in the skip evidence (grok's 402 is on stdout, others on stderr).
 PEERERR="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-err-XXXXXX")"
-trap 'rm -f "$PROMPT_FILE" "$PEERLOG" "$PEERERR"' EXIT
+PEER_WORKDIR=""
+RAW_OUT=""
+RUN_SUCCEEDED=false
+cleanup_temp() {
+  rm -f "$PROMPT_FILE" "$PEERLOG" "$PEERERR"
+  [ -n "$RAW_OUT" ] && rm -f "$RAW_OUT"
+  [ -n "$PEER_WORKDIR" ] && [ "$PEER_WORKDIR" != "${RUN_DIR:-}" ] && rm -rf "$PEER_WORKDIR"
+}
+trap 'cleanup_temp' EXIT
 # Basename only in the peer prompt: content is already embedded (KTD3). An absolute
 # path would give cursor-agent residual-Read a repo coordinate to walk from.
 DOC_BASENAME="$(basename "$DOC_PATH")"
@@ -425,7 +489,6 @@ trap 'on_term' TERM INT
 # Build the CMD array for a route (bash 3.2-safe: no mapfile).
 build_cmd() {
   CMD=()
-  local line
   # NUL-delimited so a token containing newlines (the pretty-printed --json-schema
   # value) stays ONE argv element instead of splitting across lines.
   while IFS= read -r -d '' tok; do CMD+=("$tok"); done < <(adapter_argv "$1")
@@ -456,6 +519,7 @@ stop_heartbeat() {
 }
 
 run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG, writes -o RAW_OUT
+  RUN_SUCCEEDED=false
   local prev; case "$-" in *m*) prev=1;; *) prev=0;; esac
   set -m
   "${CMD[@]}" < "$PROMPT_FILE" > "$PEERLOG" 2>&1 &
@@ -475,7 +539,8 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
       log "codex exceeded hard cap ${HARD_SECS}s; reaping peer process group"; reap "$pid"; break
     fi
   done
-  wait "$pid" 2>/dev/null || true
+  if wait "$pid" 2>/dev/null; then RUN_SUCCEEDED=true
+  else log "peer exited non-zero or timed out"; fi
   # Sweep any survivor the provider left in its OWN process group. `set -m` puts
   # the provider in a separate pgid, and on a clean worker exit the runner's
   # final sweep only kills the worker's pgid while a group-orphan reparents off
@@ -487,6 +552,7 @@ run_codex_cmd() {   # CMD already built for the codex route; streams to PEERLOG,
 }
 
 run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
+  RUN_SUCCEEDED=false
   # Run from the empty per-peer workspace (absolute stdin/PEERLOG paths are
   # unaffected) so a tool-capable peer -- notably claude, which has no cwd flag --
   # has no repo files, and no sibling lens's fold-in artifact, in reach. grok/cursor
@@ -503,7 +569,8 @@ run_timeout_cmd() {   # $1 = stdin file ("" -> /dev/null). CMD already built.
   ACTIVE_PEER_PID="$pid"
   [ "$prev" = 0 ] && set +m
   start_heartbeat
-  wait "$pid" 2>/dev/null || log "peer exited non-zero or timed out"
+  if wait "$pid" 2>/dev/null; then RUN_SUCCEEDED=true
+  else log "peer exited non-zero or timed out"; fi
   reap "$pid" 2>/dev/null || true   # sweep survivors in the provider's own group (see run_codex_cmd)
   stop_heartbeat
   ACTIVE_PEER_PID=""
@@ -545,37 +612,39 @@ attempt_route() {   # <provider> <route>
   : > "$PEERLOG"; : > "$PEERERR"; rm -f "$RAW_OUT" "$OUT"
   build_cmd "$route"
   case "$route" in
-    codex)       note="$M_CODEX (effort high)" ;;
-    claude)      note="$M_CLAUDE (effort high)" ;;
-    grok-cli)    note="$M_GROK (effort high)" ;;
-    grok-cursor) note="$M_GROK_CURSOR" ;;
-    composer)    note="$M_COMPOSER" ;;
+    codex|claude|grok-cli) note="$(route_model "$route") (effort high)" ;;
+    grok-cursor|composer)  note="$(route_model "$route")" ;;
+    cursor)                note="auto (serving model unverified)" ;;
   esac
   log "peer run: provider=$provider route=$route model=$note lens=$REVIEWER_NAME read-only least-privilege (idle ${IDLE_SECS}s / hard ${HARD_SECS}s)"
   case "$route" in
     codex)
       run_codex_cmd
-      if out_missing_or_invalid; then
+      if [ "$RUN_SUCCEEDED" = true ] && out_missing_or_invalid; then
         recover_findings_json "$PEERLOG" "$RAW_OUT" && log "recovered codex JSON from stdout (-o file unavailable)"
       fi
       ;;
-    grok-cli)    run_timeout_cmd ""            ; parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
-    claude)      run_timeout_cmd "$PROMPT_FILE"; parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
-    grok-cursor|composer)
+    grok-cli)    run_timeout_cmd ""            ; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # grok reads --prompt-file
+    claude)      run_timeout_cmd "$PROMPT_FILE"; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;   # claude -p reads stdin
+    grok-cursor|cursor|composer)
       # cursor-agent reads the prompt from stdin (verified). Use stdin, NOT a
       # positional argv token: the composed prompt (persona + schema + template +
       # full document, up to CROSS_MODEL_MAX_DOC_CHARS) can exceed ARG_MAX and fail
       # the exec with E2BIG on low-limit hosts, whereas stdin has no size limit.
-      run_timeout_cmd "$PROMPT_FILE"; parse_structured "$PEERLOG" "$RAW_OUT" ;;
+      run_timeout_cmd "$PROMPT_FILE"; [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT" ;;
   esac
+  if [ "$RUN_SUCCEEDED" != true ]; then
+    rm -f "$RAW_OUT"
+    return 0
+  fi
   # Extract the served-model receipt from the envelope while $PEERLOG still
   # holds it — normalization below only sees the schema-extracted RAW_OUT.
   extract_model_receipt "$route"
 }
 
-# Run a provider (with the grok CLI -> cursor-agent classified-failure fallback).
+# Run one host-resolved provider through its fixed route.
 run_provider() {   # <provider>
-  local provider="$1" primary fallback=""
+  local provider="$1" primary="" fixed="${CROSS_MODEL_FIXED_ROUTE:-}"
   OUT="$RUN_DIR/$REVIEWER_NAME-$provider.json"
   # Per-peer empty workspace, kept SEPARATE from the shared fold-in dir (RUN_DIR).
   # The peer's cwd/workspace and its RAW_OUT live here, so a read-capable peer
@@ -586,34 +655,21 @@ run_provider() {   # <provider>
   # mktemp fails (preserves prior behavior over failing the pass).
   PEER_WORKDIR="$(mktemp -d "${TMPDIR:-/tmp}/xmodel-doc-peer-XXXXXX")" || PEER_WORKDIR="$RUN_DIR"
   RAW_OUT="$PEER_WORKDIR/$REVIEWER_NAME-$provider.raw.json"
-  case "$provider" in
-    codex)    primary="codex" ;;
-    claude)   primary="claude" ;;
-    composer) primary="composer" ;;
-    grok)
-      if command -v grok >/dev/null 2>&1; then
-        primary="grok-cli"
-        # Only fall back to cursor-agent when Cursor egress is sanctioned (R19).
-        if cursor_egress_ok && command -v cursor-agent >/dev/null 2>&1; then fallback="grok-cursor"; fi
-      else
-        # grok CLI absent; cursor-agent is the only route -- reached here only when
-        # provider_available already confirmed cursor_egress_ok, so egress is sanctioned.
-        primary="grok-cursor"
-      fi
-      ;;
-  esac
+  [ -n "$fixed" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
+  [ "$(route_target "$fixed")" = "$provider" ] || { log "fixed route '$fixed' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
+  if [ "$fixed" = "grok-cursor" ] && ! cursor_egress_ok; then
+    log "fixed route 'grok-cursor' requires Cursor intermediary sanction; skipping"
+    rm -f "$OUT"
+    return 0
+  fi
+  primary="$fixed"
+  validate_model_override "$primary" || { log "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$primary'; skipping"; rm -f "$OUT"; return 0; }
   # Track the route that actually produced the fold-in, so the artifact records
   # whether a grok return went out directly (grok-cli -> xAI) or through Cursor
   # (grok-cursor -> Cursor also received the full document). The <lens>-<provider>
-  # filename alone can't encode that, so the egress disclosure would otherwise miss
-  # the Cursor hop in the grok-CLI-failure fallback case.
+  # filename alone cannot encode that intermediary.
   ACTUAL_ROUTE="$primary"
   attempt_route "$provider" "$primary"
-  if out_missing_or_invalid && [ -n "$fallback" ]; then
-    log "grok primary route (grok CLI) produced no usable output (not-installed/unauth/rate-limited/failed); classified-failure fallback -> $fallback"
-    attempt_route "$provider" "$fallback"
-    ACTUAL_ROUTE="$fallback"
-  fi
 
   # --- normalize + validate against the synthesis reviewer-return contract ---
   # Force reviewer = <reviewer-name>-<provider>; backfill soft arrays; drop the
@@ -631,11 +687,24 @@ run_provider() {   # <provider>
   rm -f "$OUT"
   if [ -s "$RAW_OUT" ]; then
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-doc-norm-XXXXXX")"
+    case "$ACTUAL_ROUTE:$MODEL_ACTUAL" in
+      cursor:*) _target_family="unknown" ;;
+      composer:unverified|grok-cursor:unverified) _target_family="unknown" ;;
+      *) _target_family="$(target_serving_family "$provider")" ;;
+    esac
+    _independent=false
+    [ "$HOST_PROVIDER" != "unknown" ] && [ "$_target_family" != "unknown" ] && [ "$HOST_PROVIDER" != "$_target_family" ] && _independent=true
     if jq --arg r "$REVIEWER_NAME-$provider" --arg route "$ACTUAL_ROUTE" \
+         --arg target "$provider" --arg harness "$(route_harness "$ACTUAL_ROUTE")" \
+         --arg family "$_target_family" --argjson independent "$_independent" \
          --arg mreq "$(route_model "$ACTUAL_ROUTE")" --arg mact "$MODEL_ACTUAL" \
          'if (.findings|type)=="array"
           then { reviewer: $r,
                  cross_model_route: $route,
+                 cross_model_target: $target,
+                 cross_model_harness: $harness,
+                 serving_family: $family,
+                 independence_verified: $independent,
                  model_requested: $mreq,
                  model_actual: $mact,
                  findings: [ .findings[] | if (.autofix_class? == "safe_auto") then .autofix_class = "gated_auto" else . end ],
@@ -673,19 +742,11 @@ run_provider() {   # <provider>
   [ -n "$PEER_WORKDIR" ] && [ "$PEER_WORKDIR" != "$RUN_DIR" ] && rm -rf "$PEER_WORKDIR"
 }
 
-# --- run candidates in order until MAX_PEERS produce usable output ----------
+# --- run the fixed first MAX_PEERS candidates -------------------------------
 # run_provider writes <run-dir>/<lens>-<provider>.json on success and removes it
-# on a classified failure (not-installed route left, unauth, rate-limit, timeout,
-# unparseable). A failed candidate consumes no peer slot, so the pass falls through
-# to the next reachable provider instead of silently producing nothing.
-peers=0
+# on failure. It never changes recipients after dispatch.
+SELECTED="$(first_n "$MAX_PEERS" $SELECTED)"
 for provider in $SELECTED; do
-  [ "$peers" -ge "$MAX_PEERS" ] && break
   run_provider "$provider"
-  if [ -s "$RUN_DIR/$REVIEWER_NAME-$provider.json" ]; then
-    peers=$((peers + 1))
-  else
-    log "provider $provider unusable (unauth/rate-limited/failed); falling through to next reachable candidate"
-  fi
 done
 exit 0

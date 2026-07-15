@@ -15,6 +15,10 @@ function between(content: string, start: string, end: string): string {
   return content.slice(from, to)
 }
 
+function compact(content: string): string {
+  return content.replace(/\s+/g, " ")
+}
+
 describe("ce-pov subject-shape contract", () => {
   test("the activation contract names all three POV shapes and preserves the cache helper", async () => {
     const skill = await skillFile("SKILL.md")
@@ -68,7 +72,7 @@ describe("ce-pov cross-model panel contract", () => {
 
     expect(phaseThree).toContain("may qualify for a proactive offer")
     expect(phaseThree).toContain("before resolving participation or deciding whether to offer")
-    expect(phaseThree).toContain("Peers stay read-only")
+    expect(phaseThree).toMatch(/peers stay read-only/i)
   })
 
   test("forms an independent solo POV before the panel and emits only after it finishes", async () => {
@@ -111,52 +115,110 @@ describe("ce-pov cross-model panel contract", () => {
     expect(schema.$schema).toBe("http://json-schema.org/draft-07/schema#")
   })
 
+  test("requires explicit movement and an independence receipt", async () => {
+    const schema = JSON.parse(await skillFile("references/pov-schema.json"))
+
+    expect(schema.required).toContain("movement")
+    expect(schema.properties.movement.enum).toEqual(["initial", "moved", "held"])
+    expect(schema.properties.independence_verified.type).toBe("boolean")
+    expect(schema.properties.cross_model_target.type).toBe("string")
+    expect(schema.properties.cross_model_harness.type).toBe("string")
+    expect(schema.properties.serving_family.type).toBe("string")
+  })
+
   test("pins participation counts and the complete stop-rule enum", async () => {
     const panel = await skillFile("references/cross-model-panel.md")
 
-    expect(panel).toContain("Named peers are exact and uncapped")
-    expect(panel).toContain("**2-peer panel cap**")
+    expect(panel).toMatch(/Named peers:\*\* exact and uncapped/)
+    expect(panel).toContain("up to two reachable")
     for (const stop of ["**`confident`**", "**`no-movement`**", "**`cap-2`**"]) {
       expect(panel).toContain(stop)
     }
+    expect(panel).toMatch(/Route `confident` to\s+the \*\*Confident\*\* disclosure/)
+    expect(panel).toMatch(/Route `no-movement` and `cap-2` to the\s+\*\*Stalemate\*\* disclosure/)
   })
 
   test("pins material dissent for every subject and bounded reconcile context", async () => {
     const panel = await skillFile("references/cross-model-panel.md")
+    const prose = compact(panel)
 
-    expect(panel).toContain("adoption: a different grade")
-    expect(panel).toContain("approach set: a different chosen option")
-    expect(panel).toContain("document: bottom lines imply different reader actions")
-    expect(panel).toContain("full original subject payload")
-    expect(panel).toContain("5 succinct, source-attributed evidence bullets per voice")
+    expect(prose).toContain("different adoption grade")
+    expect(prose).toContain("different selected approach")
+    expect(prose).toContain("document bottom lines that imply different reader actions")
+    expect(prose).toContain("full original subject")
+    expect(prose).toMatch(/five succinct.*source-attributed evidence bullets per voice/)
   })
 
-  test("pins pre-egress candidate-chain and debate-round disclosure", async () => {
+  test("pins fixed-route pre-egress sanction and reconcile disclosure", async () => {
     const panel = await skillFile("references/cross-model-panel.md")
+    const prose = compact(panel)
 
-    expect(panel).toContain("Before any payload leaves the host")
-    expect(panel).toContain("full ordered candidate chain")
-    expect(panel).toContain("every intermediary that may receive the payload")
-    expect(panel).toContain("a debate round additionally sends every surviving voice's position")
-    expect(panel).toContain("reasoning, and evidence summaries")
+    expect(prose).toContain("Resolve one concrete target")
+    expect(prose).toContain("every actual recipient")
+    expect(prose).toContain("Disclose and obtain sanction for that fixed route")
+    expect(prose).toMatch(/reconcile round additionally shares every surviving voice's position,.*reasoning, and bounded evidence summaries/)
+    expect(prose).toContain("return failure to the host")
   })
 
   test("pins fail-closed host attestation and classified skip evidence", async () => {
     const panel = await skillFile("references/cross-model-panel.md")
 
-    expect(panel).toContain("`CLAUDECODE=1`")
-    expect(panel).toContain("Cursor's active")
-    expect(panel).toContain("run no peer rather than guess")
-    expect(panel).toContain('result --path "/tmp/compound-engineering/ce-pov/<run-id>/jobs/<job-id>/out.log"')
-    expect(panel).toContain("`peer skip evidence:`")
+    expect(panel).toContain("host-provided markers and serving evidence")
+    expect(panel).toContain("automatic discovery excludes")
+    expect(panel).toContain("rather than guessing")
+    expect(panel).toContain("ownership-checked `result`")
+    expect(panel).toContain("`peer skip evidence`")
     expect(panel).toContain("quota, authentication, or route failure")
+  })
+
+  test("pins repository grounding, snapshot identity, and common reconcile evidence", async () => {
+    const panel = await skillFile("references/cross-model-panel.md")
+    const prose = compact(panel)
+
+    expect(prose).toContain("repository root")
+    expect(prose).toContain("ordered include and exclude")
+    expect(prose).toContain("cooperative")
+    expect(prose).toContain("committed revision")
+    expect(prose).toContain("dirty and untracked")
+    expect(prose).toContain("before every reconcile dispatch")
+    expect(prose).toContain("before final fold-in")
+    for (const classification of ["`verified`", "`contradicted`", "`unverifiable`"]) {
+      expect(panel).toContain(classification)
+    }
+  })
+
+  test("pins Cursor-default identity and bounded adaptability without silent recipient changes", async () => {
+    const panel = await skillFile("references/cross-model-panel.md")
+    const prose = compact(panel)
+
+    expect(prose).toContain("Cursor default/Auto")
+    expect(prose).toContain("Composer")
+    expect(prose).toContain("Routing is adaptable only inside hard boundaries")
+    expect(prose).toContain("declared preferred mapping first")
+    expect(prose).toContain("same requested target")
+    expect(prose).toContain("independence_verified")
+    expect(prose).toContain("disclose and sanction the new actual route")
+    expect(prose).toContain("return failure to the host")
+  })
+
+  test("pins the four-part downstream handoff conjunction", async () => {
+    const panel = await skillFile("references/cross-model-panel.md")
+
+    expect(panel).toContain("original prompt explicitly authorized")
+    expect(panel).toContain("non-stalemated")
+    expect(panel).toMatch(/inherited\s+scope/)
+    expect(panel).toContain("non-destructive")
+    expect(panel).toContain("otherwise authorized")
   })
 
   test("the worker rejects output without non-empty string position and reasoning", async () => {
     const worker = await skillFile("scripts/cross-model-pov.sh")
-    const usableOutputGate = between(worker, "out_missing_or_invalid()", "# The cursor-agent route")
+    const usableOutputGate = between(worker, "out_missing_or_invalid()", "# Backward-compatible matrix")
 
     expect(usableOutputGate).toContain('(.position|type)=="string" and (.position|length)>0')
     expect(usableOutputGate).toContain('(.reasoning|type)=="string" and (.reasoning|length)>0')
+    expect(usableOutputGate).toContain('.movement=="initial"')
+    expect(usableOutputGate).toContain('.movement=="moved"')
+    expect(usableOutputGate).toContain('.movement=="held"')
   })
 })

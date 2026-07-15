@@ -61,7 +61,7 @@ Invoked when a specific need arises — not part of any chain.
 
 | Skill | Description |
 |-------|-------------|
-| [`/ce-pov`](./ce-pov.md) | Form a decisive, project-grounded POV as an adoption verdict, holistic document take, or position on supplied approaches — optional named/`oracle` different-model panel with bounded debate and honest disclosure |
+| [`/ce-pov`](./ce-pov.md) | Form a decisive, project-grounded POV as an adoption verdict, holistic document take, or position on supplied approaches — optional named/`oracle` panel with repository grounding, bounded debate, and distinct Cursor-default/Composer routes |
 | [`/ce-explain`](./ce-explain.md) | Turn a concept, a diff, an idea, or a window of your own recent work into a dense, visual explainer written for you personally — optional check-in (predict-then-reveal for diffs, corrected exercises), capability-detected destination ask |
 | [`/ce-debug`](./ce-debug.md) | Find root causes systematically — causal chain gate, predictions, post-fix polish/review, PR handoff |
 | [`/ce-code-review`](./ce-code-review.md) | Structured code review with skill-local reviewer personas, confidence-gated findings, four modes |

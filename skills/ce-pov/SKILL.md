@@ -10,7 +10,7 @@ Produce a decisive, project-grounded point of view in the subject's own shape: a
 
 The subject of this point of view — the thing to judge — is the input this skill was invoked with, present in the current prompt or conversation (whether the user asked directly or a calling skill passed it).
 
-`ce-pov` is read-only. Its contract ends at the delivered POV and recommendation; applying document edits, proceeding with an approach, or planning an adoption is a separate continuation offered in Phase 4 through the skill that owns that work.
+`ce-pov` is read-only while forming and reconciling the POV. Its contract ends at the delivered POV and recommendation. On an analysis-only request, offer one logical continuation and wait. Only when the original request explicitly authorized a named downstream action may Phase 4 hand the settled result to the skill that owns that work, under the same scope and authority.
 
 **Note: The current year is 2026.** Use this when weighting source recency and dating any captured record.
 
@@ -96,14 +96,14 @@ First form ce-pov's own independent POV under the active subject-shape contract 
 
 When a panel is named or summoned, or when a cold POV may qualify for a proactive offer, read
 `references/cross-model-panel.md` before resolving participation or deciding whether to offer.
-Peers stay read-only, receive only the caller-prepared payload, and get no project path handle.
+After the required egress disclosure and sanction, peers stay read-only and independently inspect the repository root or one identically normalized narrower scope. The panel protocol resolves a fixed actual route before content or repository access, keeps Cursor-default distinct from Composer-through-Cursor, revalidates repository identity between rounds, and attributes only receipt-supported independence.
 Resolve and finish the panel branch, including any fold-in or reconciliation, before composing the user-facing result. If no panel runs, keep the solo result unchanged.
 
 Only then emit the final contract for the active subject shape. For an external-adoption question, the existing grade vocabulary, schema fields, tier sizing, and output economy apply unchanged. A document take or approach-set position follows its own explicit contract. Every shape is a **compact chat block, not a research report**: lead with the grade, bottom line, or position named by its contract; keep each field terse; and never reprint scout dossiers or raw search output.
 
 ### Phase 4: Follow-up
 
-The chat POV (the TL;DR) is the deliverable. Any implementation is outside this read-only contract: offer document edits, proceeding with a chosen approach, or planning an adoption only as a separate continuation through the owning skill. What you offer next is **reasoned from the POV and its active subject shape — never a fixed menu, and never an assumption that everything routes to a plan.**
+The chat POV (the TL;DR) is the deliverable. Any implementation is outside this read-only contract. Before any handoff, apply this four-part gate: **(1)** the original prompt explicitly authorized the named downstream action, **(2)** the final result is non-stalemated, **(3)** the action remains inside the inherited scope, and **(4)** the action is non-destructive and otherwise authorized. Only when all four pass may the settled POV be handed to the owning skill without another question. Otherwise offer one logical continuation and wait; a later user selection supplies the fresh authority for that continuation. What you offer next is **reasoned from the POV and its active subject shape — never a fixed menu, and never an assumption that everything routes to a plan.**
 
 **Compute the next step.** From the active subject shape's result and its Handoff field when present, reason about the single best next move and a one-clause why:
 
@@ -122,9 +122,9 @@ The chat POV (the TL;DR) is the deliverable. Any implementation is outside this 
   3. **Done.**
   Add `ce-compound` as a one-line prose nudge under the menu, **not** a slot, only when the POV is a durable decision that fits an existing capture type: "Want it in our decision history? say 'compound it.'" It is never the first thing offered.
 
-**On each selection:**
+**On a pre-authorized handoff or later user selection:**
 
-- **Computed next step** → invoke the owning skill via the platform's skill-invocation primitive, seeding it with the POV substance (the decision, conditions, requested edits or chosen approach, and verified facts).
+- **Computed next step** → after the four-part gate passes, invoke the owning skill via the platform's skill-invocation primitive, seeding it with the POV substance (the decision, conditions, requested edits or chosen approach, and verified facts). A stalemate, scope expansion, destructive action, or insufficient authority always returns to the user first.
 - **Full write-up** → read `references/report.md` and follow it (HTML by default; opened locally or published via Proof / an available HTML tool). Opt-in; the default stays chat-only.
 - **"compound it"** → invoke `ce-compound` with `mode:headless`, seeding it with the structured POV and the fitting existing capture type (no schema change; headless avoids its interactive prompts). Never mandatory.
 

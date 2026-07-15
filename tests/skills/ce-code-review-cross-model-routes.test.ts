@@ -71,7 +71,7 @@ const DOC_SCRIPT = path.join(
   "../../skills/ce-doc-review/scripts/cross-model-doc-review.sh",
 )
 
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "composer"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
 
 const NEVER_FLAGS = [
   "--yolo",
@@ -81,9 +81,10 @@ const NEVER_FLAGS = [
   "--dangerously-skip-permissions",
 ]
 
-function emitAdapter(route: string, script = SCRIPT): string {
+function emitAdapter(route: string, script = SCRIPT, extraEnv: Record<string, string> = {}): string {
   const r = spawnSync("bash", [script, "--emit-adapter", route], {
     encoding: "utf8",
+    env: { ...process.env, ...extraEnv },
   })
   expect(r.status).toBe(0)
   return (r.stdout ?? "").trim()
@@ -121,9 +122,21 @@ function run(
   runDir: string,
   env: NodeJS.ProcessEnv = process.env,
 ) {
+  const effectiveEnv = { ...env }
+  if (!("CROSS_MODEL_DRY_RUN" in effectiveEnv) && !("CROSS_MODEL_FIXED_ROUTE" in effectiveEnv)) {
+    const target = args[1]
+    const grokAvailable = target === "grok" && Boolean(spawnSync("command", ["-v", "grok"], {
+      encoding: "utf8",
+      env: effectiveEnv,
+      shell: "/bin/bash",
+    }).stdout?.trim())
+    effectiveEnv.CROSS_MODEL_FIXED_ROUTE = target === "grok"
+      ? (grokAvailable ? "grok-cli" : "grok-cursor")
+      : target
+  }
   const r = spawnSync("bash", [SCRIPT, ...args], {
     encoding: "utf8",
-    env,
+    env: effectiveEnv,
     cwd: path.join(__dirname, "../.."), // repo root — script needs git
   })
   return {
@@ -152,6 +165,12 @@ function resolvePeers(
 }
 
 describe("cross-model-adversarial-review route safety", () => {
+  test("EXIT cleanup removes private prompt, log, and raw-output scratch", () => {
+    const source = readFileSync(SCRIPT, "utf8")
+    expect(source).toContain('rm -rf "$RAW_DIR"')
+    expect(source).toContain("trap 'on_term' TERM INT")
+  })
+
   test("every route carries read-only / no-prompt / least-privilege flags and no NEVER-use flag", () => {
     for (const route of ROUTES) {
       const cmd = emitAdapter(route)
@@ -161,6 +180,31 @@ describe("cross-model-adversarial-review route safety", () => {
       }
       expect(cmd).not.toContain("bypassPermissions")
     }
+  })
+
+  test("live dispatch without a host-sanctioned fixed route fails closed", () => {
+    const invoked = path.join(mkTempRoot("xmodel-cr-invoked-"), "marker")
+    const { env } = sandbox(["claude"], `#!/bin/sh\n: > '${invoked}'\n`)
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_FIXED_ROUTE: "",
+    })
+    expect(existsSync(invoked)).toBe(false)
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("host must resolve one fixed route before egress")
+  })
+
+  test("schema-valid output from a timed-out peer is never published", () => {
+    const body = `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"title":"late"}]}'\nsleep 5\n`
+    const { env } = sandbox(["cursor-agent"], body)
+    const runDir = makeRunDir()
+    const r = run(["claude", "cursor", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_HARD_SECS: "1",
+    })
+    expect(r.files).not.toContain("adversarial-cursor.json")
+    expect(r.stderr).toContain("peer exited non-zero or timed out")
   })
 
   test("codex: read-only sandbox + skip-git-repo-check + high reasoning + repo-root cwd", () => {
@@ -205,21 +249,22 @@ describe("cross-model-adversarial-review route safety", () => {
   })
 
   test("cursor-agent routes: ask mode + sandbox + repo workspace", () => {
-    for (const route of ["grok-cursor", "composer"]) {
+    for (const route of ["grok-cursor", "cursor", "composer"]) {
       const cmd = emitAdapter(route)
       expect(cmd).toContain("--mode ask")
       expect(cmd).toContain("--trust")
       expect(cmd).toContain("--sandbox enabled")
       expect(cmd).toContain("--workspace <repo-root>")
     }
-    expect(emitAdapter("grok-cursor")).toContain("grok-4.5-high")
+    expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
+    expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
 
   test("adapters target repo-root, not shared run-dir fold-in path", () => {
     expect(emitAdapter("codex")).toContain("-C <repo-root>")
     expect(emitAdapter("grok-cli")).toContain("--cwd <repo-root>")
-    for (const route of ["grok-cursor", "composer"]) {
+    for (const route of ["grok-cursor", "cursor", "composer"]) {
       expect(emitAdapter(route)).toContain("--workspace <repo-root>")
     }
     for (const route of ROUTES) {
@@ -239,6 +284,10 @@ describe("cross-model-adversarial-review provider selection", () => {
   test("a front-loaded preference overrides the default order", () => {
     const all = ["codex", "claude", "grok", "cursor-agent"]
     expect(resolvePeers("claude", "grok,codex,claude,composer", all)).toBe("grok")
+  })
+
+  test("an explicit Cursor preference uses the Cursor default target", () => {
+    expect(resolvePeers("claude", "cursor", ["cursor-agent"])).toBe("cursor")
   })
 
   test("CROSS_MODEL_MAX_PEERS=2 resolves two different providers", () => {
@@ -284,12 +333,17 @@ describe("cross-model-adversarial-review provider selection", () => {
       }),
     ).toBe("grok")
   })
+
+  test("explicit cursor allowance also sanctions the Cursor intermediary", () => {
+    expect(resolvePeers("claude", "grok", ["cursor-agent"], {
+      CROSS_MODEL_PEERS: "grok,cursor",
+    })).toBe("grok")
+  })
 })
 
 describe("cross-model-adversarial-review skip paths — non-blocking, no file", () => {
   const cases: Array<[string, string[], Record<string, string>]> = [
     ["un-attestable host (empty)", ["", "codex,claude"], {}],
-    ["un-attestable host (unknown)", ["unknown", "codex,claude"], {}],
     ["MAX_PEERS=0 disables the pass", ["claude", "codex"], { CROSS_MODEL_MAX_PEERS: "0" }],
     ["host is the only candidate", ["codex", "codex"], {}],
   ]
@@ -329,6 +383,7 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(out.testing_gaps).toEqual([])
     expect(Array.isArray(out.findings)).toBe(true)
     expect(out.cross_model_route).toBe("claude")
+    expect(out.independence_verified).toBe(true)
   })
 
   test("drops the return when findings is not an array", () => {
@@ -424,6 +479,67 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(r.stderr).toContain("model receipt absent/unparseable on claude route; recording unverified")
   })
 
+  test("unknown host family skips automatic review before provider invocation", () => {
+    const { env } = sandbox(["claude"], claudeStub)
+    const runDir = makeRunDir()
+    const r = run(["unknown", "claude", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_HOST_HARNESS: "cursor",
+    })
+    expect(r.files).not.toContain("adversarial-claude.json")
+    expect(r.stderr).toContain("host serving family unattested")
+  })
+
+  test("Cursor default omits a model request and is never assumed independent", () => {
+    const cursorStub =
+      `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"title":"t"}]}'\n`
+    const { env } = sandbox(["cursor-agent"], cursorStub)
+    const runDir = makeRunDir()
+    run(["claude", "cursor", "HEAD", runDir], runDir, env)
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-cursor.json"), "utf8"))
+    expect(out.cross_model_target).toBe("cursor")
+    expect(out.cross_model_harness).toBe("cursor-agent")
+    expect(out.model_requested).toBe("auto")
+    expect(out.model_actual).toBe("unverified")
+    expect(out.independence_verified).toBe(false)
+  })
+
+  test("receiptless Composer through Cursor cannot claim an independent serving family", () => {
+    const { env } = sandbox(["cursor-agent"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[]}'\n`)
+    const runDir = makeRunDir()
+    const r = run(["claude", "composer", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "composer",
+      CROSS_MODEL_MODEL_OVERRIDE: "composer-next-fast",
+    })
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-composer.json"), "utf8"))
+    expect(out.model_actual).toBe("unverified")
+    expect(out.serving_family).toBe("unknown")
+    expect(out.independence_verified).toBe(false)
+    expect(r.stderr).toContain("model=composer-next-fast")
+  })
+
+  test("model overrides are bound to their declared target", () => {
+    const override = {
+      CROSS_MODEL_MODEL_OVERRIDE_TARGET: "composer",
+      CROSS_MODEL_MODEL_OVERRIDE: "composer-next",
+    }
+    expect(emitAdapter("composer", SCRIPT, override)).toContain("--model composer-next")
+    expect(emitAdapter("grok-cursor", SCRIPT, override)).toContain("--model cursor-grok-4.5-high")
+    expect(emitAdapter("cursor", SCRIPT, override)).not.toContain("--model")
+
+    const crossFamily = spawnSync("bash", [SCRIPT, "--emit-adapter", "composer"], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        CROSS_MODEL_MODEL_OVERRIDE_TARGET: "composer",
+        CROSS_MODEL_MODEL_OVERRIDE: "gpt-5.6-sol",
+      },
+    })
+    expect(crossFamily.status).toBe(2)
+    expect(crossFamily.stderr).toContain("not compatible with route")
+  })
+
   test("codex route records model_actual unverified — no served-model receipt on that route (R8)", () => {
     // The codex stub writes findings to stdout (the -o file recovery path); the
     // route exposes no authoritative identity report, so model_actual is the
@@ -443,12 +559,12 @@ describe("cross-model-adversarial-review normalization", () => {
   }, 20_000) // the codex liveness poll sleeps in 5s slices even for a fast stub
 })
 
-describe("cross-model-adversarial-review run-loop failover", () => {
+describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
   const okStub =
     `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[{"title":"t"}]}}'\n`
   const failStub = `#!/bin/sh\ncat >/dev/null 2>&1\nexit 1\n`
 
-  test("falls through an installed-but-failing provider to the next reachable one", () => {
+  test("does not send to a second recipient after the sanctioned target fails", () => {
     const { bin, env } = sandbox(["claude", "grok"])
     writeFileSync(path.join(bin, "claude"), failStub)
     chmodSync(path.join(bin, "claude"), 0o755)
@@ -457,13 +573,11 @@ describe("cross-model-adversarial-review run-loop failover", () => {
     const runDir = makeRunDir()
     const r = run(["codex", "claude,grok", "HEAD", runDir], runDir, env)
     expect(r.code).toBe(0)
-    expect(r.files).toContain("adversarial-grok.json")
+    expect(r.files).not.toContain("adversarial-grok.json")
     expect(r.files).not.toContain("adversarial-claude.json")
   })
 
-  test("falls through when primary returns valid JSON without a findings array", () => {
-    // out_missing_or_invalid must require findings-shaped output — bare JSON must
-    // not block classified-failure fallback to the next route/provider.
+  test("does not change recipients when the sanctioned target returns unusable JSON", () => {
     const bareJsonStub =
       `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"structured_output":{"reviewer":"adversarial","ok":true}}'\n`
     const okStub =
@@ -476,22 +590,36 @@ describe("cross-model-adversarial-review run-loop failover", () => {
     const runDir = makeRunDir()
     const r = run(["codex", "claude,grok", "HEAD", runDir], runDir, env)
     expect(r.code).toBe(0)
-    expect(r.files).toContain("adversarial-grok.json")
+    expect(r.files).not.toContain("adversarial-grok.json")
     expect(r.files).not.toContain("adversarial-claude.json")
   })
 
-  test("records the grok-cursor route when the grok CLI fails and cursor-agent succeeds", () => {
-    const { bin, env } = sandbox(["grok", "cursor-agent"])
-    writeFileSync(path.join(bin, "grok"), failStub)
-    chmodSync(path.join(bin, "grok"), 0o755)
+  test("runs a pre-sanctioned Grok-via-Cursor route without an internal hop", () => {
+    const { bin, env } = sandbox(["cursor-agent"])
     writeFileSync(path.join(bin, "cursor-agent"), okStub)
     chmodSync(path.join(bin, "cursor-agent"), 0o755)
     const runDir = makeRunDir()
-    const r = run(["codex", "grok", "HEAD", runDir], runDir, env)
+    const r = run(["codex", "grok", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_PEERS: "grok,cursor",
+      CROSS_MODEL_FIXED_ROUTE: "grok-cursor",
+    })
     expect(r.code).toBe(0)
     expect(r.files).toContain("adversarial-grok.json")
     const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-grok.json"), "utf8"))
     expect(out.cross_model_route).toBe("grok-cursor")
+  })
+
+  test("a fixed Grok-via-Cursor route still requires Cursor intermediary sanction", () => {
+    const { env } = sandbox(["grok", "cursor-agent"], okStub)
+    const runDir = makeRunDir()
+    const r = run(["codex", "grok", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_PEERS: "grok",
+      CROSS_MODEL_FIXED_ROUTE: "grok-cursor",
+    })
+    expect(r.files).not.toContain("adversarial-grok.json")
+    expect(r.stderr).toContain("requires Cursor intermediary sanction")
   })
 })
 
@@ -503,8 +631,8 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     expect(emitAdapter("claude", DOC_SCRIPT)).toContain("--model opus")
     expect(emitAdapter("grok-cli")).toContain("grok-4.5")
     expect(emitAdapter("grok-cli", DOC_SCRIPT)).toContain("grok-4.5")
-    expect(emitAdapter("grok-cursor")).toContain("grok-4.5-high")
-    expect(emitAdapter("grok-cursor", DOC_SCRIPT)).toContain("grok-4.5-high")
+    expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
+    expect(emitAdapter("grok-cursor", DOC_SCRIPT)).toContain("cursor-grok-4.5-high")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
     expect(emitAdapter("composer", DOC_SCRIPT)).toContain("composer-2.5-fast")
   })
@@ -519,6 +647,18 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
         expect(cmd).not.toContain("bypassPermissions")
       }
     }
+  })
+
+  test("model-override validation stays byte-identical across review workers", () => {
+    const block = (script: string) => {
+      const source = readFileSync(script, "utf8")
+      const start = source.indexOf("validate_model_override()")
+      const end = source.indexOf("# --- --emit-adapter", start)
+      expect(start).toBeGreaterThan(-1)
+      expect(end).toBeGreaterThan(start)
+      return source.slice(start, end)
+    }
+    expect(block(SCRIPT)).toBe(block(DOC_SCRIPT))
   })
 })
 

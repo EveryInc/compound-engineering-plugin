@@ -78,7 +78,13 @@ Adoption verdicts preserve the same five grades (Adopt / Trial / Hold / Reject /
 
 A peer never replaces ce-pov's own judgment. Name one or more providers to cross-check directly, use `oracle` to fan out to as many as two reachable different-model peers, or accept a proactive offer on a decision with meaningful correction cost. Named peers are honored exactly and are not capped. Before any project context leaves the host, ce-pov names what will be sent and every provider/intermediary that may receive it.
 
-When voices materially disagree, they get at most two fresh reconcile exchanges with the full original subject plus one another's positions, reasoning, and succinct sourced evidence. ce-pov remains the decision-maker, not a vote counter. It reports convergence honestly; on a stalemate it identifies whether the gap is factual or judgment-based and either recommends on a real basis or lays out an honest toss-up. A failed or timed-out peer never blocks the solo POV.
+Peers inspect the repository root read-only by default. A caller can narrow that scope; the same normalized boundary reaches every peer and ce-pov says whether each adapter enforces it or relies on cooperative compliance. Every round binds to one repository snapshot. Before reconciliation ce-pov verifies disputed, decision-changing project claims and gives every voice the same classified evidence delta (`verified`, `contradicted`, or `unverifiable`).
+
+When voices materially disagree, they get at most two fresh reconcile exchanges with the full original subject plus one another's positions, reasoning, and succinct sourced evidence. Each peer explicitly reports whether it `moved` or `held`. ce-pov remains the decision-maker, not a vote counter. It reports convergence honestly; on a stalemate it identifies whether the gap is factual or judgment-based and either recommends on a real basis or lays out an honest toss-up. A failed or timed-out peer never blocks the solo POV.
+
+Target names distinguish models from harnesses. **Cursor** means `cursor-agent` using its configured default/Auto model; **Composer** means a Composer model through Cursor; **Grok** prefers the Grok CLI and can use a sanctioned Grok-via-Cursor route. Cursor Auto is labeled unverified unless a serving-model receipt exists and does not count as independent cross-model corroboration without that proof.
+
+Concrete model IDs and CLI flags are preferred adapter defaults, not permanent product promises. If the landscape changes, ce-pov tries the declared mapping first, then may discover the closest compatible equivalent within the same requested target and hard safety/egress boundaries. It discloses the substitution and actual route; an explicitly named model or newly receiving intermediary never changes silently.
 
 ### 9. Reasoned, tier-gated follow-up
 
@@ -145,6 +151,7 @@ Skip `ce-pov` when:
 - **Document take** — `/ce-pov what do you think of docs/plans/new-checkout.md?`
 - **Approach set** — `/ce-pov for this service, should we use polling or webhooks?`
 - **Named cross-check** — `/ce-pov compare your take with Grok and Composer`
+- **Cursor default** — `/ce-pov compare your take with Cursor`
 - **Oracle** — `/ce-pov oracle: should we adopt this auth provider?`
 
 ---
@@ -160,6 +167,8 @@ Skip `ce-pov` when:
 | `<a document or supplied approach set>` | Returns a holistic take or a project-grounded position in that subject's shape |
 | `compare/cross-check with <peers>` | Forms ce-pov's own POV, then consults every named peer |
 | `oracle` | Cross-checks with up to two reachable different-model peers |
+
+`Cursor` selects Cursor's configured default/Auto model; `Composer` selects a Composer model through Cursor. These names are intentionally not aliases.
 
 ---
 

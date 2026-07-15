@@ -887,13 +887,13 @@ describe("cross-model peer skip legibility", () => {
     },
   ]
 
-  // A route "succeeded" (and so suppresses the cross-provider fallback) only
+  // A fixed route succeeded only
   // when it returned a reviewer-shaped object with a top-level `findings` array
   // — not merely any valid JSON. Accepting an error/envelope object (e.g. a grok
-  // 402 usage-exhausted body) would suppress the fallback and then be dropped at
-  // normalize, yielding no fold-in. The two workers must agree on this gate.
+  // 402 usage-exhausted body) must be dropped at normalize rather than published
+  // as a fold-in. The two workers must agree on this gate.
   for (const worker of pairs.map((p) => p.worker)) {
-    test(`${worker} gates fallback on a findings-shaped return, not any valid JSON`, async () => {
+    test(`${worker} gates fixed-route success on a findings-shaped return, not any valid JSON`, async () => {
       const src = await readRepoFile(worker)
       expect(src).toMatch(/out_missing_or_invalid\(\)/)
       expect(src).toContain('(.findings|type)=="array"')
@@ -932,16 +932,21 @@ describe("cross-model peer skip legibility", () => {
   for (const worker of pairs.map((p) => p.worker)) {
     test(`${worker} reaps the provider process group after waiting on it`, async () => {
       const src = await readRepoFile(worker)
-      // run_codex_cmd: `wait "$pid" ... || true`, then the group sweep.
-      expect(src).toMatch(
-        /wait "\$pid" 2>\/dev\/null \|\| true\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/,
-      )
-      // run_timeout_cmd: `wait "$pid" ... || log ...`, then the group sweep.
-      expect(src).toMatch(
-        /wait "\$pid" 2>\/dev\/null \|\| log[^\n]*\n\s*reap "\$pid"/,
-      )
+      // Both run paths preserve the clean-exit status before sweeping the
+      // provider group; timed-out/nonzero output must not be publishable.
+      const guardedWaits = src.match(
+        /if wait "\$pid" 2>\/dev\/null; then RUN_SUCCEEDED=true\n\s*else log "peer exited non-zero or timed out"; fi\n(?:\s*#[^\n]*\n)*\s*reap "\$pid"/g,
+      ) ?? []
+      expect(guardedWaits).toHaveLength(2)
     })
   }
+
+  test("code-review promotion requires a verified independent serving family", async () => {
+    const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    expect(skill).toContain("top-level `independence_verified` is `true`")
+    expect(skill).toContain("cannot trigger promotion")
+    expect(skill).toContain("unverified Cursor default/Auto")
+  })
 })
 
 describe("testing-reviewer contract", () => {
