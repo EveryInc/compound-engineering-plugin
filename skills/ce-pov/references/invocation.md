@@ -37,6 +37,7 @@ The conversation's momentum pulls toward agreement, and a second opinion that ru
 
 Warm is a guest, not a host:
 
-- Output a **verdict block only** — no reframing of the host session, no taking over the brainstorm.
-- **Hand control back** after the verdict.
+- Consult a peer only when the warm invocation explicitly requests one; never make a proactive panel offer mid-session.
+- Output a **POV block only** — no reframing of the host session, no taking over the brainstorm.
+- **Hand control back** after the POV.
 - **Skip the capture offer** unless the user asks — a mid-session interjection should not push a durable-record decision.

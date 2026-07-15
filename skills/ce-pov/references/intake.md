@@ -10,6 +10,8 @@ The same subject supports very different verdicts. A link to a new sign-in metho
 
 - **A bare link** → fetch it lightly (one fetch) to learn what the thing *is*; name it. If you cannot fetch it (no web tool, paywalled), ask the user what it is rather than assuming.
 - **A bare topic or name** → recognize it from your own knowledge; a single search only if you genuinely can't place it.
+- **A document path** → read its headings to learn its purpose and shape; do not review it for findings yet.
+- **An approach set** → identify the options already on the table; do not invent additional options during orientation.
 - **A paste or provided context** → read it.
 
 This is orientation, not grounding — keep it to one read/fetch. The project and external grounding (the scouts) come *after* the frame is set.
@@ -22,6 +24,8 @@ The subject is usually recoverable; the **intent** is the ambiguous part. Classi
 - **Migrate / replace** — switch *from an incumbent* to this?
 - **Compare** — how does it stack up vs. what we have or the alternatives (no switch implied)?
 - **Exposure** — is this (a CVE, deprecation, or ecosystem change) *our problem*?
+- **Document-take** — what is the holistic take on this document: its strengths, risks, and bottom line, rather than a findings review?
+- **Approach-set** — which of the supplied approaches fits this project, and why, or are the options honestly viable either way?
 - **Explainer** — they just want to understand it. This is **not** a verdict — handle it as a general research question (or a dedicated deep-research-style tool, *if the environment has one*), rather than forcing one.
 
 ## Step 3 — Infer, or propose; never guess
