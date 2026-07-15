@@ -5,8 +5,8 @@
 **Date:** 2026-07-15
 
 **Affected boundaries:** Compound Engineering cross-invocation scratch,
-CE Compound run artifacts, shared repo-profile cache, and actions.json MCP
-payload spilling
+CE Compound run artifacts, PR babysitter state, code/document-review peer jobs,
+shared repo-profile cache, and actions.json MCP payload spilling
 
 **Tracking card:** [Investigation: CE Compound shared scratch directory blocks sibling agents](https://trello.com/c/BoxVdRPG/135-investigation-ce-compound-shared-scratch-directory-blocks-sibling-agents)
 
@@ -54,8 +54,9 @@ scratch boundary.
 
 1. Give every Compound Engineering stable cross-invocation scratch producer a per-UID root:
    `/tmp/compound-engineering-<uid>/...`.
-2. Update CE Compound and sibling run-producing skills, plus every
-   byte-identical repo-profile cache copy/reference, to the same contract.
+2. Update CE Compound and sibling run-producing skills, stable PR babysitter
+   state, detached peer jobs, plus every byte-identical repo-profile cache
+   copy/reference, to the same contract.
 3. Add structural and behavioral regression coverage, including a hostile
    legacy `/tmp/compound-engineering` directory that must not be touched.
 4. Give actions.json payload spilling a bridge-process-scoped directory under
@@ -79,24 +80,40 @@ scratch boundary.
 
 ## Verification evidence
 
-Implemented on `fix/owner-safe-scratch-roots`:
+Implemented on `fix/owner-safe-scratch-roots-upstream` in
+[EveryInc/compound-engineering-plugin#1142](https://github.com/EveryInc/compound-engineering-plugin/pull/1142):
 
 - All run-producing skill instructions now resolve
   `COMPOUND_ENGINEERING_SCRATCH_ROOT` or default to
   `/tmp/compound-engineering-$(id -u)`.
 - Every repo-profile helper defaults to the same UID-scoped root, while
   retaining explicit scratch-root and cache-root overrides.
-- `tests/scratch-root-contract.test.ts` rejects any skill instruction that
-  reintroduces the legacy shared root.
+- `tests/scratch-root-contract.test.ts` rejects the legacy shared root across
+  Markdown, Python, and shell skill assets. After rebasing onto current
+  upstream `main`, this gate found and drove remediation of the newer
+  `ce-babysit-pr`, `ce-doc-review`, and detached peer-runner paths.
 - Repo-profile tests prove two simulated owners use isolated roots and eight
   concurrent writers still leave a readable atomic cache entry.
-- Focused Compound suite: 97 passed, 0 failed with Bun 1.2.20.
-- The actions.json bridge branch `fix/process-scoped-payload-spills` assigns a
+- Focused owner/cache/peer/babysit suite: 69 passed, 0 failed with Bun 1.2.20.
+- Full Compound suite: 2,085 passed, 0 failed. `release:validate` reports
+  synchronized metadata for 30 skills, and `git diff --check` passes.
+- The exact branch was installed through the supported Codex local-checkout
+  installer as the sole managed Compound bundle. The installed repo-profile
+  helper completed `MISS -> put -> HIT` at
+  `/tmp/compound-engineering-1005/repo-profile/...`, while an installed
+  CE Compound setup created `/tmp/compound-engineering-1005/ce-compound/...`
+  owned by `agent-tomas` without touching the still-`agent-zara`-owned legacy
+  tree. A fresh subagent independently loaded that installed skill and created
+  `/tmp/compound-engineering-1005/ce-compound/20260715-032657-45c0d7f5`.
+- The actions.json bridge branch `fix/process-scoped-payload-spills` in
+  [ActionsJson/actions.json.dev#261](https://github.com/ActionsJson/actions.json.dev/pull/261) assigns a
   distinct `<temp>/actions-json-mcp-<pid>-<uuid>/payloads` directory to every
   bridge instance. Its focused Rust tests prove defaults are distinct and a
   hostile legacy `<temp>/actions-json-mcp` path cannot block spilling.
-- Both working-tree diffs pass `git diff --check`.
+- The actions.json suite passes 93 unit tests and 44 characterization tests;
+  its working-tree diff passes `git diff --check`.
 
-Remaining before closure: broad suites, skill evaluation, commits/PRs,
-release or sync into installed copies, live sibling-boundary verification,
-and the CE Compound closure run.
+Remaining before closure: merge/release the upstream Compound and actions.json
+changes, install and live-verify the released actions.json bridge (the current
+bridge still spills under the legacy shared path), then run the CE Compound
+closure gate and record the durable ownership lesson.
