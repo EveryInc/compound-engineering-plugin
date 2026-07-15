@@ -270,6 +270,8 @@ After safe_auto fixes apply, remaining findings split into buckets:
 - FYI-subsection findings → surface in the presentation only, no routing
 - Zero actionable findings remaining → skip the routing question; flow directly to Phase 5 terminal question
 
+**Self-contained rendered lines (both modes, including the Applied-fixes list).** Rendered output is read by someone who does not have the document open and has not internalized its internal ID scheme. When a rendered line — an applied fix, proposed fix, decision, FYI observation, residual concern, or deferred question — references an identifier the document itself defines (a requirement ID, unit ID, or similar shorthand such as `R6`, `U3`, `KTD2`), pair the identifier at its first mention within that finding's rendered block with a short plain-language handle for what it names, drawn from the document (e.g., `R6 (suppress peer panels on low-stakes calls)`, not bare `R6`). Keep the identifier — it anchors the finding for anyone editing the document — and keep the handle to a few words; do not inline the full requirement or unit text. A line whose only description of a referenced item is the bare identifier is not acceptable rendered output. Universally understood section names (`Requirements`, `Open Questions`) need no handle.
+
 **Headless mode:** Do not use interactive question tools. Output all findings as a structured text envelope the caller can parse. Internal enum values (`safe_auto`, `gated_auto`, `manual`, `FYI`) stay in the schema and synthesis prose; the envelope below uses user-facing vocabulary — "fixes", "Proposed fixes", "Decisions", "FYI observations" — so headless output reads the same way interactive output does.
 
 ```
