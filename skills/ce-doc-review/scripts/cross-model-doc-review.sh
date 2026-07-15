@@ -373,9 +373,10 @@ provider_available() {
 }
 
 # Collect the ordered list of reachable candidates (installed, allowlisted,
-# non-host, deduped), then freeze the first MAX_PEERS before egress. `command -v`
-# proves only local route availability; a fixed route that later fails returns to
-# the host instead of changing recipients here.
+# non-host, deduped). Discovery reports the first MAX_PEERS; live egress uses the
+# host-sanctioned fixed route's eligible target. `command -v` proves only local
+# route availability; a fixed route that later fails returns to the host instead
+# of changing recipients here.
 # `for p in $CANDIDATES` splits the CSV once at loop start under IFS=',', so IFS
 # stays comma for the whole loop; nothing in the body does IFS-sensitive splitting.
 SELECTED=""   # space-separated ordered reachable candidates (bash 3.2-safe)
@@ -754,11 +755,18 @@ run_provider() {   # <provider>
   [ -n "$PEER_WORKDIR" ] && [ "$PEER_WORKDIR" != "$RUN_DIR" ] && rm -rf "$PEER_WORKDIR"
 }
 
-# --- run the fixed first MAX_PEERS candidates -------------------------------
-# run_provider writes <run-dir>/<lens>-<provider>.json on success and removes it
-# on failure. It never changes recipients after dispatch.
-SELECTED="$(first_n "$MAX_PEERS" $SELECTED)"
-for provider in $SELECTED; do
-  run_provider "$provider"
-done
+# --- run the host-sanctioned fixed target -----------------------------------
+# Discovery preserves caller order and MAX_PEERS, but live egress is already
+# frozen to one route. Dispatch that route's target directly so a later eligible
+# candidate is not discarded by the discovery-order cap. run_provider never
+# changes recipients after dispatch.
+FIXED_TARGET="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
+if [ -n "$FIXED_TARGET" ]; then
+  case " $SELECTED " in
+    *" $FIXED_TARGET "*) run_provider "$FIXED_TARGET" ;;
+    *) log "fixed route '${CROSS_MODEL_FIXED_ROUTE:-}' target '$FIXED_TARGET' is not an eligible reachable candidate; skipping" ;;
+  esac
+else
+  log "host must resolve one fixed route before egress; skipping"
+fi
 exit 0

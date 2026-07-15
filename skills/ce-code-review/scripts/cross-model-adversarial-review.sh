@@ -659,8 +659,16 @@ run_provider() {
   fi
 }
 
-SELECTED="$(first_n "$MAX_PEERS" $SELECTED)"
-for provider in $SELECTED; do
-  run_provider "$provider"
-done
+# Discovery preserves caller order and MAX_PEERS, but live egress is already
+# frozen to one host-sanctioned route. Dispatch that route's target directly so
+# a later eligible candidate is not discarded by the discovery-order cap.
+FIXED_TARGET="$(route_target "${CROSS_MODEL_FIXED_ROUTE:-}")"
+if [ -n "$FIXED_TARGET" ]; then
+  case " $SELECTED " in
+    *" $FIXED_TARGET "*) run_provider "$FIXED_TARGET" ;;
+    *) log "fixed route '${CROSS_MODEL_FIXED_ROUTE:-}' target '$FIXED_TARGET' is not an eligible reachable candidate; skipping" ;;
+  esac
+else
+  log "host must resolve one fixed route before egress; skipping"
+fi
 exit 0

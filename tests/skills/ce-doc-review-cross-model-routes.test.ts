@@ -214,6 +214,28 @@ describe("cross-model-doc-review route safety (R17)", () => {
     expect(r.stderr).toContain("host must resolve one fixed route before egress")
   })
 
+  test("live dispatch runs a sanctioned target later than the discovery cap", () => {
+    const markers = mkTempRoot("xmodel-dr-fixed-target-")
+    const body = `#!/bin/sh
+name="\${0##*/}"
+: > "\${MARKER_DIR}/\${name}"
+cat >/dev/null
+printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"residual_risks":[],"deferred_questions":[]}}'
+`
+    const { env } = sandbox(["claude", "cursor-agent"], body)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["codex", "claude,cursor", "adversarial", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      MARKER_DIR: markers,
+      CROSS_MODEL_FIXED_ROUTE: "cursor",
+      CROSS_MODEL_MAX_PEERS: "1",
+    })
+    expect(existsSync(path.join(markers, "cursor-agent"))).toBe(true)
+    expect(existsSync(path.join(markers, "claude"))).toBe(false)
+    expect(r.files).toContain("adversarial-cursor.json")
+  })
+
   test("schema-valid output from a timed-out peer is never published", () => {
     const body = `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[{"section":"X","title":"late"}]}'\nsleep 5\n`
     const { env } = sandbox(["cursor-agent"], body)
