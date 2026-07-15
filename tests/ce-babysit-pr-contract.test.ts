@@ -206,6 +206,7 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(babysit).toMatch(/\*\*never\*\* merges the PR/i)
     expect(babysit).toContain("looks ready — your call")
     expect(babysit).toMatch(/never .safe to merge./)
+    expect(babysit).toMatch(/merge-readiness[^.]{0,120}never[^.]{0,80}merge authorization/i)
   })
 
   test("stack-aware routing is automatic, CLI-first, and never uses checkout as a probe", async () => {
@@ -256,6 +257,23 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     }
     expect(babysit).toMatch(/after (an|any) authorized target-head push[\s\S]{0,1200}gh stack rebase --upstack --no-trunk/i)
     expect(babysit).toMatch(/manager-owned[\s\S]{0,200}(implicit|babysit)[\s\S]{0,200}author/i)
+  })
+
+  test("sequential babysitting is a confirmed-managed-stack-only, one-watcher scope", async () => {
+    const [babysit, watchLoop] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile("skills/ce-babysit-pr/references/watch-loop.md"),
+    ])
+
+    expect(babysit).toMatch(/only when[^.]{0,180}`manager_status == "confirmed"`[^.]{0,180}stack-wide continuation/i)
+    expect(babysit).toMatch(/repository-level stack availability[^.]{0,180}not a managed stack/i)
+    expect(babysit).toMatch(/requested PR[^.]{0,180}(looks ready|settled)[^.]{0,220}offer once[^.]{0,220}upstack/i)
+    expect(babysit).toMatch(/accepted[^.]{0,220}(without asking again|do not ask again)[^.]{0,220}(draft|end of the stack)/i)
+    expect(babysit).toMatch(/manual dependency chain[^.]{0,240}(never|must not)[^.]{0,120}stack-wide continuation/i)
+    expect(babysit).toMatch(/unsettled downstack[^.]{0,260}offer once[^.]{0,260}lowest unsettled/i)
+    expect(babysit).toMatch(/draft[^.]{0,180}(only|unless)[^.]{0,180}explicit/i)
+    expect(babysit).toMatch(/one active (PR )?(target|watcher)/i)
+    expect(watchLoop).toMatch(/one active (PR )?(target|watcher)/i)
   })
 
   test("bounded-class sweep contract: babysit routes it, ce-resolve classifies/enumerates/bounds it", async () => {
