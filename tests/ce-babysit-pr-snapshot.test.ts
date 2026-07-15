@@ -16,10 +16,10 @@ function fetchFile(dir: string, name: string, obj: unknown): string {
   return p
 }
 
-function snapshot(stateDir: string, fetch: string): any {
+function snapshot(stateDir: string, fetch: string, extra: string[] = []): any {
   const r = spawnSync(
     "python3",
-    [SCRIPT, "snapshot", "--pr", "1", "--repo", "o/r", "--state-dir", stateDir, "--fetch-file", fetch],
+    [SCRIPT, "snapshot", "--pr", "1", "--repo", "o/r", "--state-dir", stateDir, "--fetch-file", fetch, ...extra],
     { encoding: "utf8" },
   )
   expect(r.status, r.stderr).toBe(0)
@@ -631,6 +631,37 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(r.status, r.stderr).toBe(0)
     expect(JSON.parse(r.stdout).session_seconds).toBeLessThan(10)
   })
+
+  test("an invocation session start carries into a new managed-stack layer state dir", () => {
+    const started = new Date(Date.now() - 3_600_000).toISOString()
+    const d = snapshot(
+      path.join(dir, "next-layer"),
+      fetchFile(dir, "next-layer.json", FAILING),
+      ["--session-started-at", started],
+    )
+
+    expect(new Date(d.session_started_at).getTime()).toBe(new Date(started).getTime())
+    expect(d.session_seconds).toBeGreaterThan(3_500)
+  })
+
+  test("re-arming watch preserves the invocation budget instead of resetting it", () => {
+    const sd = path.join(dir, "watch-budget")
+    const started = new Date(Date.now() - 10_000).toISOString()
+    const waiting = {
+      ...FAILING,
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    }
+    snapshot(sd, fetchFile(dir, "watch-budget-snapshot.json", waiting), ["--session-started-at", started])
+
+    const wake = watch(
+      sd,
+      fetchFile(dir, "watch-budget-watch.json", waiting),
+      ["--session-started-at", started],
+    )
+
+    expect(wake.reason).toBe("max-runtime")
+  }, 15000)
 
   test("clearing a fork approval gate is movement (resets the settle clock so merge-ready waits for check-runs)", () => {
     const sd = path.join(dir, "appr")

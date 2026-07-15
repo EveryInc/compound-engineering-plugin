@@ -277,6 +277,19 @@ describe("ce-babysit-pr cross-skill contract parity", () => {
     expect(watchLoop).toMatch(/one active (PR )?(target|watcher)/i)
   })
 
+  test("managed-stack continuation preserves one invocation-wide session budget", async () => {
+    const [babysit, watchLoop] = await Promise.all([
+      readRepoFile(BABYSIT),
+      readRepoFile("skills/ce-babysit-pr/references/watch-loop.md"),
+    ])
+
+    for (const text of [babysit, watchLoop]) {
+      expect(text).toContain("--session-started-at \"$RUN_STARTED_AT\"")
+      expect(text).toMatch(/invocation-wide[^.]{0,220}(budget|session)/i)
+      expect(text).toMatch(/(next|new)[^.]{0,180}(layer|state dir)[^.]{0,220}(same|preserve|carry)[^.]{0,120}RUN_STARTED_AT/i)
+    }
+  })
+
   test("bounded-class sweep contract: babysit routes it, ce-resolve classifies/enumerates/bounds it", async () => {
     // A correct finding recurring across sibling sites must be swept as one class, not dripped
     // one-per-head. The split is protocol: babysit only recognizes + routes ("request a

@@ -875,6 +875,7 @@ def diff(state, cur, now=None, advance_trajectory=True):
                    "comments": len(actionable_feedback), "needs_human": open_needs_human},
         "changed_this_tick": changed_this_tick,
         "quiet_seconds": quiet_seconds,
+        "session_started_at": state.get("started_at"),
         "session_seconds": _elapsed(state.get("started_at"), now),
         "tick": state["tick"],
         "trajectory": trajectory,
@@ -917,6 +918,17 @@ def _elapsed(iso_str, now):
         return 0
 
 
+def _session_started_at(value):
+    """Parse one invocation-wide, timezone-aware budget anchor for reuse across state dirs."""
+    try:
+        parsed = datetime.fromisoformat(value)
+    except (ValueError, TypeError):
+        raise argparse.ArgumentTypeError("must be an ISO-8601 timestamp")
+    if parsed.tzinfo is None:
+        raise argparse.ArgumentTypeError("must include a timezone")
+    return _iso(parsed.astimezone(timezone.utc))
+
+
 @contextmanager
 def locked_state(state_dir, pr, repo, now):
     import fcntl
@@ -951,10 +963,13 @@ def _run_snapshot(args, now, advance_trajectory=True):
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
         if box["state"].get("pr", {}).get("url") is None and cur.get("url"):
             box["state"]["pr"]["url"] = cur["url"]
-        if getattr(args, "reset_session", False):
-            # A new babysit session (fresh invocation / watch arm) starts the budget clock now. Without
-            # this, `started_at` persists from state creation, so resuming against day-old state would
-            # read session_seconds as huge and hand back as "budget exhausted" before doing any work.
+        if getattr(args, "session_started_at", None):
+            # Carry one invocation-wide clock through watch re-arms and managed-stack layer state dirs.
+            box["state"]["started_at"] = args.session_started_at
+        elif getattr(args, "reset_session", False):
+            # A fresh babysit invocation starts the budget clock now. Without this, `started_at`
+            # persists from state creation, so resuming against day-old state would read
+            # session_seconds as huge and hand back before doing any work.
             box["state"]["started_at"] = _iso(now)
         actionable, box["state"] = diff(box["state"], cur, now, advance_trajectory=advance_trajectory)
     return actionable
@@ -1038,15 +1053,12 @@ def cmd_watch(args):
     A residual already present at arm time (a parked needs-human, or a dispatched terminal-red the
     agent already handed back) does NOT re-wake the loop — it keeps watching the other streams;
     only a *new* blocker (signature grown past the baseline) wakes."""
-    deadline = (time.monotonic() + args.max_runtime) if args.max_runtime else None
     armed = None  # baseline blocker signature captured on the first poll (already-surfaced residuals)
-    args.reset_session = True   # arming a watch is a fresh session -> start the budget clock now
     while True:
         if args.stop_file and os.path.exists(args.stop_file):
             _emit_wake("stop-signal")
             return
         actionable = _run_snapshot(args, _now(), advance_trajectory=False)  # a poll must not roll the trajectory
-        args.reset_session = False   # ...but later polls are ticks of that same session, not new ones
         if armed is None:
             armed = _blocker_sig(actionable)
         reason = _wake_reason(actionable, args.settle_seconds)
@@ -1056,7 +1068,7 @@ def cmd_watch(args):
             _emit_wake(reason, url=actionable.get("url"),
                        pr_state=actionable.get("pr_state"), counts=actionable.get("counts"))
             return
-        if deadline is not None and time.monotonic() >= deadline:
+        if args.max_runtime and actionable.get("session_seconds", 0) >= args.max_runtime:
             _emit_wake("max-runtime", url=actionable.get("url"))
             return
         time.sleep(args.interval)
@@ -1125,7 +1137,10 @@ def main():
     s.add_argument("--repo", default=None)
     s.add_argument("--state-dir", required=True)
     s.add_argument("--fetch-file", default=None)
-    s.add_argument("--reset-session", action="store_true")  # start the budget clock (a fresh invocation)
+    sg = s.add_mutually_exclusive_group()
+    sg.add_argument("--reset-session", action="store_true")  # start the budget clock (a fresh invocation)
+    sg.add_argument("--session-started-at", type=_session_started_at,
+                    help="carry a prior invocation's ISO-8601 budget anchor")
     s.set_defaults(func=cmd_snapshot)
 
     m = sub.add_parser("mark")
@@ -1151,7 +1166,10 @@ def main():
     w.add_argument("--settle-seconds", type=float, default=300.0, help="quiet window before a merge-ready wake")
     w.add_argument("--stop-file", default=None, help="path whose existence stops the watch")
     w.add_argument("--fetch-file", default=None)
-    w.add_argument("--reset-session", action="store_true")  # cmd_watch also forces this on arm
+    wg = w.add_mutually_exclusive_group()
+    wg.add_argument("--reset-session", action="store_true")
+    wg.add_argument("--session-started-at", type=_session_started_at,
+                    help="carry the invocation-wide ISO-8601 budget anchor")
     w.set_defaults(func=cmd_watch)
 
     args = p.parse_args()
