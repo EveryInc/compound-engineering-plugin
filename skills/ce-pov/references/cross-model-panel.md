@@ -10,8 +10,16 @@ from the ordinary POV contract.
 ## 1. Resolve participation
 
 First attest the host's serving provider (`codex`, `claude`, `grok`, or
-`composer`). Exclude that provider. If the host provider cannot be attested,
-run no peer rather than risk a same-provider check.
+`composer`). Detect the harness from its host-provided markers: `CLAUDECODE=1`
+maps to `claude`; any of `CODEX_SANDBOX`, `CODEX_SANDBOX_NETWORK_DISABLED`,
+`CODEX_SESSION_ID`, `CODEX_THREAD_ID`, or `CODEX_CI` maps to `codex`; and
+`CURSOR_AGENT` or `CURSOR_CONVERSATION_ID` identifies Cursor. For Cursor, map
+the observable active serving model family: GPT/OpenAI -> `codex`,
+Claude/Anthropic -> `claude`, Grok/xAI -> `grok`, and Composer -> `composer`.
+Do not infer the host from another CLI's installed files or home directory.
+Exclude the attested provider. If the harness is unknown, or Cursor's active
+model family cannot be observed, run no peer rather than guess and risk a
+same-provider check.
 
 Resolve reachable providers by installed route, host exclusion, and the
 `CROSS_MODEL_PEERS` egress allowlist. An installed route is only a reachability
@@ -141,6 +149,21 @@ usable voice. Attribute from the receipt, never from expectation:
 Reconcile the pre-egress announcement against every receipt. In the final panel
 disclosure, state any actual provider, intermediary, requested model, or served
 model that differed from the announced primary chain.
+
+Before cleanup, inspect every job that produced no usable artifact, ended
+non-`done`, or used a fallback provider or route. Read its bounded `out.log`
+through the runner's ownership-checked result interface, never directly:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the ce-pov SKILL.md>";
+python3 "$SKILL_DIR/scripts/peer-job-runner.py" result --path "/tmp/compound-engineering/ce-pov/<run-id>/jobs/<job-id>/out.log"
+```
+
+Use the worker's `peer skip evidence:` lines to replace generic degradation
+wording with the specific observed quota, authentication, or route failure and
+name the fallback that served instead when applicable. If the log is unreadable
+or has no specific evidence, retain the terminal/no-output disclosure; the
+panel remains non-blocking.
 
 ## 5. Detect dissent and reconcile
 

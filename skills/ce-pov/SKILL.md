@@ -92,36 +92,40 @@ echo "$SCRATCH_DIR"
 
 ### Phase 3: Point of View
 
-Emit the contract for the active subject shape defined in `references/method.md`. For an external-adoption question, the existing grade vocabulary, schema fields, tier sizing, and output economy apply unchanged. A document take or approach-set position follows its own explicit contract. Every shape is a **compact chat block, not a research report**: lead with the grade, bottom line, or position named by its contract; keep each field terse; and never reprint scout dossiers or raw search output.
+First form ce-pov's own independent POV under the active subject-shape contract in `references/method.md`, but do not emit it yet. This solo result is the panel payload's **independently formed position**; peers cross-check a completed ce-pov position rather than shaping its first draft.
 
 When a panel is named or summoned, or when a cold POV may qualify for a proactive offer, read
 `references/cross-model-panel.md` before resolving participation or deciding whether to offer.
 Peers stay read-only, receive only the caller-prepared payload, and get no project path handle.
+Resolve and finish the panel branch, including any fold-in or reconciliation, before composing the user-facing result. If no panel runs, keep the solo result unchanged.
+
+Only then emit the final contract for the active subject shape. For an external-adoption question, the existing grade vocabulary, schema fields, tier sizing, and output economy apply unchanged. A document take or approach-set position follows its own explicit contract. Every shape is a **compact chat block, not a research report**: lead with the grade, bottom line, or position named by its contract; keep each field terse; and never reprint scout dossiers or raw search output.
 
 ### Phase 4: Follow-up
 
-The chat POV (the TL;DR) is the deliverable. Any implementation is outside this read-only contract: offer document edits, proceeding with a chosen approach, or planning an adoption only as a separate continuation through the owning skill. What you offer next is **reasoned from the POV and sized to the tier — never a fixed menu, and never an assumption that everything routes to a plan.**
+The chat POV (the TL;DR) is the deliverable. Any implementation is outside this read-only contract: offer document edits, proceeding with a chosen approach, or planning an adoption only as a separate continuation through the owning skill. What you offer next is **reasoned from the POV and its active subject shape — never a fixed menu, and never an assumption that everything routes to a plan.**
 
-**Compute the next step.** From the grade and the verdict's Handoff field, reason about the single best next move and a one-clause why — it is not always obvious between plan and brainstorm, so decide in context:
+**Compute the next step.** From the active subject shape's result and its Handoff field when present, reason about the single best next move and a one-clause why:
 
-- **Adopt**, scope clear → take it into `ce-plan`.
-- **Adopt**, scope still fuzzy → `ce-brainstorm` to pin down what "adopt" means before planning.
-- **Trial** → scope a timeboxed spike (`ce-work`).
-- **Hold / Reject / Not-our-problem** → no handoff; there is nothing to take forward.
+- **External adoption:** **Adopt** with clear scope → `ce-plan`; **Adopt** with fuzzy scope → `ce-brainstorm`; **Trial** → a timeboxed spike with `ce-work`; **Hold / Reject / Not-our-problem** → no handoff.
+- **Document take:** actionable revisions → offer to apply the specific edits through the workflow that owns that document; no requested change or a Blocked result → no handoff.
+- **Approach-set position:** a chosen, sufficiently defined option → proceed through the owning planning or execution workflow; a choice that still needs scope → `ce-brainstorm`; an honest toss-up or Blocked result → no handoff.
 
-**Tier-gate the offer (anti-ritual):**
+**Shape-gate the offer (anti-ritual):**
 
-- **Tier 1, or a Reject / Not-our-problem grade** → end with a single prose line — e.g. "Want the full write-up, or `<computed next step>`? Otherwise we're done." No blocking menu; silence means done.
-- **Tier 2/3 with an actionable grade** → ask via the platform's blocking question tool, with the *computed* next step as the first, dynamically-labeled option:
-  1. **`<computed next step>`** (e.g. "Plan the adoption with `ce-plan`") — seeded with the verdict substance, not a file pointer.
+- **For adoption subjects, Tier 1 or a Reject / Not-our-problem grade** → end with a single prose line — e.g. "Want the full write-up, or `<computed next step>`? Otherwise we're done." No blocking menu; silence means done.
+- **For adoption subjects, Tier 2/3 with an actionable grade** → use the platform's blocking question tool.
+- **For document takes and approach-set positions**, use one prose line for an optional or lightweight continuation; use the blocking question tool only when the POV recommends consequential follow-on work and the user must choose whether to begin it. A no-handoff result offers only the optional full write-up, if useful.
+- When using the blocking question tool, make the *computed* next step the first, dynamically labeled option:
+  1. **`<computed next step>`** (e.g. "Plan the adoption with `ce-plan`", "Apply the document edits", or "Proceed with approach A") — seeded with the POV substance, not a file pointer.
   2. **Full write-up** — the expanded, shareable artifact.
   3. **Done.**
-  Add `ce-compound` as a one-line prose nudge under the menu, **not** a slot: "Want it in our decision history? say 'compound it.'" It is the least-frequent path and is never the first thing offered.
+  Add `ce-compound` as a one-line prose nudge under the menu, **not** a slot, only when the POV is a durable decision that fits an existing capture type: "Want it in our decision history? say 'compound it.'" It is never the first thing offered.
 
 **On each selection:**
 
-- **Computed next step** → invoke that skill via the platform's skill-invocation primitive, seeding it with the verdict substance (the decision, conditions, and verified facts).
+- **Computed next step** → invoke the owning skill via the platform's skill-invocation primitive, seeding it with the POV substance (the decision, conditions, requested edits or chosen approach, and verified facts).
 - **Full write-up** → read `references/report.md` and follow it (HTML by default; opened locally or published via Proof / an available HTML tool). Opt-in; the default stays chat-only.
-- **"compound it"** → invoke `ce-compound` with `mode:headless`, seeding it with the structured verdict for `tooling_decision` / `architecture_pattern` storage (no schema change; headless avoids its interactive prompts). Never mandatory.
+- **"compound it"** → invoke `ce-compound` with `mode:headless`, seeding it with the structured POV and the fitting existing capture type (no schema change; headless avoids its interactive prompts). Never mandatory.
 
-**Warm invocations stay a guest:** output the verdict block, hand control back, and offer none of the above unless the user asks — a mid-session interjection does not push a next-step or capture decision.
+**Warm invocations stay a guest:** output the POV block, hand control back, and offer none of the above unless the user asks — a mid-session interjection does not push a next-step or capture decision.
