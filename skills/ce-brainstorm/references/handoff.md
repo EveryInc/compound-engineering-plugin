@@ -73,7 +73,7 @@ Immediately load the `ce-plan` skill in the current session. Pass the unified
 plan artifact path when one exists; otherwise pass a concise summary of the
 finalized brainstorm decisions. When the Phase 1.1 grounding scout produced a
 dossier and the file still exists, also pass its path
-(`/tmp/compound-engineering/ce-brainstorm/<run-id>/grounding.md`) — it gives
+(`$SCRATCH_ROOT/ce-brainstorm/<run-id>/grounding.md`) — it gives
 planning verified quotes with `file:line` pointers to start from instead of
 re-scanning the repo. Do not print the closing summary first.
 

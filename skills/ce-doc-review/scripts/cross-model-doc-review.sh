@@ -221,7 +221,7 @@ RUN_DIR="${7:-}"
 [ -n "$RUN_DIR" ] || skip "run-dir not given; skipping"
 # Create the scratch run-dir rather than skipping when it doesn't exist yet:
 # ce-doc-review (unlike ce-code-review) has no pre-existing run-artifact dir, and
-# the caller is told to pass a fresh path like /tmp/compound-engineering/ce-doc-review/<run-id>/.
+# the caller is told to pass a fresh owner-scoped path beneath the resolved scratch root.
 # Requiring it to pre-exist would silently no-op the whole pass (no fold-in files).
 mkdir -p "$RUN_DIR" 2>/dev/null
 [ -d "$RUN_DIR" ] || skip "run-dir '$RUN_DIR' could not be created; skipping"

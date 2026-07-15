@@ -25,8 +25,13 @@ Never read from the cache — recompute every run:
 ## Cache location & key
 
 ```
-/tmp/compound-engineering/repo-profile/<root-sha>/<inputs-digest>.json
+/tmp/compound-engineering-<uid>/repo-profile/<root-sha>/<inputs-digest>.json
 ```
+
+The UID-scoped root keeps the stable, inspectable `/tmp` location while
+preventing one Unix user from owning the cache directory needed by another.
+Set `COMPOUND_ENGINEERING_SCRATCH_ROOT` to override the complete per-user
+scratch root, or `COMPOUND_ENGINEERING_CACHE_ROOT` to override only this cache.
 
 - `<root-sha>` = lexicographically-first `git rev-list --max-parents=0 HEAD` — the repo identity (stable, shared across worktrees and clones).
 - `<inputs-digest>` = sha256 over (1) every committed blob **path** at `HEAD` (tree shape — so a new module/directory invalidates topology), (2) `(path, blob-sha)` for every **profile-input** file (filtered by the helper's `is_profile_input`), (3) for profile-input **symlinks**, the final in-repo regular blob after following the full symlink chain, and (4) `(path, commit-sha)` for every **gitlink** (submodule) entry. Content edits to existing non-input files keep the same entry; adding/removing any path, changing a profile-input's content (including through a symlink chain), or moving a submodule pointer does not.

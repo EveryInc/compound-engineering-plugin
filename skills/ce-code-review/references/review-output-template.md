@@ -158,7 +158,7 @@ This fails because of the **box-drawing `────` separators between items*
 
 ## Agent mode (JSON)
 
-When `mode:agent` is active, **do not** emit the markdown table report above. Emit **one parseable JSON object** as the primary response and write the same payload to `review.json` under `/tmp/compound-engineering/ce-code-review/<run-id>/`.
+When `mode:agent` is active, **do not** emit the markdown table report above. Emit **one parseable JSON object** as the primary response and write the same payload to `review.json` under the resolved owner-scoped run directory.
 
 The contract is defined in SKILL.md under **`### JSON output format (`mode:agent` only)`**. Minimum fields: `status`, `verdict`, `scope`, `intent`, `reviewers`, `findings`, `actionable_findings`, `artifact_path`, `run_id`.
 

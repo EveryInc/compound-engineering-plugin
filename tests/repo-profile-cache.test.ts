@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { spawnSync } from "node:child_process"
+import { spawn, spawnSync } from "node:child_process"
 import {
   mkdtempSync,
   writeFileSync,
@@ -35,6 +35,41 @@ function run(
     stdout: r.stdout ?? "",
     stderr: r.stderr ?? "",
   }
+}
+
+function runWithEnv(
+  cwd: string,
+  env: Record<string, string>,
+  ...args: string[]
+): { code: number; stdout: string; stderr: string } {
+  const r = spawnSync("python3", [SCRIPT, ...args], {
+    cwd,
+    encoding: "utf8",
+    env: { ...process.env, ...env },
+  })
+  return {
+    code: r.status ?? -1,
+    stdout: r.stdout ?? "",
+    stderr: r.stderr ?? "",
+  }
+}
+
+function runAsync(
+  cwd: string,
+  env: Record<string, string>,
+  ...args: string[]
+): Promise<{ code: number; stdout: string; stderr: string }> {
+  return new Promise((resolve) => {
+    const child = spawn("python3", [SCRIPT, ...args], {
+      cwd,
+      env: { ...process.env, ...env },
+    })
+    let stdout = ""
+    let stderr = ""
+    child.stdout.on("data", (chunk) => (stdout += chunk.toString()))
+    child.stderr.on("data", (chunk) => (stderr += chunk.toString()))
+    child.on("close", (code) => resolve({ code: code ?? -1, stdout, stderr }))
+  })
 }
 
 /** Fresh git repo with a manifest + README, one commit. Unique root SHA. */
@@ -83,14 +118,65 @@ function getHitProfile(stdout: string): unknown {
 }
 
 describe("repo-profile-cache helper", () => {
-  test("fresh repo with no entry → MISS + a cache path under /tmp", () => {
+  test("fresh repo with no entry → MISS + a UID-scoped cache path under /tmp", () => {
     const dir = makeRepo()
     const res = run(dir, "get")
     expect(res.code).toBe(0)
     expect(res.stdout.startsWith("MISS\n")).toBe(true)
     const writePath = res.stdout.split("\n")[1]
-    expect(writePath).toContain("/compound-engineering/repo-profile/")
+    expect(writePath).toContain(
+      `/compound-engineering-${process.getuid()}/repo-profile/`,
+    )
     expect(writePath.endsWith(".json")).toBe(true)
+  })
+
+  test("owner-scoped roots isolate sibling users", () => {
+    const dir = makeRepo()
+    const roots = mkdtempSync(path.join(tmpdir(), "repo-profile-owners-"))
+    const ownerA = path.join(roots, "compound-engineering-1001")
+    const ownerB = path.join(roots, "compound-engineering-1002")
+    const profileFile = path.join(dir, "profile.json")
+    writeFileSync(profileFile, JSON.stringify(VALID_PROFILE))
+
+    const put = runWithEnv(
+      dir,
+      { COMPOUND_ENGINEERING_SCRATCH_ROOT: ownerA },
+      "put",
+      profileFile,
+    )
+    expect(put.code).toBe(0)
+    expect(put.stdout.trim().startsWith(ownerA)).toBe(true)
+    expect(
+      runWithEnv(dir, { COMPOUND_ENGINEERING_SCRATCH_ROOT: ownerA }, "get")
+        .stdout.startsWith("HIT\n"),
+    ).toBe(true)
+
+    const ownerBGet = runWithEnv(
+      dir,
+      { COMPOUND_ENGINEERING_SCRATCH_ROOT: ownerB },
+      "get",
+    )
+    expect(ownerBGet.stdout.startsWith("MISS\n")).toBe(true)
+    expect(ownerBGet.stdout.split("\n")[1].startsWith(ownerB)).toBe(true)
+  })
+
+  test("concurrent puts remain readable and atomic", async () => {
+    const dir = makeRepo()
+    const scratchRoot = mkdtempSync(path.join(tmpdir(), "repo-profile-concurrent-"))
+    const profileFile = path.join(dir, "profile.json")
+    writeFileSync(profileFile, JSON.stringify(VALID_PROFILE))
+    const env = { COMPOUND_ENGINEERING_SCRATCH_ROOT: scratchRoot }
+
+    const puts = await Promise.all(
+      Array.from({ length: 8 }, () => runAsync(dir, env, "put", profileFile)),
+    )
+    expect(puts.every((result) => result.code === 0)).toBe(true)
+    expect(new Set(puts.map((result) => result.stdout.trim())).size).toBe(1)
+
+    const get = runWithEnv(dir, env, "get")
+    expect(get.code).toBe(0)
+    expect(get.stdout.startsWith("HIT\n")).toBe(true)
+    expect(getHitProfile(get.stdout)).toEqual(VALID_PROFILE)
   })
 
   test("put then get (clean tree) → HIT with the stored profile", () => {
@@ -105,7 +191,7 @@ describe("repo-profile-cache helper", () => {
   test("put path is keyed by inputs-digest (64-hex), not HEAD", () => {
     const dir = makeRepo()
     const cachePath = putProfile(dir)
-    expect(cachePath).toContain("/compound-engineering/repo-profile/")
+    expect(cachePath).toContain(`/compound-engineering-${process.getuid()}/repo-profile/`)
     const digestComponent = cachePath.split("/repo-profile/")[1].split("/")[1]
     expect(digestComponent).toMatch(/^[0-9a-f]{64}\.json$/)
     const head = git(dir, "rev-parse", "HEAD").trim()
