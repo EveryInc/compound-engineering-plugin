@@ -1,7 +1,7 @@
 ---
 name: ce-compound
 description: Document a recently solved problem or durable project vocabulary in docs/solutions/ or CONCEPTS.md. Use when capturing a learning after work.
-argument-hint: "[optional: brief context] [mode:headless] "
+argument-hint: "[optional: brief context] [mode:headless] [depth:lightweight|full]"
 ---
 
 # /ce-compound
@@ -21,6 +21,8 @@ Captures problem solutions while context is fresh, creating structured documenta
 /ce-compound [brief context]            # Provide additional context hint
 /ce-compound mode:headless              # Non-interactive run for automations
 /ce-compound mode:headless [context]    # Non-interactive run with context hint
+/ce-compound mode:headless depth:lightweight [context] # Fast non-interactive run
+/ce-compound mode:headless depth:full [context]        # Full non-interactive run
 ```
 
 **One learning per run.** The workflow's grounding, overlap detection, and cross-referencing all assume a single solved problem. When a session produced multiple distinct learnings, run the skill once per learning, sequentially — each run grounds fresh against the tree. Do not batch several learnings through one run and stitch cross-references between the drafts afterward; drafting-context numbering ("Learning 3") leaking into written docs is the failure this rule prevents.
@@ -31,14 +33,16 @@ If invoked specifically to create or bootstrap `CONCEPTS.md` from scratch rather
 
 ## Mode Detection
 
-Enter headless mode when **either** holds: the arguments you were invoked with contain the `mode:headless` token, **or** the invocation makes non-interactive intent unmistakable — a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". The token is the explicit form; a clear natural-language request for a non-interactive run is equivalent. Bare "automatically" or "auto-run" is **not** on its own a headless signal — it speaks to *invoking* the skill, not to suppressing its prompts — so an ambiguous or absent signal defaults to interactive. Tokens starting with `mode:` are flags, not context — strip `mode:headless` from arguments before treating the remainder as the brief context hint.
+Enter headless mode when **either** holds: the arguments you were invoked with contain the `mode:headless` token, **or** the invocation makes non-interactive intent unmistakable — a caller or standing instruction asking to run `ce-compound` "headless", "non-interactively", "unattended", or "without prompts/questions". The token is the explicit form; a clear natural-language request for a non-interactive run is equivalent. Bare "automatically" or "auto-run" is **not** on its own a headless signal — it speaks to *invoking* the skill, not to suppressing its prompts — so an ambiguous or absent signal defaults to interactive. Tokens starting with `mode:` or `depth:` are flags, not context — strip them before treating the remainder as the brief context hint.
+
+Depth is an explicit headless-only selector. In headless mode, accept at most one depth token: `depth:lightweight` routes directly to Lightweight Mode, while `depth:full` routes to Full Mode with its automatic session-history probe. `mode:headless` without a `depth:` token remains backward compatible and runs Full Mode. Headless lightweight asks no blocking questions and launches no subagents. If the invocation contains an unknown `depth:` token, multiple `depth:` tokens, or a `depth:` token without headless intent, do not guess; emit the headless failure report with the reason and end with `Documentation skipped`.
 
 | Mode | When | Behavior |
 |------|------|----------|
 | **Interactive** (default) | No headless token or clear non-interactive intent | Auto-pick Full vs Lightweight and report the choice; run session history as an automatic probe (Full only); prompt for Discoverability Check consent; end with a plain summary (no "What's next?" menu) |
-| **Headless** | `mode:headless` token present, or the invocation makes non-interactive intent unmistakable | No blocking questions. Run **Full mode**, including the automatic session-history probe (it never prompts, so it preserves headless's non-interactive contract). If the Discoverability Check finds a gap, report it under `Instruction-file edit: gap noted, not applied` — never edit instruction files (headless is for skill-to-skill / automation handoffs; amending the repo's operating contract needs interactive consent). Skip Phase 3 specialized reviews. End with a structured terminal report — no "What's next?" menu. |
+| **Headless** | `mode:headless` token present, or the invocation makes non-interactive intent unmistakable | No blocking questions. Run the explicitly requested depth, defaulting to **Full mode** with the automatic session-history probe. If the Discoverability Check finds a gap, report it without editing instruction files. Skip Phase 3 specialized reviews. End with a structured terminal report — no "What's next?" menu. |
 
-Headless mode is intended for automations and skill-to-skill invocation where no human is present to answer questions. The doc itself is identical to what an interactive Full run would produce — classification work (track, category, overlap) follows the same rules and writes nothing extra into the artifact. Once detected, headless mode applies for the entire run.
+Headless mode is intended for automations and skill-to-skill invocation where no human is present to answer questions. Once detected, headless mode applies for the entire run.
 
 ## Session context
 
@@ -73,7 +77,7 @@ When spawning subagents, pass the relevant file contents into the task prompt so
 - Choose **Lightweight** (single-pass, no subagents — see Lightweight Mode) ONLY under real context pressure: the session is near its context limit, or the fix is trivial enough that cross-referencing would add nothing. These are conditions the agent can observe and the user cannot, which is exactly why this is not a question.
 - State the chosen mode and a one-line reason as the first line of the completion output (e.g., "Ran Full mode." / "Ran Lightweight mode — session context was tight."). If Lightweight was the wrong call for the user's taste, re-running is a rare, cheap correction — cheaper than taxing every run with a prompt.
 
-**In headless mode**, skip mode selection entirely and run **Full Mode**, including the automatic session-history probe (Phase 1 step 4) — it is non-interactive by construction. Proceed straight to research.
+**In headless mode**, skip automatic mode selection. Run the depth selected during Mode Detection: `depth:lightweight` enters Lightweight Mode; `depth:full` or no depth token enters Full Mode, including the automatic session-history probe (Phase 1 step 4).
 
 **Session history — an automatic probe in Full mode, never a question.** The point of searching prior sessions is that an *unrelated* earlier session may hold related problem-solving; neither the agent nor the user can know that a priori, so asking is pointless. Instead, Full mode always runs the cheap discovery+metadata probe (Phase 1 step 4) — it runs in parallel with the research subagents, so it is near-free on wall-clock — and escalates to the expensive extraction+synthesis only when the probe surfaces genuinely relevant candidate sessions. Lightweight mode skips session history entirely; headless runs the same automatic probe, since it prompts for nothing and so keeps headless non-interactive. This support exists only inside the compounding workflow; there is no standalone session-history product surface.
 
@@ -370,7 +374,7 @@ The doc (and any `CONCEPTS.md` entries from Phase 2.4) is about to become perman
 
    Exit 0 means nothing flagged. Exit 1 means flags to **adjudicate, not auto-fix** — each flagged path, SHA, link, or scaffold pattern is fixed, annotated as historical, or confirmed intentional per the reference's adjudication table. A doc may legitimately cite a path deleted by the very fix it documents; a flag is a question, not a failure. If the script cannot be resolved on this platform, apply the reference's manual checklist and say so in the output — never silently skip.
 
-2. **Semantic grounding validator (Full and headless; lightweight skips it).** Dispatch one read-only generic subagent built from the prompt template in the reference, covering the written doc plus any `CONCEPTS.md` entries added or edited this run. It verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, git reachability fallback), and internal completeness of countable assertions. Apply its verdicts per the reference (fix contradicted claims from the quoted evidence; soften or drop unverifiable ones; mark offline merge-state checks as degraded), then re-run the mechanical check if the body changed.
+2. **Semantic grounding validator (Full mode, including headless Full; lightweight skips it).** Dispatch one read-only generic subagent built from the prompt template in the reference, covering the written doc plus any `CONCEPTS.md` entries added or edited this run. It verifies code-behavior claims by quoting the defining source line, merge-state claims against remote truth (`gh` primary, git reachability fallback), and internal completeness of countable assertions. Apply its verdicts per the reference (fix contradicted claims from the quoted evidence; soften or drop unverifiable ones; mark offline merge-state checks as degraded), then re-run the mechanical check if the body changed.
 
 ### Phase 2.5: Selective Refresh Check
 
@@ -453,7 +457,7 @@ After the learning is written and the refresh decision is made, check whether th
 
       `docs/solutions/` — documented solutions to past problems (bugs, best practices, workflow patterns), organized by category with YAML frontmatter (`module`, `tags`, `problem_type`). Relevant when implementing or debugging in documented areas.
       ```
-   c. In full interactive mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode, output a one-liner note and move on. In headless mode, **do not edit instruction files** — surface the gap in the terminal report as `Instruction-file edit: gap noted, not applied` (headless scope is documentation capture, not project-config edits; a human-invoked interactive run applies the edit with consent)
+   c. In full interactive mode, explain to the user why this matters — agents working in this repo (including fresh sessions, other tools, or collaborators without the plugin) won't know to check `docs/solutions/` unless the instruction file surfaces it. Show the proposed change and where it would go, then use the platform's blocking question tool to get consent before making the edit: `AskUserQuestion` in Claude Code (call `ToolSearch` with `select:AskUserQuestion` first if its schema isn't loaded), `request_user_input` in Codex, `ask_question` in Antigravity CLI (`agy`), `ask_user` in Pi (requires the `pi-ask-user` extension). Fall back to presenting the proposal in chat only when no blocking tool exists in the harness or the call errors (e.g., Codex edit modes) — not because a schema load is required. Never silently skip the question. In lightweight mode (interactive or headless), output a one-liner note and move on. In full headless mode, **do not edit instruction files** — surface the gap in the terminal report as `Instruction-file edit: gap noted, not applied` (headless scope is documentation capture, not project-config edits; a human-invoked interactive run applies the edit with consent)
 
 5. **If `CONCEPTS.md` exists at repo root, run a parallel discoverability check for it.** Assess whether the instruction file would lead an agent to discover the project's shared domain vocabulary. Use the same workflow as the `docs/solutions/` check above: same target file, same edit-placement judgment, same consent-then-edit interaction shape per mode. A line in an existing section is almost always better than a new headed section. Example calibration when nothing else fits:
 
@@ -490,7 +494,7 @@ Based on problem type, optionally dispatch generic subagents seeded with local p
 
 This mode skips parallel subagents entirely. The orchestrator performs all work in a single pass, producing the same solution document without cross-referencing or duplicate detection.
 
-Headless mode forces Full and does not enter Lightweight — automations get the cross-reference and overlap detection benefits without the interactive overhead.
+Headless mode enters Lightweight only when explicitly invoked with `depth:lightweight`; otherwise it defaults to Full for backward compatibility.
 </critical_requirement>
 
 The orchestrator (main conversation) performs ALL of the following in one sequential pass:
@@ -591,7 +595,7 @@ Knowledge track:
 | Subagent returns a long prose body only as its inline response | Subagent writes full output to its run artifact; orchestrator Reads it back (inline return is fallback only) |
 | Research and assembly run in parallel | Research completes → then assembly runs |
 | Multiple files created during workflow | One solution doc written or updated: `docs/solutions/[category]/[filename].md` (plus optional maintenance writes: a `CONCEPTS.md` create/update from Phase 2.4, and — interactive Full only, after consent — a small instruction-file edit for discoverability) |
-| Headless Discoverability Check edits AGENTS.md/CLAUDE.md | Headless reports `Instruction-file edit: gap noted, not applied`; only interactive Full applies the edit after consent |
+| Headless Discoverability Check edits AGENTS.md/CLAUDE.md | Headless Full reports `Instruction-file edit: gap noted, not applied`; headless Lightweight emits a discoverability tip; only interactive Full applies the edit after consent |
 | Creating a new doc when an existing doc covers the same problem | Check overlap assessment; update the existing doc when overlap is high |
 | Asserting code behavior or merge-state from conversation memory | Read the defining source line before asserting; cite PR numbers over SHAs; soften unverifiable claims (Phase 1 extractor rules, re-checked in Phase 2.45) |
 | Batching several learnings through one run and stitching cross-references between drafts | One learning per run; run the skill sequentially for each additional learning |
@@ -601,6 +605,24 @@ Knowledge track:
 ### Headless mode
 
 Emit a structured terminal report and end the turn. No "What's next?" question, no blocking prompt. End with `Documentation complete` as the terminal signal so callers can detect completion.
+
+For `depth:lightweight`, use this bounded report after the Lightweight Mode workflow:
+
+```
+✓ Documentation complete (headless lightweight mode)
+
+File: docs/solutions/<category>/<filename>.md  (created | updated)
+Track: <bug | knowledge>
+Category: <category>
+Grounding: <mechanical check clean | N flags adjudicated>
+Discoverability: <no gap | gap noted — instruction-file tip emitted>
+CONCEPTS.md: <not present | scanned, no qualifying terms | updated — N added, N refined>
+Refresh recommendation: <none | scope hint for /ce-compound-refresh>
+
+Documentation complete
+```
+
+For `depth:full` or backward-compatible headless calls with no depth token, use the Full report:
 
 ```
 ✓ Documentation complete (headless mode)
