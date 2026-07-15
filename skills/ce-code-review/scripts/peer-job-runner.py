@@ -56,7 +56,9 @@ outcome exactly once; when both the worker's internal cap and the
 supervisor's window fire, the supervisor's record wins.
 
 Environment overrides (defaults in parentheses):
-  CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering)
+  CE_PEER_JOBS_ROOT         base dir (owner-scoped scratch root)
+  COMPOUND_ENGINEERING_SCRATCH_ROOT
+                            shared CE scratch-root override
   CE_PEER_IDLE_SECS         idle window, no out.log growth (240)
   CE_PEER_HARD_SECS         hard cap on worker wall clock (630)
   CE_PEER_LOG_MAX_BYTES     out.log byte cap (10485760)
@@ -64,7 +66,7 @@ Environment overrides (defaults in parentheses):
   CE_PEER_POLL_SECS         supervisor poll interval (2)
   CE_PEER_GRACE_SECS        TERM-to-KILL grace during reap (5)
 
-Security posture: the job root is a predictable path in world-shared /tmp, so
+Security posture: the job root is a predictable owner-scoped path in world-shared /tmp, so
 every read of job state opens the file first (no-follow) and verifies the
 descriptor's owner (os.fstat st_uid == os.geteuid, guarded where geteuid is
 unavailable) before any content is emitted; a mismatch reports "unreadable",
@@ -101,7 +103,9 @@ def _is_safe_token(value: str) -> bool:
 
 
 TERMINAL_STATES = ("done", "failed", "timeout", "died-without-result")
-DEFAULT_ROOT = "/tmp/compound-engineering"
+_getuid = getattr(os, "getuid", None)
+_owner_id = str(_getuid()) if _getuid is not None else f"pid-{os.getpid()}"
+DEFAULT_ROOT = os.path.join("/tmp", f"compound-engineering-{_owner_id}")
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 SWEEP_AGE_SECS = 24 * 3600
 CLAIM_ATTEMPTS = 16
@@ -121,7 +125,8 @@ exit codes:
   4  ownership check failed (job state or result not owned by the current
      user) — content is never emitted
 
-environment overrides: CE_PEER_JOBS_ROOT, CE_PEER_IDLE_SECS,
+environment overrides: CE_PEER_JOBS_ROOT, COMPOUND_ENGINEERING_SCRATCH_ROOT,
+CE_PEER_IDLE_SECS,
 CE_PEER_HARD_SECS, CE_PEER_LOG_MAX_BYTES, CE_PEER_RESULT_MAX_BYTES,
 CE_PEER_POLL_SECS, CE_PEER_GRACE_SECS (defaults in the module docstring).
 """
@@ -138,7 +143,11 @@ class Unreadable(Exception):
 # --- configuration -----------------------------------------------------------
 
 def jobs_root_base() -> str:
-    return os.path.abspath(os.environ.get("CE_PEER_JOBS_ROOT") or DEFAULT_ROOT)
+    return os.path.abspath(
+        os.environ.get("CE_PEER_JOBS_ROOT")
+        or os.environ.get("COMPOUND_ENGINEERING_SCRATCH_ROOT")
+        or DEFAULT_ROOT
+    )
 
 
 def _env_num(name: str, default: float, conv) -> float:

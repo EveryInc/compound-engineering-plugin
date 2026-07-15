@@ -64,7 +64,7 @@ A loop can churn without finishing: CI **ping-pong** (fix A surfaces B, fix B br
 
 ## On-disk state contract
 
-State lives at `/tmp/compound-engineering/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/state.json` (a stable, cross-invocation-reusable path so any later tick — scheduled or hand-run — finds it). The `<host>` segment (from the PR URL, `github.com` on the public host) is load-bearing for GitHub Enterprise: without it, two PRs sharing `owner/repo#N` on different hosts would reuse one `state.json` and cross-contaminate dispositions. The `pr-snapshot` script owns all reads and writes under a file lock. Shape:
+State lives at `/tmp/compound-engineering-<uid>/ce-babysit-pr/<host>-<owner>-<repo>-<pr>/state.json` by default, or beneath `COMPOUND_ENGINEERING_SCRATCH_ROOT` when explicitly overridden. This is a stable, owner-scoped, cross-invocation-reusable path so any later tick — scheduled or hand-run — finds it without one Unix user owning another user's state boundary. The `<host>` segment (from the PR URL, `github.com` on the public host) is load-bearing for GitHub Enterprise: without it, two PRs sharing `owner/repo#N` on different hosts would reuse one `state.json` and cross-contaminate dispositions. The `pr-snapshot` script owns all reads and writes under a file lock. Shape:
 
 ```json
 {

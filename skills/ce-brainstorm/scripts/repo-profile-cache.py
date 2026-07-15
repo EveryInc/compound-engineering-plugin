@@ -23,7 +23,7 @@ stamp, and writes it atomically to the computed cache path. Prints the path
 on success, `NO-CACHE` when the repo/cache is unavailable.
 
 Cache path:
-    /tmp/compound-engineering/repo-profile/<root-sha>/<inputs-digest>.json
+    /tmp/compound-engineering-<uid>/repo-profile/<root-sha>/<inputs-digest>.json
   root-sha = lexicographically-first `git rev-list --max-parents=0 HEAD`
              (deterministic even for multi-root histories) — the repo identity,
              shared across worktrees and clones.
@@ -60,7 +60,26 @@ from datetime import datetime, timezone
 # entry written under an older (narrower) schema.
 PROFILE_SCHEMA_VERSION = "1"
 
-CACHE_ROOT = "/tmp/compound-engineering/repo-profile"
+
+def default_scratch_root() -> str:
+    """Return a stable owner-scoped scratch root on POSIX systems.
+
+    A shared ``/tmp/compound-engineering`` directory can be created by one
+    Unix user with permissions that prevent sibling users from creating their
+    own run or cache directories.  UID-scoping preserves the stable,
+    inspectable ``/tmp`` location without sharing ownership boundaries.
+    """
+    getuid = getattr(os, "getuid", None)
+    owner_id = str(getuid()) if getuid is not None else f"pid-{os.getpid()}"
+    return os.path.join("/tmp", f"compound-engineering-{owner_id}")
+
+
+SCRATCH_ROOT = os.environ.get(
+    "COMPOUND_ENGINEERING_SCRATCH_ROOT", default_scratch_root()
+)
+CACHE_ROOT = os.environ.get(
+    "COMPOUND_ENGINEERING_CACHE_ROOT", os.path.join(SCRATCH_ROOT, "repo-profile")
+)
 
 # --- Profile-input set (the schema-derived superset, per the plan's R3) -------
 # Any change to one of these — including a NEW untracked file — must invalidate

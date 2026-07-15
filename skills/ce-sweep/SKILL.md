@@ -115,7 +115,7 @@ A failed ack write -> upsert the item as `ack_deferred` and hold the cursor (do 
 #### 2e. Media
 
 For each new item carrying `media`:
-- Download attachments into scratch `/tmp/compound-engineering/ce-sweep/<run-id>/`; raw media is never committed. A download failure -> set the item `needs_download` and continue.
+- Resolve `SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"` and download attachments into `$SCRATCH_ROOT/ce-sweep/<run-id>/`; raw media is never committed. A download failure -> set the item `needs_download` and continue.
 - Dispatch one generic subagent per recording, in parallel, at the **generation tier**, using `references/subagent-template.md` filled from `references/agents/media-analyzer.md`. Fill the template's `{skill_dir}` slot with the same absolute ce-sweep skill directory you resolve for your own `SKILL_DIR` Bash calls (a fresh subagent does not inherit your shell state, so it cannot run the bundled analyzer without being told the path). Pass the absolute media PATHS, a scratch artifact path, and the item's `sensitive` flag; collect the compact 1-2 line summary each returns. A subagent failure -> set the item `needs_analysis`, retain the media, and continue.
 - Track attempts on the item (a `media_attempts` count upserted on each try). After 3 failed attempts across runs (`needs_download`/`needs_analysis`), set the item `manual_stuck` and list it separately — out of the routine nag.
 

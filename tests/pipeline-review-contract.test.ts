@@ -669,16 +669,17 @@ describe("ce-compound Phase 1 artifact contract", () => {
   // Regression guard for issue #956: Phase 1 subagents that returned long-form
   // prose only as their inline Agent response failed silently when the harness
   // collapsed the return to an executive summary. The fix mirrors ce-code-review's
-  // proven /tmp run-artifact pattern: subagents write full output to disk and the
+  // proven owner-scoped /tmp run-artifact pattern: subagents write full output to disk and the
   // orchestrator Reads it back with the inline return as a fallback.
   test("generates a run id and run dir before dispatching Phase 1 subagents", async () => {
     const content = await readRepoFile("skills/ce-compound/SKILL.md")
 
     // A run identifier scopes the per-subagent artifact files
     expect(content).toContain("RUN_ID")
-    // Run dir under the shared cross-invocation scratch namespace
-    expect(content).toContain("/tmp/compound-engineering/ce-compound/")
-    expect(content).toContain('mkdir -p "/tmp/compound-engineering/ce-compound/')
+    // Run dir under the owner-scoped cross-invocation scratch namespace
+    expect(content).toContain("COMPOUND_ENGINEERING_SCRATCH_ROOT")
+    expect(content).toContain('RUN_DIR="$SCRATCH_ROOT/ce-compound/$RUN_ID"')
+    expect(content).toContain('mkdir -p "$RUN_DIR"')
   })
 
   test("Phase 1 subagents write full output to the run-artifact path", async () => {
@@ -690,7 +691,7 @@ describe("ce-compound Phase 1 artifact contract", () => {
     )
 
     // Subagents are instructed to write their full structured output to the run dir
-    expect(phase1).toContain("/tmp/compound-engineering/ce-compound/")
+    expect(phase1).toContain("{run_dir}")
     // ...and return a compact confirmation containing the artifact path
     expect(phase1.toLowerCase()).toContain("artifact path")
     // Inline return is required whenever the write did not succeed (not only when
@@ -708,7 +709,7 @@ describe("ce-compound Phase 1 artifact contract", () => {
     )
 
     // Orchestrator reads the per-subagent artifact files
-    expect(phase2).toContain("/tmp/compound-engineering/ce-compound/")
+    expect(phase2).toContain("{run_dir}")
     // Inline return is the documented fallback when the artifact is absent
     expect(phase2.toLowerCase()).toContain("fall back")
   })
