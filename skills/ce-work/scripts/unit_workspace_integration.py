@@ -388,16 +388,21 @@ def restore(run_id: str, unit_id: str, lock_token: str) -> bool:
     if not already_exact:
         git(repo, "cherry-pick", "--abort", check=False)
         git(repo, "reset", "--hard", pre["head"])
-    test_fault("restore-after-reset")
-    with locked_manifest(run_id) as doc:
-        unit = doc["units"][unit_id]
-        remove_introduced_paths(repo, unit)
+        test_fault("restore-after-reset")
+        with locked_manifest(run_id) as doc:
+            unit = doc["units"][unit_id]
+            remove_introduced_paths(repo, unit)
     test_fault("restore-after-path-removal")
     actual = semantic_snapshot(repo)
     exact = actual == pre
     with locked_manifest(run_id, write=True) as doc:
         unit = doc["units"][unit_id]
-        unit["integration"]["restore"] = {"at": now_iso(), "exact": exact, "snapshot": actual}
+        unit["integration"]["restore"] = {
+            "at": now_iso(),
+            "exact": exact,
+            "already_exact": already_exact,
+            "snapshot": actual,
+        }
         if exact:
             unit["state"] = "preserved"
             event(doc, "canonical-restored", unit_id)

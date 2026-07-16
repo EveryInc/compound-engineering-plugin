@@ -237,7 +237,18 @@ def cmd_resume(args) -> tuple[str, dict]:
             validate_lock(doc, uid, lock["nonce"])
             repo = doc["repository"]["toplevel"]
             snap = semantic_snapshot(repo)
-            if snap != unit["integration"]["pre_fold"]:
+            if snap == unit["integration"]["pre_fold"]:
+                exact = restore(run_id, uid, lock["nonce"])
+                if not exact:
+                    raise Operational("BLOCKED", "exact pre-fold preservation could not be proven")
+                integration_release(run_id, uid, lock["nonce"])
+                actions.append({
+                    "unit_id": uid,
+                    "action": "preflight-exact-state-recovered",
+                    "canonical_preserved": True,
+                    "integration_lock_released": True,
+                })
+            else:
                 if not matches_expected_apply(repo, unit, snap):
                     raise Operational("BLOCKED", "canonical dirt does not match the expected in-flight transport; preserved for recovery")
                 with locked_manifest(run_id, write=True) as current:

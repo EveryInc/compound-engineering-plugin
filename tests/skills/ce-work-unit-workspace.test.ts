@@ -612,6 +612,67 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("ACQUIRED")
   }, 20000)
 
+  test("resume preserves an exact preflight snapshot and releases its integration lock", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-preflight-exact", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-preflight-exact", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, "run-preflight-exact", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "new.txt"), "new\n")
+    const job = fakeDoneJob(runs, "run-preflight-exact", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-preflight-exact", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", "run-preflight-exact", "--unit-id", "U")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "new.txt\n")
+    writeFileSync(path.join(f.repo, "new.txt"), "ignored canonical data\n")
+    const token = ctl(
+      runs, "integration-acquire", "--run-id", "run-preflight-exact", "--unit-id", "U",
+    ).body.lock_token
+    const preflight = ctl(
+      runs, "preflight", "--run-id", "run-preflight-exact", "--unit-id", "U", "--lock-token", token,
+    )
+    expect(preflight.word).toBe("PREFLIGHT_OK")
+    const headBefore = git(f.repo, "rev-parse", "HEAD")
+    const statusBefore = git(f.repo, "status", "--porcelain=v2")
+
+    const resumed = ctl(runs, "resume", "--run-id", "run-preflight-exact")
+
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body.actions).toContainEqual({
+      unit_id: "U",
+      action: "preflight-exact-state-recovered",
+      canonical_preserved: true,
+      integration_lock_released: true,
+    })
+    const recovered = ctl(runs, "status", "--run-id", "run-preflight-exact")
+    expect(recovered.body.integration_lock).toBeNull()
+    expect(recovered.body.units.U).toMatchObject({
+      state: "preserved",
+      integration: {
+        restore: {
+          exact: true,
+          already_exact: true,
+          snapshot: preflight.body.pre_fold,
+        },
+      },
+    })
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(headBefore)
+    expect(git(f.repo, "status", "--porcelain=v2")).toBe(statusBefore)
+    expect(readFileSync(path.join(f.repo, "new.txt"), "utf8")).toBe("ignored canonical data\n")
+
+    const retryToken = ctl(
+      runs, "integration-acquire", "--run-id", "run-preflight-exact", "--unit-id", "U",
+    ).body.lock_token
+    expect(ctl(
+      runs, "preflight", "--run-id", "run-preflight-exact", "--unit-id", "U", "--lock-token", retryToken,
+    ).word).toBe("PREFLIGHT_OK")
+  }, 20000)
+
   test("refuses a wave whose terminalized transports overlap", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
