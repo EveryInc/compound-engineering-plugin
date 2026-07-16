@@ -151,7 +151,10 @@ export function transformContentForKiro(body: string, knownAgentNames: string[] 
   result = result.replace(/(?<=^|\s|["'`])\.claude\//gm, ".kiro/")
 
   // 3. Slash command refs: /command-name -> skill activation language
-  result = result.replace(/(?<=^|\s)`?\/([a-zA-Z][a-zA-Z0-9_:-]*)`?/gm, (_match, cmdName: string) => {
+  result = result.replace(/(?<=^|\s)`?\/([a-zA-Z][a-zA-Z0-9_:-]*)`?/gm, (match, cmdName: string) => {
+    if (["dev", "tmp", "etc", "usr", "var", "bin", "home"].includes(cmdName)) {
+      return match
+    }
     const skillName = normalizeName(cmdName)
     return `the ${skillName} skill`
   })

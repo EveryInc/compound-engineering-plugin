@@ -434,6 +434,14 @@ Task best-practices-researcher(topic)`
     expect(result).toContain("the workflows-plan skill")
   })
 
+  test("does not transform absolute filesystem paths as slash commands", () => {
+    const result = transformContentForKiro("Read /etc/hosts and /usr/local/bin/tool and /tmp/out.md.")
+    expect(result).toContain("/etc/hosts")
+    expect(result).toContain("/usr/local/bin/tool")
+    expect(result).toContain("/tmp/out.md")
+    expect(result).not.toContain("the etc skill")
+  })
+
   test("does not transform partial .claude paths like package/.claude-config/", () => {
     const result = transformContentForKiro("Check some-package/.claude-config/settings")
     // The .claude-config/ part should be transformed since it starts with .claude/
