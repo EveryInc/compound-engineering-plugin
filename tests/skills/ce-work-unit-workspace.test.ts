@@ -192,7 +192,14 @@ function terminalizeFakeJob(runsRoot: string, runId: string, id: string, state: 
   chmodSync(path.join(dir, "reason"), 0o600)
 }
 
-function fakeDoneJob(runsRoot: string, runId: string, unitId: string, packetContent: string, id = "job-1") {
+function fakeDoneJob(
+  runsRoot: string,
+  runId: string,
+  unitId: string,
+  packetContent: string,
+  id = "job-1",
+  terminalStatus: "completed" | "scope_expansion" = "completed",
+) {
   const dir = path.join(runsRoot, runId, "jobs", id)
   mkdirSync(dir, { recursive: true, mode: 0o700 })
   chmodSync(path.join(runsRoot, runId, "jobs"), 0o700)
@@ -224,11 +231,13 @@ function fakeDoneJob(runsRoot: string, runId: string, unitId: string, packetCont
   chmodSync(logPath, 0o600)
   writeFileSync(resultPath, `${JSON.stringify({
     schema_version: 1,
-    terminal_status: "completed",
+    terminal_status: terminalStatus,
     summary: "done",
     changed_files: [],
     evidence: ["fake"],
-    scope_expansion: null,
+    scope_expansion: terminalStatus === "scope_expansion"
+      ? { requested_paths: ["shared.ts"], reason: "required by unit" }
+      : null,
     requested_route: "codex",
     actual_route: "codex",
     target: "codex",
@@ -569,6 +578,66 @@ describe("ce-work unit workspace controller", () => {
     expect(empty.tree).toBe(git(linked, "rev-parse", `${f.base}^{tree}`))
     expect(git(linked, "rev-list", "--parents", "-n", "1", empty.commit).split(" ")).toEqual([empty.commit, f.base])
     expect(ctl(runs, "cleanup", "--run-id", "run-empty", "--unit-id", "empty", "--abandon", "--expect-transport", empty.commit).word).toBe("CLEANED")
+  }, 20000)
+
+  test("retains scope-expansion evidence but refuses ordinary fold-in", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-scope-expansion", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-scope-expansion", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, "run-scope-expansion", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "candidate.txt"), "requires broader scope\n")
+    const job = fakeDoneJob(
+      runs, "run-scope-expansion", "U", "packet", "job-scope-expansion", "scope_expansion",
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-scope-expansion", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+
+    const terminal = ctl(runs, "terminalize", "--run-id", "run-scope-expansion", "--unit-id", "U")
+    expect(terminal.word).toBe("INTEGRATION_PENDING")
+    expect(git(f.repo, "show", `${terminal.body.transport.commit}:candidate.txt`)).toBe("requires broader scope")
+    const resultPath = path.join(runs, "run-scope-expansion", "units", "U", "result", "implementation-result.json")
+    expect(JSON.parse(readFileSync(resultPath, "utf8"))).toMatchObject({
+      terminal_status: "scope_expansion",
+      scope_expansion: { requested_paths: ["shared.ts"], reason: "required by unit" },
+    })
+    expect(ctl(runs, "status", "--run-id", "run-scope-expansion", "--unit-id", "U").body.unit).toMatchObject({
+      state: "integration-pending",
+      transport: terminal.body.transport,
+      attempts: [{ terminal_receipt: { terminal_status: "scope_expansion", scope_expansion_requested: true } }],
+    })
+
+    const lock = ctl(runs, "integration-acquire", "--run-id", "run-scope-expansion", "--unit-id", "U")
+    expect(lock.word).toBe("ACQUIRED")
+    const preflight = ctl(
+      runs, "preflight", "--run-id", "run-scope-expansion", "--unit-id", "U",
+      "--lock-token", lock.body.lock_token,
+    )
+    expect(preflight.word).toBe("BLOCKED")
+    expect(preflight.body).toMatchObject({
+      terminal_status: "scope_expansion",
+      transport: terminal.body.transport,
+      recovery_path: path.join(runs, "run-scope-expansion", "units", "U"),
+    })
+    expect(ctl(
+      runs, "integration-release", "--run-id", "run-scope-expansion", "--unit-id", "U",
+      "--lock-token", lock.body.lock_token,
+    ).word).toBe("RELEASED")
+
+    const integrated = ctl(
+      runs, "integrate", "--run-id", "run-scope-expansion", "--unit-id", "U",
+      "--commit-message", "integrate U", "--", "true",
+    )
+    expect(integrated.word).toBe("BLOCKED")
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+    expect(existsSync(resultPath)).toBe(true)
+    expect(git(f.repo, "rev-parse", terminal.body.transport.ref)).toBe(terminal.body.transport.commit)
   }, 20000)
 
   test("fold-in is host-owned, lock-serialized, restorable, and cleanup is explicit", () => {

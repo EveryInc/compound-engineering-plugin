@@ -69,6 +69,19 @@ describe("ce-setup check-health", () => {
     expect(skill).not.toMatch(/Codex delegation defaults/i)
   })
 
+  test("routes retired and malformed dormant engine settings into preference repair", async () => {
+    const skill = await readFile(path.join(repoRoot, "skills", "ce-setup", "SKILL.md"), "utf8")
+    const step3 = skill.match(/### Step 3:[\s\S]*?(?=### Step 4:)/)?.[0] ?? ""
+    const step6a = skill.match(/### Step 6a:[\s\S]*?(?=### Step 7:)/)?.[0] ?? ""
+
+    for (const section of [step3, step6a]) {
+      expect(section).toContain("retired scalar routing keys")
+      expect(section).toContain("malformed dormant `work_engine_preferences`")
+    }
+    expect(step6a).toContain("remove any retired scalar routing keys")
+    expect(step6a).toContain("remove malformed dormant preferences")
+  })
+
   test("documents the cross-model configuration and lifecycle without overstating worktree isolation", async () => {
     const [ceWork, lfg, readme] = await Promise.all([
       readFile(ceWorkDocs, "utf8"),
@@ -235,6 +248,70 @@ describe("ce-setup check-health", () => {
       await rm(root, { recursive: true, force: true })
     }
   })
+
+  test("diagnoses retired scalar routing keys instead of treating them as preferences", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, "work_engine_mode: prefer\nwork_engine_target: codex\nwork_engine_model: gpt-5.4-mini\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain(
+        "CE Work implementation engine unavailable: prefer cannot use retired scalar routing; migrate work_engine_target, work_engine_model to work_engine_preferences",
+      )
+      expect(result.stdout).toContain(
+        "retired config key(s) work_engine_target, work_engine_model detected; migrate routing to work_engine_preferences entries with harness and optional model fields, then remove the retired keys",
+      )
+      expect(result.stdout).not.toContain("prefer requires work_engine_preferences")
+      expect(result.stdout).toContain("1 project issue(s) found")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("reports retired scalar keys even when ordered preferences are valid", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(
+        root,
+        "work_engine_mode: prefer\nwork_engine_target: claude\nwork_engine_preferences:\n  - harness: codex\n",
+      )
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> codex@default")
+      expect(result.stdout).toContain("retired config key(s) work_engine_target detected")
+      expect(result.stdout).toContain("1 project issue(s) found")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test.each(["", "work_engine_mode: off\n"])(
+    "surfaces malformed dormant preferences when mode is missing or off (%s)",
+    async (modeConfig) => {
+      const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+      try {
+        await initConfiguredRepo(root, `${modeConfig}work_engine_preferences:\n  - model: composer\n`)
+
+        const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+        expect(result.exitCode).toBe(0)
+        expect(result.stdout).toContain(
+          "invalid dormant work_engine_preferences: model 'composer' has no harness in work_engine_preferences",
+        )
+        expect(result.stdout).not.toContain("ordered preferences ignored while standing mode is off")
+        expect(result.stdout).toContain("1 project issue(s) found")
+      } finally {
+        await rm(root, { recursive: true, force: true })
+      }
+    },
+  )
 
   test("enabled mode with an invalid harness is unavailable rather than guessed", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))

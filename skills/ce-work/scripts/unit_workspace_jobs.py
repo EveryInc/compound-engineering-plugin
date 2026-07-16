@@ -476,6 +476,12 @@ def find_attempt(unit: dict, attempt_id: str | None = None) -> dict:
     return matches[0]
 
 
+def scope_expansion_pending(unit: dict) -> bool:
+    """Return whether the current authored result still requires host resolution."""
+    receipt = find_attempt(unit).get("terminal_receipt")
+    return isinstance(receipt, dict) and receipt.get("terminal_status") == "scope_expansion"
+
+
 def cmd_record_job(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         unit = doc["units"].get(args.unit_id)

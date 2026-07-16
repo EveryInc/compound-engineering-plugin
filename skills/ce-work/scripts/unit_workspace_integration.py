@@ -10,7 +10,7 @@ import shutil
 from pathlib import Path
 
 from unit_workspace_state import *
-from unit_workspace_jobs import parse_diff_paths
+from unit_workspace_jobs import parse_diff_paths, scope_expansion_pending
 
 
 def integration_lock_path(doc: dict) -> str:
@@ -215,6 +215,17 @@ def cmd_preflight(args) -> tuple[str, dict]:
         if not unit or unit["state"] not in {"integration-pending", "preserved"}:
             raise Operational("REFUSED", "unit is not integration-pending")
         validate_lock(doc, args.unit_id, args.lock_token)
+        if scope_expansion_pending(unit):
+            raise Operational(
+                "BLOCKED",
+                "worker requested scope expansion; inspect the retained result and transport, then resolve or re-dispatch explicitly",
+                {
+                    "unit_id": args.unit_id,
+                    "terminal_status": "scope_expansion",
+                    "transport": unit["transport"],
+                    "recovery_path": unit["recovery_path"],
+                },
+            )
         validate_wave_ready(doc, unit)
         allowed = set(unit["wave"].get("allowed_heads", []))
         if args.allowed_head:

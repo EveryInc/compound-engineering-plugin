@@ -64,6 +64,18 @@ read_flat_config_value() {
   printf '%s' "$value"
 }
 
+# Report whether a retired top-level key is still present without interpreting
+# its value. Detection is intentionally separate from routing so legacy scalar
+# settings can receive a migration diagnostic without remaining supported.
+has_flat_config_key() {
+  local config_file="$1"
+  local config_key="$2"
+  awk -v key="$config_key" '
+    $0 ~ "^" key "[[:space:]]*:" { found = 1 }
+    END { exit(found ? 0 : 1) }
+  ' "$config_file"
+}
+
 # Read the narrow YAML sequence used by work_engine_preferences. The local
 # config remains human-authored YAML, but setup health needs only this one
 # deterministic shape rather than a general parser.
@@ -178,6 +190,8 @@ example_cfg="skip"
 work_engine_cfg="skip"
 work_engine_detail=""
 work_engine_preferences_note=""
+work_engine_preferences_note_level="detail"
+work_engine_migration_note=""
 project_issues=0
 
 if [ "$in_repo" = "yes" ]; then
@@ -199,6 +213,20 @@ if [ "$in_repo" = "yes" ]; then
     work_engine_preferences_count=0
     work_engine_preferences_detail=""
     work_engine_preferences_error=""
+    retired_work_engine_keys=""
+    for retired_key in work_engine_target work_engine_model; do
+      if has_flat_config_key "$local_config_path" "$retired_key"; then
+        if [ -n "$retired_work_engine_keys" ]; then
+          retired_work_engine_keys="${retired_work_engine_keys}, ${retired_key}"
+        else
+          retired_work_engine_keys="$retired_key"
+        fi
+      fi
+    done
+    if [ -n "$retired_work_engine_keys" ]; then
+      work_engine_migration_note="retired config key(s) ${retired_work_engine_keys} detected; migrate routing to work_engine_preferences entries with harness and optional model fields, then remove the retired keys"
+      project_issues=$((project_issues + 1))
+    fi
     while IFS=$'\t' read -r preference_kind preference_harness preference_model; do
       case "$preference_kind" in
         ITEM)
@@ -244,7 +272,11 @@ if [ "$in_repo" = "yes" ]; then
         else
           work_engine_detail="setting is commented or missing"
         fi
-        if [ "$work_engine_preferences_count" -gt 0 ] || [ -n "$work_engine_preferences_error" ]; then
+        if [ -n "$work_engine_preferences_error" ]; then
+          work_engine_preferences_note="invalid dormant work_engine_preferences: ${work_engine_preferences_error}"
+          work_engine_preferences_note_level="warn"
+          project_issues=$((project_issues + 1))
+        elif [ "$work_engine_preferences_count" -gt 0 ]; then
           work_engine_preferences_note="ordered preferences ignored while standing mode is off"
         fi
         ;;
@@ -253,6 +285,9 @@ if [ "$in_repo" = "yes" ]; then
           work_engine_cfg="unavailable"
           work_engine_detail="$work_engine_preferences_error"
           project_issues=$((project_issues + 1))
+        elif [ "$work_engine_preferences_count" -eq 0 ] && [ -n "$retired_work_engine_keys" ]; then
+          work_engine_cfg="unavailable"
+          work_engine_detail="$work_engine_mode cannot use retired scalar routing; migrate ${retired_work_engine_keys} to work_engine_preferences"
         elif [ "$work_engine_preferences_count" -eq 0 ]; then
           work_engine_cfg="unavailable"
           work_engine_detail="$work_engine_mode requires work_engine_preferences"
@@ -332,7 +367,13 @@ if [ "$in_repo" = "yes" ]; then
 
   if [ "$work_engine_cfg" = "native" ]; then
     ok "CE Work implementation engine: native (${work_engine_detail})"
-    [ -n "$work_engine_preferences_note" ] && detail "$work_engine_preferences_note"
+    if [ -n "$work_engine_preferences_note" ]; then
+      if [ "$work_engine_preferences_note_level" = "warn" ]; then
+        warn "$work_engine_preferences_note"
+      else
+        detail "$work_engine_preferences_note"
+      fi
+    fi
   elif [ "$work_engine_cfg" = "prefer" ] || [ "$work_engine_cfg" = "require" ]; then
     ok "CE Work implementation engine: ${work_engine_cfg} -> ${work_engine_detail}"
   elif [ "$work_engine_cfg" = "unavailable" ]; then
@@ -342,6 +383,7 @@ if [ "$in_repo" = "yes" ]; then
   elif [ "$work_engine_cfg" = "skip" ]; then
     skip "CE Work implementation engine: native (no local config)"
   fi
+  [ -n "$work_engine_migration_note" ] && warn "$work_engine_migration_note"
 
   if [ "$example_cfg" = "ok" ]; then
     ok "Example config is current"
