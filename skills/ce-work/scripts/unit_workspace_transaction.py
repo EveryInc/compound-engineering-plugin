@@ -148,10 +148,13 @@ def _verify_run_locked(args, repo: str, command: list[str]) -> tuple[str, dict]:
     if after != before:
         if after["branch_ref"] != before["branch_ref"] or after["head"] != before["head"]:
             with locked_manifest(args.run_id, write=True) as doc:
+                lock = doc.get("integration_lock") or {}
                 blocker = {
                     "at": now_iso(),
                     "unit_id": None,
                     "reason": "plan-wide verification changed canonical branch or HEAD",
+                    "retain_integration_lock": True,
+                    "integration_lock_nonce": lock.get("nonce"),
                 }
                 doc["blockers"].append(blocker)
                 event(doc, "run-verification-restore-blocked", None, {"verification_exit": verification_exit})
@@ -166,7 +169,14 @@ def _verify_run_locked(args, repo: str, command: list[str]) -> tuple[str, dict]:
         restored = semantic_snapshot(repo)
         if restored != before:
             with locked_manifest(args.run_id, write=True) as doc:
-                blocker = {"at": now_iso(), "unit_id": None, "reason": "plan-wide verification restoration could not be proven"}
+                lock = doc.get("integration_lock") or {}
+                blocker = {
+                    "at": now_iso(),
+                    "unit_id": None,
+                    "reason": "plan-wide verification restoration could not be proven",
+                    "retain_integration_lock": True,
+                    "integration_lock_nonce": lock.get("nonce"),
+                }
                 doc["blockers"].append(blocker)
                 event(doc, "run-verification-restore-blocked", None, {"verification_exit": verification_exit})
             raise Operational(

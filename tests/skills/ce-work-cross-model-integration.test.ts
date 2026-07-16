@@ -349,6 +349,73 @@ class FeatureTest(unittest.TestCase):
     expect(control(runs, "status", "--run-id", "transaction-run").body.blockers.at(-1).resolved_by).toBe("resume")
   })
 
+  test("resume preserves the lock retained by an unresolved plan-wide verification blocker", () => {
+    const root = temp("ce-work-run-verify-lock-")
+    const repo = path.join(root, "repo")
+    const runs = path.join(root, "jobs", "ce-work")
+    mkdirSync(repo)
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.name", "CE Work Host")
+    git(repo, "config", "user.email", "host@example.test")
+    mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
+    const plan = path.join(repo, "docs", "plans", "plan.md")
+    writeFileSync(plan, "# Plan\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "seed")
+    const base = git(repo, "rev-parse", "HEAD")
+    const planDigest = createHash("sha256").update(readFileSync(plan)).digest("hex")
+
+    control(
+      runs, "init", "--run-id", "run-verify-lock", "--repo", repo, "--plan", plan,
+      "--plan-digest", planDigest,
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U1"],"restrictions":[]}',
+    )
+    const packet = "plan-wide verification lock packet"
+    const prepared = control(
+      runs, "prepare", "--run-id", "run-verify-lock", "--unit-id", "U1",
+      "--base", base, "--packet", packetFile(packet),
+    ).body
+    writeFileSync(path.join(prepared.workspace, "delegated.txt"), "delegated\n")
+    fakeDoneJob(runs, "run-verify-lock", "U1", packet, "job-verify-lock")
+    control(
+      runs, "record-job", "--run-id", "run-verify-lock", "--unit-id", "U1",
+      "--attempt-id", "attempt-1", "--job-id", "job-verify-lock",
+    )
+    control(
+      runs, "terminalize", "--run-id", "run-verify-lock", "--unit-id", "U1",
+    )
+    control(
+      runs, "integrate", "--run-id", "run-verify-lock", "--unit-id", "U1",
+      "--commit-message", "feat(test): integrate retained-lock unit",
+      "--verification-summary", "unit passed",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    )
+
+    const failed = controlFailure(
+      runs, "verify-run", "--run-id", "run-verify-lock",
+      "--verification-summary", "verification must not move HEAD",
+      "--", "git", "commit", "--allow-empty", "-m", "verification moved HEAD",
+    )
+    expect(failed.word).toBe("BLOCKED")
+    expect(failed.body.retain_integration_lock).toBe(true)
+    const blocked = control(runs, "status", "--run-id", "run-verify-lock").body
+    const retainedNonce = blocked.integration_lock.nonce
+    expect(blocked.blockers.at(-1)).toMatchObject({
+      unit_id: null,
+      reason: "plan-wide verification changed canonical branch or HEAD",
+      retain_integration_lock: true,
+      integration_lock_nonce: retainedNonce,
+    })
+
+    const resumed = controlFailure(runs, "resume", "--run-id", "run-verify-lock")
+    expect(resumed.word).toBe("BLOCKED")
+    expect(resumed.body.retain_integration_lock).toBe(true)
+    const afterResume = control(runs, "status", "--run-id", "run-verify-lock").body
+    expect(afterResume.integration_lock.nonce).toBe(retainedNonce)
+    expect(afterResume.blockers.at(-1).resolved_at).toBeUndefined()
+  })
+
   test("controller-owned integration restores exactly when verification fails", () => {
     const root = temp("ce-work-transaction-fail-")
     const repo = path.join(root, "repo")

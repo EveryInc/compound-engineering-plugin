@@ -127,15 +127,32 @@ def resolve_unit_recovery_blockers(run_id: str, unit_id: str) -> None:
             event(doc, "recovery-blockers-resolved", unit_id, {"count": resolved})
 
 
+def plan_wide_blocker_retains_lock(doc: dict, lock: dict) -> bool:
+    return any(
+        blocker.get("unit_id") is None
+        and blocker.get("retain_integration_lock") is True
+        and blocker.get("integration_lock_nonce") == lock.get("nonce")
+        and not blocker.get("resolved_at")
+        for blocker in doc.get("blockers", [])
+    )
+
+
 def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
     with locked_manifest(run_id) as doc:
         unit = doc["units"][unit_id]
         state = unit["state"]
         lock = doc.get("integration_lock")
+        retained_plan_lock = bool(lock and plan_wide_blocker_retains_lock(doc, lock))
         wave_id = unit.get("wave", {}).get("id")
         canonical = unit.get("integration", {}).get("canonical_commit", {}).get("commit")
     if state == "cleaned":
         if lock and lock.get("unit_id") == unit_id:
+            if retained_plan_lock:
+                raise Operational(
+                    "BLOCKED",
+                    "plan-wide verification blocker retains the canonical integration lock",
+                    {"unit_id": unit_id, "retain_integration_lock": True},
+                )
             cmd_integration_release(SimpleNamespace(run_id=run_id, unit_id=unit_id, lock_token=lock["nonce"]))
             return [{"unit_id": unit_id, "action": "integration-release-reconciled"}]
         return []
