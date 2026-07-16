@@ -1075,6 +1075,84 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(persisted.head_sha).toBe("current-head")
   }, 15000)
 
+  test("watch: preflight stays read-only until activation fences incumbent persistence", () => {
+    const sd = path.join(dir, "watch-preflight-fence")
+    const base = fetchFile(dir, "watch-preflight-fence-base.json", {
+      ...FAILING,
+      head_sha: "base-head",
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    })
+    const incumbent = fetchFile(dir, "watch-preflight-fence-incumbent.json", {
+      ...FAILING,
+      head_sha: "incumbent-head",
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    })
+    const successor = fetchFile(dir, "watch-preflight-fence-successor.json", {
+      ...FAILING,
+      head_sha: "successor-head",
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    })
+    snapshot(sd, base)
+    const statePath = path.join(sd, "state.json")
+    const active = JSON.parse(readFileSync(statePath, "utf8"))
+    active.watch_generation = "incumbent-generation"
+    writeFileSync(statePath, JSON.stringify(active))
+
+    const python = `
+import json, subprocess, time
+from importlib.machinery import SourceFileLoader
+from types import SimpleNamespace
+m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
+state_dir = ${JSON.stringify(sd)}
+state_path = ${JSON.stringify(statePath)}
+args = SimpleNamespace(state_dir=state_dir, pr=1, repo="o/r",
+                       fetch_file=${JSON.stringify(successor)}, reset_session=False,
+                       session_started_at=None)
+generation = "successor-generation"
+m._reserve_watch_candidate(args, generation)
+cur = m._fetch_snapshot(args)
+assert json.load(open(state_path))["head_sha"] == "base-head", "preflight mutated persisted state"
+
+original_diff = m.diff
+child = None
+def diff_with_incumbent_race(state, current, now=None, advance_trajectory=True):
+    global child
+    child_code = '''
+from importlib.machinery import SourceFileLoader
+from types import SimpleNamespace
+m = SourceFileLoader("prs_child", ${JSON.stringify(SCRIPT)}).load_module()
+args = SimpleNamespace(state_dir=${JSON.stringify(sd)}, pr=1, repo="o/r",
+                       fetch_file=${JSON.stringify(incumbent)}, reset_session=False,
+                       session_started_at=None)
+try:
+    m._run_snapshot(args, m._now(), advance_trajectory=False,
+                    watch_generation="incumbent-generation")
+except m._WatchSuperseded:
+    pass
+else:
+    raise SystemExit("stale incumbent persist was not rejected")
+'''
+    child = subprocess.Popen(["python3", "-c", child_code], stdout=subprocess.PIPE,
+                             stderr=subprocess.PIPE, text=True)
+    time.sleep(0.2)
+    assert child.poll() is None, "incumbent was not blocked by atomic activation"
+    return original_diff(state, current, now, advance_trajectory=advance_trajectory)
+
+m.diff = diff_with_incumbent_race
+previous, actionable = m._activate_watch(args, generation, m._now(), cur)
+stdout, stderr = child.communicate(timeout=5)
+assert child.returncode == 0, stderr
+persisted = json.load(open(state_path))
+print(json.dumps({"generation": persisted["watch_generation"], "head": persisted["head_sha"]}))
+`
+    const r = spawnSync("python3", ["-c", python], { encoding: "utf8", timeout: 10000 })
+    expect(r.status, r.stderr).toBe(0)
+    expect(JSON.parse(r.stdout)).toEqual({ generation: "successor-generation", head: "successor-head" })
+  })
+
   test("watch: PID identity must still match before a replaced watcher is signaled", () => {
     const python = `
 import json
@@ -1100,12 +1178,7 @@ from importlib.machinery import SourceFileLoader
 from types import SimpleNamespace
 m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
 pid_file = ${JSON.stringify(childPid)}
-calls = 0
 def fake_snapshot(args, now, advance_trajectory=True, watch_generation=None):
-    global calls
-    calls += 1
-    if calls == 1:
-        return {"counts": {}, "pr_state": "OPEN", "session_seconds": 0}
     subprocess.run(["sh", "-c", "echo $$ > " + pid_file + "; exec sleep 30"], check=True)
     return {"counts": {}, "pr_state": "OPEN", "session_seconds": 0}
 def stop_when_child_starts():
@@ -1114,9 +1187,11 @@ def stop_when_child_starts():
         time.sleep(0.01)
     os.kill(os.getpid(), signal.SIGTERM)
 m._run_snapshot = fake_snapshot
+m._fetch_snapshot = lambda args: {}
 m._reserve_watch_candidate = lambda args, generation: {}
 m._clear_watch_candidate = lambda args, generation: None
-m._activate_watch = lambda args, generation, now: {}
+m._activate_watch = lambda args, generation, now, cur: (
+    {}, {"counts": {}, "pr_state": "OPEN", "session_seconds": 0})
 m._terminate_replaced_watch = lambda previous: None
 m._watch_is_current = lambda args, generation: True
 m._wake_reason = lambda actionable, settle_seconds: None

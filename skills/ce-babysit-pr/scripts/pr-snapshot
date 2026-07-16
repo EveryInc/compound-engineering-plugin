@@ -962,27 +962,36 @@ def locked_state(state_dir, pr, repo, now):
         fcntl.flock(lf, fcntl.LOCK_UN)
 
 
-def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
-    """One fetch -> diff -> persist. Returns the actionable/state dict."""
+def _fetch_snapshot(args):
+    """Fetch current PR state without mutating the persisted babysit state."""
     if args.fetch_file:
         with open(args.fetch_file) as f:
-            cur = json.load(f)
-    else:
-        cur = fetch(args.pr, args.repo)
+            return json.load(f)
+    return fetch(args.pr, args.repo)
+
+
+def _apply_snapshot(box, args, cur, now, advance_trajectory):
+    """Apply one fetched snapshot to a caller-owned locked state box."""
+    if box["state"].get("pr", {}).get("url") is None and cur.get("url"):
+        box["state"]["pr"]["url"] = cur["url"]
+    if getattr(args, "session_started_at", None):
+        # Carry one invocation-wide clock through watch re-arms and managed-stack layer state dirs.
+        box["state"]["started_at"] = args.session_started_at
+    elif getattr(args, "reset_session", False):
+        # A fresh babysit invocation starts the budget clock now. Without this, `started_at`
+        # persists from state creation, so resuming against day-old state would read
+        # session_seconds as huge and hand back before doing any work.
+        box["state"]["started_at"] = _iso(now)
+    return diff(box["state"], cur, now, advance_trajectory=advance_trajectory)
+
+
+def _run_snapshot(args, now, advance_trajectory=True, watch_generation=None):
+    """One fetch -> diff -> persist. Returns the actionable/state dict."""
+    cur = _fetch_snapshot(args)
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
         if watch_generation is not None and box["state"].get("watch_generation") != watch_generation:
             raise _WatchSuperseded()
-        if box["state"].get("pr", {}).get("url") is None and cur.get("url"):
-            box["state"]["pr"]["url"] = cur["url"]
-        if getattr(args, "session_started_at", None):
-            # Carry one invocation-wide clock through watch re-arms and managed-stack layer state dirs.
-            box["state"]["started_at"] = args.session_started_at
-        elif getattr(args, "reset_session", False):
-            # A fresh babysit invocation starts the budget clock now. Without this, `started_at`
-            # persists from state creation, so resuming against day-old state would read
-            # session_seconds as huge and hand back before doing any work.
-            box["state"]["started_at"] = _iso(now)
-        actionable, box["state"] = diff(box["state"], cur, now, advance_trajectory=advance_trajectory)
+        actionable, box["state"] = _apply_snapshot(box, args, cur, now, advance_trajectory)
     return actionable
 
 
@@ -1120,12 +1129,12 @@ def _clear_watch_candidate(args, generation):
             pass
 
 
-def _activate_watch(args, generation, now):
-    """Atomically make this successfully-prefetched watcher the sole current generation."""
+def _activate_watch(args, generation, now, cur):
+    """Atomically activate this watcher and persist its successfully fetched preflight."""
     identity = _process_identity(os.getpid())
     with locked_state(args.state_dir, args.pr, args.repo, now) as box:
         if _read_watch_candidate(args).get("generation") != generation:
-            return None
+            return None, None
         state = box["state"]
         previous = {
             "pid": state.get("watch_pid"),
@@ -1134,11 +1143,12 @@ def _activate_watch(args, generation, now):
         state["watch_generation"] = generation
         state["watch_pid"] = os.getpid()
         state["watch_process_identity"] = identity
+        actionable, box["state"] = _apply_snapshot(box, args, cur, now, advance_trajectory=False)
         try:
             os.unlink(_watch_candidate_path(args))
         except FileNotFoundError:
             pass
-    return previous
+    return previous, actionable
 
 
 def _watch_is_current(args, generation):
@@ -1203,17 +1213,17 @@ def cmd_watch(args):
         _terminate_replaced_watch(previous_candidate)
 
         # Preflight before takeover: an invalid fetch/auth/config must not displace a healthy watcher.
-        actionable = _run_snapshot(args, _now(), advance_trajectory=False)
-        args.reset_session = False
+        cur = _fetch_snapshot(args)
         if stop_requested.is_set():
             return
 
         # Finish the handoff even if an even newer watcher arrives: otherwise that watcher could
         # stop us between activation and terminating our predecessor, orphaning the oldest process.
         interrupt_immediately = False
-        previous = _activate_watch(args, generation, _now())
+        previous, actionable = _activate_watch(args, generation, _now(), cur)
         if previous is None:
             return
+        args.reset_session = False
         _terminate_replaced_watch(previous)
         interrupt_immediately = True
         if stop_requested.is_set():
