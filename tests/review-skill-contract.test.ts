@@ -588,6 +588,7 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Soft-bucket demotion/i)
     expect(content).toMatch(/P2\/P3 advisory finding supported only by `testing`/)
     expect(content).toMatch(/only by `maintainability`/)
+    expect(content).toMatch(/Inspect both surviving `findings` and `suppressed_findings`/)
 
     // Route demoted findings to soft buckets
     expect(content).toMatch(/`testing_gaps`/)
@@ -598,6 +599,10 @@ describe("ce-code-review contract", () => {
 
     // Coverage section reports demotion count
     expect(content).toMatch(/mode-aware demotion/)
+
+    // Confidence-gated candidates remain non-primary after soft-bucket inspection
+    expect(content).toMatch(/Suppressed candidates routed here remain absent from primary `findings`/)
+    expect(content).toMatch(/discard all other `suppressed_findings`/)
   })
 
   test("personas use anchored rubric language and no float references remain", async () => {

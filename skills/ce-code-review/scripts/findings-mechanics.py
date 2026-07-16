@@ -155,6 +155,7 @@ def main() -> int:
 
     merged = [merge_group(group) for group in grouped.values()]
     suppressed: Counter[str] = Counter()
+    suppressed_findings: list[dict[str, Any]] = []
     survivors: list[dict[str, Any]] = []
     pre_existing: list[dict[str, Any]] = []
     for finding in merged:
@@ -167,9 +168,19 @@ def main() -> int:
             and not finding.get("settled_conflict")
         ):
             suppressed[str(finding["confidence"])] += 1
+            suppressed_findings.append(finding)
             continue
         survivors.append(finding)
 
+    suppressed_findings.sort(
+        key=lambda item: (
+            SEVERITIES.index(item["severity"]),
+            -item["confidence"],
+            item["file"].lower(),
+            str(item["line"]),
+            item["title"].lower(),
+        )
+    )
     survivors.sort(
         key=lambda item: (
             SEVERITIES.index(item["severity"]),
@@ -187,6 +198,7 @@ def main() -> int:
             {
                 "status": "complete",
                 "findings": survivors,
+                "suppressed_findings": suppressed_findings,
                 "pre_existing_findings": pre_existing,
                 "residual_risks": residual_risks,
                 "testing_gaps": testing_gaps,

@@ -125,6 +125,43 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(merged.suppressed_by_confidence).toEqual({ "50": 1 })
   })
 
+  test("confidence-gated testing advisories remain available for soft-bucket routing", () => {
+    const returns = [
+      {
+        reviewer: "testing",
+        findings: [
+          {
+            title: "Missing retry coverage",
+            severity: "P2",
+            file: "tests/worker.test.ts",
+            line: 24,
+            confidence: 50,
+            autofix_class: "advisory",
+            owner: "human",
+            requires_verification: false,
+            pre_existing: false,
+          },
+        ],
+        residual_risks: [],
+        testing_gaps: [],
+      },
+    ]
+
+    const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+
+    expect(merged.findings).toEqual([])
+    expect(merged.suppressed_findings).toEqual([
+      expect.objectContaining({
+        title: "Missing retry coverage",
+        confidence: 50,
+        reviewers: ["testing"],
+      }),
+    ])
+    expect(merged.suppressed_by_confidence).toEqual({ "50": 1 })
+  })
+
   test("findings helper rejects boolean line values", () => {
     const returns = [
       {
