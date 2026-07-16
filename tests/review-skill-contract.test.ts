@@ -473,9 +473,12 @@ describe("ce-code-review contract", () => {
     const catalog = await readRepoFile(
       "skills/ce-code-review/references/persona-catalog.md",
     )
+    const docs = await readRepoFile("docs/skills/ce-code-review.md")
 
     expect(content).toContain("**Core (always-on):** `correctness-reviewer` and `project-standards-reviewer`")
     expect(content).toMatch(/testing-reviewer.*test files|test files.*testing-reviewer/i)
+    expect(content).toMatch(/testing-reviewer[\s\S]*meaningful runtime behavior without corresponding test work/i)
+    expect(content).toMatch(/Production-file presence alone[\s\S]*non-behavioral edits do not select/i)
     expect(content).toMatch(/maintainability-reviewer.*(large|structural|refactor)/i)
     expect(content).toMatch(/agent-native-reviewer.*agent-facing/i)
     expect(content).toMatch(/learnings-researcher.*docs\/solutions/i)
@@ -483,7 +486,12 @@ describe("ce-code-review contract", () => {
     expect(catalog).toContain("## Core (always-on)")
     expect(catalog).toContain("## Generic conditional")
     expect(catalog).toMatch(/testing.*test files/i)
+    expect(catalog).toMatch(/testing[\s\S]*meaningful runtime behavior changed without corresponding test work/i)
+    expect(catalog).toMatch(/production-file presence alone is insufficient/i)
     expect(catalog).toMatch(/agent-native.*agent-facing/i)
+
+    expect(docs).toMatch(/testing for changed tests\/harnesses or meaningful runtime behavior with no corresponding test work/i)
+    expect(docs).toMatch(/Production-file presence alone and non-behavioral edits do not select testing/i)
   })
 
   test("keeps the fast pass visible only for urgent preliminary findings", async () => {
@@ -584,6 +592,7 @@ describe("ce-code-review contract", () => {
 
   test("mode-aware demotion routes weak general-quality findings to soft buckets", async () => {
     const content = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const stage5 = content.split("### Stage 5b:")[0].split("### Stage 5:")[1]
 
     expect(content).toMatch(/Soft-bucket demotion/i)
     expect(content).toMatch(/P2\/P3 advisory finding supported only by `testing`/)
@@ -603,6 +612,13 @@ describe("ce-code-review contract", () => {
     // Confidence-gated candidates remain non-primary after soft-bucket inspection
     expect(content).toMatch(/Suppressed candidates routed here remain absent from primary `findings`/)
     expect(content).toMatch(/discard all other `suppressed_findings`/)
+
+    // Settlement reconciliation owns suppressed preferences before the remainder is discarded.
+    expect(stage5).toMatch(/Settled decisions[\s\S]*surviving `findings` and `suppressed_findings`/)
+    expect(stage5).toMatch(/include it in the synthetic rerun[\s\S]*helper preserves it in the primary report/)
+    expect(stage5.indexOf("**Settled decisions.**")).toBeLessThan(
+      stage5.indexOf("**Soft-bucket demotion.**"),
+    )
   })
 
   test("personas use anchored rubric language and no float references remain", async () => {

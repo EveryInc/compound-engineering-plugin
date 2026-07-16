@@ -19,7 +19,7 @@ These lenses are broadly applicable but not automatically useful. Spawn only whe
 
 | Persona / asset | Prompt asset | Select when diff touches... |
 |---------|-------|-------|
-| `testing` | `testing-reviewer` | Test files, test infrastructure, fixtures, mocks, or harness behavior. Do not spawn merely because production code changed; correctness owns regression tests for defects it finds. |
+| `testing` | `testing-reviewer` | Test files, test infrastructure, fixtures, mocks, or harness behavior; or meaningful runtime behavior changed without corresponding test work. Behavioral triggers include new or changed branches, state mutation, API/control-flow behavior, and error handling. Production-file presence alone and non-behavioral edits do not select it. |
 | `maintainability` | `maintainability-reviewer` | Large or structural work: substantial refactors, new abstractions, file moves, coupling/type-boundary changes, or at least 200 executable changed lines. |
 | `agent-native` | `agent-native-reviewer` | Agent-facing features or surfaces: skills, agents, prompts, commands, tools, MCP, or a product capability expected to be agent-accessible. |
 | `learnings` | `learnings-researcher` | An existing `docs/solutions/` corpus has a plausible path/title match for the changed modules or patterns. Run a cheap search first; corpus existence alone does not select it. |
@@ -58,7 +58,7 @@ Use `deployment-verification-agent` when the migration-artifact gate applies **a
 ## Selection rules
 
 1. **Always spawn the 2 core personas:** correctness and project-standards.
-2. **For each generic conditional**, require its explicit surface. Absence means skip, not "run just in case."
+2. **For each generic conditional**, require its explicit surface. For `testing`, that surface is changed tests/harnesses or concrete meaningful runtime behavior with no corresponding test work; production-file presence alone is insufficient. Absence means skip, not "run just in case."
 3. **For each cross-cutting conditional persona**, read the diff and decide whether its domain is relevant. This is a judgment call, not a keyword match.
 4. **For each stack-specific conditional persona**, use file types and changed patterns as a starting point, then decide whether the diff actually introduces meaningful work for that reviewer. Do not spawn language-specific reviewers just because one config or generated file happens to match the extension.
 5. **For `data-migration`**, spawn only when the diff includes migration or schema artifacts (`db/migrate/*`, `db/schema.rb`, `db/structure.sql`, Alembic/Flyway/Liquibase paths, or explicit backfill/data-transform scripts). Do **not** spawn for model-only or query-only changes without those files.

@@ -301,6 +301,70 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(merged.suppressed_by_confidence).toEqual({ "50": 1 })
   })
 
+  test("synthetic rerun preserves an orchestrator-stamped suppressed settled preference", () => {
+    const preference = {
+      title: "Prefer the rejected cache layout",
+      severity: "P3",
+      file: "src/cache.ts",
+      line: 18,
+      confidence: 50,
+      autofix_class: "advisory",
+      owner: "human",
+      requires_verification: false,
+      pre_existing: false,
+    }
+    const firstPass = run(
+      "python3",
+      [FINDINGS_SCRIPT],
+      undefined,
+      JSON.stringify([
+        {
+          reviewer: "maintainability",
+          findings: [preference],
+          residual_risks: [],
+          testing_gaps: [],
+        },
+      ]),
+    )
+    expect(firstPass.status).toBe(0)
+    const initiallyMerged = JSON.parse(firstPass.stdout)
+    expect(initiallyMerged.findings).toEqual([])
+    expect(initiallyMerged.suppressed_findings).toHaveLength(1)
+    expect(initiallyMerged.suppressed_findings[0].settled_conflict).toBeUndefined()
+
+    const stamped = {
+      ...initiallyMerged.suppressed_findings[0],
+      settled_conflict: "KTD-cache-layout",
+      autofix_class: "advisory",
+      owner: "human",
+    }
+    const rerun = run(
+      "python3",
+      [FINDINGS_SCRIPT],
+      undefined,
+      JSON.stringify([
+        {
+          reviewer: "synthesis",
+          findings: [stamped],
+          residual_risks: [],
+          testing_gaps: [],
+        },
+      ]),
+    )
+    expect(rerun.status).toBe(0)
+    const reconciled = JSON.parse(rerun.stdout)
+    expect(reconciled.suppressed_findings).toEqual([])
+    expect(reconciled.findings).toEqual([
+      expect.objectContaining({
+        title: preference.title,
+        confidence: 50,
+        settled_conflict: "KTD-cache-layout",
+        autofix_class: "advisory",
+        owner: "human",
+      }),
+    ])
+  })
+
   test("exact duplicates stay current and preserve settlement metadata when reviewers disagree", () => {
     const finding = {
       title: "Conflicting classification",

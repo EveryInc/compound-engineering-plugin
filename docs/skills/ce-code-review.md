@@ -53,7 +53,7 @@ Generalist code review prompts collapse in predictable ways:
 A small low-risk change runs the two-person core. A Rails auth feature with migrations adds the relevant domain lenses. The skill decides which personas fit the diff:
 
 - **Core (every review)** — `correctness-reviewer`, `project-standards-reviewer`
-- **Generic conditional** — testing for changed tests/harnesses; maintainability for large or structural work; agent-native for agent-facing surfaces; learnings only when an existing `docs/solutions/` corpus has plausible matches
+- **Generic conditional** — testing for changed tests/harnesses or meaningful runtime behavior with no corresponding test work; maintainability for large or structural work; agent-native for agent-facing surfaces; learnings only when an existing `docs/solutions/` corpus has plausible matches
 - **Cross-cutting conditional** — security, performance, API contract, data migrations, reliability, adversarial, previous-comments — each selected only when the diff touches its concern
 - **Stack-specific conditional** — Julik frontend races, Swift/iOS — only when the matching runtime domain is touched. Structural quality (complexity deletion, 1k-line regressions, spaghetti) lives in the conditional maintainability persona.
 - **CE conditional (migrations)** — `deployment-verification-agent` for risky migration diffs; schema drift and migration safety are handled by the `data-migration` persona
@@ -133,7 +133,7 @@ You invoke `/ce-code-review` on a feature branch with a Rails auth change that i
 
 The skill detects you're on a feature branch (no PR yet), resolves the base from `origin/HEAD` (or PR metadata when an open PR exists), and computes the diff. Stage 2 reads commit messages and writes a 2-3 line intent summary. Stage 2b auto-discovers the plan in `docs/plans/` from the branch name, classifies readiness, and reads Product Contract Requirements plus implementation U-IDs when the artifact is implementation-ready.
 
-Stage 3 selects the correctness and project-standards core, plus testing if the migration changes test or harness code, security (auth touched), reliability (background job for token cleanup), data-migration (migration file present), and deployment-verification when the migration is risky. Only the applicable reviewers are dispatched in parallel.
+Stage 3 selects the correctness and project-standards core, plus testing if the migration changes test or harness code or changes meaningful runtime behavior without corresponding test work, security (auth touched), reliability (background job for token cleanup), data-migration (migration file present), and deployment-verification when the migration is risky. Only the applicable reviewers are dispatched in parallel.
 
 After all return, synthesis merges the raw findings into a smaller distinct set. Several are `gated_auto` candidates for the caller, two are `manual` deployment decisions, and the rest are advisory. Each finding has anchored evidence and a stable number. Because this was a bare invocation, the review reports them without changing the checkout.
 
@@ -210,7 +210,7 @@ Conflicting mode flags (or conflicting grouping flags) stop execution with an er
 Use it when it's the right tool — the quick-review short-circuit defers to it explicitly. `ce-code-review` is for cases where you want diff-aware persona selection, structured findings with calibrated severity, autofix routing, and residual work handling. It's the heavier tool; reach for it when the work warrants.
 
 **How does it decide which personas to dispatch?**
-Agent judgment over the actual diff — not keyword matching. Correctness and project-standards run for every multi-agent review. Generic, cross-cutting, and stack-specific personas are added only when their concern is present (e.g., testing when tests/harnesses changed, security for auth, `data-migration-reviewer` for migration artifacts). A silent-pass verification mechanism (CI/CD gate, build/deploy step, coverage/lint gate, test harness/mock) gets adversarial + the cross-model pass regardless of size.
+Agent judgment over the actual diff — not keyword matching. Correctness and project-standards run for every multi-agent review. Generic, cross-cutting, and stack-specific personas are added only when their concern is present (e.g., testing when tests/harnesses changed or when meaningful runtime behavior changed without corresponding test work, security for auth, `data-migration-reviewer` for migration artifacts). Production-file presence alone and non-behavioral edits do not select testing. A silent-pass verification mechanism (CI/CD gate, build/deploy step, coverage/lint gate, test harness/mock) gets adversarial + the cross-model pass regardless of size.
 
 **What's the difference between default, `mode:agent`, and `apply:local`?**
 Default is a human-facing markdown report and is report-only. `mode:agent` is the same review pipeline serialized as one JSON object for a caller; it is always report-only. `apply:local` is separate authority for the markdown run to apply verified findings locally. `mode:headless` is a deprecated alias for `mode:agent`.
