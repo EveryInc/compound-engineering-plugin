@@ -363,12 +363,32 @@ def parse_json_arg(raw: str, label: str) -> dict:
 
 ROUTE_CONTRACTS = {
     "codex": {"target": "codex", "harness": "codex", "intermediaries": [], "default_model": "auto", "restriction_posture": "adapter-enforced"},
-    "claude": {"target": "claude", "harness": "claude", "intermediaries": [], "default_model": "fable", "restriction_posture": "cooperative"},
-    "grok-cli": {"target": "grok", "harness": "grok", "intermediaries": [], "default_model": "grok-4.5", "restriction_posture": "cooperative"},
+    "claude": {"target": "claude", "harness": "claude", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
+    "grok-cli": {"target": "grok", "harness": "grok", "intermediaries": [], "default_model": "auto", "restriction_posture": "cooperative"},
     "cursor": {"target": "cursor", "harness": "cursor-agent", "intermediaries": [], "default_model": "auto", "restriction_posture": "adapter-enforced"},
     "composer": {"target": "composer", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "composer-2.5-fast", "restriction_posture": "adapter-enforced"},
     "grok-cursor": {"target": "grok", "harness": "cursor-agent", "intermediaries": ["cursor"], "default_model": "cursor-grok-4.5-high", "restriction_posture": "adapter-enforced"},
 }
+
+
+def route_model_allowed(route: str, model: str) -> bool:
+    if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", model):
+        return False
+    lowered = model.lower()
+    if route == "codex":
+        return model == "auto" or bool(re.fullmatch(r"(?:gpt-[A-Za-z0-9._-]+|o[0-9][A-Za-z0-9._-]*)", model))
+    if route == "claude":
+        return model in {"auto", "fable", "opus", "sonnet", "haiku"} or bool(re.fullmatch(r"claude-[A-Za-z0-9._-]+", model))
+    if route == "grok-cli":
+        return model == "auto" or bool(re.fullmatch(r"grok-[A-Za-z0-9._-]+", model))
+    if route == "cursor":
+        reserved = lowered in {"composer", "grok"} or lowered.startswith(("composer-", "grok-", "cursor-grok-"))
+        return not reserved
+    if route == "composer":
+        return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", model))
+    if route == "grok-cursor":
+        return bool(re.fullmatch(r"cursor-grok-[A-Za-z0-9._-]+", model))
+    return False
 
 
 def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> dict:
@@ -387,6 +407,9 @@ def fixed_route_contract(binding: dict, egress: dict, word: str = "BLOCKED") -> 
     model = binding.get("model")
     if model is not None and (not isinstance(model, str) or not model):
         raise Operational(word, "binding model must be null or a non-empty string")
+    requested_model = model or contract["default_model"]
+    if not route_model_allowed(route, requested_model):
+        raise Operational(word, "binding model is not compatible with the sanctioned fixed route")
     restrictions = egress.get("restrictions", [])
     if not isinstance(restrictions, list) or not all(isinstance(item, str) for item in restrictions):
         raise Operational(word, "egress restrictions must be a string list")

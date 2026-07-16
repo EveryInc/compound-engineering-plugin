@@ -194,22 +194,33 @@ Native execution is the default. You can assign implementation to a target in th
 ```text
 /ce-work use Codex for implementation on docs/plans/2026-07-15-example.md
 /ce-work implement docs/plans/2026-07-15-example.md with Cursor
+/ce-work use Cursor with Rock for implementation on docs/plans/2026-07-15-example.md
 /ce-work only use Composer for implementation on docs/plans/2026-07-15-example.md
 ```
 
-The first two are preferences: `ce-work` attempts the route and continues natively with prominent requested-versus-actual disclosure if it is unavailable. The third is a requirement: an interactive standalone run asks before weakening it, while a headless or automatic caller returns a blocker without prompting. Intent matters, not a particular keyword.
+The first three are preferences: `ce-work` attempts the route and continues natively with prominent requested-versus-actual disclosure if it is unavailable. The fourth is a requirement: an interactive standalone run asks before weakening it, while a headless or automatic caller returns a blocker without prompting. Intent matters, not a particular keyword.
 
-Routing precedence is `current prompt > implementation-only caller binding > per-checkout config > native`. A current prompt can therefore override a standing preference. Put standing defaults in the gitignored `.compound-engineering/config.local.yaml`:
+Routing uses normal instruction authority plus scope, not keyword matching. An explicit current task wins; a still-active session preference remains applicable; an implementation-only caller binding keeps its recorded provenance; active project/user instructions already in context can supply a default; and per-checkout config is the final preference before native execution. More specific live intent may replace or narrow config, while an incidental model mention in feature prose, quoted text, examples, or filenames does nothing.
+
+Put an ordered, host-relative preference list in the gitignored `.compound-engineering/config.local.yaml`:
 
 ```yaml
 work_engine_mode: prefer       # off | prefer | require
-work_engine_target: codex      # codex | claude | grok | cursor | composer
-work_engine_model: "gpt-5.6"   # optional; ignored without a target
+work_engine_preferences:
+  - harness: cursor
+    model: composer
+  - harness: codex
+    model: "gpt-5.6"
+  - harness: claude
 ```
 
-`off`, a commented or missing mode, and an invalid mode preserve the native default. `off` affects only standing config; it does not cancel an explicit current instruction or caller binding. `prefer` attempts the configured route in direct and `lfg` runs, then falls back natively with disclosure when preflight proves it unavailable. `require` asks only in an interactive standalone run; under `lfg` or another headless caller it blocks. An enabled mode without a valid target is unavailable rather than guessed.
+Each candidate has a `harness` (`codex`, `claude`, `grok`, or `cursor`) and an optional `model`. Omitting `model` means that harness's configured default. Composer is a model family reached through Cursor, so it is written as `harness: cursor` plus `model: composer`. Keep CLI flags and commands out of config; the list describes the desired author, while `ce-work` starts from its qualified adapter recipe and can inspect the installed CLI's help/version when a compatible invocation has drifted.
 
-Targets name the requested implementation identity, not always the executable. `cursor` means the Cursor harness using its configured default model. `composer` means a Composer-family model requested through Cursor. `codex`, `claude`, and `grok` use their fixed qualified mappings; a Grok model reached through Cursor is a separately disclosed intermediary. A target is usable only after its unattended fixed-recipient, write-capable isolated-workspace route has qualified and the necessary CLI/authentication is available. `ce-work` tries the requested mapping first, may adapt only within the requested target/model family, and never claims a served model without a trustworthy receipt. A request for the current host's default route with no distinct model collapses to native execution.
+The list is intentionally host-relative. In Codex, the example skips an equivalent Codex route only if its requested model is also the current/default model; otherwise that explicit model is a distinct candidate. In Claude Code it can try Cursor first, then Codex, and skip the final Claude default. `ce-work` walks the list only during preflight, records why a candidate is skipped or unavailable, and locks the first qualified recipient before egress. It never hops to another list entry after dispatch starts.
+
+`off`, a commented or missing mode, and an invalid mode preserve the native default. `off` affects only standing config; it does not cancel applicable live intent or a caller binding. `prefer` tries ordered candidates in direct and `lfg` runs, then falls back natively with disclosure when the list is exhausted. `require` asks only in an interactive standalone run; under `lfg` or another headless caller it blocks. An enabled mode without a valid candidate list is unavailable rather than guessed.
+
+Harness, requested model, executable route, and served model remain separate facts. Direct prompts and LFG's transient carrier may still use `cursor` for Cursor's configured default or `composer` as shorthand for a Composer-family model through Cursor. A Grok model reached through Cursor is a separately disclosed intermediary. A candidate is usable only after its unattended fixed-recipient, write-capable isolated-workspace route has qualified and the necessary CLI/authentication is available. `ce-work` tries the documented mapping first, may adapt only within the requested harness/model family while preserving deterministic restrictions, and never claims a served model without a trustworthy receipt.
 
 ### What an External Run Does
 

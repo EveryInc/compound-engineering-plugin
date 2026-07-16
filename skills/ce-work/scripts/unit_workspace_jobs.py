@@ -250,8 +250,6 @@ def terminal_receipt(unit: dict, attempt: dict) -> dict:
     mismatches = {key: {"expected": value, "actual": receipt.get(key)} for key, value in expected.items() if receipt.get(key) != value}
     if mismatches:
         raise Operational("BLOCKED", "adapter terminal receipt does not match controller authorization", {"mismatches": mismatches})
-    if receipt.get("model_receipt_status") == "mismatch":
-        raise Operational("BLOCKED", "adapter reported a served-model mismatch")
     terminal_status = receipt.get("terminal_status")
     if terminal_status not in {"completed", "scope_expansion"}:
         raise Operational("BLOCKED", "successful runner did not publish a host-resolvable adapter result")
@@ -275,6 +273,44 @@ def terminal_receipt(unit: dict, attempt: dict) -> dict:
         "raw_log_sha256": digest_bytes(log_bytes),
         "raw_log_bytes": len(log_bytes),
     }
+
+
+def record_terminal_validation_failure(run_id: str, unit_id: str, error: Operational) -> None:
+    if isinstance(error, TrustFailure):
+        raise error
+    with locked_manifest(run_id) as doc:
+        unit = doc["units"][unit_id]
+        result_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result", "implementation-result.json")
+        result_digest = digest_bytes(read_private(result_path, MAX_JSON_BYTES))
+    with locked_manifest(run_id, write=True) as doc:
+        attempt = find_attempt(doc["units"][unit_id])
+        failure = {
+            "at": now_iso(),
+            "word": error.word,
+            "reason": str(error),
+            "detail": error.detail,
+            "job_id": attempt.get("job_id"),
+            "result_sha256": result_digest,
+        }
+        attempt["terminal_validation_failure"] = failure
+        fallback = attempt.setdefault("fallback", {})
+        fallback.setdefault("claimed", None)
+        fallback["eligible"] = fallback.get("claimed") is None
+        fallback["reason"] = "terminal-validation-failure"
+        event(doc, "terminal-validation-failed", unit_id, failure)
+
+
+def validate_terminal_validation_failure(run_id: str, unit: dict, attempt: dict) -> dict:
+    failure = attempt.get("terminal_validation_failure")
+    if not isinstance(failure, dict) or failure.get("job_id") != attempt.get("job_id"):
+        raise Operational("REFUSED", "attempt has no exact terminal-validation failure")
+    observed = process_evidence(runner_job_dir(run_id, attempt["job_id"]))["process_state"]
+    if observed != "done":
+        raise Operational("BLOCKED", "terminal-validation job evidence changed")
+    result_path = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result", "implementation-result.json")
+    if digest_bytes(read_private(result_path, MAX_JSON_BYTES)) != failure.get("result_sha256"):
+        raise Operational("BLOCKED", "terminal-validation result evidence changed")
+    return failure
 
 
 def validate_runner_contract(run_id: str, unit: dict, meta: dict) -> None:
@@ -554,11 +590,17 @@ def terminalize(run_id: str, unit_id: str) -> dict:
     evidence = sync_job(run_id, unit_id)
     if evidence["process_state"] != "done":
         raise Operational("BLOCKED", f"worker is not authoritatively done ({evidence['process_state']})")
-    with locked_manifest(run_id) as doc:
-        unit = doc["units"].get(unit_id)
-        if not unit:
-            raise Operational("REFUSED", "unknown unit")
-        receipt = terminal_receipt(unit, find_attempt(unit))
+    try:
+        with locked_manifest(run_id) as doc:
+            unit = doc["units"].get(unit_id)
+            if not unit:
+                raise Operational("REFUSED", "unknown unit")
+            receipt = terminal_receipt(unit, find_attempt(unit))
+            if receipt.get("model_receipt_status") == "mismatch":
+                raise Operational("BLOCKED", "adapter reported a served-model mismatch")
+    except Operational as exc:
+        record_terminal_validation_failure(run_id, unit_id, exc)
+        raise
     with locked_manifest(run_id, write=True) as doc:
         unit = doc["units"].get(unit_id)
         if unit and unit["state"] == "authoring":

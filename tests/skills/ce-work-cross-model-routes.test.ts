@@ -24,8 +24,8 @@ const SCHEMA = path.join(process.cwd(), "skills/ce-work/references/implementatio
 const ROUTES = ["codex", "claude", "grok-cli", "cursor", "composer", "grok-cursor"] as const
 const ROUTE_CONTRACTS = {
   codex: { target: "codex", harness: "codex", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
-  claude: { target: "claude", harness: "claude", intermediaries: [], model: "fable", restriction: "cooperative" },
-  "grok-cli": { target: "grok", harness: "grok", intermediaries: [], model: "grok-4.5", restriction: "cooperative" },
+  claude: { target: "claude", harness: "claude", intermediaries: [], model: "auto", restriction: "cooperative" },
+  "grok-cli": { target: "grok", harness: "grok", intermediaries: [], model: "auto", restriction: "cooperative" },
   cursor: { target: "cursor", harness: "cursor-agent", intermediaries: [], model: "auto", restriction: "adapter-enforced" },
   composer: { target: "composer", harness: "cursor-agent", intermediaries: ["cursor"], model: "composer-2.5-fast", restriction: "adapter-enforced" },
   "grok-cursor": { target: "grok", harness: "cursor-agent", intermediaries: ["cursor"], model: "cursor-grok-4.5-high", restriction: "adapter-enforced" },
@@ -76,6 +76,16 @@ function fakeBin(route: typeof ROUTES[number], capture: string, response?: strin
   const final = response ?? '{"terminal_status":"completed","summary":"implemented","changed_files":["result.txt"],"evidence":["focused test passed"],"scope_expansion":null}'
   const script = `#!/bin/sh
 set -eu
+if [ "\${1:-}" = "--list-models" ]; then
+  cat <<'MODELS'
+composer-2.5-fast - Composer 2.5 Fast
+composer-next-fast - Composer Next Fast
+cursor-grok-4.5-high - Cursor Grok 4.5 High
+claude-sonnet-5-low - Sonnet 5 1M Low
+rock-1 - Rock 1
+MODELS
+  exit 0
+fi
 printf '%s\\n' "$@" > '${capture}/argv'
 printf '%s' "$PWD" > '${capture}/pwd'
 env | sort > '${capture}/env'
@@ -203,12 +213,14 @@ describe("ce-work fixed write routes", () => {
     expect(claude).toContain("--tools Read,Write,Edit,Bash")
     expect(claude).toContain("--allowed-tools Bash(*)")
     expect(claude).toContain("--no-session-persistence")
+    expect(claude).not.toContain("--model")
 
     const grok = emit("grok-cli").stdout
     expect(grok).toContain("--cwd <workspace>")
     expect(grok).toContain("--permission-mode acceptEdits")
     expect(grok).toContain("--no-memory")
     expect(grok).toContain("--no-subagents")
+    expect(grok).not.toContain("--model")
 
     for (const route of ["cursor", "composer", "grok-cursor"]) {
       const command = emit(route).stdout
@@ -224,11 +236,15 @@ describe("ce-work fixed write routes", () => {
   test.each(ROUTES)("%s receives one workspace and bounded packet", (route) => {
     const f = fixture()
     const bin = fakeBin(route, f.capture)
-    const result = run(route, f, {
-      ...process.env,
-      PATH: `${bin}:${process.env.PATH}`,
-      ...(route === "grok-cursor" ? { CE_WORK_CURSOR_INTERMEDIARY_SANCTIONED: "1" } : {}),
-    })
+    const result = run(
+      route,
+      f,
+      {
+        ...process.env,
+        PATH: `${bin}:${process.env.PATH}`,
+        ...(route === "grok-cursor" ? { CE_WORK_CURSOR_INTERMEDIARY_SANCTIONED: "1" } : {}),
+      },
+    )
     expect(result.code).toBe(0)
     expect(readFileSync(path.join(f.capture, "pwd"), "utf8")).toBe(realpathSync(f.workspace))
     expect(readFileSync(path.join(f.capture, "stdin"), "utf8")).toContain("Implement U3 only.")
@@ -249,14 +265,24 @@ describe("ce-work fixed write routes", () => {
     }
   })
 
-  test("Cursor default cannot be forced and Composer rejects a different family", () => {
+  test("Cursor accepts a controller-bounded explicit model while Composer stays family-locked", () => {
     const cursor = emit("cursor", {
       ...process.env,
       CE_WORK_MODEL_OVERRIDE_TARGET: "cursor",
-      CE_WORK_MODEL_OVERRIDE: "cursor-grok-4.5-high",
+      CE_WORK_MODEL_OVERRIDE: "rock-1",
     })
-    expect(cursor.status).toBe(2)
-    expect(cursor.stderr).toContain("not compatible")
+    expect(cursor.status).toBe(0)
+    expect(cursor.stdout).toContain("--model rock-1")
+
+    for (const reserved of ["composer", "composer-2.5-fast", "grok-4.5", "cursor-grok-4.5-high"]) {
+      const rejected = emit("cursor", {
+        ...process.env,
+        CE_WORK_MODEL_OVERRIDE_TARGET: "cursor",
+        CE_WORK_MODEL_OVERRIDE: reserved,
+      })
+      expect(rejected.status).toBe(2)
+      expect(rejected.stderr).toContain("not compatible")
+    }
 
     const composer = emit("composer", {
       ...process.env,
@@ -273,6 +299,27 @@ describe("ce-work fixed write routes", () => {
     })
     expect(compatible.status).toBe(0)
     expect(compatible.stdout).toContain("--model composer-next-fast")
+  })
+
+  test("production dispatch honors explicit models while defaults stay harness-configured", () => {
+    for (const [route, model] of [
+      ["cursor", "rock-1"],
+      ["claude", "sonnet"],
+      ["grok-cli", "grok-4.5"],
+    ] as const) {
+      const f = fixture()
+      const bin = fakeBin(route, f.capture)
+      const result = run(
+        route,
+        f,
+        { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+        undefined,
+        { model_requested: model },
+      )
+      expect(result.code).toBe(0)
+      expect(readFileSync(path.join(f.capture, "argv"), "utf8")).toContain(model)
+      expect(result.result.model_requested).toBe(model)
+    }
   })
 
   test("production dispatch derives the model from controller authorization, not ambient overrides", () => {
@@ -302,6 +349,10 @@ describe("ce-work fixed write routes", () => {
     for (const [route, overrides] of [
       ["codex", { route: "claude" }],
       ["composer", { model_requested: "gpt-5.6-sol" }],
+      ["cursor", { model_requested: "composer-2.5-fast" }],
+      ["cursor", { model_requested: "grok-4.5" }],
+      ["cursor", { model_requested: "cursor-grok-4.5-high" }],
+      ["cursor", { model_requested: "rock@beta" }],
     ] as const) {
       const f = fixture()
       const bin = fakeBin(route, f.capture)
@@ -454,7 +505,7 @@ describe("ce-work adapter results, identity, and secret handling", () => {
     expect(result.result.actual_route).toBe("claude")
     expect(result.result.target).toBe("claude")
     expect(result.result.harness).toBe("claude")
-    expect(result.result.model_requested).toBe("fable")
+    expect(result.result.model_requested).toBe("auto")
     expect(result.result.model_actual).toBe("claude-fable-5")
   })
 
@@ -486,6 +537,7 @@ describe("ce-work adapter results, identity, and secret handling", () => {
 
   test.each([
     ["claude-fable-5", "verified"],
+    ["claude-fable-5\\u001b[1m", "verified"],
     ["claude-opus-4-8", "mismatch"],
     ["", "unverified"],
   ] as const)("Claude served-model receipt %s normalizes as %s", (served, receipt) => {
@@ -499,8 +551,36 @@ printf '%s\\n' '{"terminal_status":"completed","summary":"done","changed_files":
 `
     writeFileSync(path.join(bin, "claude"), body)
     chmodSync(path.join(bin, "claude"), 0o755)
-    const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
-    expect(result.result.model_actual).toBe(served || "unverified")
+    const result = run(
+      "claude",
+      f,
+      { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+      undefined,
+      { model_requested: "fable" },
+    )
+    expect(result.result.model_actual).toBe(served ? served.replace("\\u001b[1m", "") : "unverified")
+    expect(result.result.model_receipt_status).toBe(receipt)
+  })
+
+  test.each([
+    ["Sonnet 5 300K Low No Thinking", "verified"],
+    ["Sonnet 5 300K High No Thinking", "mismatch"],
+  ] as const)("Cursor explicit-model display receipt %s normalizes as %s", (served, receipt) => {
+    const f = fixture()
+    const response = '{"terminal_status":"completed","summary":"done","changed_files":["result.txt"],"evidence":[],"scope_expansion":null}'
+    const bin = fakeBin("cursor", f.capture, response)
+    const script = path.join(bin, "cursor-agent")
+    const body = readFileSync(script, "utf8").replace("model='Cursor Grok 4.5 High'", `model='${served}'`)
+    writeFileSync(script, body)
+    chmodSync(script, 0o755)
+    const result = run(
+      "cursor",
+      f,
+      { ...process.env, PATH: `${bin}:${process.env.PATH}` },
+      undefined,
+      { model_requested: "claude-sonnet-5-low" },
+    )
+    expect(result.result.model_actual).toBe(served)
     expect(result.result.model_receipt_status).toBe(receipt)
   })
 

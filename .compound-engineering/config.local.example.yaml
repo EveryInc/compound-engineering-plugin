@@ -78,21 +78,24 @@
 # plan_skip_scoping_confirm: true   # true | false (default: false)
 
 # --- ce-work implementation engine ---
-# Standing, per-checkout preference for who authors implementation units. Native
-# execution remains the default. A direct instruction in the current prompt wins;
-# an implementation-only binding carried by LFG is next; these keys are the final
-# fallback. `off` disables only this standing preference. `prefer` tries the route
-# and falls back natively with disclosure when unavailable. `require` asks before
-# native fallback in an interactive ce-work run and blocks without prompting under
-# LFG/headless execution. Targets: codex | claude | grok | cursor | composer.
-# `cursor` uses Cursor's configured default model; `composer` requests a Composer-
-# family model through Cursor. A model pin is optional and ignored without a target.
-# Invalid/commented/missing mode resolves to off. An enabled mode without a valid
-# target is unavailable and follows the mode's fallback/block behavior.
+# Standing, per-checkout preferences for who authors implementation units. Live
+# task/session/project instructions and LFG's provenance-bearing binding may
+# override or narrow these defaults. `off` disables only this standing preference.
+# `prefer` tries candidates in order, then falls back natively with disclosure.
+# `require` asks before native fallback in an interactive ce-work run and blocks
+# without prompting under LFG/headless execution. Harnesses: codex | claude | grok
+# | cursor. Omit model to use that harness's configured default. Composer is a model
+# family through Cursor: { harness: cursor, model: composer }. Do not put CLI flags
+# or commands here. A candidate equivalent to the current host/default is skipped;
+# a different explicit model in the same harness remains eligible.
 
 # work_engine_mode: prefer        # off | prefer | require (default: off)
-# work_engine_target: codex       # codex | claude | grok | cursor | composer
-# work_engine_model: "gpt-5.6"    # optional model pin; ignored without target
+# work_engine_preferences:
+#   - harness: cursor
+#     model: composer
+#   - harness: codex
+#     model: "gpt-5.6"
+#   - harness: claude             # configured default model
 
 # --- ce-promote ---
 # Written automatically when you decline the Spiral setup offer in /ce-promote.

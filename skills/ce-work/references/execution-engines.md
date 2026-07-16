@@ -1,18 +1,27 @@
 # Execution Engines
 
-`ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* owns the shipping tail (see "Tail ownership" below). Native inline/subagent execution is dormant-by-default compatibility: it remains selected unless an explicit one-run route, caller binding, or enabled standing preference selects the fourth engine.
+`ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* owns the shipping tail (see "Tail ownership" below). Native inline/subagent execution is dormant-by-default compatibility: it remains selected unless applicable live intent, a caller binding, or an enabled standing preference selects the fourth engine.
 
 Engine selection applies only to code execution. Knowledge-work keeps its carve-out. Legacy plans and bare code prompts may select cross-model execution, but otherwise retain the inline/subagent flow in `SKILL.md`; goal-mode and dynamic-workflow selection remains specific to implementation-ready unified plans.
 
 ## Resolve cross-model routing before the capability probe
 
-Resolve one implementation binding using this exact precedence:
+Resolve one implementation binding from applicable authority and scope; do not reduce routing to keyword matching or a closed state machine. Obey the host's instruction hierarchy first. Within the same authority, prefer narrower and more current intent, using these sources:
 
-`current-turn directive > typed caller binding > per-checkout configuration > native`
+1. an explicit assignment or constraint in the current task;
+2. a still-active session preference or constraint;
+3. a typed caller binding at its recorded provenance (for example, an LFG current-task assignment retains current-task authority at the `ce-work` seam);
+4. the project's active instructions and conventions already in context;
+5. enabled per-checkout configuration; then
+6. native execution.
 
-A current-turn request such as "use Codex" is preference-strength by default. Interpret an unambiguous strict intent such as "must use Codex" or "only use Codex" as requirement-strength; intent is the contract, not any single keyword. The resolved mode is `prefer` or `require`. A current-turn directive overrides every lower source.
+Lower sources may fill an unspecified detail but cannot contradict or broaden a higher source. Incidental mentions in feature prose, quoted material, examples, comparisons, filenames, or discussion do not activate routing. If two applicable instructions of equal authority genuinely conflict on recipient or egress, surface the conflict instead of guessing.
 
-For example, current-turn strict Composer resolves to Composer with `require` even when a caller Codex binding and config Claude preference are both present. Without the current-turn directive, caller Codex wins. Without either one-run source, config Claude applies only when its standing mode is enabled.
+A live request such as "use Codex" is preference-strength by default. Interpret unambiguous strict intent such as "must use Codex" or "only use Codex" as requirement-strength; intent is the contract, not any single keyword. The resolved mode is `prefer` or `require`.
+
+Live or contextual intent may name one route or an ordered fallback list (for example, "prefer Cursor with Rock, then Codex"). Preserve that order and normalize each harness/model candidate with the same rules as standing configuration. A typed caller binding remains a single already-selected candidate; do not widen its exact four-field grammar into a list.
+
+For example, current-task strict Composer resolves to Composer with `require` even when a caller Codex binding and config Cursor preference are both present. Without that task instruction, a caller Codex binding sourced from the current LFG task keeps that provenance. Without applicable live or caller intent, the ordered config candidates apply only when standing mode is enabled.
 
 ### Typed caller binding
 
@@ -29,19 +38,36 @@ Return-to-caller recovery may add a separate `implementation_run:<safe-id>` carr
 
 ### Target and identity vocabulary
 
-Keep `target`, harness/intermediary route, requested model, served model, and receipt status separate. Target `cursor` means the Cursor harness with its default model. Target `composer` means a Composer-family model requested through Cursor. The fixed adapter may attempt the requested mapping first and substitute only an observed compatible equivalent within the requested target/model family; it must disclose the substitution and may not relabel an unverified served model.
+Keep `target`, harness/intermediary route, requested model, served model, and receipt status separate. Target `cursor` means the Cursor harness with its configured default model. Target `composer` is shorthand for a Composer-family model requested through Cursor. The host must attempt the documented adapter recipe first. If the installed harness differs, it may inspect local CLI help or version information and adapt only within the same sanctioned harness/model family and only when the fixed adapter can still enforce the route and restrictions. Otherwise that candidate is unavailable. Disclose any compatible model alias or substitution and never relabel an unverified served model.
 
 When the target resolves to the current host's default execution route and no distinct model or serving route was requested, collapse the request to native execution and record requested-versus-actual identity rather than shelling out to the same host.
 
 ### Per-checkout configuration
 
-Standing configuration uses three flat keys:
+Standing configuration uses one mode plus an ordered route list:
+
+```yaml
+work_engine_mode: prefer
+work_engine_preferences:
+  - harness: cursor
+    model: composer
+  - harness: codex
+    model: gpt-5.6
+  - harness: claude
+```
 
 - `work_engine_mode`: `off | prefer | require`
-- `work_engine_target`: one target from the vocabulary above
-- `work_engine_model`: optional model pin
+- `work_engine_preferences`: one or more ordered candidate objects
+- `harness`: `codex | claude | grok | cursor`
+- optional `model`: a model id or family understood by that harness; omission means its configured default
 
-`off` disables only the standing preference. It does not cancel an explicit current-turn directive or a higher-precedence typed caller binding. An enabled mode without a valid target is unavailable rather than guessed. Standing configuration supplies defaults, not a permission to change recipient or broaden authority.
+Do not put CLI commands or flags in configuration. The list expresses implementation intent; the skill's adapter recipes and local inspection determine how to invoke it. Composer is therefore `{ harness: cursor, model: composer }`, while `{ harness: cursor }` means Cursor's configured default.
+
+Normalize a qualified candidate to the controller's fixed route: Codex -> `codex`, Claude -> `claude`, native Grok -> `grok-cli`, Cursor with no model -> `cursor`, a Composer-family Cursor model -> `composer`, a Grok-family Cursor model -> `grok-cursor`, and another explicit Cursor model -> `cursor` with that controller-authorized model selector. A model selector is data, never shell syntax; if it cannot be represented by the fixed adapter's safe model token, the candidate is unavailable.
+
+Traverse each ordered candidate during preflight. If a candidate is equivalent to the current host and its current/default model, continue to the next candidate rather than shelling out to self; an explicit different model in the same harness is still a distinct candidate. If a candidate is unavailable before egress, record why and continue to the next candidate. The first qualified candidate becomes the fixed recipient. After dispatch begins, the recipient is locked by the cross-model contract and list traversal stops.
+
+`off` disables only the standing preference. It does not cancel applicable live intent or a typed caller binding. An enabled mode without a valid candidate list is unavailable rather than guessed. When the list is exhausted, `prefer` falls back natively with every attempted route and reason disclosed; `require` follows the interactive/headless blocker rule. Standing configuration supplies defaults, not permission to change recipient or broaden authority.
 
 ## Step 1: Probe host capability
 
@@ -67,7 +93,7 @@ When more than one engine is callable, choose by the plan's decomposition shape:
 | Sequential or modest U-ID decomposition; units share files or depend on each other | **Inline / subagent** (default), or a **goal-mode** prompt for sustained focus when callable | The DoD already defines the end condition; ordinary persistence finishes it. |
 | Many independent U-IDs with disjoint file ownership; codebase-wide sweep; large migration; adversarial cross-checking | **Dynamic-workflow** when callable; otherwise parallel subagents | Workflow scripts hold branching, loops, and intermediate worker state outside the main context and coordinate many agents. Prefer this over goal-mode for large fan-out. |
 | Host exposes no callable goal/workflow primitive (e.g. Claude Code in-session) | **Inline / subagent** | Preserve the same heading-scan / DoD / U-ID discipline without relying on unavailable host features. |
-| A current-turn directive, caller binding, or enabled config resolves a qualified fixed external route | **Cross-model execution** | Another harness/model authors bounded units while the host retains canonical integration, verification, commits, and tail ownership. |
+| Applicable live intent, a caller binding, or enabled config resolves a qualified fixed external route | **Cross-model execution** | Another harness/model authors bounded units while the host retains canonical integration, verification, commits, and tail ownership. |
 
 Recommend exactly one path. Present a non-default engine as an "advanced / large-scale option" only when the plan shape plausibly warrants it — never as an equal coin-flip.
 

@@ -327,6 +327,19 @@ describe("ce-work unit workspace controller", () => {
     expect(invalid.stderr).toContain("codex, claude, grok-cli, cursor, composer, grok-cursor")
     expect(existsSync(path.join(runs, "invalid-route"))).toBe(false)
 
+    for (const [index, model] of ["composer-2.5-fast", "grok-4.5", "cursor-grok-4.5-high", "rock@beta"].entries()) {
+      const runId = `invalid-cursor-model-${index}`
+      const invalidModel = ctl(
+        runs, "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,
+        "--plan-digest", f.digest,
+        "--binding-json", JSON.stringify({ mode: "require", target: "cursor", model, source: "test" }),
+        "--egress-json", JSON.stringify({ route: "cursor", intermediaries: [], restrictions: [] }),
+      )
+      expect(invalidModel.word).toBe("REFUSED")
+      expect(invalidModel.stderr).toContain("model is not compatible")
+      expect(existsSync(path.join(runs, runId))).toBe(false)
+    }
+
     const first = initWithBinding(runs, "fixed-sanction", f, "require")
     expect(first.word).toBe("READY")
     const resumed = initWithBinding(runs, "fixed-sanction", f, "require")
@@ -425,6 +438,17 @@ describe("ce-work unit workspace controller", () => {
     const blocked = ctl(runs, "terminalize", "--run-id", "run-authority", "--unit-id", "U")
     expect(blocked.word).toBe("BLOCKED")
     expect(blocked.body.mismatches.actual_route).toEqual({ expected: "codex", actual: "claude" })
+    const failed = ctl(runs, "status", "--run-id", "run-authority", "--unit-id", "U").body.unit.attempts[0]
+    expect(failed.terminal_validation_failure).toMatchObject({
+      word: "BLOCKED",
+      reason: "adapter terminal receipt does not match controller authorization",
+      job_id: job,
+    })
+    expect(failed.fallback).toMatchObject({ eligible: true, reason: "terminal-validation-failure" })
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-authority", "--unit-id", "U",
+      "--abandon", "--expect-job", job,
+    ).word).toBe("CLEANED")
   })
 
   test("authorizes dispatch only for the exact recorded run unit attempt and paths", () => {

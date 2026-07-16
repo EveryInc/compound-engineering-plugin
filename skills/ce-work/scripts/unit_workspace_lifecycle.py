@@ -302,6 +302,13 @@ def cmd_resume(args) -> tuple[str, dict]:
 def fallback_basis(doc: dict, unit: dict) -> tuple[str, dict]:
     attempt = find_attempt(unit)
     process_state = attempt.get("process_state")
+    if process_state == "done" and attempt.get("terminal_validation_failure"):
+        validate_terminal_validation_failure(doc["run_id"], unit, attempt)
+        snap = semantic_snapshot(doc["repository"]["toplevel"])
+        allowed_heads = set(unit.get("wave", {}).get("allowed_heads", []))
+        if snap["head"] not in allowed_heads or not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:
+            raise Operational("BLOCKED", "canonical checkout diverged or is dirty; native fallback is not safe")
+        return "terminal-validation-failure", attempt
     if process_state in TERMINAL_PROCESS - {"done"} or (process_state == "never-started" and attempt.get("job_id")):
         snap = semantic_snapshot(doc["repository"]["toplevel"])
         allowed_heads = set(unit.get("wave", {}).get("allowed_heads", []))
@@ -449,14 +456,19 @@ def cmd_cleanup(args) -> tuple[str, dict]:
                 abandonment_receipt = {"kind": "transport", "value": commit}
             else:
                 terminal_failures = TERMINAL_PROCESS - {"done"}
-                if attempt.get("process_state") not in terminal_failures or not attempt.get("job_id"):
+                validation_failure = attempt.get("process_state") == "done" and attempt.get("terminal_validation_failure")
+                if (attempt.get("process_state") not in terminal_failures and not validation_failure) or not attempt.get("job_id"):
                     raise Operational("REFUSED", "transport-free cleanup requires an authoritative failed or reaped job")
                 if args.expect_job != attempt["job_id"]:
                     raise Operational("REFUSED", "transport-free cleanup requires the exact terminal job id")
-                observed = process_evidence(runner_job_dir(args.run_id, attempt["job_id"]))["process_state"]
-                if observed != attempt["process_state"] or observed not in terminal_failures:
-                    raise Operational("BLOCKED", "terminal job evidence changed; refusing cleanup")
-                abandonment_receipt = {"kind": "terminal-job", "value": attempt["job_id"], "process_state": observed}
+                if validation_failure:
+                    validate_terminal_validation_failure(args.run_id, unit, attempt)
+                    abandonment_receipt = {"kind": "terminal-validation-failure", "value": attempt["job_id"], "process_state": "done"}
+                else:
+                    observed = process_evidence(runner_job_dir(args.run_id, attempt["job_id"]))["process_state"]
+                    if observed != attempt["process_state"] or observed not in terminal_failures:
+                        raise Operational("BLOCKED", "terminal job evidence changed; refusing cleanup")
+                    abandonment_receipt = {"kind": "terminal-job", "value": attempt["job_id"], "process_state": observed}
         elif unit["state"] != "committed":
             raise Operational("REFUSED", "uncommitted output is retained unless explicitly abandoned")
         workspace = unit["workspace"]["path"]

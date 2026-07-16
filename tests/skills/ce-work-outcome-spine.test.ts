@@ -45,6 +45,8 @@ describe("ce-work native characterization", () => {
     expect(triage).toContain("**Plan document**")
     expect(triage).toContain("**Blank invocation latest-plan discovery:**")
     expect(triage).toContain("**Bare prompt**")
+    expect(triage).toContain("skip only the task list")
+    expect(triage).toContain("mandatory engine-resolution gate")
   })
 
   test("activates direct recovery before ordinary input classification", async () => {
@@ -111,28 +113,55 @@ describe("ce-work native characterization", () => {
 })
 
 describe("ce-work cross-model engine contract", () => {
-  test("adds a dormant fourth engine with exact binding precedence and config modes", async () => {
+  test("resolves live routing intent and ordered harness/model preferences", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
     const engineGate = sliceSection(skill, "4. **Choose Execution Engine, then Strategy**", "### Phase 2: Execute")
 
     expect(engineGate).toContain("cross-model execution")
     expect(engineGate).toContain("native execution remains the default")
-    expect(engines).toContain("current-turn directive > typed caller binding > per-checkout configuration > native")
+    expect(engineGate).toContain("Route resolution is a mandatory pre-write gate")
+    expect(engineGate).toContain(".compound-engineering/config.local.yaml")
+    expect(engineGate).toContain("Do not infer native execution merely because no typed carrier was supplied")
+    expect(engines).toContain("still-active session")
+    expect(engines).toContain("active instructions and conventions already in context")
+    expect(engines).toContain("recorded provenance")
+    expect(engines).toMatch(/incidental mentions/i)
     expect(engines).toContain("work_engine_mode")
     expect(engines).toContain("`off | prefer | require`")
-    expect(engines).toContain("work_engine_target")
-    expect(engines).toContain("work_engine_model")
+    expect(engines).toContain("work_engine_preferences")
+    expect(engines).toContain("`harness`")
+    expect(engines).toContain("optional `model`")
+    expect(engines).toContain("configured default")
+    expect(engines).toContain("ordered candidate")
+    expect(engines).toContain("continue to the next candidate")
+    expect(engines).toContain("equivalent to the current host")
     expect(engines).toContain("`off` disables only the standing preference")
     expect(engines).toContain("strict Composer")
     expect(engines).toContain("caller Codex")
-    expect(engines).toContain("config Claude")
+    expect(engines).toContain("config Cursor")
+  })
+
+  test("uses agent judgment above fixed safety boundaries when local harness CLIs drift", async () => {
+    const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
+    const protocol = await readRepoFile("skills/ce-work/references/cross-model-execution.md")
+
+    expect(engines).toContain("attempt the documented adapter recipe first")
+    expect(engines).toContain("local CLI help or version")
+    expect(engines).toContain("same sanctioned harness/model family")
+    expect(protocol).toContain("first qualified candidate")
+    expect(protocol).toContain("Before egress")
+    expect(protocol).toContain("After dispatch starts")
+    expect(protocol).toContain("never switch recipients")
   })
 
   test("keeps explicit cross-model activation read-only until the controller owns the workspace", async () => {
     const skill = await readRepoFile("skills/ce-work/SKILL.md")
     const triage = sliceSection(skill, "### Phase 0: Input Triage", "### Phase 1: Quick Start")
 
+    expect(triage).toContain("Every non-recovery code path must resolve its implementation engine before execution")
+    expect(triage).toContain("carrierless Return-to-Caller Mode")
+    expect(triage).toContain(".compound-engineering/config.local.yaml")
     expect(triage).toContain("pre-controller discovery is read-only")
     expect(triage).toContain("Do not run baseline, test, build, format, install, or generation commands")
     expect(triage).toContain("prove the canonical Git snapshot is byte-for-byte unchanged")
@@ -152,6 +181,17 @@ describe("ce-work cross-model engine contract", () => {
     expect(carrier).toContain("only at the `ce-work` seam")
     expect(carrier).toContain("never enter planning or review input")
     expect(engines).not.toContain("work_delegate_")
+  })
+
+  test("preserves ordered LFG intent without truncating the scalar carrier", async () => {
+    const lfg = await readRepoFile("skills/lfg/SKILL.md")
+
+    expect(lfg).toContain("ordered fallback list")
+    expect(lfg).toContain("do not truncate it to the scalar carrier")
+    expect(lfg).toContain("retain the whole ordered assignment as current-task implementation intent")
+    expect(lfg).toContain("pass no `implementation_engine:` object")
+    expect(lfg).toContain("host cannot preserve that context")
+    expect(lfg).toContain("routing-carrier blocker")
   })
 
   test("gives string-only callers an exact optional carrier grammar", async () => {
@@ -270,7 +310,7 @@ describe("ce-work cross-model engine contract", () => {
       "unit-workspace.py` `checkpoint-plan",
       "unit-workspace.py` `prepare",
       "unit-workspace.py` `authorize-dispatch",
-      "peer-job-runner.py` `start --no-sweep",
+      "peer-job-runner.py` `start --no-sweep --input-digest <controller-packet-digest>",
       "cross-model-work.sh",
       "unit-workspace.py` `record-job",
       "unit-workspace.py` `terminalize",
@@ -301,6 +341,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(serial).toContain("never infer a pass from stdout")
     expect(serial).toContain("`run_id`, `unit_id`, and `attempt_id`")
     expect(serial).toContain("`CE_PEER_HARD_SECS=7200`")
+    expect(serial).toContain("Both `--input-digest` and the adapter's expected-packet argument")
     expect(serial).toContain("controller `authorize-dispatch` success")
     expect(serial).toContain("runner-exported job id")
     expect(serial).toContain("atomically binds that job id to the exact attempt before egress")
@@ -314,6 +355,12 @@ describe("ce-work cross-model engine contract", () => {
     expect(serial).not.toContain("CE_WORK_MODEL_OVERRIDE")
     expect(serial).not.toContain("CE_WORK_MODEL_OVERRIDE_TARGET")
     expect(serial).toContain("one bounded unit packet")
+    expect(serial).toContain("exact plural keys `route`, `intermediaries`, and `restrictions`")
+    expect(serial).toContain("direct `codex`, `claude`, `grok-cli`, and `cursor` routes use `intermediaries: []`")
+    expect(serial).toContain("Write the packet source directly to OS temp outside the canonical checkout")
+    expect(serial).toContain("never draft it inside the repository and move or copy it later")
+    expect(serial).toContain("quoting `$(...)` as a direct argument does not expand it")
+    expect(serial).toContain("-- bash -o pipefail -c")
     expect(serial).toContain("separate host tool calls")
     expect(serial).toContain("Never generate or run a shell script")
     expect(serial).toContain("`start` must return")
@@ -425,7 +472,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(evalPack).toContain("Change")
     expect(evalPack).toContain("Verify")
     expect(evalPack).toContain("Consider")
-    for (let fixture = 1; fixture <= 22; fixture += 1) {
+    for (let fixture = 1; fixture <= 30; fixture += 1) {
       expect(evalPack).toContain(`E${fixture} `)
     }
     for (const seam of [
@@ -443,6 +490,14 @@ describe("ce-work cross-model engine contract", () => {
       "linked-checkout sibling",
       "direct recovery",
       "LFG recovery carrier",
+      "session preference",
+      "same-harness explicit model",
+      "ordered fallback",
+      "LFG ordered live assignment",
+      "trivial configured engine",
+      "exact dispatch digest",
+      "clean packet and shell argv",
+      "exact egress object",
     ]) {
       expect(evalPack).toContain(seam)
     }

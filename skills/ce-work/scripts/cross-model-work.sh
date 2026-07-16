@@ -16,8 +16,6 @@
 set -uo pipefail
 umask 077
 
-M_CLAUDE="fable"
-M_GROK="grok-4.5"
 M_GROK_CURSOR="cursor-grok-4.5-high"
 M_COMPOSER="composer-2.5-fast"
 
@@ -53,19 +51,28 @@ route_model() {
     return
   fi
   case "$route" in
-    codex|cursor) printf 'auto' ;;
-    claude) printf '%s' "$M_CLAUDE" ;;
-    grok-cli) printf '%s' "$M_GROK" ;;
+    codex|claude|grok-cli|cursor) printf 'auto' ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
     composer) printf '%s' "$M_COMPOSER" ;;
   esac
 }
 
 validate_model_override() {
-  local route="$1" override="${CE_WORK_MODEL_OVERRIDE:-}" target
+  local route="$1" override="${CE_WORK_MODEL_OVERRIDE:-}" target override_lower
   [ -n "$override" ] || { [ -z "${CE_WORK_MODEL_OVERRIDE_TARGET:-}" ]; return; }
   target="$(route_target "$route")" || return 1
   [ "${CE_WORK_MODEL_OVERRIDE_TARGET:-}" = "$target" ] || return 1
+  if [ "$route" = cursor ]; then
+    case "$override" in
+      [A-Za-z0-9]*)
+        case "$override" in *[!A-Za-z0-9._:/-]*) return 1 ;; esac
+        override_lower="$(printf '%s' "$override" | tr '[:upper:]' '[:lower:]')"
+        case "$override_lower" in composer|composer-*|grok|grok-*|cursor-grok-*) return 1 ;; esac
+        return 0
+        ;;
+      *) return 1 ;;
+    esac
+  fi
   case "$route:$override" in
     codex:gpt-*|codex:o[0-9]*|claude:fable|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*) ;;
     *) return 1 ;;
@@ -81,20 +88,29 @@ adapter_argv() {
       printf '%s\0' -
       ;;
     claude)
+      local claude_model
+      claude_model="$(route_model claude)"
       printf '%s\0' claude -p --safe-mode --no-session-persistence \
         --permission-mode bypassPermissions --tools Read,Write,Edit,Bash \
-        --allowed-tools 'Bash(*)' --model "$(route_model claude)" \
+        --allowed-tools 'Bash(*)' \
         --effort high --output-format stream-json --verbose
+      [ "$claude_model" = auto ] || printf '%s\0' --model "$claude_model"
       ;;
     grok-cli)
+      local grok_model
+      grok_model="$(route_model grok-cli)"
       printf '%s\0' grok --prompt-file "$PROMPT_FILE" --cwd "$WORKSPACE" \
-        --model "$(route_model grok-cli)" --effort high --permission-mode acceptEdits \
+        --effort high --permission-mode acceptEdits \
         --tools Read,Write,Edit --disable-web-search --no-memory --no-subagents \
         --no-plan --max-turns 50 --output-format streaming-json --verbatim
+      [ "$grok_model" = auto ] || printf '%s\0' --model "$grok_model"
       ;;
     cursor)
+      local cursor_model
+      cursor_model="$(route_model cursor)"
       printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
         --force --sandbox enabled --trust --workspace "$WORKSPACE"
+      [ "$cursor_model" = auto ] || printf '%s\0' --model "$cursor_model"
       ;;
     composer)
       printf '%s\0' cursor-agent -p --output-format stream-json --stream-partial-output \
@@ -191,11 +207,14 @@ def model_allowed(route, model):
     if route == "codex":
         return model == "auto" or bool(re.fullmatch(r"(?:gpt-[A-Za-z0-9._-]+|o[0-9][A-Za-z0-9._-]*)", model))
     if route == "claude":
-        return model in {"fable", "opus", "sonnet", "haiku"} or bool(re.fullmatch(r"claude-[A-Za-z0-9._-]+", model))
+        return model in {"auto", "fable", "opus", "sonnet", "haiku"} or bool(re.fullmatch(r"claude-[A-Za-z0-9._-]+", model))
     if route == "grok-cli":
-        return bool(re.fullmatch(r"grok-[A-Za-z0-9._-]+", model))
+        return model == "auto" or bool(re.fullmatch(r"grok-[A-Za-z0-9._-]+", model))
     if route == "cursor":
-        return model == "auto"
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._:/-]*", model):
+            return False
+        lowered = model.lower()
+        return not (lowered in {"composer", "grok"} or lowered.startswith(("composer-", "grok-", "cursor-grok-")))
     if route == "composer":
         return bool(re.fullmatch(r"composer-[A-Za-z0-9._-]+", model))
     if route == "grok-cursor":
@@ -443,6 +462,18 @@ if ! command -v "$BINARY" >/dev/null 2>&1; then
   exit 2
 fi
 
+# Cursor reports a human display label in its init receipt, not necessarily the
+# model key passed on argv. Capture the current catalog label before dispatch so
+# receipt comparison can follow CLI vocabulary drift without weakening the pin.
+MODEL_DISPLAY_HINT=""
+if [ "$MODEL_REQUESTED" != auto ]; then
+  case "$ROUTE" in
+    cursor|composer|grok-cursor)
+      MODEL_DISPLAY_HINT="$({ "$BINARY" --list-models 2>/dev/null || true; } | awk -F ' - ' -v key="$MODEL_REQUESTED" '$1 == key { sub(/^[^ ]+ - /, ""); print; exit }')"
+      ;;
+  esac
+fi
+
 ARGS=()
 while IFS= read -r -d '' token; do ARGS+=("$token"); done < <(adapter_argv "$ROUTE")
 
@@ -550,9 +581,9 @@ SOURCE="$RAW_STDOUT"
 set +e
 CE_WORK_REDACT_FILE="${CE_WORK_REDACT_FILE:-}" python3 - \
   "$SOURCE" "$RAW_STDOUT" "$RESULT_FILE" "$ROUTE" "$TARGET" "$HARNESS" \
-  "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" <<'PY'
+  "$MODEL_REQUESTED" "$EXPECTED_PACKET_DIGEST" "$LOG_FILE" "$ACTIVITY_POSTURE" "$RESTRICTION_POSTURE" "$MODEL_DISPLAY_HINT" <<'PY'
 import json, os, re, sys, tempfile
-source, stream, out, route, target, harness, requested, packet_digest, log, activity, restriction = sys.argv[1:]
+source, stream, out, route, target, harness, requested, packet_digest, log, activity, restriction, display_hint = sys.argv[1:]
 
 def redactions():
     p=os.environ.get("CE_WORK_REDACT_FILE", "")
@@ -588,6 +619,16 @@ def parse_text(text):
         except Exception: pass
     return found[-1] if found else None
 
+def normalize_served_model(value):
+    # Some CLIs have emitted terminal styling inside the JSON model field.
+    # Strip complete ANSI control sequences before validating the receipt token;
+    # never publish a partially sanitized or otherwise unsafe identity.
+    text=str(value)
+    text=re.sub(r"\x1b\[[0-?]*[ -/]*[@-~]", "", text)
+    text=re.sub(r"\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)", "", text)
+    text="".join(ch for ch in text if ord(ch) >= 0x20 and ord(ch) != 0x7f).strip()
+    return text if 0 < len(text) <= 128 else "unverified"
+
 try: raw=open(source, encoding="utf-8", errors="replace").read()
 except OSError: raw=""
 worker=parse_text(raw)
@@ -612,16 +653,24 @@ for line in stream_text.splitlines():
     try: event=json.loads(line)
     except Exception: continue
     if isinstance(event,dict) and event.get("model") and (event.get("subtype")=="init" or event.get("type") in ("init","system")):
-        served=str(event["model"]); break
+        served=normalize_served_model(event["model"]); break
 
 if served == "unverified": receipt="unverified"
 elif requested == "auto": receipt="verified"
 else:
     req=requested.lower(); actual=served.lower()
-    family=("claude-fable-" if req=="fable" else "claude-opus-" if req=="opus" else
-      "claude-sonnet-" if req=="sonnet" else "claude-haiku-" if req=="haiku" else req)
-    normalized=lambda value: re.sub(r"[^a-z0-9]", "", value.lower())
-    receipt="verified" if actual.startswith(family) or actual==req or normalized(actual)==normalized(req) else "mismatch"
+    if route in ("cursor", "composer", "grok-cursor"):
+        def model_terms(value):
+            value=re.sub(r"\b\d+(?:k|m)\b", " ", value.lower())
+            terms=set(re.findall(r"[a-z]+|\d+", value))
+            return terms - {"claude", "cursor"}
+        expected=model_terms(display_hint or requested)
+        receipt="verified" if expected and expected.issubset(model_terms(served)) else "mismatch"
+    else:
+        family=("claude-fable-" if req=="fable" else "claude-opus-" if req=="opus" else
+          "claude-sonnet-" if req=="sonnet" else "claude-haiku-" if req=="haiku" else req)
+        normalized=lambda value: re.sub(r"[^a-z0-9]", "", value.lower())
+        receipt="verified" if actual.startswith(family) or actual==req or normalized(actual)==normalized(req) else "mismatch"
 
 intermediaries=["cursor"] if route in ("composer","grok-cursor") else []
 base={

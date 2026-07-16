@@ -76,9 +76,11 @@ describe("ce-setup check-health", () => {
       readFile(path.join(repoRoot, "README.md"), "utf8"),
     ])
 
-    for (const key of ["work_engine_mode", "work_engine_target", "work_engine_model"]) {
+    for (const key of ["work_engine_mode", "work_engine_preferences", "harness", "model"]) {
       expect(ceWork).toContain(key)
     }
+    expect(ceWork).not.toContain("work_engine_target")
+    expect(ceWork).not.toContain("work_engine_model")
     expect(ceWork).toContain("not a security sandbox")
     expect(ceWork).toContain("does not create a temporary worktree for every unit")
     expect(ceWork).toContain("two-hour hard cap")
@@ -179,16 +181,16 @@ describe("ce-setup check-health", () => {
   })
 
   test.each([
-    ["off", "codex", "CE Work implementation engine: native (standing preference is off)"],
-    ["prefer", "codex", "CE Work implementation engine: prefer -> codex"],
-    ["require", "composer", "CE Work implementation engine: require -> composer"],
-  ])("resolves active %s mode with target %s", async (mode, target, expected) => {
+    ["off", "CE Work implementation engine: native (standing preference is off)"],
+    ["prefer", "CE Work implementation engine: prefer -> cursor@composer, codex@gpt-5.6, claude@default"],
+    ["require", "CE Work implementation engine: require -> cursor@composer, codex@gpt-5.6, claude@default"],
+  ])("resolves active %s mode with ordered harness/model preferences", async (mode, expected) => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
       await initConfiguredRepo(
         root,
-        `work_engine_mode: ${mode}\nwork_engine_target: ${target}\nwork_engine_model: "pinned-model"\n`,
+        `work_engine_mode: ${mode}\nwork_engine_preferences:\n  - harness: cursor\n    model: composer\n  - harness: codex\n    model: "gpt-5.6"\n  - harness: claude\n`,
       )
 
       const result = await runCheckHealth(root, "/usr/bin:/bin")
@@ -196,9 +198,7 @@ describe("ce-setup check-health", () => {
       expect(result.exitCode).toBe(0)
       expect(result.stdout).toContain(expected)
       if (mode === "off") {
-        expect(result.stdout).toContain("target/model ignored while standing mode is off")
-      } else {
-        expect(result.stdout).toContain("model pin: pinned-model")
+        expect(result.stdout).toContain("ordered preferences ignored while standing mode is off")
       }
     } finally {
       await rm(root, { recursive: true, force: true })
@@ -209,7 +209,7 @@ describe("ce-setup check-health", () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
-      await initConfiguredRepo(root, "work_engine_mode: sometimes\nwork_engine_target: codex\n")
+      await initConfiguredRepo(root, "work_engine_mode: sometimes\nwork_engine_preferences:\n  - harness: codex\n")
 
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
@@ -221,33 +221,80 @@ describe("ce-setup check-health", () => {
     }
   })
 
-  test("enabled mode without a target is unavailable and ignores a model pin", async () => {
+  test("enabled mode without ordered preferences is unavailable", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
-      await initConfiguredRepo(root, "work_engine_mode: prefer\nwork_engine_model: composer-2.5\n")
+      await initConfiguredRepo(root, "work_engine_mode: prefer\n")
 
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("CE Work implementation engine unavailable: prefer requires work_engine_target")
-      expect(result.stdout).toContain("model 'composer-2.5' ignored without a target")
+      expect(result.stdout).toContain("CE Work implementation engine unavailable: prefer requires work_engine_preferences")
     } finally {
       await rm(root, { recursive: true, force: true })
     }
   })
 
-  test("enabled mode with an invalid target is unavailable rather than guessed", async () => {
+  test("enabled mode with an invalid harness is unavailable rather than guessed", async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
 
     try {
-      await initConfiguredRepo(root, "work_engine_mode: require\nwork_engine_target: mystery-harness\n")
+      await initConfiguredRepo(root, "work_engine_mode: require\nwork_engine_preferences:\n  - harness: mystery-harness\n")
 
       const result = await runCheckHealth(root, "/usr/bin:/bin")
 
       expect(result.exitCode).toBe(0)
-      expect(result.stdout).toContain("invalid target 'mystery-harness' for require")
-      expect(result.stdout).not.toContain("require -> mystery-harness")
+      expect(result.stdout).toContain("invalid harness 'mystery-harness' in work_engine_preferences")
+      expect(result.stdout).not.toContain("require -> mystery-harness@default")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test("rejects a model entry that is not attached to a harness", async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, "work_engine_mode: prefer\nwork_engine_preferences:\n  - model: composer\n")
+
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("model 'composer' has no harness in work_engine_preferences")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test.each([
+    ["zero-indented sequence", "work_engine_preferences:\n- harness: cursor\n  model: rock-1\n- harness: claude\n"],
+    ["mapping keys in either order", "work_engine_preferences:\n  - model: rock-1\n    harness: cursor\n  - harness: claude\n"],
+  ])("accepts %s", async (_name, preferences) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, `work_engine_mode: prefer\n${preferences}`)
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain("CE Work implementation engine: prefer -> cursor@rock-1, claude@default")
+      expect(result.stdout).not.toContain("project issue(s) found")
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
+  test.each(["rock@beta", "$(touch)", "-model-flag"])('rejects adapter-unsafe model token "%s"', async (model) => {
+    const root = await mkdtemp(path.join(os.tmpdir(), "ce-setup-health-"))
+
+    try {
+      await initConfiguredRepo(root, `work_engine_mode: prefer\nwork_engine_preferences:\n  - harness: cursor\n    model: '${model}'\n`)
+      const result = await runCheckHealth(root, "/usr/bin:/bin")
+
+      expect(result.exitCode).toBe(0)
+      expect(result.stdout).toContain(`invalid model '${model}' in work_engine_preferences`)
+      expect(result.stdout).not.toContain(`prefer -> cursor@${model}`)
     } finally {
       await rm(root, { recursive: true, force: true })
     }
