@@ -39,6 +39,31 @@ skip()    { echo "  ➖  $1"; }
 detail()  { echo "       $1"; }
 section() { echo ""; echo " $1"; }
 
+# Read one top-level scalar from the repo's flat local-config convention. This is
+# intentionally not a general YAML parser: comments and absent/empty keys are
+# ignored, surrounding quotes are removed, and values are never evaluated.
+read_flat_config_value() {
+  local config_file="$1"
+  local config_key="$2"
+  local value
+  value=$(awk -v key="$config_key" '
+    $0 ~ "^" key "[[:space:]]*:" {
+      sub("^" key "[[:space:]]*:[[:space:]]*", "")
+      sub(/[[:space:]]+#.*$/, "")
+      sub(/^[[:space:]]+/, "")
+      sub(/[[:space:]]+$/, "")
+      print
+      exit
+    }
+  ' "$config_file")
+
+  case "$value" in
+    \"*\") value=${value#\"}; value=${value%\"} ;;
+    \'*\') value=${value#\'}; value=${value%\'} ;;
+  esac
+  printf '%s' "$value"
+}
+
 has_brew=$(command -v brew >/dev/null 2>&1 && echo "yes" || echo "no")
 in_repo=$(git rev-parse --is-inside-work-tree >/dev/null 2>&1 && echo "yes" || echo "no")
 
@@ -71,6 +96,9 @@ legacy_cfg="skip"
 repo_cfg_gitignore="skip"
 local_cfg="skip"
 example_cfg="skip"
+work_engine_cfg="skip"
+work_engine_detail=""
+work_engine_model_detail=""
 project_issues=0
 
 if [ "$in_repo" = "yes" ]; then
@@ -81,11 +109,57 @@ if [ "$in_repo" = "yes" ]; then
   local_cfg="missing"
   if [ -e "$repo_root/.compound-engineering/config.local.yaml" ]; then
     local_cfg="present"
+    local_config_path="$repo_root/.compound-engineering/config.local.yaml"
     if git check-ignore -q "$repo_root/.compound-engineering/config.local.yaml" 2>/dev/null; then
       repo_cfg_gitignore="ok"
     else
       repo_cfg_gitignore="missing"
     fi
+
+    work_engine_mode=$(read_flat_config_value "$local_config_path" "work_engine_mode")
+    work_engine_target=$(read_flat_config_value "$local_config_path" "work_engine_target")
+    work_engine_model=$(read_flat_config_value "$local_config_path" "work_engine_model")
+
+    case "$work_engine_mode" in
+      ""|off)
+        work_engine_cfg="native"
+        if [ -n "$work_engine_mode" ]; then
+          work_engine_detail="standing preference is off"
+        else
+          work_engine_detail="setting is commented or missing"
+        fi
+        if [ -n "$work_engine_model" ] && [ -z "$work_engine_target" ]; then
+          work_engine_model_detail="model '$work_engine_model' ignored without a target"
+        elif [ -n "$work_engine_target" ] || [ -n "$work_engine_model" ]; then
+          work_engine_model_detail="target/model ignored while standing mode is off"
+        fi
+        ;;
+      prefer|require)
+        case "$work_engine_target" in
+          codex|claude|grok|cursor|composer)
+            work_engine_cfg="$work_engine_mode"
+            work_engine_detail="$work_engine_target"
+            [ -n "$work_engine_model" ] && work_engine_model_detail="model pin: $work_engine_model"
+            ;;
+          "")
+            work_engine_cfg="unavailable"
+            work_engine_detail="$work_engine_mode requires work_engine_target"
+            [ -n "$work_engine_model" ] && work_engine_model_detail="model '$work_engine_model' ignored without a target"
+            project_issues=$((project_issues + 1))
+            ;;
+          *)
+            work_engine_cfg="unavailable"
+            work_engine_detail="invalid target '$work_engine_target' for $work_engine_mode"
+            project_issues=$((project_issues + 1))
+            ;;
+        esac
+        ;;
+      *)
+        work_engine_cfg="invalid"
+        work_engine_detail="invalid mode '$work_engine_mode' ignored; native is the default"
+        project_issues=$((project_issues + 1))
+        ;;
+    esac
   fi
 
   script_dir="$(cd "$(dirname "$0")" && pwd)"
@@ -146,6 +220,21 @@ if [ "$in_repo" = "yes" ]; then
     fi
   else
     skip "No local config yet (.compound-engineering/config.local.yaml)"
+  fi
+
+  if [ "$work_engine_cfg" = "native" ]; then
+    ok "CE Work implementation engine: native (${work_engine_detail})"
+    [ -n "$work_engine_model_detail" ] && detail "$work_engine_model_detail"
+  elif [ "$work_engine_cfg" = "prefer" ] || [ "$work_engine_cfg" = "require" ]; then
+    ok "CE Work implementation engine: ${work_engine_cfg} -> ${work_engine_detail}"
+    [ -n "$work_engine_model_detail" ] && detail "$work_engine_model_detail"
+  elif [ "$work_engine_cfg" = "unavailable" ]; then
+    warn "CE Work implementation engine unavailable: ${work_engine_detail}"
+    [ -n "$work_engine_model_detail" ] && detail "$work_engine_model_detail"
+  elif [ "$work_engine_cfg" = "invalid" ]; then
+    warn "CE Work implementation engine: ${work_engine_detail}"
+  elif [ "$work_engine_cfg" = "skip" ]; then
+    skip "CE Work implementation engine: native (no local config)"
   fi
 
   if [ "$example_cfg" = "ok" ]; then

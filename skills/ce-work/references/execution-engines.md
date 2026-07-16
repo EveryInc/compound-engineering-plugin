@@ -1,8 +1,47 @@
 # Execution Engines
 
-`ce-work` can implement an implementation-ready unified plan with one of three engines. The engine is chosen once, after Phase 0 classifies the plan as `artifact_readiness: implementation-ready` plus `execution: code`. The engine decides *how* implementation runs; it never changes *who* owns the shipping tail (see "Tail ownership" below).
+`ce-work` has four implementation engines: inline/subagent, goal-mode, dynamic-workflow, and cross-model execution. The engine decides *how* implementation runs; it never changes *who* owns the shipping tail (see "Tail ownership" below). Native inline/subagent execution is dormant-by-default compatibility: it remains selected unless an explicit one-run route, caller binding, or enabled standing preference selects the fourth engine.
 
-Engine selection applies only to code execution. Knowledge-work and legacy plans keep the inline/subagent flow in `SKILL.md`.
+Engine selection applies only to code execution. Knowledge-work keeps its carve-out. Legacy plans and bare code prompts may select cross-model execution, but otherwise retain the inline/subagent flow in `SKILL.md`; goal-mode and dynamic-workflow selection remains specific to implementation-ready unified plans.
+
+## Resolve cross-model routing before the capability probe
+
+Resolve one implementation binding using this exact precedence:
+
+`current-turn directive > typed caller binding > per-checkout configuration > native`
+
+A current-turn request such as "use Codex" is preference-strength by default. Interpret an unambiguous strict intent such as "must use Codex" or "only use Codex" as requirement-strength; intent is the contract, not any single keyword. The resolved mode is `prefer` or `require`. A current-turn directive overrides every lower source.
+
+For example, current-turn strict Composer resolves to Composer with `require` even when a caller Codex binding and config Claude preference are both present. Without the current-turn directive, caller Codex wins. Without either one-run source, config Claude applies only when its standing mode is enabled.
+
+### Typed caller binding
+
+An automatic caller may pass an `implementation_engine` object with exactly these four fields:
+
+- `mode`: `prefer` or `require`
+- `target`: `codex`, `claude`, `grok`, `cursor`, or `composer`
+- `model`: an optional model pin, otherwise `null`
+- `source`: the binding's caller-visible provenance
+
+Accept this carrier only at the `ce-work` seam, beside `mode:return-to-caller`; its fields never enter planning or review input. On string-only skill hosts the initial envelope is `mode:return-to-caller implementation_engine:<compact-json> <plan-path>`, where `<compact-json>` is that exact four-field object with no formatting whitespace (for example `implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}`). The original no-carrier form stays `mode:return-to-caller <plan-path>`. Once resolved, preserve the binding and source in the durable run receipt. Downstream consumers and workers may narrow its authority or restrictions but never broaden them.
+
+Return-to-caller recovery may add a separate `implementation_run:<safe-id>` carrier after the optional engine carrier and before the unchanged plan path. It is not an `implementation_engine` field and is accepted only for recovery. A safe id matches `^[A-Za-z0-9._-]{1,128}$` and contains at least one non-period character. Carrierless recovery is `mode:return-to-caller implementation_run:run-123 <plan-path>`; engine-bound recovery is `mode:return-to-caller implementation_engine:<compact-json> implementation_run:run-123 <plan-path>`. Reject malformed or duplicate carriers instead of treating them as plan text. The run id selects durable state; it never authorizes a fresh dispatch or a different route.
+
+### Target and identity vocabulary
+
+Keep `target`, harness/intermediary route, requested model, served model, and receipt status separate. Target `cursor` means the Cursor harness with its default model. Target `composer` means a Composer-family model requested through Cursor. The fixed adapter may attempt the requested mapping first and substitute only an observed compatible equivalent within the requested target/model family; it must disclose the substitution and may not relabel an unverified served model.
+
+When the target resolves to the current host's default execution route and no distinct model or serving route was requested, collapse the request to native execution and record requested-versus-actual identity rather than shelling out to the same host.
+
+### Per-checkout configuration
+
+Standing configuration uses three flat keys:
+
+- `work_engine_mode`: `off | prefer | require`
+- `work_engine_target`: one target from the vocabulary above
+- `work_engine_model`: optional model pin
+
+`off` disables only the standing preference. It does not cancel an explicit current-turn directive or a higher-precedence typed caller binding. An enabled mode without a valid target is unavailable rather than guessed. Standing configuration supplies defaults, not a permission to change recipient or broaden authority.
 
 ## Step 1: Probe host capability
 
@@ -13,6 +52,7 @@ An engine is usable only when the host exposes a callable primitive for it. Do n
 | **Inline / subagent** | Always. The orchestrator runs units inline or dispatches subagents via the platform's subagent primitive (`Agent`/`Task` in Claude Code, `spawn_agent` in Codex, `subagent` in Pi). | Always callable in-session. This is the default. |
 | **Goal-mode** | The host exposes a callable goal *tool* a skill can invoke — e.g. Codex `create_goal` (sets **and activates** a persistent objective for the current session) plus `update_goal(complete\|blocked)` for terminal status. | **No goal tools exposed.** `/goal` is a top-level user command only; a skill cannot invoke it or any goal tool. Emit a copyable `/goal` prompt for the user to paste, or run inline/subagents. **Codex differs — it does expose `create_goal` (see below).** |
 | **Dynamic-workflow** | The host exposes a callable dynamic-workflow / ultracode-style orchestration primitive that returns structured results and blockers without mid-run user decisions. | **Not callable from inside a skill.** Dynamic workflows start from a user prompt (`ultracode:` or `/effort ultracode`). `ce-work` can only emit a copyable prompt block. |
+| **Cross-model execution** | A resolved fixed route has a qualified, write-capable adapter and satisfies every caller restriction. Load `cross-model-execution.md` only after this engine is selected. | Availability depends on the installed target CLI and its qualified adapter, not on the host's native subagent tools. A same-host default request collapses to native execution. |
 
 Rule of thumb: **probe for the callable tool, don't infer from the command's existence.** If the host exposes a callable goal tool (Codex `create_goal`), goal-mode is a real callable engine — use it. If it exposes only a user-typed `/goal` (Claude Code), goal-mode is prompt-emission only — emit a copyable prompt. The literal `/goal` slash command is not skill-invocable on any host; the *tool* path is what makes Codex callable.
 
@@ -27,6 +67,7 @@ When more than one engine is callable, choose by the plan's decomposition shape:
 | Sequential or modest U-ID decomposition; units share files or depend on each other | **Inline / subagent** (default), or a **goal-mode** prompt for sustained focus when callable | The DoD already defines the end condition; ordinary persistence finishes it. |
 | Many independent U-IDs with disjoint file ownership; codebase-wide sweep; large migration; adversarial cross-checking | **Dynamic-workflow** when callable; otherwise parallel subagents | Workflow scripts hold branching, loops, and intermediate worker state outside the main context and coordinate many agents. Prefer this over goal-mode for large fan-out. |
 | Host exposes no callable goal/workflow primitive (e.g. Claude Code in-session) | **Inline / subagent** | Preserve the same heading-scan / DoD / U-ID discipline without relying on unavailable host features. |
+| A current-turn directive, caller binding, or enabled config resolves a qualified fixed external route | **Cross-model execution** | Another harness/model authors bounded units while the host retains canonical integration, verification, commits, and tail ownership. |
 
 Recommend exactly one path. Present a non-default engine as an "advanced / large-scale option" only when the plan shape plausibly warrants it — never as an equal coin-flip.
 
@@ -35,6 +76,10 @@ Recommend exactly one path. Present a non-default engine as an "advanced / large
 ### Inline / subagent (default)
 
 Follow the dispatch strategy in `SKILL.md` Phase 1 Step 4 (inline, serial subagents, or parallel subagents) and the Phase 2 execution loop. `ce-work` owns task creation, unit sequencing, dispatch, verification, and commits.
+
+### Cross-model execution
+
+Read `cross-model-execution.md` only after routing selects this engine. Resolve and disclose its fixed recipient and restrictions before egress, then follow its serial external-unit transaction through the bundled controller, detached runner, and fixed adapter. If the route is unavailable at preflight, apply the preference/requirement behavior defined there; never let the detached worker select a fallback recipient.
 
 ### Goal-mode and dynamic-workflow
 

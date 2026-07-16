@@ -77,6 +77,23 @@
 
 # plan_skip_scoping_confirm: true   # true | false (default: false)
 
+# --- ce-work implementation engine ---
+# Standing, per-checkout preference for who authors implementation units. Native
+# execution remains the default. A direct instruction in the current prompt wins;
+# an implementation-only binding carried by LFG is next; these keys are the final
+# fallback. `off` disables only this standing preference. `prefer` tries the route
+# and falls back natively with disclosure when unavailable. `require` asks before
+# native fallback in an interactive ce-work run and blocks without prompting under
+# LFG/headless execution. Targets: codex | claude | grok | cursor | composer.
+# `cursor` uses Cursor's configured default model; `composer` requests a Composer-
+# family model through Cursor. A model pin is optional and ignored without a target.
+# Invalid/commented/missing mode resolves to off. An enabled mode without a valid
+# target is unavailable and follows the mode's fallback/block behavior.
+
+# work_engine_mode: prefer        # off | prefer | require (default: off)
+# work_engine_target: codex       # codex | claude | grok | cursor | composer
+# work_engine_model: "gpt-5.6"    # optional model pin; ignored without target
+
 # --- ce-promote ---
 # Written automatically when you decline the Spiral setup offer in /ce-promote.
 # Suppresses that one-time setup nudge in this project. Remove the key to re-enable.
