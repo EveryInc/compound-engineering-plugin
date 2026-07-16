@@ -119,6 +119,31 @@ def _run_verification_log(run_id: str) -> tuple[str, object]:
     return path, os.fdopen(fd, "wb")
 
 
+def _valid_git_object_id(value: object) -> bool:
+    if not isinstance(value, str):
+        return False
+    try:
+        raw = bytes.fromhex(value)
+    except ValueError:
+        return False
+    return len(raw) in {20, 32} and raw.hex() == value
+
+
+def _unit_ready_for_run_verification(unit: object) -> bool:
+    if not isinstance(unit, dict) or unit.get("state") != "cleaned":
+        return False
+    integration = unit.get("integration")
+    if not isinstance(integration, dict):
+        return False
+    canonical = integration.get("canonical_commit")
+    return (
+        isinstance(canonical, dict)
+        and all(_valid_git_object_id(canonical.get(field)) for field in ("commit", "parent", "tree"))
+        and isinstance(canonical.get("at"), str)
+        and bool(canonical["at"])
+    )
+
+
 def _verify_run_locked(args, repo: str, command: list[str]) -> tuple[str, dict]:
     before = semantic_snapshot(repo)
     before_paths = status_paths(repo)
@@ -239,8 +264,11 @@ def cmd_verify_run(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         info = validate_repo(doc)
         units = doc.get("units", {})
-        if not units or any(unit.get("state") != "cleaned" for unit in units.values()):
-            raise Operational("REFUSED", "verify-run requires every external unit to be cleaned")
+        if not units or any(not _unit_ready_for_run_verification(unit) for unit in units.values()):
+            raise Operational(
+                "REFUSED",
+                "verify-run requires every external unit to be cleaned with an accepted canonical commit",
+            )
         if doc.get("integration_lock") is not None:
             raise Operational("BLOCKED", "verify-run requires no active integration lock")
         repo = info["toplevel"]
@@ -250,8 +278,9 @@ def cmd_verify_run(args) -> tuple[str, dict]:
     try:
         with locked_manifest(args.run_id) as doc:
             validate_repo(doc)
-            if any(unit.get("state") != "cleaned" for unit in doc.get("units", {}).values()):
-                raise Operational("BLOCKED", "external unit state changed before plan-wide verification")
+            units = doc.get("units", {})
+            if not units or any(not _unit_ready_for_run_verification(unit) for unit in units.values()):
+                raise Operational("BLOCKED", "external unit completion evidence changed before plan-wide verification")
         result = _verify_run_locked(args, repo, command)
     except Operational as exc:
         if not exc.detail.get("retain_integration_lock"):

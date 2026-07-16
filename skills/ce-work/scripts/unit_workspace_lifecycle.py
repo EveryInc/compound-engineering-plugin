@@ -144,7 +144,6 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
         lock = doc.get("integration_lock")
         retained_plan_lock = bool(lock and plan_wide_blocker_retains_lock(doc, lock))
         wave_id = unit.get("wave", {}).get("id")
-        canonical = unit.get("integration", {}).get("canonical_commit", {}).get("commit")
     if state == "cleaned":
         if lock and lock.get("unit_id") == unit_id:
             if retained_plan_lock:
@@ -156,6 +155,8 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
             cmd_integration_release(SimpleNamespace(run_id=run_id, unit_id=unit_id, lock_token=lock["nonce"]))
             return [{"unit_id": unit_id, "action": "integration-release-reconciled"}]
         return []
+    canonical_record = unit.get("integration", {}).get("canonical_commit")
+    canonical = canonical_record.get("commit") if isinstance(canonical_record, dict) else None
     if state != "committed" or not canonical:
         raise Operational("BLOCKED", "committed-unit recovery lacks an accepted canonical commit")
     if lock is None:

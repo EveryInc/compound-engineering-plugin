@@ -416,6 +416,66 @@ class FeatureTest(unittest.TestCase):
     expect(afterResume.blockers.at(-1).resolved_at).toBeUndefined()
   })
 
+  test("plan-wide verification refuses an explicitly abandoned unit and leaves the run unfinished", () => {
+    const root = temp("ce-work-run-verify-abandoned-")
+    const repo = path.join(root, "repo")
+    const runs = path.join(root, "jobs", "ce-work")
+    mkdirSync(repo)
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.name", "CE Work Host")
+    git(repo, "config", "user.email", "host@example.test")
+    mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
+    const plan = path.join(repo, "docs", "plans", "plan.md")
+    writeFileSync(plan, "# Plan\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "seed")
+    const base = git(repo, "rev-parse", "HEAD")
+    const planDigest = createHash("sha256").update(readFileSync(plan)).digest("hex")
+
+    control(
+      runs, "init", "--run-id", "run-verify-abandoned", "--repo", repo, "--plan", plan,
+      "--plan-digest", planDigest,
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U1"],"restrictions":[]}',
+    )
+    const packet = "abandoned plan-wide verification packet"
+    const prepared = control(
+      runs, "prepare", "--run-id", "run-verify-abandoned", "--unit-id", "U1",
+      "--base", base, "--packet", packetFile(packet),
+    ).body
+    writeFileSync(path.join(prepared.workspace, "abandoned.txt"), "not integrated\n")
+    fakeDoneJob(runs, "run-verify-abandoned", "U1", packet, "job-verify-abandoned")
+    control(
+      runs, "record-job", "--run-id", "run-verify-abandoned", "--unit-id", "U1",
+      "--attempt-id", "attempt-1", "--job-id", "job-verify-abandoned",
+    )
+    const transport = control(
+      runs, "terminalize", "--run-id", "run-verify-abandoned", "--unit-id", "U1",
+    ).body.transport
+    expect(control(
+      runs, "cleanup", "--run-id", "run-verify-abandoned", "--unit-id", "U1",
+      "--abandon", "--expect-transport", transport.commit,
+    ).word).toBe("CLEANED")
+
+    const rejected = controlFailure(
+      runs, "verify-run", "--run-id", "run-verify-abandoned",
+      "--verification-summary", "unchanged checkout passes",
+      "--", "python3", "-c", "raise SystemExit(0)",
+    )
+    expect(rejected.word).toBe("REFUSED")
+    expect(rejected.stderr).toContain("accepted canonical commit")
+    expect(control(runs, "status", "--run-id", "run-verify-abandoned").body).toMatchObject({
+      integration_lock: null,
+      units: { U1: { state: "cleaned", integration: { canonical_commit: null } } },
+      verifications: [],
+    })
+    const resumed = control(
+      runs, "resume", "--repo", repo, "--plan-digest", planDigest,
+    )
+    expect(resumed.body.run_id).toBe("run-verify-abandoned")
+    expect(resumed.body.actions).toEqual([])
+  })
+
   test("controller-owned integration restores exactly when verification fails", () => {
     const root = temp("ce-work-transaction-fail-")
     const repo = path.join(root, "repo")
