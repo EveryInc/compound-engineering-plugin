@@ -59,7 +59,7 @@ describe("ce-compound non-interactive depth contract", () => {
     expect(skill.match(/Documentation complete \(headless lightweight mode\)/g)).toHaveLength(1)
   })
 
-  test("checks docs/solutions discoverability before reporting lightweight status", () => {
+  test("grounds lightweight discoverability from active context without reopening instruction files", () => {
     const lightweightStart = skill.indexOf("### Lightweight Mode")
     const successOutputStart = skill.indexOf("## Success Output")
     const lightweightSection = skill.slice(lightweightStart, successOutputStart)
@@ -68,8 +68,19 @@ describe("ce-compound non-interactive depth contract", () => {
 
     expect(checkStart).toBeGreaterThan(-1)
     expect(reportStart).toBeGreaterThan(checkStart)
-    expect(lightweightSection).toMatch(
-      /Read-only discoverability check[\s\S]+docs\/solutions\/[\s\S]+never edits instruction files/i,
+    expect(lightweightSection).toContain(
+      "the project's active instructions and conventions already in your context",
+    )
+    expect(lightweightSection).not.toContain("Phase 2.6")
+    expect(lightweightSection).not.toMatch(/quick read of `AGENTS\.md`\/`CLAUDE\.md`/i)
+  })
+
+  test("reports an explicit not-applicable state when no project instructions are active", () => {
+    expect(skill).toMatch(
+      /not applicable — no active project instructions[^\n]+emit no (?:discoverability )?tip/i,
+    )
+    expect(skill).toContain(
+      "Discoverability: <no gap | gap noted — instruction-file tip emitted | not applicable — no active project instructions>",
     )
   })
 
