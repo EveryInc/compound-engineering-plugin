@@ -1223,6 +1223,22 @@ describe("ce-work unit workspace controller", () => {
     const discovered = ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest)
     expect(discovered.body.run_id).toBe("run-committed")
     expect(discovered.body.actions).toEqual([])
+
+    writeFileSync(path.join(f.repo, "manual-advance.txt"), "not controller accepted\n")
+    git(f.repo, "add", "manual-advance.txt")
+    git(f.repo, "commit", "--no-verify", "-m", "test: advance outside controller")
+    const refused = ctl(
+      runs, "verify-run", "--run-id", "run-committed",
+      "--verification-summary", "must not verify an advanced head",
+      "--", "python3", "-c", "from pathlib import Path; Path('verification-ran').write_text('ran')",
+    )
+    expect(refused.word).toBe("BLOCKED")
+    expect(refused.body.accepted_heads).toContain(acceptedHead)
+    expect(refused.body.actual_head).toBe(git(f.repo, "rev-parse", "HEAD"))
+    expect(existsSync(path.join(f.repo, "verification-ran"))).toBe(false)
+    expect(ctl(runs, "status", "--run-id", "run-committed").body.verifications).toEqual([])
+
+    git(f.repo, "reset", "--hard", acceptedHead)
     expect(ctl(
       runs, "verify-run", "--run-id", "run-committed",
       "--verification-summary", "plan-wide gate passed",

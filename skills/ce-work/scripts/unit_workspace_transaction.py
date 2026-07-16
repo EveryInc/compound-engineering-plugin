@@ -144,11 +144,36 @@ def _unit_ready_for_run_verification(unit: object) -> bool:
     )
 
 
-def _verify_run_locked(args, repo: str, command: list[str]) -> tuple[str, dict]:
+def _validate_accepted_run_head(repo: str, units: dict, current_head: str) -> None:
+    """Require HEAD to be the accepted commit that contains every external unit."""
+    commits: set[str] = set()
+    for unit in units.values():
+        canonical = unit["integration"]["canonical_commit"]
+        commit = canonical["commit"]
+        if commit in commits:
+            raise Operational("BLOCKED", "external unit completion evidence contains duplicate canonical commits")
+        commits.add(commit)
+
+    if current_head not in commits:
+        raise Operational(
+            "BLOCKED",
+            "canonical HEAD no longer matches the final controller-accepted integration commit",
+            {"accepted_heads": sorted(commits), "actual_head": current_head},
+        )
+    if any(git_text(repo, "merge-base", commit, current_head, check=False) != commit for commit in commits):
+        raise Operational(
+            "BLOCKED",
+            "canonical HEAD does not contain every controller-accepted external unit",
+            {"accepted_heads": sorted(commits), "actual_head": current_head},
+        )
+
+
+def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tuple[str, dict]:
     before = semantic_snapshot(repo)
     before_paths = status_paths(repo)
     if not before["status_empty"] or before_paths:
         raise Operational("BLOCKED", "verify-run requires a clean canonical checkout")
+    _validate_accepted_run_head(repo, units, before["head"])
 
     verification_log, stream = _run_verification_log(args.run_id)
     with stream:
@@ -281,7 +306,8 @@ def cmd_verify_run(args) -> tuple[str, dict]:
             units = doc.get("units", {})
             if not units or any(not _unit_ready_for_run_verification(unit) for unit in units.values()):
                 raise Operational("BLOCKED", "external unit completion evidence changed before plan-wide verification")
-        result = _verify_run_locked(args, repo, command)
+            accepted_units = dict(units)
+        result = _verify_run_locked(args, repo, command, accepted_units)
     except Operational as exc:
         if not exc.detail.get("retain_integration_lock"):
             cmd_integration_release(_args(run_id=args.run_id, unit_id=lock_unit, lock_token=token))
