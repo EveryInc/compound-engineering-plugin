@@ -48,6 +48,14 @@
 # brainstorm_use_fable: true     # true | false (default: false)
 # fable_nudge: false             # true | false (default: true -- one-time tip when elevation is available but off)
 
+# --- Cross-model review peer ---
+# Explicit target for ce-code-review and ce-doc-review's optional cross-model pass.
+# `fable` uses Fable 5 high-thinking through Cursor (NO ZDR; Cursor + Anthropic
+# receive reviewed content). On a Claude-family host, Fable is same-family and the
+# skill falls through to a different provider. Missing/invalid -> first available different provider.
+
+# cross_model_peer: fable        # codex | claude | grok | fable | cursor | composer
+
 # --- PR concept teaching (ce-commit-push-pr) ---
 # When a PR introduces a concept new to the codebase, the generated PR
 # description gains a "New concepts" section teaching it. The section toggle is

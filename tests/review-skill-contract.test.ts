@@ -931,6 +931,14 @@ describe("cross-model peer skip legibility", () => {
       expect(src).not.toContain("XHOST_FAMILY=cursor")
       expect(src).toContain("Never infer serving family from the Cursor brand")
     })
+
+    test(`${reference} classifies the macOS Cursor Keychain sandbox failure without credential copying`, async () => {
+      const src = await readRepoFile(reference)
+      expect(src).toContain("SecItemCopyMatching failed -50")
+      expect(src).toContain("Keychain isolation, not an authentication failure")
+      expect(src).toContain("single detached-runner start call")
+      expect(src).toMatch(/Never copy, print, or relocate Cursor credentials/)
+    })
   }
 
   // The provider runs under `set -m` in its OWN process group so the worker can

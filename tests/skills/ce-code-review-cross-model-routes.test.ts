@@ -71,7 +71,7 @@ const DOC_SCRIPT = path.join(
   "../../skills/ce-doc-review/scripts/cross-model-doc-review.sh",
 )
 
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "fable-cursor", "cursor", "composer"] as const
 
 const NEVER_FLAGS = [
   "--yolo",
@@ -132,7 +132,7 @@ function run(
     }).stdout?.trim())
     effectiveEnv.CROSS_MODEL_FIXED_ROUTE = target === "grok"
       ? (grokAvailable ? "grok-cli" : "grok-cursor")
-      : target
+      : target === "fable" ? "fable-cursor" : target
   }
   const r = spawnSync("bash", [SCRIPT, ...args], {
     encoding: "utf8",
@@ -270,7 +270,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   })
 
   test("cursor-agent routes: ask mode + sandbox + repo workspace", () => {
-    for (const route of ["grok-cursor", "cursor", "composer"]) {
+    for (const route of ["grok-cursor", "fable-cursor", "cursor", "composer"]) {
       const cmd = emitAdapter(route)
       expect(cmd).toContain("--mode ask")
       expect(cmd).toContain("--trust")
@@ -278,6 +278,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
       expect(cmd).toContain("--workspace <repo-root>")
     }
     expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
+    expect(emitAdapter("fable-cursor")).toContain("claude-fable-5-thinking-high")
     expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
@@ -285,7 +286,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   test("adapters target repo-root, not shared run-dir fold-in path", () => {
     expect(emitAdapter("codex")).toContain("-C <repo-root>")
     expect(emitAdapter("grok-cli")).toContain("--cwd <repo-root>")
-    for (const route of ["grok-cursor", "cursor", "composer"]) {
+    for (const route of ["grok-cursor", "fable-cursor", "cursor", "composer"]) {
       expect(emitAdapter(route)).toContain("--workspace <repo-root>")
     }
     for (const route of ROUTES) {
@@ -309,6 +310,21 @@ describe("cross-model-adversarial-review provider selection", () => {
 
   test("an explicit Cursor preference uses the Cursor default target", () => {
     expect(resolvePeers("claude", "cursor", ["cursor-agent"])).toBe("cursor")
+  })
+
+  test("an explicit Fable preference uses Cursor when Cursor egress is allowed", () => {
+    expect(resolvePeers("codex", "fable", ["cursor-agent"])).toBe("fable")
+  })
+
+  test("a same-family Fable preference is excluded with an actionable reason", () => {
+    const { env } = sandbox(["cursor-agent"])
+    const runDir = makeRunDir()
+    const r = run(["claude", "fable", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_DRY_RUN: "1",
+    })
+    expect(r.stdout).not.toContain("RESOLVED_PEERS: fable")
+    expect(r.stderr).toContain("shares host serving family 'claude'")
   })
 
   test("CROSS_MODEL_MAX_PEERS=2 resolves two different providers", () => {
@@ -359,6 +375,18 @@ describe("cross-model-adversarial-review provider selection", () => {
     expect(resolvePeers("claude", "grok", ["cursor-agent"], {
       CROSS_MODEL_PEERS: "grok,cursor",
     })).toBe("grok")
+  })
+
+  test("Fable-only allowlist does not implicitly sanction the Cursor intermediary", () => {
+    expect(resolvePeers("codex", "fable", ["cursor-agent"], {
+      CROSS_MODEL_PEERS: "fable",
+    })).toBe("")
+  })
+
+  test("Fable plus Cursor allowlist sanctions Fable-via-Cursor", () => {
+    expect(resolvePeers("codex", "fable", ["cursor-agent"], {
+      CROSS_MODEL_PEERS: "fable,cursor",
+    })).toBe("fable")
   })
 })
 
@@ -540,6 +568,20 @@ describe("cross-model-adversarial-review normalization", () => {
     expect(r.stderr).toContain("model=composer-next-fast")
   })
 
+  test("Fable through Cursor records the requested model but not verified independence", () => {
+    const { env } = sandbox(["cursor-agent"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[]}'\n`)
+    const runDir = makeRunDir()
+    run(["codex", "fable", "HEAD", runDir], runDir, env)
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-fable.json"), "utf8"))
+    expect(out.cross_model_target).toBe("fable")
+    expect(out.cross_model_route).toBe("fable-cursor")
+    expect(out.cross_model_harness).toBe("cursor-agent")
+    expect(out.model_requested).toBe("claude-fable-5-thinking-high")
+    expect(out.model_actual).toBe("unverified")
+    expect(out.serving_family).toBe("unknown")
+    expect(out.independence_verified).toBe(false)
+  })
+
   test("model overrides are bound to their declared target", () => {
     const override = {
       CROSS_MODEL_MODEL_OVERRIDE_TARGET: "composer",
@@ -642,6 +684,25 @@ describe("cross-model-adversarial-review fixed-recipient dispatch", () => {
     expect(r.files).not.toContain("adversarial-grok.json")
     expect(r.stderr).toContain("requires Cursor intermediary sanction")
   })
+
+  test("a fixed Fable-via-Cursor route requires both target and intermediary sanction", () => {
+    const { env } = sandbox(["cursor-agent"], okStub)
+    const runDir = makeRunDir()
+    const blocked = run(["codex", "fable", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_PEERS: "fable",
+      CROSS_MODEL_FIXED_ROUTE: "fable-cursor",
+    })
+    expect(blocked.files).not.toContain("adversarial-fable.json")
+    expect(blocked.stderr).toContain("requires Cursor intermediary sanction")
+
+    const allowed = run(["codex", "fable", "HEAD", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_PEERS: "fable,cursor",
+      CROSS_MODEL_FIXED_ROUTE: "fable-cursor",
+    })
+    expect(allowed.files).toContain("adversarial-fable.json")
+  })
 })
 
 describe("cross-model provider kernel parity (code-review vs doc-review)", () => {
@@ -654,6 +715,8 @@ describe("cross-model provider kernel parity (code-review vs doc-review)", () =>
     expect(emitAdapter("grok-cli", DOC_SCRIPT)).toContain("grok-4.5")
     expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
     expect(emitAdapter("grok-cursor", DOC_SCRIPT)).toContain("cursor-grok-4.5-high")
+    expect(emitAdapter("fable-cursor")).toContain("claude-fable-5-thinking-high")
+    expect(emitAdapter("fable-cursor", DOC_SCRIPT)).toContain("claude-fable-5-thinking-high")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
     expect(emitAdapter("composer", DOC_SCRIPT)).toContain("composer-2.5-fast")
   })

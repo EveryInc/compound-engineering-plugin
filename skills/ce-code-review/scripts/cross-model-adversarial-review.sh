@@ -9,9 +9,9 @@
 # adversarial persona, on a different model."
 #
 # Independence is by PROVIDER, not CLI brand. A provider is reached by a ROUTE:
-# its dedicated CLI, or (for fixed grok-cursor / composer routes) cursor-agent. The peer
-# runs on ONE model per provider at HIGH reasoning (composer's -fast tier is its
-# ceiling, an accepted exception).
+# its dedicated CLI, or (for fixed grok-cursor / fable-cursor / composer routes)
+# cursor-agent. The peer runs on ONE model per provider at HIGH reasoning
+# (composer's -fast tier is its ceiling, an accepted exception).
 #
 # Usage:
 #   cross-model-adversarial-review.sh <host-provider> <candidates> <base-ref> <run-dir>
@@ -23,7 +23,7 @@
 #                   but any returned review remains non-independent and cannot
 #                   promote agreement.
 #   <candidates>    comma-separated ordered provider keys to consider, e.g.
-#                   "codex,claude,grok,composer". The skill front-loads any
+#                   "codex,fable,claude,grok,composer". The skill front-loads any
 #                   resolved preference (conversation > config.local.yaml >
 #                   project-instructions-in-context); the script excludes the
 #                   host, applies the CROSS_MODEL_PEERS allowlist, and walks this
@@ -36,7 +36,7 @@
 # Test/introspection mode (no model call, no side effects):
 #   cross-model-adversarial-review.sh --emit-adapter <route>
 #     prints the exact argv the given route would run (route in:
-#     codex | claude | grok-cli | grok-cursor | composer). Both this mode and the
+#     codex | claude | grok-cli | grok-cursor | fable-cursor | composer). Both this mode and the
 #     live run build their argv from adapter_argv(), so route-safety tests
 #     assert on the same command string the peer actually runs.
 #
@@ -74,6 +74,7 @@ M_CODEX="gpt-5.6-sol"          # codex CLI            (-c model_reasoning_effort
 M_CLAUDE="opus"                # claude CLI, Opus 4.8 (--effort high)
 M_GROK="grok-4.5"              # grok CLI             (--effort high)
 M_GROK_CURSOR="cursor-grok-4.5-high"  # fixed cursor-agent Grok route (current id)
+M_FABLE_CURSOR="claude-fable-5-thinking-high" # fixed cursor-agent Fable route (NO ZDR)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
 # --- model-identity receipt (R7/R8) -----------------------------------------
@@ -106,6 +107,7 @@ route_model() {   # <route> -> the M_* constant that route requests
     claude)      printf '%s' "$M_CLAUDE" ;;
     grok-cli)    printf '%s' "$M_GROK" ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
+    fable-cursor) printf '%s' "$M_FABLE_CURSOR" ;;
     cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
   esac
@@ -115,6 +117,7 @@ route_target() {
   case "$1" in
     codex|claude|cursor|composer) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
+    fable-cursor) printf 'fable' ;;
   esac
 }
 
@@ -123,13 +126,14 @@ route_harness() {
     codex) printf 'codex' ;;
     claude) printf 'claude' ;;
     grok-cli) printf 'grok' ;;
-    grok-cursor|cursor|composer) printf 'cursor-agent' ;;
+    grok-cursor|fable-cursor|cursor|composer) printf 'cursor-agent' ;;
   esac
 }
 
 target_serving_family() {
   case "$1" in
     codex|claude|grok|composer) printf '%s' "$1" ;;
+    fable) printf 'claude' ;;
     cursor) printf 'unknown' ;;
   esac
 }
@@ -200,6 +204,10 @@ adapter_argv() {
       printf '%s\0' cursor-agent -p --model "$(route_model grok-cursor)" --mode ask --trust \
         --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
       ;;
+    fable-cursor)
+      printf '%s\0' cursor-agent -p --model "$(route_model fable-cursor)" --mode ask --trust \
+        --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
+      ;;
     cursor)
       printf '%s\0' cursor-agent -p --mode ask --trust \
         --sandbox enabled --workspace "$PEER_WORKDIR" --output-format json
@@ -223,7 +231,7 @@ validate_model_override() {
   [ "$override_target" = "$target" ] || return 0
   [ "$target" != "cursor" ] || return 1
   case "$route:$override" in
-    codex:gpt-*|codex:o[0-9]*|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|composer:composer-*) ;;
+    codex:gpt-*|codex:o[0-9]*|claude:opus|claude:sonnet|claude:haiku|claude:claude-*|grok-cli:grok-*|grok-cursor:cursor-grok-*|fable-cursor:claude-fable-*|composer:composer-*) ;;
     *) return 1 ;;
   esac
 }
@@ -236,7 +244,7 @@ if [ "${1:-}" = "--emit-adapter" ]; then
   PROMPT_FILE="<prompt-file>"; SCHEMA_REF="<schema>"
   route="${2:-}"
   validate_model_override "$route" 2>/dev/null || { echo "model override '${CROSS_MODEL_MODEL_OVERRIDE:-}' not compatible with route '$route'" >&2; exit 2; }
-  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|cursor|composer)" >&2; exit 2; }
+  adapter_argv "$route" >/dev/null 2>&1 || { echo "unknown route '$route' (want codex|claude|grok-cli|grok-cursor|fable-cursor|cursor|composer)" >&2; exit 2; }
   adapter_argv "$route" | tr '\0' ' '; echo
   exit 0
 fi
@@ -291,8 +299,8 @@ out_missing_or_invalid() {
   ! jq -e '(.findings|type)=="array"' "$RAW_OUT" >/dev/null 2>&1
 }
 
-# cursor-agent egresses through Cursor even when the model is grok. Allowlist that
-# does not sanction Cursor must not fall through grok -> cursor-agent.
+# cursor-agent egresses through Cursor even when the model is Grok or Fable.
+# An allowlist that does not sanction Cursor must not use either intermediary route.
 cursor_egress_ok() { [ -z "$ALLOW" ] || in_csv cursor "$ALLOW" || in_csv composer "$ALLOW"; }
 
 provider_available() {
@@ -300,6 +308,7 @@ provider_available() {
     codex)    command -v codex >/dev/null 2>&1 ;;
     claude)   command -v claude >/dev/null 2>&1 ;;
     grok)     command -v grok >/dev/null 2>&1 || { cursor_egress_ok && command -v cursor-agent >/dev/null 2>&1; } ;;
+    fable)    cursor_egress_ok && command -v cursor-agent >/dev/null 2>&1 ;;
     cursor)   command -v cursor-agent >/dev/null 2>&1 ;;
     composer) command -v cursor-agent >/dev/null 2>&1 ;;
     *) return 1 ;;
@@ -311,10 +320,17 @@ OLDIFS="$IFS"; IFS=','
 for p in $CANDIDATES; do
   p="$(printf '%s' "$p" | tr -d '[:space:]')"
   [ -n "$p" ] || continue
-  case "$p" in codex|claude|grok|cursor|composer) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
-  [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ] && continue
+  case "$p" in codex|claude|grok|fable|cursor|composer) ;; *) log "ignoring unknown target '$p' in candidates"; continue ;; esac
+  if [ "$HOST_PROVIDER" != "unknown" ] && [ "$(target_serving_family "$p")" = "$HOST_PROVIDER" ]; then
+    log "target '$p' shares host serving family '$HOST_PROVIDER'; excluding it from the cross-model pass"
+    continue
+  fi
   case " $SELECTED " in *" $p "*) continue ;; esac
   if [ -n "$ALLOW" ] && ! in_csv "$p" "$ALLOW"; then log "provider '$p' not in CROSS_MODEL_PEERS allowlist; skipping"; continue; fi
+  if [ "$p" = "fable" ] && command -v cursor-agent >/dev/null 2>&1 && ! cursor_egress_ok; then
+    log "provider 'fable' requires Cursor intermediary sanction (add 'cursor' to CROSS_MODEL_PEERS); skipping"
+    continue
+  fi
   if ! provider_available "$p"; then log "provider '$p' has no installed route; skipping"; continue; fi
   SELECTED="$SELECTED $p"
 done
@@ -550,7 +566,7 @@ attempt_route() {
   build_cmd "$route"
   case "$route" in
     codex|claude|grok-cli) note="$(route_model "$route") (effort high)" ;;
-    grok-cursor|composer)  note="$(route_model "$route")" ;;
+    grok-cursor|fable-cursor|composer)  note="$(route_model "$route")" ;;
     cursor)                note="auto (serving model unverified)" ;;
   esac
   log "peer run: provider=$provider route=$route model=$note lens=adversarial read-only in-tree (idle ${IDLE_SECS}s / hard ${HARD_SECS}s); reviewed code/diff may egress to this provider"
@@ -572,7 +588,7 @@ attempt_route() {
       run_timeout_cmd "$PROMPT_FILE"
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT"
       ;;
-    grok-cursor|cursor|composer)
+    grok-cursor|fable-cursor|cursor|composer)
       compose_prompt_embedded
       run_timeout_cmd "$PROMPT_FILE"
       [ "$RUN_SUCCEEDED" = true ] && parse_structured "$PEERLOG" "$RAW_OUT"
@@ -593,8 +609,8 @@ run_provider() {
   RAW_OUT="$RAW_DIR/adversarial-$provider.raw.json"
   [ -n "$fixed" ] || { log "host must resolve one fixed route before egress; skipping"; rm -f "$OUT"; return 0; }
   [ "$(route_target "$fixed")" = "$provider" ] || { log "fixed route '$fixed' does not match target '$provider'; skipping"; rm -f "$OUT"; return 0; }
-  if [ "$fixed" = "grok-cursor" ] && ! cursor_egress_ok; then
-    log "fixed route 'grok-cursor' requires Cursor intermediary sanction; skipping"
+  if { [ "$fixed" = "grok-cursor" ] || [ "$fixed" = "fable-cursor" ]; } && ! cursor_egress_ok; then
+    log "fixed route '$fixed' requires Cursor intermediary sanction; skipping"
     rm -f "$OUT"
     return 0
   fi
@@ -608,7 +624,7 @@ run_provider() {
     _norm="$(mktemp "${TMPDIR:-/tmp}/xmodel-norm-XXXXXX")"
     case "$ACTUAL_ROUTE:$MODEL_ACTUAL" in
       cursor:*) _target_family="unknown" ;;
-      composer:unverified|grok-cursor:unverified) _target_family="unknown" ;;
+      composer:unverified|grok-cursor:unverified|fable-cursor:unverified) _target_family="unknown" ;;
       *) _target_family="$(target_serving_family "$provider")" ;;
     esac
     _independent=false

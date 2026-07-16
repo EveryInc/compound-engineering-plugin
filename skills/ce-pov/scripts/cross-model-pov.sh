@@ -82,6 +82,7 @@ M_CODEX="gpt-5.6-sol"          # codex CLI            (-c model_reasoning_effort
 M_CLAUDE="opus"                # claude CLI, Opus 4.8 (--effort high)
 M_GROK="grok-4.5"              # grok CLI             (--effort high)
 M_GROK_CURSOR="cursor-grok-4.5-high" # cursor-agent grok route (reasoning baked into id)
+M_FABLE_CURSOR="claude-fable-5-thinking-high" # shared receipt-kernel mapping (route not exposed here)
 M_COMPOSER="composer-2.5-fast" # cursor-agent composer (no high tier; -fast is the ceiling)
 
 # --- model-identity receipt (R7/R8) -----------------------------------------
@@ -114,6 +115,7 @@ route_model() {   # <route> -> the M_* constant that route requests
     claude)      printf '%s' "$M_CLAUDE" ;;
     grok-cli)    printf '%s' "$M_GROK" ;;
     grok-cursor) printf '%s' "$M_GROK_CURSOR" ;;
+    fable-cursor) printf '%s' "$M_FABLE_CURSOR" ;;
     cursor)      printf 'auto' ;;
     composer)    printf '%s' "$M_COMPOSER" ;;
   esac
@@ -123,6 +125,7 @@ route_target() {
   case "$1" in
     codex|claude|cursor|composer) printf '%s' "$1" ;;
     grok-cli|grok-cursor) printf 'grok' ;;
+    fable-cursor) printf 'fable' ;;
   esac
 }
 
@@ -131,13 +134,14 @@ route_harness() {
     codex) printf 'codex' ;;
     claude) printf 'claude' ;;
     grok-cli) printf 'grok' ;;
-    grok-cursor|cursor|composer) printf 'cursor-agent' ;;
+    grok-cursor|fable-cursor|cursor|composer) printf 'cursor-agent' ;;
   esac
 }
 
 target_serving_family() {
   case "$1" in
     codex|claude|grok|composer) printf '%s' "$1" ;;
+    fable) printf 'claude' ;;
     cursor) printf 'unknown' ;;
   esac
 }

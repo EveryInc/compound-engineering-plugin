@@ -76,7 +76,7 @@ const SCRIPT = path.join(
   "../../skills/ce-doc-review/scripts/cross-model-doc-review.sh",
 )
 
-const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "cursor", "composer"] as const
+const ROUTES = ["codex", "claude", "grok-cli", "grok-cursor", "fable-cursor", "cursor", "composer"] as const
 
 // Flags that must NEVER appear on any route — they would grant the peer write /
 // auto-approve / no-sandbox privileges (R17).
@@ -151,7 +151,7 @@ function run(
     }).stdout?.trim())
     effectiveEnv.CROSS_MODEL_FIXED_ROUTE = target === "grok"
       ? (grokAvailable ? "grok-cli" : "grok-cursor")
-      : target
+      : target === "fable" ? "fable-cursor" : target
   }
   const r = spawnSync("bash", [SCRIPT, ...args], { encoding: "utf8", env: effectiveEnv })
   return {
@@ -277,7 +277,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
   })
 
   test("cursor-agent routes: ask mode + sandbox enabled + scratch workspace", () => {
-    for (const route of ["grok-cursor", "cursor", "composer"]) {
+    for (const route of ["grok-cursor", "fable-cursor", "cursor", "composer"]) {
       const cmd = emitAdapter(route)
       expect(cmd).toContain("--mode ask")
       expect(cmd).toContain("--trust")
@@ -285,6 +285,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
       expect(cmd).toContain("--workspace")
     }
     expect(emitAdapter("grok-cursor")).toContain("cursor-grok-4.5-high")
+    expect(emitAdapter("fable-cursor")).toContain("claude-fable-5-thinking-high")
     expect(emitAdapter("cursor")).not.toContain("--model")
     expect(emitAdapter("composer")).toContain("composer-2.5-fast")
   })
@@ -295,7 +296,7 @@ printf '%s' '{"structured_output":{"reviewer":"adversarial","findings":[],"resid
     // list or read a sibling lens's <lens>-<provider>.json from its own cwd.
     expect(emitAdapter("codex")).toContain("-C <peer-workdir>")
     expect(emitAdapter("grok-cli")).toContain("--cwd <peer-workdir>")
-    for (const route of ["grok-cursor", "composer"]) {
+    for (const route of ["grok-cursor", "fable-cursor", "composer"]) {
       expect(emitAdapter(route)).toContain("--workspace <peer-workdir>")
     }
     // No route points its cwd/workspace or output at the shared run-dir.
@@ -335,6 +336,22 @@ describe("cross-model-doc-review provider selection (R7, R15, R16)", () => {
   test("a front-loaded preference overrides the default order", () => {
     const all = ["codex", "claude", "grok", "cursor-agent"]
     expect(resolvePeers("claude", "grok,codex,claude,composer", all)).toBe("grok")
+  })
+
+  test("an explicit Fable preference uses Cursor when Cursor egress is allowed", () => {
+    expect(resolvePeers("codex", "fable", ["cursor-agent"])).toBe("fable")
+  })
+
+  test("a same-family Fable preference is excluded with an actionable reason", () => {
+    const { env } = sandbox(["cursor-agent"])
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const r = run(["claude", "fable", "adversarial", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_DRY_RUN: "1",
+    })
+    expect(r.stdout).not.toContain("RESOLVED_PEERS: fable")
+    expect(r.stderr).toContain("shares host serving family 'claude'")
   })
 
   test("CROSS_MODEL_MAX_PEERS=2 resolves two different providers", () => {
@@ -392,6 +409,15 @@ describe("cross-model-doc-review provider selection (R7, R15, R16)", () => {
     expect(resolvePeers("claude", "grok", ["cursor-agent"], {
       CROSS_MODEL_PEERS: "grok,cursor",
     })).toBe("grok")
+  })
+
+  test("Fable needs both target and Cursor intermediary sanction", () => {
+    expect(resolvePeers("codex", "fable", ["cursor-agent"], {
+      CROSS_MODEL_PEERS: "fable",
+    })).toContain("no-resolution")
+    expect(resolvePeers("codex", "fable", ["cursor-agent"], {
+      CROSS_MODEL_PEERS: "fable,cursor",
+    })).toBe("fable")
   })
 
   test("creates a non-existent scratch run-dir instead of skipping (no silent no-op)", () => {
@@ -613,6 +639,20 @@ describe("cross-model-doc-review normalization (R18, KTD5)", () => {
     expect(r.stderr).toContain("model=composer-next-fast")
   })
 
+  test("Fable through Cursor records the requested model but not verified independence", () => {
+    const { env } = sandbox(["cursor-agent"], `#!/bin/sh\ncat >/dev/null\nprintf '%s' '{"reviewer":"adversarial","findings":[]}'\n`)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    run(["codex", "fable", "adversarial", doc, "plan", "none", runDir], runDir, env)
+    const out = JSON.parse(readFileSync(path.join(runDir, "adversarial-fable.json"), "utf8"))
+    expect(out.cross_model_target).toBe("fable")
+    expect(out.cross_model_route).toBe("fable-cursor")
+    expect(out.model_requested).toBe("claude-fable-5-thinking-high")
+    expect(out.model_actual).toBe("unverified")
+    expect(out.serving_family).toBe("unknown")
+    expect(out.independence_verified).toBe(false)
+  })
+
   test("model overrides are bound to their declared target", () => {
     const override = {
       CROSS_MODEL_MODEL_OVERRIDE_TARGET: "composer",
@@ -730,6 +770,26 @@ describe("cross-model-doc-review fixed-recipient dispatch (R15, R16)", () => {
     })
     expect(r.files).not.toContain("adversarial-grok.json")
     expect(r.stderr).toContain("requires Cursor intermediary sanction")
+  })
+
+  test("a fixed Fable-via-Cursor route requires both target and intermediary sanction", () => {
+    const { env } = sandbox(["cursor-agent"], okStub)
+    const doc = makeDoc()
+    const runDir = makeRunDir()
+    const blocked = run(["codex", "fable", "adversarial", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_PEERS: "fable",
+      CROSS_MODEL_FIXED_ROUTE: "fable-cursor",
+    })
+    expect(blocked.files).not.toContain("adversarial-fable.json")
+    expect(blocked.stderr).toContain("requires Cursor intermediary sanction")
+
+    const allowed = run(["codex", "fable", "adversarial", doc, "plan", "none", runDir], runDir, {
+      ...env,
+      CROSS_MODEL_PEERS: "fable,cursor",
+      CROSS_MODEL_FIXED_ROUTE: "fable-cursor",
+    })
+    expect(allowed.files).toContain("adversarial-fable.json")
   })
 })
 
