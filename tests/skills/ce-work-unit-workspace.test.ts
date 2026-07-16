@@ -809,6 +809,88 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("PREFLIGHT_OK")
   }, 20000)
 
+  test("resume completes an interrupted restore, releases its lock, and reconciles its blocker", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-restore-resume", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-restore-resume", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, "run-restore-resume", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "new.txt"), "new\n")
+    const job = fakeDoneJob(runs, "run-restore-resume", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-restore-resume", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    const transport = ctl(
+      runs, "terminalize", "--run-id", "run-restore-resume", "--unit-id", "U",
+    ).body.transport
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "before-canonical-commit,restore-after-reset" },
+      "integrate", "--run-id", "run-restore-resume", "--unit-id", "U",
+      "--commit-message", "integrate U", "--", "true",
+    )
+    expect(interrupted.word).toBe("BLOCKED")
+    expect(interrupted.body).toMatchObject({
+      reason: "integration failed and exact restoration could not be proven",
+      retain_integration_lock: true,
+    })
+    const beforeResume = ctl(runs, "status", "--run-id", "run-restore-resume").body
+    expect(beforeResume.units.U.state).toBe("restoring")
+    expect(beforeResume.integration_lock).toMatchObject({ unit_id: "U", phase: "held" })
+    expect(beforeResume.blockers).toHaveLength(1)
+
+    const manifestPath = path.join(runs, "run-restore-resume", "manifest.json")
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+    manifest.blockers.push({
+      at: "2026-07-16T00:00:00Z",
+      unit_id: "U",
+      reason: "unrelated retained recovery blocker",
+      retain_integration_lock: true,
+    })
+    writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`, { mode: 0o600 })
+    chmodSync(manifestPath, 0o600)
+
+    const resumed = ctl(runs, "resume", "--run-id", "run-restore-resume")
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body.actions).toContainEqual({
+      unit_id: "U",
+      action: "restored",
+      canonical_preserved: true,
+      integration_lock_released: true,
+    })
+    const recovered = ctl(runs, "status", "--run-id", "run-restore-resume").body
+    expect(recovered.units.U.state).toBe("preserved")
+    expect(recovered.units.U.integration.restore).toMatchObject({ exact: true })
+    expect(recovered.integration_lock).toBeNull()
+    const applicable = recovered.blockers.find(
+      (blocker: any) => blocker.reason === "integration failed and exact restoration could not be proven",
+    )
+    const unrelated = recovered.blockers.find(
+      (blocker: any) => blocker.reason === "unrelated retained recovery blocker",
+    )
+    expect(applicable).toMatchObject({ resolved_by: "resume" })
+    expect(applicable.resolved_at).toBeTruthy()
+    expect(unrelated.resolved_at).toBeUndefined()
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+
+    const fallback = ctl(
+      runs, "claim-fallback", "--run-id", "run-restore-resume", "--unit-id", "U",
+      "--caller-mode", "headless",
+    )
+    expect(fallback.word).toBe("FALLBACK_AUTHORIZED")
+    expect(fallback.body.reason).toBe("canonical-attempt-preserved")
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-restore-resume", "--unit-id", "U",
+      "--abandon", "--expect-transport", transport.commit,
+    ).word).toBe("CLEANED")
+  }, 20000)
+
   test("refuses a wave whose terminalized transports overlap", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -1327,7 +1409,7 @@ describe("ce-work unit workspace controller", () => {
     const job = fakeDoneJob(runs, "run-restore", "U", "packet")
     ctl(runs, "record-job", "--run-id", "run-restore", "--unit-id", "U", "--attempt-id", "attempt-1", "--job-id", job)
     const transport = ctl(runs, "terminalize", "--run-id", "run-restore", "--unit-id", "U").body.transport
-    const token = ctl(runs, "integration-acquire", "--run-id", "run-restore", "--unit-id", "U").body.lock_token
+    let token = ctl(runs, "integration-acquire", "--run-id", "run-restore", "--unit-id", "U").body.lock_token
     ctl(runs, "preflight", "--run-id", "run-restore", "--unit-id", "U", "--lock-token", token)
     git(f.repo, "cherry-pick", "--no-commit", transport.commit)
     const applyInterrupted = ctlWithEnv(
@@ -1347,6 +1429,8 @@ describe("ce-work unit workspace controller", () => {
     const interrupted = ctlWithEnv(runs, { CE_WORK_TEST_FAULT: "restore-after-reset" }, "restore", "--run-id", "run-restore", "--unit-id", "U", "--lock-token", token)
     expect(interrupted.word).toBe("INTERRUPTED")
     expect(ctl(runs, "resume", "--run-id", "run-restore").body.actions.map((a: any) => a.action)).toContain("restored")
+
+    token = ctl(runs, "integration-acquire", "--run-id", "run-restore", "--unit-id", "U").body.lock_token
 
     ctl(runs, "preflight", "--run-id", "run-restore", "--unit-id", "U", "--lock-token", token)
     git(f.repo, "cherry-pick", "--no-commit", transport.commit)

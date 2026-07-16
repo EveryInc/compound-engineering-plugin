@@ -542,7 +542,7 @@ class FeatureTest(unittest.TestCase):
     expect(status.integration_lock).toBeNull()
   })
 
-  test("controller-owned integration surfaces an unproven restore and retains the lock", () => {
+  test("controller-owned integration releases the lock after resumed exact restoration", () => {
     const root = temp("ce-work-transaction-restore-fail-")
     const repo = path.join(root, "repo")
     const runs = path.join(root, "jobs", "ce-work")
@@ -594,12 +594,16 @@ class FeatureTest(unittest.TestCase):
     const resumed = control(runs, "resume", "--run-id", "transaction-restore-fail")
     expect(resumed.body.actions.map((action: any) => action.action)).toContain("restored")
     const recovered = control(runs, "status", "--run-id", "transaction-restore-fail").body
-    expect(recovered.integration_lock).not.toBeNull()
+    expect(recovered.integration_lock).toBeNull()
     expect(recovered.units.U1.state).toBe("preserved")
+    expect(recovered.blockers).toContainEqual(expect.objectContaining({
+      reason: "integration failed and exact restoration could not be proven",
+      resolved_by: "resume",
+    }))
     expect(control(
-      runs, "integration-release", "--run-id", "transaction-restore-fail", "--unit-id", "U1",
-      "--lock-token", recovered.integration_lock.nonce,
-    ).word).toBe("RELEASED")
+      runs, "claim-fallback", "--run-id", "transaction-restore-fail", "--unit-id", "U1",
+      "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
   })
 
   test("detached fake author terminalizes a complete delta that the host verifies and commits", () => {

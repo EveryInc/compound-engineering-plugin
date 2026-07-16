@@ -111,13 +111,14 @@ def resume_monitor(run_id: str, unit_id: str) -> list[dict]:
     return actions
 
 
-def resolve_unit_recovery_blockers(run_id: str, unit_id: str) -> None:
+def resolve_unit_recovery_blockers(run_id: str, unit_id: str, reason: str | None = None) -> None:
     with locked_manifest(run_id, write=True) as doc:
         resolved = 0
         for blocker in doc.get("blockers", []):
             if (
                 blocker.get("unit_id") == unit_id
                 and blocker.get("retain_integration_lock") is True
+                and (reason is None or blocker.get("reason") == reason)
                 and not blocker.get("resolved_at")
             ):
                 blocker["resolved_at"] = now_iso()
@@ -249,7 +250,20 @@ def cmd_resume(args) -> tuple[str, dict]:
             actions.append({"unit_id": uid, "action": "terminalized", "transport": transport["commit"]})
         elif state == "restoring" and lock and lock.get("unit_id") == uid:
             exact = restore(run_id, uid, lock["nonce"])
-            actions.append({"unit_id": uid, "action": "restored" if exact else "blocked"})
+            if not exact:
+                raise Operational("BLOCKED", "exact pre-fold preservation could not be proven")
+            integration_release(run_id, uid, lock["nonce"])
+            resolve_unit_recovery_blockers(
+                run_id,
+                uid,
+                reason="integration failed and exact restoration could not be proven",
+            )
+            actions.append({
+                "unit_id": uid,
+                "action": "restored",
+                "canonical_preserved": True,
+                "integration_lock_released": True,
+            })
         elif state == "integration-pending" and not unit["integration"].get("pre_fold") and lock and lock.get("unit_id") == uid:
             validate_lock(doc, uid, lock["nonce"])
             integration_release(run_id, uid, lock["nonce"])
