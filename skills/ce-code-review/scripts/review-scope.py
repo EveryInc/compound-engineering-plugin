@@ -79,7 +79,7 @@ def main() -> int:
     if not valid_commit(args.base):
         print(json.dumps(fail_closed("invalid base endpoint"), sort_keys=True))
         return 0
-    if args.head and not valid_commit(args.head):
+    if args.head is not None and not valid_commit(args.head):
         print(json.dumps(fail_closed("invalid head endpoint"), sort_keys=True))
         return 0
 

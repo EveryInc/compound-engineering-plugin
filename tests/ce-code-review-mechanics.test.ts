@@ -59,6 +59,20 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(scope.lite_eligible).toBe(false)
   })
 
+  test("scope helper fails closed when a remote head endpoint is empty", () => {
+    const { dir, base } = fixtureRepo()
+    writeFileSync(path.join(dir, "service.ts"), "export const value = 2\n")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base, "--head", ""], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.reason).toBe("invalid head endpoint")
+    expect(scope.exec_lines).toBeNull()
+    expect(scope.changed_files).toEqual([])
+    expect(scope.lite_eligible).toBe(false)
+  })
+
   test("findings helper validates, exact-deduplicates, gates, sorts, and numbers", () => {
     const returns = [
       {
