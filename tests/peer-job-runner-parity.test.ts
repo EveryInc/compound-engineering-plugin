@@ -9,7 +9,7 @@ const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 // References in Skills"). All copies must stay identical.
 const RUNNER_ASSETS = ["scripts/peer-job-runner.py"]
 
-const CONSUMER_SKILLS = ["ce-doc-review", "ce-code-review", "ce-pov"]
+const CONSUMER_SKILLS = ["ce-doc-review", "ce-code-review", "ce-pov", "ce-work"]
 const PEER_WORKERS = [
   "ce-doc-review/scripts/cross-model-doc-review.sh",
   "ce-code-review/scripts/cross-model-adversarial-review.sh",

@@ -183,10 +183,78 @@ describe("unified plan artifact contract", () => {
     expect(lfg).toContain("standalone_shipping_skipped: true")
     expect(lfg).toContain("verification_evidence")
     expect(lfg).toContain("Do NOT decide the test strategy inside LFG")
-    expect(lfg).toContain("invoke `ce-work` one more time with the same `mode:return-to-caller <plan-path-from-step-1>` argument")
+    expect(lfg).toContain("invoke `ce-work` one more time in recovery mode")
+    expect(lfg).toContain("implementation_run:<safe-id>")
+    expect(lfg).toContain("When `actual_route` is `native` and `run_id` is `null`")
+    expect(lfg).toContain("repeat the original ce-work invocation once without an `implementation_run:` carrier")
+    expect(lfg).toContain("A non-native return without a safe run id remains blocked")
     expect(lfg).toContain("stop as blocked and report the missing fields")
     expect(lfg).toContain("ce-code-review` skill with `mode:agent plan:<plan-path-from-step-1>`")
     expect(lfg).not.toContain("artifact_readiness: approach-plan")
+  })
+
+  test("lfg carries implementation routing only at the ce-work seam", () => {
+    const carrier = sliceSection(
+      lfg,
+      "## Implementation-only routing carrier",
+      "1. Invoke the `ce-plan` skill",
+    )
+    expect(carrier).toContain("semantic intent")
+    expect(carrier).toContain("not keyword or prompt-token matching")
+    expect(carrier).toContain("plain mention")
+    expect(carrier).toContain('"use Codex for implementation"')
+    expect(carrier).toContain('"only use Composer for implementation"')
+    expect(carrier).toContain("implementation_engine")
+    for (const field of ["mode", "target", "model", "source"]) {
+      expect(carrier).toContain(`\`${field}\``)
+    }
+    expect(carrier).toContain("exactly these four fields")
+    expect(carrier).toContain("Never pass")
+    expect(carrier).toContain("`ce-plan`")
+    expect(carrier).toContain("planning or review")
+
+    const step2 = sliceSection(
+      lfg,
+      "2. Invoke the `ce-work` skill",
+      "3. Invoke the `ce-simplify-code` skill",
+    )
+    expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> <plan-path-from-step-1>")
+    expect(step2).toContain("mode:return-to-caller implementation_engine:<compact-json> implementation_run:<safe-id> <plan-path-from-step-1>")
+    expect(step2).toContain('implementation_engine:{"mode":"prefer","target":"codex","model":null,"source":"lfg-current-turn"}')
+    expect(step2).toContain("portable string envelope")
+    expect(step2).toContain("standing per-checkout configuration")
+    expect(carrier).toContain("Do not construct a carrier from standing configuration")
+    expect(step2).toContain("same `implementation_engine:<compact-json>` carrier")
+    expect(step2).toContain("same `run_id`")
+  })
+
+  test("lfg's route-aware return gate preserves its shipping tail", () => {
+    const step2 = sliceSection(
+      lfg,
+      "2. Invoke the `ce-work` skill",
+      "3. Invoke the `ce-simplify-code` skill",
+    )
+    for (const field of [
+      "implementation_engine_binding",
+      "requested_route",
+      "actual_route",
+      "requested_model",
+      "actual_model",
+      "fallback_reason",
+      "run_id",
+      "unit_receipts",
+      "plan_checkpoint",
+      "blockers",
+      "recovery_path",
+    ]) {
+      expect(step2).toContain(`\`${field}\``)
+    }
+    expect(step2).toContain("`prefer`")
+    expect(step2).toContain("continue to step 3 exactly once")
+    expect(step2).toContain("prominently disclosing its requested-versus-actual route/model")
+    expect(step2).toContain("`require`")
+    expect(step2).toContain("must not prompt")
+    expect(step2).toContain("stop the pipeline")
   })
 
   test("review and publishing skills understand unified artifacts", () => {
@@ -273,12 +341,13 @@ describe("unified plan artifact contract", () => {
     // legacy alias still recognized so an old reference doesn't break.
     expect(ceWork).toMatch(/legacy aliases `mode:caller-owned-tail`/i)
     expect(ceWork).toMatch(/strip that token/i)
+    expect(ceWork).toMatch(/one compact JSON object prefixed exactly `implementation_engine:`/i)
     expect(ceWork).toContain("after any mode token is stripped")
   })
 
   test("ce-work surfaces its caller-owned mode in discovery metadata and public docs", () => {
-    expect(ceWork).toMatch(/description:.*outer orchestrators pass `mode:return-to-caller <plan path>`/i)
-    expect(ceWork).toMatch(/argument-hint:.*mode:return-to-caller <plan path> for outer orchestrators/i)
+    expect(ceWork).toMatch(/description:.*outer orchestrators pass `mode:return-to-caller \[implementation_engine:<compact-json>\] \[implementation_run:<safe-id>\] <plan path>`/i)
+    expect(ceWork).toMatch(/argument-hint:.*mode:return-to-caller \[implementation_engine:<compact-json>\] \[implementation_run:<safe-id>\] <plan path> for outer orchestrators/i)
     expect(ceWorkDocs).toContain("## Use Beneath an Outer Orchestrator")
     expect(ceWorkDocs).toContain("standalone_shipping_skipped: true")
     expect(ceWorkDocs).toMatch(/does not run the standalone shipping tail/i)
