@@ -3,6 +3,23 @@
 This content is loaded when Phase 4 begins — after the requirements-only
 unified plan is written.
 
+**Scratch finalization invariant.** If Phase 1 created `SCRATCH_DIR`, keep that
+exact opaque run only while the scout/verifier or a selected downstream handoff
+still needs `grounding.md`. Never reconstruct it. Before any terminal return
+from this workflow — normal completion, pause, or an error after all started
+workers have settled — remove it with:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the ce-brainstorm SKILL.md>";
+python3 "$SKILL_DIR/scripts/scratch-root.py" remove-run-dir --skill ce-brainstorm "$SCRATCH_DIR"
+```
+
+When handing off to `ce-plan`, `ce-doc-review`, or `lfg`, let that selected
+consumer return before cleanup so it can read the dossier. If a worker is still
+live, settle/cancel it first; never remove scratch underneath it. A failed exact
+cleanup is reported with the retained absolute path rather than silently
+declaring the brainstorm fully closed.
+
 ---
 
 #### 4.1 Present Next-Step Options
@@ -73,7 +90,8 @@ Immediately load the `ce-plan` skill in the current session. Pass the unified
 plan artifact path when one exists; otherwise pass a concise summary of the
 finalized brainstorm decisions. When the Phase 1.1 grounding scout produced a
 dossier and the file still exists, also pass its path
-(`$SCRATCH_ROOT/ce-brainstorm/<run-id>/grounding.md`) — it gives
+(`<captured-scratch-dir>/grounding.md`, using the exact absolute directory
+returned in Phase 1.1) — it gives
 planning verified quotes with `file:line` pointers to start from instead of
 re-scanning the repo. Do not print the closing summary first.
 

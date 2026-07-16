@@ -676,10 +676,9 @@ describe("ce-compound Phase 1 artifact contract", () => {
 
     // A run identifier scopes the per-subagent artifact files
     expect(content).toContain("RUN_ID")
-    // Run dir under the owner-scoped cross-invocation scratch namespace
-    expect(content).toContain("COMPOUND_ENGINEERING_SCRATCH_ROOT")
-    expect(content).toContain('RUN_DIR="$SCRATCH_ROOT/ce-compound/$RUN_ID"')
-    expect(content).toContain('mkdir -p "$RUN_DIR"')
+    // Run dir comes from the shared owner-scoped resolver and is created atomically.
+    expect(content).toContain('scripts/scratch-root.py" run-dir --skill ce-compound')
+    expect(content).not.toContain('RUN_DIR="$SCRATCH_ROOT/ce-compound/$RUN_ID"')
   })
 
   test("Phase 1 subagents write full output to the run-artifact path", async () => {

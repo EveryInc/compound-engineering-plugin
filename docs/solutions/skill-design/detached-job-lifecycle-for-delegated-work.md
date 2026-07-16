@@ -34,7 +34,7 @@ Never let one tool call span a delegate's runtime. Split the lifecycle so every 
 2. **DURABLE STATE.** The job directory is the source of truth, under the stable scratch root:
 
    ```
-   /tmp/compound-engineering/<skill>/<run-id>/jobs/<job-id>/
+   <opaque-resolver-returned-run-dir>/jobs/<job-id>/
      status      # exactly one word: running | done | failed | timeout
      pid         # detached worker's pid
      out.log     # raw delegate stream (also the liveness signal)
@@ -106,7 +106,7 @@ Caveats stated plainly: codex was tested with its sandbox disabled (`danger-full
 **The launch snippet** (new-session detach, works on all three tested hosts; macOS has no `setsid(1)`, hence perl):
 
 ```bash
-CMD='bash /path/to/worker.sh --job-dir /tmp/compound-engineering/<skill>/<run-id>/jobs/<job-id>'
+CMD='bash /path/to/worker.sh --job-dir <opaque-resolver-returned-run-dir>/jobs/<job-id>'
 perl -e 'use POSIX qw(setsid); exit if fork; setsid(); exit if fork; open(STDIN,"<","/dev/null"); open(STDOUT,">","/dev/null"); open(STDERR,">>","/dev/null"); exec "/bin/bash","-c",$ARGV[0];' "$CMD"
 ```
 

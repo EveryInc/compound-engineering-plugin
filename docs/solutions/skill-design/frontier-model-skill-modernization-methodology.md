@@ -73,7 +73,7 @@ Rules that travel with the tiers:
 Two independent levers:
 
 - **Reference extraction pays only for CONDITIONAL or LATE-SEQUENCE content.** Early unconditional content gains nothing — it would be read at start and carried anyway, plus a read round-trip. The test: *how many turns of other work happen before this content executes, and might it never execute?* ce-ideate's Phase 2 (~100 lines, ~22% of the file, runs after 5-8 turns of grounding) qualified; Phase 0 gating did not.
-- **Data flows usually dominate prose.** Measure both: 5 scouts × 150-line dossiers ≈ 10k tokens carried every subsequent turn if returned inline — more than the entire SKILL.md (~6k). Fix: subagents write outputs to scratch files (`/tmp/compound-engineering/<skill>/<run-id>/...`), return a 3-5-line gist; downstream agents receive paths and read the files themselves. This extends the established path-passing pattern (`skill-design/pass-paths-not-content-to-subagents.md`) with the gist refinement: the orchestrator keeps just enough orientation to route, never the bulk.
+- **Data flows usually dominate prose.** Measure both: 5 scouts × 150-line dossiers ≈ 10k tokens carried every subsequent turn if returned inline — more than the entire SKILL.md (~6k). Fix: subagents write outputs beneath the opaque owner-private run directory returned by `scratch-root.py run-dir`, return a 3-5-line gist; downstream agents receive paths and read the files themselves. This extends the established path-passing pattern (`skill-design/pass-paths-not-content-to-subagents.md`) with the gist refinement: the orchestrator keeps just enough orientation to route, never the bulk.
 
 ### 6. Load-stub design: make extracted references information-asymmetric
 
@@ -165,7 +165,7 @@ in your final message.
 After:
 
 ```
-Write your dossier to /tmp/compound-engineering/<skill>/<run-id>/evidence-<axis-slug>.md.
+Write your dossier to <resolver-returned-run-dir>/evidence-<axis-slug>.md.
 Return only a 3-5 line gist plus the file path. Downstream agents read
 the file themselves; the orchestrator never does.
 ```

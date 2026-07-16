@@ -61,7 +61,7 @@ Same pipeline for default and `mode:agent`:
 | Invocation | Deliverable |
 |------------|-------------|
 | **Default** | Markdown report (pipe-delimited finding tables) + Actionable Findings summary |
-| **`mode:agent`** | One JSON object (see ### JSON output format below) + the same `/tmp/.../ce-code-review/<run-id>/` artifacts |
+| **`mode:agent`** | One JSON object (see ### JSON output format below) + the same artifacts under the exact resolver-returned `<run-dir>` |
 
 `mode:agent` is **report-only**: it skips the Stage 5c apply (the caller applies) and serializes findings as JSON instead of markdown. It does not change reviewer selection, merge logic, or scope rules — the JSON is the deterministic contract for programmatic and cross-harness callers (Codex, Gemini, etc.). The default markdown is the human view; keep it ASCII-safe (pipe tables, `->` not middot `·`, no box-drawing) so it degrades gracefully across terminals.
 
@@ -473,13 +473,16 @@ The orchestrator (this skill) also inherits the session model; it handles intent
 
 #### Run ID
 
+The shared resolver honors `COMPOUND_ENGINEERING_SCRATCH_ROOT` only when it is an
+absolute, owner-private, non-symlinked directory; otherwise it selects the next
+safe owner-scoped candidate.
+
 Generate a unique run identifier before dispatching any agents. This ID scopes all agent artifact files and the post-review run artifact to the same directory.
 
 ```bash
-RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ')
-SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"
-RUN_DIR="$SCRATCH_ROOT/ce-code-review/$RUN_ID"
-mkdir -p "$RUN_DIR"
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ');
+RUN_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" run-dir --skill ce-code-review --run-id "$RUN_ID")";
 ```
 
 Pass `{run_id}` and the resolved absolute `{run_dir}` to every persona sub-agent so they can write their full analysis to `{run_dir}/{reviewer_name}.json`.

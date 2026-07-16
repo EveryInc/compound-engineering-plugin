@@ -4,13 +4,14 @@ import { describe, expect, test } from "bun:test"
 
 const PLUGIN_ROOT = path.join(process.cwd(), "skills")
 
-// The three shared cache assets are byte-duplicated into every consuming skill
+// The four shared cache assets are byte-duplicated into every consuming skill
 // (the plugin has no cross-skill import mechanism — see AGENTS.md "File
 // References in Skills"). All copies must stay identical. This grows as each
 // wiring unit (U6-U11) adds its skill to CONSUMER_SKILLS.
 const SHARED_CACHE_ASSETS = [
   "references/repo-profile-cache.md",
   "scripts/repo-profile-cache.py",
+  "scripts/scratch-root.py",
   "references/agents/repo-profiler.md",
 ]
 

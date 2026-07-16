@@ -84,7 +84,7 @@ When spawning subagents, pass the relevant file contents into the task prompt so
 <critical_requirement>
 **The primary deliverable is ONE file - the final documentation.**
 
-Phase 1 subagents write their full structured output to a per-run scratch artifact under the owner-scoped `/tmp/compound-engineering-<uid>/ce-compound/<run-id>/` root and return only a compact confirmation containing the artifact path. The orchestrator Reads those artifacts back in Phase 2 assembly. This is scratch space, identical in spirit to `ce-code-review`'s per-reviewer run artifacts; it does not make the scratch files additional deliverables. **Only the orchestrator writes product files** — the final solution doc and the maintenance side effects below. Subagents must not touch `docs/`, project instruction files, or any tracked path. Beyond the Phase 2 solution doc, the orchestrator may also write maintenance side effects — not additional deliverables, and creating one when absent is expected, not a violation of this rule. There are three write-target classes; only the first two are unconditional:
+Phase 1 subagents write their full structured output to the private per-run directory returned by `scripts/scratch-root.py` and return only a compact confirmation containing the artifact path. The orchestrator Reads those artifacts back in Phase 2 assembly. This is scratch space, identical in spirit to `ce-code-review`'s per-reviewer run artifacts; it does not make the scratch files additional deliverables. **Only the orchestrator writes product files** — the final solution doc and the maintenance side effects below. Subagents must not touch `docs/`, project instruction files, or any tracked path. Beyond the Phase 2 solution doc, the orchestrator may also write maintenance side effects — not additional deliverables, and creating one when absent is expected, not a violation of this rule. There are three write-target classes; only the first two are unconditional:
 - **`docs/solutions/...`** — the primary deliverable (always).
 - **`CONCEPTS.md`** — create or update in Phase 2.4 (Vocabulary Capture) when a qualifying domain term surfaces (Full mode; every mode that reaches vocabulary capture may refine an existing file).
 - **A project instruction file** (AGENTS.md or CLAUDE.md) — a small edit when the Discoverability Check finds a gap, **only in interactive Full mode after consent**. Headless and lightweight never apply this edit (they report or tip instead). Callers that hand off headless after an approval gate must not see an unreviewed change to the repo's operating contract.
@@ -122,11 +122,15 @@ Launch research subagents. Each writes its full output to a per-run scratch arti
 **Run ID and run dir (before dispatching any subagent):** generate a unique run identifier and create the run directory. This scopes every Phase 1 artifact file to the same directory so the orchestrator can Read them back in Phase 2.
 
 ```bash
-RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ')
-SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"
-RUN_DIR="$SCRATCH_ROOT/ce-compound/$RUN_ID"
-mkdir -p "$RUN_DIR"
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+RUN_ID=$(date +%Y%m%d-%H%M%S)-$(head -c4 /dev/urandom | od -An -tx1 | tr -d ' ');
+RUN_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" run-dir --skill ce-compound --run-id "$RUN_ID")";
 ```
+
+Once `RUN_DIR` exists, every terminal path owns its finalization. Do not return
+while a Phase 1 worker still uses it; settle/cancel started workers, consume any
+available artifacts, then remove the exact captured run. Never reconstruct the
+randomized path or leave it behind after an early failure.
 
 **Resolve the agnostic project orientation from the shared cache (before dispatching subagents).** The question-agnostic orientation the Context Analyzer and Related Docs Finder rely on — the project's `CONCEPTS.md` vocabulary and the root instruction-file conventions/digests — is identical whenever committed profile inputs match, so reuse it instead of re-deriving. Set `SKILL_DIR` to this skill's directory and run the helper (full protocol in `references/repo-profile-cache.md`):
 
@@ -266,7 +270,9 @@ Pass `{run_id}` (the resolved `$RUN_ID` value) and `{run_dir}` (the resolved abs
 
    **Escalation gate.** The discovery+metadata pass above is the cheap probe and always runs in Full mode. Escalate to the extraction and synthesis stages below **only** when at least one retained candidate clears the relevance bar: a current-branch match, or ≥2 topic-keyword matches. If no candidate clears the bar (including the `_meta.files_processed` is `0` case), stop here, record `no relevant prior sessions` as the session-history input, and skip extraction and synthesis. This gate is what keeps the always-on probe cheap — the expensive synthesis is paid for only when a prior session is genuinely relevant.
 
-   **Extraction pipeline.** Create `SCRATCH=$(mktemp -d -t ce-compound-sessions-XXXXXX)`. For each selected session, write extracted content to scratch files:
+   **Extraction pipeline.** Create the extraction directory inside the already
+   captured private run: `SCRATCH="$RUN_DIR/session-history"; mkdir -m 700 -- "$SCRATCH"`.
+   For each selected session, write extracted content to scratch files:
 
    ```bash
    SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
@@ -482,6 +488,24 @@ Based on problem type, optionally dispatch generic subagents seeded with local p
   Example: review the solution draft's examples for speculative abstractions, redundant wrappers, dead branches, and just-in-case parameters. Apply edits only to the documentation/examples being written by `ce-compound`; leave any branch code changes untouched.
 
 </parallel_tasks>
+
+### Phase 3.5: Scratch Finalization
+
+Full/headless runs must close the Phase 1 run before reporting success. After
+all Phase 1 and optional enhancement workers have settled and every artifact
+needed for the durable solution/CONCEPTS edits has been consumed, remove only
+the exact captured run:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+python3 "$SKILL_DIR/scripts/scratch-root.py" remove-run-dir --skill ce-compound "$RUN_DIR"
+```
+
+Do not remove a run under a live worker. If the workflow terminates early after
+creating `RUN_DIR`, settle/cancel those workers and execute the same exact
+cleanup before returning. If cleanup fails, report the retained absolute path
+and do not claim a fully clean completion. Lightweight mode creates no Phase 1
+run and skips this step.
 
 ---
 

@@ -9,8 +9,9 @@ lives on disk:
   start   claim a job dir, preflight the worker, detach it into its own
           session (double fork with os.setsid between the forks), print ONLY
           the job id, return fast. The detached process supervises the worker
-          and writes ONE atomic terminal record. Also sweeps sibling run roots
-          older than 24 hours (best-effort, owner-checked).
+          and writes ONE atomic terminal record. Legacy direct callers get a
+          best-effort owner/lease-checked 24-hour sweep; skill workflows pass
+          one opaque resolver-created run and clean it explicitly.
   status  print each job's state word without blocking.
   wait    bounded poll (~1s cadence, never longer than --max-secs) that
           returns early once every watched job has settled.
@@ -19,9 +20,11 @@ lives on disk:
           If the supervisor itself is gone, reap kills the worker tree and
           writes the terminal record itself. Reaping a terminal job is a
           safe no-op.
+  delete  remove one job only after an atomic terminal record exists (or the
+          job never started); never accepts a filesystem path.
 
-Job directory (durable state, the source of truth):
-  <root>/<skill>/<run-id>/jobs/<job-id>/
+Job directory (run-scoped state, the source of truth):
+  <run-dir>/jobs/<job-id>/
     meta.json   identity: skill, run id, label, input digest, start time,
                 worker argv, result path (written at start, before detach)
     pid         supervisor pid/pgid + worker pid (written by the supervisor
@@ -56,7 +59,9 @@ outcome exactly once; when both the worker's internal cap and the
 supervisor's window fire, the supervisor's record wins.
 
 Environment overrides (defaults in parentheses):
-  CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering)
+  CE_PEER_JOBS_ROOT         explicit owner-private jobs root
+  COMPOUND_ENGINEERING_SCRATCH_ROOT
+                            shared CE scratch-root override
   CE_PEER_IDLE_SECS         idle window, no out.log growth (240)
   CE_PEER_HARD_SECS         hard cap on worker wall clock (630)
   CE_PEER_LOG_MAX_BYTES     out.log byte cap (10485760)
@@ -64,8 +69,9 @@ Environment overrides (defaults in parentheses):
   CE_PEER_POLL_SECS         supervisor poll interval (2)
   CE_PEER_GRACE_SECS        TERM-to-KILL grace during reap (5)
 
-Security posture: the job root is a predictable path in world-shared /tmp, so
-every read of job state opens the file first (no-follow) and verifies the
+Security posture: the job root is the exact owner-private run path returned by
+the shared scratch resolver (or a validated explicit root for direct callers).
+Every read of job state opens the file first (no-follow) and verifies the
 descriptor's owner (os.fstat st_uid == os.geteuid, guarded where geteuid is
 unavailable) before any content is emitted; a mismatch reports "unreadable",
 never content. Reads are bounded by size caps — out.log is never slurped.
@@ -79,6 +85,7 @@ Pure stdlib. No third-party dependencies.
 """
 import argparse
 import glob
+import importlib.util
 import json
 import os
 import re
@@ -101,7 +108,6 @@ def _is_safe_token(value: str) -> bool:
 
 
 TERMINAL_STATES = ("done", "failed", "timeout", "died-without-result")
-DEFAULT_ROOT = "/tmp/compound-engineering"
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 SWEEP_AGE_SECS = 24 * 3600
 CLAIM_ATTEMPTS = 16
@@ -113,7 +119,8 @@ exit codes:
   0  the command itself succeeded. For status/wait this means the query ran;
      it says nothing about job outcomes — parse stdout (or --json) for states.
      For `result` it means a done job's artifact (or a --path file) was emitted;
-     for reap it includes the safe no-op on an already-terminal job.
+     for reap it includes the safe no-op on an already-terminal job; for
+     delete it means an atomically terminal or never-started job was removed.
   1  runtime error (preflight failure, unknown job, detach failure)
   2  usage error; for `result`: the job is still running
   3  for `result`: job settled but not done (failed / timeout /
@@ -121,7 +128,8 @@ exit codes:
   4  ownership check failed (job state or result not owned by the current
      user) — content is never emitted
 
-environment overrides: CE_PEER_JOBS_ROOT, CE_PEER_IDLE_SECS,
+environment overrides: CE_PEER_JOBS_ROOT, COMPOUND_ENGINEERING_SCRATCH_ROOT,
+CE_PEER_IDLE_SECS,
 CE_PEER_HARD_SECS, CE_PEER_LOG_MAX_BYTES, CE_PEER_RESULT_MAX_BYTES,
 CE_PEER_POLL_SECS, CE_PEER_GRACE_SECS (defaults in the module docstring).
 """
@@ -137,8 +145,30 @@ class Unreadable(Exception):
 
 # --- configuration -----------------------------------------------------------
 
+def _load_scratch_module():
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scratch-root.py")
+    spec = importlib.util.spec_from_file_location("ce_scratch_root", helper)
+    if spec is None or spec.loader is None:
+        raise RunnerError(f"cannot load scratch resolver: {helper}")
+    module = importlib.util.module_from_spec(spec)
+    try:
+        spec.loader.exec_module(module)
+    except Exception as exc:
+        raise RunnerError(f"cannot load owner-scoped scratch resolver: {exc}") from exc
+    return module
+
+
 def jobs_root_base() -> str:
-    return os.path.abspath(os.environ.get("CE_PEER_JOBS_ROOT") or DEFAULT_ROOT)
+    override = os.environ.get("CE_PEER_JOBS_ROOT")
+    if override:
+        try:
+            return str(_load_scratch_module().validate_private_root(override))
+        except Exception as exc:
+            raise RunnerError(f"invalid CE_PEER_JOBS_ROOT: {exc}") from exc
+    try:
+        return str(_load_scratch_module().resolve_root())
+    except Exception as exc:
+        raise RunnerError(f"cannot resolve owner-scoped jobs root: {exc}") from exc
 
 
 def _env_num(name: str, default: float, conv) -> float:
@@ -177,6 +207,8 @@ def _check_owned_dir(path: str) -> None:
     euid = _euid()
     if euid is not None and st.st_uid != euid:
         raise RunnerError(f"{path}: not owned by the current user")
+    if stat.S_IMODE(st.st_mode) & 0o077:
+        raise RunnerError(f"{path}: directory must be owner-private (0700)")
 
 
 def ensure_owned_dirs(base: str, path: str) -> None:
@@ -292,7 +324,11 @@ def resolve_job_dir(ref: str) -> str:
         raise RunnerError(f"no such job dir: {ref}")
     if not _is_safe_token(ref):
         raise RunnerError(f"invalid job ref: {ref!r}")
-    matches = sorted(glob.glob(os.path.join(jobs_root_base(), "*", "*", "jobs", ref)))
+    base = jobs_root_base()
+    matches = sorted(set(
+        glob.glob(os.path.join(base, "*", "runs", "*", "jobs", ref))
+        + glob.glob(os.path.join(base, "*", "*", "jobs", ref))
+    ))
     if not matches:
         raise RunnerError(f"job not found under {jobs_root_base()}: {ref}")
     if len(matches) > 1:
@@ -305,17 +341,79 @@ def job_state(job_dir: str) -> str:
         _check_owned_dir(job_dir)
     except (RunnerError, OSError):
         return "unreadable"
+    published = published_terminal_state(job_dir)
+    if published is not None:
+        return published
+    if os.path.lexists(os.path.join(job_dir, "pid")):
+        try:
+            if live_job_lease(job_dir):
+                return "running"
+        except Unreadable:
+            return "unreadable"
+        return "died-without-result"
+    return "never-started"
+
+
+def published_terminal_state(job_dir: str) -> str | None:
+    """Return only an atomically published terminal word.
+
+    Inferred `died-without-result` is useful for status, but it is not a lease
+    release: the supervisor may be between worker exit and its terminal rename.
+    Cleanup and deletion therefore call this helper directly.
+    """
     try:
         word = read_owned(os.path.join(job_dir, "status"), STATUS_READ_CAP)
-        word = word.decode("utf-8", "replace").strip()
-        return word if word in TERMINAL_STATES else "unreadable"
     except FileNotFoundError:
-        pass
+        return None
     except (Unreadable, OSError):
         return "unreadable"
-    if os.path.lexists(os.path.join(job_dir, "pid")):
-        return "running"
-    return "never-started"
+    decoded = word.decode("utf-8", "replace").strip()
+    return decoded if decoded in TERMINAL_STATES else "unreadable"
+
+
+def read_pid_doc(job_dir: str) -> dict | None:
+    """Read and validate the lease identity document, if one was published."""
+    pid_path = os.path.join(job_dir, "pid")
+    if not os.path.lexists(pid_path):
+        return None
+    try:
+        doc = json.loads(read_owned(pid_path, META_READ_CAP))
+    except (OSError, ValueError) as exc:
+        raise Unreadable(f"{pid_path}: malformed lease identity: {exc}") from exc
+    if not isinstance(doc, dict):
+        raise Unreadable(f"{pid_path}: lease identity must be a JSON object")
+    token = doc.get("job_token")
+    if not isinstance(token, str) or not token:
+        raise Unreadable(f"{pid_path}: missing job token")
+    return doc
+
+
+def live_job_lease(job_dir: str) -> bool:
+    """Return whether any identity-verified supervisor or worker lease is live.
+
+    A terminal status is an outcome record, not proof that its process lease was
+    released. Destructive lifecycle operations call this independently so a
+    racing or stopped supervisor cannot outlive the directory that identifies it.
+    """
+    doc = read_pid_doc(job_dir)
+    if doc is None:
+        return False
+    token = doc["job_token"]
+    sup_pid = doc.get("supervisor_pid")
+    worker_pid = doc.get("worker_pid")
+    # The supervisor is forked in-process, not exec'd. Linux may retain the
+    # pre-fork environment image in /proc/<pid>/environ after os.environ is
+    # mutated, so its birth identity is the PID-reuse guard. The exec'd worker
+    # and its process group must additionally carry the unguessable job token.
+    if _pid_matches(
+        sup_pid, doc.get("supervisor_identity"), token, require_token=False
+    ):
+        return True
+    if _pid_matches(worker_pid, doc.get("worker_identity"), token):
+        return True
+    return bool(
+        isinstance(worker_pid, int) and _matching_group_members(worker_pid, token)
+    )
 
 
 # --- process-tree control -----------------------------------------------------
@@ -348,6 +446,94 @@ def _pid_running(pid: int) -> bool:
     if not out:
         return False
     return not out.startswith("Z")
+
+
+def _process_identity(pid: int) -> str | None:
+    """Return a process birth identity that changes when a PID is reused."""
+    if not isinstance(pid, int) or pid <= 0 or not _pid_running(pid):
+        return None
+    try:
+        raw = read_owned(f"/proc/{pid}/stat", 64 * 1024).decode("utf-8", "replace")
+        fields = raw.rsplit(")", 1)[1].strip().split()
+        if len(fields) > 19:
+            return f"proc-start:{fields[19]}"
+    except (OSError, Unreadable, IndexError):
+        pass
+    try:
+        out = subprocess.run(
+            ["ps", "-o", "lstart=", "-p", str(pid)],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout.strip()
+    except OSError:
+        return None
+    return f"ps-start:{out}" if out else None
+
+
+def _process_has_token(pid: int, token: str) -> bool:
+    needle = f"CE_PEER_JOB_TOKEN={token}"
+    try:
+        data = read_owned(f"/proc/{pid}/environ", 2 * 1024 * 1024)
+        return needle.encode() in data.split(b"\0")
+    except (OSError, Unreadable):
+        pass
+    try:
+        out = subprocess.run(
+            ["ps", "eww", "-p", str(pid), "-o", "command="],
+            capture_output=True,
+            text=True,
+            check=False,
+        ).stdout
+    except OSError:
+        return False
+    return needle in out
+
+
+def _pid_matches(pid, identity, token, *, require_token: bool = True) -> bool:
+    if not isinstance(pid, int) or not isinstance(identity, str):
+        return False
+    if _process_identity(pid) != identity:
+        return False
+    if not require_token:
+        return True
+    return isinstance(token, str) and _process_has_token(pid, token)
+
+
+def _matching_group_members(pgid: int, token: str) -> list[int]:
+    """Return only processes in pgid that carry this job's unguessable token."""
+    try:
+        out = subprocess.run(
+            ["ps", "-eo", "pid=,pgid="], capture_output=True, text=True, check=False
+        ).stdout
+    except OSError:
+        return []
+    matches = []
+    for line in out.splitlines():
+        parts = line.split()
+        if len(parts) != 2:
+            continue
+        try:
+            pid, candidate_pgid = int(parts[0]), int(parts[1])
+        except ValueError:
+            continue
+        if candidate_pgid == pgid and _process_has_token(pid, token):
+            matches.append(pid)
+    return matches
+
+
+def _kill_verified_group(pgid: int, token: str, grace: float) -> bool:
+    members = _matching_group_members(pgid, token)
+    if not members:
+        return False
+    for pid in members:
+        _kill_quiet(pid, signal.SIGTERM)
+    deadline = time.monotonic() + grace
+    while time.monotonic() < deadline and _matching_group_members(pgid, token):
+        time.sleep(0.05)
+    for pid in _matching_group_members(pgid, token):
+        _kill_quiet(pid, signal.SIGKILL)
+    return True
 
 
 def _kill_quiet(pid: int, sig: int) -> bool:
@@ -488,7 +674,7 @@ def _interruptible_sleep(secs: float, flag: dict) -> None:
         time.sleep(min(0.1, max(0.01, end - time.monotonic())))
 
 
-def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
+def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int, job_token: str) -> None:
     """The watchdog around the worker child. Owns liveness (out.log growth),
     the idle/hard windows, byte caps, reap-on-request, and the single terminal
     classification."""
@@ -525,13 +711,17 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
                 stderr=log_fd,
                 start_new_session=True,  # worker leads its own group: reap = killpg
                 close_fds=True,
+                env={**os.environ, "CE_PEER_JOB_TOKEN": job_token},
             )
         finally:
             os.close(devnull)
         pid_doc = {
             "supervisor_pid": os.getpid(),
             "supervisor_pgid": os.getpgid(0),
+            "supervisor_identity": _process_identity(os.getpid()),
             "worker_pid": proc.pid,
+            "worker_identity": _process_identity(proc.pid),
+            "job_token": job_token,
         }
         # The pid file lands before the parent is acked, so a returned `start`
         # guarantees the detach marker exists (status never mis-reads a fresh
@@ -588,7 +778,7 @@ def supervise(job_dir: str, argv, result_path, conf: dict, ack_fd: int) -> None:
     write_terminal(job_dir, state, reason)
 
 
-def detach_supervisor(job_dir: str, argv, result_path, conf: dict) -> bool:
+def detach_supervisor(job_dir: str, argv, result_path, conf: dict, job_token: str) -> bool:
     """setsid double-fork. The grandchild (new session, stdio on /dev/null,
     reparented to init) runs the supervisor; the parent returns once the
     supervisor acks that the pid file exists."""
@@ -598,6 +788,7 @@ def detach_supervisor(job_dir: str, argv, result_path, conf: dict) -> bool:
     pid1 = os.fork()
     if pid1 == 0:
         os.close(read_fd)
+        os.environ["CE_PEER_JOB_TOKEN"] = job_token
         os.setsid()
         if os.fork() > 0:
             os._exit(0)
@@ -609,7 +800,7 @@ def detach_supervisor(job_dir: str, argv, result_path, conf: dict) -> bool:
             os.dup2(devnull, 2)
             if devnull > 2:
                 os.close(devnull)
-            supervise(job_dir, argv, result_path, conf, write_fd)
+            supervise(job_dir, argv, result_path, conf, write_fd, job_token)
         except BaseException:
             rc = 1
             try:
@@ -636,9 +827,64 @@ def detach_supervisor(job_dir: str, argv, result_path, conf: dict) -> bool:
 
 # --- subcommands ---------------------------------------------------------------
 
+def run_has_unsettled_job(run_dir: str) -> bool:
+    """Conservatively protect a run while any job is not terminal.
+
+    An unreadable or malformed job is protected too: retention must never turn
+    uncertain state into destructive permission. Terminal jobs are safe to
+    remove after the run-level TTL expires.
+    """
+    jobs_dir = os.path.join(run_dir, "jobs")
+    if not os.path.lexists(jobs_dir):
+        return False
+    try:
+        _check_owned_dir(jobs_dir)
+        entries = list(os.scandir(jobs_dir))
+    except (OSError, RunnerError):
+        return True
+    for entry in entries:
+        try:
+            st = entry.stat(follow_symlinks=False)
+        except OSError:
+            return True
+        if not stat.S_ISDIR(st.st_mode):
+            return True
+        if _euid() is not None and st.st_uid != _euid():
+            return True
+        if published_terminal_state(entry.path) not in TERMINAL_STATES:
+            return True
+        try:
+            if live_job_lease(entry.path):
+                return True
+        except Unreadable:
+            return True
+    return False
+
+
+def is_legacy_run_dir(path: str) -> bool:
+    """Recognize only the pre-resolver `<skill>/<run-id>/jobs` layout.
+
+    The resolver reserves `<skill>/runs/` as a container for many active runs.
+    Retention must never infer that an arbitrary old sibling directory is itself
+    a legacy run, because deleting the reserved container destroys every run and
+    leaves their detached processes alive.
+    """
+    if os.path.basename(path) == "runs":
+        return False
+    try:
+        _check_owned_dir(path)
+        _check_owned_dir(os.path.join(path, "jobs"))
+    except (OSError, RunnerError):
+        return False
+    return True
+
+
 def sweep_stale_runs(skill_dir: str, keep: str) -> None:
-    """Best-effort retention (R14): remove sibling run roots older than 24h.
-    Owner-checked via lstat; never raises, never touches the current run."""
+    """Best-effort retention for allowlisted legacy run roots older than 24h.
+
+    Owner-checked via lstat; never raises, never touches the current run or the
+    resolver's reserved `runs/` container.
+    """
     try:
         entries = list(os.scandir(skill_dir))
     except OSError:
@@ -657,7 +903,11 @@ def sweep_stale_runs(skill_dir: str, keep: str) -> None:
             continue
         if euid is not None and st.st_uid != euid:
             continue
+        if not is_legacy_run_dir(entry.path):
+            continue
         if now - st.st_mtime <= SWEEP_AGE_SECS:
+            continue
+        if run_has_unsettled_job(entry.path):
             continue
         shutil.rmtree(entry.path, ignore_errors=True)
 
@@ -672,11 +922,28 @@ def cmd_start(args, worker_argv) -> int:
         raise RunnerError("no worker argv; place it after `--`")
 
     base = jobs_root_base()
-    skill_dir = os.path.join(base, args.skill)
-    run_dir = os.path.join(skill_dir, args.run_id)
+    if args.run_dir:
+        run_dir = os.path.abspath(args.run_dir)
+        expected_parent = os.path.abspath(os.path.join(base, args.skill, "runs"))
+        if os.path.dirname(run_dir) != expected_parent:
+            raise RunnerError(
+                f"--run-dir must be an existing direct child of {expected_parent}: {run_dir}"
+            )
+        try:
+            _load_scratch_module().validate_existing_private_root(run_dir)
+        except Exception as exc:
+            raise RunnerError(f"invalid --run-dir: {exc}") from exc
+        skill_dir = expected_parent
+    else:
+        # Compatibility for direct runner callers. Skill workflows pass the
+        # opaque resolver-created --run-dir and never reconstruct this path.
+        skill_dir = os.path.join(base, args.skill)
+        run_dir = os.path.join(skill_dir, args.run_id)
     jobs_root = os.path.join(run_dir, "jobs")
-    ensure_owned_dirs(base, jobs_root)
-    sweep_stale_runs(skill_dir, keep=run_dir)
+    ensure_owned_dirs(run_dir if args.run_dir else base, jobs_root)
+    if not args.run_dir:
+        os.utime(run_dir)
+        sweep_stale_runs(skill_dir, keep=run_dir)
 
     job_id, job_dir = claim_job_dir(jobs_root)
     result_path = os.path.abspath(args.result_path) if args.result_path else None
@@ -727,7 +994,8 @@ def cmd_start(args, worker_argv) -> int:
             "nothing was detached"
         )
 
-    if not detach_supervisor(job_dir, argv, result_path, cfg()):
+    job_token = os.urandom(24).hex()
+    if not detach_supervisor(job_dir, argv, result_path, cfg(), job_token):
         raise RunnerError(
             f"detach failed for job {job_id}: supervisor did not acknowledge; "
             f"inspect {job_dir}"
@@ -846,45 +1114,91 @@ def cmd_result(args) -> int:
 def cmd_reap(args) -> int:
     job_dir = resolve_job_dir(args.job)
     state = job_state(job_dir)
-    if state in TERMINAL_STATES or state == "never-started":
-        return 0
-    if state == "unreadable":
+    published = published_terminal_state(job_dir)
+    if state == "unreadable" or published == "unreadable":
         sys.stderr.write(
             f"peer-job-runner: job state unreadable (ownership or corruption): {job_dir}\n"
         )
         return 4
-    conf = cfg()
-    pid_doc = None
     try:
-        pid_doc = json.loads(read_owned(os.path.join(job_dir, "pid"), META_READ_CAP))
-    except (Unreadable, OSError, ValueError):
-        pid_doc = None
+        lease_live = live_job_lease(job_dir)
+    except Unreadable as exc:
+        sys.stderr.write(f"peer-job-runner: unreadable lease: {exc}\n")
+        return 4
+    if not lease_live and (published in TERMINAL_STATES or state == "never-started"):
+        return 0
+    conf = cfg()
+    try:
+        pid_doc = read_pid_doc(job_dir)
+    except Unreadable as exc:
+        sys.stderr.write(f"peer-job-runner: unreadable lease: {exc}\n")
+        return 4
     sup_pid = pid_doc.get("supervisor_pid") if isinstance(pid_doc, dict) else None
-    sup_pgid = pid_doc.get("supervisor_pgid") if isinstance(pid_doc, dict) else None
     worker_pid = pid_doc.get("worker_pid") if isinstance(pid_doc, dict) else None
+    token = pid_doc.get("job_token") if isinstance(pid_doc, dict) else None
+    sup_identity = pid_doc.get("supervisor_identity") if isinstance(pid_doc, dict) else None
+    worker_identity = pid_doc.get("worker_identity") if isinstance(pid_doc, dict) else None
 
-    if isinstance(sup_pid, int) and _pid_alive(sup_pid):
+    if _pid_matches(sup_pid, sup_identity, token, require_token=False):
         # The supervisor owns TERM-grace-KILL and the terminal classification.
-        if (isinstance(sup_pgid, int) and _killpg_quiet(sup_pgid, signal.SIGTERM)) \
-                or _kill_quiet(sup_pid, signal.SIGTERM):
-            # kill -0 is true for a zombie, so confirm the classification landed
-            # rather than trusting the signal; fall through to self-cleanup if not.
+        if _kill_quiet(sup_pid, signal.SIGTERM):
+            # A terminal record can race ahead of process exit. Wait for the
+            # identity-verified lease itself to clear, not merely for status.
             deadline = time.monotonic() + min(conf["grace"], 1.0)
             while time.monotonic() < deadline:
-                if job_state(job_dir) in TERMINAL_STATES:
-                    return 0
+                try:
+                    if not live_job_lease(job_dir):
+                        if published_terminal_state(job_dir) in TERMINAL_STATES:
+                            return 0
+                        break
+                except Unreadable as exc:
+                    sys.stderr.write(f"peer-job-runner: unreadable lease: {exc}\n")
+                    return 4
                 time.sleep(0.05)
+        # SIGTERM remains pending forever for a stopped supervisor. Escalate by
+        # verified birth identity, then prove the lease disappeared before any
+        # terminal fallback can be published.
+        if _pid_matches(sup_pid, sup_identity, token, require_token=False):
+            _kill_quiet(sup_pid, signal.SIGKILL)
+            deadline = time.monotonic() + min(conf["grace"], 1.0)
+            while (
+                time.monotonic() < deadline
+                and _pid_matches(sup_pid, sup_identity, token, require_token=False)
+            ):
+                time.sleep(0.05)
+            if _pid_matches(sup_pid, sup_identity, token, require_token=False):
+                sys.stderr.write(
+                    "peer-job-runner: refusing to settle job while supervisor lease is live\n"
+                )
+                return 2
 
-    # Supervisor gone: perform the tree kill and classification ourselves,
-    # with a short grace so reap still returns quickly. Sweep whenever we have a
-    # worker pid, NOT only when its leader is still alive: a child can survive in
-    # the worker's process group after the leader exits, and kill_tree targets
-    # the pgid precisely so that orphan is swept instead of leaked. Guarding this
-    # on _pid_alive would re-defeat kill_tree's dead-leader-safe path. kill_tree
-    # returns whether the leader was alive, which is the reap classification.
-    worker_leader_alive = False
-    if isinstance(worker_pid, int):
-        worker_leader_alive = kill_tree(worker_pid, min(conf["grace"], 1.0))
+    # Supervisor gone: perform token-verified worker-group cleanup and classify
+    # ourselves. A child can survive in the worker's process group after its
+    # leader exits, so group membership is searched by the unguessable token;
+    # an unrelated process that later reuses the numeric PID is never signaled.
+    worker_leader_alive = _pid_matches(worker_pid, worker_identity, token)
+    if isinstance(worker_pid, int) and isinstance(token, str):
+        _kill_verified_group(worker_pid, token, min(conf["grace"], 1.0))
+    deadline = time.monotonic() + min(conf["grace"], 1.0)
+    while time.monotonic() < deadline:
+        try:
+            if not live_job_lease(job_dir):
+                break
+        except Unreadable as exc:
+            sys.stderr.write(f"peer-job-runner: unreadable lease: {exc}\n")
+            return 4
+        time.sleep(0.05)
+    try:
+        if live_job_lease(job_dir):
+            sys.stderr.write(
+                "peer-job-runner: refusing to settle job while a live lease remains\n"
+            )
+            return 2
+    except Unreadable as exc:
+        sys.stderr.write(f"peer-job-runner: unreadable lease: {exc}\n")
+        return 4
+    if published_terminal_state(job_dir) in TERMINAL_STATES:
+        return 0
     # A worker can publish its declared result and exit before this fallback runs
     # (e.g. the supervisor died mid-run, then the worker completed cleanly). Honor
     # that result instead of discarding it as died-without-result: read the
@@ -923,6 +1237,32 @@ def cmd_reap(args) -> int:
     return 0
 
 
+def cmd_delete(args) -> int:
+    """Delete one terminal job through the runner's own identity lookup."""
+    if os.sep in args.job:
+        raise RunnerError("delete requires an opaque job id, not a path")
+    job_dir = resolve_job_dir(args.job)
+    state = job_state(job_dir)
+    published = published_terminal_state(job_dir)
+    if published not in TERMINAL_STATES and state != "never-started":
+        sys.stderr.write(
+            f"peer-job-runner: refusing to delete nonterminal job ({state}): {args.job}\n"
+        )
+        return 2 if state == "running" else 4
+    try:
+        if live_job_lease(job_dir):
+            sys.stderr.write(
+                f"peer-job-runner: refusing to delete job with a live lease: {args.job}\n"
+            )
+            return 2
+    except Unreadable as exc:
+        sys.stderr.write(f"peer-job-runner: unreadable lease: {exc}\n")
+        return 4
+    _check_owned_dir(job_dir)
+    shutil.rmtree(job_dir)
+    return 0
+
+
 # --- CLI -----------------------------------------------------------------------
 
 def build_parser() -> argparse.ArgumentParser:
@@ -943,6 +1283,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p_start.add_argument("--skill", required=True)
     p_start.add_argument("--run-id", required=True, dest="run_id")
+    p_start.add_argument(
+        "--run-dir",
+        default=None,
+        dest="run_dir",
+        help="opaque owner-private run directory returned by scratch-root.py run-dir",
+    )
     p_start.add_argument("--label", default=None)
     p_start.add_argument("--input-digest", default=None, dest="input_digest")
     p_start.add_argument(
@@ -976,6 +1322,10 @@ def build_parser() -> argparse.ArgumentParser:
         "reap", help="terminate a running job now; no-op if already terminal"
     )
     p_reap.add_argument("job")
+    p_delete = sub.add_parser(
+        "delete", help="remove one terminal job directory after ownership checks"
+    )
+    p_delete.add_argument("job")
     return parser
 
 
@@ -996,6 +1346,8 @@ def main(argv) -> int:
             return cmd_result(args)
         if args.cmd == "reap":
             return cmd_reap(args)
+        if args.cmd == "delete":
+            return cmd_delete(args)
         return 2
     except RunnerError as exc:
         sys.stderr.write(f"peer-job-runner: {exc}\n")

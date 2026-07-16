@@ -29,7 +29,7 @@ When a cache/scratch file in shared `/tmp` will be **read back into an agent's c
 - This composes with the cache's existing principle that it is **never a correctness dependency**: a rejected entry simply degrades to "derive fresh," never blocks.
 - Write side is already safe if you use `tempfile.mkstemp` (`O_EXCL`, mode `0600`) + `os.replace` (atomic). The exposure is purely on the *read* path.
 
-Alternatives considered and why ownership-check won: per-uid namespacing the cache root (`/tmp/compound-engineering-$(id -u)/...`) also works but deviates from the project's `/tmp/compound-engineering/` convention and the deliberate choice of `/tmp` over `$TMPDIR` for user-inspectability. The fstat-on-read check is minimal, keeps the path convention, and closes both the planted-file and planted-symlink cases.
+This read-side check remains defense in depth, but it is no longer the primary boundary. A later cross-UID incident proved that a fixed shared root also creates availability failures before a file is opened: the first user can own the parent and prevent every sibling UID from creating its subtree. The normative design is now the validated owner-scoped resolver in `owner-scoped-scratch-space.md`; retain `fstat` because it still protects predictable cache entries inside that private namespace from accidental ownership drift.
 
 ## Why This Matters
 
@@ -63,4 +63,5 @@ with open(path) as f:
 
 - `docs/solutions/skill-design/cross-skill-shared-cache-primitive.md` — the cache this hardened
 - `docs/solutions/best-practices/cache-invalidation-input-set-completeness.md` — the cache's correctness (separate) property
-- AGENTS.md "Scratch Space" (the `/tmp/compound-engineering/` convention)
+- `docs/solutions/best-practices/owner-scoped-scratch-space.md` — the superseding root, lifecycle, and release-propagation contract
+- AGENTS.md "Scratch Space" (the normative executable resolver contract)

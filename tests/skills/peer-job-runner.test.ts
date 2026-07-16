@@ -100,6 +100,11 @@ function jobDirOf(root: string, id: string, runId = "run1"): string {
   return path.join(root, "ce-doc-review", runId, "jobs", id)
 }
 
+const SCRATCH_HELPER = path.join(
+  __dirname,
+  "../../skills/ce-doc-review/scripts/scratch-root.py",
+)
+
 function startJob(
   root: string,
   env: Record<string, string>,
@@ -334,16 +339,29 @@ describe("peer-job-runner lifecycle", () => {
     }
   }, 10000)
 
-  test("retention: start sweeps >24h-old run roots and spares recent ones; deleted job dirs degrade cleanly", () => {
+  test("retention: start sweeps only settled >24h-old runs and preserves active or recent runs", () => {
     const root = makeRoot()
     const skillDir = path.join(root, "ce-doc-review")
     const oldRun = path.join(skillDir, "old-run")
     mkdirSync(path.join(oldRun, "jobs"), { recursive: true })
+    chmodSync(skillDir, 0o700)
+    chmodSync(oldRun, 0o700)
+    chmodSync(path.join(oldRun, "jobs"), 0o700)
     writeFileSync(path.join(oldRun, "stale.txt"), "x")
     const past = new Date(Date.now() - 25 * 3600 * 1000)
     utimesSync(oldRun, past, past)
     const recentRun = path.join(skillDir, "recent-run")
     mkdirSync(path.join(recentRun, "jobs"), { recursive: true })
+    chmodSync(recentRun, 0o700)
+    chmodSync(path.join(recentRun, "jobs"), 0o700)
+    const activeRun = path.join(skillDir, "active-run")
+    const activeJob = path.join(activeRun, "jobs", "still-running")
+    mkdirSync(activeJob, { recursive: true })
+    chmodSync(activeRun, 0o700)
+    chmodSync(path.join(activeRun, "jobs"), 0o700)
+    chmodSync(activeJob, 0o700)
+    writeFileSync(path.join(activeJob, "pid"), String(process.pid))
+    utimesSync(activeRun, past, past)
 
     const resultPath = path.join(mkTempRoot("peer-res-"), "r.json")
     const stub = writeStub(`printf ok > "$1"\nexit 0\n`)
@@ -354,17 +372,252 @@ describe("peer-job-runner lifecycle", () => {
     trackJob(dir)
     expect(existsSync(oldRun)).toBe(false) // swept
     expect(existsSync(recentRun)).toBe(true) // spared
+    expect(existsSync(activeRun)).toBe(true) // active lease is never reaped by TTL
 
     expect(waitState(root, FAST, id, 10, ).stdout.trim()).toBe("done")
     expect(runner(root, FAST, ["result", id]).stdout).toBe("ok")
 
     // R14: orchestrator deletes the consumed job dir; later reads degrade
     // with a clean error, never a traceback
-    rmSync(dir, { recursive: true, force: true })
+    expect(runner(root, FAST, ["delete", id]).code).toBe(0)
+    expect(existsSync(dir)).toBe(false)
     const st = runner(root, FAST, ["status", id])
     expect(st.code).not.toBe(0)
     expect(st.stderr).not.toContain("Traceback")
   }, 15000)
+
+  test("legacy retention never treats the reserved runs container as one run", () => {
+    const root = makeRoot()
+    const env = {
+      ...process.env,
+      ...FAST,
+      COMPOUND_ENGINEERING_SCRATCH_ROOT: root,
+    }
+    delete env.CE_PEER_JOBS_ROOT
+    const made = spawnSync(
+      "python3",
+      [SCRATCH_HELPER, "run-dir", "--skill", "ce-doc-review", "--run-id", "active"],
+      { encoding: "utf8", env },
+    )
+    expect(made.status).toBe(0)
+    const productionRun = made.stdout.trim()
+    const slow = writeStub("sleep 30\nexit 0\n")
+    const started = spawnSync(
+      "python3",
+      [
+        SCRIPT,
+        "start",
+        "--skill", "ce-doc-review",
+        "--run-id", "active",
+        "--run-dir", productionRun,
+        "--", slow,
+      ],
+      { encoding: "utf8", env },
+    )
+    expect(started.status).toBe(0)
+    const productionId = started.stdout.trim()
+    const productionJob = path.join(productionRun, "jobs", productionId)
+    const productionPids = trackJob(productionJob)
+    expect(productionPids).not.toBeNull()
+
+    const runsContainer = path.dirname(productionRun)
+    const past = new Date(Date.now() - 48 * 3600 * 1000)
+    utimesSync(runsContainer, past, past)
+
+    const legacy = startJob(root, FAST, [slow], { runId: "legacy-trigger" })
+    const legacyPids = trackJob(legacy.dir)
+    expect(legacy.res.code).toBe(0)
+    expect(legacyPids).not.toBeNull()
+    expect(existsSync(productionRun)).toBe(true)
+    expect(pidAlive(productionPids!.supervisor_pid)).toBe(true)
+    expect(pidAlive(productionPids!.worker_pid)).toBe(true)
+
+    expect(runner(root, FAST, ["reap", productionId]).code).toBe(0)
+    expect(runner(root, FAST, ["reap", legacy.id]).code).toBe(0)
+  }, 15000)
+
+  test("production path colocates jobs under the exact resolver-returned run", () => {
+    const root = makeRoot()
+    const env = {
+      ...process.env,
+      ...FAST,
+      COMPOUND_ENGINEERING_SCRATCH_ROOT: root,
+    }
+    delete env.CE_PEER_JOBS_ROOT
+    const made = spawnSync(
+      "python3",
+      [SCRATCH_HELPER, "run-dir", "--skill", "ce-doc-review", "--run-id", "opaque"],
+      { encoding: "utf8", env },
+    )
+    expect(made.status).toBe(0)
+    const runDir = made.stdout.trim()
+    const stub = writeStub("echo ok\nexit 0\n")
+    const started = spawnSync(
+      "python3",
+      [
+        SCRIPT,
+        "start",
+        "--skill", "ce-doc-review",
+        "--run-id", "opaque",
+        "--run-dir", runDir,
+        "--", stub,
+      ],
+      { encoding: "utf8", env },
+    )
+    expect(started.status).toBe(0)
+    const id = started.stdout.trim()
+    const jobDir = path.join(runDir, "jobs", id)
+    expect(existsSync(jobDir)).toBe(true)
+    trackJob(jobDir)
+    expect(
+      spawnSync("python3", [SCRIPT, "wait", "--max-secs", "10", id], {
+        encoding: "utf8",
+        env,
+      }).stdout.trim(),
+    ).toBe("done")
+    expect(
+      spawnSync("python3", [SCRIPT, "delete", id], { encoding: "utf8", env }).status,
+    ).toBe(0)
+    expect(existsSync(jobDir)).toBe(false)
+  }, 15000)
+
+  test("production path accepts only an existing direct resolver run child", () => {
+    const root = makeRoot()
+    const env = {
+      ...process.env,
+      ...FAST,
+      COMPOUND_ENGINEERING_SCRATCH_ROOT: root,
+    }
+    delete env.CE_PEER_JOBS_ROOT
+    const made = spawnSync(
+      "python3",
+      [SCRATCH_HELPER, "run-dir", "--skill", "ce-doc-review", "--run-id", "opaque"],
+      { encoding: "utf8", env },
+    )
+    expect(made.status).toBe(0)
+    const runDir = made.stdout.trim()
+    const runsParent = path.dirname(runDir)
+    const missingRun = path.join(runsParent, "guessed-run")
+    const nestedRun = path.join(runDir, "nested")
+    mkdirSync(nestedRun, { mode: 0o700 })
+    const stub = writeStub("echo should-not-run\nexit 0\n")
+
+    for (const candidate of [missingRun, runsParent, nestedRun]) {
+      const started = spawnSync(
+        "python3",
+        [
+          SCRIPT,
+          "start",
+          "--skill", "ce-doc-review",
+          "--run-id", "opaque",
+          "--run-dir", candidate,
+          "--", stub,
+        ],
+        { encoding: "utf8", env },
+      )
+      expect(started.status).not.toBe(0)
+      expect(started.stderr).not.toContain("Traceback")
+    }
+    expect(existsSync(missingRun)).toBe(false)
+    expect(existsSync(path.join(runsParent, "jobs"))).toBe(false)
+    expect(existsSync(path.join(nestedRun, "jobs"))).toBe(false)
+  })
+
+  test("delete refuses live or inferred-only jobs and removes published terminal jobs", () => {
+    const root = makeRoot()
+    const slow = writeStub("sleep 30\nexit 0\n")
+    const running = startJob(root, FAST, [slow])
+    trackJob(running.dir)
+    const refused = runner(root, FAST, ["delete", running.id])
+    expect(refused.code).toBe(2)
+    expect(existsSync(running.dir)).toBe(true)
+    expect(runner(root, FAST, ["reap", running.id]).code).toBe(0)
+    expect(["timeout", "died-without-result"]).toContain(
+      waitState(root, FAST, running.id, 10).stdout.trim(),
+    )
+    expect(runner(root, FAST, ["delete", running.id]).code).toBe(0)
+    expect(existsSync(running.dir)).toBe(false)
+  }, 15000)
+
+  test("terminal status does not release a stopped supervisor lease", () => {
+    const root = makeRoot()
+    const env = { ...FAST, CE_PEER_GRACE_SECS: "1" }
+    const slow = writeStub("sleep 30\nexit 0\n")
+    const running = startJob(root, env, [slow])
+    const pids = trackJob(running.dir)
+    expect(pids).not.toBeNull()
+
+    expect(spawnSync("kill", ["-STOP", String(pids!.supervisor_pid)]).status).toBe(0)
+    writeFileSync(path.join(running.dir, "status"), "done\n")
+
+    const refused = runner(root, env, ["delete", running.id])
+    expect(refused.code).toBe(2)
+    expect(refused.stderr).toContain("live lease")
+    expect(existsSync(running.dir)).toBe(true)
+
+    expect(runner(root, env, ["reap", running.id]).code).toBe(0)
+    Bun.sleepSync(200)
+    expect(pidAlive(pids!.supervisor_pid)).toBe(false)
+    expect(pidAlive(pids!.worker_pid)).toBe(false)
+    expect(runner(root, env, ["delete", running.id]).code).toBe(0)
+    expect(existsSync(running.dir)).toBe(false)
+  }, 15000)
+
+  test("CE_PEER_JOBS_ROOT rejects relative, permissive, and symlinked roots", () => {
+    const stub = writeStub("exit 0\n")
+    const relative = runner("relative-root", FAST, [
+      "start", "--skill", "ce-doc-review", "--run-id", "r", "--", stub,
+    ])
+    expect(relative.code).toBe(1)
+
+    const base = makeRoot()
+    const permissive = path.join(base, "permissive")
+    mkdirSync(permissive, { mode: 0o755 })
+    const wrongMode = runner(permissive, FAST, [
+      "start", "--skill", "ce-doc-review", "--run-id", "r", "--", stub,
+    ])
+    expect(wrongMode.code).toBe(1)
+    expect(statSync(permissive).mode & 0o777).toBe(0o755)
+
+    const target = path.join(base, "target")
+    mkdirSync(target, { mode: 0o700 })
+    const link = path.join(base, "link")
+    spawnSync("ln", ["-s", target, link])
+    const linked = runner(link, FAST, [
+      "start", "--skill", "ce-doc-review", "--run-id", "r", "--", stub,
+    ])
+    expect(linked.code).toBe(1)
+  }, 10000)
+
+  test("PID reuse or stale identity never counts as running or becomes a signal target", () => {
+    const root = makeRoot()
+    const result = runner(root, FAST, [
+      "start", "--skill", "ce-doc-review", "--run-id", "stale",
+      "--", "/nonexistent/worker-for-stale-pid",
+    ])
+    expect(result.code).toBe(1)
+    const jobs = readdirSync(path.join(root, "ce-doc-review", "stale", "jobs"))
+    const id = jobs[0]
+    const dir = jobDirOf(root, id, "stale")
+    writeFileSync(
+      path.join(dir, "pid"),
+      JSON.stringify({
+        supervisor_pid: process.pid,
+        supervisor_identity: "proc-start:not-this-process",
+        worker_pid: process.pid,
+        worker_identity: "proc-start:not-this-process",
+        job_token: "not-present-in-this-process",
+      }),
+    )
+    expect(runner(root, FAST, ["status", id]).stdout.trim()).toBe(
+      "died-without-result",
+    )
+    expect(runner(root, FAST, ["delete", id]).code).toBe(4)
+    expect(runner(root, FAST, ["reap", id]).code).toBe(0)
+    expect(runner(root, FAST, ["status", id]).stdout.trim()).toBe(
+      "died-without-result",
+    )
+  }, 10000)
 
   test("reap: fast return, supervisor classifies once, second reap is a no-op", () => {
     const root = makeRoot()

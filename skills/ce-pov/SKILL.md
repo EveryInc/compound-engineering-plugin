@@ -69,9 +69,8 @@ On `HIT`, load the profile JSON — that is your agnostic project orientation; d
 Create the scratch dir once, and reuse the echoed path for every scout this run:
 
 ```bash
-SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"
-SCRATCH_DIR="$SCRATCH_ROOT/ce-pov/$(openssl rand -hex 4)"
-mkdir -p "$SCRATCH_DIR"
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+SCRATCH_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" run-dir --skill ce-pov)";
 echo "$SCRATCH_DIR"
 ```
 

@@ -53,7 +53,7 @@ The ideation artifact is produced **automatically** — persistence is not opt-i
    - Extension follows `OUTPUT_FORMAT` (`.html` default, `.md` on override).
    - **Repo mode:** ensure `docs/ideation/` exists (create if absent).
    - **Elsewhere mode with `docs/ideation/` already present:** use it.
-   - **Otherwise (no repo, or elsewhere with no `docs/ideation/`):** write into the run's owner-scoped CE temp area — the `<scratch-dir>` resolved in Phase 1. Do **not** write into the user's current working directory, and do **not** create a `docs/ideation/` tree for a subject unrelated to the repo. Announce the absolute path and note it is temporary (`/tmp` is cleared on reboot — move it to keep it).
+   - **Otherwise (no repo, or elsewhere with no `docs/ideation/`):** resolve a durable user data directory with `python3 "$SKILL_DIR/scripts/scratch-root.py" data-subdir "ideation"` and use that exact returned path. Do **not** write into the user's current working directory, and do **not** create a `docs/ideation/` tree for a subject unrelated to the repo. Announce the absolute path. This is a durable deliverable location, not disposable scratch.
 2. **Choose the file path:** `<dir>/YYYY-MM-DD-<topic>-ideation.<ext>` (or `<dir>/YYYY-MM-DD-open-ideation.<ext>` when no focus exists).
 3. **Load the section contract and rendering reference** (deferred from Phase 0.0): read `references/ideation-sections.md` and the format-rendering reference matching `OUTPUT_FORMAT` — `references/markdown-rendering.md` for `md`, `references/html-rendering.md` for `html`.
 4. **Write the document** per those references. `ideation-sections.md` defines the section contract (metadata, Grounding Context, Topic Axes, Ranked Ideas with per-idea fields, Rejection Summary); the rendering reference defines how the resolved format presents it. Content is identical across formats; only presentation differs.
@@ -139,13 +139,13 @@ The file is already written, so there is no save step.
 - **Inside a git repo:** offer to commit only the ideation doc (do not create a branch, do not push; if the user declines, leave it uncommitted).
 - **Temp-area or non-repo file:** skip the commit offer.
 
-Then narrate the path and end the session — do not return to the menu.
+Then remove the exact `<scratch-dir>` through `python3 "$SKILL_DIR/scripts/scratch-root.py" remove-run-dir --skill ce-ideate "<scratch-dir>"`, narrate the durable deliverable path, and end the session — do not return to the menu. Cleanup is best-effort after the deliverable exists; never delete by reconstructing a run path.
 
 ### 5.5 Discard (free text)
 
-Only when the file was **created fresh this run**: delete it, confirm the deletion, and end. On a **resume** run (a pre-existing file was updated in place), do **not** delete — tell the user the existing doc at `<path>` remains and offer no destructive action. Discard is never a default; it fires only on an explicit request.
+Only when the file was **created fresh this run**: delete it, best-effort remove the exact `<scratch-dir>` through the resolver command above, confirm the deletion, and end. On a **resume** run (a pre-existing file was updated in place), do **not** delete the durable document — tell the user the existing doc at `<path>` remains and offer no destructive action. The disposable run directory may still be removed after the session ends. Discard is never a default; it fires only on an explicit request.
 
-Do not delete the run's scratch directory (`<scratch-dir>`) on completion — it holds the V15 web-research cache reused across run-ids by later ideation invocations in the same session (see `references/web-research-cache.md`), the Checkpoint A/B files, the evidence dossiers, and (in the no-repo case) the deliverable itself. OS handles eventual cleanup.
+The V15 cache and deliverable are outside `<scratch-dir>`. Checkpoints and evidence dossiers are disposable run artifacts, so remove the exact resolver-returned run directory when the Phase 5 workflow ends. If cleanup fails, report the retained path; do not weaken permissions or recursively clean a reconstructed parent.
 
 ## Quality Bar
 
@@ -162,6 +162,6 @@ Before finishing, check:
 - if sub-agents were used, they improved diversity without replacing the core workflow
 - every rejected idea has a reason
 - survivors are materially better than a naive "give me ideas" list
-- the deliverable was written automatically in both modes (Phase 4) — to `docs/ideation/` when present, else the CE temp area, never the user's CWD
+- the deliverable was written automatically in both modes (Phase 4) — to `docs/ideation/` when present, else the resolver's durable CE data directory, never the user's CWD or disposable run scratch
 - the session showed a concise summary, not a reproduction of the full deliverable
 - acting on an idea routes to `ce-brainstorm` (with a substance seed, not the whole file), not directly to implementation

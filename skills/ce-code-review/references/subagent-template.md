@@ -173,6 +173,7 @@ Rules:
 
 <review-context>
 Run ID: {run_id}
+Run directory: {run_dir}
 Reviewer name: {reviewer_name}
 
 Intent: {intent_summary}
@@ -198,4 +199,5 @@ Diff:
 | `{file_list}` | Stage 1 output | Changed-file list — inline, or a staged file path to Read for a large review |
 | `{diff}` | Stage 1 output | The diff to review — inline hunks, or a staged file path to Read for a large review |
 | `{run_id}` | Stage 4 output | Unique review run identifier for the artifact directory |
+| `{run_dir}` | Stage 4 output | Exact absolute owner-private run directory captured from the resolver |
 | `{reviewer_name}` | Stage 3 output | Persona or agent name used as the artifact filename stem |

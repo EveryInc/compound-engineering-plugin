@@ -2,7 +2,7 @@
 
 Read this when a repo-grounding skill needs the question-agnostic **project profile** (stack, deps, conventions, structure). The profile is derived once and reused within a session and across sessions, skills, and commits whose **profile inputs are unchanged** — only the *question-specific* grounding for the current run is ever re-derived.
 
-This file is **byte-duplicated** into every consuming skill (the plugin has no cross-skill import mechanism). All copies must stay identical; `tests/repo-profile-cache-parity.test.ts` enforces it. The deterministic cache I/O lives in the co-located `scripts/repo-profile-cache.py`; the derivation-on-miss is done by the co-located `references/agents/repo-profiler.md` persona.
+This file is **byte-duplicated** into every consuming skill (the plugin has no cross-skill import mechanism). All copies must stay identical; `tests/repo-profile-cache-parity.test.ts` enforces it. The deterministic cache I/O lives in the co-located `scripts/repo-profile-cache.py`, owner-scoped path resolution lives in the co-located `scripts/scratch-root.py`, and derivation-on-miss is done by the co-located `references/agents/repo-profiler.md` persona.
 
 ## What is cached (the agnostic profile)
 
@@ -25,13 +25,15 @@ Never read from the cache — recompute every run:
 ## Cache location & key
 
 ```
-/tmp/compound-engineering-<uid>/repo-profile/<root-sha>/<inputs-digest>.json
+<resolved-cache-root>/repo-profile-v1/<root-sha>/<inputs-digest>.json
 ```
 
-The UID-scoped root keeps the stable, inspectable `/tmp` location while
-preventing one Unix user from owning the cache directory needed by another.
-Set `COMPOUND_ENGINEERING_SCRATCH_ROOT` to override the complete per-user
-scratch root, or `COMPOUND_ENGINEERING_CACHE_ROOT` to override only this cache.
+The shared resolver chooses a validated owner-private cache root in this order:
+`COMPOUND_ENGINEERING_CACHE_ROOT`, `$XDG_CACHE_HOME/compound-engineering`,
+`$HOME/.cache/compound-engineering`, then the validated runtime root's `cache/`
+fallback. Invalid candidates fall through safely; relative paths, symlinked or
+attacker-writable ancestors, wrong owners/types, permissive final roots, and
+unwritable roots are never used. Cache files are still owner-checked after open.
 
 - `<root-sha>` = lexicographically-first `git rev-list --max-parents=0 HEAD` — the repo identity (stable, shared across worktrees and clones).
 - `<inputs-digest>` = sha256 over (1) every committed blob **path** at `HEAD` (tree shape — so a new module/directory invalidates topology), (2) `(path, blob-sha)` for every **profile-input** file (filtered by the helper's `is_profile_input`), (3) for profile-input **symlinks**, the final in-repo regular blob after following the full symlink chain, and (4) `(path, commit-sha)` for every **gitlink** (submodule) entry. Content edits to existing non-input files keep the same entry; adding/removing any path, changing a profile-input's content (including through a symlink chain), or moving a submodule pointer does not.
@@ -65,4 +67,4 @@ A cached entry is a `HIT` only when its `inputs_digest` matches the current comm
 
 ## Degradation
 
-The cache is an optimization, never a correctness dependency. Outside a git repo, with no writable `/tmp`, or on an unreadable/malformed entry, the helper returns `NO-CACHE`/`MISS` (exit 0) and the skill derives fresh. It never blocks and never serves a profile it cannot prove fresh. And if the helper *invocation itself* fails — a non-zero exit, empty output, or an unresolved `SKILL_DIR` so the script isn't found — treat it exactly like `NO-CACHE`: derive the profile fresh this run and proceed. Never stall waiting on the cache.
+The cache is an optimization, never a correctness dependency. Outside a git repo, with no valid owner-private scratch root, or on an unreadable/malformed entry, the helper returns `NO-CACHE`/`MISS` (exit 0) and the skill derives fresh. It never blocks and never serves a profile it cannot prove fresh. And if the helper *invocation itself* fails — a non-zero exit, empty output, or an unresolved `SKILL_DIR` so the script isn't found — treat it exactly like `NO-CACHE`: derive the profile fresh this run and proceed. Never stall waiting on the cache.

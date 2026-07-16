@@ -85,9 +85,9 @@ dispatch and before final fold-in. If it changed, never reconcile or fold stale
 voices into the current project: disclose the change and either restart all
 voices on the new identity or return an incomplete panel result.
 
-Keep payloads, raw output, logs, and result artifacts in private scratch outside
-the repository under `/tmp/compound-engineering/ce-pov/<run-id>/`. Use mode
-`0600` for payload files.
+Keep payloads, raw output, logs, and result artifacts in the exact opaque
+`<run-dir>` captured as `SCRATCH_DIR` in the parent skill. Never reconstruct its
+randomized path. Use mode `0600` for payload files.
 
 ## 3. Resolve and sanction one fixed route before egress
 
@@ -153,6 +153,15 @@ directory. Pass the actual repository root separately from any narrower read
 root, and pre-create the round output directory as private scratch outside the
 repository. For named peers, start one job per exact target; for a selected panel,
 start one job per selected peer. Start all jobs before waiting.
+
+Every start is anchored to that exact run. The required shape is:
+
+```bash
+CROSS_MODEL_SCRATCH_PARENT="$SCRATCH_DIR" python3 "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-pov --run-id "pov-panel" --run-dir "$SCRATCH_DIR" --label "<peer-name>" -- env CROSS_MODEL_SCRATCH_PARENT="$SCRATCH_DIR" bash "$SKILL_DIR/scripts/cross-model-pov.sh" "<host-provider>" "<fixed-route>" "<payload-path>" "<round-output-dir>"
+```
+
+Substitute the captured literal values; do not omit `--run-dir`, and do not let
+`CROSS_MODEL_SCRATCH_PARENT` default to a shared OS temp directory.
 
 Record every job id and the epoch after the final start. Poll all jobs in
 bounded slices with the runner's `wait --max-secs 30 --json` interface. Use one
@@ -251,7 +260,10 @@ payload; no surviving peer yields the solo POV plus the availability note.
 
 ## 8. Cleanup
 
-Remove every consumed job directory, round output directory, payload, raw log,
-and result beneath this run's private scratch root on success, failure, timeout,
-interruption, and reap. Never delete outside the current run root. Peer reasoning
-and project context must not outlive their use.
+After fold-in or reap, remove every consumed peer job with
+`python3 "$SKILL_DIR/scripts/peer-job-runner.py" delete <job-id>`, then remove
+round outputs, payloads, raw logs, and results beneath this run's private
+scratch root. The runner owns job-path resolution and deletion; never reconstruct
+or delete a job path directly. Then remove the exact run with
+`python3 "$SKILL_DIR/scripts/scratch-root.py" remove-run-dir --skill ce-pov "$SCRATCH_DIR"`.
+Peer reasoning and project context must not outlive their use.

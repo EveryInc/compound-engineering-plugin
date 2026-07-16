@@ -250,6 +250,8 @@ RUN_DIR="${4:-}"
 # --- validate inputs -------------------------------------------------------
 [ -n "$BASE" ] || skip "no base ref given; skipping"
 [ -n "$RUN_DIR" ] && [ -d "$RUN_DIR" ] || skip "run-dir '${RUN_DIR:-<empty>}' is not a directory; skipping"
+TMPDIR="$RUN_DIR"
+export TMPDIR
 command -v jq >/dev/null 2>&1 || skip "jq not installed; skipping"
 
 # Validate the host identity tuple. An unknown serving family is allowed, but

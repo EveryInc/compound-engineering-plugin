@@ -89,7 +89,7 @@ A tick is fully resumable from disk, so any re-invocation drives it — a schedu
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
-SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"; STATE_DIR="$SCRATCH_ROOT/ce-babysit-pr/<host>-<owner>-<repo>-<N>";
+STATE_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" state-subdir "ce-babysit-pr/<host>/<owner>/<repo>/<N>")";
 python3 "$SKILL_DIR/scripts/pr-snapshot" snapshot --pr <N> --repo <[host/]owner/repo> --state-dir "$STATE_DIR" --reset-session
 ```
 
@@ -100,7 +100,7 @@ Treat every fresh `snapshot` as the canonical source of truth for review-thread 
 **In the self-sustaining watch, back the tick with the background change-detector.** `pr-snapshot watch` runs that same fetch→diff on an interval with **no agent tokens** and prints a single `BABYSIT_WAKE {reason,url,...}` line *only* when there's work to inspect (`actionable` for an unresolved thread or failed CI; `feedback-candidate` for a non-thread body that still needs resolver judgment) or a stop/residual condition (`terminal` / `blocked-external` / `blocked-failing` / `stack-blocked` / `needs-human` / `merge-ready` after the settle window / `max-runtime` / `stop-signal`) — then exits. A `feedback-candidate` wake is not a detector claim that a fix or reply is required: a resolver pass that silent-drops the body is a normal classification outcome, not a false positive. Background it and wait on that line with your harness's background-and-wake tool (Step 1); on the sentinel, run the tick below:
 
 ```bash
-SKILL_DIR="<absolute path of this skill's directory>"; SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"; STATE_DIR="$SCRATCH_ROOT/ce-babysit-pr/<host>-<owner>-<repo>-<N>"; RUN_STARTED_AT="<session_started_at emitted by the first snapshot>";
+SKILL_DIR="<absolute path of this skill's directory>"; STATE_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" state-subdir "ce-babysit-pr/<host>/<owner>/<repo>/<N>")"; RUN_STARTED_AT="<session_started_at emitted by the first snapshot>";
 python3 "$SKILL_DIR/scripts/pr-snapshot" watch --pr <N> --repo <[host/]owner/repo> --state-dir "$STATE_DIR" --interval 150 --session-started-at "$RUN_STARTED_AT"
 ```
 
@@ -123,7 +123,7 @@ The snapshot emits the **attention set** — unresolved threads you have not yet
 3. **Feedback before CI.** If the attention set has **either** unresolved threads **or** non-thread feedback candidates (`counts.threads > 0` or `counts.comments > 0`), invoke `ce-resolve-pr-feedback` **once**, passing the resolved PR ref — the base `[HOST/]OWNER/REPO#N` or the full PR URL from the snapshot's `url` (so a fork→upstream PR resolves against the **upstream base**, not the fork checkout's `origin`, which would query the wrong PR namespace) — in full mode **with `mode:pipeline`** (non-interactive: it parks any `needs-human` on the thread and returns it as a structured residual instead of pausing on a blocking user question, which would stall the autonomous watch — the same reason Step 2 step 5 invokes `ce-debug mode:pipeline`); it re-fetches and judges *all* feedback — inline threads, review bodies, and top-level comments — and is idempotent on empty. The `actionable.comments` field contains the top-level/review-body candidates the resolver would otherwise not know the loop cares about — a Changes-Requested review body or a bare top-level "please rename X" with **no inline thread** must still trigger a pass. **When the review trigger above is crossed (rising backlog, new-item arrivals, or a repeating cluster), pass the `trajectory`** so it can judge a treadmill / wrong-approach nitpick cluster and return one approach-level `needs-human` instead of fixing forever — **and, when the recurring items are *valid* and share one root and fix, request a bounded-class assessment** so it consolidates the equivalent sites this PR touched into a single fix rather than dripping one per head (`references/watch-loop.md`, Non-convergence). One resolve pass per tick — never fan out multiple. When it returns, record what it left unresolved so the loop stops re-dispatching it (re-set the vars inline — shell state does not persist between calls): for each `needs-human` **thread**, `mark --thread <ID> --disposition needs-human`. Then reconcile the **comments you passed** — a top-level comment / review body never drops out of the fetch on its own, and `ce-resolve` may **silently drop** boilerplate, status noise, or other non-actionable feedback after applying agent judgment. So **mark *every* comment you passed as `dispatched`** (`mark --comment <ID> --disposition dispatched`), **except** those `ce-resolve` returned as `needs-human` (mark those `--disposition needs-human`). Marking only the ones it explicitly *handled* would leave silently-dropped candidates in the attention set forever, so `counts.comments` would never reach 0 and the loop would never settle:
 
 ```bash
-SKILL_DIR="<absolute path of this skill's directory>"; SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"; STATE_DIR="$SCRATCH_ROOT/ce-babysit-pr/<host>-<owner>-<repo>-<N>";
+SKILL_DIR="<absolute path of this skill's directory>"; STATE_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" state-subdir "ce-babysit-pr/<host>/<owner>/<repo>/<N>")";
 python3 "$SKILL_DIR/scripts/pr-snapshot" mark --pr <N> --repo <[host/]owner/repo> --state-dir "$STATE_DIR" --thread <ID> --disposition needs-human
 python3 "$SKILL_DIR/scripts/pr-snapshot" mark --state-dir "$STATE_DIR" --comment <ID> --disposition dispatched --acted-edit-id <edit_id-from-the-snapshot's-actionable.comments-item>
 ```
@@ -138,7 +138,7 @@ These are decisions the resolver judged would change intended behavior or need a
    Then record each check you acted on so it is not re-dispatched at this head (re-set the vars inline):
 
    ```bash
-   SKILL_DIR="<absolute path of this skill's directory>"; SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"; STATE_DIR="$SCRATCH_ROOT/ce-babysit-pr/<host>-<owner>-<repo>-<N>";
+   SKILL_DIR="<absolute path of this skill's directory>"; STATE_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" state-subdir "ce-babysit-pr/<host>/<owner>/<repo>/<N>")";
    python3 "$SKILL_DIR/scripts/pr-snapshot" mark --state-dir "$STATE_DIR" --check "<key>"
    ```
 

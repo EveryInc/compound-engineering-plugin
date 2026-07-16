@@ -471,10 +471,14 @@ The Phase 3 blocks below each set `SKILL_DIR` inline as well (the loaded `ce-opt
    test -n "${CODEX_SANDBOX:-}" || test -n "${CODEX_SESSION_ID:-}" || test ! -w .git
    ```
 2. Fill the experiment prompt template
-3. Write the filled prompt to a temp file
+3. Write the filled prompt to a securely allocated process-local temp file
 4. Dispatch via Codex:
    ```bash
-   cat /tmp/optimize-exp-XXXXX.txt | codex exec --skip-git-repo-check - 2>&1
+   umask 077
+   PROMPT_FILE=$(mktemp "${TMPDIR:-/tmp}/optimize-exp.XXXXXX.txt")
+   # Write the filled prompt to "$PROMPT_FILE", then:
+   cat "$PROMPT_FILE" | codex exec --skip-git-repo-check - 2>&1
+   rm -f -- "$PROMPT_FILE"
    ```
 5. Security posture: use the user's selection (ask once per session if not set in spec)
 

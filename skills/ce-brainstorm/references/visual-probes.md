@@ -72,17 +72,18 @@ Start (detached):
 
 ```bash
 SKILL_DIR="<absolute path of the ce-brainstorm skill directory>";
-SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"
-node "$SKILL_DIR/scripts/visual-probe-server.js" start --root "$SCRATCH_ROOT/ce-brainstorm-visual/<run-id>"
+PROBE_ROOT="$(python3 "$SKILL_DIR/scripts/scratch-root.py" run-dir --skill ce-brainstorm --run-id visual-<run-id>)";
+node "$SKILL_DIR/scripts/visual-probe-server.js" start --root "$PROBE_ROOT"
 ```
 
 Append `--foreground` to that `start` command for foreground mode. Status and stop take the same anchor — and because `SKILL_DIR` does not persist between Bash invocations, each must re-set it in its own call rather than reuse the `start` block's value:
 
 ```bash
 SKILL_DIR="<absolute path of the ce-brainstorm skill directory>";
-SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"
-node "$SKILL_DIR/scripts/visual-probe-server.js" status --root "$SCRATCH_ROOT/ce-brainstorm-visual/<run-id>"
-# stop: the same command with `stop` in place of `status` (re-set SKILL_DIR again)
+PROBE_ROOT="<exact absolute path returned by the start command>";
+node "$SKILL_DIR/scripts/visual-probe-server.js" status --root "$PROBE_ROOT"
+# stop: use `stop`, then remove the run with:
+# python3 "$SKILL_DIR/scripts/scratch-root.py" remove-run-dir --skill ce-brainstorm "$PROBE_ROOT"
 ```
 
 If `SKILL_DIR` cannot be resolved to a concrete skill directory, do not guess from the project CWD — use the text path.
@@ -138,7 +139,7 @@ The user's chat response is authoritative. The visual artifact is supporting con
 Use OS temp by default because visual probes are disposable scratch:
 
 ```text
-/tmp/compound-engineering-<uid>/ce-brainstorm-visual/<run-id>/
+<resolved-runtime-root>/ce-brainstorm/runs/visual-<run-id>-<random>/
   screens/
     001-<decision>.html
   state/

@@ -123,6 +123,43 @@ describe("writeCodexBundle", () => {
     expect(config).toContain("http_headers")
   })
 
+  test("a managed reinstall replaces stale scratch instructions and preserves resolver sidecars", async () => {
+    const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-scratch-refresh-"))
+    const codexRoot = path.join(tempRoot, ".codex")
+    const installedSkill = path.join(
+      codexRoot,
+      "skills",
+      "compound-engineering",
+      "ce-code-review",
+    )
+    const sourceDir = path.join(import.meta.dir, "..", "skills", "ce-code-review")
+    const bundle: CodexBundle = {
+      pluginName: "compound-engineering",
+      prompts: [],
+      generatedSkills: [],
+      skillDirs: [{ name: "ce-code-review", sourceDir }],
+    }
+    await writeCodexBundle(codexRoot, bundle)
+    await fs.writeFile(
+      path.join(installedSkill, "SKILL.md"),
+      'SCRATCH_ROOT="/tmp/compound-engineering/ce-code-review"\n',
+    )
+    await writeCodexBundle(codexRoot, bundle)
+
+    const [sourceSkill, installedSkillBody, sourceResolver, installedResolver] =
+      await Promise.all([
+        fs.readFile(path.join(sourceDir, "SKILL.md"), "utf8"),
+        fs.readFile(path.join(installedSkill, "SKILL.md"), "utf8"),
+        fs.readFile(path.join(sourceDir, "scripts", "scratch-root.py"), "utf8"),
+        fs.readFile(path.join(installedSkill, "scripts", "scratch-root.py"), "utf8"),
+      ])
+
+    expect(installedSkillBody).toBe(sourceSkill)
+    expect(installedResolver).toBe(sourceResolver)
+    expect(installedSkillBody).not.toContain("/tmp/compound-engineering/")
+    expect(installedSkillBody).toContain("scripts/scratch-root.py")
+  })
+
   test("throws when two agents sanitize to the same Codex filename", async () => {
     const tempRoot = await fs.mkdtemp(path.join(os.tmpdir(), "codex-agent-collision-"))
     const bundle: CodexBundle = {

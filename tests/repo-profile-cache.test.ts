@@ -1,10 +1,13 @@
 import { describe, expect, test } from "bun:test"
 import { spawn, spawnSync } from "node:child_process"
 import {
+  chmodSync,
   mkdtempSync,
   writeFileSync,
   readFileSync,
   mkdirSync,
+  symlinkSync,
+  statSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
@@ -118,19 +121,17 @@ function getHitProfile(stdout: string): unknown {
 }
 
 describe("repo-profile-cache helper", () => {
-  test("fresh repo with no entry → MISS + a UID-scoped cache path under /tmp", () => {
+  test("fresh repo with no entry → MISS + a semantic path under the resolved cache root", () => {
     const dir = makeRepo()
     const res = run(dir, "get")
     expect(res.code).toBe(0)
     expect(res.stdout.startsWith("MISS\n")).toBe(true)
     const writePath = res.stdout.split("\n")[1]
-    expect(writePath).toContain(
-      `/compound-engineering-${process.getuid()}/repo-profile/`,
-    )
+    expect(writePath).toContain("/repo-profile-v1/")
     expect(writePath.endsWith(".json")).toBe(true)
   })
 
-  test("owner-scoped roots isolate sibling users", () => {
+  test("separate owner-private cache roots isolate independent callers", () => {
     const dir = makeRepo()
     const roots = mkdtempSync(path.join(tmpdir(), "repo-profile-owners-"))
     const ownerA = path.join(roots, "compound-engineering-1001")
@@ -140,20 +141,20 @@ describe("repo-profile-cache helper", () => {
 
     const put = runWithEnv(
       dir,
-      { COMPOUND_ENGINEERING_SCRATCH_ROOT: ownerA },
+      { COMPOUND_ENGINEERING_CACHE_ROOT: ownerA },
       "put",
       profileFile,
     )
     expect(put.code).toBe(0)
     expect(put.stdout.trim().startsWith(ownerA)).toBe(true)
     expect(
-      runWithEnv(dir, { COMPOUND_ENGINEERING_SCRATCH_ROOT: ownerA }, "get")
+      runWithEnv(dir, { COMPOUND_ENGINEERING_CACHE_ROOT: ownerA }, "get")
         .stdout.startsWith("HIT\n"),
     ).toBe(true)
 
     const ownerBGet = runWithEnv(
       dir,
-      { COMPOUND_ENGINEERING_SCRATCH_ROOT: ownerB },
+      { COMPOUND_ENGINEERING_CACHE_ROOT: ownerB },
       "get",
     )
     expect(ownerBGet.stdout.startsWith("MISS\n")).toBe(true)
@@ -162,10 +163,10 @@ describe("repo-profile-cache helper", () => {
 
   test("concurrent puts remain readable and atomic", async () => {
     const dir = makeRepo()
-    const scratchRoot = mkdtempSync(path.join(tmpdir(), "repo-profile-concurrent-"))
+    const cacheRoot = mkdtempSync(path.join(tmpdir(), "repo-profile-concurrent-"))
     const profileFile = path.join(dir, "profile.json")
     writeFileSync(profileFile, JSON.stringify(VALID_PROFILE))
-    const env = { COMPOUND_ENGINEERING_SCRATCH_ROOT: scratchRoot }
+    const env = { COMPOUND_ENGINEERING_CACHE_ROOT: cacheRoot }
 
     const puts = await Promise.all(
       Array.from({ length: 8 }, () => runAsync(dir, env, "put", profileFile)),
@@ -191,11 +192,60 @@ describe("repo-profile-cache helper", () => {
   test("put path is keyed by inputs-digest (64-hex), not HEAD", () => {
     const dir = makeRepo()
     const cachePath = putProfile(dir)
-    expect(cachePath).toContain(`/compound-engineering-${process.getuid()}/repo-profile/`)
-    const digestComponent = cachePath.split("/repo-profile/")[1].split("/")[1]
+    expect(cachePath).toContain("/repo-profile-v1/")
+    const digestComponent = cachePath.split("/repo-profile-v1/")[1].split("/")[1]
     expect(digestComponent).toMatch(/^[0-9a-f]{64}\.json$/)
     const head = git(dir, "rev-parse", "HEAD").trim()
     expect(digestComponent).not.toBe(`${head}.json`)
+  })
+
+  test("schema and semantic cache directories are owner-private", () => {
+    const dir = makeRepo()
+    const cachePath = putProfile(dir)
+    const semanticDir = path.dirname(cachePath)
+    const schemaDir = path.dirname(semanticDir)
+    expect(statSync(schemaDir).mode & 0o777).toBe(0o700)
+    expect(statSync(semanticDir).mode & 0o777).toBe(0o700)
+  })
+
+  test("unsafe cache overrides degrade to the next persistent candidate", () => {
+    const dir = makeRepo()
+    const base = mkdtempSync(path.join(tmpdir(), "repo-profile-unsafe-cache-"))
+    chmodSync(base, 0o700)
+    const home = path.join(base, "home")
+    mkdirSync(home, { mode: 0o700 })
+
+    const permissive = path.join(base, "permissive")
+    mkdirSync(permissive, { mode: 0o755 })
+    const badMode = runWithEnv(
+      dir,
+      {
+        COMPOUND_ENGINEERING_CACHE_ROOT: permissive,
+        XDG_CACHE_HOME: "relative-cache",
+        HOME: home,
+      },
+      "get",
+    )
+    expect(badMode.code).toBe(0)
+    expect(badMode.stdout.split("\n")[1]).toStartWith(
+      path.join(home, ".cache", "compound-engineering"),
+    )
+
+    const target = path.join(base, "target")
+    mkdirSync(target, { mode: 0o700 })
+    const link = path.join(base, "cache-link")
+    symlinkSync(target, link)
+    const symlinked = runWithEnv(
+      dir,
+      {
+        COMPOUND_ENGINEERING_CACHE_ROOT: link,
+        XDG_CACHE_HOME: "relative-cache",
+        HOME: home,
+      },
+      "get",
+    )
+    expect(symlinked.code).toBe(0)
+    expect(symlinked.stdout.split("\n")[1]).not.toStartWith(link)
   })
 
   test("content edit to existing non-input file at new HEAD → HIT", () => {
@@ -416,7 +466,7 @@ describe("repo-profile-cache helper", () => {
     const writePath = res.stdout.split("\n")[1]
     // The <root-sha> path component must be a single 40-hex SHA, not a
     // newline-joined pair from multiple roots.
-    const rootComponent = writePath.split("/repo-profile/")[1].split("/")[0]
+    const rootComponent = writePath.split("/repo-profile-v1/")[1].split("/")[0]
     expect(rootComponent).toMatch(/^[0-9a-f]{40}$/)
   })
 

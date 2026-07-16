@@ -87,7 +87,7 @@ For email sources there are no source-side actions, so approval is moot — reco
 Ask where the sweep's state file lives:
 
 - **Committed to the repo** (recommended when multiple agents or machines share branches — one source of truth everyone reads and writes). Sets `sweep_state_path` to the committed default `docs/feedback-sweep/state.yml`.
-- **Machine-local under owner-scoped `/tmp`** (solo setups; keeps sweep bookkeeping out of the repo, no commit noise). Sets `sweep_state_path` to `$SCRATCH_ROOT/ce-sweep/<repo-slug>/state.yml`, where `<repo-slug>` is derived from the repo (e.g. the basename of the repo root) and `SCRATCH_ROOT` follows the skill-wide owner-scoped convention.
+- **Machine-local persistent state** (solo setups; keeps sweep bookkeeping out of the repo, no commit noise). Derive `<stable-repo-key>` as a SHA-256 of the normalized primary remote URL, falling back to the canonical absolute repo path when no remote exists. Then set `SKILL_DIR` to this skill directory and execute `STATE_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" state-subdir "ce-sweep/<stable-repo-key>")";`; persist the concrete echoed path as `<STATE_DIR>/state.yml`. The state resolver uses `COMPOUND_ENGINEERING_STATE_ROOT`, XDG state, or `$HOME/.local/state` and therefore survives login/runtime-directory changes. Never persist an unresolved shell placeholder or key by basename alone.
 
 Let the user override the path if they want a different location. If they pick machine-local, note that a fresh checkout or a teammate's machine will not see this state — it is per-machine by design.
 
@@ -177,7 +177,7 @@ feedback_sources:
   - { type: slack, id: slack-alpha, target: C0XXXXXXX, ack_action: eyes, closeout_action: white_check_mark, sensitive: false, approved: true }
   - { type: github-issues, id: gh-issues, target: owner/repo, ack_action: "feedback:ack", closeout_action: "feedback:resolved", sensitive: false, approved: true }
 
-sweep_state_path: docs/feedback-sweep/state.yml   # committed (multi-agent) or /tmp path (solo)
+sweep_state_path: docs/feedback-sweep/state.yml   # committed (multi-agent) or owner-private persistent state path (solo)
 sweep_ack_cap: 25                                 # max acks per source per run before the circuit breaker
 sweep_lease_ttl_minutes: 60                       # single-writer lease staleness threshold; not asked interactively, tunable here
 sweep_shared_branch: false                        # true: push-gated lease for shared-docs-branch topology

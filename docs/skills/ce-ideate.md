@@ -25,7 +25,7 @@ The chain works across domains — every step supports universal mode. `ce-ideat
 |----------|--------|
 | What does it do? | Grounds in real material, decomposes the topic into orthogonal axes, generates candidates across six conceptual frames spread over those axes, critiques them adversarially, presents 5-7 survivors — each with a tagged basis |
 | When to use it | Greenfield exploration, big-picture thinking, codebase audits, surprise-me runs, naming, decisions, business strategy — any domain where you want a qualified candidate set rather than a refined idea |
-| What it produces | Ranked ideation artifact written as a single self-contained HTML file by default (humans are the audience — rich, openable in a browser); pass `output:md` for markdown. Written automatically to `docs/ideation/` when present, else an announced temp path under `/tmp/compound-engineering/` |
+| What it produces | Ranked ideation artifact written as a single self-contained HTML file by default (humans are the audience — rich, openable in a browser); pass `output:md` for markdown. Written automatically to `docs/ideation/` when present, else an announced path under the owner-private runtime root returned by the bundled scratch resolver. |
 | What's next | `/ce-brainstorm` on a chosen survivor, iterate on one first, or just keep the saved file |
 
 ---

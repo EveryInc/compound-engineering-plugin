@@ -63,7 +63,7 @@ Fully standalone — it needs no plan, no brainstorm, and works in any repo (or 
 
 ## FAQ
 
-**Where does the artifact go?** It's written to `/tmp/compound-engineering/ce-explain/<run-id>/` before the destination ask; choosing a destination copies it out. That path is temporary — pick a destination if you want to keep it.
+**Where does the artifact go?** It's written to an opaque, owner-private run directory returned by the bundled `scratch-root.py run-dir --skill ce-explain` resolver before the destination ask; choosing a destination copies it out. That path is temporary — pick a destination if you want to keep it.
 
 **Is this ce-compound for humans?** Roughly — a Learning teaches the repo's future work; an explainer teaches you. They're complements, not substitutes.
 

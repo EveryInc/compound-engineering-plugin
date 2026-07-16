@@ -64,15 +64,14 @@ Invoke via the skill-dir anchor — set `SKILL_DIR` to the absolute directory of
 Before the dispatch wave, resolve and create the owner-scoped run directory once, then substitute its captured absolute path for every `<run-dir>` below:
 
 ```bash
-SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}";
-RUN_DIR="$SCRATCH_ROOT/ce-doc-review/<run-id>";
-mkdir -p "$RUN_DIR";
+SKILL_DIR="<absolute path of the directory containing the ce-doc-review SKILL.md you read>";
+RUN_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" run-dir --skill ce-doc-review --run-id <run-id>)";
 printf '%s\n' "$RUN_DIR"
 ```
 
 ```bash
 SKILL_DIR="<absolute path of the directory containing the ce-doc-review SKILL.md you read>";
-CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" python3 "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-doc-review --run-id "<run-id>" --label "<reviewer-name>" -- env CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" bash "$SKILL_DIR/scripts/cross-model-doc-review.sh" "<host-serving-family>" "<target>" "<reviewer-name>" "<document-path>" "<document-type>" "<origin>" "<run-dir>"
+CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" python3 "$SKILL_DIR/scripts/peer-job-runner.py" start --skill ce-doc-review --run-id "<run-id>" --run-dir "<run-dir>" --label "<reviewer-name>" -- env CROSS_MODEL_HOST_HARNESS="<host-harness>" CROSS_MODEL_FIXED_ROUTE="<fixed-route>" bash "$SKILL_DIR/scripts/cross-model-doc-review.sh" "<host-serving-family>" "<target>" "<reviewer-name>" "<document-path>" "<document-type>" "<origin>" "<run-dir>"
 ```
 
 Omit `--result-path`; `done` means only that the worker exited. The fixed target determines the expected `<reviewer-name>-<target>.json` filename.
@@ -94,7 +93,7 @@ python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --json <job-i
 
 Capture the epoch time right after the final `start` (`date +%s`) — that anchor is how you know when the deadline passes, since nothing else tracks wall clock across tool calls. At synthesis, loop bounded `wait` calls until every job is terminal **or 610 seconds have elapsed since the final `start`** (compare `date +%s` against the anchor before each slice) (do not begin a `wait` slice that would extend past the deadline — reap instead); at that deadline, `reap` each job still nonterminal, then run one final bounded `wait --max-secs 10` pass (reap is asynchronous — the terminal record lands a grace period after it returns), then fold in whichever `<reviewer-name>-<provider>.json` files exist in `<run-dir>`. The detached script still self-bounds (codex idle-timeout default 180s with reasoning forced on for liveness; hard backstop `CROSS_MODEL_HARD_SECS` default 600s) and exits cleanly; the runner's supervisor windows sit outside those caps as the backstop. The script needs no prompt or schema passed in — it reads the persona brief, `findings-schema.json`, and the document itself from disk.
 
-Any started job whose terminal state is not `done` (`failed` / `timeout` / `died-without-result` — a job reaped at the deadline records `timeout`, with the reap noted in its reason; a preflight failure never yields a job id, so `never-started` is the silent-skip case, not a named one) is named in the Coverage line with its lens and terminal state (e.g. "cross-model security-lens peer: timeout"); silent absence remains correct only for passes that were never started (gate not met / skip). A missing fold-in file is still "the pass didn't run for that lens," never a review failure. After fold-in, delete the consumed job dirs under the resolved owner-scoped `<run-dir>/jobs` (use the environment's preferred deletion command).
+Any started job whose terminal state is not `done` (`failed` / `timeout` / `died-without-result` — a job reaped at the deadline records `timeout`, with the reap noted in its reason; a preflight failure never yields a job id, so `never-started` is the silent-skip case, not a named one) is named in the Coverage line with its lens and terminal state (e.g. "cross-model security-lens peer: timeout"); silent absence remains correct only for passes that were never started (gate not met / skip). A missing fold-in file is still "the pass didn't run for that lens," never a review failure. After fold-in, run `python3 "$SKILL_DIR/scripts/peer-job-runner.py" delete <job-id>` for each consumed job; the runner owns path resolution and deletion.
 
 The cross-model pass does **not** receive the accumulated decision primer that in-process personas get on round 2+ — the peer prompt carries a round-1 framing regardless of round. This is deliberate (cross-model is most valuable on the first pass), and synthesis's own R29/R30 suppression is the authoritative backstop for re-raised or already-resolved findings, so a peer that re-raises a prior-round-rejected finding is dropped at synthesis, not surfaced.
 
@@ -106,6 +105,23 @@ The cross-model pass does **not** receive the accumulated decision primer that i
 - **Classify the skip reason before the job dirs are deleted.** When a peer produced no usable output or ended non-`done`, read its `out.log` before cleanup, including bounded lines prefixed `peer skip evidence:`. Name observed quota, authentication, or capability failure specifically; after the same quota or usage-limit evidence appears more than once in this session, do not retry that route automatically. A retry uses a newly resolved and disclosed fixed route; never silently continue to another recipient.
 - Empty `findings` → note "cross-model pass: no additional issues" in Coverage.
 - A finding sharing a dedup fingerprint with its in-process twin (`<reviewer-name>`) promotes by one anchor step only when the artifact records `independence_verified: true`. Cursor-default artifacts default false; an unattested host skips automatic dispatch. Twin match uses section+title or same section with >50% evidence-substring overlap.
+
+## Step 6 — Close the exact cross-model run
+
+After classifying skip evidence, consuming fold-in artifacts, and deleting
+every started job through the runner, remove the captured opaque run:
+
+```bash
+SKILL_DIR="<absolute path of the directory containing the ce-doc-review SKILL.md you read>";
+python3 "$SKILL_DIR/scripts/scratch-root.py" remove-run-dir --skill ce-doc-review "$RUN_DIR"
+```
+
+This finalization applies on success, clean skip, and failure after `RUN_DIR`
+was created. If a job remains live, reap it and verify its terminal state before
+deleting the job; never remove scratch underneath a matching lease. If a live
+lease or cleanup error remains, retain the exact run, name its absolute path in
+Coverage, and report the cross-model pass as degraded instead of silently
+leaking or deleting active work. Never reconstruct the randomized run path.
 
 ## Trust boundary (maintainers)
 

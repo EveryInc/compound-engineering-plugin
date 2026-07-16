@@ -54,7 +54,7 @@ The ordering invariant is the point of the skill. Within a tick: terminal check 
 
 ### 2. Stateless, resumable tick — one loop, any driver
 
-All state lives on disk (`/tmp/compound-engineering/ce-babysit-pr/<owner>-<repo>-<pr>/state.json`), so a tick is idempotent and any re-invocation drives it: an in-session background-and-wake wait, `/loop`, a durable scheduler, or the user re-running the skill an hour later. This is what makes a single authored-once skill portable across CLI and app harnesses — the loop mechanics don't depend on any one driver that may not exist.
+All state lives on disk under the owner-private durable state root returned by the bundled resolver (`scratch-root.py state-subdir "ce-babysit-pr/<host>/<owner>/<repo>/<pr>"`), so a tick is idempotent and any re-invocation drives it: an in-session background-and-wake wait, `/loop`, a durable scheduler, or the user re-running the skill an hour later. This is what makes a single authored-once skill portable across CLI and app harnesses — the loop mechanics don't depend on any one driver that may not exist.
 
 ### 3. A self-sustaining in-session watch, not a per-harness scheduler
 

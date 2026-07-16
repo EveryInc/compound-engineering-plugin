@@ -23,7 +23,7 @@ stamp, and writes it atomically to the computed cache path. Prints the path
 on success, `NO-CACHE` when the repo/cache is unavailable.
 
 Cache path:
-    /tmp/compound-engineering-<uid>/repo-profile/<root-sha>/<inputs-digest>.json
+    <resolved-cache-root>/repo-profile-v1/<root-sha>/<inputs-digest>.json
   root-sha = lexicographically-first `git rev-list --max-parents=0 HEAD`
              (deterministic even for multi-root histories) — the repo identity,
              shared across worktrees and clones.
@@ -43,12 +43,13 @@ Validity (HIT) requires ALL of:
 
 Cardinal rule: this cache is an optimization, never a correctness dependency.
 Every failure mode (not a git repo, unreadable/malformed cache, no writable
-/tmp, git errors) degrades to NO-CACHE/MISS and exits 0 — it never raises and
+cache root, git errors) degrades to NO-CACHE/MISS and exits 0 — it never raises and
 never serves a profile it cannot prove fresh.
 
 Pure stdlib. No third-party dependencies.
 """
 import hashlib
+import importlib.util
 import json
 import os
 import subprocess
@@ -59,27 +60,29 @@ from datetime import datetime, timezone
 # Bump when the profile schema changes so a newer reader never reuses an
 # entry written under an older (narrower) schema.
 PROFILE_SCHEMA_VERSION = "1"
+os.umask(0o077)
 
 
-def default_scratch_root() -> str:
-    """Return a stable owner-scoped scratch root on POSIX systems.
+def resolve_cache_root() -> str:
+    """Load the co-located owner-scoped cache resolver.
 
-    A shared ``/tmp/compound-engineering`` directory can be created by one
-    Unix user with permissions that prevent sibling users from creating their
-    own run or cache directories.  UID-scoping preserves the stable,
-    inspectable ``/tmp`` location without sharing ownership boundaries.
+    Skill assets are self-contained, so each cache consumer carries an
+    identical resolver copy beside this helper. Any resolver failure disables
+    the optional cache instead of falling back to an unsafe shared path.
     """
-    getuid = getattr(os, "getuid", None)
-    owner_id = str(getuid()) if getuid is not None else f"pid-{os.getpid()}"
-    return os.path.join("/tmp", f"compound-engineering-{owner_id}")
+    helper = os.path.join(os.path.dirname(os.path.abspath(__file__)), "scratch-root.py")
+    spec = importlib.util.spec_from_file_location("ce_scratch_root", helper)
+    if spec is None or spec.loader is None:
+        raise RuntimeError(f"cannot load scratch resolver: {helper}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return str(module.ensure_cache_subdir("repo-profile-v1"))
 
 
-SCRATCH_ROOT = os.environ.get(
-    "COMPOUND_ENGINEERING_SCRATCH_ROOT", default_scratch_root()
-)
-CACHE_ROOT = os.environ.get(
-    "COMPOUND_ENGINEERING_CACHE_ROOT", os.path.join(SCRATCH_ROOT, "repo-profile")
-)
+try:
+    CACHE_ROOT = resolve_cache_root()
+except Exception:
+    CACHE_ROOT = ""
 
 # --- Profile-input set (the schema-derived superset, per the plan's R3) -------
 # Any change to one of these — including a NEW untracked file — must invalidate
@@ -495,6 +498,9 @@ def is_valid_profile(profile: object) -> bool:
 
 
 def do_get() -> int:
+    if not CACHE_ROOT:
+        print("NO-CACHE")
+        return 0
     keys = resolve_keys()
     if keys is None:
         print("NO-CACHE")
@@ -544,6 +550,9 @@ def do_get() -> int:
 
 
 def do_put(profile_file: str) -> int:
+    if not CACHE_ROOT:
+        print("NO-CACHE")
+        return 0
     keys = resolve_keys()
     if keys is None:
         print("NO-CACHE")
@@ -594,7 +603,9 @@ def do_put(profile_file: str) -> int:
 
     path = cache_path(root, digest)
     try:
-        os.makedirs(os.path.dirname(path), exist_ok=True)
+        semantic_dir = os.path.dirname(path)
+        os.makedirs(semantic_dir, mode=0o700, exist_ok=True)
+        os.chmod(semantic_dir, 0o700)
         # Atomic write: temp file in the same dir + os.replace (atomic on
         # POSIX) so a concurrent reader never sees a torn JSON.
         fd, tmp = tempfile.mkstemp(

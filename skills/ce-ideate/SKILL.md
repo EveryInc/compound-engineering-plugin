@@ -15,7 +15,7 @@ argument-hint: "[feature, focus area, or constraint] [output:md]"
 - `ce-brainstorm` answers: "What exactly should one chosen idea mean?" and writes a requirements-only unified plan under `docs/plans/`.
 - `ce-plan` answers: "How should it be built?"
 
-This workflow produces a ranked ideation artifact — written to `docs/ideation/` when present, else a CE temp path (see Phase 4). It does **not** produce requirements, plans, or code.
+This workflow produces a ranked ideation artifact — written to `docs/ideation/` when present, else the resolver's durable CE data directory (see Phase 4). It does **not** produce requirements, plans, or code.
 
 ## Interaction Method
 
@@ -247,18 +247,17 @@ Before generating ideas, gather grounding. The dispatch set depends on the mode 
 - **Elsewhere mode surprise-me:** user-context synthesis extracts themes, recurring language, tensions, and omissions from whatever the user supplied, rather than just restating it. Web research broadens beyond narrow prior-art for a single subject toward the domain's landscape.
 - Specified mode keeps the current shallower scan — the user's named subject anchors what's relevant, so broader exploration is unnecessary.
 
-Generate a `<run-id>` once at the start of Phase 1 (8 hex chars). Reuse it for the V15 cache file (this phase) and the V17 checkpoints (Phases 2 and 4) so they share one per-run scratch directory.
+Generate a `<run-id>` once at the start of Phase 1 (8 hex chars). Reuse it for the V17 checkpoints and other disposable artifacts in this run. The V15 web-research cache uses its own reusable cache namespace; it is not stored in a run directory.
 
-**Pre-resolve the scratch directory path.** Scratch lives in an owner-scoped root directly under `/tmp` (not under `$TMPDIR`, a shared `/tmp/compound-engineering` root, or `.context/`). `$TMPDIR` on macOS resolves to an obscure per-user path like `/var/folders/64/.../T/` that is hostile for users who want to inspect checkpoints, copy them elsewhere, or reference them later. The UID suffix keeps the readable `/tmp` path without allowing one Unix user to own another user's scratch boundary. Run one bash command to create the directory and capture its absolute path for downstream use.
+**Pre-resolve the scratch directory path.** Use the skill's shared resolver so an explicit owner-private override wins, then a valid owner-private XDG runtime directory, then the user's cache directory, and finally a UID-scoped `/tmp` fallback. The resolver rejects symlinks, wrong owners, permissive roots, and path traversal, and creates each run atomically at mode 0700. Run one bash command to create the directory and capture its absolute path for downstream use.
 
 ```bash
-SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"
-SCRATCH_DIR="$SCRATCH_ROOT/ce-ideate/<run-id>"
-mkdir -p "$SCRATCH_DIR"
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+SCRATCH_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" run-dir --skill ce-ideate --run-id <run-id>)";
 echo "$SCRATCH_DIR"
 ```
 
-Use the echoed absolute path as `<scratch-dir>` for every subsequent checkpoint write and cache read in this run. The run directory is not deleted on completion — the V15 cache is session-scoped and reused across run-ids, the checkpoints follow the cross-invocation-reusable convention, and in the no-repo case the deliverable itself is written here (see `references/post-ideation-workflow.md` Phase 4 and §5.5).
+Use the echoed absolute path as `<scratch-dir>` for every subsequent checkpoint and disposable dossier write in this run. Do not reconstruct this randomized path. The run directory is deleted through `scratch-root.py remove-run-dir` only after the deliverable is durable and the Phase 5 workflow ends. Web research reuse and no-repo deliverables use the resolver's cache and data lifecycles respectively (see `references/web-research-cache.md` and `references/post-ideation-workflow.md`).
 
 Run grounding agents in parallel in the **foreground** (do not background — results are needed before Phase 2):
 

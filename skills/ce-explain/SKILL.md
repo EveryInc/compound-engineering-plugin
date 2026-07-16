@@ -44,11 +44,16 @@ Read `references/intake.md` now and classify the request into one of the four in
 Match grounding to the input shape. Create the run directory first — every run gets one, before any artifact exists:
 
 ```bash
-SCRATCH_ROOT="${COMPOUND_ENGINEERING_SCRATCH_ROOT:-/tmp/compound-engineering-$(id -u)}"
-RUN_DIR="$SCRATCH_ROOT/ce-explain/$(date +%Y%m%d)-$(openssl rand -hex 3)"
-mkdir -p "$RUN_DIR"
+SKILL_DIR="<absolute path of the directory containing the SKILL.md you just read>";
+RUN_DIR="$(python3 "$SKILL_DIR/scripts/scratch-root.py" run-dir --skill ce-explain)";
 echo "$RUN_DIR"
 ```
+
+Once `RUN_DIR` exists, every terminal path must do one of two explicit things:
+confirm a durable destination and remove the exact run, or intentionally retain
+it while reporting the absolute path, that it may survive reboot, and the exact
+`remove-run-dir --skill ce-explain "$RUN_DIR"` command. A path with no artifact
+is never retained.
 
 **Repo-touching inputs** (a concept with footprint in this repo, a diff, a recap): resolve the question-agnostic project profile from the shared cache instead of re-deriving it. Set `SKILL_DIR` to this skill's directory and run the helper (full protocol in `references/repo-profile-cache.md`):
 
@@ -60,7 +65,7 @@ python3 "$SKILL_DIR/scripts/repo-profile-cache.py" get
 On `HIT`, load the profile JSON — stack, conventions, vocabulary — and take orientation from it. On `MISS`, dispatch a generic subagent with `references/agents/repo-profiler.md` to derive the profile, write its JSON to a file, then persist with `python3 "$SKILL_DIR/scripts/repo-profile-cache.py" put <file>` (re-set `SKILL_DIR` in that call — shell vars don't persist between Bash invocations). On `NO-CACHE` — or if the call errors — derive orientation inline and skip the `put`. The cache is an optimization, never a correctness dependency. The topic-specific evidence (the diff, the concept's call-sites, the window's commits) is always gathered fresh.
 
 - **Diff mode:** resolve the change (the `diff:` ref, or the most recent substantial change when the request points at one implicitly) and gather its evidence — the diff itself, the files it touches, any plan or solution doc that motivated it. Gather silently: nothing learned here is narrated to the user until Phase 3's ordering rule is satisfied.
-- **Recap mode:** dispatch a generic subagent seeded with `references/agents/work-recap-scout.md` (extraction tier), passing the resolved window, the repo root, and `$RUN_DIR`. It returns an evidence summary with commit shas and `file:line` pointers. **Empty window** (no git activity, no doc changes): say so, offer to widen the window, write no artifact, and end the run after the user responds.
+- **Recap mode:** dispatch a generic subagent seeded with `references/agents/work-recap-scout.md` (extraction tier), passing the resolved window, the repo root, and `$RUN_DIR`. It returns an evidence summary with commit shas and `file:line` pointers. **Empty window** (no git activity, no doc changes): say so, offer to widen the window, write no artifact, remove the exact run with `python3 "$SKILL_DIR/scripts/scratch-root.py" remove-run-dir --skill ce-explain "$RUN_DIR"`, and end after the user responds.
 - **External concepts** (no footprint in this repo): skip repo grounding entirely — do not force repo context into the output. Research with whatever web tools are reachable. When none are, you may explain from model knowledge, but the artifact must label that content **Unverified — from model knowledge, not checked against current sources** in its metadata header.
 - **Idea mode:** the idea is a fixed given. Explain its implications, mechanics, and trade-offs for the user's understanding. Never scope it (`ce-brainstorm`'s job), never generate and rank alternatives (`ce-ideate`'s job).
 
@@ -86,9 +91,11 @@ Detect destinations by capability — probe the agent's own toolset and session 
 - **Local file** — copy the artifact out of `$RUN_DIR` to the path the user names, then where the platform exposes a browser-opening primitive (`open` on macOS, `xdg-open` on Linux, `start` on Windows) offer to open it; otherwise print the absolute path.
 - **Publish to Proof** (markdown output only) — publish per `references/destinations.md` and surface the returned share URL; on failure retry once, then report and move on.
 - **Send to Thinkroom** (offered only when a Thinkroom skill or CLI capability is detected) — send per `references/destinations.md`.
-- **Leave it** — report the `$RUN_DIR` path and state it is a temporary location that does not survive reboot; nothing else is written.
+- **Leave it** — report the `$RUN_DIR` path and state truthfully that it is owner-private scratch which may live under `$HOME/.cache` and may survive reboot. It remains intentionally retained until the user moves it or runs `python3 "$SKILL_DIR/scripts/scratch-root.py" remove-run-dir --skill ce-explain "$RUN_DIR"`; print that exact cleanup command with the path.
 
-**Non-interactive degradation:** when no interaction is possible at this ask (no blocking tool and no reply), do not hang and do not discard — the artifact is already at `$RUN_DIR`; report that path and end, skipping the improvement-observation handoffs below (they are offers, and an offer cannot fire without a user).
+**Scratch close rule:** after a destination has durably accepted the artifact (successful publish/send, or a confirmed local copy outside `RUN_DIR`), remove the exact run with `python3 "$SKILL_DIR/scripts/scratch-root.py" remove-run-dir --skill ce-explain "$RUN_DIR"`. Do not remove it on a failed destination or before confirming the durable copy. `Leave it` is the explicit retention choice above, not an automatic TTL promise.
+
+**Non-interactive degradation:** when no interaction is possible at this ask (no blocking tool and no reply), do not hang and do not discard — the artifact is already at `$RUN_DIR`; report that owner-private path, say it may survive reboot, and print the exact `remove-run-dir --skill ce-explain "$RUN_DIR"` cleanup command. End while intentionally retaining it, skipping the improvement-observation handoffs below (they are offers, and an offer cannot fire without a user).
 
 **Improvement observations.** When composing the explainer surfaced things that could be better, route them by type after the destination ask — offer, don't auto-fire:
 

@@ -131,7 +131,7 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("mode:agent")
     expect(content).toContain("mode:headless")
     expect(content).toContain("COMPOUND_ENGINEERING_SCRATCH_ROOT")
-    expect(content).toContain('RUN_DIR="$SCRATCH_ROOT/ce-code-review/$RUN_ID"')
+    expect(content).toContain('scripts/scratch-root.py" run-dir --skill ce-code-review')
     expect(content).toMatch(/Never push, open PRs, or file tickets/i)
     expect(content).toContain("run artifact")
     expect(content).toMatch(/check out the PR branch/i)

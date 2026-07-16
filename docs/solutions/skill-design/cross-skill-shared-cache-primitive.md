@@ -27,7 +27,7 @@ Build the "shared" primitive as **byte-duplicated assets plus a parity test**, n
 2. **Guard file drift with a `tests/` byte-identity test** — declare the asset filenames x the consumer-skill list and assert each copy equals the first (mirror `tests/compound-support-files.test.ts`). Adding a consumer = drop in the copies + add its name to the test's `CONSUMER_SKILLS`.
 3. **Invoke the bundled script via the `SKILL_DIR` anchor**, never `${CLAUDE_SKILL_DIR}` (see `docs/solutions/skill-design/bundled-script-path-resolution-across-harnesses.md`).
 4. **Put deterministic work in the script, judgment in the persona.** The Python helper does git keying + validity + atomic read/write (unit-testable); the LLM persona derives the profile only on a miss.
-5. **Share state through a single OS-temp location, keyed by content/identity**, so any skill reads what another wrote (`/tmp/compound-engineering/repo-profile/<root-sha>/<inputs-digest>.json`).
+5. **Share reusable state through the owner-private cache root returned by the byte-identical resolver, keyed by content/identity**, so any skill running as the same OS UID reads what another wrote (`<resolved-cache-root>/repo-profile/<root-sha>/<inputs-digest>.json`) without exposing a fixed host-global namespace.
 
 ## Why This Matters
 
