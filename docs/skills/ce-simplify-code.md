@@ -18,7 +18,7 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 |----------|--------|
 | What does it do? | Spawns three parallel reviewer agents on the recently-changed code, applies their findings, and verifies behavior is preserved |
 | When to use it | Before opening a PR; after writing a feature; after AI generated code that works but feels heavy |
-| What it produces | Updated code (in place) + a summary of what was changed, what was good as-is, which checks ran, and a quantified impact by dimension (fixes applied per reuse/quality/efficiency, skipped count, verification result); design-level "should this construct exist" findings are reported with tradeoffs, not auto-applied |
+| What it produces | Updated code (in place) + a summary of what was changed, what was good as-is, which checks ran, and a quantified impact by dimension (fixes applied per reuse/quality/efficiency, skipped count, verification result) |
 | What's next | Open the PR via `/ce-commit-push-pr` |
 
 ---
@@ -54,8 +54,8 @@ The orchestrator aggregates their findings, applies fixes, and runs typecheck + 
 
 A single "review and improve" prompt collapses into the agent's most-trained directions. Three reviewers each focused on one dimension cover meaningfully more ground:
 
-- **Reuse** — searches for existing utilities and helpers; flags new functions that duplicate existing ones; flags inline logic that could use an existing utility; flags diff code that reimplements a language standard-library or runtime primitive (gated on behavior-equivalence, excluding UX-changing swaps); flags code that hand-maintains a guarantee the platform, framework, or downstream layer already provides (e.g., a field list mirroring a schema the serving layer already projects to)
-- **Quality** — redundant state, parameter sprawl, copy-paste with variation (checking whether the duplicated construct can be eliminated entirely before proposing a merge), leaky abstractions, stringly-typed code, unnecessary wrappers (in component-tree UI frameworks), deeply nested conditionals, unnecessary comments, dead code / unused imports / unused exports — without inventing intent to clear a suspicious construct it hasn't verified
+- **Reuse** — searches for existing utilities and helpers; flags new functions that duplicate existing ones; flags inline logic that could use an existing utility; flags diff code that reimplements a language standard-library or runtime primitive (gated on behavior-equivalence, excluding UX-changing swaps); flags code that hand-maintains a verified guarantee the platform, framework, or downstream layer already provides
+- **Quality** — redundant state, parameter sprawl, copy-paste with variation (checking whether the duplicated construct can be eliminated before proposing a merge), leaky abstractions, stringly-typed code, unnecessary wrappers (in component-tree UI frameworks), deeply nested conditionals, unnecessary comments, dead code / unused imports / unused exports
 - **Efficiency** — unnecessary work (redundant computations, repeat reads), missed concurrency, hot-path bloat, recurring no-op updates, TOCTOU pre-checks, memory issues, overly broad operations
 
 ### 2. Smart scope detection — user-named > git diff > recent edits
@@ -63,8 +63,6 @@ A single "review and improve" prompt collapses into the agent's most-trained dir
 The skill resolves the simplification scope in priority order: explicit user-named scope (a file, "the function I just wrote") is authoritative; otherwise the git diff between the current branch and its base; otherwise recent edits; otherwise it asks rather than guessing. **User-named scope is never widened.**
 
 ### 3. Behavior preservation verification
-
-Behavior is judged at the observable contract boundary — API responses, persisted data, emitted events, errors, side effects — with explicit proof required when internal shape changes but the external contract doesn't. Findings that would restructure internal (non-contractual) shape are **reported as design-level recommendations with tradeoffs, never auto-applied**. Before applying anything, the orchestrator also checks whether multiple findings cluster on one construct — a signal the construct itself may be unnecessary — and resolves that necessity question before applying fixes that would entrench it.
 
 After applying fixes, the skill runs typecheck and lint over the project and runs tests scoped to the changed paths (broadening when the change has wide reach — e.g., a heavily-imported utility was rewritten). Failures are surfaced clearly with the failing check name and relevant output. **The skill refuses to relax assertions, weaken type signatures, or skip tests to make checks pass** — either fix the underlying break or revert the specific simplification that caused it. It also **never simplifies away a safety check** — input validation at trust boundaries, data-loss-preventing error handling, security checks, and accessibility affordances are preserved even when a finding frames them as removable boilerplate.
 
@@ -195,9 +193,6 @@ The orchestrator aggregates findings and applies them directly. If a finding is 
 
 **What if applying fixes breaks tests?**
 The skill won't relax assertions, weaken type signatures, or skip tests to paper over the break. Either it fixes the underlying issue introduced by the simplification, or it reverts the specific change that caused the regression. The premise is preservation of exact functionality.
-
-**What if the simpler design isn't strictly behavior-preserving?**
-Some of the highest-value findings are "this construct may not need to exist at all" — a hand-maintained list a downstream layer already makes redundant, duplicate blocks that could be deleted rather than merged. When acting on one would change internal (non-contractual) shape, the skill reports it prominently in the summary with the tradeoffs both ways instead of applying it — that call belongs to you. This keeps the pass from entrenching a questionable construct by polishing around it.
 
 **Why isn't simplification just part of the original write?**
 It can be, but in practice the moment to find an existing utility is when you're searching for it, not when you're writing the feature. A separate refinement pass with parallel cross-cutting search catches things the original write didn't.
