@@ -7,6 +7,7 @@ const repoRoot = path.join(import.meta.dir, "..", "..")
 const checkHealthScript = path.join(repoRoot, "skills", "ce-setup", "scripts", "check-health")
 const configTemplate = path.join(repoRoot, "skills", "ce-setup", "references", "config-template.yaml")
 const configExample = path.join(repoRoot, ".compound-engineering", "config.local.example.yaml")
+const configDocs = path.join(repoRoot, "docs", "skills", "configuration.md")
 const ceWorkDocs = path.join(repoRoot, "docs", "skills", "ce-work.md")
 const lfgDocs = path.join(repoRoot, "docs", "skills", "lfg.md")
 
@@ -57,6 +58,44 @@ describe("ce-setup check-health", () => {
     ])
 
     expect(example).toBe(template)
+  })
+
+  test("documents every setup-template option in the centralized config reference", async () => {
+    const [template, docs, setupDocs, catalog, instructions] = await Promise.all([
+      readFile(configTemplate, "utf8"),
+      readFile(configDocs, "utf8"),
+      readFile(path.join(repoRoot, "docs", "skills", "ce-setup.md"), "utf8"),
+      readFile(path.join(repoRoot, "docs", "skills", "README.md"), "utf8"),
+      readFile(path.join(repoRoot, "AGENTS.md"), "utf8"),
+    ])
+
+    const keys = [...template.matchAll(/^# ([A-Za-z][A-Za-z0-9_]*):(?:\s|$)/gm)].map((match) => match[1])
+    expect(keys.length).toBeGreaterThan(0)
+    for (const key of keys) {
+      expect(docs).toContain(`\`${key}\``)
+    }
+    expect(docs).toContain("AGENTS.md")
+    expect(docs).toContain("CLAUDE.md")
+    expect(setupDocs).toContain("./configuration.md")
+    expect(catalog).toContain("./configuration.md")
+    expect(instructions).toContain("docs/skills/configuration.md")
+
+    for (const consumer of [
+      "ce-brainstorm",
+      "ce-code-review",
+      "ce-commit-push-pr",
+      "ce-doc-review",
+      "ce-ideate",
+      "ce-plan",
+      "ce-product-pulse",
+      "ce-promote",
+      "ce-sweep",
+      "ce-work",
+      "lfg",
+    ]) {
+      const consumerDocs = await readFile(path.join(repoRoot, "docs", "skills", `${consumer}.md`), "utf8")
+      expect(consumerDocs).toContain("./configuration.md")
+    }
   })
 
   test("does not advertise retired Codex work-delegation settings", async () => {

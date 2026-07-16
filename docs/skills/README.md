@@ -4,6 +4,8 @@ End-user-facing documentation for compound-engineering plugin skills. Each page 
 
 For runtime behavior and contributor reference, the `SKILL.md` in each skill's source folder under `skills/` is authoritative.
 
+Checkout-local defaults shared across skills are documented in [Compound Engineering configuration](./configuration.md).
+
 ---
 
 ## The compound-engineering core loop

@@ -214,6 +214,8 @@ work_engine_preferences:
   - harness: claude
 ```
 
+The [central configuration reference](./configuration.md#implementation-routing) explains how this checkout-local default interacts with current-task, session, and project instructions.
+
 Each candidate has a `harness` (`codex`, `claude`, `grok`, or `cursor`) and an optional `model`. Omitting `model` means that harness's configured default. Composer is a model family reached through Cursor, so it is written as `harness: cursor` plus `model: composer`. Keep CLI flags and commands out of config; the list describes the desired author, while `ce-work` starts from its qualified adapter recipe and can inspect the installed CLI's help/version when a compatible invocation has drifted.
 
 The list is intentionally host-relative. In Codex, the example skips an equivalent Codex route only if its requested model is also the current/default model; otherwise that explicit model is a distinct candidate. In Claude Code it can try Cursor first, then Codex, and skip the final Claude default. `ce-work` walks the list only during preflight, records why a candidate is skipped or unavailable, and locks the first qualified recipient before egress. It never hops to another list entry after dispatch starts.

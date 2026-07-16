@@ -4,6 +4,8 @@
 
 `ce-setup` is the lightweight onboarding and troubleshooting skill. It reports which optional tools are available, cleans obsolete local config, refreshes the committed config example, and helps keep machine-local settings out of git.
 
+See [Compound Engineering configuration](./configuration.md) for the complete option reference and how local defaults interact with session and project instructions.
+
 It is explicit-invocation only (`disable-model-invocation: true`) so it never runs as a side effect of ordinary setup discussion.
 
 ---
@@ -128,3 +130,4 @@ Yes. When the bundled health script is not directly runnable, the skill falls ba
 - [`/ce-test-browser`](./ce-test-browser.md) — uses `agent-browser` when no capable host-native browser is available
 - [`/ce-dogfood`](./ce-dogfood.md) — uses `agent-browser` for diff-scoped QA
 - [`/ce-product-pulse`](./ce-product-pulse.md) — uses `.compound-engineering/config.local.yaml` for pulse settings
+- [Compound Engineering configuration](./configuration.md) — every supported local option, its consumer, and precedence guidance

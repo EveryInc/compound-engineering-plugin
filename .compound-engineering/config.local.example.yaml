@@ -77,6 +77,13 @@
 
 # plan_skip_scoping_confirm: true   # true | false (default: false)
 
+# --- Cross-model review preference ---
+# Preferred peer for ce-doc-review and ce-code-review when their conditional
+# cross-model pass activates. Conversation instructions still win, and the
+# skills skip routes that cannot establish the required host/peer distinction.
+
+# cross_model_peer: codex          # codex | claude | grok | cursor | composer
+
 # --- ce-work implementation engine ---
 # Standing, per-checkout preferences for who authors implementation units. Live
 # task/session/project instructions and LFG's provenance-bearing binding may

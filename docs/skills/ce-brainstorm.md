@@ -222,7 +222,7 @@ The Phase 4 handoff offers planning, agent doc review, publish to Proof, direct-
 | `<feature idea>` | Open-ended brainstorm |
 | `<problem>` | Routes via the product pressure test |
 | Existing requirements-only plan path, legacy `*-requirements.md` path, or topic | Resume offer |
-| `output:html` | Write the requirements-only unified plan as a single self-contained HTML file instead of markdown. Exclusive — the artifact is `.md` OR `.html`, never both. Default is markdown. Set `brainstorm_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. |
+| `output:html` | Write the requirements-only unified plan as a single self-contained HTML file instead of markdown. Exclusive — the artifact is `.md` OR `.html`, never both. Default is markdown. Set `brainstorm_output: html` in `.compound-engineering/config.local.yaml` to make HTML the default. Pipeline mode (LFG, `disable-model-invocation`) always forces markdown so downstream automation gets a stable text shape. See the [configuration reference](./configuration.md). |
 
 ---
 
