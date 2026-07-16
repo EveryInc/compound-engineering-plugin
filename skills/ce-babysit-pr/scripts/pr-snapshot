@@ -1210,6 +1210,7 @@ def cmd_watch(args):
     only a *new* blocker (signature grown past the baseline) wakes."""
     stop_requested = threading.Event()
     interrupt_immediately = True
+    superseded = False
     generation = uuid.uuid4().hex
 
     # An already-requested stop is authoritative before this invocation becomes a candidate. Use
@@ -1220,6 +1221,8 @@ def cmd_watch(args):
         return
 
     def request_stop(_signum, _frame):
+        nonlocal superseded
+        superseded = True
         stop_requested.set()
         if interrupt_immediately:
             raise _WatchSuperseded()
@@ -1240,6 +1243,7 @@ def cmd_watch(args):
         interrupt_immediately = False
         previous, actionable = _activate_watch(args, generation, _now(), cur)
         if previous is None:
+            superseded = True
             return
         args.reset_session = False
         _terminate_replaced_watch(previous)
@@ -1249,7 +1253,10 @@ def cmd_watch(args):
 
         armed = _blocker_sig(actionable)  # blockers already surfaced when this generation armed
         while True:
-            if stop_requested.is_set() or not _watch_is_current(args, generation):
+            if stop_requested.is_set():
+                return
+            if not _watch_is_current(args, generation):
+                superseded = True
                 return
             if args.stop_file and os.path.exists(args.stop_file):
                 _emit_wake_if_current(args, generation, "stop-signal")
@@ -1267,15 +1274,20 @@ def cmd_watch(args):
             if stop_requested.wait(args.interval):
                 return
             if not _watch_is_current(args, generation):
+                superseded = True
                 return
             actionable = _run_snapshot(args, _now(), advance_trajectory=False,
                                        watch_generation=generation)
     except _WatchSuperseded:
+        superseded = True
         return
     finally:
         interrupt_immediately = False
         _clear_watch_candidate(args, generation)
-        signal.signal(signal.SIGTERM, prior_sigterm)
+        # A newer owner can still signal our recorded PID after observing us stale but before this
+        # process has exited. Keep that late takeover signal harmless; ordinary wake/timeout/stop
+        # returns restore the embedding caller's handler as before.
+        signal.signal(signal.SIGTERM, signal.SIG_IGN if superseded else prior_sigterm)
 
 
 def _mark_thread_baseline(item_id, args, state):

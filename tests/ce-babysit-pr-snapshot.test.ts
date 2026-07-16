@@ -1252,6 +1252,61 @@ print(f"{alive} {time.time() - started:.3f}")
     expect(Number(elapsed)).toBeLessThan(2)
   })
 
+  test("watch: stale teardown ignores a late takeover SIGTERM and ordinary teardown restores it", () => {
+    const python = `
+import json, os, signal, threading, time
+from importlib.machinery import SourceFileLoader
+from types import SimpleNamespace
+m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
+args = SimpleNamespace(reset_session=False, stop_file=None, settle_seconds=300, max_runtime=0,
+                       interval=0.01, state_dir=${JSON.stringify(dir)}, pr=1, repo="o/r")
+actionable = {"counts": {}, "pr_state": "OPEN", "session_seconds": 0}
+m._reserve_watch_candidate = lambda args, generation: {}
+m._clear_watch_candidate = lambda args, generation: None
+m._fetch_snapshot = lambda args: {}
+m._activate_watch = lambda args, generation, now, cur: ({}, actionable)
+m._terminate_replaced_watch = lambda previous: None
+m._emit_wake_if_current = lambda *args, **kwargs: True
+
+real_signal = signal.signal
+signal_calls = 0
+final_handler_installed = threading.Event()
+def track_signal(signum, handler):
+    global signal_calls
+    result = real_signal(signum, handler)
+    if signum == signal.SIGTERM:
+        signal_calls += 1
+        if signal_calls == 2:
+            final_handler_installed.set()
+            time.sleep(0.2)
+    return result
+def send_late_takeover_signal():
+    if not final_handler_installed.wait(2):
+        os._exit(2)
+    os.kill(os.getpid(), signal.SIGTERM)
+
+m.signal.signal = track_signal
+m._watch_is_current = lambda args, generation: False
+sender = threading.Thread(target=send_late_takeover_signal)
+sender.start()
+m.cmd_watch(args)
+sender.join(timeout=2)
+assert not sender.is_alive()
+
+m.signal.signal = real_signal
+def caller_handler(_signum, _frame):
+    pass
+real_signal(signal.SIGTERM, caller_handler)
+m._watch_is_current = lambda args, generation: True
+m._wake_reason = lambda actionable, settle_seconds: "actionable"
+m.cmd_watch(args)
+print(json.dumps({"ordinary_restored": signal.getsignal(signal.SIGTERM) is caller_handler}))
+`
+    const r = spawnSync("python3", ["-c", python], { encoding: "utf8", timeout: 5000 })
+    expect(r.status, r.stderr).toBe(0)
+    expect(JSON.parse(r.stdout)).toEqual({ ordinary_restored: true })
+  })
+
   test("fetch_threads follows every GraphQL page before returning unresolved threads", () => {
     const python = `
 import json
