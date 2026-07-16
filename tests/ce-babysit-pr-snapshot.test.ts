@@ -1,6 +1,6 @@
 import { describe, expect, test, beforeEach } from "bun:test"
 import { spawn, spawnSync } from "node:child_process"
-import { mkdtempSync, writeFileSync, readFileSync, renameSync } from "node:fs"
+import { existsSync, mkdtempSync, writeFileSync, readFileSync, renameSync } from "node:fs"
 import { tmpdir } from "node:os"
 import path from "node:path"
 
@@ -966,6 +966,43 @@ describe("ce-babysit-pr pr-snapshot engine", () => {
     expect(wake.reason).toBe("actionable")
     expect(wake.watch_generation).toBe(activeGeneration)
   }, 15000)
+
+  test("watch: an existing stop file wakes before reservation or preflight", () => {
+    const sd = path.join(dir, "watch-stopped-before-arm")
+    const fetch = fetchFile(dir, "watch-stopped-before-arm.json", {
+      ...FAILING,
+      head_sha: "incumbent-head",
+      threads: [],
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+    })
+    snapshot(sd, fetch)
+    const statePath = path.join(sd, "state.json")
+    const incumbent = JSON.parse(readFileSync(statePath, "utf8"))
+    incumbent.watch_generation = "incumbent-generation"
+    incumbent.watch_pid = 999999
+    incumbent.watch_process_identity = "incumbent-identity"
+    const before = JSON.stringify(incumbent)
+    writeFileSync(statePath, before)
+
+    const stopFile = path.join(dir, "watch-stopped-before-arm.stop")
+    writeFileSync(stopFile, "stop")
+    const missingFetch = path.join(dir, "watch-stopped-before-arm-must-not-fetch.json")
+    const r = spawnSync(
+      "python3",
+      [SCRIPT, "watch", "--pr", "1", "--repo", "o/r", "--state-dir", sd,
+        "--fetch-file", missingFetch, "--stop-file", stopFile],
+      { encoding: "utf8", timeout: 5000 },
+    )
+
+    expect(r.status, r.stderr).toBe(0)
+    expect(JSON.parse(r.stdout.trim())).toMatchObject({
+      event: "BABYSIT_WAKE",
+      reason: "stop-signal",
+      watch_generation: "incumbent-generation",
+    })
+    expect(readFileSync(statePath, "utf8")).toBe(before)
+    expect(existsSync(path.join(sd, "watch-candidate.json"))).toBe(false)
+  })
 
   test("watch: a newer invocation supersedes an older candidate with a slow preflight", async () => {
     const sd = path.join(dir, "watch-candidate-order")

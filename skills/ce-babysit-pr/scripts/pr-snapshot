@@ -1044,6 +1044,17 @@ def _emit_wake(reason, **fields):
     print(json.dumps({"event": "BABYSIT_WAKE", "reason": reason, **fields}), flush=True)
 
 
+def _persisted_watch_generation(args):
+    """Best-effort read of current ownership without creating or mutating watch state."""
+    try:
+        with open(os.path.join(args.state_dir, "state.json")) as f:
+            state = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return None
+    generation = state.get("watch_generation") if isinstance(state, dict) else None
+    return generation if isinstance(generation, str) and generation else None
+
+
 def _blocker_sig(a):
     """Identity of blockers the agent surfaces once but cannot self-clear — parked needs-human
     items, a dispatched terminally-red check, and a fork workflow awaiting maintainer approval. The
@@ -1200,6 +1211,13 @@ def cmd_watch(args):
     stop_requested = threading.Event()
     interrupt_immediately = True
     generation = uuid.uuid4().hex
+
+    # An already-requested stop is authoritative before this invocation becomes a candidate. Use
+    # current ownership for the wake when one exists, but do not fetch, reserve, mutate watch state,
+    # or disturb that incumbent merely to report the stop condition.
+    if args.stop_file and os.path.exists(args.stop_file):
+        _emit_wake("stop-signal", watch_generation=_persisted_watch_generation(args) or generation)
+        return
 
     def request_stop(_signum, _frame):
         stop_requested.set()
