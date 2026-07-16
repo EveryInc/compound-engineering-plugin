@@ -322,6 +322,44 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(merged.malformed_findings).toBe(1)
   })
 
+  test("findings helper rejects malformed optional evidence without rejecting absence", () => {
+    const finding = {
+      severity: "P1",
+      file: "src/worker.ts",
+      confidence: 75,
+      autofix_class: "manual",
+      owner: "human",
+      requires_verification: true,
+      pre_existing: false,
+    }
+    const returns = [
+      {
+        reviewer: "correctness",
+        findings: [
+          { ...finding, title: "Boolean evidence", line: 10, first_evidence: true },
+          { ...finding, title: "Numeric evidence", line: 11, first_evidence: 42 },
+          { ...finding, title: "Whitespace evidence", line: 12, first_evidence: " \n\t" },
+          { ...finding, title: "Optional evidence omitted", line: 13 },
+        ],
+        residual_risks: [],
+        testing_gaps: [],
+      },
+    ]
+
+    const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+
+    expect(merged.findings).toEqual([])
+    expect(merged.malformed_findings).toBe(3)
+    expect(merged.suppressed_findings).toEqual([
+      expect.objectContaining({
+        title: "Optional evidence omitted",
+        confidence: 50,
+      }),
+    ])
+  })
+
   test("findings helper keeps settled decisions, caps fast-pass, and sorts by confidence", () => {
     const returns = [
       {

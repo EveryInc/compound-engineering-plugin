@@ -38,12 +38,18 @@ def valid_return(value: Any) -> bool:
     )
 
 
+def nonempty_string(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
 def valid_finding(value: Any) -> bool:
     if not isinstance(value, dict):
         return False
     if not all(isinstance(value.get(key), expected) for key, expected in REQUIRED_FINDING.items()):
         return False
     if type(value["confidence"]) is not int:
+        return False
+    if "first_evidence" in value and not nonempty_string(value["first_evidence"]):
         return False
     line = value["line"]
     line_valid = (type(line) is int and line > 0) or (
@@ -102,7 +108,9 @@ def merge_group(group: list[tuple[dict[str, Any], str, tuple[str, ...]]]) -> dic
         merged["requires_verification"] = (
             merged["requires_verification"] or finding["requires_verification"]
         )
-        if not merged.get("first_evidence") and finding.get("first_evidence"):
+        if not nonempty_string(merged.get("first_evidence")) and nonempty_string(
+            finding.get("first_evidence")
+        ):
             merged["first_evidence"] = finding["first_evidence"]
         if not merged.get("suggested_fix") and finding.get("suggested_fix"):
             merged["suggested_fix"] = finding["suggested_fix"]
@@ -110,9 +118,10 @@ def merge_group(group: list[tuple[dict[str, Any], str, tuple[str, ...]]]) -> dic
             merged["settled_conflict"] = finding["settled_conflict"]
 
     confidence = max(item[0]["confidence"] for item in group)
-    if confidence >= 75 and not merged.get("first_evidence"):
+    has_first_evidence = nonempty_string(merged.get("first_evidence"))
+    if confidence >= 75 and not has_first_evidence:
         confidence = 50
-    if len(independent) >= 2 and merged.get("first_evidence"):
+    if len(independent) >= 2 and has_first_evidence:
         confidence = promote(confidence)
     merged["confidence"] = confidence
     merged["reviewers"] = reviewer_names
