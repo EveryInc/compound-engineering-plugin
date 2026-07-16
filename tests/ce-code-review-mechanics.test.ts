@@ -1,0 +1,243 @@
+import { mkdtempSync, mkdirSync, writeFileSync } from "fs"
+import { tmpdir } from "os"
+import path from "path"
+import { spawnSync } from "node:child_process"
+import { describe, expect, test } from "bun:test"
+
+const SKILL_DIR = path.join(process.cwd(), "skills", "ce-code-review")
+const SCOPE_SCRIPT = path.join(SKILL_DIR, "scripts", "review-scope.py")
+const FINDINGS_SCRIPT = path.join(SKILL_DIR, "scripts", "findings-mechanics.py")
+
+function run(command: string, args: string[], cwd?: string, input?: string) {
+  return spawnSync(command, args, { cwd, input, encoding: "utf8" })
+}
+
+function git(cwd: string, ...args: string[]) {
+  const result = run("git", args, cwd)
+  expect(result.status).toBe(0)
+  return result.stdout.trim()
+}
+
+function fixtureRepo() {
+  const dir = mkdtempSync(path.join(tmpdir(), "ce-review-scope-"))
+  git(dir, "init", "-q")
+  git(dir, "config", "user.email", "eval@example.com")
+  git(dir, "config", "user.name", "Eval")
+  writeFileSync(path.join(dir, "service.ts"), "export const value = 1\n")
+  git(dir, "add", ".")
+  git(dir, "commit", "-qm", "base")
+  const base = git(dir, "rev-parse", "HEAD")
+  return { dir, base }
+}
+
+describe("ce-code-review deterministic mechanics", () => {
+  test("scope helper counts executable changes and fails closed on uncounted files", () => {
+    const { dir, base } = fixtureRepo()
+    mkdirSync(path.join(dir, "docs"))
+    writeFileSync(path.join(dir, "service.ts"), "export const value = 2\n")
+    writeFileSync(path.join(dir, "docs", "note.md"), "context\n")
+    git(dir, "add", ".")
+
+    const result = run("python3", [SCOPE_SCRIPT, "--base", base], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.exec_lines).toBe(2)
+    expect(scope.uncounted_files).toBe(1)
+    expect(scope.changed_files).toEqual(["docs/note.md", "service.ts"])
+    expect(scope.lite_eligible).toBe(false)
+  })
+
+  test("scope helper emits UNKNOWN-equivalent state for an invalid endpoint", () => {
+    const { dir } = fixtureRepo()
+    const result = run("python3", [SCOPE_SCRIPT, "--base", "missing-ref"], dir)
+    expect(result.status).toBe(0)
+    const scope = JSON.parse(result.stdout)
+
+    expect(scope.exec_lines).toBeNull()
+    expect(scope.uncounted_files).toBeGreaterThan(0)
+    expect(scope.lite_eligible).toBe(false)
+  })
+
+  test("findings helper validates, exact-deduplicates, gates, sorts, and numbers", () => {
+    const returns = [
+      {
+        reviewer: "correctness",
+        findings: [
+          {
+            title: "Primary defect",
+            severity: "P1",
+            file: "src/worker.ts",
+            line: 12,
+            confidence: 75,
+            autofix_class: "gated_auto",
+            owner: "downstream-resolver",
+            requires_verification: true,
+            pre_existing: false,
+            first_evidence: "src/worker.ts:12 -- result = staleValue",
+          },
+        ],
+        residual_risks: [],
+        testing_gaps: [],
+      },
+      {
+        reviewer: "reliability",
+        findings: [
+          {
+            title: "Primary defect",
+            severity: "P1",
+            file: "src/worker.ts",
+            line: 12,
+            confidence: 75,
+            autofix_class: "manual",
+            owner: "human",
+            requires_verification: true,
+            pre_existing: false,
+            first_evidence: "src/worker.ts:12 -- result = staleValue",
+          },
+          {
+            title: "Speculative cleanup",
+            severity: "P3",
+            file: "src/worker.ts",
+            line: 2,
+            confidence: 50,
+            autofix_class: "advisory",
+            owner: "human",
+            requires_verification: false,
+            pre_existing: false,
+          },
+        ],
+        residual_risks: [],
+        testing_gaps: [],
+      },
+    ]
+
+    const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+
+    expect(merged.findings).toHaveLength(1)
+    expect(merged.findings[0]["#"]).toBe(1)
+    expect(merged.findings[0].confidence).toBe(100)
+    expect(merged.findings[0].autofix_class).toBe("manual")
+    expect(merged.findings[0].owner).toBe("human")
+    expect(merged.findings[0].reviewers).toEqual(["correctness", "reliability"])
+    expect(merged.suppressed_by_confidence).toEqual({ "50": 1 })
+  })
+
+  test("findings helper keeps settled decisions, caps fast-pass, and sorts by confidence", () => {
+    const returns = [
+      {
+        reviewer: "synthesis",
+        findings: [
+          {
+            title: "Settled implementation preference",
+            severity: "P3",
+            file: "src/z.ts",
+            line: 9,
+            confidence: 50,
+            autofix_class: "advisory",
+            owner: "human",
+            requires_verification: false,
+            pre_existing: false,
+            settled_conflict: "KTD-2",
+          },
+          {
+            title: "Lower confidence",
+            severity: "P1",
+            file: "src/a.ts",
+            line: 2,
+            confidence: 75,
+            autofix_class: "manual",
+            owner: "downstream-resolver",
+            requires_verification: true,
+            pre_existing: false,
+            first_evidence: "src/a.ts:2 -- lower",
+          },
+          {
+            title: "Higher confidence",
+            severity: "P1",
+            file: "src/z.ts",
+            line: 3,
+            confidence: 100,
+            autofix_class: "manual",
+            owner: "downstream-resolver",
+            requires_verification: true,
+            pre_existing: false,
+            first_evidence: "src/z.ts:3 -- higher",
+          },
+        ],
+        residual_risks: [],
+        testing_gaps: [],
+      },
+      {
+        reviewer: "fast-pass",
+        findings: [
+          {
+            title: "Uncorroborated preliminary issue",
+            severity: "P1",
+            file: "src/fast.ts",
+            line: 4,
+            confidence: 100,
+            autofix_class: "manual",
+            owner: "downstream-resolver",
+            requires_verification: true,
+            pre_existing: false,
+            first_evidence: "src/fast.ts:4 -- preliminary",
+          },
+        ],
+        residual_risks: [],
+        testing_gaps: [],
+      },
+    ]
+
+    const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+
+    expect(merged.findings.map((finding: { title: string }) => finding.title)).toEqual([
+      "Higher confidence",
+      "Lower confidence",
+      "Settled implementation preference",
+    ])
+    expect(merged.findings[2].settled_conflict).toBe("KTD-2")
+    expect(merged.suppressed_by_confidence).toEqual({ "50": 1 })
+  })
+
+  test("exact duplicates stay current and preserve settlement metadata when reviewers disagree", () => {
+    const finding = {
+      title: "Conflicting classification",
+      severity: "P2",
+      file: "src/state.ts",
+      line: 8,
+      confidence: 50,
+      autofix_class: "advisory",
+      owner: "human",
+      requires_verification: false,
+      first_evidence: "src/state.ts:8 -- return priorState",
+    }
+    const returns = [
+      {
+        reviewer: "correctness",
+        findings: [{ ...finding, pre_existing: true }],
+        residual_risks: [],
+        testing_gaps: [],
+      },
+      {
+        reviewer: "project-standards",
+        findings: [{ ...finding, pre_existing: false, settled_conflict: "KTD-4" }],
+        residual_risks: [],
+        testing_gaps: [],
+      },
+    ]
+
+    const result = run("python3", [FINDINGS_SCRIPT], undefined, JSON.stringify(returns))
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+
+    expect(merged.pre_existing_findings).toEqual([])
+    expect(merged.findings).toHaveLength(1)
+    expect(merged.findings[0].pre_existing).toBe(false)
+    expect(merged.findings[0].settled_conflict).toBe("KTD-4")
+  })
+})

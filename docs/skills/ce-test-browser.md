@@ -172,7 +172,7 @@ Skip `ce-test-browser` when:
 - **`/ce-code-review` Tier 2** — for browser-affecting PRs, can spawn this skill to verify behavior in addition to static review
 - **`/ce-work` Phase 3** — appropriate before opening the PR for UI-heavy work; the test summary becomes part of the PR description's verification narrative
 
-`mode:agent` for `ce-code-review` is the only review mode safe to run concurrently with this skill on the same checkout — interactive review may mutate the checkout, which would interfere with the running dev server's state.
+Bare and `mode:agent` `ce-code-review` runs are report-only and safe to run concurrently with this skill on the same checkout. An explicitly authorized local-apply review may mutate the checkout and interfere with the running dev server's state.
 
 ---
 
@@ -225,13 +225,13 @@ The mapping table is a starting point. The skill applies judgment for project-sp
 Manual mode informs you with the right start command and stops. Pipeline mode auto-starts it via `bin/dev`, `bin/rails server`, or `npm run dev` (project-detected) and waits up to 30 seconds for the server to come up.
 
 **Can it run concurrent with `ce-code-review`?**
-Only when code review uses `mode:agent` (read-only). Interactive review may mutate the checkout, which would break the running dev server's state. Pair browser tests with read-only review, or run code review separately in an isolated worktree.
+When code review is report-only (bare markdown or `mode:agent`). An explicitly authorized local-apply review may mutate the checkout and break the running dev server's state. Pair browser tests with report-only review, or isolate the applying review.
 
 ---
 
 ## See Also
 
-- [`ce-code-review`](./ce-code-review.md) — can spawn this skill for browser-affecting PRs (use `mode:agent` for concurrent runs on the same checkout)
+- [`ce-code-review`](./ce-code-review.md) — can spawn this skill for browser-affecting PRs (use a report-only invocation for concurrent runs on the same checkout)
 - [`ce-test-xcode`](./ce-test-xcode.md) — sibling skill for iOS simulator testing
 - [`ce-commit-push-pr`](./ce-commit-push-pr.md) — can include user-supplied evidence or summarize validation in PR descriptions
 - [`ce-work`](./ce-work.md) — orchestrator that may invoke this skill during Phase 3 verification

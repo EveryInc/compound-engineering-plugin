@@ -36,7 +36,7 @@ and Codex with fake peer CLIs first on PATH.
    apply authority.
 
 5. **Failures are additive and non-blocking.** A missing CLI means no job starts;
-   an interactive review reports the pass as not run. A started timeout, failure,
+   a human-facing markdown review reports the pass as not run. A started timeout, failure,
    or unusable return is named in Coverage and the in-process review completes.
    The worker never changes recipients internally; any recipient-changing retry
    requires a new disclosure and sanction.
@@ -53,7 +53,7 @@ and Codex with fake peer CLIs first on PATH.
    continues, reaps at the aggregate deadline, reads owned results and skip logs,
    names non-`done` terminal states, and removes private scratch.
 
-8. **Mode-specific disclosure is honest.** Interactive default mode announces
+8. **Mode-specific disclosure is honest.** Human-facing default mode announces
    the fixed route and egress before dispatch and calls it independent only when
    serving families differ attestably. Receiptless routes say "requested
    <model>; serving model unverified on this route." `mode:agent` emits no

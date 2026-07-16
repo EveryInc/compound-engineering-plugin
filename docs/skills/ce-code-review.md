@@ -2,7 +2,7 @@
 
 > Structured code review using tiered persona agents, confidence-gated findings, and a merge/dedup pipeline.
 
-`ce-code-review` is the **deep code review** skill. It analyzes the diff (PR, branch, or current changes), selects the right reviewer personas for what was actually touched, dispatches them in parallel, then merges and deduplicates their findings into a single report. Each finding carries a severity (P0-P3), an autofix class (`gated_auto`, `manual`, `advisory`) that signals follow-up shape, and an owner. In interactive mode the review applies the safe, verified fixes itself and commits them when the working tree is clean (it never pushes); in `mode:agent` it reports and the caller applies.
+`ce-code-review` is the **deep code review** skill. It analyzes the diff (PR, branch, or current changes), selects the right reviewer personas for what was actually touched, dispatches them in parallel, then merges and deduplicates their findings into a single report. Each finding carries a severity (P0-P3), an autofix class (`gated_auto`, `manual`, `advisory`) that signals follow-up shape, and an owner. Review is report-only by default. Local fixes require `apply:local` or an explicit request to apply the review's findings; `mode:agent` always reports and leaves mutation to the caller.
 
 The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /ce-plan → /ce-work`. `ce-code-review` is `/ce-work`'s **Tier 2 escalation** target — invoked automatically for sensitive surfaces, large diffs, or explicit deep-review requests, but also directly invocable any time you want a structured review of the current branch or a specific PR.
 
@@ -14,8 +14,8 @@ The compound-engineering ideation chain is `/ce-ideate → /ce-brainstorm → /c
 |----------|--------|
 | What does it do? | Selects reviewer personas based on diff content, dispatches them in parallel, merges findings into one report with confidence gating and auto-fix routing |
 | When to use it | Before opening a PR for sensitive/large work; explicit deep review requested; harness has no built-in `/review` |
-| What it produces | A structured findings report; in interactive mode it also applies safe, verified fixes (an Applied section), committing them as a `fix(review):` commit when your tree is clean — or leaving them for your commit if it was dirty (it never pushes) |
-| Modes | Interactive (default — applies safe fixes) and `mode:agent` (JSON; report-only, caller applies) |
+| What it produces | A structured findings report; with explicit local-apply authority it can also apply verified fixes and add an Applied section (it never pushes) |
+| Modes | Markdown report (default) and `mode:agent` JSON handoff; both are report-only unless local apply is separately authorized |
 
 ---
 
@@ -35,13 +35,13 @@ Generalist code review prompts collapse in predictable ways:
 
 `ce-code-review` runs review as a structured pipeline with explicit gates:
 
-- **Diff-aware persona selection** — 4 always-on reviewers + 2 CE always-on agents, plus cross-cutting and stack-specific personas chosen for what the diff actually touches
+- **Diff-aware persona selection** — correctness + project-standards form the core; every other reviewer is gated by the surface actually touched
 - **Parallel persona dispatch** — each reviewer focuses on its lens; results return in parallel
 - **Bounded dispatch with backpressure** — learns/respects the current harness's active-subagent limit, queues remaining reviewers, and treats capacity errors as retryable backpressure instead of failed review
 - **Confidence-gated synthesis** — findings merge, dedupe, promote on cross-persona agreement, and route by autofix class
 - **Severity scale (P0-P3) + autofix class** — separates urgency from action ownership
-- **Two modes** — Interactive (default; applies safe verified fixes itself) and `mode:agent` (JSON machine handoff; report-only, the caller applies)
-- **Caller-owned apply + Residual Work Gate** — in `mode:agent` the caller (e.g. `/ce-work`) applies fixes and runs the Residual Work Gate (accept / file tickets / continue / stop); in interactive mode the review commits its applied fixes on a clean tree, and it never pushes
+- **Separate presentation and authority** — default markdown and `mode:agent` JSON are report-only; `apply:local` or an explicit apply request grants local mutation authority
+- **Caller-owned apply + Residual Work Gate** — in `mode:agent` the caller (e.g. `/ce-work`) applies fixes and runs the Residual Work Gate (accept / file tickets / continue / stop)
 - **Quick-review short-circuit** — defers to harness-native `/review` for light passes; multi-agent runs only when warranted
 
 ---
@@ -50,11 +50,12 @@ Generalist code review prompts collapse in predictable ways:
 
 ### 1. Diff-aware persona selection
 
-A small config change triggers 6 reviewers (the 4 always-on + 2 CE always-on). A Rails auth feature with migrations might trigger 10. The skill decides which personas fit the diff:
+A small low-risk change runs the two-person core. A Rails auth feature with migrations adds the relevant domain lenses. The skill decides which personas fit the diff:
 
-- **Always-on (every review)** — `correctness-reviewer`, `testing-reviewer`, `maintainability-reviewer`, `project-standards-reviewer`, `agent-native-reviewer`, `learnings-researcher`
+- **Core (every review)** — `correctness-reviewer`, `project-standards-reviewer`
+- **Generic conditional** — testing for changed tests/harnesses; maintainability for large or structural work; agent-native for agent-facing surfaces; learnings only when an existing `docs/solutions/` corpus has plausible matches
 - **Cross-cutting conditional** — security, performance, API contract, data migrations, reliability, adversarial, previous-comments — each selected only when the diff touches its concern
-- **Stack-specific conditional** — Julik frontend races, Swift/iOS — only when the matching runtime domain is touched. Structural quality (complexity deletion, 1k-line regressions, spaghetti) lives in the always-on maintainability persona.
+- **Stack-specific conditional** — Julik frontend races, Swift/iOS — only when the matching runtime domain is touched. Structural quality (complexity deletion, 1k-line regressions, spaghetti) lives in the conditional maintainability persona.
 - **CE conditional (migrations)** — `deployment-verification-agent` for risky migration diffs; schema drift and migration safety are handled by the `data-migration` persona
 
 Persona selection is agent judgment, not keyword matching. Instruction-prose files (Markdown skills, JSON schemas) are product code but skip runtime-focused reviewers (adversarial, races) — they wouldn't apply. The exception is a **silent-pass verification mechanism** (a CI/CD gate, build/deploy step, coverage/lint gate, or test harness/mock that could mask production): even as a small config diff it gets the adversarial + cross-model lens, because its risk is fidelity — going green while the real thing is red — not blast radius.
@@ -77,16 +78,17 @@ Severity answers **urgency** (P0=critical breakage, P3=user discretion). The aut
 - `manual` → actionable work that needs design input or a handoff
 - `advisory` → report-only output (learnings, rollout notes, residual risk)
 
-Synthesis owns the final route. Persona-provided routing metadata is input, not the last word — disagreements default to the more conservative route. Whether a finding actually gets applied is a judgment call (interactive review's Stage 5c, or the caller in `mode:agent`), not a function of the class.
+Synthesis owns the final route. Persona-provided routing metadata is input, not the last word — disagreements default to the more conservative route. Whether a finding actually gets applied is a judgment call after apply authority exists, not a function of the class.
 
-### 3. Two modes — human view and machine handoff
+### 3. Presentation and apply authority are separate
 
 | Mode | When | Behavior |
 |------|------|----------|
-| **Interactive** _(default)_ | Direct user invocation | Markdown report; the review applies the safe, verified fixes itself (Stage 5c → Applied section), pushes back on findings it disagrees with, and commits them as an isolated `fix(review):` commit when your tree was clean (or leaves them for your commit if it was dirty). Never pushes |
+| **Default markdown** | Direct user invocation | Report-only markdown with stable findings and an actionable summary |
 | **`mode:agent`** | `mode:agent` (alias `mode:headless`) | One JSON object; report-only — the review mutates nothing and the caller (e.g. `/ce-work`) applies findings and owns the Residual Work Gate |
+| **Explicit local apply** | Add `apply:local`, or explicitly ask the invoked review to apply/fix its findings | Keeps markdown presentation; Stage 5c may apply verified fixes and commit them when the pre-review tree was clean. Never pushes |
 
-The skill never switches branches: a PR/branch argument selects review *scope* (diffed without checkout), not permission to mutate. Interactive apply edits the current checkout in place; to review the current checkout against another ref, pass `base:<ref>`.
+The skill never switches branches: a PR/branch argument selects review *scope* (diffed without checkout), not permission to mutate. Explicit local apply edits the current checkout in place; to review the current checkout against another ref, pass `base:<ref>`.
 
 ### 4. Quick-review short-circuit
 
@@ -101,7 +103,7 @@ After all dispatched personas return, synthesis:
 - Deduplicates across personas (same issue surfaced by multiple reviewers)
 - **Promotes confidence on cross-persona agreement** (two reviewers spotting the same issue raises priority)
 - Resolves contradictions (different personas disagree about what to do)
-- Routes by tier — applied fixes, gated/manual, FYI
+- Routes by tier — gated/manual and report-only; an explicitly authorized local-apply run may additionally apply verified findings
 
 The output is one report with calibrated severity, evidence quotes, and explicit ownership — not a flat list of every reviewer's raw output. When a finding's judgment depends on line history (pre-existing vs this-diff, intentional design, or high-severity confidence that needs authorship/age), evidence is expected to include one concise git provenance line (short hash, author, subject/date) — never a full-file blame dump, and never when the finding is already justified from the diff alone.
 
@@ -113,7 +115,7 @@ When the diff has an associated plan (`docs/plans/*.md`), the skill discovers it
 
 ### 7. Residual Work Gate
 
-When autofix mode runs and the in-skill fixer can't resolve everything, the residual work doesn't just disappear into chat. The Residual Actionable Work summary lists each unresolved finding with stable numbering, severity, file:line, title, and autofix class. Callers (e.g., `/ce-work` Phase 3.4) read this summary and present user options: apply now, file tickets, accept with durable sink, or stop.
+Actionable work does not disappear into chat. The Residual Actionable Work summary lists each unresolved finding with stable numbering, severity, file:line, title, and autofix class. Callers (e.g., `/ce-work` Phase 3.4) read this summary after their own apply pass and present user options: apply now, file tickets, accept with durable sink, or stop. A bare review reports the same actionable set without applying it.
 
 ### 8. Protected artifacts
 
@@ -121,7 +123,7 @@ Compound-engineering pipeline artifacts (`docs/brainstorms/*` legacy/evidence ar
 
 ### 9. Settled-decision triage — preference versus defect
 
-When the discovered plan carries `session-settled:` KTDs, synthesis routes a finding that merely prefers a different approach to the report-only queue with a `settled_conflict` stamp naming the KTD — in every mode, interactive apply included, so a decision the user already made is never gate-dropped for reviewer taste. A real defect inside a settled approach keeps its full severity, and evidence that a settled decision cannot work is surfaced prominently (so an upstream pipeline gate can halt on it). Reviewers themselves stay blind to the annotations — they're excluded from reviewer bundles and the intent summary, including the cross-model adversarial pass — and the orchestrator triages post-hoc, so no lens is anchored by knowing a choice was already blessed.
+When the discovered plan carries `session-settled:` KTDs, synthesis routes a finding that merely prefers a different approach to the report-only queue with a `settled_conflict` stamp naming the KTD — including when local apply was explicitly authorized, so a decision the user already made is never gate-dropped for reviewer taste. A real defect inside a settled approach keeps its full severity, and evidence that a settled decision cannot work is surfaced prominently (so an upstream pipeline gate can halt on it). Reviewers themselves stay blind to the annotations — they're excluded from reviewer bundles and the intent summary, including the cross-model adversarial pass — and the orchestrator triages post-hoc, so no lens is anchored by knowing a choice was already blessed.
 
 ---
 
@@ -131,11 +133,11 @@ You invoke `/ce-code-review` on a feature branch with a Rails auth change that i
 
 The skill detects you're on a feature branch (no PR yet), resolves the base from `origin/HEAD` (or PR metadata when an open PR exists), and computes the diff. Stage 2 reads commit messages and writes a 2-3 line intent summary. Stage 2b auto-discovers the plan in `docs/plans/` from the branch name, classifies readiness, and reads Product Contract Requirements plus implementation U-IDs when the artifact is implementation-ready.
 
-Stage 3 selects reviewers: the 6 always-on, plus security (auth touched), reliability (background job for token cleanup), data-migration (migration file present), and deployment-verification agent when the migration is risky. Seven or eight reviewers total, dispatched in parallel.
+Stage 3 selects the correctness and project-standards core, plus testing if the migration changes test or harness code, security (auth touched), reliability (background job for token cleanup), data-migration (migration file present), and deployment-verification when the migration is risky. Only the applicable reviewers are dispatched in parallel.
 
-After all return, synthesis merges 23 raw findings into 14 distinct findings. Three are clean, reversible fixes (a typo, a rename, dead-code removal) the review applies and verifies itself (Stage 5c → Applied section). Six are `gated_auto` for the auth surface — concrete candidates the review applies, flagging them prominently as green-but-unverifiable (auth) for your review. Two are `manual` (deployment Go/No-Go checklist items). Three are `advisory` (FYI notes). Each finding has anchored evidence and a stable number.
+After all return, synthesis merges the raw findings into a smaller distinct set. Several are `gated_auto` candidates for the caller, two are `manual` deployment decisions, and the rest are advisory. Each finding has anchored evidence and a stable number. Because this was a bare invocation, the review reports them without changing the checkout.
 
-You walk through the 6 gated findings, apply 4, defer 1 to follow-up via the tracker, and decline 1 with a cited harm. Final validation runs; the report is saved.
+You can then apply selected findings yourself, hand the JSON report to `/ce-work`, or rerun with explicit local-apply authority. Pipeline callers apply what they can and route unresolved work through the Residual Work Gate.
 
 ---
 
@@ -174,13 +176,14 @@ Tier 1 (harness-native `/review`) handles most cases; `ce-code-review` is the Ti
 
 The skill works directly from any starting state:
 
-- **Current branch** — `/ce-code-review`
+- **Current branch (report-only)** — `/ce-code-review`
+- **Current branch and apply verified findings** — `/ce-code-review apply:local`
 - **Specific PR** — `/ce-code-review 1234` or `/ce-code-review <PR URL>`
 - **Specific branch** — `/ce-code-review feat/notification-mute`
 - **With base ref** — `/ce-code-review base:abc1234` or `base:origin/main` (skips scope detection; reviews against that ref)
 - **With plan** — `/ce-code-review plan:docs/plans/.../plan.md` for explicit requirements verification
 
-Concurrent use note: `mode:agent` is report-only and never mutates, so it's safe alongside browser tests on the same checkout. Interactive mode may apply fixes to the working tree, so avoid running it against a checkout another agent is actively using.
+Concurrent use note: bare and `mode:agent` reviews are report-only and safe alongside browser tests on the same checkout. Do not run an explicitly authorized local-apply review against a checkout another agent is actively using.
 
 ---
 
@@ -194,6 +197,7 @@ Concurrent use note: `mode:agent` is report-only and never mutates, so it's safe
 | `base:<sha-or-ref>` | Skips scope detection; reviews current checkout against that ref |
 | `plan:<path>` | Loads the plan for requirements verification |
 | `mode:agent` | JSON machine handoff; report-only (the caller applies). `mode:headless` is a deprecated alias; `mode:report-only` is ignored |
+| `apply:local` | Explicitly authorize verified local fixes; conflicts with `mode:agent` |
 | `grouping:auto` / `grouping:off` / `grouping:always` | Thematic triage grouping of findings (default `auto`: group when findings span distinct concerns). Presentation only — never changes reviewer selection, merge logic, or apply behavior |
 
 Conflicting mode flags (or conflicting grouping flags) stop execution with an error. Combining `base:` with a PR/branch target also errors — pass one or the other.
@@ -206,10 +210,10 @@ Conflicting mode flags (or conflicting grouping flags) stop execution with an er
 Use it when it's the right tool — the quick-review short-circuit defers to it explicitly. `ce-code-review` is for cases where you want diff-aware persona selection, structured findings with calibrated severity, autofix routing, and residual work handling. It's the heavier tool; reach for it when the work warrants.
 
 **How does it decide which personas to dispatch?**
-Agent judgment over the actual diff — not keyword matching. The 4 always-on + 2 CE always-on personas run for every review. Cross-cutting and stack-specific personas are added when their concern is touched (e.g., security if auth files changed; `data-migration-reviewer` when migration or schema dump files are present). Instruction-prose files skip runtime-focused reviewers (adversarial, races) — except a silent-pass verification mechanism (CI/CD gate, build/deploy step, coverage/lint gate, test harness/mock), which gets adversarial + the cross-model pass regardless of size.
+Agent judgment over the actual diff — not keyword matching. Correctness and project-standards run for every multi-agent review. Generic, cross-cutting, and stack-specific personas are added only when their concern is present (e.g., testing when tests/harnesses changed, security for auth, `data-migration-reviewer` for migration artifacts). A silent-pass verification mechanism (CI/CD gate, build/deploy step, coverage/lint gate, test harness/mock) gets adversarial + the cross-model pass regardless of size.
 
-**What's the difference between interactive (default) and `mode:agent`?**
-Interactive is the human-facing mode: a markdown report, and the review applies the safe, verified fixes itself (an Applied section) and commits them when your tree is clean (leaving them for your commit if it was dirty); it never pushes. `mode:agent` is the machine handoff: one JSON object, report-only — the review mutates nothing and the caller (e.g. `/ce-work`) applies findings on its own terms. `mode:headless` is a deprecated alias for `mode:agent`.
+**What's the difference between default, `mode:agent`, and `apply:local`?**
+Default is a human-facing markdown report and is report-only. `mode:agent` is the same review pipeline serialized as one JSON object for a caller; it is always report-only. `apply:local` is separate authority for the markdown run to apply verified findings locally. `mode:headless` is a deprecated alias for `mode:agent`.
 
 **What's the Residual Work Gate?**
 A caller-owned step (not part of the review skill): in `mode:agent`, the caller (typically `/ce-work`) applies what it can, then presents the findings it didn't apply and asks the user: apply now, file tickets, accept with durable sink, or stop. "Accept" requires a real durable record (Known Residuals in PR description, or `docs/residual-review-findings/<sha>.md`) — findings can't disappear into chat.
@@ -218,10 +222,10 @@ A caller-owned step (not part of the review skill): in `mode:agent`, the caller 
 Same independence *system* (host attestation, multi-provider selection, read-only peer CLI run as a detached job polled in bounded slices, requested-vs-served model receipts, fold-in as `<lens>-<provider>`, agreement promotion). Different *lens policy*: code-review runs **adversarial only**; doc-review runs a judgment trio plus a whole-doc sweep because document judgment is spread across more lenses. Code-review peers review the work tree/diff in-place; doc-review embeds the document into a more isolated scratch.
 
 **Why does it never switch the checkout?**
-The skill never runs `git checkout`/`switch` — passing a PR/branch selects review *scope*, not permission to mutate the tree (it diffs remote/local refs without checking out). Interactive mode may *apply* fixes to the current checkout (a reversible edit), but it never switches branches. To review the current checkout against a different ref, pass `base:<ref>`.
+The skill never runs `git checkout`/`switch` — passing a PR/branch selects review *scope*, not permission to mutate the tree (it diffs remote/local refs without checking out). Explicit local apply may edit the current checkout, but it never switches branches. To review the current checkout against a different ref, pass `base:<ref>`.
 
 **Can it run concurrently with browser tests?**
-`mode:agent` is report-only and never mutates, so it's safe alongside concurrent tests. Interactive mode may apply fixes to the working tree, so avoid running it against a checkout another agent is actively using.
+Bare and `mode:agent` reviews are report-only and safe alongside concurrent tests. An explicitly authorized local-apply run may mutate the working tree, so avoid using it against a checkout another agent is actively using.
 
 **Does it support non-software work?**
 No — the skill is tightly coupled to git, code reviewers, and PR contexts. For docs (requirements, plans), use `/ce-doc-review` instead.

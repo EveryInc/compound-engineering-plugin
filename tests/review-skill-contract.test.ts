@@ -129,6 +129,7 @@ describe("ce-code-review contract", () => {
     expect(content).toContain("mode:autofix` is no longer supported")
     expect(content).toContain("mode:report-only")
     expect(content).toContain("mode:agent")
+    expect(content).toContain("apply:local")
     expect(content).toContain("mode:headless")
     expect(content).toContain("/tmp/compound-engineering/ce-code-review/<run-id>/")
     expect(content).toMatch(/Never push, open PRs, or file tickets/i)
@@ -153,7 +154,7 @@ describe("ce-code-review contract", () => {
 
     // mode:agent is report-only (skips Stage 5c apply); same reviewer pipeline as default
     expect(content).toContain("## Operating principles")
-    expect(content).toMatch(/`mode:agent` is \*\*report-only\*\*/i)
+    expect(content).toMatch(/Default and `mode:agent` are \*\*report-only\*\*/i)
     expect(content).toMatch(/does not change reviewer selection, merge logic, or scope rules/i)
 
     // No blocking prompts (cross-platform)
@@ -164,9 +165,10 @@ describe("ce-code-review contract", () => {
     expect(content).toContain('"status": "complete"')
     expect(content).toContain("review.json")
 
-    // mode:agent never mutates; default mode applies safe fixes (this test owns the mutate-contract assertions)
+    // Report-only is the default; mutation requires separate, explicit authority.
     expect(content).toMatch(/never mutates the tree/i)
-    expect(content).toMatch(/default \(interactive\).{0,4}mode the review applies/i)
+    expect(content).toMatch(/default.{0,40}report-only/i)
+    expect(content).toMatch(/explicit (user )?request.{0,40}(apply|fix)|explicit.{0,40}(apply|fix).{0,40}request/i)
 
     // Never checkout — explicit mutations only
     expect(content).toMatch(/Never run `gh pr checkout`/i)
@@ -185,9 +187,9 @@ describe("ce-code-review contract", () => {
   test("documents policy-driven routing and actionable handoff", async () => {
     const content = await readRepoFile("skills/ce-code-review/SKILL.md")
 
-    // Action Routing: autofix_class is signal only; mode:agent never mutates, default applies
+    // Action Routing: autofix_class is signal only; apply authority is separate.
     expect(content).toContain("## Action Routing")
-    expect(content).toMatch(/this skill does not mutate the checkout/i)
+    expect(content).toMatch(/does not grant apply permission/i)
     expect(content).toContain("references/action-class-rubric.md")
 
     // No post-review triage — report is the complete handoff
@@ -377,25 +379,24 @@ describe("ce-code-review contract", () => {
 
   test("Stage 5 synthesis uses anchor gate and one-anchor promotion", async () => {
     const content = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const mechanics = await readRepoFile(
+      "skills/ce-code-review/scripts/findings-mechanics.py",
+    )
 
-    // Confidence value constraint is integer enum
-    expect(content).toMatch(/confidence:\s*integer in \{0, 25, 50, 75, 100\}/)
+    // Deterministic mechanics live in the helper, while the skill keeps the route inline.
+    expect(content).toContain("scripts/findings-mechanics.py")
+    expect(mechanics).toContain("CONFIDENCES = (0, 25, 50, 75, 100)")
 
     // Confidence gate at anchor 75 with P0 exception at 50
-    expect(content).toMatch(/suppress remaining findings below anchor 75/i)
-    expect(content).toMatch(/P0 findings at anchor 50\+ survive/)
-
-    // Confidence gate runs AFTER dedup, promotion, and demotion so anchor-50 findings
-    // can be promoted by cross-reviewer agreement or rerouted to soft buckets first.
-    // This is a load-bearing ordering — if the gate runs early, promotion/demotion become unreachable.
-    expect(content).toMatch(/gate runs late deliberately/i)
+    expect(mechanics).toContain('finding["confidence"] < 75')
+    expect(mechanics).toContain('finding["severity"] != "P0"')
 
     // One-anchor promotion replaces +0.10 boost
-    expect(content).toMatch(/one anchor step.*50 -> 75.*75 -> 100/)
+    expect(mechanics).toContain("{50: 75, 75: 100, 100: 100}")
     expect(content).not.toContain("boost the merged confidence by 0.10")
 
-    // Sort by anchor descending, not "confidence (descending)"
-    expect(content).toMatch(/anchor \(descending\)/)
+    // Stable numbering is a helper responsibility.
+    expect(mechanics).toMatch(/enumerate\(survivors, 1\)/)
   })
 
   test("Stage 5b validation pass dispatches conditionally and bounds parallelism", async () => {
@@ -435,15 +436,16 @@ describe("ce-code-review contract", () => {
     expect(validatorTemplate).toMatch(/provenance:/i)
   })
 
-  test("Stage 5c applies safe fixes in default mode, report-only in mode:agent, no deny-list", async () => {
+  test("Stage 5c requires explicit local-apply authority and mode:agent is always report-only", async () => {
     const content = await readRepoFile("skills/ce-code-review/SKILL.md")
     const template = await readRepoFile(
       "skills/ce-code-review/references/review-output-template.md",
     )
 
-    // New act stage, default-mode only; mode:agent stays report-only
+    // Act stage is separately authorized; bare and mode:agent invocations stay report-only.
     expect(content).toContain("### Stage 5c: Act on findings")
-    expect(content).toMatch(/Skip entirely in `mode:agent`/i)
+    expect(content).toMatch(/Skip unless local apply was explicitly authorized/i)
+    expect(content).toMatch(/bare `\/ce-code-review`.{0,80}does not apply/i)
     expect(content).toMatch(/`mode:agent` does not apply fixes/i)
 
     // Bias to act, push back if wrong, no deny-list
@@ -458,11 +460,37 @@ describe("ce-code-review contract", () => {
     expect(content).toMatch(/Never push, open a PR, or file tickets/i)
 
     // Applied reporting (skill + template)
-    expect(content).toMatch(/Applied \(default mode only\)/i)
+    expect(content).toMatch(/Applied \(explicit local apply only\)/i)
     expect(template).toContain("### Applied")
 
-    // No apply mode revived
-    expect(content).toMatch(/there is no apply \*?mode\*?/i)
+    // Apply is an authority token, not an output mode.
+    expect(content).toMatch(/`apply:local` is authority, not an output mode/i)
+  })
+
+  test("right-sizes generic reviewers with explicit domain gates", async () => {
+    const content = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const catalog = await readRepoFile(
+      "skills/ce-code-review/references/persona-catalog.md",
+    )
+
+    expect(content).toContain("**Core (always-on):** `correctness-reviewer` and `project-standards-reviewer`")
+    expect(content).toMatch(/testing-reviewer.*test files|test files.*testing-reviewer/i)
+    expect(content).toMatch(/maintainability-reviewer.*(large|structural|refactor)/i)
+    expect(content).toMatch(/agent-native-reviewer.*agent-facing/i)
+    expect(content).toMatch(/learnings-researcher.*docs\/solutions/i)
+
+    expect(catalog).toContain("## Core (always-on)")
+    expect(catalog).toContain("## Generic conditional")
+    expect(catalog).toMatch(/testing.*test files/i)
+    expect(catalog).toMatch(/agent-native.*agent-facing/i)
+  })
+
+  test("keeps the fast pass visible only for urgent preliminary findings", async () => {
+    const content = await readRepoFile("skills/ce-code-review/SKILL.md")
+
+    expect(content).toMatch(/fast pass.{0,120}P0\/P1/i)
+    expect(content).toMatch(/P2\/P3.{0,80}final report/i)
+    expect(content).toMatch(/(never|do \*\*not\*\*) assign stable `#`/i)
   })
 
   test("findings presentation is action-shaped and enforces hard constraints, mirrors the template", async () => {
@@ -556,25 +584,16 @@ describe("ce-code-review contract", () => {
   test("mode-aware demotion routes weak general-quality findings to soft buckets", async () => {
     const content = await readRepoFile("skills/ce-code-review/SKILL.md")
 
-    // Mode-aware demotion step exists (sub-step within Stage 5; numbering may shift if steps reorder)
-    expect(content).toMatch(/Mode-aware demotion of weak general-quality findings/i)
-
-    // Conservative scope: testing + maintainability personas only
-    expect(content).toContain("`testing` or `maintainability`")
-
-    // Severity P2 or P3 only (P0/P1 always stay primary)
-    expect(content).toMatch(/Severity is P2 or P3/)
-
-    // autofix_class is advisory
-    expect(content).toMatch(/`autofix_class` is `advisory`/)
+    expect(content).toMatch(/Soft-bucket demotion/i)
+    expect(content).toMatch(/P2\/P3 advisory finding supported only by `testing`/)
+    expect(content).toMatch(/only by `maintainability`/)
 
     // Route demoted findings to soft buckets
     expect(content).toMatch(/`testing_gaps`/)
     expect(content).toMatch(/`residual_risks`/)
 
     // Demotion entry uses title-only (compact return omits why_it_matters)
-    expect(content).toMatch(/append `<file:line> -- <title>` to/)
-    expect(content).toMatch(/compact return omits/i)
+    expect(content).toContain("`<file:line> -- <title>`")
 
     // Coverage section reports demotion count
     expect(content).toMatch(/mode-aware demotion/)
@@ -847,16 +866,18 @@ describe("ce-code-review contract", () => {
 
   test("ce-code-review uses stable sequential finding numbers across grouped output", async () => {
     const content = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const mechanics = await readRepoFile(
+      "skills/ce-code-review/scripts/findings-mechanics.py",
+    )
     const template = await readRepoFile(
       "skills/ce-code-review/references/review-output-template.md",
     )
     const fixture = await readRepoFile("tests/fixtures/ce-code-review-stable-numbering.md")
 
     const stage5 = content.split("### Stage 5b:")[0].split("### Stage 5:")[1]
-    expect(stage5).toMatch(/Sort and number/)
-    expect(stage5).toMatch(/Do not restart numbering inside each severity table, triage group, or autofix\/routing bucket/)
-    expect(stage5).toMatch(/reuse the same stable `#`/)
-    expect(stage5).toMatch(/downstream workflows/)
+    expect(stage5).toMatch(/stable `#` numbering/)
+    expect(stage5).toMatch(/reuse the (same |helper's )?stable `#`/i)
+    expect(mechanics).toMatch(/enumerate\(survivors, 1\)/)
 
     const stage6 = content.split("### Headless output format")[0].split("### Stage 6: Synthesize and present")[1]
     expect(stage6).toContain("Finding numbers come from the stable assignment in Stage 5")
@@ -916,9 +937,7 @@ describe("ce-code-review contract", () => {
     expect(stage5).toMatch(/Build thematic triage groups/)
     // Grouping is distinct from dedup and never alters the merged finding set
     expect(stage5).toMatch(/distinct from deduplication/)
-    expect(stage5).toMatch(/never change a finding's severity, confidence, route, owner, or stable `#`/)
-    // Stable numbering extends across groups, same as severity tables
-    expect(stage5).toMatch(/Do not restart numbering inside each severity table, triage group, or autofix\/routing bucket/)
+    expect(stage5).toMatch(/never merge findings or change severity, confidence, route, owner, or stable `#`/)
     // auto triggers on distinct concerns (mirrors plan Requirements grouping), not item count
     expect(stage5).toMatch(/the trigger is distinct concerns, not item count/)
     expect(stage5).toMatch(/prefer no groups over decorative single-item groups/)
@@ -1058,9 +1077,12 @@ describe("cross-model peer skip legibility", () => {
 
   test("code-review promotion requires a verified independent serving family", async () => {
     const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
-    expect(skill).toContain("top-level `independence_verified` is `true`")
-    expect(skill).toContain("cannot trigger promotion")
-    expect(skill).toContain("unverified Cursor default/Auto")
+    const mechanics = await readRepoFile(
+      "skills/ce-code-review/scripts/findings-mechanics.py",
+    )
+    expect(skill).toContain("`independence_verified: true`")
+    expect(mechanics).toContain('source.get("independence_verified") is True')
+    expect(mechanics).toContain('name.startswith("adversarial-")')
   })
 
   test("review-skill behavioral eval specs exercise the fixed-route U8 contract", async () => {

@@ -491,12 +491,10 @@ describe("session-settled decision contract", () => {
 
   test("ce-code-review routes settlement conflicts advisory+human, never demotes defects, and keeps stamps report-only in 5c", () => {
     const stage5 = sliceSection(codeReview, "### Stage 5: Merge findings", "### Stage 5b")
-    expect(stage5).toContain("stamp it with `settled_conflict:")
-    expect(stage5).toContain("carries the `settled_conflict` stamp")
-    expect(stage5).toContain("autofix_class: advisory` + `owner: human")
+    expect(stage5).toContain("stamp `settled_conflict`")
+    expect(stage5).toContain("route it advisory/human")
     // Negative boundary: defects inside a settled approach are not demoted.
-    expect(stage5).toContain("keeps its full severity")
-    expect(stage5).toContain("**never demoted**")
+    expect(stage5).toContain("Do not demote a real defect")
     const stage5c = sliceSection(
       codeReview,
       "### Stage 5c: Act on findings",

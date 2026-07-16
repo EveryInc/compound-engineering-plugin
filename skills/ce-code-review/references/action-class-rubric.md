@@ -1,6 +1,6 @@
 # `autofix_class` rubric (personas)
 
-`autofix_class` describes the **intrinsic shape** of follow-up work — it is signal, **not an apply gate or permission**. In `mode:agent` the caller interprets findings and owns apply; in default (interactive) mode the review applies safe fixes itself by judgment (SKILL.md Stage 5c). Either way the class informs *what to do first* and *what to flag* — it does not mechanically decide what gets applied.
+`autofix_class` describes the **intrinsic shape** of follow-up work — it is signal, **not an apply gate or permission**. In report-only runs the user or caller interprets findings and owns apply; when local apply was explicitly authorized, Stage 5c still uses judgment. Either way the class informs *what to do first* and *what to flag* — it does not mechanically decide what gets applied.
 
 | `autofix_class` | Meaning |
 |-----------------|---------|
