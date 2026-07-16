@@ -78,7 +78,7 @@ def promote(confidence: int) -> int:
     return {50: 75, 75: 100, 100: 100}.get(confidence, confidence)
 
 
-def merge_group(group: list[tuple[dict[str, Any], str, bool]]) -> dict[str, Any]:
+def merge_group(group: list[tuple[dict[str, Any], str, tuple[str, ...]]]) -> dict[str, Any]:
     # Start with the most urgent/high-confidence representation, then merge conservatively.
     group.sort(key=lambda item: (SEVERITIES.index(item[0]["severity"]), -item[0]["confidence"]))
     merged = dict(group[0][0])
@@ -87,14 +87,13 @@ def merge_group(group: list[tuple[dict[str, Any], str, bool]]) -> dict[str, Any]
     merged["pre_existing"] = all(item[0]["pre_existing"] for item in group)
     reviewer_names: list[str] = []
     independent: set[str] = set()
-    for finding, reviewer, is_independent in group:
+    for finding, reviewer, independent_names in group:
         supplied = finding.get("reviewers")
         names = supplied if isinstance(supplied, list) else [reviewer]
         for name in names:
             if isinstance(name, str) and name not in reviewer_names:
                 reviewer_names.append(name)
-        if is_independent:
-            independent.add(reviewer)
+        independent.update(independent_names)
 
         if AUTOFIX_CLASSES.index(finding["autofix_class"]) > AUTOFIX_CLASSES.index(merged["autofix_class"]):
             merged["autofix_class"] = finding["autofix_class"]
@@ -117,6 +116,9 @@ def merge_group(group: list[tuple[dict[str, Any], str, bool]]) -> dict[str, Any]
         confidence = promote(confidence)
     merged["confidence"] = confidence
     merged["reviewers"] = reviewer_names
+    merged["independent_reviewers"] = [
+        reviewer for reviewer in reviewer_names if reviewer in independent
+    ]
     return merged
 
 
@@ -133,7 +135,9 @@ def main() -> int:
 
     malformed_returns = 0
     malformed_findings = 0
-    grouped: dict[tuple[str, str, str], list[tuple[dict[str, Any], str, bool]]] = {}
+    grouped: dict[
+        tuple[str, str, str], list[tuple[dict[str, Any], str, tuple[str, ...]]]
+    ] = {}
     residual_risks: list[Any] = []
     testing_gaps: list[Any] = []
 
@@ -151,8 +155,29 @@ def main() -> int:
             finding = dict(finding)
             if reviewer == "fast-pass":
                 finding["confidence"] = min(finding["confidence"], 50)
+            independent_names: tuple[str, ...]
+            if reviewer == "synthesis":
+                supplied_reviewers = finding.get("reviewers")
+                supplied_independent = finding.get("independent_reviewers")
+                reviewer_set = (
+                    {name for name in supplied_reviewers if isinstance(name, str)}
+                    if isinstance(supplied_reviewers, list)
+                    else set()
+                )
+                independent_list = (
+                    supplied_independent if isinstance(supplied_independent, list) else []
+                )
+                independent_names = tuple(
+                    name
+                    for name in independent_list
+                    if isinstance(name, str) and name in reviewer_set
+                )
+            elif independent_reviewer(reviewer, source):
+                independent_names = (reviewer,)
+            else:
+                independent_names = ()
             grouped.setdefault(fingerprint(finding), []).append(
-                (finding, reviewer, independent_reviewer(reviewer, source))
+                (finding, reviewer, independent_names)
             )
 
     merged = [merge_group(group) for group in grouped.values()]

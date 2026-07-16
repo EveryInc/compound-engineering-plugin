@@ -122,7 +122,93 @@ describe("ce-code-review deterministic mechanics", () => {
     expect(merged.findings[0].autofix_class).toBe("manual")
     expect(merged.findings[0].owner).toBe("human")
     expect(merged.findings[0].reviewers).toEqual(["correctness", "reliability"])
+    expect(merged.findings[0].independent_reviewers).toEqual(["correctness", "reliability"])
     expect(merged.suppressed_by_confidence).toEqual({ "50": 1 })
+  })
+
+  test("synthetic reruns preserve independent corroboration from semantic duplicates", () => {
+    const reconciled = {
+      title: "Reconciled stale-state defect",
+      severity: "P1",
+      file: "src/worker.ts",
+      line: 12,
+      confidence: 50,
+      autofix_class: "manual",
+      owner: "human",
+      requires_verification: true,
+      pre_existing: false,
+      first_evidence: "src/worker.ts:12 -- result = staleValue",
+      reviewers: ["correctness", "testing"],
+      independent_reviewers: ["correctness", "testing"],
+    }
+
+    const result = run(
+      "python3",
+      [FINDINGS_SCRIPT],
+      undefined,
+      JSON.stringify([
+        {
+          reviewer: "synthesis",
+          findings: [reconciled],
+          residual_risks: [],
+          testing_gaps: [],
+        },
+      ]),
+    )
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+
+    expect(merged.suppressed_findings).toEqual([])
+    expect(merged.findings).toEqual([
+      expect.objectContaining({
+        title: reconciled.title,
+        confidence: 75,
+        reviewers: ["correctness", "testing"],
+        independent_reviewers: ["correctness", "testing"],
+      }),
+    ])
+  })
+
+  test("synthetic reruns do not infer independence from reviewer attribution", () => {
+    const result = run(
+      "python3",
+      [FINDINGS_SCRIPT],
+      undefined,
+      JSON.stringify([
+        {
+          reviewer: "synthesis",
+          findings: [
+            {
+              title: "Unverified peer agreement",
+              severity: "P1",
+              file: "src/worker.ts",
+              line: 12,
+              confidence: 50,
+              autofix_class: "manual",
+              owner: "human",
+              requires_verification: true,
+              pre_existing: false,
+              first_evidence: "src/worker.ts:12 -- result = staleValue",
+              reviewers: ["correctness", "adversarial-cursor"],
+              independent_reviewers: ["correctness"],
+            },
+          ],
+          residual_risks: [],
+          testing_gaps: [],
+        },
+      ]),
+    )
+    expect(result.status).toBe(0)
+    const merged = JSON.parse(result.stdout)
+
+    expect(merged.findings).toEqual([])
+    expect(merged.suppressed_findings).toEqual([
+      expect.objectContaining({
+        confidence: 50,
+        reviewers: ["correctness", "adversarial-cursor"],
+        independent_reviewers: ["correctness"],
+      }),
+    ])
   })
 
   test("confidence-gated testing advisories remain available for soft-bucket routing", () => {

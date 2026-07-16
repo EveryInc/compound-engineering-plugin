@@ -619,6 +619,9 @@ describe("ce-code-review contract", () => {
     expect(stage5.indexOf("**Settled decisions.**")).toBeLessThan(
       stage5.indexOf("**Soft-bucket demotion.**"),
     )
+    expect(stage5).toMatch(
+      /Soft-bucket demotion[\s\S]*Keep every `settled_conflict`-stamped finding primary/,
+    )
   })
 
   test("personas use anchored rubric language and no float references remain", async () => {
