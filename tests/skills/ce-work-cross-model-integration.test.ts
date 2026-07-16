@@ -606,6 +606,71 @@ class FeatureTest(unittest.TestCase):
     ).word).toBe("FALLBACK_AUTHORIZED")
   })
 
+  for (const interruptedState of ["integrated", "verified"] as const) {
+    test(`resume restores interrupted pre-commit integration from ${interruptedState}`, () => {
+      const root = temp(`ce-work-resume-${interruptedState}-`)
+      const repo = path.join(root, "repo")
+      const runs = path.join(root, "jobs", "ce-work")
+      mkdirSync(repo)
+      git(repo, "init", "-b", "main")
+      git(repo, "config", "user.name", "CE Work Host")
+      git(repo, "config", "user.email", "host@example.test")
+      mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
+      const plan = path.join(repo, "docs", "plans", "plan.md")
+      writeFileSync(plan, "# Plan\n")
+      git(repo, "add", ".")
+      git(repo, "commit", "-m", "seed")
+      const base = git(repo, "rev-parse", "HEAD")
+      const planDigest = createHash("sha256").update(readFileSync(plan)).digest("hex")
+      const runId = `resume-${interruptedState}`
+      const packet = `${interruptedState} resume packet`
+
+      control(
+        runs, "init", "--run-id", runId, "--repo", repo, "--plan", plan,
+        "--plan-digest", planDigest,
+        "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+        "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U1"],"restrictions":[]}',
+      )
+      const prepared = control(
+        runs, "prepare", "--run-id", runId, "--unit-id", "U1",
+        "--base", base, "--packet", packetFile(packet),
+      ).body
+      writeFileSync(path.join(prepared.workspace, "delegated.txt"), "delegated\n")
+      fakeDoneJob(runs, runId, "U1", packet, `job-${interruptedState}`)
+      control(
+        runs, "record-job", "--run-id", runId, "--unit-id", "U1",
+        "--attempt-id", "attempt-1", "--job-id", `job-${interruptedState}`,
+      )
+      const transport = control(runs, "terminalize", "--run-id", runId, "--unit-id", "U1").body.transport
+      const token = control(runs, "integration-acquire", "--run-id", runId, "--unit-id", "U1").body.lock_token
+      control(runs, "preflight", "--run-id", runId, "--unit-id", "U1", "--lock-token", token)
+      git(repo, "cherry-pick", "--no-commit", transport.commit)
+      control(runs, "mark-applied", "--run-id", runId, "--unit-id", "U1", "--lock-token", token)
+      if (interruptedState === "verified") {
+        control(
+          runs, "mark-verified", "--run-id", runId, "--unit-id", "U1", "--lock-token", token,
+          "--evidence-digest", "verification-passed",
+        )
+      }
+
+      expect(git(repo, "status", "--porcelain")).not.toBe("")
+      const resumed = control(runs, "resume", "--run-id", runId)
+      expect(resumed.body.actions).toContainEqual(expect.objectContaining({
+        unit_id: "U1",
+        action: "pre-commit-integration-restored",
+        interrupted_state: interruptedState,
+        canonical_preserved: true,
+        integration_lock_released: true,
+      }))
+      expect(git(repo, "rev-parse", "HEAD")).toBe(base)
+      expect(git(repo, "status", "--porcelain")).toBe("")
+      expect(control(runs, "status", "--run-id", runId).body).toMatchObject({
+        integration_lock: null,
+        units: { U1: { state: "preserved", integration: { canonical_commit: null } } },
+      })
+    })
+  }
+
   test("detached fake author terminalizes a complete delta that the host verifies and commits", () => {
     const root = temp("ce-work-integration-")
     const repo = path.join(root, "repo")

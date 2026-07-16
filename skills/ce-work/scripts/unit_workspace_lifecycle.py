@@ -297,10 +297,12 @@ def cmd_resume(args) -> tuple[str, dict]:
                     }
                     event(current, "transport-apply-reconciled", uid, {"post_index_tree": snap["index_tree"]})
                 actions.append({"unit_id": uid, "action": "apply-reconciled"})
-        elif state == "verified" and lock and lock.get("unit_id") == uid:
+        elif state in {"integrated", "verified"} and lock and lock.get("unit_id") == uid:
             validate_lock(doc, uid, lock["nonce"])
-            with locked_manifest(run_id) as current:
-                commit = reconcile_commit(current, current["units"][uid])
+            commit = None
+            if state == "verified":
+                with locked_manifest(run_id) as current:
+                    commit = reconcile_commit(current, current["units"][uid])
             if commit:
                 with locked_manifest(run_id, write=True) as current:
                     current["units"][uid]["integration"]["canonical_commit"] = commit
@@ -308,6 +310,18 @@ def cmd_resume(args) -> tuple[str, dict]:
                     event(current, "canonical-commit-reconciled", uid, {"commit": commit["commit"]})
                 actions.append({"unit_id": uid, "action": "commit-reconciled", "commit": commit["commit"]})
                 actions.extend(resume_finalize_committed(run_id, uid))
+            else:
+                exact = restore(run_id, uid, lock["nonce"])
+                if not exact:
+                    raise Operational("BLOCKED", "exact pre-fold preservation could not be proven")
+                integration_release(run_id, uid, lock["nonce"])
+                actions.append({
+                    "unit_id": uid,
+                    "action": "pre-commit-integration-restored",
+                    "interrupted_state": state,
+                    "canonical_preserved": True,
+                    "integration_lock_released": True,
+                })
         elif state in {"committed", "cleaned"}:
             actions.extend(resume_finalize_committed(run_id, uid))
     return "RESUMED", {"run_id": run_id, "actions": actions, "redispatched": False, "applied": False}

@@ -435,7 +435,7 @@ describe("ce-work cross-model engine contract", () => {
 
     expect(protocol).toContain("already a linked worktree does not disable this route")
     expect(protocol).toContain("detached **sibling**")
-    expect(protocol).toContain("/tmp/compound-engineering/ce-work/<run-id>/")
+    expect(protocol).toContain("/tmp/compound-engineering-<effective-uid>/ce-work/<run-id>/")
     expect(protocol).toContain("never a nested worktree")
     expect(protocol).toContain("plan-only state is checkpointable, not a route blocker")
     expect(protocol).toContain("`hard-only` is the normal posture")
@@ -501,7 +501,7 @@ describe("ce-work cross-model engine contract", () => {
     ]) {
       expect(evalPack).toContain(seam)
     }
-    expect(evalPack).toContain("| E20 linked-checkout sibling | CE Work is itself running in an existing linked worktree and selects external implementation for one unit | Create a new detached **sibling** through the repository's shared Git common directory, place it under `/tmp/compound-engineering/ce-work/<run-id>/` rather than beneath the active checkout, base it at the recorded clean canonical SHA, and keep canonical fold-in host-owned. Do not reject the route merely because the active checkout is already a worktree, and do not create a nested worktree. |")
+    expect(evalPack).toContain("| E20 linked-checkout sibling | CE Work is itself running in an existing linked worktree and selects external implementation for one unit | Create a new detached **sibling** through the repository's shared Git common directory, place it under `/tmp/compound-engineering-<effective-uid>/ce-work/<run-id>/` rather than beneath the active checkout, base it at the recorded clean canonical SHA, and keep canonical fold-in host-owned. Do not reject the route merely because the active checkout is already a worktree, and do not create a nested worktree. |")
   })
 })
 

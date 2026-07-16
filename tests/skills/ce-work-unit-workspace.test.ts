@@ -673,6 +673,87 @@ describe("ce-work unit workspace controller", () => {
     expect(sh(f.repo, ["git", "rev-parse", "-q", "--verify", t.ref], false).status).not.toBe(0)
   }, 20000)
 
+  test("unit and plan-wide verification clean only ignored artifacts they create", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    writeFileSync(path.join(f.repo, "existing.verification-cache"), "preserve me\n")
+    init(runs, "run-ignored-verification", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-ignored-verification", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, "run-ignored-verification", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, "run-ignored-verification", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-ignored-verification", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", "run-ignored-verification", "--unit-id", "U")
+
+    const integrated = ctl(
+      runs, "integrate", "--run-id", "run-ignored-verification", "--unit-id", "U",
+      "--commit-message", "feat(test): integrate ignored verification fixture",
+      "--", "python3", "-c", "from pathlib import Path; Path('unit.verification-cache').write_text('unit')",
+    )
+    expect(integrated.word).toBe("UNIT_COMMITTED")
+    expect(integrated.body.cleaned_paths).toEqual(["unit.verification-cache"])
+    expect(existsSync(path.join(f.repo, "unit.verification-cache"))).toBe(false)
+    expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
+
+    const verified = ctl(
+      runs, "verify-run", "--run-id", "run-ignored-verification",
+      "--verification-summary", "ignored plan artifact cleanup",
+      "--", "python3", "-c", "from pathlib import Path; Path('plan.verification-cache').write_text('plan')",
+    )
+    expect(verified.word).toBe("RUN_VERIFIED")
+    expect(verified.body.cleaned_paths).toEqual(["plan.verification-cache"])
+    expect(existsSync(path.join(f.repo, "plan.verification-cache"))).toBe(false)
+    expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
+    expect(ctl(runs, "status", "--run-id", "run-ignored-verification").body.verifications.at(-1)).toMatchObject({
+      verification_exit: 0,
+      cleaned_paths: ["plan.verification-cache"],
+    })
+  }, 20000)
+
+  test("failed unit verification reports and removes its new ignored artifact", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+    writeFileSync(path.join(f.repo, "existing.verification-cache"), "preserve me\n")
+    init(runs, "run-ignored-verification-failure", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-ignored-verification-failure", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, "run-ignored-verification-failure", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+    const job = fakeDoneJob(runs, "run-ignored-verification-failure", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-ignored-verification-failure", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", "run-ignored-verification-failure", "--unit-id", "U")
+
+    const failed = ctl(
+      runs, "integrate", "--run-id", "run-ignored-verification-failure", "--unit-id", "U",
+      "--commit-message", "feat(test): integration must not commit",
+      "--", "python3", "-c",
+      "from pathlib import Path; Path('failed.verification-cache').write_text('failed'); raise SystemExit(7)",
+    )
+    expect(failed.word).toBe("BLOCKED")
+    expect(failed.body).toMatchObject({
+      verification_exit: 7,
+      canonical_state_changed: false,
+      cleaned_paths: ["failed.verification-cache"],
+    })
+    expect(existsSync(path.join(f.repo, "failed.verification-cache"))).toBe(false)
+    expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(f.base)
+    expect(git(f.repo, "status", "--porcelain")).toBe("")
+  }, 20000)
+
   test("resume releases an integration lock acquired before preflight intent", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

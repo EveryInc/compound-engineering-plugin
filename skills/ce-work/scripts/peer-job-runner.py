@@ -56,7 +56,7 @@ outcome exactly once; when both the worker's internal cap and the
 supervisor's window fire, the supervisor's record wins.
 
 Environment overrides (defaults in parentheses):
-  CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering)
+  CE_PEER_JOBS_ROOT         base dir (/tmp/compound-engineering-<effective-uid>)
   CE_WORK_RUNS_ROOT         ce-work run dir; wins for --skill ce-work
   CE_PEER_IDLE_SECS         idle window, no out.log growth (240)
   CE_PEER_HARD_SECS         hard cap on worker wall clock (630)
@@ -65,14 +65,15 @@ Environment overrides (defaults in parentheses):
   CE_PEER_POLL_SECS         supervisor poll interval (2)
   CE_PEER_GRACE_SECS        TERM-to-KILL grace during reap (5)
 
-Security posture: the job root is a predictable path in world-shared /tmp, so
-every read of job state opens the file first (no-follow) and verifies the
-descriptor's owner (os.fstat st_uid == os.geteuid, guarded where geteuid is
-unavailable) before any content is emitted; a mismatch reports "unreadable",
-never content. Reads are bounded by size caps — out.log is never slurped.
-Directory/file creation uses 0700/0600 modes, exclusive no-follow creation,
-owner-and-type verification on path components, and atomic rename for every
-publish. The worker argv is exec'd directly (argv list, never a shell); job
+Security posture: the job root is a predictable, owner-private directory under
+world-shared /tmp. Every read of job state opens the file first (no-follow) and
+verifies the descriptor's owner (os.fstat st_uid == os.geteuid, guarded where
+geteuid is unavailable) before any content is emitted; a mismatch reports
+"unreadable", never content. Reads are bounded by size caps — out.log is never
+slurped. Directory/file creation uses 0700/0600 modes, exclusive no-follow
+creation, owner/type verification on path components, exact 0700 verification
+on the top-level root, and atomic rename for every publish. The worker argv is
+exec'd directly (argv list, never a shell); job
 ids are minted internally; --skill/--run-id/--label are restricted to
 [A-Za-z0-9._-]. Nothing here ever prompts: headless/CI-safe by design.
 
@@ -102,7 +103,13 @@ def _is_safe_token(value: str) -> bool:
 
 
 TERMINAL_STATES = ("done", "failed", "timeout", "died-without-result")
-DEFAULT_ROOT = "/tmp/compound-engineering"
+_uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
+_EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
+DEFAULT_ROOT = (
+    os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}")
+    if _EFFECTIVE_UID is not None
+    else None
+)
 O_NOFOLLOW = getattr(os, "O_NOFOLLOW", 0)
 SWEEP_AGE_SECS = 24 * 3600
 CLAIM_ATTEMPTS = 16
@@ -139,7 +146,12 @@ class Unreadable(Exception):
 # --- configuration -----------------------------------------------------------
 
 def jobs_root_base() -> str:
-    return os.path.abspath(os.environ.get("CE_PEER_JOBS_ROOT") or DEFAULT_ROOT)
+    configured = os.environ.get("CE_PEER_JOBS_ROOT")
+    if configured:
+        return os.path.abspath(configured)
+    if DEFAULT_ROOT is None:
+        raise RunnerError("effective user ID is unavailable; cannot derive the jobs root")
+    return os.path.abspath(DEFAULT_ROOT)
 
 
 def skill_runs_root(skill: str) -> str:
@@ -175,17 +187,20 @@ def cfg() -> dict:
 # --- hardened I/O primitives --------------------------------------------------
 
 def _euid():
-    geteuid = getattr(os, "geteuid", None)
-    return geteuid() if geteuid is not None else None
+    return _EFFECTIVE_UID
 
 
-def _check_owned_dir(path: str) -> None:
+def _check_owned_dir(path: str, require_private: bool = False) -> None:
     st = os.lstat(path)
     if not stat.S_ISDIR(st.st_mode):
         raise RunnerError(f"{path}: not a real directory (symlink or file planted?)")
     euid = _euid()
     if euid is not None and st.st_uid != euid:
         raise RunnerError(f"{path}: not owned by the current user")
+    if require_private:
+        mode = stat.S_IMODE(st.st_mode)
+        if mode != 0o700:
+            raise RunnerError(f"{path}: must have mode 0700, found {mode:04o}")
 
 
 def ensure_owned_dirs(base: str, path: str) -> None:
@@ -199,12 +214,18 @@ def ensure_owned_dirs(base: str, path: str) -> None:
     except FileExistsError:
         pass
     _check_owned_dir(cur)
+    os.chmod(cur, 0o700)
+    _check_owned_dir(cur, require_private=True)
     for comp in comps:
         cur = os.path.join(cur, comp)
+        created = False
         try:
             os.mkdir(cur, 0o700)
+            created = True
         except FileExistsError:
             pass
+        if created:
+            os.chmod(cur, 0o700)
         _check_owned_dir(cur)
 
 

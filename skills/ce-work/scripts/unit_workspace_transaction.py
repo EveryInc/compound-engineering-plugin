@@ -54,6 +54,12 @@ def _remove_owned_new_paths(repo: str, paths: set[str], pre_head: str) -> None:
             shutil.rmtree(target)
 
 
+def _ignored_paths(repo: str) -> set[str]:
+    """Return ignored, untracked files without changing ordinary clean-state rules."""
+    raw = git(repo, "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--")
+    return set(filter(None, raw.decode("utf-8", "surrogateescape").split("\0")))
+
+
 def _restore_owned_verification(
     run_id: str,
     unit_id: str,
@@ -171,6 +177,7 @@ def _validate_accepted_run_head(repo: str, units: dict, current_head: str) -> No
 def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tuple[str, dict]:
     before = semantic_snapshot(repo)
     before_paths = status_paths(repo)
+    before_ignored = _ignored_paths(repo)
     if not before["status_empty"] or before_paths:
         raise Operational("BLOCKED", "verify-run requires a clean canonical checkout")
     _validate_accepted_run_head(repo, units, before["head"])
@@ -194,7 +201,9 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
 
     after = semantic_snapshot(repo)
     after_paths = status_paths(repo)
-    cleaned_paths: list[str] = []
+    new_ignored = _ignored_paths(repo) - before_ignored
+    _remove_owned_new_paths(repo, new_ignored, before["head"])
+    cleaned_paths = sorted(new_ignored)
     if after != before:
         if after["branch_ref"] != before["branch_ref"] or after["head"] != before["head"]:
             with locked_manifest(args.run_id, write=True) as doc:
@@ -211,9 +220,14 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
             raise Operational(
                 "BLOCKED",
                 "plan-wide verification changed canonical branch or HEAD; automatic restoration refused",
-                {"verification_exit": verification_exit, "verification_log": verification_log, "retain_integration_lock": True},
+                {
+                    "verification_exit": verification_exit,
+                    "verification_log": verification_log,
+                    "cleaned_paths": cleaned_paths,
+                    "retain_integration_lock": True,
+                },
             )
-        cleaned_paths = sorted(after_paths - before_paths)
+        cleaned_paths = sorted((after_paths - before_paths) | new_ignored)
         git(repo, "reset", "--hard", before["head"])
         _remove_owned_new_paths(repo, set(cleaned_paths), before["head"])
         restored = semantic_snapshot(repo)
@@ -232,7 +246,12 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
             raise Operational(
                 "BLOCKED",
                 "plan-wide verification restoration could not be proven",
-                {"verification_exit": verification_exit, "verification_log": verification_log, "retain_integration_lock": True},
+                {
+                    "verification_exit": verification_exit,
+                    "verification_log": verification_log,
+                    "cleaned_paths": cleaned_paths,
+                    "retain_integration_lock": True,
+                },
             )
 
     log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
@@ -371,6 +390,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 raise Operational("BLOCKED", "canonical apply changed before verification")
         before = semantic_snapshot(repo)
         before_paths = status_paths(repo)
+        before_ignored = _ignored_paths(repo)
 
         verification_log, stream = _verification_log(args.run_id, args.unit_id)
         with stream:
@@ -390,6 +410,9 @@ def cmd_integrate(args) -> tuple[str, dict]:
                 verification_exit = 127
         after = semantic_snapshot(repo)
         after_paths = status_paths(repo)
+        new_ignored = _ignored_paths(repo) - before_ignored
+        cleaned_paths = sorted((after_paths - before_paths) | new_ignored)
+        _remove_owned_new_paths(repo, new_ignored, before["head"])
         log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
         if verification_exit != 0 or after != before:
             _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)
@@ -403,6 +426,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
                     "verification_exit": verification_exit,
                     "verification_log": verification_log,
                     "canonical_state_changed": after != before,
+                    "cleaned_paths": cleaned_paths,
                 },
             )
         evidence = digest_bytes(json.dumps({
@@ -411,6 +435,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             "log_sha256": log_digest,
             "before": before,
             "after": after,
+            "cleaned_paths": cleaned_paths,
         }, sort_keys=True, separators=(",", ":")).encode())
         cmd_mark_verified(_args(
             run_id=args.run_id,
@@ -448,6 +473,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
             "canonical_commit": canonical,
             "verification_digest": evidence,
             "verification_log_retained": False,
+            "cleaned_paths": cleaned_paths,
             "cleaned": True,
         }
     except (Operational, TrustFailure) as original:

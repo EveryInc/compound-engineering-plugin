@@ -31,7 +31,13 @@ from pathlib import Path
 
 
 SCHEMA_VERSION = 1
-DEFAULT_RUNS_ROOT = "/tmp/compound-engineering/ce-work"
+_uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
+_EFFECTIVE_UID = _uid_getter() if _uid_getter is not None else None
+DEFAULT_RUNS_ROOT = (
+    os.path.join("/tmp", f"compound-engineering-{_EFFECTIVE_UID}", "ce-work")
+    if _EFFECTIVE_UID is not None
+    else None
+)
 MAX_JSON_BYTES = 2 * 1024 * 1024
 MAX_PACKET_BYTES = 200_000
 SAFE_ID = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
@@ -75,6 +81,8 @@ def runs_root() -> str:
     peer_root = os.environ.get("CE_PEER_JOBS_ROOT")
     if peer_root:
         return os.path.join(os.path.abspath(peer_root), "ce-work")
+    if DEFAULT_RUNS_ROOT is None:
+        raise TrustFailure("effective user ID is unavailable; cannot derive the runs root")
     return DEFAULT_RUNS_ROOT
 
 
@@ -93,8 +101,7 @@ def _mode(st: os.stat_result) -> int:
 
 
 def _euid() -> int | None:
-    get = getattr(os, "geteuid", None)
-    return get() if get else None
+    return _EFFECTIVE_UID
 
 
 def validate_private_dir(path: str) -> None:
