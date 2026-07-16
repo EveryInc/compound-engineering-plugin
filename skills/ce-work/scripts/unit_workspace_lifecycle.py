@@ -197,9 +197,30 @@ def cmd_resume(args) -> tuple[str, dict]:
         unit_ids = list(doc["units"])
         claim = doc.get("integration_lock")
         releasing = dict(claim) if isinstance(claim, dict) and claim.get("phase") == "releasing" else None
+        orphan_unit = None
+        orphan_path = integration_lock_path(doc)
+        if claim is None and os.path.lexists(orphan_path):
+            orphan = read_integration_lock(orphan_path)
+            candidate = orphan.get("unit_id")
+            if orphan.get("run_id") != run_id or not isinstance(candidate, str) or candidate not in doc["units"]:
+                raise Operational(
+                    "BLOCKED",
+                    "external integration lock does not belong to this run/unit",
+                    {"owner_run": orphan.get("run_id"), "owner_unit": candidate},
+                )
+            validated_lock_nonce(doc, candidate, orphan)
+            orphan_unit = candidate
     if releasing:
         integration_release(run_id, releasing["unit_id"], releasing["nonce"])
         actions.append({"unit_id": releasing["unit_id"], "action": "integration-release-reconciled"})
+    if orphan_unit:
+        cmd_integration_acquire(SimpleNamespace(
+            run_id=run_id,
+            unit_id=orphan_unit,
+            resume=True,
+            recover_only=True,
+        ))
+        actions.append({"unit_id": orphan_unit, "action": "integration-lock-adopted"})
     for uid in unit_ids:
         with locked_manifest(run_id) as doc:
             unit = doc["units"][uid]

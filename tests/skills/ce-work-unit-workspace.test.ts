@@ -612,6 +612,49 @@ describe("ce-work unit workspace controller", () => {
     ).word).toBe("ACQUIRED")
   }, 20000)
 
+  test("resume adopts and releases a same-run lock orphaned before manifest ownership", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-lock-orphan", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-lock-orphan", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const workspace = path.join(runs, "run-lock-orphan", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "new.txt"), "new\n")
+    const job = fakeDoneJob(runs, "run-lock-orphan", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-lock-orphan", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", "run-lock-orphan", "--unit-id", "U")
+    const headBefore = git(f.repo, "rev-parse", "HEAD")
+    const statusBefore = git(f.repo, "status", "--porcelain=v2")
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "integration-lock-after-create" },
+      "integrate", "--run-id", "run-lock-orphan", "--unit-id", "U",
+      "--commit-message", "integrate U", "--", "true",
+    )
+    expect(interrupted.word).toBe("INTERRUPTED")
+    expect(ctl(runs, "status", "--run-id", "run-lock-orphan").body.integration_lock).toBeNull()
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(headBefore)
+    expect(git(f.repo, "status", "--porcelain=v2")).toBe(statusBefore)
+
+    const resumed = ctl(runs, "resume", "--run-id", "run-lock-orphan")
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body.actions).toContainEqual({ unit_id: "U", action: "integration-lock-adopted" })
+    expect(resumed.body.actions).toContainEqual({ unit_id: "U", action: "preflight-lock-released" })
+    expect(ctl(runs, "status", "--run-id", "run-lock-orphan").body.integration_lock).toBeNull()
+    expect(git(f.repo, "rev-parse", "HEAD")).toBe(headBefore)
+    expect(git(f.repo, "status", "--porcelain=v2")).toBe(statusBefore)
+
+    expect(ctl(
+      runs, "integration-acquire", "--run-id", "run-lock-orphan", "--unit-id", "U",
+    ).word).toBe("ACQUIRED")
+  }, 20000)
+
   test("resume preserves an exact preflight snapshot and releases its integration lock", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

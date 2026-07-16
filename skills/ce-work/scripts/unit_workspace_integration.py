@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import secrets
 import shutil
 from pathlib import Path
@@ -21,6 +22,21 @@ def read_integration_lock(path: str) -> dict:
     return read_private_json(path)
 
 
+def validated_lock_nonce(doc: dict, unit_id: str, lock: dict) -> str:
+    expected = {
+        "run_id": doc["run_id"],
+        "unit_id": unit_id,
+        "repository": doc["repository"]["identity_digest"],
+        "branch_ref": doc["branch"]["ref"],
+    }
+    if any(lock.get(k) != v for k, v in expected.items()):
+        raise Operational("BLOCKED", "integration lock identity mismatch")
+    nonce = lock.get("nonce")
+    if not isinstance(nonce, str) or not re.fullmatch(r"[0-9a-f]{48}", nonce):
+        raise TrustFailure("integration lock nonce is malformed")
+    return nonce
+
+
 def validate_lock(doc: dict, unit_id: str, token: str) -> tuple[str, dict]:
     path = integration_lock_path(doc)
     try:
@@ -29,8 +45,8 @@ def validate_lock(doc: dict, unit_id: str, token: str) -> tuple[str, dict]:
         if not os.path.lexists(path):
             raise Operational("BLOCKED", "integration lock is missing") from exc
         raise
-    expected = {"run_id": doc["run_id"], "unit_id": unit_id, "nonce": token, "repository": doc["repository"]["identity_digest"], "branch_ref": doc["branch"]["ref"]}
-    if any(lock.get(k) != v for k, v in expected.items()):
+    nonce = validated_lock_nonce(doc, unit_id, lock)
+    if nonce != token:
         raise Operational("BLOCKED", "integration lock token or identity mismatch")
     return path, lock
 
@@ -51,20 +67,29 @@ def cmd_integration_acquire(args) -> tuple[str, dict]:
                 raise Operational("REFUSED", "integration claim is releasing; resume or retry release before acquisition")
             validate_lock(doc, args.unit_id, existing["nonce"])
             return "ACQUIRED", {"lock_token": existing["nonce"], "resumed": True, "path": path}
+        recover_only = getattr(args, "recover_only", False)
         nonce = secrets.token_hex(24)
         resumed = False
-        payload = {"run_id": args.run_id, "unit_id": args.unit_id, "nonce": nonce, "repository": doc["repository"]["identity_digest"], "branch_ref": doc["branch"]["ref"], "created_at": now_iso()}
-        try:
-            create_private(path, (json.dumps(payload, sort_keys=True) + "\n").encode())
-        except Operational:
+        if recover_only:
             lock = read_integration_lock(path)
-            if lock.get("run_id") == args.run_id and lock.get("unit_id") == args.unit_id:
-                if not args.resume:
-                    raise Operational("REFUSED", "integration lock file already exists; pass --resume to recover its claim")
-                nonce = lock["nonce"]
-                resumed = True
-            else:
-                raise Operational("BLOCKED", "another run/unit owns canonical integration", {"owner_run": lock.get("run_id"), "owner_unit": lock.get("unit_id")})
+            nonce = validated_lock_nonce(doc, args.unit_id, lock)
+            resumed = True
+        else:
+            payload = {"run_id": args.run_id, "unit_id": args.unit_id, "nonce": nonce, "repository": doc["repository"]["identity_digest"], "branch_ref": doc["branch"]["ref"], "created_at": now_iso()}
+            try:
+                create_private(path, (json.dumps(payload, sort_keys=True) + "\n").encode())
+                test_fault("integration-lock-after-create")
+            except Operational as exc:
+                if exc.word == "INTERRUPTED":
+                    raise
+                lock = read_integration_lock(path)
+                if lock.get("run_id") == args.run_id and lock.get("unit_id") == args.unit_id:
+                    if not args.resume:
+                        raise Operational("REFUSED", "integration lock file already exists; pass --resume to recover its claim")
+                    nonce = validated_lock_nonce(doc, args.unit_id, lock)
+                    resumed = True
+                else:
+                    raise Operational("BLOCKED", "another run/unit owns canonical integration", {"owner_run": lock.get("run_id"), "owner_unit": lock.get("unit_id")})
     with locked_manifest(args.run_id, write=True) as doc:
         doc["integration_lock"] = {"unit_id": args.unit_id, "nonce": nonce, "path": path, "phase": "held"}
         event(doc, "integration-lock-acquired", args.unit_id, {"resumed": resumed})
