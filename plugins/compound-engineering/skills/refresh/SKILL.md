@@ -115,7 +115,17 @@ bash "$PLUGIN_DIR/skills/refresh/generate-shims.sh" "$PLUGIN_DIR"
 
 Show the script's output to the user — it lists which shims were generated.
 
-## Step 7: Show results
+## Step 7: Seed the writing voice guide
+
+Writing reviewers (the Perkins panel, category `writing`) judge prose against a **voice guide** — the ground-truth artifact that defines the target voice. Seed it from the persona source repos, if absent:
+
+```bash
+bash "$PLUGIN_DIR/skills/refresh/seed-voice-guide.sh"
+```
+
+The script fetches `voice/voice-guide.md` from the repos in the persona source configs (orchestrator first, then reviewer) and writes it to `~/.config/compound-engineering/voice-guide.md`. It is **seed-if-absent**: the voice guide is a living document (the writing orchestrator's compound phase edits the local copy and commits the canonical version back to the source repo), so an existing local copy is never overwritten. To pull a newer canonical guide, delete the local copy and re-run. If no source repo hosts a voice guide, this is a no-op. Show the script's one-line output to the user.
+
+## Step 8: Show results
 
 The sync script writes summaries to `~/.config/compound-engineering/`:
 - `last-reviewer-refresh-summary.md` — reviewer sync results
