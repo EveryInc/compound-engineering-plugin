@@ -7,6 +7,7 @@ import {
   activateLocalCollection,
   inspectCodexDevStatus,
   inspectLocalCollection,
+  replaceManagedCollectionLink,
   removeCodexDevInstallation,
   removeLocalCollection,
   resolveCodexDevContext,
@@ -255,6 +256,49 @@ describe("Codex local skill collection", () => {
     await fs.writeFile(secondContext.collectionPath, "user-owned\n")
     await expect(activateLocalCollection(firstContext)).rejects.toThrow("not a symlink")
     expect(await fs.readFile(secondContext.collectionPath, "utf8")).toBe("user-owned\n")
+  })
+
+  test("preserves a collision created after an absent collection was inspected", async () => {
+    const root = await makeTempRoot("codex-dev-absent-race-")
+    const collectionPath = path.join(root, "skills", "compound-engineering-local")
+    const target = path.join(root, "checkout", "skills")
+    await fs.mkdir(path.dirname(collectionPath), { recursive: true })
+    await fs.mkdir(target, { recursive: true })
+
+    await expect(fs.lstat(collectionPath)).rejects.toMatchObject({ code: "ENOENT" })
+    await fs.writeFile(collectionPath, "raced-in user content\n")
+
+    await expect(
+      replaceManagedCollectionLink(collectionPath, target, { kind: "absent" }),
+    ).rejects.toMatchObject({ code: "EEXIST" })
+    expect(await fs.readFile(collectionPath, "utf8")).toBe("raced-in user content\n")
+  })
+
+  test("preserves a valid-link replacement created after the original link was inspected", async () => {
+    const root = await makeTempRoot("codex-dev-valid-race-")
+    const collectionPath = path.join(root, "skills", "compound-engineering-local")
+    const originalTarget = path.join(root, "original", "skills")
+    const desiredTarget = path.join(root, "desired", "skills")
+    const racedTarget = path.join(root, "raced", "skills")
+    await fs.mkdir(path.dirname(collectionPath), { recursive: true })
+    await Promise.all([
+      fs.mkdir(originalTarget, { recursive: true }),
+      fs.mkdir(desiredTarget, { recursive: true }),
+      fs.mkdir(racedTarget, { recursive: true }),
+    ])
+    await fs.symlink(originalTarget, collectionPath, "dir")
+    const inspectedTarget = await fs.readlink(collectionPath)
+    await fs.unlink(collectionPath)
+    await fs.symlink(racedTarget, collectionPath, "dir")
+
+    await expect(
+      replaceManagedCollectionLink(collectionPath, desiredTarget, {
+        kind: "valid",
+        target: inspectedTarget,
+      }),
+    ).rejects.toThrow("changed since it was inspected")
+    expect(await fs.readlink(collectionPath)).toBe(racedTarget)
+    expect(await fs.realpath(collectionPath)).toBe(await fs.realpath(racedTarget))
   })
 })
 

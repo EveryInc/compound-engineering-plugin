@@ -272,16 +272,41 @@ export async function activateLocalCollection(context: CodexDevContext): Promise
   }
   if (state.kind === "valid" && state.resolvedTarget === desiredTarget) return
 
-  await replaceCollectionLink(context.collectionPath, desiredTarget)
+  await replaceManagedCollectionLink(context.collectionPath, desiredTarget, state)
 }
 
-async function replaceCollectionLink(collectionPath: string, target: string): Promise<void> {
-  const temporaryPath = `${collectionPath}.tmp-${process.pid}-${crypto.randomUUID()}`
-  await fs.symlink(target, temporaryPath, "dir")
+export type ManagedCollectionLinkExpectation =
+  | { kind: "absent" }
+  | { kind: "valid"; target: string }
+
+export async function replaceManagedCollectionLink(
+  collectionPath: string,
+  target: string,
+  expected: ManagedCollectionLinkExpectation,
+): Promise<void> {
+  if (expected.kind === "absent") {
+    await fs.symlink(target, collectionPath, "dir")
+    return
+  }
+
+  let stat
   try {
-    await fs.rename(temporaryPath, collectionPath)
+    stat = await fs.lstat(collectionPath)
   } catch (error) {
-    await fs.unlink(temporaryPath).catch(() => undefined)
+    if ((error as NodeJS.ErrnoException).code === "ENOENT") {
+      throw new Error(`${collectionPath} changed since it was inspected; refusing to replace it`)
+    }
+    throw error
+  }
+  if (!stat.isSymbolicLink() || (await fs.readlink(collectionPath)) !== expected.target) {
+    throw new Error(`${collectionPath} changed since it was inspected; refusing to replace it`)
+  }
+
+  await fs.unlink(collectionPath)
+  try {
+    await fs.symlink(target, collectionPath, "dir")
+  } catch (error) {
+    await fs.symlink(expected.target, collectionPath, "dir").catch(() => undefined)
     throw error
   }
 }
@@ -302,7 +327,10 @@ async function restoreLocalCollection(
     }
     return
   }
-  await replaceCollectionLink(context.collectionPath, previous.target)
+  await replaceManagedCollectionLink(context.collectionPath, previous.target, {
+    kind: "valid",
+    target: activatedTarget,
+  })
 }
 
 export async function removeLocalCollection(context: CodexDevContext): Promise<boolean> {
