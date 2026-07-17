@@ -370,6 +370,8 @@ When the discovered plan's Key Technical Decisions carry `session-settled:` anno
 
 Use the project's active instructions already in context plus the current diff and source. Give each reviewer only the task-relevant context for its lens; the `project-standards` reviewer reads the actual standards sources. If a reviewer cannot scope the affected area from the diff and supplied context, allow one targeted probe.
 
+In `pr-remote` / `branch-remote`, current source and any targeted probe must use `git show` against the supplied reviewed head ref, or the supplied diff hunks when no head ref is available; never inspect workspace paths.
+
 ### Stage 3: Select reviewers
 
 Read the diff and file list from Stage 1 and the helper JSON from Stage 1b. Correctness is automatic; project-standards is governed by the Stage 3b path result. Read `references/persona-catalog.md` from this skill's directory now; it owns every other spawn gate. Select generic reviewers before domain reviewers: testing for changed test/harness surfaces, or when meaningful runtime behavior changed without corresponding test work; maintainability only for large or structural work; agent-native only for agent-facing work; and learnings only after a cheap search finds plausible matches in an existing `docs/solutions/` corpus. For the behavioral testing trigger, require concrete diff evidence such as new or changed branches, state mutation, API/control-flow behavior, or error handling. Do not select testing from production-file presence alone or for non-behavioral edits. For each remaining conditional, decide whether the diff warrants it. Helper signals are prompts to consider a persona, never automatic selection.

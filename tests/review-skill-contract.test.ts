@@ -612,6 +612,7 @@ describe("ce-code-review contract", () => {
 
   test("remote scope modes forbid workspace inspection on wrong tree", async () => {
     const skill = await readRepoFile("skills/ce-code-review/SKILL.md")
+    const stage2c = skill.split("### Stage 3:")[0].split("### Stage 2c:")[1]
     const diffScope = await readRepoFile(
       "skills/ce-code-review/references/diff-scope.md",
     )
@@ -624,6 +625,9 @@ describe("ce-code-review contract", () => {
     expect(skill).toMatch(/local-aligned.*local tree diff/i)
     expect(skill).not.toMatch(/append.*`DIFF:`.*unpushed/i)
     expect(skill).toMatch(/Do \*\*not\*\* call `gh pr diff` or append remote hunks/)
+    expect(stage2c).toMatch(
+      /pr-remote.*branch-remote.*targeted probe.*`git show`.*reviewed head ref.*supplied diff hunks.*never inspect workspace paths/is,
+    )
 
     expect(diffScope).toContain("branch-remote")
     expect(diffScope).toContain("pr-remote")
