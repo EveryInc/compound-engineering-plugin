@@ -9,6 +9,13 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.63.0](https://github.com/JumpstartLab/compound-engineering-plugin/compare/compound-engineering-v2.62.0...compound-engineering-v2.63.0) (2026-07-17)
+
+
+### Features
+
+* **refresh:** seed the writing voice guide across boxes ([#11](https://github.com/JumpstartLab/compound-engineering-plugin/issues/11)) ([c5ee4b6](https://github.com/JumpstartLab/compound-engineering-plugin/commit/c5ee4b66b0fb9fe38d1ab4a2c56310a4a2217235))
+
 ## [2.62.0](https://github.com/JumpstartLab/compound-engineering-plugin/compare/compound-engineering-v2.61.0...compound-engineering-v2.62.0) (2026-07-17)
 
 
