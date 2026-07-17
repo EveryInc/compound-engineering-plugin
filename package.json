@@ -16,6 +16,7 @@
   "homepage": "https://github.com/EveryInc/compound-engineering-plugin",
   "repository": "https://github.com/EveryInc/compound-engineering-plugin",
   "scripts": {
+    "codex:dev": "bun run scripts/codex-dev.ts",
     "dev": "bun run src/index.ts",
     "convert": "bun run src/index.ts convert",
     "cleanup": "bun run src/index.ts cleanup",

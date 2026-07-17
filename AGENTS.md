@@ -17,6 +17,19 @@ bun run release:validate  # plugin/marketplace consistency (also runs in CI)
 bun run plugin:validate   # Claude marketplace + plugin schema (also runs in CI; needs `claude` on PATH)
 ```
 
+### Codex Local Plugin Development
+
+When testing current skill files in Codex, run the repository workflow from the checkout or worktree you intend to test:
+
+```bash
+bun run codex:dev -- local    # link this worktree's skills and remove CE plugin installs
+bun run codex:dev -- status   # show local/remote state and checkout provenance
+bun run codex:dev -- remote   # restore the official Git-backed plugin
+bun run codex:dev -- remove   # remove both supported CE installation surfaces
+```
+
+`refresh` is an idempotent alias for `local`. Local mode manages only the exact `$CODEX_HOME/skills/compound-engineering-local` symlink and Compound Engineering plugin IDs; it must not alter unrelated user skills. The symlink includes modified and untracked files from the selected worktree. Start a new Codex session after switching installation modes. Current Codex versions detect direct skill edits automatically; restart only if an edit does not appear. Do not use this repository itself as a Codex marketplace for local testing: its committed marketplace source points to the public Git repository.
+
 ## Working Agreement
 
 - **Branching:** Create a feature branch for any non-trivial change. If already on the correct branch for the task, keep using it; do not create additional branches or worktrees unless explicitly requested.
