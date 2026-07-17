@@ -463,6 +463,20 @@ Task best-practices-researcher(topic)`
     expect(result).not.toContain("/workflows:plan")
   })
 
+  test("transforms a backticked command followed by a colon without leaving a stray backtick", () => {
+    const result = transformContentForKiro("Run `/ce-plan`: do the thing.")
+    expect(result).toContain("the ce-plan skill:")
+    expect(result).not.toContain("`")
+  })
+
+  test("preserves a backticked absolute path whose root is outside the allowlist", () => {
+    const result = transformContentForKiro("Edit `/Users/luke/.claude/x` and `/private/tmp/o`.")
+    expect(result).toContain("/Users/luke/")
+    expect(result).toContain("/private/tmp/o")
+    expect(result).not.toContain("the users skill")
+    expect(result).not.toContain("the private skill")
+  })
+
   test("does not transform partial .claude paths like package/.claude-config/", () => {
     const result = transformContentForKiro("Check some-package/.claude-config/settings")
     // The .claude-config/ part should be transformed since it starts with .claude/

@@ -151,21 +151,23 @@ export function transformContentForKiro(body: string, knownAgentNames: string[] 
   result = result.replace(/(?<=^|\s|["'`])\.claude\//gm, ".kiro/")
 
   // 3. Slash command refs: /command-name -> skill activation language.
-  // The negative lookahead rejects a match whose command token is followed by another
-  // path/word char or "/", so any multi-segment absolute path (/etc/hosts, /Users/foo,
-  // /private/tmp) is left verbatim — its first segment is followed by "/". Excluding the
-  // whole word-char set (not just "/") also keeps the match atomic: the greedy token can't
-  // backtrack to a shorter prefix (/etc/hosts -> /et) to satisfy the lookahead. Sentence
-  // punctuation like ; ! ? still counts as a delimiter, so a real command keeps converting.
-  // The allowlist then only guards bare single-segment roots like a standalone "/etc".
+  // Path-vs-command is decided in the callback rather than via a lookahead: a token whose
+  // match ends with "/" as the next char (and isn't closed by a backtick) is a path segment
+  // (/etc/hosts, /Users/foo, `/private/tmp/x`) and is left verbatim; everything else is a
+  // real command reference and converts. Inspecting the trailing char directly sidesteps the
+  // regex backtracking traps a trailing lookahead hits with namespaced (:) and backticked (`)
+  // commands. The allowlist still guards bare single-segment roots like a standalone "/etc".
   result = result.replace(
-    /(?<=^|\s)`?\/([a-zA-Z][a-zA-Z0-9_:-]*)`?(?![A-Za-z0-9_:\/-])/gm,
-    (match, cmdName: string) => {
+    /(?<=^|\s)`?\/([a-zA-Z][a-zA-Z0-9_:-]*)`?/gm,
+    (match, cmdName: string, offset: number, full: string) => {
+      const nextChar = full[offset + match.length]
+      if (nextChar === "/" && !match.endsWith("`")) {
+        return match
+      }
       if (["dev", "tmp", "etc", "usr", "var", "bin", "home"].includes(cmdName)) {
         return match
       }
-      const skillName = normalizeName(cmdName)
-      return `the ${skillName} skill`
+      return `the ${normalizeName(cmdName)} skill`
     },
   )
 
