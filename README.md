@@ -477,9 +477,14 @@ claude --plugin-dir "$PWD"
 cursor-agent --plugin-dir "$PWD"
 ```
 
-**Codex CLI and app**
+**Codex**
 
-From any Compound Engineering checkout or linked worktree, select the current worktree as the active Codex development source:
+For the normal production-like plugin installation, use the [Codex App](#codex-app) or [Codex CLI](#codex-cli) instructions above. The workflow below is only for contributors who need Codex to load unreleased files from an exact checkout or linked worktree.
+
+<details>
+<summary><strong>Advanced: test this exact checkout in Codex</strong></summary>
+
+Select the current worktree as the active Codex development source:
 
 ```bash
 bun run codex:dev -- local
@@ -506,6 +511,8 @@ bun run codex:dev -- remove
 The script derives the repository path, so it works from checkouts in any location, including paths with spaces. It inherits the active `CODEX_HOME`; set `CODEX_HOME` on the command when testing an isolated profile. Run every mode against the same `CODEX_HOME` you use to launch Codex.
 
 Do not use `codex plugin marketplace add "$PWD"` as a local-development shortcut. This repository's committed `.agents/plugins/marketplace.json` intentionally points Compound Engineering back to the public Git repository, so installing from that marketplace can still cache remote content. A matching manifest version also does not prove the cache matches the worktree.
+
+</details>
 
 **Kimi Code CLI**
 
