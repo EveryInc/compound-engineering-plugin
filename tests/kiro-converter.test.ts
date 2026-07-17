@@ -454,6 +454,15 @@ Task best-practices-researcher(topic)`
     expect(result).not.toContain("the opt skill")
   })
 
+  test("transforms slash commands terminated by sentence punctuation", () => {
+    // ; ! ? are delimiters too — a command followed by them must still convert.
+    const result = transformContentForKiro("Run /workflows:plan; then /workflows:work! or /ce:review?")
+    expect(result).toContain("the workflows-plan skill")
+    expect(result).toContain("the workflows-work skill")
+    expect(result).toContain("the ce-review skill")
+    expect(result).not.toContain("/workflows:plan")
+  })
+
   test("does not transform partial .claude paths like package/.claude-config/", () => {
     const result = transformContentForKiro("Check some-package/.claude-config/settings")
     // The .claude-config/ part should be transformed since it starts with .claude/
