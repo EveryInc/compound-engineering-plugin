@@ -180,11 +180,17 @@ repository. For named peers, start one job per exact target; for a selected pane
 start one job per selected peer. Start all jobs before waiting.
 
 Record every job id and the epoch after the final start. Poll all jobs in
-bounded slices with the runner's `wait --max-secs 30 --json` interface. Use one
-aggregate deadline of 610 seconds after the final start; never begin a wait that
-can cross it. At the deadline, reap each nonterminal job in a short call, then
-make one final `wait --max-secs 10 --json` call. Classify every started job from
-its terminal state; `done` alone does not prove a usable artifact exists.
+bounded slices with
+`python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 30 --json <job-ids...>`.
+Job ids or job-directory paths are positional. `--skill`, `--run-id`, and
+`--label` are start-only; never pass them to `wait`. Do not add a separate shell
+sleep: `wait` itself provides the bounded polling delay. Use one aggregate
+deadline of 610 seconds after the final start; never begin a wait that can cross
+it. At the deadline, reap each nonterminal job in a short call, then make one
+final
+`python3 "$SKILL_DIR/scripts/peer-job-runner.py" wait --max-secs 10 --json <job-ids...>`
+call. Classify every started job from its terminal state; `done` alone does not
+prove a usable artifact exists.
 
 Read artifacts and logs only through the runner's ownership-checked `result`
 interface. Accept only schema-shaped artifacts with non-empty `position` and
