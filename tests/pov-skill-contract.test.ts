@@ -175,6 +175,7 @@ describe("ce-pov cross-model panel contract", () => {
     expect(prose).toContain("technically enforced")
     expect(prose).toContain("cooperative")
     expect(prose).toMatch(/Do not expose.*CLI versions.*commit hashes.*route health/)
+    expect(prose).toMatch(/does not suppress.*concise observed failure state.*partial or unavailable panel result/)
     expect(prose).toMatch(/reconcile round additionally shares every surviving voice's position,.*reasoning, and bounded evidence summaries/)
     expect(prose).toContain("return failure to the host")
   })

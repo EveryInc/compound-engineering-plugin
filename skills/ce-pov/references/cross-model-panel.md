@@ -137,11 +137,12 @@ If a reconcile round may run, add that the reconcile round additionally shares
 every surviving voice's position, reasoning, and bounded evidence summaries
 with the other participating recipients. Warn when the material can contain
 proprietary code or architecture facts. Do not expose probe results, CLI
-versions, model tiers, commit hashes, repository identity, route health, job
-lifecycle, scratch paths, or other orchestration mechanics. Refer to the
-codebase as "this project" or "the repository" unless the user supplied a
-recognizable name; never promote a directory, worktree, checkout, branch, or
-path into the project name.
+versions, model tiers, commit hashes, repository identity, internal route health
+diagnostics, job lifecycle, scratch paths, or other orchestration mechanics.
+This does not suppress the concise observed failure state required for a partial
+or unavailable panel result. Refer to the codebase as "this project" or "the
+repository" unless the user supplied a recognizable name; never promote a
+directory, worktree, checkout, branch, or path into the project name.
 
 Apply consent by how participation was chosen:
 
