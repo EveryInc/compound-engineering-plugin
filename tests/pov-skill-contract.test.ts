@@ -37,6 +37,17 @@ describe("ce-pov subject-shape contract", () => {
     expect(phaseZero).toContain("Approach-set")
   })
 
+  test("keeps user-facing copy decision-oriented without exposing project internals", async () => {
+    const skill = await skillFile("SKILL.md")
+    const userCopy = between(skill, "## User-facing communication", "## Interaction Method")
+
+    expect(userCopy).toContain("person deciding")
+    expect(userCopy).toContain("decision, question, or recommendation")
+    expect(userCopy).toContain("internal workflow vocabulary")
+    expect(userCopy).toContain('"this project" or "the repository"')
+    expect(userCopy).toMatch(/never promote.*directory.*worktree.*checkout.*branch/i)
+  })
+
   test("intake and boundaries distinguish takes, findings reviews, and supplied approaches", async () => {
     const [intake, boundaries] = await Promise.all([
       skillFile("references/intake.md"),
@@ -149,15 +160,30 @@ describe("ce-pov cross-model panel contract", () => {
     expect(prose).toMatch(/five succinct.*source-attributed evidence bullets per voice/)
   })
 
-  test("pins fixed-route pre-egress sanction and reconcile disclosure", async () => {
+  test("pins fixed-route privacy notice, consent, and reconcile disclosure", async () => {
     const panel = await skillFile("references/cross-model-panel.md")
     const prose = compact(panel)
 
     expect(prose).toContain("Resolve one concrete target")
     expect(prose).toContain("every actual recipient")
-    expect(prose).toContain("Disclose and obtain sanction for that fixed route")
+    expect(prose).toContain("privacy notice")
+    expect(prose).toMatch(/Explicitly named peers:.*proceed.*without.*second question/)
+    expect(prose).toMatch(/Auto-selected peers:.*ask before/)
+    expect(prose).toMatch(/cannot edit|remain read-only/)
+    expect(prose).toContain("technically enforced")
+    expect(prose).toContain("cooperative")
+    expect(prose).toMatch(/Do not expose.*CLI versions.*commit hashes.*route health/)
     expect(prose).toMatch(/reconcile round additionally shares every surviving voice's position,.*reasoning, and bounded evidence summaries/)
     expect(prose).toContain("return failure to the host")
+  })
+
+  test("keeps include and exclude path filters explicitly cooperative in the worker prompt", async () => {
+    const worker = await skillFile("scripts/cross-model-pov.sh")
+    const scopePrompt = between(worker, '<repository-read-scope enforcement=', "<subject-payload>")
+
+    expect(scopePrompt).toContain("cooperative-unless-adapter-supported")
+    expect(scopePrompt).toContain("INCLUDE_PATHS")
+    expect(scopePrompt).toContain("EXCLUDE_PATHS")
   })
 
   test("pins fail-closed host attestation and classified skip evidence", async () => {
