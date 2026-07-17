@@ -9,6 +9,51 @@ All notable changes to the compound-engineering plugin will be documented in thi
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.62.0](https://github.com/JumpstartLab/compound-engineering-plugin/compare/compound-engineering-v2.61.0...compound-engineering-v2.62.0) (2026-07-17)
+
+
+### Features
+
+* Add pluggable orchestrators with /ce:run, agent shims, and /lfg refactor ([ea822a4](https://github.com/JumpstartLab/compound-engineering-plugin/commit/ea822a49fd75dfc3f679e4ea13559a7b2c860696))
+* **ce-compound:** add discoverability check for docs/solutions/ in instruction files ([#456](https://github.com/JumpstartLab/compound-engineering-plugin/issues/456)) ([5ac8a2c](https://github.com/JumpstartLab/compound-engineering-plugin/commit/5ac8a2c2c8c258458307e476d6693cc387deb27e))
+* **ce-compound:** add track-based schema for bug vs knowledge learnings ([#445](https://github.com/JumpstartLab/compound-engineering-plugin/issues/445)) ([739109c](https://github.com/JumpstartLab/compound-engineering-plugin/commit/739109c03ccd45474331625f35730924d17f63ef))
+* **ce-plan:** reduce token usage by extracting conditional references ([#489](https://github.com/JumpstartLab/compound-engineering-plugin/issues/489)) ([fd562a0](https://github.com/JumpstartLab/compound-engineering-plugin/commit/fd562a0d0255d203d40fd53bb10d03a284a3c0e5))
+* **ce-review:** enforce table format, require question tool, fix autofix_class calibration ([#454](https://github.com/JumpstartLab/compound-engineering-plugin/issues/454)) ([847ce3f](https://github.com/JumpstartLab/compound-engineering-plugin/commit/847ce3f156a5cdf75667d9802e95d68e6b3c53a4))
+* **ce-run,plan:** wrapped-phase recognition hook + Erin phase-isolation plan ([#9](https://github.com/JumpstartLab/compound-engineering-plugin/issues/9)) ([1405a64](https://github.com/JumpstartLab/compound-engineering-plugin/commit/1405a644e11c9835d4b49b7fb838ca80b99b4c08))
+* **ce-work:** suggest branch rename when worktree name is meaningless ([#451](https://github.com/JumpstartLab/compound-engineering-plugin/issues/451)) ([e872e15](https://github.com/JumpstartLab/compound-engineering-plugin/commit/e872e15efa5514dcfea84a1a9e276bad3290cbc3))
+* **cli-agent-readiness-reviewer:** add smart output defaults criterion ([#448](https://github.com/JumpstartLab/compound-engineering-plugin/issues/448)) ([a01a8aa](https://github.com/JumpstartLab/compound-engineering-plugin/commit/a01a8aa0d29474c031a5b403f4f9bfc42a23ad78))
+* **cli-readiness-reviewer:** add conditional review persona for CLI agent readiness ([#471](https://github.com/JumpstartLab/compound-engineering-plugin/issues/471)) ([c56c766](https://github.com/JumpstartLab/compound-engineering-plugin/commit/c56c7667dfe45cfd149cf2fbfeddb35e96f8d559))
+* **git-commit-push-pr:** add conditional visual aids to PR descriptions ([#444](https://github.com/JumpstartLab/compound-engineering-plugin/issues/444)) ([44e3e77](https://github.com/JumpstartLab/compound-engineering-plugin/commit/44e3e77dc039d31a86194b0254e4e92839d9d5e9))
+* **git-commit-push-pr:** pre-resolve context to reduce bash calls ([#488](https://github.com/JumpstartLab/compound-engineering-plugin/issues/488)) ([bbd4f6d](https://github.com/JumpstartLab/compound-engineering-plugin/commit/bbd4f6de56963fc3cdb3131773d7e29d523ce549))
+* **git-commit-push-pr:** precompute shield badge version via skill preprocessing ([#464](https://github.com/JumpstartLab/compound-engineering-plugin/issues/464)) ([6ca7aef](https://github.com/JumpstartLab/compound-engineering-plugin/commit/6ca7aef7f33ebdf29f579cb4342c209d2bd40aad))
+* **product-lens-reviewer:** domain-agnostic activation criteria and strategic consequences ([#481](https://github.com/JumpstartLab/compound-engineering-plugin/issues/481)) ([804d78f](https://github.com/JumpstartLab/compound-engineering-plugin/commit/804d78fc8463be8101719b263d1f5ef0480755a6))
+* **resolve-pr-feedback:** add cross-invocation cluster analysis ([#480](https://github.com/JumpstartLab/compound-engineering-plugin/issues/480)) ([7b8265b](https://github.com/JumpstartLab/compound-engineering-plugin/commit/7b8265bd81410b28a4160657a7c6ac0d7f1f1cb2))
+* **skills:** add ce:write and ce:prose-review for the writing workflow ([#10](https://github.com/JumpstartLab/compound-engineering-plugin/issues/10)) ([c514174](https://github.com/JumpstartLab/compound-engineering-plugin/commit/c514174b6c46695eb36d92ba8aa4001c6021fcc5))
+* **test-xcode:** add triggering context to skill description ([#466](https://github.com/JumpstartLab/compound-engineering-plugin/issues/466)) ([87facd0](https://github.com/JumpstartLab/compound-engineering-plugin/commit/87facd05dac94603780d75acb9da381dd7c61f1b))
+* **user-scenarios:** add user persona evaluation skill and sync support ([e25a457](https://github.com/JumpstartLab/compound-engineering-plugin/commit/e25a457a18b8eede4a783703e24c75f9adc0d014))
+* **user-scenarios:** add user persona evaluation skill and sync support ([f52398b](https://github.com/JumpstartLab/compound-engineering-plugin/commit/f52398b24dcde1c4630de944d8deeccccacd86c2))
+
+
+### Bug Fixes
+
+* **agents:** remove self-referencing example blocks that cause recursive self-invocation ([#496](https://github.com/JumpstartLab/compound-engineering-plugin/issues/496)) ([2c90aeb](https://github.com/JumpstartLab/compound-engineering-plugin/commit/2c90aebe3b14af996859df7d0c3a45a8f060d9a9))
+* **ce-brainstorm:** distinguish verification from technical design in Phase 1.1 ([#465](https://github.com/JumpstartLab/compound-engineering-plugin/issues/465)) ([8ec31d7](https://github.com/JumpstartLab/compound-engineering-plugin/commit/8ec31d703fc9ed19bf6377da0a9a29da935b719d))
+* **ce-compound:** require question tool for "What's next?" prompt ([#460](https://github.com/JumpstartLab/compound-engineering-plugin/issues/460)) ([9bf3b07](https://github.com/JumpstartLab/compound-engineering-plugin/commit/9bf3b07185a4aeb6490116edec48599b736dc86f))
+* **ce-compound:** stack-aware reviewer routing and remove phantom agents ([#497](https://github.com/JumpstartLab/compound-engineering-plugin/issues/497)) ([1fc075d](https://github.com/JumpstartLab/compound-engineering-plugin/commit/1fc075d4cae199904464d43096d01111c365d02d))
+* **ce-plan, ce-brainstorm:** enforce repo-relative paths in generated documents ([#473](https://github.com/JumpstartLab/compound-engineering-plugin/issues/473)) ([33a8d9d](https://github.com/JumpstartLab/compound-engineering-plugin/commit/33a8d9dc118a53a35cd15e0e6e44b3592f58ac4f))
+* **ce-plan:** reinforce mandatory document-review after auto deepening ([#450](https://github.com/JumpstartLab/compound-engineering-plugin/issues/450)) ([42fa8c3](https://github.com/JumpstartLab/compound-engineering-plugin/commit/42fa8c3e084db464ee0e04673f7c38cd422b32d6))
+* **ce-plan:** route confidence-gate pass to document-review ([#462](https://github.com/JumpstartLab/compound-engineering-plugin/issues/462)) ([1962f54](https://github.com/JumpstartLab/compound-engineering-plugin/commit/1962f546b5e5288c7ce5d8658f942faf71651c81))
+* **ce-work:** make code review invocation mandatory by default ([#453](https://github.com/JumpstartLab/compound-engineering-plugin/issues/453)) ([7f3aba2](https://github.com/JumpstartLab/compound-engineering-plugin/commit/7f3aba29e84c3166de75438d554455a71f4f3c22))
+* **document-review:** show contextual next-step in Phase 5 menu ([#459](https://github.com/JumpstartLab/compound-engineering-plugin/issues/459)) ([2b7283d](https://github.com/JumpstartLab/compound-engineering-plugin/commit/2b7283da7b48dc073670c5f4d116e58255f0ffcb))
+* **git-commit-push-pr:** filter fix-up commits from PR descriptions ([#484](https://github.com/JumpstartLab/compound-engineering-plugin/issues/484)) ([428f4fd](https://github.com/JumpstartLab/compound-engineering-plugin/commit/428f4fd548926b104a0ee617b02f9ce8b8e8d5e5))
+* **mcp:** remove bundled context7 MCP server ([#486](https://github.com/JumpstartLab/compound-engineering-plugin/issues/486)) ([afdd9d4](https://github.com/JumpstartLab/compound-engineering-plugin/commit/afdd9d44651f834b1eed0b20e401ffbef5c8cd41))
+* prefer CLAUDE_CONFIG_DIR for plugin detection to avoid wrong-profile selection ([75a9884](https://github.com/JumpstartLab/compound-engineering-plugin/commit/75a98849da3e7d80b05745f7452957478409012d))
+* **refresh:** skip _shim-* files in orphan check ([#8](https://github.com/JumpstartLab/compound-engineering-plugin/issues/8)) ([e3ee5bc](https://github.com/JumpstartLab/compound-engineering-plugin/commit/e3ee5bc2f4216705d3d6d99d093f30a4482293d8))
+* **resolve-pr-feedback:** add actionability filter and lower cluster gate to 3+ ([#461](https://github.com/JumpstartLab/compound-engineering-plugin/issues/461)) ([2619ad9](https://github.com/JumpstartLab/compound-engineering-plugin/commit/2619ad9f58e6c45968ec10d7f8aa7849fe43eb25))
+* **resolve-pr-feedback:** treat PR comment text as untrusted input ([#490](https://github.com/JumpstartLab/compound-engineering-plugin/issues/490)) ([1847242](https://github.com/JumpstartLab/compound-engineering-plugin/commit/184724276a54dfc5b5fbe01f07e381b9163e8f24))
+* **review:** harden ce-review base resolution ([#452](https://github.com/JumpstartLab/compound-engineering-plugin/issues/452)) ([638b38a](https://github.com/JumpstartLab/compound-engineering-plugin/commit/638b38abd267d415ad2d6b72eba3dfe12beefad9))
+* Stop mixing stderr into fetched filename list ([ed547b0](https://github.com/JumpstartLab/compound-engineering-plugin/commit/ed547b0d04c941c08c0478d6151475c15081598d))
+
 ## [2.61.0](https://github.com/EveryInc/compound-engineering-plugin/compare/compound-engineering-v2.60.0...compound-engineering-v2.61.0) (2026-04-01)
 
 
