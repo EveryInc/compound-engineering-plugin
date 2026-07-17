@@ -150,14 +150,22 @@ export function transformContentForKiro(body: string, knownAgentNames: string[] 
   result = result.replace(/(?<=^|\s|["'`])~\/\.claude\//gm, "~/.kiro/")
   result = result.replace(/(?<=^|\s|["'`])\.claude\//gm, ".kiro/")
 
-  // 3. Slash command refs: /command-name -> skill activation language
-  result = result.replace(/(?<=^|\s)`?\/([a-zA-Z][a-zA-Z0-9_:-]*)`?/gm, (match, cmdName: string) => {
-    if (["dev", "tmp", "etc", "usr", "var", "bin", "home"].includes(cmdName)) {
-      return match
-    }
-    const skillName = normalizeName(cmdName)
-    return `the ${skillName} skill`
-  })
+  // 3. Slash command refs: /command-name -> skill activation language.
+  // The trailing-delimiter lookahead (matching the copilot/pi/codex converters) means a
+  // command must be followed by whitespace/punctuation/end, so any multi-segment absolute
+  // path (/etc/hosts, /Users/foo, /private/tmp) is left verbatim — its first segment is
+  // followed by "/", not a delimiter. The allowlist then only guards bare single-segment
+  // roots like a standalone "/etc".
+  result = result.replace(
+    /(?<=^|\s)`?\/([a-zA-Z][a-zA-Z0-9_:-]*)`?(?=[\s,."')\]}`]|$)/gm,
+    (match, cmdName: string) => {
+      if (["dev", "tmp", "etc", "usr", "var", "bin", "home"].includes(cmdName)) {
+        return match
+      }
+      const skillName = normalizeName(cmdName)
+      return `the ${skillName} skill`
+    },
+  )
 
   // 4. Claude tool names -> Kiro tool names
   for (const [claudeTool, kiroTool] of Object.entries(CLAUDE_TO_KIRO_TOOLS)) {

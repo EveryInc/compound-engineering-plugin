@@ -442,6 +442,18 @@ Task best-practices-researcher(topic)`
     expect(result).not.toContain("the etc skill")
   })
 
+  test("preserves absolute paths whose root is outside the allowlist", () => {
+    // /Users (case-sensitive) and /private are not in the allowlist, but the
+    // trailing-delimiter lookahead still leaves multi-segment paths untouched.
+    const result = transformContentForKiro("See /Users/luke/notes.md and /private/tmp/out and /opt/bin/tool.")
+    expect(result).toContain("/Users/luke/notes.md")
+    expect(result).toContain("/private/tmp/out")
+    expect(result).toContain("/opt/bin/tool")
+    expect(result).not.toContain("the users skill")
+    expect(result).not.toContain("the private skill")
+    expect(result).not.toContain("the opt skill")
+  })
+
   test("does not transform partial .claude paths like package/.claude-config/", () => {
     const result = transformContentForKiro("Check some-package/.claude-config/settings")
     // The .claude-config/ part should be transformed since it starts with .claude/
