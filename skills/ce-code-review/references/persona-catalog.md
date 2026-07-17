@@ -2,9 +2,9 @@
 
 Reviewer personas organized into a small core plus generic, cross-cutting, and stack-specific conditionals. The orchestrator uses this catalog to select only reviewers whose domain is present in the diff.
 
-## Core (always-on)
+## Core and standards gate
 
-Spawned on every multi-agent review regardless of diff content.
+Correctness is spawned on every multi-agent review. Project-standards is spawned only when Stage 3b finds at least one applicable standards file, or when standards discovery fails and the review must fail closed.
 
 **Structured persona prompt assets:**
 
@@ -31,11 +31,11 @@ Spawned when the orchestrator identifies relevant patterns in the diff. The orch
 | Persona | Agent | Select when diff touches... |
 |---------|-------|---------------------------|
 | `security` | `security-reviewer` | Auth middleware, public endpoints, user input handling, permission checks, secrets management |
-| `performance` | `performance-reviewer` | Database queries, ORM calls, loop-heavy data transforms, caching layers, async/concurrent code |
-| `api-contract` | `api-contract-reviewer` | Route definitions, serializer/interface changes, event schemas, exported type signatures, API versioning |
+| `performance` | `performance-reviewer` | Concrete performance-sensitive behavior: database/ORM query shape, algorithmic complexity, large loop-heavy transforms, batching/fan-out, or cache policy with material resource impact. Async/concurrent code or a cache data structure alone does not select it when correctness/reliability already own the changed semantics. |
+| `api-contract` | `api-contract-reviewer` | An externally consumed boundary changes: route/request/response definitions, serializers, published event schemas, API versioning, or a public package signature with evidenced downstream callers. A new or changed exported symbol inside one module is insufficient by itself. |
 | `data-migration` | `data-migration-reviewer` | Migration files, schema dumps (`db/schema.rb`, `structure.sql`), backfill scripts, data transformations — **not** model/query-only changes without migration artifacts |
 | `reliability` | `reliability-reviewer` | Error handling, retry logic, circuit breakers, timeouts, background jobs, async handlers, health checks |
-| `adversarial` | `adversarial-reviewer` | Diff has >=50 changed non-test, non-generated, non-lockfile lines, OR touches auth, payments, data mutations, external API integrations, or other high-risk domains, OR adds/modifies a **silent-pass verification mechanism** — a guard whose failure mode is going green while the real thing is red: CI/CD gating logic, merge-blocking checks, build/deploy steps, coverage/lint gates, or test infrastructure/mocks that could mask production. This trigger fires on the *mechanism* independent of line count and the auth/data heuristics. Scope guard: it does **not** fire on ordinary per-feature test assertions — a unit test asserting business logic is `testing`'s job — only on gating/CI/build/deploy/harness changes |
+| `adversarial` | `adversarial-reviewer` fallback | >=50 changed code lines; auth/payments; persistence writes or event publication; retry/partial-failure or concurrency/ordering semantics; external APIs; or a silent-pass verification mechanism. The lens runs through the independent cross-model peer when a sanctioned peer starts. Spawn this in-process persona only when the peer cannot start. A started peer and the fallback are mutually exclusive. |
 | `previous-comments` | `previous-comments-reviewer` | **PR-only AND comment-gated.** Reviewing a PR that has existing review comments or review threads from prior review rounds. Skip entirely when no PR metadata was gathered in Stage 1, OR when Stage 1's `hasPriorComments` flag is false (no `reviews` and no `comments` on the PR). |
 
 ## Stack-Specific Conditional (2 personas)
@@ -57,7 +57,7 @@ Use `deployment-verification-agent` when the migration-artifact gate applies **a
 
 ## Selection rules
 
-1. **Always spawn the 2 core personas:** correctness and project-standards.
+1. **Always spawn correctness.** Spawn project-standards only for a non-empty applicable standards path list; skip it on a successful empty search and fail closed by spawning it when discovery is uncertain.
 2. **For each generic conditional**, require its explicit surface. For `testing`, that surface is changed tests/harnesses or concrete meaningful runtime behavior with no corresponding test work; production-file presence alone is insufficient. Absence means skip, not "run just in case."
 3. **For each cross-cutting conditional persona**, read the diff and decide whether its domain is relevant. This is a judgment call, not a keyword match.
 4. **For each stack-specific conditional persona**, use file types and changed patterns as a starting point, then decide whether the diff actually introduces meaningful work for that reviewer. Do not spawn language-specific reviewers just because one config or generated file happens to match the extension.

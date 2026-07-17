@@ -45,10 +45,12 @@ describe("GPT-5.6 skill migration", () => {
   })
 
   test("does not treat Codex task wording as a model override", async () => {
-    const [codeReview, simplifyCode] = await Promise.all([
+    const [codeReviewSkill, codeReviewDispatch, simplifyCode] = await Promise.all([
       readSkill("ce-code-review/SKILL.md"),
+      readSkill("ce-code-review/references/dispatch-reviewers.md"),
       readSkill("ce-simplify-code/SKILL.md"),
     ])
+    const codeReview = `${codeReviewSkill}\n${codeReviewDispatch}`
 
     for (const skill of [codeReview, simplifyCode]) {
       expect(skill).toContain("explicit model or custom-agent selector")
