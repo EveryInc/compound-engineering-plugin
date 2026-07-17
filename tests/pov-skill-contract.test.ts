@@ -200,6 +200,16 @@ describe("ce-pov cross-model panel contract", () => {
     expect(panel).toContain("quota, authentication, or route failure")
   })
 
+  test("documents complete bounded wait invocations without a separate shell sleep", async () => {
+    const panel = await skillFile("references/cross-model-panel.md")
+    const prose = compact(panel)
+
+    expect(panel).toContain("wait --max-secs 30 --json <job-ids...>")
+    expect(panel).toContain("wait --max-secs 10 --json <job-ids...>")
+    expect(prose).toMatch(/`--skill`, `--run-id`, and `--label` are start-only/)
+    expect(prose).toMatch(/Do not add a separate shell sleep.*`wait` itself provides the bounded polling delay/)
+  })
+
   test("pins repository grounding, snapshot identity, and common reconcile evidence", async () => {
     const panel = await skillFile("references/cross-model-panel.md")
     const prose = compact(panel)
