@@ -286,8 +286,6 @@ Use the project's active instructions already in context. Send the codebase scan
    > Focus hint: {focus_hint}
    >
    > Research artifacts (gist-only under `Additional context` — do not fully read; a separate agent distills these): {research_artifact_files, or "none"}
-   >
-   > Project profile (agnostic shape — treat as established, do not re-derive; when "none", derive the full shape): {project_profile, or "none — derive the full shape"}
 
 2. **Learnings search** — read `references/agents/learnings-researcher.md` and dispatch a generic subagent seeded with that local prompt plus a brief summary of the ideation focus.
 
