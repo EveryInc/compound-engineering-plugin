@@ -35,7 +35,7 @@ Create one immutable handoff at the destination the user requested, or use the m
 
 When the user did not choose another destination, write a Markdown snapshot at `/tmp/compound-engineering/ce-handoff/<repo-namespace>/<topic>.md`.
 
-Use a readable topic slug as the filename. When Git context exists, use a sanitized repository name plus a stable root-commit prefix as the repository namespace; otherwise use `general`. Worktrees from the same repository share the namespace and remain distinguishable through frontmatter. Do not put a timestamp or unique ID in the path by default; `created_at` carries chronology for discovery. On a filename collision, add the smallest available numeric suffix rather than overwrite a handoff. Keep the directory and file user-private where the platform supports permissions.
+Use a readable topic slug as the filename. When Git context exists, use a sanitized repository name plus a stable root-commit prefix as the repository namespace; otherwise use `general`. Worktrees from the same repository share the namespace and remain distinguishable through frontmatter. Do not put a timestamp or unique ID in the path by default; `created_at` carries chronology for discovery. Reserve the final candidate filename atomically and exclusively; on collision, retry with the smallest available numeric suffix rather than overwrite a handoff. Never check availability and then write. Keep the directory and file user-private where the platform supports permissions.
 
 Treat creation as complete only after confirming the destination contains the handoff. Give a succinct, context-specific summary of what the generated handoff captures so the user can verify its substance without opening it; do not impose a fixed summary template. Then report the final path or URL, applicable retention or access limits, and any warnings together. Managed `/tmp` storage is OS-managed and not permanent. Its automatic discovery assumes the receiving session can see the same host filesystem; otherwise tell the user to transfer or publish the handoff to a receiver-visible location and resume from that explicit source.
 
@@ -53,22 +53,22 @@ For Markdown handoffs in the managed store, use flat YAML frontmatter:
 
 ```yaml
 ---
-artifact_contract: ce-handoff/v1
-created_at: Current ISO-8601 UTC timestamp
-title: Short descriptive title
-summary: One sentence that distinguishes this handoff in search results
-keywords: [keyword-one, keyword-two]
-cwd: /absolute/capture/path
-resume_focus: Optional next-session focus
-repository: Sanitized repository identifier without embedded credentials
-repo_root_sha: First root commit when available
-branch: Captured branch when available
-head: Captured HEAD when available
-worktree_path: Captured worktree when relevant
+artifact_contract: "ce-handoff/v1"
+created_at: "Current ISO-8601 UTC timestamp"
+title: "Short descriptive title"
+summary: "One sentence that distinguishes this handoff in search results"
+keywords: ["keyword-one", "keyword-two"]
+cwd: "/absolute/capture/path"
+resume_focus: "Optional next-session focus"
+repository: "Sanitized repository identifier without embedded credentials"
+repo_root_sha: "First root commit when available"
+branch: "Captured branch when available"
+head: "Captured HEAD when available"
+worktree_path: "Captured worktree when relevant"
 ---
 ```
 
-Required managed-store fields are `artifact_contract`, `created_at`, `title`, `summary`, `keywords`, and `cwd`. Include `resume_focus` when supplied or clear. Include `repository`, `repo_root_sha`, `branch`, `head`, and `worktree_path` only when applicable. Do not add mutable lifecycle fields. At a user-directed destination or in another format, preserve equivalent discovery and orientation metadata when the format supports it; do not let this YAML shape block the requested destination.
+Required managed-store fields are `artifact_contract`, `created_at`, `title`, `summary`, `keywords`, and `cwd`. Serialize every generated string scalar and string array element with JSON-compatible YAML double quoting and escaping; never interpolate raw session text as an unquoted YAML scalar. Include `resume_focus` when supplied or clear. Include `repository`, `repo_root_sha`, `branch`, `head`, and `worktree_path` only when applicable. Do not add mutable lifecycle fields. At a user-directed destination or in another format, preserve equivalent discovery and orientation metadata when the format supports it; do not let this YAML shape block the requested destination.
 
 ### Body contract
 
@@ -101,10 +101,11 @@ A supplied folder or collection is a discovery boundary, not a selected document
 ### Without an explicit source
 
 1. Search the folder or collection the user supplied; otherwise enumerate candidate files beneath `/tmp/compound-engineering/ce-handoff/`. Bound the candidate set before inspecting content; prefer recent files and current repository or working-directory affinity without making repository affinity mandatory.
-2. Read only bounded frontmatter through its closing delimiter when present. Treat `ce-handoff/v1` metadata as an enriched index, not an eligibility gate. List candidates without usable CE frontmatter as unindexed using only their filename, location, and filesystem metadata. Never read an unselected body merely to rank it.
-3. Rank only available frontmatter, filename, location, and filesystem metadata using the user's keywords, title, summary, keyword overlap, repository or worktree affinity, working-directory affinity, and recency.
-4. Present a short shortlist with match reasons and whatever title, creation time, summary, and inspectable source are available. Label unindexed candidates clearly rather than excluding them.
-5. **MUST stop and ask the user to select a candidate.** Do not choose one, read a body, or continue the prior work.
+2. Before reading any candidate metadata or frontmatter, resolve the discovery boundary and exclude symlink candidates and candidates whose resolved path escapes that boundary. This discovery-only containment rule does not restrict an explicit selected source.
+3. Read only bounded frontmatter through its closing delimiter when present. Treat `ce-handoff/v1` metadata as an enriched index, not an eligibility gate. List candidates without usable CE frontmatter as unindexed using only their filename, location, and filesystem metadata. Never read an unselected body merely to rank it.
+4. Rank only available frontmatter, filename, location, and filesystem metadata using the user's keywords, title, summary, keyword overlap, repository or worktree affinity, working-directory affinity, and recency.
+5. Present a short shortlist with match reasons and whatever title, creation time, summary, and inspectable source are available. Label unindexed candidates clearly rather than excluding them.
+6. **MUST stop and ask the user to select a candidate.** Do not choose one, read a body, or continue the prior work.
 
 If nothing relevant is found, state the boundary and filters searched, then invite a specific source, another folder or collection, different keywords, or a request to create a new handoff.
 

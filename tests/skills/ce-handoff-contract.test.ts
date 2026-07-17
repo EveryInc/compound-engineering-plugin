@@ -3,8 +3,13 @@ import path from "path"
 import { describe, expect, test } from "bun:test"
 
 const SKILL_PATH = path.join(process.cwd(), "skills/ce-handoff/SKILL.md")
+const INSTRUCTIONS_PATH = path.join(process.cwd(), "AGENTS.md")
 const skill = readFileSync(SKILL_PATH, "utf8")
+const instructions = readFileSync(INSTRUCTIONS_PATH, "utf8")
 const frontmatter = skill.match(/^---\n([\s\S]*?)\n---/)
+const managedFrontmatterExample = skill.match(
+  /For Markdown handoffs in the managed store[\s\S]*?```yaml\n([\s\S]*?)\n```/,
+)
 
 describe("ce-handoff portable runtime contract", () => {
   test("frontmatter activates one skill for create and resume intent", () => {
@@ -37,8 +42,33 @@ describe("ce-handoff portable runtime contract", () => {
     expect(skill).toMatch(/topic slug as the filename/i)
     expect(skill).toMatch(/Worktrees from the same repository share the namespace/i)
     expect(skill).toMatch(/Do not put a timestamp or unique ID in the path.*created_at.*chronology/i)
-    expect(skill).toMatch(/filename collision.*numeric suffix.*overwrite/i)
+    expect(skill).toMatch(/Reserve the final candidate filename atomically and exclusively.*collision.*numeric suffix.*overwrite/i)
+    expect(skill).toMatch(/Never check availability and then write/i)
+    expect(instructions).toMatch(/Discoverable collection exception[\s\S]*atomically reserves the final filename.*retries with the next suffix.*never check availability and then write/i)
     expect(skill).toMatch(/For Markdown handoffs in the managed store.*flat YAML frontmatter/i)
+  })
+
+  test("serializes managed frontmatter strings with JSON-compatible YAML quoting", () => {
+    expect(managedFrontmatterExample).not.toBeNull()
+    const example = managedFrontmatterExample![1]
+    for (const key of [
+      "artifact_contract",
+      "created_at",
+      "title",
+      "summary",
+      "cwd",
+      "resume_focus",
+      "repository",
+      "repo_root_sha",
+      "branch",
+      "head",
+      "worktree_path",
+    ]) {
+      expect(example).toMatch(new RegExp(`^${key}: "(?:[^"\\\\]|\\\\.)*"$`, "m"))
+    }
+    expect(example).toMatch(/^keywords: \["(?:[^"\\]|\\.)*", "(?:[^"\\]|\\.)*"\]$/m)
+    expect(skill).toMatch(/every generated string scalar and string array element.*JSON-compatible YAML double quoting and escaping/i)
+    expect(skill).toMatch(/never interpolate raw session text as an unquoted YAML scalar/i)
   })
 
   test("uses existing capabilities and honors user-directed destinations", () => {
@@ -50,6 +80,8 @@ describe("ce-handoff portable runtime contract", () => {
   })
 
   test("discovery is metadata-only and stops for user selection", () => {
+    expect(skill).toMatch(/Before reading any candidate metadata or frontmatter.*resolve the discovery boundary.*exclude symlink candidates.*resolved path escapes that boundary/i)
+    expect(skill).toMatch(/discovery-only containment rule does not restrict an explicit selected source/i)
     expect(skill).toMatch(/Read only bounded frontmatter.*closing delimiter/i)
     expect(skill).toMatch(/rank only.*(?:metadata|frontmatter)/i)
     expect(skill).toMatch(/Never read an unselected body.*rank/i)
