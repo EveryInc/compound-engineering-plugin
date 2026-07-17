@@ -25,6 +25,15 @@ The primary entry points for engineering work, invoked as slash commands:
 | `/ce:compound` | Document solved problems to compound team knowledge |
 | `/ce:compound-refresh` | Refresh stale or drifting learnings and decide whether to keep, update, replace, or archive them |
 
+### Writing
+
+Prose-native skills for the writing workflow, run by the Perkins orchestrator (`/ce:run perkins`). They draft and review against a voice guide rather than a git diff.
+
+| Skill | Description |
+|-------|-------------|
+| `/ce:write` | Develop, outline, and draft prose in a target voice (stage:develop, stage:outline, stage:draft) |
+| `/ce:prose-review` | Review a draft with the seven-voice editorial panel against the voice guide |
+
 ### Git Workflow
 
 | Skill | Description |
