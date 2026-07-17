@@ -273,6 +273,18 @@ describe("ce-code-review contract", () => {
 
   })
 
+  test("hydrates compact reviewer returns before final output", async () => {
+    const finish = await readRepoFile(
+      "skills/ce-code-review/references/finish-review.md",
+    )
+
+    expect(finish).toMatch(/build a source-detail map keyed by reviewer plus the helper fingerprint/i)
+    expect(finish).toMatch(/semantic duplicate[\s\S]{0,180}original source-map keys/i)
+    expect(finish).toMatch(/Hydrate every retained primary and pre-existing finding/i)
+    expect(finish).toMatch(/non-empty `why_it_matters` string and non-empty `evidence` array/i)
+    expect(finish).toMatch(/never emit a partial finding/i)
+  })
+
   test("keeps extension keywords out of draft-07 cross-model schemas", async () => {
     for (const schemaPath of [
       "skills/ce-code-review/references/findings-schema.json",
