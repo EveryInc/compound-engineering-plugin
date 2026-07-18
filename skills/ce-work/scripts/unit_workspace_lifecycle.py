@@ -511,6 +511,32 @@ def remove_finalized_artifacts(run_id: str, unit_id: str) -> None:
         event(doc, "finalized-artifacts-pruned", unit_id, {"job_count": len(attempt_job_ids)})
 
 
+def retained_blocked_abandonment_receipt(run_id: str, unit: dict, attempt: dict) -> dict:
+    recorded = attempt.get("terminal_receipt")
+    if (
+        unit.get("state") != "authored"
+        or attempt.get("process_state") != "done"
+        or attempt.get("terminal_validation_failure") is not None
+        or not isinstance(recorded, dict)
+        or recorded.get("terminal_status") != "blocked"
+    ):
+        raise Operational("REFUSED", "done output is not an exactly retained worker blocker")
+    observed_process = process_evidence(runner_job_dir(run_id, attempt["job_id"]))["process_state"]
+    if observed_process != "done":
+        raise Operational("BLOCKED", "retained worker-blocker job evidence changed")
+    observed_receipt = terminal_receipt(unit, attempt)
+    if observed_receipt != recorded:
+        raise Operational("BLOCKED", "retained worker-blocker receipt evidence changed")
+    return {
+        "kind": "retained-worker-blocker",
+        "value": attempt["job_id"],
+        "process_state": observed_process,
+        "terminal_status": recorded["terminal_status"],
+        "result_sha256": recorded["result_sha256"],
+        "raw_log_sha256": recorded["raw_log_sha256"],
+    }
+
+
 def cmd_cleanup(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         validate_repo(doc)
@@ -540,14 +566,18 @@ def cmd_cleanup(args) -> tuple[str, dict]:
             else:
                 terminal_failures = TERMINAL_PROCESS - {"done"}
                 validation_failure = attempt.get("process_state") == "done" and attempt.get("terminal_validation_failure")
-                if (attempt.get("process_state") not in terminal_failures and not validation_failure) or not attempt.get("job_id"):
+                if not attempt.get("job_id"):
                     raise Operational("REFUSED", "transport-free cleanup requires an authoritative failed or reaped job")
                 if args.expect_job != attempt["job_id"]:
                     raise Operational("REFUSED", "transport-free cleanup requires the exact terminal job id")
                 if validation_failure:
                     validate_terminal_validation_failure(args.run_id, unit, attempt)
                     abandonment_receipt = {"kind": "terminal-validation-failure", "value": attempt["job_id"], "process_state": "done"}
+                elif attempt.get("process_state") == "done":
+                    abandonment_receipt = retained_blocked_abandonment_receipt(args.run_id, unit, attempt)
                 else:
+                    if attempt.get("process_state") not in terminal_failures:
+                        raise Operational("REFUSED", "transport-free cleanup requires an authoritative failed or reaped job")
                     observed = process_evidence(runner_job_dir(args.run_id, attempt["job_id"]))["process_state"]
                     if observed != attempt["process_state"] or observed not in terminal_failures:
                         raise Operational("BLOCKED", "terminal job evidence changed; refusing cleanup")

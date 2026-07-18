@@ -682,6 +682,87 @@ describe("ce-work unit workspace controller", () => {
     )
     expect(fallback.word).toBe("REFUSED")
     expect(fallback.stderr).toContain("successful worker output must be reconciled rather than bypassed")
+
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-worker-blocked", "--unit-id", "U",
+      "--abandon", "--expect-job", "wrong-job",
+    ).word).toBe("REFUSED")
+    const resultPath = path.join(runs, "run-worker-blocked", "units", "U", "result", "implementation-result.json")
+    const exactResult = readFileSync(resultPath, "utf8")
+    const changedResult = JSON.parse(exactResult)
+    changedResult.summary = "changed after host resolution"
+    writeFileSync(resultPath, `${JSON.stringify(changedResult)}\n`, { mode: 0o600 })
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-worker-blocked", "--unit-id", "U",
+      "--abandon", "--expect-job", job,
+    ).word).toBe("BLOCKED")
+    writeFileSync(resultPath, exactResult, { mode: 0o600 })
+    const authorizationPath = path.join(runs, "run-worker-blocked", "units", "U", "authorization.json")
+    const packetPath = path.join(runs, "run-worker-blocked", "units", "U", "packet.md")
+    const jobPath = path.join(runs, "run-worker-blocked", "jobs", job)
+    expect(ctl(
+      runs, "cleanup", "--run-id", "run-worker-blocked", "--unit-id", "U",
+      "--abandon", "--expect-job", job,
+    ).word).toBe("CLEANED")
+    const cleaned = ctl(runs, "status", "--run-id", "run-worker-blocked", "--unit-id", "U").body.unit
+    expect(cleaned).toMatchObject({
+      state: "cleaned",
+      cleanup: {
+        abandoned: true,
+        abandonment_receipt: {
+          kind: "retained-worker-blocker",
+          value: job,
+          process_state: "done",
+          terminal_status: "blocked",
+          result_sha256: unit.attempts[0].terminal_receipt.result_sha256,
+          raw_log_sha256: unit.attempts[0].terminal_receipt.raw_log_sha256,
+        },
+        artifact_cleanup: { complete: true },
+      },
+      packet: { retained: false },
+      attempts: [{ bulky_artifacts_retained: false, authorization_retained: false }],
+    })
+    for (const pruned of [resultPath, authorizationPath, packetPath, jobPath]) {
+      expect(existsSync(pruned)).toBe(false)
+    }
+
+    const retried = ctl(
+      runs, "prepare", "--run-id", "run-worker-blocked", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("corrected packet"), "--attempt-id", "attempt-2",
+    )
+    expect(retried).toMatchObject({ word: "PREPARED", body: { attempt_id: "attempt-2", resumed: false } })
+    expect(ctl(runs, "status", "--run-id", "run-worker-blocked", "--unit-id", "U").body.unit).toMatchObject({
+      state: "queued",
+      cleanup: null,
+      attempts: [
+        { attempt_id: "attempt-1", cleanup_receipt: { abandonment_receipt: { kind: "retained-worker-blocker" } } },
+        { attempt_id: "attempt-2" },
+      ],
+    })
+  }, 20000)
+
+  test("refuses to abandon ordinary completed done output by terminal job id", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-completed-done", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-completed-done", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const job = fakeDoneJob(runs, "run-completed-done", "U", "packet", "job-completed-done")
+    ctl(
+      runs, "record-job", "--run-id", "run-completed-done", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    expect(ctl(runs, "sync-job", "--run-id", "run-completed-done", "--unit-id", "U").word).toBe("SYNCED")
+
+    const rejected = ctl(
+      runs, "cleanup", "--run-id", "run-completed-done", "--unit-id", "U",
+      "--abandon", "--expect-job", job,
+    )
+    expect(rejected.word).toBe("REFUSED")
+    expect(rejected.stderr).toContain("done output is not an exactly retained worker blocker")
+    expect(existsSync(path.join(runs, "run-completed-done", "units", "U", "workspace"))).toBe(true)
   }, 20000)
 
   test("resume retains a trusted worker blocker while reconciling later units", () => {
