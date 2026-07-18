@@ -20,7 +20,7 @@ from unit_workspace_integration import (
     cmd_restore,
     cmd_wave_advance,
 )
-from unit_workspace_lifecycle import cmd_claim_fallback, cmd_cleanup, cmd_reap, cmd_resume, cmd_status
+from unit_workspace_lifecycle import cmd_claim_fallback, cmd_cleanup, cmd_complete_fallback, cmd_reap, cmd_resume, cmd_status
 from unit_workspace_transaction import cmd_integrate, cmd_verify_run
 
 
@@ -143,6 +143,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--caller-mode", choices=("interactive", "headless"), required=True)
     p.add_argument("--confirm-native", action="store_true")
 
+    p = sub.add_parser("complete-fallback")
+    p.add_argument("--run-id", required=True)
+    p.add_argument("--unit-id", required=True)
+    p.add_argument("--accepted-head", required=True)
+    p.add_argument("--evidence-digest", required=True)
+    p.add_argument("--summary", required=True)
+
     p = sub.add_parser("cleanup")
     p.add_argument("--run-id", required=True)
     p.add_argument("--unit-id", required=True)
@@ -177,6 +184,7 @@ COMMANDS = {
     "status": cmd_status,
     "resume": cmd_resume,
     "claim-fallback": cmd_claim_fallback,
+    "complete-fallback": cmd_complete_fallback,
     "reap": cmd_reap,
     "cleanup": cmd_cleanup,
     "integration-release": cmd_integration_release,

@@ -42,8 +42,35 @@ def unfinished_run(doc: dict) -> bool:
         if state not in UNIT_STATES:
             raise TrustFailure(f"manifest unit state is invalid: {uid}")
         states.append(state)
-    if any(state != "cleaned" for state in states):
+    terminal_states = {"cleaned", "native-completed"}
+    if any(state not in terminal_states for state in states):
         return True
+    for uid, unit in doc["units"].items():
+        if unit.get("state") != "native-completed":
+            continue
+        attempt = find_attempt(unit)
+        completion = attempt.get("fallback", {}).get("completed")
+        if not (
+            isinstance(completion, dict)
+            and isinstance(completion.get("at"), str)
+            and completion.get("at")
+            and isinstance(completion.get("summary"), str)
+            and completion.get("summary")
+            and isinstance(completion.get("evidence_digest"), str)
+            and re.fullmatch(r"[0-9a-f]{64}", completion["evidence_digest"])
+            and isinstance(completion.get("accepted_head"), str)
+            and re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", completion["accepted_head"])
+            and isinstance(completion.get("snapshot"), dict)
+            and completion["snapshot"].get("head") == completion["accepted_head"]
+            and completion["snapshot"].get("branch_ref") == doc.get("branch", {}).get("ref")
+            and completion["snapshot"].get("status_empty") is True
+            and completion["snapshot"].get("worktree_index_empty") is True
+            and completion["snapshot"].get("head_tree") == completion["snapshot"].get("index_tree")
+            and completion["snapshot"].get("status_sha256") == digest_bytes(b"")
+        ):
+            raise TrustFailure(f"native fallback completion receipt is malformed: {uid}")
+    if all(state == "native-completed" for state in states):
+        return doc.get("integration_lock") is not None
     receipts = doc.get("verifications", [])
     if not isinstance(receipts, list) or any(not isinstance(receipt, dict) for receipt in receipts):
         raise TrustFailure("manifest verification receipts are malformed")
@@ -447,6 +474,12 @@ def fallback_basis(doc: dict, unit: dict) -> tuple[str, dict]:
         allowed_heads = set(unit.get("wave", {}).get("allowed_heads", []))
         if snap["head"] not in allowed_heads or not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:
             raise Operational("BLOCKED", "canonical checkout diverged or is dirty; native fallback is not safe")
+        recorded = attempt.get("terminal_receipt")
+        if process_state == "failed" and isinstance(recorded, dict) and recorded.get("terminal_status") == "unavailable":
+            observed = unavailable_terminal_receipt(doc["run_id"], unit, attempt)
+            if observed != recorded:
+                raise Operational("BLOCKED", "recorded unavailable receipt evidence changed")
+            return observed["failure_reason"], attempt
         return str(process_state), attempt
     restore_evidence = unit.get("integration", {}).get("restore")
     if unit.get("state") == "preserved" and restore_evidence and restore_evidence.get("exact") is True:
@@ -484,6 +517,7 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
             raise Operational("REFUSED", "unknown unit")
         attempt = find_attempt(unit)
         fallback = attempt.setdefault("fallback", {})
+        fallback.setdefault("completed", None)
         claimed = fallback.get("claimed")
         if claimed:
             return "FALLBACK_ALREADY_AUTHORIZED", {
@@ -505,6 +539,59 @@ def cmd_claim_fallback(args) -> tuple[str, dict]:
         fallback.update({"eligible": False, "reason": reason, "claimed": claim})
         event(doc, "native-fallback-authorized", args.unit_id, {"reason": reason, "mode": mode, "caller_mode": args.caller_mode})
         return "FALLBACK_AUTHORIZED", {"unit_id": args.unit_id, "start_native": True, "reason": reason, "claim": claim}
+
+
+def cmd_complete_fallback(args) -> tuple[str, dict]:
+    if not re.fullmatch(r"[0-9a-f]{64}", args.evidence_digest):
+        raise Operational("REFUSED", "native fallback evidence digest must be lowercase SHA-256 hex")
+    summary = args.summary.strip()
+    if not summary or "\0" in summary or len(summary.encode()) > 1024:
+        raise Operational("REFUSED", "native fallback summary must be non-empty and at most 1024 bytes")
+    if not re.fullmatch(r"[0-9a-f]{40}|[0-9a-f]{64}", args.accepted_head):
+        raise Operational("REFUSED", "native fallback accepted head must be a Git object id")
+
+    with locked_manifest(args.run_id, write=True) as doc:
+        validate_repo(doc)
+        unit = doc["units"].get(args.unit_id)
+        if not unit:
+            raise Operational("REFUSED", "unknown unit")
+        attempt = find_attempt(unit)
+        fallback = attempt.get("fallback")
+        claim = fallback.get("claimed") if isinstance(fallback, dict) else None
+        if not isinstance(claim, dict):
+            raise Operational("REFUSED", "native fallback completion requires an existing claim")
+        if fallback.get("completed") is not None or unit.get("state") == "native-completed":
+            raise Operational("REFUSED", "native fallback completion was already recorded")
+        if claim.get("mode") != "prefer":
+            raise Operational("REFUSED", "only a prefer-mode native fallback can be completed")
+        if doc.get("integration_lock") is not None:
+            raise Operational("REFUSED", "release the integration lock before completing native fallback")
+
+        repo = doc["repository"]["toplevel"]
+        snapshot = semantic_snapshot(repo)
+        if snapshot.get("branch_ref") != doc["branch"]["ref"]:
+            raise Operational("BLOCKED", "canonical branch changed before native fallback completion")
+        if snapshot.get("status_empty") is not True:
+            raise Operational("BLOCKED", "commit or restore canonical changes before completing native fallback")
+        accepted_commit = git_text(repo, "rev-parse", "--verify", f"{args.accepted_head}^{{commit}}", check=False)
+        if accepted_commit != args.accepted_head or snapshot.get("head") != args.accepted_head:
+            raise Operational("BLOCKED", "accepted native fallback head does not match canonical HEAD")
+
+        receipt = {
+            "at": now_iso(),
+            "accepted_head": args.accepted_head,
+            "evidence_digest": args.evidence_digest,
+            "summary": summary,
+            "snapshot": snapshot,
+            "claim": dict(claim),
+        }
+        fallback["completed"] = receipt
+        unit["state"] = "native-completed"
+        event(doc, "native-fallback-completed", args.unit_id, {
+            "accepted_head": args.accepted_head,
+            "evidence_digest": args.evidence_digest,
+        })
+        return "FALLBACK_COMPLETED", {"unit_id": args.unit_id, "completion": receipt}
 
 
 def cmd_reap(args) -> tuple[str, dict]:

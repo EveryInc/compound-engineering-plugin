@@ -2177,6 +2177,44 @@ describe("ce-work unit workspace controller", () => {
     const again = ctl(runs, "claim-fallback", "--run-id", "run-fallback", "--unit-id", "U", "--caller-mode", "headless")
     expect(again.word).toBe("FALLBACK_ALREADY_AUTHORIZED")
     expect(again.body.start_native).toBe(false)
+
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-fallback", "--unit-id", "U",
+      "--accepted-head", f.base, "--evidence-digest", "not-a-digest", "--summary", "native checks passed",
+    ).word).toBe("REFUSED")
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).body.run_id).toBe("run-fallback")
+
+    writeFileSync(path.join(f.repo, "native.txt"), "accepted native implementation\n")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-fallback", "--unit-id", "U",
+      "--accepted-head", f.base, "--evidence-digest", "a".repeat(64), "--summary", "native checks passed",
+    ).word).toBe("BLOCKED")
+    git(f.repo, "add", "native.txt")
+    git(f.repo, "commit", "-m", "native implementation")
+    const nativeHead = git(f.repo, "rev-parse", "HEAD")
+    const completed = ctl(
+      runs, "complete-fallback", "--run-id", "run-fallback", "--unit-id", "U",
+      "--accepted-head", nativeHead, "--evidence-digest", "a".repeat(64), "--summary", "native checks passed",
+    )
+    expect(completed.word).toBe("FALLBACK_COMPLETED")
+    expect(completed.body.completion).toMatchObject({
+      accepted_head: nativeHead,
+      evidence_digest: "a".repeat(64),
+      summary: "native checks passed",
+      snapshot: { head: nativeHead, status_empty: true },
+    })
+    expect(ctl(runs, "status", "--run-id", "run-fallback", "--unit-id", "U").body.unit.state).toBe("native-completed")
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-fallback", "--unit-id", "U",
+      "--accepted-head", nativeHead, "--evidence-digest", "a".repeat(64), "--summary", "native checks passed",
+    ).word).toBe("REFUSED")
+
+    const manifestPath = path.join(runs, "run-fallback", "manifest.json")
+    const manifest = JSON.parse(readFileSync(manifestPath, "utf8"))
+    manifest.units.U.attempts[0].fallback.completed.snapshot.status_empty = false
+    writeFileSync(manifestPath, `${JSON.stringify(manifest)}\n`)
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("UNREADABLE")
   })
 
   test("adopts a metadata-only never-started job and authorizes fallback exactly once", () => {
@@ -2342,6 +2380,10 @@ describe("ce-work unit workspace controller", () => {
     const confirmed = ctl(runs, "claim-fallback", "--run-id", "run-require", "--unit-id", "U", "--caller-mode", "interactive", "--confirm-native")
     expect(confirmed.word).toBe("FALLBACK_AUTHORIZED")
     expect(confirmed.body.start_native).toBe(true)
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-require", "--unit-id", "U",
+      "--accepted-head", f.base, "--evidence-digest", "b".repeat(64), "--summary", "native checks passed",
+    ).word).toBe("REFUSED")
   })
 
   test("refuses ambiguous job adoption and preserves output on canonical divergence", () => {

@@ -52,7 +52,7 @@ TERMINAL_PROCESS = {"done", "failed", "timeout", "died-without-result"}
 INTEGRATABLE_STATES = {"integration-pending", "integrated", "verified"}
 UNIT_STATES = {
     "queued", "authoring", "authored", "integration-pending", "integrated",
-    "restoring", "verified", "committed", "preserved", "cleaned",
+    "restoring", "verified", "committed", "preserved", "cleaned", "native-completed",
 }
 
 

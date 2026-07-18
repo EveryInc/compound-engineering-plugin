@@ -221,6 +221,135 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
     })
   }, 30_000)
 
+  test("missing fixed-route CLI records an authoritative unavailable receipt for fallback disclosure", () => {
+    const root = temp("ce-work-unavailable-")
+    const repo = path.join(root, "repo")
+    const peerRoot = path.join(root, "jobs")
+    const runs = path.join(peerRoot, "ce-work")
+    mkdirSync(repo)
+    git(repo, "init", "-b", "main")
+    git(repo, "config", "user.name", "CE Work Host")
+    git(repo, "config", "user.email", "host@example.test")
+    mkdirSync(path.join(repo, "docs", "plans"), { recursive: true })
+    const plan = path.join(repo, "docs", "plans", "plan.md")
+    writeFileSync(plan, "# Plan\n")
+    git(repo, "add", ".")
+    git(repo, "commit", "-m", "seed")
+    const base = git(repo, "rev-parse", "HEAD")
+    const planDigest = createHash("sha256").update(readFileSync(plan)).digest("hex")
+
+    expect(control(
+      runs,
+      "init",
+      "--run-id", "unavailable-run",
+      "--repo", repo,
+      "--plan", plan,
+      "--plan-digest", planDigest,
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U"],"restrictions":[]}',
+    ).word).toBe("READY")
+    const prepared = control(
+      runs, "prepare", "--run-id", "unavailable-run", "--unit-id", "U",
+      "--base", base, "--packet", packetFile("unavailable packet"),
+    ).body
+    const limitedPath = "/usr/bin:/bin"
+    const runnerEnv = {
+      ...process.env,
+      CE_PEER_JOBS_ROOT: peerRoot,
+      CE_WORK_RUNS_ROOT: runs,
+      PATH: limitedPath,
+      CE_PEER_POLL_SECS: "0.1",
+      CE_PEER_IDLE_SECS: "10",
+      CE_PEER_HARD_SECS: "30",
+    }
+    const jobId = run(repo, [
+      "python3", RUNNER, "start",
+      "--skill", "ce-work",
+      "--run-id", "unavailable-run",
+      "--label", "U",
+      "--input-digest", prepared.packet_digest,
+      "--result-path", path.join(prepared.result_dir, "implementation-result.json"),
+      "--no-sweep",
+      "--", ADAPTER, prepared.authorization_path, prepared.workspace, prepared.packet_path,
+      prepared.packet_digest, prepared.result_dir,
+    ], runnerEnv)
+    expect(control(
+      runs, "record-job", "--run-id", "unavailable-run", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", jobId,
+    ).word).toBe("AUTHORING")
+    expect(run(repo, [
+      "python3", RUNNER, "wait", "--skill", "ce-work", "--max-secs", "30", jobId,
+    ], runnerEnv)).toBe("failed")
+
+    const synced = control(runs, "sync-job", "--run-id", "unavailable-run", "--unit-id", "U")
+    expect(synced.body.process_state).toBe("failed")
+    const status = control(runs, "status", "--run-id", "unavailable-run", "--unit-id", "U").body.unit
+    expect(status.state).toBe("authoring")
+    expect(status.transport.commit).toBeNull()
+    expect(status.attempts[0].terminal_receipt).toMatchObject({
+      terminal_status: "unavailable",
+      requested_route: "codex",
+      actual_route: null,
+      failure_reason: "fixed route executable 'codex' is unavailable",
+      packet_digest: prepared.packet_digest,
+    })
+    const terminal = controlFailure(runs, "terminalize", "--run-id", "unavailable-run", "--unit-id", "U")
+    expect(terminal.word).toBe("BLOCKED")
+    expect(terminal.body.failure_reason).toBe("fixed route executable 'codex' is unavailable")
+
+    const fallback = control(
+      runs, "claim-fallback", "--run-id", "unavailable-run", "--unit-id", "U", "--caller-mode", "headless",
+    )
+    expect(fallback.word).toBe("FALLBACK_AUTHORIZED")
+    expect(fallback.body.reason).toBe("fixed route executable 'codex' is unavailable")
+
+    const spoofed = control(
+      runs, "prepare", "--run-id", "unavailable-run", "--unit-id", "U-spoofed",
+      "--base", base, "--packet", packetFile("spoofed packet"),
+    ).body
+    const spoofedJob = fakeDoneJob(runs, "unavailable-run", "U-spoofed", "spoofed packet", "job-spoofed")
+    const spoofedJobDir = path.join(runs, "unavailable-run", "jobs", spoofedJob)
+    writeFileSync(path.join(spoofedJobDir, "status"), "failed\n", { mode: 0o600 })
+    writeFileSync(path.join(spoofedJobDir, "reason"), "worker exited 2\n", { mode: 0o600 })
+    const spoofedLog = path.join(spoofed.result_dir, "adapter.log")
+    writeFileSync(path.join(spoofed.result_dir, "implementation-result.json"), `${JSON.stringify({
+      schema_version: 1,
+      terminal_status: "unavailable",
+      summary: "External route unavailable",
+      changed_files: [],
+      evidence: [],
+      scope_expansion: null,
+      requested_route: "codex",
+      actual_route: null,
+      target: "codex",
+      harness: "codex",
+      intermediaries: [],
+      model_requested: "auto",
+      model_actual: "unverified",
+      model_receipt_status: "unverified",
+      activity_posture: "hard-only",
+      restriction_posture: "adapter-enforced",
+      failure_reason: "spoofed unavailable reason",
+      raw_log: spoofedLog,
+      packet_digest: spoofed.packet_digest,
+    })}\n`, { mode: 0o600 })
+    expect(control(
+      runs, "record-job", "--run-id", "unavailable-run", "--unit-id", "U-spoofed",
+      "--attempt-id", "attempt-1", "--job-id", spoofedJob,
+    ).word).toBe("AUTHORING")
+    expect(control(
+      runs, "sync-job", "--run-id", "unavailable-run", "--unit-id", "U-spoofed",
+    ).body.process_state).toBe("failed")
+    const spoofedStatus = control(
+      runs, "status", "--run-id", "unavailable-run", "--unit-id", "U-spoofed",
+    ).body.unit
+    expect(spoofedStatus.attempts[0].dispatch_authorization_receipt).toBeNull()
+    expect(spoofedStatus.attempts[0].terminal_receipt).toBeNull()
+    expect(control(
+      runs, "claim-fallback", "--run-id", "unavailable-run", "--unit-id", "U-spoofed", "--caller-mode", "headless",
+    ).body.reason).toBe("failed")
+  }, 30_000)
+
   test("controller-owned integration fail-stops verification and canonical commit", () => {
     const root = temp("ce-work-transaction-")
     const repo = path.join(root, "repo")

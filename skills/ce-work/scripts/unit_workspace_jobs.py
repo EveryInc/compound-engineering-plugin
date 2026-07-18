@@ -246,7 +246,7 @@ def read_result_json(path: str) -> tuple[dict, bytes]:
     return value, raw
 
 
-def terminal_receipt(unit: dict, attempt: dict) -> dict:
+def terminal_receipt(unit: dict, attempt: dict, *, unavailable: bool = False) -> dict:
     result_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result")
     result_path = os.path.join(result_dir, "implementation-result.json")
     receipt, result_bytes = read_result_json(result_path)
@@ -255,7 +255,7 @@ def terminal_receipt(unit: dict, attempt: dict) -> dict:
         raise Operational("BLOCKED", "attempt has no controller-issued route authorization")
     expected = {
         "requested_route": authorization["route"],
-        "actual_route": authorization["route"],
+        "actual_route": None if unavailable else authorization["route"],
         "target": authorization["target"],
         "harness": authorization["harness"],
         "intermediaries": authorization["intermediaries"],
@@ -263,14 +263,36 @@ def terminal_receipt(unit: dict, attempt: dict) -> dict:
         "restriction_posture": authorization["restriction_posture"],
         "packet_digest": unit["packet_digest"],
     }
+    if unavailable:
+        expected["activity_posture"] = authorization["activity_posture"]
     mismatches = {key: {"expected": value, "actual": receipt.get(key)} for key, value in expected.items() if receipt.get(key) != value}
     if mismatches:
         raise Operational("BLOCKED", "adapter terminal receipt does not match controller authorization", {"mismatches": mismatches})
     terminal_status = receipt.get("terminal_status")
-    if terminal_status not in {"completed", "blocked", "scope_expansion"}:
-        raise Operational("BLOCKED", "successful runner did not publish a host-resolvable adapter result")
-    if terminal_status == "scope_expansion" and not isinstance(receipt.get("scope_expansion"), dict):
-        raise Operational("BLOCKED", "scope-expansion adapter result has no expansion receipt")
+    if unavailable:
+        neutral = {
+            "schema_version": 1,
+            "terminal_status": "unavailable",
+            "summary": "External route unavailable",
+            "changed_files": [],
+            "evidence": [],
+            "scope_expansion": None,
+            "model_actual": "unverified",
+            "model_receipt_status": "unverified",
+        }
+        invalid = {key: {"expected": value, "actual": receipt.get(key)} for key, value in neutral.items() if receipt.get(key) != value}
+        failure_reason = receipt.get("failure_reason")
+        if invalid or not isinstance(failure_reason, str) or not failure_reason or len(failure_reason.encode()) > 4096:
+            raise Operational(
+                "BLOCKED",
+                "failed runner did not publish a bounded neutral unavailable receipt",
+                {"mismatches": invalid},
+            )
+    else:
+        if terminal_status not in {"completed", "blocked", "scope_expansion"}:
+            raise Operational("BLOCKED", "successful runner did not publish a host-resolvable adapter result")
+        if terminal_status == "scope_expansion" and not isinstance(receipt.get("scope_expansion"), dict):
+            raise Operational("BLOCKED", "scope-expansion adapter result has no expansion receipt")
     raw_log = receipt.get("raw_log")
     expected_log = os.path.join(result_dir, "adapter.log")
     if not isinstance(raw_log, str) or os.path.realpath(raw_log) != os.path.realpath(expected_log):
@@ -289,6 +311,33 @@ def terminal_receipt(unit: dict, attempt: dict) -> dict:
         "raw_log_sha256": digest_bytes(log_bytes),
         "raw_log_bytes": len(log_bytes),
     }
+
+
+def unavailable_terminal_receipt(run_id: str, unit: dict, attempt: dict) -> dict:
+    job_id = attempt.get("job_id")
+    if not isinstance(job_id, str):
+        raise Operational("BLOCKED", "unavailable receipt has no bound runner job")
+    job_dir = runner_job_dir(run_id, job_id)
+    if process_evidence(job_dir)["process_state"] != "failed":
+        raise Operational("BLOCKED", "unavailable receipt requires authoritative failed runner evidence")
+    meta = read_private_json(os.path.join(job_dir, "meta.json"))
+    if meta.get("job_id") != job_id:
+        raise Operational("BLOCKED", "runner job metadata identity mismatch")
+    validate_runner_contract(run_id, unit, meta)
+    expected_result_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result")
+    expected_dispatch = {
+        "attempt_id": attempt.get("attempt_id"),
+        "job_id": job_id,
+        "authorization_path": attempt.get("authorization_path"),
+        "authorization_digest": attempt.get("authorization_digest"),
+        "workspace": unit["workspace"]["path"],
+        "packet_path": unit["packet"]["path"],
+        "packet_digest": unit["packet_digest"],
+        "result_dir": expected_result_dir,
+    }
+    if attempt.get("dispatch_authorization_receipt") != expected_dispatch:
+        raise Operational("BLOCKED", "unavailable receipt is not bound to the exact authorized dispatch")
+    return terminal_receipt(unit, attempt, unavailable=True)
 
 
 def record_terminal_validation_failure(run_id: str, unit_id: str, error: Operational) -> None:
@@ -566,13 +615,24 @@ def sync_job(run_id: str, unit_id: str) -> dict:
         if not attempt.get("job_id"):
             return {"process_state": "never-started", "activity": attempt["activity"]}
         evidence = process_evidence(runner_job_dir(run_id, attempt["job_id"]))
+        unavailable_receipt = None
+        if evidence["process_state"] == "failed":
+            try:
+                unavailable_receipt = unavailable_terminal_receipt(run_id, unit, attempt)
+            except TrustFailure:
+                raise
+            except Operational:
+                pass
     with locked_manifest(run_id, write=True) as doc:
         attempt = find_attempt(doc["units"][unit_id])
         prior_state = attempt.get("process_state")
         prior_activity = dict(attempt["activity"])
         prior_fallback = dict(attempt.get("fallback", {}))
+        prior_receipt = attempt.get("terminal_receipt")
         attempt["process_state"] = evidence["process_state"]
         attempt["activity"].update(evidence["activity"])
+        if unavailable_receipt is not None:
+            attempt["terminal_receipt"] = unavailable_receipt
         authoritative_failure = evidence["process_state"] in TERMINAL_PROCESS - {"done"} or (
             evidence["process_state"] == "never-started" and bool(attempt.get("job_id"))
         )
@@ -580,16 +640,23 @@ def sync_job(run_id: str, unit_id: str) -> dict:
             fallback = attempt.setdefault("fallback", {})
             fallback.setdefault("claimed", None)
             fallback["eligible"] = fallback.get("claimed") is None
-            fallback["reason"] = evidence["process_state"]
+            fallback["reason"] = (
+                unavailable_receipt["failure_reason"]
+                if unavailable_receipt is not None
+                else evidence["process_state"]
+            )
         changed = (
             prior_state != evidence["process_state"]
             or prior_activity != attempt["activity"]
             or prior_fallback != attempt.get("fallback", {})
+            or prior_receipt != attempt.get("terminal_receipt")
         )
         if changed:
             event(doc, "job-synced", unit_id, {"process_state": evidence["process_state"]})
             if prior_state != evidence["process_state"] and evidence["process_state"] in TERMINAL_PROCESS:
                 event(doc, "job-terminal", unit_id, {"process_state": evidence["process_state"]})
+            if unavailable_receipt is not None and prior_receipt != unavailable_receipt:
+                event(doc, "route-unavailable", unit_id, {"failure_reason": unavailable_receipt["failure_reason"]})
         activity = dict(attempt["activity"])
     return {"process_state": evidence["process_state"], "activity": activity}
 
@@ -631,7 +698,18 @@ def parse_diff_paths(raw: bytes) -> list[str]:
 def terminalize(run_id: str, unit_id: str) -> dict:
     evidence = sync_job(run_id, unit_id)
     if evidence["process_state"] != "done":
-        raise Operational("BLOCKED", f"worker is not authoritatively done ({evidence['process_state']})")
+        detail = {}
+        if evidence["process_state"] == "failed":
+            with locked_manifest(run_id) as doc:
+                attempt = find_attempt(doc["units"][unit_id])
+                receipt = attempt.get("terminal_receipt")
+                if isinstance(receipt, dict) and receipt.get("terminal_status") == "unavailable":
+                    detail = {"terminal_receipt": receipt, "failure_reason": receipt["failure_reason"]}
+        raise Operational(
+            "BLOCKED",
+            f"worker is not authoritatively done ({evidence['process_state']})",
+            detail,
+        )
     try:
         with locked_manifest(run_id) as doc:
             unit = doc["units"].get(unit_id)
