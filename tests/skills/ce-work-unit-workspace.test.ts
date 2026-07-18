@@ -1191,6 +1191,102 @@ describe("ce-work unit workspace controller", () => {
     expect(ctl(runs, "cleanup", "--run-id", "run-crash", "--unit-id", "U", "--abandon", "--expect-transport", commit).word).toBe("CLEANED")
   }, 20000)
 
+  test("discovers a successful run whose plan verification lock was not released", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-verify-release-crash", f)
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-verify-release-crash", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    writeFileSync(path.join(prepared.body.workspace, "verified.txt"), "verified\n")
+    const job = fakeDoneJob(runs, "run-verify-release-crash", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-verify-release-crash", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", "run-verify-release-crash", "--unit-id", "U")
+    expect(ctl(
+      runs, "integrate", "--run-id", "run-verify-release-crash", "--unit-id", "U",
+      "--commit-message", "feat(test): integrate verification crash fixture", "--", "true",
+    ).word).toBe("UNIT_COMMITTED")
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "verify-run-after-receipt" },
+      "verify-run", "--run-id", "run-verify-release-crash",
+      "--verification-summary", "successful plan verification", "--", "true",
+    )
+    expect(interrupted.word).toBe("INTERRUPTED")
+    const stranded = ctl(runs, "status", "--run-id", "run-verify-release-crash").body
+    expect(stranded.units.U.state).toBe("cleaned")
+    expect(stranded.verifications.at(-1).verification_exit).toBe(0)
+    expect(stranded.integration_lock).toMatchObject({ unit_id: "U", phase: "held" })
+
+    const resumed = ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest)
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body).toMatchObject({ run_id: "run-verify-release-crash" })
+    expect(resumed.body.actions).toContainEqual({
+      unit_id: "U",
+      action: "integration-release-reconciled",
+    })
+    expect(ctl(runs, "status", "--run-id", "run-verify-release-crash").body.integration_lock).toBeNull()
+    expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
+  }, 20000)
+
+  test("resume finishes interrupted abandoned artifact cleanup and restores retry eligibility", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-abandoned-cleanup-crash", f)
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-abandoned-cleanup-crash", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("first packet"),
+    )
+    writeFileSync(path.join(prepared.body.workspace, "abandoned.txt"), "abandoned\n")
+    const job = fakeDoneJob(runs, "run-abandoned-cleanup-crash", "U", "first packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-abandoned-cleanup-crash", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    const transport = ctl(
+      runs, "terminalize", "--run-id", "run-abandoned-cleanup-crash", "--unit-id", "U",
+    ).body.transport
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "cleanup-before-artifact-prune" },
+      "cleanup", "--run-id", "run-abandoned-cleanup-crash", "--unit-id", "U",
+      "--abandon", "--expect-transport", transport.commit,
+    )
+    expect(interrupted.word).toBe("INTERRUPTED")
+    const stranded = ctl(runs, "status", "--run-id", "run-abandoned-cleanup-crash").body.units.U
+    expect(stranded).toMatchObject({
+      state: "cleaned",
+      cleanup: { abandoned: true, artifact_cleanup: { complete: false } },
+    })
+    expect(existsSync(stranded.packet.path)).toBe(true)
+
+    const resumed = ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest)
+    expect(resumed.word).toBe("RESUMED")
+    expect(resumed.body.actions).toContainEqual({
+      unit_id: "U",
+      action: "artifact-cleanup-reconciled",
+    })
+    const cleaned = ctl(runs, "status", "--run-id", "run-abandoned-cleanup-crash").body.units.U
+    expect(cleaned.cleanup).toMatchObject({
+      abandoned: true,
+      artifact_cleanup: { complete: true },
+    })
+    expect(existsSync(cleaned.packet.path)).toBe(false)
+
+    const retried = ctl(
+      runs, "prepare", "--run-id", "run-abandoned-cleanup-crash", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("retry packet"), "--attempt-id", "attempt-2",
+    )
+    expect(retried.word).toBe("PREPARED")
+    expect(retried.body).toMatchObject({ attempt_id: "attempt-2", resumed: false })
+  }, 20000)
+
   test("lists matching unfinished runs rather than guessing and fails closed on unsafe candidates", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")

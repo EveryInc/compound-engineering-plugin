@@ -46,7 +46,9 @@ def unfinished_run(doc: dict) -> bool:
     receipts = doc.get("verifications", [])
     if not isinstance(receipts, list) or any(not isinstance(receipt, dict) for receipt in receipts):
         raise TrustFailure("manifest verification receipts are malformed")
-    return not any(receipt.get("verification_exit") == 0 for receipt in receipts)
+    return doc.get("integration_lock") is not None or not any(
+        receipt.get("verification_exit") == 0 for receipt in receipts
+    )
 
 
 def discover_resume_run(repo: str, plan_digest: str) -> tuple[str, list[dict]]:
@@ -145,7 +147,19 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
         lock = doc.get("integration_lock")
         retained_plan_lock = bool(lock and plan_wide_blocker_retains_lock(doc, lock))
         wave_id = unit.get("wave", {}).get("id")
+        cleanup = unit.get("cleanup") or {}
+        artifact_cleanup_complete = cleanup.get("artifact_cleanup", {}).get("complete") is True
     if state == "cleaned":
+        actions: list[dict] = []
+        if not artifact_cleanup_complete:
+            cmd_cleanup(SimpleNamespace(
+                run_id=run_id,
+                unit_id=unit_id,
+                abandon=False,
+                expect_transport=None,
+                expect_job=None,
+            ))
+            actions.append({"unit_id": unit_id, "action": "artifact-cleanup-reconciled"})
         if lock and lock.get("unit_id") == unit_id:
             if retained_plan_lock:
                 raise Operational(
@@ -154,8 +168,8 @@ def resume_finalize_committed(run_id: str, unit_id: str) -> list[dict]:
                     {"unit_id": unit_id, "retain_integration_lock": True},
                 )
             cmd_integration_release(SimpleNamespace(run_id=run_id, unit_id=unit_id, lock_token=lock["nonce"]))
-            return [{"unit_id": unit_id, "action": "integration-release-reconciled"}]
-        return []
+            actions.append({"unit_id": unit_id, "action": "integration-release-reconciled"})
+        return actions
     canonical_record = unit.get("integration", {}).get("canonical_commit")
     canonical = canonical_record.get("commit") if isinstance(canonical_record, dict) else None
     if state != "committed" or not canonical:

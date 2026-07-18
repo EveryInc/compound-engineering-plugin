@@ -331,6 +331,7 @@ def cmd_verify_run(args) -> tuple[str, dict]:
         if not exc.detail.get("retain_integration_lock"):
             cmd_integration_release(_args(run_id=args.run_id, unit_id=lock_unit, lock_token=token))
         raise
+    test_fault("verify-run-after-receipt")
     cmd_integration_release(_args(run_id=args.run_id, unit_id=lock_unit, lock_token=token))
     return result
 
