@@ -72,7 +72,15 @@ function ctl(runsRoot: string, ...args: string[]) {
 }
 
 function ctlWithEnv(runsRoot: string, extraEnv: Record<string, string>, ...args: string[]) {
-  const r = spawnSync("python3", [SCRIPT, ...args], {
+  return ctlWithScriptAndEnv(SCRIPT, runsRoot, extraEnv, ...args)
+}
+
+function ctlWithScript(script: string, runsRoot: string, ...args: string[]) {
+  return ctlWithScriptAndEnv(script, runsRoot, {}, ...args)
+}
+
+function ctlWithScriptAndEnv(script: string, runsRoot: string, extraEnv: Record<string, string>, ...args: string[]) {
+  const r = spawnSync("python3", [script, ...args], {
     encoding: "utf8",
     env: {
       ...process.env,
@@ -126,6 +134,7 @@ function authorizeDispatch(
     packet: prepared.packet_path,
     packetDigest: prepared.packet_digest,
     resultDir: prepared.result_dir,
+    adapter: ADAPTER,
     ...overrides,
   }
   const jobId = `job-auth-${Math.random().toString(16).slice(2)}`
@@ -138,7 +147,7 @@ function authorizeDispatch(
     run_id: values.runId,
     label: values.unitId,
     input_digest: values.packetDigest,
-    worker_argv: [ADAPTER, values.authorization, values.workspace, values.packet, values.packetDigest, values.resultDir],
+    worker_argv: [values.adapter, values.authorization, values.workspace, values.packet, values.packetDigest, values.resultDir],
     result_path: path.join(values.resultDir, "implementation-result.json"),
   })}\n`, { mode: 0o600 })
   return ctl(
@@ -507,6 +516,38 @@ describe("ce-work unit workspace controller", () => {
 
     init(runs, "run-hand-authored", f)
     expect(authorizeDispatch(runs, "run-hand-authored", "fake-unit", first).word).toBe("REFUSED")
+  })
+
+  test("returns the recorded canonical adapter from a symlinked skill for fresh and resumed dispatch", () => {
+    const f = makeRepo()
+    const linkedSkill = path.join(tmp("ce-work-linked-skill-"), "ce-work")
+    symlinkSync(path.join(__dirname, "../../skills/ce-work"), linkedSkill, "dir")
+    const linkedController = path.join(linkedSkill, "scripts", "unit-workspace.py")
+    const canonicalAdapter = realpathSync(path.join(linkedSkill, "scripts", "cross-model-work.sh"))
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const runId = "run-linked-adapter"
+    expect(ctlWithScript(
+      linkedController, runs,
+      "init", "--run-id", runId, "--repo", f.repo, "--plan", f.plan,
+      "--plan-digest", f.digest,
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["U"],"restrictions":[]}',
+    ).word).toBe("READY")
+    const packet = packetFile("linked adapter packet")
+    const fresh = ctlWithScript(
+      linkedController, runs,
+      "prepare", "--run-id", runId, "--unit-id", "U", "--base", f.base, "--packet", packet,
+    )
+    expect(fresh).toMatchObject({ word: "PREPARED", body: { adapter: canonicalAdapter, resumed: false } })
+    const attempt = ctlWithScript(linkedController, runs, "status", "--run-id", runId, "--unit-id", "U").body.unit.attempts[0]
+    expect(attempt.adapter).toBe(canonicalAdapter)
+
+    const resumed = ctlWithScript(
+      linkedController, runs,
+      "prepare", "--run-id", runId, "--unit-id", "U", "--base", f.base, "--packet", packet,
+    )
+    expect(resumed).toMatchObject({ word: "PREPARED", body: { adapter: canonicalAdapter, resumed: true } })
+    expect(authorizeDispatch(runs, runId, "U", fresh.body, { adapter: fresh.body.adapter }).word).toBe("AUTHORIZED")
   })
 
   test("creates a detached sibling from a linked checkout and terminalizes the complete tree", () => {

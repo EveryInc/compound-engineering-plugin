@@ -94,6 +94,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
                 "workspace": workspace, "result_dir": os.path.join(unit_root, "result"),
                 "packet_path": packet_path, "packet_digest": packet_digest,
                 "authorization_path": authorization_path, "authorization_digest": authorization_digest,
+                "adapter": attempt["adapter"],
                 "base": base, "resumed": True,
             }
         if existing and not retrying and (existing["workspace"]["path"] != workspace or existing["workspace"]["base"] != base):
@@ -195,6 +196,7 @@ def cmd_prepare(args) -> tuple[str, dict]:
         "workspace": workspace, "result_dir": os.path.join(unit_root, "result"),
         "packet_path": packet_path, "packet_digest": packet_digest,
         "authorization_path": authorization_path, "authorization_digest": authorization_digest,
+        "adapter": attempt_record["adapter"],
         "base": base, "resumed": False,
     }
 
