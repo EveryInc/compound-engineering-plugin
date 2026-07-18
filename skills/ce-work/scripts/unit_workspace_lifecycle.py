@@ -17,13 +17,14 @@ from unit_workspace_integration import *
 def cmd_status(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         validate_repo(doc)
+        source = doc.get("source") or {"kind": "plan", **doc.get("plan", {})}
         if args.unit_id:
             unit = doc["units"].get(args.unit_id)
             if not unit:
                 raise Operational("REFUSED", "unknown unit")
-            body = {"run_id": args.run_id, "revision": doc["revision"], "unit": unit, "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", [])}
+            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "unit": unit, "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", [])}
         else:
-            body = {"run_id": args.run_id, "revision": doc["revision"], "units": doc["units"], "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", []), "recovery_path": run_dir(args.run_id)}
+            body = {"run_id": args.run_id, "revision": doc["revision"], "source": source, "units": doc["units"], "integration_lock": doc.get("integration_lock"), "verifications": doc.get("verifications", []), "blockers": doc.get("blockers", []), "recovery_path": run_dir(args.run_id)}
     return "STATUS", body
 
 
@@ -71,15 +72,22 @@ def discover_resume_run(repo: str, plan_digest: str) -> tuple[str, list[dict]]:
         repository = doc.get("repository")
         branch = doc.get("branch")
         plan = doc.get("plan")
+        source = doc.get("source")
         if not isinstance(repository, dict) or not isinstance(branch, dict) or not isinstance(plan, dict):
             raise TrustFailure(f"manifest repository, branch, or plan record is malformed: {entry.path}")
+        if source is not None and not isinstance(source, dict):
+            raise TrustFailure(f"manifest source record is malformed: {entry.path}")
+        validate_source(doc)
+        source_kind = source.get("kind") if isinstance(source, dict) else plan.get("kind", "plan")
+        source_digest = source.get("digest") if isinstance(source, dict) else plan.get("digest")
         is_unfinished = unfinished_run(doc)
         if (
             repository.get("identity_digest") == info["identity_digest"]
             and repository.get("toplevel") == info["toplevel"]
             and repository.get("git_dir") == info["git_dir"]
             and branch.get("ref") == info["branch_ref"]
-            and plan.get("digest") == plan_digest
+            and source_kind == "plan"
+            and source_digest == plan_digest
             and is_unfinished
         ):
             candidates.append({

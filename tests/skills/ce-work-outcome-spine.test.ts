@@ -43,6 +43,8 @@ describe("ce-work native characterization", () => {
     expect(triage).toContain("mode:caller-owned-tail")
     expect(triage).toContain("caller:lfg")
     expect(triage).toContain("**Plan document**")
+    expect(triage).toContain("**Resolve a session-carried plan before blank or bare-prompt classification.**")
+    expect(skill).toContain("Invocation origin is not observable or relevant")
     expect(triage).toContain("**Blank invocation latest-plan discovery:**")
     expect(triage).toContain("**Bare prompt**")
     expect(triage).toContain("skip only the task list")
@@ -140,6 +142,25 @@ describe("ce-work cross-model engine contract", () => {
     expect(engines).toContain("strict Composer")
     expect(engines).toContain("caller Codex")
     expect(engines).toContain("config Cursor")
+  })
+
+  test("turns clear planless work into a private bounded source without exporting the session", async () => {
+    const skill = await readRepoFile("skills/ce-work/SKILL.md")
+    const engines = await readRepoFile("skills/ce-work/references/execution-engines.md")
+    const external = await readRepoFile("skills/ce-work/references/cross-model-execution.md")
+
+    expect(skill).toContain("private **bounded implementation brief**")
+    expect(skill).toContain("Do not send raw conversation history")
+    expect(skill).toContain("clarify or route to `ce-plan` before any cross-model egress")
+    expect(engines).toContain("Invocation origin supplies no routing authority")
+    expect(engines).toContain("concrete goal, bounded scope, and authoritative verification")
+    expect(external).toContain("## Build a source for bare-prompt work")
+    for (const heading of ["Request", "Goal", "Scope", "Acceptance and verification", "Constraints and exclusions", "Units"]) {
+      expect(external).toContain(`\`${heading}\``)
+    }
+    expect(external).toContain("one conservative `P1` unit by default")
+    expect(external).toContain("--prompt-brief <temp-path> --prompt-digest <sha256>")
+    expect(external).toContain("Prompt-backed runs require their disclosed run id")
   })
 
   test("uses agent judgment above fixed safety boundaries when local harness CLIs drift", async () => {
@@ -291,6 +312,8 @@ describe("ce-work cross-model engine contract", () => {
       "actual_model",
       "fallback_reason",
       "run_id",
+      "source_kind",
+      "source_digest",
       "unit_receipts",
       "blockers",
       "recovery_path",
@@ -473,7 +496,7 @@ describe("ce-work cross-model engine contract", () => {
     expect(evalPack).toContain("Change")
     expect(evalPack).toContain("Verify")
     expect(evalPack).toContain("Consider")
-    for (let fixture = 1; fixture <= 30; fixture += 1) {
+    for (let fixture = 1; fixture <= 33; fixture += 1) {
       expect(evalPack).toContain(`E${fixture} `)
     }
     for (const seam of [
@@ -499,6 +522,9 @@ describe("ce-work cross-model engine contract", () => {
       "exact dispatch digest",
       "clean packet and shell argv",
       "exact egress object",
+      "session-carried plan",
+      "bounded bare-prompt delegation",
+      "unclear bare-prompt restraint",
     ]) {
       expect(evalPack).toContain(seam)
     }

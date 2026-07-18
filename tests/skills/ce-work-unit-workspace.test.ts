@@ -117,6 +117,29 @@ function initWithBinding(
   )
 }
 
+function initWithPrompt(
+  runsRoot: string,
+  runId: string,
+  fixture: ReturnType<typeof makeRepo>,
+  prompt: string,
+) {
+  const brief = packetFile(prompt)
+  return {
+    brief,
+    digest: packetDigest(prompt),
+    result: ctl(
+      runsRoot,
+      "init",
+      "--run-id", runId,
+      "--repo", fixture.repo,
+      "--prompt-brief", brief,
+      "--prompt-digest", packetDigest(prompt),
+      "--binding-json", JSON.stringify({ mode: "prefer", target: "codex", model: null, source: "test" }),
+      "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["P1"],"restrictions":[]}',
+    ),
+  }
+}
+
 function authorizeDispatch(
   runsRoot: string,
   runId: string,
@@ -293,6 +316,13 @@ describe("ce-work unit workspace controller", () => {
     const good = init(runs, "run-1", f)
     expect(good.code).toBe(0)
     expect(good.word).toBe("READY")
+    expect(good.body).toMatchObject({ source_kind: "plan", source_digest: f.digest })
+    expect(ctl(runs, "status", "--run-id", "run-1").body.source).toEqual({
+      kind: "plan",
+      storage: "repository",
+      path: "docs/plans/plan.md",
+      digest: f.digest,
+    })
     expect(statSync(path.join(runs, "run-1")).mode & 0o777).toBe(0o700)
     expect(statSync(path.join(runs, "run-1", "manifest.json")).mode & 0o777).toBe(0o600)
 
@@ -313,6 +343,107 @@ describe("ce-work unit workspace controller", () => {
     writeFileSync(outside, "# Plan\n")
     const digest = createHash("sha256").update(readFileSync(outside)).digest("hex")
     expect(ctl(runs, "init", "--run-id", "outside", "--repo", f.repo, "--plan", outside, "--plan-digest", digest).word).toBe("REFUSED")
+  })
+
+  test("persists a bounded prompt source privately without pretending it is a repository plan", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const prompt = "# Bare-prompt implementation brief\n\n## Goal\nAdd the requested behavior.\n"
+    const first = initWithPrompt(runs, "run-prompt", f, prompt)
+
+    expect(first.result).toMatchObject({
+      word: "READY",
+      body: { resumed: false, source_kind: "prompt", source_digest: first.digest },
+    })
+    const stored = path.join(runs, "run-prompt", "source", "bare-prompt.md")
+    expect(readFileSync(stored, "utf8")).toBe(prompt)
+    expect(statSync(stored).mode & 0o777).toBe(0o600)
+    expect(ctl(runs, "status", "--run-id", "run-prompt").body.source).toEqual({
+      kind: "prompt",
+      storage: "run",
+      path: "source/bare-prompt.md",
+      digest: first.digest,
+    })
+    expect(JSON.parse(readFileSync(path.join(runs, "run-prompt", "manifest.json"), "utf8")).plan).toEqual({
+      kind: "prompt",
+      path: null,
+      digest: first.digest,
+      checkpoint: null,
+    })
+    expect(ctl(runs, "checkpoint-plan", "--run-id", "run-prompt")).toMatchObject({
+      word: "NOOP",
+      body: { checkpoint: null, source_kind: "prompt" },
+    })
+    const unitPacket = packetFile("# P1\n\nAdd retry limits.\n")
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-prompt", "--unit-id", "P1",
+      "--base", f.base, "--packet", unitPacket,
+    )
+    expect(prepared).toMatchObject({ word: "PREPARED", body: { unit_id: "P1" } })
+
+    const resumed = ctl(
+      runs, "init", "--run-id", "run-prompt", "--repo", f.repo,
+      "--prompt-brief", first.brief, "--prompt-digest", first.digest,
+      "--binding-json", '{"mode":"prefer","target":"codex","model":null,"source":"test"}',
+      "--egress-json", '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["P1"],"restrictions":[]}',
+    )
+    expect(resumed).toMatchObject({
+      word: "READY",
+      body: { resumed: true, source_kind: "prompt", source_digest: first.digest },
+    })
+
+    const changed = initWithPrompt(runs, "run-prompt", f, `${prompt}\nChanged scope.\n`)
+    expect(changed.result.word).toBe("BLOCKED")
+    expect(changed.result.stderr).toContain("another repository or source")
+
+    writeFileSync(path.join(f.repo, "dirty.txt"), "dirty\n")
+    const dirtyCheckpoint = ctl(runs, "checkpoint-plan", "--run-id", "run-prompt")
+    expect(dirtyCheckpoint.word).toBe("BLOCKED")
+    expect(dirtyCheckpoint.stderr).toContain("requires a clean canonical checkout")
+  })
+
+  test("rejects malformed, mismatched, or linked prompt source inputs", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    const brief = packetFile("bounded prompt\n")
+    const binding = '{"mode":"prefer","target":"codex","model":null,"source":"test"}'
+    const egress = '{"sanction_source":"test","route":"codex","intermediaries":[],"exposed_material":["P1"],"restrictions":[]}'
+
+    expect(ctl(
+      runs, "init", "--run-id", "prompt-wrong-digest", "--repo", f.repo,
+      "--prompt-brief", brief, "--prompt-digest", "0".repeat(64),
+      "--binding-json", binding, "--egress-json", egress,
+    ).word).toBe("REFUSED")
+    expect(existsSync(path.join(runs, "prompt-wrong-digest"))).toBe(false)
+
+    expect(ctl(
+      runs, "init", "--run-id", "prompt-wrong-flag", "--repo", f.repo,
+      "--prompt-brief", brief, "--plan-digest", packetDigest("bounded prompt\n"),
+      "--binding-json", binding, "--egress-json", egress,
+    ).word).toBe("REFUSED")
+
+    const linked = path.join(tmp("ce-work-prompt-link-"), "brief.md")
+    symlinkSync(brief, linked)
+    const linkedResult = ctl(
+      runs, "init", "--run-id", "prompt-link", "--repo", f.repo,
+      "--prompt-brief", linked, "--prompt-digest", packetDigest("bounded prompt\n"),
+      "--binding-json", binding, "--egress-json", egress,
+    )
+    expect(linkedResult.word).toBe("REFUSED")
+    expect(linkedResult.stderr).toContain("prompt brief")
+
+    const repositoryBrief = path.join(f.repo, "prompt-brief.md")
+    writeFileSync(repositoryBrief, "bounded prompt\n")
+    expect(ctl(
+      runs, "init", "--run-id", "prompt-in-repo", "--repo", f.repo,
+      "--prompt-brief", repositoryBrief, "--prompt-digest", packetDigest("bounded prompt\n"),
+      "--binding-json", binding, "--egress-json", egress,
+    ).word).toBe("REFUSED")
+
+    const trusted = initWithPrompt(runs, "prompt-tamper", f, "trusted prompt\n")
+    expect(trusted.result.word).toBe("READY")
+    writeFileSync(path.join(runs, "prompt-tamper", "source", "bare-prompt.md"), "tampered prompt\n", { mode: 0o600 })
+    expect(ctl(runs, "status", "--run-id", "prompt-tamper").word).toBe("UNREADABLE")
   })
 
   test("reports an actionable blocker when a run directory exists without controller state", () => {

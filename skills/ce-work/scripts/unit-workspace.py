@@ -31,8 +31,11 @@ def build_parser() -> argparse.ArgumentParser:
     p = sub.add_parser("init")
     p.add_argument("--run-id", required=True)
     p.add_argument("--repo", required=True)
-    p.add_argument("--plan", required=True)
-    p.add_argument("--plan-digest", required=True)
+    source = p.add_mutually_exclusive_group(required=True)
+    source.add_argument("--plan")
+    source.add_argument("--prompt-brief")
+    p.add_argument("--plan-digest")
+    p.add_argument("--prompt-digest")
     p.add_argument("--binding-json", default="{}")
     p.add_argument("--egress-json", default="{}")
 

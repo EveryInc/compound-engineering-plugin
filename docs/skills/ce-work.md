@@ -103,6 +103,10 @@ Every PR description includes a `Post-Deploy Monitoring & Validation` section: l
 
 Not every invocation has a plan. `ce-work` accepts a bare prompt and triages by complexity: trivial work (a couple of files, no behavioral change) goes straight to implementation; small/medium work builds a task list; large or sensitive work surfaces a recommendation to use `/ce-brainstorm` or `/ce-plan` first. The triage is what makes `ce-work` reasonable for direct invocation on small work, without forcing the full chain for everything.
 
+Invocation origin does not change this behavior: agent harnesses do not reliably tell the skill whether the user named it or the model selected it. If the conversation carries one unambiguous active plan (for example, the agent just authored it and the user says "proceed"), that plan is used before bare-prompt triage. Otherwise a concrete implementation request is the bare prompt.
+
+When a qualified external implementation route is selected for clear bare-prompt work, `ce-work` does not send the conversation to the worker. It distills the request and repository discovery into a private bounded implementation brief: goal, scope, discovered files/tests, acceptance and verification, constraints/exclusions, and conservative units. The controller records its digest and private copy for deterministic recovery. If `ce-work` cannot fill in the goal, bounded scope, and authoritative verification without guessing, it clarifies or routes to `ce-plan` before any external egress.
+
 ### 9. Session-settled decisions are not-yours-to-improve
 
 A KTD carrying a `session-settled:` label records a decision the user examined and chose for a reason — `ce-work` implements it as specified instead of "improving" it. The restraint is scoped tightly to labeled KTDs; judgment on everything the plan leaves open is unchanged, and real defects inside a settled approach still surface at full strength. A discovery that a settled decision genuinely can't work is a blocker return, never a silently-accepted residual; non-blocking proceed-and-flag conflicts ride the return envelope as `settled_decision_conflicts`.
@@ -196,11 +200,14 @@ Native execution is the default. You can assign implementation to a target in th
 /ce-work implement docs/plans/2026-07-15-example.md with Cursor
 /ce-work use Cursor with Rock for implementation on docs/plans/2026-07-15-example.md
 /ce-work only use Composer for implementation on docs/plans/2026-07-15-example.md
+/ce-work use Codex to add retry limits to the existing webhook sender
 ```
 
 The first three are preferences: `ce-work` attempts the route and continues natively with prominent requested-versus-actual disclosure if it is unavailable. The fourth is a requirement: an interactive standalone run asks before weakening it, while a headless or automatic caller returns a blocker without prompting. Intent matters, not a particular keyword.
 
 Routing uses normal instruction authority plus scope, not keyword matching. An explicit current task wins; a still-active session preference remains applicable; an implementation-only caller binding keeps its recorded provenance; active project/user instructions already in context can supply a default; and per-checkout config is the final preference before native execution. More specific live intent may replace or narrow config, while an incidental model mention in feature prose, quoted text, examples, or filenames does nothing.
+
+The last example is deliberately planless. `ce-work` first scopes the request against the repository and tests, then gives Codex only the bounded private brief/unit packet. The host remains responsible for inspecting the actual change, authoritative verification, canonical commits, and the shipping tail.
 
 Put an ordered, host-relative preference list in the gitignored `.compound-engineering/config.local.yaml`:
 

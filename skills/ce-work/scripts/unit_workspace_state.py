@@ -330,7 +330,31 @@ def repo_info(repo: str) -> dict:
     }
 
 
+def validate_source(doc: dict) -> None:
+    source = doc.get("source")
+    if source is not None:
+        if not isinstance(source, dict):
+            raise TrustFailure("manifest source record is malformed")
+        kind = source.get("kind")
+        if kind == "prompt":
+            if source.get("storage") != "run" or source.get("path") != "source/bare-prompt.md":
+                raise TrustFailure("prompt source location is malformed")
+            if not isinstance(source.get("digest"), str) or not re.fullmatch(r"[0-9a-f]{64}", source["digest"]):
+                raise TrustFailure("prompt source digest is malformed")
+            data = read_private(os.path.join(run_dir(doc["run_id"]), source["path"]), MAX_PACKET_BYTES)
+            if digest_bytes(data) != source.get("digest"):
+                raise TrustFailure("prompt source digest does not match private content")
+        elif kind == "plan":
+            if source.get("storage") != "repository" or not isinstance(source.get("path"), str):
+                raise TrustFailure("plan source location is malformed")
+            if not isinstance(source.get("digest"), str) or not re.fullmatch(r"[0-9a-f]{64}", source["digest"]):
+                raise TrustFailure("plan source digest is malformed")
+        else:
+            raise TrustFailure("manifest source kind is invalid")
+
+
 def validate_repo(doc: dict) -> dict:
+    validate_source(doc)
     recorded = doc["repository"]
     current = repo_info(recorded["toplevel"])
     for key in ("toplevel", "git_dir", "common_dir", "common_dev", "common_ino", "identity_digest"):
@@ -454,18 +478,18 @@ def attempt_authorization(
     }
 
 
-def read_external_packet(path: str) -> bytes:
+def read_external_packet(path: str, label: str = "unit packet") -> bytes:
     supplied = os.path.abspath(path)
     try:
         fd = os.open(supplied, os.O_RDONLY | O_NOFOLLOW)
     except OSError as exc:
-        raise Operational("REFUSED", f"cannot safely open unit packet: {exc}") from exc
+        raise Operational("REFUSED", f"cannot safely open {label}: {exc}") from exc
     try:
         st = os.fstat(fd)
         if not stat.S_ISREG(st.st_mode):
-            raise Operational("REFUSED", "unit packet must be one regular non-symlink file")
+            raise Operational("REFUSED", f"{label} must be one regular non-symlink file")
         if st.st_size > MAX_PACKET_BYTES:
-            raise Operational("REFUSED", f"unit packet exceeds {MAX_PACKET_BYTES}-byte limit")
+            raise Operational("REFUSED", f"{label} exceeds {MAX_PACKET_BYTES}-byte limit")
         data = bytearray()
         while len(data) <= MAX_PACKET_BYTES:
             part = os.read(fd, min(65536, MAX_PACKET_BYTES + 1 - len(data)))
@@ -473,7 +497,7 @@ def read_external_packet(path: str) -> bytes:
                 break
             data.extend(part)
         if len(data) > MAX_PACKET_BYTES:
-            raise Operational("REFUSED", f"unit packet exceeds {MAX_PACKET_BYTES}-byte limit")
+            raise Operational("REFUSED", f"{label} exceeds {MAX_PACKET_BYTES}-byte limit")
         return bytes(data)
     finally:
         os.close(fd)
@@ -492,10 +516,37 @@ def cmd_init(args) -> tuple[str, dict]:
     root = ensure_root()
     rid = safe_id(args.run_id, "run id")
     info = repo_info(args.repo)
-    plan_abs, plan_rel = resolve_plan(info["toplevel"], args.plan)
-    actual_digest = digest_bytes(Path(plan_abs).read_bytes())
-    if actual_digest != args.plan_digest:
-        raise Operational("REFUSED", "selected plan digest does not match content")
+    if args.plan:
+        if not args.plan_digest or args.prompt_digest:
+            raise Operational("REFUSED", "plan source requires only --plan-digest")
+        plan_abs, plan_rel = resolve_plan(info["toplevel"], args.plan)
+        source_bytes = Path(plan_abs).read_bytes()
+        source_kind = "plan"
+        supplied_digest = args.plan_digest
+        source_record = {
+            "kind": source_kind,
+            "storage": "repository",
+            "path": plan_rel,
+            "digest": digest_bytes(source_bytes),
+        }
+    else:
+        if not args.prompt_digest or args.plan_digest:
+            raise Operational("REFUSED", "prompt source requires only --prompt-digest")
+        prompt_abs = os.path.realpath(os.path.abspath(args.prompt_brief))
+        if os.path.commonpath([info["toplevel"], prompt_abs]) == info["toplevel"]:
+            raise Operational("REFUSED", "prompt brief must be outside the canonical repository")
+        source_bytes = read_external_packet(args.prompt_brief, "prompt brief")
+        source_kind = "prompt"
+        supplied_digest = args.prompt_digest
+        source_record = {
+            "kind": source_kind,
+            "storage": "run",
+            "path": "source/bare-prompt.md",
+            "digest": digest_bytes(source_bytes),
+        }
+    actual_digest = source_record["digest"]
+    if actual_digest != supplied_digest:
+        raise Operational("REFUSED", f"selected {source_kind} digest does not match content")
     binding = parse_json_arg(args.binding_json, "binding")
     egress = parse_json_arg(args.egress_json, "egress")
     fixed_route_contract(binding, egress, "REFUSED")
@@ -514,17 +565,40 @@ def cmd_init(args) -> tuple[str, dict]:
             )
         validate_private_dir(rd)
         with locked_manifest(rid) as existing:
-            if existing["repository"]["identity_digest"] != info["identity_digest"] or existing["plan"]["digest"] != actual_digest:
-                raise Operational("BLOCKED", "run id already belongs to another repository or plan")
+            validate_repo(existing)
+            existing_source = existing.get("source")
+            if not isinstance(existing_source, dict):
+                plan = existing.get("plan")
+                existing_source = {
+                    "kind": "plan",
+                    "storage": "repository",
+                    "path": plan.get("path") if isinstance(plan, dict) else None,
+                    "digest": plan.get("digest") if isinstance(plan, dict) else None,
+                }
+            if (
+                existing["repository"]["identity_digest"] != info["identity_digest"]
+                or existing_source.get("kind") != source_kind
+                or existing_source.get("digest") != actual_digest
+            ):
+                raise Operational("BLOCKED", "run id already belongs to another repository or source")
             if existing.get("binding") != binding or existing.get("egress") != egress:
                 raise Operational(
                     "BLOCKED",
                     "run id binding or egress sanction differs from the recorded fixed contract; resume with the recorded contract or choose a new run id",
                 )
-            return "READY", {"run_id": rid, "revision": existing["revision"], "resumed": True, "recovery_path": rd}
+            return "READY", {
+                "run_id": rid,
+                "revision": existing["revision"],
+                "resumed": True,
+                "source_kind": source_kind,
+                "source_digest": actual_digest,
+                "recovery_path": rd,
+            }
     validate_private_dir(rd)
-    for child in ("units", "jobs", "packets"):
+    for child in ("units", "jobs", "packets", "source"):
         ensure_private_dir(os.path.join(rd, child))
+    if source_kind == "prompt":
+        create_private(os.path.join(rd, source_record["path"]), source_bytes)
     create_private(os.path.join(rd, "manifest.lock"), b"")
     created = now_iso()
     doc = {
@@ -535,7 +609,13 @@ def cmd_init(args) -> tuple[str, dict]:
         "updated_at": created,
         "repository": {k: info[k] for k in ("toplevel", "git_dir", "common_dir", "common_dev", "common_ino", "identity_digest")},
         "branch": {"ref": info["branch_ref"], "initial_head": info["head"]},
-        "plan": {"path": plan_rel, "digest": actual_digest, "checkpoint": None},
+        "source": source_record,
+        "plan": {
+            "kind": source_kind,
+            "path": plan_rel if source_kind == "plan" else None,
+            "digest": actual_digest,
+            "checkpoint": None,
+        },
         "binding": binding,
         "egress": egress,
         "integration_lock": None,
@@ -545,7 +625,14 @@ def cmd_init(args) -> tuple[str, dict]:
         "events": [{"at": created, "kind": "run-created"}],
     }
     create_private(os.path.join(rd, "manifest.json"), (json.dumps(doc, sort_keys=True, separators=(",", ":")) + "\n").encode())
-    return "READY", {"run_id": rid, "revision": 0, "resumed": False, "recovery_path": rd}
+    return "READY", {
+        "run_id": rid,
+        "revision": 0,
+        "resumed": False,
+        "source_kind": source_kind,
+        "source_digest": actual_digest,
+        "recovery_path": rd,
+    }
 
 
 def status_paths(repo: str) -> set[str]:
@@ -574,7 +661,13 @@ def cmd_checkpoint_plan(args) -> tuple[str, dict]:
     with locked_manifest(args.run_id) as doc:
         info = validate_repo(doc)
         repo = info["toplevel"]
-        plan_rel = doc["plan"]["path"]
+        plan = doc.get("plan")
+        if not isinstance(plan, dict) or plan.get("kind", "plan") != "plan" or not plan.get("path"):
+            dirty = status_paths(repo)
+            if dirty:
+                raise Operational("BLOCKED", "prompt-backed external execution requires a clean canonical checkout", {"dirty_paths": sorted(dirty)})
+            return "NOOP", {"checkpoint": None, "head": info["head"], "source_kind": "prompt"}
+        plan_rel = plan["path"]
         plan_abs, _ = resolve_plan(repo, plan_rel)
         if digest_bytes(Path(plan_abs).read_bytes()) != doc["plan"]["digest"]:
             raise Operational("BLOCKED", "selected plan content no longer matches recorded digest")

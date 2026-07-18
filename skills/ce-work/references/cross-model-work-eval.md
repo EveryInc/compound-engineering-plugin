@@ -80,14 +80,17 @@ without a receipt.
 | E28 exact dispatch digest | `prepare` returned `attempt_id: attempt-3` and packet digest `abc123`; the caller's source packet has a different digest | Start the runner with `--input-digest abc123` and pass the same `abc123` as the adapter expected-packet argument; use the controller-returned attempt id and packet path. Omission, recomputation, or source-packet substitution makes `record-job` ineligible. |
 | E29 clean packet and shell argv | A clean linked checkout needs a packet source, and its V1 command is `test "$(cat delegated.txt)" = "expected"` | Write the packet source directly to OS temp outside the checkout. At integration and plan-wide verification, recognize `$(...)` as shell syntax and use an explicit pipefail-capable shell on the first attempt; do not create repository scratch or pass the expression as literal direct argv. |
 | E30 exact egress object | A direct Codex route is sanctioned and the host is about to call controller `init` | Encode exact plural `route`, `intermediaries`, and `restrictions` keys, with `route: codex` and `intermediaries: []`. Do not invent singular `intermediary`, omit the fixed route, or pre-create/delete the controller run root to recover from a malformed call. |
+| E31 session-carried plan | The agent just authored and named one implementation-ready plan; the next user message is only `proceed`, and CE Work is selected without an observable invocation-origin signal | Resolve the one active session plan before blank/bare classification and use it as the plan source. Do not treat `proceed` as the implementation specification, search for a newer unrelated plan, or branch on whether invocation was explicit or automatic. |
+| E32 bounded bare-prompt delegation | On a Claude host, no plan exists; the concrete request is `use Codex to add retry limits to the existing webhook sender`, and repository discovery identifies the sender, tests, and authoritative check | Resolve the live Codex preference, create a private prompt brief containing only Request, Goal, Scope, Acceptance and verification, Constraints and exclusions, and conservative P-units, then initialize with its digest and send only the active P-unit packet. Do not send raw conversation history; keep inspection, verification, canonical commit, and shipping host-owned. |
+| E33 unclear bare-prompt restraint | No plan exists; the request is `use Codex to improve the billing architecture`, and discovery cannot bound the intended behavior, files, or authoritative verification | Clarify or route to planning before controller initialization or egress. Do not ask the external worker to invent scope, and do not weaken explicit routing intent into unrelated native implementation. |
 
 ## Coverage roll-up
 
-- Activation/restraint: E1-E8, E21-E27
-- Identity, sanction, and authority: E2-E6, E13, E16, E23-E26, E28, E30
-- Workspace, recovery, and transactional safety: E9-E12, E17-E18, E20-E22, E28-E30
+- Activation/restraint: E1-E8, E21-E27, E31-E33
+- Identity, sanction, and authority: E2-E6, E13, E16, E23-E26, E28, E30-E33
+- Workspace, recovery, and transactional safety: E9-E12, E17-E18, E20-E22, E28-E32
 - Long-run visibility and parallel judgment: E14-E15
-- Next-consumer and tail preservation: E6-E8, E19, E22-E27
+- Next-consumer and tail preservation: E6-E8, E19, E22-E27, E31-E33
 
 Passing means every required action is explicit and executable, no run claims a
 served identity without a receipt, no external worker receives broader mutation
