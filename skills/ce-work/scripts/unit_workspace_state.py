@@ -620,6 +620,7 @@ def cmd_init(args) -> tuple[str, dict]:
         "egress": egress,
         "integration_lock": None,
         "units": {},
+        "verification_attempts": [],
         "verifications": [],
         "blockers": [],
         "events": [{"at": created, "kind": "run-created"}],

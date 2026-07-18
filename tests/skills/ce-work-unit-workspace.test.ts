@@ -6,10 +6,12 @@ import {
   mkdtempSync,
   mkdirSync,
   readFileSync,
+  readdirSync,
   realpathSync,
   rmSync,
   symlinkSync,
   statSync,
+  truncateSync,
   writeFileSync,
 } from "node:fs"
 import { tmpdir } from "node:os"
@@ -1357,6 +1359,57 @@ describe("ce-work unit workspace controller", () => {
     expect(readFileSync(path.join(f.repo, "keep.txt"), "utf8")).toBe("keep\n")
   })
 
+  test("refuses ignored snapshots over deterministic entry or byte bounds before verification", () => {
+    const cases: Array<[string, (repo: string) => void]> = [
+      ["bytes", (repo) => {
+        const oversized = path.join(repo, "oversized.verification-cache")
+        writeFileSync(oversized, "")
+        truncateSync(oversized, 64 * 1024 * 1024 + 1)
+      }],
+      ["entries", (repo) => {
+        const cache = path.join(repo, "many-ignored")
+        mkdirSync(cache)
+        for (let index = 0; index < 513; index += 1) {
+          writeFileSync(path.join(cache, `${index.toString().padStart(4, "0")}.verification-cache`), "x")
+        }
+      }],
+    ]
+
+    for (const [limit, populate] of cases) {
+      const f = makeRepo()
+      const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+      const runId = `run-ignored-limit-${limit}`
+      writeFileSync(path.join(f.repo, ".git", "info", "exclude"), "*.verification-cache\n")
+      populate(f.repo)
+      init(runs, runId, f)
+      ctl(
+        runs, "prepare", "--run-id", runId, "--unit-id", "U",
+        "--base", f.base, "--packet", packetFile("packet"),
+      )
+      const workspace = path.join(runs, runId, "units", "U", "workspace")
+      writeFileSync(path.join(workspace, "integrated.txt"), "integrated\n")
+      const job = fakeDoneJob(runs, runId, "U", "packet")
+      ctl(
+        runs, "record-job", "--run-id", runId, "--unit-id", "U",
+        "--attempt-id", "attempt-1", "--job-id", job,
+      )
+      ctl(runs, "terminalize", "--run-id", runId, "--unit-id", "U")
+      const marker = path.join(tmp("ce-work-verification-marker-"), "ran")
+
+      const refused = ctl(
+        runs, "integrate", "--run-id", runId, "--unit-id", "U",
+        "--commit-message", "feat(test): verification must not run",
+        "--", "python3", "-c",
+        `from pathlib import Path; Path(${JSON.stringify(marker)}).write_text('ran')`,
+      )
+      expect(refused.word).toBe("REFUSED")
+      expect(refused.stderr).toContain("ignored artifact snapshot exceeds")
+      expect(existsSync(marker)).toBe(false)
+      const resultDir = path.join(runs, runId, "units", "U", "result")
+      expect(readdirSync(resultDir).some((name) => name.startsWith("ignored-snapshot-"))).toBe(false)
+    }
+  })
+
   test("failed unit verification reports and removes its new ignored artifact", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
@@ -1828,6 +1881,55 @@ describe("ce-work unit workspace controller", () => {
     })
     expect(ctl(runs, "status", "--run-id", "run-verify-release-crash").body.integration_lock).toBeNull()
     expect(ctl(runs, "resume", "--repo", f.repo, "--plan-digest", f.digest).word).toBe("NOT_FOUND")
+  })
+
+  test("retains a plan verification lock interrupted before its receipt", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-verify-pre-receipt-crash", f)
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-verify-pre-receipt-crash", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    writeFileSync(path.join(prepared.body.workspace, "verified.txt"), "verified\n")
+    const job = fakeDoneJob(runs, "run-verify-pre-receipt-crash", "U", "packet")
+    ctl(
+      runs, "record-job", "--run-id", "run-verify-pre-receipt-crash", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+    ctl(runs, "terminalize", "--run-id", "run-verify-pre-receipt-crash", "--unit-id", "U")
+    expect(ctl(
+      runs, "integrate", "--run-id", "run-verify-pre-receipt-crash", "--unit-id", "U",
+      "--commit-message", "feat(test): integrate pre-receipt crash fixture", "--", "true",
+    ).word).toBe("UNIT_COMMITTED")
+
+    const interrupted = ctlWithEnv(
+      runs,
+      { CE_WORK_TEST_FAULT: "verify-run-before-receipt" },
+      "verify-run", "--run-id", "run-verify-pre-receipt-crash",
+      "--verification-summary", "interrupted plan verification", "--",
+      "python3", "-c", "from pathlib import Path; Path('verified.txt').write_text('mutated\\n')",
+    )
+    expect(interrupted.word).toBe("INTERRUPTED")
+    const manifest = JSON.parse(readFileSync(path.join(runs, "run-verify-pre-receipt-crash", "manifest.json"), "utf8"))
+    expect(manifest.verification_attempts.at(-1)).toMatchObject({
+      status: "pending",
+      integration_lock_nonce: manifest.integration_lock.nonce,
+      lock_unit_id: "U",
+    })
+    expect(manifest.verifications).toEqual([])
+    expect(git(f.repo, "status", "--porcelain")).toBe("M verified.txt")
+
+    const resumed = ctl(runs, "resume", "--run-id", "run-verify-pre-receipt-crash")
+    expect(resumed.word).toBe("BLOCKED")
+    expect(resumed.body).toMatchObject({
+      verification_attempt_id: manifest.verification_attempts.at(-1).attempt_id,
+      retain_integration_lock: true,
+    })
+    expect(ctl(runs, "status", "--run-id", "run-verify-pre-receipt-crash").body.integration_lock).toMatchObject({
+      unit_id: "U",
+      phase: "held",
+    })
   })
 
   test("resume finishes interrupted abandoned artifact cleanup and restores retry eligibility", () => {

@@ -25,8 +25,16 @@ from unit_workspace_integration import (
     matches_expected_apply,
     remove_introduced_paths,
     semantic_snapshot,
+    validate_lock,
 )
-from unit_workspace_lifecycle import cmd_cleanup
+from unit_workspace_lifecycle import (
+    cmd_cleanup,
+    pending_plan_wide_verification,
+    plan_wide_verification_attempts,
+)
+
+MAX_IGNORED_SNAPSHOT_ENTRIES = 512
+MAX_IGNORED_SNAPSHOT_BYTES = 64 * 1024 * 1024
 
 
 def _args(**values):
@@ -96,38 +104,63 @@ def _artifact_path(repo: str, rel: str) -> str:
     return target
 
 
+def _preflight_ignored_artifacts(repo: str, paths: set[str]) -> tuple[list[dict], dict[str, int]]:
+    if len(paths) > MAX_IGNORED_SNAPSHOT_ENTRIES:
+        raise Operational(
+            "REFUSED",
+            f"ignored artifact snapshot exceeds {MAX_IGNORED_SNAPSHOT_ENTRIES} entries",
+            {"entries": len(paths), "max_entries": MAX_IGNORED_SNAPSHOT_ENTRIES},
+        )
+
+    planned: list[dict] = []
+    directories: dict[str, int] = {}
+    total_bytes = 0
+    repo = os.path.abspath(repo)
+    for rel in sorted(paths):
+        target = _artifact_path(repo, rel)
+        parent = os.path.dirname(target)
+        ancestors: list[str] = []
+        while parent != repo:
+            ancestors.append(parent)
+            parent = os.path.dirname(parent)
+        for directory in reversed(ancestors):
+            directory_rel = os.path.relpath(directory, repo)
+            entry = os.lstat(directory)
+            if not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
+                raise Operational("REFUSED", f"ignored artifact parent is not a real directory: {directory_rel}")
+            directories[directory_rel] = stat.S_IMODE(entry.st_mode)
+
+        before = os.lstat(target)
+        if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or before.st_nlink != 1:
+            raise Operational("REFUSED", f"cannot safely snapshot ignored artifact: {rel}")
+        uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
+        effective_uid = uid_getter() if uid_getter is not None else None
+        if effective_uid is not None and before.st_uid != effective_uid:
+            raise Operational("REFUSED", f"ignored artifact is not owned by the current user: {rel}")
+        total_bytes += before.st_size
+        if total_bytes > MAX_IGNORED_SNAPSHOT_BYTES:
+            raise Operational(
+                "REFUSED",
+                f"ignored artifact snapshot exceeds {MAX_IGNORED_SNAPSHOT_BYTES} bytes",
+                {"bytes": total_bytes, "max_bytes": MAX_IGNORED_SNAPSHOT_BYTES},
+            )
+        planned.append({"rel": rel, "target": target, "before": before})
+    return planned, directories
+
+
 def _snapshot_ignored_artifacts(repo: str, paths: set[str], private_parent: str) -> dict:
-    """Copy ignored regular files to private state without following symlinks."""
+    """Copy bounded ignored regular files to private state without following symlinks."""
     validate_private_dir(private_parent)
+    planned, directories = _preflight_ignored_artifacts(repo, paths)
     backup_root = os.path.join(private_parent, f"ignored-snapshot-{secrets.token_hex(8)}")
     os.mkdir(backup_root, 0o700)
     validate_private_dir(backup_root)
     files: dict[str, dict] = {}
-    directories: dict[str, int] = {}
-    repo = os.path.abspath(repo)
     try:
-        for index, rel in enumerate(sorted(paths)):
-            target = _artifact_path(repo, rel)
-            parent = os.path.dirname(target)
-            ancestors: list[str] = []
-            while parent != repo:
-                ancestors.append(parent)
-                parent = os.path.dirname(parent)
-            for directory in reversed(ancestors):
-                directory_rel = os.path.relpath(directory, repo)
-                entry = os.lstat(directory)
-                if not stat.S_ISDIR(entry.st_mode) or stat.S_ISLNK(entry.st_mode):
-                    raise Operational("REFUSED", f"ignored artifact parent is not a real directory: {directory_rel}")
-                directories[directory_rel] = stat.S_IMODE(entry.st_mode)
-
-            before = os.lstat(target)
-            if not stat.S_ISREG(before.st_mode) or stat.S_ISLNK(before.st_mode) or before.st_nlink != 1:
-                raise Operational("REFUSED", f"cannot safely snapshot ignored artifact: {rel}")
-            uid_getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
-            effective_uid = uid_getter() if uid_getter is not None else None
-            if effective_uid is not None and before.st_uid != effective_uid:
-                raise Operational("REFUSED", f"ignored artifact is not owned by the current user: {rel}")
-
+        for index, plan in enumerate(planned):
+            rel = plan["rel"]
+            target = plan["target"]
+            before = plan["before"]
             source_fd = os.open(target, os.O_RDONLY | O_NOFOLLOW)
             backup = os.path.join(backup_root, f"{index:08d}")
             backup_fd = os.open(backup, os.O_WRONLY | os.O_CREAT | os.O_EXCL | O_NOFOLLOW, 0o600)
@@ -136,15 +169,19 @@ def _snapshot_ignored_artifacts(repo: str, paths: set[str], private_parent: str)
                 opened = os.fstat(source_fd)
                 if (opened.st_dev, opened.st_ino) != (before.st_dev, before.st_ino) or not stat.S_ISREG(opened.st_mode):
                     raise Operational("BLOCKED", f"ignored artifact changed while being snapshotted: {rel}")
-                while True:
-                    chunk = os.read(source_fd, 1024 * 1024)
+                remaining = before.st_size
+                while remaining:
+                    chunk = os.read(source_fd, min(1024 * 1024, remaining))
                     if not chunk:
-                        break
+                        raise Operational("BLOCKED", f"ignored artifact changed while being snapshotted: {rel}")
+                    remaining -= len(chunk)
                     digest.update(chunk)
                     view = memoryview(chunk)
                     while view:
                         written = os.write(backup_fd, view)
                         view = view[written:]
+                if os.read(source_fd, 1):
+                    raise Operational("BLOCKED", f"ignored artifact changed while being snapshotted: {rel}")
                 finished = os.fstat(source_fd)
                 if (
                     finished.st_size != before.st_size
@@ -366,7 +403,74 @@ def _validate_accepted_run_head(repo: str, units: dict, current_head: str) -> No
         )
 
 
-def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tuple[str, dict]:
+def _record_run_verification_attempt(
+    args,
+    attempt_id: str,
+    lock_unit: str,
+    lock_token: str,
+    command: list[str],
+    before: dict,
+    verification_log: str,
+) -> None:
+    with locked_manifest(args.run_id, write=True) as doc:
+        validate_lock(doc, lock_unit, lock_token)
+        doc.setdefault("verification_attempts", [])
+        attempts = plan_wide_verification_attempts(doc)
+        if any(attempt.get("attempt_id") == attempt_id for attempt in attempts):
+            raise TrustFailure("plan-wide verification attempt identity is duplicated")
+        attempts.append({
+            "attempt_id": attempt_id,
+            "started_at": now_iso(),
+            "status": "pending",
+            "integration_lock_nonce": lock_token,
+            "lock_unit_id": lock_unit,
+            "argv": command,
+            "summary": args.verification_summary,
+            "canonical_snapshot": before,
+            "verification_log": verification_log,
+        })
+        event(doc, "run-verification-started", None, {"attempt_id": attempt_id})
+
+
+def _record_run_verification_receipt(args, attempt_id: str, lock_token: str, receipt: dict) -> None:
+    with locked_manifest(args.run_id, write=True) as doc:
+        attempts = plan_wide_verification_attempts(doc)
+        matches = [attempt for attempt in attempts if attempt.get("attempt_id") == attempt_id]
+        if len(matches) != 1:
+            raise TrustFailure("plan-wide verification attempt identity is missing or duplicated")
+        attempt = matches[0]
+        if attempt.get("status") != "pending" or attempt.get("integration_lock_nonce") != lock_token:
+            raise TrustFailure("plan-wide verification attempt state or lock identity changed")
+        validate_lock(doc, attempt["lock_unit_id"], lock_token)
+        doc.setdefault("verifications", []).append(receipt)
+        attempt.update({
+            "status": "receipt-recorded",
+            "completed_at": now_iso(),
+            "evidence_digest": receipt["evidence_digest"],
+        })
+        event(doc, "run-verification-passed" if receipt["verification_exit"] == 0 else "run-verification-failed", None, {
+            "attempt_id": attempt_id,
+            "evidence_digest": receipt["evidence_digest"],
+            "verification_exit": receipt["verification_exit"],
+        })
+        if receipt["verification_exit"] != 0:
+            doc["blockers"].append({
+                "at": now_iso(),
+                "unit_id": None,
+                "reason": "plan-wide verification failed",
+                "evidence_digest": receipt["evidence_digest"],
+            })
+
+
+def _verify_run_locked(
+    args,
+    repo: str,
+    command: list[str],
+    units: dict,
+    attempt_id: str,
+    lock_unit: str,
+    lock_token: str,
+) -> tuple[str, dict]:
     before = semantic_snapshot(repo)
     before_paths = status_paths(repo)
     before_ignored = _ignored_paths(repo)
@@ -382,6 +486,15 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
 
     verification_log, stream = _run_verification_log(args.run_id)
     with stream:
+        _record_run_verification_attempt(
+            args,
+            attempt_id,
+            lock_unit,
+            lock_token,
+            command,
+            before,
+            verification_log,
+        )
         try:
             proc = subprocess.run(
                 command,
@@ -396,6 +509,7 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
         except OSError as exc:
             stream.write(f"verification launch failed: {exc}\n".encode("utf-8", "replace"))
             verification_exit = 127
+    test_fault("verify-run-before-receipt")
 
     after = semantic_snapshot(repo)
     after_paths = status_paths(repo)
@@ -458,6 +572,7 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
 
     log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
     receipt = {
+        "attempt_id": attempt_id,
         "at": now_iso(),
         "argv": command,
         "summary": args.verification_summary,
@@ -470,19 +585,7 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
         "verification_log_retained": verification_exit != 0,
     }
     receipt["evidence_digest"] = digest_bytes(json.dumps(receipt, sort_keys=True, separators=(",", ":")).encode())
-    with locked_manifest(args.run_id, write=True) as doc:
-        doc.setdefault("verifications", []).append(receipt)
-        event(doc, "run-verification-passed" if verification_exit == 0 else "run-verification-failed", None, {
-            "evidence_digest": receipt["evidence_digest"],
-            "verification_exit": verification_exit,
-        })
-        if verification_exit != 0:
-            doc["blockers"].append({
-                "at": now_iso(),
-                "unit_id": None,
-                "reason": "plan-wide verification failed",
-                "evidence_digest": receipt["evidence_digest"],
-            })
+    _record_run_verification_receipt(args, attempt_id, lock_token, receipt)
     if verification_exit != 0:
         raise Operational(
             "BLOCKED",
@@ -521,6 +624,7 @@ def cmd_verify_run(args) -> tuple[str, dict]:
         lock_unit = sorted(units)[-1]
     acquired = cmd_integration_acquire(_args(run_id=args.run_id, unit_id=lock_unit, resume=False))[1]
     token = acquired["lock_token"]
+    attempt_id = secrets.token_hex(16)
     try:
         with locked_manifest(args.run_id) as doc:
             validate_repo(doc)
@@ -528,9 +632,22 @@ def cmd_verify_run(args) -> tuple[str, dict]:
             if not units or any(not _unit_ready_for_run_verification(unit) for unit in units.values()):
                 raise Operational("BLOCKED", "external unit completion evidence changed before plan-wide verification")
             accepted_units = dict(units)
-        result = _verify_run_locked(args, repo, command, accepted_units)
+        result = _verify_run_locked(
+            args,
+            repo,
+            command,
+            accepted_units,
+            attempt_id,
+            lock_unit,
+            token,
+        )
     except Operational as exc:
-        if not exc.detail.get("retain_integration_lock"):
+        with locked_manifest(args.run_id) as doc:
+            lock = doc.get("integration_lock")
+            pending = pending_plan_wide_verification(doc, lock) if isinstance(lock, dict) else None
+        if not exc.detail.get("retain_integration_lock") and not (
+            pending and pending.get("attempt_id") == attempt_id
+        ):
             cmd_integration_release(_args(run_id=args.run_id, unit_id=lock_unit, lock_token=token))
         raise
     test_fault("verify-run-after-receipt")
