@@ -54,6 +54,33 @@ def _remove_owned_new_paths(repo: str, paths: set[str], pre_head: str) -> None:
             shutil.rmtree(target)
 
 
+def _directory_paths(repo: str) -> set[str]:
+    """Snapshot repository directories without traversing Git metadata."""
+    repo = os.path.abspath(repo)
+    directories: set[str] = set()
+
+    def fail(error: OSError) -> None:
+        raise Operational("BLOCKED", f"could not inspect repository directories: {error}")
+
+    for parent, names, _files in os.walk(repo, topdown=True, onerror=fail, followlinks=False):
+        names[:] = [name for name in names if name != ".git"]
+        for name in names:
+            path = os.path.join(parent, name)
+            if not os.path.islink(path):
+                directories.add(os.path.relpath(path, repo))
+    return directories
+
+
+def _new_parent_directories(paths: set[str], before: set[str]) -> set[str]:
+    directories: set[str] = set()
+    for path in paths:
+        parent = os.path.dirname(path)
+        while parent and parent != "." and parent not in before:
+            directories.add(parent)
+            parent = os.path.dirname(parent)
+    return directories
+
+
 def _ignored_paths(repo: str) -> set[str]:
     """Return ignored, untracked files without changing ordinary clean-state rules."""
     raw = git(repo, "ls-files", "--others", "--ignored", "--exclude-standard", "-z", "--")
@@ -178,6 +205,7 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
     before = semantic_snapshot(repo)
     before_paths = status_paths(repo)
     before_ignored = _ignored_paths(repo)
+    before_directories = _directory_paths(repo)
     if not before["status_empty"] or before_paths:
         raise Operational("BLOCKED", "verify-run requires a clean canonical checkout")
     _validate_accepted_run_head(repo, units, before["head"])
@@ -202,7 +230,8 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
     after = semantic_snapshot(repo)
     after_paths = status_paths(repo)
     new_ignored = _ignored_paths(repo) - before_ignored
-    _remove_owned_new_paths(repo, new_ignored, before["head"])
+    ignored_directories = _new_parent_directories(new_ignored, before_directories)
+    _remove_owned_new_paths(repo, new_ignored | ignored_directories, before["head"])
     cleaned_paths = sorted(new_ignored)
     if after != before:
         if after["branch_ref"] != before["branch_ref"] or after["head"] != before["head"]:
@@ -229,7 +258,8 @@ def _verify_run_locked(args, repo: str, command: list[str], units: dict) -> tupl
             )
         cleaned_paths = sorted((after_paths - before_paths) | new_ignored)
         git(repo, "reset", "--hard", before["head"])
-        _remove_owned_new_paths(repo, set(cleaned_paths), before["head"])
+        created_directories = _new_parent_directories(set(cleaned_paths), before_directories)
+        _remove_owned_new_paths(repo, set(cleaned_paths) | created_directories, before["head"])
         restored = semantic_snapshot(repo)
         if restored != before:
             with locked_manifest(args.run_id, write=True) as doc:
@@ -392,6 +422,7 @@ def cmd_integrate(args) -> tuple[str, dict]:
         before = semantic_snapshot(repo)
         before_paths = status_paths(repo)
         before_ignored = _ignored_paths(repo)
+        before_directories = _directory_paths(repo)
 
         verification_log, stream = _verification_log(args.run_id, args.unit_id)
         with stream:
@@ -413,7 +444,8 @@ def cmd_integrate(args) -> tuple[str, dict]:
         after_paths = status_paths(repo)
         new_ignored = _ignored_paths(repo) - before_ignored
         cleaned_paths = sorted((after_paths - before_paths) | new_ignored)
-        _remove_owned_new_paths(repo, new_ignored, before["head"])
+        ignored_directories = _new_parent_directories(new_ignored, before_directories)
+        _remove_owned_new_paths(repo, new_ignored | ignored_directories, before["head"])
         log_digest = hashlib.sha256(Path(verification_log).read_bytes()).hexdigest()
         if verification_exit != 0 or after != before:
             _restore_owned_verification(args.run_id, args.unit_id, token, before, before_paths, after_paths)

@@ -1064,25 +1064,27 @@ describe("ce-work unit workspace controller", () => {
     const integrated = ctl(
       runs, "integrate", "--run-id", "run-ignored-verification", "--unit-id", "U",
       "--commit-message", "feat(test): integrate ignored verification fixture",
-      "--", "python3", "-c", "from pathlib import Path; Path('unit.verification-cache').write_text('unit')",
+      "--", "python3", "-c",
+      "from pathlib import Path; p = Path('unit-build/sub/unit.verification-cache'); p.parent.mkdir(parents=True); p.write_text('unit')",
     )
     expect(integrated.word).toBe("UNIT_COMMITTED")
-    expect(integrated.body.cleaned_paths).toEqual(["unit.verification-cache"])
-    expect(existsSync(path.join(f.repo, "unit.verification-cache"))).toBe(false)
+    expect(integrated.body.cleaned_paths).toEqual(["unit-build/sub/unit.verification-cache"])
+    expect(existsSync(path.join(f.repo, "unit-build"))).toBe(false)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
 
     const verified = ctl(
       runs, "verify-run", "--run-id", "run-ignored-verification",
       "--verification-summary", "ignored plan artifact cleanup",
-      "--", "python3", "-c", "from pathlib import Path; Path('plan.verification-cache').write_text('plan')",
+      "--", "python3", "-c",
+      "from pathlib import Path; p = Path('plan-build/sub/plan.verification-cache'); p.parent.mkdir(parents=True); p.write_text('plan')",
     )
     expect(verified.word).toBe("RUN_VERIFIED")
-    expect(verified.body.cleaned_paths).toEqual(["plan.verification-cache"])
-    expect(existsSync(path.join(f.repo, "plan.verification-cache"))).toBe(false)
+    expect(verified.body.cleaned_paths).toEqual(["plan-build/sub/plan.verification-cache"])
+    expect(existsSync(path.join(f.repo, "plan-build"))).toBe(false)
     expect(readFileSync(path.join(f.repo, "existing.verification-cache"), "utf8")).toBe("preserve me\n")
     expect(ctl(runs, "status", "--run-id", "run-ignored-verification").body.verifications.at(-1)).toMatchObject({
       verification_exit: 0,
-      cleaned_paths: ["plan.verification-cache"],
+      cleaned_paths: ["plan-build/sub/plan.verification-cache"],
     })
   })
 
