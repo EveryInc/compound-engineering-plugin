@@ -69,6 +69,20 @@ function mark(stateDir: string, args: string[]): void {
   expect(r.status, r.stderr).toBe(0)
 }
 
+function markCurrency(stateDir: string, key: string, disposition: string, fingerprint?: string): void {
+  const args = ["--currency-key", key, "--currency-disposition", disposition]
+  if (fingerprint) args.push("--semantic-conflict-fingerprint", fingerprint)
+  mark(stateDir, args)
+}
+
+function markCurrencyOutcome(stateDir: string, key: string, outcome: string): void {
+  mark(stateDir, ["--currency-key", key, "--currency-outcome", outcome])
+}
+
+function markCurrencyInspection(stateDir: string, key: string, fingerprint: string): void {
+  mark(stateDir, ["--currency-key", key, "--currency-inspected-fingerprint", fingerprint])
+}
+
 function watch(stateDir: string, fetch: string, extra: string[] = []): any {
   const invocationArgs = extra.includes("--invocation-id") ? [] : currentInvocationArgs(stateDir, fetch)
   const r = spawnSync(
@@ -151,6 +165,39 @@ function eyesReactionIdentities(pages: unknown): string[] {
       `import json; from importlib.machinery import SourceFileLoader; ` +
         `m=SourceFileLoader('prs', ${JSON.stringify(SCRIPT)}).load_module(); ` +
         `print(json.dumps(m._eyes_reaction_identities(json.loads(${JSON.stringify(JSON.stringify(pages))}))))`,
+    ],
+    { encoding: "utf8" },
+  )
+  expect(r.status, r.stderr).toBe(0)
+  return JSON.parse(r.stdout.trim())
+}
+
+function probeHostBranchUpdateCapability(response: { status: number; stdout?: unknown }): {
+  capability: boolean | "unknown"
+  call: string[]
+} {
+  const payload = JSON.stringify(response)
+  const r = spawnSync(
+    "python3",
+    [
+      "-c",
+      `import json
+from importlib.machinery import SourceFileLoader
+m=SourceFileLoader('prs', ${JSON.stringify(SCRIPT)}).load_module()
+p=json.loads(${JSON.stringify(payload)})
+calls=[]
+class Result: pass
+def fake(cmd):
+    calls.append(cmd)
+    result=Result()
+    result.returncode=p["status"]
+    result.stderr="probe failed" if result.returncode else ""
+    value=p.get("stdout")
+    result.stdout=value if isinstance(value, str) else json.dumps(value)
+    return result
+m._run=fake
+capability=m.fetch_host_branch_update_capability(7, "o", "r", "ghe.acme.test")
+print(json.dumps({"capability": capability, "call": calls[0]}))`,
     ],
     { encoding: "utf8" },
   )
@@ -251,12 +298,468 @@ const FAILING = {
   threads: [{ thread_id: "T1", last_comment_id: "C1", last_comment_at: "t1" }],
 }
 
+function currencyFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    ...FAILING,
+    mergeable: "MERGEABLE",
+    merge_state_status: "BEHIND",
+    base: {
+      host: "github.com",
+      repository: "o/r",
+      ref: "main",
+      oid: "base-1",
+    },
+    host_branch_update_capability: true,
+    pr_chain: {
+      manager_status: "absent",
+      manager_source: null,
+      relationship_status: "independent",
+      default_branch: "main",
+      parent_prs: [],
+      dependent_prs: [],
+    },
+    ...overrides,
+  }
+}
+
+function quietCurrencyFixture(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return currencyFixture({
+    review_decision: "APPROVED",
+    checks: [{ key: "CI/test", name: "test", status: "COMPLETED", conclusion: "SUCCESS", details_url: "u" }],
+    threads: [],
+    ...overrides,
+  })
+}
+
 describe("ce-babysit-pr pr-snapshot engine", () => {
   let dir: string
   let state: string
   beforeEach(() => {
     dir = mkdtempSync(path.join(tmpdir(), "prsnap-"))
     state = path.join(dir, "state")
+  })
+
+  test("branch currency: complete remote base identity creates one stable normal-base observation", () => {
+    const fetch = fetchFile(dir, "currency-stable.json", currencyFixture())
+    const first = snapshot(state, fetch)
+    const second = snapshot(state, fetch)
+
+    expect(first.branch_currency).toMatchObject({
+      disposition: "open",
+      route: "normal-base",
+      host: "github.com",
+      base_repository: "o/r",
+      base_ref: "main",
+      base_oid: "base-1",
+      head_sha: "s1",
+      status: "BEHIND",
+      host_branch_update_capability: true,
+    })
+    expect(second.branch_currency.key).toBe(first.branch_currency.key)
+    expect(second.branch_currency.disposition).toBe("open")
+    expect(second.mergeability_certain).toBe(true)
+    expect(second.branch_currency_blocker).toEqual({
+      key: second.branch_currency.key,
+      disposition: "open",
+      recovery_state: null,
+    })
+  })
+
+  test("branch currency: an old state file gains safe defaults without consuming the unseen item", () => {
+    const fetch = fetchFile(dir, "currency-migration.json", currencyFixture())
+    snapshot(state, fetch)
+    const statePath = path.join(state, "state.json")
+    const legacy = JSON.parse(readFileSync(statePath, "utf8"))
+    delete legacy.branch_currency_state
+    writeFileSync(statePath, JSON.stringify(legacy))
+
+    const migrated = snapshot(state, fetch)
+    expect(migrated.branch_currency.disposition).toBe("open")
+    const persisted = JSON.parse(readFileSync(statePath, "utf8"))
+    expect(persisted.branch_currency_state.current_key).toBe(migrated.branch_currency.key)
+  })
+
+  test("branch currency: UNKNOWN mergeability re-polls without creating or consuming an item", () => {
+    const uncertain = currencyFixture({
+      mergeable: "UNKNOWN",
+      merge_state_status: "UNKNOWN",
+    })
+    const value = snapshot(state, fetchFile(dir, "currency-unknown.json", uncertain))
+    expect(value.mergeability_certain).toBe(false)
+    expect(value.branch_currency).toBeNull()
+    expect(value.branch_currency_blocker).toBeNull()
+    const persisted = JSON.parse(readFileSync(path.join(state, "state.json"), "utf8"))
+    expect(persisted.branch_currency_state.current_key).toBeNull()
+    expect(persisted.branch_currency_state.items).toEqual({})
+  })
+
+  test("branch currency: wake precedence favors review and failing CI, while passive checks do not delay maintenance", () => {
+    const open = snapshot(state, fetchFile(dir, "currency-wake.json", quietCurrencyFixture({
+      checks: [{ key: "CI/test", name: "test", status: "IN_PROGRESS", conclusion: null, details_url: "u" }],
+      review_in_progress: true,
+    })))
+    expect(open.branch_currency.attention).toBe("claim")
+    expect(wakeReason(open)).toBe("branch-currency")
+    expect(wakeReason({ ...open, counts: { ...open.counts, threads: 1 } })).toBe("actionable")
+    expect(wakeReason({
+      ...open,
+      counts: { ...open.counts, ci: 0 },
+      has_failing_checks: true,
+      checks_terminal: true,
+    })).toBe("blocked-failing")
+  })
+
+  test("branch currency: claim re-entry reconciles, permits one proven-no-mutation retry, and never retries ambiguity", () => {
+    const fetch = fetchFile(dir, "currency-lifecycle.json", quietCurrencyFixture())
+    const first = snapshot(state, fetch)
+    markCurrency(state, first.branch_currency.key, "claimed")
+
+    const sameInvocation = snapshot(state, fetch)
+    expect(sameInvocation.branch_currency).toMatchObject({
+      disposition: "claimed",
+      attention: null,
+      retry_count: 0,
+      mutation_consumed: false,
+    })
+
+    const resumed = snapshot(state, fetch, ["--start-invocation",
+      "--invocation-budget-seconds", ORDINARY_TEST_BUDGET_SECONDS])
+    expect(resumed.branch_currency.attention).toBe("reconcile")
+    expect(wakeReason(resumed)).toBe("branch-currency")
+
+    markCurrencyOutcome(state, resumed.branch_currency.key, "proven-no-mutation")
+    const backingOff = snapshot(state, fetch)
+    expect(backingOff.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: null,
+      retry_count: 1,
+      recovery_state: "retry-authorized",
+    })
+    expect(backingOff.branch_currency.retry_wait_seconds).toBeGreaterThan(0)
+
+    const statePath = path.join(state, "state.json")
+    const afterBackoff = JSON.parse(readFileSync(statePath, "utf8"))
+    afterBackoff.branch_currency_state.items[backingOff.branch_currency.key].retry_not_before = "2000-01-01T00:00:00Z"
+    writeFileSync(statePath, JSON.stringify(afterBackoff))
+    const retry = snapshot(state, fetch)
+    expect(retry.branch_currency.attention).toBe("claim")
+
+    markCurrency(state, retry.branch_currency.key, "claimed")
+    markCurrencyOutcome(state, retry.branch_currency.key, "proven-no-mutation")
+    const exhausted = snapshot(state, fetch)
+    expect(exhausted.branch_currency).toMatchObject({
+      disposition: "needs-human",
+      attention: null,
+      retry_count: 1,
+      recovery_state: "retry-exhausted",
+    })
+
+    const ambiguousState = path.join(dir, "currency-ambiguous")
+    const ambiguous = snapshot(ambiguousState, fetch)
+    markCurrency(ambiguousState, ambiguous.branch_currency.key, "claimed")
+    markCurrencyOutcome(ambiguousState, ambiguous.branch_currency.key, "ambiguous")
+    expect(snapshot(ambiguousState, fetch).branch_currency).toMatchObject({
+      disposition: "claimed",
+      attention: null,
+      recovery_state: "ambiguous",
+      mutation_consumed: false,
+    })
+    const ambiguousResume = snapshot(ambiguousState, fetch, ["--start-invocation",
+      "--invocation-budget-seconds", ORDINARY_TEST_BUDGET_SECONDS])
+    expect(ambiguousResume.branch_currency.attention).toBe("reconcile")
+    markCurrency(ambiguousState, ambiguous.branch_currency.key, "claimed")
+    const persisted = JSON.parse(readFileSync(path.join(ambiguousState, "state.json"), "utf8"))
+    expect(persisted.branch_currency_state.items[ambiguous.branch_currency.key].recovery_state).toBe("ambiguous")
+  })
+
+  test("branch currency: mutation observation consumes the attempt and remains reconciliation-only", () => {
+    const fetch = fetchFile(dir, "currency-consumed.json", quietCurrencyFixture())
+    const observed = snapshot(state, fetch)
+    markCurrency(state, observed.branch_currency.key, "claimed")
+    markCurrencyOutcome(state, observed.branch_currency.key, "mutation-observed")
+    const current = snapshot(state, fetch)
+    expect(current.branch_currency).toMatchObject({
+      disposition: "claimed",
+      attention: null,
+      mutation_consumed: true,
+      recovery_state: "mutation-observed",
+    })
+
+    const invalidRetry = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--currency-key", observed.branch_currency.key,
+      "--currency-outcome", "proven-no-mutation"], { encoding: "utf8" })
+    expect(invalidRetry.status).not.toBe(0)
+
+    const resumed = snapshot(state, fetch, ["--start-invocation",
+      "--invocation-budget-seconds", ORDINARY_TEST_BUDGET_SECONDS])
+    expect(resumed.branch_currency.attention).toBe("reconcile")
+  })
+
+  test("branch currency: standing confirmed and needs-human residuals stay quiet, and max-runtime outranks new work", () => {
+    const fetch = fetchFile(dir, "currency-standing.json", quietCurrencyFixture())
+    for (const disposition of ["confirmed", "needs-human"]) {
+      const residualState = path.join(dir, `currency-standing-${disposition}`)
+      const observed = snapshot(residualState, fetch, EXPIRING_TEST_INVOCATION)
+      markCurrency(residualState, observed.branch_currency.key, "claimed")
+      markCurrency(residualState, observed.branch_currency.key, disposition,
+        disposition === "needs-human" ? "semantic-v1" : undefined)
+      expect(watch(residualState, fetch).reason).toBe("max-runtime")
+    }
+
+    const budgetState = path.join(dir, "currency-budget")
+    snapshot(budgetState, fetch)
+    const statePath = path.join(budgetState, "state.json")
+    const expired = JSON.parse(readFileSync(statePath, "utf8"))
+    expired.started_at = "2000-01-01T00:00:00Z"
+    expired.invocation_budget_seconds = 1
+    writeFileSync(statePath, JSON.stringify(expired))
+    expect(watch(budgetState, fetch).reason).toBe("max-runtime")
+  }, 10000)
+
+  test("branch currency: a carried semantic park wakes only for inspection and unchanged evidence stays parked", () => {
+    const dirty = quietCurrencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
+    const original = snapshot(state, fetchFile(dir, "currency-inspect-1.json", dirty))
+    markCurrency(state, original.branch_currency.key, "claimed")
+    markCurrency(state, original.branch_currency.key, "needs-human", "conflict-v1")
+
+    const moved = snapshot(state, fetchFile(dir, "currency-inspect-2.json", quietCurrencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+    })))
+    expect(moved.branch_currency.attention).toBe("inspect")
+    expect(wakeReason(moved)).toBe("branch-currency")
+
+    const prematureClaim = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      ...persistedInvocationArgs(state), "--currency-key", moved.branch_currency.key,
+      "--currency-disposition", "claimed"], { encoding: "utf8" })
+    expect(prematureClaim.status).not.toBe(0)
+
+    markCurrencyInspection(state, moved.branch_currency.key, "conflict-v1")
+    expect(snapshot(state, fetchFile(dir, "currency-inspect-same.json", quietCurrencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+    }))).branch_currency).toMatchObject({
+      disposition: "needs-human",
+      attention: null,
+      recovery_state: "semantic-unchanged",
+    })
+
+    const changed = snapshot(state, fetchFile(dir, "currency-inspect-3.json", quietCurrencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-3" },
+    })))
+    expect(changed.branch_currency.attention).toBe("inspect")
+    markCurrencyInspection(state, changed.branch_currency.key, "conflict-v2")
+    expect(snapshot(state, fetchFile(dir, "currency-inspect-changed.json", quietCurrencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-3" },
+    }))).branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "claim",
+      inspection_result: "changed",
+    })
+    const persisted = JSON.parse(readFileSync(path.join(state, "state.json"), "utf8"))
+    expect(persisted.branch_currency_state.semantic_parks).toEqual({})
+
+    const nextBase = snapshot(state, fetchFile(dir, "currency-inspect-4.json", quietCurrencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-4" },
+    })))
+    expect(nextBase.branch_currency).toMatchObject({
+      disposition: "open",
+      attention: "claim",
+      parked_semantic_fingerprints: [],
+    })
+  })
+
+  test("branch currency: base movement rekeys, head movement invalidates, and same-key marks persist", () => {
+    const first = snapshot(state, fetchFile(dir, "currency-key-1.json", currencyFixture()))
+    markCurrency(state, first.branch_currency.key, "claimed")
+    expect(snapshot(state, fetchFile(dir, "currency-key-1b.json", currencyFixture())).branch_currency.disposition).toBe("claimed")
+
+    const movedBase = snapshot(state, fetchFile(dir, "currency-key-2.json", currencyFixture({
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+    })))
+    expect(movedBase.branch_currency.key).not.toBe(first.branch_currency.key)
+    expect(movedBase.branch_currency.disposition).toBe("open")
+    markCurrency(state, movedBase.branch_currency.key, "claimed")
+    markCurrency(state, movedBase.branch_currency.key, "confirmed")
+    expect(snapshot(state, fetchFile(dir, "currency-key-2b.json", currencyFixture({
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+    }))).branch_currency.disposition).toBe("confirmed")
+
+    const movedHead = snapshot(state, fetchFile(dir, "currency-key-3.json", currencyFixture({
+      head_sha: "s2",
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+    })))
+    expect(movedHead.branch_currency.key).not.toBe(movedBase.branch_currency.key)
+    expect(movedHead.branch_currency.disposition).toBe("open")
+    const persisted = JSON.parse(readFileSync(path.join(state, "state.json"), "utf8"))
+    expect(Object.keys(persisted.branch_currency_state.items)).toEqual([movedHead.branch_currency.key])
+  })
+
+  test("branch currency: invocation-fenced transitions preserve an unchanged semantic park", () => {
+    const observed = snapshot(state, fetchFile(dir, "currency-park.json", currencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+    })))
+    markCurrency(state, observed.branch_currency.key, "claimed")
+    markCurrency(state, observed.branch_currency.key, "needs-human", "conflict-v1")
+    const parked = snapshot(state, fetchFile(dir, "currency-park-again.json", currencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+    })))
+    expect(parked.branch_currency).toMatchObject({
+      key: observed.branch_currency.key,
+      disposition: "needs-human",
+      semantic_conflict_fingerprint: "conflict-v1",
+    })
+
+    const stale = spawnSync("python3", [SCRIPT, "mark", "--state-dir", state,
+      "--invocation-id", "stale", "--session-started-at", parked.invocation_started_at,
+      "--invocation-budget-seconds", String(parked.invocation_budget_seconds),
+      "--currency-key", observed.branch_currency.key, "--currency-disposition", "open"],
+    { encoding: "utf8" })
+    expect(stale.status).not.toBe(0)
+    const stillParked = snapshot(state, fetchFile(dir, "currency-park-still.json", currencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+    })))
+    expect(stillParked.branch_currency.disposition).toBe("needs-human")
+    markCurrency(state, stillParked.branch_currency.key, "open")
+    expect(snapshot(state, fetchFile(dir, "currency-park-reopened.json", currencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+    }))).branch_currency.disposition).toBe("open")
+  })
+
+  test("branch currency: base-only movement retains the semantic park for later inspection", () => {
+    const dirty = currencyFixture({ mergeable: "CONFLICTING", merge_state_status: "DIRTY" })
+    const parkedObservation = snapshot(state, fetchFile(dir, "currency-park-base-1.json", dirty))
+    markCurrency(state, parkedObservation.branch_currency.key, "claimed")
+    markCurrency(state, parkedObservation.branch_currency.key, "needs-human", "conflict-v1")
+
+    const moved = snapshot(state, fetchFile(dir, "currency-park-base-2.json", currencyFixture({
+      mergeable: "CONFLICTING",
+      merge_state_status: "DIRTY",
+      base: { host: "github.com", repository: "o/r", ref: "main", oid: "base-2" },
+    })))
+    expect(moved.branch_currency.key).not.toBe(parkedObservation.branch_currency.key)
+    expect(moved.branch_currency.disposition).toBe("open")
+    expect(moved.branch_currency.parked_semantic_fingerprints).toEqual(["conflict-v1"])
+
+    const persisted = JSON.parse(readFileSync(path.join(state, "state.json"), "utf8"))
+    expect(persisted.branch_currency_state.semantic_parks["conflict-v1"]).toMatchObject({
+      head_sha: "s1",
+      status: "DIRTY",
+      route: "normal-base",
+      observation_key: parkedObservation.branch_currency.key,
+    })
+    expect(persisted.branch_currency_state.semantic_parks["conflict-v1"]).not.toHaveProperty("base_oid")
+    expect(persisted.branch_currency_state.items[parkedObservation.branch_currency.key].disposition).toBe("needs-human")
+  })
+
+  test("branch currency: dependents do not block a normal-base root, but managed, open-parent, and uncertain routes do", () => {
+    const dependentRoot = snapshot(path.join(dir, "currency-dependent-root"), fetchFile(dir, "currency-dependent-root.json", currencyFixture({
+      pr_chain: {
+        manager_status: "absent",
+        relationship_status: "dependent",
+        default_branch: "main",
+        parent_prs: [],
+        dependent_prs: [{ number: 2, state: "OPEN", baseRefName: "feature", headRefName: "child" }],
+      },
+    })))
+    expect(dependentRoot.branch_currency.route).toBe("normal-base")
+
+    const exclusions = [
+      { manager_status: "confirmed", relationship_status: "independent", default_branch: "main", parent_prs: [], dependent_prs: [] },
+      { manager_status: "absent", relationship_status: "dependent", default_branch: "main", parent_prs: [{ number: 3, state: "OPEN" }], dependent_prs: [] },
+      { manager_status: "probe-error", relationship_status: "independent", default_branch: "main", parent_prs: [], dependent_prs: [] },
+      { manager_status: "absent", relationship_status: "probe-error", default_branch: "main", parent_prs: [], dependent_prs: [] },
+      { manager_status: "absent", relationship_status: "independent", default_branch: null, parent_prs: [], dependent_prs: [] },
+    ]
+    for (const [index, prChain] of exclusions.entries()) {
+      const value = snapshot(path.join(dir, `currency-excluded-${index}`), fetchFile(dir, `currency-excluded-${index}.json`, currencyFixture({ pr_chain: prChain })))
+      expect(value.branch_currency).toBeNull()
+    }
+  })
+
+  test("host branch-update capability reads the operation-specific true, false, and unknown outcomes", () => {
+    const positive = probeHostBranchUpdateCapability({
+      status: 0,
+      stdout: { data: { repository: { pullRequest: { viewerCanUpdateBranch: true } } } },
+    })
+    expect(positive.capability).toBe(true)
+    expect(positive.call.join(" ")).toContain("viewerCanUpdateBranch")
+    expect(positive.call).toContain("--hostname")
+    expect(positive.call).toContain("ghe.acme.test")
+
+    expect(probeHostBranchUpdateCapability({
+      status: 0,
+      stdout: { data: { repository: { pullRequest: { viewerCanUpdateBranch: false } } } },
+    }).capability).toBe(false)
+    expect(probeHostBranchUpdateCapability({ status: 1 }).capability).toBe("unknown")
+    expect(probeHostBranchUpdateCapability({
+      status: 0,
+      stdout: { data: { repository: { pullRequest: {} } } },
+    }).capability).toBe("unknown")
+  })
+
+  test("live fetch requests base identity and probes host update capability only for eligible BEHIND", () => {
+    const python = `
+import json
+from importlib.machinery import SourceFileLoader
+m = SourceFileLoader("prs", ${JSON.stringify(SCRIPT)}).load_module()
+calls = []
+capability_calls = []
+merge_state_status = "BEHIND"
+class Result: pass
+def checked(cmd, label):
+    calls.append(cmd)
+    result = Result()
+    result.returncode = 0
+    result.stderr = ""
+    result.stdout = json.dumps({
+        "state": "OPEN", "mergeable": "MERGEABLE", "mergeStateStatus": merge_state_status,
+        "reviewDecision": "APPROVED", "headRefOid": "head-1", "baseRefOid": "base-1",
+        "baseRefName": "main", "headRefName": "feature", "number": 7,
+        "url": "https://ghe.acme.test/o/r/pull/7", "statusCheckRollup": [],
+        "author": {"login": "author"}, "comments": [], "reviews": []})
+    return result
+m._run_checked = checked
+m.fetch_eyes_reactors = lambda *args: []
+m.fetch_threads = lambda *args: []
+m.fetch_awaiting_approval = lambda *args: 0
+m.fetch_pr_chain = lambda *args: {"manager_status": "absent", "relationship_status": "independent",
+                                  "default_branch": "main", "parent_prs": [], "dependent_prs": []}
+def capability(*args):
+    capability_calls.append(args)
+    return True
+m.fetch_host_branch_update_capability = capability
+behind = m.fetch(7, "ghe.acme.test/o/r")
+merge_state_status = "CLEAN"
+clean = m.fetch(7, "ghe.acme.test/o/r")
+print(json.dumps({"behind": behind, "clean": clean, "view": calls[0],
+                  "capability_calls": len(capability_calls)}))
+`
+    const r = spawnSync("python3", ["-c", python], { encoding: "utf8" })
+    expect(r.status, r.stderr).toBe(0)
+    const result = JSON.parse(r.stdout)
+    expect(result.view.join(" ")).toContain("baseRefOid")
+    expect(result.behind.base).toEqual({
+      host: "ghe.acme.test",
+      repository: "o/r",
+      ref: "main",
+      oid: "base-1",
+    })
+    expect(result.behind.host_branch_update_capability).toBe(true)
+    expect(result.clean.host_branch_update_capability).toBe("unknown")
+    expect(result.capability_calls).toBe(1)
   })
 
   test("first snapshot: thread + failing check are actionable; checks terminal", () => {
