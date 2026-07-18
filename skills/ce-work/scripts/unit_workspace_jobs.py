@@ -247,7 +247,13 @@ def read_result_json(path: str) -> tuple[dict, bytes]:
     return value, raw
 
 
-def terminal_receipt(unit: dict, attempt: dict, *, unavailable: bool = False) -> dict:
+def terminal_receipt(
+    unit: dict,
+    attempt: dict,
+    *,
+    unavailable: bool = False,
+    launched_failure: bool = False,
+) -> dict:
     result_dir = os.path.join(os.path.dirname(unit["workspace"]["path"]), "result")
     result_path = os.path.join(result_dir, "implementation-result.json")
     receipt, result_bytes = read_result_json(result_path)
@@ -264,7 +270,7 @@ def terminal_receipt(unit: dict, attempt: dict, *, unavailable: bool = False) ->
         "restriction_posture": authorization["restriction_posture"],
         "packet_digest": unit["packet_digest"],
     }
-    if unavailable:
+    if unavailable or launched_failure:
         expected["activity_posture"] = authorization["activity_posture"]
     mismatches = {key: {"expected": value, "actual": receipt.get(key)} for key, value in expected.items() if receipt.get(key) != value}
     if mismatches:
@@ -287,6 +293,31 @@ def terminal_receipt(unit: dict, attempt: dict, *, unavailable: bool = False) ->
             raise Operational(
                 "BLOCKED",
                 "failed runner did not publish a bounded neutral unavailable receipt",
+                {"mismatches": invalid},
+            )
+    elif launched_failure:
+        neutral = {
+            "schema_version": 1,
+            "terminal_status": "failed",
+            "changed_files": [],
+            "evidence": [],
+            "scope_expansion": None,
+        }
+        invalid = {key: {"expected": value, "actual": receipt.get(key)} for key, value in neutral.items() if receipt.get(key) != value}
+        failure_reason = receipt.get("failure_reason")
+        summary = receipt.get("summary")
+        if (
+            invalid
+            or not isinstance(failure_reason, str)
+            or not failure_reason
+            or len(failure_reason.encode()) > 4096
+            or not isinstance(summary, str)
+            or not summary
+            or len(summary.encode()) > 4096
+        ):
+            raise Operational(
+                "BLOCKED",
+                "failed runner did not publish a bounded neutral launched-route receipt",
                 {"mismatches": invalid},
             )
     else:
@@ -322,13 +353,19 @@ def terminal_receipt(unit: dict, attempt: dict, *, unavailable: bool = False) ->
     }
 
 
-def unavailable_terminal_receipt(run_id: str, unit: dict, attempt: dict) -> dict:
+def _authorized_failed_terminal_receipt(
+    run_id: str,
+    unit: dict,
+    attempt: dict,
+    *,
+    unavailable: bool,
+) -> dict:
     job_id = attempt.get("job_id")
     if not isinstance(job_id, str):
-        raise Operational("BLOCKED", "unavailable receipt has no bound runner job")
+        raise Operational("BLOCKED", "failed receipt has no bound runner job")
     job_dir = runner_job_dir(run_id, job_id)
     if process_evidence(job_dir)["process_state"] != "failed":
-        raise Operational("BLOCKED", "unavailable receipt requires authoritative failed runner evidence")
+        raise Operational("BLOCKED", "failed receipt requires authoritative failed runner evidence")
     meta = read_private_json(os.path.join(job_dir, "meta.json"))
     if meta.get("job_id") != job_id:
         raise Operational("BLOCKED", "runner job metadata identity mismatch")
@@ -345,8 +382,21 @@ def unavailable_terminal_receipt(run_id: str, unit: dict, attempt: dict) -> dict
         "result_dir": expected_result_dir,
     }
     if attempt.get("dispatch_authorization_receipt") != expected_dispatch:
-        raise Operational("BLOCKED", "unavailable receipt is not bound to the exact authorized dispatch")
-    return terminal_receipt(unit, attempt, unavailable=True)
+        raise Operational("BLOCKED", "failed receipt is not bound to the exact authorized dispatch")
+    return terminal_receipt(
+        unit,
+        attempt,
+        unavailable=unavailable,
+        launched_failure=not unavailable,
+    )
+
+
+def unavailable_terminal_receipt(run_id: str, unit: dict, attempt: dict) -> dict:
+    return _authorized_failed_terminal_receipt(run_id, unit, attempt, unavailable=True)
+
+
+def launched_failure_terminal_receipt(run_id: str, unit: dict, attempt: dict) -> dict:
+    return _authorized_failed_terminal_receipt(run_id, unit, attempt, unavailable=False)
 
 
 def record_terminal_validation_failure(run_id: str, unit_id: str, error: Operational) -> None:
@@ -624,14 +674,16 @@ def sync_job(run_id: str, unit_id: str) -> dict:
         if not attempt.get("job_id"):
             return {"process_state": "never-started", "activity": attempt["activity"]}
         evidence = process_evidence(runner_job_dir(run_id, attempt["job_id"]))
-        unavailable_receipt = None
+        failure_receipt = None
         if evidence["process_state"] == "failed":
-            try:
-                unavailable_receipt = unavailable_terminal_receipt(run_id, unit, attempt)
-            except TrustFailure:
-                raise
-            except Operational:
-                pass
+            for reader in (unavailable_terminal_receipt, launched_failure_terminal_receipt):
+                try:
+                    failure_receipt = reader(run_id, unit, attempt)
+                    break
+                except TrustFailure:
+                    raise
+                except Operational:
+                    continue
     with locked_manifest(run_id, write=True) as doc:
         attempt = find_attempt(doc["units"][unit_id])
         prior_state = attempt.get("process_state")
@@ -640,8 +692,8 @@ def sync_job(run_id: str, unit_id: str) -> dict:
         prior_receipt = attempt.get("terminal_receipt")
         attempt["process_state"] = evidence["process_state"]
         attempt["activity"].update(evidence["activity"])
-        if unavailable_receipt is not None:
-            attempt["terminal_receipt"] = unavailable_receipt
+        if failure_receipt is not None:
+            attempt["terminal_receipt"] = failure_receipt
         authoritative_failure = evidence["process_state"] in TERMINAL_PROCESS - {"done"} or (
             evidence["process_state"] == "never-started" and bool(attempt.get("job_id"))
         )
@@ -650,8 +702,8 @@ def sync_job(run_id: str, unit_id: str) -> dict:
             fallback.setdefault("claimed", None)
             fallback["eligible"] = fallback.get("claimed") is None
             fallback["reason"] = (
-                unavailable_receipt["failure_reason"]
-                if unavailable_receipt is not None
+                failure_receipt["failure_reason"]
+                if failure_receipt is not None
                 else evidence["process_state"]
             )
         changed = (
@@ -664,8 +716,9 @@ def sync_job(run_id: str, unit_id: str) -> dict:
             event(doc, "job-synced", unit_id, {"process_state": evidence["process_state"]})
             if prior_state != evidence["process_state"] and evidence["process_state"] in TERMINAL_PROCESS:
                 event(doc, "job-terminal", unit_id, {"process_state": evidence["process_state"]})
-            if unavailable_receipt is not None and prior_receipt != unavailable_receipt:
-                event(doc, "route-unavailable", unit_id, {"failure_reason": unavailable_receipt["failure_reason"]})
+            if failure_receipt is not None and prior_receipt != failure_receipt:
+                receipt_event = "route-unavailable" if failure_receipt["terminal_status"] == "unavailable" else "route-failed"
+                event(doc, receipt_event, unit_id, {"failure_reason": failure_receipt["failure_reason"]})
         activity = dict(attempt["activity"])
     return {"process_state": evidence["process_state"], "activity": activity}
 

@@ -486,10 +486,15 @@ def fallback_basis(doc: dict, unit: dict) -> tuple[str, dict]:
         if snap["head"] not in allowed_heads or not snap["status_empty"] or snap["index_tree"] != snap["head_tree"]:
             raise Operational("BLOCKED", "canonical checkout diverged or is dirty; native fallback is not safe")
         recorded = attempt.get("terminal_receipt")
-        if process_state == "failed" and isinstance(recorded, dict) and recorded.get("terminal_status") == "unavailable":
-            observed = unavailable_terminal_receipt(doc["run_id"], unit, attempt)
+        if process_state == "failed" and isinstance(recorded, dict) and recorded.get("terminal_status") in {"unavailable", "failed"}:
+            reader = (
+                unavailable_terminal_receipt
+                if recorded["terminal_status"] == "unavailable"
+                else launched_failure_terminal_receipt
+            )
+            observed = reader(doc["run_id"], unit, attempt)
             if observed != recorded:
-                raise Operational("BLOCKED", "recorded unavailable receipt evidence changed")
+                raise Operational("BLOCKED", "recorded failed receipt evidence changed")
             return observed["failure_reason"], attempt
         return str(process_state), attempt
     restore_evidence = unit.get("integration", {}).get("restore")

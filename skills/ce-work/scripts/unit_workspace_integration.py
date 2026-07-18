@@ -221,9 +221,7 @@ def validate_dependencies_ready(doc: dict, unit: dict) -> None:
         if dependency is None:
             missing.append(dependency_id)
             continue
-        canonical = dependency.get("integration", {}).get("canonical_commit")
-        commit = canonical.get("commit") if isinstance(canonical, dict) else None
-        if not isinstance(commit, str) or not re.fullmatch(r"(?:[0-9a-f]{40}|[0-9a-f]{64})", commit):
+        if unit_accepted_commit(dependency) is None:
             unaccepted.append(dependency_id)
     if missing or unaccepted:
         raise Operational(

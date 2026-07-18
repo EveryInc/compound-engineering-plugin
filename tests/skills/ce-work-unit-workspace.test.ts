@@ -2366,6 +2366,113 @@ describe("ce-work unit workspace controller", () => {
     ).body.unit.attempts[0].fallback.claimed).toBeNull()
   })
 
+  test("accepts a native-completed dependency before a later fallback claim", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-native-dependency", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-native-dependency", "--unit-id", "U1",
+      "--base", f.base, "--packet", packetFile("native dependency packet"),
+    )
+    const dependencyJob = fakeRunningJob(
+      runs, "run-native-dependency", "U1", "native dependency packet", "job-native-dependency",
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-native-dependency", "--unit-id", "U1",
+      "--attempt-id", "attempt-1", "--job-id", dependencyJob,
+    )
+    terminalizeFakeJob(runs, "run-native-dependency", dependencyJob, "failed")
+    ctl(runs, "resume", "--run-id", "run-native-dependency")
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", "run-native-dependency", "--unit-id", "U1",
+      "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+    writeFileSync(path.join(f.repo, "native-dependency.txt"), "accepted native dependency\n")
+    git(f.repo, "add", "native-dependency.txt")
+    git(f.repo, "commit", "-m", "native dependency")
+    const nativeHead = git(f.repo, "rev-parse", "HEAD")
+    expect(ctl(
+      runs, "complete-fallback", "--run-id", "run-native-dependency", "--unit-id", "U1",
+      "--accepted-head", nativeHead, "--evidence-digest", "b".repeat(64),
+      "--summary", "native dependency checks passed",
+    ).word).toBe("FALLBACK_COMPLETED")
+
+    ctl(
+      runs, "prepare", "--run-id", "run-native-dependency", "--unit-id", "U2",
+      "--base", nativeHead, "--packet", packetFile("dependent packet"), "--dependency", "U1",
+    )
+    const dependentJob = fakeRunningJob(
+      runs, "run-native-dependency", "U2", "dependent packet", "job-native-dependent",
+    )
+    ctl(
+      runs, "record-job", "--run-id", "run-native-dependency", "--unit-id", "U2",
+      "--attempt-id", "attempt-1", "--job-id", dependentJob,
+    )
+    terminalizeFakeJob(runs, "run-native-dependency", dependentJob, "failed")
+    ctl(runs, "resume", "--run-id", "run-native-dependency")
+    expect(ctl(
+      runs, "claim-fallback", "--run-id", "run-native-dependency", "--unit-id", "U2",
+      "--caller-mode", "headless",
+    ).word).toBe("FALLBACK_AUTHORIZED")
+  })
+
+  test("preserves a launched-route failure reason for fallback disclosure", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-launched-failure", f)
+    const prepared = ctl(
+      runs, "prepare", "--run-id", "run-launched-failure", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("launched failure packet"),
+    ).body
+    const job = fakeDoneJob(
+      runs, "run-launched-failure", "U", "launched failure packet", "job-launched-failure",
+    )
+    const jobDir = path.join(runs, "run-launched-failure", "jobs", job)
+    writeFileSync(path.join(jobDir, "status"), "failed\n", { mode: 0o600 })
+    writeFileSync(path.join(jobDir, "reason"), "worker exited 1\n", { mode: 0o600 })
+    const resultPath = path.join(
+      runs, "run-launched-failure", "units", "U", "result", "implementation-result.json",
+    )
+    const result = JSON.parse(readFileSync(resultPath, "utf8"))
+    result.terminal_status = "failed"
+    result.summary = "Adapter terminal output failed result schema"
+    result.changed_files = []
+    result.evidence = []
+    result.scope_expansion = null
+    result.failure_reason = "terminal output failed implementation result schema"
+    result.activity_posture = JSON.parse(readFileSync(prepared.authorization_path, "utf8")).activity_posture
+    writeFileSync(resultPath, `${JSON.stringify(result)}\n`, { mode: 0o600 })
+    expect(authorizeDispatch(
+      runs, "run-launched-failure", "U", prepared, { jobId: job },
+    ).word).toBe("AUTHORIZED")
+    ctl(
+      runs, "record-job", "--run-id", "run-launched-failure", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+
+    expect(ctl(
+      runs, "sync-job", "--run-id", "run-launched-failure", "--unit-id", "U",
+    ).word).toBe("SYNCED")
+    const attempt = ctl(
+      runs, "status", "--run-id", "run-launched-failure", "--unit-id", "U",
+    ).body.unit.attempts[0]
+    expect(attempt.terminal_receipt).toMatchObject({
+      terminal_status: "failed",
+      failure_reason: "terminal output failed implementation result schema",
+    })
+    expect(attempt.fallback).toMatchObject({
+      eligible: true,
+      reason: "terminal output failed implementation result schema",
+      claimed: null,
+    })
+    const fallback = ctl(
+      runs, "claim-fallback", "--run-id", "run-launched-failure", "--unit-id", "U",
+      "--caller-mode", "headless",
+    )
+    expect(fallback.word).toBe("FALLBACK_AUTHORIZED")
+    expect(fallback.body.reason).toBe("terminal output failed implementation result schema")
+  })
+
   test("adopts a metadata-only never-started job and authorizes fallback exactly once", () => {
     const f = makeRepo()
     const runs = path.join(tmp("ce-work-runs-"), "ce-work")
