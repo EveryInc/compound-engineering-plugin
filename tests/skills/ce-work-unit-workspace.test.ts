@@ -252,6 +252,7 @@ function fakeDoneJob(
   packetContent: string,
   id = "job-1",
   terminalStatus: "completed" | "blocked" | "scope_expansion" = "completed",
+  changedFiles: string[] = [],
 ) {
   const dir = path.join(runsRoot, runId, "jobs", id)
   mkdirSync(dir, { recursive: true, mode: 0o700 })
@@ -286,7 +287,7 @@ function fakeDoneJob(
     schema_version: 1,
     terminal_status: terminalStatus,
     summary: "done",
-    changed_files: [],
+    changed_files: changedFiles,
     evidence: ["fake"],
     scope_expansion: terminalStatus === "scope_expansion"
       ? { requested_paths: ["shared.ts"], reason: "required by unit" }
@@ -992,7 +993,15 @@ describe("ce-work unit workspace controller", () => {
     const workspace = path.join(runs, "run-ignored-worker", "units", "U", "workspace")
     mkdirSync(path.join(workspace, "ignored-output"))
     writeFileSync(path.join(workspace, "ignored-output", "fixture.txt"), "required fixture\n")
-    const job = fakeDoneJob(runs, "run-ignored-worker", "U", "ignored worker packet", "job-ignored-worker")
+    const job = fakeDoneJob(
+      runs,
+      "run-ignored-worker",
+      "U",
+      "ignored worker packet",
+      "job-ignored-worker",
+      "completed",
+      ["ignored-output/fixture.txt"],
+    )
     expect(ctl(
       runs, "record-job", "--run-id", "run-ignored-worker", "--unit-id", "U",
       "--attempt-id", "attempt-1", "--job-id", job,
@@ -1006,6 +1015,42 @@ describe("ce-work unit workspace controller", () => {
     expect(status.state).toBe("authored")
     expect(status.transport.commit).toBeNull()
     expect(existsSync(path.join(workspace, "ignored-output", "fixture.txt"))).toBe(true)
+  })
+
+  test("allows incidental ignored worker side effects outside reported outputs", () => {
+    const f = makeRepo()
+    writeFileSync(path.join(f.repo, ".gitignore"), "cache/\n")
+    git(f.repo, "add", ".gitignore")
+    git(f.repo, "commit", "-m", "ignore cache")
+    f.base = git(f.repo, "rev-parse", "HEAD")
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    expect(init(runs, "run-ignored-cache", f).word).toBe("READY")
+    expect(ctl(
+      runs, "prepare", "--run-id", "run-ignored-cache", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("ignored cache packet"),
+    ).word).toBe("PREPARED")
+    const workspace = path.join(runs, "run-ignored-cache", "units", "U", "workspace")
+    writeFileSync(path.join(workspace, "result.txt"), "shippable\n")
+    mkdirSync(path.join(workspace, "cache"))
+    writeFileSync(path.join(workspace, "cache", "tool.bin"), "incidental\n")
+    const job = fakeDoneJob(
+      runs,
+      "run-ignored-cache",
+      "U",
+      "ignored cache packet",
+      "job-ignored-cache",
+      "completed",
+      ["result.txt"],
+    )
+    expect(ctl(
+      runs, "record-job", "--run-id", "run-ignored-cache", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    ).word).toBe("AUTHORING")
+
+    const terminal = ctl(runs, "terminalize", "--run-id", "run-ignored-cache", "--unit-id", "U")
+    expect(terminal.word).toBe("INTEGRATION_PENDING")
+    expect(terminal.body.transport.changed_paths).toEqual(["result.txt"])
+    expect(existsSync(path.join(workspace, "cache", "tool.bin"))).toBe(true)
   })
 
   test("retains scope-expansion evidence but refuses ordinary fold-in", () => {

@@ -233,6 +233,7 @@ HOST_RECEIPT_FIELDS = (
     "restriction_posture", "failure_reason", "raw_log", "packet_digest",
 )
 MAX_RESULT_BYTES = 5 * 1024 * 1024
+MAX_REPORTED_CHANGED_FILES = 1000
 
 
 def read_result_json(path: str) -> tuple[dict, bytes]:
@@ -293,6 +294,13 @@ def terminal_receipt(unit: dict, attempt: dict, *, unavailable: bool = False) ->
             raise Operational("BLOCKED", "successful runner did not publish a host-resolvable adapter result")
         if terminal_status == "scope_expansion" and not isinstance(receipt.get("scope_expansion"), dict):
             raise Operational("BLOCKED", "scope-expansion adapter result has no expansion receipt")
+    changed_files = receipt.get("changed_files")
+    if (
+        not isinstance(changed_files, list)
+        or len(changed_files) > MAX_REPORTED_CHANGED_FILES
+        or any(not isinstance(path, str) or not path for path in changed_files)
+    ):
+        raise Operational("BLOCKED", "adapter terminal receipt has invalid changed-files evidence")
     raw_log = receipt.get("raw_log")
     expected_log = os.path.join(result_dir, "adapter.log")
     if not isinstance(raw_log, str) or os.path.realpath(raw_log) != os.path.realpath(expected_log):
@@ -304,7 +312,8 @@ def terminal_receipt(unit: dict, attempt: dict, *, unavailable: bool = False) ->
     return {key: receipt.get(key) for key in HOST_RECEIPT_FIELDS} | {
         "terminal_status": receipt["terminal_status"],
         "summary": str(receipt.get("summary", ""))[:4096],
-        "changed_file_count": len(receipt.get("changed_files", [])),
+        "changed_files": changed_files,
+        "changed_file_count": len(changed_files),
         "evidence_count": len(receipt.get("evidence", [])),
         "scope_expansion_requested": receipt.get("scope_expansion") is not None,
         "result_sha256": digest_bytes(result_bytes),
@@ -758,13 +767,23 @@ def terminalize(run_id: str, unit_id: str) -> dict:
         for part in ignored_raw.split(b"\0")
         if part
     ]
-    if ignored_paths:
-        preview = json.dumps(ignored_paths[:20], ensure_ascii=True)
-        suffix = f" and {len(ignored_paths) - 20} more" if len(ignored_paths) > 20 else ""
+    reported_paths = []
+    for path in receipt["changed_files"]:
+        candidate = os.path.relpath(path, workspace) if os.path.isabs(path) else os.path.normpath(path)
+        if candidate not in {"", ".", ".."} and not candidate.startswith(f"..{os.sep}"):
+            reported_paths.append(candidate.rstrip(os.sep))
+    ignored_outputs = [
+        path
+        for path in ignored_paths
+        if any(path == reported or path.startswith(f"{reported}{os.sep}") for reported in reported_paths)
+    ]
+    if ignored_outputs:
+        preview = json.dumps(ignored_outputs[:20], ensure_ascii=True)
+        suffix = f" and {len(ignored_outputs) - 20} more" if len(ignored_outputs) > 20 else ""
         raise Operational(
             "BLOCKED",
             f"worker workspace contains ignored untracked output that cannot enter the transport: {preview}{suffix}",
-            {"ignored_paths": ignored_paths[:100], "ignored_path_count": len(ignored_paths)},
+            {"ignored_paths": ignored_outputs[:100], "ignored_path_count": len(ignored_outputs)},
         )
     git(workspace, "add", "-A", "--", ".")
     index = git(workspace, "ls-files", "--stage", "-z")
