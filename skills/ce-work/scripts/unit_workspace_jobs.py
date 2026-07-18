@@ -251,7 +251,7 @@ def terminal_receipt(unit: dict, attempt: dict) -> dict:
     if mismatches:
         raise Operational("BLOCKED", "adapter terminal receipt does not match controller authorization", {"mismatches": mismatches})
     terminal_status = receipt.get("terminal_status")
-    if terminal_status not in {"completed", "scope_expansion"}:
+    if terminal_status not in {"completed", "blocked", "scope_expansion"}:
         raise Operational("BLOCKED", "successful runner did not publish a host-resolvable adapter result")
     if terminal_status == "scope_expansion" and not isinstance(receipt.get("scope_expansion"), dict):
         raise Operational("BLOCKED", "scope-expansion adapter result has no expansion receipt")
@@ -613,6 +613,18 @@ def terminalize(run_id: str, unit_id: str) -> dict:
             find_attempt(unit)["terminal_receipt"] = receipt
             unit["state"] = "authored"
             event(doc, "worker-output-authored", unit_id, {"route": receipt["actual_route"], "model": receipt["model_actual"]})
+    if receipt["terminal_status"] == "blocked":
+        raise Operational(
+            "BLOCKED",
+            "worker returned a host-resolvable blocker",
+            {
+                "unit_id": unit_id,
+                "terminal_status": "blocked",
+                "summary": receipt["summary"],
+                "terminal_receipt": receipt,
+                "recovery_path": os.path.join(run_dir(run_id), "units", unit_id),
+            },
+        )
     with locked_manifest(run_id) as doc:
         unit = doc["units"].get(unit_id)
         if not unit:

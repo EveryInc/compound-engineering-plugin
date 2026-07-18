@@ -535,6 +535,19 @@ describe("ce-work adapter results, identity, and secret handling", () => {
     expect(result.result.scope_expansion.requested_paths).toEqual(["shared.ts"])
   })
 
+  test("blocked output is terminalized for host handling", () => {
+    const f = fixture()
+    const response = '{"terminal_status":"blocked","summary":"needs host input","changed_files":[],"evidence":["dependency unavailable"],"scope_expansion":null}'
+    const bin = fakeBin("claude", f.capture, response)
+    const result = run("claude", f, { ...process.env, PATH: `${bin}:${process.env.PATH}` })
+    expect(result.code).toBe(0)
+    expect(result.result).toMatchObject({
+      terminal_status: "blocked",
+      summary: "needs host input",
+      evidence: ["dependency unavailable"],
+    })
+  })
+
   test.each([
     ["claude-fable-5", "verified"],
     ["claude-fable-5\\u001b[1m", "verified"],

@@ -198,7 +198,7 @@ function fakeDoneJob(
   unitId: string,
   packetContent: string,
   id = "job-1",
-  terminalStatus: "completed" | "scope_expansion" = "completed",
+  terminalStatus: "completed" | "blocked" | "scope_expansion" = "completed",
 ) {
   const dir = path.join(runsRoot, runId, "jobs", id)
   mkdirSync(dir, { recursive: true, mode: 0o700 })
@@ -638,6 +638,50 @@ describe("ce-work unit workspace controller", () => {
     expect(git(f.repo, "status", "--porcelain")).toBe("")
     expect(existsSync(resultPath)).toBe(true)
     expect(git(f.repo, "rev-parse", terminal.body.transport.ref)).toBe(terminal.body.transport.commit)
+  }, 20000)
+
+  test("retains a worker blocker for host resolution without authorizing native fallback", () => {
+    const f = makeRepo()
+    const runs = path.join(tmp("ce-work-runs-"), "ce-work")
+    init(runs, "run-worker-blocked", f)
+    ctl(
+      runs, "prepare", "--run-id", "run-worker-blocked", "--unit-id", "U",
+      "--base", f.base, "--packet", packetFile("packet"),
+    )
+    const job = fakeDoneJob(runs, "run-worker-blocked", "U", "packet", "job-worker-blocked", "blocked")
+    ctl(
+      runs, "record-job", "--run-id", "run-worker-blocked", "--unit-id", "U",
+      "--attempt-id", "attempt-1", "--job-id", job,
+    )
+
+    const terminal = ctl(runs, "terminalize", "--run-id", "run-worker-blocked", "--unit-id", "U")
+    expect(terminal.code).toBe(1)
+    expect(terminal.word).toBe("BLOCKED")
+    expect(terminal.body).toMatchObject({
+      unit_id: "U",
+      terminal_status: "blocked",
+      summary: "done",
+      terminal_receipt: { terminal_status: "blocked", summary: "done" },
+      recovery_path: path.join(runs, "run-worker-blocked", "units", "U"),
+    })
+
+    const unit = ctl(runs, "status", "--run-id", "run-worker-blocked", "--unit-id", "U").body.unit
+    expect(unit).toMatchObject({
+      state: "authored",
+      attempts: [{
+        process_state: "done",
+        terminal_receipt: { terminal_status: "blocked", summary: "done" },
+        fallback: { eligible: false, claimed: null },
+      }],
+    })
+    expect(unit.attempts[0].terminal_validation_failure).toBeUndefined()
+
+    const fallback = ctl(
+      runs, "claim-fallback", "--run-id", "run-worker-blocked", "--unit-id", "U",
+      "--caller-mode", "interactive",
+    )
+    expect(fallback.word).toBe("REFUSED")
+    expect(fallback.stderr).toContain("successful worker output must be reconciled rather than bypassed")
   }, 20000)
 
   test("fold-in is host-owned, lock-serialized, restorable, and cleanup is explicit", () => {
