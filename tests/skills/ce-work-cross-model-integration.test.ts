@@ -202,7 +202,7 @@ printf '%s\n' '{"terminal_status":"scope_expansion","summary":"shared contract n
     ).word).toBe("AUTHORING")
 
     expect(run(repo, [
-      "python3", RUNNER, "wait", "--max-secs", "30", jobId,
+      "python3", RUNNER, "wait", "--skill", "ce-work", "--max-secs", "30", jobId,
     ], { ...process.env, CE_PEER_JOBS_ROOT: peerRoot })).toBe("done")
     expect(control(runs, "sync-job", "--run-id", "scope-run", "--unit-id", "U-scope").body.process_state).toBe("done")
     expect(control(runs, "terminalize", "--run-id", "scope-run", "--unit-id", "U-scope").word).toBe("INTEGRATION_PENDING")
@@ -767,7 +767,7 @@ printf '%s\n' '{"terminal_status":"completed","summary":"done","changed_files":[
     ).word).toBe("AUTHORING")
 
     const terminalState = run(repo, [
-      "python3", RUNNER, "wait", "--max-secs", "30", jobId,
+      "python3", RUNNER, "wait", "--skill", "ce-work", "--max-secs", "30", jobId,
     ], { ...process.env, CE_PEER_JOBS_ROOT: peerRoot })
     expect(terminalState).toBe("done")
     expect(control(runs, "sync-job", "--run-id", "serial-run", "--unit-id", "U4a").body.process_state).toBe("done")

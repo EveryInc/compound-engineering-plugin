@@ -314,7 +314,7 @@ def claim_job_dir(jobs_root: str):
     raise RunnerError(f"could not claim a unique job dir after {CLAIM_ATTEMPTS} attempts")
 
 
-def resolve_job_dir(ref: str) -> str:
+def resolve_job_dir(ref: str, skill=None) -> str:
     if os.sep in ref:
         p = os.path.abspath(ref)
         if os.path.isdir(p):
@@ -322,12 +322,17 @@ def resolve_job_dir(ref: str) -> str:
         raise RunnerError(f"no such job dir: {ref}")
     if not _is_safe_token(ref):
         raise RunnerError(f"invalid job ref: {ref!r}")
-    patterns = [os.path.join(jobs_root_base(), "*", "*", "jobs", ref)]
-    if os.environ.get("CE_WORK_RUNS_ROOT"):
-        patterns.append(os.path.join(skill_runs_root("ce-work"), "*", "jobs", ref))
+    if skill is not None:
+        if not _is_safe_token(skill):
+            raise RunnerError(f"invalid skill: {skill!r}")
+        search_root = skill_runs_root(skill)
+        patterns = [os.path.join(search_root, "*", "jobs", ref)]
+    else:
+        search_root = jobs_root_base()
+        patterns = [os.path.join(search_root, "*", "*", "jobs", ref)]
     matches = sorted({match for pattern in patterns for match in glob.glob(pattern)})
     if not matches:
-        raise RunnerError(f"job not found under {jobs_root_base()}: {ref}")
+        raise RunnerError(f"job not found under {search_root}: {ref}")
     if len(matches) > 1:
         raise RunnerError(f"ambiguous job id {ref}: {len(matches)} matches; pass the job dir path")
     return matches[0]
@@ -790,14 +795,14 @@ def _emit_states(rows, as_json: bool) -> None:
 def cmd_status(args) -> int:
     rows = []
     for ref in args.jobs:
-        job_dir = resolve_job_dir(ref)
+        job_dir = resolve_job_dir(ref, args.skill)
         rows.append((ref, job_dir, job_state(job_dir)))
     _emit_states(rows, args.json)
     return 0
 
 
 def cmd_wait(args) -> int:
-    dirs = [(ref, resolve_job_dir(ref)) for ref in args.jobs]
+    dirs = [(ref, resolve_job_dir(ref, args.skill)) for ref in args.jobs]
     deadline = time.monotonic() + max(0.0, args.max_secs)
     rows = [(ref, d, "running") for ref, d in dirs]
     while True:
@@ -844,7 +849,7 @@ def cmd_result(args) -> int:
             return 3
         _emit_bytes(data)
         return 0
-    job_dir = resolve_job_dir(args.job)
+    job_dir = resolve_job_dir(args.job, args.skill)
     state = job_state(job_dir)
     if state == "unreadable":
         sys.stderr.write(
@@ -883,7 +888,7 @@ def cmd_result(args) -> int:
 
 
 def cmd_reap(args) -> int:
-    job_dir = resolve_job_dir(args.job)
+    job_dir = resolve_job_dir(args.job, args.skill)
     state = job_state(job_dir)
     if state in TERMINAL_STATES or state == "never-started":
         return 0
@@ -994,12 +999,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
 
     p_status = sub.add_parser("status", help="print each job's state word")
+    p_status.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_status.add_argument("--json", action="store_true")
     p_status.add_argument("jobs", nargs="+", help="job ids or job dir paths")
 
     p_wait = sub.add_parser(
         "wait", help="bounded poll until all watched jobs settle (or the cap)"
     )
+    p_wait.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_wait.add_argument("--max-secs", type=float, default=30.0, dest="max_secs")
     p_wait.add_argument("--json", action="store_true")
     p_wait.add_argument("jobs", nargs="+", help="job ids or job dir paths")
@@ -1008,6 +1015,7 @@ def build_parser() -> argparse.ArgumentParser:
         "result",
         help="emit a done job's artifact (exit: 0 done, 2 running, 3 other, 4 unreadable)",
     )
+    p_result.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_result.add_argument("job", nargs="?", default=None)
     p_result.add_argument(
         "--path",
@@ -1018,6 +1026,7 @@ def build_parser() -> argparse.ArgumentParser:
     p_reap = sub.add_parser(
         "reap", help="terminate a running job now; no-op if already terminal"
     )
+    p_reap.add_argument("--skill", default=None, help="limit job-id lookup to this skill")
     p_reap.add_argument("job")
     return parser
 

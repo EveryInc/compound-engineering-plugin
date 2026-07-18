@@ -154,7 +154,40 @@ describe("peer-job-runner lifecycle", () => {
     const dir = path.join(ceWorkRunsRoot, "run1", "jobs", id)
     expect(existsSync(dir)).toBe(true)
     trackJob(dir)
-    expect(waitState(genericRoot, env, id, 10).stdout.trim()).toBe("done")
+    const unscoped = runner(genericRoot, env, ["status", id])
+    expect(unscoped.code).toBe(1)
+    expect(unscoped.stderr).toContain(`job not found under ${genericRoot}`)
+    const waited = runner(genericRoot, env, [
+      "wait", "--skill", "ce-work", "--max-secs", "10", id,
+    ])
+    expect(waited.stdout.trim()).toBe("done")
+  }, 20000)
+
+  test("explicit non-ce-work lookup ignores a stale ce-work root", () => {
+    const genericRoot = makeRoot()
+    const ceWorkRunsRoot = mkTempRoot("stale-ce-work-runs-root-")
+    const stub = writeStub("exit 0\n")
+    const env = {
+      ...FAST,
+      CE_WORK_RUNS_ROOT: ceWorkRunsRoot,
+      CE_PEER_JOBS_ROOT: genericRoot,
+    }
+    const started = startJob(genericRoot, env, [stub])
+    expect(started.res.code).toBe(0)
+    trackJob(started.dir)
+    const waited = runner(genericRoot, env, [
+      "wait", "--skill", "ce-doc-review", "--max-secs", "10", started.id,
+    ])
+    expect(waited.stdout.trim()).toBe("done")
+
+    const duplicate = path.join(ceWorkRunsRoot, "other-run", "jobs", started.id)
+    mkdirSync(duplicate, { recursive: true })
+    writeFileSync(path.join(duplicate, "status"), "failed\n")
+    const status = runner(genericRoot, env, [
+      "status", "--skill", "ce-doc-review", started.id,
+    ])
+    expect(status.code).toBe(0)
+    expect(status.stdout.trim()).toBe("done")
   }, 20000)
 
   test("happy path: start -> done; result emits artifact; every call sub-2s", () => {
@@ -176,7 +209,7 @@ describe("peer-job-runner lifecycle", () => {
     expect(w.code).toBe(0)
     expect(w.stdout.trim()).toBe("done")
 
-    const st = runner(root, FAST, ["status", id])
+    const st = runner(root, FAST, ["status", "--skill", "ce-doc-review", id])
     expect(st.code).toBe(0)
     expect(st.ms).toBeLessThan(2000) // R1
     expect(st.stdout.trim()).toBe("done")
@@ -185,7 +218,7 @@ describe("peer-job-runner lifecycle", () => {
     const rows = JSON.parse(stJson.stdout)
     expect(rows).toEqual([{ ref: id, job_dir: dir, state: "done" }])
 
-    const rr = runner(root, FAST, ["result", id])
+    const rr = runner(root, FAST, ["result", "--skill", "ce-doc-review", id])
     expect(rr.code).toBe(0)
     expect(rr.ms).toBeLessThan(2000) // R1
     expect(rr.stdout).toBe(`{"job_id":"${id}"}`)
@@ -466,7 +499,7 @@ describe("peer-job-runner lifecycle", () => {
     const pids = trackJob(dir)
     expect(pids).not.toBeNull()
 
-    const r1 = runner(root, FAST, ["reap", id])
+    const r1 = runner(root, FAST, ["reap", "--skill", "ce-doc-review", id])
     expect(r1.code).toBe(0)
     expect(r1.ms).toBeLessThan(2000) // fast return; supervisor owns the kill
 
